@@ -19,6 +19,7 @@ import {
 } from "../../../catalog/domain/entities/product-content-block.entity.js";
 import { loadProductNoticeRules, productRuleNotices } from "../../infrastructure/product-rule-notices.js";
 import { extractOptionGroups, toBlockOptionGroups } from "../../domain/food-options.js";
+import { buildPreCartCrossSellPreview, type PublicCrossSellPreview } from "../../application/services/pre-cart-cross-sell-preview.js";
 
 export const SUPPORTED_PRODUCT_CONTENT_LOCALES = ["pt-BR", "en", "es"] as const;
 
@@ -120,7 +121,7 @@ export class StorefrontProductContentController {
   private async getRepresentation(slug: string, productId: string, acceptLanguage: string | undefined, allowBasic: boolean) {
     const merchant = await this.prisma.merchant.findFirst({
       where: { storeSlug: slug },
-      select: { id: true, storeSlug: true },
+      select: { id: true, storeSlug: true, storeSettings: true },
     });
     if (!merchant || !merchant.storeSlug) {
       throw new NotFoundException({ code: "store_not_found" });
@@ -147,6 +148,8 @@ export class StorefrontProductContentController {
         ogDescription: true,
         twitterCard: true,
         keywords: true,
+        categoryId: true,
+        category: { select: { name: true } },
         variants: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
@@ -216,6 +219,12 @@ export class StorefrontProductContentController {
       product.twitterCard ||
       keywords.length,
     );
+    const crossSell = await this.getPreCartCrossSell(
+      merchant.id,
+      merchant.storeSettings,
+      product.variants.map((variant) => variant.sku),
+      product.category?.name ?? product.categoryId,
+    );
 
     return {
       merchantId: merchant.id,
@@ -247,8 +256,78 @@ export class StorefrontProductContentController {
             // The cart validates every selected id again and recomputes its
             // amount from the catalog before the order can proceed.
             optionGroups: toBlockOptionGroups(extractOptionGroups(product.metadata)),
-          },
+      },
+      ...(crossSell ? { crossSell } : {}),
       ...content,
     };
+  }
+
+  private async getPreCartCrossSell(
+    merchantId: string,
+    storeSettings: unknown,
+    viewedSkus: string[],
+    viewedCategory?: string | null,
+  ): Promise<PublicCrossSellPreview | undefined> {
+    const settings = storeSettings && typeof storeSettings === "object" && !Array.isArray(storeSettings)
+      ? storeSettings as Record<string, unknown>
+      : {};
+    const config = settings.crossSell;
+    const configRecord = config && typeof config === "object" && !Array.isArray(config)
+      ? config as Record<string, unknown>
+      : {};
+    const touchpoints = configRecord.touchpoints && typeof configRecord.touchpoints === "object" && !Array.isArray(configRecord.touchpoints)
+      ? configRecord.touchpoints as Record<string, unknown>
+      : {};
+    if (configRecord.enabled !== true || touchpoints.pre_cart !== true) return undefined;
+
+    try {
+      const now = new Date();
+      const promotions = await this.prisma.crossSellPromotion.findMany({
+        where: {
+          merchantId,
+          status: "active",
+          startsAt: { lte: now },
+          OR: [{ endsAt: null }, { endsAt: { gte: now } }],
+        },
+        select: { id: true, trigger: true, recommendedSkus: true, discountPercent: true },
+      });
+      const recommendedSkus = [...new Set(promotions.flatMap((promotion) => promotion.recommendedSkus))];
+      if (recommendedSkus.length === 0) return undefined;
+
+      const variants = await this.prisma.productVariant.findMany({
+        where: {
+          sku: { in: recommendedSkus },
+          isActive: true,
+          product: { merchantId, isActive: true, deletedAt: null },
+        },
+        select: {
+          id: true,
+          sku: true,
+          price: { select: { basePriceInCents: true } },
+          media: { where: { type: "IMAGE" }, orderBy: { order: "asc" }, take: 1, select: { url: true } },
+          stock: { select: { quantity: true, reserved: true } },
+          product: { select: { name: true, type: true } },
+        },
+      });
+
+      return buildPreCartCrossSellPreview({
+        config,
+        viewedSkus,
+        viewedCategory,
+        promotions,
+        products: variants.map((variant) => ({
+          id: variant.id,
+          sku: variant.sku,
+          name: variant.product.name,
+          price: (variant.price?.basePriceInCents ?? 0) / 100,
+          image: variant.media[0]?.url,
+          inStock: variant.product.type === "digital" || variant.product.type === "service" || variant.stock.some((stock) => stock.quantity > stock.reserved),
+        })),
+      });
+    } catch {
+      // Product details remain available if a non-critical recommendation read
+      // is temporarily unavailable.
+      return undefined;
+    }
   }
 }

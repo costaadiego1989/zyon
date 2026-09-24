@@ -98,6 +98,21 @@ export interface ProductContentPurchaseResponse {
   }>;
 }
 
+export interface ProductContentCrossSell {
+  trigger: string;
+  displayMode?: string;
+  products: Array<{
+    id: string;
+    name: string;
+    price: number;
+    priceFormatted: string;
+    image?: string;
+    inStock: boolean;
+    discountPercent?: number;
+    promoId?: string;
+  }>;
+}
+
 export interface PublicProductContent {
   merchantId?: string;
   productId: string;
@@ -106,6 +121,7 @@ export interface PublicProductContent {
   testimonials: ProductTestimonialResponse[];
   videos: ProductVideoResponse[];
   purchase?: ProductContentPurchaseResponse;
+  crossSell?: ProductContentCrossSell;
 }
 
 /**
@@ -149,6 +165,7 @@ export async function fetchProductContent(
       faqs: Array.isArray(body.faqs) ? body.faqs : [],
       testimonials: Array.isArray(body.testimonials) ? body.testimonials : [],
       videos: Array.isArray(body.videos) ? body.videos : [],
+      crossSell: readCrossSell(body.crossSell),
       purchase:
         body.purchase &&
         typeof body.purchase === "object" &&
@@ -171,4 +188,34 @@ export async function fetchProductContent(
     // Network error, DNS failure, etc. Caller falls back to ProductCardBlock.
     return null;
   }
+}
+
+function readCrossSell(value: unknown): ProductContentCrossSell | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const data = value as Record<string, unknown>;
+  if (typeof data.trigger !== "string" || !Array.isArray(data.products)) return undefined;
+  const products = data.products.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const product = item as Record<string, unknown>;
+    if (
+      typeof product.id !== "string" ||
+      typeof product.name !== "string" ||
+      typeof product.price !== "number" ||
+      typeof product.priceFormatted !== "string" ||
+      typeof product.inStock !== "boolean"
+    ) return [];
+    return [{
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      priceFormatted: product.priceFormatted,
+      ...(typeof product.image === "string" ? { image: product.image } : {}),
+      inStock: product.inStock,
+      ...(typeof product.discountPercent === "number" ? { discountPercent: product.discountPercent } : {}),
+      ...(typeof product.promoId === "string" ? { promoId: product.promoId } : {}),
+    }];
+  });
+  return products.length > 0
+    ? { trigger: data.trigger, ...(typeof data.displayMode === "string" ? { displayMode: data.displayMode } : {}), products }
+    : undefined;
 }

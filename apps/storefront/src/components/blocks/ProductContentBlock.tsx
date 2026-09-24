@@ -49,8 +49,31 @@ function readPublicContent(body: unknown, fallbackProductId: string): PublicProd
     faqs: Array.isArray(value.faqs) ? value.faqs as PublicProductContent["faqs"] : [],
     testimonials: Array.isArray(value.testimonials) ? value.testimonials as PublicProductContent["testimonials"] : [],
     videos: Array.isArray(value.videos) ? value.videos as PublicProductContent["videos"] : [],
+    crossSell: readCrossSell(value.crossSell),
     purchase: usablePurchase,
   };
+}
+
+function readCrossSell(value: unknown): PublicProductContent["crossSell"] {
+  if (!value || typeof value !== "object") return undefined;
+  const data = value as Record<string, unknown>;
+  if (typeof data.trigger !== "string" || !Array.isArray(data.products)) return undefined;
+  const products = data.products.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const product = item as Record<string, unknown>;
+    if (typeof product.id !== "string" || typeof product.name !== "string" || typeof product.price !== "number" || typeof product.priceFormatted !== "string" || typeof product.inStock !== "boolean") return [];
+    return [{
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      priceFormatted: product.priceFormatted,
+      ...(typeof product.image === "string" ? { image: product.image } : {}),
+      inStock: product.inStock,
+      ...(typeof product.discountPercent === "number" ? { discountPercent: product.discountPercent } : {}),
+      ...(typeof product.promoId === "string" ? { promoId: product.promoId } : {}),
+    }];
+  });
+  return products.length > 0 ? { trigger: data.trigger, products } : undefined;
 }
 
 /**
@@ -165,7 +188,7 @@ export default function ProductContentBlock({
           shareUrl={shareUrl}
           showNarration={!onNarrationChange}
           onCartAdded={onCartAdded}
-          crossSell={crossSell}
+          crossSell={crossSell ?? content.crossSell ?? null}
           onAddCrossSell={onAddCrossSell}
         />
       </article>

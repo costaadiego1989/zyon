@@ -3,13 +3,30 @@ import assert from "node:assert/strict";
 import type { PrismaClient } from "@prisma/client";
 import { StorefrontProductContentController } from "./storefront-product-content.controller.js";
 
-function makeController(product: unknown, onProductQuery?: (query: unknown) => void) {
+function makeController(product: unknown, onProductQuery?: (query: unknown) => void, preCart?: {
+  promotions: unknown[];
+  variants: unknown[];
+}) {
   const prisma = {
-    merchant: { findFirst: async () => ({ id: "merchant-1", storeSlug: "demo" }) },
+    merchant: { findFirst: async () => ({
+      id: "merchant-1",
+      storeSlug: "demo",
+      storeSettings: preCart ? {
+        crossSell: {
+          enabled: true,
+          touchpoints: { pre_cart: true },
+          strategies: ["complementary"],
+          limits: { maxSuggestionsPerSession: 2 },
+          display: { mode: "modal" },
+        },
+      } : undefined,
+    }) },
     product: { findFirst: async (query: unknown) => {
       onProductQuery?.(query);
       return product;
     } },
+    crossSellPromotion: { findMany: async () => preCart?.promotions ?? [] },
+    productVariant: { findMany: async () => preCart?.variants ?? [] },
     checkoutSetting: { findUnique: async () => ({ advancedRules: [] }) },
   } as unknown as PrismaClient;
   const content = { execute: async () => ({ locale: "pt-BR", blocks: [], faqs: [], testimonials: [], videos: [] }) };
@@ -98,6 +115,24 @@ test("a variant without a catalog price cannot be selected for purchase", async 
   assert.equal(result.purchase.defaultVariantId, null);
   assert.equal(result.purchase.variants[0].available, false);
   assert.equal(result.purchase.priceReais, null);
+});
+
+test("public rich content exposes the configured pre-cart offer without creating a cart", async () => {
+  const result = await makeController({
+    id: "product-1", merchantId: "merchant-1", name: "Produto", type: "digital",
+    variants: [{ id: "primary-variant", sku: "PRIMARY", attributes: {}, price: { basePriceInCents: 12990, currency: "BRL" }, stock: [] }],
+  }, undefined, {
+    promotions: [{ id: "promo-1", trigger: { sku_in_cart: ["PRIMARY"] }, recommendedSkus: ["COMPANION"], discountPercent: 10 }],
+    variants: [{
+      id: "companion-variant", sku: "COMPANION", price: { basePriceInCents: 8990 }, media: [{ url: "https://example.com/companion.jpg" }], stock: [],
+      product: { name: "Complemento", type: "digital" },
+    }],
+  }).getSharedProduct("demo", "product-1", "pt-BR");
+
+  assert.equal(result.crossSell?.trigger, "Complementos para este produto");
+  assert.equal(result.crossSell?.products[0]?.id, "companion-variant");
+  assert.equal(result.crossSell?.products[0]?.discountPercent, 10);
+  assert.equal(result.crossSell?.products[0]?.promoId, "promo-1");
 });
 
 test("share links expose only the public purchase when editorial content is unavailable in the plan", async () => {
