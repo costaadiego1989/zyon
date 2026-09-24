@@ -38,6 +38,7 @@ export interface ConversationViewModelState {
   checkoutIntent: string | null;
   policyModal: { title: string; content: string } | null;
   crossSellPending: CrossSellInterstitialData | null;
+  productCrossSell: ProductCrossSellPlacement | null;
   preparedCheckout: {
     actionId: string;
     cartId: string;
@@ -61,6 +62,12 @@ export interface CrossSellInterstitialData {
   }>;
 }
 
+/** A pre-cart offer belongs to the product the buyer is currently viewing. */
+export interface ProductCrossSellPlacement {
+  productId: string;
+  data: CrossSellInterstitialData;
+}
+
 export interface ConversationViewModelActions {
   selectChannel: (ch: Channel) => void;
   toggleChannel: () => void;
@@ -79,6 +86,7 @@ export interface ConversationViewModelActions {
   setPolicyModal: (value: { title: string; content: string } | null) => void;
   setCartDrawerForceOpen: (value: boolean) => void;
   dismissCrossSell: () => void;
+  dismissProductCrossSell: () => void;
   clearPreparedCheckout: () => void;
 }
 

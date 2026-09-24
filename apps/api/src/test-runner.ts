@@ -203,6 +203,7 @@ import "./shared/config/security-headers-config.spec.js";
 import "./shared/crypto/pii-cipher.service.spec.js";
 import "./shared/messaging/outbox-dispatcher.service.spec.js";
 import "./modules/cross-sell/domain/policies/cross-sell-policies.spec.js";
+import "./modules/cross-sell/application/use-cases/cross-sell.use-cases.spec.js";
 import "./modules/coupons/domain/policies/coupon-policies.spec.js";
 import "./modules/self-checkout/domain/policies/self-checkout-policies.spec.js";
 import "./modules/fulfillment/domain/entities/shipment.entity.spec.js";

@@ -81,7 +81,7 @@ export class AcceptCrossSellSuggestionUseCase {
         negotiationDiscountPercent: input.currentNegotiationDiscountPercent ?? 0,
         maxDiscountPercent: input.merchantRules.maxDiscountPercent
       });
-      if (!stackResult.allowed) {
+      if (stackResult.allowed === false) {
         throw new UnprocessableEntityException(
           `DISCOUNT_CAP_EXCEEDED:total=${stackResult.totalDiscountPercent}>cap=${stackResult.capPercent}`
         );

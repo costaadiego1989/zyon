@@ -8,17 +8,22 @@ import ProductContentBlock, { type ProductNarrationDetails } from "./ProductCont
 import ProductNarration from "./ProductNarration";
 import { ProductCopyLink } from "./ProductCopyLink";
 import styles from "./RichProductDetailsPanel.module.css";
+import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
 
 /** The official rich product surface: narration, reviews and editorial details. */
 export default function RichProductDetailsPanel({
   productId,
   merchantSlug,
+  crossSell = null,
+  onAddCrossSell,
   suspended = false,
   onClose,
   onProductResolved,
 }: {
   productId: string;
   merchantSlug?: string;
+  crossSell?: CrossSellInterstitialData | null;
+  onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
   suspended?: boolean;
   onClose: (result: { productId: string; productName?: string; defaultVariantId?: string | null; cartAdded: boolean }) => void;
   onProductResolved?: (product: { productId: string; name: string; defaultVariantId: string | null }) => void;
@@ -119,6 +124,8 @@ export default function RichProductDetailsPanel({
         onNarrationChange={setNarration}
         onProductResolved={handleProductResolved}
         onCartAdded={() => setCartAdded(true)}
+        crossSell={crossSell}
+        onAddCrossSell={onAddCrossSell}
       />
     </div>
   );

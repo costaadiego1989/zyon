@@ -217,3 +217,91 @@ describe("ListEligibleCrossSellsUseCase", () => {
     assert.equal(stored.filter((s) => s.snapshot().status === "pending").length, 1);
   });
 });
+
+describe("enabled cross-sell strategies", () => {
+  const STRATEGY_CART: Cart = {
+    ...BASE_CART,
+    items: [{ sku: "SKU-X", price: 100, quantity: 1, name: "X", category: "skincare" }],
+  };
+
+  const cases = [
+    { strategy: "same_category" as const, trigger: { category_in_cart: ["skincare"] }, expectedSku: "CAT-ADDON" },
+    { strategy: "bought_together" as const, trigger: { sku_in_cart: ["SKU-X"] }, expectedSku: "TOGETHER-ADDON" },
+    { strategy: "complementary" as const, trigger: { sku_in_cart: ["SKU-X"] }, expectedSku: "COMPLEMENT-ADDON" },
+    { strategy: "cart_value_upgrade" as const, trigger: { cart_total_above: 90 }, expectedSku: "UPGRADE-ADDON" },
+    { strategy: "ai_personalized" as const, trigger: { sku_in_cart: ["SKU-X"] }, expectedSku: "PERSONAL-ADDON" },
+  ];
+
+  for (const scenario of cases) {
+    it(`selects a matching promotion for ${scenario.strategy}`, async () => {
+      const { promoRepo, suggestionRepo, outbox } = makeSuggestionSetup();
+      const listUseCase = new ListEligibleCrossSellsUseCase(promoRepo, suggestionRepo, outbox);
+      await promoRepo.save(CrossSellPromotionEntity.create({
+        merchant_id: "mrc_1",
+        name: scenario.strategy,
+        trigger: scenario.trigger,
+        recommended_skus: [scenario.expectedSku],
+        discount_percent: 10,
+        max_discount_percent: 10,
+        starts_at: new Date(Date.now() - 1_000),
+      }));
+
+      const suggestions = await listUseCase.execute({
+        session_id: `sess_${scenario.strategy}`,
+        merchant_id: "mrc_1",
+        cart: STRATEGY_CART,
+        enabled_strategies: [scenario.strategy],
+      });
+
+      assert.equal(suggestions.length, 1);
+      assert.deepEqual(suggestions[0]?.ranked_items, [scenario.expectedSku]);
+    });
+  }
+
+  it("uses the correct catalog or co-occurrence fallback for every strategy", async () => {
+    const catalogCalls: string[] = [];
+    const catalog = {
+      sameCategory: async () => { catalogCalls.push("same_category"); return ["CAT-FALLBACK"]; },
+      cartValueUpgrade: async () => { catalogCalls.push("cart_value_upgrade"); return ["UPGRADE-FALLBACK"]; },
+    };
+    const coOccurrence = {
+      recommend: async () => { catalogCalls.push("co_occurrence"); return ["COOCCURRENCE-FALLBACK"]; },
+    };
+    const expected = new Map([
+      ["same_category", "CAT-FALLBACK"],
+      ["bought_together", "COOCCURRENCE-FALLBACK"],
+      ["complementary", "COOCCURRENCE-FALLBACK"],
+      ["cart_value_upgrade", "UPGRADE-FALLBACK"],
+      ["ai_personalized", "COOCCURRENCE-FALLBACK"],
+    ] as const);
+
+    for (const [strategy, expectedSku] of expected) {
+      const { promoRepo, suggestionRepo, outbox } = makeSuggestionSetup();
+      const listUseCase = new ListEligibleCrossSellsUseCase(
+        promoRepo,
+        suggestionRepo,
+        outbox,
+        undefined,
+        coOccurrence,
+        catalog,
+      );
+      const suggestions = await listUseCase.execute({
+        session_id: `fallback_${strategy}`,
+        merchant_id: "mrc_1",
+        cart: STRATEGY_CART,
+        enabled_strategies: [strategy],
+      });
+
+      assert.equal(suggestions.length, 1, strategy);
+      assert.deepEqual(suggestions[0]?.ranked_items, [expectedSku], strategy);
+    }
+
+    assert.deepEqual(catalogCalls, [
+      "same_category",
+      "co_occurrence",
+      "co_occurrence",
+      "cart_value_upgrade",
+      "co_occurrence",
+    ]);
+  });
+});

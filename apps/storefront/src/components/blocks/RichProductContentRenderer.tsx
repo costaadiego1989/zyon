@@ -16,6 +16,7 @@ import styles from "./RichProductContent.module.css";
 import ProductNarration from "./ProductNarration";
 import { buildProductNarration } from "@/lib/services/product-narration";
 import { useGallerySwipe } from "../useGallerySwipe";
+import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
 
 type PurchaseTarget = ProductContentPurchaseResponse;
 type GalleryImage = { src: string; alt: string };
@@ -36,7 +37,7 @@ function getImages(purchase: PurchaseTarget | undefined, blocks: ProductContentB
   return candidates.filter((image, index) => safeImage(image.src) && candidates.findIndex((other) => other.src === image.src) === index).slice(0, 8);
 }
 
-export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, merchantSlug, productId, embedded = false, immersive = false, narrationEnabled = true, shareUrl, showNarration = true, onCartAdded }: {
+export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, merchantSlug, productId, embedded = false, immersive = false, narrationEnabled = true, shareUrl, showNarration = true, onCartAdded, crossSell, onAddCrossSell }: {
   blocks: ProductContentBlock[];
   faqs: ProductContentSupplementalFaq[];
   testimonials: ProductContentSupplementalTestimonial[];
@@ -51,6 +52,8 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   shareUrl?: string;
   showNarration?: boolean;
   onCartAdded?: () => void;
+  crossSell?: CrossSellInterstitialData | null;
+  onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
 }) {
   const { cart } = useCart();
   const [selectedVariantId, setSelectedVariantId] = useState(purchase?.defaultVariantId ?? purchase?.variants[0]?.id ?? "");
@@ -187,6 +190,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
             {selectedVariant?.available && selectedVariant.lowStock ? <p data-aacp-rich-product-nudge className={styles.nudge}><FiPackage aria-hidden="true" /><span>Últimas unidades desta versão disponíveis.</span></p> : null}
             <RuleNotices notices={purchase.ruleNotices} />
             {!immersive ? purchaseActions : null}
+            {crossSell?.products.length ? <ProductCrossSell data={crossSell} onAdd={onAddCrossSell} /> : null}
             <div className={styles.delivery}><FiTruck aria-hidden="true" /><div><strong>Entrega calculada para você</strong><p>Consulte o frete e o prazo com seu CEP no checkout.</p></div></div>
           </div>
         </section>
@@ -202,6 +206,38 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
       </footer> : null}
     </div>
   );
+}
+
+function ProductCrossSell({ data, onAdd }: {
+  data: CrossSellInterstitialData;
+  onAdd?: (product: CrossSellInterstitialData["products"][number]) => void;
+}) {
+  return <section className={styles.crossSell} data-aacp-product-cross-sell aria-labelledby="aacp-product-cross-sell-heading">
+    <div className={styles.crossSellHeading}>
+      <div>
+        <p>Complete sua rotina</p>
+        <h2 id="aacp-product-cross-sell-heading">Você também pode gostar</h2>
+      </div>
+      <span>{data.trigger}</span>
+    </div>
+    <div className={styles.crossSellList}>
+      {data.products.map((product) => <article key={product.id} className={styles.crossSellCard}>
+        <div className={styles.crossSellImage}>
+          {product.image && safeImage(product.image)
+            ? <img src={product.image} alt={product.name} loading="lazy" />
+            : <FiPackage aria-hidden="true" />}
+        </div>
+        <div className={styles.crossSellInfo}>
+          <strong>{product.name}</strong>
+          <span>{product.priceFormatted}</span>
+          {product.discountPercent && product.discountPercent > 0 ? <small>Oferta de {Math.round(product.discountPercent)}%</small> : null}
+        </div>
+        <button data-neu="control" type="button" onClick={() => onAdd?.(product)} disabled={!product.inStock}>
+          {product.inStock ? "Adicionar" : "Indisponível"}
+        </button>
+      </article>)}
+    </div>
+  </section>;
 }
 
 function ProductGallery({ images, productName }: { images: GalleryImage[]; productName: string }) {

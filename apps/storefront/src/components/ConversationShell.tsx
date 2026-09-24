@@ -268,11 +268,11 @@ export default function ConversationShell({
   const {
     mode, channel, theme, messages, input, isLoading,
     conversationId, supportOpen, buyerHubOpen, cartDrawerForceOpen,
-    showBuyerAuth, checkoutIntent, policyModal, crossSellPending, preparedCheckout,
+    showBuyerAuth, checkoutIntent, policyModal, crossSellPending, productCrossSell, preparedCheckout,
     selectChannel, toggleChannel, toggleTheme, ensureConversation, sendMessage,
     handleQuickReply, appendAgentMessage, handleUpdateQuantity, setInput,
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
-    setCartDrawerForceOpen, dismissCrossSell, clearPreparedCheckout,
+    setCartDrawerForceOpen, dismissCrossSell, dismissProductCrossSell, clearPreparedCheckout,
   } = vm;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
@@ -1102,12 +1102,18 @@ export default function ConversationShell({
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || Boolean(crossSellPending)} onProductResolved={({ productId, defaultVariantId }) => {
+      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} crossSell={productCrossSell?.productId === richProduct.productId ? productCrossSell.data : null} onAddCrossSell={(product) => {
+        dismissProductCrossSell();
+        const tags = `[variantId:${product.id}]${product.promoId ? `[crossSellPromoId:${product.promoId}]` : ""}`;
+        handleQuickReply(`Adicionar ${product.name} ao carrinho ${tags}`);
+        if (product.couponCode) setTimeout(() => handleQuickReply(`Aplicar cupom ${product.couponCode}`), 400);
+      }} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || Boolean(crossSellPending)} onProductResolved={({ productId, defaultVariantId }) => {
         if (richProduct.productId === productId && typeof defaultVariantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(defaultVariantId)) {
           presentedProductVariantRef.current = defaultVariantId;
         }
       }} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
         setRichProduct(null);
+        if (productCrossSell?.productId === productId) dismissProductCrossSell();
         if (cartAdded || !productName || !defaultVariantId || promptedProductClose.current.has(productId)) return;
         promptedProductClose.current.add(productId);
         pendingProductCart.current = { variantId: defaultVariantId };

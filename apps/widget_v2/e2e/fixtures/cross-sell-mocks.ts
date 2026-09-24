@@ -162,8 +162,8 @@ export async function waitForChannelGate(page: Page) {
  */
 export async function selectChatChannel(page: Page) {
   const chatBtn = page.locator("button", { hasText: "Por chat" });
-  await chatBtn.waitFor({ state: "visible", timeout: 15_000 });
-  await chatBtn.click();
+  if (await chatBtn.first().isVisible().catch(() => false)) await chatBtn.first().click();
+  await page.getByRole("log", { name: "Mensagens do chat" }).waitFor({ state: "visible", timeout: 10_000 });
   // Wait for the chat thread to become active (welcome message rendered)
   await page.locator("text=/carrinho|Olá|produto ideal/i").first().waitFor({ state: "visible", timeout: 10_000 });
 }

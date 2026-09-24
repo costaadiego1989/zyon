@@ -1,4 +1,4 @@
-import type { CommerceTurnResult, Message, CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel/types";
+import type { CommerceTurnResult, Message, CrossSellInterstitialData, ProductCrossSellPlacement } from "@/lib/viewmodels/useConversationViewModel/types";
 import { narrateStorefrontBlock, trackFunnelEvent } from "@/lib/services/conversation.service";
 import { checkoutApi } from "@/lib/api/api-client";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -18,6 +18,7 @@ export interface SendMessageParams {
   setIsLoading: (value: boolean) => void;
   setInput: (value: string) => void;
   setCrossSellPending: (data: CrossSellInterstitialData | null) => void;
+  setProductCrossSell: (data: ProductCrossSellPlacement | null) => void;
   updateFromBlocks: (blocks: any[]) => void;
   noteActivity: (merchantId: string) => void;
   onCheckoutPrepared: (action: {
@@ -41,6 +42,7 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
     setIsLoading,
     setInput,
     setCrossSellPending,
+    setProductCrossSell,
     updateFromBlocks,
     noteActivity,
   } = params;
@@ -108,9 +110,19 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
         const crossSellBlock = blocks.find((b: any) => b.type === "cross_sell" && b.data?.products?.length);
         const cartGrew = blocks.some((b: any) => b.type === "cart_summary");
         const crossSellMode = (crossSellBlock?.data as any)?.displayMode ?? "interstitial";
-        if (crossSellBlock && (cartGrew || crossSellMode === "modal")) {
+        const productBlock = blocks.find((b: any) => b.type === "product_content" || b.type === "product_card");
+        const productId = productBlock?.type === "product_content" ? productBlock.data?.productId : productBlock?.data?.id;
+        const isProductDetailOffer = typeof productId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(productId);
+        if (crossSellBlock && isProductDetailOffer) {
+          // `pre_cart` is the product-detail touchpoint. Keep its offer with
+          // the product instead of covering the details with a global sheet.
+          setProductCrossSell({ productId, data: crossSellBlock.data as CrossSellInterstitialData });
+          const idx = blocks.indexOf(crossSellBlock);
+          if (idx !== -1) blocks.splice(idx, 1);
+        } else if (crossSellBlock && (cartGrew || crossSellMode === "modal")) {
           // Gap B fix: honor the merchant's configured display mode.
-          // A modal can also be configured for the pre-cart product detail flow.
+          // Cart and checkout offers use the configured overlay when appropriate.
+          // Product-detail offers are rendered in the product panel above.
           // interstitial/modal -> overlay sheet (setCrossSellPending, remove inline block).
           // inline/banner -> keep the block in the thread so BlockRenderer renders
           // it inline (the CrossSellBlock reads displayMode to style banner vs inline).

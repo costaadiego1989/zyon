@@ -624,11 +624,14 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
       }}
     >
       <span>{p.name}</span>
-      {p.price != null && (
-        <span style={{ color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", fontWeight: 600 }}>
-          {formatCrossSellPrice(p.price)}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+        {p.price != null && (
+          <span style={{ color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", fontWeight: 600 }}>
+            {formatCrossSellPrice(p.price)}
+          </span>
+        )}
+        {!compact && <span style={{ color: "var(--mut)", fontSize: "11px", fontWeight: 600 }}>Adicionar</span>}
         </span>
-      )}
     </button>
   );
 
@@ -657,8 +660,11 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
             border: "1px solid var(--bd)",
             borderRadius: "14px",
             padding: "18px",
-            maxWidth: "420px",
-            width: "100%",
+            width: "min(420px, calc(100vw - 40px))",
+            maxWidth: "calc(100vw - 40px)",
+            boxSizing: "border-box",
+            maxHeight: "calc(100dvh - 40px)",
+            overflowY: "auto",
             boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
           }}
         >

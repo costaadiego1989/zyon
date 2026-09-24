@@ -7,7 +7,7 @@ import type { CrossSellTouchpoint, CrossSellStrategy, CrossSellDisplayMode } fro
 
 const TOUCHPOINT_LABELS: Record<CrossSellTouchpoint, { title: string; desc: string }> = {
   browsing: { title: "Durante navegação", desc: "IA sugere complementos enquanto buyer navega a loja" },
-  pre_cart: { title: "Antes de adicionar ao carrinho", desc: "Sugere complementos ao abrir os detalhes do produto no chat" },
+  pre_cart: { title: "Nos detalhes do produto", desc: "Mostra complementos na visualização do produto, antes de adicioná-lo ao carrinho" },
   post_cart: { title: "Após adicionar ao carrinho", desc: "Sugere complementos depois que a adição do produto for confirmada" },
   pre_payment: { title: "Antes do pagamento", desc: "Mostra sugestões no checkout, antes de pagar" },
   post_purchase: { title: "Pós-compra", desc: "Sugere na tela de confirmação do pedido" },
@@ -30,7 +30,7 @@ const DISPLAY_OPTIONS: Array<{ value: CrossSellDisplayMode; label: string }> = [
 
 export function CrossSellPage({ context }: { context: CrossSellContext }) {
   const vm = useCrossSellPage(context);
-  const { state, visibleTouchpoints, toggleTouchpoint, selectTouchpoint, toggleStrategy, patchConfig, save } = vm;
+  const { state, visibleTouchpoints, toggleTouchpoint, toggleStrategy, patchConfig, save } = vm;
   const { config } = state;
 
   if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)" }}>Carregando...</div>;
@@ -91,12 +91,12 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
               <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Estratégia de recomendação</h3>
               <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
                 {(Object.keys(STRATEGY_LABELS) as CrossSellStrategy[]).map((s) => (
-                  <label key={s} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: config.strategies[0] === s ? "1.5px solid var(--color-brand)" : "1px solid var(--color-border)", cursor: "pointer", background: config.strategies[0] === s ? "rgba(15,118,110,0.06)" : "transparent", transition: "all 0.15s ease" }}>
+                  <label key={s} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: config.strategies.includes(s) ? "1.5px solid var(--color-brand)" : "1px solid var(--color-border)", cursor: "pointer", background: config.strategies.includes(s) ? "rgba(15,118,110,0.06)" : "transparent", transition: "all 0.15s ease" }}>
                     <input
                       type="checkbox"
                       name="cross-sell-strategy"
-                      checked={config.strategies[0] === s}
-                      onChange={() => patchConfig({ strategies: [s] })}
+                      checked={config.strategies.includes(s)}
+                      onChange={() => toggleStrategy(s)}
                       style={{ width: 16, height: 16, accentColor: "var(--color-brand)", cursor: "pointer" }}
                     />
                     <div style={{ flex: 1 }}>

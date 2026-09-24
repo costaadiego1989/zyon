@@ -8,6 +8,7 @@ import RichProductContentRenderer from "./RichProductContentRenderer";
 import { flattenProductContentBlocks } from "./product-content-normalizer";
 import type { ProductContentBlock as ProductContentBlockType } from "./ContentBlocks";
 import { buildProductNarration } from "@/lib/services/product-narration";
+import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 const CATALOG_ID = /^[A-Za-z0-9_-]{1,191}$/;
@@ -68,6 +69,8 @@ export default function ProductContentBlock({
   onNarrationChange,
   onProductResolved,
   onCartAdded,
+  crossSell,
+  onAddCrossSell,
 }: {
   block: ConversationBlock & { type: "product_content" };
   merchantSlug?: string;
@@ -78,6 +81,8 @@ export default function ProductContentBlock({
   onNarrationChange?: (details: ProductNarrationDetails | null) => void;
   onProductResolved?: (product: { name: string; defaultVariantId: string | null }) => void;
   onCartAdded?: () => void;
+  crossSell?: CrossSellInterstitialData | null;
+  onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
 }) {
   const data = block.data as unknown as ProductContentData;
   const productId = typeof data?.productId === "string" && CATALOG_ID.test(data.productId) ? data.productId : null;
@@ -160,6 +165,8 @@ export default function ProductContentBlock({
           shareUrl={shareUrl}
           showNarration={!onNarrationChange}
           onCartAdded={onCartAdded}
+          crossSell={crossSell}
+          onAddCrossSell={onAddCrossSell}
         />
       </article>
     );

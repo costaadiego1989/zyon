@@ -38,6 +38,7 @@ import type {
   Theme,
   Mode,
   CrossSellInterstitialData,
+  ProductCrossSellPlacement,
   CommerceTurnResult,
 } from "./types";
 
@@ -78,8 +79,10 @@ export function useConversationViewModel(
   const [checkoutIntent, setCheckoutIntent] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [crossSellPending, setCrossSellPending] = useState<CrossSellInterstitialData | null>(null);
+  const [productCrossSell, setProductCrossSell] = useState<ProductCrossSellPlacement | null>(null);
   const [preparedCheckout, setPreparedCheckout] = useState<ConversationViewModelState["preparedCheckout"]>(null);
   const dismissCrossSell = useCallback(() => setCrossSellPending(null), []);
+  const dismissProductCrossSell = useCallback(() => setProductCrossSell(null), []);
   const clearPreparedCheckout = useCallback(() => setPreparedCheckout(null), []);
   const { config: widgetConfig } = useWidgetConfig();
   const { cart, updateFromBlocks, updateItemQuantity, clearCart } = useCart();
@@ -168,6 +171,7 @@ export function useConversationViewModel(
           setIsLoading,
           setInput,
           setCrossSellPending,
+          setProductCrossSell,
           updateFromBlocks,
           noteActivity,
           onCheckoutPrepared: setPreparedCheckout,
@@ -324,8 +328,10 @@ export function useConversationViewModel(
     setCheckoutIntent,
     policyModal,
     crossSellPending,
+    productCrossSell,
     preparedCheckout,
     dismissCrossSell,
+    dismissProductCrossSell,
     clearPreparedCheckout,
     selectChannel,
     toggleChannel,
