@@ -53,6 +53,7 @@
 }
 
 .authority-brand img { width: 28px; height: 28px; object-fit: contain; }
+.authority-brand .brand-logo-mark { width: 40px; height: auto; aspect-ratio: 521 / 385; filter: brightness(0) invert(1); }
 
 .authority-nav {
   display: flex;

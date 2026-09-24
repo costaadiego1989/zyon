@@ -1,7 +1,7 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "buildCommand": "",
+  "buildCommand": "node scripts/build-locales.mjs",
   "installCommand": "",
   "outputDirectory": "."
 }

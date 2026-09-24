@@ -196,6 +196,7 @@ section[id] { scroll-margin-top: 24px; }
 .voice-core { position: absolute; top: 61px; left: calc(50% - 95px); display: grid; width: 190px; height: 190px; place-items: center; border: 1px solid #9fedb5a6; border-radius: 50%; background: radial-gradient(circle at 28% 23%,#b1e7c0 0%,#5e9e78 21%,#23613f 47%,#102b1d 78%); box-shadow: inset -14px -14px 27px #0008,inset 7px 7px 22px #d9ffe541,0 25px 42px #0003; }
 .voice-core::after { position: absolute; content: ""; inset: 13px; border-top: 1px solid #e1ffec6b; border-radius: 50%; transform: rotate(-35deg); }
 .voice-core img { width: 68px; height: 68px; object-fit: contain; filter: grayscale(1) brightness(3); opacity: .86; }
+.voice-core .voice-brand-mark { width: 82px; height: auto; aspect-ratio: 521 / 385; filter: none; opacity: 1; }
 .orbit-label { position: absolute; z-index: 1; padding: 7px 12px; border: 1px solid #91d7ae33; border-radius: 5px; color: #c1ddcb; background: #133323; font-size: 10px; }
 .orbit-label--one { top: 68px; right: 5%; }
 .orbit-label--two { bottom: 65px; left: 1%; }
@@ -360,6 +361,7 @@ section[id] { scroll-margin-top: 24px; }
   .voice-orbit { height: 275px; }
   .voice-core { top: 52px; left: calc(50% - 82px); width: 164px; height: 164px; }
   .voice-core img { width: 60px; height: 60px; }
+  .voice-core .voice-brand-mark { width: 72px; height: auto; }
   .voice-orbit::after { inset: 13px 49px; }
   .orbit-label--one { right: 0; top: 55px; }
   .orbit-label--two { left: 0; bottom: 54px; }
@@ -420,9 +422,18 @@ section[id] { scroll-margin-top: 24px; }
 .header-inner { gap: 28px; }
 .brand { min-height: 44px; font-size: 22px; }
 .brand img { width: 34px; height: 34px; }
+.brand .brand-logo-mark { width: 46px; height: auto; aspect-ratio: 521 / 385; filter: brightness(0) invert(1); }
 .main-nav { gap: clamp(16px, 2vw, 28px); }
-.main-nav a,.header-actions > a:first-child { display: inline-flex; align-items: center; min-height: 44px; }
+.main-nav a,.header-actions > a:not(.button) { display: inline-flex; align-items: center; min-height: 44px; }
 .header-actions .button { min-height: 44px; }
+.language-picker { position: relative; }
+.language-picker__trigger { display: inline-flex; align-items: center; justify-content: center; gap: 5px; min-height: 38px; min-width: 48px; padding: 0 8px; border: 1px solid #c0dcc536; border-radius: 7px; color: #e8eee9; background: transparent; font: 800 12px var(--body); letter-spacing: .06em; cursor: pointer; }
+.language-picker__trigger:hover,.language-picker__trigger[aria-expanded="true"] { border-color: #94c4a6; background: #c0dcc516; }
+.language-picker__trigger svg { transition: transform 180ms ease; }
+.language-picker__trigger[aria-expanded="true"] svg { transform: rotate(180deg); }
+.language-picker__menu { position: absolute; z-index: 20; top: calc(100% + 8px); right: 0; display: grid; min-width: 142px; padding: 6px; border: 1px solid #c0dcc536; border-radius: 8px; background: #10231b; box-shadow: 0 16px 32px #06110d80; }
+.language-picker__menu a { min-height: 38px; padding: 0 10px; display: flex; align-items: center; border-radius: 5px; color: #d5e3d9; font-size: 13px; font-weight: 700; text-decoration: none; }
+.language-picker__menu a:hover,.language-picker__menu a:focus-visible,.language-picker__menu a[aria-current="page"] { color: #f2f8f3; background: #c0dcc51c; }
 .menu-toggle { display: none; align-items: center; justify-content: center; gap: 8px; min-height: 44px; padding: 0 10px; border: 1px solid #c0dcc536; border-radius: 7px; color: #e8eee9; background: transparent; font: 700 13px var(--body); cursor: pointer; }
 .menu-toggle:hover,.menu-toggle[aria-expanded="true"] { background: #c0dcc516; border-color: #94c4a6; }
 .button { cursor: pointer; }
@@ -470,10 +481,12 @@ section[id],.demo-column { scroll-margin-top: 96px; }
 }
 @media (max-width: 720px) {
   .shell { width: calc(100% - 32px); }
-  .header-actions > a:first-child { display: none; }
+  .header-actions > a:not(.button) { display: none; }
+  .language-picker__trigger { min-height: 44px; }
   .header-actions .button { min-height: 44px; font-size: 12px; padding: 0 12px; }
   .brand { font-size: 19px; gap: 7px; }
   .brand img { width: 28px; height: 28px; }
+  .brand .brand-logo-mark { width: 42px; height: auto; }
   .hero-cta { display: grid; grid-template-columns: 1fr; }
   .hero-cta .button { justify-content: space-between; padding: 0 18px; }
   .hero-cred { grid-template-columns: 1fr 1fr; }
