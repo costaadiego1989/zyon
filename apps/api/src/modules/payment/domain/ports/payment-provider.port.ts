@@ -23,6 +23,9 @@ export type CreateProviderPaymentInput = {
   description?: string;
   /** Provider-validated contact for PIX or boleto notifications. */
   payerEmail?: string;
+  /** Buyer details already collected and validated by the checkout. */
+  payerName?: string;
+  payerIdentification?: { type: "CPF" | "CNPJ"; number: string };
   // Asaas-only (pix / boleto / card via Asaas)
   asaasCustomerId?: string;
   creditCard?: {

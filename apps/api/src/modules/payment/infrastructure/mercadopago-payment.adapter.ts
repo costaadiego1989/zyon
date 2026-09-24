@@ -76,6 +76,16 @@ function notificationUrlFor(input: CreateProviderPaymentInput): string | undefin
   return `${base}/webhooks/mercadopago?intent_ref=${encodeURIComponent(input.intentId)}`;
 }
 
+function payerFor(input: CreateProviderPaymentInput): Record<string, unknown> {
+  const [firstName, ...lastNames] = (input.payerName?.trim() ?? "").split(/\s+/);
+  return {
+    email: input.payerEmail,
+    ...(firstName ? { first_name: firstName } : {}),
+    ...(lastNames.length ? { last_name: lastNames.join(" ") } : {}),
+    ...(input.payerIdentification ? { identification: input.payerIdentification } : {}),
+  };
+}
+
 @Injectable()
 export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
   constructor(
@@ -203,9 +213,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       transaction_amount: majorUnitsFromCents(input.amountCents),
       description: input.description ?? `Checkout ${input.sessionId}`,
       payment_method_id: paymentMethod,
-      payer: {
-        email: input.payerEmail
-      },
+      payer: payerFor(input),
       ...(notificationUrlFor(input) ? { notification_url: notificationUrlFor(input) } : {}),
       ...(this.marketplaceSeller && (input.platformFeeCents ?? 0) > 0 ? { application_fee: majorUnitsFromCents(input.platformFeeCents!) } : {}),
       metadata: {
@@ -268,7 +276,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
         currency_id: input.currency,
         unit_price: majorUnitsFromCents(input.amountCents),
       }],
-      payer: input.payerEmail ? { email: input.payerEmail } : undefined,
+      payer: input.payerEmail ? payerFor(input) : undefined,
       payment_methods: {
         // Keep the hosted experience on the card rail chosen in Zyon. Mercado
         // Pago account balance cannot be excluded by their platform, but Pix

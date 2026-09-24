@@ -7,6 +7,7 @@ const input: CreateProviderPaymentInput = {
   merchantId: "merchant", sessionId: "session", intentId: "intent",
   providerIdempotencyKey: "stable-key", method: "pix", amountCents: 9804,
   currency: "BRL", payerEmail: "buyer@example.test",
+  payerName: "Cliente de Teste", payerIdentification: { type: "CPF", number: "52998224725" },
   description: "Athom Technologies — 1x Sérum, 2x Bruma",
 };
 const payment = {
@@ -25,6 +26,10 @@ test("Mercado Pago partial creation hydrates Pix by ID and preserves description
     requests.push({ url: String(url), method: init?.method ?? "GET" });
     if (init?.method === "POST") {
       assert.equal(JSON.parse(String(init.body)).description, input.description);
+      assert.deepEqual(JSON.parse(String(init.body)).payer, {
+        email: "buyer@example.test", first_name: "Cliente", last_name: "de Teste",
+        identification: { type: "CPF", number: "52998224725" },
+      });
       assert.equal(new Headers(init.headers).get("X-Idempotency-Key"), "stable-key");
       return Response.json({ id: 123 });
     }

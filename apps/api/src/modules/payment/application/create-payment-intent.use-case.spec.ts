@@ -20,7 +20,7 @@ test("Mercado Pago receives the Free fee after expiry without adding it to the b
   try {
     for (const expired of [false, true]) {
       const checkout = new InMemoryCheckoutRepository();
-      await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com" } }));
+      await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com", fullName: "Cliente Teste", cpf: "529.982.247-25" } }));
       const connections = new InMemoryPaymentPlatformRepository();
       await connections.saveConnection({ merchantId: "mrc_1", provider: "mercadopago", environment: "live", status: "active" });
       const provider = new CapturingPaymentProvider();
@@ -31,6 +31,8 @@ test("Mercado Pago receives the Free fee after expiry without adding it to the b
       assert.equal(provider.inputs[0]?.platformFeeCents, expired ? 298 : 99);
       assert.equal(provider.inputs[0]?.asaasCustomerId, undefined);
       assert.equal(provider.inputs[0]?.payerEmail, "buyer@example.com");
+      assert.equal(provider.inputs[0]?.payerName, "Cliente Teste");
+      assert.deepEqual(provider.inputs[0]?.payerIdentification, { type: "CPF", number: "52998224725" });
       assert.equal(intent.amountCents, 33599); // R$300 cart + R$35 shipping + R$0.99 buyer fee.
       await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
       assert.equal(provider.inputs.length, 1);

@@ -347,6 +347,7 @@ export class CreatePaymentIntentUseCase {
       throw new BadRequestException("delayed_merchant_payout_provider_not_supported");
     }
     const mercadoPagoPayerEmail = session.customer?.email?.trim();
+    const mercadoPagoPayerCpf = session.customer?.cpf?.replace(/\D/g, "");
     if (usesMercadoPago && !mercadoPagoPayerEmail) {
       throw new BadRequestException("mercadopago_payer_email_required");
     }
@@ -514,6 +515,10 @@ export class CreatePaymentIntentUseCase {
             provider: "mercadopago" as const,
             platformFeeCents: mercadoPagoPlatformFeeCents,
             payerEmail: mercadoPagoPayerEmail,
+            payerName: session.customer?.fullName?.trim(),
+            ...(mercadoPagoPayerCpf?.length === 11
+              ? { payerIdentification: { type: "CPF" as const, number: mercadoPagoPayerCpf } }
+              : {}),
           }
           : usesAsaas ? {
               provider: "asaas" as const,
