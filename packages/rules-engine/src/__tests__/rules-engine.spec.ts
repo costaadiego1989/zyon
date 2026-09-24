@@ -110,7 +110,7 @@ test("Scenario 1.4: margin with subsidy (discount) applied", () => {
 
   assert.equal(margin.grossRevenue, 90);
   assert.equal(margin.paymentFees, 3.6);
-  assert.ok(Math.abs(margin.marginPercent - 0.4044) < 0.001);
+  assert.ok(Math.abs(margin.marginPercent! - 0.4044) < 0.001);
 });
 
 // ============================================================================
@@ -151,7 +151,7 @@ test("Scenario 2.2: max discount percent is hard ceiling, no exceptions", () => 
 });
 
 // ============================================================================
-// Scenario 3: Cost Fallback (50% if Missing)
+// Scenario 3: Missing costs cannot authorize incentives
 // ============================================================================
 
 test("Scenario 3.1: uses explicit cost when provided (no defaulting)", () => {
@@ -163,8 +163,8 @@ test("Scenario 3.1: uses explicit cost when provided (no defaulting)", () => {
   assert.equal(margin.grossRevenue, 200);
 });
 
-test("Scenario 3.2: defaults to 50% of price when cost is undefined", () => {
-  // Item: price 100, NO cost field → defaults to 50
+test("Scenario 3.2: missing cost makes the margin unavailable", () => {
+  // A price does not imply a product cost.
   const cart: Cart = makeCart({
     total: 100,
     items: [{ sku: "A", name: "A", price: 100, quantity: 1 }] // No cost
@@ -172,14 +172,12 @@ test("Scenario 3.2: defaults to 50% of price when cost is undefined", () => {
 
   const margin = estimateMargin(cart);
 
-  assert.equal(margin.productCost, 50, "Cost should default to 50% of price");
-  assert.equal(margin.marginValue, 100 - 50 - 4, "Margin = 100 - 50 - 4");
+  assert.equal(margin.productCost, null);
+  assert.equal(margin.marginValue, null);
 });
 
-test("Scenario 3.3: approval with defaulted cost", () => {
-  // Cart: 100 total, cost defaults to 50
-  // minimum margin 30% → (100 - subsidy - 50 - 4) / (100 - subsidy) ≥ 30%
-  // Discount 20% (subsidy 20) → (80 - 50 - 3.2) / 80 = 40.6% ✓
+test("Scenario 3.3: reject incentive with unknown cost", () => {
+  // Even a permissive margin floor cannot authorize an unknown product cost.
   const cart: Cart = makeCart({
     total: 100,
     items: [{ sku: "A", name: "A", price: 100, quantity: 1 }]
@@ -191,8 +189,8 @@ test("Scenario 3.3: approval with defaulted cost", () => {
     20
   );
 
-  assert.equal(result.approved, true);
-  assert(result.marginAfterOffer > 0.30);
+  assert.equal(result.approved, false);
+  assert.equal(result.reason, "product_cost_missing");
 });
 
 // ============================================================================
@@ -225,7 +223,7 @@ test("Scenario 4.3: 100% discount reduces margin to 0", () => {
   const margin = estimateMargin(cart, 100, 0.04);
 
   assert.equal(margin.grossRevenue, 0, "100% subsidy → no revenue");
-  assert.equal(margin.marginPercent, 0);
+  assert.equal(margin.marginPercent, null);
 });
 
 test("Scenario 4.4: multi-item cart margin aggregates all costs", () => {
@@ -345,7 +343,7 @@ test("Scenario 8.1: subsidy cannot reduce grossRevenue below 0", () => {
   // Subsidy of 150 would make grossRevenue -50
   const result = estimateMargin(cart, 150, 0.04);
 
-  assert.equal(result.grossRevenue, 0, "Subsidy capped at cart total");
+  assert.equal(result.grossRevenue, null, "Invalid subsidy is unavailable");
 });
 
 test("Scenario 8.2: marginValue is negative when cost > grossRevenue", () => {
@@ -353,5 +351,5 @@ test("Scenario 8.2: marginValue is negative when cost > grossRevenue", () => {
 
   const result = estimateMargin(cart, 0, 0.04);
 
-  assert(result.marginValue < 0, "Margin should be negative when cost exceeds revenue");
+  assert(result.marginValue! < 0, "Margin should be negative when cost exceeds revenue");
 });

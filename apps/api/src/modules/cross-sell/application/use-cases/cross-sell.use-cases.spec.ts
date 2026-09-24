@@ -18,7 +18,7 @@ const PERMISSIVE_RULES: MerchantRules = {
 };
 
 const BASE_CART: Cart = {
-  items: [{ sku: "SKU-X", price: 100, quantity: 1, name: "X" }],
+  items: [{ sku: "SKU-X", price: 100, cost: 50, quantity: 1, name: "X" }],
   total: 100,
   currency: "BRL",
 };

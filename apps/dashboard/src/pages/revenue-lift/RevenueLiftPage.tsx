@@ -60,7 +60,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
           <span className="eyebrow">Inteligência IA</span>
           <h1>Ganho de Receita</h1>
           <p className="page-lead">
-            Quanto a mais você está vendendo com a IA ativa em comparação com vendas sem IA
+            Compare a receita por sessão dos grupos com e sem assistente IA
           </p>
         </div>
         <div style={{ display: "flex", gap: 8 }}>
@@ -90,7 +90,8 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
         <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
         5% das sessões passam pelo checkout sem o assistente IA (grupo de controle).
         As demais usam o fluxo com IA. Comparamos a receita aprovada por sessão entre os dois grupos para calcular
-        quanto a mais a IA está gerando. O ganho só é exibido após haver amostra suficiente nos dois grupos.
+        uma diferença estimada. O mínimo de sessões permite exibir a comparação; a confirmação de uma estratégia
+        exige avaliar o prazo do teste, a incerteza e os custos.
       </div>
 
       {vm.loading ? (
@@ -99,7 +100,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
         <EmptyState
           icon={BarChart3}
           title="Sem dados ainda"
-          description="O ganho de receita é calculado automaticamente quando houver pedidos suficientes. Continue vendendo e os dados aparecerão aqui."
+          description="A comparação de receita aparecerá quando houver sessões e pedidos suficientes nos dois grupos."
         />
       ) : (
         <>
@@ -119,31 +120,35 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
           {/* KPIs */}
           <div className="grid-4" style={{ gap: 14 }}>
             <StatCard
-              label="Ganho"
+              label="Variação estimada de receita"
               value={vm.summary.lift.grossLiftPercent != null ? `${vm.summary.lift.grossLiftPercent > 0 ? "+" : ""}${vm.summary.lift.grossLiftPercent.toFixed(1)}%` : "—"}
               icon={<TrendingUp size={16} />}
-              accent={vm.summary.lift.grossLiftPercent != null && vm.summary.lift.grossLiftPercent > 0 ? "var(--color-success)" : "var(--color-error)"}
+              accent={vm.summary.lift.grossLiftPercent == null ? "var(--color-text-muted)" : vm.summary.lift.grossLiftPercent >= 0 ? "var(--color-success)" : "var(--color-error)"}
             />
             <StatCard
-              label="Receita Extra"
-              value={vm.summary.lift.netLiftCents != null ? formatBRL(vm.summary.lift.netLiftCents) : "—"}
+              label="Diferença estimada de receita"
+              value={vm.summary.estimatedRevenueDifferenceCents != null ? formatBRL(vm.summary.estimatedRevenueDifferenceCents) : "—"}
               icon={<DollarSign size={16} />}
               accent="var(--color-brand)"
             />
             <StatCard
-              label="Retorno"
-              value={vm.summary.lift.roiPercent != null ? `${vm.summary.lift.roiPercent.toFixed(0)}×` : "—"}
+              label="Contribuição"
+              value={vm.summary.contribution?.contributionCents != null ? formatBRL(vm.summary.contribution.contributionCents) : "—"}
               icon={<Zap size={16} />}
               accent="var(--color-brand)"
             />
             <StatCard
               label="Custo IA"
-              value={formatBRL(vm.summary.aiCostCents)}
+              value={vm.summary.aiCostCents != null ? formatBRL(vm.summary.aiCostCents) : "—"}
               icon={<DollarSign size={16} />}
             />
           </div>
 
           {/* Comparação */}
+          <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", maxWidth: "72ch" }}>
+            A comparação de receita é uma estimativa. A contribuição e o custo total de IA
+            ficam indisponíveis até a conciliação de estornos, mercadorias, frete, taxas e consumo.
+          </p>
           <div className="grid-2" style={{ gap: 14 }}>
             <div className="panel" style={{ padding: "20px 24px" }}>
               <SectionHeader variant="secondary" title="Com IA (95% dos compradores)" />

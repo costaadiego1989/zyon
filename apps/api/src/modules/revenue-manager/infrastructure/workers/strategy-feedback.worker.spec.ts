@@ -8,7 +8,7 @@ test("experiment completion uses the shared bus, scopes hypothesis ownership and
   const queries: unknown[] = [];
   const effects: unknown[] = [];
   let fail = true;
-  const prisma = { revenueManagerHypothesis: { async findFirst(query: { where: { merchantId: string } }) {
+  const prisma = { revenueAnalysisSchedule: { findUnique: async () => null }, revenueManagerHypothesis: { async findFirst(query: { where: { merchantId: string } }) {
     queries.push(query);
     return query.where.merchantId === "merchant-a" ? { id: "hypothesis-a" } : null;
   } } };

@@ -11,6 +11,7 @@ const MERCHANT_RULES: MerchantRules = {
   minimumMarginPercent: 10,
   allowFreeShipping: true,
 } as MerchantRules;
+const COSTS = new Map([["v0", 10], ["v1", 10]]);
 
 function cart(totalCents: number, itemCount = 2): StorefrontCart {
   const unit = itemCount > 0 ? Math.round(totalCents / itemCount) : totalCents;
@@ -56,7 +57,7 @@ test("cart rules: UI-authored '>' rule applies discount when cart_total exceeds 
   const engine = new CartRulesEngine();
   const c = cart(19980); // R$199.80 > R$100
   const ctx = buildCartRuleContext(c);
-  const out = engine.evaluate(c, [DISCOUNT_RULE], MERCHANT_RULES, ctx);
+  const out = engine.evaluate(c, [DISCOUNT_RULE], MERCHANT_RULES, ctx, COSTS);
   // 15% of R$199.80 = R$29.97 = 2997 cents
   assert.equal(out.discountCents, 2997);
   assert.equal(out.appliedRuleId, "r-disc");
@@ -73,16 +74,17 @@ test("cart rules: discount hard-capped by merchant maxDiscountPercent", () => {
   const engine = new CartRulesEngine();
   const c = cart(20000);
   const greedy: AdvancedRule = { ...DISCOUNT_RULE, action: { type: "offer_discount", params: { percent: 90 } } };
-  const out = engine.evaluate(c, [greedy], MERCHANT_RULES, buildCartRuleContext(c));
+  const out = engine.evaluate(c, [greedy], MERCHANT_RULES, buildCartRuleContext(c), COSTS);
   // capped at 20% → R$40 = 4000 cents, never 90%
   assert.equal(out.discountCents, 4000);
 });
 
-test("cart rules: free shipping flag set when rule matches and merchant allows", () => {
+test("cart rules: free shipping awaits a carrier quote even when merchant allows", () => {
   const engine = new CartRulesEngine();
   const c = cart(25000); // R$250 >= R$200
   const out = engine.evaluate(c, [FREE_SHIPPING_RULE], MERCHANT_RULES, buildCartRuleContext(c));
-  assert.equal(out.freeShipping, true);
+  assert.equal(out.freeShipping, false);
+  assert.equal(out.reason, "shipping_quote_required");
 });
 
 test("cart rules: free shipping NOT granted when merchant disallows", () => {
@@ -105,7 +107,7 @@ test("cart rules: percent discount capped by maxDiscountReais (e.g. 39% max R$10
     action: { type: "offer_discount", params: { percent: 39, maxDiscountReais: 10 } },
   };
   const c = cart(10000); // R$100. 39% = R$39, but reais cap = R$10.
-  const out = engine.evaluate(c, [capRule], rules, buildCartRuleContext(c));
+  const out = engine.evaluate(c, [capRule], rules, buildCartRuleContext(c), COSTS);
   // discount clamped to R$10 = 1000 cents, not R$39.
   assert.equal(out.discountCents, 1000);
   assert.equal(out.reason, "capped_by_reais_limit");
@@ -115,8 +117,8 @@ test("cart rules: idempotent — same cart yields same discount twice", () => {
   const engine = new CartRulesEngine();
   const c = cart(19980);
   const ctx = buildCartRuleContext(c);
-  const a = engine.evaluate(c, [DISCOUNT_RULE], MERCHANT_RULES, ctx);
-  const b = engine.evaluate(c, [DISCOUNT_RULE], MERCHANT_RULES, ctx);
+  const a = engine.evaluate(c, [DISCOUNT_RULE], MERCHANT_RULES, ctx, COSTS);
+  const b = engine.evaluate(c, [DISCOUNT_RULE], MERCHANT_RULES, ctx, COSTS);
   assert.equal(a.discountCents, b.discountCents);
 });
 

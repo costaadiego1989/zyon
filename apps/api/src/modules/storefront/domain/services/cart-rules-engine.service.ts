@@ -72,6 +72,7 @@ export class CartRulesEngine {
     advancedRules: AdvancedRule[],
     merchantRules: MerchantRules,
     ctx: RuleMatchContext,
+    costsByVariant: ReadonlyMap<string, number> = new Map(),
   ): CartRulesResult {
     if (!advancedRules || advancedRules.length === 0) return NO_RESULT;
     if ((cart.total ?? 0) <= 0) return NO_RESULT;
@@ -90,7 +91,7 @@ export class CartRulesEngine {
         if (requestedPercent <= 0) return { ...NO_RESULT, appliedRuleId: ruleId };
 
         // Route through the rules-engine — hard cap + margin floor authority.
-        const engineCart = toEngineCart(cart);
+        const engineCart = toEngineCart(cart, costsByVariant);
         const evaluation = evaluateDiscountOffer(engineCart, merchantRules, requestedPercent, maxReaisCap);
         if (!evaluation.approved || evaluation.value <= 0) {
           return { discountCents: 0, freeShipping: false, appliedRuleId: ruleId, reason: evaluation.reason };
@@ -101,13 +102,13 @@ export class CartRulesEngine {
       }
 
       case "offer_free_shipping": {
-        // Free shipping only when the merchant allows it. Flag, not a hand-zeroed price.
-        const freeShipping = merchantRules.allowFreeShipping !== false;
+        // Before checkout there is no authoritative carrier quote to protect the margin.
+        const freeShipping = false;
         return {
           discountCents: 0,
           freeShipping,
           appliedRuleId: ruleId,
-          reason: freeShipping ? "free_shipping_allowed" : "free_shipping_disabled_by_merchant",
+          reason: merchantRules.allowFreeShipping ? "shipping_quote_required" : "free_shipping_disabled_by_merchant",
         };
       }
 
@@ -120,14 +121,17 @@ export class CartRulesEngine {
 }
 
 /** Convert a storefront cart (cents) into the rules-engine Cart shape (reais). */
-function toEngineCart(cart: StorefrontCart): Cart {
+export function toEngineCart(cart: StorefrontCart, costsByVariant: ReadonlyMap<string, number>): Cart {
   return {
     currency: "BRL",
     items: cart.items.map((i) => ({
       sku: i.sku ?? i.variantId,
       name: i.name,
+      category: i.categoryId,
       price: i.unitPriceCents / 100,
       quantity: i.quantity,
+      // Option costs are not modeled yet; a base variant's cost cannot cover add-ons.
+      cost: i.selectedOptions?.length ? undefined : costsByVariant.get(i.variantId),
     })),
     total: (cart.total ?? 0) / 100,
     currentDiscount: 0,

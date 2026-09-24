@@ -7,7 +7,7 @@ import type { Cart, MerchantRules } from "@zyon/shared-types";
 const adapter = new RulesEngineDiscountAdapter();
 
 const BASE_CART: Cart = {
-  items: [{ sku: "SKU-A", price: 200, quantity: 1, name: "Item A" }],
+  items: [{ sku: "SKU-A", price: 200, cost: 100, quantity: 1, name: "Item A" }],
   total: 200,
   currency: "BRL"
 };
@@ -29,7 +29,7 @@ describe("RulesEngineDiscountAdapter", () => {
   });
 
   it("rejects when minimum margin is violated", () => {
-    // Cart = 200, no cost info so default cost = 50% = 100.
+    // Cart = 200, explicit product cost = 100.
     // margin before discount = 200 - 100 - (200*0.04 fees) = 92 / 200 = 46%
     // requesting 90% discount → subsidy = 180, margin = (200-100-8-180)/200 = negative
     const rules: MerchantRules = { ...DEFAULT_MERCHANT_RULES, maxDiscountPercent: 90, minimumMarginPercent: 38 };

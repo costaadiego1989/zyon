@@ -20,7 +20,10 @@ export interface RevenueLiftSummary {
     sources: Record<"checkoutSessions" | "completedOrders" | "attributionTags", "measured" | "partial">;
     missingMetrics: string[];
   };
-  aiCostCents: number;
+  aiCostCents: number | null;
+  recordedAiCostCents?: number;
+  estimatedRevenueDifferenceCents?: number | null;
+  contribution?: { status: "complete" | "unavailable"; contributionCents: number | null; missingComponents: string[] };
   featureBreakout: Array<{ feature: string; orders: number; revenueCents: number }>;
 }
 

@@ -66,7 +66,9 @@ export class GenerateHypothesisUseCase {
     const currentPrompt = await this.merchantContext.getCurrentPrompt(input.merchant_id);
     if (typeof currentPrompt !== "string" || !currentPrompt.trim()) throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
 
-    const pastLessons = await this.lessonRepo.findByMerchant(input.merchant_id, 20);
+    // Legacy lessons do not carry a preregistered plan or complete assignment
+    // population. Keep them out of weekly planning until evidence is versioned.
+    const pastLessons = input.analysis_context ? [] : await this.lessonRepo.findByMerchant(input.merchant_id, 20);
 
     const constraints = {
       max_discount_percent: rules.maxDiscountPercent,

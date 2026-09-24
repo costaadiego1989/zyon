@@ -1,5 +1,6 @@
 import { Injectable, Inject, NotFoundException, BadRequestException, ConflictException, UnprocessableEntityException } from "@nestjs/common";
 import type { Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
+import { authorizeShippingDiscount } from "@zyon/shipping-engine";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 import { COUPON_TRANSACTION_REPOSITORY, type CouponTransactionRepository } from "../../domain/ports/coupon-transaction-repository.port.js";
 import { CouponRedemptionEntity, type RedemptionSource } from "../../domain/entities/coupon-redemption.entity.js";
@@ -64,6 +65,15 @@ export class ApplyCouponUseCase {
       }
       discountApplied = 0;
       shippingDiscountApplied = calculateShippingDiscount(snap, shippingPrice);
+      const shippingAuthorization = authorizeShippingDiscount({
+        cart: input.cart, rules: input.merchantRules, shipping: input.shipping,
+        requestedDiscount: shippingDiscountApplied,
+        type: snap.discount_type === "shipping_free" ? "shipping_free" : "shipping_discount_fixed",
+      });
+      if (!shippingAuthorization.approved) {
+        throw new UnprocessableEntityException(`COUPON_DISCOUNT_REJECTED:${shippingAuthorization.reason}`);
+      }
+      shippingDiscountApplied = shippingAuthorization.value;
     } else {
       const authorization = this.discountEngine.authorizeDiscount(
         input.cart,

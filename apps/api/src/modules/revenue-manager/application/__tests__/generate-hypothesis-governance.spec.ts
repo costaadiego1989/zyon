@@ -94,6 +94,7 @@ function setup(options: {
   const saved: HypothesisEntity[] = [];
   const requests: HypothesisGenerationRequest[] = [];
   const reads: string[] = [];
+  const lessonReads: string[] = [];
   const rules = options.rules === null ? undefined : options.rules ?? merchantRules();
   const context = options.context ?? {
     async getRules(id: string) { reads.push(id); return rules; },
@@ -104,12 +105,23 @@ function setup(options: {
       findByFingerprint: async () => null, findLatestByMerchant: async () => obs, findByMerchant: async () => [obs] },
     { save: async (value) => { saved.push(value); }, findById: async () => null,
       findByMerchant: async () => [], findPendingByMerchant: async () => [], findByObservation: async () => [] },
-    { save: async () => {}, findByMerchant: async () => [], findByExperiment: async () => [], findByHypothesis: async () => null },
+    { save: async () => {}, findByMerchant: async (id) => { lessonReads.push(id); return []; }, findByExperiment: async () => [], findByHypothesis: async () => null },
     { generate: async (request) => { requests.push(request); return options.generate ? options.generate(request) : options.response === undefined ? proposal() : options.response as HypothesisGenerationResponse; } },
     context,
   );
-  return { execute: () => useCase.execute({ merchant_id: merchantId, observation_id: obs.id }), useCase, obs, saved, requests, reads };
+  return { execute: () => useCase.execute({ merchant_id: merchantId, observation_id: obs.id }), useCase, obs, saved, requests, reads, lessonReads };
 }
+
+test("weekly planning excludes unvalidated legacy lessons while preserving the current control", async () => {
+  const fixture = setup();
+  await fixture.useCase.execute({ merchant_id: "merchant-a", observation_id: fixture.obs.id,
+    analysis_context: { runId: "weekly-run", leaseToken: 1 } });
+  assert.deepEqual(fixture.lessonReads, []);
+  assert.deepEqual(fixture.requests[0].past_lessons, []);
+  assert.equal(fixture.saved[0].template.variant_a.system_prompt, baseline);
+  await fixture.execute();
+  assert.deepEqual(fixture.lessonReads, ["merchant-a"]);
+});
 
 test("MI-V15: tenant policies govern discount caps and shipping, with no fixed limits", async () => {
   const a = setup({ response: proposal("Offer 12% discount") });
