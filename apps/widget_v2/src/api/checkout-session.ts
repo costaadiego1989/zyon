@@ -500,6 +500,9 @@ export class CheckoutSession {
         nativeCurrency?: { name: string; symbol: string; decimals: number };
       };
     };
+    if (method === "pix" && !raw.buyerFacing?.qrCodeCopyPaste?.trim()) {
+      throw new Error("pix_payload_unavailable");
+    }
     const expiresAtUnix = raw.buyerFacing?.quoteExpiresAt
       ? Math.floor(Date.parse(raw.buyerFacing.quoteExpiresAt) / 1000)
       : undefined;

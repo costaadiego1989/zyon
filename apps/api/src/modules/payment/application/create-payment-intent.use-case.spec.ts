@@ -57,6 +57,36 @@ class CapturingPaymentProvider implements PaymentProviderPort {
   }
 }
 
+test("payment description identifies the store and purchased products without internal IDs", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  checkout.getProfile = async merchantId => ({ id: merchantId, name: "Athom Technologies", plan: "BOTH" });
+  await checkout.saveSession(checkoutSession({
+    customer: { email: "buyer@example.test", asaasCustomerId: "customer" },
+    cart: { currency: "BRL", total: 120, items: [
+      { sku: "sku_1", name: "Sérum", quantity: 1, price: 80 },
+      { sku: "sku_2", name: "Bruma", quantity: 2, price: 20 },
+    ] },
+  }));
+  const provider = new CapturingPaymentProvider();
+  const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), provider);
+  await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "description", method: "pix" });
+  assert.equal(provider.inputs[0].description, "Athom Technologies — 1x Sérum, 2x Bruma");
+});
+
+test("uncertain Pix retries never return an empty successful intent or repeat the creation POST", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(checkoutSession({ customer: { asaasCustomerId: "customer" } }));
+  let posts = 0;
+  const provider: PaymentProviderPort = {
+    createPayment: async () => { posts++; throw new Error("request_timeout"); },
+    recoverPayment: async () => null,
+  };
+  const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), provider);
+  const request = { merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "uncertain", method: "pix" as const };
+  for (let i = 0; i < 3; i++) await assert.rejects(useCase.execute(request), /payment_creation_uncertain/);
+  assert.equal(posts, 1);
+});
+
 test("CreatePaymentIntentUseCase applies enabled Pix fallback before sending a provider request", async () => {
   const checkout = new InMemoryCheckoutRepository();
   await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com", asaasCustomerId: "cus_fallback_1" } }));
@@ -467,7 +497,8 @@ test("CreatePaymentIntentUseCase validates commerce cart and creates pending ord
   assert.equal(createCalls, 1);
   assert.equal(provider.inputs.length, 1);
   assert.equal(first.commerceOrderId, "draft_123");
-  assert.match(provider.inputs[0]?.description ?? "", /commerce_order:draft_123/);
+  assert.doesNotMatch(provider.inputs[0]?.description ?? "", /commerce_order:|mrc_1|chk_1/);
+  assert.match(provider.inputs[0]?.description ?? "", /Loja — /);
   assert.equal(checkout.listOutbox("mrc_1").at(-1)?.payload.commerce_order_id, "draft_123");
 });
 

@@ -40,6 +40,9 @@ export function checkoutChatErrorMessage(error: unknown): string | null {
 }
 
 export function checkoutPaymentErrorMessage(error: unknown): string {
+  if (error instanceof Error && error.message === "pix_payload_unavailable") {
+    return "O código Pix ainda não está disponível. Tente novamente para consultar o mesmo pagamento.";
+  }
   if (!(error instanceof CheckoutApiError)) {
     return "Não foi possível criar o pagamento. Tente novamente.";
   }

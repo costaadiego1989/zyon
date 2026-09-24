@@ -21,6 +21,24 @@ function prepared() {
   return intent;
 }
 
+test("existing incomplete Pix presentation is repaired from the same provider payment", async () => {
+  const repo = new InMemoryPaymentRepository();
+  const intent = prepared();
+  intent.claimCreation("lease", new Date());
+  intent.completeCreation("lease");
+  intent.markRequiresAction({ providerPaymentId: "pix-existing" });
+  intent.setBuyerFacingPayload({});
+  await repo.saveIntent({ intent });
+  const provider: PaymentProviderPort = {
+    createPayment: async () => { throw new Error("must_not_create_payment"); },
+    recoverPayment: async () => ({ providerPaymentId: "pix-existing", status: "requires_action", buyerFacingPayload: { qrCodeCopyPaste: "pix-code", encodedQrImage: "png" } }),
+  };
+  const result = await new ResumePaymentCreationService(repo, provider).execute(intent);
+  assert.equal(result.buyerFacing?.qrCodeCopyPaste, "pix-code");
+  assert.equal(result.providerPaymentId, "pix-existing");
+  assert.equal(repo.capturedEvents.length, 0);
+});
+
 function asaasMock(intentId: string, options: { loseResponse?: boolean; empty?: boolean; duplicate?: boolean; mismatch?: boolean } = {}) {
   let posts = 0;
   const requests: Array<{ url: string; method: string }> = [];
@@ -187,7 +205,7 @@ test("API014: idempotent retry rejects changed sale identities and hides persist
   const session = checkoutSession({ customer: { fullName: "Buyer", email: "buyer@example.invalid", cpf: "00000000000", asaasCustomerId: "cus_one" },
     cart: { currency: "BRL", total: 10, currentDiscount: 0, items: [{ sku: "sku-one", name: "Item", price: 10, quantity: 1 }] } });
   await checkout.saveSession(session); let creates = 0;
-  const provider: PaymentProviderPort = { createPayment: async () => { creates++; return { providerPaymentId: "pay_one", status: "requires_action", buyerFacingPayload: {} }; } };
+  const provider: PaymentProviderPort = { createPayment: async () => { creates++; return { providerPaymentId: "pay_one", status: "requires_action", buyerFacingPayload: { qrCodeCopyPaste: "pix-code" } }; } };
   const uc = new CreatePaymentIntentUseCase(checkout, checkout, repo, provider);
   const input = { merchant_id: session.merchantId, session_id: session.sessionId, idempotency_key: "same-sale", method: "pix" as const };
   const result = await uc.execute(input);

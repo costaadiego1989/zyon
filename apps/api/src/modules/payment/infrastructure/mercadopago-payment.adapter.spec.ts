@@ -1,0 +1,112 @@
+import test from "node:test";
+import assert from "node:assert/strict";
+import { MercadoPagoPaymentAdapter } from "./mercadopago-payment.adapter.js";
+import type { CreateProviderPaymentInput } from "../domain/ports/payment-provider.port.js";
+
+const input: CreateProviderPaymentInput = {
+  merchantId: "merchant", sessionId: "session", intentId: "intent",
+  providerIdempotencyKey: "stable-key", method: "pix", amountCents: 9804,
+  currency: "BRL", payerEmail: "buyer@example.test",
+  description: "Athom Technologies — 1x Sérum, 2x Bruma",
+};
+const payment = {
+  id: 123, status: "pending", payment_method_id: "pix", external_reference: "intent",
+  metadata: { intent_id: "intent", session_id: "session" },
+  transaction_amount: 98.04, currency_id: "BRL", date_of_expiration: "2026-10-01T12:00:00Z",
+  point_of_interaction: { transaction_data: {
+    qr_code: "000201-pix", qr_code_base64: "base64-image",
+    ticket_url: "https://www.mercadopago.com.br/payments/123/ticket",
+  } },
+};
+
+test("Mercado Pago partial creation hydrates Pix by ID and preserves description and expiry", async () => {
+  const requests: Array<{ url: string; method: string }> = [];
+  const fetcher = (async (url, init) => {
+    requests.push({ url: String(url), method: init?.method ?? "GET" });
+    if (init?.method === "POST") {
+      assert.equal(JSON.parse(String(init.body)).description, input.description);
+      assert.equal(new Headers(init.headers).get("X-Idempotency-Key"), "stable-key");
+      return Response.json({ id: 123 });
+    }
+    return Response.json(payment);
+  }) as typeof fetch;
+  const result = await new MercadoPagoPaymentAdapter("https://mp.test", "fake", "", fetcher).createPayment(input);
+  assert.deepEqual(requests.map(r => r.method), ["POST", "GET"]);
+  assert.equal(requests[1].url, "https://mp.test/v1/payments/123");
+  assert.equal(result.buyerFacingPayload.qrCodeCopyPaste, "000201-pix");
+  assert.equal(result.buyerFacingPayload.encodedQrImage, "base64-image");
+  assert.equal(result.buyerFacingPayload.invoiceUrl, payment.point_of_interaction.transaction_data.ticket_url);
+  assert.equal(result.buyerFacingPayload.quoteExpiresAt, payment.date_of_expiration);
+});
+
+test("Mercado Pago lost creation response recovers the same Pix without another POST", async () => {
+  let posts = 0;
+  const fetcher = (async (url, init) => {
+    if (init?.method === "POST") { posts++; throw new Error("timeout"); }
+    assert.equal(new URL(String(url)).searchParams.get("external_reference"), "intent");
+    return Response.json({ results: [payment], paging: { total: 1 } });
+  }) as typeof fetch;
+  const result = await new MercadoPagoPaymentAdapter("https://mp.test", "fake", "", fetcher).createPayment(input);
+  assert.equal(posts, 1);
+  assert.equal(result.providerPaymentId, "123");
+  assert.equal(result.buyerFacingPayload.qrCodeCopyPaste, "000201-pix");
+});
+
+test("Mercado Pago search without QR hydrates only the matched payment", async () => {
+  const fetcher = (async (url, init) => {
+    assert.notEqual(init?.method, "POST");
+    return Response.json(String(url).includes("/search?")
+      ? { results: [{ ...payment, point_of_interaction: undefined }], paging: { total: 1 } }
+      : payment);
+  }) as typeof fetch;
+  const result = await new MercadoPagoPaymentAdapter("https://mp.test", "fake", "", fetcher).recoverPayment(input);
+  assert.equal(result?.buyerFacingPayload.qrCodeCopyPaste, "000201-pix");
+});
+
+for (const scenario of ["missing_code", "wrong_reference", "wrong_amount", "wrong_method"] as const) {
+  test(`Mercado Pago ${scenario} cannot become a payable Pix`, async () => {
+    const details = { ...payment,
+      ...(scenario === "missing_code" ? { point_of_interaction: undefined } : {}),
+      ...(scenario === "wrong_reference" ? { external_reference: "other" } : {}),
+      ...(scenario === "wrong_amount" ? { transaction_amount: 98.05 } : {}),
+      ...(scenario === "wrong_method" ? { payment_method_id: "visa" } : {}),
+    };
+    const fetcher = (async (_url, init) => Response.json(init?.method === "POST" ? { id: 123 } : details)) as typeof fetch;
+    await assert.rejects(
+      new MercadoPagoPaymentAdapter("https://mp.test", "fake", "", fetcher).createPayment(input),
+      scenario === "missing_code" ? /pix_payload_unavailable/ : /recovery_mismatch/,
+    );
+  });
+}
+
+test("Mercado Pago card checkout receives the same readable store and product description", async () => {
+  const fetcher = (async (_url, init) => {
+    assert.equal(JSON.parse(String(init?.body)).items[0].title, input.description);
+    return Response.json({ id: "pref_1", init_point: "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=pref_1" });
+  }) as typeof fetch;
+  await new MercadoPagoPaymentAdapter("https://mp.test", "fake", "", fetcher).createPayment({ ...input, method: "card" });
+});
+
+test("Mercado Pago rejection exposes only status and cause codes for diagnosis", async () => {
+  const fetcher = (async () => Response.json({
+    message: "private payer data must never enter the exception",
+    cause: [{ code: 132, description: "private details" }],
+  }, { status: 400 })) as typeof fetch;
+  await assert.rejects(
+    new MercadoPagoPaymentAdapter("https://mp.test", "fake", "", fetcher).createPayment(input),
+    { message: "mercadopago_payment_create_failed:400:132" },
+  );
+});
+
+test("Mercado Pago missing recovery result preserves uncertainty without another POST", async () => {
+  let posts = 0;
+  const fetcher = (async (_url, init) => {
+    if (init?.method === "POST") { posts++; throw new Error("request_timeout"); }
+    return Response.json({ results: [], paging: { total: 0 } });
+  }) as typeof fetch;
+  await assert.rejects(
+    new MercadoPagoPaymentAdapter("https://mp.test", "fake", "", fetcher).createPayment(input),
+    /request_timeout/,
+  );
+  assert.equal(posts, 1);
+});

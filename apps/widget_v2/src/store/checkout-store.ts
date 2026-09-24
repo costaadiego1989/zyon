@@ -202,6 +202,7 @@ export interface Message {
   text?: string;
   blocks?: ChatBlock[];
   quickReplies?: string[];
+  paymentRetry?: PendingPayment;
   /** Server-owned stage; legacy local fallbacks must not intercept its replies. */
   checkoutStage?: string;
   timestamp: number;
@@ -228,6 +229,7 @@ interface CheckoutState {
 
   paymentIntent: PaymentIntent | null;
   paymentPolling: boolean;
+  paymentCreating: boolean;
   cartUpdating: boolean;
   cartError: string | null;
 
@@ -434,6 +436,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   channel: "chat",
   paymentIntent: null,
   paymentPolling: false,
+  paymentCreating: false,
   cartUpdating: false,
   cartError: null,
   triggerConfig: null,
@@ -611,6 +614,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   sendMessage: async (text) => {
+    const lastAgentMessage = [...get().messages].reverse().find(message => message.role === "agent");
+    if (text.trim().toLowerCase() === "tentar novamente" && lastAgentMessage?.paymentRetry) {
+      const retry = lastAgentMessage.paymentRetry;
+      await get().pay(retry.method, retry.installments);
+      return;
+    }
     if (text === "Quero voltar") {
       window.history.back();
       return;
@@ -1090,7 +1099,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   pay: async (method, installments) => {
     const { api, cart, leadRegistered } = get();
-    if (!api || get().cartUpdating) return;
+    if (!api || get().cartUpdating || get().paymentCreating) return;
 
     const availableMethods = paymentMethodsForConfig(get().merchantPaymentConfig);
     if (!availableMethods.some((available) => available.key === method)) {
@@ -1144,8 +1153,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
+    set({ paymentCreating: true });
     try {
       const intent = await api.createPaymentIntent(method, installments);
+      if (method === "pix" && !intent.pix_code?.trim()) {
+        throw new Error("pix_payload_unavailable");
+      }
       void trackEvent("payment_method_selected", { method, intent_id: intent.intent_id });
       set({
         paymentIntent: intent,
@@ -1204,9 +1217,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         role: "agent",
         text: checkoutPaymentErrorMessage(error),
         quickReplies: ["Tentar novamente"],
+        paymentRetry: { method, installments },
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg] }));
+    } finally {
+      set({ paymentCreating: false });
     }
   },
 
@@ -1425,6 +1441,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       messages: [],
       paymentIntent: null,
       paymentPolling: false,
+      paymentCreating: false,
       cartUpdating: false,
       cartError: null,
       activeDiscount: null,

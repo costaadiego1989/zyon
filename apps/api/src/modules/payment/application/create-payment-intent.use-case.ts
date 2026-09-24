@@ -65,6 +65,13 @@ export type CreatePaymentIntentRequest = {
 export type CreatePaymentIntentResponseBody = Omit<PaymentIntentSnapshot, "creation" | "version">;
 
 function publicPayment(snapshot: PaymentIntentSnapshot): CreatePaymentIntentResponseBody {
+  if (snapshot.status === "pending" && !snapshot.providerPaymentId) {
+    throw new BadGatewayException("payment_creation_uncertain");
+  }
+  if (snapshot.method === "pix" && snapshot.status === "requires_action" &&
+    !snapshot.buyerFacing?.qrCodeCopyPaste?.trim()) {
+    throw new BadGatewayException("payment_creation_uncertain");
+  }
   const { creation: _creation, version: _version, ...publicFields } = snapshot;
   return publicFields;
 }
@@ -132,9 +139,11 @@ function commerceCartRefFrom(session: CheckoutSession): string | undefined {
   return ref || undefined;
 }
 
-function paymentDescription(merchantId: string, sessionId: string, commerceOrderId: string | undefined): string {
-  const base = `${merchantId}:${sessionId}`;
-  return commerceOrderId ? `${base}:commerce_order:${commerceOrderId}` : base;
+function paymentDescription(storeName: string | undefined, session: CheckoutSession): string {
+  const clean = (value: string) => value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const store = clean(storeName ?? "") || "Loja";
+  const items = session.cart.items.map(item => `${item.quantity}x ${clean(item.name) || "Produto"}`).join(", ");
+  return `${store} — ${items || "Compra na loja"}`.slice(0, 256);
 }
 
 /**
@@ -495,7 +504,7 @@ export class CreatePaymentIntentUseCase {
       merchantId, sessionId, intentId: intent.id,
       providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
       amountCents, currency: intent.snapshot().currency, method,
-      description: paymentDescription(merchantId, sessionId, commerceOrderId),
+      description: paymentDescription(merchant?.name === merchantId ? undefined : merchant?.name, session),
         ...(isStripeCard ? {
           provider: "stripe" as const,
           stripeConnectAccountId,

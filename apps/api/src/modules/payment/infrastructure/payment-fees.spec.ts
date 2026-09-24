@@ -43,7 +43,7 @@ test("Mercado Pago seller OAuth payment carries application fee and stable idemp
   let headers: Headers;
   const fetcher = (async (_url: string, init?: RequestInit) => {
     body = JSON.parse(String(init?.body)); headers = new Headers(init?.headers);
-    return new Response(JSON.stringify({ id: 123, status: "pending" }));
+    return new Response(JSON.stringify({ id: 123, status: "pending", point_of_interaction: { transaction_data: { qr_code: "pix-code", qr_code_base64: "png" } } }));
   }) as typeof fetch;
   await new MercadoPagoPaymentAdapter("https://mp.example.test", "seller-token", "", fetcher, true).createPayment(input);
   assert.equal(body.application_fee, 2.98);
@@ -102,7 +102,7 @@ test("Mercado Pago hosted card recovery rejects a preference for another checkou
 
 test("Mercado Pago platform-owned credentials do not create a seller OAuth split", async () => {
   let body: any;
-  const fetcher = (async (_url: string, init?: RequestInit) => { body = JSON.parse(String(init?.body)); return new Response(JSON.stringify({ id: 123 })); }) as typeof fetch;
+  const fetcher = (async (_url: string, init?: RequestInit) => { body = JSON.parse(String(init?.body)); return new Response(JSON.stringify({ id: 123, point_of_interaction: { transaction_data: { qr_code: "pix-code", qr_code_base64: "png" } } })); }) as typeof fetch;
   await new MercadoPagoPaymentAdapter("https://mp.example.test", "platform-token", "", fetcher).createPayment(input);
   assert.equal(body.application_fee, undefined);
 });

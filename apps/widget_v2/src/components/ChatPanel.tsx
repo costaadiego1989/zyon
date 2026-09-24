@@ -20,6 +20,7 @@ export function ChatPanel() {
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const pay = useCheckoutStore((s) => s.pay);
+  const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
   const cart = useCheckoutStore((s) => s.cart);
   const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
   const continueVoiceCheckout = useCheckoutStore((s) => s.continueVoiceCheckout);
@@ -163,6 +164,7 @@ export function ChatPanel() {
             {activeQuickReplies.map((qr) => (
               <button data-neu="control"
                 key={qr}
+                disabled={paymentCreating}
                 onClick={() => handleQuickReply(qr)}
                 style={{
                   padding: "8px 14px",

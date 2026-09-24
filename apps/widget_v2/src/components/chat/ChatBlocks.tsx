@@ -184,6 +184,7 @@ function shippingPriority(
 
 function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
   const pay = useCheckoutStore((s) => s.pay);
+  const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
   const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
   const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.paymentPreference);
   const permittedKeys = new Set(paymentMethodsForConfig(merchantPaymentConfig).map((method) => method.key));
@@ -202,6 +203,7 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
       {meths.map((m) => (
         <button data-neu="choice"
           key={m.key}
+          disabled={paymentCreating}
           onClick={() => handleSelect(m)}
           style={{
             padding: "10px 12px",
@@ -295,6 +297,11 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
           </button>
         </div>
       )}
+      {safeInvoiceUrl(data.invoice_url) ? (
+        <a data-neu="control" href={safeInvoiceUrl(data.invoice_url)!} target="_blank" rel="noopener noreferrer">
+          Abrir página do Pix
+        </a>
+      ) : null}
     </PaymentPanel>
   );
 }

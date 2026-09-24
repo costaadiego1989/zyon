@@ -37,6 +37,19 @@ function mercadoPagoStateFromStatus(
 
 type MercadoPagoPaymentMethod = "pix" | "boleto" | "card";
 
+type MercadoPagoPayment = {
+  id?: number | string;
+  status?: string;
+  external_reference?: string;
+  payment_method_id?: string;
+  metadata?: { intent_id?: string; session_id?: string };
+  transaction_amount?: number;
+  currency_id?: string;
+  date_of_expiration?: string;
+  point_of_interaction?: { transaction_data?: { qr_code?: string; qr_code_base64?: string; ticket_url?: string } };
+  transaction_details?: { external_resource_url?: string };
+};
+
 function paymentMethodFromMethod(method: string): MercadoPagoPaymentMethod {
   switch (method.toLowerCase()) {
     case "pix":
@@ -91,20 +104,52 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(15_000),
     });
     if (!response.ok) throw new Error("mercadopago_payment_recovery_failed");
-    const body = await response.json() as { results?: any[]; paging?: { total?: number } };
+    const body = await response.json() as { results?: MercadoPagoPayment[]; paging?: { total?: number } };
     if (!Array.isArray(body.results) || body.results.length > 1 || (body.paging?.total ?? 0) > 1) throw new Error("mercadopago_payment_recovery_ambiguous");
     const payment = body.results[0];
     if (!payment) return null;
     if (payment.external_reference !== input.intentId || payment.metadata?.intent_id !== input.intentId ||
-      payment.metadata?.session_id !== input.sessionId || !Number.isFinite(payment.transaction_amount) ||
+      payment.metadata?.session_id !== input.sessionId || typeof payment.transaction_amount !== "number" || !Number.isFinite(payment.transaction_amount) ||
       Math.round(payment.transaction_amount * 100) !== input.amountCents || payment.currency_id !== input.currency) throw new Error("mercadopago_payment_recovery_mismatch");
     const id = String(payment.id ?? "");
     if (!id) throw new Error("mercadopago_payment_missing_id");
-    return { providerPaymentId: id, status: "requires_action", buyerFacingPayload: {
-      qrCodeCopyPaste: payment.point_of_interaction?.transaction_data?.qr_code,
-      encodedQrImage: payment.point_of_interaction?.transaction_data?.qr_code_base64,
-      invoiceUrl: payment.transaction_details?.external_resource_url,
-    } };
+    return this.paymentOutput(input, payment);
+  }
+
+  private async paymentOutput(input: CreateProviderPaymentInput, payment: MercadoPagoPayment): Promise<CreateProviderPaymentOutput> {
+    const id = String(payment.id ?? "").trim();
+    if (!id) throw new Error("mercadopago_payment_missing_id");
+    // Search/creation can return a partial payment. Hydrate the same payment,
+    // never POST another charge just to obtain its Pix presentation data.
+    if (input.method === "pix" && (!payment.point_of_interaction?.transaction_data?.qr_code?.trim() ||
+      !payment.point_of_interaction?.transaction_data?.qr_code_base64?.trim())) {
+      const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(id)}`, {
+        headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" },
+        redirect: "error", signal: AbortSignal.timeout(15_000),
+      });
+      if (!response.ok) throw new Error(`mercadopago_payment_details_failed:${response.status}`);
+      const details = await response.json() as MercadoPagoPayment;
+      if (String(details.id ?? "") !== id || details.external_reference !== input.intentId ||
+        details.payment_method_id !== "pix" || typeof details.transaction_amount !== "number" ||
+        Math.round(details.transaction_amount * 100) !== input.amountCents || details.currency_id !== input.currency) {
+        throw new Error("mercadopago_payment_recovery_mismatch");
+      }
+      payment = details;
+    }
+    const qr = payment.point_of_interaction?.transaction_data;
+    if (input.method === "pix" && !qr?.qr_code?.trim()) {
+      throw new Error("mercadopago_pix_payload_unavailable");
+    }
+    return {
+      providerPaymentId: id,
+      status: "requires_action",
+      buyerFacingPayload: {
+        qrCodeCopyPaste: qr?.qr_code,
+        encodedQrImage: qr?.qr_code_base64,
+        invoiceUrl: qr?.ticket_url ?? payment.transaction_details?.external_resource_url,
+        ...(payment.date_of_expiration ? { quoteExpiresAt: payment.date_of_expiration } : {}),
+      },
+    };
   }
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
@@ -170,51 +215,40 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       }
     };
 
-    const res = await this.fetchImpl(`${base}/v1/payments`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${this.accessToken}`,
-        "content-type": "application/json",
-        "X-Idempotency-Key": input.providerIdempotencyKey ?? input.intentId,
-        accept: "application/json"
-      },
-      body: JSON.stringify(body),
-      signal: AbortSignal.timeout(15_000)
-    });
+    let res: Response;
+    try {
+      res = await this.fetchImpl(`${base}/v1/payments`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${this.accessToken}`,
+          "content-type": "application/json",
+          "X-Idempotency-Key": input.providerIdempotencyKey ?? input.intentId,
+          accept: "application/json"
+        },
+        body: JSON.stringify(body),
+        signal: AbortSignal.timeout(15_000)
+      });
+    } catch (error) {
+      // A lost response may already have created the charge. Recover using GET
+      // before making the buyer retry, preserving the original intent and key.
+      const recovered = await this.recoverPayment(input).catch(() => null);
+      if (recovered) return recovered;
+      throw error;
+    }
 
     if (!res.ok) {
-      const errorText = await res.text().catch(() => "");
-      throw new Error(`mercadopago_payment_create_failed:${res.status}:${errorText}`);
+      if (res.status >= 500 || res.status === 408 || res.status === 409) {
+        const recovered = await this.recoverPayment(input).catch(() => null);
+        if (recovered) return recovered;
+      }
+      const failure = await res.json().catch(() => null) as { cause?: Array<{ code?: unknown }> } | null;
+      const codes = Array.isArray(failure?.cause)
+        ? failure.cause.map(cause => String(cause?.code ?? "")).filter(code => /^[a-zA-Z0-9_-]{1,60}$/.test(code)).slice(0, 4)
+        : [];
+      throw new Error(`mercadopago_payment_create_failed:${res.status}${codes.length ? `:${codes.join(",")}` : ""}`);
     }
 
-    const created = (await res.json()) as {
-      id?: number;
-      status?: string;
-      point_of_interaction?: { transaction_data?: { qr_code?: string; qr_code_base64?: string } };
-    };
-
-    const providerPaymentId = typeof created?.id === "number" ? String(created.id) : "";
-    if (!providerPaymentId) throw new Error("mercadopago_payment_missing_id");
-
-    const buyerFacingPayload: CreateProviderPaymentOutput["buyerFacingPayload"] = {};
-
-    if (paymentMethod === "pix" || paymentMethod === "boleto") {
-      const qrData = created.point_of_interaction?.transaction_data;
-      if (qrData?.qr_code) {
-        buyerFacingPayload.qrCodeCopyPaste = qrData.qr_code;
-      }
-      if (qrData?.qr_code_base64) {
-        buyerFacingPayload.encodedQrImage = qrData.qr_code_base64;
-      }
-      // PIX expires in 30 minutes by default (MercadoPago standard)
-      buyerFacingPayload.quoteExpiresAt = new Date(Date.now() + 30 * 60 * 1000).toISOString();
-    }
-
-    return {
-      providerPaymentId,
-      status: "requires_action",
-      buyerFacingPayload
-    };
+    return this.paymentOutput(input, await res.json() as MercadoPagoPayment);
   }
 
   /**
