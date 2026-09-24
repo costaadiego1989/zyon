@@ -108,6 +108,38 @@ test("widget preserves the public suspension code when checkout cannot start", a
   }
 });
 
+test("widget reads Nest payment failure codes from the default message payload", async () => {
+  const original = globalThis.fetch;
+  globalThis.fetch = async (url) => {
+    if (String(url).endsWith("/embed/start")) {
+      return Response.json({
+        session_id: "payment-failure-session",
+        experience: {
+          items: [{ sku: "sku", name: "Produto", quantity: 1, unit_price: 10 }],
+          totals: { subtotal: 10, discount: 0, total: 10, total_to_pay: 10 },
+        },
+      });
+    }
+    if (String(url).endsWith("/embed/payment/intents")) {
+      return Response.json({ message: "payment_provider_not_configured" }, { status: 400 });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "merchant", apiBaseUrl: "https://api.example" });
+    await api.start();
+    await assert.rejects(
+      () => api.createPaymentIntent("pix"),
+      (error: unknown) => error instanceof CheckoutApiError
+        && error.operation === "embed_payment"
+        && error.status === 400
+        && error.code === "payment_provider_not_configured",
+    );
+  } finally {
+    globalThis.fetch = original;
+  }
+});
+
 test("widget preserves chat retry time from the conversation rate limit", async () => {
   const original = globalThis.fetch;
   globalThis.fetch = async (url) => {

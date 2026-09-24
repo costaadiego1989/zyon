@@ -38,3 +38,26 @@ export function checkoutChatErrorMessage(error: unknown): string | null {
 
   return null;
 }
+
+export function checkoutPaymentErrorMessage(error: unknown): string {
+  if (!(error instanceof CheckoutApiError)) {
+    return "Não foi possível criar o pagamento. Tente novamente.";
+  }
+
+  const messages: Record<string, string> = {
+    customer_registration_required: "Antes de gerar o pagamento, informe nome, e-mail, telefone e CPF.",
+    shipping_method_required_before_payment: "Escolha o frete antes de gerar o pagamento.",
+    payment_provider_not_configured: "Esta forma de pagamento ainda não está configurada pela loja. Escolha outra opção.",
+    payment_provider_not_configured_for_customer_creation: "Esta forma de pagamento ainda não está configurada pela loja. Escolha outra opção.",
+    asaas_connection_not_active: "A conexão de pagamento da loja está indisponível agora. Escolha outra opção ou tente mais tarde.",
+    stripe_card_not_available: "O cartão não está disponível para esta loja agora. Escolha PIX ou tente novamente mais tarde.",
+    stripe_connect_not_configured: "O cartão não está disponível para esta loja agora. Escolha PIX ou tente novamente mais tarde.",
+    stripe_connect_not_active: "O cartão não está disponível para esta loja agora. Escolha PIX ou tente novamente mais tarde.",
+    mercadopago_webhook_not_configured: "Esta forma de pagamento está em configuração. Escolha outra opção.",
+    payment_creation_uncertain: "Não confirmamos a criação deste pagamento. Aguarde um instante antes de tentar novamente.",
+    payment_provider_request_failed: "O provedor de pagamento não respondeu agora. Tente novamente em instantes.",
+  };
+  return error.code && messages[error.code]
+    ? messages[error.code]
+    : "Não foi possível criar o pagamento. Tente novamente.";
+}

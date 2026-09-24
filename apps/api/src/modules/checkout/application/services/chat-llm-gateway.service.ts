@@ -108,7 +108,7 @@ export class ChatLlmGatewayService {
         type: "function",
         function: {
           name: "show_payment_methods",
-          description: "Mostra as formas de pagamento disponíveis (Pix, cartão, crypto). Use quando o frete estiver selecionado OU quando o cliente perguntar sobre formas de pagamento.",
+          description: "Mostra as formas de pagamento disponíveis nesta loja. Use quando o frete estiver selecionado OU quando o cliente perguntar sobre formas de pagamento.",
           parameters: { type: "object", properties: {}, required: [] },
         },
       },

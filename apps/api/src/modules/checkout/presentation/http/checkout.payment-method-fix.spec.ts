@@ -110,116 +110,57 @@ function buildFullStack(repo: InMemoryCheckoutRepository) {
   );
   return { ctrl, payments };
 }
-
 async function driveToPayment(repo: InMemoryCheckoutRepository, ctrl: any, sid: string) {
   const started = await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: undefined, cart: CART });
-  // Pre-seed asaasCustomerId so CreatePaymentIntentUseCase doesn't try to call
-  // provider.createCustomer (FakePaymentProvider doesn't implement it).
   const initial = repo.getSession(MERCHANT, sid)!;
   repo.saveSession({
     ...initial,
-    customer: { ...initial.customer!, asaasCustomerId: "cus_test" }
+    customer: {
+      fullName: "Maria Silva", email: "maria@example.test", email_verified: true,
+      cpf: "52998224725", phone: "11987654321", phone_verified: true,
+      address_verified: true,
+      address: { zip: "01310100", street: "Avenida Paulista", number: "100", complement: "", city: "Sao Paulo", state: "SP" },
+      asaasCustomerId: "cus_test",
+    },
+    shipping: { customerPrice: 10, realCost: 10, carrier: "Correios", method: "PAC", deliveryDays: 5 },
   });
   await repo.appendChatTurn(MERCHANT, sid, { role: "agent", text: started.experience.agent.greeting, occurredAt: new Date().toISOString() });
-
-  await repo.appendChatTurn(MERCHANT, sid, { role: "agent", text: "Qual e o seu nome completo?", occurredAt: new Date().toISOString() });
-  await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "Meu nome e Maria Silva" });
-
-  await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "maria@email.com" });
-  const otp = repo.getSession(MERCHANT, sid)?.customer?.otp_code;
-  await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: `o codigo e ${otp}` });
-
-  await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "123.456.789-01" });
-  await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "(11) 98888-7777" });
-  assert.equal(repo.getSession(MERCHANT, sid)?.customer?.phone_otp_code, undefined);
-
-  const originalFetch = globalThis.fetch;
-  globalThis.fetch = async (input: RequestInfo | URL) => {
-    const url = typeof input === "string" ? input : input.toString();
-    if (url.includes("viacep.com.br")) {
-      return new Response(JSON.stringify({ logradouro: "Rua Teste", bairro: "Centro", localidade: "Sao Paulo", uf: "SP" }), { status: 200, headers: { "content-type": "application/json" } });
-    }
-    return originalFetch(input);
-  };
-  try {
-    await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "CEP 01310-100" });
-    await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "Sim" });
-    await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "100, ap 12" });
-    const shipRes = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "Quero PAC" });
-    assert.equal(shipRes.stage, "payment", "Should reach payment stage");
-  } finally {
-    globalThis.fetch = originalFetch;
-  }
+  const paymentStep = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "Quero finalizar" });
+  assert.equal(paymentStep.stage, "payment", "Should reach payment stage");
 }
 
-test("FIX: buyer says PIX → paymentMethod set + intent created + stage=completed", async () => {
+test("FIX: buyer saying PIX keeps chat at the visual payment chooser", async () => {
   const repo = new InMemoryCheckoutRepository();
   repo.setRules(MERCHANT, { maxDiscountPercent: 10, couponBoxEnabled: false, minimumMarginPercent: 10 });
-  // Mock asaas customer creation in the provider — FakePaymentProvider handles it.
   const { ctrl } = buildFullStack(repo);
   const sid = "fix_pix_1";
-
   await driveToPayment(repo, ctrl, sid);
-
-  // Sanity: at payment stage, no payment method yet.
-  let session = repo.getSession(MERCHANT, sid);
-  assert.equal(session?.paymentMethod, undefined, "Pre-condition: no paymentMethod yet");
-  // asaasCustomerId is pre-seeded (test fixture), so it's expected to be present.
-  assert.equal(session?.customer?.asaasCustomerId, "cus_test", "Pre-condition: asaasCustomerId pre-seeded");
-
-  // ACT: buyer says PIX
   const pixRes = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "any", user_message: "Vou pagar no PIX" });
-
-  // VERIFY: action button emitted (back-compat)
-  assert.ok(pixRes.actions.some((a: any) => a.type === "continue_checkout"), "continue_checkout action emitted");
-
-  // VERIFY: payment method persisted on session
-  session = repo.getSession(MERCHANT, sid);
-  assert.equal(session?.paymentMethod, "pix", "session.paymentMethod = pix");
-
-  // VERIFY: payment intent created and exposed
-  const intent = pixRes.experience?.payment_intent;
-  assert.ok(intent, "experience.payment_intent present");
-  assert.equal(intent.method, "pix", "intent method is pix");
-  assert.ok(intent.id, "intent id present");
-  assert.ok(intent.amount_cents > 0, "intent amount > 0");
-
-  // VERIFY: stage advances to "completed"
-  assert.equal(pixRes.stage, "completed", "stage transitions to completed after PIX selection");
-  assert.deepEqual(pixRes.missing_fields, [], "no missing fields once paymentMethod set");
+  assert.equal(repo.getSession(MERCHANT, sid)?.paymentMethod, undefined);
+  assert.equal(pixRes.experience?.payment_intent, undefined);
+  assert.equal(pixRes.stage, "payment");
 });
 
-test("FIX: buyer says cartao → paymentMethod=credit_card + intent OR graceful fallback", async () => {
+test("FIX: buyer saying card keeps chat at the visual payment chooser", async () => {
   const repo = new InMemoryCheckoutRepository();
   repo.setRules(MERCHANT, { maxDiscountPercent: 10, couponBoxEnabled: false, minimumMarginPercent: 10 });
   const { ctrl } = buildFullStack(repo);
   const sid = "fix_card_1";
-
   await driveToPayment(repo, ctrl, sid);
-
   const cardRes = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "any", user_message: "Prefiro pagar com cartao de credito" });
-
-  assert.equal(repo.getSession(MERCHANT, sid)?.paymentMethod, "credit_card", "session.paymentMethod = credit_card");
-  // Without Stripe configured (test env), card throws stripe_provider_not_configured.
-  // The chat layer catches it and still advances stage. The intent surface stays clean.
-  assert.equal(cardRes.stage, "completed", "stage still completes even when provider not configured");
-  assert.deepEqual(cardRes.missing_fields, [], "no missing fields");
+  assert.equal(repo.getSession(MERCHANT, sid)?.paymentMethod, undefined);
+  assert.equal(cardRes.experience?.payment_intent, undefined);
+  assert.equal(cardRes.stage, "payment");
 });
 
-test("REGRESSION: paymentMethod already set → stage stays completed, no duplicate intent", async () => {
+test("REGRESSION: repeated payment text cannot lock the checkout session", async () => {
   const repo = new InMemoryCheckoutRepository();
   repo.setRules(MERCHANT, { maxDiscountPercent: 10, couponBoxEnabled: false });
   const { ctrl } = buildFullStack(repo);
   const sid = "fix_idem_1";
   await driveToPayment(repo, ctrl, sid);
-
   await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "any", user_message: "PIX" });
-  const firstIntent = repo.getSession(MERCHANT, sid);
-  assert.ok(firstIntent?.paymentMethod, "first selection set method");
-
-  // Second PIX message: should NOT re-create an intent (idempotency guarded by session.paymentMethod check)
   const second = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "any", user_message: "PIX mesmo" });
-  // paymentMethod is already set, so the working session preserves it; intent branch is skipped
-  // (no new intent emitted on the response because selectedPaymentMethod is undefined after first turn)
-  assert.equal(second.stage, "completed");
+  assert.equal(second.stage, "payment");
+  assert.equal(repo.getSession(MERCHANT, sid)?.paymentMethod, undefined);
 });

@@ -25,6 +25,7 @@ import { connectPaymentWs } from "@/lib/payment-ws";
 import { paymentPollingOutcome } from "@/lib/payment-status";
 import {
   checkoutChatErrorMessage,
+  checkoutPaymentErrorMessage,
   checkoutStartErrorMessage,
   isMerchantSalesSuspendedError,
   MERCHANT_SALES_SUSPENDED_MESSAGE,
@@ -48,7 +49,7 @@ export interface PaymentMethod {
   sub: string;
 }
 
-type CheckoutPaymentMethod = "pix" | "boleto" | "credito" | "debito" | "crypto";
+export type CheckoutPaymentMethod = "pix" | "boleto" | "credito" | "debito" | "crypto";
 
 export interface LeadRegistrationInput {
   name: string;
@@ -72,7 +73,7 @@ function activeDiscountFromNudge(nudge: CommercialNudge | undefined | null): Che
   };
 }
 
-interface MerchantPaymentConfig {
+export interface MerchantPaymentConfig {
   stripeEnabled?: boolean;
   paymentMethods?: {
     pix: boolean;
@@ -107,6 +108,27 @@ export function paymentMethodsForConfig(config: MerchantPaymentConfig): PaymentM
   return methods;
 }
 
+/** Turns an explicit payment chip into the UI payment action it represents. */
+export function paymentMethodForQuickReply(text: string): CheckoutPaymentMethod | undefined {
+  const normalized = text
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .trim()
+    .toLowerCase();
+  if (/^(pix|pagar com pix)$/.test(normalized)) return "pix";
+  if (/^(boleto|pagar com boleto)$/.test(normalized)) return "boleto";
+  if (/^(cartao de credito|credito|pagar com cartao)$/.test(normalized)) return "credito";
+  if (/^(cartao de debito|debito)$/.test(normalized)) return "debito";
+  if (/^(pagar com )?(crypto|cripto|usdc)$/.test(normalized)) return "crypto";
+  return undefined;
+}
+
+/** Removes only payment choices that are not enabled for the current store. */
+export function isEnabledPaymentQuickReply(text: string, config: MerchantPaymentConfig): boolean {
+  const requested = paymentMethodForQuickReply(text);
+  return !requested || paymentMethodsForConfig(config).some((method) => method.key === requested);
+}
+
 export interface BuyerData {
   name?: string;
   email?: string;
@@ -127,15 +149,16 @@ export interface BuyerData {
 
 function buyerFromExperience(experience: Partial<Experience> | undefined): BuyerData {
   const source = experience?.buyer ?? experience?.customer;
-  return {
-    name: source?.name ?? source?.fullName,
-    email: source?.email,
-    phone: source?.phone,
-    cpf: source?.cpf,
-    isReturning: source?.isReturning,
-    purchaseCount: source?.purchaseCount,
-    address: source?.address,
-  };
+  const buyer: BuyerData = {};
+  const name = source?.name ?? source?.fullName;
+  if (name !== undefined) buyer.name = name;
+  if (source?.email !== undefined) buyer.email = source.email;
+  if (source?.phone !== undefined) buyer.phone = source.phone;
+  if (source?.cpf !== undefined) buyer.cpf = source.cpf;
+  if (source?.isReturning !== undefined) buyer.isReturning = source.isReturning;
+  if (source?.purchaseCount !== undefined) buyer.purchaseCount = source.purchaseCount;
+  if (source?.address !== undefined) buyer.address = source.address;
+  return buyer;
 }
 
 function mergeBuyer(current: BuyerData, incoming: BuyerData): BuyerData {
@@ -1179,7 +1202,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",
-        text: "Não foi possível criar o pagamento. Tente novamente.",
+        text: checkoutPaymentErrorMessage(error),
         quickReplies: ["Tentar novamente"],
         timestamp: Date.now(),
       };
@@ -1239,7 +1262,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
         role: "agent",
-        text: "Não foi possível criar o pagamento. Tente novamente.",
+        text: checkoutPaymentErrorMessage(error),
         quickReplies: ["Tentar novamente"],
         timestamp: Date.now(),
       };

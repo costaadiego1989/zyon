@@ -1,6 +1,10 @@
 import { PerimeterBorder } from "./PerimeterBorder";
 import { useState, useRef, useEffect } from "react";
-import { useCheckoutStore } from "@/store/checkout-store";
+import {
+  isEnabledPaymentQuickReply,
+  paymentMethodForQuickReply,
+  useCheckoutStore,
+} from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
 import { renderInlineMarkdown, messageToSpeech } from "./chat/helpers";
@@ -15,6 +19,9 @@ export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
+  const pay = useCheckoutStore((s) => s.pay);
+  const cart = useCheckoutStore((s) => s.cart);
+  const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
   const continueVoiceCheckout = useCheckoutStore((s) => s.continueVoiceCheckout);
   const channel = useCheckoutStore((s) => s.channel);
   const [typingAlongsideVoice, setTypingAlongsideVoice] = useState(false);
@@ -65,19 +72,33 @@ export function ChatPanel() {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, isTyping]);
 
+  const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
+  const isPaymentChoiceStage = Boolean(
+    lastAgentMsg?.checkoutStage === "payment" ||
+    lastAgentMsg?.blocks?.some((block) => block.type === "payment_methods") ||
+    cart.status === "ready_to_pay",
+  );
+
+  const handlePaymentChoice = (text: string): boolean => {
+    const method = paymentMethodForQuickReply(text);
+    if (!method || !isPaymentChoiceStage || !isEnabledPaymentQuickReply(text, merchantPaymentConfig)) return false;
+    void pay(method);
+    return true;
+  };
+
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim()) return;
-    void sendMessage(input.trim());
+    if (!handlePaymentChoice(input.trim())) void sendMessage(input.trim());
     setInput("");
   };
 
   const handleQuickReply = (text: string) => {
-    void sendMessage(text);
+    if (!handlePaymentChoice(text)) void sendMessage(text);
   };
 
-  const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
-  const activeQuickReplies = lastAgentMsg?.quickReplies ?? [];
+  const activeQuickReplies = (lastAgentMsg?.quickReplies ?? [])
+    .filter((quickReply) => isEnabledPaymentQuickReply(quickReply, merchantPaymentConfig));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>

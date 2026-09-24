@@ -1,5 +1,5 @@
 import { useEffect } from "react";
-import { useCheckoutStore } from "@/store/checkout-store";
+import { paymentMethodsForConfig, useCheckoutStore } from "@/store/checkout-store";
 import { PulseAgentOrb } from "./PulseAgentOrb";
 
 export function ChannelGate() {
@@ -8,6 +8,7 @@ export function ChannelGate() {
   const agent = useCheckoutStore((s) => s.agent);
   const showBranding = useCheckoutStore((s) => s.showBranding);
   const voiceEnabled = useCheckoutStore((s) => s.voiceEnabled);
+  const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
 
   useEffect(() => {
     if (!voiceEnabled) selectChannel("chat");
@@ -18,6 +19,11 @@ export function ChannelGate() {
   const agentName = showBranding ? (agent.name || "Assistente") : "Assistente da loja";
   const storeName = brand.name || "Loja";
   const agentGreeting = agent.greeting || "Eu cuido da sua compra do início ao fim: acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.";
+  const paymentLabels = paymentMethodsForConfig(merchantPaymentConfig)
+    .map((method) => method.label.replace(/\s*·\s*.*/, ""));
+  const paymentFeature = paymentLabels.length > 0
+    ? `Pago com ${paymentLabels.join(", ").replace(/, ([^,]+)$/, " ou $1")}`
+    : "Escolho a forma de pagamento disponível";
 
   return (
     <div
@@ -81,7 +87,7 @@ export function ChannelGate() {
         {[
           { icon: "✦", text: "Acho a melhor opção e aplico promoções" },
           { icon: "📦", text: "Calculo o frete e organizo a entrega" },
-          { icon: "💳", text: "Pago com Pix, cartão ou crypto" },
+          { icon: "💳", text: paymentFeature },
         ].map((item) => (
           <div data-neu="surface"
             key={item.text}

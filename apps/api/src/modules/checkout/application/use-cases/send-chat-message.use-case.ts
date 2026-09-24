@@ -411,9 +411,13 @@ export class SendChatMessageUseCase {
         hasShipping: Boolean(uiContext?.shippingOptions?.length),
         buyerIntent,
       });
+    const availablePaymentLabels = uiContext?.paymentMethods?.map((method) => method.label).join(", ") || "nenhuma forma de pagamento";
+    const paymentCapabilityPrompt = uiContext?.paymentMethods?.some((method) => method.key === "crypto")
+      ? `FORMAS DE PAGAMENTO ATIVAS: ${availablePaymentLabels}. Só ofereça as formas desta lista.`
+      : `FORMAS DE PAGAMENTO ATIVAS: ${availablePaymentLabels}. Crypto não está ativado nesta loja; nunca o mencione ou ofereça.`;
     const systemPrompt = experimentPromptOverride
-      ? [experimentPromptOverride, this.chatLlmGateway.buildBuyerIntentContext(buyerIntent)].filter(Boolean).join("\n\n")
-      : generatedSystemPrompt;
+      ? [experimentPromptOverride, paymentCapabilityPrompt, this.chatLlmGateway.buildBuyerIntentContext(buyerIntent)].filter(Boolean).join("\n\n")
+      : [generatedSystemPrompt, paymentCapabilityPrompt].join("\n\n");
 
     const messages: Array<{ role: "system" | "user"; content: string }> = [
       { role: "system", content: systemPrompt },

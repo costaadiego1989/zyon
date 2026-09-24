@@ -12,10 +12,18 @@ export class CheckoutApiError extends Error {
   static async fromResponse(operation: string, response: Response): Promise<CheckoutApiError> {
     const payload = await response.json().catch((): unknown => undefined);
     const body = isRecord(payload) ? payload : {};
+    // Nest's default HTTP exception payload uses `message` for a stable
+    // machine-readable code. Keep supporting the explicit `code` envelope,
+    // but retain that default so callers can recover with useful guidance.
+    const code = typeof body.code === "string"
+      ? body.code
+      : typeof body.message === "string"
+        ? body.message
+        : undefined;
     return new CheckoutApiError(
       operation,
       response.status,
-      typeof body.code === "string" ? body.code : undefined,
+      code,
       positiveInteger(body.retry_after_seconds) ?? positiveInteger(body.retryAfterSeconds) ?? retryAfterHeader(response),
     );
   }
