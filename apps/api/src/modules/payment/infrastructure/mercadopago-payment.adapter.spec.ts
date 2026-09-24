@@ -165,3 +165,14 @@ test("Mercado Pago 2059 is a definite refusal and never retries without the plat
   );
   assert.equal(posts, 1);
 });
+
+test("Mercado Pago 13253 identifies a missing Pix key without retrying the rejected charge", async () => {
+  let posts = 0;
+  const fetcher = (async (_url, init) => {
+    assert.equal(init?.method, "POST"); posts++;
+    return Response.json({message:"Collector user without key enabled for QR rendernull",cause:[{code:13253,description:"Error in Financial Identity Use Case"}]},{status:400});
+  }) as typeof fetch;
+  await assert.rejects(new MercadoPagoPaymentAdapter("https://mp.test","seller","",fetcher).createPayment(input),
+    error=>error instanceof PaymentCreationRejectedError&&error.code==="mercadopago_pix_key_required"&&error.providerCode==="13253");
+  assert.equal(posts,1);
+});

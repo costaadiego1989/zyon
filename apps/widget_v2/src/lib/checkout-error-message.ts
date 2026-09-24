@@ -57,6 +57,8 @@ export function checkoutPaymentErrorMessage(error: unknown): string {
     stripe_connect_not_configured: "O cartão não está disponível para esta loja agora. Escolha PIX ou tente novamente mais tarde.",
     stripe_connect_not_active: "O cartão não está disponível para esta loja agora. Escolha PIX ou tente novamente mais tarde.",
     mercadopago_webhook_not_configured: "Esta forma de pagamento está em configuração. Escolha outra opção.",
+    mercadopago_pix_key_required: "O Pix está indisponível nesta loja. Escolha outra forma de pagamento ou fale com a loja.",
+    mercadopago_oauth_required_for_platform_fee: "A conexão de pagamento da loja precisa ser atualizada. Escolha outra opção ou fale com a loja.",
     payment_creation_uncertain: "Não confirmamos a criação deste pagamento. Aguarde um instante antes de tentar novamente.",
     payment_provider_request_failed: "O provedor de pagamento não respondeu agora. Tente novamente em instantes.",
   };

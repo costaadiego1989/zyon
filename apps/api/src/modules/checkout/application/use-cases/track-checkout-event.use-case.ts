@@ -18,6 +18,7 @@ import {
 import type { CheckoutSession } from "@zyon/shared-types";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
+import { PAYMENT_REPOSITORY, type PaymentRepository } from "../../../payment/domain/ports/payment-repository.port.js";
 
 @Injectable()
 export class TrackCheckoutEventUseCase {
@@ -30,7 +31,8 @@ export class TrackCheckoutEventUseCase {
     @Optional() @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRepository?: MerchantRulesRepository,
     @Optional() @Inject(CHECKOUT_INTERVENTION_LEDGER)
     private readonly interventionLedger?: CheckoutInterventionLedgerPort,
-    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase
+    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase,
+    @Optional() @Inject(PAYMENT_REPOSITORY) private readonly payments?: PaymentRepository
   ) {}
 
   async execute(input: TrackEventRequest): Promise<TrackEventResponse> {
@@ -183,6 +185,10 @@ export class TrackCheckoutEventUseCase {
       : 0;
     if (evaluation.value <= currentDiscountPercent) return undefined;
 
+    // Telemetry can arrive after the provider has created a payable Pix, or
+    // while its outcome is uncertain. Never change that payment's quote.
+    if (await this.payments?.hasCommittedPaymentForSession(session.merchantId, session.sessionId)) return undefined;
+
     // Persist the rules-engine-authorized discount to the session cart so the
     // payment intent (computed server-side from the session) charges the
     // discounted amount — not just surface it as a cosmetic banner value.
@@ -203,7 +209,8 @@ export class TrackCheckoutEventUseCase {
         },
       });
     } catch {
-      // Non-blocking: banner still shows; payment falls back to prior discount.
+      // Never advertise a discount which was not persisted in the payable cart.
+      return undefined;
     }
 
     return {
@@ -216,6 +223,7 @@ export class TrackCheckoutEventUseCase {
 
   private async authorizeFallbackAbandonmentOffer(session: CheckoutSession): Promise<ProgressiveOfferResponse | undefined> {
     if (!this.merchantRepository) return undefined;
+    if (await this.payments?.hasCommittedPaymentForSession(session.merchantId, session.sessionId)) return undefined;
     const rules = await this.merchantRepository.getRules(session.merchantId);
     if (!rules || rules.couponBoxEnabled === false) return undefined;
     const evaluation = evaluateDiscountOffer(session.cart, rules, rules.maxDiscountPercent);

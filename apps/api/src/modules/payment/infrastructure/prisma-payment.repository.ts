@@ -168,6 +168,14 @@ function snapshotFromRecord(row: {
 export class PrismaPaymentRepository implements PaymentRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async hasCommittedPaymentForSession(merchantId: string, sessionId: string): Promise<boolean> {
+    const row = await this.prisma.paymentIntent.findFirst({
+      where: { merchantId, sessionId, status: { notIn: ["failed", "cancelled"] } },
+      select: { id: true },
+    });
+    return row !== null;
+  }
+
   async saveIntent(input: SavePaymentIntentInput): Promise<void> {
     const snapshot = input.intent.snapshot();
     await this.prisma.$transaction(tx => this.saveVersion(tx, snapshot));

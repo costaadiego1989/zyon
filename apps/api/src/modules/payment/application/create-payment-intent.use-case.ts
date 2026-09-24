@@ -11,7 +11,7 @@ import { createHash } from "node:crypto";
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
 import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
-import { PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
+import { isPaymentCreationRejectionCode, PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import type { PaymentAmountBreakdown } from "../domain/payment-amount.js";
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
@@ -66,8 +66,9 @@ export type CreatePaymentIntentRequest = {
 export type CreatePaymentIntentResponseBody = Omit<PaymentIntentSnapshot, "creation" | "version">;
 
 function publicPayment(snapshot: PaymentIntentSnapshot): CreatePaymentIntentResponseBody {
-  if (snapshot.status === "failed" && snapshot.creation?.reason === "mercadopago_oauth_required_for_platform_fee") {
-    throw new ConflictException(snapshot.creation.reason);
+  const rejection = snapshot.creation?.reason;
+  if (snapshot.status === "failed" && isPaymentCreationRejectionCode(rejection)) {
+    throw new ConflictException(rejection);
   }
   if (snapshot.status === "pending" && !snapshot.providerPaymentId) {
     throw new BadGatewayException("payment_creation_uncertain");

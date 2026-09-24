@@ -47,6 +47,14 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     readonly settlementLedger = new InMemoryPaymentSettlementLedgerRepository(),
   ) {}
 
+  async hasCommittedPaymentForSession(merchantId: string, sessionId: string): Promise<boolean> {
+    return Array.from(this.byIntentId.values()).some(intent => {
+      const snapshot = intent.snapshot();
+      return snapshot.merchantId === merchantId && snapshot.sessionId === sessionId &&
+        snapshot.status !== "failed" && snapshot.status !== "cancelled";
+    });
+  }
+
   async saveIntentWithOutbox(input: SavePaymentIntentInput, event: DomainEventEnvelope): Promise<void> {
     await this.saveIntent(input);
     if (this.outbox) {

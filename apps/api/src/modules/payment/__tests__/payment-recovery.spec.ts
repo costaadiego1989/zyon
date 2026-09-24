@@ -22,19 +22,20 @@ function prepared() {
   return intent;
 }
 
-test("definite provider refusal is persisted once and retries do not enter uncertain recovery", async () => {
+for (const rejectionCode of ["mercadopago_oauth_required_for_platform_fee", "mercadopago_pix_key_required"] as const) {
+test(`definite ${rejectionCode} refusal is persisted once and retries do not enter uncertain recovery`, async () => {
   const repo = new InMemoryPaymentRepository();
   const intent = prepared();
   await repo.saveIntent({ intent });
   let posts = 0;
   const provider: PaymentProviderPort = {
-    createPayment: async () => { posts++; throw new PaymentCreationRejectedError("mercadopago_oauth_required_for_platform_fee"); },
+    createPayment: async () => { posts++; throw new PaymentCreationRejectedError(rejectionCode); },
     recoverPayment: async () => { throw new Error("must_not_recover_rejected_payment"); },
   };
   const resume = new ResumePaymentCreationService(repo, provider);
   for (let attempt = 0; attempt < 3; attempt++) {
     await assert.rejects(resume.execute((await repo.getIntentById("merchant_recovery", intent.id))!),
-      error => (error as any).getStatus?.() === 409 && (error as Error).message === "mercadopago_oauth_required_for_platform_fee");
+      error => (error as any).getStatus?.() === 409 && (error as Error).message === rejectionCode);
   }
   const saved = (await repo.getIntentById("merchant_recovery", intent.id))!.snapshot();
   assert.equal(posts, 1);
@@ -43,6 +44,7 @@ test("definite provider refusal is persisted once and retries do not enter uncer
   assert.equal(saved.providerPaymentId, undefined);
   assert.equal(repo.capturedEvents.length, 1);
 });
+}
 
 test("existing incomplete Pix presentation is repaired from the same provider payment", async () => {
   const repo = new InMemoryPaymentRepository();

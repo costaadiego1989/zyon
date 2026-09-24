@@ -288,7 +288,10 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
         ? failure.cause.map(cause => String(cause?.code ?? "")).filter(code => /^[a-zA-Z0-9_-]{1,60}$/.test(code)).slice(0, 4)
         : [];
       if (res.status === 400 && codes.includes("2059")) {
-        throw new PaymentCreationRejectedError("mercadopago_oauth_required_for_platform_fee");
+        throw new PaymentCreationRejectedError("mercadopago_oauth_required_for_platform_fee", "2059");
+      }
+      if (res.status === 400 && input.method === "pix" && codes.includes("13253")) {
+        throw new PaymentCreationRejectedError("mercadopago_pix_key_required", "13253");
       }
       throw new Error(`mercadopago_payment_create_failed:${res.status}${codes.length ? `:${codes.join(",")}` : ""}`);
     }

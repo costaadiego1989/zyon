@@ -37,6 +37,8 @@ export type CryptoTransferKey = {
 };
 
 export interface PaymentRepository {
+  /** Automatic offers must preserve the quote once payment creation has started. */
+  hasCommittedPaymentForSession(merchantId: string, sessionId: string): Promise<boolean>;
   saveIntent(input: SavePaymentIntentInput): Promise<void>;
   /**
    * Creates the payment intent and its first ledger snapshot in one atomic

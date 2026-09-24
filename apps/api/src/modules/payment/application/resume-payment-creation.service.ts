@@ -5,7 +5,7 @@ import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../domain/ports/payment-repository.port.js";
 import { PAYMENT_PROVIDER_PORT, type PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
-import { PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
+import { isPaymentCreationRejectionCode, PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 
 @Injectable()
@@ -18,8 +18,9 @@ export class ResumePaymentCreationService {
 
   async execute(intent: PaymentIntentEntity): Promise<PaymentIntentSnapshot> {
     const before = intent.snapshot();
-    if (before.status === "failed" && before.creation?.reason === "mercadopago_oauth_required_for_platform_fee") {
-      throw new ConflictException(before.creation.reason);
+    const rejection = before.creation?.reason;
+    if (before.status === "failed" && isPaymentCreationRejectionCode(rejection)) {
+      throw new ConflictException(rejection);
     }
     if (before.providerPaymentId && before.status === "requires_action" && before.method === "pix" &&
       !before.buyerFacing?.qrCodeCopyPaste?.trim() && before.creation) {
@@ -76,7 +77,7 @@ export class ResumePaymentCreationService {
       if (error instanceof PaymentIntentConflictError) return this.latest(before);
       // Never log the provider response body (payer data, QR payload or secrets).
       const code = error instanceof Error ? error.message.match(/^[a-z][a-z0-9_]*(?::\d{3})?(?=:|$)/)?.[0] : undefined;
-      const providerCodes = error instanceof Error
+      const providerCodes = error instanceof PaymentCreationRejectedError ? error.providerCode : error instanceof Error
         ? error.message.match(/^mercadopago_payment_create_failed:\d{3}:([a-zA-Z0-9_,\-]+)$/)?.[1]
         : undefined;
       this.logger.warn(JSON.stringify({ event: "payment_creation_failed", provider: creation.input.provider,
