@@ -2,13 +2,15 @@
 /**
  * Idempotent showroom seed for Advanced Product Layout.
  *
- * The seed resolves the merchant through the owner email and writes only its
- * own reserved product and related APL records. It never replaces an existing
- * catalog product or modifies checkout, payment, discounts, or merchant rules.
+ * The seed resolves a merchant and writes only three reserved showroom catalog
+ * products and their related APL records. It never replaces an existing catalog
+ * product or modifies checkout, payment, discounts, or merchant rules. Its
+ * own reserved cross-sell promotions are upserted alongside the products.
  *
  * Optional overrides:
  *   AACP_DEMO_MERCHANT_EMAIL=<owner-email>
  *   AACP_DEMO_MERCHANT_ID=<merchant-id>
+ *   AACP_DEMO_MERCHANT_SLUG=<store-slug>
  */
 import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -24,6 +26,7 @@ if (!connectionString) {
 
 const targetEmail = (process.env.AACP_DEMO_MERCHANT_EMAIL ?? "costaadiego1989@gmail.com").trim().toLowerCase();
 const configuredMerchantId = process.env.AACP_DEMO_MERCHANT_ID?.trim();
+const configuredMerchantSlug = process.env.AACP_DEMO_MERCHANT_SLUG?.trim();
 const locale = "pt-BR";
 
 const image = {
@@ -48,6 +51,11 @@ async function main() {
           where: { id: configuredMerchantId },
           select: { id: true, name: true, storeSlug: true },
         })
+      : configuredMerchantSlug
+        ? await prisma.merchant.findUnique({
+            where: { storeSlug: configuredMerchantSlug },
+            select: { id: true, name: true, storeSlug: true },
+          })
       : await prisma.merchantUser.findUnique({
           where: { email: targetEmail },
           select: {
@@ -59,7 +67,9 @@ async function main() {
       throw new Error(
         configuredMerchantId
           ? `Merchant ${configuredMerchantId} was not found.`
-          : `No merchant owner was found for ${targetEmail}.`,
+          : configuredMerchantSlug
+            ? `Merchant with store slug ${configuredMerchantSlug} was not found.`
+            : `No merchant owner was found for ${targetEmail}.`,
       );
     }
 
@@ -215,6 +225,151 @@ async function main() {
       });
     }
 
+    const companions = [
+      {
+        key: "bruma",
+        name: "Núcleo — Bruma de Hidratação",
+        slug: `nucleo-bruma-hidratacao-apl-${suffix}`,
+        sku: `APL-BRUMA-${suffix}`,
+        priceInCents: 9990,
+        stock: 18,
+        description: "Bruma leve para reforçar a hidratação ao longo do dia, com acabamento confortável e aplicação prática.",
+        imageUrl: image.ritual,
+      },
+      {
+        key: "creme",
+        name: "Núcleo — Creme Reparador",
+        slug: `nucleo-creme-reparador-apl-${suffix}`,
+        sku: `APL-CREME-${suffix}`,
+        priceInCents: 10990,
+        stock: 16,
+        description: "Creme de barreira para complementar a rotina com conforto, nutrição e textura de rápida absorção.",
+        imageUrl: image.detail,
+      },
+    ] as const;
+
+    for (const companion of companions) {
+      const companionProductId = `apl_crosssell_${companion.key}_${suffix}`;
+      const companionVariantId = `${companionProductId}_standard`;
+      await prisma.product.upsert({
+        where: { id: companionProductId },
+        create: {
+          id: companionProductId,
+          merchantId: merchant.id,
+          categoryId: category.id,
+          name: companion.name,
+          slug: companion.slug,
+          description: companion.description,
+          type: "physical",
+          isActive: true,
+          metadata: { demo: true, crossSellCompanion: true },
+        },
+        update: {
+          merchantId: merchant.id,
+          categoryId: category.id,
+          name: companion.name,
+          slug: companion.slug,
+          description: companion.description,
+          type: "physical",
+          isActive: true,
+          deletedAt: null,
+          metadata: { demo: true, crossSellCompanion: true },
+        },
+      });
+      await prisma.productVariant.upsert({
+        where: { id: companionVariantId },
+        create: {
+          id: companionVariantId,
+          productId: companionProductId,
+          sku: companion.sku,
+          attributes: { size: "50 ml" },
+          weightGrams: 140,
+          lengthCm: 16,
+          widthCm: 11,
+          heightCm: 6,
+          isActive: true,
+        },
+        update: {
+          productId: companionProductId,
+          sku: companion.sku,
+          attributes: { size: "50 ml" },
+          weightGrams: 140,
+          lengthCm: 16,
+          widthCm: 11,
+          heightCm: 6,
+          isActive: true,
+        },
+      });
+      await prisma.productPrice.upsert({
+        where: { variantId: companionVariantId },
+        create: { variantId: companionVariantId, basePriceInCents: companion.priceInCents, currency: "BRL" },
+        update: { basePriceInCents: companion.priceInCents, currency: "BRL" },
+      });
+      await prisma.productStock.upsert({
+        where: { variantId_warehouseId: { variantId: companionVariantId, warehouseId: "apl-showroom" } },
+        create: { variantId: companionVariantId, warehouseId: "apl-showroom", quantity: companion.stock, reserved: 0 },
+        update: { quantity: companion.stock, reserved: 0 },
+      });
+      await prisma.productMedia.upsert({
+        where: { id: `${companionProductId}_hero` },
+        create: { id: `${companionProductId}_hero`, variantId: companionVariantId, url: companion.imageUrl, type: "IMAGE", alt: companion.name, order: 0 },
+        update: { variantId: companionVariantId, url: companion.imageUrl, type: "IMAGE", alt: companion.name, order: 0 },
+      });
+      await prisma.inventoryItem.upsert({
+        where: {
+          merchantId_sku_locationId: {
+            merchantId: merchant.id,
+            sku: companion.sku,
+            locationId: inventoryLocation.id,
+          },
+        },
+        create: {
+          merchantId: merchant.id,
+          sku: companion.sku,
+          productName: companion.name,
+          variantName: "50 ml",
+          locationId: inventoryLocation.id,
+          quantity: companion.stock,
+          salePriceCents: companion.priceInCents,
+        },
+        update: {
+          productName: companion.name,
+          variantName: "50 ml",
+          quantity: companion.stock,
+          salePriceCents: companion.priceInCents,
+        },
+      });
+    }
+
+    const now = new Date();
+    for (const companion of companions) {
+      await prisma.crossSellPromotion.upsert({
+        where: { id: `apl_crosssell_primary_${companion.key}_${suffix}` },
+        create: {
+          id: `apl_crosssell_primary_${companion.key}_${suffix}`,
+          merchantId: merchant.id,
+          name: `Complemento do Sérum — ${companion.name}`,
+          trigger: { sku_in_cart: [`APL-NUCLEO-${suffix}`] },
+          recommendedSkus: [companion.sku],
+          discountPercent: 10,
+          maxDiscountPercent: 10,
+          status: "active",
+          startsAt: now,
+        },
+        update: {
+          merchantId: merchant.id,
+          name: `Complemento do Sérum — ${companion.name}`,
+          trigger: { sku_in_cart: [`APL-NUCLEO-${suffix}`] },
+          recommendedSkus: [companion.sku],
+          discountPercent: 10,
+          maxDiscountPercent: 10,
+          status: "active",
+          startsAt: now,
+          endsAt: null,
+        },
+      });
+    }
+
     await prisma.productContentBlock.createMany({
       data: [
         { productId: product.id, locale, type: "heading", order: 0, isEnabled: true, props: { level: 2, text: "Pele estável começa com uma barreira bem cuidada." } },
@@ -255,8 +410,9 @@ async function main() {
     });
 
     const preview = `/store/${storeSlug}?show=content&product=${product.id}`;
-    console.log(`Advanced layout showroom ready for ${merchant.name}.`);
+    console.log(`Advanced layout showroom catalog ready for ${merchant.name}.`);
     console.log(`merchant=${merchant.id} productId=${product.id} variantId=${variantId}`);
+    console.log(`companions=${companions.map((companion) => `apl_crosssell_${companion.key}_${suffix}`).join(",")}`);
     console.log(`preview=${preview}`);
   } finally {
     await prisma.$disconnect();

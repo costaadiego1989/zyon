@@ -79,7 +79,7 @@ Para criar uma página de produto preenchida com blocos, FAQ, avaliações e ví
 pnpm --filter @zyon/api seed:advanced-layout
 ~~~
 
-Por padrão, o seed resolve `costaadiego1989@gmail.com`; `AACP_DEMO_MERCHANT_EMAIL` ou `AACP_DEMO_MERCHANT_ID` permitem apontar outro merchant. Ele só recria o produto reservado `apl_showcase_*` e sua variante demonstrativa. Ao terminar, imprime a rota `/store/<slug>?show=content&product=<id>` para a prévia.
+Por padrão, o seed resolve `costaadiego1989@gmail.com`; `AACP_DEMO_MERCHANT_EMAIL`, `AACP_DEMO_MERCHANT_ID` ou `AACP_DEMO_MERCHANT_SLUG` permitem apontar outro merchant. Ele só recria os três itens reservados `apl_showcase_*` e `apl_crosssell_*`, suas variantes e promoções complementares. Ao terminar, imprime a rota `/store/<slug>?show=content&product=<id>` para a prévia.
 
 A rota /store/demo é a única storefront permitida para incorporação pelas origens da Zyon; as demais lojas mantêm proteção contra framing.
 
