@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { BadRequestException } from "@nestjs/common";
+import { BadRequestException, ConflictException } from "@nestjs/common";
+import { ProblemDetailsSchema } from "@zyon/contracts";
 import type { NextFunction, Response } from "express";
 import { EntityTagService } from "./entity-tag.service.js";
 import {
@@ -12,6 +13,33 @@ import { correlationIdMiddleware } from "./correlation-id.middleware.js";
 import { toProblemDetails } from "./problem-details.filter.js";
 
 describe("HTTP contract guarantees", () => {
+  it("preserves only the bounded chat receipt through the public problem-details contract", () => {
+    for (const [code, status] of [
+      ["CHAT_MESSAGE_IN_PROGRESS", "processing"], ["CHAT_MESSAGE_RECONCILIATION_REQUIRED", "unknown"],
+      ["CHAT_MESSAGE_ALREADY_COMPLETED", "completed"], ["CHAT_MESSAGE_REJECTED", "rejected"],
+    ]) {
+      const receipt = { message_id: "message_00000001", status, next_action: "refresh_session" };
+      const problem = toProblemDetails(new ConflictException({ code,
+        chat_request: { ...receipt, text: "private buyer text", secret: "not-public" },
+        response: { authorized_offer: { id: "old-offer" } },
+      }), "corr_chat");
+      assert.equal(problem.code, code.toLowerCase());
+      const parsed = ProblemDetailsSchema.parse(problem);
+      assert.deepEqual(parsed.chat_request, receipt);
+      assert.doesNotMatch(JSON.stringify(problem), /private buyer|not-public|old-offer/);
+    }
+  });
+
+  it("does not expose malformed or unrelated chat receipt metadata", () => {
+    for (const patch of [{ code: "UNRELATED_ERROR" }, { status: "completed" }, { message_id: "bad" }, { next_action: "repeat_payment" }]) {
+      const { code = "CHAT_MESSAGE_IN_PROGRESS", ...receiptPatch } = patch;
+      const problem = toProblemDetails(new ConflictException({ code, chat_request: {
+        message_id: "message_00000001", status: "processing", next_action: "refresh_session", ...receiptPatch,
+      } }), "corr_chat");
+      assert.equal(ProblemDetailsSchema.parse(problem).chat_request, undefined);
+    }
+  });
+
   it("propagates a valid correlation id and replaces an invalid one", () => {
     const supplied = runCorrelation("checkout:request-123");
     assert.equal(supplied.request.correlationId, "checkout:request-123");

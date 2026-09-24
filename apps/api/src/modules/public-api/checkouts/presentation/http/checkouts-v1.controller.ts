@@ -194,10 +194,11 @@ export class CheckoutsV1Controller {
       conversation_id: body.conversation_id,
       user_message: body.user_message,
       agent_id: body.agent_id,
+      message_id: body.message_id,
     };
 
     const result = await this.sendMessageUseCase.execute(input);
-    return CheckoutEntityMapper.toChatMessageResponse(result);
+    return CheckoutEntityMapper.toChatMessageResponse(result, { conversation_id: input.conversation_id, session_id: checkoutId });
   }
 
   /**

@@ -12,6 +12,11 @@ export const ProblemDetailsSchema = z.object({
   code: z.string().min(1),
   detail: z.string().optional(),
   fields: ProblemDetailsFieldErrorsSchema.optional(),
+  chat_request: z.object({
+    message_id: z.string().regex(/^[a-zA-Z0-9_-]{16,128}$/),
+    status: z.enum(["processing", "unknown", "completed", "rejected"]),
+    next_action: z.literal("refresh_session"),
+  }).optional(),
   correlation_id: z.string().min(1),
 });
 

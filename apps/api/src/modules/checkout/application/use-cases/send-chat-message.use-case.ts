@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional , Logger} from "@nestjs/common";
+import { Inject, Injectable, Optional, Logger, ServiceUnavailableException } from "@nestjs/common";
 import type {
   ChatMessageRequest,
   ChatMessageResponse,
@@ -34,6 +34,8 @@ import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee
 import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
 import { ConversationRateLimitService } from "../services/conversation-rate-limit.service.js";
 import { correctionLabels } from "../../domain/services/customer-correction-prompts.js";
+import { CheckoutChatRequestService } from "../../infrastructure/prisma/checkout-chat-request.service.js";
+import { chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -61,14 +63,26 @@ export class SendChatMessageUseCase {
     @Optional() private readonly chatLlmGateway?: ChatLlmGatewayService,
     private readonly orderQuota?: OrderQuotaService,
     private readonly conversationRateLimit?: ConversationRateLimitService,
+    @Optional() private readonly chatRequests?: CheckoutChatRequestService,
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
+    if (this.chatRequests) return this.chatRequests.run(input,
+      request => this.preflight(request), request => this.processMessage(request));
+    if (chatRequestsEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    await this.preflight(input);
+    return this.processMessage(input);
+  }
+
+  private async preflight(input: ChatMessageRequest): Promise<void> {
     await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
     await this.conversationRateLimit?.assertAllowed({
       merchantId: input.merchant_id,
       sessionId: input.session_id,
     });
+  }
+
+  private async processMessage(input: ChatMessageRequest): Promise<ChatMessageResponse> {
     const context = await this.chatContextService.loadContext(
       input.merchant_id,
       input.session_id,

@@ -74,6 +74,7 @@ import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.noti
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkout.repository.js";
+import { CheckoutChatRequestService } from "./infrastructure/prisma/checkout-chat-request.service.js";
 import { PRODUCT_SEARCH_PORT } from "./domain/ports/product-search.port.js";
 import { LocalCatalogFallbackAdapter } from "../catalog/infrastructure/local-catalog-fallback.adapter.js";
 import { PrismaStoreOverviewRepository } from "./infrastructure/prisma/prisma-store-overview.repository.js";
@@ -128,6 +129,11 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
     ChatToolExecutorService,
     ChatLlmGatewayService,
     SendChatMessageUseCase,
+    {
+      provide: CheckoutChatRequestService,
+      useFactory: (prisma: PrismaClient) => new CheckoutChatRequestService(prisma),
+      inject: [PRISMA_CLIENT]
+    },
     ConversationRateLimitService,
     CheckoutCustomerService,
     CheckoutShippingService,

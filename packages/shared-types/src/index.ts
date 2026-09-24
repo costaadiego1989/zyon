@@ -855,6 +855,8 @@ export interface ChatMessageRequest {
   user_message: string;
   agent_id?: string;
   agent_user_id?: string;
+  /** Stable for every retry of one buyer message. Required for the opted-in protocol. */
+  message_id?: string;
 }
 
 export type AgentRuleScope = "merchant_default" | "user_agent";
@@ -1085,6 +1087,8 @@ export interface ChatUiBlock {
 }
 
 export interface ChatMessageResponse {
+  /** Processing receipt; does not assert browser delivery or experimental exposure. */
+  chat_request?: { message_id: string; status: "completed" };
   message: string;
   objection: "shipping_cost" | "price" | "trust" | "payment" | "unknown";
   authorized_offer?: AuthorizedOffer;

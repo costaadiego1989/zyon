@@ -379,6 +379,7 @@ model CheckoutSession {
   acceptedOffers   AcceptedOffer[]
   completedOrders  CompletedOrder[]
   strategyAssignments StrategyAssignment[]
+  chatRequests CheckoutChatRequest[]
 
   @@unique([merchantId, sessionId])
   @@index([merchantId, updatedAt])
@@ -387,6 +388,25 @@ model CheckoutSession {
   @@index([merchantId, promptVariantId, createdAt])
   @@index([globalUserId, merchantId, createdAt])
   @@map("checkout_sessions")
+}
+
+model CheckoutChatRequest {
+  id             String   @id
+  merchantId     String   @map("merchant_id")
+  sessionId      String   @map("session_id")
+  conversationId String   @map("conversation_id")
+  messageId      String   @map("message_id")
+  requestHash    String   @map("request_hash")
+  status         String
+  responseHash   String?  @map("response_hash")
+  startedAt      DateTime @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+
+  session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([merchantId, sessionId, messageId])
+  @@index([status, startedAt])
+  @@map("checkout_chat_requests")
 }
 
 model CheckoutEvent {
