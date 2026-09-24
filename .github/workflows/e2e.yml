@@ -5,10 +5,17 @@ on:
     branches: [main, master]
   pull_request:
 
+# Keep only the latest test run for a ref. This stops a stuck browser suite
+# from consuming a runner after a corrective commit has already superseded it.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ── Widget v2 mocked e2e (no real API needed) ───────────────────────────────
   widget-v2-e2e-mocked:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
@@ -49,6 +56,7 @@ jobs:
   # ── API integration suite ───────────────────────────────────────────────────
   api-integration-suite:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       NODE_ENV: test
       E2E_SEED_ENABLED: "true"

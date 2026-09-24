@@ -28,7 +28,10 @@ jobs:
       - run: pnpm --filter @zyon/api prisma:generate
       - run: cd apps/api && pnpm typecheck
       - run: cd apps/dashboard && pnpm typecheck
-      - run: cd apps/storefront && pnpm typecheck
+      # Storefront imports the checkout widget from its published workspace
+      # output, so build it first in a clean runner just as the release gate
+      # does. Without this, TypeScript reports an empty module declaration.
+      - run: pnpm --filter @zyon/widget-v2 build && pnpm --filter @zyon/storefront typecheck
       - run: cd apps/widget_v2 && pnpm typecheck
 
   test-api:
@@ -69,6 +72,7 @@ jobs:
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
       - run: pnpm install --frozen-lockfile
+      - run: pnpm --filter @zyon/shared-types build
       - run: cd packages/rules-engine && pnpm test
       - run: cd packages/shipping-engine && pnpm test
       - run: cd packages/conversation-engine && pnpm test
@@ -87,8 +91,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: cd apps/api && pnpm build
       - run: cd apps/dashboard && pnpm build
-      - run: cd apps/storefront && pnpm build
       - run: cd apps/widget_v2 && pnpm build
+      - run: cd apps/storefront && pnpm build
 
   e2e-store-builder:
     runs-on: ubuntu-latest
