@@ -64,7 +64,13 @@ export class CreateStripeConnectOnboardingLinkUseCase {
         merchantId: input.merchantId,
         merchantName: profile.name,
         email: input.email,
-      }).catch(error => { throw stripeConnectError(error, "account_creation"); });
+      }).catch(error => {
+        throw stripeConnectError(error, "account_creation", [
+          input.email,
+          input.merchantId,
+          profile.name,
+        ]);
+      });
       accountId = created.accountId;
       await this.repository.saveConnection({
         merchantId: input.merchantId,

@@ -23,21 +23,27 @@ const logger = new Logger("StripeConnect");
  * Converts a Stripe SDK error into a stable, non-sensitive API problem.
  *
  * Stripe's text changes over time, so the API response must not depend on it.
- * We retain only the provider's diagnostic identifiers in server logs; the raw
- * provider message can contain submitted account data and must never reach a
- * merchant response or the application log.
+ * The provider message can contain submitted account data, so it never reaches
+ * a merchant response. For account creation we log only a redacted diagnostic
+ * copy, which lets support identify an invalid live-mode entitlement without
+ * retaining the merchant's submitted values.
  */
 export function stripeConnectError(
   error: unknown,
   operation: "account_creation" | "onboarding_link" = "account_creation",
+  redactions: readonly unknown[] = [],
 ) {
   const failure = asStripeFailure(error);
-  const provider = providerDiagnostic(failure);
-  logger.warn({ event: "stripe_connect_provider_error", operation, ...provider });
-
   const message = readString(failure.message) ?? readString(failure.raw?.message) ?? "";
   const type = readString(failure.type) ?? readString(failure.rawType) ?? readString(failure.raw?.type);
   const code = readString(failure.code) ?? readString(failure.raw?.code);
+  const provider = providerDiagnostic(failure);
+  logger.warn({
+    event: "stripe_connect_provider_error",
+    operation,
+    ...provider,
+    provider_message: redactedProviderMessage(message, redactions),
+  });
 
   if (isConnectRegistrationError(message)) {
     return new ServiceUnavailableException({
@@ -96,6 +102,23 @@ function providerDiagnostic(failure: StripeFailure): Record<string, string | num
     provider_status: readStatus(failure.statusCode),
     provider_request_id: readString(failure.requestId) ?? readString(failure.raw?.requestId) ?? null,
   };
+}
+
+function redactedProviderMessage(message: string, redactions: readonly unknown[]): string | null {
+  if (!message || redactions.length === 0) return null;
+
+  let safe = message;
+  for (const value of redactions) {
+    const submitted = readString(value);
+    if (!submitted) continue;
+    safe = safe.replace(new RegExp(escapeRegExp(submitted), "gi"), "[redacted]");
+  }
+  safe = safe.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, "[redacted-email]");
+  return safe.replace(/\s+/g, " ").trim().slice(0, 500) || null;
+}
+
+function escapeRegExp(value: string): string {
+  return value.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
 function readString(value: unknown): string | undefined {
