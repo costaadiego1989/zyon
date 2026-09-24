@@ -37,7 +37,7 @@ export class ApplyCouponUseCase {
 
     const snap = coupon.snapshot();
     const validity = validateCoupon(snap, input.cart, input.buyer_region);
-    if (!validity.valid) throw new BadRequestException(validity.reason);
+    if (validity.valid === false) throw new BadRequestException(validity.reason);
 
     if (input.has_existing_commercial_benefit) {
       throw new ConflictException("CHECKOUT_COMMERCIAL_BENEFIT_ALREADY_APPLIED");
