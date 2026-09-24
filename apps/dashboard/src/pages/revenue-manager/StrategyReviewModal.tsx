@@ -32,8 +32,8 @@ function variant(value: unknown): { name?: string; system_prompt?: string; weigh
   return value && typeof value === "object" ? value : {};
 }
 
-export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
-  hypothesisId: string; merchantId: string; onClose: () => void;
+export function StrategyReviewModal({ hypothesisId, merchantId, onClose, approvalDisabled = false }: {
+  hypothesisId: string; merchantId: string; onClose: () => void; approvalDisabled?: boolean;
 }) {
   const api = useApi();
   const [hypothesis, setHypothesis] = useState<Hypothesis | null>(null);
@@ -52,7 +52,7 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
   }, [api, hypothesisId, merchantId, refresh]);
 
   const decide = async (approve: boolean) => {
-    if (busy || !hypothesis || hypothesis.status !== "pending_review") return;
+    if (busy || !hypothesis || hypothesis.status !== "pending_review" || (approve && approvalDisabled)) return;
     setBusy(true); setError("");
     try {
       if (approve) {
@@ -82,7 +82,7 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
     onClose={() => { if (!busy) onClose(); }}
     footer={hypothesis && pending ? <div className="strategy-review-actions">
       <button type="button" className="zyn-btn zyn-btn--ghost" disabled={busy} onClick={() => void decide(false)}>Declinar</button>
-      <button type="button" className="zyn-btn zyn-btn--primary" disabled={busy} onClick={() => void decide(true)}>
+      <button type="button" className="zyn-btn zyn-btn--primary" disabled={busy || approvalDisabled} onClick={() => void decide(true)}>
         {mode === "test_ab" ? <FlaskConical size={16} /> : <Check size={16} />}
         {busy ? "Processando..." : mode === "test_ab" ? "Iniciar teste A/B" : "Aplicar estratégia"}
       </button>
@@ -93,15 +93,16 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
         {!hypothesis && <button type="button" className="zyn-btn zyn-btn--secondary" onClick={() => setRefresh(x => x + 1)}>Tentar novamente</button>}
       </div>}
       {hypothesis && <>
+        {approvalDisabled && <p role="status">Esta proposta antiga pode ser recusada, mas não pode iniciar um teste no ciclo semanal. Aguarde uma proposta com plano de medição e execução disponíveis.</p>}
         <h3 className="strategy-review-title">{hypothesis.hypothesis_text}</h3>
         {rule && <StrategyRuleDetails rule={rule} />}
-        {pending && canApplyDirect && <fieldset className="strategy-review-mode"><legend>Como deseja aplicar?</legend>
+        {pending && canApplyDirect && !approvalDisabled && <fieldset className="strategy-review-mode"><legend>Como deseja aplicar?</legend>
           <label><input type="radio" name="strategy-mode" checked={mode === "test_ab"} disabled={busy} onChange={() => setMode("test_ab")} /> Testar A/B</label>
           <label><input type="radio" name="strategy-mode" checked={mode === "apply_direct"} disabled={busy} onChange={() => setMode("apply_direct")} /> Aplicar direto</label>
         </fieldset>}
-        <p className="strategy-review-explanation">{mode === "test_ab"
+        {!approvalDisabled && <p className="strategy-review-explanation">{mode === "test_ab"
           ? `O teste compara a estratégia atual com ${rule ? "esta oferta" : "a nova abordagem"}. Acompanhe ou pause em Testes A/B.`
-          : "A regra fica ativa nos atendimentos que cumprirem as condições acima. Você pode desativá-la nas configurações do checkout."}</p>
+          : "A regra fica ativa nos atendimentos que cumprirem as condições acima. Você pode desativá-la nas configurações do checkout."}</p>}
         <details className="strategy-review-details">
           <summary>Ver detalhes da estratégia</summary>
           <div className="strategy-review-details-body">
@@ -116,7 +117,7 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
             {mode === "test_ab" && <section className="strategy-detail-section"><h3>Como funciona o teste</h3>
               <p>O grupo A mantém a estratégia atual. O grupo B recebe {rule ? "a regra proposta" : "a nova abordagem"}.</p>
               {weightSum > 0 && <p>Participantes: <strong>{Math.round(Number(a.weight) / weightSum * 100)}% no grupo A</strong> e <strong>{Math.round(Number(b.weight) / weightSum * 100)}% no grupo B</strong>.</p>}
-              <p>A aprovação inicia o experimento. A conclusão depende da amostra coletada.</p>
+              <p>{approvalDisabled ? "Este registro histórico não autoriza a execução de um experimento semanal." : "A aprovação inicia o experimento. A conclusão depende da amostra coletada."}</p>
             </section>}
             <p className="strategy-review-note">Os limites comerciais da loja continuam sendo verificados a cada oferta.</p>
           </div>

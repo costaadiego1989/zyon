@@ -9,6 +9,7 @@ import { PageLoader } from "../../components/PageLoader.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useRevenueManagerPage } from "./useRevenueManagerPage.js";
+import { STRATEGY_STATUSES } from "./strategy-review-model.js";
 
 export interface RevenueManagerPageProps {
   apiBaseUrl: string;
@@ -39,15 +40,16 @@ const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }
   experiment_failed: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Teste falhou" },
 };
 
-export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
-  const vm = useRevenueManagerPage(me);
+export function RevenueManagerPage(_props: RevenueManagerPageProps) {
+  const vm = useRevenueManagerPage();
   const [tab, setTab] = useState<Tab>("hypotheses");
   const [hypPage, setHypPage] = useState(1);
   const [obsPage, setObsPage] = useState(1);
   const [lessonPage, setLessonPage] = useState(1);
 
-  const pendingCount = vm.hypotheses.filter(h => h.status === "pending_review").length;
-  const approvedCount = vm.hypotheses.filter(h => h.status === "approved").length;
+  const pendingCount = vm.hypotheses.filter(h => (h.strategy_review?.status ?? h.status) === "pending_review"
+    && (!h.strategy_review || Date.parse(h.strategy_review.expires_at) > Date.now())).length;
+  const approvedCount = vm.hypotheses.filter(h => (h.strategy_review?.status ?? h.status) === "approved").length;
   const measuredConversions = vm.observations
     .map((observation) => observation.conversion_rate)
     .filter((rate): rate is number => rate !== null);
@@ -102,6 +104,8 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
       </div>
 
       <WeeklyAnalysisStatus status={vm.analysisStatus} error={vm.analysisStatusError} />
+      {vm.hypothesesError && <div role="alert" className="strategy-review-error"><p>Não foi possível atualizar as sugestões da loja. Os dados anteriores podem estar desatualizados.</p>
+        <button type="button" className="zyn-btn zyn-btn--secondary" onClick={() => void vm.refresh()}>Tentar novamente</button></div>}
 
       {/* Kill-switch — ativar/desativar o motor autônomo */}
       <section style={{
@@ -146,35 +150,35 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
           pageSize={PAGE_SIZE}
           total={vm.hypotheses.length}
           onPageChange={setHypPage}
-          isEmpty={vm.hypotheses.length === 0}
+          isEmpty={!vm.hypothesesError && vm.hypotheses.length === 0}
           empty={{ icon: Lightbulb, title: "Nenhuma sugestão ainda", description: "As sugestões aparecem quando a análise encontra dados suficientes e uma oportunidade para testar." }}
         >
           <div style={{ display: "flex", flexDirection: "column" }}>
             {hypSlice.map((h, i) => {
+              const review = h.strategy_review;
               const risk = RISK_COLORS[h.risk_level] ?? RISK_COLORS.medium;
-              const status = STATUS_COLORS[h.status] ?? STATUS_COLORS.pending_review;
+              const state = review?.status ?? h.status;
+              const expired = review && Date.parse(review.expires_at) <= Date.now() && state === "pending_review";
+              const status = { ...(STATUS_COLORS[state] ?? STATUS_COLORS.pending_review),
+                label: expired ? "Proposta vencida" : STRATEGY_STATUSES[state] ?? STATUS_COLORS[state]?.label ?? "Aguardando atualização" };
               return (
                 <div key={h.id} style={{ padding: "16px 20px", borderBottom: i < hypSlice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, display: "flex", flexDirection: "column", gap: 8 }}>
-                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-                    <span style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)", flex: 1 }}>{h.hypothesis_text}</span>
+                  <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, flexWrap: "wrap" }}>
+                    <span style={{ font: "500 13px var(--font-sans)", color: "var(--color-text)", flex: "1 1 220px", overflowWrap: "anywhere" }}>{review?.title ?? h.hypothesis_text}</span>
                     <div style={{ display: "flex", gap: 6, flexShrink: 0 }}>
-                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: risk.bg, color: risk.color }}>{risk.label}</span>
+                      {!review && <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: risk.bg, color: risk.color }}>{risk.label}</span>}
                       <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: status.bg, color: status.color }}>{status.label}</span>
                     </div>
                   </div>
-                  <div style={{ display: "flex", alignItems: "center", gap: 16, font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>
-                    <span>Impacto estimado: <strong style={{ color: "var(--color-brand)" }}>+{h.expected_lift_percent.toFixed(1)}%</strong></span>
+                  <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 16, font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+                    <span>Estimativa da IA: <strong>{(review?.expected_lift_percent ?? h.expected_lift_percent).toLocaleString("pt-BR")}%</strong>, ainda não medida</span>
+                    {review && <span>Versão {review.version}</span>}
                     <span>{new Date(h.created_at).toLocaleDateString("pt-BR")}</span>
-                    {h.status === "pending_review" && (
                       <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>
-                        <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => openStrategyReview(h.id)} disabled={vm.approving.has(h.id)}>
-                          Revisar e aprovar
-                        </button>
-                        <button type="button" style={{ fontSize: 11, padding: "4px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "transparent", color: "var(--color-text-muted)", cursor: "pointer" }} onClick={() => vm.rejectHypothesis(h.id, "Não relevante")} disabled={vm.approving.has(h.id)}>
-                          Rejeitar
+                        <button type="button" className="zyn-btn zyn-btn--secondary" style={{ minHeight: 44 }} onClick={() => openStrategyReview(h.id)}>
+                          Ver detalhes
                         </button>
                       </div>
-                    )}
                   </div>
                 </div>
               );

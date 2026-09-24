@@ -1,4 +1,5 @@
 import { dashboardJson } from "../http/client.js";
+import type { StrategyReview, StrategyReviewCommand, StrategyReviewReceipt } from "./strategy-review.js";
 
 const PREFIX = "/revenue-manager";
 
@@ -44,6 +45,7 @@ export interface HypothesisTemplate {
 }
 
 export interface Hypothesis {
+  strategy_review?: { version: number; status: string; title: string; expires_at: string; expected_lift_percent: number };
   id: string;
   hypothesis_text: string;
   reasoning: string;
@@ -131,6 +133,16 @@ function mapLesson(raw: StrategyLessonApiResponse): StrategyLesson {
 
 export function revenueManagerEndpoints(base: string, f: typeof fetch) {
   return {
+    getStrategyReview(id: string): Promise<StrategyReview> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}`, { method: "GET" }, f);
+    },
+    decideStrategy(id: string, kind: "reject" | "revision", input: StrategyReviewCommand): Promise<StrategyReviewReceipt> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/${kind === "revision" ? "revisions" : "reject"}`,
+        { method: "POST", headers: { "Idempotency-Key": input.request_key }, jsonBody: {
+          version: input.version, proposal_hash: input.proposal_hash, request_key: input.request_key,
+          ...(input.feedback === undefined ? {} : { feedback: input.feedback }),
+        } }, f);
+    },
     getAnalysisStatus(): Promise<AnalysisStatus> {
       return dashboardJson<AnalysisStatus>(base, `${PREFIX}/analysis-status`, { method: "GET" }, f);
     },

@@ -22,6 +22,7 @@ try {
       if (!["fetch", "xhr"].includes(request.resourceType())) return route.abort();
       const path = url.pathname;
       let body = {};
+      let responseStatus = 200;
       if (path.endsWith("/merchants/me")) body = { id: "merchant-fixture", name: "Loja de teste", user_id: "owner", role: "OWNER", plan: "BOTH" };
       else if (path.endsWith("/onboarding")) body = { completed: true, steps: [] };
       else if (path.endsWith("/billing/subscription")) body = { plan: "scale", planKey: "scale", status: "active", effectivePlan: "scale", features: { revenueManager: true }, currentPeriodEnd: "2099-01-01T00:00:00Z" };
@@ -34,11 +35,12 @@ try {
           completedAt: "2026-09-24T06:01:00Z", hypothesisId: outcome === "recommendations" ? proposal.id : null } };
       else if (path.endsWith("/hypotheses")) body = outcome === "recommendations" ? [proposal] : [];
       else if (path.endsWith(`/hypotheses/${proposal.id}`)) body = { ...proposal, status: approved ? "experiment_created" : "pending_review" };
+      else if (path.endsWith(`/strategies/${proposal.id}`)) { responseStatus = 404; body = { message: "STRATEGY_NOT_FOUND" }; }
       else if (path.endsWith("/approve")) { approved = true; body = { status: "experiment_created", experiment_id: "experiment-fixture" }; }
       else if (path.endsWith("/observations")) body = [{ id: "obs", observation_window_start: "2026-09-17T06:00:00Z",
         funnel: { total_sessions: 100, conversion_rate: 0.2 }, abandonment: { top_abandonment_objection: "payment" }, objections: {} }];
       else if (path.endsWith("/strategy-lessons")) body = [];
-      await route.fulfill({ status: 200, contentType: "application/json", body: JSON.stringify(body) });
+      await route.fulfill({ status: responseStatus, contentType: "application/json", body: JSON.stringify(body) });
     });
     await page.goto(`${base}/#revenue-manager`, { waitUntil: "domcontentloaded" });
     await page.getByRole("region", { name: "Análise semanal" }).waitFor({ timeout: 20_000 }).catch(async error => {
@@ -47,10 +49,11 @@ try {
     await page.getByText("Ver detalhes da análise", { exact: true }).click();
     await page.getByText("Estratégia pronta para sua revisão", { exact: true }).waitFor();
     await page.getByRole("button", { name: "Revisar estratégia", exact: true }).click();
-    await page.getByRole("button", { name: "Iniciar teste A/B", exact: true }).click();
-    await page.waitForTimeout(200);
-    assert.equal(approved, true);
+    await page.getByRole("button", { name: "Iniciar teste A/B", exact: true }).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Iniciar teste A/B", exact: true }).isDisabled(), true);
+    assert.equal(approved, false, "Legacy proposal cannot activate a weekly experiment");
     await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Fechar", exact: true }).click();
     await page.getByRole("region", { name: "Análise semanal" }).waitFor();
     const overflow = await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1);
     assert.equal(overflow, false, `No horizontal overflow at ${width}px`);
@@ -65,7 +68,7 @@ try {
     await page.getByText(/Ainda precisamos de mais sessões/).waitFor();
     assert.equal(await page.getByRole("button", { name: "Revisar estratégia", exact: true }).count(), 0);
     if (process.env.REVENUE_UI_SCREENSHOT_DIR) await page.screenshot({ path: `${process.env.REVENUE_UI_SCREENSHOT_DIR}/weekly-${width}.png`, fullPage: true });
-    console.log(`PASS ${width}px: details, approval, reload, notification, keyboard and insufficient data (mock API)`);
+    console.log(`PASS ${width}px: weekly legacy details, approval blocked, reload, notification, keyboard and insufficient data (mock API)`);
     await page.close();
   }
 } finally { await browser.close(); }

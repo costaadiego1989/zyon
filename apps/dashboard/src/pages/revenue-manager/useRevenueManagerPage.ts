@@ -3,10 +3,9 @@ import { useEffect, useState, useCallback } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
-import type { MerchantProfile } from "../../api-client.js";
 import type { Hypothesis, DailyObservation, StrategyLesson, AnalysisStatus } from "../../api/endpoints/revenue-manager.js";
 
-export function useRevenueManagerPage(me: MerchantProfile | null) {
+export function useRevenueManagerPage() {
   const api = useApi();
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
   const [observations, setObservations] = useState<DailyObservation[]>([]);
@@ -14,7 +13,7 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
   const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus | null>(null);
   const [analysisStatusError, setAnalysisStatusError] = useState(false);
   const [loading, setLoading] = useState(true);
-  const [approving, setApproving] = useState<Set<string>>(new Set());
+  const [hypothesesError, setHypothesesError] = useState(false);
   const [engineEnabled, setEngineEnabled] = useState<boolean>(true);
   const [engineSaving, setEngineSaving] = useState(false);
 
@@ -27,7 +26,8 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
         api.getStrategyLessons?.().catch(() => null),
         api.getMerchantRules?.().catch(() => null),
       ]);
-      setHypotheses(hData ?? []);
+      setHypothesesError(hData == null);
+      if (hData) setHypotheses(hData);
       setObservations(oData ?? []);
       setLessons(lData ?? []);
       if (rules && typeof rules.autonomousEngineEnabled === "boolean") {
@@ -77,33 +77,5 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
     return () => window.removeEventListener(STRATEGY_CHANGED_EVENT, reload);
   }, [load]);
 
-  const approveHypothesis = async (id: string) => {
-    setApproving(prev => new Set([...prev, id]));
-    try {
-      await api.approveHypothesis?.(id, { approved_by: me?.id ?? "merchant", mode: "test_ab" });
-      setHypotheses(prev => prev.map(h => h.id === id ? { ...h, status: "approved" as const } : h));
-      showToast("success", "Hipótese aprovada — experimento será criado automaticamente");
-    } catch (e) {
-      reportError({ source: "revenue-manager.approve", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao aprovar");
-    } finally {
-      setApproving(prev => { const next = new Set(prev); next.delete(id); return next; });
-    }
-  };
-
-  const rejectHypothesis = async (id: string, reason: string) => {
-    setApproving(prev => new Set([...prev, id]));
-    try {
-      await api.rejectHypothesis?.(id, { reason });
-      setHypotheses(prev => prev.map(h => h.id === id ? { ...h, status: "rejected" as const } : h));
-      showToast("success", "Hipótese rejeitada");
-    } catch (e) {
-      reportError({ source: "revenue-manager.reject", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao rejeitar");
-    } finally {
-      setApproving(prev => { const next = new Set(prev); next.delete(id); return next; });
-    }
-  };
-
-  return { hypotheses, observations, lessons, analysisStatus, analysisStatusError, loading, approving, approveHypothesis, rejectHypothesis, refresh: load, engineEnabled, engineSaving, toggleEngine };
+  return { hypotheses, observations, lessons, analysisStatus, analysisStatusError, loading, hypothesesError, refresh: load, engineEnabled, engineSaving, toggleEngine };
 }

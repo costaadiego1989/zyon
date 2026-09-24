@@ -33,6 +33,21 @@ export class StrategyReviewService {
     return { items: rows.slice(0, 20), next_cursor: rows.length > 20 ? rows[19].id : null };
   }
 
+  /** Keep legacy discovery links useful without displaying a superseded proposal. */
+  async summaries(merchantId: string, ids: string[]) {
+    if (!ids.length) return new Map();
+    const rows = await this.prisma.$transaction(tx => tx.revenueStrategy.findMany({ where: { merchantId, id: { in: ids } },
+      include: { versions: { orderBy: { version: "desc" }, take: 1 } } }),
+    { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
+    return new Map(rows.map(row => {
+      const latest = row.versions[0];
+      const proposal = latest?.proposal as unknown as StrategyProposal | undefined;
+      return [row.id, { version: row.currentVersion, status: row.status,
+        title: proposal?.recommendation.hypothesis_text, expires_at: latest?.expiresAt,
+        expected_lift_percent: proposal?.recommendation.expected_lift_percent }];
+    }));
+  }
+
   async read(merchantId: string, id: string) {
     return this.prisma.$transaction(async tx => {
       const strategy = await tx.revenueStrategy.findFirst({ where: { id, merchantId } });

@@ -133,6 +133,22 @@ async function fixture(merchantId = "store", options: { expired?: boolean; publi
     input: { version: 1, proposal_hash: version?.proposalHash ?? "", request_key: "request-1", feedback: "Prefiro uma explicação mais curta." } };
 }
 
+test("discovery summaries show the latest immutable proposal without crossing stores or exposing its context", { skip: !enabled }, async () => {
+  const f = await fixture("store");
+  const other = await fixture("other");
+  const reviewer = service(async () => ({ ...recommendation(), hypothesis_text: "Nova proposta para revisar", expected_lift_percent: 3 }));
+  assert.equal((await reviewer.summaries("store", [])).size, 0);
+  const result = await reviewer.decide("store", "owner", f.id, "revision", f.input) as { action_id: string };
+  assert.equal((await reviewer.summaries("store", [f.id])).get(f.id)?.status, "revision_pending");
+  await reviewer.process(result.action_id);
+  const summaries = await reviewer.summaries("store", [f.id, other.id, "missing"]);
+  assert.equal(summaries.size, 1);
+  assert.deepEqual(summaries.get(f.id), { version: 2, status: "pending_review", title: "Nova proposta para revisar",
+    expected_lift_percent: 3, expires_at: f.version!.expiresAt });
+  assert.equal(await prisma.revenueStrategyAction.count({ where: { strategyId: f.id } }), 1);
+  assert.equal(await prisma.promptExperiment.count(), 0);
+});
+
 test("measurement preparation is fenced, concurrent, immutable and keeps the original historical snapshot", { skip: !enabled }, async () => {
   const f = await fixture("store", { publish: false });
   await configureMeasurement(f);

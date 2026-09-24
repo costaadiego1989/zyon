@@ -35,6 +35,7 @@ import { STRATEGY_LESSON_REPOSITORY_PORT, type StrategyLessonRepositoryPort } fr
 import { DailyObservationScheduler, REVENUE_MANAGER_QUEUE_UNAVAILABLE } from "../../infrastructure/jobs/daily-observation.job.js";
 import { WeeklyAnalysisService } from "../../infrastructure/weekly-analysis.service.js";
 import { weeklyAnalysisEnabled } from "../../domain/weekly-analysis-policy.js";
+import { StrategyReviewService } from "../../application/strategy-review.service.js";
 import {
   ApproveHypothesisDto,
   RejectHypothesisDto,
@@ -59,6 +60,7 @@ export class RevenueManagerController {
     @Inject(STRATEGY_LESSON_REPOSITORY_PORT) private readonly lessonRepo: StrategyLessonRepositoryPort,
     private readonly dailyObservationScheduler: DailyObservationScheduler,
     @Optional() private readonly weeklyAnalysis?: WeeklyAnalysisService,
+    @Optional() private readonly strategies?: StrategyReviewService,
   ) {}
 
   // ===== Observations =====
@@ -108,10 +110,12 @@ export class RevenueManagerController {
       status,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
+    const reviews = await this.strategies?.summaries(user.merchantId, hypotheses.map(h => h.snapshot().id));
     return hypotheses.map((h) => {
       const snap = h.snapshot();
       return {
         id: snap.id,
+        ...(reviews?.has(snap.id) ? { strategy_review: reviews.get(snap.id) } : {}),
         merchant_id: snap.merchant_id,
         observation_id: snap.observation_id,
         hypothesis_text: snap.hypothesis_text,
