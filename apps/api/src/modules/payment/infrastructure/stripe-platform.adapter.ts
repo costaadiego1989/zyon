@@ -64,7 +64,10 @@ export class StripePlatformAdapter implements StripePlatformPort {
         business_profile: { name: input.merchantName },
         metadata: { merchant_id: input.merchantId },
       },
-      { idempotencyKey: `connect:${input.merchantId}` },
+      // The original key can have a cached Stripe error from before Connect was
+      // enabled on the platform. Keep retries deterministic for this recovery
+      // generation, while allowing the corrected platform configuration to run.
+      { idempotencyKey: `connect:v2:${input.merchantId}` },
     );
     return { accountId: account.id };
   }
