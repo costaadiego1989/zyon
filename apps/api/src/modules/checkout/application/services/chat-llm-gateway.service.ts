@@ -1,9 +1,14 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { assertCheckoutChatBaseline, checkoutContractHash, type CheckoutChatBaseline } from "../../domain/services/checkout-chat-baseline.js";
 import { checkoutChatProviders, CHECKOUT_CHAT_SAMPLING } from "../../domain/services/checkout-chat-provider.js";
 import { checkoutChatTools, buildCheckoutChatPrompt, buildBuyerIntentContext,
   type CheckoutChatPromptInput, type LlmToolDefinition, type BuyerIntentPromptContext,
   type LlmMessage, type LlmCallResult } from "../../domain/services/checkout-chat-prompt.js";
 export type { LlmToolDefinition, BuyerIntentPromptContext, LlmMessage, LlmCallResult } from "../../domain/services/checkout-chat-prompt.js";
+
+export type PinnedChatResult =
+  | { outcome: "provider_completed"; result: LlmCallResult }
+  | { outcome: "provider_not_dispatched" | "provider_failed" | "provider_unknown" };
 
 /**
  * Gateway to local/cloud LLM providers.
@@ -18,6 +23,44 @@ export class ChatLlmGatewayService {
   buildSystemPrompt(opts: CheckoutChatPromptInput): string { return buildCheckoutChatPrompt(opts); }
 
   buildBuyerIntentContext(intent?: BuyerIntentPromptContext): string | undefined { return buildBuyerIntentContext(intent); }
+
+  /** One attempt against the captured route. Never falls back or retries an
+   * uncertain request. This returns provider evidence, not a safe buyer reply. */
+  async callPinned(merchantId: string, baseline: CheckoutChatBaseline, messages: LlmMessage[]): Promise<PinnedChatResult> {
+    try { assertCheckoutChatBaseline(baseline, merchantId); }
+    catch { return { outcome: "provider_not_dispatched" }; }
+    const routes = checkoutChatProviders();
+    const route = routes[0];
+    if (process.env.REVENUE_CHECKOUT_CONTRACT_ENABLED !== "true"
+      || process.env.CHECKOUT_BEHAVIOR_REVISION !== baseline.runtimeRevision
+      || !process.env.CHECKOUT_LLM_PROVIDER?.trim() || routes.length !== 1 || !route
+      || checkoutContractHash({ name: route.name, model: route.model,
+        endpointHash: checkoutContractHash(route.url), timeoutMs: route.timeoutMs }) !== checkoutContractHash(baseline.provider)) {
+      return { outcome: "provider_not_dispatched" };
+    }
+    const controller = new AbortController();
+    // Keep the deadline active through body consumption, not just HTTP headers.
+    const timer = setTimeout(() => controller.abort(), route.timeoutMs);
+    try {
+      const response = await fetch(route.url, {
+        method: "POST", redirect: "error",
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${route.key}` },
+        body: JSON.stringify({ model: route.model, messages, tools: baseline.tools, ...baseline.sampling }),
+        signal: controller.signal,
+      });
+      if (!response.ok) {
+        await response.body?.cancel().catch(() => {});
+        return { outcome: [400, 401, 403, 404, 422, 429].includes(response.status)
+          ? "provider_failed" : "provider_unknown" };
+      }
+      const payload = await readBoundedProviderResponse(response);
+      const result = parsePinnedChatResult(payload, baseline);
+      return result ? { outcome: "provider_completed", result } : { outcome: "provider_unknown" };
+    } catch {
+      // A network error/timeout does not prove the provider did not process it.
+      return { outcome: "provider_unknown" };
+    } finally { clearTimeout(timer); }
+  }
 
   /** Call the same ordered provider routes captured by baseline inspection. */
   async call(messages: LlmMessage[], tools: LlmToolDefinition[]): Promise<LlmCallResult | null> {
@@ -74,4 +117,44 @@ export class ChatLlmGatewayService {
       return null;
     }
   }
+}
+
+async function readBoundedProviderResponse(response: Response): Promise<unknown> {
+  if (!response.body) throw new Error("EMPTY_PROVIDER_BODY");
+  const reader = response.body.getReader();
+  const chunks: Uint8Array[] = [];
+  let size = 0;
+  try {
+    while (true) {
+      const { done, value } = await reader.read();
+      if (done) break;
+      size += value.byteLength;
+      if (size > 200_000) throw new Error("PROVIDER_BODY_TOO_LARGE");
+      chunks.push(value);
+    }
+    return JSON.parse(Buffer.concat(chunks).toString("utf8"));
+  } finally { await reader.cancel().catch(() => {}); reader.releaseLock(); }
+}
+
+function parsePinnedChatResult(payload: any, baseline: CheckoutChatBaseline): LlmCallResult | undefined {
+  // Exact provider model IDs are required for the pilot; moving aliases cannot
+  // establish which behavior answered. Missing/mismatched evidence is uncertain.
+  if (payload?.model !== baseline.provider.model || !Array.isArray(payload.choices) || payload.choices.length !== 1) return;
+  const choice = payload.choices[0];
+  const message = choice?.message;
+  if (!message || message.role !== "assistant" || message.refusal
+    || (message.content != null && typeof message.content !== "string")) return;
+  const content = message.content?.trim() || null;
+  const calls = message.tool_calls ?? [];
+  if (!Array.isArray(calls) || calls.length > 16 || (!content && !calls.length)
+    || choice.finish_reason !== (calls.length ? "tool_calls" : "stop")) return;
+  const names = new Set(baseline.tools.map(t => t.function.name));
+  for (const call of calls) {
+    if (call?.type !== "function" || !names.has(call.function?.name) || typeof call.function?.arguments !== "string") return;
+    try {
+      const args = JSON.parse(call.function.arguments);
+      if (!args || typeof args !== "object" || Array.isArray(args)) return;
+    } catch { return; }
+  }
+  return { content, toolCalls: calls };
 }

@@ -1,5 +1,6 @@
-import test, { before, beforeEach, after } from "node:test";
+import test, { before, beforeEach, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { createServer } from "node:http";
 import { PrismaClient } from "@prisma/client";
 import { DEFAULT_MERCHANT_RULES, type CheckoutSession } from "@zyon/shared-types";
 import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
@@ -12,24 +13,32 @@ import { executionContract, renderStrategyTurn, strategyArm, strategyExecutionEn
 import { checkoutBaselineReference, renderCheckoutChatBaseline } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import { PrismaHypothesisMerchantContext } from "../infrastructure/hypothesis-merchant-context.adapter.js";
 import { enrollCreatedStrategySession, lockExecutionMerchant, registerApprovedExecution, StrategyExecutionLedger } from "../infrastructure/strategy-execution-ledger.js";
+import { ChatLlmGatewayService } from "../../checkout/application/services/chat-llm-gateway.service.js";
+import { StrategyChatDispatcher } from "./strategy-chat-dispatcher.js";
 
 // Only this disposable local database can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
-const enabled = url.hostname === "127.0.0.1" && url.port === "5557" && url.pathname === "/revenue_execution_0924";
+const enabled = url.hostname === "127.0.0.1" && url.port === "5557"
+  && ["/revenue_execution_0924", "/revenue_dispatch_0924"].includes(url.pathname);
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
 const env = { ...process.env };
 const repo = new PrismaCheckoutRepository(prisma);
 const ledger = new StrategyExecutionLedger(prisma);
+const originalFetch = globalThis.fetch;
 before(async () => { if (enabled) await prisma.$connect(); });
 after(async () => { await prisma.$disconnect(); process.env = env; });
+afterEach(() => { globalThis.fetch = originalFetch; });
 beforeEach(async () => {
   if (!enabled) return;
   await prisma.$executeRawUnsafe(`TRUNCATE merchants, merchant_rules, checkout_settings, checkout_sessions,
     revenue_analysis_runs, revenue_analysis_schedules, revenue_manager_observations, revenue_strategies, prompt_experiments CASCADE`);
   process.env = { ...env, REVENUE_STRATEGY_EXECUTION_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "store,other",
+    REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED: "true",
     REVENUE_CHECKOUT_CONTRACT_ENABLED: "true", CHECKOUT_BEHAVIOR_REVISION: "a".repeat(40),
     CHECKOUT_LLM_PROVIDER: "openai", OPENAI_API_KEY: "fixture-only", OPENAI_MODEL: "fixture-model" };
   delete process.env.LOCAL_LLM_BASE_URL; delete process.env.OLLAMA_BASE_URL;
+  // Every dispatch test supplies a controlled transport; never call a provider.
+  globalThis.fetch = (async () => { throw new Error("EXTERNAL_NETWORK_FORBIDDEN_IN_FIXTURE"); }) as typeof fetch;
 });
 
 async function proposalFixture(merchantId = "store", suffix = "one") {
@@ -355,4 +364,232 @@ test("execution requires explicit store opt-in; missing flag and wildcard do not
   assert.equal(strategyExecutionEnabled("store", {}), false);
   assert.equal(strategyExecutionEnabled("store", { REVENUE_STRATEGY_EXECUTION_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "*" }), false);
   assert.equal(strategyExecutionEnabled("store", { REVENUE_STRATEGY_EXECUTION_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "store, another" }), true);
+});
+
+const completed = { outcome: "provider_completed" as const, result: { content: "Posso explicar a etapa atual.", toolCalls: [] } };
+const dispatchInput = (key = "message-one") => ({ ...turn("one", key), userMessage: "Como funciona esta etapa?" });
+const dispatcher = () => new StrategyChatDispatcher(ledger, new ChatLlmGatewayService());
+function providerResponse() {
+  return Response.json({ model: "fixture-model", choices: [{ finish_reason: "stop",
+    message: { role: "assistant", content: completed.result.content } }] });
+}
+
+integration("pinned gateway and PostgreSQL completion keep exact control/treatment and do not invent exposure", async () => {
+  const requests: any[] = [];
+  const server = createServer(async (req, res) => {
+    try {
+      const chunks: Buffer[] = [];
+      for await (const chunk of req) chunks.push(Buffer.from(chunk));
+      requests.push(JSON.parse(Buffer.concat(chunks).toString("utf8")));
+      res.writeHead(200, { "Content-Type": "application/json" });
+      res.end(await providerResponse().text());
+    } catch { res.writeHead(500); res.end(); }
+  });
+  await new Promise<void>(resolve => server.listen(0, "127.0.0.1", resolve));
+  const address = server.address() as { port: number };
+  const endpoint = `http://127.0.0.1:${address.port}/v1`;
+  process.env.OPENAI_BASE_URL = endpoint;
+  globalThis.fetch = ((url, init) => {
+    assert.equal(String(url), `${endpoint}/chat/completions`);
+    return originalFetch(url, init);
+  }) as typeof fetch;
+  try {
+    const f = await activate();
+    const contract = f.execution.contract as any;
+    for (const arm of ["control", "treatment"] as const) {
+      const buyerId = Array.from({ length: 100 }, (_, i) => `arm-buyer-${i}`).find(id => strategyArm(contract, id) === arm)!;
+      await repo.createSessionIfAbsent(session(arm, { globalUserId: buyerId }));
+      const input = { ...dispatchInput(), sessionId: arm };
+      const result = await dispatcher().dispatch(input);
+      assert.equal(result.status, "candidate");
+      if (result.status !== "candidate") throw new Error("missing candidate");
+      assert.equal(result.completion.decision, "eligible_at_recording");
+      assert.equal(result.completion.responseHash, digest(completed.result));
+      assert.deepEqual(requests.at(-1), { model: "fixture-model", tools: f.baseline.tools, ...f.baseline.sampling,
+        messages: [{ role: "system", content: renderStrategyTurn(contract, f.baseline, arm, input.turn) },
+          { role: "user", content: input.userMessage }] });
+    }
+  } finally {
+    server.closeAllConnections();
+    await new Promise<void>((resolve, reject) => server.close(error => error ? reject(error) : resolve()));
+  }
+  assert.equal(await prisma.strategyTurnOutcome.count(), 2);
+  assert.equal(await prisma.strategyTurnCompletion.count(), 2);
+  for (const s of await prisma.checkoutSession.findMany()) { assert.deepEqual(s.chatHistory, []); assert.equal(s.promptVariantId, null); }
+  assert.equal(await prisma.completedOrder.count(), 0);
+  assert.equal(JSON.stringify(await prisma.strategyTurnCompletion.findMany()).includes(completed.result.content), false);
+});
+
+integration("concurrent and repeated dispatch uses one provider attempt and never replays the candidate", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
+  const worker = dispatcher();
+  const results = await Promise.all(Array.from({ length: 8 }, () => worker.dispatch(dispatchInput())));
+  assert.equal(calls, 1); assert.equal(results.filter(r => r.status === "candidate").length, 1);
+  assert.equal(results.filter(r => r.status === "already_admitted").length, 7);
+  assert.equal((await worker.dispatch(dispatchInput())).status, "already_admitted");
+  await assert.rejects(worker.dispatch({ ...dispatchInput(), userMessage: "different" }), /TURN_KEY_CONFLICT/);
+  assert.equal(calls, 1);
+});
+
+integration("provider timeout or crash is durable uncertainty and retry cannot spend again", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; throw new Error("provider connection lost after send"); }) as typeof fetch;
+  const result = await dispatcher().dispatch(dispatchInput());
+  assert.equal(result.status, "suppressed");
+  const receipt = await prisma.strategyTurnCompletion.findFirstOrThrow();
+  assert.equal(receipt.reason, "provider_unknown"); assert.equal(receipt.responseHash, null);
+  assert.equal((await dispatcher().dispatch(dispatchInput())).status, "already_admitted");
+  assert.equal(calls, 1);
+  await assert.rejects(ledger.completeTurn("store", receipt.turnId, completed), /OUTCOME_CONFLICT/);
+});
+
+integration("crash after admission but before provider call never blindly redispatches", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const input = dispatchInput();
+  await ledger.admitTurn({ ...input, inputHash: digest(input.userMessage) });
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
+  assert.equal((await dispatcher().dispatch(input)).status, "already_admitted");
+  assert.equal(calls, 0); assert.equal(await prisma.strategyTurnOutcome.count(), 0);
+});
+
+integration("deterministic, fallback, holdout and disabled dispatch never create a provider claim", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  await repo.createSessionIfAbsent(session("holdout", { cohort: "holdout" }));
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
+  for (const route of ["deterministic", "fallback"] as const) assert.equal((await dispatcher().dispatch({ ...dispatchInput(), route })).status, "unavailable");
+  assert.equal((await dispatcher().dispatch({ ...dispatchInput(), sessionId: "holdout" })).status, "unavailable");
+  process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED = "false";
+  assert.equal((await dispatcher().dispatch(dispatchInput())).status, "unavailable");
+  assert.equal(calls, 0); assert.equal(await prisma.strategyTurn.count(), 0);
+});
+
+const interruptions: Array<[string, (f: Awaited<ReturnType<typeof activate>>) => Promise<void>]> = [
+  ["execution_stopped", async f => { await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "operator", requestKey: "pause", kind: "paused" }); }],
+  ["assignment_stopped", async () => { await prisma.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: "store", sessionId: "one" } }, data: { globalUserId: "corrected-buyer" } }); }],
+  ["session_changed", async () => { await prisma.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: "store", sessionId: "one" } }, data: { cart: { ...session("one").cart, total: 200 } } }); }],
+  ["baseline_changed", async () => { await prisma.merchant.update({ where: { id: "store" }, data: { name: "Changed store" } }); }],
+  ["experiment_stopped", async f => { await prisma.promptExperiment.update({ where: { id: f.execution.experimentId }, data: { status: "completed", completedAt: new Date() } }); }],
+  ["execution_disabled", async () => { process.env.REVENUE_STRATEGY_EXECUTION_ENABLED = "false"; }],
+  ["dispatch_disabled", async () => { process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED = "false"; }],
+];
+for (const [reason, interrupt] of interruptions) integration(`in-flight provider result is suppressed after ${reason}`, async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+  globalThis.fetch = (async () => { await interrupt(f); return providerResponse(); }) as typeof fetch;
+  const result = await dispatcher().dispatch(dispatchInput());
+  assert.equal(result.status, "suppressed");
+  if (result.status !== "suppressed") throw new Error("unexpected candidate");
+  assert.equal(result.completion.reason, reason); assert.equal("result" in result, false);
+  assert.equal((await prisma.strategyTurnOutcome.findFirstOrThrow()).outcome, "provider_completed");
+  assert.deepEqual((await prisma.checkoutSession.findFirstOrThrow()).chatHistory, []);
+});
+
+integration("completion at the fixed deadline is suppressed and keeps provider evidence", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+  const admission = await ledger.admitTurn(turn("one"));
+  if (admission.status !== "admitted") throw new Error("missing admission");
+  const atDeadline = new StrategyExecutionLedger(prisma, async () => f.execution.endsAt);
+  const result = await atDeadline.completeTurn("store", admission.turnId, completed);
+  assert.equal(result.decision, "suppressed"); assert.equal(result.reason, "outside_horizon");
+});
+
+integration("completions are immutable, tenant bound and idempotent by exact response", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const admission = await ledger.admitTurn(turn("one"));
+  if (admission.status !== "admitted") throw new Error("missing admission");
+  const results = await Promise.all(Array.from({ length: 6 }, () => ledger.completeTurn("store", admission.turnId, completed)));
+  assert.ok(results.every(r => r.recordedAt.toISOString() === results[0].recordedAt.toISOString()));
+  assert.equal(await prisma.strategyTurnCompletion.count(), 1);
+  await assert.rejects(ledger.completeTurn("other", admission.turnId, completed), /NOT_FOUND/);
+  await assert.rejects(ledger.completeTurn("store", admission.turnId, { ...completed, result: { ...completed.result, content: "changed" } }), /RESPONSE_CONFLICT/);
+  await assert.rejects(prisma.strategyTurnCompletion.update({ where: { turnId: admission.turnId }, data: { reason: "changed" } }));
+  await assert.rejects(prisma.strategyTurnCompletion.delete({ where: { turnId: admission.turnId } }));
+  await assert.rejects(prisma.strategyTurn.update({ where: { id: admission.turnId }, data: { sessionContextHash: "f".repeat(64) } }));
+});
+
+integration("completed provider plus completion receipt roll back atomically on insertion failure", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const admission = await ledger.admitTurn(turn("one"));
+  if (admission.status !== "admitted") throw new Error("missing admission");
+  const beforeAdmission = new StrategyExecutionLedger(prisma, async () => new Date(0));
+  await assert.rejects(beforeAdmission.completeTurn("store", admission.turnId, completed));
+  assert.equal(await prisma.strategyTurnOutcome.count(), 0);
+  assert.equal(await prisma.strategyTurnCompletion.count(), 0);
+  const good = await ledger.completeTurn("store", admission.turnId, completed);
+  assert.equal(good.decision, "eligible_at_recording");
+});
+
+integration("database rejects completion without matching provider evidence or after pause", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+  const admission = await ledger.admitTurn(turn("one"));
+  if (admission.status !== "admitted") throw new Error("missing admission");
+  const data = { turnId: admission.turnId, merchantId: "store", responseHash: digest(completed.result),
+    decision: "eligible_at_recording", reason: "current_at_recording", recordedAt: new Date() };
+  await assert.rejects(prisma.strategyTurnCompletion.create({ data }));
+  await ledger.recordProviderOutcome("store", admission.turnId, "provider_completed");
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "operator", requestKey: "pause", kind: "paused" });
+  await assert.rejects(prisma.strategyTurnCompletion.create({ data: { ...data, recordedAt: new Date() } }));
+  assert.equal(await prisma.strategyTurnCompletion.count(), 0);
+});
+
+integration("pause racing completion serializes and the receipt never claims delivery", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+  const admission = await ledger.admitTurn(turn("one"));
+  if (admission.status !== "admitted") throw new Error("missing admission");
+  const [completion, paused] = await Promise.all([ledger.completeTurn("store", admission.turnId, completed),
+    ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "operator", requestKey: "pause", kind: "paused" })]);
+  if (completion.decision === "eligible_at_recording") assert.ok(completion.recordedAt <= paused.occurredAt);
+  else assert.equal(completion.reason, "execution_stopped");
+  assert.deepEqual((await prisma.checkoutSession.findFirstOrThrow()).chatHistory, []);
+});
+
+integration("changing and restoring the cart cannot restore eligibility for an in-flight turn", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const admission = await ledger.admitTurn(turn("one"));
+  if (admission.status !== "admitted") throw new Error("missing admission");
+  const original = await prisma.checkoutSession.findFirstOrThrow();
+  const where = { merchantId_sessionId: { merchantId: "store", sessionId: "one" } };
+  await prisma.checkoutSession.update({ where, data: { cart: { ...session("one").cart, total: 200 } } });
+  await prisma.checkoutSession.update({ where, data: { cart: original.cart!, updatedAt: original.updatedAt,
+    strategyContextVersion: original.strategyContextVersion, version: original.version } });
+  const restored = await prisma.checkoutSession.findFirstOrThrow();
+  assert.equal(restored.strategyContextVersion, original.strategyContextVersion + 2);
+  assert.equal((await ledger.completeTurn("store", admission.turnId, completed)).reason, "session_changed");
+});
+
+integration("historical admissions without a frozen session never become eligible", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const assignment = await prisma.strategyAssignment.findFirstOrThrow();
+  const historical = await prisma.strategyTurn.create({ data: { id: "historical", merchantId: "store", assignmentId: assignment.id,
+    requestKey: "old-message", inputHash: digest("old"), promptHash: digest("old-prompt"), admittedAt: new Date() } });
+  assert.equal((await ledger.completeTurn("store", historical.id, completed)).reason, "session_changed");
+});
+
+integration("model drift after admission is recorded as not dispatched with zero provider requests", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
+  const wrapped = { admitTurn: async (...args: Parameters<StrategyExecutionLedger["admitTurn"]>) => {
+    const admission = await ledger.admitTurn(...args); process.env.OPENAI_MODEL = "changed"; return admission;
+  }, completeTurn: ledger.completeTurn.bind(ledger) } as StrategyExecutionLedger;
+  const result = await new StrategyChatDispatcher(wrapped, new ChatLlmGatewayService()).dispatch(dispatchInput());
+  assert.equal(result.status, "suppressed");
+  assert.equal((await prisma.strategyTurnOutcome.findFirstOrThrow()).outcome, "provider_not_dispatched");
+  assert.equal((await prisma.strategyTurnCompletion.findFirstOrThrow()).responseHash, null);
+  assert.equal(calls, 0);
+});
+
+integration("failure to persist a completion releases no candidate and retry cannot send again", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
+  const wrapped = { admitTurn: ledger.admitTurn.bind(ledger), completeTurn: async () => { throw new Error("SIMULATED_DATABASE_OUTAGE"); } } as unknown as StrategyExecutionLedger;
+  await assert.rejects(new StrategyChatDispatcher(wrapped, new ChatLlmGatewayService()).dispatch(dispatchInput()), /DATABASE_OUTAGE/);
+  assert.equal((await dispatcher().dispatch(dispatchInput())).status, "already_admitted");
+  assert.equal(await prisma.strategyTurnOutcome.count(), 0);
+  assert.equal(calls, 1);
 });

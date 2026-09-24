@@ -5,6 +5,7 @@ import { checkoutContractHash } from "../../checkout/domain/services/checkout-ch
 import { executionContract, renderStrategyTurn, strategyArm, strategyExecutionEnabled, type StrategyExecutionContract } from "../domain/strategy-execution.js";
 import type { StrategyProposal } from "../domain/strategy-proposal.js";
 import { lockCheckoutBaselineRows, readCheckoutBaseline } from "./checkout-baseline.reader.js";
+import type { PinnedChatResult } from "../../checkout/application/services/chat-llm-gateway.service.js";
 
 type Tx = Prisma.TransactionClient;
 export async function executionClock(tx: Tx): Promise<Date> {
@@ -20,6 +21,17 @@ async function lockRunningExperiment(tx: Tx, merchantId: string, experimentId: s
   const rows = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM prompt_experiments
     WHERE id = ${experimentId} AND merchant_id = ${merchantId} AND status = 'running' FOR SHARE`;
   return rows.length === 1;
+}
+
+async function lockStrategySession(tx: Tx, merchantId: string, sessionId: string) {
+  await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
+    AND session_id = ${sessionId} FOR SHARE`;
+}
+
+function sessionContextHash(session: CheckoutSession) {
+  // Dates must be serialized before canonical hashing. Include version and all
+  // persisted fields: even a changed-and-restored cart invalidates a stale turn.
+  return digest(JSON.parse(JSON.stringify(session)));
 }
 
 /** Internal publisher primitive. No HTTP route calls it yet. The approval must
@@ -104,6 +116,7 @@ export class StrategyExecutionLedger {
     if (!/^[a-zA-Z0-9:_-]{1,150}$/.test(input.requestKey) || !/^[a-f0-9]{64}$/.test(input.inputHash)) throw new Error("STRATEGY_INVALID_TURN_KEY");
     return this.prisma.$transaction(async tx => {
       await lockCheckoutBaselineRows(tx, input.merchantId);
+      await lockStrategySession(tx, input.merchantId, input.sessionId);
       const assignment = await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: {
         merchantId: input.merchantId, sessionId: input.sessionId } }, include: { execution: true, session: true, stop: true } });
       if (!assignment) return { status: "unavailable" as const };
@@ -128,15 +141,16 @@ export class StrategyExecutionLedger {
       try { systemPrompt = renderStrategyTurn(contract, current, assignment.arm as "control" | "treatment", input.turn); }
       catch { return { status: "unavailable" as const }; }
       const row = await tx.strategyTurn.create({ data: { id: randomUUID(), merchantId: input.merchantId,
-        assignmentId: assignment.id, requestKey: input.requestKey, inputHash: requestHash, promptHash: digest(systemPrompt), admittedAt: now } });
+        assignmentId: assignment.id, requestKey: input.requestKey, inputHash: requestHash, promptHash: digest(systemPrompt),
+        sessionContextHash: sessionContextHash(session), admittedAt: now } });
       return { status: "admitted" as const, turnId: row.id, systemPrompt, baseline: contract.baseline };
     });
   }
 
   // These states describe provider processing only. Buyer delivery requires its
   // own integration/receipt and is deliberately not expressible by this method.
-  async recordProviderOutcome(merchantId: string, turnId: string, outcome: "provider_completed" | "provider_failed" | "provider_unknown") {
-    if (!["provider_completed", "provider_failed", "provider_unknown"].includes(outcome)) throw new Error("STRATEGY_INVALID_TURN_OUTCOME");
+  async recordProviderOutcome(merchantId: string, turnId: string, outcome: PinnedChatResult["outcome"]) {
+    if (!["provider_completed", "provider_failed", "provider_unknown", "provider_not_dispatched"].includes(outcome)) throw new Error("STRATEGY_INVALID_TURN_OUTCOME");
     return this.prisma.$transaction(async tx => {
       await lockExecutionMerchant(tx, merchantId);
       const turn = await tx.strategyTurn.findFirst({ where: { id: turnId, merchantId }, include: { outcome: true } });
@@ -146,6 +160,51 @@ export class StrategyExecutionLedger {
         return turn.outcome;
       }
       return tx.strategyTurnOutcome.create({ data: { turnId, merchantId, outcome, recordedAt: await this.clock(tx) } });
+    });
+  }
+
+  /** Atomic provider evidence and eligibility at recording time. Never persists
+   * text, executes a tool or authorizes later delivery. A caller must perform a
+   * new transactional check when persisting the actual buyer response. */
+  async completeTurn(merchantId: string, turnId: string, provider: PinnedChatResult) {
+    if (!["provider_completed", "provider_failed", "provider_unknown", "provider_not_dispatched"].includes(provider.outcome)) {
+      throw new Error("STRATEGY_INVALID_TURN_OUTCOME");
+    }
+    const responseHash = provider.outcome === "provider_completed" ? digest(provider.result) : null;
+    return this.prisma.$transaction(async tx => {
+      await lockCheckoutBaselineRows(tx, merchantId);
+      const turn = await tx.strategyTurn.findFirst({ where: { id: turnId, merchantId },
+        include: { outcome: true, completion: true, assignment: { include: { execution: true } } } });
+      if (!turn) throw new Error("STRATEGY_TURN_NOT_FOUND");
+      if (turn.outcome && turn.outcome.outcome !== provider.outcome) throw new Error("STRATEGY_TURN_OUTCOME_CONFLICT");
+      if (turn.completion) {
+        if (turn.completion.responseHash !== responseHash) throw new Error("STRATEGY_TURN_RESPONSE_CONFLICT");
+        return turn.completion;
+      }
+      const { assignment } = turn;
+      const { execution } = assignment;
+      await lockStrategySession(tx, merchantId, assignment.sessionId);
+      const session = await tx.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: { merchantId, sessionId: assignment.sessionId } } });
+      const stopped = await tx.strategyAssignmentStop.findUnique({ where: { assignmentId: assignment.id } });
+      const now = await this.clock(tx);
+      let reason: string;
+      if (provider.outcome !== "provider_completed") reason = provider.outcome;
+      else if (!strategyExecutionEnabled(merchantId)) reason = "execution_disabled";
+      else if (process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED !== "true") reason = "dispatch_disabled";
+      else if (execution.status !== "running") reason = "execution_stopped";
+      else if (now < execution.startedAt || now >= execution.endsAt) reason = "outside_horizon";
+      else if (stopped) reason = "assignment_stopped";
+      else if (!turn.sessionContextHash || turn.sessionContextHash !== sessionContextHash(session)) reason = "session_changed";
+      else if (!await lockRunningExperiment(tx, merchantId, execution.experimentId)) reason = "experiment_stopped";
+      else {
+        const contract = execution.contract as unknown as StrategyExecutionContract;
+        const current = await readCheckoutBaseline(tx, merchantId);
+        reason = digest(contract) !== execution.contractHash || !current
+          || checkoutContractHash(current) !== checkoutContractHash(contract.baseline) ? "baseline_changed" : "current_at_recording";
+      }
+      if (!turn.outcome) await tx.strategyTurnOutcome.create({ data: { turnId, merchantId, outcome: provider.outcome, recordedAt: now } });
+      return tx.strategyTurnCompletion.create({ data: { turnId, merchantId, responseHash, reason,
+        decision: reason === "current_at_recording" ? "eligible_at_recording" : "suppressed", recordedAt: now } });
     });
   }
 

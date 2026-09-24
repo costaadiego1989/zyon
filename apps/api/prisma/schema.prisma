@@ -369,6 +369,7 @@ model CheckoutSession {
   cohort           String?
   featuresApplied  Json?    @map("features_applied")
   aiCostCents      Int      @default(0) @map("ai_cost_cents")
+  strategyContextVersion Int @default(0) @map("strategy_context_version")
   version          Int      @default(0)
   createdAt        DateTime @map("created_at")
   updatedAt        DateTime @map("updated_at")
@@ -3566,9 +3567,11 @@ model StrategyTurn {
   requestKey String @map("request_key")
   inputHash String @map("input_hash")
   promptHash String @map("prompt_hash")
+  sessionContextHash String? @map("session_context_hash")
   admittedAt DateTime @map("admitted_at")
   assignment StrategyAssignment @relation(fields: [assignmentId, merchantId], references: [id, merchantId], onDelete: Restrict)
   outcome StrategyTurnOutcome?
+  completion StrategyTurnCompletion?
   @@unique([id, merchantId])
   @@unique([assignmentId, merchantId, requestKey])
   @@map("strategy_turns")
@@ -3582,6 +3585,20 @@ model StrategyTurnOutcome {
   turn StrategyTurn @relation(fields: [turnId, merchantId], references: [id, merchantId], onDelete: Restrict)
   @@unique([turnId, merchantId])
   @@map("strategy_turn_outcomes")
+}
+
+/// Eligibility when the provider result was recorded. Never an exposure,
+/// response-persistence receipt, or permission to execute tools later.
+model StrategyTurnCompletion {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  responseHash String? @map("response_hash")
+  decision String
+  reason String
+  recordedAt DateTime @map("recorded_at")
+  turn StrategyTurn @relation(fields: [turnId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([turnId, merchantId])
+  @@map("strategy_turn_completions")
 }
 
 model StrategyExecutionEvent {
