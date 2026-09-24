@@ -1049,6 +1049,10 @@ export default function ConversationShell({
           setCartDrawerForceOpen(true);
         }}
         onAddItem={(id, name, promoId, couponCode) => {
+          // The product-details panel can open from the same product-detail
+          // response. Close it before accepting an upsell so it cannot cover
+          // the cross-sell action or the resulting cart update.
+          setRichProduct(null);
           dismissCrossSell();
           const tags = `[variantId:${id}]${promoId ? `[crossSellPromoId:${promoId}]` : ""}`;
           handleQuickReply(`Adicionar ${name} ao carrinho ${tags}`);
@@ -1098,7 +1102,7 @@ export default function ConversationShell({
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen} onProductResolved={({ productId, defaultVariantId }) => {
+      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || Boolean(crossSellPending)} onProductResolved={({ productId, defaultVariantId }) => {
         if (richProduct.productId === productId && typeof defaultVariantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(defaultVariantId)) {
           presentedProductVariantRef.current = defaultVariantId;
         }
