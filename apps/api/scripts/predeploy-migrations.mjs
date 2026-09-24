@@ -260,3 +260,26 @@ try {
 } finally {
   await verificationClient.end();
 }
+
+// Reserved showroom catalog seeding is opt-in per deployment. Operators set a
+// valid storefront slug only for the one deployment that needs the catalog,
+// then remove the variable before subsequent releases.
+const reservedCatalogMerchantSlug = process.env.RUN_RESERVED_CATALOG_SEED;
+if (reservedCatalogMerchantSlug) {
+  if (!/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(reservedCatalogMerchantSlug)) {
+    throw new Error("RUN_RESERVED_CATALOG_SEED must be a lowercase storefront slug");
+  }
+  console.log(`Seeding reserved showroom catalog for ${reservedCatalogMerchantSlug}`);
+  const seedPath = fileURLToPath(new URL("../prisma/seeds/advanced-product-layout-seed.ts", import.meta.url));
+  const result = spawnSync(
+    process.execPath,
+    ["--experimental-strip-types", seedPath],
+    {
+      stdio: "inherit",
+      env: { ...process.env, AACP_DEMO_MERCHANT_SLUG: reservedCatalogMerchantSlug },
+    },
+  );
+  if (result.status !== 0) {
+    throw new Error(`Reserved showroom catalog seed failed${result.error ? `: ${result.error.message}` : ""}`);
+  }
+}

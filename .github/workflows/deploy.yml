@@ -17,10 +17,10 @@ on:
       railway_environment:
         description: Railway environment for the reserved catalog seed
         required: true
-        default: homolog
+        default: sandbox
         type: choice
         options:
-          - homolog
+          - sandbox
           - production
       merchant_slug:
         description: Existing storefront slug that owns the reserved catalog
