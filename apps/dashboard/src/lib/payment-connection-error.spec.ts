@@ -17,4 +17,8 @@ describe("Asaas connection errors", () => {
   it("explains the two-gateway limit", () => {
     expect(paymentConnectionError(new DashboardHttpError(409, JSON.stringify({ code: "payment_provider_connection_limit_reached" })))).toContain("2 gateways");
   });
+  it("explains Stripe platform configuration and temporary limits", () => {
+    expect(paymentConnectionError(new DashboardHttpError(503, JSON.stringify({ code: "stripe_connect_configuration_invalid" })))).toContain("configuração da conexão Stripe");
+    expect(paymentConnectionError(new DashboardHttpError(503, JSON.stringify({ code: "stripe_connect_rate_limited" })))).toContain("limitou temporariamente");
+  });
 });

@@ -15,6 +15,8 @@ const messages: Record<string, string> = {
   payment_provider_connection_limit_reached: "Sua loja já possui 2 gateways conectados. Desconecte um para conectar outro.",
   stripe_connect_not_enabled: "A conexão Stripe ainda não foi habilitada pela plataforma. Entre em contato com o suporte da Zyon.",
   stripe_connect_credentials_invalid: "A configuração Stripe da plataforma precisa ser revisada pelo suporte da Zyon.",
+  stripe_connect_configuration_invalid: "A configuração da conexão Stripe precisa ser revisada pelo suporte da Zyon.",
+  stripe_connect_rate_limited: "A Stripe limitou temporariamente novas conexões. Tente novamente em alguns minutos.",
   stripe_connect_account_unavailable: "A conta Stripe vinculada não está disponível. Entre em contato com o suporte da Zyon.",
   stripe_connect_unavailable: "Não foi possível iniciar a conexão Stripe. Tente novamente em alguns minutos.",
   mercadopago_oauth_not_configured: "A conexão Mercado Pago ainda não foi configurada pela plataforma. Entre em contato com o suporte da Zyon.",

@@ -64,7 +64,7 @@ export class CreateStripeConnectOnboardingLinkUseCase {
         merchantId: input.merchantId,
         merchantName: profile.name,
         email: input.email,
-      }).catch(error => { throw stripeConnectError(error); });
+      }).catch(error => { throw stripeConnectError(error, "account_creation"); });
       accountId = created.accountId;
       await this.repository.saveConnection({
         merchantId: input.merchantId,
@@ -92,7 +92,7 @@ export class CreateStripeConnectOnboardingLinkUseCase {
       accountId,
       refreshUrl: `${consoleUrl}/?stripe_refresh=1#${returnTo}`,
       returnUrl: `${consoleUrl}/?stripe_connected=1#${returnTo}`,
-    }).catch(error => { throw stripeConnectError(error); });
+    }).catch(error => { throw stripeConnectError(error, "onboarding_link"); });
     return {
       ...link,
       connection: await requiredConnection(

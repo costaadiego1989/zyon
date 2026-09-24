@@ -94,6 +94,59 @@ test("Stripe Connect activation error is actionable and never persists a connect
   assert.equal(await repository.getConnection("mrc_stripe_error", "stripe"), undefined);
 });
 
+test("Stripe Connect registration wording is actionable without exposing provider diagnostics", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const merchants = new InMemoryMerchantRepository();
+  merchants.seedProfile({ id: "mrc_stripe_registration", name: "Test" });
+  const stripe = new StubStripePlatform();
+  stripe.createConnectAccount = async () => {
+    throw Object.assign(
+      new Error("Register your platform for Connect before creating connected accounts."),
+      {
+        type: "StripeInvalidRequestError",
+        rawType: "invalid_request_error",
+        statusCode: 400,
+        requestId: "req_provider_diagnostic_only",
+      },
+    );
+  };
+  const useCase = new CreateStripeConnectOnboardingLinkUseCase(repository, stripe, environment, merchants, new StubBillingConfig());
+  await assert.rejects(() => useCase.execute({ merchantId: "mrc_stripe_registration", email: "owner@example.com" }), error => {
+    const problem = toProblemDetails(error, "test");
+    assert.equal(problem.status, 503);
+    assert.equal(problem.code, "stripe_connect_not_enabled");
+    assert.doesNotMatch(JSON.stringify(problem), /req_provider_diagnostic_only/);
+    return true;
+  });
+  assert.equal(await repository.getConnection("mrc_stripe_registration", "stripe"), undefined);
+});
+
+test("Stripe invalid requests are identified as platform configuration failures", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const merchants = new InMemoryMerchantRepository();
+  merchants.seedProfile({ id: "mrc_stripe_configuration", name: "Test" });
+  const stripe = new StubStripePlatform();
+  stripe.createConnectAccount = async () => {
+    throw Object.assign(new Error("Received unknown parameter"), {
+      type: "StripeInvalidRequestError",
+      rawType: "invalid_request_error",
+      code: "parameter_unknown",
+      param: "business_profile[name]",
+      statusCode: 400,
+      requestId: "req_configuration_diagnostic_only",
+    });
+  };
+  const useCase = new CreateStripeConnectOnboardingLinkUseCase(repository, stripe, environment, merchants, new StubBillingConfig());
+  await assert.rejects(() => useCase.execute({ merchantId: "mrc_stripe_configuration", email: "owner@example.com" }), error => {
+    const problem = toProblemDetails(error, "test");
+    assert.equal(problem.status, 503);
+    assert.equal(problem.code, "stripe_connect_configuration_invalid");
+    assert.doesNotMatch(JSON.stringify(problem), /req_configuration_diagnostic_only|business_profile/);
+    return true;
+  });
+  assert.equal(await repository.getConnection("mrc_stripe_configuration", "stripe"), undefined);
+});
+
 test("Stripe returns to onboarding and keeps the pending account when a link must be retried", async () => {
   const repository = new InMemoryPaymentPlatformRepository();
   const merchants = new InMemoryMerchantRepository();
