@@ -78,6 +78,18 @@ async function main() {
         },
         select: { id: true, name: true, storeSlug: true },
       });
+      // The public share endpoint renders editorial blocks only for the
+      // advanced-layout feature. This is a zero-cost sandbox entitlement for
+      // the tenant just created above; it never touches a real subscription.
+      await prisma.merchantBillingSubscription.create({
+        data: {
+          merchantId: merchant.id,
+          provider: "sandbox",
+          status: "active",
+          planKey: "growth",
+          billingAmountCents: 0,
+        },
+      });
       console.log(`Created sandbox showroom merchant ${merchant.storeSlug}.`);
     }
 
