@@ -1,6 +1,7 @@
 import test, { before, beforeEach, after, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { createServer } from "node:http";
+import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
 import { DEFAULT_MERCHANT_RULES, type CheckoutSession } from "@zyon/shared-types";
 import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
@@ -15,11 +16,14 @@ import { PrismaHypothesisMerchantContext } from "../infrastructure/hypothesis-me
 import { enrollCreatedStrategySession, lockExecutionMerchant, registerApprovedExecution, StrategyExecutionLedger } from "../infrastructure/strategy-execution-ledger.js";
 import { ChatLlmGatewayService } from "../../checkout/application/services/chat-llm-gateway.service.js";
 import { StrategyChatDispatcher } from "./strategy-chat-dispatcher.js";
+import { StrategyChatPublisher } from "../infrastructure/strategy-chat-publisher.js";
+import { CheckoutChatRequestService } from "../../checkout/infrastructure/prisma/checkout-chat-request.service.js";
+import { chatMessageIdentity, chatMessageTextHash } from "../../checkout/domain/services/chat-message-identity.js";
 
 // Only this disposable local database can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
 const enabled = url.hostname === "127.0.0.1" && url.port === "5557"
-  && ["/revenue_execution_0924", "/revenue_dispatch_0924"].includes(url.pathname);
+  && url.pathname === "/revenue_publication_0924";
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
 const env = { ...process.env };
 const repo = new PrismaCheckoutRepository(prisma);
@@ -34,6 +38,8 @@ beforeEach(async () => {
     revenue_analysis_runs, revenue_analysis_schedules, revenue_manager_observations, revenue_strategies, prompt_experiments CASCADE`);
   process.env = { ...env, REVENUE_STRATEGY_EXECUTION_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "store,other",
     REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED: "true",
+    REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED: "true",
+    CHECKOUT_CHAT_REQUESTS_ENABLED: "true", CHECKOUT_CHAT_REQUEST_MERCHANT_IDS: "store,other",
     REVENUE_CHECKOUT_CONTRACT_ENABLED: "true", CHECKOUT_BEHAVIOR_REVISION: "a".repeat(40),
     CHECKOUT_LLM_PROVIDER: "openai", OPENAI_API_KEY: "fixture-only", OPENAI_MODEL: "fixture-model" };
   delete process.env.LOCAL_LLM_BASE_URL; delete process.env.OLLAMA_BASE_URL;
@@ -592,4 +598,253 @@ integration("failure to persist a completion releases no candidate and retry can
   assert.equal((await dispatcher().dispatch(dispatchInput())).status, "already_admitted");
   assert.equal(await prisma.strategyTurnOutcome.count(), 0);
   assert.equal(calls, 1);
+});
+
+const buyerRequest = (sessionId = "one") => ({ merchant_id: "store", session_id: sessionId,
+  conversation_id: `conversation-${sessionId}`, message_id: randomUUID(), user_message: "Como funciona esta etapa?" });
+async function claimFixture(sessionId = "one") {
+  const input = buyerRequest(sessionId);
+  const { requestHash } = chatMessageIdentity(input);
+  const row = await prisma.checkoutChatRequest.create({ data: { id: randomUUID(), merchantId: "store", sessionId,
+    conversationId: input.conversation_id, messageId: input.message_id, requestHash,
+    buyerMessageHash: chatMessageTextHash(input.user_message), protocolVersion: 2, status: "processing", startedAt: new Date() } });
+  return { input, claim: { requestId: row.id, requestHash } };
+}
+async function boundCandidate(result = completed.result, sessionId = "one") {
+  const f = await claimFixture(sessionId);
+  const dispatcherInput = { ...turn(sessionId, f.claim.requestId), chatRequest: f.claim, userMessage: f.input.user_message };
+  const dispatched = await new StrategyChatDispatcher(ledger, { async callPinned() { return { outcome: "provider_completed", result }; } }).dispatch(dispatcherInput);
+  assert.equal(dispatched.status, "candidate");
+  if (dispatched.status !== "candidate") throw new Error("candidate missing");
+  return { merchantId: "store", sessionId, turnId: dispatched.turnId, claim: f.claim,
+    userMessage: f.input.user_message, result: dispatched.result };
+}
+
+integration("durable request, pinned gateway and publication persist the exact control and treatment response", async () => {
+  const f = await activate();
+  let calls = 0;
+  globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
+  const publisher = new StrategyChatPublisher(prisma), requests = new CheckoutChatRequestService(prisma);
+  for (const arm of ["control", "treatment"] as const) {
+    const buyer = Array.from({ length: 100 }, (_, i) => `publication-buyer-${i}`)
+      .find(id => strategyArm(f.execution.contract as any, id) === arm)!;
+    await repo.createSessionIfAbsent(session(arm, { globalUserId: buyer }));
+    const response = await requests.run(buyerRequest(arm), async () => {}, async (message, claim) => {
+      assert.ok(claim);
+      const candidate = await dispatcher().dispatch({ ...turn(arm, claim.requestId), chatRequest: claim, userMessage: message.user_message });
+      assert.equal(candidate.status, "candidate");
+      if (candidate.status !== "candidate") throw new Error("candidate missing");
+      const publication = await publisher.publish({ merchantId: "store", sessionId: arm, turnId: candidate.turnId,
+        claim, userMessage: message.user_message, result: candidate.result });
+      if (publication.status !== "persisted") throw new Error("publication missing");
+      return { message: publication.message, objection: "unknown", actions: [], turns: publication.session.chatHistory };
+    });
+    assert.equal(response.chat_request?.status, "completed");
+    assert.equal(response.message, completed.result.content);
+    assert.equal(response.turns.length, 2);
+  }
+  assert.equal(calls, 2); assert.equal(await prisma.strategyTurnPublication.count(), 2);
+  assert.equal(await prisma.checkoutChatExchange.count(), 2); assert.equal(await prisma.completedOrder.count(), 0);
+  assert.equal(JSON.stringify(await prisma.strategyTurnPublication.findMany()).includes(completed.result.content), false);
+});
+
+integration("bound admission rejects another request, text, key, tenant and personalized context before provider I/O", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const f = await claimFixture();
+  const original = { ...turn("one", f.claim.requestId), chatRequest: f.claim, userMessage: f.input.user_message };
+  let calls = 0;
+  const worker = new StrategyChatDispatcher(ledger, { async callPinned() { calls++; return completed; } });
+  for (const patch of [{ requestKey: "wrong" }, { userMessage: "changed" },
+    { chatRequest: { ...f.claim, requestHash: "f".repeat(64) } },
+    { turn: { ...original.turn, buyerIntent: { primary_intent: "discount" } } }]) {
+    await assert.rejects(worker.dispatch({ ...original, ...patch }), /CHAT_REQUEST_CONFLICT|PERSONALIZATION_UNSUPPORTED/);
+  }
+  await activate("other"); await repo.createSessionIfAbsent(session("one", { merchantId: "other" }));
+  await assert.rejects(worker.dispatch({ ...original, merchantId: "other" }), /CHAT_REQUEST_CONFLICT/);
+  assert.equal(calls, 0); assert.equal(await prisma.strategyTurn.count(), 0);
+});
+
+integration("simultaneous publications append once and return only receipts on repeats", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const candidate = await boundCandidate();
+  const publisher = new StrategyChatPublisher(prisma);
+  const results = await Promise.all(Array.from({ length: 6 }, () => publisher.publish(candidate)));
+  assert.equal(results.filter(r => r.status === "persisted").length, 1);
+  for (const result of results.filter(r => r.status === "already_decided")) {
+    assert.equal("message" in result, false); assert.equal("session" in result, false);
+  }
+  assert.equal(await prisma.strategyTurnPublication.count(), 1);
+  assert.equal((await repo.getSession("store", "one"))?.chatHistory.length, 2);
+});
+
+for (const scenario of ["pause", "cart_restore", "identity", "baseline", "publication_flag", "dispatch_flag", "execution_flag", "horizon"] as const) {
+  integration(`publication revalidates ${scenario} after eligible completion`, async () => {
+    const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+    const candidate = await boundCandidate();
+    let expected: string;
+    if (scenario === "pause") {
+      await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "operator", requestKey: "pause", kind: "paused" });
+      expected = "execution_stopped";
+    } else if (scenario === "cart_restore") {
+      const before = await prisma.checkoutSession.findFirstOrThrow();
+      await prisma.checkoutSession.update({ where: { id: before.id }, data: { cart: { currency: "BRL", total: 500 } } });
+      await prisma.checkoutSession.update({ where: { id: before.id }, data: { cart: before.cart!, updatedAt: before.updatedAt } });
+      expected = "session_changed";
+    } else if (scenario === "identity") {
+      await prisma.checkoutSession.updateMany({ data: { globalUserId: "changed" } }); expected = "assignment_stopped";
+    } else if (scenario === "baseline") {
+      await repo.setRules("store", { minimumMarginPercent: 40 }); expected = "baseline_changed";
+    } else if (scenario === "publication_flag") {
+      process.env.REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED = "false"; expected = "publication_disabled";
+    } else if (scenario === "dispatch_flag") {
+      process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED = "false"; expected = "dispatch_disabled";
+    } else if (scenario === "execution_flag") {
+      process.env.REVENUE_STRATEGY_EXECUTION_ENABLED = "false"; expected = "execution_disabled";
+    } else expected = "outside_horizon";
+    const publisher = new StrategyChatPublisher(prisma, scenario === "horizon" ? async () => f.execution.endsAt : undefined);
+    const result = await publisher.publish(candidate);
+    assert.equal(result.status, "suppressed"); assert.equal(result.publication.reason, expected);
+    assert.equal(await prisma.checkoutChatExchange.count(), 0);
+    assert.equal((await repo.getSession("store", "one"))?.chatHistory.length, 0);
+    process.env.REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED = "true";
+    assert.equal((await publisher.publish(candidate)).status, "already_decided");
+  });
+}
+
+for (const [name, result, reason] of [
+  ["tool call", { content: "Vou ajudar.", toolCalls: [{ function: { name: "apply_discount", arguments: "{\"percent\":10}" } }] }, "unsupported_response"],
+  ["empty response", { content: " ", toolCalls: [] }, "unsupported_response"],
+  ["unauthorized claim", { content: "Vou aplicar um desconto de 10%.", toolCalls: [] }, "unsafe_message"],
+] as const) {
+  integration(`publication suppresses ${name} without tool or commercial effects`, async () => {
+    await activate(); await repo.createSessionIfAbsent(session("one"));
+    const before = (await repo.getSession("store", "one"))!.cart;
+    const candidate = await boundCandidate(structuredClone(result) as any);
+    const decision = await new StrategyChatPublisher(prisma).publish(candidate);
+    assert.equal(decision.status, "suppressed"); assert.equal(decision.publication.reason, reason);
+    assert.equal(await prisma.checkoutChatExchange.count(), 0);
+    assert.deepEqual((await repo.getSession("store", "one"))!.cart, before);
+    assert.equal(await prisma.completedOrder.count(), 0);
+  });
+}
+
+integration("altered candidate, foreign publication and unbound legacy admission cannot publish", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const publisher = new StrategyChatPublisher(prisma), candidate = await boundCandidate();
+  await assert.rejects(publisher.publish({ ...candidate, result: { ...candidate.result, content: "changed" } }), /RESPONSE_CONFLICT/);
+  await assert.rejects(publisher.publish({ ...candidate, merchantId: "other" }), /REQUEST_CONFLICT/);
+  await assert.rejects(publisher.publish({ ...candidate, userMessage: "changed" }), /REQUEST_CONFLICT/);
+  await repo.createSessionIfAbsent(session("legacy"));
+  const f = await claimFixture("legacy");
+  const old = await new StrategyChatDispatcher(ledger, { async callPinned() { return completed; } })
+    .dispatch({ ...turn("legacy"), userMessage: f.input.user_message });
+  if (old.status !== "candidate") throw new Error("candidate missing");
+  await assert.rejects(publisher.publish({ ...candidate, sessionId: "legacy", claim: f.claim, turnId: old.turnId }), /REQUEST_CONFLICT/);
+  assert.equal(await prisma.checkoutChatExchange.count(), 0); assert.equal(await prisma.strategyTurnPublication.count(), 0);
+});
+
+integration("a bound exchange cannot bypass publication through the normal repository", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const candidate = await boundCandidate();
+  await assert.rejects(repo.appendChatExchange({ merchantId: "store", sessionId: "one", claim: candidate.claim,
+    expectedSession: await repo.getSession("store", "one"),
+    buyer: { role: "buyer", text: candidate.userMessage, occurredAt: new Date().toISOString() },
+    agent: { role: "agent", text: completed.result.content, occurredAt: new Date().toISOString() } }), /PUBLICATION_REQUIRED/);
+  assert.equal(await prisma.checkoutChatExchange.count(), 0);
+  assert.equal((await repo.getSession("store", "one"))?.chatHistory.length, 0);
+});
+
+integration("failure after publication insertion rolls back pair, exchange and decision together", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const candidate = await boundCandidate();
+  const broken = new Proxy(prisma, { get(target, prop) {
+    if (prop !== "$transaction") return Reflect.get(target, prop);
+    return (fn: any) => target.$transaction(async tx => fn(new Proxy(tx, { get(transaction, key) {
+      if (key !== "strategyTurnPublication") return Reflect.get(transaction, key);
+      return new Proxy(transaction.strategyTurnPublication, { get(delegate, method) {
+        if (method !== "create") return Reflect.get(delegate, method);
+        return async (args: any) => { await delegate.create(args); throw new Error("AFTER_PUBLICATION_INSERT"); };
+      } });
+    } })));
+  } }) as PrismaClient;
+  await assert.rejects(new StrategyChatPublisher(broken).publish(candidate), /AFTER_PUBLICATION_INSERT/);
+  assert.equal(await prisma.strategyTurnPublication.count(), 0); assert.equal(await prisma.checkoutChatExchange.count(), 0);
+  assert.equal((await repo.getSession("store", "one"))?.chatHistory.length, 0);
+  assert.equal(await prisma.strategyTurnCompletion.count(), 1);
+});
+
+integration("publication acknowledgement loss cannot duplicate the pair or replay its response", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const candidate = await boundCandidate();
+  const broken = new Proxy(prisma, { get(target, prop) {
+    if (prop !== "$transaction") return Reflect.get(target, prop);
+    return async (fn: any) => { await target.$transaction(fn); throw new Error("PUBLICATION_ACK_LOST"); };
+  } }) as PrismaClient;
+  await assert.rejects(new StrategyChatPublisher(broken).publish(candidate), /ACK_LOST/);
+  const retry = await new StrategyChatPublisher(prisma).publish(candidate);
+  assert.equal(retry.status, "already_decided"); assert.equal("message" in retry, false);
+  assert.equal(await prisma.checkoutChatExchange.count(), 1);
+  assert.equal((await repo.getSession("store", "one"))?.chatHistory.length, 2);
+  await assert.rejects(prisma.strategyTurnPublication.deleteMany(), /IMMUTABLE/);
+  await assert.rejects(prisma.strategyTurnPublication.updateMany({ data: { reason: "changed" } }), /IMMUTABLE/);
+});
+
+integration("database publication guard rejects altered hashes, missing exchange and an extra session update", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const candidate = await boundCandidate();
+  await assert.rejects(prisma.strategyTurnPublication.create({ data: { turnId: candidate.turnId, merchantId: "store",
+    sessionId: "one", requestId: candidate.claim.requestId, exchangeRequestId: candidate.claim.requestId,
+    responseHash: digest(candidate.result), agentTextHash: chatMessageTextHash(completed.result.content),
+    decision: "persisted", reason: "current_at_publication", recordedAt: new Date() } }), /NO_CURRENT_EXCHANGE/);
+  for (const tamper of ["response_hash", "agent_hash", "session_revision"] as const) {
+    const broken = new Proxy(prisma, { get(target, prop) {
+      if (prop !== "$transaction") return Reflect.get(target, prop);
+      return (fn: any) => target.$transaction(async tx => fn(new Proxy(tx, { get(transaction, key) {
+        if (key !== "strategyTurnPublication") return Reflect.get(transaction, key);
+        return new Proxy(transaction.strategyTurnPublication, { get(delegate, method) {
+          if (method !== "create") return Reflect.get(delegate, method);
+          return async (args: any) => {
+            if (tamper === "session_revision") await transaction.checkoutSession.updateMany({ data: { updatedAt: new Date() } });
+            const data = { ...args.data, ...(tamper === "response_hash" ? { responseHash: "f".repeat(64) } : {}),
+              ...(tamper === "agent_hash" ? { agentTextHash: "f".repeat(64) } : {}) };
+            return delegate.create({ data });
+          };
+        } });
+      } })));
+    } }) as PrismaClient;
+    await assert.rejects(new StrategyChatPublisher(broken).publish(candidate), /EVIDENCE_CONFLICT|NO_CURRENT_EXCHANGE/);
+    assert.equal(await prisma.checkoutChatExchange.count(), 0); assert.equal(await prisma.strategyTurnPublication.count(), 0);
+    assert.equal((await repo.getSession("store", "one"))?.chatHistory.length, 0);
+  }
+});
+
+integration("pause and publication serialize so a persisted response always precedes the pause", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+  const candidate = await boundCandidate();
+  const [publication, paused] = await Promise.all([new StrategyChatPublisher(prisma).publish(candidate),
+    ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "operator", requestKey: "pause-race", kind: "paused" })]);
+  if (publication.status === "persisted") assert.ok(publication.publication.recordedAt <= paused.occurredAt);
+  else {
+    assert.equal(publication.status, "suppressed"); assert.equal(publication.publication.reason, "execution_stopped");
+    assert.equal(await prisma.checkoutChatExchange.count(), 0);
+  }
+});
+
+integration("a suppression in the durable request workflow yields uncertainty, no response and no second dispatch", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+  const request = buyerRequest(); let calls = 0;
+  const worker = new StrategyChatDispatcher(ledger, { async callPinned() { calls++; return completed; } });
+  const requests = new CheckoutChatRequestService(prisma);
+  await assert.rejects(requests.run(request, async () => {}, async (message, claim) => {
+    const candidate = await worker.dispatch({ ...turn("one", claim!.requestId), chatRequest: claim, userMessage: message.user_message });
+    if (candidate.status !== "candidate") throw new Error("candidate missing");
+    await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "operator", requestKey: "pause", kind: "paused" });
+    const publication = await new StrategyChatPublisher(prisma).publish({ merchantId: "store", sessionId: "one",
+      turnId: candidate.turnId, claim: claim!, userMessage: message.user_message, result: candidate.result });
+    assert.equal(publication.status, "suppressed");
+    throw new Error("response suppressed");
+  }));
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+  await assert.rejects(requests.run(request, async () => {}, async () => { assert.fail("must not reenter"); }));
+  assert.equal(calls, 1); assert.equal(await prisma.checkoutChatExchange.count(), 0);
 });

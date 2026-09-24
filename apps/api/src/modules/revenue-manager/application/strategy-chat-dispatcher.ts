@@ -12,6 +12,7 @@ export class StrategyChatDispatcher {
     private readonly gateway: Pick<ChatLlmGatewayService, "callPinned">) {}
 
   async dispatch(input: Omit<Parameters<StrategyExecutionLedger["admitTurn"]>[0], "inputHash"> & { userMessage: string }) {
+    input = structuredClone(input);
     if (process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED !== "true") return { status: "unavailable" as const };
     const admission = await this.ledger.admitTurn({ ...input, inputHash: digest(input.userMessage) });
     if (admission.status !== "admitted") return admission;

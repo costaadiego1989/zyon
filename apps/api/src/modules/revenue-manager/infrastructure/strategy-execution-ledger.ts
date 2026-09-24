@@ -1,11 +1,13 @@
 import { randomUUID } from "node:crypto";
-import type { Prisma, PrismaClient, CheckoutSession } from "@prisma/client";
+import type { Prisma, PrismaClient, CheckoutSession, StrategyTurn, StrategyExecution } from "@prisma/client";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import { executionContract, renderStrategyTurn, strategyArm, strategyExecutionEnabled, type StrategyExecutionContract } from "../domain/strategy-execution.js";
 import type { StrategyProposal } from "../domain/strategy-proposal.js";
 import { lockCheckoutBaselineRows, readCheckoutBaseline } from "./checkout-baseline.reader.js";
 import type { PinnedChatResult } from "../../checkout/application/services/chat-llm-gateway.service.js";
+import type { ChatExchangeClaim } from "../../checkout/domain/ports/checkout-session.repository.port.js";
+import { chatMessageTextHash } from "../../checkout/domain/services/chat-message-identity.js";
 
 type Tx = Prisma.TransactionClient;
 export async function executionClock(tx: Tx): Promise<Date> {
@@ -23,15 +25,36 @@ async function lockRunningExperiment(tx: Tx, merchantId: string, experimentId: s
   return rows.length === 1;
 }
 
-async function lockStrategySession(tx: Tx, merchantId: string, sessionId: string) {
+export async function lockStrategySession(tx: Tx, merchantId: string, sessionId: string) {
   await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
     AND session_id = ${sessionId} FOR SHARE`;
 }
 
-function sessionContextHash(session: CheckoutSession) {
+export function sessionContextHash(session: CheckoutSession) {
   // Dates must be serialized before canonical hashing. Include version and all
   // persisted fields: even a changed-and-restored cart invalidates a stale turn.
   return digest(JSON.parse(JSON.stringify(session)));
+}
+
+/** Caller holds baseline rows and the session lock. Shared by completion and
+ * actual publication so historical eligibility cannot become a future permit. */
+export async function currentStrategyTurnReason(tx: Tx, turn: StrategyTurn, execution: StrategyExecution,
+  session: CheckoutSession, now: Date): Promise<string> {
+  const merchantId = turn.merchantId;
+  await tx.$queryRaw`SELECT id FROM strategy_executions WHERE id = ${execution.id} AND merchant_id = ${merchantId} FOR SHARE`;
+  // Re-read after acquiring the lock (a direct database update may have waited).
+  const currentExecution = await tx.strategyExecution.findUniqueOrThrow({ where: { id: execution.id } });
+  if (!strategyExecutionEnabled(merchantId)) return "execution_disabled";
+  if (process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED !== "true") return "dispatch_disabled";
+  if (currentExecution.status !== "running") return "execution_stopped";
+  if (now < currentExecution.startedAt || now >= currentExecution.endsAt) return "outside_horizon";
+  if (await tx.strategyAssignmentStop.findUnique({ where: { assignmentId: turn.assignmentId } })) return "assignment_stopped";
+  if (!turn.sessionContextHash || turn.sessionContextHash !== sessionContextHash(session)) return "session_changed";
+  if (!await lockRunningExperiment(tx, merchantId, currentExecution.experimentId)) return "experiment_stopped";
+  const contract = currentExecution.contract as unknown as StrategyExecutionContract;
+  const baseline = await readCheckoutBaseline(tx, merchantId);
+  return digest(contract) !== currentExecution.contractHash || !baseline
+    || checkoutContractHash(baseline) !== checkoutContractHash(contract.baseline) ? "baseline_changed" : "current_at_recording";
 }
 
 /** Internal publisher primitive. No HTTP route calls it yet. The approval must
@@ -110,7 +133,9 @@ export class StrategyExecutionLedger {
   /** Admission is a one-use claim, not a replayable instruction. An uncertain
    * provider attempt must not be retried under the same key. No message text is stored. */
   async admitTurn(input: { merchantId: string; sessionId: string; requestKey: string; inputHash: string;
-    route: "primary_llm" | "deterministic" | "fallback"; turn: Parameters<typeof renderStrategyTurn>[3] }) {
+    route: "primary_llm" | "deterministic" | "fallback"; turn: Parameters<typeof renderStrategyTurn>[3];
+    chatRequest?: ChatExchangeClaim; userMessage?: string }) {
+    input = structuredClone(input);
     if (input.route !== "primary_llm") return { status: "unavailable" as const };
     if (!strategyExecutionEnabled(input.merchantId)) return { status: "unavailable" as const };
     if (!/^[a-zA-Z0-9:_-]{1,150}$/.test(input.requestKey) || !/^[a-f0-9]{64}$/.test(input.inputHash)) throw new Error("STRATEGY_INVALID_TURN_KEY");
@@ -120,11 +145,22 @@ export class StrategyExecutionLedger {
       const assignment = await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: {
         merchantId: input.merchantId, sessionId: input.sessionId } }, include: { execution: true, session: true, stop: true } });
       if (!assignment) return { status: "unavailable" as const };
+      if (input.chatRequest) {
+        if (process.env.REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED !== "true") return { status: "unavailable" as const };
+        if (input.turn.buyerIntent !== undefined) throw new Error("STRATEGY_PUBLICATION_PERSONALIZATION_UNSUPPORTED");
+        const request = await tx.checkoutChatRequest.findFirst({ where: { id: input.chatRequest.requestId,
+          merchantId: input.merchantId, sessionId: input.sessionId, requestHash: input.chatRequest.requestHash,
+          conversationId: assignment.session.conversationId, status: "processing", protocolVersion: 2 } });
+        if (!request || input.requestKey !== request.id || typeof input.userMessage !== "string"
+          || digest(input.userMessage) !== input.inputHash || chatMessageTextHash(input.userMessage) !== request.buyerMessageHash) {
+          throw new Error("STRATEGY_CHAT_REQUEST_CONFLICT");
+        }
+      }
       const requestHash = digest({ inputHash: input.inputHash, turn: input.turn });
       const existing = await tx.strategyTurn.findUnique({ where: { assignmentId_merchantId_requestKey: {
         assignmentId: assignment.id, merchantId: input.merchantId, requestKey: input.requestKey } } });
       if (existing) {
-        if (existing.inputHash !== requestHash) throw new Error("STRATEGY_TURN_KEY_CONFLICT");
+        if (existing.inputHash !== requestHash || existing.chatRequestId !== (input.chatRequest?.requestId ?? null)) throw new Error("STRATEGY_TURN_KEY_CONFLICT");
         return { status: "already_admitted" as const, turnId: existing.id };
       }
       const { execution, session } = assignment;
@@ -142,7 +178,9 @@ export class StrategyExecutionLedger {
       catch { return { status: "unavailable" as const }; }
       const row = await tx.strategyTurn.create({ data: { id: randomUUID(), merchantId: input.merchantId,
         assignmentId: assignment.id, requestKey: input.requestKey, inputHash: requestHash, promptHash: digest(systemPrompt),
-        sessionContextHash: sessionContextHash(session), admittedAt: now } });
+        sessionContextHash: sessionContextHash(session), admittedAt: now,
+        ...(input.chatRequest ? { chatRequestId: input.chatRequest.requestId, sessionContextVersion: session.strategyContextVersion,
+          publicationPolicy: "text_only_no_personalization_v1" } : {}) } });
       return { status: "admitted" as const, turnId: row.id, systemPrompt, baseline: contract.baseline };
     });
   }
@@ -185,23 +223,9 @@ export class StrategyExecutionLedger {
       const { execution } = assignment;
       await lockStrategySession(tx, merchantId, assignment.sessionId);
       const session = await tx.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: { merchantId, sessionId: assignment.sessionId } } });
-      const stopped = await tx.strategyAssignmentStop.findUnique({ where: { assignmentId: assignment.id } });
       const now = await this.clock(tx);
-      let reason: string;
-      if (provider.outcome !== "provider_completed") reason = provider.outcome;
-      else if (!strategyExecutionEnabled(merchantId)) reason = "execution_disabled";
-      else if (process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED !== "true") reason = "dispatch_disabled";
-      else if (execution.status !== "running") reason = "execution_stopped";
-      else if (now < execution.startedAt || now >= execution.endsAt) reason = "outside_horizon";
-      else if (stopped) reason = "assignment_stopped";
-      else if (!turn.sessionContextHash || turn.sessionContextHash !== sessionContextHash(session)) reason = "session_changed";
-      else if (!await lockRunningExperiment(tx, merchantId, execution.experimentId)) reason = "experiment_stopped";
-      else {
-        const contract = execution.contract as unknown as StrategyExecutionContract;
-        const current = await readCheckoutBaseline(tx, merchantId);
-        reason = digest(contract) !== execution.contractHash || !current
-          || checkoutContractHash(current) !== checkoutContractHash(contract.baseline) ? "baseline_changed" : "current_at_recording";
-      }
+      const reason = provider.outcome !== "provider_completed" ? provider.outcome
+        : await currentStrategyTurnReason(tx, turn, execution, session, now);
       if (!turn.outcome) await tx.strategyTurnOutcome.create({ data: { turnId, merchantId, outcome: provider.outcome, recordedAt: now } });
       return tx.strategyTurnCompletion.create({ data: { turnId, merchantId, responseHash, reason,
         decision: reason === "current_at_recording" ? "eligible_at_recording" : "suppressed", recordedAt: now } });

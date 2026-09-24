@@ -16,7 +16,8 @@ import { ChatResponseBuilder } from "../../application/services/chat-response.bu
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 
 const url = new URL(process.env.CHECKOUT_CHAT_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
-const enabled = url.hostname === "127.0.0.1" && url.port === "5557" && url.pathname === "/revenue_chat_exchanges_final_0924";
+const enabled = url.hostname === "127.0.0.1" && url.port === "5557"
+  && ["/revenue_chat_exchanges_final_0924", "/revenue_publication_0924"].includes(url.pathname);
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
 const env = { ...process.env };
 const originalFetch = globalThis.fetch;

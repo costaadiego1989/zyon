@@ -406,7 +406,10 @@ model CheckoutChatRequest {
 
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
   exchange CheckoutChatExchange?
+  strategyTurn StrategyTurn?
+  strategyPublication StrategyTurnPublication?
 
+  @@unique([id, merchantId])
   @@unique([id, merchantId, sessionId])
   @@unique([merchantId, sessionId, messageId])
   @@index([status, startedAt])
@@ -421,6 +424,7 @@ model CheckoutChatExchange {
   recordedAt   DateTime @map("recorded_at")
 
   request CheckoutChatRequest @relation(fields: [requestId, merchantId, sessionId], references: [id, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
+  strategyPublication StrategyTurnPublication?
 
   @@unique([requestId, merchantId, sessionId])
   @@index([merchantId, sessionId, recordedAt])
@@ -3606,10 +3610,15 @@ model StrategyTurn {
   inputHash String @map("input_hash")
   promptHash String @map("prompt_hash")
   sessionContextHash String? @map("session_context_hash")
+  sessionContextVersion Int? @map("session_context_version")
+  chatRequestId String? @map("chat_request_id")
+  publicationPolicy String? @map("publication_policy")
   admittedAt DateTime @map("admitted_at")
   assignment StrategyAssignment @relation(fields: [assignmentId, merchantId], references: [id, merchantId], onDelete: Restrict)
   outcome StrategyTurnOutcome?
   completion StrategyTurnCompletion?
+  chatRequest CheckoutChatRequest? @relation(fields: [chatRequestId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([chatRequestId, merchantId])
   @@unique([id, merchantId])
   @@unique([assignmentId, merchantId, requestKey])
   @@map("strategy_turns")
@@ -3635,8 +3644,32 @@ model StrategyTurnCompletion {
   reason String
   recordedAt DateTime @map("recorded_at")
   turn StrategyTurn @relation(fields: [turnId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  publication StrategyTurnPublication?
   @@unique([turnId, merchantId])
   @@map("strategy_turn_completions")
+}
+
+/// A one-time publication decision. Persisted means stored in checkout history,
+/// never proof that the buyer saw it or that tools/commercial effects succeeded.
+model StrategyTurnPublication {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  requestId String @map("request_id")
+  exchangeRequestId String? @map("exchange_request_id")
+  responseHash String @map("response_hash")
+  agentTextHash String? @map("agent_text_hash")
+  decision String
+  reason String
+  recordedAt DateTime @map("recorded_at")
+  completion StrategyTurnCompletion @relation(fields: [turnId, merchantId], references: [turnId, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  request CheckoutChatRequest @relation(fields: [requestId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  exchange CheckoutChatExchange? @relation(fields: [exchangeRequestId, merchantId, sessionId], references: [requestId, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict, map: "strategy_turn_publications_exchange_fkey")
+  @@unique([turnId, merchantId])
+  @@unique([requestId, merchantId])
+  @@unique([exchangeRequestId, merchantId, sessionId], map: "strategy_turn_publications_exchange_scope_key")
+  @@index([merchantId, recordedAt])
+  @@map("strategy_turn_publications")
 }
 
 model StrategyExecutionEvent {
