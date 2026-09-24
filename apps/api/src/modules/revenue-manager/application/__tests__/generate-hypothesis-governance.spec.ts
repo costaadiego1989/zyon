@@ -9,6 +9,42 @@ import type { HypothesisGenerationRequest, HypothesisGenerationResponse } from "
 import type { HypothesisMerchantContextPort } from "../../domain/ports/hypothesis-merchant-context.port.js";
 import { LLMHypothesisGenerator } from "../../infrastructure/hypothesis-generator.adapter.js";
 import { PrismaHypothesisMerchantContext } from "../../infrastructure/hypothesis-merchant-context.adapter.js";
+import { AnalysisDeferred } from "../../domain/weekly-analysis-policy.js";
+
+test("weekly generator reserves each fallback, preserves uncertain usage and reuses a cached response", async () => {
+  const originalFetch = globalThis.fetch;
+  const env = { ...process.env };
+  Object.assign(process.env, { OPENAI_API_KEY: "fixture", DEEPSEEK_API_KEY: "fixture", OPENAI_BASE_URL: "https://openai.example/v1", DEEPSEEK_BASE_URL: "https://deepseek.example/v1" });
+  const order: string[] = [];
+  let cached: unknown = null;
+  const budget = {
+    cached: async () => cached,
+    reserve: async ({ provider }: { provider: string }) => { order.push(`reserve:${provider}`); return { id: provider, maxOutputTokens: 500 }; },
+    settle: async (r: { id: string }, usage: unknown) => { order.push(`settle:${r.id}:${usage ? "known" : "unknown"}`); },
+    cache: async (_c: unknown, _m: unknown, response: unknown) => { cached = response; },
+  };
+  globalThis.fetch = async (url, options) => {
+    const provider = String(url).includes("openai") ? "openai" : "deepseek";
+    order.push(`fetch:${provider}`);
+    const body = JSON.parse(String(options?.body));
+    if (provider === "openai") { assert.equal(body.max_completion_tokens, 500); throw new Error("uncertain timeout"); }
+    assert.equal(body.max_tokens, 500);
+    return new Response(JSON.stringify({ id: "call", usage: { prompt_tokens: 100, completion_tokens: 80 },
+      choices: [{ message: { content: JSON.stringify(proposal("Explain available checkout options without making new offers")) } }] }));
+  };
+  try {
+    const adapter = new LLMHypothesisGenerator(budget as never);
+    const context = { runId: "run", leaseToken: 1 };
+    const fixture = setup({ generate: request => adapter.generate({ ...request, analysis_context: context }) });
+    await fixture.execute();
+    await fixture.execute();
+    assert.deepEqual(order, ["reserve:openai", "fetch:openai", "settle:openai:unknown", "reserve:deepseek", "fetch:deepseek", "settle:deepseek:known"]);
+    cached = null;
+    budget.reserve = async () => { throw new AnalysisDeferred("budget_exhausted"); };
+    await assert.rejects(fixture.execute(), /budget_exhausted/);
+    assert.equal(order.filter(x => x.startsWith("fetch:")).length, 2);
+  } finally { globalThis.fetch = originalFetch; process.env = env; }
+});
 
 const baseline = "Merchant A: explain the checkout using verified cart and delivery details.";
 

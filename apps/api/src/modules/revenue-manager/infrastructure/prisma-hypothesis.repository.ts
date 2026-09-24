@@ -5,7 +5,7 @@ import type { HypothesisRepositoryPort } from "../domain/ports/hypothesis-reposi
 export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async save(hypothesis: HypothesisEntity): Promise<void> {
+  async save(hypothesis: HypothesisEntity, analysisContext?: { runId: string; leaseToken: number }): Promise<void> {
     const snap = hypothesis.snapshot();
     // F2-T03: hypothesis_type + discount_rule_json embedded in the existing
     // templateJson column (no schema migration; backward-compat on rehydrate).
@@ -15,6 +15,12 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
       ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}),
     } as unknown as Prisma.InputJsonValue;
     await this.prisma.$transaction(async (tx) => {
+      if (analysisContext) {
+        await tx.$queryRaw`SELECT id FROM revenue_analysis_runs WHERE id = ${analysisContext.runId} FOR UPDATE`;
+        const owned = await tx.revenueAnalysisRun.findFirst({ where: { id: analysisContext.runId,
+          merchantId: snap.merchant_id, leaseToken: analysisContext.leaseToken, status: "running", leaseUntil: { gt: new Date() } } });
+        if (!owned) throw new Error("ANALYSIS_LEASE_LOST");
+      }
       await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snap.merchant_id} FOR UPDATE`;
       const existing = await tx.revenueManagerHypothesis.findUnique({ where: { id: snap.id } });
       if (existing && existing.merchantId !== snap.merchant_id) throw new Error("HYPOTHESIS_NOT_FOUND");

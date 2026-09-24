@@ -7,6 +7,7 @@ import {
   HttpStatus,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Post,
   Query,
@@ -31,6 +32,8 @@ import { OBSERVATION_REPOSITORY_PORT, type ObservationRepositoryPort } from "../
 import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
 import { STRATEGY_LESSON_REPOSITORY_PORT, type StrategyLessonRepositoryPort } from "../../domain/ports/strategy-lesson-repository.port.js";
 import { DailyObservationScheduler, REVENUE_MANAGER_QUEUE_UNAVAILABLE } from "../../infrastructure/jobs/daily-observation.job.js";
+import { WeeklyAnalysisService } from "../../infrastructure/weekly-analysis.service.js";
+import { weeklyAnalysisEnabled } from "../../domain/weekly-analysis-policy.js";
 import {
   ApproveHypothesisDto,
   RejectHypothesisDto,
@@ -54,6 +57,7 @@ export class RevenueManagerController {
     @Inject(HYPOTHESIS_REPOSITORY_PORT) private readonly hypothesisRepo: HypothesisRepositoryPort,
     @Inject(STRATEGY_LESSON_REPOSITORY_PORT) private readonly lessonRepo: StrategyLessonRepositoryPort,
     private readonly dailyObservationScheduler: DailyObservationScheduler,
+    @Optional() private readonly weeklyAnalysis?: WeeklyAnalysisService,
   ) {}
 
   // ===== Observations =====
@@ -221,14 +225,28 @@ export class RevenueManagerController {
 
   // ===== Manual Trigger =====
 
+  @Get("analysis-status")
+  @ApiOperation({ summary: "Weekly analysis status for the authenticated merchant" })
+  async analysisStatus(@Req() req: any) {
+    return this.weeklyAnalysis!.status(currentUser(req).merchantId);
+  }
+
   @Post("trigger")
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: "Queue a strategy observation for the authenticated merchant" })
   @ApiAcceptedResponse({ description: "Strategy observation queued successfully" })
   @ApiServiceUnavailableResponse({ description: "The strategy queue is temporarily unavailable" })
-  async triggerObservation(@Req() req: any): Promise<{ job_id: string; message: string }> {
+  async triggerObservation(@Req() req: any) {
     const merchantId = currentUser(req).merchantId;
     try {
+      if (this.weeklyAnalysis && (weeklyAnalysisEnabled() || await this.weeklyAnalysis.owns(merchantId))) {
+        if (!process.env.REDIS_URL || process.env.REDIS_ENABLED === "false") throw new Error(REVENUE_MANAGER_QUEUE_UNAVAILABLE);
+        const status = await this.weeklyAnalysis.request(merchantId);
+        return { ...status, job_id: status.run?.id ?? null,
+          message: status.run && ["queued", "running"].includes(status.run.status)
+            ? "A análise está na fila semanal. Você receberá uma notificação quando houver uma atualização."
+            : "O calendário semanal foi mantido. Consulte a próxima análise e o resultado mais recente." };
+      }
       const jobId = await this.dailyObservationScheduler.enqueueMerchantRun(merchantId);
       return {
         job_id: jobId,

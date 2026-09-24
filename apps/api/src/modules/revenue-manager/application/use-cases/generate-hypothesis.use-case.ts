@@ -9,6 +9,7 @@ import { validateHypothesisResponse, validateHypothesisSafety } from "../../doma
 import { HYPOTHESIS_MERCHANT_CONTEXT_PORT, type HypothesisMerchantContextPort } from "../../domain/ports/hypothesis-merchant-context.port.js";
 
 export interface GenerateHypothesisInput {
+  analysis_context?: { runId: string; leaseToken: number };
   merchant_id: string;
   observation_id: string;
 }
@@ -76,6 +77,7 @@ export class GenerateHypothesisUseCase {
 
     // Call LLM to generate hypothesis
     const generationResponse = await this.generator.generate({
+      analysis_context: input.analysis_context,
       merchant_id: input.merchant_id,
       observation: observation.snapshot(),
       past_lessons: pastLessons.map((l) => l.snapshot()),
@@ -106,7 +108,7 @@ export class GenerateHypothesisUseCase {
     const approvalStrategy = "manual";
 
     // Create hypothesis entity
-    const hypothesis = HypothesisEntity.create({
+    let hypothesis = HypothesisEntity.create({
       merchant_id: input.merchant_id,
       observation_id: input.observation_id,
       hypothesis_text: generationResponse.hypothesis_text,
@@ -118,7 +120,8 @@ export class GenerateHypothesisUseCase {
     });
 
     // Save
-    await this.hypothesisRepo.save(hypothesis);
+    if (input.analysis_context) hypothesis = HypothesisEntity.rehydrate({ ...hypothesis.snapshot(), id: `analysis-${input.analysis_context.runId}` });
+    await this.hypothesisRepo.save(hypothesis, input.analysis_context);
 
     this.logger.log(
       `Generated hypothesis for merchant ${input.merchant_id}: ` +

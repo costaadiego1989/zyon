@@ -7,18 +7,13 @@ import type { ObservationRepositoryPort } from "../../domain/ports/observation-r
 
 function fixture(events: Array<{ eventName: string; _count: number }>) {
   let saved: ObservationEntity | undefined;
+  const counts = Object.fromEntries(events.map(e => [e.eventName, e._count]));
   const prisma = {
-    checkoutSession: {
-      count: async () => 100,
-      findMany: async () => []
-    },
-    completedOrder: {
-      count: async () => 20,
-      aggregate: async () => ({ _sum: { orderTotal: 2000 }, _count: 20, _avg: { orderTotal: 100 } })
-    },
-    checkoutEvent: { groupBy: async () => events },
-    promptExperiment: { findFirst: async () => null },
-    negotiationCostLedgerEntry: { aggregate: async () => ({ _sum: { aiCostCents: 25 } }) }
+    $queryRaw: async () => [{ total: 100, mature: 100, converted: 20, orders: 20, revenue: 200000,
+      with_events: events.length ? 100 : 0, started: counts.checkout_started ?? 0,
+      shipping: counts.shipping_option_selected ?? 0, payment: counts.payment_method_selected ?? 0,
+      abandoned_shipping: counts.shipping_objection_detected ?? 0, abandoned_payment: counts.payment_failed ?? 0,
+      unconverted: 80 }],
   } as unknown as PrismaClient;
   const repository: ObservationRepositoryPort = {
     save: async (observation) => { saved = observation; },

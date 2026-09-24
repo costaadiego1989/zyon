@@ -3271,3 +3271,119 @@ model WhatsAppDelivery {
   @@index([providerMessageId])
   @@map("whatsapp_deliveries")
 }
+
+
+model AiUsageEvent {
+  id                String   @id @default(cuid())
+  idempotencyKey    String   @unique @map("idempotency_key")
+  providerEventId   String?  @map("provider_event_id")
+  merchantId        String   @map("merchant_id")
+  source            String
+  channel           String
+  component         String
+  provider          String
+  model             String
+  executionStatus   String   @map("execution_status")
+  promptTokens      Int?     @map("prompt_tokens")
+  completionTokens  Int?     @map("completion_tokens")
+  totalTokens       Int?     @map("total_tokens")
+  costMicros        BigInt?  @map("cost_micros")
+  currency          String?
+  pricingVersion    String?  @map("pricing_version")
+  costStatus        String   @default("unpriced") @map("cost_status")
+  startedAt         DateTime @map("started_at")
+  completedAt       DateTime @map("completed_at")
+  latencyMs         Int      @map("latency_ms")
+  conversationId    String?  @map("conversation_id")
+  voiceSessionId    String?  @map("voice_session_id")
+  correlationId     String?  @map("correlation_id")
+  parentUsageEventId String? @map("parent_usage_event_id")
+  metadata          Json?
+  capturedAt        DateTime @default(now()) @map("captured_at")
+
+  @@index([merchantId, startedAt])
+  @@index([merchantId, channel, startedAt])
+  @@index([provider, providerEventId])
+  @@index([conversationId, startedAt])
+  @@map("ai_usage_events")
+}
+
+model AiPriceVersion {
+  id                     String   @id @default(cuid())
+  version                String   @unique
+  provider               String
+  model                  String
+  channel                String
+  component              String
+  currency               String
+  inputMicrosPerMillion  BigInt?  @map("input_micros_per_million")
+  outputMicrosPerMillion BigInt?  @map("output_micros_per_million")
+  effectiveFrom          DateTime @map("effective_from")
+  effectiveTo            DateTime? @map("effective_to")
+  source                 String
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  @@index([provider, model, channel, component, effectiveFrom])
+  @@map("ai_price_versions")
+}
+
+// Weekly Revenue Intelligence. All transitions are tenant scoped and fenced.
+model RevenueAnalysisSchedule {
+  merchantId String @id @map("merchant_id")
+  timezone String @default("America/Sao_Paulo")
+  group Int
+  nextDueAt DateTime @map("next_due_at")
+  lastSuccessfulAt DateTime? @map("last_successful_at")
+  currentRunId String? @map("current_run_id")
+  cycle Int @default(0)
+  migratedAt DateTime @default(now()) @map("migrated_at")
+  @@index([nextDueAt, merchantId])
+  @@map("revenue_analysis_schedules")
+}
+
+model RevenueAnalysisRun {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  cycle Int
+  status String @default("queued")
+  result String?
+  reason String?
+  attempts Int @default(0)
+  leaseToken Int @default(0) @map("lease_token")
+  leaseUntil DateTime? @map("lease_until")
+  retryAt DateTime @default(now()) @map("retry_at")
+  asOf DateTime? @map("as_of")
+  observationId String? @map("observation_id")
+  hypothesisId String? @map("hypothesis_id")
+  generatedJson Json? @map("generated_json")
+  createdAt DateTime @default(now()) @map("created_at")
+  startedAt DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  @@unique([merchantId, cycle])
+  @@index([status, retryAt, createdAt])
+  @@map("revenue_analysis_runs")
+}
+
+model RevenueAiReservation {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  runId String @map("run_id")
+  workType String @map("work_type")
+  provider String
+  model String
+  currency String
+  priceVersion String @map("price_version")
+  inputRate BigInt @map("input_rate")
+  outputRate BigInt @map("output_rate")
+  maxInputTokens Int @map("max_input_tokens")
+  maxOutputTokens Int @map("max_output_tokens")
+  amountMicros BigInt @map("amount_micros")
+  state String @default("dispatched")
+  usageKey String @unique @map("usage_key")
+  createdAt DateTime @default(now()) @map("created_at")
+  settledAt DateTime? @map("settled_at")
+  @@index([currency, createdAt])
+  @@index([runId])
+  @@index([provider, model, state, createdAt])
+  @@map("revenue_ai_reservations")
+}

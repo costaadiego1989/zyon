@@ -2,6 +2,17 @@ import { dashboardJson } from "../http/client.js";
 
 const PREFIX = "/revenue-manager";
 
+export interface AnalysisStatus {
+  mode: "weekly" | "legacy";
+  enabled: boolean;
+  queue_available: boolean;
+  next_eligible_at: string | null;
+  last_successful_at: string | null;
+  overdue: boolean;
+  run: null | { id: string; status: string; result: string | null; reason: string | null;
+    createdAt: string; startedAt: string | null; completedAt: string | null; hypothesisId: string | null };
+}
+
 /** Rule condition embedded in an AI candidate's discount_rule_json. */
 export interface HypothesisRuleCondition {
   field: string;
@@ -74,6 +85,7 @@ interface ObservationApiResponse {
   cohorts: Record<string, unknown>;
   revenue: Record<string, unknown>;
   ai_costs_cents: number;
+  data_quality?: { mature_sessions?: number };
   created_at: string;
 }
 
@@ -100,9 +112,9 @@ interface StrategyLessonApiResponse {
 function mapObservation(raw: ObservationApiResponse): DailyObservation {
   return {
     date: raw.observation_window_start ?? raw.created_at,
-    conversion_rate: raw.funnel?.conversion_rate ?? null,
-    top_objection: raw.objections?.top_objection ?? raw.objections?.top ?? "-",
-    sessions_count: raw.funnel?.sessions_count ?? raw.funnel?.total_sessions ?? 0,
+    conversion_rate: raw.funnel?.conversion_rate == null ? null : raw.funnel.conversion_rate * 100,
+    top_objection: typeof raw.abandonment?.top_abandonment_objection === "string" ? raw.abandonment.top_abandonment_objection : raw.objections?.top_objection ?? raw.objections?.top ?? "-",
+    sessions_count: raw.data_quality?.mature_sessions ?? raw.funnel?.sessions_count ?? raw.funnel?.total_sessions ?? 0,
   };
 }
 
@@ -119,6 +131,9 @@ function mapLesson(raw: StrategyLessonApiResponse): StrategyLesson {
 
 export function revenueManagerEndpoints(base: string, f: typeof fetch) {
   return {
+    getAnalysisStatus(): Promise<AnalysisStatus> {
+      return dashboardJson<AnalysisStatus>(base, `${PREFIX}/analysis-status`, { method: "GET" }, f);
+    },
     async getHypotheses(options?: { status?: string; limit?: number }): Promise<Hypothesis[]> {
       const params = new URLSearchParams();
       if (options?.status) params.set("status", options.status);

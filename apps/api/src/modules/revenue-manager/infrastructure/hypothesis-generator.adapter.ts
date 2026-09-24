@@ -1,4 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { Injectable, Logger, Optional } from "@nestjs/common";
+import { RevenueAiBudgetService, type TokenUsage } from "./revenue-ai-budget.service.js";
+import { AnalysisDeferred } from "../domain/weekly-analysis-policy.js";
 import type {
   HypothesisGenerationRequest,
   HypothesisGenerationResponse,
@@ -57,13 +59,19 @@ function configuredHypothesisProviders(): HypothesisAiProvider[] {
 export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
   private readonly logger = new Logger(LLMHypothesisGenerator.name);
 
-  constructor() {}
+  constructor(@Optional() private readonly budget?: RevenueAiBudgetService) {}
 
   async generate(request: HypothesisGenerationRequest): Promise<HypothesisGenerationResponse> {
     if (typeof request.current_prompt !== "string" || !request.current_prompt.trim()) {
       throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
     }
     const providers = configuredHypothesisProviders();
+    if (request.analysis_context) {
+      if (!this.budget) throw new AnalysisDeferred("budget_unavailable");
+      const cached = await this.budget.cached(request.analysis_context, request.merchant_id);
+      if (cached) return this.validateResponse(cached as unknown as HypothesisGenerationResponse, request);
+      if (!providers.length) throw new AnalysisDeferred("provider_not_configured");
+    }
 
     if (providers.length === 0) {
       this.logger.warn("No configured AI provider, returning fallback hypothesis");
@@ -75,6 +83,10 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
       const userPrompt = this.buildUserPrompt(request);
 
       for (const provider of providers) {
+        const reservation = request.analysis_context ? await this.budget!.reserve({
+          merchantId: request.merchant_id, context: request.analysis_context, provider: provider.name, model: provider.model,
+          inputBytes: Buffer.byteLength(JSON.stringify([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }]), "utf8"),
+        }) : undefined;
         try {
           const response = await fetch(`${provider.baseUrl}/chat/completions`, {
             method: "POST",
@@ -90,27 +102,35 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
                 { role: "user", content: userPrompt },
               ],
               temperature: 0.7,
-              max_tokens: 1000,
+              ...(provider.name === "openai"
+                ? { max_completion_tokens: reservation?.maxOutputTokens ?? 1000 }
+                : { max_tokens: reservation?.maxOutputTokens ?? 1000 }),
             }),
           });
 
           if (!response.ok) {
-            const err = await response.text();
-            throw new Error(`LLM API error: ${response.status} ${err}`);
+            throw new Error(`LLM API error: ${response.status}`);
           }
 
-          const data = (await response.json()) as { choices: Array<{ message: { content: string } }> };
+          const data = (await response.json()) as { id?: string; usage?: TokenUsage; choices: Array<{ message: { content: string } }> };
+          if (reservation) await this.budget!.settle(reservation, data.usage, data.id);
           const content = data.choices[0]?.message.content;
           if (!content) throw new Error("Empty response from LLM");
-          return this.parseHypothesisResponse(content, request);
+          const parsed = this.parseHypothesisResponse(content, request);
+          if (request.analysis_context) await this.budget!.cache(request.analysis_context, request.merchant_id, parsed);
+          return parsed;
         } catch (err) {
+          if (reservation) await this.budget!.settle(reservation);
+          if (err instanceof AnalysisDeferred) throw err;
           this.logger.warn(`Hypothesis provider ${provider.name} failed: ${err instanceof Error ? err.message : String(err)}`);
         }
       }
     } catch (err) {
+      if (err instanceof AnalysisDeferred) throw err;
       this.logger.warn(`Failed to prepare hypothesis generation: ${err instanceof Error ? err.message : String(err)}`);
     }
 
+    if (request.analysis_context) throw new Error("ANALYSIS_GENERATION_FAILED");
     return this.validateResponse(this.generateFallbackHypothesis(request), request);
   }
 
@@ -162,7 +182,7 @@ Output MUST be valid JSON in this format:
 
     let prompt = `Generate hypothesis for merchant ${request.merchant_id}.\n\n`;
     prompt += `CURRENT BASELINE (copy exactly for control):\n${JSON.stringify(request.current_prompt)}\n\n`;
-    prompt += `CURRENT METRICS (24h window):\n`;
+    prompt += `CURRENT METRICS (${observation.observation_window_start} to ${observation.observation_window_end}; definition ${observation.data_quality.metric_definition_version ?? "legacy"}):\n`;
     prompt += `- Conversion rate: ${(conversionRate * 100).toFixed(1)}%\n`;
     prompt += `- Abandonment rate: ${(abandonmentRate * 100).toFixed(1)}%\n`;
     prompt += `- Top abandonment reason: ${observation.abandonment.top_abandonment_objection}\n`;

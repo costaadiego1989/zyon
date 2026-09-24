@@ -1,4 +1,5 @@
 import { openStrategyReview } from "./strategy-review.js";
+import { WeeklyAnalysisStatus } from "./WeeklyAnalysisStatus.js";
 import React, { useState } from "react";
 import { Lightbulb, TrendingUp, Eye, BookOpen, Brain } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
@@ -80,7 +81,7 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
           <span className="eyebrow">Inteligência IA</span>
           <h1>Otimização de Checkout</h1>
           <p className="page-lead">
-            A IA analisa seu checkout diariamente e sugere melhorias baseadas nos dados reais de abandono e conversão
+            A IA acompanha os dados do checkout e propõe melhorias para você revisar.
           </p>
         </div>
       </header>
@@ -96,10 +97,11 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
         lineHeight: 1.65,
       }}>
         <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
-        Todo dia a IA observa o funil de checkout (conversão, abandonos, objeções),
-        gera sugestões de melhoria com estimativa de impacto, e cria testes A/B automaticamente quando você aprova.
-        Após o teste terminar, o sistema registra o resultado e usa para gerar sugestões cada vez melhores.
+        A IA observa conversões e dificuldades na compra para propor estratégias.
+        Você revisa e decide quais testar. Os resultados ajudam a avaliar as próximas sugestões.
       </div>
+
+      <WeeklyAnalysisStatus status={vm.analysisStatus} error={vm.analysisStatusError} />
 
       {/* Kill-switch — ativar/desativar o motor autônomo */}
       <section style={{
@@ -128,7 +130,7 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
       {/* KPIs */}
       <div className="grid-4" style={{ gap: 14 }}>
         <StatCard label="Aguardando revisão" value={pendingCount} icon={<Lightbulb size={16} />} accent="var(--color-warning)" />
-        <StatCard label="Testes ativos" value={approvedCount} icon={<Brain size={16} />} accent="var(--color-brand)" />
+        <StatCard label="Estratégias aprovadas" value={approvedCount} icon={<Brain size={16} />} accent="var(--color-brand)" />
         <StatCard label="Conversão média" value={`${avgConversion}%`} icon={<TrendingUp size={16} />} accent="var(--color-success)" />
         <StatCard label="Aprendizados" value={lessonsCount} icon={<BookOpen size={16} />} />
       </div>
@@ -145,7 +147,7 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
           total={vm.hypotheses.length}
           onPageChange={setHypPage}
           isEmpty={vm.hypotheses.length === 0}
-          empty={{ icon: Lightbulb, title: "Nenhuma sugestão ainda", description: "Sugestões são geradas automaticamente a cada dia com base nos dados do seu checkout." }}
+          empty={{ icon: Lightbulb, title: "Nenhuma sugestão ainda", description: "As sugestões aparecem quando a análise encontra dados suficientes e uma oportunidade para testar." }}
         >
           <div style={{ display: "flex", flexDirection: "column" }}>
             {hypSlice.map((h, i) => {
@@ -184,13 +186,13 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
       {/* Observações */}
       {tab === "observations" && (
         <DataPanel
-          title="Análises diárias"
+          title="Histórico de análises"
           page={obsPage}
           pageSize={PAGE_SIZE}
           total={vm.observations.length}
           onPageChange={setObsPage}
           isEmpty={vm.observations.length === 0}
-          empty={{ icon: Eye, title: "Nenhuma análise registrada", description: "A IA analisa o checkout diariamente. Quando houver dados suficientes, as análises aparecerão aqui." }}
+          empty={{ icon: Eye, title: "Nenhuma análise registrada", description: "As análises concluídas aparecerão aqui com os dados do seu checkout." }}
         >
           <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>

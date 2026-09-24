@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { weeklyAnalysisEnabled } from "../../domain/weekly-analysis-policy.js";
 import { Queue, Worker, type Job } from "bullmq";
 import type { RedisOptions } from "ioredis";
 import { randomUUID } from "node:crypto";
@@ -93,6 +94,7 @@ export class DailyObservationScheduler implements OnModuleDestroy {
   }
 
   async ensureRecurringJob(): Promise<void> {
+    if (weeklyAnalysisEnabled()) return;
     if (!this.queue) return;
     try {
       await this.queue.add(JOB_NAME, { triggeredAt: new Date().toISOString() }, {
@@ -158,6 +160,7 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
   ) {}
 
   async onModuleInit(): Promise<void> {
+    if (weeklyAnalysisEnabled()) return;
     const connection = redisConnection();
     if (connection) {
       this.worker = new Worker<DailyObservationJobData>(
@@ -233,9 +236,13 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
    * 4. (F2-T05) Generate discount rule hypothesis if enabled
    */
   private async processMerchant(merchantId: string): Promise<void> {
+    // Migration ownership persists even if the new feature is paused. Never
+    // silently fall back to daily paid generation for a migrated store.
+    if (weeklyAnalysisEnabled()) return;
+    if (await this.prisma.revenueAnalysisSchedule.findUnique({ where: { merchantId } })) return;
     // Calculate observation window (last 24 hours)
     const windowEnd = new Date();
-    const windowStart = new Date(windowEnd.getTime() - 24 * 60 * 60 * 1_000);
+    const windowStart = new Date(windowEnd.getTime() - 7 * 24 * 60 * 60 * 1_000);
 
     // Step 1: Observe metrics
     const observation = await this.observeMetricsUseCase.execute({

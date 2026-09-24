@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { OBSERVATION_REPOSITORY_PORT, type ObservationRepositoryPort } from "../../domain/ports/observation-repository.port.js";
@@ -8,8 +8,9 @@ export interface ObserveMetricsInput {
   merchant_id: string;
   window_start: Date;
   window_end: Date;
+  as_of?: Date;
+  conversion_window_hours?: number;
 }
-
 export interface ObserveMetricsOutput {
   observation_id: string;
   is_new: boolean;
@@ -18,288 +19,120 @@ export interface ObserveMetricsOutput {
   top_abandonment_reason: string;
   conversion_rate: number | null;
 }
+type Counts = Record<string, number | bigint | string>;
 
-const MINIMUM_OBSERVED_SESSIONS = 30;
-
-/**
- * ObserveMetricsUseCase — Compiles real metrics from checkout data.
- *
- * Queries:
- * - CheckoutSession (funnel + abandonment via score)
- * - CheckoutEvent (event distribution)
- * - PromptVariantResult (experiment performance)
- * - CompletedOrder (revenue)
- * - NegotiationCostLedgerEntry (AI costs)
- *
- * Returns deduped observation or creates new one.
- */
 @Injectable()
 export class ObserveMetricsUseCase {
-  private readonly logger = new Logger(ObserveMetricsUseCase.name);
-
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(OBSERVATION_REPOSITORY_PORT) private readonly observationRepo: ObservationRepositoryPort,
   ) {}
 
   async execute(input: ObserveMetricsInput): Promise<ObserveMetricsOutput> {
-    const metrics = await this.compileMetrics(
-      input.merchant_id,
-      input.window_start,
-      input.window_end,
-    );
+    const { merchant_id: merchantId, window_start: start, window_end: end } = input;
+    const asOf = input.as_of ?? end;
+    const hours = input.conversion_window_hours ?? 24;
+    if (!merchantId || !Number.isFinite(start.getTime()) || !Number.isFinite(end.getTime())
+      || !Number.isFinite(asOf.getTime()) || start >= end || end > asOf
+      || !Number.isInteger(hours) || hours < 1 || hours > 720) throw new Error("INVALID_OBSERVATION_WINDOW");
 
-    const observation = ObservationEntity.create(metrics);
-
-    // Check for duplicate (fingerprint-based dedup)
-    const existing = await this.observationRepo.findByFingerprint(observation.fingerprint);
-    if (existing) {
-      this.logger.debug(`Observation fingerprint already exists for merchant ${input.merchant_id}: returning existing`);
-      return {
-        observation_id: existing.id,
-        is_new: false,
-        data_ready: existing.isReadyForHypothesis(),
-        missing_metrics: existing.data_quality.missing_metrics,
-        top_abandonment_reason: existing.abandonment.top_abandonment_objection,
-        conversion_rate: existing.funnel.conversion_rate,
-      };
-    }
-
-    await this.observationRepo.save(observation);
-
-    this.logger.log(
-      `Recorded observation for merchant ${input.merchant_id}: ` +
-      `conversion_rate=${metrics.funnel.conversion_rate?.toFixed(3) ?? "insufficient_data"}, ` +
-      `abandonment_rate=${metrics.abandonment.abandonment_rate?.toFixed(3) ?? "insufficient_data"}`,
-    );
-
-    return {
-      observation_id: observation.id,
-      is_new: true,
-      data_ready: observation.isReadyForHypothesis(),
-      missing_metrics: observation.data_quality.missing_metrics,
-      top_abandonment_reason: observation.abandonment.top_abandonment_objection,
-      conversion_rate: observation.funnel.conversion_rate,
-    };
-  }
-
-  private async compileMetrics(
-    merchantId: string,
-    windowStart: Date,
-    windowEnd: Date,
-  ): Promise<Parameters<typeof ObservationEntity.create>[0]> {
-    // Total sessions
-    const totalSessions = await this.prisma.checkoutSession.count({
-      where: {
-        merchantId,
-        createdAt: { gte: windowStart, lte: windowEnd },
-      },
-    });
-
-    // Completed orders
-    const completedOrders = await this.prisma.completedOrder.count({
-      where: {
-        merchantId,
-        completedAt: { gte: windowStart, lte: windowEnd },
-      },
-    });
-
-    // Event-based stage analysis
-    const eventCounts = await this.prisma.checkoutEvent.groupBy({
-      by: ["eventName"],
-      where: {
-        merchantId,
-        occurredAt: { gte: windowStart, lte: windowEnd },
-      },
-      _count: true,
-    });
-
-    const eventMap: Record<string, number> = {};
-    for (const ev of eventCounts) {
-      eventMap[ev.eventName] = ev._count;
-    }
-
-    const measuredEventCount = Object.values(eventMap).reduce((sum, count) => sum + count, 0);
-    const hasMeasuredCheckoutEvents = measuredEventCount > 0;
-    const missingMetrics = [
-      ...(totalSessions < MINIMUM_OBSERVED_SESSIONS ? ["minimum_session_sample"] : []),
-      ...(!hasMeasuredCheckoutEvents ? ["checkout_events"] : []),
-      ...(eventMap["checkout_started"] === undefined ? ["checkout_started_event"] : [])
+    // One database snapshot and one row per session before any rate is computed.
+    const [row] = await this.prisma.$queryRaw<Counts[]>`
+      WITH cohort AS (
+        SELECT s.*, s.created_at + (${hours} * INTERVAL '1 hour') AS cutoff
+        FROM checkout_sessions s
+        WHERE s.merchant_id = ${merchantId} AND s.created_at >= ${start} AND s.created_at < ${end}
+      ), measured AS (
+        SELECT s.session_id, s.cutoff <= ${asOf} AS mature,
+          COALESCE(e.names, ARRAY[]::text[]) AS names,
+          COALESCE(o.orders, 0) AS orders, COALESCE(o.cents, 0) AS cents,
+          COALESCE(o.other_currency, 0) AS other_currency,
+          EXISTS (
+            SELECT 1 FROM checkout_sessions prior
+            JOIN completed_orders po ON po.merchant_id = prior.merchant_id AND po.session_id = prior.session_id
+            WHERE prior.merchant_id = ${merchantId} AND prior.global_user_id = s.global_user_id
+              AND po.status = 'approved' AND po.completed_at < s.created_at
+          ) AS returning_customer
+        FROM cohort s
+        LEFT JOIN LATERAL (
+          SELECT array_agg(DISTINCT event_name) AS names FROM checkout_events
+          WHERE merchant_id = ${merchantId} AND session_id = s.session_id
+            AND occurred_at >= s.created_at AND occurred_at < s.cutoff AND occurred_at <= ${asOf}
+        ) e ON true
+        LEFT JOIN LATERAL (
+          SELECT count(*) AS orders,
+            COALESCE(sum(round(order_total * 100)) FILTER (WHERE currency = 'BRL'), 0) AS cents,
+            count(*) FILTER (WHERE currency <> 'BRL') AS other_currency
+          FROM completed_orders
+          WHERE merchant_id = ${merchantId} AND session_id = s.session_id AND status = 'approved'
+            AND completed_at >= s.created_at AND completed_at < s.cutoff AND completed_at <= ${asOf}
+        ) o ON true
+      )
+      SELECT count(*) AS total, count(*) FILTER (WHERE mature) AS mature,
+        count(*) FILTER (WHERE mature AND orders > 0) AS converted,
+        count(*) FILTER (WHERE NOT mature AND orders > 0) AS provisional_converted,
+        count(*) FILTER (WHERE cardinality(names) > 0) AS with_events,
+        count(*) FILTER (WHERE 'checkout_started' = ANY(names)) AS started,
+        count(*) FILTER (WHERE 'shipping_option_selected' = ANY(names)) AS shipping,
+        count(*) FILTER (WHERE 'payment_method_selected' = ANY(names)) AS payment,
+        count(*) FILTER (WHERE mature AND orders = 0) AS unconverted,
+        count(*) FILTER (WHERE mature AND orders = 0 AND 'payment_method_selected' = ANY(names)) AS abandoned_payment,
+        count(*) FILTER (WHERE mature AND orders = 0 AND 'shipping_option_selected' = ANY(names)
+          AND NOT 'payment_method_selected' = ANY(names)) AS abandoned_shipping,
+        count(*) FILTER (WHERE mature AND orders = 0 AND 'shipping_objection_detected' = ANY(names)) AS shipping_objections,
+        count(*) FILTER (WHERE mature AND orders = 0 AND 'payment_failed' = ANY(names)) AS payment_objections,
+        count(*) FILTER (WHERE mature AND orders = 0 AND NOT 'shipping_objection_detected' = ANY(names)
+          AND NOT 'payment_failed' = ANY(names)) AS unknown_objections,
+        count(*) FILTER (WHERE 'cross_sell_shown' = ANY(names)) AS cross_shown,
+        count(*) FILTER (WHERE 'cross_sell_shown' = ANY(names) AND 'cross_sell_accepted' = ANY(names)) AS cross_accepted,
+        count(*) FILTER (WHERE returning_customer) AS returning_count,
+        COALESCE(sum(cents) FILTER (WHERE mature), 0) AS revenue,
+        COALESCE(sum(orders) FILTER (WHERE mature), 0) AS orders,
+        COALESCE(sum(other_currency), 0) AS other_currency
+      FROM measured`;
+    const n = (key: string) => Number(row?.[key] ?? 0);
+    const missing = [
+      ...(n("mature") < 30 ? ["minimum_mature_session_sample"] : []),
+      ...(n("with_events") === 0 ? ["checkout_events"] : []),
+      ...(n("started") === 0 ? ["checkout_started_event"] : []),
+      ...(n("other_currency") > 0 ? ["mixed_order_currencies"] : []),
     ];
-    const dataReady = missingMetrics.length === 0;
-
-    // Only actual event names emitted by checkout are used here. Missing data
-    // remains absent; it is never converted into a plausible synthetic count.
-    const startedCheckout = eventMap["checkout_started"] ?? 0;
-    const reachedShipping = eventMap["shipping_option_selected"] ?? 0;
-    const reachedPayment = eventMap["payment_method_selected"] ?? 0;
-    const shippingAbandoned = eventMap["shipping_objection_detected"] ?? 0;
-    const paymentAbandoned = eventMap["payment_failed"] ?? 0;
-    const conversionRate = dataReady ? completedOrders / totalSessions : null;
-    const abandonmentRate = dataReady ? (shippingAbandoned + paymentAbandoned) / totalSessions : null;
-
-    const objections = {
-      shipping_cost_count: shippingAbandoned,
-      price_count: 0,
-      trust_count: 0,
-      payment_count: paymentAbandoned,
-      unknown_count: eventMap["checkout_abandoned"] ?? 0,
-    };
-
-    // Top abandonment objection
-    const objectionEntries = Object.entries(objections).filter(([, v]) => v > 0);
-    const topObjection = objectionEntries.length > 0
-      ? objectionEntries.sort((a, b) => b[1] - a[1])[0][0].replace("_count", "")
-      : hasMeasuredCheckoutEvents ? "unknown" : "insufficient_data";
-
-    // Cross-sell data from events
-    const crossSellShown = eventMap["cross_sell_shown"] ?? 0;
-    const crossSellAccepted = eventMap["cross_sell_accepted"] ?? 0;
-    const crossSellAcceptanceRate = crossSellShown > 0 ? crossSellAccepted / crossSellShown : 0;
-
-    // Current running experiment
-    const runningExperiment = await this.prisma.promptExperiment.findFirst({
-      where: {
-        merchantId,
-        status: "running",
-      },
-      include: {
-        variants: {
-          include: { results: true },
-        },
-      },
-    });
-
-    let currentExperimentMetrics: Parameters<typeof ObservationEntity.create>[0]["current_experiment"];
-    if (runningExperiment && runningExperiment.variants.length >= 2) {
-      const controlVariant = runningExperiment.variants.find((v) => v.isControl) ?? runningExperiment.variants[0];
-      const challengerVariant = runningExperiment.variants.find((v) => !v.isControl) ?? runningExperiment.variants[1];
-
-      const controlSessions = controlVariant.results.length;
-      const controlConverted = controlVariant.results.filter((r) => r.converted).length;
-      const challengerSessions = challengerVariant.results.length;
-      const challengerConverted = challengerVariant.results.filter((r) => r.converted).length;
-
-      currentExperimentMetrics = {
-        experiment_id: runningExperiment.id,
-        control_conversion_rate: controlSessions > 0 ? controlConverted / controlSessions : 0,
-        challenger_conversion_rate: challengerSessions > 0 ? challengerConverted / challengerSessions : 0,
-        sessions_per_variant: Math.min(controlSessions, challengerSessions),
-      };
-    }
-
-    // Revenue
-    const revenueData = await this.prisma.completedOrder.aggregate({
-      where: {
-        merchantId,
-        completedAt: { gte: windowStart, lte: windowEnd },
-      },
-      _sum: { orderTotal: true },
-      _count: true,
-      _avg: { orderTotal: true },
-    });
-
-    const totalRevenueCents = revenueData._sum.orderTotal
-      ? Math.round(Number(revenueData._sum.orderTotal) * 100)
-      : 0;
-    const totalOrders = revenueData._count;
-    const avgOrderValueCents = revenueData._avg.orderTotal
-      ? Math.round(Number(revenueData._avg.orderTotal) * 100)
-      : 0;
-
-    // AI costs (negotiation LLM usage)
-    const aiCostData = await this.prisma.negotiationCostLedgerEntry.aggregate({
-      where: {
-        merchantId,
-        createdAt: { gte: windowStart, lte: windowEnd },
-      },
-      _sum: { aiCostCents: true },
-    });
-
-    const totalAiCostsCents = aiCostData._sum.aiCostCents ?? 0;
-
-    // Cohort: returning customers (sessions with existing completed orders)
-    // Simple heuristic: sessions from buyers that have any prior orders
-    const returningCustomersSessions = await this.prisma.checkoutSession.count({
-      where: {
-        merchantId,
-        createdAt: { gte: windowStart, lte: windowEnd },
-        globalUserId: {
-          in: await this.getReturningBuyerIds(merchantId),
-        },
-      },
-    });
-
-    const returningCustomersRate = totalSessions > 0 ? returningCustomersSessions / totalSessions : 0;
-
-    return {
-      merchant_id: merchantId,
-      observation_window_start: windowStart,
-      observation_window_end: windowEnd,
-      funnel: {
-        total_sessions: totalSessions,
-        started_checkout: startedCheckout,
-        reached_shipping: reachedShipping,
-        reached_payment: reachedPayment,
-        completed_order: completedOrders,
-        conversion_rate: conversionRate,
-      },
-      abandonment: {
-        abandoned_at_shipping: shippingAbandoned,
-        abandoned_at_payment: paymentAbandoned,
-        abandonment_rate: abandonmentRate,
-        top_abandonment_objection: topObjection,
-      },
+    const ready = missing.length === 0;
+    const objections = { shipping_cost_count: n("shipping_objections"), payment_count: n("payment_objections"),
+      price_count: 0, trust_count: 0, unknown_count: n("unknown_objections") };
+    const top = Object.entries(objections).filter(([, v]) => v > 0).sort((a, b) => b[1] - a[1])[0]?.[0].replace("_count", "") ?? "unknown";
+    const observation = ObservationEntity.create({
+      merchant_id: merchantId, observation_window_start: start, observation_window_end: end,
+      funnel: { total_sessions: n("total"), started_checkout: n("started"), reached_shipping: n("shipping"),
+        reached_payment: n("payment"), completed_order: n("converted"), conversion_rate: ready ? n("converted") / n("mature") : null },
+      abandonment: { abandoned_at_shipping: n("abandoned_shipping"), abandoned_at_payment: n("abandoned_payment"),
+        abandonment_rate: ready ? n("unconverted") / n("mature") : null, top_abandonment_objection: top },
       objections,
-      cross_sell: {
-        suggestions_shown: crossSellShown,
-        suggestions_accepted: crossSellAccepted,
-        acceptance_rate: crossSellAcceptanceRate,
-        top_suggested_skus: [],
-      },
-      current_experiment: currentExperimentMetrics,
-      cohorts: {
-        returning_customers_rate: returningCustomersRate,
-        new_customers_rate: 1 - returningCustomersRate,
-        high_discount_sensitivity_rate: null,
-        low_discount_sensitivity_rate: null,
-      },
-      revenue: {
-        total_revenue_cents: totalRevenueCents,
-        avg_order_value_cents: avgOrderValueCents,
-        total_orders: totalOrders,
-      },
-      ai_costs_cents: totalAiCostsCents,
-      data_quality: {
-        status: dataReady ? "ready" : "insufficient_data",
-        sample_size: totalSessions,
-        observation_window_start: windowStart.toISOString(),
-        observation_window_end: windowEnd.toISOString(),
-        sources: {
-          checkout_sessions: "measured",
-          completed_orders: "measured",
-          checkout_events: hasMeasuredCheckoutEvents ? "measured" : "unavailable",
-          buyer_discount_sensitivity: "unavailable"
-        },
-        missing_metrics: missingMetrics
-      }
-    };
-  }
-
-  /**
-   * Returns globalUserIds that have completed orders (returning buyers).
-   * Limited to 1000 for performance.
-   */
-  private async getReturningBuyerIds(merchantId: string): Promise<string[]> {
-    const sessions = await this.prisma.checkoutSession.findMany({
-      where: {
-        merchantId,
-        completedOrders: { some: {} },
-      },
-      select: { globalUserId: true },
-      distinct: ["globalUserId"],
-      take: 1000,
+      cross_sell: { suggestions_shown: n("cross_shown"), suggestions_accepted: n("cross_accepted"),
+        acceptance_rate: n("cross_shown") ? n("cross_accepted") / n("cross_shown") : 0, top_suggested_skus: [] },
+      cohorts: { returning_customers_rate: n("total") ? n("returning_count") / n("total") : 0,
+        new_customers_rate: n("total") ? 1 - n("returning_count") / n("total") : 0,
+        high_discount_sensitivity_rate: null, low_discount_sensitivity_rate: null },
+      revenue: { total_revenue_cents: n("revenue"), total_orders: n("orders"),
+        avg_order_value_cents: n("orders") ? Math.round(n("revenue") / n("orders")) : 0 },
+      // Compatibility field only. Unknown costs must never become evidence of profit.
+      ai_costs_cents: 0,
+      data_quality: { status: ready ? "ready" : "insufficient_data", sample_size: n("mature"),
+        observation_window_start: start.toISOString(), observation_window_end: end.toISOString(),
+        metric_definition_version: "checkout-session-cohort-v2", as_of: asOf.toISOString(),
+        conversion_window_hours: hours, mature_sessions: n("mature"), pending_sessions: n("total") - n("mature"),
+        provisional_converted_sessions: n("provisional_converted"), revenue_currency: "BRL",
+        order_state_basis: "recorded_state_at_collection",
+        sources: { checkout_sessions: "measured", completed_orders: "measured",
+          checkout_events: n("with_events") ? "measured" : "unavailable", ai_costs: "unavailable",
+          contribution: "unavailable", price_objections: "unavailable", trust_objections: "unavailable",
+          experiment_inference: "unavailable", buyer_discount_sensitivity: "unavailable" }, missing_metrics: missing },
     });
-    return sessions.map((s) => s.globalUserId);
+    const existing = await this.observationRepo.findByFingerprint(observation.fingerprint);
+    if (!existing) await this.observationRepo.save(observation);
+    const saved = existing ?? observation;
+    return { observation_id: saved.id, is_new: !existing, data_ready: saved.isReadyForHypothesis(),
+      missing_metrics: saved.data_quality.missing_metrics, top_abandonment_reason: saved.abandonment.top_abandonment_objection,
+      conversion_rate: saved.funnel.conversion_rate };
   }
 }

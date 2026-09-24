@@ -4,13 +4,15 @@ import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
 import type { MerchantProfile } from "../../api-client.js";
-import type { Hypothesis, DailyObservation, StrategyLesson } from "../../api/endpoints/revenue-manager.js";
+import type { Hypothesis, DailyObservation, StrategyLesson, AnalysisStatus } from "../../api/endpoints/revenue-manager.js";
 
 export function useRevenueManagerPage(me: MerchantProfile | null) {
   const api = useApi();
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
   const [observations, setObservations] = useState<DailyObservation[]>([]);
   const [lessons, setLessons] = useState<StrategyLesson[]>([]);
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus | null>(null);
+  const [analysisStatusError, setAnalysisStatusError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [approving, setApproving] = useState<Set<string>>(new Set());
   const [engineEnabled, setEngineEnabled] = useState<boolean>(true);
@@ -56,6 +58,19 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
   };
 
   useEffect(() => {
+    let active = true;
+    const refreshStatus = async () => {
+      try {
+        const status = await api.getAnalysisStatus();
+        if (active) { setAnalysisStatus(status); setAnalysisStatusError(false); }
+      } catch { if (active) setAnalysisStatusError(true); }
+    };
+    void refreshStatus();
+    const timer = window.setInterval(() => { void refreshStatus(); }, 30_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [api]);
+
+  useEffect(() => {
     void load();
     const reload = () => { void load(); };
     window.addEventListener(STRATEGY_CHANGED_EVENT, reload);
@@ -90,5 +105,5 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
     }
   };
 
-  return { hypotheses, observations, lessons, loading, approving, approveHypothesis, rejectHypothesis, refresh: load, engineEnabled, engineSaving, toggleEngine };
+  return { hypotheses, observations, lessons, analysisStatus, analysisStatusError, loading, approving, approveHypothesis, rejectHypothesis, refresh: load, engineEnabled, engineSaving, toggleEngine };
 }

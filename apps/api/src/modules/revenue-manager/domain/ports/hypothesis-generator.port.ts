@@ -5,6 +5,7 @@ import type { MerchantRules } from "@zyon/shared-types";
 export const HYPOTHESIS_GENERATOR_PORT = Symbol("HYPOTHESIS_GENERATOR_PORT");
 
 export interface HypothesisGenerationRequest {
+  analysis_context?: { runId: string; leaseToken: number };
   merchant_id: string;
   observation: ObservationSnapshot;
   past_lessons: StrategyLessonSnapshot[];

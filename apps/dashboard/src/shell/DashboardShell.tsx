@@ -547,6 +547,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 ).finally(() => setNotifications([]));
               }}
               onClickNotification={(n) => {
+                if (n.type === "ai_analysis_update") changeTab("revenue-manager");
                 if (n.hypothesisId) setReviewStrategyId(n.hypothesisId);
                 if (n.type === "inventory_alert") changeTab("inventory" as TabKey);
                 if (n.type === "plan_expiry") changeTab("billing-plans");
