@@ -382,6 +382,7 @@ model CheckoutSession {
   @@index([merchantId, updatedAt])
   @@index([merchantId, createdAt])
   @@index([merchantId, cohort, createdAt])
+  @@index([merchantId, promptVariantId, createdAt])
   @@index([globalUserId, merchantId, createdAt])
   @@map("checkout_sessions")
 }
@@ -2121,11 +2122,45 @@ model PromptExperiment {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   variants PromptVariant[]
+  measurementPlan ExperimentMeasurementPlan?
 
+  @@unique([id, merchantId])
   @@unique([merchantId, name])
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
   @@map("prompt_experiments")
+}
+
+/// Preregistered once, before assignment. Changes require a new experiment.
+model ExperimentMeasurementPlan {
+  experimentId String @id @map("experiment_id")
+  merchantId String @map("merchant_id")
+  planHash String @map("plan_hash")
+  plan Json
+  createdAt DateTime @default(now()) @map("created_at")
+  experiment PromptExperiment @relation(fields: [experimentId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  reviews ExperimentMeasurementReview[]
+
+  @@unique([experimentId, merchantId])
+  @@index([merchantId, createdAt])
+  @@map("experiment_measurement_plans")
+}
+
+/// Immutable evidence snapshots. Corrections create a new snapshot.
+model ExperimentMeasurementReview {
+  id String @id
+  experimentId String @map("experiment_id")
+  merchantId String @map("merchant_id")
+  requestKey String @map("request_key")
+  planHash String @map("plan_hash")
+  evidenceHash String @map("evidence_hash")
+  result Json
+  collectedAt DateTime @default(now()) @map("collected_at")
+  measurementPlan ExperimentMeasurementPlan @relation(fields: [experimentId, merchantId], references: [experimentId, merchantId], onDelete: Restrict)
+
+  @@unique([merchantId, experimentId, requestKey], map: "experiment_measurement_reviews_request_key")
+  @@index([merchantId, experimentId, collectedAt], map: "experiment_measurement_reviews_collected_at_idx")
+  @@map("experiment_measurement_reviews")
 }
 
 model PromptVariant {

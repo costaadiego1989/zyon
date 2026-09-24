@@ -101,11 +101,17 @@ class InMemoryStrategyLessonRepository implements StrategyLessonRepositoryPort {
   }
 }
 
+function legacyApproval(repo: HypothesisRepositoryPort, outbox: InMemoryOutboxRepository) {
+  return new ApproveHypothesisUseCase(repo, outbox, {} as never,
+    { revenueAnalysisSchedule: { findUnique: async () => null } } as never,
+    { execute: async () => ({ status: "created", experiment_id: "legacy-fixture" }) } as never);
+}
+
 test("ApproveHypothesisUseCase", async (t) => {
   await t.test("approves pending hypothesis and emits event", async () => {
     const hypothesisRepo = new InMemoryHypothesisRepository();
     const outbox = new InMemoryOutboxRepository();
-    const useCase = new ApproveHypothesisUseCase(hypothesisRepo, outbox);
+    const useCase = legacyApproval(hypothesisRepo, outbox);
 
     const h = HypothesisEntity.create({
       merchant_id: "m1",
@@ -129,9 +135,10 @@ test("ApproveHypothesisUseCase", async (t) => {
       merchant_id: "m1",
       approved_by: "user123",
       approval_reason: "Looks good",
+      mode: "test_ab",
     });
 
-    assert.strictEqual(result.status, "approved");
+    assert.strictEqual(result.status, "experiment_created");
     assert.ok(result.approved_at);
     assert.strictEqual(result.hypothesis_id, h.id);
 
@@ -142,11 +149,12 @@ test("ApproveHypothesisUseCase", async (t) => {
   });
 
   await t.test("throws if hypothesis not found", async () => {
-    const useCase = new ApproveHypothesisUseCase(new InMemoryHypothesisRepository(), new InMemoryOutboxRepository());
+    const useCase = legacyApproval(new InMemoryHypothesisRepository(), new InMemoryOutboxRepository());
 
     try {
       await useCase.execute({
         hypothesis_id: "nonexistent",
+        mode: "test_ab",
         merchant_id: "m1",
         approved_by: "user123",
       });
@@ -175,13 +183,14 @@ test("ApproveHypothesisUseCase", async (t) => {
     });
     await hypothesisRepo.save(h);
 
-    const useCase = new ApproveHypothesisUseCase(hypothesisRepo, new InMemoryOutboxRepository());
+    const useCase = legacyApproval(hypothesisRepo, new InMemoryOutboxRepository());
 
     try {
       await useCase.execute({
         hypothesis_id: h.id,
         merchant_id: "m1",
         approved_by: "user123",
+        mode: "test_ab",
       });
       assert.fail("Should have thrown");
     } catch (error) {
@@ -208,13 +217,14 @@ test("ApproveHypothesisUseCase", async (t) => {
     });
     await hypothesisRepo.save(h);
 
-    const useCase = new ApproveHypothesisUseCase(hypothesisRepo, new InMemoryOutboxRepository());
+    const useCase = legacyApproval(hypothesisRepo, new InMemoryOutboxRepository());
 
     await useCase.execute({
       hypothesis_id: h.id,
       merchant_id: "m1",
       approved_by: "user456",
       approval_reason: "Custom approval reason",
+      mode: "test_ab",
     });
 
     const updated = await hypothesisRepo.findById(h.id, "m1");

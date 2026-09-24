@@ -3,6 +3,13 @@ import assert from "node:assert/strict";
 import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
 import type { HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
 import type { OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
+import { ApproveHypothesisUseCase } from "../use-cases/approve-hypothesis.use-case.js";
+
+function approval(repo: HypothesisRepositoryPort, outbox: OutboxRepository) {
+  return new ApproveHypothesisUseCase(repo, outbox, {} as never,
+    { revenueAnalysisSchedule: { findUnique: async () => null } } as never,
+    { execute: async () => ({ status: "created", experiment_id: "legacy-fixture" }) } as never);
+}
 
 function makeHypothesisRepo(overrides?: Partial<HypothesisRepositoryPort>): HypothesisRepositoryPort {
   return {
@@ -60,21 +67,17 @@ test("ApproveHypothesisUseCase", async (t) => {
     });
     const outbox = makeOutboxRepo();
 
-    // Import inline (avoids NestJS DI)
-    const { ApproveHypothesisUseCase } = await import("../use-cases/approve-hypothesis.use-case.js");
-    const useCase = Object.create(ApproveHypothesisUseCase.prototype);
-    (useCase as { hypothesisRepo: HypothesisRepositoryPort }).hypothesisRepo = repo;
-    (useCase as { outbox: OutboxRepository }).outbox = outbox;
-    (useCase as { logger: { log: () => void } }).logger = { log: () => {} };
+    const useCase = approval(repo, outbox);
 
     const result = await useCase.execute({
       hypothesis_id: hypothesis.id,
       merchant_id: "m1",
       approved_by: "merchant_user",
       approval_reason: "Good idea",
+      mode: "test_ab",
     });
 
-    assert.strictEqual(result.status, "approved");
+    assert.strictEqual(result.status, "experiment_created");
     assert.ok(result.approved_at);
     assert.ok(savedEntity);
     assert.strictEqual((savedEntity as HypothesisEntity).status, "approved");
@@ -84,14 +87,10 @@ test("ApproveHypothesisUseCase", async (t) => {
     const repo = makeHypothesisRepo({ findById: async () => null });
     const outbox = makeOutboxRepo();
 
-    const { ApproveHypothesisUseCase } = await import("../use-cases/approve-hypothesis.use-case.js");
-    const useCase = Object.create(ApproveHypothesisUseCase.prototype);
-    (useCase as { hypothesisRepo: HypothesisRepositoryPort }).hypothesisRepo = repo;
-    (useCase as { outbox: OutboxRepository }).outbox = outbox;
-    (useCase as { logger: { log: () => void } }).logger = { log: () => {} };
+    const useCase = approval(repo, outbox);
 
     await assert.rejects(
-      () => useCase.execute({ hypothesis_id: "x", merchant_id: "m1", approved_by: "u" }),
+      () => useCase.execute({ hypothesis_id: "x", merchant_id: "m1", approved_by: "u", mode: "test_ab" }),
       /HYPOTHESIS_NOT_FOUND/,
     );
   });
@@ -116,14 +115,10 @@ test("ApproveHypothesisUseCase", async (t) => {
     const repo = makeHypothesisRepo({ findById: async () => approvedHypothesis });
     const outbox = makeOutboxRepo();
 
-    const { ApproveHypothesisUseCase } = await import("../use-cases/approve-hypothesis.use-case.js");
-    const useCase = Object.create(ApproveHypothesisUseCase.prototype);
-    (useCase as { hypothesisRepo: HypothesisRepositoryPort }).hypothesisRepo = repo;
-    (useCase as { outbox: OutboxRepository }).outbox = outbox;
-    (useCase as { logger: { log: () => void } }).logger = { log: () => {} };
+    const useCase = approval(repo, outbox);
 
     await assert.rejects(
-      () => useCase.execute({ hypothesis_id: "x", merchant_id: "m1", approved_by: "u" }),
+      () => useCase.execute({ hypothesis_id: "x", merchant_id: "m1", approved_by: "u", mode: "test_ab" }),
       /HYPOTHESIS_NOT_PENDING_REVIEW/,
     );
   });

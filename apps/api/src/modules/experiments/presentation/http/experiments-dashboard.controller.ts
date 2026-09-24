@@ -10,6 +10,7 @@ import {
   Body,
   Controller,
   Get,
+  HttpException,
   NotFoundException,
   Param,
   Post,
@@ -85,6 +86,7 @@ export class ExperimentsDashboardController {
       if (!experiment) throw new Error("Failed to retrieve created experiment");
       return this.toResponse(experiment);
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
       throw new BadRequestException(error.message);
     }
   }
@@ -109,6 +111,7 @@ export class ExperimentsDashboardController {
       if (!experiment) throw new Error("Failed to retrieve updated experiment");
       return this.toResponse(experiment);
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
       throw new BadRequestException(error.message);
     }
   }
@@ -122,6 +125,7 @@ export class ExperimentsDashboardController {
       if (!experiment) throw new Error("Failed to retrieve started experiment");
       return this.toResponse(experiment);
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
       throw new BadRequestException(error.message);
     }
   }
@@ -166,6 +170,7 @@ export class ExperimentsDashboardController {
       if (!experiment) throw new Error("Failed to retrieve experiment after promotion");
       return this.toResponse(experiment);
     } catch (error: any) {
+      if (error instanceof HttpException) throw error;
       throw new BadRequestException(error.message);
     }
   }
