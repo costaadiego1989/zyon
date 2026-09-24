@@ -78,19 +78,34 @@ async function main() {
         },
         select: { id: true, name: true, storeSlug: true },
       });
+      console.log(`Created sandbox showroom merchant ${merchant.storeSlug}.`);
+    }
+
+    if (
+      merchant &&
+      configuredMerchantSlug &&
+      createShowroomMerchant &&
+      merchant.id === `apl_showroom_${safeSuffix(configuredMerchantSlug)}`
+    ) {
       // The public share endpoint renders editorial blocks only for the
       // advanced-layout feature. This is a zero-cost sandbox entitlement for
-      // the tenant just created above; it never touches a real subscription.
-      await prisma.merchantBillingSubscription.create({
-        data: {
+      // the explicitly created tenant; it never touches a real subscription.
+      await prisma.merchantBillingSubscription.upsert({
+        where: { merchantId: merchant.id },
+        create: {
           merchantId: merchant.id,
           provider: "sandbox",
           status: "active",
           planKey: "growth",
           billingAmountCents: 0,
         },
+        update: {
+          provider: "sandbox",
+          status: "active",
+          planKey: "growth",
+          billingAmountCents: 0,
+        },
       });
-      console.log(`Created sandbox showroom merchant ${merchant.storeSlug}.`);
     }
 
     if (!merchant) {
