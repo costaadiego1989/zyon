@@ -3,6 +3,7 @@ import type { MerchantRules } from "@zyon/shared-types";
 import type { HypothesisMerchantContextPort } from "../domain/ports/hypothesis-merchant-context.port.js";
 import { readCheckoutBaseline } from "./checkout-baseline.reader.js";
 import { checkoutBaselineReference } from "../../checkout/domain/services/checkout-chat-baseline.js";
+import { prepareStrategyMeasurement } from "./strategy-measurement-planning.js";
 
 /** Unlike MerchantRulesRepository.getRules, this ACL never creates permissive defaults. */
 export class PrismaHypothesisMerchantContext implements HypothesisMerchantContextPort {
@@ -22,6 +23,10 @@ export class PrismaHypothesisMerchantContext implements HypothesisMerchantContex
   async getCheckoutBaseline(merchantId: string) {
     if (process.env.REVENUE_CHECKOUT_CONTRACT_ENABLED !== "true") return undefined;
     return this.prisma.$transaction(tx => readCheckoutBaseline(tx, merchantId), { isolationLevel: "RepeatableRead" });
+  }
+
+  getMeasurementPlanning(merchantId: string, context: { runId: string; leaseToken: number }) {
+    return prepareStrategyMeasurement(this.prisma, merchantId, context);
   }
 }
 

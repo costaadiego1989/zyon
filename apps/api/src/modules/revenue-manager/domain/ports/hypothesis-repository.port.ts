@@ -1,7 +1,9 @@
 import type { HypothesisEntity } from "../entities/hypothesis.entity.js";
 import type { CheckoutChatBaseline } from "../../../checkout/domain/services/checkout-chat-baseline.js";
+import type { StrategyMeasurementPlanning } from "../strategy-measurement.js";
 
-export type HypothesisAnalysisContext = { runId: string; leaseToken: number; checkoutBaseline?: CheckoutChatBaseline };
+export type HypothesisAnalysisContext = { runId: string; leaseToken: number; checkoutBaseline?: CheckoutChatBaseline;
+  measurementPlanning?: StrategyMeasurementPlanning };
 
 export const HYPOTHESIS_REPOSITORY_PORT = Symbol("HYPOTHESIS_REPOSITORY_PORT");
 

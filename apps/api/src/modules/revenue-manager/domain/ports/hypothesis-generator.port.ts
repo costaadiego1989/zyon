@@ -2,6 +2,7 @@ import type { ObservationSnapshot } from "../entities/observation.entity.js";
 import type { StrategyLessonSnapshot } from "../entities/strategy-lesson.entity.js";
 import type { MerchantRules } from "@zyon/shared-types";
 import type { CheckoutChatBaseline } from "../../../checkout/domain/services/checkout-chat-baseline.js";
+import type { StrategyMeasurementPlanning } from "../strategy-measurement.js";
 
 export const HYPOTHESIS_GENERATOR_PORT = Symbol("HYPOTHESIS_GENERATOR_PORT");
 
@@ -15,6 +16,7 @@ export interface HypothesisGenerationRequest {
   current_prompt: string;
   /** Server-owned primary chat recipe; current_prompt is its opaque control reference. */
   checkout_baseline?: CheckoutChatBaseline;
+  measurement_planning?: StrategyMeasurementPlanning;
   constraints: {
     max_discount_percent: number;
     allow_free_shipping: boolean;

@@ -3391,6 +3391,7 @@ model RevenueAnalysisRun {
   observationId String? @map("observation_id")
   hypothesisId String? @map("hypothesis_id")
   generatedJson Json? @map("generated_json")
+  measurementPlanningJson Json? @map("measurement_planning_json")
   createdAt DateTime @default(now()) @map("created_at")
   startedAt DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")

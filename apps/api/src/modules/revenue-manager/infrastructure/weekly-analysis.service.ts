@@ -5,6 +5,7 @@ import { BillingPlanMeteringService } from "../../payment/domain/billing-plan-gu
 import { BILLING_PLANS } from "../../payment/domain/billing-plans.js";
 import { ObserveMetricsUseCase } from "../application/use-cases/observe-metrics.use-case.js";
 import { GenerateHypothesisUseCase } from "../application/use-cases/generate-hypothesis.use-case.js";
+import { MeasurementBaselineUnavailable } from "../domain/strategy-measurement.js";
 import { AnalysisDeferred, analysisGroup, isNight, LEASE_MS, MAX_RUN_ATTEMPTS, nextNight,
   positiveInteger, WEEK_MS, weeklyAnalysisEnabled, weeklyGenerationEnabled, weeklyMerchantAllowed } from "../domain/weekly-analysis-policy.js";
 
@@ -162,6 +163,9 @@ export class WeeklyAnalysisService {
         analysis_context: { runId: run.id, leaseToken: run.leaseToken } });
       await this.complete(run, "recommendations", proposal.hypothesis_id);
     } catch (error) {
+      // A mature cohort that cannot support a plan waits for next week's data,
+      // rather than retrying a paid generation or looping every hour.
+      if (error instanceof MeasurementBaselineUnavailable) return this.complete(run, "insufficient_data");
       const deferred = error instanceof AnalysisDeferred;
       const reason = deferred ? error.code : "analysis_processing_failed";
       await this.prisma.$transaction(async tx => {

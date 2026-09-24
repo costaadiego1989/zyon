@@ -12,6 +12,8 @@ import { AnalysisDeferred, LEASE_MS, MAX_RUN_ATTEMPTS, positiveInteger, weeklyAn
 import { merchantRulesSnapshot } from "../infrastructure/hypothesis-merchant-context.adapter.js";
 import { readCheckoutBaseline, lockCheckoutBaselineRows } from "../infrastructure/checkout-baseline.reader.js";
 import { checkoutBaselineReference, checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
+import { assertStrategyExperimentReview, strategyExperimentReview } from "../domain/strategy-measurement.js";
+import { assertCurrentMeasurementPolicy, assertStoredMeasurementPlanning } from "../infrastructure/strategy-measurement-planning.js";
 
 export type StrategyReviewCommand = { version: number; proposal_hash: string; request_key: string; feedback?: string };
 type ReviewKind = "approve" | "reject" | "revision";
@@ -39,9 +41,12 @@ export class StrategyReviewService {
       const actions = await tx.revenueStrategyAction.findMany({ where: { strategyId: id, merchantId }, orderBy: [{ createdAt: "desc" }, { id: "desc" }],
         include: { revision: { select: { status: true, reason: true, completedAt: true } } } });
       const limit = Number(process.env.REVENUE_AI_MAX_REVISIONS_PER_CYCLE);
+      const current = versions[0]?.proposal as unknown as StrategyProposal | undefined;
       return { ...strategy, versions, actions, approval_available: false, activation_available: false,
         expired: !!versions[0] && versions[0].expiresAt <= new Date(),
-        activation_blockers: ["versioned_checkout_contract_required", "reviewed_measurement_plan_required"],
+        activation_blockers: this.activationBlockers(current),
+        measurement_status: current?.experimentReview ? "included_in_proposal" : "awaiting_measurement_plan",
+        measurement_warnings: current?.experimentReview?.capacity === "below_planned_sample" ? ["planned_sample_capacity_insufficient"] : [],
         revision_available: revisionsEnabled() && weeklyMerchantAllowed(merchantId) && strategy.status === "pending_review"
           && !!versions[0] && versions[0].expiresAt > new Date() && Number.isSafeInteger(limit) && limit > 0
           && actions.filter(action => action.kind === "revision").length < limit };
@@ -72,10 +77,10 @@ export class StrategyReviewService {
       if (kind !== "reject" && version.expiresAt <= now) throw new ConflictException("STRATEGY_PROPOSAL_EXPIRED");
       if (kind === "approve") {
         await this.unchangedRules(tx, merchantId, version.proposal as unknown as StrategyProposal);
-        // Do not record approval for an unreviewed measurement/baseline contract.
-        // RI-09 will publish another immutable version with those artifacts.
+        // A frozen measurement proposal does not authorize an execution path.
+        // RI-09 must bind publication, assignment, exposure and stopping first.
         throw new ConflictException({ code: "STRATEGY_APPROVAL_PREREQUISITES_REQUIRED",
-          blockers: ["versioned_checkout_contract_required", "reviewed_measurement_plan_required"] });
+          blockers: this.activationBlockers(version.proposal as unknown as StrategyProposal) });
       }
       if (kind === "revision") {
         if (!input.feedback?.trim()) throw new BadRequestException("STRATEGY_REVISION_FEEDBACK_REQUIRED");
@@ -123,6 +128,12 @@ export class StrategyReviewService {
       if (digest(base.proposal) !== base.proposalHash) throw new Error("STRATEGY_PROPOSAL_CORRUPT");
       if (base.expiresAt <= new Date()) throw new Error("STRATEGY_PROPOSAL_EXPIRED");
       const proposal = base.proposal as unknown as StrategyProposal;
+      const planning = proposal.experimentReview?.planning;
+      if (proposal.experimentReview) {
+        assertStrategyExperimentReview(proposal.experimentReview, action.strategyId, action.version,
+          proposal.recommendation, work.merchantId, action.proposal.strategy.runId);
+        assertCurrentMeasurementPolicy(planning!);
+      }
       const currentRules = await this.context.getRules(work.merchantId);
       if (!currentRules || digest(currentRules) !== digest(proposal.rules)) throw new Error("STRATEGY_POLICY_CHANGED");
       const checkoutBaseline = await this.context.getCheckoutBaseline?.(work.merchantId);
@@ -136,11 +147,13 @@ export class StrategyReviewService {
       const generated = await this.generator.generate({ merchant_id: work.merchantId,
         analysis_context: { runId: action.proposal.strategy.runId, revisionId: id, leaseToken: work.leaseToken },
         revision: { preference: action.feedback!, previous_proposal: proposal.recommendation },
-        observation: proposal.observation, current_prompt: baseline, checkout_baseline: checkoutBaseline, past_lessons: [], constraints: {
+        observation: proposal.observation, current_prompt: baseline, checkout_baseline: checkoutBaseline,
+        measurement_planning: planning, past_lessons: [], constraints: {
           max_discount_percent: currentRules.maxDiscountPercent, allow_free_shipping: currentRules.allowFreeShipping,
           max_running_experiments: 1, merchant_rules: currentRules } });
       if (generated.template.variant_a.system_prompt !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
-      const next = strategyProposal(generated, proposal.observation, currentRules, checkoutBaseline);
+      const experimentReview = planning ? strategyExperimentReview(action.strategyId, action.version + 1, generated, planning) : undefined;
+      const next = strategyProposal(generated, proposal.observation, currentRules, checkoutBaseline, experimentReview);
       await this.eligible(work.merchantId);
       if (await this.context.getCurrentPrompt(work.merchantId) !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
       await this.prisma.$transaction(async tx => {
@@ -156,6 +169,7 @@ export class StrategyReviewService {
           if (!current || checkoutContractHash(current) !== checkoutContractHash(checkoutBaseline)) throw new Error("STRATEGY_BASELINE_CHANGED");
         }
         await this.unchangedRules(tx, work.merchantId, proposal);
+        if (planning) await assertStoredMeasurementPlanning(tx, work.merchantId, action.proposal.strategy.runId, planning);
         const version = action.version + 1;
         await tx.revenueStrategyVersion.create({ data: { strategyId: strategy.id, merchantId: work.merchantId, version,
           proposalHash: digest(next), proposal: json(next), expiresAt: base.expiresAt } });
@@ -166,7 +180,7 @@ export class StrategyReviewService {
     } catch (error) {
       const deferred = error instanceof AnalysisDeferred;
       const expired = action.proposal.expiresAt <= new Date();
-      const permanent = expired || /STRATEGY_(POLICY_CHANGED|BASELINE_CHANGED|PROPOSAL_CORRUPT|INVALID|PROPOSAL_EXPIRED)/.test(String(error));
+      const permanent = expired || /STRATEGY_(POLICY_CHANGED|MEASUREMENT_POLICY_CHANGED|MEASUREMENT_CONTEXT_CHANGED|BASELINE_CHANGED|PROPOSAL_CORRUPT|INVALID|PROPOSAL_EXPIRED)/.test(String(error));
       const status = permanent || (!deferred && work.attempts >= MAX_RUN_ATTEMPTS) ? "failed" : deferred ? "deferred" : "retry_wait";
       const reason = expired ? "proposal_expired" : deferred ? error.code : permanent ? "proposal_requires_new_analysis" : "revision_generation_failed";
       await this.prisma.$transaction(async tx => {
@@ -196,6 +210,11 @@ export class StrategyReviewService {
 
   private fence(work: { id: string; merchantId: string; leaseToken: number }) {
     return { id: work.id, merchantId: work.merchantId, leaseToken: work.leaseToken, status: "running", leaseUntil: { gt: new Date() } };
+  }
+  private activationBlockers(proposal?: StrategyProposal) {
+    return ["versioned_checkout_execution_required", "durable_assignment_and_exposure_required",
+      ...(!proposal?.checkoutBaseline ? ["versioned_checkout_contract_required"] : []),
+      ...(!proposal?.experimentReview ? ["reviewed_measurement_plan_required"] : [])];
   }
   private async lock(tx: Prisma.TransactionClient, merchantId: string, id: string) {
     const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM revenue_strategies WHERE id = ${id} AND merchant_id = ${merchantId} FOR UPDATE`;

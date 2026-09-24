@@ -8,6 +8,7 @@ import { assessHypothesisRisk } from "../../domain/value-objects/hypothesis-risk
 import { validateHypothesisResponse, validateHypothesisSafety } from "../../domain/services/hypothesis-validator.service.js";
 import { HYPOTHESIS_MERCHANT_CONTEXT_PORT, type HypothesisMerchantContextPort } from "../../domain/ports/hypothesis-merchant-context.port.js";
 import { checkoutBaselineReference, checkoutContractHash } from "../../../checkout/domain/services/checkout-chat-baseline.js";
+import { strategyMeasurementEnabled } from "../../infrastructure/strategy-measurement-planning.js";
 
 export interface GenerateHypothesisInput {
   analysis_context?: { runId: string; leaseToken: number };
@@ -70,6 +71,11 @@ export class GenerateHypothesisUseCase {
     const currentPrompt = checkoutBaseline ? checkoutBaselineReference(checkoutBaseline)
       : this.merchantContext.getCheckoutBaseline ? undefined : await this.merchantContext.getCurrentPrompt(input.merchant_id);
     if (typeof currentPrompt !== "string" || !currentPrompt.trim()) throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
+    const measurementPlanning = input.analysis_context
+      ? await this.merchantContext.getMeasurementPlanning?.(input.merchant_id, input.analysis_context) : undefined;
+    if (strategyMeasurementEnabled() && (!checkoutBaseline || !measurementPlanning)) {
+      throw new Error("HYPOTHESIS_MEASUREMENT_CONTEXT_REQUIRED");
+    }
 
     // Legacy lessons do not carry a preregistered plan or complete assignment
     // population. Keep them out of weekly planning until evidence is versioned.
@@ -90,6 +96,7 @@ export class GenerateHypothesisUseCase {
       past_lessons: pastLessons.map((l) => l.snapshot()),
       current_prompt: currentPrompt,
       checkout_baseline: checkoutBaseline,
+      measurement_planning: measurementPlanning,
       constraints,
     });
 
@@ -129,7 +136,7 @@ export class GenerateHypothesisUseCase {
 
     // Save
     if (input.analysis_context) hypothesis = HypothesisEntity.rehydrate({ ...hypothesis.snapshot(), id: `analysis-${input.analysis_context.runId}` });
-    await this.hypothesisRepo.save(hypothesis, input.analysis_context ? { ...input.analysis_context, checkoutBaseline } : undefined);
+    await this.hypothesisRepo.save(hypothesis, input.analysis_context ? { ...input.analysis_context, checkoutBaseline, measurementPlanning } : undefined);
 
     this.logger.log(
       `Generated hypothesis for merchant ${input.merchant_id}: ` +

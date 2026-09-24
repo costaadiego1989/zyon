@@ -70,7 +70,7 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
         },
       });
       const noticeId = `strategy:${snap.id}`;
-      if (analysisContext) await publishInitialStrategy(tx, snap, analysisContext.runId, analysisContext.checkoutBaseline);
+      if (analysisContext) await publishInitialStrategy(tx, snap, analysisContext.runId, analysisContext.checkoutBaseline, analysisContext.measurementPlanning);
       if (snap.status === "pending_review") {
         await tx.merchantNotification.upsert({
           where: { id: noticeId }, update: {},

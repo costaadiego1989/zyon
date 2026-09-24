@@ -4,6 +4,7 @@ import type { HypothesisGenerationResponse } from "./ports/hypothesis-generator.
 import { validateHypothesisResponse, validateHypothesisSafety } from "./services/hypothesis-validator.service.js";
 import { assertCheckoutChatBaseline, checkoutBaselineReference, checkoutContractHash,
   type CheckoutChatBaseline } from "../../checkout/domain/services/checkout-chat-baseline.js";
+import { assertStrategyExperimentReview, type StrategyExperimentReview } from "./strategy-measurement.js";
 
 export type StrategyProposal = {
   definition: "checkout-strategy-review-v1";
@@ -13,12 +14,14 @@ export type StrategyProposal = {
   // A candidate control is not proof that checkout can replay this baseline.
   baselineStatus: "awaiting_checkout_contract" | "primary_chat_contract_captured";
   checkoutBaseline?: CheckoutChatBaseline;
+  experimentReview?: StrategyExperimentReview;
   execution: "unavailable";
   expectedLiftStatus: "model_estimate_not_measured";
 };
 
 export function strategyProposal(recommendation: HypothesisGenerationResponse,
-  observation: ObservationSnapshot, rules: MerchantRules, checkoutBaseline?: CheckoutChatBaseline): StrategyProposal {
+  observation: ObservationSnapshot, rules: MerchantRules, checkoutBaseline?: CheckoutChatBaseline,
+  experimentReview?: StrategyExperimentReview): StrategyProposal {
   validateHypothesisResponse(recommendation);
   const { variant_a: control, variant_b: treatment } = recommendation.template;
   if (!control.is_control || treatment.is_control || control.weight !== 50 || treatment.weight !== 50
@@ -34,9 +37,15 @@ export function strategyProposal(recommendation: HypothesisGenerationResponse,
       throw new Error("STRATEGY_INVALID_COMMUNICATION_ADDENDUM");
     }
   } else if (control.system_prompt.startsWith("checkout-chat-baseline-v1:")) throw new Error("STRATEGY_BASELINE_ARTIFACT_REQUIRED");
+  if (experimentReview) {
+    if (!checkoutBaseline) throw new Error("STRATEGY_BASELINE_ARTIFACT_REQUIRED");
+    assertStrategyExperimentReview(experimentReview, experimentReview.strategyId, experimentReview.version,
+      recommendation, observation.merchant_id, experimentReview.planning.runId);
+  }
   const value: StrategyProposal = { definition: "checkout-strategy-review-v1", recommendation, observation, rules,
     baselineStatus: checkoutBaseline ? "primary_chat_contract_captured" : "awaiting_checkout_contract",
-    ...(checkoutBaseline ? { checkoutBaseline } : {}), execution: "unavailable", expectedLiftStatus: "model_estimate_not_measured" };
+    ...(checkoutBaseline ? { checkoutBaseline } : {}), ...(experimentReview ? { experimentReview } : {}),
+    execution: "unavailable", expectedLiftStatus: "model_estimate_not_measured" };
   if (Buffer.byteLength(JSON.stringify(value), "utf8") > 200_000) throw new Error("STRATEGY_CONTEXT_TOO_LARGE");
   return structuredClone(value);
 }

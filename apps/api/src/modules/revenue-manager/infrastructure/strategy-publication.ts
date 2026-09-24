@@ -7,10 +7,13 @@ import { WEEK_MS } from "../domain/weekly-analysis-policy.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
 import { readCheckoutBaseline, lockCheckoutBaselineRows } from "./checkout-baseline.reader.js";
 import { checkoutContractHash, type CheckoutChatBaseline } from "../../checkout/domain/services/checkout-chat-baseline.js";
+import { strategyExperimentReview, type StrategyMeasurementPlanning } from "../domain/strategy-measurement.js";
+import { assertStoredMeasurementPlanning, strategyMeasurementEnabled } from "./strategy-measurement-planning.js";
 
 /** Called inside the existing fenced hypothesis transaction: proposal, source and
  * notification either commit together or none of them do. No legacy backfill. */
-export async function publishInitialStrategy(tx: Prisma.TransactionClient, snap: HypothesisSnapshot, runId: string, baseline?: CheckoutChatBaseline) {
+export async function publishInitialStrategy(tx: Prisma.TransactionClient, snap: HypothesisSnapshot, runId: string,
+  baseline?: CheckoutChatBaseline, measurementPlanning?: StrategyMeasurementPlanning) {
   const prior = await tx.revenueStrategy.findFirst({ where: { id: snap.id, merchantId: snap.merchant_id } });
   if (prior) return;
   if (snap.status !== "pending_review" || snap.hypothesis_type === "discount_rule" || snap.discount_rule_json) {
@@ -35,8 +38,14 @@ export async function publishInitialStrategy(tx: Prisma.TransactionClient, snap:
     data_quality: row.dataQualityJson as ObservationSnapshot["data_quality"], ai_costs_cents: row.aiCostsCents,
     ...(row.currentExperimentJson ? { current_experiment: row.currentExperimentJson as ObservationSnapshot["current_experiment"] } : {}),
   };
-  const proposal = strategyProposal({ hypothesis_text: snap.hypothesis_text, reasoning: snap.reasoning,
-    expected_lift_percent: snap.expected_lift_percent, template: snap.template }, observation, merchantRulesSnapshot(rules), baseline);
+  if ((strategyMeasurementEnabled() || run.measurementPlanningJson) && !measurementPlanning) {
+    throw new Error("STRATEGY_MEASUREMENT_CONTEXT_REQUIRED");
+  }
+  if (measurementPlanning) await assertStoredMeasurementPlanning(tx, snap.merchant_id, runId, measurementPlanning);
+  const recommendation = { hypothesis_text: snap.hypothesis_text, reasoning: snap.reasoning,
+    expected_lift_percent: snap.expected_lift_percent, template: snap.template };
+  const experimentReview = measurementPlanning ? strategyExperimentReview(snap.id, 1, recommendation, measurementPlanning) : undefined;
+  const proposal = strategyProposal(recommendation, observation, merchantRulesSnapshot(rules), baseline, experimentReview);
   const expiresAt = new Date((run.asOf ?? row.createdAt).getTime() + WEEK_MS);
   await tx.revenueStrategy.create({ data: { id: snap.id, merchantId: snap.merchant_id, runId,
     versions: { create: { version: 1, proposalHash: digest(proposal), proposal: proposal as unknown as Prisma.InputJsonValue, expiresAt } } } });

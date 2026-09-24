@@ -18,6 +18,8 @@ import { GenerateHypothesisUseCase } from "./use-cases/generate-hypothesis.use-c
 import { checkoutBaselineReference, renderCheckoutChatBaseline, type CheckoutChatBaseline } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import { ChatLlmGatewayService } from "../../checkout/application/services/chat-llm-gateway.service.js";
 import { readCheckoutBaseline, lockCheckoutBaselineRows } from "../infrastructure/checkout-baseline.reader.js";
+import { prepareStrategyMeasurement } from "../infrastructure/strategy-measurement-planning.js";
+import { MeasurementBaselineUnavailable, type StrategyExperimentReview } from "../domain/strategy-measurement.js";
 
 // Destructive setup is strictly restricted to this dedicated local fixture DB.
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -65,12 +67,39 @@ beforeEach(async () => {
   await prisma.$executeRawUnsafe(`TRUNCATE revenue_strategies, revenue_strategy_versions, revenue_strategy_actions, revenue_strategy_revisions,
     revenue_analysis_runs, revenue_analysis_schedules, revenue_ai_reservations, ai_usage_events, ai_price_versions,
     revenue_manager_hypotheses, revenue_manager_observations, merchant_notifications, merchant_rules, checkout_settings, merchants CASCADE`);
+  await prisma.$executeRawUnsafe(`TRUNCATE checkout_sessions, completed_orders, prompt_experiments CASCADE`);
   Object.assign(process.env, { REVENUE_WEEKLY_ENABLED: "true", REVENUE_WEEKLY_MERCHANT_IDS: "*", REVENUE_STRATEGY_REVISIONS_ENABLED: "true",
     REVENUE_AI_MAX_REVISIONS_PER_CYCLE: "3", REVENUE_AI_MAX_INPUT_TOKENS: "20000", REVENUE_AI_MAX_OUTPUT_TOKENS: "1000",
     REVENUE_AI_DAILY_LIMIT_MICROS: "50000", REVENUE_AI_MONTHLY_LIMIT_MICROS: "50000", REVENUE_AI_CYCLE_LIMIT_MICROS: "50000",
     REVENUE_AI_MAX_CALLS_PER_CYCLE: "2", REVENUE_AI_PROVIDER_RPM: "100", REVENUE_AI_PROVIDER_TPM: "1000000",
     REVENUE_AI_PROVIDER_CONCURRENCY: "10", REVENUE_AI_REVISION_RESERVE_PERCENT: "50", REVENUE_AI_BUDGET_CURRENCY: "USD" });
 });
+
+async function configureMeasurement(f: Awaited<ReturnType<typeof fixture>>, sessions = 1000) {
+  Object.assign(process.env, { REVENUE_STRATEGY_MEASUREMENT_ENABLED: "true", REVENUE_EXPERIMENT_DURATION_DAYS: "7",
+    REVENUE_EXPERIMENT_CONVERSION_WINDOW_HOURS: "24", REVENUE_EXPERIMENT_MINIMUM_EFFECT_BPS: "500" });
+  const createdAt = new Date(f.run.asOf!.getTime() - 7 * 86_400_000);
+  await prisma.checkoutSession.createMany({ data: Array.from({ length: sessions }, (_, i) => ({
+    id: `history-${f.merchantId}-${i}`, merchantId: f.merchantId, sessionId: `history-${i}`, globalUserId: `buyer-${i}`,
+    conversationId: `history-${i}`, cart: { currency: "BRL" }, cohort: "treatment", createdAt, updatedAt: createdAt,
+  })) });
+  await prisma.completedOrder.createMany({ data: Array.from({ length: Math.floor(sessions / 10) }, (_, i) => ({
+    id: `history-order-${f.merchantId}-${i}`, merchantId: f.merchantId, sessionId: `history-${i}`,
+    externalOrderId: `history-order-${i}`, currency: "BRL", orderTotal: 100, completedAt: new Date(createdAt.getTime() + 1000),
+  })) });
+}
+
+async function measuredProposal() {
+  const f = await fixture("store", { publish: false });
+  await configureRealBaseline();
+  await configureMeasurement(f);
+  const output = await realGeneration().execute({ merchant_id: "store", observation_id: f.observation.id,
+    analysis_context: { runId: f.run.id, leaseToken: 1 } });
+  const s = new StrategyReviewService(prisma, context, { generate: async request => recipeResponse(request) }, billing as never);
+  const read = await s.read("store", output.hypothesis_id);
+  const review = (read.versions[0].proposal as any).experimentReview as StrategyExperimentReview;
+  return { f, s, read, review, id: output.hypothesis_id, input: { ...f.input, proposal_hash: read.versions[0].proposalHash } };
+}
 
 async function fixture(merchantId = "store", options: { expired?: boolean; publish?: boolean } = {}) {
   const now = new Date();
@@ -103,6 +132,170 @@ async function fixture(merchantId = "store", options: { expired?: boolean; publi
   return { merchantId, run, hypothesis, observation, repo, version, id: hypothesis.id,
     input: { version: 1, proposal_hash: version?.proposalHash ?? "", request_key: "request-1", feedback: "Prefiro uma explicação mais curta." } };
 }
+
+test("measurement preparation is fenced, concurrent, immutable and keeps the original historical snapshot", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureMeasurement(f);
+  const request = { runId: f.run.id, leaseToken: 1 };
+  const plans = await Promise.all(Array.from({ length: 8 }, () => prepareStrategyMeasurement(prisma, "store", request)));
+  assert.equal(new Set(plans.map(digest)).size, 1);
+  assert.equal(plans[0]!.baseline.sessions, 1000);
+  assert.equal(plans[0]!.baseline.conversions, 100);
+  await prisma.completedOrder.deleteMany();
+  assert.deepEqual(await prepareStrategyMeasurement(prisma, "store", request), plans[0]);
+  process.env.REVENUE_STRATEGY_MEASUREMENT_ENABLED = "false";
+  await assert.rejects(prepareStrategyMeasurement(prisma, "store", request), /strategy_measurement_disabled/);
+  process.env.REVENUE_STRATEGY_MEASUREMENT_ENABLED = "true";
+  for (const data of [{ measurementPlanningJson: {} }, { merchantId: "foreign" }, { cycle: 2 },
+    { asOf: new Date() }, { observationId: "other" }]) {
+    await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data }), /REVENUE_MEASUREMENT_CONTEXT_IMMUTABLE/);
+  }
+  await assert.rejects(prisma.revenueAnalysisRun.delete({ where: { id: f.run.id } }), /REVENUE_MEASUREMENT_CONTEXT_IMMUTABLE/);
+  await assert.rejects(prepareStrategyMeasurement(prisma, "foreign", request), /analysis_lease_lost/);
+  await assert.rejects(prepareStrategyMeasurement(prisma, "store", { ...request, leaseToken: 2 }), /analysis_lease_lost/);
+  process.env.REVENUE_EXPERIMENT_DURATION_DAYS = "14";
+  await assert.rejects(prepareStrategyMeasurement(prisma, "store", request), /STRATEGY_MEASUREMENT_POLICY_CHANGED/);
+});
+
+test("planning cohort excludes holdout, unknown currency/identity, repeated buyers, late orders and other tenants", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureMeasurement(f);
+  const asOf = f.run.asOf!;
+  const windowEnd = new Date(asOf.getTime() - 86_400_000);
+  const windowStart = new Date(windowEnd.getTime() - 28 * 86_400_000);
+  const createdAt = new Date(asOf.getTime() - 7 * 86_400_000);
+  const row = (id: string) => ({ id, merchantId: "store", sessionId: id, globalUserId: id, conversationId: id,
+    cohort: "treatment", cart: { currency: "BRL" }, createdAt, updatedAt: createdAt });
+  await prisma.checkoutSession.createMany({ data: [
+    { ...row("holdout"), cohort: "holdout" }, { ...row("unknown-cohort"), cohort: null },
+    { ...row("empty-identity"), globalUserId: " " }, { ...row("currency"), cart: {} },
+    { ...row("usd"), cart: { currency: "USD" } }, { ...row("foreign"), merchantId: "foreign", sessionId: "history-201" },
+    { ...row("repeat"), globalUserId: "buyer-200", createdAt: new Date(createdAt.getTime() + 1000) },
+    { ...row("at-start"), createdAt: windowStart }, { ...row("at-end"), createdAt: windowEnd },
+    { ...row("before-start"), createdAt: new Date(windowStart.getTime() - 1) },
+  ] });
+  await prisma.completedOrder.createMany({ data: [
+    { id: "duplicate", sessionId: "history-0", completedAt: createdAt },
+    { id: "late", sessionId: "history-200", completedAt: new Date(createdAt.getTime() + 86_400_000) },
+    { id: "repeat-order", sessionId: "repeat", completedAt: new Date(createdAt.getTime() + 2000) },
+    { id: "foreign-order", sessionId: "history-201", merchantId: "foreign", completedAt: createdAt },
+    { id: "early", sessionId: "history-202", completedAt: new Date(createdAt.getTime() - 1) },
+  ].map(o => ({ merchantId: "store", externalOrderId: o.id, currency: "BRL", orderTotal: 100, ...o })) });
+  const planning = await prepareStrategyMeasurement(prisma, "store", { runId: f.run.id, leaseToken: 1 });
+  assert.equal(planning!.baseline.sessions, 1001);
+  assert.equal(planning!.baseline.conversions, 100);
+  assert.equal(planning!.baseline.windowStart, windowStart.toISOString());
+  assert.equal(await prisma.promptVariantResult.count(), 0);
+});
+
+test("published proposal contains exact experiment and measurement definitions without activating anything", { skip: !enabled }, async () => {
+  const { f, read, review, s, id, input } = await measuredProposal();
+  const saved = await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } });
+  assert.equal(review.planningHash, digest(saved.measurementPlanningJson));
+  assert.equal(review.planHash, digest(review.plan));
+  assert.equal(review.version, 1);
+  assert.equal(review.strategyId, id);
+  assert.equal(review.plan.controlVariantId, review.variants[0].id);
+  assert.equal(read.measurement_status, "included_in_proposal");
+  assert.ok(!read.activation_blockers.includes("reviewed_measurement_plan_required"));
+  assert.ok(read.measurement_warnings.includes("planned_sample_capacity_insufficient"));
+  assert.ok(!read.activation_blockers.includes("planned_sample_capacity_insufficient"));
+  assert.equal(await prisma.promptExperiment.count(), 0);
+  assert.equal(await prisma.experimentMeasurementPlan.count(), 0);
+  assert.equal(await prisma.revenueStrategyAction.count(), 0);
+  await assert.rejects(s.decide("store", "owner", id, "approve", input), (e: any) => e.getStatus() === 409);
+  assert.equal(await prisma.revenueStrategyAction.count(), 0);
+  assert.equal(read.approval_available, false);
+});
+
+test("missing configuration and insufficient planning data stop before model generation", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureRealBaseline();
+  await configureMeasurement(f, 50);
+  let calls = 0;
+  const useCase = realGeneration(async request => { calls++; return recipeResponse(request); });
+  const input = { merchant_id: "store", observation_id: f.observation.id, analysis_context: { runId: f.run.id, leaseToken: 1 } };
+  delete process.env.REVENUE_EXPERIMENT_DURATION_DAYS;
+  await assert.rejects(useCase.execute(input), /measurement_not_configured/);
+  process.env.REVENUE_EXPERIMENT_DURATION_DAYS = "7";
+  await assert.rejects(useCase.execute(input), MeasurementBaselineUnavailable);
+  assert.equal(calls, 0);
+  assert.equal(await prisma.revenueAiReservation.count(), 0);
+  assert.equal(await prisma.revenueStrategy.count(), 0);
+  assert.equal((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).measurementPlanningJson, null);
+});
+
+test("weekly worker completes an insufficient measurement cycle and waits seven days without generation", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureRealBaseline();
+  await configureMeasurement(f, 50);
+  Object.assign(process.env, { REVENUE_WEEKLY_GENERATION_ENABLED: "true" });
+  const worker = new WeeklyAnalysisService(prisma, billing as never, {} as never,
+    realGeneration(async () => { throw new Error("MUST_NOT_CALL"); }));
+  // The fixture already owns a live lease. Exercise actual processing, completion,
+  // schedule and notice writes without depending on the host's current night hour.
+  worker.claim = async () => f.run;
+  await worker.process(f.run.id);
+  const run = await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } });
+  assert.equal(run.status, "completed"); assert.equal(run.result, "insufficient_data");
+  const schedule = await prisma.revenueAnalysisSchedule.findUniqueOrThrow({ where: { merchantId: "store" } });
+  assert.ok(schedule.nextDueAt.getTime() >= run.completedAt!.getTime() + 7 * 86_400_000);
+  assert.equal(await prisma.revenueAiReservation.count(), 0);
+  assert.equal((await prisma.merchantNotification.findUniqueOrThrow({ where: { id: `analysis:${f.run.id}` } })).type, "ai_analysis_update");
+});
+
+test("measurement policy changed during generation rolls back proposal and notice and cannot be silently replanned", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureRealBaseline();
+  await configureMeasurement(f);
+  let calls = 0;
+  const useCase = realGeneration(async request => {
+    calls++; process.env.REVENUE_EXPERIMENT_MINIMUM_EFFECT_BPS = "1000"; return recipeResponse(request);
+  });
+  const input = { merchant_id: "store", observation_id: f.observation.id, analysis_context: { runId: f.run.id, leaseToken: 1 } };
+  await assert.rejects(useCase.execute(input), /STRATEGY_MEASUREMENT_POLICY_CHANGED/);
+  assert.equal(await prisma.revenueManagerHypothesis.count(), 0);
+  assert.equal(await prisma.revenueStrategy.count(), 0);
+  assert.equal(await prisma.merchantNotification.count(), 0);
+  await assert.rejects(useCase.execute(input), /STRATEGY_MEASUREMENT_POLICY_CHANGED/);
+  assert.equal(calls, 1);
+});
+
+test("revision preserves frozen measurement evidence and expires with the original proposal", { skip: !enabled }, async () => {
+  const { s, id, input, review, read } = await measuredProposal();
+  const receipt: any = await s.decide("store", "owner", id, "revision", input);
+  await prisma.completedOrder.deleteMany();
+  await s.process(receipt.action_id);
+  const next = await s.read("store", id);
+  assert.equal(next.currentVersion, 2);
+  const revised = (next.versions[0].proposal as any).experimentReview as StrategyExperimentReview;
+  assert.deepEqual(revised.planning, review.planning);
+  assert.equal(revised.plan.minimumSessionsPerArm, review.plan.minimumSessionsPerArm);
+  assert.notEqual(revised.plan.controlVariantId, review.plan.controlVariantId);
+  assert.equal(next.versions[0].expiresAt.toISOString(), read.versions[0].expiresAt.toISOString());
+  assert.equal(next.versions[1].proposalHash, read.versions[0].proposalHash);
+  assert.equal((await prisma.merchantNotification.findUniqueOrThrow({ where: { id: `strategy-revision:${receipt.action_id}` } })).read, false);
+});
+
+test("revision cannot alter measurement policy after the model call or discard it when the flag is disabled", { skip: !enabled }, async () => {
+  const { id, input } = await measuredProposal();
+  let calls = 0;
+  const s = new StrategyReviewService(prisma, context, { generate: async request => {
+    calls++; process.env.REVENUE_EXPERIMENT_DURATION_DAYS = "14"; return recipeResponse(request);
+  } }, billing as never);
+  const receipt: any = await s.decide("store", "owner", id, "revision", input);
+  await s.process(receipt.action_id);
+  assert.equal(calls, 1);
+  assert.equal((await s.read("store", id)).currentVersion, 1);
+  assert.equal((await prisma.revenueStrategyRevision.findUniqueOrThrow({ where: { id: receipt.action_id } })).status, "failed");
+  process.env.REVENUE_EXPERIMENT_DURATION_DAYS = "7";
+  const second: any = await s.decide("store", "owner", id, "revision", { ...input, request_key: "revision-second" });
+  process.env.REVENUE_STRATEGY_MEASUREMENT_ENABLED = "false";
+  await s.process(second.action_id);
+  assert.equal(calls, 1);
+  assert.equal((await prisma.revenueStrategyRevision.findUniqueOrThrow({ where: { id: second.action_id } })).reason, "strategy_measurement_disabled");
+  assert.equal((await s.read("store", id)).currentVersion, 1);
+});
 
 test("weekly publication persists immutable proposal, evidence and notification exactly once", { skip: !enabled }, async () => {
   const f = await fixture("store", { publish: false });
@@ -558,13 +751,16 @@ test("publication locks prevent concurrent merchant, policy and settings changes
 test("budgeted generation binds provider checkpoint to the real recipe and evidence", { skip: !enabled }, async () => {
   const f = await fixture("store", { publish: false });
   const captured = await configureRealBaseline();
+  await configureMeasurement(f);
+  const planning = await prepareStrategyMeasurement(prisma, "store", { runId: f.run.id, leaseToken: 1 });
   delete process.env.DEEPSEEK_API_KEY;
   await prisma.aiPriceVersion.create({ data: { version: "fixture", provider: "openai", model: "fixture-model", channel: "chat",
     component: "text_generation", currency: "USD", source: "revenue-upper-bound-v1", inputMicrosPerMillion: 1_000_000n,
     outputMicrosPerMillion: 1_000_000n, effectiveFrom: new Date("2020-01-01Z") } });
   const generator = new LLMHypothesisGenerator(new RevenueAiBudgetService(prisma));
   const request: HypothesisGenerationRequest = { merchant_id: "store", analysis_context: { runId: f.run.id, leaseToken: 1 },
-    current_prompt: checkoutBaselineReference(captured), checkout_baseline: captured, observation: f.observation.snapshot(), past_lessons: [],
+    current_prompt: checkoutBaselineReference(captured), checkout_baseline: captured, measurement_planning: planning,
+    observation: f.observation.snapshot(), past_lessons: [],
     constraints: { max_discount_percent: 5, allow_free_shipping: false, max_running_experiments: 1, merchant_rules: (await context.getRules("store"))! } };
   const originalFetch = globalThis.fetch;
   let calls = 0;
@@ -575,6 +771,7 @@ test("budgeted generation binds provider checkpoint to the real recipe and evide
     assert.equal(reservation.state, "dispatched");
     const sent = JSON.parse(String(options?.body));
     assert.match(sent.messages[1].content, /SERVER CHECKOUT RECIPE/);
+    assert.match(sent.messages[1].content, /SERVER MEASUREMENT CONTEXT/);
     assert.doesNotMatch(sent.messages[1].content, /fixture-only/);
     const response = recipeResponse(request);
     response.template.variant_a.system_prompt = "Model tried to rewrite control";
@@ -588,6 +785,9 @@ test("budgeted generation binds provider checkpoint to the real recipe and evide
     const otherEvidence = structuredClone(request);
     otherEvidence.observation.funnel.total_sessions++;
     await assert.rejects(generator.generate(otherEvidence), /HYPOTHESIS_BASELINE_CHANGED/);
+    const otherMeasurement = structuredClone(request);
+    otherMeasurement.measurement_planning!.policy.minimumEffectBps = 1000;
+    await assert.rejects(generator.generate(otherMeasurement), /HYPOTHESIS_BASELINE_CHANGED/);
     const changed = structuredClone(captured); changed.merchantName = "Changed";
     await assert.rejects(generator.generate({ ...request, checkout_baseline: changed, current_prompt: checkoutBaselineReference(changed) }), /HYPOTHESIS_BASELINE_CHANGED/);
     assert.equal(calls, 1);
