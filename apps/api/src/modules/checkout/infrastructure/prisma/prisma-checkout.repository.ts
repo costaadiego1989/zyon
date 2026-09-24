@@ -23,6 +23,8 @@ import { CheckoutAbandonmentService } from "../../domain/services/checkout-aband
 import { CheckoutIdentityService } from "../../domain/services/checkout-identity.service.js";
 import { toNumber, toNumberOrNull, type DecimalLike } from "../../../../shared/persistence/decimal.util.js";
 import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
+import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
+import { enrollCreatedStrategySession, executionClock, lockExecutionMerchant } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -84,6 +86,22 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async createSessionIfAbsent(session: CheckoutSession): Promise<{ session: CheckoutSession; created: boolean }> {
+    if (strategyExecutionEnabled(session.merchantId)) {
+      const create = async (tx: Prisma.TransactionClient) => {
+        // The store lock orders activation, creation, enrollment and stopping.
+        // Timestamp AFTER taking it, so concurrent starts cannot backdate the
+        // first eligible session or enroll a buyer from a later session.
+        await lockExecutionMerchant(tx, session.merchantId);
+        const previous = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: {
+          merchantId: session.merchantId, sessionId: session.sessionId } } });
+        if (previous) return { session: toCheckoutSession(previous), created: false };
+        const now = await executionClock(tx);
+        const row = await tx.checkoutSession.create({ data: { ...toCheckoutSessionCreate(session), createdAt: now, updatedAt: now } as any });
+        await enrollCreatedStrategySession(tx, row, now);
+        return { session: toCheckoutSession(row), created: true };
+      };
+      return this.inTransaction ? create(this.prisma) : (this.prisma as PrismaClient).$transaction(create);
+    }
     try {
       const row = await this.prisma.checkoutSession.upsert({
         where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } },

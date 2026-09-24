@@ -377,6 +377,7 @@ model CheckoutSession {
   authorizedOffers AuthorizedOffer[]
   acceptedOffers   AcceptedOffer[]
   completedOrders  CompletedOrder[]
+  strategyAssignments StrategyAssignment[]
 
   @@unique([merchantId, sessionId])
   @@index([merchantId, updatedAt])
@@ -2140,6 +2141,7 @@ model ExperimentMeasurementPlan {
   createdAt DateTime @default(now()) @map("created_at")
   experiment PromptExperiment @relation(fields: [experimentId, merchantId], references: [id, merchantId], onDelete: Restrict)
   reviews ExperimentMeasurementReview[]
+  strategyExecution StrategyExecution?
 
   @@unique([experimentId, merchantId])
   @@index([merchantId, createdAt])
@@ -3452,6 +3454,7 @@ model RevenueStrategyVersion {
   expiresAt DateTime @map("expires_at")
   strategy RevenueStrategy @relation(fields: [strategyId, merchantId], references: [id, merchantId], onDelete: Restrict)
   actions RevenueStrategyAction[]
+  executions StrategyExecution[]
   @@id([strategyId, merchantId, version])
   @@map("revenue_strategy_versions")
 }
@@ -3471,6 +3474,7 @@ model RevenueStrategyAction {
   createdAt DateTime @default(now()) @map("created_at")
   proposal RevenueStrategyVersion @relation(fields: [strategyId, merchantId, version], references: [strategyId, merchantId, version], onDelete: Restrict)
   revision RevenueStrategyRevision?
+  execution StrategyExecution?
   @@unique([strategyId, merchantId, requestKey], map: "revenue_strategy_action_request_key")
   @@unique([id, merchantId])
   @@index([strategyId, merchantId, createdAt])
@@ -3492,4 +3496,103 @@ model RevenueStrategyRevision {
   @@unique([id, merchantId])
   @@index([status, retryAt, id])
   @@map("revenue_strategy_revisions")
+}
+
+/// Frozen approved recipe; lifecycle changes never replace the reviewed version.
+model StrategyExecution {
+  id String @id
+  merchantId String @map("merchant_id")
+  strategyId String @map("strategy_id")
+  version Int
+  approvalActionId String @unique @map("approval_action_id")
+  experimentId String @unique @map("experiment_id")
+  proposalHash String @map("proposal_hash")
+  contractHash String @map("contract_hash")
+  contract Json
+  status String
+  startedAt DateTime @map("started_at")
+  endsAt DateTime @map("ends_at")
+  stoppedAt DateTime? @map("stopped_at")
+  proposal RevenueStrategyVersion @relation(fields: [strategyId, merchantId, version], references: [strategyId, merchantId, version], onDelete: Restrict)
+  approval RevenueStrategyAction @relation(fields: [approvalActionId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  plan ExperimentMeasurementPlan @relation(fields: [experimentId, merchantId], references: [experimentId, merchantId], onDelete: Restrict)
+  assignments StrategyAssignment[]
+  events StrategyExecutionEvent[]
+  @@unique([id, merchantId])
+  @@unique([approvalActionId, merchantId])
+  @@unique([experimentId, merchantId])
+  @@index([merchantId, status])
+  @@map("strategy_executions")
+}
+
+/// Intent-to-treat denominator, immutable even if the buyer never chats or buys.
+model StrategyAssignment {
+  id String @id
+  executionId String @map("execution_id")
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  globalUserId String @map("global_user_id")
+  variantId String @map("variant_id")
+  arm String
+  assignedAt DateTime @map("assigned_at")
+  execution StrategyExecution @relation(fields: [executionId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Restrict)
+  turns StrategyTurn[]
+  stop StrategyAssignmentStop?
+  @@unique([id, merchantId])
+  @@unique([merchantId, sessionId])
+  @@unique([executionId, merchantId, globalUserId])
+  @@index([executionId, merchantId, assignedAt])
+  @@map("strategy_assignments")
+}
+
+/// A verified/corrected checkout identity must not break checkout or silently
+/// replace the participant. Keep the denominator and stop experimental turns.
+model StrategyAssignmentStop {
+  assignmentId String @id @map("assignment_id")
+  merchantId String @map("merchant_id")
+  reason String
+  stoppedAt DateTime @map("stopped_at")
+  assignment StrategyAssignment @relation(fields: [assignmentId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([assignmentId, merchantId])
+  @@map("strategy_assignment_stops")
+}
+
+/// Admission is not proof of provider success or of a response shown to a buyer.
+model StrategyTurn {
+  id String @id
+  merchantId String @map("merchant_id")
+  assignmentId String @map("assignment_id")
+  requestKey String @map("request_key")
+  inputHash String @map("input_hash")
+  promptHash String @map("prompt_hash")
+  admittedAt DateTime @map("admitted_at")
+  assignment StrategyAssignment @relation(fields: [assignmentId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  outcome StrategyTurnOutcome?
+  @@unique([id, merchantId])
+  @@unique([assignmentId, merchantId, requestKey])
+  @@map("strategy_turns")
+}
+
+model StrategyTurnOutcome {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  outcome String
+  recordedAt DateTime @map("recorded_at")
+  turn StrategyTurn @relation(fields: [turnId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([turnId, merchantId])
+  @@map("strategy_turn_outcomes")
+}
+
+model StrategyExecutionEvent {
+  id String @id
+  executionId String @map("execution_id")
+  merchantId String @map("merchant_id")
+  requestKey String @map("request_key")
+  actorId String @map("actor_id")
+  kind String
+  occurredAt DateTime @map("occurred_at")
+  execution StrategyExecution @relation(fields: [executionId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([executionId, merchantId, requestKey])
+  @@map("strategy_execution_events")
 }

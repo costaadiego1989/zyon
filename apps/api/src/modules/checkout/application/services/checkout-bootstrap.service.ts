@@ -96,6 +96,12 @@ export class CheckoutBootstrapService {
         shipping: enrichedInput.shipping
       }).snapshot();
 
+      // Cohort must be known before atomic experiment enrollment. A resumed
+      // checkout keeps its original cohort rather than recomputing assignment.
+      session.cohort = this.holdoutGroupService
+        ? this.holdoutGroupService.assignCohort(session.globalUserId, session.merchantId)
+        : "treatment";
+
       if (cartRef && session.cart) {
         (session.cart as any).cart_ref = cartRef;
       }
@@ -144,7 +150,7 @@ export class CheckoutBootstrapService {
     const cohort = this.holdoutGroupService
       ? this.holdoutGroupService.assignCohort(session.globalUserId, session.merchantId)
       : ("treatment" as const);
-    session.cohort = cohort;
+    session.cohort = session.cohort ?? cohort;
     session.featuresApplied = session.featuresApplied ?? {};
     session.aiCostCents = session.aiCostCents ?? 0;
 
