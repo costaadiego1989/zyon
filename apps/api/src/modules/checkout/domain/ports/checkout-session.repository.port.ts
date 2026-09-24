@@ -4,6 +4,21 @@ export const CHECKOUT_SESSION_REPOSITORY = Symbol("CHECKOUT_SESSION_REPOSITORY")
 
 export type MaybePromise<T> = T | Promise<T>;
 
+/** Server-issued admission, passed separately from the public request body. */
+export interface ChatExchangeClaim {
+  requestId: string;
+  requestHash: string;
+}
+
+export interface ChatExchangeInput {
+  merchantId: string;
+  sessionId: string;
+  buyer: ChatTurn;
+  agent: ChatTurn;
+  expectedSession?: CheckoutSession;
+  claim?: ChatExchangeClaim;
+}
+
 export interface CheckoutSessionRepository {
   /** Atomically creates a checkout without replacing an existing buyer/session. */
   createSessionIfAbsent?(session: CheckoutSession): MaybePromise<{ session: CheckoutSession; created: boolean }>;
@@ -11,6 +26,7 @@ export interface CheckoutSessionRepository {
   getSession(merchantId: string, sessionId: string): MaybePromise<CheckoutSession | undefined>;
   findSessionsByEmail(merchantId: string, email: string): MaybePromise<CheckoutSession[]>;
   appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): MaybePromise<CheckoutSession>;
+  appendChatExchange(input: ChatExchangeInput): MaybePromise<CheckoutSession>;
   recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): MaybePromise<void>;
   /**
    * Find sessions where triggerAgent=true and abandonmentScore >= threshold.

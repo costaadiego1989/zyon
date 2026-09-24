@@ -6,7 +6,7 @@ import type {
   CartItem,
   CheckoutSession,
 } from "@zyon/shared-types";
-import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository, type ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";
 import {
@@ -68,7 +68,7 @@ export class SendChatMessageUseCase {
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
     if (this.chatRequests) return this.chatRequests.run(input,
-      request => this.preflight(request), request => this.processMessage(request));
+      request => this.preflight(request), (request, claim) => this.processMessage(request, claim));
     if (chatRequestsEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
     await this.preflight(input);
     return this.processMessage(input);
@@ -82,7 +82,7 @@ export class SendChatMessageUseCase {
     });
   }
 
-  private async processMessage(input: ChatMessageRequest): Promise<ChatMessageResponse> {
+  private async processMessage(input: ChatMessageRequest, chatRequest?: ChatExchangeClaim): Promise<ChatMessageResponse> {
     const context = await this.chatContextService.loadContext(
       input.merchant_id,
       input.session_id,
@@ -117,7 +117,7 @@ export class SendChatMessageUseCase {
           nextReply.message = `Dado atualizado. ${nextReply.message}`;
         }
         const response = await this.chatResponseBuilder.build({
-          reply: nextReply, safeMessage: nextReply.message, userMessage: input.user_message, session: working,
+          reply: nextReply, safeMessage: nextReply.message, userMessage: input.user_message, session: working, chatRequest,
           offer, merchant: context.merchant, rules: context.rules, stage, previousStage: stage, missingFields,
           isHoldout: true, preSearchedProducts: [], suppressPaymentActions: true, merchantId: input.merchant_id, sessionId: input.session_id,
         });
@@ -141,7 +141,7 @@ export class SendChatMessageUseCase {
     } catch (error: unknown) {
       if (error instanceof OtpValidationError) {
         context.session = await this.sessions.getSession(input.merchant_id, input.session_id) ?? context.session;
-        return this.buildOtpValidationResponse(input, error.message, context);
+        return this.buildOtpValidationResponse(input, error.message, context, chatRequest);
       }
       throw error;
     }
@@ -273,6 +273,7 @@ export class SendChatMessageUseCase {
       : "Como posso ajudar com o seu pedido?";
 
     return this.chatResponseBuilder.build({
+      chatRequest,
       reply,
       safeMessage,
       userMessage: input.user_message,
@@ -293,18 +294,23 @@ export class SendChatMessageUseCase {
   private async buildOtpValidationResponse(
     input: ChatMessageRequest,
     errorMsg: string,
-    context: ChatContextLoaded
+    context: ChatContextLoaded,
+    chatRequest?: ChatExchangeClaim,
   ): Promise<ChatMessageResponse> {
     const now = new Date().toISOString();
-    await this.sessions.appendChatTurn(input.merchant_id, input.session_id, {
-      role: "buyer",
-      text: input.user_message,
-      occurredAt: now
-    });
-    const updated = await this.sessions.appendChatTurn(input.merchant_id, input.session_id, {
-      role: "agent",
-      text: errorMsg,
-      occurredAt: new Date().toISOString()
+    const updated = await this.sessions.appendChatExchange({
+      merchantId: input.merchant_id, sessionId: input.session_id,
+      expectedSession: context.session, claim: chatRequest,
+      buyer: {
+        role: "buyer",
+        text: input.user_message,
+        occurredAt: now
+      },
+      agent: {
+        role: "agent",
+        text: errorMsg,
+        occurredAt: now
+      }
     });
 
     const experience = buildExperienceFromSession(updated, {

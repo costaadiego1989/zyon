@@ -57,6 +57,7 @@ function createSessionRepo(events: CheckoutEventName[] = [], sessionOverride?: C
     async findSessionsByEmail() {
       return [session];
     },
+    async appendChatExchange() { throw new Error("Chat exchange is outside this fixture"); },
     async appendChatTurn() {
       return session;
     },

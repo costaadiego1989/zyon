@@ -401,12 +401,30 @@ model CheckoutChatRequest {
   responseHash   String?  @map("response_hash")
   startedAt      DateTime @map("started_at")
   finishedAt     DateTime? @map("finished_at")
+  protocolVersion Int     @default(2) @map("protocol_version")
+  buyerMessageHash String? @map("buyer_message_hash")
 
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
+  exchange CheckoutChatExchange?
 
+  @@unique([id, merchantId, sessionId])
   @@unique([merchantId, sessionId, messageId])
   @@index([status, startedAt])
   @@map("checkout_chat_requests")
+}
+
+model CheckoutChatExchange {
+  requestId    String   @id @map("request_id")
+  merchantId   String   @map("merchant_id")
+  sessionId    String   @map("session_id")
+  exchangeHash String   @map("exchange_hash")
+  recordedAt   DateTime @map("recorded_at")
+
+  request CheckoutChatRequest @relation(fields: [requestId, merchantId, sessionId], references: [id, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
+
+  @@unique([requestId, merchantId, sessionId])
+  @@index([merchantId, sessionId, recordedAt])
+  @@map("checkout_chat_exchanges")
 }
 
 model CheckoutEvent {

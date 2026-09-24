@@ -25,6 +25,9 @@ import { toNumber, toNumberOrNull, type DecimalLike } from "../../../../shared/p
 import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
 import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
 import { enrollCreatedStrategySession, executionClock, lockExecutionMerchant } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
+import type { ChatExchangeInput } from "../../domain/ports/checkout-session.repository.port.js";
+import { digest } from "../../../experiments/domain/services/measurement-plan.js";
+import { chatMessageTextHash } from "../../domain/services/chat-message-identity.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -227,6 +230,52 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     });
     if (!updated) throw new Error("checkout_session_not_found");
     return toCheckoutSession(updated);
+  }
+
+  /** The pair and its proof commit together. No external I/O inside this transaction. */
+  async appendChatExchange(input: ChatExchangeInput): Promise<CheckoutSession> {
+    input = structuredClone(input);
+    if (input.buyer.role !== "buyer" || input.agent.role !== "agent"
+      || typeof input.buyer.text !== "string" || typeof input.agent.text !== "string") throw new Error("CHAT_EXCHANGE_INVALID");
+    const write = async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${input.merchantId}
+        AND session_id = ${input.sessionId} FOR UPDATE`;
+      const where = { merchantId_sessionId: { merchantId: input.merchantId, sessionId: input.sessionId } };
+      const row = await tx.checkoutSession.findUnique({ where });
+      if (!row) throw new Error("checkout_session_not_found");
+      if (input.claim) {
+        const request = await tx.checkoutChatRequest.findFirst({ where: { id: input.claim.requestId,
+          merchantId: input.merchantId, sessionId: input.sessionId, requestHash: input.claim.requestHash,
+          conversationId: row.conversationId, status: "processing", protocolVersion: 2 }, include: { exchange: true } });
+        if (!request || request.exchange || request.buyerMessageHash !== chatMessageTextHash(input.buyer.text)) {
+          throw new Error("CHAT_EXCHANGE_CLAIM_CONFLICT");
+        }
+        // Compare persisted domain values. Strategy publication still requires its
+        // stronger admission revision/baseline/consent checks at the effect boundary.
+        const hash = (session: CheckoutSession) => digest(JSON.parse(JSON.stringify(toCheckoutSessionCreate(session))));
+        if (!input.expectedSession || hash(input.expectedSession) !== hash(toCheckoutSession(row))) {
+          throw new Error("CHAT_EXCHANGE_SESSION_CHANGED");
+        }
+      }
+      const now = await executionClock(tx);
+      const pair = [input.buyer, input.agent].map(turn => ({ role: turn.role, text: turn.text,
+        occurredAt: now.toISOString(), ...(turn.authorizedOfferId ? { authorizedOfferId: turn.authorizedOfferId } : {}),
+        ...(input.claim ? { chatRequestId: input.claim.requestId } : {}) }));
+      if (!Array.isArray(row.chatHistory)) throw new Error("CHAT_EXCHANGE_INVALID_HISTORY");
+      const updated = await tx.checkoutSession.update({ where,
+        data: { chatHistory: [...row.chatHistory, ...pair].slice(-50) as Prisma.InputJsonValue, updatedAt: now } });
+      if (input.claim) {
+        // PostgreSQL JSONB text is the canonical representation for this evidence;
+        // the insert trigger independently verifies it against the persisted pair.
+        const [proof] = await tx.$queryRaw<Array<{ hash: string }>>`SELECT
+          encode(sha256(convert_to(jsonb_build_array(chat_history -> -2, chat_history -> -1)::text, 'UTF8')), 'hex') AS hash
+          FROM checkout_sessions WHERE merchant_id = ${input.merchantId} AND session_id = ${input.sessionId}`;
+        await tx.checkoutChatExchange.create({ data: { requestId: input.claim.requestId, merchantId: input.merchantId,
+          sessionId: input.sessionId, exchangeHash: proof.hash, recordedAt: now } });
+      }
+      return toCheckoutSession(updated);
+    };
+    return this.inTransaction ? write(this.prisma) : (this.prisma as PrismaClient).$transaction(write);
   }
 
   async saveOffer(offer: AuthorizedOffer): Promise<AuthorizedOffer> {

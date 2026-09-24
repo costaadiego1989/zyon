@@ -2,6 +2,11 @@ import { BadRequestException } from "@nestjs/common";
 import type { ChatMessageRequest } from "@zyon/shared-types";
 import { createHash } from "node:crypto";
 
+/** Raw UTF-8 digest, also reproducible by the database evidence guard. */
+export function chatMessageTextHash(text: string): string {
+  return createHash("sha256").update(text, "utf8").digest("hex");
+}
+
 export function chatRequestsEnabled(merchantId: string): boolean {
   return process.env.CHECKOUT_CHAT_REQUESTS_ENABLED === "true"
     && (process.env.CHECKOUT_CHAT_REQUEST_MERCHANT_IDS ?? "").split(",").map(id => id.trim())

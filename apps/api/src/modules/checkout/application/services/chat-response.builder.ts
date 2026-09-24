@@ -7,7 +7,7 @@ import type {
   ChatStage
 } from "@zyon/shared-types";
 import type { Objection } from "@zyon/conversation-engine";
-import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository, type ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
 import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";
 import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort } from "../../domain/ports/cross-sell-recommender.port.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
@@ -34,6 +34,7 @@ export interface ChatReplyInput {
   isHoldout: boolean;
   preSearchedProducts: SuggestedProduct[];
   suppressPaymentActions?: boolean;
+  chatRequest?: ChatExchangeClaim;
 }
 
 @Injectable()
@@ -51,16 +52,20 @@ export class ChatResponseBuilder {
 
   async build(input: ChatReplyInput & { merchantId: string; sessionId: string }): Promise<ChatMessageResponse> {
     const now = new Date().toISOString();
-    await this.sessions.appendChatTurn(input.merchantId, input.sessionId, {
-      role: "buyer",
-      text: input.userMessage,
-      occurredAt: now
-    });
-    const updated = await this.sessions.appendChatTurn(input.merchantId, input.sessionId, {
-      role: "agent",
-      text: input.safeMessage.replace(/^(?:Zion|Zyon)\s*:\s*/i, ""),
-      occurredAt: new Date().toISOString(),
-      authorizedOfferId: input.offer.approved ? input.offer.id : undefined
+    const updated = await this.sessions.appendChatExchange({
+      merchantId: input.merchantId, sessionId: input.sessionId,
+      expectedSession: input.session, claim: input.chatRequest,
+      buyer: {
+        role: "buyer",
+        text: input.userMessage,
+        occurredAt: now
+      },
+      agent: {
+        role: "agent",
+        text: input.safeMessage.replace(/^(?:Zion|Zyon)\s*:\s*/i, ""),
+        occurredAt: now,
+        authorizedOfferId: input.offer.approved ? input.offer.id : undefined
+      }
     });
 
     const experience = buildExperienceFromSession(updated, {
@@ -112,10 +117,10 @@ export class ChatResponseBuilder {
     else if (wantsBoleto) selectedPaymentMethod = "boleto";
     else if (wantsCrypto) selectedPaymentMethod = "crypto";
 
-    let workingSession = input.session;
-    if (selectedPaymentMethod && !input.session.paymentMethod) {
+    let workingSession = updated;
+    if (selectedPaymentMethod && !updated.paymentMethod) {
       workingSession = {
-        ...input.session,
+        ...updated,
         paymentMethod: selectedPaymentMethod,
         updatedAt: new Date().toISOString()
       } as typeof input.session;

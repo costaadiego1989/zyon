@@ -3,7 +3,8 @@ import type { CheckoutChatRequest, PrismaClient } from "@prisma/client";
 import type { ChatMessageRequest, ChatMessageResponse } from "@zyon/shared-types";
 import { randomUUID } from "node:crypto";
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
-import { chatMessageIdentity, chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
+import { chatMessageIdentity, chatMessageTextHash, chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
+import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
 
 /** Durable, at-most-once entry to the REAL checkout workflow. No claim takeover,
  * cached offer replay, strategy exposure assertion or transaction around I/O. */
@@ -11,7 +12,7 @@ export class CheckoutChatRequestService {
   constructor(private readonly prisma: PrismaClient) {}
 
   async run(input: ChatMessageRequest, preflight: (request: ChatMessageRequest) => Promise<void>,
-    work: (request: ChatMessageRequest) => Promise<ChatMessageResponse>): Promise<ChatMessageResponse> {
+    work: (request: ChatMessageRequest, claim?: ChatExchangeClaim) => Promise<ChatMessageResponse>): Promise<ChatMessageResponse> {
     // Capture caller-owned primitives before the first await.
     const snapshot = Object.freeze({ ...input });
     const claim = await this.claim(snapshot);
@@ -27,7 +28,7 @@ export class CheckoutChatRequestService {
       throw error;
     }
     try {
-      const response = await work(request);
+      const response = await work(request, Object.freeze({ requestId: row.id, requestHash: row.requestHash }));
       const result: ChatMessageResponse = { ...response, chat_request: { message_id: row.messageId, status: "completed" } };
       const responseHash = digest(JSON.parse(JSON.stringify(result)));
       await this.finish(row, "completed", responseHash);
@@ -65,7 +66,8 @@ export class CheckoutChatRequestService {
       if (active) throw this.receiptConflict(active);
       const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
       const row = await tx.checkoutChatRequest.create({ data: { id: randomUUID(), ...scope, messageId: request.message_id,
-        conversationId: request.conversation_id, requestHash, status: "processing", startedAt: clock.now } });
+        conversationId: request.conversation_id, requestHash, status: "processing", protocolVersion: 2,
+        buyerMessageHash: chatMessageTextHash(request.user_message), startedAt: clock.now } });
       return { status: "claimed" as const, row, request };
     });
   }

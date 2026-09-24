@@ -15,7 +15,7 @@ import type {
   MerchantRules
 } from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
-import type { CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import type { ChatExchangeInput, CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import type { OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import type { OrderRepository } from "../../domain/ports/order.repository.port.js";
 import type { DashboardReadModel } from "../../domain/ports/dashboard-read-model.port.js";
@@ -167,6 +167,17 @@ export class InMemoryCheckoutRepository
     const existing = this.getSession(merchantId, sessionId);
     if (!existing) throw new Error("checkout_session_not_found");
     const next = CheckoutSessionEntity.rehydrate(existing).appendTurn(turn).snapshot();
+    this.saveSession(next);
+    return next;
+  }
+
+  appendChatExchange(input: ChatExchangeInput): CheckoutSession {
+    // This adapter cannot claim durable protocol evidence.
+    if (input.claim) throw new Error("CHAT_EXCHANGE_DURABLE_STORE_REQUIRED");
+    const current = this.getSession(input.merchantId, input.sessionId);
+    if (!current) throw new Error("checkout_session_not_found");
+    if (input.buyer.role !== "buyer" || input.agent.role !== "agent") throw new Error("CHAT_EXCHANGE_INVALID");
+    const next = CheckoutSessionEntity.rehydrate(current).appendTurn(input.buyer).appendTurn(input.agent).snapshot();
     this.saveSession(next);
     return next;
   }

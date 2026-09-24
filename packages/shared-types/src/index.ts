@@ -285,6 +285,8 @@ export interface ChatTurn {
   text: string;
   occurredAt: string;
   authorizedOfferId?: string;
+  /** Server-owned link to the durable buyer-message admission, when present. */
+  chatRequestId?: string;
 }
 
 export interface CrossStoreLineItem {
