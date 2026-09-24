@@ -8,7 +8,7 @@ import { extractOptionGroups } from "../../domain/food-options.js";
 import { loadProductNoticeRules, productRuleNotices } from "../product-rule-notices.js";
 import { productGallery } from "../product-gallery.js";
 
-import { buildCrossSellSuggestions, type CrossSellConfig } from "./cart-cross-sell.helper.js";
+import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 
@@ -125,12 +125,34 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         product.id,
       );
       const config = await deps.loadCrossSellConfig?.(ctx.merchantId);
-      const crossSellSuggestions = config?.enabled && config.touchpoints.pre_cart && deps.cartRepo
-        ? await buildCrossSellSuggestions(deps, ctx.merchantId, await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId), config, product.name)
-        : [];
+      let crossSellSuggestions = [];
+      if (config?.enabled && config.touchpoints.pre_cart && deps.cartRepo) {
+        const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
+        const viewedVariant = product.variants.find((variant) => variant.isActive);
+        // Before the shopper adds an item, evaluate the offer as if the viewed
+        // product were in the cart. This is only an eligibility snapshot: it
+        // never persists an item or changes the shopper's actual cart.
+        const crossSellCart: CartSnapshot = viewedVariant && !cart.items.some((item) => item.variantId === viewedVariant.id)
+          ? {
+              sessionId: cart.sessionId,
+              total: cart.total + viewedVariant.basePriceInCents,
+              items: [
+                ...cart.items,
+                {
+                  variantId: viewedVariant.id,
+                  sku: viewedVariant.sku,
+                  name: product.name,
+                  unitPriceCents: viewedVariant.basePriceInCents,
+                  quantity: 1,
+                },
+              ],
+            }
+          : cart;
+        crossSellSuggestions = await buildCrossSellSuggestions(deps, ctx.merchantId, crossSellCart, config, product.name);
+      }
       return {
         crossSellSuggestions,
-        crossSellDisplayMode: "inline",
+        crossSellDisplayMode: crossSellSuggestions.length > 0 ? config?.display?.mode : undefined,
         product: {
           id: product.id,
           name: product.name,

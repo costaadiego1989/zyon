@@ -107,13 +107,14 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
 
         const crossSellBlock = blocks.find((b: any) => b.type === "cross_sell" && b.data?.products?.length);
         const cartGrew = blocks.some((b: any) => b.type === "cart_summary");
-        if (crossSellBlock && cartGrew) {
+        const crossSellMode = (crossSellBlock?.data as any)?.displayMode ?? "interstitial";
+        if (crossSellBlock && (cartGrew || crossSellMode === "modal")) {
           // Gap B fix: honor the merchant's configured display mode.
+          // A modal can also be configured for the pre-cart product detail flow.
           // interstitial/modal -> overlay sheet (setCrossSellPending, remove inline block).
           // inline/banner -> keep the block in the thread so BlockRenderer renders
           // it inline (the CrossSellBlock reads displayMode to style banner vs inline).
-          const mode = (crossSellBlock.data as any)?.displayMode ?? "interstitial";
-          if (mode === "interstitial" || mode === "modal") {
+          if (crossSellMode === "interstitial" || crossSellMode === "modal") {
             setCrossSellPending(crossSellBlock.data as CrossSellInterstitialData);
             const idx = blocks.indexOf(crossSellBlock);
             if (idx !== -1) blocks.splice(idx, 1);

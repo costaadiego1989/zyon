@@ -13,7 +13,7 @@ const rule: AdvancedRule = { id: "discount", enabled: true, priority: 1,
   action: { type: "offer_discount", params: { percent: 50, maxDiscountReais: 10 } } };
 const ctx = { merchantId: "merchant", sessionId: "session" };
 
-function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, promotion = false) {
+function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, promotion = false, eligibleCrossSell = false) {
   const product = (id: string) => ({ id, name: "Product " + id, isActive: true, type: "physical", hasStock: true, totalStock: 10,
     variants: [{ id: "v-" + id, sku: "sku-" + id, isActive: true, basePriceInCents: 10000, media: [], attributes: {} }],
     defaultVariant: { basePriceInCents: 10000, media: [] } });
@@ -27,6 +27,23 @@ function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, 
     prisma: { checkoutSetting: { findUnique: async () => ({ advancedRules: rules }) }, productVariant: { findMany: async () => [] } },
     merchantRepo: { getRules: async () => ({ maxDiscountPercent: 20, minimumMarginPercent: 0, allowFreeShipping: true }) },
     productPromotionRepo: promotion ? { findActiveBySku: async () => [{ discountType: "percent", discountValue: 20 }] } : undefined,
+    listEligibleCrossSells: eligibleCrossSell ? {
+      execute: async (input: any) => {
+        assert.equal(input.cart.items.some((item: any) => item.sku === "sku-one"), true);
+        return [{
+          id: "offer",
+          session_id: input.session_id,
+          merchant_id: input.merchant_id,
+          promo_id: "promo",
+          ranked_items: ["sku-two"],
+          agent_copy: "",
+          computed_discount: 10,
+          status: "pending",
+          suggested_at: new Date().toISOString(),
+          resolved_at: null,
+        }];
+      },
+    } : undefined,
     loadCrossSellConfig: async () => ({ enabled: true, touchpoints: { browsing: false, pre_cart: preCart, post_cart: postCart, pre_payment: false, post_purchase: false },
       strategies: ["same_category"], limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 0 },
       discount: { enabled: true, mode: "percent", percent: 15 }, display: { mode: "modal" } }),
@@ -105,6 +122,16 @@ test("pre_cart suggestions appear with product details and can coexist with post
   const blocks = buildConversationBlocks({ merchantId: ctx.merchantId, userMessage: "", finalContent: "", toolResults: { get_product_details: detail } }).blocks;
   assert.equal(blocks[0].type, "product_card");
   assert.equal(blocks[1].type, "cross_sell");
+});
+
+test("pre_cart evaluates the viewed product without persisting it, preserving the authorized cross-sell discount", async () => {
+  const { deps, handlers } = fixture([], false, true, false, true);
+  const detail = await createProductHandlers(deps, ctx).getProductDetails({ productId: "one" }) as any;
+  assert.equal(detail.crossSellSuggestions[0].sku, "v-two");
+  assert.equal(detail.crossSellSuggestions[0].discountPercent, 10);
+  assert.equal(detail.crossSellSuggestions[0].promoId, "promo");
+  assert.equal(detail.crossSellDisplayMode, "modal");
+  assert.equal((await handlers.getCart({ cartId: ctx.sessionId }) as any).itemCount, 0);
 });
 
 test("all seven configured actions have correct notice behavior, without false application or interest claims", () => {
