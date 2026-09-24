@@ -4,7 +4,7 @@ import type { Prisma, PrismaClient, RevenueAiReservation } from "@prisma/client"
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { AnalysisDeferred, positiveInteger } from "../domain/weekly-analysis-policy.js";
 
-export type AnalysisGenerationContext = { runId: string; leaseToken: number };
+export type AnalysisGenerationContext = { runId: string; leaseToken: number; revisionId?: string };
 export type TokenUsage = { prompt_tokens: number; completion_tokens: number };
 const cost = (input: number, output: number, inputRate: bigint, outputRate: bigint) =>
   (BigInt(input) * inputRate + BigInt(output) * outputRate + 999_999n) / 1_000_000n;
@@ -14,12 +14,22 @@ export class RevenueAiBudgetService {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async cached(context: AnalysisGenerationContext, merchantId: string) {
+    if (context.revisionId) return (await this.revision(this.prisma, context, merchantId, new Date())).generatedJson;
     const run = await this.prisma.revenueAnalysisRun.findFirstOrThrow({ where: { id: context.runId, merchantId,
       leaseToken: context.leaseToken, status: "running", leaseUntil: { gt: new Date() } } });
     return run.generatedJson;
   }
 
   async cache(context: AnalysisGenerationContext, merchantId: string, response: import("../domain/ports/hypothesis-generator.port.js").HypothesisGenerationResponse) {
+    if (context.revisionId) {
+      await this.prisma.$transaction(async tx => {
+        await this.revision(tx, context, merchantId, new Date());
+        const saved = await tx.revenueStrategyRevision.updateMany({ where: { id: context.revisionId, merchantId,
+          leaseToken: context.leaseToken, status: "running", leaseUntil: { gt: new Date() } }, data: { generatedJson: response as unknown as Prisma.InputJsonValue } });
+        if (saved.count !== 1) throw new AnalysisDeferred("revision_lease_lost");
+      });
+      return;
+    }
     const saved = await this.prisma.revenueAnalysisRun.updateMany({ where: { id: context.runId, merchantId,
       leaseToken: context.leaseToken, status: "running", leaseUntil: { gt: new Date() } }, data: { generatedJson: response as unknown as Prisma.InputJsonValue } });
     if (saved.count !== 1) throw new AnalysisDeferred("analysis_lease_lost");
@@ -52,9 +62,11 @@ export class RevenueAiBudgetService {
       // Serializes admission across API instances. No provider call or wait
       // occurs in this short transaction. Settlement uses the same lock.
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(762401)::text`;
-      const run = await tx.revenueAnalysisRun.findFirst({ where: { id: input.context.runId,
-        merchantId: input.merchantId, status: "running", leaseToken: input.context.leaseToken, leaseUntil: { gt: now } } });
+      if (input.context.revisionId) await this.revision(tx, input.context, input.merchantId, now);
+      const run = await tx.revenueAnalysisRun.findFirst({ where: { id: input.context.runId, merchantId: input.merchantId,
+        ...(input.context.revisionId ? { status: "completed" } : { status: "running", leaseToken: input.context.leaseToken, leaseUntil: { gt: now } }) } });
       if (!run) throw new AnalysisDeferred("analysis_lease_lost");
+      const workType = input.context.revisionId ? "revision" : input.workType ?? "scheduled";
       const price = await tx.aiPriceVersion.findFirst({ where: { provider: input.provider, model: input.model,
         channel: "chat", component: "text_generation", currency, source: "revenue-upper-bound-v1",
         effectiveFrom: { lte: now }, OR: [{ effectiveTo: null }, { effectiveTo: { gt: now } }] }, orderBy: { effectiveFrom: "desc" } });
@@ -79,7 +91,7 @@ export class RevenueAiBudgetService {
       if (totals.overruns > 0n) throw new AnalysisDeferred("cost_reconciliation_required");
       if (totals.calls >= BigInt(maxCalls)) throw new AnalysisDeferred("cycle_call_limit");
       if (totals.daily + amount > daily || totals.monthly + amount > monthly || totals.cycle + amount > cycleLimit
-        || ((input.workType ?? "scheduled") !== "revision" && totals.scheduled + amount > daily * BigInt(100 - revisionPercent) / 100n))
+        || (workType !== "revision" && totals.scheduled + amount > daily * BigInt(100 - revisionPercent) / 100n))
         throw new AnalysisDeferred("budget_exhausted");
       const [capacity] = await tx.$queryRaw<Array<Record<string, bigint>>>`
         SELECT count(*) FILTER (WHERE state IN ('dispatched','unknown'))::bigint AS inflight,
@@ -90,10 +102,22 @@ export class RevenueAiBudgetService {
         throw new AnalysisDeferred("provider_capacity");
       const id = randomUUID();
       return tx.revenueAiReservation.create({ data: { id, merchantId: input.merchantId, runId: run.id,
-        workType: input.workType ?? "scheduled", provider: input.provider, model: input.model, currency,
+        workType, provider: input.provider, model: input.model, currency,
         priceVersion: price.version, inputRate: price.inputMicrosPerMillion, outputRate: price.outputMicrosPerMillion,
         maxInputTokens: maxInput, maxOutputTokens: maxOutput, amountMicros: amount, usageKey: `revenue-analysis:${id}`, createdAt: now } });
     });
+  }
+
+  private async revision(tx: Prisma.TransactionClient, context: AnalysisGenerationContext, merchantId: string, now: Date) {
+    const revision = await tx.revenueStrategyRevision.findFirst({ where: { id: context.revisionId, merchantId,
+      status: "running", leaseToken: context.leaseToken, leaseUntil: { gt: now } },
+      include: { action: { include: { proposal: { include: { strategy: true } } } } } });
+    const strategy = revision?.action.proposal.strategy;
+    if (!revision || !strategy || strategy.runId !== context.runId || strategy.status !== "revision_pending"
+      || strategy.currentVersion !== revision.action.version || revision.action.proposal.expiresAt <= now) {
+      throw new AnalysisDeferred("revision_lease_lost");
+    }
+    return revision;
   }
 
   /** Unknown attempts stay reserved across periods until evidence reconciles them. */

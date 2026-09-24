@@ -3394,6 +3394,8 @@ model RevenueAnalysisRun {
   createdAt DateTime @default(now()) @map("created_at")
   startedAt DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")
+  strategies RevenueStrategy[]
+  @@unique([id, merchantId])
   @@unique([merchantId, cycle])
   @@index([status, retryAt, createdAt])
   @@map("revenue_analysis_runs")
@@ -3421,4 +3423,72 @@ model RevenueAiReservation {
   @@index([runId])
   @@index([provider, model, state, createdAt])
   @@map("revenue_ai_reservations")
+}
+
+model RevenueStrategy {
+  id String @id
+  merchantId String @map("merchant_id")
+  runId String @map("run_id")
+  currentVersion Int @default(1) @map("current_version")
+  status String @default("pending_review")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  versions RevenueStrategyVersion[]
+  run RevenueAnalysisRun @relation(fields: [runId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([id, merchantId])
+  @@unique([merchantId, runId])
+  @@index([merchantId, createdAt, id])
+  @@map("revenue_strategies")
+}
+
+model RevenueStrategyVersion {
+  strategyId String @map("strategy_id")
+  merchantId String @map("merchant_id")
+  version Int
+  proposalHash String @map("proposal_hash")
+  proposal Json
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+  strategy RevenueStrategy @relation(fields: [strategyId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  actions RevenueStrategyAction[]
+  @@id([strategyId, merchantId, version])
+  @@map("revenue_strategy_versions")
+}
+
+// Accepted commands are immutable. Revision execution has its own lease/checkpoint.
+model RevenueStrategyAction {
+  id String @id
+  strategyId String @map("strategy_id")
+  merchantId String @map("merchant_id")
+  version Int
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  actorId String @map("actor_id")
+  kind String
+  feedback String? @db.Text
+  result Json
+  createdAt DateTime @default(now()) @map("created_at")
+  proposal RevenueStrategyVersion @relation(fields: [strategyId, merchantId, version], references: [strategyId, merchantId, version], onDelete: Restrict)
+  revision RevenueStrategyRevision?
+  @@unique([strategyId, merchantId, requestKey], map: "revenue_strategy_action_request_key")
+  @@unique([id, merchantId])
+  @@index([strategyId, merchantId, createdAt])
+  @@map("revenue_strategy_actions")
+}
+
+model RevenueStrategyRevision {
+  id String @id
+  merchantId String @map("merchant_id")
+  status String @default("queued")
+  reason String?
+  attempts Int @default(0)
+  leaseToken Int @default(0) @map("lease_token")
+  leaseUntil DateTime? @map("lease_until")
+  retryAt DateTime @default(now()) @map("retry_at")
+  generatedJson Json? @map("generated_json")
+  completedAt DateTime? @map("completed_at")
+  action RevenueStrategyAction @relation(fields: [id, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([id, merchantId])
+  @@index([status, retryAt, id])
+  @@map("revenue_strategy_revisions")
 }

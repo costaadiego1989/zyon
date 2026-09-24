@@ -2,6 +2,7 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ConflictException,
   Get,
   HttpCode,
   HttpStatus,
@@ -165,6 +166,7 @@ export class RevenueManagerController {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg === "HYPOTHESIS_NOT_FOUND") throw new NotFoundException("Hypothesis not found");
       if (msg === "HYPOTHESIS_NOT_PENDING_REVIEW") throw new BadRequestException("Hypothesis is not pending review");
+      if (msg === "STRATEGY_VERSIONED_REVIEW_REQUIRED") throw new ConflictException({ code: msg, strategy_id: id });
       throw err;
     }
   }
@@ -188,6 +190,7 @@ export class RevenueManagerController {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg === "HYPOTHESIS_NOT_FOUND") throw new NotFoundException("Hypothesis not found");
       if (msg === "HYPOTHESIS_NOT_PENDING_REVIEW") throw new BadRequestException("Hypothesis is not pending review");
+      if (msg === "STRATEGY_VERSIONED_REVIEW_REQUIRED") throw new ConflictException({ code: msg, strategy_id: id });
       throw err;
     }
   }

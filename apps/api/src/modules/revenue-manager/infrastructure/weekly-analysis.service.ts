@@ -155,7 +155,7 @@ export class WeeklyAnalysisService {
       // Existing experiments and pending decisions get time to collect outcomes.
       const [active, pending] = await Promise.all([
         this.prisma.promptExperiment.count({ where: { merchantId: run.merchantId, status: "running" } }),
-        this.prisma.revenueManagerHypothesis.count({ where: { merchantId: run.merchantId, status: "pending_review" } }),
+        this.pendingDecisions(run.merchantId),
       ]);
       if (active || pending) return this.complete(run, "keep_current");
       const proposal = await this.generate.execute({ merchant_id: run.merchantId, observation_id: observationId,
@@ -172,6 +172,18 @@ export class WeeklyAnalysisService {
         if (changed.count) await this.notice(tx, run, deferred ? "deferred_budget" : "failed", this.clock());
       });
     }
+  }
+
+  /** An expired immutable proposal cannot indefinitely suppress later weekly
+   * analyses. Legacy pending hypotheses retain their existing review behavior. */
+  async pendingDecisions(merchantId: string, now = this.clock()): Promise<number> {
+    const [row] = await this.prisma.$queryRaw<Array<{ pending: bigint }>>`
+      SELECT count(*) AS pending FROM revenue_manager_hypotheses h
+      LEFT JOIN revenue_strategies s ON s.id = h.id AND s.merchant_id = h.merchant_id
+      LEFT JOIN revenue_strategy_versions v ON v.strategy_id = s.id AND v.merchant_id = s.merchant_id AND v.version = s.current_version
+      WHERE h.merchant_id = ${merchantId} AND h.status = 'pending_review'
+        AND (s.id IS NULL OR v.expires_at IS NULL OR v.expires_at > ${now})`;
+    return Number(row.pending);
   }
 
   private fence(run: RevenueAnalysisRun) {

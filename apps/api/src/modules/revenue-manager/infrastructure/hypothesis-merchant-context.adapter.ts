@@ -9,6 +9,17 @@ export class PrismaHypothesisMerchantContext implements HypothesisMerchantContex
   async getRules(merchantId: string): Promise<MerchantRules | undefined> {
     const row = await this.prisma.merchantRule.findUnique({ where: { merchantId } });
     if (!row) return undefined;
+    return merchantRulesSnapshot(row);
+  }
+
+  async getCurrentPrompt(_merchantId: string): Promise<string | undefined> {
+    // Checkout composes baseline behavior from its engine, session and agent context.
+    // Neither an old experiment nor an LLM-written summary reproduces that baseline.
+    return undefined;
+  }
+}
+
+export function merchantRulesSnapshot(row: import("@prisma/client").MerchantRule): MerchantRules {
     return {
       maxDiscountPercent: Number(row.maxDiscountPercent),
       minimumMarginPercent: Number(row.minimumMarginPercent),
@@ -25,13 +36,4 @@ export class PrismaHypothesisMerchantContext implements HypothesisMerchantContex
       couponBoxEnabled: row.couponBoxEnabled,
       autonomousEngineEnabled: row.autonomousEngineEnabled,
     };
-  }
-
-  async getCurrentPrompt(_merchantId: string): Promise<string | undefined> {
-    // Checkout composes baseline behavior from its engine, session and agent context.
-    // AgentRules stores structured identity/guardrails, not an active system prompt.
-    // Neither an old experiment nor an LLM-written summary reproduces that baseline.
-    // MI-11: block until checkout exposes a versioned, faithfully replayable baseline.
-    return undefined;
-  }
 }

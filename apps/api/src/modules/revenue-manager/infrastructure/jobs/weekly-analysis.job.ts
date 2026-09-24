@@ -2,6 +2,7 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/commo
 import { Queue, Worker } from "bullmq";
 import { weeklyAnalysisEnabled } from "../../domain/weekly-analysis-policy.js";
 import { WeeklyAnalysisService } from "../weekly-analysis.service.js";
+import { StrategyReviewService } from "../../application/strategy-review.service.js";
 
 export const WEEKLY_ANALYSIS_QUEUE = "revenue-weekly-analysis";
 
@@ -10,7 +11,7 @@ export class WeeklyAnalysisJob implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(WeeklyAnalysisJob.name);
   private queue?: Queue;
   private worker?: Worker;
-  constructor(private readonly service: WeeklyAnalysisService) {}
+  constructor(private readonly service: WeeklyAnalysisService, private readonly strategies: StrategyReviewService) {}
 
   async onModuleInit() {
     if (!weeklyAnalysisEnabled() || process.env.REDIS_ENABLED === "false" || !process.env.REDIS_URL) return;
@@ -21,7 +22,11 @@ export class WeeklyAnalysisJob implements OnModuleInit, OnModuleDestroy {
       ...(url.protocol === "rediss:" ? { tls: {} } : {}) };
     this.queue = new Queue(WEEKLY_ANALYSIS_QUEUE, { connection });
     this.worker = new Worker(WEEKLY_ANALYSIS_QUEUE, async job => {
-      if (job.name === "poll") await this.service.dispatch(id => this.enqueue(id));
+      if (job.name === "poll") {
+        await Promise.all([this.service.dispatch(id => this.enqueue(id)),
+          this.strategies.dispatch(id => this.enqueueRevision(id))]);
+      }
+      else if (job.name === "revise") await this.strategies.process(job.data.revisionId);
       else await this.service.process(job.data.runId);
     }, { connection, concurrency: 2 });
     this.worker.on("error", () => this.logger.error("Weekly analysis queue connection unavailable"));
@@ -39,4 +44,10 @@ export class WeeklyAnalysisJob implements OnModuleInit, OnModuleDestroy {
   }
 
   async onModuleDestroy() { await this.worker?.close(); await this.queue?.close(); }
+
+  private async enqueueRevision(revisionId: string) {
+    if (!this.queue) throw new Error("REVENUE_MANAGER_QUEUE_UNAVAILABLE");
+    await this.queue.add("revise", { revisionId }, { jobId: `revision-${revisionId}`,
+      removeOnComplete: true, removeOnFail: true, attempts: 1 });
+  }
 }

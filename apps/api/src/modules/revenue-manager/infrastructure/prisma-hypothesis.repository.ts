@@ -1,5 +1,6 @@
 import type { PrismaClient, Prisma } from "@prisma/client";
 import { HypothesisEntity, type HypothesisSnapshot } from "../domain/entities/hypothesis.entity.js";
+import { publishInitialStrategy } from "./strategy-publication.js";
 import type { HypothesisRepositoryPort } from "../domain/ports/hypothesis-repository.port.js";
 
 export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
@@ -24,6 +25,11 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
       await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snap.merchant_id} FOR UPDATE`;
       const existing = await tx.revenueManagerHypothesis.findUnique({ where: { id: snap.id } });
       if (existing && existing.merchantId !== snap.merchant_id) throw new Error("HYPOTHESIS_NOT_FOUND");
+      // Versioned proposals can only be decided with an exact version and hash.
+      // Preserve legacy IDs/reads, but do not let a stale legacy action bypass review.
+      if (existing && !analysisContext && await tx.revenueStrategy.findFirst({ where: { id: snap.id, merchantId: snap.merchant_id } })) {
+        throw new Error("STRATEGY_VERSIONED_REVIEW_REQUIRED");
+      }
       if (existing && snap.status !== "pending_review") {
         const expected = ["approved", "rejected"].includes(snap.status) ? "pending_review" : "approved";
         const claimed = await tx.revenueManagerHypothesis.updateMany({
@@ -64,6 +70,7 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
         },
       });
       const noticeId = `strategy:${snap.id}`;
+      if (analysisContext) await publishInitialStrategy(tx, snap, analysisContext.runId);
       if (snap.status === "pending_review") {
         await tx.merchantNotification.upsert({
           where: { id: noticeId }, update: {},

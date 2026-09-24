@@ -2,6 +2,8 @@ import { Module, OnModuleInit } from "@nestjs/common";
 import { WeeklyAnalysisService } from "./infrastructure/weekly-analysis.service.js";
 import { WeeklyAnalysisJob } from "./infrastructure/jobs/weekly-analysis.job.js";
 import { RevenueAiBudgetService } from "./infrastructure/revenue-ai-budget.service.js";
+import { StrategyReviewService } from "./application/strategy-review.service.js";
+import { StrategyReviewController } from "./presentation/http/strategy-review.controller.js";
 import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
@@ -48,11 +50,12 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
 
 @Module({
   imports: [PersistenceModule, RedisModule, MessagingModule, ExperimentsModule, CheckoutSettingsModule],
-  controllers: [RevenueManagerController],
+  controllers: [RevenueManagerController, StrategyReviewController],
   providers: [
     WeeklyAnalysisService,
     WeeklyAnalysisJob,
     RevenueAiBudgetService,
+    StrategyReviewService,
     BillingPlanMeteringService,
     PlanLimitGuard,
     {
