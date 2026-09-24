@@ -173,6 +173,12 @@ export class PaymentIntentEntity {
     this.s.creation = { ...this.s.creation, state: "complete", leaseToken: undefined, leaseUntil: undefined, reason: undefined };
   }
 
+  rejectCreation(token: string, reason: string): void {
+    if (this.s.creation?.leaseToken !== token || this.s.providerPaymentId || this.s.status !== "pending") throw new Error("payment_creation_lease_lost");
+    this.markFailed(reason);
+    this.s.creation = { ...this.s.creation, state: "complete", leaseToken: undefined, leaseUntil: undefined, reason };
+  }
+
   get status(): PaymentIntentStatus {
     return this.s.status;
   }

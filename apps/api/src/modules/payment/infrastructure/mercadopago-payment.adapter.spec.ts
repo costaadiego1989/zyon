@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { MercadoPagoPaymentAdapter } from "./mercadopago-payment.adapter.js";
+import { PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import type { CreateProviderPaymentInput } from "../domain/ports/payment-provider.port.js";
 
 const input: CreateProviderPaymentInput = {
@@ -112,6 +113,55 @@ test("Mercado Pago missing recovery result preserves uncertainty without another
   await assert.rejects(
     new MercadoPagoPaymentAdapter("https://mp.test", "fake", "", fetcher).createPayment(input),
     /request_timeout/,
+  );
+  assert.equal(posts, 1);
+});
+
+for (const scenario of ["same_account", "different_account", "unavailable", "invalid_identity"] as const) {
+  for (const method of ["pix", "card"] as const) {
+    test(`Mercado Pago ${method} fee decision authenticates both accounts: ${scenario}`, async () => {
+      const reads: string[] = [];
+      let posts = 0;
+      const fetcher = (async (url, init) => {
+        const auth = new Headers(init?.headers).get("authorization")!;
+        if (String(url).endsWith("/users/me")) {
+          reads.push(auth);
+          if (auth === "Bearer platform" && scenario === "unavailable") return Response.json({}, { status: 503 });
+          return Response.json({ id: scenario === "invalid_identity" ? null : auth === "Bearer seller" || scenario === "same_account" ? 123 : 456 });
+        }
+        posts++;
+        const body = JSON.parse(String(init?.body));
+        const fee = method === "pix" ? body.application_fee : body.marketplace_fee;
+        assert.equal(fee, scenario === "same_account" ? undefined : 2.98);
+        assert.equal(method === "pix" ? body.transaction_amount : body.items[0].unit_price, 98.04);
+        assert.equal(auth, "Bearer seller");
+        assert.equal(new Headers(init?.headers).get("X-Idempotency-Key"), "stable-key");
+        return Response.json(method === "pix" ? payment : { id: "pref", init_point: "https://www.mercadopago.com.br/checkout/v1/redirect?pref_id=pref" });
+      }) as typeof fetch;
+      const platform = new MercadoPagoPaymentAdapter("https://mp.test", "platform", "", fetcher);
+      const seller = new MercadoPagoPaymentAdapter("https://mp.test", "seller", "", fetcher, true, true, platform);
+      const prepared = await seller.preparePayment({ ...input, method, platformFeeCents: 298 });
+      assert.equal(prepared.mercadoPagoFeeMode, scenario === "same_account" ? "same_account" : "split");
+      assert.equal(prepared.platformFeeCents, 298);
+      const result = await seller.createPayment(prepared);
+      assert.equal(posts, 1);
+      assert.deepEqual(reads.sort(), ["Bearer platform", "Bearer seller"]);
+      if (method === "pix") assert.ok(result.buyerFacingPayload.qrCodeCopyPaste);
+    });
+  }
+}
+
+test("Mercado Pago 2059 is a definite refusal and never retries without the platform commission", async () => {
+  let posts = 0;
+  const fetcher = (async (_url, init) => {
+    assert.equal(init?.method, "POST"); posts++;
+    assert.equal(JSON.parse(String(init?.body)).application_fee, 2.98);
+    return Response.json({ cause: [{ code: 2059, description: "private" }] }, { status: 400 });
+  }) as typeof fetch;
+  await assert.rejects(
+    new MercadoPagoPaymentAdapter("https://mp.test", "seller", "", fetcher, true, true)
+      .createPayment({ ...input, platformFeeCents: 298 }),
+    error => error instanceof PaymentCreationRejectedError && error.code === "mercadopago_oauth_required_for_platform_fee",
   );
   assert.equal(posts, 1);
 });

@@ -34,7 +34,9 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
   async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
     const route = await this.creationRoute(input);
     if (route.name === "asaas" || route.name === "mercadopago") (route.adapter as AsaasPaymentAdapter | MercadoPagoPaymentAdapter).validatePlatformFee?.(input);
-    return { ...input, provider: route.name, providerAccountFingerprint: route.adapter.creationAccountFingerprint?.() };
+    const prepared = route.name === "mercadopago" && route.adapter.preparePayment
+      ? await route.adapter.preparePayment(input) : input;
+    return { ...prepared, provider: route.name, providerAccountFingerprint: route.adapter.creationAccountFingerprint?.() };
   }
 
   async recoverPayment(input: CreateProviderPaymentInput, firstAttemptAt: string): Promise<CreateProviderPaymentOutput | null> {
@@ -300,9 +302,9 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     let oauthSeller = false;
     if (rawCredentials?.trim().startsWith("{")) {
       try {
-        const credentials = JSON.parse(rawCredentials) as { accessToken?: string };
+        const credentials = JSON.parse(rawCredentials) as { accessToken?: string; refreshToken?: string };
         tenantKey = credentials.accessToken;
-        oauthSeller = Boolean(tenantKey);
+        oauthSeller = Boolean(tenantKey && typeof credentials.refreshToken === "string" && credentials.refreshToken.trim());
       } catch { tenantKey = undefined; }
     }
     if (tenantKey && this.mercadopagoBaseUrl) {
@@ -313,6 +315,7 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
         this.fetchImpl,
         oauthSeller,
         true,
+        this.mercadopago ?? undefined,
       );
     }
     return this.mercadopago;

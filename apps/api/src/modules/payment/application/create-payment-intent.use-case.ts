@@ -11,6 +11,7 @@ import { createHash } from "node:crypto";
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
 import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
+import { PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import type { PaymentAmountBreakdown } from "../domain/payment-amount.js";
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
@@ -65,6 +66,9 @@ export type CreatePaymentIntentRequest = {
 export type CreatePaymentIntentResponseBody = Omit<PaymentIntentSnapshot, "creation" | "version">;
 
 function publicPayment(snapshot: PaymentIntentSnapshot): CreatePaymentIntentResponseBody {
+  if (snapshot.status === "failed" && snapshot.creation?.reason === "mercadopago_oauth_required_for_platform_fee") {
+    throw new ConflictException(snapshot.creation.reason);
+  }
   if (snapshot.status === "pending" && !snapshot.providerPaymentId) {
     throw new BadGatewayException("payment_creation_uncertain");
   }
@@ -534,7 +538,12 @@ export class CreatePaymentIntentUseCase {
             }
             : { platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) }),
     };
-    if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput);
+    try {
+      if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput);
+    } catch (error) {
+      if (error instanceof PaymentCreationRejectedError) throw new ConflictException(error.code);
+      throw error;
+    }
     intent.prepareCreation(providerInput);
     const settlementPlan = settlementPlanForCreation({
       merchantId,

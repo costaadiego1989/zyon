@@ -46,6 +46,8 @@ export type CreateProviderPaymentInput = {
   remoteIp?: string;
   stripeConnectAccountId?: string;
   platformFeeCents?: number;
+  /** Authenticated collector comparison, frozen before creating the payment. */
+  mercadoPagoFeeMode?: "split" | "same_account";
   /**
    * `delayed_merchant_payout` is opt-in. Its charge must be created on the
    * platform account, and a merchant destination is snapshotted for the

@@ -2,6 +2,7 @@ import "reflect-metadata";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
+import { PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";
 import { AsaasPaymentAdapter } from "../infrastructure/asaas-payment.adapter.js";
 import { StripePaymentAdapter } from "../infrastructure/stripe-payment.adapter.js";
@@ -20,6 +21,28 @@ function prepared() {
   intent.prepareCreation({ merchantId: "merchant_recovery", sessionId: "session_recovery", intentId: intent.id, amountCents: 1099, currency: "BRL", method: "pix", asaasCustomerId: "cus_owned", providerIdempotencyKey: "stable-key", provider: "asaas" });
   return intent;
 }
+
+test("definite provider refusal is persisted once and retries do not enter uncertain recovery", async () => {
+  const repo = new InMemoryPaymentRepository();
+  const intent = prepared();
+  await repo.saveIntent({ intent });
+  let posts = 0;
+  const provider: PaymentProviderPort = {
+    createPayment: async () => { posts++; throw new PaymentCreationRejectedError("mercadopago_oauth_required_for_platform_fee"); },
+    recoverPayment: async () => { throw new Error("must_not_recover_rejected_payment"); },
+  };
+  const resume = new ResumePaymentCreationService(repo, provider);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await assert.rejects(resume.execute((await repo.getIntentById("merchant_recovery", intent.id))!),
+      error => (error as any).getStatus?.() === 409 && (error as Error).message === "mercadopago_oauth_required_for_platform_fee");
+  }
+  const saved = (await repo.getIntentById("merchant_recovery", intent.id))!.snapshot();
+  assert.equal(posts, 1);
+  assert.equal(saved.status, "failed");
+  assert.equal(saved.creation?.state, "complete");
+  assert.equal(saved.providerPaymentId, undefined);
+  assert.equal(repo.capturedEvents.length, 1);
+});
 
 test("existing incomplete Pix presentation is repaired from the same provider payment", async () => {
   const repo = new InMemoryPaymentRepository();

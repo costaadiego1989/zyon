@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import type {
   CreateProviderPaymentInput,
   CreateProviderPaymentOutput,
@@ -88,6 +89,7 @@ function payerFor(input: CreateProviderPaymentInput): Record<string, unknown> {
 
 @Injectable()
 export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
+  private accountIdPromise?: Promise<string | undefined>;
   constructor(
     private readonly apiBaseUrl: string,
     private readonly accessToken: string,
@@ -95,15 +97,47 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     private readonly fetchImpl: typeof fetch,
     private readonly marketplaceSeller = false,
     private readonly requirePlatformSplit = false,
+    private readonly platformAccount?: MercadoPagoPaymentAdapter,
   ) {}
 
   validatePlatformFee(input: CreateProviderPaymentInput): void {
     if (this.requirePlatformSplit && !this.marketplaceSeller && (input.platformFeeCents ?? 0) > 0) {
-      throw new Error("mercadopago_oauth_required_for_platform_fee");
+      throw new PaymentCreationRejectedError("mercadopago_oauth_required_for_platform_fee");
     }
   }
 
   creationAccountFingerprint(): string { return createHash("sha256").update(`${this.apiBaseUrl}\0${this.accessToken}`).digest("hex"); }
+
+  async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
+    this.validatePlatformFee(input);
+    if (input.mercadoPagoFeeMode || !this.marketplaceSeller || (input.platformFeeCents ?? 0) <= 0) return input;
+    // An OAuth token can belong to the integrator itself. A split to that same
+    // account is rejected with 2059; all funds already reach the platform.
+    // Never infer this from token syntax or merchant-supplied account IDs.
+    const [sellerId, platformId] = this.platformAccount
+      ? await Promise.all([this.authenticatedAccountId(), this.platformAccount.authenticatedAccountId()])
+      : [];
+    return { ...input, mercadoPagoFeeMode: sellerId && platformId && sellerId === platformId ? "same_account" : "split" };
+  }
+
+  private authenticatedAccountId(): Promise<string | undefined> {
+    this.accountIdPromise ??= (async () => {
+      try {
+        const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/users/me`, {
+          headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" },
+          redirect: "error", signal: AbortSignal.timeout(5_000),
+        });
+        if (!response.ok) return undefined;
+        const user = await response.json() as { id?: unknown };
+        const id = String(user.id ?? "");
+        return /^[1-9]\d*$/.test(id) ? id : undefined;
+      } catch { return undefined; }
+    })();
+    return this.accountIdPromise.then(id => {
+      if (!id) this.accountIdPromise = undefined;
+      return id;
+    });
+  }
 
   async recoverPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput | null> {
     if (paymentMethodFromMethod(input.method) === "card") {
@@ -201,7 +235,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
   }
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
-    this.validatePlatformFee(input);
+    input = await this.preparePayment(input);
     const base = this.apiBaseUrl.replace(/\/+$/, "");
     const paymentMethod = paymentMethodFromMethod(input.method);
     if (paymentMethod === "card") {
@@ -215,7 +249,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       payment_method_id: paymentMethod,
       payer: payerFor(input),
       ...(notificationUrlFor(input) ? { notification_url: notificationUrlFor(input) } : {}),
-      ...(this.marketplaceSeller && (input.platformFeeCents ?? 0) > 0 ? { application_fee: majorUnitsFromCents(input.platformFeeCents!) } : {}),
+      ...(this.marketplaceSeller && input.mercadoPagoFeeMode !== "same_account" && (input.platformFeeCents ?? 0) > 0 ? { application_fee: majorUnitsFromCents(input.platformFeeCents!) } : {}),
       metadata: {
         intent_id: input.intentId,
         merchant_id: input.merchantId,
@@ -253,6 +287,9 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       const codes = Array.isArray(failure?.cause)
         ? failure.cause.map(cause => String(cause?.code ?? "")).filter(code => /^[a-zA-Z0-9_-]{1,60}$/.test(code)).slice(0, 4)
         : [];
+      if (res.status === 400 && codes.includes("2059")) {
+        throw new PaymentCreationRejectedError("mercadopago_oauth_required_for_platform_fee");
+      }
       throw new Error(`mercadopago_payment_create_failed:${res.status}${codes.length ? `:${codes.join(",")}` : ""}`);
     }
 
@@ -284,7 +321,7 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
         excluded_payment_types: [{ id: "ticket" }, { id: "bank_transfer" }],
       },
       ...(notificationUrlFor(input) ? { notification_url: notificationUrlFor(input) } : {}),
-      ...(this.marketplaceSeller && (input.platformFeeCents ?? 0) > 0
+      ...(this.marketplaceSeller && input.mercadoPagoFeeMode !== "same_account" && (input.platformFeeCents ?? 0) > 0
         ? { marketplace_fee: majorUnitsFromCents(input.platformFeeCents!) }
         : {}),
       metadata: {
