@@ -3,6 +3,8 @@ import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { strategyExecutionEnabled } from "../domain/strategy-execution.js";
 import type { StrategyExecutionLedger } from "../infrastructure/strategy-execution-ledger.js";
 
+type DispatchInput<T> = T extends unknown ? Omit<T, "inputHash"> & { userMessage: string } : never;
+
 /** Internal dispatch boundary, deliberately not injected into SendChatMessage
  * yet. That integration requires a durable buyer-message key and an atomic
  * response/tool-commit protocol. A candidate is NOT an exposure or permission
@@ -11,7 +13,7 @@ export class StrategyChatDispatcher {
   constructor(private readonly ledger: StrategyExecutionLedger,
     private readonly gateway: Pick<ChatLlmGatewayService, "callPinned">) {}
 
-  async dispatch(input: Omit<Parameters<StrategyExecutionLedger["admitTurn"]>[0], "inputHash"> & { userMessage: string }) {
+  async dispatch(input: DispatchInput<Parameters<StrategyExecutionLedger["admitTurn"]>[0]>) {
     input = structuredClone(input);
     if (process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED !== "true") return { status: "unavailable" as const };
     const admission = await this.ledger.admitTurn({ ...input, inputHash: digest(input.userMessage) });

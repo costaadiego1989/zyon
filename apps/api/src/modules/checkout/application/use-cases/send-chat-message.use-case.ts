@@ -36,6 +36,7 @@ import { ConversationRateLimitService } from "../services/conversation-rate-limi
 import { correctionLabels } from "../../domain/services/customer-correction-prompts.js";
 import { CheckoutChatRequestService } from "../../infrastructure/prisma/checkout-chat-request.service.js";
 import { chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
+import { checkoutCartPrompt } from "../../domain/services/checkout-chat-context.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -403,7 +404,7 @@ export class SendChatMessageUseCase {
     userMessage: string,
     merchantRules: string[],
     merchantName?: string,
-    cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number },
+    cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number; currency?: string },
     merchantId?: string,
     buyerIntent?: BuyerIntentPromptContext,
     experimentPromptOverride?: string,
@@ -420,7 +421,8 @@ export class SendChatMessageUseCase {
       return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
     }
 
-    const cartInfo = cart?.total ? `Carrinho: R$${(cart.total / 100).toFixed(2)}` : "";
+    const cartInfo = checkoutCartPrompt(cart);
+    if (cartInfo === undefined) return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
     const tools = this.chatLlmGateway.getTools();
     const generatedSystemPrompt = this.chatLlmGateway.buildSystemPrompt({
         merchantName,

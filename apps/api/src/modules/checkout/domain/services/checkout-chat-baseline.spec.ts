@@ -67,6 +67,13 @@ test("rendering refuses tenant mismatch, modified tools and unsupported programs
   }
 });
 
+test("BRL binding revision invalidates reviewed v1 baselines even with the same deployment revision", () => {
+  const baseline = captureCheckoutChatBaseline(input, env)!;
+  const previous = { ...baseline, renderer: "checkout-chat-bindings-v1" };
+  assert.notEqual(checkoutBaselineReference(previous as any), checkoutBaselineReference(baseline));
+  assert.throws(() => renderCheckoutChatBaseline(previous as any, "store", { cartInfo: "Carrinho: R$100.00" }), /BASELINE_INVALID/);
+});
+
 test("provider route extraction preserves ordered fallbacks, pinning and duplicate suppression", () => {
   const configured = { LOCAL_LLM_BASE_URL: "http://localhost/v1", OPENROUTER_API_KEY: "r", OPENAI_API_KEY: "o", DEEPSEEK_API_KEY: "d" };
   assert.deepEqual(checkoutChatProviders(configured).map(p => p.name), ["local", "openrouter", "openai", "deepseek"]);

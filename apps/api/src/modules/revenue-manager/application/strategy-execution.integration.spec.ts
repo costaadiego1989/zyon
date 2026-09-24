@@ -600,6 +600,15 @@ integration("failure to persist a completion releases no candidate and retry can
   assert.equal(calls, 1);
 });
 
+function primarySession(sessionId: string, overrides: Partial<CheckoutSession> = {}): CheckoutSession {
+  return session(sessionId, { customer: { fullName: "Fixture Buyer", email: "fixture@example.invalid", email_verified: true,
+    cpf: "52998224725", phone: "11987654321", address_verified: true,
+    address: { zip: "01001000", street: "Fixture Street", city: "Sao Paulo", state: "SP", number: "1", complement: "" } },
+    shipping: { customerPrice: 10, realCost: 12, region: "SP" }, ...overrides });
+}
+const boundTurn = (sessionId: string, claim: { requestId: string; requestHash: string }, userMessage: string) => ({
+  merchantId: "store", sessionId, requestKey: claim.requestId, chatRequest: claim, userMessage, route: "primary_llm" as const,
+});
 const buyerRequest = (sessionId = "one") => ({ merchant_id: "store", session_id: sessionId,
   conversation_id: `conversation-${sessionId}`, message_id: randomUUID(), user_message: "Como funciona esta etapa?" });
 async function claimFixture(sessionId = "one") {
@@ -612,7 +621,7 @@ async function claimFixture(sessionId = "one") {
 }
 async function boundCandidate(result = completed.result, sessionId = "one") {
   const f = await claimFixture(sessionId);
-  const dispatcherInput = { ...turn(sessionId, f.claim.requestId), chatRequest: f.claim, userMessage: f.input.user_message };
+  const dispatcherInput = boundTurn(sessionId, f.claim, f.input.user_message);
   const dispatched = await new StrategyChatDispatcher(ledger, { async callPinned() { return { outcome: "provider_completed", result }; } }).dispatch(dispatcherInput);
   assert.equal(dispatched.status, "candidate");
   if (dispatched.status !== "candidate") throw new Error("candidate missing");
@@ -623,15 +632,16 @@ async function boundCandidate(result = completed.result, sessionId = "one") {
 integration("durable request, pinned gateway and publication persist the exact control and treatment response", async () => {
   const f = await activate();
   let calls = 0;
-  globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
+  const sent: any[] = [];
+  globalThis.fetch = (async (_url: unknown, options: any) => { calls++; sent.push(JSON.parse(options.body)); return providerResponse(); }) as typeof fetch;
   const publisher = new StrategyChatPublisher(prisma), requests = new CheckoutChatRequestService(prisma);
   for (const arm of ["control", "treatment"] as const) {
     const buyer = Array.from({ length: 100 }, (_, i) => `publication-buyer-${i}`)
       .find(id => strategyArm(f.execution.contract as any, id) === arm)!;
-    await repo.createSessionIfAbsent(session(arm, { globalUserId: buyer }));
+    await repo.createSessionIfAbsent(primarySession(arm, { globalUserId: buyer }));
     const response = await requests.run(buyerRequest(arm), async () => {}, async (message, claim) => {
       assert.ok(claim);
-      const candidate = await dispatcher().dispatch({ ...turn(arm, claim.requestId), chatRequest: claim, userMessage: message.user_message });
+      const candidate = await dispatcher().dispatch(boundTurn(arm, claim, message.user_message));
       assert.equal(candidate.status, "candidate");
       if (candidate.status !== "candidate") throw new Error("candidate missing");
       const publication = await publisher.publish({ merchantId: "store", sessionId: arm, turnId: candidate.turnId,
@@ -639,6 +649,9 @@ integration("durable request, pinned gateway and publication persist the exact c
       if (publication.status !== "persisted") throw new Error("publication missing");
       return { message: publication.message, objection: "unknown", actions: [], turns: publication.session.chatHistory };
     });
+    assert.equal(sent.at(-1).messages[0].content, renderStrategyTurn(f.execution.contract as any, f.baseline, arm,
+      { cartInfo: "Carrinho: R$100.00", stage: "payment", paymentJustFailed: false }));
+    assert.doesNotMatch(sent.at(-1).messages[0].content, /fixture@example|52998224725|Fixture Street/);
     assert.equal(response.chat_request?.status, "completed");
     assert.equal(response.message, completed.result.content);
     assert.equal(response.turns.length, 2);
@@ -649,23 +662,25 @@ integration("durable request, pinned gateway and publication persist the exact c
 });
 
 integration("bound admission rejects another request, text, key, tenant and personalized context before provider I/O", async () => {
-  await activate(); await repo.createSessionIfAbsent(session("one"));
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
   const f = await claimFixture();
-  const original = { ...turn("one", f.claim.requestId), chatRequest: f.claim, userMessage: f.input.user_message };
+  const original = boundTurn("one", f.claim, f.input.user_message);
   let calls = 0;
   const worker = new StrategyChatDispatcher(ledger, { async callPinned() { calls++; return completed; } });
   for (const patch of [{ requestKey: "wrong" }, { userMessage: "changed" },
     { chatRequest: { ...f.claim, requestHash: "f".repeat(64) } },
-    { turn: { ...original.turn, buyerIntent: { primary_intent: "discount" } } }]) {
-    await assert.rejects(worker.dispatch({ ...original, ...patch }), /CHAT_REQUEST_CONFLICT|PERSONALIZATION_UNSUPPORTED/);
+    { turn: { cartInfo: "Forged", buyerIntent: { primary_intent: "discount" } } },
+    { turn: { cartInfo: "Carrinho: R$0.01" } }, { turn: { stage: "completed" } },
+    { turn: { paymentJustFailed: true } }, { turn: {} }]) {
+    await assert.rejects(worker.dispatch({ ...original, ...patch } as any), /CHAT_REQUEST_CONFLICT|CALLER_CONTEXT_UNSUPPORTED/);
   }
-  await activate("other"); await repo.createSessionIfAbsent(session("one", { merchantId: "other" }));
+  await activate("other"); await repo.createSessionIfAbsent(primarySession("one", { merchantId: "other" }));
   await assert.rejects(worker.dispatch({ ...original, merchantId: "other" }), /CHAT_REQUEST_CONFLICT/);
   assert.equal(calls, 0); assert.equal(await prisma.strategyTurn.count(), 0);
 });
 
 integration("simultaneous publications append once and return only receipts on repeats", async () => {
-  await activate(); await repo.createSessionIfAbsent(session("one"));
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
   const candidate = await boundCandidate();
   const publisher = new StrategyChatPublisher(prisma);
   const results = await Promise.all(Array.from({ length: 6 }, () => publisher.publish(candidate)));
@@ -677,9 +692,72 @@ integration("simultaneous publications append once and return only receipts on r
   assert.equal((await repo.getSession("store", "one"))?.chatHistory.length, 2);
 });
 
+integration("bound dispatch uses the current persisted cart and last-agent signal instead of request fields", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const stored = (await repo.getSession("store", "one"))!;
+  await repo.saveSession({ ...stored, cart: { ...stored.cart, total: 199.99 } });
+  await repo.appendChatTurn("store", "one", { role: "agent", text: "Pagamento falhou. Escolha outra forma.", occurredAt: new Date().toISOString() });
+  const request = await claimFixture();
+  let prompt = "";
+  const worker = new StrategyChatDispatcher(ledger, { async callPinned(_merchant, _baseline, messages) {
+    prompt = messages[0].content; return completed;
+  } });
+  const result = await worker.dispatch({ ...boundTurn("one", request.claim, request.input.user_message),
+    cartInfo: "FORGED_PRICE", stage: "completed", paymentJustFailed: false, buyerIntent: { primary_intent: "FORGED_INTENT" } } as any);
+  assert.equal(result.status, "candidate");
+  const assignment = await prisma.strategyAssignment.findFirstOrThrow();
+  assert.equal(prompt, renderStrategyTurn(f.execution.contract as any, f.baseline, assignment.arm as any,
+    { cartInfo: "Carrinho: R$199.99", stage: "payment", paymentJustFailed: true }));
+  assert.doesNotMatch(prompt, /FORGED_PRICE|FORGED_INTENT|fixture@example/);
+});
+
+integration("bound requests cannot dispatch from a persisted deterministic stage", async () => {
+  await activate();
+  let calls = 0;
+  const worker = new StrategyChatDispatcher(ledger, { async callPinned() { calls++; return completed; } });
+  for (const [id, overrides] of [
+    ["no-customer", { customer: undefined }],
+    ["unverified", { customer: { ...primarySession("x").customer!, email_verified: false } }],
+    ["no-shipping", { shipping: undefined }],
+  ] as const) {
+    await repo.createSessionIfAbsent(primarySession(id, overrides));
+    const request = await claimFixture(id);
+    assert.equal((await worker.dispatch(boundTurn(id, request.claim, request.input.user_message))).status, "unavailable");
+  }
+  assert.equal(calls, 0); assert.equal(await prisma.strategyTurn.count(), 0);
+});
+
+integration("persisted malformed BRL totals block bound admission without spending a provider call", async () => {
+  await activate();
+  let calls = 0;
+  const worker = new StrategyChatDispatcher(ledger, { async callPinned() { calls++; return completed; } });
+  for (const [index, total] of [-1, 1.001, "100", null, Number.MAX_SAFE_INTEGER].entries()) {
+    const id = `invalid-${index}`;
+    await repo.createSessionIfAbsent(primarySession(id, { cart: { ...session(id).cart, total: total as any } }));
+    const request = await claimFixture(id);
+    assert.equal((await worker.dispatch(boundTurn(id, request.claim, request.input.user_message))).status, "unavailable");
+  }
+  assert.equal(calls, 0); assert.equal(await prisma.strategyTurn.count(), 0);
+});
+
+integration("retry after a changed bound session returns only admission receipt without re-rendering or re-sending", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const request = await claimFixture();
+  let calls = 0;
+  const worker = new StrategyChatDispatcher(ledger, { async callPinned() { calls++; return { outcome: "provider_unknown" }; } });
+  const input = boundTurn("one", request.claim, request.input.user_message);
+  assert.equal((await worker.dispatch(input)).status, "suppressed");
+  const original = await prisma.strategyTurn.findFirstOrThrow();
+  const stored = (await repo.getSession("store", "one"))!;
+  await repo.saveSession({ ...stored, cart: { ...stored.cart, total: 200 } });
+  assert.deepEqual(await worker.dispatch(input), { status: "already_admitted", turnId: original.id });
+  assert.deepEqual(await prisma.strategyTurn.findFirstOrThrow(), original);
+  assert.equal(calls, 1);
+});
+
 for (const scenario of ["pause", "cart_restore", "identity", "baseline", "publication_flag", "dispatch_flag", "execution_flag", "horizon"] as const) {
   integration(`publication revalidates ${scenario} after eligible completion`, async () => {
-    const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+    const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
     const candidate = await boundCandidate();
     let expected: string;
     if (scenario === "pause") {
@@ -717,7 +795,7 @@ for (const [name, result, reason] of [
   ["unauthorized claim", { content: "Vou aplicar um desconto de 10%.", toolCalls: [] }, "unsafe_message"],
 ] as const) {
   integration(`publication suppresses ${name} without tool or commercial effects`, async () => {
-    await activate(); await repo.createSessionIfAbsent(session("one"));
+    await activate(); await repo.createSessionIfAbsent(primarySession("one"));
     const before = (await repo.getSession("store", "one"))!.cart;
     const candidate = await boundCandidate(structuredClone(result) as any);
     const decision = await new StrategyChatPublisher(prisma).publish(candidate);
@@ -729,12 +807,12 @@ for (const [name, result, reason] of [
 }
 
 integration("altered candidate, foreign publication and unbound legacy admission cannot publish", async () => {
-  await activate(); await repo.createSessionIfAbsent(session("one"));
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
   const publisher = new StrategyChatPublisher(prisma), candidate = await boundCandidate();
   await assert.rejects(publisher.publish({ ...candidate, result: { ...candidate.result, content: "changed" } }), /RESPONSE_CONFLICT/);
   await assert.rejects(publisher.publish({ ...candidate, merchantId: "other" }), /REQUEST_CONFLICT/);
   await assert.rejects(publisher.publish({ ...candidate, userMessage: "changed" }), /REQUEST_CONFLICT/);
-  await repo.createSessionIfAbsent(session("legacy"));
+  await repo.createSessionIfAbsent(primarySession("legacy"));
   const f = await claimFixture("legacy");
   const old = await new StrategyChatDispatcher(ledger, { async callPinned() { return completed; } })
     .dispatch({ ...turn("legacy"), userMessage: f.input.user_message });
@@ -744,7 +822,7 @@ integration("altered candidate, foreign publication and unbound legacy admission
 });
 
 integration("a bound exchange cannot bypass publication through the normal repository", async () => {
-  await activate(); await repo.createSessionIfAbsent(session("one"));
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
   const candidate = await boundCandidate();
   await assert.rejects(repo.appendChatExchange({ merchantId: "store", sessionId: "one", claim: candidate.claim,
     expectedSession: await repo.getSession("store", "one"),
@@ -755,7 +833,7 @@ integration("a bound exchange cannot bypass publication through the normal repos
 });
 
 integration("failure after publication insertion rolls back pair, exchange and decision together", async () => {
-  await activate(); await repo.createSessionIfAbsent(session("one"));
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
   const candidate = await boundCandidate();
   const broken = new Proxy(prisma, { get(target, prop) {
     if (prop !== "$transaction") return Reflect.get(target, prop);
@@ -774,7 +852,7 @@ integration("failure after publication insertion rolls back pair, exchange and d
 });
 
 integration("publication acknowledgement loss cannot duplicate the pair or replay its response", async () => {
-  await activate(); await repo.createSessionIfAbsent(session("one"));
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
   const candidate = await boundCandidate();
   const broken = new Proxy(prisma, { get(target, prop) {
     if (prop !== "$transaction") return Reflect.get(target, prop);
@@ -790,7 +868,7 @@ integration("publication acknowledgement loss cannot duplicate the pair or repla
 });
 
 integration("database publication guard rejects altered hashes, missing exchange and an extra session update", async () => {
-  await activate(); await repo.createSessionIfAbsent(session("one"));
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
   const candidate = await boundCandidate();
   await assert.rejects(prisma.strategyTurnPublication.create({ data: { turnId: candidate.turnId, merchantId: "store",
     sessionId: "one", requestId: candidate.claim.requestId, exchangeRequestId: candidate.claim.requestId,
@@ -819,7 +897,7 @@ integration("database publication guard rejects altered hashes, missing exchange
 });
 
 integration("pause and publication serialize so a persisted response always precedes the pause", async () => {
-  const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
   const candidate = await boundCandidate();
   const [publication, paused] = await Promise.all([new StrategyChatPublisher(prisma).publish(candidate),
     ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "operator", requestKey: "pause-race", kind: "paused" })]);
@@ -831,12 +909,12 @@ integration("pause and publication serialize so a persisted response always prec
 });
 
 integration("a suppression in the durable request workflow yields uncertainty, no response and no second dispatch", async () => {
-  const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
   const request = buyerRequest(); let calls = 0;
   const worker = new StrategyChatDispatcher(ledger, { async callPinned() { calls++; return completed; } });
   const requests = new CheckoutChatRequestService(prisma);
   await assert.rejects(requests.run(request, async () => {}, async (message, claim) => {
-    const candidate = await worker.dispatch({ ...turn("one", claim!.requestId), chatRequest: claim, userMessage: message.user_message });
+    const candidate = await worker.dispatch(boundTurn("one", claim!, message.user_message));
     if (candidate.status !== "candidate") throw new Error("candidate missing");
     await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "operator", requestKey: "pause", kind: "paused" });
     const publication = await new StrategyChatPublisher(prisma).publish({ merchantId: "store", sessionId: "one",

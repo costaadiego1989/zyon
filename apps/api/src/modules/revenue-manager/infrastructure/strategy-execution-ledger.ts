@@ -8,6 +8,15 @@ import { lockCheckoutBaselineRows, readCheckoutBaseline } from "./checkout-basel
 import type { PinnedChatResult } from "../../checkout/application/services/chat-llm-gateway.service.js";
 import type { ChatExchangeClaim } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { chatMessageTextHash } from "../../checkout/domain/services/chat-message-identity.js";
+import { CHECKOUT_CHAT_BINDINGS_VERSION, checkoutSessionPrompt } from "../../checkout/domain/services/checkout-chat-context.js";
+import { missingFieldsForStage } from "../../checkout/domain/services/customer-extraction.service.js";
+import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout-session.mapper.js";
+
+type TurnInput = { merchantId: string; sessionId: string; requestKey: string; inputHash: string;
+  route: "primary_llm" | "deterministic" | "fallback"; userMessage?: string } & (
+  { chatRequest: ChatExchangeClaim; turn?: never } |
+  { chatRequest?: undefined; turn: Parameters<typeof renderStrategyTurn>[3] }
+);
 
 type Tx = Prisma.TransactionClient;
 export async function executionClock(tx: Tx): Promise<Date> {
@@ -132,9 +141,7 @@ export class StrategyExecutionLedger {
 
   /** Admission is a one-use claim, not a replayable instruction. An uncertain
    * provider attempt must not be retried under the same key. No message text is stored. */
-  async admitTurn(input: { merchantId: string; sessionId: string; requestKey: string; inputHash: string;
-    route: "primary_llm" | "deterministic" | "fallback"; turn: Parameters<typeof renderStrategyTurn>[3];
-    chatRequest?: ChatExchangeClaim; userMessage?: string }) {
+  async admitTurn(input: TurnInput) {
     input = structuredClone(input);
     if (input.route !== "primary_llm") return { status: "unavailable" as const };
     if (!strategyExecutionEnabled(input.merchantId)) return { status: "unavailable" as const };
@@ -147,7 +154,7 @@ export class StrategyExecutionLedger {
       if (!assignment) return { status: "unavailable" as const };
       if (input.chatRequest) {
         if (process.env.REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED !== "true") return { status: "unavailable" as const };
-        if (input.turn.buyerIntent !== undefined) throw new Error("STRATEGY_PUBLICATION_PERSONALIZATION_UNSUPPORTED");
+        if (input.turn !== undefined) throw new Error("STRATEGY_CALLER_CONTEXT_UNSUPPORTED");
         const request = await tx.checkoutChatRequest.findFirst({ where: { id: input.chatRequest.requestId,
           merchantId: input.merchantId, sessionId: input.sessionId, requestHash: input.chatRequest.requestHash,
           conversationId: assignment.session.conversationId, status: "processing", protocolVersion: 2 } });
@@ -156,11 +163,13 @@ export class StrategyExecutionLedger {
           throw new Error("STRATEGY_CHAT_REQUEST_CONFLICT");
         }
       }
-      const requestHash = digest({ inputHash: input.inputHash, turn: input.turn });
       const existing = await tx.strategyTurn.findUnique({ where: { assignmentId_merchantId_requestKey: {
         assignmentId: assignment.id, merchantId: input.merchantId, requestKey: input.requestKey } } });
       if (existing) {
-        if (existing.inputHash !== requestHash || existing.chatRequestId !== (input.chatRequest?.requestId ?? null)) throw new Error("STRATEGY_TURN_KEY_CONFLICT");
+        if (existing.chatRequestId !== (input.chatRequest?.requestId ?? null)
+          || (!input.chatRequest && existing.inputHash !== digest({ inputHash: input.inputHash, turn: input.turn }))) {
+          throw new Error("STRATEGY_TURN_KEY_CONFLICT");
+        }
         return { status: "already_admitted" as const, turnId: existing.id };
       }
       const { execution, session } = assignment;
@@ -173,8 +182,21 @@ export class StrategyExecutionLedger {
       if (digest(contract) !== execution.contractHash) throw new Error("STRATEGY_EXECUTION_CORRUPT");
       const current = await readCheckoutBaseline(tx, input.merchantId);
       if (!current) return { status: "unavailable" as const };
+      let turn = input.turn;
+      if (input.chatRequest) {
+        const snapshot = toCheckoutSession(session);
+        // Both the bindings and full context hash come from this locked row.
+        // Request/DTO fields cannot override cart, stage, rules or buyer memory.
+        try { turn = checkoutSessionPrompt(snapshot); }
+        catch { return { status: "unavailable" as const }; }
+        if (turn.stage === "data_collection" || (turn.stage === "shipping"
+          && missingFieldsForStage(snapshot, "shipping").length > 0)) return { status: "unavailable" as const };
+      }
+      if (!turn) throw new Error("STRATEGY_TURN_CONTEXT_REQUIRED");
+      const requestHash = digest({ inputHash: input.inputHash, turn,
+        ...(input.chatRequest ? { contextSource: CHECKOUT_CHAT_BINDINGS_VERSION } : {}) });
       let systemPrompt: string;
-      try { systemPrompt = renderStrategyTurn(contract, current, assignment.arm as "control" | "treatment", input.turn); }
+      try { systemPrompt = renderStrategyTurn(contract, current, assignment.arm as "control" | "treatment", turn); }
       catch { return { status: "unavailable" as const }; }
       const row = await tx.strategyTurn.create({ data: { id: randomUUID(), merchantId: input.merchantId,
         assignmentId: assignment.id, requestKey: input.requestKey, inputHash: requestHash, promptHash: digest(systemPrompt),
