@@ -20,7 +20,7 @@ export class RevenueAiBudgetService {
     return run.generatedJson;
   }
 
-  async cache(context: AnalysisGenerationContext, merchantId: string, response: import("../domain/ports/hypothesis-generator.port.js").HypothesisGenerationResponse) {
+  async cache(context: AnalysisGenerationContext, merchantId: string, response: import("../domain/ports/hypothesis-generator.port.js").HypothesisGenerationCheckpoint) {
     if (context.revisionId) {
       await this.prisma.$transaction(async tx => {
         await this.revision(tx, context, merchantId, new Date());

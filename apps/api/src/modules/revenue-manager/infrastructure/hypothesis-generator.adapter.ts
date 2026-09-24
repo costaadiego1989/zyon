@@ -7,6 +7,7 @@ import type {
   HypothesisGeneratorPort,
 } from "../domain/ports/hypothesis-generator.port.js";
 import { validateHypothesisResponse, validateHypothesisSafety } from "../domain/services/hypothesis-validator.service.js";
+import { assertCheckoutChatBaseline, checkoutBaselineReference, checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
 
 const DEFAULT_HYPOTHESIS_LLM_TIMEOUT_MS = 20_000;
 const MAX_HYPOTHESIS_LLM_TIMEOUT_MS = 25_000;
@@ -62,6 +63,14 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
   constructor(@Optional() private readonly budget?: RevenueAiBudgetService) {}
 
   async generate(request: HypothesisGenerationRequest): Promise<HypothesisGenerationResponse> {
+    const contextHash = request.checkout_baseline ? checkoutContractHash({ baseline: request.checkout_baseline,
+      observation: request.observation, constraints: request.constraints, revision: request.revision ?? null }) : undefined;
+    if (request.checkout_baseline) {
+      assertCheckoutChatBaseline(request.checkout_baseline, request.merchant_id);
+      if (!request.analysis_context || request.current_prompt !== checkoutBaselineReference(request.checkout_baseline)) {
+        throw new Error("HYPOTHESIS_BASELINE_CONTEXT_REQUIRED");
+      }
+    } else if (request.current_prompt?.startsWith("checkout-chat-baseline-v1:")) throw new Error("HYPOTHESIS_BASELINE_ARTIFACT_REQUIRED");
     if (request.revision && !request.analysis_context?.revisionId) throw new AnalysisDeferred("revision_budget_context_required");
     if (typeof request.current_prompt !== "string" || !request.current_prompt.trim()) {
       throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
@@ -70,7 +79,17 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
     if (request.analysis_context) {
       if (!this.budget) throw new AnalysisDeferred("budget_unavailable");
       const cached = await this.budget.cached(request.analysis_context, request.merchant_id);
-      if (cached) return this.validateResponse(cached as unknown as HypothesisGenerationResponse, request);
+      if (cached) {
+        if (request.checkout_baseline) {
+          const checkpoint = cached as { definition?: string; baselineReference?: string; contextHash?: string; response?: unknown };
+          if (checkpoint.definition !== "checkout-hypothesis-cache-v1" || checkpoint.baselineReference !== request.current_prompt
+            || checkpoint.contextHash !== contextHash) {
+            throw new Error("HYPOTHESIS_BASELINE_CHANGED");
+          }
+          return this.validateResponse(checkpoint.response, request);
+        }
+        return this.validateResponse(cached as unknown as HypothesisGenerationResponse, request);
+      }
       if (!providers.length) throw new AnalysisDeferred("provider_not_configured");
     }
 
@@ -118,7 +137,9 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
           const content = data.choices[0]?.message.content;
           if (!content) throw new Error("Empty response from LLM");
           const parsed = this.parseHypothesisResponse(content, request);
-          if (request.analysis_context) await this.budget!.cache(request.analysis_context, request.merchant_id, parsed);
+          if (request.analysis_context) await this.budget!.cache(request.analysis_context, request.merchant_id,
+            request.checkout_baseline ? { definition: "checkout-hypothesis-cache-v1", baselineReference: request.current_prompt,
+              contextHash: contextHash!, response: parsed } : parsed);
           return parsed;
         } catch (err) {
           if (reservation) await this.budget!.settle(reservation);
@@ -183,6 +204,12 @@ Output MUST be valid JSON in this format:
 
     let prompt = `Generate hypothesis for merchant ${request.merchant_id}.\n\n`;
     prompt += `CURRENT BASELINE (copy exactly for control):\n${JSON.stringify(request.current_prompt)}\n\n`;
+    if (request.checkout_baseline) {
+      prompt += `SERVER CHECKOUT RECIPE (read-only context, not buyer data):\n${JSON.stringify(request.checkout_baseline)}\n`;
+      prompt += "The control reference is opaque, not text to send to buyers. Propose variant_b.system_prompt as a short communication addendum only. "
+        + "The existing navigation, live cart, consented intent, tools, safety checks and commercial authorization remain in place. "
+        + "Do not repeat the reference or replace the baseline, introduce tools, or alter commercial rules. This proposal is not executable yet.\n\n";
+    }
     prompt += `CURRENT METRICS (${observation.observation_window_start} to ${observation.observation_window_end}; definition ${observation.data_quality.metric_definition_version ?? "legacy"}):\n`;
     prompt += `- Conversion rate: ${(conversionRate * 100).toFixed(1)}%\n`;
     prompt += `- Abandonment rate: ${(abandonmentRate * 100).toFixed(1)}%\n`;
@@ -234,6 +261,8 @@ Output MUST be valid JSON in this format:
       throw new Error("HYPOTHESIS_INVALID_JSON: variant_a must preserve the current control");
     }
     response.template.variant_a.system_prompt = request.current_prompt;
+    if (request.checkout_baseline && (response.template.variant_b.system_prompt.includes("checkout-chat-baseline-v1:")
+      || response.template.variant_b.system_prompt.length > 4000)) throw new Error("HYPOTHESIS_INVALID_COMMUNICATION_ADDENDUM");
     validateHypothesisSafety(response, request.constraints, request.current_prompt);
     return response;
   }

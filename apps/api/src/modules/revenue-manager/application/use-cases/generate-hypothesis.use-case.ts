@@ -7,6 +7,7 @@ import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
 import { assessHypothesisRisk } from "../../domain/value-objects/hypothesis-risk-level.js";
 import { validateHypothesisResponse, validateHypothesisSafety } from "../../domain/services/hypothesis-validator.service.js";
 import { HYPOTHESIS_MERCHANT_CONTEXT_PORT, type HypothesisMerchantContextPort } from "../../domain/ports/hypothesis-merchant-context.port.js";
+import { checkoutBaselineReference, checkoutContractHash } from "../../../checkout/domain/services/checkout-chat-baseline.js";
 
 export interface GenerateHypothesisInput {
   analysis_context?: { runId: string; leaseToken: number };
@@ -63,7 +64,11 @@ export class GenerateHypothesisUseCase {
       throw new Error("HYPOTHESIS_INVALID_MERCHANT_RULES");
     }
     const policySnapshot = JSON.stringify(rules);
-    const currentPrompt = await this.merchantContext.getCurrentPrompt(input.merchant_id);
+    const checkoutBaseline = await this.merchantContext.getCheckoutBaseline?.(input.merchant_id);
+    if (checkoutBaseline && !input.analysis_context) throw new Error("HYPOTHESIS_WEEKLY_CONTEXT_REQUIRED");
+    if (checkoutBaseline && checkoutBaseline.policyHash !== checkoutContractHash(rules)) throw new Error("HYPOTHESIS_MERCHANT_RULES_CHANGED");
+    const currentPrompt = checkoutBaseline ? checkoutBaselineReference(checkoutBaseline)
+      : this.merchantContext.getCheckoutBaseline ? undefined : await this.merchantContext.getCurrentPrompt(input.merchant_id);
     if (typeof currentPrompt !== "string" || !currentPrompt.trim()) throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
 
     // Legacy lessons do not carry a preregistered plan or complete assignment
@@ -84,6 +89,7 @@ export class GenerateHypothesisUseCase {
       observation: observation.snapshot(),
       past_lessons: pastLessons.map((l) => l.snapshot()),
       current_prompt: currentPrompt,
+      checkout_baseline: checkoutBaseline,
       constraints,
     });
 
@@ -123,7 +129,7 @@ export class GenerateHypothesisUseCase {
 
     // Save
     if (input.analysis_context) hypothesis = HypothesisEntity.rehydrate({ ...hypothesis.snapshot(), id: `analysis-${input.analysis_context.runId}` });
-    await this.hypothesisRepo.save(hypothesis, input.analysis_context);
+    await this.hypothesisRepo.save(hypothesis, input.analysis_context ? { ...input.analysis_context, checkoutBaseline } : undefined);
 
     this.logger.log(
       `Generated hypothesis for merchant ${input.merchant_id}: ` +

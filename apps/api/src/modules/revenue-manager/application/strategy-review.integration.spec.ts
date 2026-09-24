@@ -14,6 +14,10 @@ import { RevenueAiBudgetService } from "../infrastructure/revenue-ai-budget.serv
 import { LLMHypothesisGenerator } from "../infrastructure/hypothesis-generator.adapter.js";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import type { HypothesisGenerationRequest } from "../domain/ports/hypothesis-generator.port.js";
+import { GenerateHypothesisUseCase } from "./use-cases/generate-hypothesis.use-case.js";
+import { checkoutBaselineReference, renderCheckoutChatBaseline, type CheckoutChatBaseline } from "../../checkout/domain/services/checkout-chat-baseline.js";
+import { ChatLlmGatewayService } from "../../checkout/application/services/chat-llm-gateway.service.js";
+import { readCheckoutBaseline, lockCheckoutBaselineRows } from "../infrastructure/checkout-baseline.reader.js";
 
 // Destructive setup is strictly restricted to this dedicated local fixture DB.
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -23,6 +27,28 @@ const env = { ...process.env };
 const baseline = "Explique o checkout com os dados verificados do carrinho.";
 const context = new PrismaHypothesisMerchantContext(prisma);
 const billing = { getEffectivePlan: async () => "scale" };
+
+async function configureRealBaseline(merchantId = "store") {
+  Object.assign(process.env, { REVENUE_CHECKOUT_CONTRACT_ENABLED: "true", CHECKOUT_BEHAVIOR_REVISION: "a".repeat(40),
+    CHECKOUT_LLM_PROVIDER: "openai", OPENAI_API_KEY: "fixture-only", OPENAI_MODEL: "fixture-model" });
+  delete process.env.LOCAL_LLM_BASE_URL; delete process.env.OLLAMA_BASE_URL;
+  await prisma.checkoutSetting.create({ data: { merchantId, mode: "conversational", widgetBehavior: {}, triggerRules: {},
+    suppressionRules: {}, handoff: {}, interventionPolicy: {}, advancedRules: [{ enabled: true, priority: 1,
+      conditions: [{ field: "cart_total", operator: "gt", value: 0 }], action: { type: "show_message", params: { message: "Explique os dados verificados." } } }] } });
+  return (await context.getCheckoutBaseline(merchantId))!;
+}
+
+function recipeResponse(request: HypothesisGenerationRequest) {
+  const response = recommendation();
+  response.template.variant_a.system_prompt = request.current_prompt;
+  response.template.variant_b.system_prompt = "Pergunte qual etapa precisa de explicação e use somente dados verificados.";
+  return response;
+}
+
+function realGeneration(generate = async (request: HypothesisGenerationRequest) => recipeResponse(request)) {
+  return new GenerateHypothesisUseCase(new PrismaObservationRepository(prisma), new PrismaHypothesisRepository(prisma),
+    { findByMerchant: async () => { throw new Error("LEGACY_LESSONS_MUST_NOT_LOAD"); } } as never, { generate }, context);
+}
 const recommendation = (prompt = "Pergunte qual etapa precisa de ajuda.") => ({
   hypothesis_text: "Testar uma pergunta contextual para ajudar na etapa atual", reasoning: "Comparar com o controle usando as sessões observadas",
   expected_lift_percent: 1, template: { name: "Ajuda contextual", description: "Mudar a forma de explicar a etapa atual",
@@ -35,9 +61,10 @@ before(async () => { if (enabled) await prisma.$connect(); });
 after(async () => { await prisma.$disconnect(); process.env = env; });
 beforeEach(async () => {
   if (!enabled) return;
+  process.env = { ...env };
   await prisma.$executeRawUnsafe(`TRUNCATE revenue_strategies, revenue_strategy_versions, revenue_strategy_actions, revenue_strategy_revisions,
     revenue_analysis_runs, revenue_analysis_schedules, revenue_ai_reservations, ai_usage_events, ai_price_versions,
-    revenue_manager_hypotheses, revenue_manager_observations, merchant_notifications, merchant_rules, merchants CASCADE`);
+    revenue_manager_hypotheses, revenue_manager_observations, merchant_notifications, merchant_rules, checkout_settings, merchants CASCADE`);
   Object.assign(process.env, { REVENUE_WEEKLY_ENABLED: "true", REVENUE_WEEKLY_MERCHANT_IDS: "*", REVENUE_STRATEGY_REVISIONS_ENABLED: "true",
     REVENUE_AI_MAX_REVISIONS_PER_CYCLE: "3", REVENUE_AI_MAX_INPUT_TOKENS: "20000", REVENUE_AI_MAX_OUTPUT_TOKENS: "1000",
     REVENUE_AI_DAILY_LIMIT_MICROS: "50000", REVENUE_AI_MONTHLY_LIMIT_MICROS: "50000", REVENUE_AI_CYCLE_LIMIT_MICROS: "50000",
@@ -405,4 +432,166 @@ test("the actual weekly job recovers a durable revision and executes it through 
     if (previousRedis === undefined) delete process.env.REDIS_URL; else process.env.REDIS_URL = previousRedis;
     if (previousEnabled === undefined) delete process.env.REDIS_ENABLED; else process.env.REDIS_ENABLED = previousEnabled;
   }
+});
+
+test("real merchant context generates and freezes a replayable primary-chat control", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  const captured = await configureRealBaseline();
+  let calls = 0;
+  const output = await realGeneration(async request => {
+    calls++;
+    assert.deepEqual(request.checkout_baseline, captured);
+    assert.equal(request.current_prompt, checkoutBaselineReference(captured));
+    assert.deepEqual(request.past_lessons, []);
+    return recipeResponse(request);
+  }).execute({ merchant_id: "store", observation_id: f.observation.id, analysis_context: { runId: f.run.id, leaseToken: 1 } });
+  const stored = await prisma.revenueStrategyVersion.findFirstOrThrow({ where: { strategyId: output.hypothesis_id } });
+  const proposal = stored.proposal as any;
+  assert.equal(calls, 1);
+  assert.equal(proposal.baselineStatus, "primary_chat_contract_captured");
+  assert.deepEqual(proposal.checkoutBaseline, captured);
+  assert.equal(proposal.execution, "unavailable");
+  assert.equal(stored.proposalHash, digest(proposal));
+  const turn = { cartInfo: "Carrinho: R$42.50", stage: "payment", paymentJustFailed: true };
+  assert.equal(renderCheckoutChatBaseline(proposal.checkoutBaseline, "store", turn), new ChatLlmGatewayService().buildSystemPrompt({
+    ...turn, merchantName: "Fixture", merchantRules: captured.rules.paymentFailed }));
+  const read = await service().read("store", output.hypothesis_id);
+  assert.equal(read.approval_available, false);
+  assert.equal(read.activation_available, false);
+});
+
+test("missing settings, unknown tenant and malformed settings cannot produce a control", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureRealBaseline();
+  assert.equal(await context.getCheckoutBaseline("another-store"), undefined);
+  await prisma.checkoutSetting.update({ where: { merchantId: "store" }, data: { advancedRules: [{ enabled: true }] } });
+  assert.equal(await context.getCheckoutBaseline("store"), undefined);
+  await prisma.checkoutSetting.delete({ where: { merchantId: "store" } });
+  await assert.rejects(realGeneration(async () => { throw new Error("MUST_NOT_CALL"); }).execute({ merchant_id: "store",
+    observation_id: f.observation.id, analysis_context: { runId: f.run.id, leaseToken: 1 } }), /HYPOTHESIS_BASELINE_UNAVAILABLE/);
+  assert.equal(await prisma.revenueStrategy.count(), 0);
+});
+
+test("settings change during generation prevents proposal publication", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureRealBaseline();
+  await assert.rejects(realGeneration(async request => {
+    await prisma.checkoutSetting.update({ where: { merchantId: "store" }, data: { advancedRules: [] } });
+    return recipeResponse(request);
+  }).execute({ merchant_id: "store", observation_id: f.observation.id, analysis_context: { runId: f.run.id, leaseToken: 1 } }), /HYPOTHESIS_BASELINE_CHANGED/);
+  assert.equal(await prisma.revenueStrategy.count(), 0);
+  assert.equal(await prisma.merchantNotification.count(), 0);
+});
+
+test("publication rechecks the frozen recipe under locks and rolls back stale source and notice", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  const captured = await configureRealBaseline();
+  const snapshot = f.hypothesis.snapshot();
+  snapshot.template.variant_a.system_prompt = checkoutBaselineReference(captured);
+  snapshot.template.variant_b.system_prompt = "Ofereça ajuda com a etapa atual.";
+  await prisma.merchant.update({ where: { id: "store" }, data: { name: "Renamed" } });
+  await assert.rejects(f.repo.save(HypothesisEntity.rehydrate(snapshot), { runId: f.run.id, leaseToken: 1, checkoutBaseline: captured }), /STRATEGY_BASELINE_CHANGED/);
+  assert.equal(await prisma.revenueManagerHypothesis.count(), 0);
+  assert.equal(await prisma.revenueStrategyVersion.count(), 0);
+  assert.equal(await prisma.merchantNotification.count(), 0);
+});
+
+test("revision with real baseline reader preserves original recipe and creates an immutable new version", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  const captured = await configureRealBaseline();
+  const generated = await realGeneration().execute({ merchant_id: "store", observation_id: f.observation.id,
+    analysis_context: { runId: f.run.id, leaseToken: 1 } });
+  await prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { status: "completed" } });
+  const s = new StrategyReviewService(prisma, context, { generate: async request => recipeResponse(request) }, billing as never);
+  const before = await s.read("store", generated.hypothesis_id);
+  const receipt = await s.decide("store", "owner", generated.hypothesis_id, "revision", {
+    ...f.input, proposal_hash: before.versions[0].proposalHash }) as any;
+  await s.process(receipt.action_id);
+  const read = await s.read("store", generated.hypothesis_id);
+  assert.equal(read.currentVersion, 2);
+  assert.deepEqual((read.versions[0].proposal as any).checkoutBaseline, captured);
+  assert.equal(read.versions[0].expiresAt.getTime(), before.versions[0].expiresAt.getTime());
+  assert.deepEqual(read.versions[1], before.versions[0]);
+});
+
+test("provider model drift during revision refuses publication", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureRealBaseline();
+  const generated = await realGeneration().execute({ merchant_id: "store", observation_id: f.observation.id,
+    analysis_context: { runId: f.run.id, leaseToken: 1 } });
+  await prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { status: "completed" } });
+  const s = new StrategyReviewService(prisma, context, { generate: async request => {
+    process.env.OPENAI_MODEL = "changed"; return recipeResponse(request);
+  } }, billing as never);
+  const version = await prisma.revenueStrategyVersion.findFirstOrThrow();
+  const receipt = await s.decide("store", "owner", generated.hypothesis_id, "revision", { ...f.input, proposal_hash: version.proposalHash }) as any;
+  await s.process(receipt.action_id);
+  assert.equal((await s.read("store", generated.hypothesis_id)).currentVersion, 1);
+  assert.equal((await prisma.revenueStrategyRevision.findUniqueOrThrow({ where: { id: receipt.action_id } })).status, "failed");
+});
+
+test("publication locks prevent concurrent merchant, policy and settings changes", { skip: !enabled }, async () => {
+  await fixture("store", { publish: false });
+  const captured = await configureRealBaseline();
+  let release!: () => void;
+  const wait = new Promise<void>(resolve => { release = resolve; });
+  let locked!: () => void;
+  const ready = new Promise<void>(resolve => { locked = resolve; });
+  const holding = prisma.$transaction(async tx => {
+    await lockCheckoutBaselineRows(tx, "store");
+    locked();
+    await wait;
+    assert.deepEqual(await readCheckoutBaseline(tx, "store"), captured);
+  });
+  await ready;
+  try {
+    for (const table of ["merchants", "merchant_rules", "checkout_settings"]) {
+      await assert.rejects(prisma.$transaction(async tx => {
+        await tx.$executeRawUnsafe("SET LOCAL lock_timeout = '100ms'");
+        await tx.$executeRawUnsafe(table === "merchants" ? "UPDATE merchants SET name = 'Changed' WHERE id = 'store'"
+          : `UPDATE ${table} SET updated_at = now() WHERE merchant_id = 'store'`);
+      }), /lock timeout/);
+    }
+  } finally { release(); await holding; }
+});
+
+test("budgeted generation binds provider checkpoint to the real recipe and evidence", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  const captured = await configureRealBaseline();
+  delete process.env.DEEPSEEK_API_KEY;
+  await prisma.aiPriceVersion.create({ data: { version: "fixture", provider: "openai", model: "fixture-model", channel: "chat",
+    component: "text_generation", currency: "USD", source: "revenue-upper-bound-v1", inputMicrosPerMillion: 1_000_000n,
+    outputMicrosPerMillion: 1_000_000n, effectiveFrom: new Date("2020-01-01Z") } });
+  const generator = new LLMHypothesisGenerator(new RevenueAiBudgetService(prisma));
+  const request: HypothesisGenerationRequest = { merchant_id: "store", analysis_context: { runId: f.run.id, leaseToken: 1 },
+    current_prompt: checkoutBaselineReference(captured), checkout_baseline: captured, observation: f.observation.snapshot(), past_lessons: [],
+    constraints: { max_discount_percent: 5, allow_free_shipping: false, max_running_experiments: 1, merchant_rules: (await context.getRules("store"))! } };
+  const originalFetch = globalThis.fetch;
+  let calls = 0;
+  globalThis.fetch = async (_url, options) => {
+    calls++;
+    const reservation = await prisma.revenueAiReservation.findFirstOrThrow();
+    assert.equal(reservation.runId, f.run.id);
+    assert.equal(reservation.state, "dispatched");
+    const sent = JSON.parse(String(options?.body));
+    assert.match(sent.messages[1].content, /SERVER CHECKOUT RECIPE/);
+    assert.doesNotMatch(sent.messages[1].content, /fixture-only/);
+    const response = recipeResponse(request);
+    response.template.variant_a.system_prompt = "Model tried to rewrite control";
+    return Response.json({ id: "fixture", usage: { prompt_tokens: 100, completion_tokens: 100 },
+      choices: [{ message: { content: JSON.stringify(response) } }] });
+  };
+  try {
+    const first = await generator.generate(request);
+    assert.equal(first.template.variant_a.system_prompt, request.current_prompt);
+    assert.deepEqual(await generator.generate(request), first);
+    const otherEvidence = structuredClone(request);
+    otherEvidence.observation.funnel.total_sessions++;
+    await assert.rejects(generator.generate(otherEvidence), /HYPOTHESIS_BASELINE_CHANGED/);
+    const changed = structuredClone(captured); changed.merchantName = "Changed";
+    await assert.rejects(generator.generate({ ...request, checkout_baseline: changed, current_prompt: checkoutBaselineReference(changed) }), /HYPOTHESIS_BASELINE_CHANGED/);
+    assert.equal(calls, 1);
+    assert.equal(await prisma.revenueAiReservation.count(), 1);
+    assert.equal((await prisma.revenueAiReservation.findFirstOrThrow()).state, "settled");
+  } finally { globalThis.fetch = originalFetch; }
 });

@@ -10,6 +10,8 @@ import { HYPOTHESIS_MERCHANT_CONTEXT_PORT, type HypothesisMerchantContextPort } 
 import { strategyProposal, type StrategyProposal } from "../domain/strategy-proposal.js";
 import { AnalysisDeferred, LEASE_MS, MAX_RUN_ATTEMPTS, positiveInteger, weeklyAnalysisEnabled, weeklyMerchantAllowed } from "../domain/weekly-analysis-policy.js";
 import { merchantRulesSnapshot } from "../infrastructure/hypothesis-merchant-context.adapter.js";
+import { readCheckoutBaseline, lockCheckoutBaselineRows } from "../infrastructure/checkout-baseline.reader.js";
+import { checkoutBaselineReference, checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
 
 export type StrategyReviewCommand = { version: number; proposal_hash: string; request_key: string; feedback?: string };
 type ReviewKind = "approve" | "reject" | "revision";
@@ -123,17 +125,22 @@ export class StrategyReviewService {
       const proposal = base.proposal as unknown as StrategyProposal;
       const currentRules = await this.context.getRules(work.merchantId);
       if (!currentRules || digest(currentRules) !== digest(proposal.rules)) throw new Error("STRATEGY_POLICY_CHANGED");
-      const baseline = await this.context.getCurrentPrompt(work.merchantId);
+      const checkoutBaseline = await this.context.getCheckoutBaseline?.(work.merchantId);
+      const baseline = checkoutBaseline ? checkoutBaselineReference(checkoutBaseline)
+        : this.context.getCheckoutBaseline ? undefined : await this.context.getCurrentPrompt(work.merchantId);
       if (!baseline) throw new AnalysisDeferred("checkout_baseline_unavailable");
+      if (proposal.checkoutBaseline && (!checkoutBaseline || checkoutContractHash(checkoutBaseline) !== checkoutContractHash(proposal.checkoutBaseline))) {
+        throw new Error("STRATEGY_BASELINE_CHANGED");
+      }
       if (baseline !== proposal.recommendation.template.variant_a.system_prompt) throw new Error("STRATEGY_BASELINE_CHANGED");
       const generated = await this.generator.generate({ merchant_id: work.merchantId,
         analysis_context: { runId: action.proposal.strategy.runId, revisionId: id, leaseToken: work.leaseToken },
         revision: { preference: action.feedback!, previous_proposal: proposal.recommendation },
-        observation: proposal.observation, current_prompt: baseline, past_lessons: [], constraints: {
+        observation: proposal.observation, current_prompt: baseline, checkout_baseline: checkoutBaseline, past_lessons: [], constraints: {
           max_discount_percent: currentRules.maxDiscountPercent, allow_free_shipping: currentRules.allowFreeShipping,
           max_running_experiments: 1, merchant_rules: currentRules } });
       if (generated.template.variant_a.system_prompt !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
-      const next = strategyProposal(generated, proposal.observation, currentRules);
+      const next = strategyProposal(generated, proposal.observation, currentRules, checkoutBaseline);
       await this.eligible(work.merchantId);
       if (await this.context.getCurrentPrompt(work.merchantId) !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
       await this.prisma.$transaction(async tx => {
@@ -143,6 +150,11 @@ export class StrategyReviewService {
         if (!owned) throw new AnalysisDeferred("revision_lease_lost");
         if (strategy.status !== "revision_pending" || strategy.currentVersion !== action.version) throw new Error("STRATEGY_DECISION_CONFLICT");
         if (base.expiresAt <= new Date()) throw new Error("STRATEGY_PROPOSAL_EXPIRED");
+        if (checkoutBaseline) {
+          await lockCheckoutBaselineRows(tx, work.merchantId);
+          const current = await readCheckoutBaseline(tx, work.merchantId);
+          if (!current || checkoutContractHash(current) !== checkoutContractHash(checkoutBaseline)) throw new Error("STRATEGY_BASELINE_CHANGED");
+        }
         await this.unchangedRules(tx, work.merchantId, proposal);
         const version = action.version + 1;
         await tx.revenueStrategyVersion.create({ data: { strategyId: strategy.id, merchantId: work.merchantId, version,

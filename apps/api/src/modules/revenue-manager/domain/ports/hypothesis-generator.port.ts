@@ -1,6 +1,7 @@
 import type { ObservationSnapshot } from "../entities/observation.entity.js";
 import type { StrategyLessonSnapshot } from "../entities/strategy-lesson.entity.js";
 import type { MerchantRules } from "@zyon/shared-types";
+import type { CheckoutChatBaseline } from "../../../checkout/domain/services/checkout-chat-baseline.js";
 
 export const HYPOTHESIS_GENERATOR_PORT = Symbol("HYPOTHESIS_GENERATOR_PORT");
 
@@ -10,8 +11,10 @@ export interface HypothesisGenerationRequest {
   merchant_id: string;
   observation: ObservationSnapshot;
   past_lessons: StrategyLessonSnapshot[];
-  /** Exact active prompt supplied by the merchant context, never authored by the model. */
+  /** Exact control text or recipe reference supplied by the server, never the model. */
   current_prompt: string;
+  /** Server-owned primary chat recipe; current_prompt is its opaque control reference. */
+  checkout_baseline?: CheckoutChatBaseline;
   constraints: {
     max_discount_percent: number;
     allow_free_shipping: boolean;
@@ -35,3 +38,10 @@ export interface HypothesisGenerationResponse {
 export interface HypothesisGeneratorPort {
   generate(request: HypothesisGenerationRequest): Promise<HypothesisGenerationResponse>;
 }
+
+export type HypothesisGenerationCheckpoint = HypothesisGenerationResponse | {
+  definition: "checkout-hypothesis-cache-v1";
+  baselineReference: string;
+  contextHash: string;
+  response: HypothesisGenerationResponse;
+};

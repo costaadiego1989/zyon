@@ -1,12 +1,12 @@
 import type { PrismaClient, Prisma } from "@prisma/client";
 import { HypothesisEntity, type HypothesisSnapshot } from "../domain/entities/hypothesis.entity.js";
 import { publishInitialStrategy } from "./strategy-publication.js";
-import type { HypothesisRepositoryPort } from "../domain/ports/hypothesis-repository.port.js";
+import type { HypothesisRepositoryPort, HypothesisAnalysisContext } from "../domain/ports/hypothesis-repository.port.js";
 
 export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async save(hypothesis: HypothesisEntity, analysisContext?: { runId: string; leaseToken: number }): Promise<void> {
+  async save(hypothesis: HypothesisEntity, analysisContext?: HypothesisAnalysisContext): Promise<void> {
     const snap = hypothesis.snapshot();
     // F2-T03: hypothesis_type + discount_rule_json embedded in the existing
     // templateJson column (no schema migration; backward-compat on rehydrate).
@@ -70,7 +70,7 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
         },
       });
       const noticeId = `strategy:${snap.id}`;
-      if (analysisContext) await publishInitialStrategy(tx, snap, analysisContext.runId);
+      if (analysisContext) await publishInitialStrategy(tx, snap, analysisContext.runId, analysisContext.checkoutBaseline);
       if (snap.status === "pending_review") {
         await tx.merchantNotification.upsert({
           where: { id: noticeId }, update: {},

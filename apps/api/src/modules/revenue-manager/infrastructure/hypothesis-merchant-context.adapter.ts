@@ -1,6 +1,8 @@
 import type { PrismaClient } from "@prisma/client";
 import type { MerchantRules } from "@zyon/shared-types";
 import type { HypothesisMerchantContextPort } from "../domain/ports/hypothesis-merchant-context.port.js";
+import { readCheckoutBaseline } from "./checkout-baseline.reader.js";
+import { checkoutBaselineReference } from "../../checkout/domain/services/checkout-chat-baseline.js";
 
 /** Unlike MerchantRulesRepository.getRules, this ACL never creates permissive defaults. */
 export class PrismaHypothesisMerchantContext implements HypothesisMerchantContextPort {
@@ -12,10 +14,14 @@ export class PrismaHypothesisMerchantContext implements HypothesisMerchantContex
     return merchantRulesSnapshot(row);
   }
 
-  async getCurrentPrompt(_merchantId: string): Promise<string | undefined> {
-    // Checkout composes baseline behavior from its engine, session and agent context.
-    // Neither an old experiment nor an LLM-written summary reproduces that baseline.
-    return undefined;
+  async getCurrentPrompt(merchantId: string): Promise<string | undefined> {
+    const baseline = await this.getCheckoutBaseline(merchantId);
+    return baseline ? checkoutBaselineReference(baseline) : undefined;
+  }
+
+  async getCheckoutBaseline(merchantId: string) {
+    if (process.env.REVENUE_CHECKOUT_CONTRACT_ENABLED !== "true") return undefined;
+    return this.prisma.$transaction(tx => readCheckoutBaseline(tx, merchantId), { isolationLevel: "RepeatableRead" });
   }
 }
 
