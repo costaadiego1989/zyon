@@ -8,7 +8,7 @@ import { extractOptionGroups } from "../../domain/food-options.js";
 import { loadProductNoticeRules, productRuleNotices } from "../product-rule-notices.js";
 import { productGallery } from "../product-gallery.js";
 
-import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig } from "./cart-cross-sell.helper.js";
+import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 
@@ -125,7 +125,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         product.id,
       );
       const config = await deps.loadCrossSellConfig?.(ctx.merchantId);
-      let crossSellSuggestions = [];
+      let crossSellSuggestions: CrossSellSuggestion[] = [];
       if (config?.enabled && config.touchpoints.pre_cart && deps.cartRepo) {
         const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
         const viewedVariant = product.variants.find((variant) => variant.isActive);
