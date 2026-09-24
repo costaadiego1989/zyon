@@ -11,6 +11,7 @@
  *   AACP_DEMO_MERCHANT_EMAIL=<owner-email>
  *   AACP_DEMO_MERCHANT_ID=<merchant-id>
  *   AACP_DEMO_MERCHANT_SLUG=<store-slug>
+ *   AACP_CREATE_SHOWROOM_MERCHANT=true (sandbox-only opt-in)
  */
 import { resolve } from "node:path";
 import { PrismaClient } from "@prisma/client";
@@ -27,6 +28,7 @@ if (!connectionString) {
 const targetEmail = (process.env.AACP_DEMO_MERCHANT_EMAIL ?? "costaadiego1989@gmail.com").trim().toLowerCase();
 const configuredMerchantId = process.env.AACP_DEMO_MERCHANT_ID?.trim();
 const configuredMerchantSlug = process.env.AACP_DEMO_MERCHANT_SLUG?.trim();
+const createShowroomMerchant = process.env.AACP_CREATE_SHOWROOM_MERCHANT === "true";
 const locale = "pt-BR";
 
 const image = {
@@ -46,7 +48,7 @@ function safeSuffix(value: string) {
 async function main() {
   const prisma = new PrismaClient({ adapter: new PrismaPg({ connectionString }) });
   try {
-    const merchant = configuredMerchantId
+    let merchant = configuredMerchantId
       ? await prisma.merchant.findUnique({
           where: { id: configuredMerchantId },
           select: { id: true, name: true, storeSlug: true },
@@ -62,6 +64,22 @@ async function main() {
             merchant: { select: { id: true, name: true, storeSlug: true } },
           },
         }).then((user) => user?.merchant ?? null);
+
+    if (!merchant && configuredMerchantSlug && createShowroomMerchant) {
+      // A disposable environment has no operator-created Athom tenant. Creating
+      // this minimal showroom tenant is deliberately behind a second explicit
+      // flag: a production seed must never create a merchant implicitly.
+      merchant = await prisma.merchant.create({
+        data: {
+          id: `apl_showroom_${safeSuffix(configuredMerchantSlug)}`,
+          name: "Athom Technologies",
+          storeSlug: configuredMerchantSlug,
+          storeCategory: "beleza-e-cuidados",
+        },
+        select: { id: true, name: true, storeSlug: true },
+      });
+      console.log(`Created sandbox showroom merchant ${merchant.storeSlug}.`);
+    }
 
     if (!merchant) {
       throw new Error(
