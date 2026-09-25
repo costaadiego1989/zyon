@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import type { ChatState } from "@/api/chat-protocol";
 import {
   CheckoutSession,
   checkoutShippingFromExperience,
@@ -201,6 +202,8 @@ interface CheckoutState {
 
   messages: Message[];
   isTyping: boolean;
+  chatRecovery: "blocked" | "checking" | null;
+  recoverChat: () => Promise<void>;
   channel: "chat" | "voice";
 
   paymentIntent: PaymentIntent | null;
@@ -256,6 +259,11 @@ interface CheckoutState {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+function recoveredMessages(state: ChatState): Message[] {
+  return state.turns.map(turn => ({ id: `server_${turn.id}`, role: turn.role === "buyer" ? "user" : "agent",
+    text: turn.text, timestamp: Date.parse(turn.occurred_at) }));
+}
 let wsCleanup: (() => void) | null = null;
 const MAX_POLL_DURATION_MS = 24 * 60 * 60 * 1000;
 
@@ -408,6 +416,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   cart: { items: [], total: 0, serviceFee: 0, discount: 0, status: "awaiting" },
   messages: [],
   isTyping: false,
+  chatRecovery: null,
   channel: "chat",
   paymentIntent: null,
   paymentPolling: false,
@@ -430,9 +439,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences, initialChannel }) => {
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
-      set({ api, status: "loading" });
+      set({ api, status: "loading", chatRecovery: null, isTyping: false, messages: [] });
 
       const response = await api.start();
+      if (get().api !== api) return;
       const exp = response.experience;
 
       const cartData = cartFromExperience(exp);
@@ -475,6 +485,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
       set({
         sessionId: response.session_id,
+        chatRecovery: api.requiresChatRecovery ? "blocked" : null,
         brand,
         agent,
         buyer,
@@ -573,7 +584,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     set({
       status: "active",
       channel: _channel,
-      messages,
+      messages: get().api?.chatState?.turns.length ? recoveredMessages(get().api!.chatState!) : messages,
       _pendingCrossSellBlock: null,
     });
   },
@@ -588,6 +599,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   sendMessage: async (text) => {
+    if (get().isTyping || get().chatRecovery || get().api?.requiresChatRecovery) return;
     if (text === "Quero voltar") {
       window.history.back();
       return;
@@ -673,6 +685,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
     try {
       const res = await api.chat(text);
+      if (get().api !== api) return;
 
       // Only use this offline fallback when the signed checkout service did
       // not report a stage. A real `payment` stage must reach the generic
@@ -819,6 +832,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         set({ status: "completed", cart: { ...get().cart, status: "paid" } });
       }
     } catch (err) {
+      if (get().api !== api) return;
+      if (api.usesDurableChat) {
+        // Never run legacy shipping/payment fallbacks for an uncertain request.
+        set({ isTyping: false, chatRecovery: "blocked" });
+        return;
+      }
       console.error("[WIDGET-CHAT] embed/chat failed:", err);
       if (isMerchantSalesSuspendedError(err)) {
         set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE, isTyping: false });
@@ -897,7 +916,21 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
+  recoverChat: async () => {
+    const { api, chatRecovery, isTyping } = get();
+    if (!api || chatRecovery === "checking" || isTyping) return;
+    set({ chatRecovery: "checking" });
+    try {
+      const state = await api.recoverChat();
+      if (get().api !== api) return;
+      set({ messages: recoveredMessages(state), chatRecovery: null, isTyping: false });
+    } catch {
+      if (get().api === api) set({ chatRecovery: "blocked", isTyping: false });
+    }
+  },
+
   continueVoiceCheckout: async () => {
+    if (get().chatRecovery || get().api?.requiresChatRecovery) return;
     const before = get().cart.status;
     if (before === "ready_to_pay") return;
     if (before === "shipping_calculated") {
@@ -1398,6 +1431,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     set({
       status: "loading",
+      api: null,
+      sessionId: null,
+      chatRecovery: null,
+      isTyping: false,
       cart: { items: [], total: 0, serviceFee: 0, discount: 0, status: "awaiting" },
       messages: [],
       paymentIntent: null,

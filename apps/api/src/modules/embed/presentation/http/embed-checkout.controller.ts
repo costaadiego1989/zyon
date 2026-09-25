@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Inject,
   Injectable,
   Logger,
@@ -145,12 +146,15 @@ export class EmbedCheckoutController {
       buyer_access_token?: unknown;
       global_user_id?: unknown;
     };
-    return this.startCheckout.execute({
+    const result = await this.startCheckout.execute({
       ...(rest as Omit<StartCheckoutRequest, "merchant_id">),
       merchant_id: embed.merchantId,
       session_id: sessionId,
       cart: recovered?.cart ?? (embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart),
     }, { storefrontCartRef: recovered ? (recovered.cart as { cart_ref?: string }).cart_ref : embed.storefrontCartRef, trustedBuyer, requireBuyerProof: true, refreshCart: !!recovered });
+    const chatState = await this.reconcileChat?.readState(embed.merchantId, result.session_id);
+    // start scope advertises capability only; reading history still requires chat scope.
+    return { ...result, ...(chatState?.protocol === "durable_v2" ? { chat_protocol: "durable_v2" as const } : {}) };
   }
 
   @Post("track")
@@ -194,6 +198,19 @@ export class EmbedCheckoutController {
     if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
     return this.reconcileChat.execute({ merchant_id: embed.merchantId, session_id: body.session_id,
       conversation_id: body.conversation_id, message_id: body.message_id });
+  }
+
+  @Get("chat/state")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(120)
+  @RequireEmbedScope("checkout:chat")
+  async chatState(@Req() request: EmbedHttpRequest, @Query("session_id") sessionId: string,
+    @Query("message_id") messageId?: string) {
+    const embed = request.embedClaims!;
+    if (typeof sessionId !== "string") throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.readState(embed.merchantId, sessionId, messageId);
   }
 
   @Post("offers/apply")

@@ -1,6 +1,6 @@
-import { ConflictException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import type { CheckoutChatRequest, PrismaClient } from "@prisma/client";
-import type { ChatMessageReference, ChatMessageRecoveryResponse, ChatMessageRequest, ChatMessageResponse } from "@zyon/shared-types";
+import type { ChatMessageReference, ChatMessageRecoveryResponse, ChatMessageRequest, ChatMessageResponse, ChatSessionStateResponse } from "@zyon/shared-types";
 import { randomUUID } from "node:crypto";
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
 import { chatMessageIdentity, chatMessageReference, chatMessageTextHash, chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
@@ -10,6 +10,40 @@ import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repo
  * cached offer replay, strategy exposure assertion or transaction around I/O. */
 export class CheckoutChatRequestService {
   constructor(private readonly prisma: PrismaClient) {}
+
+  async readState(merchantId: string, sessionId: string, messageId?: string): Promise<ChatSessionStateResponse> {
+    for (const value of [merchantId, sessionId]) {
+      if (typeof value !== "string" || !value.trim() || value.length > 200) throw new BadRequestException("CHAT_MESSAGE_INVALID_INPUT");
+    }
+    if (messageId !== undefined && (typeof messageId !== "string" || !/^[a-zA-Z0-9_-]{16,128}$/.test(messageId))) {
+      throw new BadRequestException("CHAT_MESSAGE_ID_REQUIRED");
+    }
+    // All reads share a snapshot; observing history and a receipt from different
+    // commits must not release a client whose publication is still unresolved.
+    return this.prisma.$transaction(async tx => {
+      const scope = { merchantId, sessionId };
+      const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope },
+        select: { conversationId: true, chatHistory: true } });
+      if (!session) throw new NotFoundException({ code: "CHECKOUT_SESSION_NOT_FOUND" });
+      const active = await tx.checkoutChatRequest.findFirst({ where: { ...scope, status: { in: ["processing", "unknown"] } } });
+      const request = messageId ? await tx.checkoutChatRequest.findUnique({ where: { merchantId_sessionId_messageId: { ...scope, messageId } } })
+        : active ?? await tx.checkoutChatRequest.findFirst({ where: scope, orderBy: [{ startedAt: "desc" }, { id: "desc" }] });
+      const owned = !!active || !!request || !!await tx.checkoutChatRequest.findFirst({ where: scope, select: { id: true } })
+        || !!await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } });
+      const history = Array.isArray(session.chatHistory) ? session.chatHistory.slice(-50) : [];
+      const turns: ChatSessionStateResponse["turns"] = [];
+      for (const [index, item] of history.entries()) {
+        if (!item || typeof item !== "object" || Array.isArray(item)) continue;
+        if ((item.role !== "buyer" && item.role !== "agent") || typeof item.text !== "string" || typeof item.occurredAt !== "string") continue;
+        turns.push({ id: typeof item.chatRequestId === "string" ? `${item.chatRequestId}:${item.role}` : `${index}:${item.occurredAt}`,
+          role: item.role, text: item.text, occurred_at: item.occurredAt });
+      }
+      return { protocol: owned || chatRequestsEnabled(merchantId) ? "durable_v2" : "legacy", session_id: sessionId,
+        conversation_id: session.conversationId, turns,
+        ...(request ? { request: { message_id: request.messageId, status: request.status as NonNullable<ChatSessionStateResponse["request"]>["status"] } } : {}),
+        ...(active ? { active_request: { message_id: active.messageId, status: active.status as "processing" | "unknown" } } : {}) };
+    }, { isolationLevel: "RepeatableRead" });
+  }
 
   async run(input: ChatMessageRequest, preflight: (request: ChatMessageRequest) => Promise<void>,
     work: (request: ChatMessageRequest, claim?: ChatExchangeClaim) => Promise<ChatMessageResponse>): Promise<ChatMessageResponse> {

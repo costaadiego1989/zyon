@@ -8,4 +8,7 @@ import { CheckoutChatRequestService } from "../../infrastructure/prisma/checkout
 export class ReconcileChatMessageUseCase {
   constructor(private readonly requests: CheckoutChatRequestService) {}
   execute(input: ChatMessageReference) { return this.requests.reconcile(input); }
+  readState(merchantId: string, sessionId: string, messageId?: string) {
+    return this.requests.readState(merchantId, sessionId, messageId);
+  }
 }

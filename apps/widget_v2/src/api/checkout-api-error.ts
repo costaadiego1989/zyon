@@ -1,9 +1,12 @@
+import { chatReceipt, type ChatReceipt } from "./chat-protocol";
+
 export class CheckoutApiError extends Error {
   constructor(
     readonly operation: string,
     readonly status: number,
     readonly code?: string,
     readonly retryAfterSeconds?: number,
+    readonly chatRequest?: ChatReceipt,
   ) {
     super(`${operation}_failed: ${status}${code ? ` ${code}` : ""}`);
     this.name = "CheckoutApiError";
@@ -17,6 +20,7 @@ export class CheckoutApiError extends Error {
       response.status,
       typeof body.code === "string" ? body.code : undefined,
       positiveInteger(body.retry_after_seconds) ?? positiveInteger(body.retryAfterSeconds) ?? retryAfterHeader(response),
+      chatReceipt(body.chat_request),
     );
   }
 }

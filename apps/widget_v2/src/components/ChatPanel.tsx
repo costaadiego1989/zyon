@@ -6,6 +6,7 @@ import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkou
 import { renderInlineMarkdown, messageToSpeech } from "./chat/helpers";
 import { BlockRenderer } from "./chat/ChatBlocks";
 import { VoiceComposer } from "./chat/VoiceComposer";
+import { useChatRecovery } from "@/lib/use-chat-recovery";
 
 function isPaymentPresentationBlock(type: string): boolean {
   return ["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card"].includes(type);
@@ -14,6 +15,8 @@ function isPaymentPresentationBlock(type: string): boolean {
 export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
   const isTyping = useCheckoutStore((s) => s.isTyping);
+  const chatRecovery = useCheckoutStore((s) => s.chatRecovery);
+  const connectionStatus = useChatRecovery();
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const continueVoiceCheckout = useCheckoutStore((s) => s.continueVoiceCheckout);
   const channel = useCheckoutStore((s) => s.channel);
@@ -21,10 +24,17 @@ export function ChatPanel() {
   const api = useCheckoutStore((s) => s.api);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const wasRecovering = useRef(false);
   const voiceAutoStartedRef = useRef(false);
 
+  useEffect(() => {
+    if (wasRecovering.current && !chatRecovery) inputRef.current?.focus();
+    wasRecovering.current = !!chatRecovery;
+  }, [chatRecovery]);
+
   const voice = useRealtimeVoiceCheckout({
-    enabled: channel === "voice",
+    enabled: channel === "voice" && !chatRecovery,
     createSession: async () => {
       if (!api) throw new Error("checkout_session_missing");
       return api.createRealtimeVoiceSession();
@@ -32,6 +42,7 @@ export function ChatPanel() {
     onCommerceTurn: async (buyerMessage, action) => {
       await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage);
       const current = useCheckoutStore.getState();
+      if (current.chatRecovery) throw new Error("checkout_chat_recovery_required");
       const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
       return {
         agentMessage: agentReply ? (messageToSpeech(agentReply) || "Atualizei sua compra. Posso continuar?") : "Atualizei sua compra. Posso continuar?",
@@ -39,6 +50,7 @@ export function ChatPanel() {
       };
     },
     onBeginCheckout: async () => {
+      if (useCheckoutStore.getState().chatRecovery) throw new Error("checkout_chat_recovery_required");
       await continueVoiceCheckout();
       const current = useCheckoutStore.getState();
       const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
@@ -56,10 +68,11 @@ export function ChatPanel() {
       voiceAutoStartedRef.current = false;
       return;
     }
+    if (chatRecovery) { voiceAutoStartedRef.current = true; return; }
     if (voiceAutoStartedRef.current) return;
     voiceAutoStartedRef.current = true;
     voice.start();
-  }, [channel, voice.start]);
+  }, [channel, chatRecovery, voice.start]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -67,7 +80,7 @@ export function ChatPanel() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isTyping || chatRecovery) return;
     void sendMessage(input.trim());
     setInput("");
   };
@@ -120,7 +133,7 @@ export function ChatPanel() {
                   {msg.role === "agent" ? renderInlineMarkdown(msg.text.replace(/^(?:Zion|Zyon)\s*:\s*/i, "")) : msg.text}
                 </div>
               )}
-              {msg.blocks?.map((block, j) => {
+              {!chatRecovery && msg.blocks?.map((block, j) => {
                 const paymentBlock = isPaymentPresentationBlock(block.type);
                 return (
                   <div
@@ -137,11 +150,12 @@ export function ChatPanel() {
           </div>
         ))}
 
-        {activeQuickReplies.length > 0 && (
+        {!chatRecovery && activeQuickReplies.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", paddingLeft: "36px" }}>
             {activeQuickReplies.map((qr) => (
               <button data-neu="control"
                 key={qr}
+                disabled={isTyping}
                 onClick={() => handleQuickReply(qr)}
                 style={{
                   padding: "8px 14px",
@@ -183,7 +197,16 @@ export function ChatPanel() {
         <div ref={chatEndRef} />
       </div>
 
-      {channel === "voice" ? (
+      {connectionStatus && (
+        <div style={{ padding: "8px 0", color: "var(--mut)", fontSize: "12px", lineHeight: 1.5 }}>
+          <p id="chat-recovery-status" role="status" aria-live="polite" style={{ margin: 0 }}>
+            {connectionStatus === "offline" ? "Sem conexão. O chat será retomado quando a internet voltar."
+              : connectionStatus === "unavailable" ? "O chat está temporariamente indisponível. Tente mais tarde."
+              : "Reconectando..."}
+          </p>
+        </div>
+      )}
+      {channel === "voice" && !chatRecovery ? (
         <>
           <VoiceComposer voice={voice} />
           <button data-neu="text" type="button" onClick={() => {
@@ -203,17 +226,19 @@ export function ChatPanel() {
           >
             <PerimeterBorder radius="14px" variant="input" />
             <input data-neu="field"
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isTyping ? "Aguarde..." : "Escreva sua mensagem..."}
-              disabled={isTyping}
+              placeholder={isTyping || chatRecovery ? "Aguarde..." : "Escreva sua mensagem..."}
+              disabled={isTyping || !!chatRecovery}
+              aria-describedby={connectionStatus ? "chat-recovery-status" : undefined}
               aria-label="Mensagem"
               style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--tx)", fontSize: "13px", padding: 0, fontFamily: "inherit" }}
             />
             <button data-neu="send"
               type="submit"
-              disabled={!input.trim() || isTyping}
+              disabled={!input.trim() || isTyping || !!chatRecovery}
               aria-label="Enviar mensagem"
               style={{ width: "36px", height: "36px", borderRadius: "10px", background: input.trim() && !isTyping ? "var(--aacp-accent, #0f766e)" : "var(--bd)", color: "#fff", border: "none", cursor: input.trim() && !isTyping ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}
             >

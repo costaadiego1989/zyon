@@ -66,6 +66,39 @@ const code = (expected: string, status?: number) => (error: unknown) => {
   return true;
 };
 
+integration("chat state restores a scoped text transcript and terminal receipt without exposing workflow data", async () => {
+  await seed(); await service.run(input(), noPreflight, completeFixture);
+  const state = await service.readState("store", "session", input().message_id);
+  assert.equal(state.protocol, "durable_v2"); assert.equal(state.conversation_id, "conversation");
+  assert.equal(state.turns.length, 2);
+  assert.deepEqual(state.request, { message_id: input().message_id, status: "completed" });
+  assert.equal(state.active_request, undefined);
+  assert.deepEqual(Object.keys(state.turns[0]).sort(), ["id", "occurred_at", "role", "text"]);
+  for (const forbidden of ["requestHash", "responseHash", "buyerMessageHash", "customer", "payment", "blocks"]) assert.equal((state as any)[forbidden], undefined);
+  assert.equal(await prisma.checkoutChatResolution.count(), 0);
+  await assert.rejects(service.readState("other", "session"), code("CHECKOUT_SESSION_NOT_FOUND"));
+  await seed("other");
+  assert.equal((await service.readState("other", "session", input().message_id)).request, undefined);
+  await assert.rejects(service.readState("store", "session", "malformed"));
+});
+
+integration("chat state reports outstanding work even when a caller asks for another message or flags roll back", async () => {
+  await seed(); await assert.rejects(service.run(input(), noPreflight, async () => { throw new Error("uncertain"); }));
+  process.env.CHECKOUT_CHAT_REQUESTS_ENABLED = "false";
+  const state = await service.readState("store", "session", "message_other_0001");
+  assert.equal(state.protocol, "durable_v2"); assert.equal(state.request, undefined);
+  assert.deepEqual(state.active_request, { message_id: input().message_id, status: "unknown" });
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+});
+
+integration("chat capability distinguishes an untouched legacy session from an opted-in session", async () => {
+  await seed(); process.env.CHECKOUT_CHAT_REQUESTS_ENABLED = "false";
+  assert.equal((await service.readState("store", "session")).protocol, "legacy");
+  process.env.CHECKOUT_CHAT_REQUESTS_ENABLED = "true";
+  assert.equal((await service.readState("store", "session")).protocol, "durable_v2");
+  assert.equal(await prisma.checkoutChatRequest.count(), 0);
+});
+
 integration("v2 completion without an exchange becomes unknown and never releases a completed response", async () => {
   await seed();
   await assert.rejects(service.run(input(), noPreflight, async () => response()), code("CHAT_MESSAGE_RECONCILIATION_REQUIRED"));

@@ -532,6 +532,8 @@ export interface CheckoutExperienceSnapshot {
 }
 
 export interface StartCheckoutResponse {
+  /** Present only for sessions owned by the durable message protocol. */
+  chat_protocol?: "durable_v2";
   conversation_id: string;
   session_id: string;
   global_user_id: string;
@@ -1093,6 +1095,16 @@ export interface ChatMessageReference {
   session_id: string;
   conversation_id: string;
   message_id: string;
+}
+
+/** Read-only text projection. No executable blocks or payment/offer replay. */
+export interface ChatSessionStateResponse {
+  protocol: "durable_v2" | "legacy";
+  session_id: string;
+  conversation_id: string;
+  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string }>;
+  request?: { message_id: string; status: "processing" | "unknown" | "completed" | "reconciled" | "rejected" };
+  active_request?: { message_id: string; status: "processing" | "unknown" };
 }
 
 /** Receipt only; never an old response, authorization or delivery confirmation. */

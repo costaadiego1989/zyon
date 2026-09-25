@@ -1205,12 +1205,18 @@ async function recoveryFixture(status: "processing" | "unknown" = "unknown", mai
 for (const status of ["processing", "unknown"] as const) integration(`recovery reconciles ${status} from immutable main-chat text evidence without replay`, async () => {
   const f = await recoveryFixture(status), requests = new CheckoutChatRequestService(prisma);
   const before = await prisma.checkoutSession.findFirstOrThrow();
+  const pending = await requests.readState("store", "one", f.input.message_id);
+  assert.equal(pending.active_request?.status, status);
+  assert.equal(pending.turns.length, 2);
   const response = await requests.reconcile(f.input);
   assert.deepEqual(response, { chat_request: { message_id: f.input.message_id, status: "reconciled", next_action: "refresh_session" } });
   assert.deepEqual(await requests.reconcile(f.input), response);
   assert.deepEqual(await prisma.checkoutSession.findFirstOrThrow(), before);
   const row = await prisma.checkoutChatRequest.findFirstOrThrow();
   assert.equal(row.status, "reconciled"); assert.equal(row.responseHash, null);
+  const restored = await requests.readState("store", "one", f.input.message_id);
+  assert.equal(restored.request?.status, "reconciled"); assert.equal(restored.active_request, undefined);
+  assert.deepEqual(restored.turns, pending.turns);
   const resolution = await prisma.checkoutChatResolution.findFirstOrThrow();
   assert.equal(resolution.previousStatus, status); assert.equal(resolution.turnId, f.candidate.turnId);
   await assert.rejects(requests.run(f.input, async () => assert.fail("no preflight"), async () => assert.fail("no replay")),

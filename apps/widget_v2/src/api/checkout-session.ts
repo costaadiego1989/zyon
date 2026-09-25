@@ -1,4 +1,5 @@
 import { CheckoutApiError } from "./checkout-api-error";
+import { ChatRecoveryRequired, PendingChatReference, chatReceipt, parseChatState, type ChatState } from "./chat-protocol";
 
 /**
  * CheckoutSession — API client for /embed/* endpoints.
@@ -168,6 +169,8 @@ export interface Experience {
 }
 
 export interface StartResponse {
+  conversation_id?: string;
+  chat_protocol?: "durable_v2";
   session_id: string;
   experience?: Experience;
 }
@@ -219,6 +222,7 @@ export interface ChatBlock {
 }
 
 export interface ChatResponse {
+  chat_request?: { message_id: string; status: "completed" };
   blocks?: ChatBlock[];
   quick_replies?: string[];
   message?: string;
@@ -269,6 +273,15 @@ export class CheckoutSession {
   private sessionId: string | null = null;
   private experience?: Experience;
   private paymentRevision = 0;
+  private conversationId: string | null = null;
+  private protectedChat = false;
+  private pendingMessageId?: string;
+  private chatInFlight = false;
+  private pendingReference?: PendingChatReference;
+  chatState?: ChatState;
+
+  get requiresChatRecovery(): boolean { return !!this.pendingMessageId; }
+  get usesDurableChat(): boolean { return this.protectedChat; }
 
   constructor(config: CheckoutSessionConfig) {
     this.token = config.embedToken;
@@ -321,7 +334,15 @@ export class CheckoutSession {
     if (!res.ok) throw await CheckoutApiError.fromResponse("embed_start", res);
     const data = (await res.json()) as StartResponse;
     this.sessionId = data.session_id;
+    this.conversationId = data.conversation_id ?? data.session_id;
+    this.protectedChat = data.chat_protocol === "durable_v2";
+    this.pendingReference = new PendingChatReference(`zyon:chat:v2:${JSON.stringify([this.embedBaseUrl, this.merchantId, this.sessionId, this.conversationId])}`);
+    this.pendingMessageId = this.pendingReference.read();
     this.experience = data.experience;
+    if (this.protectedChat || this.pendingMessageId) {
+      this.protectedChat = true;
+      await this.refreshChatState();
+    }
     return data;
   }
 
@@ -331,23 +352,90 @@ export class CheckoutSession {
 
   async chat(message: string): Promise<ChatResponse> {
     this.assertSession();
-    const res = await fetch(`${this.embedBaseUrl}/embed/chat`, {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify({
-        session_id: this.sessionId,
-        user_message: message,
-        conversation_id: this.sessionId,
-      }),
-    });
-    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat", res);
-    const response = await res.json() as ChatResponse;
-    if (response.experience) this.experience = { ...this.experience, ...response.experience };
-    return response;
+    if (this.pendingMessageId || this.chatInFlight) throw new ChatRecoveryRequired();
+    const messageId = crypto.randomUUID();
+    this.chatInFlight = true;
+    if (this.protectedChat) this.setPending(messageId);
+    try {
+      const res = await fetch(`${this.embedBaseUrl}/embed/chat`, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          session_id: this.sessionId,
+          user_message: message,
+          conversation_id: this.conversationId,
+          message_id: messageId,
+        }),
+      });
+      if (!res.ok) {
+        const error = await CheckoutApiError.fromResponse("embed_chat", res);
+        if (error.chatRequest) {
+          this.protectedChat = true;
+          this.setPending(error.chatRequest.message_id);
+        }
+        // A quota/rate rejection is reported without a receipt on its first
+        // response. Query the durable state instead of assuming no work ran.
+        if (this.protectedChat) throw new ChatRecoveryRequired();
+        throw error;
+      }
+      const response = await res.json() as ChatResponse;
+      const receipt = chatReceipt(response.chat_request);
+      if (this.protectedChat || receipt) {
+        this.protectedChat = true;
+        if (receipt?.message_id !== messageId || receipt.status !== "completed") throw new ChatRecoveryRequired();
+        this.setPending(undefined);
+      }
+      if (response.experience) this.experience = { ...this.experience, ...response.experience };
+      return response;
+    } catch (error) {
+      if (this.protectedChat) { if (!this.pendingMessageId) this.setPending(messageId); throw new ChatRecoveryRequired(); }
+      throw error;
+    } finally { this.chatInFlight = false; }
+  }
+
+  private setPending(messageId: string | undefined) {
+    this.pendingMessageId = messageId;
+    this.pendingReference?.write(messageId);
+  }
+
+  async refreshChatState(): Promise<ChatState> {
+    this.assertSession();
+    const query = new URLSearchParams({ session_id: this.sessionId! });
+    if (this.pendingMessageId) query.set("message_id", this.pendingMessageId);
+    const res = await fetch(`${this.embedBaseUrl}/embed/chat/state?${query}`, { headers: this.headers(), cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat_state", res);
+    const state = parseChatState(await res.json(), this.sessionId!, this.conversationId!);
+    if (this.protectedChat && state.protocol !== "durable_v2") throw new ChatRecoveryRequired();
+    this.protectedChat = state.protocol === "durable_v2";
+    if (state.active_request) this.setPending(state.active_request.message_id);
+    else if (this.pendingMessageId && state.request?.message_id === this.pendingMessageId
+      && ["completed", "reconciled", "rejected"].includes(state.request.status)) this.setPending(undefined);
+    this.chatState = state;
+    return state;
+  }
+
+  async recoverChat(): Promise<ChatState> {
+    if (this.chatInFlight) throw new ChatRecoveryRequired();
+    this.chatInFlight = true;
+    try {
+      await this.refreshChatState();
+      if (this.pendingMessageId) {
+        const res = await fetch(`${this.embedBaseUrl}/embed/chat/reconcile`, { method: "POST", headers: this.headers(), signal: AbortSignal.timeout(10_000),
+          body: JSON.stringify({ session_id: this.sessionId, conversation_id: this.conversationId, message_id: this.pendingMessageId }) });
+        if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat_reconcile", res);
+        const receipt = chatReceipt((await res.json() as { chat_request?: unknown }).chat_request);
+        if (receipt?.message_id !== this.pendingMessageId || !["completed", "reconciled", "rejected"].includes(receipt.status)) throw new ChatRecoveryRequired();
+        // A receipt never substitutes for refreshing the server conversation.
+        await this.refreshChatState();
+      }
+      if (this.pendingMessageId) throw new ChatRecoveryRequired();
+      return this.chatState!;
+    } finally { this.chatInFlight = false; }
   }
 
   async createRealtimeVoiceSession(): Promise<{ value: string; expires_at?: number }> {
     this.assertSession();
+    if (this.pendingMessageId) throw new ChatRecoveryRequired();
     const res = await fetch(`${this.embedBaseUrl}/embed/realtime/session`, {
       method: "POST",
       headers: this.headers(),

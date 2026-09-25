@@ -9,6 +9,24 @@ import type { StartCheckoutRequest } from "@zyon/shared-types";
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 
 describe("EmbedCheckoutController", () => {
+  it("history requires the token-bound session and start advertises only capability", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+    const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ merchantId: "m1", sessionId }));
+    const seen: unknown[] = [];
+    const state = { protocol: "durable_v2", session_id: sessionId, conversation_id: "conversation", turns: [{ text: "private" }] };
+    const controller = new EmbedCheckoutController({ execute() { return { session_id: sessionId }; } } as never,
+      {} as never, {} as never, new EmbedCheckoutGuardHelper(repo), {} as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never, undefined,
+      { readState(...args: unknown[]) { seen.push(args); return state; } } as never);
+    await assert.rejects(controller.chatState({ embedClaims: claims }, "foreign"), /binding_mismatch/);
+    assert.equal(seen.length, 0);
+    assert.deepEqual(await controller.chatState({ embedClaims: claims }, sessionId, "message_00000001"), state);
+    assert.deepEqual(seen[0], ["m1", sessionId, "message_00000001"]);
+    const start = await controller.start({ embedClaims: claims }, { cart: { currency: "BRL", total: 0, items: [] } } as any);
+    assert.deepEqual(start, { session_id: sessionId, chat_protocol: "durable_v2" });
+  });
+
   it("recovery is bound to the embed session and ignores a forged body merchant", async () => {
     const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
     const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();

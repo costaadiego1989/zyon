@@ -5,6 +5,7 @@ import { Reflector } from "@nestjs/core";
 import { EmbedTokenService, type EmbedScope, type EmbedTokenClaims } from "../../domain/embed-token.service.js";
 import { EmbedAuthGuard } from "./embed-auth.guard.js";
 import { EMBED_REQUIRED_SCOPE_KEY } from "./embed-scope.decorator.js";
+import { EmbedCheckoutController } from "./embed-checkout.controller.js";
 
 const SECRET = Buffer.from("embed-origin-scope-secret-32-chars!!");
 
@@ -116,6 +117,17 @@ describe("EmbedAuthGuard origin binding", () => {
 });
 
 describe("EmbedAuthGuard scope enforcement", () => {
+  it("actual history and recovery routes reject a start-only token and require chat scope", () => {
+    const start = tokenFor({ scopes: ["checkout:start"] });
+    const chat = tokenFor({ scopes: ["checkout:chat"] });
+    for (const method of ["chatState", "reconcileMessage"] as const) {
+      const handler = EmbedCheckoutController.prototype[method] as unknown as () => void;
+      assert.throws(() => new EmbedAuthGuard(start.svc, new Reflector()).canActivate(ctx({ "x-aacp-embed-token": start.token }, handler)), ForbiddenException);
+      assert.equal(new EmbedAuthGuard(chat.svc, new Reflector()).canActivate(ctx({ "x-aacp-embed-token": chat.token }, handler)), true);
+      assert.throws(() => new EmbedAuthGuard(chat.svc, new Reflector()).canActivate(ctx({}, handler)), UnauthorizedException);
+    }
+  });
+
   it("allows when the token grants the required scope", () => {
     const { svc, token } = tokenFor({ scopes: ["checkout:start"] });
     const { reflector, handler } = reflectorWithScope("checkout:start");
