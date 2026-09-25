@@ -141,7 +141,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   },
   growth: {
     name: "Growth",
-    monthlyPriceBrl: 349,
+    monthlyPriceBrl: 449,
     transactionFeeCents: 149,
     limits: {
       ordersPerMonth: 500,
@@ -176,7 +176,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
   },
   scale: {
     name: "Scale",
-    monthlyPriceBrl: 599,
+    monthlyPriceBrl: 749,
     transactionFeeCents: 99,
     limits: {
       ordersPerMonth: UNLIMITED,
