@@ -29,6 +29,8 @@ import type { ChatExchangeInput } from "../../domain/ports/checkout-session.repo
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
 import { chatMessageTextHash } from "../../domain/services/chat-message-identity.js";
 import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
+import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
+import { chatPaymentRecoveryEnabled } from "../../domain/services/chat-payment-recovery.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -276,8 +278,15 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         const [proof] = await tx.$queryRaw<Array<{ hash: string }>>`SELECT
           encode(sha256(convert_to(jsonb_build_array(chat_history -> -2, chat_history -> -1)::text, 'UTF8')), 'hex') AS hash
           FROM checkout_sessions WHERE merchant_id = ${input.merchantId} AND session_id = ${input.sessionId}`;
+        let paymentProof = {};
+        if (input.selectedPaymentMethod && chatPaymentRecoveryEnabled(input.merchantId)) {
+          const [context] = await tx.$queryRaw<Array<{ hash: string }>>`SELECT checkout_chat_payment_context_hash(s) AS hash
+            FROM checkout_sessions s WHERE merchant_id = ${input.merchantId} AND session_id = ${input.sessionId}`;
+          paymentProof = { paymentMethod: input.selectedPaymentMethod, paymentCartHash: paymentCartFingerprint(toCheckoutSession(updated)),
+            paymentContextHash: context.hash };
+        }
         await tx.checkoutChatExchange.create({ data: { requestId: input.claim.requestId, merchantId: input.merchantId,
-          sessionId: input.sessionId, exchangeHash: proof.hash, recordedAt: now } });
+          sessionId: input.sessionId, exchangeHash: proof.hash, recordedAt: now, ...paymentProof } });
       }
       return toCheckoutSession(updated);
     };

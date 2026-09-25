@@ -7,6 +7,42 @@ const config = { embedToken: "fixture-token", merchantId: "store", apiBaseUrl: "
 const initial = { session_id: "session", conversation_id: "conversation", chat_protocol: "durable_v2", experience: { items: [], totals: { subtotal: 0, total: 0 } } };
 const empty = { protocol: "durable_v2", session_id: "session", conversation_id: "conversation", turns: [] };
 
+test("persisted payment uses a financial GET and never falls back to creating another payment", async () => fixture(async f => {
+  const state = { ...empty, payment_intent_id: "pay_fixture" };
+  f.route(url => {
+    if (url.endsWith("/start")) return Response.json(initial);
+    if (url.includes("/chat/state")) return Response.json(state);
+    if (url.includes("/chat/payment?")) return Response.json({ id: "pay_fixture", method: "pix", status: "requires_action",
+      amountCents: 10000, buyerFacing: { qrCodeCopyPaste: "private-fixture-pix" } });
+    throw new Error("unexpected financial mutation");
+  });
+  await f.api.start(); assert.equal(f.api.requiresChatRecovery, true);
+  await assert.rejects(f.api.createPaymentIntent("pix"), ChatRecoveryRequired);
+  const restored = await f.api.recoverChat();
+  const payment = await f.api.readChatPayment(restored);
+  assert.equal(payment?.pix_code, "private-fixture-pix"); assert.equal(payment?.amount_cents, 10000);
+  assert.equal(f.api.requiresChatRecovery, false);
+  await assert.rejects(f.api.createPaymentIntent("boleto"), ChatRecoveryRequired);
+  assert.equal(f.calls.filter(c => c.url.includes("/chat/payment?")).length, 1);
+  assert.equal(f.storage.size, 0);
+}));
+
+test("failed financial reads keep automatic recovery pending and never expose a different intent", async () => fixture(async f => {
+  f.route(url => {
+    if (url.endsWith("/start")) return Response.json(initial);
+    if (url.includes("/chat/state")) return Response.json({ ...empty, payment_intent_id: "pay_fixture" });
+    return Response.json({ id: "pay_foreign", status: "approved", method: "pix", amountCents: 10000 });
+  });
+  await f.api.start(); const state = await f.api.recoverChat();
+  await assert.rejects(f.api.readChatPayment(state), ChatRecoveryRequired);
+  assert.equal(f.api.requiresChatRecovery, true);
+  await assert.rejects(f.api.chat("Continuar"), ChatRecoveryRequired);
+  await assert.rejects(f.api.createRealtimeVoiceSession(), ChatRecoveryRequired);
+  assert.equal(f.calls.some(call => call.url.includes("/payment/intents")), false);
+  assert.throws(() => parseChatState({ ...empty, payment_intent_id: "pay_fixture", active_request: {
+    message_id: "message_00000001", status: "unknown" } }, "session", "conversation"));
+}));
+
 async function fixture(run: (f: { api: CheckoutSession; calls: Array<{ url: string; body: any }>;
   storage: Map<string, string>; route: (fn: (url: string, body: any) => Response | Promise<Response>) => void }) => Promise<void>) {
   const original = globalThis.fetch, storageDescriptor = Object.getOwnPropertyDescriptor(globalThis, "sessionStorage");

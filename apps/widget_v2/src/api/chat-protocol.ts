@@ -10,6 +10,7 @@ export interface ChatState {
   turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string }>;
   request?: ChatReceipt;
   active_request?: ChatReceipt;
+  payment_intent_id?: string;
 }
 
 export function chatReceipt(value: unknown): ChatReceipt | undefined {
@@ -27,12 +28,15 @@ export function parseChatState(value: unknown, sessionId: string, conversationId
     || row.turns.some(turn => !turn || typeof turn.id !== "string" || !["buyer", "agent"].includes(turn.role)
       || typeof turn.text !== "string" || typeof turn.occurred_at !== "string" || !Number.isFinite(Date.parse(turn.occurred_at)))
     || (row.request !== undefined && !chatReceipt(row.request))
+    || (row.payment_intent_id !== undefined && (typeof row.payment_intent_id !== "string"
+      || !/^[a-zA-Z0-9_-]{1,200}$/.test(row.payment_intent_id) || !!row.active_request))
     || (row.active_request !== undefined && (!chatReceipt(row.active_request) || !["processing", "unknown"].includes(row.active_request.status)))) {
     throw new Error("checkout_chat_state_invalid");
   }
   return { protocol: row.protocol, session_id: sessionId, conversation_id: conversationId,
     turns: row.turns.map(turn => ({ id: turn.id, role: turn.role, text: turn.text, occurred_at: turn.occurred_at })),
-    request: chatReceipt(row.request), active_request: chatReceipt(row.active_request) };
+    request: chatReceipt(row.request), active_request: chatReceipt(row.active_request),
+    ...(row.payment_intent_id ? { payment_intent_id: row.payment_intent_id } : {}) };
 }
 
 /** No cached message text, buyer data, token or commercial response. */

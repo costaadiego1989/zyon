@@ -1500,18 +1500,17 @@ integration("recovery fences a live main-chat worker after publication and permi
   let reached!: () => void, release!: () => void;
   const arrived = new Promise<void>(resolve => { reached = resolve; });
   const gate = new Promise<void>(resolve => { release = resolve; });
+  let delayedOnce = false;
   const delayed = new Proxy(prisma, { get(target, prop) {
     if (prop !== "$transaction") return Reflect.get(target, prop);
-    return (fn: any) => target.$transaction(async tx => fn(new Proxy(tx, { get(transaction, key) {
-      if (key !== "checkoutChatRequest") return Reflect.get(transaction, key);
-      return new Proxy(transaction.checkoutChatRequest, { get(delegate, method) {
-        if (method !== "updateMany") return Reflect.get(delegate, method);
-        return async (args: any) => {
-          if (args.data.status === "completed") { reached(); await gate; }
-          return delegate.updateMany(args);
-        };
-      } });
-    } })), { timeout: 20_000 });
+    return async (fn: any, options: any) => {
+      // Pause between publication and finalization, before acquiring its session
+      // lock. Holding that lock while waiting for recovery creates a fixture deadlock.
+      if (!delayedOnce && await target.strategyTurnPublication.count({ where: { merchantId: "store", sessionId: "one" } })) {
+        delayedOnce = true; reached(); await gate;
+      }
+      return target.$transaction(fn, options);
+    };
   } }) as PrismaClient;
   const f = mainChatFixture({ requestPrisma: delayed }); let calls = 0;
   globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;

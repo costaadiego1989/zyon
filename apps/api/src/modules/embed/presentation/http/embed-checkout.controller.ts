@@ -213,6 +213,19 @@ export class EmbedCheckoutController {
     return this.reconcileChat.readState(embed.merchantId, sessionId, messageId);
   }
 
+  @Get("chat/payment")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(120)
+  @RequireEmbedScope("payment:intents:create")
+  async chatPayment(@Req() request: EmbedHttpRequest, @Query("session_id") sessionId: string,
+    @Query("intent_id") intentId: string) {
+    const embed = request.embedClaims!;
+    if (typeof sessionId !== "string" || typeof intentId !== "string") throw new BadRequestException("session_and_intent_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.readPayment(embed.merchantId, sessionId, intentId);
+  }
+
   @Post("offers/apply")
   @RequireEmbedScope("offers:apply")
   async applyOffer(@Req() request: EmbedHttpRequest, @Body() body: ApplyOfferRequest): Promise<ApplyOfferResponse> {

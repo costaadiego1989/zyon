@@ -410,6 +410,7 @@ model CheckoutChatRequest {
   strategyTurn StrategyTurn?
   strategyPublication StrategyTurnPublication?
   resolution CheckoutChatResolution?
+  paymentResolution CheckoutChatPaymentResolution?
 
   @@unique([id, merchantId])
   @@unique([id, merchantId, sessionId])
@@ -424,6 +425,10 @@ model CheckoutChatExchange {
   sessionId    String   @map("session_id")
   exchangeHash String   @map("exchange_hash")
   recordedAt   DateTime @map("recorded_at")
+
+  paymentMethod String? @map("payment_method")
+  paymentCartHash String? @map("payment_cart_hash")
+  paymentContextHash String? @map("payment_context_hash")
 
   request CheckoutChatRequest @relation(fields: [requestId, merchantId, sessionId], references: [id, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
   strategyPublication StrategyTurnPublication?
@@ -449,6 +454,24 @@ model CheckoutChatResolution {
   @@unique([requestId, merchantId, sessionId], map: "checkout_chat_resolution_request_scope_key")
   @@index([merchantId, sessionId, resolvedAt], map: "checkout_chat_resolution_scope_idx")
   @@map("checkout_chat_resolutions")
+}
+
+/// Read-only recovery of a persisted financial result, never permission to retry a charge.
+model CheckoutChatPaymentResolution {
+  requestId String @id @map("request_id")
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  paymentIntentId String @map("payment_intent_id")
+  paymentVersion Int @map("payment_version")
+  paymentStatus String @map("payment_status")
+  previousStatus String @map("previous_status")
+  previousFinishedAt DateTime? @map("previous_finished_at")
+  resolvedAt DateTime @map("resolved_at")
+  request CheckoutChatRequest @relation(fields: [requestId, merchantId, sessionId], references: [id, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict, map: "chat_payment_resolution_request_fk")
+  payment PaymentIntent @relation(fields: [paymentIntentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict, map: "chat_payment_resolution_intent_fk")
+  @@unique([requestId, merchantId, sessionId], map: "chat_payment_resolution_request_scope_key")
+  @@index([merchantId, sessionId, resolvedAt], map: "chat_payment_resolution_scope_idx")
+  @@map("checkout_chat_payment_resolutions")
 }
 
 model CheckoutEvent {
@@ -974,6 +997,7 @@ model PaymentIntent {
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   settlements PaymentSettlement[]
+  chatResolutions CheckoutChatPaymentResolution[]
 
   @@unique([merchantId, sessionId, idempotencyKey])
   @@unique([merchantId, providerPaymentId])

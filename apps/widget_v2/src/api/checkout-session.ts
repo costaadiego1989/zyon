@@ -264,6 +264,7 @@ export interface PaymentIntent {
 }
 
 export class CheckoutSession {
+  private paymentRecoveryPending = false;
   private token: string;
   private merchantId: string;
   private baseUrl: string;
@@ -280,7 +281,7 @@ export class CheckoutSession {
   private pendingReference?: PendingChatReference;
   chatState?: ChatState;
 
-  get requiresChatRecovery(): boolean { return !!this.pendingMessageId; }
+  get requiresChatRecovery(): boolean { return !!this.pendingMessageId || this.paymentRecoveryPending; }
   get usesDurableChat(): boolean { return this.protectedChat; }
 
   constructor(config: CheckoutSessionConfig) {
@@ -352,7 +353,7 @@ export class CheckoutSession {
 
   async chat(message: string): Promise<ChatResponse> {
     this.assertSession();
-    if (this.pendingMessageId || this.chatInFlight) throw new ChatRecoveryRequired();
+    if (this.requiresChatRecovery || this.chatInFlight) throw new ChatRecoveryRequired();
     const messageId = crypto.randomUUID();
     this.chatInFlight = true;
     if (this.protectedChat) this.setPending(messageId);
@@ -386,6 +387,10 @@ export class CheckoutSession {
         this.setPending(undefined);
       }
       if (response.experience) this.experience = { ...this.experience, ...response.experience };
+      if (this.protectedChat && response.stage === "payment_pending") {
+        const state = await this.refreshChatState();
+        if (state.payment_intent_id) throw new ChatRecoveryRequired();
+      }
       return response;
     } catch (error) {
       if (this.protectedChat) { if (!this.pendingMessageId) this.setPending(messageId); throw new ChatRecoveryRequired(); }
@@ -411,6 +416,7 @@ export class CheckoutSession {
     else if (this.pendingMessageId && state.request?.message_id === this.pendingMessageId
       && ["completed", "reconciled", "rejected"].includes(state.request.status)) this.setPending(undefined);
     this.chatState = state;
+    this.paymentRecoveryPending = !!state.payment_intent_id;
     return state;
   }
 
@@ -435,7 +441,7 @@ export class CheckoutSession {
 
   async createRealtimeVoiceSession(): Promise<{ value: string; expires_at?: number }> {
     this.assertSession();
-    if (this.pendingMessageId) throw new ChatRecoveryRequired();
+    if (this.requiresChatRecovery) throw new ChatRecoveryRequired();
     const res = await fetch(`${this.embedBaseUrl}/embed/realtime/session`, {
       method: "POST",
       headers: this.headers(),
@@ -535,12 +541,34 @@ export class CheckoutSession {
     return result;
   }
 
+  async readChatPayment(state: ChatState): Promise<PaymentIntent | undefined> {
+    this.assertSession();
+    if (state.session_id !== this.sessionId || state.conversation_id !== this.conversationId || state.active_request) {
+      throw new ChatRecoveryRequired();
+    }
+    if (!state.payment_intent_id) return undefined;
+    const query = new URLSearchParams({ session_id: this.sessionId!, intent_id: state.payment_intent_id });
+    const res = await fetch(`${this.embedBaseUrl}/embed/chat/payment?${query}`, {
+      headers: this.headers(), cache: "no-store", signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat_payment", res);
+    const intent = await this.mapPaymentResponse(res);
+    if (intent.intent_id !== state.payment_intent_id || intent.status === "pending") throw new ChatRecoveryRequired();
+    if (intent.status === "requires_action" && (
+      (intent.method === "pix" && !intent.pix_code) || (intent.method === "boleto" && !intent.invoice_url)
+      || (intent.method === "credito" && !intent.invoice_url && (!intent.stripe_client_secret || !intent.stripe_publishable_key))
+    )) throw new ChatRecoveryRequired();
+    this.paymentRecoveryPending = false;
+    return intent;
+  }
+
   async createPaymentIntent(
     method: "pix" | "boleto" | "credito" | "debito" | "crypto",
     installments?: number,
     options?: { chain?: "polygon" | "base" }
   ): Promise<PaymentIntent> {
     this.assertSession();
+    if (this.pendingMessageId || this.chatInFlight || this.chatState?.payment_intent_id) throw new ChatRecoveryRequired();
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
     const idempotencyKey = `pay_${this.sessionId}_${apiMethod}_${this.paymentRevision}`;
     console.log('[WIDGET-DBG] API createPaymentIntent', { method: apiMethod, sessionId: this.sessionId });
@@ -556,6 +584,10 @@ export class CheckoutSession {
       }),
     });
     if (!res.ok) throw await CheckoutApiError.fromResponse("embed_payment", res);
+    return this.mapPaymentResponse(res, method);
+  }
+
+  private async mapPaymentResponse(res: Response, method?: PaymentIntent["method"]): Promise<PaymentIntent> {
     const raw = (await res.json()) as {
       id: string;
       status: string;
@@ -588,6 +620,11 @@ export class CheckoutSession {
         nativeCurrency?: { name: string; symbol: string; decimals: number };
       };
     };
+    if (!raw || typeof raw.id !== "string" || !/^[a-zA-Z0-9_-]{1,200}$/.test(raw.id)
+      || !["pix", "card", "boleto", "crypto"].includes(raw.method)
+      || !Number.isSafeInteger(raw.amountCents) || raw.amountCents <= 0
+      || !["pending", "requires_action", "approved", "failed", "cancelled", "refunded", "chargeback_pending",
+        "chargeback_disputed", "chargeback_lost", "chargeback_won"].includes(raw.status)) throw new Error("payment_response_invalid");
     const expiresAtUnix = raw.buyerFacing?.quoteExpiresAt
       ? Math.floor(Date.parse(raw.buyerFacing.quoteExpiresAt) / 1000)
       : undefined;
@@ -596,7 +633,7 @@ export class CheckoutSession {
       : undefined;
     return {
       intent_id: raw.id,
-      method: method,
+      method: method ?? (raw.method === "card" ? "credito" : raw.method as PaymentIntent["method"]),
       status: raw.status,
       pix_code: raw.buyerFacing?.qrCodeCopyPaste,
       pix_qr_url: pixQrUrl,

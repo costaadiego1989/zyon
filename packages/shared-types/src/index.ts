@@ -1097,7 +1097,7 @@ export interface ChatMessageReference {
   message_id: string;
 }
 
-/** Read-only text projection. No executable blocks or payment/offer replay. */
+/** Read-only text and a payment reference. Payment credentials require a separate financial scope. */
 export interface ChatSessionStateResponse {
   protocol: "durable_v2" | "legacy";
   session_id: string;
@@ -1105,6 +1105,7 @@ export interface ChatSessionStateResponse {
   turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string }>;
   request?: { message_id: string; status: "processing" | "unknown" | "completed" | "reconciled" | "rejected" };
   active_request?: { message_id: string; status: "processing" | "unknown" };
+  payment_intent_id?: string;
 }
 
 /** Receipt only; never an old response, authorization or delivery confirmation. */

@@ -29,6 +29,7 @@ export const TENANT_SCOPED_MODELS = [
   "CampaignContactConsent",
   "CartRecoveryStrategyPref",
   "CheckoutChatExchange",
+  "CheckoutChatPaymentResolution",
   "CheckoutChatRequest",
   "CheckoutChatResolution",
   "CheckoutEvent",

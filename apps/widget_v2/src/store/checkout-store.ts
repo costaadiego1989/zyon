@@ -260,9 +260,23 @@ interface CheckoutState {
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
 
-function recoveredMessages(state: ChatState): Message[] {
-  return state.turns.map(turn => ({ id: `server_${turn.id}`, role: turn.role === "buyer" ? "user" : "agent",
+function recoveredMessages(state: ChatState, payment?: PaymentIntent): Message[] {
+  const messages: Message[] = state.turns.map(turn => ({ id: `server_${turn.id}`, role: turn.role === "buyer" ? "user" : "agent",
     text: turn.text, timestamp: Date.parse(turn.occurred_at) }));
+  if (payment) {
+    const actionable = payment.status === "requires_action";
+    const type = payment.method === "pix" ? "pix_payment" : payment.method === "boleto" ? "boleto_payment"
+      : payment.method === "crypto" ? "crypto_payment" : payment.invoice_url ? "hosted_card_payment" : "stripe_card";
+    const text = payment.status === "approved" ? "Pagamento confirmado."
+      : payment.status === "failed" ? "O pagamento foi recusado."
+      : payment.status === "cancelled" ? "Este pagamento foi cancelado."
+      : payment.status === "refunded" ? "Este pagamento foi reembolsado."
+      : actionable ? "Seu pagamento está disponível abaixo."
+      : "Este pagamento está em contestação. Consulte a loja para acompanhar.";
+    messages.push({ id: `payment_${payment.intent_id}`, role: "agent", text, timestamp: Date.now(),
+      ...(actionable ? { blocks: [{ type, data: { ...payment } }] } : {}) });
+  }
+  return messages;
 }
 let wsCleanup: (() => void) | null = null;
 const MAX_POLL_DURATION_MS = 24 * 60 * 60 * 1000;
@@ -439,7 +453,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences, initialChannel }) => {
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
-      set({ api, status: "loading", chatRecovery: null, isTyping: false, messages: [] });
+      get().stopPolling();
+      set({ api, status: "loading", chatRecovery: null, isTyping: false, messages: [], paymentIntent: null });
 
       const response = await api.start();
       if (get().api !== api) return;
@@ -922,8 +937,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     set({ chatRecovery: "checking" });
     try {
       const state = await api.recoverChat();
+      const payment = await api.readChatPayment(state);
       if (get().api !== api) return;
-      set({ messages: recoveredMessages(state), chatRecovery: null, isTyping: false });
+      get().stopPolling();
+      set({ messages: recoveredMessages(state, payment), paymentIntent: payment ?? null, chatRecovery: null, isTyping: false,
+        ...(payment ? { cart: { ...get().cart, totalToPay: payment.amount_cents! / 100,
+          // Approval certifies payment. It does not certify fulfillment/order completion.
+          status: payment.status === "approved" ? "paid" : "ready_to_pay" } } : {}) });
     } catch {
       if (get().api === api) set({ chatRecovery: "blocked", isTyping: false });
     }
@@ -1100,7 +1120,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   pay: async (method, installments) => {
     const { api, cart, leadRegistered } = get();
-    if (!api || get().cartUpdating) return;
+    if (!api || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
 
     const availableMethods = paymentMethodsForConfig(get().merchantPaymentConfig);
     if (!availableMethods.some((available) => available.key === method)) {
@@ -1222,7 +1242,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   selectCryptoChain: async (chain) => {
     const { api, leadRegistered } = get();
-    if (!api || get().cartUpdating) return;
+    if (!api || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
 
     if (!leadRegistered) {
       await get().pay("crypto");

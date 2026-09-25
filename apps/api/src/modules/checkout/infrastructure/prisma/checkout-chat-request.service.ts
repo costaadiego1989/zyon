@@ -5,6 +5,8 @@ import { randomUUID } from "node:crypto";
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
 import { chatMessageIdentity, chatMessageReference, chatMessageTextHash, chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
 import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
+import { chatPaymentRecoveryEnabled } from "../../domain/services/chat-payment-recovery.js";
+import { normalizeBuyerFacing } from "../../../payment/infrastructure/prisma-payment.repository.js";
 
 /** Durable, at-most-once entry to the REAL checkout workflow. No claim takeover,
  * cached offer replay, strategy exposure assertion or transaction around I/O. */
@@ -38,11 +40,44 @@ export class CheckoutChatRequestService {
         turns.push({ id: typeof item.chatRequestId === "string" ? `${item.chatRequestId}:${item.role}` : `${index}:${item.occurredAt}`,
           role: item.role, text: item.text, occurred_at: item.occurredAt });
       }
+      const payment = !active ? await this.paymentReference(tx, merchantId, sessionId) : undefined;
       return { protocol: owned || chatRequestsEnabled(merchantId) ? "durable_v2" : "legacy", session_id: sessionId,
         conversation_id: session.conversationId, turns,
+        ...(payment ? { payment_intent_id: payment } : {}),
         ...(request ? { request: { message_id: request.messageId, status: request.status as NonNullable<ChatSessionStateResponse["request"]>["status"] } } : {}),
         ...(active ? { active_request: { message_id: active.messageId, status: active.status as "processing" | "unknown" } } : {}) };
     }, { isolationLevel: "RepeatableRead" });
+  }
+
+  /** Financial credentials require the same transport scope as payment creation.
+   * No provider calls, financial mutations or new idempotency keys are possible. */
+  async readPayment(merchantId: string, sessionId: string, intentId: string) {
+    if ([merchantId, sessionId, intentId].some(value => typeof value !== "string" || !value.trim() || value.length > 200)) {
+      throw new BadRequestException("CHAT_MESSAGE_INVALID_INPUT");
+    }
+    return this.prisma.$transaction(async tx => {
+      if (await tx.checkoutChatRequest.findFirst({ where: { merchantId, sessionId, status: { in: ["processing", "unknown"] } } })
+        || await this.paymentReference(tx, merchantId, sessionId) !== intentId) {
+        throw new NotFoundException({ code: "CHAT_PAYMENT_NOT_AVAILABLE" });
+      }
+      const payment = await tx.paymentIntent.findFirstOrThrow({ where: { id: intentId, merchantId, sessionId } });
+      return { id: payment.id, method: payment.method, status: payment.status, amountCents: payment.amountCents,
+        currency: payment.currency, buyerFacing: normalizeBuyerFacing(payment.buyerFacing) };
+    }, { isolationLevel: "RepeatableRead" });
+  }
+
+  private async paymentReference(tx: import("@prisma/client").Prisma.TransactionClient, merchantId: string, sessionId: string) {
+    // Use the most recent bound selection. A newer financial attempt, including
+    // one made after flag rollback, must prevent resurfacing an older charge.
+    const exchange = await tx.checkoutChatExchange.findFirst({ where: { merchantId, sessionId, paymentMethod: { not: null } },
+      orderBy: [{ recordedAt: "desc" }, { requestId: "desc" }], include: { request: true } });
+    if (!exchange || !["completed", "reconciled"].includes(exchange.request.status)) return undefined;
+    const [payment] = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT p.id FROM checkout_chat_recoverable_payment(${exchange.requestId}) p
+      WHERE NOT EXISTS (SELECT 1 FROM payment_intents newer
+        WHERE newer.merchant_id = ${merchantId} AND newer.session_id = ${sessionId}
+          AND newer.id <> p.id AND newer.created_at >= p.created_at)`;
+    return payment?.id;
   }
 
   async run(input: ChatMessageRequest, preflight: (request: ChatMessageRequest) => Promise<void>,
@@ -100,6 +135,23 @@ export class CheckoutChatRequestService {
       if (row.conversationId !== ref.conversation_id) throw new ConflictException({ code: "CHAT_CONVERSATION_MISMATCH" });
       if (row.status === "completed" || row.status === "reconciled" || row.status === "rejected") {
         return { chat_request: { message_id: row.messageId, status: row.status, next_action: "refresh_session" } };
+      }
+      if (row.exchange?.paymentMethod) {
+        if (!chatPaymentRecoveryEnabled(ref.merchant_id)) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_RECOVERY_DISABLED" });
+        // Lock the financial row before reading its evidence/version. Never run
+        // provider recovery here: the financial reconciliation worker owns it.
+        await tx.$queryRaw`SELECT id FROM payment_intents WHERE merchant_id = ${ref.merchant_id}
+          AND session_id = ${ref.session_id} AND idempotency_key = ${`chat:${row.id}`} FOR SHARE`;
+        const [payment] = await tx.$queryRaw<Array<{ id: string; version: number; status: string }>>`
+          SELECT id, version, status FROM checkout_chat_recoverable_payment(${row.id})`;
+        if (!payment) throw this.receiptConflict(row);
+        const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
+        await tx.checkoutChatPaymentResolution.create({ data: { requestId: row.id, ...scope,
+          paymentIntentId: payment.id, paymentVersion: payment.version, paymentStatus: payment.status,
+          previousStatus: row.status, previousFinishedAt: row.finishedAt, resolvedAt: clock.now } });
+        await tx.checkoutChatRequest.update({ where: { id: row.id, merchantId: row.merchantId },
+          data: { status: "reconciled", finishedAt: clock.now, responseHash: null } });
+        return { chat_request: { message_id: row.messageId, status: "reconciled", next_action: "refresh_session" } };
       }
       const enabled = process.env.CHECKOUT_CHAT_RECOVERY_ENABLED === "true"
         && (process.env.CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS ?? "").split(",").map(id => id.trim())
@@ -162,6 +214,8 @@ export class CheckoutChatRequestService {
 
   private async finish(row: CheckoutChatRequest, status: "completed" | "unknown" | "rejected", responseHash: string | null) {
     return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${row.merchantId}
+        AND session_id = ${row.sessionId} FOR UPDATE`;
       const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
       const changed = await tx.checkoutChatRequest.updateMany({ where: { id: row.id, merchantId: row.merchantId,
         sessionId: row.sessionId, requestHash: row.requestHash, status: "processing" },

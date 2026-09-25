@@ -9,6 +9,19 @@ import type { StartCheckoutRequest } from "@zyon/shared-types";
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 
 describe("EmbedCheckoutController", () => {
+  it("payment recovery uses the signed session and merchant before reading financial credentials", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+    const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ merchantId: "m1", sessionId }));
+    const seen: unknown[] = [];
+    const controller = new EmbedCheckoutController({} as never, {} as never, {} as never, new EmbedCheckoutGuardHelper(repo),
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, undefined,
+      { readPayment(...args: unknown[]) { seen.push(args); return { id: "intent" }; } } as never);
+    await assert.rejects(controller.chatPayment({ embedClaims: claims }, "foreign", "intent"), /binding_mismatch/);
+    assert.equal(seen.length, 0);
+    assert.deepEqual(await controller.chatPayment({ embedClaims: claims }, sessionId, "intent"), { id: "intent" });
+    assert.deepEqual(seen, [["m1", sessionId, "intent"]]);
+  });
   it("history requires the token-bound session and start advertises only capability", async () => {
     const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
     const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();

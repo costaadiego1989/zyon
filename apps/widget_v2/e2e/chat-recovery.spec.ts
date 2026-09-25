@@ -2,7 +2,8 @@ import { test, expect, type Page } from "@playwright/test";
 
 const widgetUrl = process.env.WIDGET_RECOVERY_TEST_URL ?? "http://127.0.0.1:5174";
 
-async function setup(page: Page, theme = "light", unavailable = false) {
+async function setup(page: Page, theme = "light", unavailable = false,
+  payment?: { method: "pix" | "boleto" | "card"; status: string; normal?: boolean; unavailable?: boolean }) {
   let currentId = "", recovered = false;
   let release!: () => void;
   const ready = new Promise<void>(resolve => { release = resolve; });
@@ -14,6 +15,7 @@ async function setup(page: Page, theme = "light", unavailable = false) {
     ] : [],
     ...(currentId ? { request: { message_id: currentId, status: recovered ? "reconciled" : "unknown" } } : {}),
     ...(currentId && !recovered ? { active_request: { message_id: currentId, status: "unknown" } } : {}),
+    ...(payment && recovered ? { payment_intent_id: "pay_recovered_fixture" } : {}),
   });
   await page.route("**/*", route => new URL(route.request().url()).hostname === "127.0.0.1" ? route.fallback() : route.abort());
   await page.route("**/embed/**", async route => {
@@ -24,6 +26,14 @@ async function setup(page: Page, theme = "light", unavailable = false) {
       experience: { brand: { name: "Loja de teste", theme: { mode: theme } }, agent: { name: "Assistente" },
         items: [{ sku: "P1", name: "Produto de teste", unit_price: 99.9, quantity: 1 }], totals: { subtotal: 99.9, total: 99.9 }, rules: { showBranding: false } } });
     if (path === "/embed/chat/state") return json(state());
+    if (path === "/embed/chat/payment" && payment) {
+      expect(route.request().method()).toBe("GET");
+      expect(new URL(route.request().url()).searchParams.get("intent_id")).toBe("pay_recovered_fixture");
+      if (payment.unavailable) return json({ code: "chat_payment_not_available" }, 404);
+      return json({ id: "pay_recovered_fixture", method: payment.method, status: payment.status, amountCents: 10200,
+        buyerFacing: { qrCodeCopyPaste: "fixture-only-pix-code", invoiceUrl: "https://example.invalid/invoice" } });
+    }
+    if (path === "/embed/payment/intents/pay_recovered_fixture/status") return json({ status: payment?.status });
     if (path === "/embed/chat") {
       const body = route.request().postDataJSON();
       expect(body.conversation_id).toBe("conversation-real");
@@ -31,6 +41,11 @@ async function setup(page: Page, theme = "light", unavailable = false) {
       messages.push(body.message_id);
       if (recovered) return json({ message: "Podemos continuar.", stage: "customer_data", missing_fields: [], chat_request: { message_id: body.message_id, status: "completed" } });
       currentId = body.message_id;
+      if (payment?.normal) {
+        recovered = true;
+        return json({ message: "Acompanhe o pagamento.", stage: "payment_pending",
+          chat_request: { message_id: currentId, status: "completed" } });
+      }
       return json({ code: "chat_message_reconciliation_required", chat_request: { message_id: currentId, status: "unknown", next_action: "refresh_session" } }, 503);
     }
     if (path === "/embed/chat/reconcile") {
@@ -49,6 +64,64 @@ async function setup(page: Page, theme = "light", unavailable = false) {
   await expect(page.getByRole("textbox", { name: "Mensagem", exact: true })).toBeVisible();
   return { messages, calls, allowRecovery: () => { unavailable = false; release(); } };
 }
+
+for (const method of ["pix", "boleto", "card"] as const) test(`restores the same ${method} after loss and reload without a second creation`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  const f = await setup(page, method === "card" ? "dark" : "light", false, { method, status: "requires_action" });
+  const input = page.getByRole("textbox", { name: "Mensagem", exact: true });
+  await input.fill("Pode explicar esta etapa?"); await input.press("Enter"); f.allowRecovery();
+  const control = method === "pix" ? page.getByRole("button", { name: "Copiar código", exact: true })
+    : page.getByRole("link", { name: method === "boleto" ? "Abrir boleto seguro" : "Continuar para o pagamento seguro" });
+  await expect(control).toBeVisible(); await expect(input).toBeEnabled();
+  await expect(page.getByText("Seu pagamento está disponível abaixo.", { exact: true })).toHaveCount(1);
+  await expect(page.getByText(/Pagamento confirmado/, { exact: false })).toHaveCount(0);
+  await page.screenshot({ path: testInfo.outputPath(`payment-recovery-${method}.png`), fullPage: true });
+  await page.evaluate(async () => {
+    const { useCheckoutStore } = await import("/src/store/checkout-store.ts");
+    await useCheckoutStore.getState().pay("pix");
+    await useCheckoutStore.getState().selectCryptoChain("base");
+  });
+  await page.reload(); await expect(control).toBeVisible();
+  expect(f.messages).toHaveLength(1);
+  expect(f.calls.filter(path => path === "/embed/chat/reconcile")).toHaveLength(1);
+  expect(f.calls.filter(path => path === "/embed/chat/payment")).toHaveLength(2);
+  expect(f.calls.filter(path => path === "/embed/payment/intents")).toHaveLength(0);
+  await expect(page.getByRole("button", { name: /Verificar conversa|Tentar novamente/ })).toHaveCount(0);
+  const retained = await page.evaluate(() => JSON.stringify(Object.entries(sessionStorage)));
+  expect(retained).not.toContain("fixture-only-pix-code");
+});
+
+test("a normal durable payment reply also displays the saved payment without a create request", async ({ page }) => {
+  const f = await setup(page, "light", false, { method: "pix", status: "requires_action", normal: true });
+  const input = page.getByRole("textbox", { name: "Mensagem", exact: true });
+  await input.fill("Pix"); await input.press("Enter");
+  await expect(page.getByRole("button", { name: "Copiar código", exact: true })).toBeVisible();
+  expect(f.calls.filter(path => path === "/embed/chat/reconcile")).toHaveLength(0);
+  expect(f.calls.filter(path => path === "/embed/payment/intents")).toHaveLength(0);
+});
+
+test("unavailable financial details keep recovery blocked without offering another charge", async ({ page }) => {
+  await page.clock.install();
+  const f = await setup(page, "light", false, { method: "pix", status: "requires_action", normal: true, unavailable: true });
+  const input = page.getByRole("textbox", { name: "Mensagem", exact: true });
+  await input.fill("Pix"); await input.press("Enter");
+  await expect.poll(() => f.calls.filter(path => path === "/embed/chat/payment").length).toBe(1);
+  await page.clock.runFor(1_100);
+  await expect.poll(() => f.calls.filter(path => path === "/embed/chat/payment").length).toBe(2);
+  await expect(input).toBeDisabled();
+  await expect(page.getByRole("button", { name: /Copiar código|Tentar novamente|Verificar conversa/ })).toHaveCount(0);
+  expect(f.calls.filter(path => path === "/embed/payment/intents")).toHaveLength(0);
+});
+
+for (const status of ["approved", "failed", "refunded"]) test(`restores ${status} without presenting payment controls`, async ({ page }) => {
+  const f = await setup(page, "light", false, { method: "pix", status, normal: true });
+  const input = page.getByRole("textbox", { name: "Mensagem", exact: true });
+  await input.fill("Pix"); await input.press("Enter");
+  const text = status === "approved" ? "Pagamento confirmado." : status === "failed" ? "O pagamento foi recusado." : "Este pagamento foi reembolsado.";
+  await expect(page.getByText(text, { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Copiar código", exact: true })).toHaveCount(0);
+  expect(f.calls.filter(path => path === "/embed/payment/intents")).toHaveLength(0);
+});
 
 for (const width of [320, 1440]) for (const theme of ["light", "dark"]) {
   test(`automatically restores the saved response at ${width}px in ${theme}`, async ({ page }, testInfo) => {

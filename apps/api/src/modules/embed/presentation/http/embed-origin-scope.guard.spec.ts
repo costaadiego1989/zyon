@@ -117,6 +117,16 @@ describe("EmbedAuthGuard origin binding", () => {
 });
 
 describe("EmbedAuthGuard scope enforcement", () => {
+  it("chat payment credentials require financial scope, never just chat or status access", () => {
+    const handler = EmbedCheckoutController.prototype.chatPayment as unknown as () => void;
+    for (const scope of ["checkout:chat", "payment:intents:read", "payment:intents:create"] as const) {
+      const signed = tokenFor({ scopes: [scope], allowedOrigin: "https://shop.example" });
+      const guard = new EmbedAuthGuard(signed.svc, new Reflector());
+      const request = ctx({ "x-aacp-embed-token": signed.token, origin: "https://shop.example" }, handler);
+      if (scope === "payment:intents:create") assert.equal(guard.canActivate(request), true);
+      else assert.throws(() => guard.canActivate(request), ForbiddenException);
+    }
+  });
   it("actual history and recovery routes reject a start-only token and require chat scope", () => {
     const start = tokenFor({ scopes: ["checkout:start"] });
     const chat = tokenFor({ scopes: ["checkout:chat"] });

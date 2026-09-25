@@ -85,7 +85,9 @@ test("provider route extraction preserves ordered fallbacks, pinning and duplica
 test("payment routing revision rejects preexisting proposals without changing their frozen baseline", () => {
   const baseline = captureCheckoutChatBaseline(input, env)!;
   const { paymentRouting, ...previous } = baseline;
-  assert.equal(paymentRouting, "checkout-payment-routing-v1");
+  assert.equal(paymentRouting, "checkout-payment-routing-v2");
+  assert.throws(() => renderCheckoutChatBaseline({ ...baseline, paymentRouting: "checkout-payment-routing-v1" } as any,
+    "store", { stage: "payment" }), /BASELINE_INVALID/);
   assert.notEqual(checkoutBaselineReference(previous as any), checkoutBaselineReference(baseline));
   assert.throws(() => renderCheckoutChatBaseline(previous as any, "store", { stage: "payment" }), /BASELINE_INVALID/);
 });
