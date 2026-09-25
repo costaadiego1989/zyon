@@ -242,6 +242,108 @@ integration("strategy metrics cannot mature sessions by rewriting their entry ti
   assert.deepEqual(result.reasons, []);
 });
 
+async function costCatalog(costInCents: number | null = 2500, merchantId = "store", currency = "BRL") {
+  const id = randomUUID();
+  const product = await prisma.product.create({ data: { id: `product-${id}`, merchantId, name: "Cost fixture",
+    variants: { create: { id, sku: `sku-${id}`, price: { create: { basePriceInCents: 5000, costInCents, currency, taxPercent: 5 } } } } },
+    include: { variants: { include: { price: true } } } });
+  return product.variants[0];
+}
+const costLine = (variant: { id: string; sku: string }, quantity = 2) => ({ variantId: variant.id, sku: variant.sku,
+  name: "Cost fixture", unitPriceCents: 5000, quantity });
+async function costOrder(id: string, lines: unknown, sessionId = "one") {
+  return prisma.completedOrder.create({ data: { id, merchantId: "store", sessionId, externalOrderId: id, currency: "BRL",
+    orderTotal: 100, completedAt: new Date(), lineItemsJson: lines as any } });
+}
+
+integration("catalog cost is captured with the order and cannot be rewritten by price changes or retries", async () => {
+  await activate(); const variant = await costCatalog();
+  await repo.createSessionIfAbsent(session("one", { cart: { ...session("one").cart,
+    items: [{ sku: variant.sku, variantId: variant.id, name: "Fixture", quantity: 2, price: 50, cost: .01 }] } }));
+  const input = { merchantId: "store", sessionId: "one", externalOrderId: "cost-one", orderTotal: 100, currency: "BRL" as const,
+    status: "approved" as const, completedAt: new Date().toISOString(), lineItems: [costLine(variant)] };
+  assert.equal((await repo.transaction(tx => tx.saveCompletedOrder(input))).idempotent, false);
+  const original = await prisma.strategyOrderCostSnapshot.findFirstOrThrow();
+  assert.equal(original.productCostCents, 5000n); assert.deepEqual(original.issues, []);
+  assert.equal((original.lineCosts as any)[0].priceId, variant.price!.id);
+  assert.equal((original.lineCosts as any)[0].unitCostCents, 2500);
+  await prisma.productPrice.update({ where: { variantId: variant.id }, data: { costInCents: 9000 } });
+  assert.equal((await repo.transaction(tx => tx.saveCompletedOrder(input))).idempotent, true);
+  assert.deepEqual(await prisma.strategyOrderCostSnapshot.findFirstOrThrow(), original);
+  await assert.rejects(prisma.completedOrder.update({ where: { id: original.orderId }, data: { lineItemsJson: [costLine(variant, 1)] } }), /CONTEXT_IMMUTABLE/);
+  await assert.rejects(prisma.completedOrder.update({ where: { id: original.orderId }, data: { completedAt: new Date(Date.now() + 86_400_000) } }), /CONTEXT_IMMUTABLE/);
+  await prisma.completedOrder.update({ where: { id: original.orderId }, data: { status: "refunded", trackingCode: "updated" } });
+  assert.deepEqual(await prisma.strategyOrderCostSnapshot.findFirstOrThrow(), original);
+  await assert.rejects(prisma.strategyOrderCostSnapshot.update({ where: { orderId: original.orderId }, data: { productCostCents: 1 } }), /IMMUTABLE/);
+  await assert.rejects(prisma.strategyOrderCostSnapshot.delete({ where: { orderId: original.orderId } }), /IMMUTABLE/);
+  await assert.rejects(prisma.strategyOrderCostSnapshot.create({ data: { ...original, orderId: "forged", productCostCents: 1 } }), /IMMUTABLE/);
+  const scoped = registerTenantMiddleware(prisma, { get: () => ({ merchantId: "other" }) } as any);
+  assert.equal(await scoped.strategyOrderCostSnapshot.count({ where: { merchantId: "store" } }), 0);
+});
+
+integration("catalog cost missing, foreign, mismatched and invalid lines stay unknown without blocking orders", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const valid = await costCatalog(), missing = await costCatalog(null), foreign = await costCatalog(1, "other"), usd = await costCatalog(1, "store", "USD");
+  const cases = [ ["missing", [costLine(missing)], "catalog_cost_missing"],
+    ["foreign", [costLine(foreign)], "catalog_price_missing"], ["currency", [costLine(usd)], "catalog_currency_mismatch"],
+    ["quantity", [costLine(valid, 0)], "order_line_invalid"], ["empty", [], "order_items_missing"],
+    ["not-array", {}, "order_items_missing"], ["partial", [costLine(valid), costLine(missing)], "catalog_cost_missing"] ] as const;
+  for (const [id, lines, issue] of cases) {
+    await costOrder(id, lines);
+    const snapshot = await prisma.strategyOrderCostSnapshot.findUniqueOrThrow({ where: { orderId: id } });
+    assert.equal(snapshot.productCostCents, null); assert.ok(snapshot.issues.includes(issue));
+  }
+  assert.equal(await prisma.completedOrder.count(), cases.length);
+});
+
+integration("catalog cost does not infer option costs or expose unsafe monetary totals", async () => {
+  await activate(); const variant = await costCatalog();
+  await repo.createSessionIfAbsent(session("one", { cart: { ...session("one").cart, items: [{ sku: variant.sku, variantId: variant.id,
+    quantity: 2, price: 50, name: "Fixture", selected_options: [{ group_name: "Extra", item_name: "Extra", price_modifier: 10 }] }] } }));
+  await costOrder("option-order", [costLine(variant)]);
+  assert.ok((await prisma.strategyOrderCostSnapshot.findUniqueOrThrow({ where: { orderId: "option-order" } })).issues.includes("option_cost_unverified"));
+  await repo.createSessionIfAbsent(session("plain"));
+  const expensive = await costCatalog(2_000_000_000);
+  await costOrder("overflow-order", [costLine(expensive, 999_999_999)], "plain");
+  const overflow = await prisma.strategyOrderCostSnapshot.findUniqueOrThrow({ where: { orderId: "overflow-order" } });
+  assert.equal(overflow.productCostCents, null); assert.ok(overflow.issues.includes("line_product_cost_overflow"));
+  assert.equal((overflow.lineCosts as any)[0].costCents, null);
+});
+
+integration("catalog cost snapshots roll back with the order and never backfill historical or holdout orders", async () => {
+  const variant = await costCatalog();
+  await repo.createSessionIfAbsent(session("one"));
+  await costOrder("historic", [costLine(variant)]);
+  await activate(); await repo.createSessionIfAbsent(session("assigned"));
+  await repo.createSessionIfAbsent(session("holdout", { cohort: "holdout" }));
+  await costOrder("holdout", [costLine(variant)], "holdout");
+  await assert.rejects(prisma.$transaction(async tx => {
+    await tx.completedOrder.create({ data: { id: "rolled-back", merchantId: "store", sessionId: "assigned", externalOrderId: "rolled-back",
+      currency: "BRL", orderTotal: 100, completedAt: new Date(), lineItemsJson: [costLine(variant)] } });
+    assert.equal(await tx.strategyOrderCostSnapshot.count(), 1);
+    throw new Error("SIMULATED_ORDER_ROLLBACK");
+  }), /ORDER_ROLLBACK/);
+  assert.equal(await prisma.strategyOrderCostSnapshot.count(), 0);
+  assert.equal(await prisma.completedOrder.count(), 2);
+});
+
+integration("catalog cost coverage in strategy results uses frozen costs and never presents partial cost as complete", async () => {
+  const f = await measuredPopulation(), variant = await costCatalog();
+  await costOrder("covered", [costLine(variant)], "control-0");
+  await prisma.productPrice.update({ where: { variantId: variant.id }, data: { costInCents: 9999 } });
+  const when = new Date(Date.now() + 25 * 3_600_000);
+  const first = (await f.metrics.capture("store", f.execution.experimentId, "catalog-covered", when)).result as any;
+  assert.deepEqual(first.economics.control, { orders: 1, capturedOrders: 1, coveredOrders: 1,
+    configuredProductCostCents: 5000, knownConfiguredProductCostCents: 5000 });
+  assert.equal(first.economics.treatment.configuredProductCostCents, null);
+  await costOrder("uncovered", [], "control-1");
+  const partial = (await f.metrics.capture("store", f.execution.experimentId, "catalog-partial", when)).result as any;
+  assert.equal(partial.economics.control.orders, 2); assert.equal(partial.economics.control.coveredOrders, 1);
+  assert.equal(partial.economics.control.configuredProductCostCents, null);
+  assert.equal(partial.economics.control.knownConfiguredProductCostCents, 5000);
+  assert.equal(partial.contributionCents, null); assert.equal(partial.aiCostCents, null);
+});
+
 integration("activation copies the exact reviewed plan and is idempotent under concurrency", async () => {
   const f = await proposalFixture();
   const results = await Promise.all(Array.from({ length: 6 }, () => prisma.$transaction(tx => registerApprovedExecution(tx, "store", f.approvalId))));

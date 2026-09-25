@@ -16,16 +16,20 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
       JOIN checkout_sessions s ON s.merchant_id = a.merchant_id AND s.session_id = a.session_id
       WHERE a.merchant_id = ${merchantId} AND a.execution_id = ${execution.id}
     ), measured AS (
-      SELECT a.*, o.orders, o.cents, o.other_currency, o.bad_amount,
+      SELECT a.*, o.orders, o.cents, o.other_currency, o.bad_amount, o.cost_snapshots, o.priced_orders, o.catalog_cost,
         t.turns, t.published, t.displayed, t.provider_failed, t.provider_unknown, t.suppressed
       FROM assigned a
       LEFT JOIN LATERAL (
         SELECT count(*) AS orders,
-          COALESCE(sum(round(order_total * 100)) FILTER (WHERE currency = 'BRL'), 0) AS cents,
-          count(*) FILTER (WHERE currency <> 'BRL') AS other_currency,
+          count(c.order_id) AS cost_snapshots, count(c.product_cost_cents) AS priced_orders,
+          COALESCE(sum(c.product_cost_cents), 0) AS catalog_cost,
+          COALESCE(sum(round(order_total * 100)) FILTER (WHERE o.currency = 'BRL'), 0) AS cents,
+          count(*) FILTER (WHERE o.currency <> 'BRL') AS other_currency,
           count(*) FILTER (WHERE order_total < 0 OR order_total * 100 <> trunc(order_total * 100)) AS bad_amount
-        FROM completed_orders WHERE merchant_id = ${merchantId} AND session_id = a.session_id AND status = 'approved'
-          AND completed_at >= a.assigned_at AND completed_at < a.cutoff AND completed_at <= ${asOf}
+        FROM completed_orders o LEFT JOIN strategy_order_cost_snapshots c
+          ON c.order_id = o.id AND c.merchant_id = o.merchant_id AND c.captured_at <= ${asOf}
+        WHERE o.merchant_id = ${merchantId} AND o.session_id = a.session_id AND o.status = 'approved'
+          AND o.completed_at >= a.assigned_at AND o.completed_at < a.cutoff AND o.completed_at <= ${asOf}
       ) o ON true
       LEFT JOIN LATERAL (
         SELECT count(*) AS turns,
@@ -45,6 +49,9 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
       count(*) FILTER (WHERE cutoff <= ${asOf} AND orders > 0) AS converted,
       COALESCE(sum(orders) FILTER (WHERE cutoff <= ${asOf}), 0) AS orders,
       COALESCE(sum(cents) FILTER (WHERE cutoff <= ${asOf}), 0) AS cents,
+      COALESCE(sum(cost_snapshots) FILTER (WHERE cutoff <= ${asOf}), 0) AS cost_snapshots,
+      COALESCE(sum(priced_orders) FILTER (WHERE cutoff <= ${asOf}), 0) AS priced_orders,
+      COALESCE(sum(catalog_cost) FILTER (WHERE cutoff <= ${asOf}), 0) AS catalog_cost,
       count(*) FILTER (WHERE cutoff > ${asOf} AND orders > 0) AS pending_converted,
       COALESCE(sum(cents) FILTER (WHERE cutoff > ${asOf}), 0) AS pending_cents,
       count(*) FILTER (WHERE turns > 0) AS sessions_with_turn,
@@ -63,6 +70,19 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
       count(*) FILTER (WHERE cart->>'currency' IS DISTINCT FROM 'BRL') AS changed_currency,
       COALESCE(sum(other_currency), 0) AS other_currency, COALESCE(sum(bad_amount), 0) AS bad_amount
     FROM measured GROUP BY variant_id ORDER BY variant_id`;
+}
+
+export function strategyCostCoverage(rows: Array<Record<string, bigint | number | string>>, plan: MeasurementPlan) {
+  const arm = (id: string) => {
+    const row = rows.find(r => r.variant === id);
+    const orders = Number(row?.orders ?? 0), capturedOrders = Number(row?.cost_snapshots ?? 0), coveredOrders = Number(row?.priced_orders ?? 0);
+    const known = Number(row?.catalog_cost ?? 0), safe = Number.isSafeInteger(known) && known >= 0;
+    return { orders, capturedOrders, coveredOrders,
+      configuredProductCostCents: orders > 0 && coveredOrders === orders && safe ? known : null,
+      knownConfiguredProductCostCents: coveredOrders > 0 && safe ? known : null };
+  };
+  return { definition: "strategy-order-cost-coverage-v1", source: "catalog_at_order_recording",
+    control: arm(plan.controlVariantId), treatment: arm(plan.treatmentVariantId) };
 }
 
 export function strategyDeliveryMetrics(rows: Array<Record<string, bigint | number | string>>, plan: MeasurementPlan) {

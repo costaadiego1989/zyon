@@ -647,7 +647,9 @@ model CompletedOrder {
   cancellationReason String?   @map("cancellation_reason")
 
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+  strategyCostSnapshot StrategyOrderCostSnapshot?
 
+  @@unique([id, merchantId])
   @@unique([merchantId, sessionId, externalOrderId])
   @@index([merchantId, completedAt])
   @@index([merchantId, status, completedAt])
@@ -3626,11 +3628,31 @@ model StrategyAssignment {
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Restrict)
   turns StrategyTurn[]
   stop StrategyAssignmentStop?
+  orderCosts StrategyOrderCostSnapshot[]
   @@unique([id, merchantId])
   @@unique([merchantId, sessionId])
   @@unique([executionId, merchantId, globalUserId])
   @@index([executionId, merchantId, assignedAt])
   @@map("strategy_assignments")
+}
+
+/// Catalog costs captured atomically when an assigned order is first recorded.
+/// This is a configured merchandise cost, never proof of realized contribution.
+model StrategyOrderCostSnapshot {
+  orderId String @id @map("order_id")
+  merchantId String @map("merchant_id")
+  assignmentId String @map("assignment_id")
+  definition String
+  currency String
+  lineCosts Json @map("line_costs")
+  productCostCents BigInt? @map("product_cost_cents")
+  issues String[]
+  capturedAt DateTime @default(now()) @map("captured_at")
+  order CompletedOrder @relation(fields: [orderId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  assignment StrategyAssignment @relation(fields: [assignmentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([orderId, merchantId])
+  @@index([merchantId, assignmentId])
+  @@map("strategy_order_cost_snapshots")
 }
 
 /// A verified/corrected checkout identity must not break checkout or silently

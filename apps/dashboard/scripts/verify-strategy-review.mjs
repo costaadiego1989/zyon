@@ -78,6 +78,9 @@ try {
               control: arm, treatment: { ...arm, converted: 12, orders: 12, revenueCents: 150000 }, minimumSessionsPerArm: 14800,
               interval: metricsState === "positive" ? { effectBps: 500, lowerBps: 100, upperBps: 900 } : null,
               contributionCents: null, aiCostCents: null, promotionAllowed: false,
+              economics: { definition: "strategy-order-cost-coverage-v1", source: "catalog_at_order_recording",
+                control: { orders: 9, capturedOrders: 9, coveredOrders: 9, configuredProductCostCents: 50000, knownConfiguredProductCostCents: 50000 },
+                treatment: { orders: 12, capturedOrders: 12, coveredOrders: 10, configuredProductCostCents: null, knownConfiguredProductCostCents: 60000 } },
               delivery: { definition: "strategy-assignment-delivery-v1", control: delivery, treatment: { ...delivery, sessionsWithDisplay: 62 } },
             } } : null };
         }
@@ -211,6 +214,8 @@ try {
     assert.match(await results.getByRole("row", { name: /Conversão nas sessões encerradas/ }).innerText(), /10%\s+15%/);
     assert.match(await results.innerText(), /40 sessões ainda podem converter/);
     assert.match(await results.innerText(), /não representa receita incremental/);
+    assert.match(await results.getByRole("row", { name: /Custo de produtos cadastrado/ }).innerText(), /500,00\s+Sem dados/);
+    assert.match(await results.innerText(), /preservados para 19 de 21 pedidos/);
     await noOverflow("metrics");
     if (out) await results.screenshot({ path: `${out}/strategy-metrics-${width}.png` });
     metricsFailure = true;

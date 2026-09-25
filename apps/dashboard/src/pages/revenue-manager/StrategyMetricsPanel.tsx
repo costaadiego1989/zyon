@@ -35,6 +35,7 @@ export function StrategyMetricsPanel({ strategyId, version, proposalHash }: { st
   const result = data?.measurement?.result;
   const supported = result?.definitionVersion === "session-conversion-fixed-horizon-v1"
     && result.delivery?.definition === "strategy-assignment-delivery-v1";
+  const costs = result?.economics?.definition === "strategy-order-cost-coverage-v1" ? result.economics : undefined;
   return <section className="strategy-detail-section strategy-metrics" aria-labelledby="strategy-results-title">
     <h2 id="strategy-results-title">Resultados desta estratégia</h2>
     {error && <p role="alert" className="strategy-review-error">Não foi possível atualizar os resultados.{data?.measurement ? " Os dados abaixo são da última consulta." : ""}</p>}
@@ -57,12 +58,16 @@ export function StrategyMetricsPanel({ strategyId, version, proposalHash }: { st
             ["Conversão nas sessões encerradas", rate(result.control), rate(result.treatment)],
             ["Pedidos aprovados", number(result.control.orders), number(result.treatment.orders)],
             ["Receita observada (R$)", money(result.control.revenueCents), money(result.treatment.revenueCents)],
+            ...(costs ? [["Custo de produtos cadastrado (R$)",
+              costs.control.configuredProductCostCents == null ? "Sem dados" : money(costs.control.configuredProductCostCents),
+              costs.treatment.configuredProductCostCents == null ? "Sem dados" : money(costs.treatment.configuredProductCostCents)]] : []),
             ["Sessões com mensagem salva", number(result.delivery!.control.sessionsWithPublication), number(result.delivery!.treatment.sessionsWithPublication)],
             ["Sessões com exibição informada", number(result.delivery!.control.sessionsWithDisplay), number(result.delivery!.treatment.sessionsWithDisplay)],
           ]).map(([label, control, treatment]) => <tr key={label}><th scope="row">{label}</th><td>{control}</td><td>{treatment}</td></tr>)}
         </tbody>
       </table></div>
       <p>Todas as sessões participantes entram na comparação, mesmo sem conversa ou compra. Receita e conversão acima consideram apenas sessões com a janela de compra encerrada.</p>
+      {costs && costs.control.orders + costs.treatment.orders > 0 && <p>Custos do catálogo preservados para {number(costs.control.coveredOrders + costs.treatment.coveredOrders)} de {number(costs.control.orders + costs.treatment.orders)} pedidos aprovados. O total do grupo só aparece quando todos os pedidos têm esse custo registrado. Esses valores não incluem frete, taxas ou outros custos e não comprovam lucro.</p>}
       {!!(result.delivery!.control.pending + result.delivery!.treatment.pending) && <p>{number(result.delivery!.control.pending + result.delivery!.treatment.pending)} sessões ainda podem converter. As compras dessas sessões entrarão na comparação quando a janela encerrar.</p>}
       <p>Amostra planejada: {number(result.minimumSessionsPerArm)} sessões por grupo.{result.matureAt ? ` Prazo para concluir as janelas de compra: ${date(result.matureAt)}.` : ""}</p>
       {result.state === "inconclusive" && <p>A amostra ou a diferença observada ainda não sustenta uma conclusão de melhora.</p>}

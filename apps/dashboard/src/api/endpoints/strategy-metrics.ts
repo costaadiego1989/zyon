@@ -8,6 +8,10 @@ export interface StrategyDeliveryArm {
   failedProviderTurns: number; unresolvedProviderTurns: number; suppressedTurns: number;
   pendingConvertedSessions: number; pendingRevenueCents: number;
 }
+export interface StrategyCostArm {
+  orders: number; capturedOrders: number; coveredOrders: number;
+  configuredProductCostCents: number | null; knownConfiguredProductCostCents: number | null;
+}
 export interface StrategyMetrics {
   strategyId: string; version: number;
   execution: null | { id: string; proposalHash: string; status: string; startedAt: string; endsAt: string; stoppedAt: string | null };
@@ -16,6 +20,7 @@ export interface StrategyMetrics {
     control: StrategyMetricArm; treatment: StrategyMetricArm; minimumSessionsPerArm: number;
     interval: null | { effectBps: number; lowerBps: number; upperBps: number };
     contributionCents: number | null; aiCostCents: number | null; promotionAllowed: boolean;
+    economics?: { definition: string; source: string; control: StrategyCostArm; treatment: StrategyCostArm };
     delivery?: { definition: string; populationSource: string; displayBasis: string;
       control: StrategyDeliveryArm; treatment: StrategyDeliveryArm };
   } };
