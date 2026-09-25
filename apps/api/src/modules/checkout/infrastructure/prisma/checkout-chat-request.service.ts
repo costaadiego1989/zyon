@@ -1,9 +1,9 @@
 import { ConflictException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import type { CheckoutChatRequest, PrismaClient } from "@prisma/client";
-import type { ChatMessageRequest, ChatMessageResponse } from "@zyon/shared-types";
+import type { ChatMessageReference, ChatMessageRecoveryResponse, ChatMessageRequest, ChatMessageResponse } from "@zyon/shared-types";
 import { randomUUID } from "node:crypto";
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
-import { chatMessageIdentity, chatMessageTextHash, chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
+import { chatMessageIdentity, chatMessageReference, chatMessageTextHash, chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
 import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
 
 /** Durable, at-most-once entry to the REAL checkout workflow. No claim takeover,
@@ -38,9 +38,50 @@ export class CheckoutChatRequestService {
       // exception is never proof that retrying the workflow is safe. If even this
       // write fails, the original processing claim continues blocking new work.
       try { await this.finish(row, "unknown", null); } catch { /* durable claim remains */ }
+      // Recovery or a lost completion acknowledgement may have fenced this
+      // worker already. Report the durable terminal receipt, never stale text.
+      const current = await this.prisma.checkoutChatRequest.findFirst({ where: { id: row.id,
+        merchantId: row.merchantId, sessionId: row.sessionId } }).catch(() => null);
+      if (current && ["completed", "reconciled"].includes(current.status)) throw this.receiptConflict(current);
       throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_RECONCILIATION_REQUIRED",
         chat_request: { message_id: row.messageId, status: "unknown", next_action: "refresh_session" } });
     }
+  }
+
+  async reconcile(input: ChatMessageReference): Promise<ChatMessageRecoveryResponse> {
+    // Recovery consumes only a bounded reference, never buyer text or selectors.
+    const ref = chatMessageReference(input);
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${ref.merchant_id}
+        AND session_id = ${ref.session_id} FOR UPDATE`;
+      const scope = { merchantId: ref.merchant_id, sessionId: ref.session_id };
+      const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope }, select: { conversationId: true } });
+      if (!session) throw new NotFoundException({ code: "CHECKOUT_SESSION_NOT_FOUND" });
+      if (session.conversationId !== ref.conversation_id) throw new ConflictException({ code: "CHAT_CONVERSATION_MISMATCH" });
+      await tx.$queryRaw`SELECT id FROM checkout_chat_requests WHERE merchant_id = ${ref.merchant_id}
+        AND session_id = ${ref.session_id} AND message_id = ${ref.message_id} FOR UPDATE`;
+      const row = await tx.checkoutChatRequest.findUnique({ where: { merchantId_sessionId_messageId: {
+        ...scope, messageId: ref.message_id } }, include: { strategyTurn: true, strategyPublication: true, exchange: true } });
+      if (!row) throw new NotFoundException({ code: "CHAT_MESSAGE_NOT_FOUND" });
+      if (row.conversationId !== ref.conversation_id) throw new ConflictException({ code: "CHAT_CONVERSATION_MISMATCH" });
+      if (row.status === "completed" || row.status === "reconciled" || row.status === "rejected") {
+        return { chat_request: { message_id: row.messageId, status: row.status, next_action: "refresh_session" } };
+      }
+      const enabled = process.env.CHECKOUT_CHAT_RECOVERY_ENABLED === "true"
+        && (process.env.CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS ?? "").split(",").map(id => id.trim())
+          .filter(id => id && id !== "*").includes(ref.merchant_id);
+      if (!enabled) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_RECOVERY_DISABLED" });
+      if (row.protocolVersion !== 2 || row.strategyTurn?.publicationPolicy !== "main_chat_text_only_v1"
+        || row.strategyPublication?.decision !== "persisted" || !row.exchange
+        || row.strategyPublication.exchangeRequestId !== row.id) throw this.receiptConflict(row);
+      const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
+      await tx.checkoutChatResolution.create({ data: { requestId: row.id, ...scope,
+        turnId: row.strategyPublication.turnId, previousStatus: row.status,
+        previousFinishedAt: row.finishedAt, resolvedAt: clock.now } });
+      await tx.checkoutChatRequest.update({ where: { id: row.id, merchantId: row.merchantId },
+        data: { status: "reconciled", finishedAt: clock.now, responseHash: null } });
+      return { chat_request: { message_id: row.messageId, status: "reconciled", next_action: "refresh_session" } };
+    });
   }
 
   private async claim(input: ChatMessageRequest) {
@@ -79,7 +120,7 @@ export class CheckoutChatRequestService {
 
   private receiptConflict(row: CheckoutChatRequest) {
     const codes: Record<string, string> = { processing: "CHAT_MESSAGE_IN_PROGRESS", unknown: "CHAT_MESSAGE_RECONCILIATION_REQUIRED",
-      completed: "CHAT_MESSAGE_ALREADY_COMPLETED", rejected: "CHAT_MESSAGE_REJECTED" };
+      completed: "CHAT_MESSAGE_ALREADY_COMPLETED", rejected: "CHAT_MESSAGE_REJECTED", reconciled: "CHAT_MESSAGE_RECONCILED" };
     return new ConflictException({ code: codes[row.status], chat_request: {
       message_id: row.messageId, status: row.status, next_action: "refresh_session",
     } });

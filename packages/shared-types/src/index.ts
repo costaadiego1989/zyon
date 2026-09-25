@@ -1088,6 +1088,18 @@ export interface ChatUiBlock {
   data?: Record<string, unknown>;
 }
 
+export interface ChatMessageReference {
+  merchant_id: string;
+  session_id: string;
+  conversation_id: string;
+  message_id: string;
+}
+
+/** Receipt only; never an old response, authorization or delivery confirmation. */
+export interface ChatMessageRecoveryResponse {
+  chat_request: { message_id: string; status: "completed" | "reconciled" | "rejected"; next_action: "refresh_session" };
+}
+
 export interface ChatMessageResponse {
   /** Processing receipt; does not assert browser delivery or experimental exposure. */
   chat_request?: { message_id: string; status: "completed" };

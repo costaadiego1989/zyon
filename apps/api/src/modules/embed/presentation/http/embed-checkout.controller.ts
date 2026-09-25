@@ -12,12 +12,14 @@ import {
   Req,
   Param,
   UnauthorizedException,
+  ServiceUnavailableException,
   UseGuards
 } from "@nestjs/common";
 import type {
   ApplyOfferRequest,
   ApplyOfferResponse,
   ChatMessageRequest,
+  ChatMessageReference,
   StartCheckoutRequest,
   TrackEventRequest,
   UpdateCartRequest
@@ -26,6 +28,7 @@ import { ApplyOfferUseCase } from "../../../checkout/application/use-cases/apply
 import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/send-chat-message.use-case.js";
+import { ReconcileChatMessageUseCase } from "../../../checkout/application/use-cases/reconcile-chat-message.use-case.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { ConfirmCryptoPaymentUseCase } from "../../../payment/application/confirm-crypto-payment.use-case.js";
 import { ConfirmStripePaymentUseCase } from "../../../payment/application/confirm-stripe-payment.use-case.js";
@@ -105,6 +108,7 @@ export class EmbedCheckoutController {
     private readonly updateCart: UpdateCartUseCase,
     private readonly updateEmbedCustomer: UpdateEmbedCustomerUseCase,
     @Optional() private readonly resolveBuyer?: ResolveEmbedBuyerService,
+    @Optional() private readonly reconcileChat?: ReconcileChatMessageUseCase,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
@@ -178,6 +182,18 @@ export class EmbedCheckoutController {
       ...(rest as Omit<ChatMessageRequest, "merchant_id">),
       merchant_id: embed.merchantId
     });
+  }
+
+  @Post("chat/reconcile")
+  @RateLimit(120)
+  @RequireEmbedScope("checkout:chat")
+  async reconcileMessage(@Req() request: EmbedHttpRequest, @Body() body: ChatMessageReference) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.execute({ merchant_id: embed.merchantId, session_id: body.session_id,
+      conversation_id: body.conversation_id, message_id: body.message_id });
   }
 
   @Post("offers/apply")

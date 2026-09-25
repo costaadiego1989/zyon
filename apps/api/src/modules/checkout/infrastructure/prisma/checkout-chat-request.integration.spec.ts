@@ -17,7 +17,7 @@ import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 
 const url = new URL(process.env.CHECKOUT_CHAT_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
 const enabled = url.hostname === "127.0.0.1" && url.port === "5557"
-  && ["/revenue_chat_exchanges_final_0924", "/revenue_publication_0924"].includes(url.pathname);
+  && url.pathname === "/revenue_recovery_final_0924";
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
 const env = { ...process.env };
 const originalFetch = globalThis.fetch;
@@ -477,10 +477,21 @@ integration("lost database acknowledgement after commit cannot downgrade or repl
       return result;
     };
   } }) as PrismaClient;
-  await assert.rejects(new CheckoutChatRequestService(broken).run(input(), noPreflight, async (request, claim) => { effects++; return completeFixture(request, claim); }), code("CHAT_MESSAGE_RECONCILIATION_REQUIRED", 503));
+  await assert.rejects(new CheckoutChatRequestService(broken).run(input(), noPreflight, async (request, claim) => { effects++; return completeFixture(request, claim); }), code("CHAT_MESSAGE_ALREADY_COMPLETED", 409));
   assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "completed");
   await assert.rejects(service.run(input(), noPreflight, async (request, claim) => { effects++; return completeFixture(request, claim); }), code("CHAT_MESSAGE_ALREADY_COMPLETED"));
   assert.equal(effects, 1);
+});
+
+integration("recovery reads completed and rejected receipts without replay or enabling recovery", async () => {
+  await seed();
+  await service.run(input(), noPreflight, completeFixture);
+  const completedReceipt = await service.reconcile(input() as any);
+  assert.deepEqual(completedReceipt, { chat_request: { message_id: input().message_id, status: "completed", next_action: "refresh_session" } });
+  const rejected = input("message_00000002");
+  await assert.rejects(service.run(rejected, async () => { throw new Error("quota"); }, async () => assert.fail("no work")));
+  assert.equal((await service.reconcile(rejected as any)).chat_request.status, "rejected");
+  assert.equal(await prisma.checkoutChatResolution.count(), 0); assert.equal(await prisma.checkoutChatExchange.count(), 1);
 });
 
 integration("real SendChatMessage persists one conversation exchange for concurrent duplicate requests", async () => {

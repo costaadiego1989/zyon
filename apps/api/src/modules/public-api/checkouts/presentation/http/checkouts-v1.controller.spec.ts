@@ -7,11 +7,11 @@ import { Reflector } from '@nestjs/core';
 import { CheckoutsV1Controller } from './checkouts-v1.controller.js';
 import { TenantCredentialGuard } from '../../../../integrations/presentation/http/tenant-credential.guard.js';
 import { TenantAccessGuard } from '../../../../integrations/presentation/http/tenant-access.guard.js';
-import { SendCheckoutMessageDto } from './dtos/checkout.dtos.js';
+import { SendCheckoutMessageDto, ReconcileCheckoutMessageDto } from './dtos/checkout.dtos.js';
 import { plainToInstance } from 'class-transformer';
 import { validate } from 'class-validator';
 
-async function authorize(method: 'start' | 'get' | 'complete' | 'sendMessage', request: any, scopes: string[] = []) {
+async function authorize(method: 'start' | 'get' | 'complete' | 'sendMessage' | 'reconcileMessage', request: any, scopes: string[] = []) {
   const context = {
     getClass: () => CheckoutsV1Controller,
     getHandler: () => CheckoutsV1Controller.prototype[method],
@@ -80,4 +80,26 @@ test('public chat DTO retains a valid key under whitelist validation and rejects
     const errors = await validate(plainToInstance(SendCheckoutMessageDto, { ...body, message_id }));
     assert.ok(errors.some(error => error.property === 'message_id'));
   }
+});
+
+test('recovery requires write scope and derives tenant, session and message from authenticated transport', async () => {
+  const req = () => ({ headers: { 'x-aacp-api-key': 'aacp_test' } });
+  await assert.rejects(authorize('reconcileMessage', req(), ['checkout:read']), /missing_api_key_scope/);
+  await assert.rejects(authorize('reconcileMessage', { headers: {} }), /missing_tenant_credential/);
+  const request: any = req(); await authorize('reconcileMessage', request, ['checkout:write']);
+  let seen: any;
+  const receipt = { chat_request: { message_id: 'message_00000001', status: 'reconciled', next_action: 'refresh_session' } };
+  const controller = new CheckoutsV1Controller({} as never, {} as never, {} as never, {} as never,
+    {} as never, {} as never, {} as never, {} as never, { execute(input: unknown) { seen = input; return receipt; } } as never);
+  assert.deepEqual(await controller.reconcileMessage(request, 'server-session', 'message_00000001', {
+    conversation_id: 'conversation', merchant_id: 'forged', session_id: 'forged', message_id: 'forged',
+  } as any), receipt);
+  assert.deepEqual(seen, { merchant_id: 'merchant_a', session_id: 'server-session', message_id: 'message_00000001', conversation_id: 'conversation' });
+});
+
+test('recovery DTO preserves only a bounded conversation reference', async () => {
+  const dto = plainToInstance(ReconcileCheckoutMessageDto, { conversation_id: 'conversation', user_message: 'must not replay' });
+  assert.deepEqual(await validate(dto, { whitelist: true }), []);
+  assert.equal((dto as any).user_message, undefined);
+  assert.ok((await validate(plainToInstance(ReconcileCheckoutMessageDto, { conversation_id: 'x'.repeat(201) }))).length);
 });

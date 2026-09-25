@@ -22,11 +22,16 @@ import { chatMessageIdentity, chatMessageTextHash } from "../../checkout/domain/
 import { createSendChatUseCase } from "../../checkout/application/use-cases/send-chat-message.fixture.js";
 import { StrategyCheckoutChatService } from "../../checkout/application/services/strategy-checkout-chat.service.js";
 import { SafeAuthorizedOffer } from "../../checkout/domain/types/safe-authorized-offer.js";
+import { registerTenantMiddleware } from "../../../shared/persistence/tenant.middleware.js";
+import { Body, Controller, HttpCode, Module, Post } from "@nestjs/common";
+import { NestFactory } from "@nestjs/core";
+import { ProblemDetailsFilter } from "../../../shared/http/problem-details.filter.js";
+import { ReconcileChatMessageUseCase } from "../../checkout/application/use-cases/reconcile-chat-message.use-case.js";
 
 // Only this disposable local database can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
 const enabled = url.hostname === "127.0.0.1" && url.port === "5557"
-  && url.pathname === "/revenue_publication_0924";
+  && url.pathname === "/revenue_recovery_final_0924";
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
 const env = { ...process.env };
 const repo = new PrismaCheckoutRepository(prisma);
@@ -43,6 +48,7 @@ beforeEach(async () => {
     REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED: "true",
     REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED: "true",
     REVENUE_STRATEGY_MAIN_CHAT_ENABLED: "false",
+    CHECKOUT_CHAT_RECOVERY_ENABLED: "false", CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS: "store,other",
     CHECKOUT_CHAT_REQUESTS_ENABLED: "true", CHECKOUT_CHAT_REQUEST_MERCHANT_IDS: "store,other",
     REVENUE_CHECKOUT_CONTRACT_ENABLED: "true", CHECKOUT_BEHAVIOR_REVISION: "a".repeat(40),
     CHECKOUT_LLM_PROVIDER: "openai", OPENAI_API_KEY: "fixture-only", OPENAI_MODEL: "fixture-model" };
@@ -1168,4 +1174,254 @@ integration("main chat never resends or duplicates a published response after re
   assert.equal(await prisma.checkoutChatExchange.count(), 1);
   assert.equal((await repo.getSession("store", "one"))!.chatHistory.length, 2);
   await assertNoMainEffects(calls);
+  process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
+  const recovered = await new CheckoutChatRequestService(prisma).reconcile(request);
+  assert.equal(recovered.chat_request.status, "reconciled");
+  const next = mainChatFixture();
+  assert.equal((await next.useCase.execute(buyerRequest())).chat_request?.status, "completed");
+  assert.equal(providerCalls, 2); assert.equal(await prisma.checkoutChatExchange.count(), 2);
+});
+
+async function recoveryFixture(status: "processing" | "unknown" = "unknown", mainChat = true) {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
+  const { input, claim } = await claimFixture();
+  const worker = new StrategyChatDispatcher(ledger, { async callPinned() { return completed; } });
+  const candidate = await worker.dispatch({ ...boundTurn("one", claim, input.user_message),
+    ...(mainChat ? { mainChat: true as const, expectedSession: (await repo.getSession("store", "one"))! } : {}) });
+  if (candidate.status !== "candidate") throw new Error("missing candidate");
+  const publication = await new StrategyChatPublisher(prisma).publish({ merchantId: "store", sessionId: "one",
+    turnId: candidate.turnId, claim, userMessage: input.user_message, result: candidate.result,
+    ...(mainChat ? { mainChat: true as const } : {}) });
+  assert.equal(publication.status, "persisted");
+  if (status === "unknown") {
+    const [clock] = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
+    await prisma.checkoutChatRequest.update({ where: { id: claim.requestId }, data: { status, finishedAt: clock.now } });
+  }
+  process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
+  return { input, claim, candidate };
+}
+
+for (const status of ["processing", "unknown"] as const) integration(`recovery reconciles ${status} from immutable main-chat text evidence without replay`, async () => {
+  const f = await recoveryFixture(status), requests = new CheckoutChatRequestService(prisma);
+  const before = await prisma.checkoutSession.findFirstOrThrow();
+  const response = await requests.reconcile(f.input);
+  assert.deepEqual(response, { chat_request: { message_id: f.input.message_id, status: "reconciled", next_action: "refresh_session" } });
+  assert.deepEqual(await requests.reconcile(f.input), response);
+  assert.deepEqual(await prisma.checkoutSession.findFirstOrThrow(), before);
+  const row = await prisma.checkoutChatRequest.findFirstOrThrow();
+  assert.equal(row.status, "reconciled"); assert.equal(row.responseHash, null);
+  const resolution = await prisma.checkoutChatResolution.findFirstOrThrow();
+  assert.equal(resolution.previousStatus, status); assert.equal(resolution.turnId, f.candidate.turnId);
+  await assert.rejects(requests.run(f.input, async () => assert.fail("no preflight"), async () => assert.fail("no replay")),
+    (error: any) => error.getResponse().chat_request.status === "reconciled");
+  assert.equal(await prisma.checkoutChatResolution.count(), 1); assert.equal(await prisma.strategyTurn.count(), 1);
+});
+
+integration("concurrent recovery writes one proof and never requires a running strategy or an unchanged cart", async () => {
+  const f = await recoveryFixture();
+  const execution = await prisma.strategyExecution.findFirstOrThrow();
+  await ledger.stop({ merchantId: "store", executionId: execution.id, actorId: "fixture", requestKey: "pause-recovery", kind: "paused" });
+  const saved = (await repo.getSession("store", "one"))!;
+  await repo.saveSession({ ...saved, cart: { ...saved.cart, total: 333 } });
+  process.env.REVENUE_STRATEGY_EXECUTION_ENABLED = "false";
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "false";
+  const requests = new CheckoutChatRequestService(prisma);
+  const results = await Promise.all(Array.from({ length: 6 }, () => requests.reconcile(f.input)));
+  assert.ok(results.every(r => r.chat_request.status === "reconciled"));
+  assert.equal(await prisma.checkoutChatResolution.count(), 1);
+  assert.equal((await repo.getSession("store", "one"))!.cart.total, 333);
+  assert.equal(await prisma.checkoutChatExchange.count(), 1);
+});
+
+integration("recovery requires its own opt-in but keeps a terminal receipt readable after rollback", async () => {
+  const f = await recoveryFixture(), requests = new CheckoutChatRequestService(prisma);
+  process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "false";
+  await assert.rejects(requests.reconcile(f.input), httpStatus(503));
+  process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
+  process.env.CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS = "*";
+  await assert.rejects(requests.reconcile(f.input), httpStatus(503));
+  process.env.CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS = "store";
+  await requests.reconcile(f.input);
+  process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "false";
+  assert.equal((await requests.reconcile(f.input)).chat_request.status, "reconciled");
+});
+
+integration("recovery refuses wrong tenant, session, conversation and message keys", async () => {
+  const f = await recoveryFixture(), requests = new CheckoutChatRequestService(prisma);
+  await repo.createSessionIfAbsent(primarySession("one", { merchantId: "other" }));
+  for (const patch of [{ merchant_id: "other" }, { session_id: "missing" }, { conversation_id: "other" },
+    { message_id: randomUUID() }, { message_id: "bad" }]) await assert.rejects(requests.reconcile({ ...f.input, ...patch }));
+  assert.equal(await prisma.checkoutChatResolution.count(), 0);
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+});
+
+integration("old generic publications cannot be relabeled as recoverable main chat", async () => {
+  const f = await recoveryFixture("unknown", false);
+  await assert.rejects(new CheckoutChatRequestService(prisma).reconcile(f.input), httpStatus(409));
+  await assert.rejects(prisma.strategyTurn.update({ where: { id: f.candidate.turnId }, data: { publicationPolicy: "main_chat_text_only_v1" } }), /IMMUTABLE/);
+  assert.equal(await prisma.checkoutChatResolution.count(), 0);
+});
+
+integration("missing, uncertain and suppressed publications cannot release an unresolved request", async () => {
+  await activate(); process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
+  for (const scenario of ["missing", "unknown", "suppressed"] as const) {
+    await repo.createSessionIfAbsent(primarySession(scenario));
+    const f = await claimFixture(scenario);
+    if (scenario !== "missing") {
+      const result = { content: "Vou aplicar um desconto de 10%.", toolCalls: [] };
+      const candidate = await new StrategyChatDispatcher(ledger, { async callPinned() {
+        return scenario === "unknown" ? { outcome: "provider_unknown" as const } : { outcome: "provider_completed" as const, result };
+      } }).dispatch({ ...boundTurn(scenario, f.claim, f.input.user_message), mainChat: true,
+        expectedSession: (await repo.getSession("store", scenario))! });
+      if (scenario === "unknown") {
+        assert.equal(candidate.status, "suppressed");
+      } else {
+        if (candidate.status !== "candidate") assert.fail("expected a candidate before publication is suppressed");
+        const publication = await new StrategyChatPublisher(prisma).publish({ merchantId: "store", sessionId: scenario,
+          claim: f.claim, turnId: candidate.turnId, userMessage: f.input.user_message, result, mainChat: true });
+        assert.equal(publication.status, "suppressed");
+      }
+    }
+    await assert.rejects(new CheckoutChatRequestService(prisma).reconcile(f.input), httpStatus(409));
+  }
+  assert.equal(await prisma.checkoutChatResolution.count(), 0); assert.equal(await prisma.checkoutChatExchange.count(), 0);
+  assert.equal(await prisma.strategyTurnPublication.count({ where: { decision: "suppressed" } }), 1);
+});
+
+integration("database recovery proof and terminal status are atomic and immutable", async () => {
+  const f = await recoveryFixture();
+  await assert.rejects(prisma.checkoutChatRequest.update({ where: { id: f.claim.requestId },
+    data: { status: "reconciled", finishedAt: new Date() } }), /RESOLUTION_REQUIRED/);
+  const row = await prisma.checkoutChatRequest.findFirstOrThrow();
+  // Evidence uses the database clock, even when the host/container clocks differ.
+  const [clock] = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
+  const proof = { requestId: row.id, merchantId: row.merchantId, sessionId: row.sessionId,
+    turnId: f.candidate.turnId, previousStatus: row.status, previousFinishedAt: row.finishedAt, resolvedAt: clock.now };
+  await assert.rejects(prisma.checkoutChatResolution.create({ data: proof }), /RESOLUTION_NOT_APPLIED/);
+  await assert.rejects(prisma.checkoutChatResolution.create({ data: { ...proof, previousStatus: "processing" } }), /EVIDENCE_REQUIRED/);
+  await assert.rejects(prisma.checkoutChatResolution.create({ data: { ...proof, resolvedAt: new Date(clock.now.getTime() + 60_000) } }), /EVIDENCE_REQUIRED/);
+  await assert.rejects(prisma.checkoutChatResolution.create({ data: { ...proof, merchantId: "other" } }), /EVIDENCE_REQUIRED/);
+  assert.equal(await prisma.checkoutChatResolution.count(), 0);
+  await new CheckoutChatRequestService(prisma).reconcile(f.input);
+  await assert.rejects(prisma.checkoutChatResolution.deleteMany(), /IMMUTABLE/);
+  await assert.rejects(prisma.checkoutChatResolution.updateMany({ data: { resolvedAt: new Date() } }), /IMMUTABLE/);
+  await assert.rejects(prisma.checkoutChatRequest.update({ where: { id: row.id }, data: { status: "unknown" } }), /IMMUTABLE/);
+});
+
+integration("recovery transaction failure rolls back the proof and keeps the lane blocked", async () => {
+  const f = await recoveryFixture();
+  const broken = new Proxy(prisma, { get(target, prop) {
+    if (prop !== "$transaction") return Reflect.get(target, prop);
+    return (fn: any) => target.$transaction(async tx => fn(new Proxy(tx, { get(transaction, key) {
+      if (key !== "checkoutChatRequest") return Reflect.get(transaction, key);
+      return new Proxy(transaction.checkoutChatRequest, { get(delegate, method) {
+        if (method !== "update") return Reflect.get(delegate, method);
+        return () => { throw new Error("SIMULATED_RECOVERY_FAILURE"); };
+      } });
+    } })));
+  } }) as PrismaClient;
+  await assert.rejects(new CheckoutChatRequestService(broken).reconcile(f.input), /RECOVERY_FAILURE/);
+  assert.equal(await prisma.checkoutChatResolution.count(), 0);
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+  await assert.rejects(new CheckoutChatRequestService(prisma).run(buyerRequest(), async () => {}, async () => assert.fail("no work")), httpStatus(409));
+});
+
+integration("tenant middleware scopes recovery evidence in reads, writes and transactions", async () => {
+  const f = await recoveryFixture();
+  await new CheckoutChatRequestService(prisma).reconcile(f.input);
+  const scoped = registerTenantMiddleware(prisma, { get: () => ({ merchantId: "other" }) } as any);
+  assert.equal(await scoped.checkoutChatResolution.count({ where: { merchantId: "store" } }), 0);
+  assert.equal(await scoped.strategyTurn.count({ where: { merchantId: "store" } }), 0);
+  await scoped.$transaction(async tx => {
+    assert.equal(await tx.checkoutChatRequest.count({ where: { merchantId: "store" } }), 0);
+  });
+  await assert.rejects(scoped.$transaction(tx => tx.checkoutChatResolution.create({ data: { requestId: randomUUID(),
+    merchantId: "store", sessionId: "one", turnId: f.candidate.turnId, previousStatus: "unknown", resolvedAt: new Date() } })),
+    /EVIDENCE_REQUIRED|Foreign key/);
+  assert.equal(await prisma.checkoutChatResolution.count(), 1);
+});
+
+integration("recovery fences a live main-chat worker after publication and permits the next distinct request", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  let reached!: () => void, release!: () => void;
+  const arrived = new Promise<void>(resolve => { reached = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const delayed = new Proxy(prisma, { get(target, prop) {
+    if (prop !== "$transaction") return Reflect.get(target, prop);
+    return (fn: any) => target.$transaction(async tx => fn(new Proxy(tx, { get(transaction, key) {
+      if (key !== "checkoutChatRequest") return Reflect.get(transaction, key);
+      return new Proxy(transaction.checkoutChatRequest, { get(delegate, method) {
+        if (method !== "updateMany") return Reflect.get(delegate, method);
+        return async (args: any) => {
+          if (args.data.status === "completed") { reached(); await gate; }
+          return delegate.updateMany(args);
+        };
+      } });
+    } })), { timeout: 20_000 });
+  } }) as PrismaClient;
+  const f = mainChatFixture({ requestPrisma: delayed }); let calls = 0;
+  globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
+  const request = buyerRequest();
+  const running = f.useCase.execute(request);
+  const fenced = assert.rejects(running, (error: any) => error.getStatus() === 409
+    && error.getResponse().chat_request.status === "reconciled");
+  try {
+    await Promise.race([arrived, fenced.then(() => { throw new Error("WORKER_FINISHED_BEFORE_PUBLICATION_GATE"); })]);
+    process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
+    assert.equal((await new CheckoutChatRequestService(prisma).reconcile(request)).chat_request.status, "reconciled");
+  } finally { release(); }
+  await fenced;
+  assert.equal((await f.useCase.execute(buyerRequest())).chat_request?.status, "completed");
+  assert.equal(calls, 2); assert.equal(await prisma.checkoutChatExchange.count(), 2);
+});
+
+integration("lost recovery acknowledgement is safe to repeat without changing the proof", async () => {
+  const f = await recoveryFixture();
+  const broken = new Proxy(prisma, { get(target, prop) {
+    if (prop !== "$transaction") return Reflect.get(target, prop);
+    return async (fn: any) => { await target.$transaction(fn); throw new Error("RECOVERY_ACK_LOST"); };
+  } }) as PrismaClient;
+  await assert.rejects(new CheckoutChatRequestService(broken).reconcile(f.input), /ACK_LOST/);
+  const before = await prisma.checkoutChatResolution.findFirstOrThrow();
+  assert.equal((await new CheckoutChatRequestService(prisma).reconcile(f.input)).chat_request.status, "reconciled");
+  assert.deepEqual(await prisma.checkoutChatResolution.findFirstOrThrow(), before);
+});
+
+integration("loopback recovery returns a bounded receipt and a repeated send preserves it through the error filter", async () => {
+  const f = await recoveryFixture();
+  const requests = new CheckoutChatRequestService(prisma);
+  const recovery = new ReconcileChatMessageUseCase(requests);
+  // Transport fixture only. Actual tenant guards and embed session binding are
+  // tested separately in the public/embed controller suites.
+  @Controller("recovery-fixture")
+  class FixtureController {
+    @Post("reconcile") @HttpCode(200)
+    reconcile(@Body() body: any) { return recovery.execute({ merchant_id: "store", session_id: "one",
+      message_id: body.message_id, conversation_id: body.conversation_id }); }
+    @Post("send") @HttpCode(200)
+    send(@Body() body: any) { return requests.run({ ...body, merchant_id: "store", session_id: "one" },
+      async () => assert.fail("no preflight"), async () => assert.fail("no work")); }
+  }
+  @Module({ controllers: [FixtureController] })
+  class FixtureModule {}
+  const app = await NestFactory.create(FixtureModule, { logger: false });
+  app.useGlobalFilters(new ProblemDetailsFilter());
+  try {
+    await app.listen(0, "127.0.0.1");
+    const origin = await app.getUrl();
+    const post = (path: string) => originalFetch(`${origin}/recovery-fixture/${path}`, { method: "POST",
+      headers: { "content-type": "application/json" }, body: JSON.stringify(f.input) });
+    const result = await post("reconcile");
+    assert.equal(result.status, 200);
+    const expected = { message_id: f.input.message_id, status: "reconciled", next_action: "refresh_session" };
+    assert.deepEqual(await result.json(), { chat_request: expected });
+    const repeated = await post("send");
+    assert.equal(repeated.status, 409);
+    const problem = await repeated.json() as any;
+    assert.deepEqual(problem.chat_request, expected);
+    assert.equal(problem.code, "chat_message_reconciled"); assert.equal(problem.message, undefined);
+    assert.equal(await prisma.checkoutChatExchange.count(), 1);
+  } finally { await app.close(); }
 });

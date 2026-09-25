@@ -26,7 +26,7 @@ export class StrategyChatPublisher {
       const request = await tx.checkoutChatRequest.findFirst({ where: { id: input.claim.requestId,
         merchantId: input.merchantId, sessionId: input.sessionId, requestHash: input.claim.requestHash, protocolVersion: 2 } });
       if (!turn || !request || turn.chatRequestId !== request.id || turn.assignment.sessionId !== input.sessionId
-        || turn.publicationPolicy !== "text_only_no_personalization_v1"
+        || turn.publicationPolicy !== (input.mainChat ? "main_chat_text_only_v1" : "text_only_no_personalization_v1")
         || request.buyerMessageHash !== chatMessageTextHash(input.userMessage)) throw new Error("STRATEGY_PUBLICATION_REQUEST_CONFLICT");
       if (!turn.completion || turn.completion.responseHash !== responseHash) throw new Error("STRATEGY_PUBLICATION_RESPONSE_CONFLICT");
       if (turn.completion.publication) {

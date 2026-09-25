@@ -17,6 +17,7 @@ describe("HTTP contract guarantees", () => {
     for (const [code, status] of [
       ["CHAT_MESSAGE_IN_PROGRESS", "processing"], ["CHAT_MESSAGE_RECONCILIATION_REQUIRED", "unknown"],
       ["CHAT_MESSAGE_ALREADY_COMPLETED", "completed"], ["CHAT_MESSAGE_REJECTED", "rejected"],
+      ["CHAT_MESSAGE_RECONCILED", "reconciled"],
     ]) {
       const receipt = { message_id: "message_00000001", status, next_action: "refresh_session" };
       const problem = toProblemDetails(new ConflictException({ code,

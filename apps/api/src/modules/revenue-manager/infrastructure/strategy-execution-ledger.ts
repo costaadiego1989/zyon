@@ -207,7 +207,7 @@ export class StrategyExecutionLedger {
         assignmentId: assignment.id, requestKey: input.requestKey, inputHash: requestHash, promptHash: digest(systemPrompt),
         sessionContextHash: sessionContextHash(session), admittedAt: now,
         ...(input.chatRequest ? { chatRequestId: input.chatRequest.requestId, sessionContextVersion: session.strategyContextVersion,
-          publicationPolicy: "text_only_no_personalization_v1" } : {}) } });
+          publicationPolicy: input.mainChat ? "main_chat_text_only_v1" : "text_only_no_personalization_v1" } : {}) } });
       return { status: "admitted" as const, turnId: row.id, systemPrompt, baseline: contract.baseline };
     });
   }

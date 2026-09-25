@@ -14,7 +14,7 @@ export const ProblemDetailsSchema = z.object({
   fields: ProblemDetailsFieldErrorsSchema.optional(),
   chat_request: z.object({
     message_id: z.string().regex(/^[a-zA-Z0-9_-]{16,128}$/),
-    status: z.enum(["processing", "unknown", "completed", "rejected"]),
+    status: z.enum(["processing", "unknown", "completed", "rejected", "reconciled"]),
     next_action: z.literal("refresh_session"),
   }).optional(),
   correlation_id: z.string().min(1),

@@ -9,6 +9,22 @@ import type { StartCheckoutRequest } from "@zyon/shared-types";
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 
 describe("EmbedCheckoutController", () => {
+  it("recovery is bound to the embed session and ignores a forged body merchant", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+    const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ merchantId: "m1", sessionId }));
+    const seen: any[] = [];
+    const controller = new EmbedCheckoutController({} as never, {} as never, {} as never, new EmbedCheckoutGuardHelper(repo),
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, undefined,
+      { execute(input: unknown) { seen.push(input); return { chat_request: { message_id: "message_00000001", status: "reconciled", next_action: "refresh_session" } }; } } as never);
+    const input = { merchant_id: "forged", session_id: sessionId, conversation_id: "conversation", message_id: "message_00000001" };
+    await assert.rejects(controller.reconcileMessage({ embedClaims: claims }, { ...input, session_id: "other" }), /binding_mismatch/);
+    assert.equal(seen.length, 0);
+    const result = await controller.reconcileMessage({ embedClaims: claims }, input);
+    assert.equal(seen[0].merchant_id, "m1"); assert.equal(seen[0].session_id, sessionId);
+    assert.equal(result.chat_request.status, "reconciled");
+  });
+
   it("tokens of the same merchant cannot access each other's checkout", async () => {
     const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
     const other = { ...claims, nonce: "buyer-b" };

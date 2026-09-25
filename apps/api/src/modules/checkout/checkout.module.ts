@@ -27,6 +27,7 @@ import { EvaluateShippingUseCase } from "./application/use-cases/evaluate-shippi
 import { GetDecisionUseCase } from "./application/use-cases/get-decision.use-case.js";
 import { GetCheckoutSessionUseCase } from "./application/use-cases/get-checkout-session.use-case.js";
 import { SendChatMessageUseCase } from "./application/use-cases/send-chat-message.use-case.js";
+import { ReconcileChatMessageUseCase } from "./application/use-cases/reconcile-chat-message.use-case.js";
 import { ChatToolExecutorService } from "./application/services/chat-tool-executor.service.js";
 import { ChatLlmGatewayService } from "./application/services/chat-llm-gateway.service.js";
 import { StrategyCheckoutChatService } from "./application/services/strategy-checkout-chat.service.js";
@@ -130,6 +131,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
     ChatToolExecutorService,
     ChatLlmGatewayService,
     SendChatMessageUseCase,
+    ReconcileChatMessageUseCase,
     {
       provide: CheckoutChatRequestService,
       useFactory: (prisma: PrismaClient) => new CheckoutChatRequestService(prisma),
@@ -236,6 +238,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
     StartCheckoutUseCase,
     TrackCheckoutEventUseCase,
     SendChatMessageUseCase,
+    ReconcileChatMessageUseCase,
     ApplyOfferUseCase,
     AcceptCheckoutOfferUseCase,
     GetCheckoutSessionUseCase,

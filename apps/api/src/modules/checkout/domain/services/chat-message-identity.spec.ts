@@ -1,10 +1,22 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { BadRequestException } from "@nestjs/common";
-import { chatMessageIdentity, chatRequestsEnabled } from "./chat-message-identity.js";
+import { chatMessageIdentity, chatMessageReference, chatRequestsEnabled } from "./chat-message-identity.js";
 
 const input = { merchant_id: "store", session_id: "session", conversation_id: "conversation",
   user_message: "Minha mensagem", message_id: "message_00000001" };
+
+test("recovery reference rejects malformed identities without consuming text or agent selectors", () => {
+  const reference = chatMessageReference({ ...input, user_message: null, agent_id: {} } as any);
+  assert.deepEqual(reference, { merchant_id: input.merchant_id, session_id: input.session_id,
+    conversation_id: input.conversation_id, message_id: input.message_id });
+  assert.ok(Object.isFrozen(reference));
+  for (const key of ["merchant_id", "session_id", "conversation_id", "message_id"] as const) {
+    for (const value of [undefined, null, {}, "", " ", "x".repeat(201)]) {
+      assert.throws(() => chatMessageReference({ ...input, [key]: value } as any), BadRequestException);
+    }
+  }
+});
 
 test("message identity binds tenant, session, conversation, exact text and agent selection", () => {
   const base = chatMessageIdentity(input);
