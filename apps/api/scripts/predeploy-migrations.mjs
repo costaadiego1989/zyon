@@ -9,6 +9,7 @@ const client = new pg.Client({ connectionString: databaseUrl });
 const failedLegacyMigration = "20260501103000_checkout_module";
 const failedPaymentHoldMigration = "20260911130000_payment_hold_payout_lifecycle";
 const failedDurableErpSyncMigration = "20260913150000_erp_durable_sync";
+const failedMultiStoreMigration = "20260925013000_merchant_billing_account_multistore";
 const baselineMigration = "20260905000000_complete_schema";
 
 function prisma(args) {
@@ -112,6 +113,7 @@ try {
       to_regclass('public.checkout_sessions') IS NOT NULL AS has_checkout_sessions,
       to_regclass('public.merchant_rules') IS NOT NULL AS has_merchant_rules,
       to_regclass('public.storefront_carts') IS NOT NULL AS has_storefront_carts,
+      to_regclass('public.merchant_team_members') IS NOT NULL AS has_merchant_team_members,
       to_regclass('public.payment_holds') IS NOT NULL AS has_payment_holds,
       EXISTS (
         SELECT 1 FROM information_schema.columns
@@ -119,6 +121,12 @@ try {
           AND table_name = 'payment_holds'
           AND column_name = 'provider'
       ) AS has_payment_hold_provider,
+      EXISTS (
+        SELECT 1 FROM information_schema.columns
+        WHERE table_schema = 'public'
+          AND table_name = 'merchants'
+          AND column_name = 'billing_account_merchant_id'
+      ) AS has_billing_account_merchant_id,
       to_regclass('public._prisma_migrations') IS NOT NULL AS has_migrations,
       (SELECT count(*)::int FROM pg_tables WHERE schemaname = 'public' AND tablename <> '_prisma_migrations') AS table_count
   `);
@@ -180,6 +188,21 @@ try {
     console.log("Reconciling the verified durable ERP migration record");
     await repairDurableErpSyncSchema(client);
     prisma(["migrate", "resolve", "--applied", failedDurableErpSyncMigration]);
+  }
+
+  const failedMultiStoreRows = schema.has_migrations ? (await client.query(
+    `SELECT logs, finished_at, rolled_back_at FROM "_prisma_migrations"
+     WHERE migration_name = $1 ORDER BY started_at DESC LIMIT 1`, [failedMultiStoreMigration],
+  )).rows : [];
+  const failedMultiStore = failedMultiStoreRows[0];
+  if (failedMultiStore && !failedMultiStore.finished_at && !failedMultiStore.rolled_back_at) {
+    const expectedFailure = String(failedMultiStore.logs ?? "").includes("42701")
+      && String(failedMultiStore.logs ?? "").includes("billing_account_merchant_id");
+    if (!expectedFailure || !schema.has_merchants || !schema.has_merchant_team_members || !schema.has_billing_account_merchant_id) {
+      throw new Error("Refusing to reconcile an unexpected failed multistore migration");
+    }
+    console.log("Rolling back the verified idempotent multistore migration record");
+    prisma(["migrate", "resolve", "--rolled-back", failedMultiStoreMigration]);
   }
   const baselineRows = schema.has_migrations ? (await client.query(
     `SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1 AND finished_at IS NOT NULL LIMIT 1`,

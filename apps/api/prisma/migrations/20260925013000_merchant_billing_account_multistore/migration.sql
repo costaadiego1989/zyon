@@ -1,16 +1,25 @@
 ALTER TABLE "merchants"
-  ADD COLUMN "billing_account_merchant_id" TEXT;
+  ADD COLUMN IF NOT EXISTS "billing_account_merchant_id" TEXT;
 
 UPDATE "merchants"
   SET "billing_account_merchant_id" = "id"
   WHERE "billing_account_merchant_id" IS NULL;
 
-ALTER TABLE "merchants"
-  ADD CONSTRAINT "merchants_billing_account_merchant_id_fkey"
-  FOREIGN KEY ("billing_account_merchant_id") REFERENCES "merchants"("id")
-  ON DELETE RESTRICT ON UPDATE CASCADE;
+DO $$
+BEGIN
+  IF NOT EXISTS (
+    SELECT 1 FROM pg_constraint
+    WHERE conname = 'merchants_billing_account_merchant_id_fkey'
+      AND conrelid = 'merchants'::regclass
+  ) THEN
+    ALTER TABLE "merchants"
+      ADD CONSTRAINT "merchants_billing_account_merchant_id_fkey"
+      FOREIGN KEY ("billing_account_merchant_id") REFERENCES "merchants"("id")
+      ON DELETE RESTRICT ON UPDATE CASCADE;
+  END IF;
+END $$;
 
-CREATE INDEX "merchants_billing_account_merchant_id_idx"
+CREATE INDEX IF NOT EXISTS "merchants_billing_account_merchant_id_idx"
   ON "merchants"("billing_account_merchant_id");
 
 -- Existing users are members only of their original store. This migration makes
