@@ -49,7 +49,7 @@ export const CONVERSATION_STATE_KEY = (merchantId: string) => `zyon_conversation
 export function useConversationViewModel(
   props: ConversationViewModelProps,
 ): ConversationViewModelState & ConversationViewModelActions {
-  const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId, themeMode, agentMode, agentInitialDelaySeconds } = props;
+  const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId, themeMode, merchantTheme, agentMode, agentInitialDelaySeconds } = props;
   const agent = agentName || "Assistente";
   const [mode, setMode] = useState<Mode>("intro");
   const [channel, setChannel] = useState<Channel | null>(null);
@@ -104,8 +104,8 @@ export function useConversationViewModel(
   }, [merchantId, conversationId, agent, storeName, cart.cartId, experimentVM]);
 
   const applyTheme = useCallback((t: Theme) => {
-    applyThemeToDOM(t);
-  }, []);
+    applyThemeToDOM(t, merchantTheme);
+  }, [merchantTheme]);
 
   const toggleTheme = useCallback(() => {
     const next: Theme = theme === "dark" ? "light" : "dark";
@@ -184,6 +184,7 @@ export function useConversationViewModel(
   const handleQuickReplyAction = useCallback(
     (option: string) => {
       handleQuickReply({
+        budgetModeEnabled: props.budgetModeEnabled || widgetConfig?.budgetModeEnabled,
         option,
         cartItemCount: cart.itemCount,
         merchantId: merchantId || null,
@@ -194,7 +195,7 @@ export function useConversationViewModel(
         setShowBuyerAuth,
       });
     },
-    [cart.itemCount, merchantId, conversationId, sendMessage],
+    [cart.itemCount, merchantId, conversationId, sendMessage, props.budgetModeEnabled, widgetConfig?.budgetModeEnabled],
   );
 
   const appendAgentMessage = useCallback((message: Pick<Message, "text" | "blocks">) => {

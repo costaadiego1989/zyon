@@ -7,6 +7,7 @@ export function isMerchantSalesSuspendedError(error: unknown): boolean {
 }
 
 export function checkoutStartErrorMessage(error: unknown): string {
+  if (error instanceof CheckoutApiError && error.code === "budget_mode_requires_request") return "Esta loja atende por orçamento. Volte à loja para enviar sua solicitação pelo carrinho.";
   if (isMerchantSalesSuspendedError(error)) return MERCHANT_SALES_SUSPENDED_MESSAGE;
   if (error instanceof CheckoutApiError) {
     const messages: Record<string, string> = {

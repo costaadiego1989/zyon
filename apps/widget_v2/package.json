@@ -17,7 +17,6 @@
     "./styles/checkout.css": "./src/styles/checkout.css",
     "./styles/animations.css": "./src/styles/animations.css",
     "./styles/pulse-skin.css": "./src/styles/pulse-skin.css",
-    "./styles/neumorphism.css": "./src/styles/neumorphism.css",
     "./styles/perimeter-border.css": "./src/styles/perimeter-border.css",
     "./design-system/tokens.css": "./src/design-system/tokens.css"
   },
@@ -35,6 +34,7 @@
     "react-dom": "^18.3.1 || ^19.0.0"
   },
   "dependencies": {
+    "@zyon/shared-types": "workspace:^",
     "socket.io-client": "^4.8.0",
     "zustand": "^5.0.0"
   },

@@ -1,6 +1,7 @@
 import type { MerchantRules, MerchantTheme, SeoSettings, GtmSettings } from "@zyon/shared-types";
 
 export interface MerchantStoreSettings {
+  budget?: { enabled: boolean; email?: string; whatsapp?: string };
   /**
    * Gateway selected by the merchant for each buyer-facing checkout method.
    * The checkout still verifies the connection, runtime configuration and the
@@ -87,6 +88,7 @@ export interface PostSaleCampaignSettings {
 }
 
 export interface MerchantProfile {
+  budgetModeEnabled?: boolean;
   id: string;
   name: string;
   slug?: string;

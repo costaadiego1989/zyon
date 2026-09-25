@@ -77,6 +77,7 @@ export class StartCheckoutUseCase {
     };
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     const merchant = await this.merchantRepository?.getProfile(input.merchant_id);
+    if (merchant?.budgetModeEnabled) throw new BadRequestException("budget_mode_requires_request");
     const paymentMethods = await this.resolvePaymentMethods(
       input.merchant_id,
       merchant?.stripeConnectAccountId,

@@ -71,6 +71,7 @@ export class CheckoutSettingsPublicController {
     @Query("merchantId") merchantId: string,
   ): Promise<WidgetConfigDto> {
     const settings = await this.getSettings.execute(merchantId);
+    const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { budgetModeEnabled: true } });
 
     // Merchant hard cap on total discount (from merchant rules). The widget uses
     // this to decide when to hide the coupon field: once the accumulated discount
@@ -98,7 +99,7 @@ export class CheckoutSettingsPublicController {
       fabClickAction: settings.widgetBehavior.fabClickAction,
       fabRedirectUrl: settings.widgetBehavior.fabRedirectUrl,
       cartPresentationMode: settings.widgetBehavior.cartPresentationMode ?? "floating",
-      budgetModeEnabled: settings.widgetBehavior.budgetModeEnabled ?? false,
+      budgetModeEnabled: merchant?.budgetModeEnabled ?? false,
       openWidgetOnTrigger: settings.widgetBehavior.openWidgetOnTrigger,
       enabledTriggers: settings.triggerRules
         .filter((rule) => rule.enabled)

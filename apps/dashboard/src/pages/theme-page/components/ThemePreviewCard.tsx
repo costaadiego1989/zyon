@@ -1,5 +1,5 @@
 import React, { useEffect } from "react";
-import type { MerchantTheme } from "@zyon/shared-types";
+import { merchantThemeTokens, type MerchantTheme } from "@zyon/shared-types";
 
 // First family token of a CSS font stack, e.g. "Poppins, Inter, sans-serif" → "Poppins".
 function primaryFamily(stack?: string): string | null {
@@ -49,55 +49,35 @@ export interface ThemePreviewCardProps {
   storeName: string;
 }
 
-// Mode defaults mirror the storefront exactly (apps/storefront store/[slug]/page.tsx):
-// dark/grey override the individual colors; light uses the theme's own colors.
-function modeDefaults(mode: MerchantTheme["mode"]): { bg: string; fg: string; card: string; line: string; muted: string; surface: string } | null {
-  switch (mode) {
-    case "dark":
-      return { bg: "#09090b", fg: "#fafafa", card: "rgba(255,255,255,0.05)", line: "rgba(255,255,255,0.1)", muted: "#8b8b95", surface: "#18181b" };
-    case "grey":
-      return { bg: "#191919", fg: "#fafafa", card: "rgba(255,255,255,0.05)", line: "rgba(255,255,255,0.1)", muted: "#a1a1aa", surface: "#262626" };
-    default:
-      return null; // light — use the theme's own colors
-  }
-}
-
 export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
   const agent = theme.agentName?.trim() || "Assistente";
-  const md = modeDefaults(theme.mode);
   useThemeFonts(theme.fontFamily, theme.fontDisplay);
-
-  // CSS variables — same names + precedence the storefront uses: when a color mode
-  // (dark/grey) is chosen it OVERRIDES the individual colors (modeDefaults ?? color);
-  // in light mode the theme's own colors apply. Accent/secondary/fonts/radius always
-  // come from the theme. New object every render → the preview updates in real time.
-  const vars: React.CSSProperties & Record<string, string> = {
-    "--aacp-accent": theme.accentColor || "#0f766e",
-    "--aacp-accent-2": theme.secondaryColor || theme.accentColor || "#0f766e",
-    "--aacp-bg": md?.bg ?? theme.backgroundColor ?? "#f7f8fa",
-    "--aacp-fg": md?.fg ?? theme.textColor ?? "#111827",
-    "--aacp-card": md?.card ?? theme.surfaceColor ?? "#ffffff",
-    // Dark/grey get an elevated header surface; light forces white so the header
-    // reads clean with just the subtle border-bottom separating it from the body.
-    "--aacp-header-bg": md?.surface ?? "#ffffff",
-    "--aacp-line": md?.line ?? theme.borderColor ?? "#e5e7eb",
-    "--aacp-muted": md?.muted ?? theme.mutedTextColor ?? "#6b7280",
-    "--aacp-font": theme.fontFamily || "Inter, ui-sans-serif, system-ui, sans-serif",
-    "--aacp-font-display": theme.fontDisplay || theme.fontFamily || "Inter, ui-sans-serif, system-ui, sans-serif",
-    "--aacp-radius": `${theme.borderRadius ?? 8}px`,
-  } as React.CSSProperties & Record<string, string>;
+  const tokens = merchantThemeTokens(theme);
+  // Fit the desktop widths proportionally in the preview without shrinking text.
+  const maxWidth = tokens["--aacp-shell-max-width"];
+  const previewWidth = maxWidth.endsWith("px") ? `${Math.min(1, parseFloat(maxWidth) / 720) * 100}%` : "100%";
+  const vars = tokens as React.CSSProperties;
 
   const initial = (storeName || "L").charAt(0).toUpperCase();
 
   return (
+    <div data-testid="theme-preview-frame" style={{ width: "100%", height: "100%", minHeight: 480, overflow: "hidden", position: "relative" }}>
     <div
+      data-testid="theme-preview"
+      data-density={theme.density ?? "comfortable"}
+      data-theme={theme.mode ?? "light"}
       style={{
         ...vars,
-        width: "100%",
+        width: previewWidth,
+        maxWidth: "var(--aacp-shell-max-width)",
+        margin: "0 auto",
+        borderRadius: "var(--aacp-radius)",
         height: "100%",
         display: "flex",
         flexDirection: "column",
         background: "var(--aacp-bg)",
+        backgroundImage: theme.backgroundImageUrl ? `url(${JSON.stringify(theme.backgroundImageUrl)})` : undefined,
+        backgroundSize: "cover",
         color: "var(--aacp-fg)",
         fontFamily: "var(--aacp-font)",
         overflow: "hidden",
@@ -117,7 +97,7 @@ export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
           // fixed-height box so wordmark/rectangular logos aren't distorted.
           <img src={theme.logoUrl} alt="" style={{ height: 28, maxWidth: 120, objectFit: "contain", flex: "none" }} />
         ) : (
-          <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", display: "flex", alignItems: "center", justifyContent: "center", font: "700 14px var(--aacp-font-display)", color: "var(--aacp-fg)", flex: "none" }}>
+          <div style={{ width: 34, height: 34, borderRadius: "var(--aacp-radius)", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", display: "flex", alignItems: "center", justifyContent: "center", font: "700 14px var(--aacp-font-display)", color: "var(--aacp-fg)", flex: "none" }}>
             {initial}
           </div>
         )}
@@ -154,14 +134,14 @@ export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
             Como você prefere comprar?
           </div>
           <div style={{ display: "flex", gap: 10, width: "100%" }}>
-            <div style={{ flex: 1, border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: 16, padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, color: "var(--aacp-fg)" }}>
+            <div style={{ flex: 1, border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "var(--aacp-radius)", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, color: "var(--aacp-fg)" }}>
               <span style={{ width: 38, height: 38, borderRadius: 11, background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
               </span>
               <span style={{ fontSize: 13.5, fontWeight: 600 }}>Por chat</span>
               <span style={{ fontSize: 10.5, color: "var(--aacp-muted)", lineHeight: 1.3 }}>Converse digitando</span>
             </div>
-            <div style={{ flex: 1, border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: 16, padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
+            <div style={{ flex: 1, border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: "var(--aacp-radius)", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
               <span style={{ position: "absolute", top: 9, right: 9, fontFamily: "'Space Mono', monospace", fontSize: 7.5, letterSpacing: ".5px", color: "var(--aacp-accent)", border: "1px solid var(--aacp-accent)", borderRadius: 5, padding: "1px 4px" }}>IA</span>
               <span style={{ width: 38, height: 38, borderRadius: 11, background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
@@ -172,6 +152,7 @@ export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
           </div>
         </div>
       </div>
+    </div>
     </div>
   );
 }

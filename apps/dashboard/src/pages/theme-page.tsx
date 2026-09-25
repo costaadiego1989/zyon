@@ -461,6 +461,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                     type="button"
                     key={opt.value}
                     className={`filter-tab${theme.density === opt.value ? " active" : ""}`}
+                    aria-pressed={theme.density === opt.value}
                     onClick={() => patch({ density: opt.value })}
                     title={opt.desc}
                   >
@@ -482,7 +483,8 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   <button
                     type="button"
                     key={opt.value}
-                    className={`filter-tab${(theme.mode ?? "dark") === opt.value ? " active" : ""}`}
+                    className={`filter-tab${(theme.mode ?? "light") === opt.value ? " active" : ""}`}
+                    aria-pressed={(theme.mode ?? "light") === opt.value}
                     onClick={() => patch({ mode: opt.value })}
                   >
                     {opt.label}

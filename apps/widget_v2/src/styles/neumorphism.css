@@ -54,7 +54,7 @@ body.theme-dark {
   cursor: not-allowed;
 }
 [data-neu="surface"] { box-shadow: var(--aacp-neu-message) !important; }
-[data-neu="message"] { border-radius: 18px !important; box-shadow: var(--aacp-neu-bubble) !important; }
+[data-neu="message"] { border-radius: var(--aacp-radius, 18px) !important; box-shadow: var(--aacp-neu-bubble) !important; }
 [data-neu="message"][data-speaker="buyer"] { background: color-mix(in oklab, var(--aacp-accent) 10%, var(--aacp-card)) !important; color: var(--aacp-fg) !important; outline: 1px solid color-mix(in oklab, var(--aacp-accent) 28%, var(--aacp-line)); outline-offset: -1px; }
 [data-neu="card"] { box-shadow: var(--aacp-neu-raised-md) !important; }
 [data-neu="overlay"] { box-shadow: var(--aacp-neu-overlay) !important; }

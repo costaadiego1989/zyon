@@ -187,6 +187,12 @@ export const checkoutApi = {
   },
 };
 export const cartApi = {
+  async requestBudget(cartId: string, merchantId: string, data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }): Promise<{ id: string; status: string }> {
+    return safeFetch(`${API_BASE}/storefront/budget-requests`, {
+      method: "POST",
+      body: JSON.stringify({ cart_id: cartId, merchant_id: merchantId, customer_name: data.customerName, customer_email: data.customerEmail, customer_phone: data.customerPhone, note: data.note }),
+    }, cartId);
+  },
   async get(cartId: string, merchantId: string): Promise<any> {
     return safeFetch(
       `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}?merchantId=${encodeURIComponent(merchantId)}`,

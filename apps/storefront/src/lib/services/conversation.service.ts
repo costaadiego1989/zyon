@@ -1,3 +1,4 @@
+import { merchantThemeTokens, type MerchantThemeAppearance } from "@zyon/shared-types";
 import { THEME_TOKENS } from "@/components/conversation/theme-tokens";
 export { THEME_TOKENS } from "@/components/conversation/theme-tokens";
 
@@ -105,10 +106,10 @@ export function narrateStorefrontBlock(type: string | undefined): string | undef
 }
 
 
-export function applyThemeToDOM(theme: "dark" | "light") {
+export function applyThemeToDOM(theme: "dark" | "light", merchantTheme?: MerchantThemeAppearance) {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.neuTheme = theme;
-  const tokens = THEME_TOKENS[theme];
+  const tokens = merchantTheme ? merchantThemeTokens(merchantTheme, theme === "dark" && merchantTheme.mode === "grey" ? "grey" : theme) : THEME_TOKENS[theme];
   for (const [key, val] of Object.entries(tokens)) {
     document.documentElement.style.setProperty(key, val);
   }

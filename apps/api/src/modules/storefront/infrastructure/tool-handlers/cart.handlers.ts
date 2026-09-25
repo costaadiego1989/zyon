@@ -714,6 +714,12 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     createCheckoutSession: async (args) => {
+      const merchant = await deps.merchantRepo.getProfile(ctx.merchantId);
+      if (merchant?.budgetModeEnabled) {
+        const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
+        if (cart.items.length === 0) return { error: "checkout_cart_empty" };
+        return { budgetRequired: true, cartId: cart.sessionId, message: "Solicite o orçamento pelo carrinho. Nenhum pagamento será iniciado." };
+      }
       if (ctx.oneBuyClick?.enabled && deps.oneBuyClick) {
         const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
         if (cart.items.length === 0) return { error: "checkout_cart_empty" };

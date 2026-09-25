@@ -3,5 +3,5 @@
   "framework": "nextjs",
   "installCommand": "pnpm install --no-frozen-lockfile",
   "ignoreCommand": "node ../../scripts/vercel-deploy-guard.mjs",
-  "buildCommand": "pnpm --filter @zyon/widget-v2 build && pnpm --filter @zyon/storefront build"
+  "buildCommand": "pnpm --filter @zyon/shared-types build && pnpm --filter @zyon/widget-v2 build && pnpm --filter @zyon/storefront build"
 }

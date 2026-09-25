@@ -376,7 +376,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
   if (toolResults["create_checkout_session"]) {
     const checkoutData = toolResults["create_checkout_session"] as any;
-    if (checkoutData?.checkoutPrepared) {
+    if (checkoutData?.budgetRequired) {
+      blocks.push({ type: "quick_replies", data: { options: ["Solicitar orçamento"] } } as any);
+    } else if (checkoutData?.checkoutPrepared) {
       blocks.push({
         type: "checkout_prepared",
         data: {

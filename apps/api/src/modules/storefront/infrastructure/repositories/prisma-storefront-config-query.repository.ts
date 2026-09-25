@@ -53,7 +53,7 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
     ]);
 
     return {
-      merchant: { id: merchant.id, name: merchant.name, theme: merchant.theme, storeCategory: merchant.storeCategory, storeSettings: merchant.storeSettings },
+      merchant: { id: merchant.id, name: merchant.name, theme: merchant.theme, storeCategory: merchant.storeCategory, storeSettings: merchant.storeSettings, budgetModeEnabled: merchant.budgetModeEnabled },
       subscriptionStatus: settledValue(subscription)?.status,
       checkoutMode: settledValue(checkoutSettings)?.mode,
       agentRule: settledValue(agentRule) ?? undefined,

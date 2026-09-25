@@ -4,6 +4,7 @@ import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort } from "..
 import { BillingPlanMeteringService } from "../../../payment/infrastructure/billing/billing-plan-guard.js";
 
 export interface StoreConfigOutput {
+  budgetModeEnabled: boolean;
   merchantId: string;
   name: string;
   logo?: string;
@@ -73,6 +74,7 @@ export class GetStoreConfigUseCase {
 
     const voiceCheckoutEnabled = await this.isVoiceCheckoutEnabled(row.id);
     return {
+      budgetModeEnabled: row.budgetModeEnabled === true,
       merchantId: row.id,
       name: row.name,
       logo: theme?.logoUrl ?? undefined,

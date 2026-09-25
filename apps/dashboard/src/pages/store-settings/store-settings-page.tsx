@@ -9,6 +9,7 @@ import { reportError } from "../../hooks/useErrorReporter.js";
 import { useStoreSettingsPage, type BusinessHour, type CompanyForm, type PoliciesForm, type SocialForm, type StylesForm } from "./useStoreSettingsPage.js";
 import { useSeoSettingsTab } from "./useSeoSettingsTab.js";
 import { SeoGtmTab } from "./components/SeoGtmTab.js";
+import { BudgetRequests } from "./components/BudgetRequests.js";
 import { maskPhone, maskCEP, maskCNPJ } from "../../utils/masks.js";
 
 const DAY_LABELS: Record<string, string> = {
@@ -82,7 +83,7 @@ export function StoreSettingsPage() {
           {state.activeTab === "budget" && (
             <div>
               <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 16px", lineHeight: 1.5 }}>
-                Quando ativado, clientes solicitam orçamento ao invés de finalizar compra. Você recebe por email e WhatsApp.
+                Quando ativado, clientes enviam uma solicitação com os itens e dados de contato. As solicitações aparecem abaixo, com um aviso no painel.
               </p>
               <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--color-border)" }}>
                 <div>
@@ -90,7 +91,7 @@ export function StoreSettingsPage() {
                   <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "2px 0 0" }}>Substitui &quot;Finalizar pedido&quot; por &quot;Solicitar orçamento&quot;</p>
                 </div>
                 <label style={{ position: "relative", width: 42, height: 24, cursor: "pointer" }}>
-                  <input type="checkbox" checked={state.budgetMode} onChange={(e) => setBudgetMode(e.target.checked)} style={{ opacity: 0, width: 0, height: 0, position: "absolute" }} />
+                  <input type="checkbox" aria-label="Ativar modo orçamento" checked={state.budgetMode} onChange={(e) => setBudgetMode(e.target.checked)} style={{ opacity: 0, width: "100%", height: "100%", margin: 0, position: "absolute", inset: 0, zIndex: 1, cursor: "pointer" }} />
                   <span style={{ position: "absolute", inset: 0, borderRadius: 12, background: state.budgetMode ? "var(--accent, #0f766e)" : "var(--color-border)", transition: "background 0.2s" }}>
                     <span style={{ position: "absolute", top: 2, left: state.budgetMode ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
                   </span>
@@ -102,6 +103,7 @@ export function StoreSettingsPage() {
                   <FormField label="WhatsApp para orçamentos" type="tel" placeholder="(11) 99999-9999" value={maskPhone(state.budgetWhatsapp)} onChange={(v) => setBudgetWhatsapp(maskPhone(v))} maxLength={15} />
                 </div>
               )}
+              <BudgetRequests />
             </div>
           )}
         </div>

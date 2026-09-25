@@ -16,6 +16,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     if (!row) return undefined;
     return {
       id: row.id,
+      budgetModeEnabled: row.budgetModeEnabled,
       name: row.name,
       theme: decodePersistedTheme(row.theme),
       storeCategory: row.storeCategory ?? undefined,
@@ -62,7 +63,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
   async getStoreSettings(merchantId: string): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
     const row = await this.prisma.merchant.findUnique({
       where: { id: merchantId },
-      select: { storeSettings: true, name: true, users: { select: { email: true }, take: 1 } },
+      select: { storeSettings: true, name: true, budgetModeEnabled: true, budgetEmail: true, budgetWhatsapp: true, users: { select: { email: true }, take: 1 } },
     });
     const stored = (row?.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? {};
 
@@ -73,7 +74,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       stored.company = { ...stored.company, email: row.users[0].email };
     }
 
-    return stored;
+    return { ...stored, budget: { enabled: row?.budgetModeEnabled ?? false, email: row?.budgetEmail ?? "", whatsapp: row?.budgetWhatsapp ?? "" } };
   }
 
   async updateStoreSettings(merchantId: string, settings: import("../domain/merchant.types.js").MerchantStoreSettings): Promise<import("../domain/merchant.types.js").MerchantStoreSettings> {
@@ -85,6 +86,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     const incoming = settings as unknown as Record<string, unknown>;
     const merged: Record<string, unknown> = { ...existing };
     for (const [key, value] of Object.entries(incoming)) {
+      if (key === "budget") continue;
       const prev = existing[key];
       const bothPlainObjects =
         prev != null && typeof prev === "object" && !Array.isArray(prev) &&
@@ -95,14 +97,19 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     }
 
     const requestedSlug = typeof merged.slug === "string" ? merged.slug.trim().toLowerCase() : undefined;
-    const updated = await this.prisma.merchant.update({
+    await this.prisma.merchant.update({
       where: { id: merchantId },
       data: {
+        ...(settings.budget ? {
+          budgetModeEnabled: settings.budget.enabled,
+          ...(settings.budget.email !== undefined ? { budgetEmail: settings.budget.email || null } : {}),
+          ...(settings.budget.whatsapp !== undefined ? { budgetWhatsapp: settings.budget.whatsapp || null } : {}),
+        } : {}),
         storeSettings: merged as unknown as object,
         ...(requestedSlug ? { storeSlug: requestedSlug } : {}),
       }
     });
-    return (updated.storeSettings as import("../domain/merchant.types.js").MerchantStoreSettings) ?? merged;
+    return this.getStoreSettings(merchantId);
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {

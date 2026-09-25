@@ -1,3 +1,4 @@
+import { merchantThemeTokens } from "@zyon/shared-types";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ConversationShell from "@/components/ConversationShell";
@@ -260,6 +261,7 @@ export default async function StorePage({
       ${themeColors.borderRadius != null ? `--aacp-radius: ${themeColors.borderRadius}px;` : ""}
       ${modeDefaults?.muted ? `--aacp-muted: ${modeDefaults.muted};` : ""}
       ${themeColors.backgroundImageUrl ? `--aacp-chat-bg-image: url(${themeColors.backgroundImageUrl});` : ""}
+      ${config ? Object.entries(merchantThemeTokens(config.theme)).map(([key, value]) => `${key}: ${value};`).join("\n"): ""}
     }
   `;
 
@@ -290,7 +292,7 @@ export default async function StorePage({
           display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden;
           background: var(--aacp-bg);
           color:var(--aacp-fg); font-family:var(--aacp-font);
-          ${themeColors.density === "compact" ? "max-width:480px; margin:0 auto;" : themeColors.density === "comfortable" ? "max-width:680px; margin:0 auto;" : ""}
+          max-width:var(--aacp-shell-max-width, 100%); width:100%; margin:0 auto;
         }
         ${themeColors.backgroundImageUrl ? `
         body {
@@ -357,6 +359,8 @@ export default async function StorePage({
               storeSettings={config?.storeSettings}
               initialStories={stories}
               themeMode={config?.theme?.mode}
+              merchantTheme={config?.theme}
+              budgetModeEnabled={config?.budgetModeEnabled === true}
               showBranding={config?.showBranding}
               voiceCheckoutEnabled={config?.voiceCheckoutEnabled}
               agentMode={config?.agentMode}

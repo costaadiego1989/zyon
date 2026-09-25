@@ -293,6 +293,9 @@ importers:
       '@zyon/checkout-ui':
         specifier: workspace:*
         version: link:../../packages/checkout-ui
+      '@zyon/shared-types':
+        specifier: workspace:^
+        version: link:../../packages/shared-types
       '@zyon/widget-v2':
         specifier: workspace:*
         version: link:../widget_v2
@@ -332,6 +335,9 @@ importers:
 
   apps/widget_v2:
     dependencies:
+      '@zyon/shared-types':
+        specifier: workspace:^
+        version: link:../../packages/shared-types
       socket.io-client:
         specifier: ^4.8.0
         version: 4.8.1

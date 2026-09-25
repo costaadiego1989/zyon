@@ -155,6 +155,9 @@ export function useStoreSettingsPage() {
             fontFamily: theme?.fontFamily ?? "Inter, ui-sans-serif, system-ui, sans-serif",
           },
           logoUrl: loadedLogoUrl,
+          budgetMode: settings?.budget?.enabled === true,
+          budgetEmail: settings?.budget?.email ?? "",
+          budgetWhatsapp: settings?.budget?.whatsapp ?? "",
           loading: false,
         }));
       } catch {
@@ -190,7 +193,13 @@ export function useStoreSettingsPage() {
   async function handleSave() {
     setState((p) => ({ ...p, saving: true, saveResult: null, saveError: null }));
     try {
-      if (state.activeTab === "styles") {
+      if (state.activeTab === "budget") {
+        await api.putStoreSettings({ budget: {
+          enabled: state.budgetMode,
+          email: state.budgetEmail.trim(),
+          whatsapp: state.budgetWhatsapp.replace(/\D/g, ""),
+        } });
+      } else if (state.activeTab === "styles") {
         // Save theme
         await api.putMerchantTheme({
           logoUrl: state.styles.logoUrl,

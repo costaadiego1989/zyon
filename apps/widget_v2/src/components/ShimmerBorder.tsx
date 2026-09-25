@@ -8,7 +8,7 @@ export function ShimmerBorder({ children, radius = "var(--aacp-radius, 19px)" }:
   return (
     <div className="shimmer-border-wrap" style={{ position: "relative", flex: 1, minHeight: 0, borderRadius: r, padding: "1px" }}>
       <PerimeterBorder radius={r} />
-      <div style={{ position: "relative", width: "100%", height: "100%", borderRadius: "calc(" + r + " - 1px)", overflow: "hidden", background: "var(--bg, var(--aacp-bg))", zIndex: 2 }}>
+      <div style={{ position: "relative", width: "100%", height: "100%", borderRadius: "max(0px, calc(" + r + " - 1px))", overflow: "hidden", background: "var(--bg, var(--aacp-bg))", zIndex: 2 }}>
         {children}
       </div>
     </div>

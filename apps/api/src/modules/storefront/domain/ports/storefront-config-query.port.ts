@@ -1,6 +1,7 @@
 export const STOREFRONT_CONFIG_QUERY_PORT = Symbol("STOREFRONT_CONFIG_QUERY_PORT");
 
 export interface StorefrontConfigMerchant {
+  budgetModeEnabled?: boolean;
   id: string;
   name: string;
   theme: unknown;

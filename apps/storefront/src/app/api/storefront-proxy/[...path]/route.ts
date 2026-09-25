@@ -29,6 +29,7 @@ function publicRequestOrigin(request: Request): string {
 }
 
 function isAllowedPath(path: string[]): boolean {
+  if (path[0] === "budget-requests") return path.length === 1;
   if (path[0] === "nudge") return path.length === 1;
   if (path[0] === "conversations") {
     if (!isIdentifier(path[1])) return false;

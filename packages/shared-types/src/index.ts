@@ -1422,3 +1422,5 @@ export interface OAuthCallbackPayload {
 export * from "./billing-plans.js";
 
 export * from "./billing-offers.js";
+
+export { NEUMORPHIC_THEME, merchantThemeTokens, type MerchantThemeAppearance } from "./merchant-theme.js";

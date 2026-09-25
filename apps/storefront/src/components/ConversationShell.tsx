@@ -1,9 +1,12 @@
 "use client";
 
+import type { MerchantThemeAppearance } from "@zyon/shared-types";
+
 import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
 import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
 import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
+import { useWidgetConfig } from "@/lib/widget-config";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import BlockRenderer from "./blocks/BlockRenderer";
@@ -223,6 +226,8 @@ export default function ConversationShell({
   agentAvatarUrl,
   initialStories,
   themeMode,
+  merchantTheme,
+  budgetModeEnabled: initialBudgetMode = false,
   showBranding,
   voiceCheckoutEnabled,
   agentMode,
@@ -240,6 +245,8 @@ export default function ConversationShell({
   merchantId?: string;
   merchantSlug?: string;
   initialStories?: any[];
+  merchantTheme?: MerchantThemeAppearance;
+  budgetModeEnabled?: boolean;
   themeMode?: "dark" | "light" | "grey";
   showBranding?: boolean;
   voiceCheckoutEnabled?: boolean;
@@ -253,6 +260,8 @@ export default function ConversationShell({
     policies?: { privacy?: string; returns?: string; terms?: string; shipping?: string };
   };
 }) {
+  const { config: widgetConfig } = useWidgetConfig();
+  const budgetModeEnabled = widgetConfig?.budgetModeEnabled ?? initialBudgetMode;
   const vm = useConversationViewModel({
     storeName,
     merchantId,
@@ -262,6 +271,8 @@ export default function ConversationShell({
     quickReplies,
     returnOrderId,
     themeMode,
+    merchantTheme,
+    budgetModeEnabled,
     agentMode,
     agentInitialDelaySeconds,
   });
@@ -333,6 +344,11 @@ export default function ConversationShell({
 
   // Every checkout entry point must honor the same buyer preference and auth gate.
   function beginCheckout() {
+      if (budgetModeEnabled) {
+        setShowBuyerAuth(false);
+        navigation.setCart(true);
+        return { agentMessage: "Abri o carrinho para você enviar sua solicitação de orçamento." };
+      }
       const buyer = getValidBuyer();
       // A visitor can ask to finish immediately after a reload, before the
       // asynchronous one-buy-click state has returned. The locally persisted
@@ -426,7 +442,7 @@ export default function ConversationShell({
     realtimeVoice.start();
   };
   useEffect(() => {
-    if (!conversationId) return;
+    if (!conversationId || budgetModeEnabled) return;
     let active = true;
     const buyer = getValidBuyer();
     const preferenceKey = merchantId ? `zyon-one-buy-click:${merchantId}` : null;
@@ -449,7 +465,7 @@ export default function ConversationShell({
       if (active) setOneBuyClick(null);
     });
     return () => { active = false; };
-  }, [conversationId, merchantId]);
+  }, [conversationId, merchantId, budgetModeEnabled]);
   useEffect(() => {
     oneBuyClickEnabled.current = oneBuyClick?.enabled === true;
   }, [oneBuyClick]);
@@ -470,6 +486,11 @@ export default function ConversationShell({
     }
   };
   useEffect(() => {
+    if (budgetModeEnabled && preparedCheckout) {
+      setCartDrawerForceOpen(true);
+      clearPreparedCheckout();
+      return;
+    }
     if (!preparedCheckout || openedPreparedActions.current.has(preparedCheckout.actionId)) return;
     if (!oneBuyClick) return;
     if (!oneBuyClickEnabled.current) {
@@ -486,7 +507,7 @@ export default function ConversationShell({
     });
     setCheckoutOpen(true);
     clearPreparedCheckout();
-  }, [preparedCheckout, oneBuyClick, clearPreparedCheckout]);
+  }, [preparedCheckout, oneBuyClick, clearPreparedCheckout, budgetModeEnabled]);
   useEffect(() => {
     if ((!richProduct && !checkoutOpen && !navigation.view.cart) || openedInitialRichProduct.current) return;
     openedInitialRichProduct.current = true;
@@ -576,6 +597,12 @@ export default function ConversationShell({
     };
   }, [handleQuickReply]);
   useEffect(() => {
+    if (checkoutIntent && budgetModeEnabled) {
+      setShowBuyerAuth(false);
+      setCartDrawerForceOpen(true);
+      setCheckoutIntent(null);
+      return;
+    }
     if (checkoutIntent) {
       setCheckoutUserId(checkoutIntent);
       setCheckoutCartRef(cart.cartId ?? undefined);
@@ -583,7 +610,7 @@ export default function ConversationShell({
       setCheckoutOpen(true);
       setCheckoutIntent(null);
     }
-  }, [checkoutIntent, setCheckoutIntent]);
+  }, [checkoutIntent, setCheckoutIntent, budgetModeEnabled]);
   useEffect(() => {
     const buyerToken = localStorage.getItem("zyon_buyer_token");
     if (buyerToken && !showBuyerAuth && !checkoutUserId) {
@@ -674,10 +701,10 @@ export default function ConversationShell({
     handleQuickReply(option);
   };
   return (
-    <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1px" }}>
-      <PerimeterBorder radius="19px" />
+    <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "var(--aacp-radius, 19px)", padding: "1px" }}>
+      <PerimeterBorder radius="var(--aacp-radius, 19px)" />
       {/* Content */}
-      <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "18px", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
+      <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "max(0px, calc(var(--aacp-radius, 19px) - 1px))", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
       <h1 style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
         {storeName} - Loja Online
       </h1>
@@ -838,7 +865,7 @@ export default function ConversationShell({
               {voiceCheckoutEnabled ? "Comece pelo chat ou ative a voz no cabeçalho" : "Como você prefere comprar?"}
             </div>
             <div style={{ display: "flex", gap: "10px", width: "100%" }}>
-              <button data-neu="choice" type="button" onClick={() => { realtimeVoice.stop(); selectChannel("chat"); }} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
+              <button data-neu="choice" type="button" onClick={() => { realtimeVoice.stop(); selectChannel("chat"); }} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "var(--aacp-radius, 16px)", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
                 <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
                 </span>
@@ -999,7 +1026,7 @@ export default function ConversationShell({
       {/* Policy Modal */}
       {policyModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "20px" }} onClick={() => setPolicyModal(null)}>
-          <div data-neu="surface" style={{ background: "var(--aacp-panel-bg)", borderRadius: "16px", border: "1px solid var(--aacp-line)", maxWidth: "520px", width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }} onClick={(e) => e.stopPropagation()}>
+          <div data-neu="surface" style={{ background: "var(--aacp-panel-bg)", borderRadius: "var(--aacp-radius, 16px)", border: "1px solid var(--aacp-line)", maxWidth: "520px", width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--aacp-line)", flex: "none" }}>
               <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "var(--aacp-fg)" }}>{policyModal.title}</h2>
@@ -1028,6 +1055,7 @@ export default function ConversationShell({
       {effectiveMode === "chat" && (
         <CheckoutWidgetPanel
           merchantId={merchantId}
+          budgetModeEnabled={budgetModeEnabled}
           onCheckout={async () => {
             beginCheckout();
           }}
@@ -1064,7 +1092,7 @@ export default function ConversationShell({
       {/* Buyer Hub Panel */}
       <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} onToggleTheme={toggleTheme} />
       {/* Buyer Auth Gate */}
-      {showBuyerAuth && (
+      {showBuyerAuth && !budgetModeEnabled && (
         <BuyerAuthGate
           merchantId={merchantId}
           merchantName={storeName}
@@ -1087,7 +1115,7 @@ export default function ConversationShell({
         />
       )}
       {/* Inline Checkout Panel — replaces redirect to widget app */}
-      {checkoutOpen && merchantId && (
+      {checkoutOpen && merchantId && !budgetModeEnabled && (
         navigation.view.recovery && merchantSlug ? <RecoveryCheckoutPanel
           token={navigation.view.recovery} slug={merchantSlug} merchantId={merchantId} storeName={storeName}
           theme={theme} onClose={() => setCheckoutOpen(false)}

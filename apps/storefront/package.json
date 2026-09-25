@@ -12,6 +12,7 @@
   },
   "dependencies": {
     "@zyon/checkout-ui": "workspace:*",
+    "@zyon/shared-types": "workspace:^",
     "@zyon/widget-v2": "workspace:*",
     "dompurify": "^3.4.14",
     "next": "^15.0.0",

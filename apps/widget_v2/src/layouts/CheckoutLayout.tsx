@@ -1,4 +1,4 @@
-import { NEUMORPHIC_THEME } from "../design-system/neumorphism";
+import { merchantThemeTokens } from "@zyon/shared-types";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
@@ -17,6 +17,7 @@ interface CheckoutLayoutProps {
 }
 
 export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {}) {
+  const shellRef = useRef<HTMLDivElement>(null);
   const chatColumnRef = useRef<HTMLDivElement>(null);
   const [composerOffset, setComposerOffset] = useState<number | null>(null);
   const channel = useCheckoutStore((s) => s.channel);
@@ -79,7 +80,7 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
   }
 
   const THEME_KEY = "zyon-theme";
-  const merchantDefault = brand.mode === "dark" ? "dark" : "light";
+  const merchantDefault = brand.mode === "dark" || brand.mode === "grey" ? "dark" : "light";
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     if (forcedTheme === "dark" || forcedTheme === "light") return forcedTheme;
     try {
@@ -93,14 +94,21 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
     if (forcedTheme === "dark" || forcedTheme === "light") {
       setTheme(forcedTheme);
     }
-  }, [forcedTheme]);
+    else {
+      let saved: string | null = null;
+      try { saved = localStorage.getItem(THEME_KEY); } catch {}
+      if (saved !== "dark" && saved !== "light") setTheme(merchantDefault);
+    }
+  }, [forcedTheme, merchantDefault]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onResize = () => setIsMobile(window.innerWidth < 640);
+    const onResize = () => setIsMobile((shellRef.current?.clientWidth || window.innerWidth) < 640);
+    const observer = new ResizeObserver(onResize);
+    if (shellRef.current) observer.observe(shellRef.current);
     onResize();
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    return () => { observer.disconnect(); window.removeEventListener("resize", onResize); };
   }, []);
 
   const toggleTheme = useCallback(() => {
@@ -124,11 +132,14 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
   }, [onClose]);
 
   const themeAttr = theme;
+  const effectiveMode = theme === "dark" && brand.mode === "grey" ? "grey" : theme;
+  const themePalette = merchantThemeTokens(brand, effectiveMode);
 
   useEffect(() => {
-    const bodyBg = theme === "dark" ? "#0d1117" : "#e7e5df";
-    document.body.style.background = bodyBg;
-  }, [theme]);
+    const previous = document.body.style.background;
+    document.body.style.background = themePalette["--aacp-bg"];
+    return () => { document.body.style.background = previous; };
+  }, [themePalette["--aacp-bg"]]);
 
   const widgetStyle: React.CSSProperties = {
     width: "100%",
@@ -139,14 +150,13 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
     flexDirection: "column",
     backgroundColor: "var(--aacp-bg, #F7F8FA)",
     color: "var(--aacp-fg, #111827)",
-    fontFamily: "inherit",
+    fontFamily: "var(--aacp-font, inherit)",
     overflow: "hidden",
   };
 
-  const themePalette: Record<string, string> = NEUMORPHIC_THEME[theme];
-
   return (
     <div
+      ref={shellRef}
       className="pulse-widget-shell"
       data-skin="pulse"
       data-theme={themeAttr}
@@ -283,7 +293,7 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
 
       {/* Channel Gate: FULL screen, no sidebar */}
       {status === "channel_gate" && (
-        <ShimmerBorder radius={brand.borderRadius ? `${brand.borderRadius}px` : "19px"}>
+        <ShimmerBorder radius={brand.borderRadius != null ? `${brand.borderRadius}px` : "19px"}>
           <div style={{ width: "100%", height: "100%", overflow: "hidden", background: "var(--bg)" }}>
             <ChannelGate />
           </div>
@@ -292,7 +302,7 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
 
       {/* Payment success — dedicated confirmation screen */}
       {status === "completed" && (
-        <ShimmerBorder radius={brand.borderRadius ? `${brand.borderRadius}px` : "19px"}>
+        <ShimmerBorder radius={brand.borderRadius != null ? `${brand.borderRadius}px` : "19px"}>
           <div
             style={{
               width: "100%",
@@ -349,7 +359,7 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
 
       {/* Active: split layout — chat left + smart cart right */}
       {status === "active" && (
-        <ShimmerBorder radius={brand.borderRadius ? `${brand.borderRadius}px` : "19px"}>
+        <ShimmerBorder radius={brand.borderRadius != null ? `${brand.borderRadius}px` : "19px"}>
           <div
             style={{
               position: "relative",

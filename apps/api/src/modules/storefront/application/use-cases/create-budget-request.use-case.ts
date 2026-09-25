@@ -1,7 +1,6 @@
-import { Inject, Injectable, BadRequestException , Logger} from "@nestjs/common";
+import { Inject, Injectable, BadRequestException, ForbiddenException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface CreateBudgetRequestInput {
   merchantId: string;
@@ -28,33 +27,43 @@ export interface BudgetRequestDto {
 
 @Injectable()
 export class CreateBudgetRequestUseCase {
-  private readonly logger = new Logger(CreateBudgetRequestUseCase.name);
-
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
   async execute(input: CreateBudgetRequestInput): Promise<BudgetRequestDto> {
-    if (!input.merchantId || !input.customerName || !input.customerEmail || !input.customerPhone) {
+    if (!input.merchantId || typeof input.customerName !== "string" || !input.customerName.trim() || input.customerName.length > 200 || typeof input.customerEmail !== "string" || input.customerEmail.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(input.customerEmail.trim()) || typeof input.customerPhone !== "string" || !/^\d{10,15}$/.test(input.customerPhone.replace(/\D/g, ""))) {
       throw new BadRequestException("missing_required_fields");
     }
-    if (!input.items?.length) {
+    if (input.note !== undefined && (typeof input.note !== "string" || input.note.length > 2000)) throw new BadRequestException("invalid_budget_note");
+    const merchant = await this.prisma.merchant.findUnique({ where: { id: input.merchantId }, select: { budgetModeEnabled: true } });
+    if (!merchant?.budgetModeEnabled) throw new ForbiddenException("budget_mode_disabled");
+    if (!input.items?.length || input.items.some((item) => !Number.isInteger(item.quantity) || item.quantity <= 0 || !Number.isFinite(item.price) || item.price < 0) || !Number.isFinite(input.total) || input.total < 0) {
       throw new BadRequestException("items_required");
     }
 
-    const budget = await this.prisma.budgetRequest.create({
-      data: {
-        merchantId: input.merchantId,
-        customerName: input.customerName,
-        customerEmail: input.customerEmail,
-        customerPhone: input.customerPhone.replace(/\D/g, ""),
-        items: input.items as any,
-        subtotal: input.total,
-        total: input.total,
-        note: input.note ?? null,
-        status: "pending",
-      },
-    });
+    const budget = await this.prisma.$transaction(async (tx) => {
+      const created = await tx.budgetRequest.create({
+        data: {
+          merchantId: input.merchantId,
+          customerName: input.customerName.trim(),
+          customerEmail: input.customerEmail.trim(),
+          customerPhone: input.customerPhone.replace(/\D/g, ""),
+          items: input.items as any,
+          subtotal: input.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0) / 100,
+          total: input.total,
+          note: input.note ?? null,
+          status: "pending",
+        },
+      });
 
-    void this.notifyMerchant(input.merchantId, budget.id, input);
+      await tx.merchantNotification.create({ data: {
+        merchantId: input.merchantId,
+        type: "budget_request",
+        title: "Nova solicitação de orçamento",
+        body: "Uma solicitação foi recebida. Confira os itens e dados de contato na aba Orçamento em Configurações da Loja.",
+        metadata: { budgetId: created.id, href: "#store-settings" },
+      } });
+      return created;
+    });
 
     return {
       id: budget.id,
@@ -68,29 +77,5 @@ export class CreateBudgetRequestUseCase {
       status: budget.status,
       createdAt: budget.createdAt.toISOString(),
     };
-  }
-
-  private async notifyMerchant(merchantId: string, budgetId: string, input: CreateBudgetRequestInput) {
-    const merchant = await this.prisma.merchant.findUnique({
-      where: { id: merchantId },
-      select: { name: true, budgetEmail: true, budgetWhatsapp: true, storeSettings: true },
-    });
-    if (!merchant) return;
-
-    const email = merchant.budgetEmail ?? (merchant.storeSettings as any)?.company?.email;
-    const phone = merchant.budgetWhatsapp ?? (merchant.storeSettings as any)?.company?.phone;
-    const itemsText = input.items.map((i) => `• ${i.productName} x${i.quantity} — R$ ${i.price.toFixed(2)}`).join("\n");
-    const totalText = `R$ ${input.total.toFixed(2)}`;
-
-    if (phone) {
-      const waText = encodeURIComponent(
-        `Novo orçamento de ${input.customerName}!\n${input.items.length} items — ${totalText}\nEmail: ${input.customerEmail}\nTel: ${input.customerPhone}`
-      );
-      this.logger.log("budget.notification.whatsapp", { merchantId: input.merchantId, itemCount: input.items.length });
-    }
-
-    if (email) {
-      this.logger.log("budget.notification.email", { merchantId: input.merchantId, itemCount: input.items.length });
-    }
   }
 }

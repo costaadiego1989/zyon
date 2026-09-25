@@ -465,24 +465,30 @@ export class StorefrontController {
   }
 
   @Post("budget-requests")
+  @ProductionRoute()
   async handleCreateBudgetRequest(@Body() body: {
     merchant_id: string;
+    cart_id: string;
     customer_name: string;
     customer_email: string;
     customer_phone: string;
-    items: Array<{ variantId: string; productName: string; quantity: number; price: number }>;
-    total: number;
     note?: string;
-  }) {
-    return this.createBudgetRequest.execute({
+  }, @Req() request: { headers?: { authorization?: string; origin?: string } }) {
+    const access = this.conversationAccess(request, body.cart_id, body.merchant_id);
+    if (!this.conversationRateLimiter.consume(access.merchantId, body.cart_id).allowed) throw new HttpException("conversation_rate_limit_exceeded", HttpStatus.TOO_MANY_REQUESTS);
+    const storedCart = await this.cartRepo.getOrCreate(access.merchantId, body.cart_id);
+    const { cart } = await this.priceCart(access.merchantId, body.cart_id, storedCart);
+    const budget = await this.createBudgetRequest.execute({
       merchantId: body.merchant_id,
       customerName: body.customer_name,
       customerEmail: body.customer_email,
       customerPhone: body.customer_phone,
-      items: body.items,
-      total: body.total,
+      items: cart.items.map((item) => ({ variantId: item.variantId, productName: item.name, quantity: item.quantity, price: item.unitPriceCents / 100 })),
+      total: Math.max(0, cart.total - cart.discount) / 100,
       note: body.note,
     });
+    await this.cartRepo.clear(access.merchantId, body.cart_id);
+    return budget;
   }
 
   @Get("budget-requests")

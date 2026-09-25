@@ -1,3 +1,4 @@
+import type { MerchantThemeAppearance } from "@zyon/shared-types";
 export type Message = {
   id: string;
   role: "user" | "agent";
@@ -18,6 +19,8 @@ export interface ConversationViewModelProps {
   agentGreeting?: string;
   quickReplies?: string[];
   returnOrderId?: string;
+  merchantTheme?: MerchantThemeAppearance;
+  budgetModeEnabled?: boolean;
   themeMode?: "dark" | "light" | "grey";
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;

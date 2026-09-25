@@ -176,6 +176,7 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
 }
 
 export interface QuickReplyParams {
+  budgetModeEnabled?: boolean;
   option: string;
   cartItemCount: number;
   merchantId: string | null;
@@ -191,6 +192,11 @@ export function handleQuickReply(params: QuickReplyParams) {
 
   const lower = option.toLowerCase();
   if (lower === "ver carrinho" || lower === "ver meu carrinho") {
+    setCartDrawerForceOpen(true);
+    setTimeout(() => setCartDrawerForceOpen(false), 100);
+    return;
+  }
+  if (lower === "solicitar orçamento" || lower === "solicitar cotação" || (params.budgetModeEnabled && (lower === "finalizar compra" || lower === "finalizar pedido"))) {
     setCartDrawerForceOpen(true);
     setTimeout(() => setCartDrawerForceOpen(false), 100);
     return;

@@ -39,8 +39,8 @@ export function parseThemePreviewUpdate(
   if (typeof payload.borderRadius === "number" && Number.isFinite(payload.borderRadius) && payload.borderRadius >= 0 && payload.borderRadius <= 64) {
     update.borderRadius = payload.borderRadius;
   }
-  if (payload.mode === "light" || payload.mode === "dark") update.mode = payload.mode;
-  if (payload.density === "compact" || payload.density === "comfortable") update.density = payload.density;
+  if (payload.mode === "light" || payload.mode === "dark" || payload.mode === "grey") update.mode = payload.mode;
+  if (payload.density === "compact" || payload.density === "comfortable" || payload.density === "spacious") update.density = payload.density;
 
   return Object.keys(update).length > 0 ? update as ThemePreviewUpdate : null;
 }
