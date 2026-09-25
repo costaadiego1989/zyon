@@ -35,7 +35,10 @@ function buildController(repository: InMemoryMerchantRepository) {
     new GetMerchantThemeUseCase(repository, prismaMock),
     new UpdateMerchantThemeUseCase(repository),
     s3Mock,
-    prismaMock
+    prismaMock,
+    { list: async () => [], create: async () => { throw new Error("not_used"); }, activate: async () => { throw new Error("not_used"); } } as any,
+    { execute: async () => { throw new Error("not_used"); } } as any,
+    { create: () => "" } as any,
   );
 }
 
@@ -168,7 +171,8 @@ test("AuthGuard rejects missing bearer tokens and accepts signed tokens", async 
     userId: user.id,
     merchantId: "mrc_1",
     email: "owner@example.com",
-    role: "owner"
+    role: "owner",
+    authVersion: 0,
   });
 
   const request: {
@@ -185,7 +189,8 @@ test("AuthGuard rejects missing bearer tokens and accepts signed tokens", async 
     userId: user.id,
     merchantId: "mrc_1",
     email: "owner@example.com",
-    role: "owner"
+    role: "owner",
+    authVersion: 0,
   });
   assert.deepEqual(request.tenantPrincipal, {
     kind: "human",

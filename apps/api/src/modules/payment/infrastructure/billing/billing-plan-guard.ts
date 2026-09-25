@@ -52,9 +52,21 @@ export function RequirePlanFeature(
 export class BillingPlanMeteringService {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
+  /** Platform subscription is owned by the Scale billing account; commercial
+   * connections and operational usage remain scoped to the active store. */
+  async resolveBillingAccountMerchantId(merchantId: string): Promise<string> {
+    const scopedMerchantId = merchantId.trim();
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: scopedMerchantId },
+      select: { billingAccountMerchantId: true },
+    });
+    return merchant?.billingAccountMerchantId ?? scopedMerchantId;
+  }
+
   async getSubscription(merchantId: string): Promise<BillingSubscriptionSnapshot | undefined> {
+    const billingMerchantId = await this.resolveBillingAccountMerchantId(merchantId);
     const row = await this.prisma.merchantBillingSubscription.findUnique({
-      where: { merchantId: merchantId.trim() },
+      where: { merchantId: billingMerchantId },
     });
     if (!row) return undefined;
     return {

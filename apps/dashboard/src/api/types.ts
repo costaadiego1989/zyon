@@ -42,6 +42,13 @@ export type MerchantProfile = {
   user_id: string;
 };
 
+export type ManagedMerchantStore = {
+  id: string;
+  name: string;
+  slug?: string;
+  role: "owner" | "admin" | "staff";
+};
+
 export type NegotiationEvaluateBridgeResponse = Record<string, unknown> & {
   negotiation_session_id?: string;
 };

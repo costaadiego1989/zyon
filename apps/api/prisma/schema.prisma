@@ -16,6 +16,9 @@ enum MerchantPlan {
 
 model Merchant {
   id                      String       @id
+  // Stores in a Scale account share the platform subscription, never their
+  // commercial integrations. A root store points to itself after migration.
+  billingAccountMerchantId String?      @map("billing_account_merchant_id")
   name                    String
   storeSlug               String?      @unique @map("store_slug")
   theme                   Json?
@@ -70,6 +73,10 @@ model Merchant {
   ownDeliveryConfig        OwnDeliveryConfig?           @relation("OwnDeliveryConfig")
   campaignContactConsents  CampaignContactConsent[]
   oneBuyClickSessions      OneBuyClickSession[]
+  billingAccount           Merchant?   @relation("MerchantBillingAccount", fields: [billingAccountMerchantId], references: [id], onDelete: Restrict)
+  managedStores            Merchant[]  @relation("MerchantBillingAccount")
+
+  @@index([billingAccountMerchantId])
 
   @@map("merchants")
 }

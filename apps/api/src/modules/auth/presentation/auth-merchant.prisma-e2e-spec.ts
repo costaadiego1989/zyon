@@ -34,7 +34,10 @@ test(
       new GetMerchantThemeUseCase(merchantRepository, prisma as any),
       new UpdateMerchantThemeUseCase(merchantRepository),
       { isConfigured: () => false, upload: async () => ({ url: "", key: "", bucket: "" }), uploadBase64: async () => ({ url: "", key: "", bucket: "" }) } as any,
-      { merchant: { update: async () => ({}) } } as any
+      { merchant: { update: async () => ({}) } } as any,
+      { list: async () => [], create: async () => { throw new Error("not_used"); }, activate: async () => { throw new Error("not_used"); } } as any,
+      { execute: async () => { throw new Error("not_used"); } } as any,
+      { create: () => "" } as any,
     );
     const email = `mrc_auth_${crypto.randomUUID()}@example.com`;
     let merchantId = "";

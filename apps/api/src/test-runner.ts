@@ -11,7 +11,11 @@ import "./modules/auth/presentation/tenant-role.guard.spec.js";
 import "./modules/auth/presentation/staff-readable.spec.js";
 import "./modules/merchant/presentation/merchant.controller.spec.js";
 import "./modules/merchant/application/merchant-theme.use-cases.spec.js";
+import "./modules/merchant/application/merchant-store.service.spec.js";
+import "./modules/merchant/application/activate-merchant-store.use-case.spec.js";
+import "./modules/merchant/infrastructure/prisma-merchant-store.repository.spec.js";
 import "./modules/merchant/domain/services/merchant-crypto.validation.spec.js";
+import "./modules/auth/infrastructure/prisma-auth.repository.multistore.spec.js";
 import "./modules/auth/presentation/auth-merchant.prisma-e2e-spec.js";
 import "./modules/auth/presentation/auth-me.prisma-e2e-spec.js";
 import "./modules/agent-rules/domain/entities/agent-rules.entity.spec.js";
@@ -312,6 +316,7 @@ import "./modules/catalog/application/use-cases/upsert-product-advanced-rules.us
 import "./modules/catalog/domain/services/product-rule-scoping.service.spec.js";
 
 import "./modules/payment/infrastructure/payment-fees.spec.js";
+import "./modules/payment/infrastructure/prisma-payment-platform.repository.multistore.spec.js";
 import "./shared/config/platform-fee.config.spec.js";
 
 import "./modules/payment/infrastructure/routing-payment.adapter.spec.js";
