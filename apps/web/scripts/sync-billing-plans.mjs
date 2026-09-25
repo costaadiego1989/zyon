@@ -1,6 +1,6 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { BILLING_PLANS, BILLING_PLAN_PRESENTATION, BILLING_FEATURE_LABELS, billingLimitHighlights } from '../../../packages/shared-types/dist/billing-plans.js';
+import { BILLING_PLANS, BILLING_PLAN_PRESENTATION, BILLING_FEATURE_LABELS, billingLimitHighlights } from '../../../packages/shared-types/src/billing-plans.ts';
 
 const file = fileURLToPath(new URL('../index.html', import.meta.url));
 const html = fs.readFileSync(file, 'utf8');
@@ -36,7 +36,9 @@ ${list(additional)}
 const start = html.indexOf('          <div class="pricing-grid">');
 const end = html.indexOf('          <p class="pricing-note">',start);
 if (start < 0 || end < 0) throw Error('Pricing block not found');
-const next = html.slice(0,start)+'          <div class="pricing-grid">\n'+cards.join('\n')+'\n          </div>\n'+html.slice(end);
+const withCards = html.slice(0,start)+'          <div class="pricing-grid">\n'+cards.join('\n')+'\n          </div>\n'+html.slice(end);
+const highestMonthlyPrice = Math.max(...Object.values(BILLING_PLANS).map(plan => plan.monthlyPriceBrl));
+const next = withCards.replace(/("highPrice":\s*")[^"]+("\s*,)/, `$1${highestMonthlyPrice}$2`);
 if (process.argv.includes('--check')) {
   if (next !== html) { console.error('Site billing catalog is stale. Run the sync script after building shared-types.'); process.exit(1); }
   console.log('Site plans match the shared billing catalog.');

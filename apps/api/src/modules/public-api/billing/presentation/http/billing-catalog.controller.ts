@@ -10,6 +10,6 @@ export class BillingCatalogController {
   constructor(private readonly plans: ListBillingPlansUseCase) {}
   @Get("catalog")
   @PublicRoute()
-  @Header("Cache-Control", "public, max-age=60")
+  @Header("Cache-Control", "no-store")
   catalog() { return this.plans.execute(); }
 }

@@ -1,7 +1,7 @@
 {
   "version": 2,
   "cleanUrls": true,
-  "buildCommand": "node scripts/build-locales.mjs",
+  "buildCommand": "node --experimental-strip-types scripts/sync-billing-plans.mjs && node scripts/build-locales.mjs",
   "installCommand": "",
   "outputDirectory": "."
 }
