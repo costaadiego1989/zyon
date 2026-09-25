@@ -161,7 +161,9 @@ export function BillingPlansPage() {
           status={sub.status}
           cancelAtPeriodEnd={sub.cancel_at_period_end}
           onManage={vm.manageSubscription}
-          canManage={Boolean(sub.has_billing_customer)}
+          // Stripe provides the hosted customer portal. Asaas subscriptions
+          // are changed directly from the plan cards below.
+          canManage={Boolean(sub.has_billing_customer) && sub.billing_provider !== "asaas"}
           isLoading={vm.upgrading}
         />
         <UsageMeters meters={meters} />
