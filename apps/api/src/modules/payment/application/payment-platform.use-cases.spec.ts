@@ -237,6 +237,37 @@ test("billing creates a local trial and server-configured Stripe checkout", asyn
   );
 });
 
+test("a manually provisioned plan without a provider subscription opens Stripe Checkout", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  const merchants = new InMemoryMerchantRepository();
+  merchants.seedProfile({ id: "mrc_manual", name: "Manually provisioned store" });
+  await repository.saveBilling({
+    merchantId: "mrc_manual",
+    provider: "asaas",
+    planKey: "scale",
+    status: "active",
+  });
+  const stripe = new StubStripePlatform();
+  const checkout = new CreateBillingCheckoutUseCase(
+    repository,
+    stripe,
+    merchants,
+    new StubBillingConfig(),
+  );
+
+  const session = await checkout.execute({
+    merchantId: "mrc_manual",
+    email: "billing@example.com",
+    plan: "growth",
+  });
+
+  assert.equal(session.url, "https://billing.stripe.test/session");
+  assert.equal(stripe.lastPriceId, "price_growth_server");
+  const billing = await repository.getBilling("mrc_manual");
+  assert.equal(billing?.stripeCustomerId, "cus_mrc_manual");
+  assert.equal(billing?.stripeSubscriptionId, undefined);
+});
+
 test("billing turns an unavailable Stripe price into an actionable service error", async () => {
   const repository = new InMemoryPaymentPlatformRepository();
   const merchants = new InMemoryMerchantRepository();

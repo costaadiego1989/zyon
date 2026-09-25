@@ -46,8 +46,8 @@ export function useBillingPlansPage() {
       if (plan && plan !== "starter" && hasSubscription) {
         setPendingChange(plans.find(p => p.key === plan) ?? null); return;
       }
-      if (subscription?.billing_provider === "asaas") {
-        setError("Para alterar o plano, selecione uma opção abaixo. Para cancelamento, entre em contato com o atendimento."); return;
+      if (subscription?.billing_provider === "asaas" && !plan) {
+        setError("Esta assinatura não possui Portal Stripe. Para alterar o plano, selecione Growth ou Scale abaixo."); return;
       }
       const session = !plan || hasSubscription || plan === "starter"
         ? await api.createBillingPortalSession({})
