@@ -3,15 +3,12 @@ export type BillingPlan = "starter" | "growth" | "scale";
 export const BILLING_PLAN_PRESENTATION = {
   starter: {
     eyebrow: "Seu primeiro passo", badge: "Sem mensalidade", includes: "Sua operação começa com",
-    description: "Para tirar sua loja autônoma do papel e conhecer a Zyon atendendo seus primeiros clientes. O essencial para começar, com a identidade da sua marca.",
   },
   growth: {
     eyebrow: "Para vender com consistência", badge: "Recomendado", includes: "Mais inteligência para sua rotina",
-    description: "Para quem já tem uma rotina de vendas e quer automatizar mais. Atenda por texto e voz, use sua base de conhecimento, configure entregas e conecte seu domínio próprio.",
   },
   scale: {
     eyebrow: "Para operações em expansão", badge: "Escala", includes: "Capacidade para o próximo nível",
-    description: "Para empresas que precisam de capacidade, marca própria e inteligência comercial avançada. Inclui compras sem limite mensal, análise, experimentação e agentes. Alto consumo e integrações especiais têm condições sob consulta.",
   },
 } as const;
 

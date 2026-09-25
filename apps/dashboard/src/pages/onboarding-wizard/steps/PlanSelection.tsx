@@ -135,7 +135,7 @@ function SignupPlan({ plan, billingCycle, selected, onSelect }: { plan: PlanDef;
     <div className="signup-plan__label">{copy.eyebrow}<span>{copy.badge}</span></div>
     <label className="signup-plan__choice" htmlFor={`signup-plan-${plan.key}`}>
       <div className="signup-plan__heading"><h2>{plan.name}</h2><input id={`signup-plan-${plan.key}`} type="radio" name="signup-plan" value={plan.key} checked={selected} disabled={!offer} onChange={onSelect} aria-label={`Selecionar ${plan.name}`} /></div>
-      <p className="signup-plan__description">{copy.description}</p>
+      <p className="signup-plan__description">{formatPlanCapacityDescription(plan.highlights ?? [])}</p>
       <div className="signup-plan__price"><strong>{offer ? billingMoney(offer.equivalentMonthlyCents) : "Indisponível"}</strong><span>/mês</span></div>
       <p className="signup-plan__fee">{plan.key === "starter" ? `Após os 14 dias iniciais: ${plan.fee} por transação.` : `${plan.fee} por transação. Tarifa fixa por compra.`}</p>
     </label>
@@ -145,4 +145,11 @@ function SignupPlan({ plan, billingCycle, selected, onSelect }: { plan: PlanDef;
     {additional.length > 0 && <details className="signup-plan__details"><summary>Todos os recursos e limites <span aria-hidden="true">+</span></summary><ul className="signup-plan__features">{additional.map(feature => <li key={feature}><Check size={15} />{feature}</li>)}</ul></details>}
     <button type="button" className="signup-plan__select" disabled={!offer} onClick={onSelect}>{selected ? <><CheckCircle2 size={16} /> Plano selecionado</> : <>Escolher {plan.name}<ArrowRight size={16} /></>}</button>
   </article>;
+}
+
+function formatPlanCapacityDescription(highlights: string[]): string {
+  const entries = highlights.slice(0, 4).map((entry, index) =>
+    index === 0 ? entry : entry.charAt(0).toLocaleLowerCase("pt-BR") + entry.slice(1),
+  );
+  return new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" }).format(entries) + ".";
 }
