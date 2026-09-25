@@ -1097,12 +1097,25 @@ export interface ChatMessageReference {
   message_id: string;
 }
 
+/** Opaque publication identity; acknowledgement is client-reported visibility only. */
+export interface ChatDisplayReference {
+  turn_id: string;
+  text_hash: string;
+}
+
+export interface ChatDisplayReport {
+  session_id: string;
+  conversation_id: string;
+  display_ref: ChatDisplayReference;
+  definition: "widget-visible-text-v1";
+}
+
 /** Read-only text and a payment reference. Payment credentials require a separate financial scope. */
 export interface ChatSessionStateResponse {
   protocol: "durable_v2" | "legacy";
   session_id: string;
   conversation_id: string;
-  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string }>;
+  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string; display_ref?: ChatDisplayReference }>;
   request?: { message_id: string; status: "processing" | "unknown" | "completed" | "reconciled" | "rejected" };
   active_request?: { message_id: string; status: "processing" | "unknown" };
   payment_intent_id?: string;
@@ -1114,6 +1127,7 @@ export interface ChatMessageRecoveryResponse {
 }
 
 export interface ChatMessageResponse {
+  display_ref?: ChatDisplayReference;
   /** Processing receipt; does not assert browser delivery or experimental exposure. */
   chat_request?: { message_id: string; status: "completed" };
   message: string;

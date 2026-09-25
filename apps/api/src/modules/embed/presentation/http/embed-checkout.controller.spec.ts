@@ -9,6 +9,21 @@ import type { StartCheckoutRequest } from "@zyon/shared-types";
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 
 describe("EmbedCheckoutController", () => {
+  it("display telemetry uses the signed session and drops merchant, arm and timestamp selectors", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+    const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ merchantId: "m1", sessionId }));
+    const seen: unknown[] = [];
+    const controller = new EmbedCheckoutController({} as never, {} as never, {} as never, new EmbedCheckoutGuardHelper(repo),
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, undefined,
+      { recordDisplay(...args: unknown[]) { seen.push(args); return { status: "recorded" }; } } as never);
+    const report = { session_id: sessionId, conversation_id: "conversation", definition: "widget-visible-text-v1" as const,
+      display_ref: { turn_id: "turn", text_hash: "a".repeat(64) } };
+    await assert.rejects(controller.chatDisplay({ embedClaims: claims }, { ...report, session_id: "foreign" }), /binding_mismatch/);
+    assert.equal(seen.length, 0);
+    await controller.chatDisplay({ embedClaims: claims }, { ...report, merchant_id: "forged", arm: "treatment", recorded_at: "old" } as any);
+    assert.deepEqual(seen, [["m1", report]]);
+  });
   it("payment recovery uses the signed session and merchant before reading financial credentials", async () => {
     const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
     const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();

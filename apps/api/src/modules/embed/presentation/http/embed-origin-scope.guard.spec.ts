@@ -130,7 +130,7 @@ describe("EmbedAuthGuard scope enforcement", () => {
   it("actual history and recovery routes reject a start-only token and require chat scope", () => {
     const start = tokenFor({ scopes: ["checkout:start"] });
     const chat = tokenFor({ scopes: ["checkout:chat"] });
-    for (const method of ["chatState", "reconcileMessage"] as const) {
+    for (const method of ["chatState", "reconcileMessage", "chatDisplay"] as const) {
       const handler = EmbedCheckoutController.prototype[method] as unknown as () => void;
       assert.throws(() => new EmbedAuthGuard(start.svc, new Reflector()).canActivate(ctx({ "x-aacp-embed-token": start.token }, handler)), ForbiddenException);
       assert.equal(new EmbedAuthGuard(chat.svc, new Reflector()).canActivate(ctx({ "x-aacp-embed-token": chat.token }, handler)), true);

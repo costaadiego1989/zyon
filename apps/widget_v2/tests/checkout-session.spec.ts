@@ -44,6 +44,42 @@ test("widget starts and updates the signed checkout session without reading or m
   } finally { globalThis.fetch = original; }
 });
 
+test("display reports verify exact text, deduplicate in flight, and send only authenticated publication references", async () => {
+  const original = globalThis.fetch;
+  const calls: { path: string; init?: RequestInit }[] = [];
+  let fail = true;
+  globalThis.fetch = async (url, init) => {
+    calls.push({ path: String(url), init });
+    if (String(url).endsWith("/embed/start")) return Response.json({ session_id: "session", conversation_id: "conversation" });
+    if (String(url).endsWith("/embed/chat/display")) {
+      if (fail) { fail = false; return Response.json({}, { status: 503 }); }
+      return Response.json({ status: "recorded" });
+    }
+    throw new Error("unexpected endpoint");
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "signed-token", merchantId: "store", apiBaseUrl: "https://api.example" });
+    await api.start();
+    const text = "Posso explicar a etapa atual.";
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+    const text_hash = Array.from(new Uint8Array(bytes), v => v.toString(16).padStart(2, "0")).join("");
+    const ref = { turn_id: "publication", text_hash };
+    await api.reportChatDisplay(ref, "Modified text");
+    await api.reportChatDisplay({ turn_id: "bad", text_hash: "invalid" }, text);
+    assert.equal(calls.length, 1);
+    await assert.rejects(api.reportChatDisplay(ref, text));
+    await Promise.all(Array.from({ length: 6 }, () => api.reportChatDisplay(ref, text)));
+    await api.reportChatDisplay(ref, text);
+    assert.equal(calls.length, 3);
+    const request = calls[2];
+    assert.equal(request.init!.method, "POST");
+    assert.equal((request.init!.headers as Record<string, string>).Authorization, "Bearer signed-token");
+    assert.deepEqual(JSON.parse(request.init!.body as string), { session_id: "session", conversation_id: "conversation",
+      display_ref: ref, definition: "widget-visible-text-v1" });
+    assert.equal(api.requiresChatRecovery, false);
+  } finally { globalThis.fetch = original; }
+});
+
 test("missing API cart snapshot is an error instead of a fabricated empty checkout", () => {
   assert.throws(() => cartFromExperience(undefined), /checkout_cart_snapshot_missing/);
 });

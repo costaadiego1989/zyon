@@ -175,6 +175,7 @@ export interface CartState {
 }
 
 export interface Message {
+  displayRef?: import("../api/chat-protocol").ChatDisplayReference;
   id: string;
   role: "agent" | "user";
   text?: string;
@@ -262,7 +263,7 @@ let pollTimer: ReturnType<typeof setInterval> | null = null;
 
 function recoveredMessages(state: ChatState, payment?: PaymentIntent): Message[] {
   const messages: Message[] = state.turns.map(turn => ({ id: `server_${turn.id}`, role: turn.role === "buyer" ? "user" : "agent",
-    text: turn.text, timestamp: Date.parse(turn.occurred_at) }));
+    text: turn.text, timestamp: Date.parse(turn.occurred_at), displayRef: turn.display_ref }));
   if (payment) {
     const actionable = payment.status === "requires_action";
     const type = payment.method === "pix" ? "pix_payment" : payment.method === "boleto" ? "boleto_payment"
@@ -767,6 +768,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         : baseBlocks;
       const agentText = resolveAgentText(res.message, mergedBlocks);
       const agentMsg: Message = {
+        displayRef: agentText === res.message ? res.display_ref : undefined,
         id: `agent_${Date.now()}`,
         role: "agent",
         text: agentText,

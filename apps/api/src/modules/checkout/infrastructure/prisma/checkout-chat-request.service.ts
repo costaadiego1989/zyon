@@ -1,6 +1,6 @@
 import { BadRequestException, ConflictException, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
 import type { CheckoutChatRequest, PrismaClient } from "@prisma/client";
-import type { ChatMessageReference, ChatMessageRecoveryResponse, ChatMessageRequest, ChatMessageResponse, ChatSessionStateResponse } from "@zyon/shared-types";
+import type { ChatDisplayReport, ChatMessageReference, ChatMessageRecoveryResponse, ChatMessageRequest, ChatMessageResponse, ChatSessionStateResponse } from "@zyon/shared-types";
 import { randomUUID } from "node:crypto";
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
 import { chatMessageIdentity, chatMessageReference, chatMessageTextHash, chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
@@ -33,12 +33,20 @@ export class CheckoutChatRequestService {
       const owned = !!active || !!request || !!await tx.checkoutChatRequest.findFirst({ where: scope, select: { id: true } })
         || !!await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } });
       const history = Array.isArray(session.chatHistory) ? session.chatHistory.slice(-50) : [];
+      const requestIds = history.flatMap(item => item && typeof item === "object" && !Array.isArray(item)
+        && typeof item.chatRequestId === "string" ? [item.chatRequestId] : []);
+      const publications = await tx.strategyTurnPublication.findMany({ where: { merchantId, sessionId,
+        requestId: { in: requestIds }, decision: "persisted", request: { status: { in: ["completed", "reconciled"] } } },
+        select: { requestId: true, turnId: true, agentTextHash: true } });
       const turns: ChatSessionStateResponse["turns"] = [];
       for (const [index, item] of history.entries()) {
         if (!item || typeof item !== "object" || Array.isArray(item)) continue;
         if ((item.role !== "buyer" && item.role !== "agent") || typeof item.text !== "string" || typeof item.occurredAt !== "string") continue;
+        const publication = item.role === "agent" ? publications.find(p => p.requestId === item.chatRequestId
+          && p.agentTextHash === chatMessageTextHash(item.text as string)) : undefined;
         turns.push({ id: typeof item.chatRequestId === "string" ? `${item.chatRequestId}:${item.role}` : `${index}:${item.occurredAt}`,
-          role: item.role, text: item.text, occurred_at: item.occurredAt });
+          role: item.role, text: item.text, occurred_at: item.occurredAt,
+          ...(publication ? { display_ref: { turn_id: publication.turnId, text_hash: publication.agentTextHash! } } : {}) });
       }
       const payment = !active ? await this.paymentReference(tx, merchantId, sessionId) : undefined;
       return { protocol: owned || chatRequestsEnabled(merchantId) ? "durable_v2" : "legacy", session_id: sessionId,
@@ -47,6 +55,32 @@ export class CheckoutChatRequestService {
         ...(request ? { request: { message_id: request.messageId, status: request.status as NonNullable<ChatSessionStateResponse["request"]>["status"] } } : {}),
         ...(active ? { active_request: { message_id: active.messageId, status: active.status as "processing" | "unknown" } } : {}) };
     }, { isolationLevel: "RepeatableRead" });
+  }
+
+  /** Deduplicated client telemetry. Does not send/replay messages, change
+   * assignment, authorize an offer or assert that a person read the text. */
+  async recordDisplay(merchantId: string, report: ChatDisplayReport) {
+    const input = structuredClone(report);
+    if ([merchantId, input?.session_id, input?.conversation_id, input?.display_ref?.turn_id]
+      .some(value => typeof value !== "string" || !value.trim() || value.length > 200)
+      || input.definition !== "widget-visible-text-v1" || !/^[a-f0-9]{64}$/.test(input.display_ref?.text_hash ?? "")) {
+      throw new BadRequestException("CHAT_DISPLAY_INVALID_REPORT");
+    }
+    return this.prisma.$transaction(async tx => {
+      const scope = { merchantId, sessionId: input.session_id };
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${input.session_id} FOR SHARE`;
+      const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
+      const publication = await tx.strategyTurnPublication.findFirst({ where: { ...scope, turnId: input.display_ref.turn_id,
+        decision: "persisted", agentTextHash: input.display_ref.text_hash,
+        request: { conversationId: input.conversation_id, status: { in: ["completed", "reconciled"] } } } });
+      if (!publication || session?.conversationId !== input.conversation_id) throw new NotFoundException("CHAT_DISPLAY_NOT_AVAILABLE");
+      const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
+      await tx.strategyMessageDisplay.createMany({ data: [{ ...scope, turnId: publication.turnId,
+        conversationId: input.conversation_id, agentTextHash: input.display_ref.text_hash,
+        definition: input.definition, recordedAt: clock.now }], skipDuplicates: true });
+      const row = await tx.strategyMessageDisplay.findUniqueOrThrow({ where: { turnId: publication.turnId, merchantId } });
+      return { status: "recorded" as const, recorded_at: row.recordedAt.toISOString() };
+    });
   }
 
   /** Financial credentials require the same transport scope as payment creation.
@@ -98,10 +132,17 @@ export class CheckoutChatRequestService {
     }
     try {
       const response = await work(request, Object.freeze({ requestId: row.id, requestHash: row.requestHash }));
-      const result: ChatMessageResponse = { ...response, chat_request: { message_id: row.messageId, status: "completed" } };
+      const { display_ref: _untrustedDisplayRef, ...content } = response;
+      const result: ChatMessageResponse = { ...content, chat_request: { message_id: row.messageId, status: "completed" } };
       const responseHash = digest(JSON.parse(JSON.stringify(result)));
       await this.finish(row, "completed", responseHash);
-      return result;
+      // Telemetry metadata cannot turn a successfully committed reply into an
+      // unknown financial/chat result. A later state read can recover the ref.
+      const publication = await this.prisma.strategyTurnPublication.findFirst({ where: { requestId: row.id,
+        merchantId: row.merchantId, sessionId: row.sessionId, decision: "persisted",
+        agentTextHash: chatMessageTextHash(result.message) } }).catch(() => null);
+      return { ...result, ...(publication?.agentTextHash ? { display_ref: {
+        turn_id: publication.turnId, text_hash: publication.agentTextHash } } : {}) };
     } catch {
       // Effects may already exist, including an accepted external operation. An
       // exception is never proof that retrying the workflow is safe. If even this

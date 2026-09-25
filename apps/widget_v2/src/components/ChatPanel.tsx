@@ -7,6 +7,20 @@ import { renderInlineMarkdown, messageToSpeech } from "./chat/helpers";
 import { BlockRenderer } from "./chat/ChatBlocks";
 import { VoiceComposer } from "./chat/VoiceComposer";
 import { useChatRecovery } from "@/lib/use-chat-recovery";
+import { useChatDisplay } from "@/lib/use-chat-display";
+import type { CheckoutSession } from "@/api/checkout-session";
+import type { Message } from "@/store/checkout-store";
+
+function MessageText({ message, api }: { message: Message; api: CheckoutSession | null }) {
+  const ref = useChatDisplay(api, message.role === "agent" ? message.displayRef : undefined, message.text);
+  return <div ref={ref} data-neu="message" data-speaker={message.role === "user" ? "buyer" : "agent"}
+    style={{ padding: "10px 14px", borderRadius: "18px",
+      background: message.role === "user" ? "var(--aacp-accent, #0f766e)" : "var(--card)",
+      color: message.role === "user" ? "#fff" : "var(--tx)", fontSize: "13px", lineHeight: 1.5,
+      wordBreak: "break-word", border: message.role === "agent" ? "1px solid var(--bd)" : "none", whiteSpace: "pre-wrap" }}>
+    {message.role === "agent" ? renderInlineMarkdown(message.text!.replace(/^(?:Zion|Zyon)\s*:\s*/i, "")) : message.text}
+  </div>;
+}
 
 function isPaymentPresentationBlock(type: string): boolean {
   return ["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card"].includes(type);
@@ -117,21 +131,7 @@ export function ChatPanel() {
 
             <div style={{ maxWidth: msg.blocks?.some((block) => isPaymentPresentationBlock(block.type)) ? "min(100%, 620px)" : "80%", display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
               {msg.text && (
-                <div data-neu="message" data-speaker={msg.role === "user" ? "buyer" : "agent"}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "18px",
-                    background: msg.role === "user" ? "var(--aacp-accent, #0f766e)" : "var(--card)",
-                    color: msg.role === "user" ? "#fff" : "var(--tx)",
-                    fontSize: "13px",
-                    lineHeight: 1.5,
-                    wordBreak: "break-word",
-                    border: msg.role === "agent" ? "1px solid var(--bd)" : "none",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {msg.role === "agent" ? renderInlineMarkdown(msg.text.replace(/^(?:Zion|Zyon)\s*:\s*/i, "")) : msg.text}
-                </div>
+                <MessageText message={msg} api={api} />
               )}
               {!chatRecovery && msg.blocks?.map((block, j) => {
                 const paymentBlock = isPaymentPresentationBlock(block.type);

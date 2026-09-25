@@ -993,6 +993,7 @@ integration("main chat publishes both exact strategy arms without legacy provide
       { cartInfo: "Carrinho: R$100.00", stage: "payment", paymentJustFailed: false }));
     assert.doesNotMatch(sent.at(-1).messages[0].content, /fixture@example|52998224725|Fixture Street/);
     const admitted = await prisma.strategyTurn.findFirstOrThrow({ where: { assignment: { sessionId: arm } } });
+    assert.deepEqual(response.display_ref, { turn_id: admitted.id, text_hash: chatMessageTextHash(response.message) });
     const saved = await prisma.checkoutSession.findFirstOrThrow({ where: { sessionId: arm } });
     assert.equal(saved.strategyContextVersion, admitted.sessionContextVersion! + 1);
   }
@@ -1348,6 +1349,63 @@ async function recoveryFixture(status: "processing" | "unknown" = "unknown", mai
   return { input, claim, candidate };
 }
 
+integration("display telemetry requires terminal publication and deduplicates concurrent reports after recovery", async () => {
+  const f = await recoveryFixture(), requests = new CheckoutChatRequestService(prisma);
+  const report = { session_id: "one", conversation_id: "conversation-one", definition: "widget-visible-text-v1" as const,
+    display_ref: { turn_id: f.candidate.turnId, text_hash: chatMessageTextHash(completed.result.content) } };
+  assert.equal(await prisma.strategyMessageDisplay.count(), 0);
+  assert.equal((await requests.readState("store", "one")).turns.some(turn => !!turn.display_ref), false);
+  await assert.rejects(requests.recordDisplay("store", report), /NOT_AVAILABLE/);
+  await assert.rejects(prisma.strategyMessageDisplay.create({ data: { merchantId: "store", sessionId: "one",
+    conversationId: report.conversation_id, turnId: f.candidate.turnId, agentTextHash: report.display_ref.text_hash,
+    definition: report.definition } }), /EVIDENCE_REQUIRED/);
+  await requests.reconcile(f.input);
+  const state = await requests.readState("store", "one");
+  assert.deepEqual(state.turns[1].display_ref, report.display_ref);
+  assert.equal(state.turns[0].display_ref, undefined);
+  assert.equal(await prisma.strategyMessageDisplay.count(), 0);
+  const reports = await Promise.all(Array.from({ length: 6 }, () => requests.recordDisplay("store", report)));
+  assert.equal(new Set(reports.map(row => row.recorded_at)).size, 1);
+  assert.equal(await prisma.strategyMessageDisplay.count(), 1);
+  assert.equal(await prisma.strategyAssignment.count(), 1);
+  await assert.rejects(prisma.strategyMessageDisplay.update({ where: { turnId: f.candidate.turnId }, data: { definition: "changed" } }), /IMMUTABLE/);
+  await assert.rejects(prisma.strategyMessageDisplay.delete({ where: { turnId: f.candidate.turnId } }), /IMMUTABLE/);
+});
+
+integration("display telemetry rejects forged store, session, conversation, text, definition and publication", async () => {
+  const f = await recoveryFixture(), requests = new CheckoutChatRequestService(prisma);
+  await requests.reconcile(f.input);
+  const valid = { session_id: "one", conversation_id: "conversation-one", definition: "widget-visible-text-v1" as const,
+    display_ref: { turn_id: f.candidate.turnId, text_hash: chatMessageTextHash(completed.result.content) } };
+  for (const [merchant, report] of [ ["other", valid], ["store", { ...valid, session_id: "other" }],
+    ["store", { ...valid, conversation_id: "other" }], ["store", { ...valid, definition: "read" }],
+    ["store", { ...valid, display_ref: { ...valid.display_ref, text_hash: "a".repeat(64) } }],
+    ["store", { ...valid, display_ref: { ...valid.display_ref, turn_id: "missing" } }],
+  ] as const) await assert.rejects(requests.recordDisplay(merchant, report as any), /NOT_AVAILABLE|INVALID_REPORT/);
+  await assert.rejects(prisma.strategyMessageDisplay.create({ data: { merchantId: "store", sessionId: "one",
+    conversationId: "conversation-one", turnId: f.candidate.turnId, agentTextHash: "a".repeat(64),
+    definition: valid.definition } }), /EVIDENCE_REQUIRED/);
+  assert.equal(await prisma.strategyMessageDisplay.count(), 0);
+});
+
+integration("a late display stays attached to the published version after stop and flag rollback", async () => {
+  const f = await recoveryFixture(), requests = new CheckoutChatRequestService(prisma);
+  await requests.reconcile(f.input);
+  const execution = await prisma.strategyExecution.findFirstOrThrow();
+  await ledger.stop({ merchantId: "store", executionId: execution.id, actorId: "operator", requestKey: "stop", kind: "paused" });
+  process.env.REVENUE_STRATEGY_EXECUTION_ENABLED = "false";
+  const ref = (await requests.readState("store", "one")).turns[1].display_ref!;
+  await requests.recordDisplay("store", { session_id: "one", conversation_id: "conversation-one",
+    definition: "widget-visible-text-v1", display_ref: ref });
+  assert.equal(await prisma.strategyMessageDisplay.count(), 1);
+  assert.equal(await prisma.strategyTurn.count(), 1);
+  const scoped = new PrismaClient({ datasources: { db: { url: url.toString() } } });
+  try {
+    const tenantClient = registerTenantMiddleware(scoped, { get: () => ({ merchantId: "other" }) } as any);
+    assert.equal(await tenantClient.strategyMessageDisplay.count(), 0);
+  } finally { await scoped.$disconnect(); }
+});
+
 for (const status of ["processing", "unknown"] as const) integration(`recovery reconciles ${status} from immutable main-chat text evidence without replay`, async () => {
   const f = await recoveryFixture(status), requests = new CheckoutChatRequestService(prisma);
   const before = await prisma.checkoutSession.findFirstOrThrow();
@@ -1362,7 +1420,8 @@ for (const status of ["processing", "unknown"] as const) integration(`recovery r
   assert.equal(row.status, "reconciled"); assert.equal(row.responseHash, null);
   const restored = await requests.readState("store", "one", f.input.message_id);
   assert.equal(restored.request?.status, "reconciled"); assert.equal(restored.active_request, undefined);
-  assert.deepEqual(restored.turns, pending.turns);
+  assert.deepEqual(restored.turns.map(({ display_ref, ...turn }) => turn), pending.turns);
+  assert.equal(restored.turns[1].display_ref?.turn_id, f.candidate.turnId);
   const resolution = await prisma.checkoutChatResolution.findFirstOrThrow();
   assert.equal(resolution.previousStatus, status); assert.equal(resolution.turnId, f.candidate.turnId);
   await assert.rejects(requests.run(f.input, async () => assert.fail("no preflight"), async () => assert.fail("no replay")),

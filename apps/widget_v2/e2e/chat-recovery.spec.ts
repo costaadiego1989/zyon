@@ -1,17 +1,22 @@
 import { test, expect, type Page } from "@playwright/test";
+import { createHash } from "node:crypto";
 
 const widgetUrl = process.env.WIDGET_RECOVERY_TEST_URL ?? "http://127.0.0.1:5174";
 
 async function setup(page: Page, theme = "light", unavailable = false,
-  payment?: { method: "pix" | "boleto" | "card"; status: string; normal?: boolean; unavailable?: boolean }) {
+  payment?: { method: "pix" | "boleto" | "card"; status: string; normal?: boolean; unavailable?: boolean },
+  display?: { normal?: boolean; failures?: number }) {
   let currentId = "", recovered = false;
   let release!: () => void;
   const ready = new Promise<void>(resolve => { release = resolve; });
   const messages: string[] = [], calls: string[] = [];
+  const displays: unknown[] = [];
+  const displayRef = { turn_id: "turn-visible", text_hash: createHash("sha256").update("Esta é a resposta que ficou salva.").digest("hex") };
   const state = () => ({ protocol: "durable_v2", session_id: "bound-session", conversation_id: "conversation-real",
     turns: currentId ? [
       { id: "saved:buyer", role: "buyer", text: "Pode explicar esta etapa?", occurred_at: "2026-09-25T02:00:00.000Z" },
-      { id: "saved:agent", role: "agent", text: "Esta é a resposta que ficou salva.", occurred_at: "2026-09-25T02:00:00.000Z" },
+      { id: "saved:agent", role: "agent", text: "Esta é a resposta que ficou salva.", occurred_at: "2026-09-25T02:00:00.000Z",
+        ...(display && recovered ? { display_ref: displayRef } : {}) },
     ] : [],
     ...(currentId ? { request: { message_id: currentId, status: recovered ? "reconciled" : "unknown" } } : {}),
     ...(currentId && !recovered ? { active_request: { message_id: currentId, status: "unknown" } } : {}),
@@ -26,6 +31,15 @@ async function setup(page: Page, theme = "light", unavailable = false,
       experience: { brand: { name: "Loja de teste", theme: { mode: theme } }, agent: { name: "Assistente" },
         items: [{ sku: "P1", name: "Produto de teste", unit_price: 99.9, quantity: 1 }], totals: { subtotal: 99.9, total: 99.9 }, rules: { showBranding: false } } });
     if (path === "/embed/chat/state") return json(state());
+    if (path === "/embed/chat/display") {
+      expect(display).toBeDefined();
+      const body = route.request().postDataJSON();
+      expect(body).toEqual({ session_id: "bound-session", conversation_id: "conversation-real",
+        display_ref: displayRef, definition: "widget-visible-text-v1" });
+      displays.push(body);
+      if (displays.length <= (display?.failures ?? 0)) return json({}, 503);
+      return json({ status: "recorded", recorded_at: "2026-09-25T02:00:01Z" });
+    }
     if (path === "/embed/chat/payment" && payment) {
       expect(route.request().method()).toBe("GET");
       expect(new URL(route.request().url()).searchParams.get("intent_id")).toBe("pay_recovered_fixture");
@@ -41,6 +55,11 @@ async function setup(page: Page, theme = "light", unavailable = false,
       messages.push(body.message_id);
       if (recovered) return json({ message: "Podemos continuar.", stage: "customer_data", missing_fields: [], chat_request: { message_id: body.message_id, status: "completed" } });
       currentId = body.message_id;
+      if (display?.normal) {
+        recovered = true;
+        return json({ message: "Esta é a resposta que ficou salva.", stage: "customer_data", display_ref: displayRef,
+          chat_request: { message_id: currentId, status: "completed" } });
+      }
       if (payment?.normal) {
         recovered = true;
         return json({ message: "Acompanhe o pagamento.", stage: "payment_pending",
@@ -62,8 +81,63 @@ async function setup(page: Page, theme = "light", unavailable = false,
   await page.route("**/checkout-settings/widget-config**", route => route.fulfill({ json: { enabledTriggers: [], advancedRules: [] } }));
   await page.goto("/?embed=1&embedToken=fixture-token&merchantId=store&apiBaseUrl=" + encodeURIComponent(widgetUrl));
   await expect(page.getByRole("textbox", { name: "Mensagem", exact: true })).toBeVisible();
-  return { messages, calls, allowRecovery: () => { unavailable = false; release(); } };
+  return { messages, calls, displays, allowRecovery: () => { unavailable = false; release(); } };
 }
+
+for (const normal of [true, false]) test(`reports visible strategy text after ${normal ? "normal response" : "recovery"} and reload`, async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  const f = await setup(page, "light", false, undefined, { normal });
+  const input = page.getByRole("textbox", { name: "Mensagem", exact: true });
+  await input.fill("Pode explicar esta etapa?"); await input.press("Enter"); f.allowRecovery();
+  await expect.poll(() => f.displays.length).toBe(1);
+  await expect(input).toBeEnabled();
+  await page.reload(); await expect.poll(() => f.displays.length).toBe(2);
+  expect(f.displays[1]).toEqual(f.displays[0]);
+  expect(f.messages).toHaveLength(1);
+  await expect(page.getByRole("button", { name: /Verificar conversa/ })).toHaveCount(0);
+});
+
+test("display waits for actual intersection and visible document; telemetry retry never blocks buying", async ({ page }) => {
+  await page.clock.install();
+  const f = await setup(page, "light", false, undefined, { normal: true, failures: 1 });
+  const input = page.getByRole("textbox", { name: "Mensagem", exact: true });
+  await page.evaluate(() => {
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await input.fill("Pode explicar esta etapa?"); await input.press("Enter");
+  await expect(page.getByText("Esta é a resposta que ficou salva.", { exact: true })).toBeVisible();
+  await page.clock.runFor(3_000); expect(f.displays).toHaveLength(0);
+  await page.evaluate(() => {
+    document.querySelector<HTMLElement>('[role="log"]')!.style.transform = "translateY(10000px)";
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await page.clock.runFor(3_000); expect(f.displays).toHaveLength(0);
+  await page.evaluate(() => { document.querySelector<HTMLElement>('[role="log"]')!.style.transform = ""; });
+  await page.clock.runFor(1_000);
+  await expect.poll(() => f.displays.length).toBe(1);
+  await expect(input).toBeEnabled();
+  await page.clock.runFor(2_000); await expect.poll(() => f.displays.length).toBe(2);
+  await page.clock.runFor(20_000); expect(f.displays).toHaveLength(2);
+  expect(f.messages).toHaveLength(1);
+});
+
+test("display retries are bounded and stop when the chat closes", async ({ page }) => {
+  await page.clock.install();
+  const f = await setup(page, "light", false, undefined, { normal: true, failures: 10 });
+  const input = page.getByRole("textbox", { name: "Mensagem", exact: true });
+  await input.fill("Pode explicar esta etapa?"); await input.press("Enter");
+  await expect(page.getByText("Esta é a resposta que ficou salva.", { exact: true })).toBeVisible();
+  for (let i = 1; i <= 3; i++) { await page.clock.runFor(4_000); await expect.poll(() => f.displays.length).toBe(i); }
+  await page.clock.runFor(30_000); expect(f.displays).toHaveLength(3);
+  await expect(input).toBeEnabled();
+  await page.evaluate(async () => {
+    const { useCheckoutStore } = await import("/src/store/checkout-store.ts");
+    useCheckoutStore.getState().resetSession();
+  });
+  await page.clock.runFor(30_000); expect(f.displays).toHaveLength(3);
+});
 
 for (const method of ["pix", "boleto", "card"] as const) test(`restores the same ${method} after loss and reload without a second creation`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 700 });

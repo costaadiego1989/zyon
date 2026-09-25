@@ -1,5 +1,5 @@
 import { CheckoutApiError } from "./checkout-api-error";
-import { ChatRecoveryRequired, PendingChatReference, chatReceipt, parseChatState, type ChatState } from "./chat-protocol";
+import { ChatRecoveryRequired, PendingChatReference, chatReceipt, chatDisplayReference, parseChatState, type ChatState, type ChatDisplayReference } from "./chat-protocol";
 
 /**
  * CheckoutSession — API client for /embed/* endpoints.
@@ -222,6 +222,7 @@ export interface ChatBlock {
 }
 
 export interface ChatResponse {
+  display_ref?: ChatDisplayReference;
   chat_request?: { message_id: string; status: "completed" };
   blocks?: ChatBlock[];
   quick_replies?: string[];
@@ -280,6 +281,8 @@ export class CheckoutSession {
   private chatInFlight = false;
   private pendingReference?: PendingChatReference;
   chatState?: ChatState;
+  private readonly displayedTurns = new Set<string>();
+  private readonly displayInFlight = new Map<string, Promise<void>>();
 
   get requiresChatRecovery(): boolean { return !!this.pendingMessageId || this.paymentRecoveryPending; }
   get usesDurableChat(): boolean { return this.protectedChat; }
@@ -401,6 +404,31 @@ export class CheckoutSession {
   private setPending(messageId: string | undefined) {
     this.pendingMessageId = messageId;
     this.pendingReference?.write(messageId);
+  }
+
+  /** Visibility telemetry only. Never creates a chat/payment or blocks checkout.
+   * The component verifies visibility; this verifies the exact rendered text. */
+  async reportChatDisplay(reference: ChatDisplayReference, text: string): Promise<void> {
+    this.assertSession();
+    const ref = chatDisplayReference(reference);
+    if (!ref || !text || text.length > 20_000 || !globalThis.crypto?.subtle) return;
+    if (this.displayedTurns.has(ref.turn_id)) return;
+    const inFlight = this.displayInFlight.get(ref.turn_id);
+    if (inFlight) return inFlight;
+    const task = (async () => {
+      const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      const hash = Array.from(new Uint8Array(bytes), value => value.toString(16).padStart(2, "0")).join("");
+      if (hash !== ref.text_hash) return;
+      const res = await fetch(`${this.embedBaseUrl}/embed/chat/display`, { method: "POST", headers: this.headers(),
+        signal: AbortSignal.timeout(10_000), body: JSON.stringify({ session_id: this.sessionId,
+          conversation_id: this.conversationId, display_ref: ref, definition: "widget-visible-text-v1" }) });
+      if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat_display", res);
+      const receipt = await res.json() as { status?: string };
+      if (receipt.status !== "recorded") throw new Error("checkout_chat_display_invalid_receipt");
+      this.displayedTurns.add(ref.turn_id);
+    })();
+    this.displayInFlight.set(ref.turn_id, task);
+    try { await task; } finally { this.displayInFlight.delete(ref.turn_id); }
   }
 
   async refreshChatState(): Promise<ChatState> {

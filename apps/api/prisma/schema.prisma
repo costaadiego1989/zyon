@@ -3710,6 +3710,7 @@ model StrategyTurnPublication {
   request CheckoutChatRequest @relation(fields: [requestId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
   exchange CheckoutChatExchange? @relation(fields: [exchangeRequestId, merchantId, sessionId], references: [requestId, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict, map: "strategy_turn_publications_exchange_fkey")
   resolution CheckoutChatResolution?
+  display StrategyMessageDisplay?
   @@unique([turnId, merchantId])
   @@unique([requestId, merchantId])
   @@unique([exchangeRequestId, merchantId, sessionId], map: "strategy_turn_publications_exchange_scope_key")
@@ -3728,4 +3729,20 @@ model StrategyExecutionEvent {
   execution StrategyExecution @relation(fields: [executionId, merchantId], references: [id, merchantId], onDelete: Restrict)
   @@unique([executionId, merchantId, requestKey])
   @@map("strategy_execution_events")
+}
+
+/// Authenticated client report of visible text, not proof of attention or purchase.
+/// Publication and assignment remain the source of version/arm attribution.
+model StrategyMessageDisplay {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  conversationId String @map("conversation_id")
+  agentTextHash String @map("agent_text_hash")
+  definition String
+  recordedAt DateTime @default(now()) @map("recorded_at")
+  publication StrategyTurnPublication @relation(fields: [turnId, merchantId], references: [turnId, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([turnId, merchantId])
+  @@index([merchantId, sessionId, recordedAt])
+  @@map("strategy_message_displays")
 }

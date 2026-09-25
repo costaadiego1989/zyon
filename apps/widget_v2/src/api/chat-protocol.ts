@@ -1,3 +1,12 @@
+export interface ChatDisplayReference { turn_id: string; text_hash: string }
+
+export function chatDisplayReference(value: unknown): ChatDisplayReference | undefined {
+  const ref = value as ChatDisplayReference | null;
+  return ref && typeof ref.turn_id === "string" && /^[a-zA-Z0-9_-]{1,200}$/.test(ref.turn_id)
+    && typeof ref.text_hash === "string" && /^[a-f0-9]{64}$/.test(ref.text_hash)
+    ? { turn_id: ref.turn_id, text_hash: ref.text_hash } : undefined;
+}
+
 export interface ChatReceipt {
   message_id: string;
   status: "processing" | "unknown" | "completed" | "reconciled" | "rejected";
@@ -7,7 +16,7 @@ export interface ChatState {
   protocol: "durable_v2" | "legacy";
   session_id: string;
   conversation_id: string;
-  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string }>;
+  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string; display_ref?: ChatDisplayReference }>;
   request?: ChatReceipt;
   active_request?: ChatReceipt;
   payment_intent_id?: string;
@@ -34,7 +43,8 @@ export function parseChatState(value: unknown, sessionId: string, conversationId
     throw new Error("checkout_chat_state_invalid");
   }
   return { protocol: row.protocol, session_id: sessionId, conversation_id: conversationId,
-    turns: row.turns.map(turn => ({ id: turn.id, role: turn.role, text: turn.text, occurred_at: turn.occurred_at })),
+    turns: row.turns.map(turn => ({ id: turn.id, role: turn.role, text: turn.text, occurred_at: turn.occurred_at,
+      ...(turn.role === "agent" && chatDisplayReference(turn.display_ref) ? { display_ref: chatDisplayReference(turn.display_ref) } : {}) })),
     request: chatReceipt(row.request), active_request: chatReceipt(row.active_request),
     ...(row.payment_intent_id ? { payment_intent_id: row.payment_intent_id } : {}) };
 }

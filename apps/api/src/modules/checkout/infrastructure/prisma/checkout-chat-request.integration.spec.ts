@@ -67,7 +67,10 @@ const code = (expected: string, status?: number) => (error: unknown) => {
 };
 
 integration("chat state restores a scoped text transcript and terminal receipt without exposing workflow data", async () => {
-  await seed(); await service.run(input(), noPreflight, completeFixture);
+  await seed();
+  const reply = await service.run(input(), noPreflight, (request, claim) => completeFixture(request, claim,
+    { ...response(), display_ref: { turn_id: "untrusted-worker-ref", text_hash: "a".repeat(64) } }));
+  assert.equal(reply.display_ref, undefined);
   const state = await service.readState("store", "session", input().message_id);
   assert.equal(state.protocol, "durable_v2"); assert.equal(state.conversation_id, "conversation");
   assert.equal(state.turns.length, 2);

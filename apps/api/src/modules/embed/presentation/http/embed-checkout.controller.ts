@@ -200,6 +200,18 @@ export class EmbedCheckoutController {
       conversation_id: body.conversation_id, message_id: body.message_id });
   }
 
+  @Post("chat/display")
+  @RateLimit(120)
+  @RequireEmbedScope("checkout:chat")
+  async chatDisplay(@Req() request: EmbedHttpRequest, @Body() body: import("@zyon/shared-types").ChatDisplayReport) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.recordDisplay(embed.merchantId, { session_id: body.session_id,
+      conversation_id: body.conversation_id, display_ref: body.display_ref, definition: body.definition });
+  }
+
   @Get("chat/state")
   @Header("Cache-Control", "no-store")
   @RateLimit(120)
