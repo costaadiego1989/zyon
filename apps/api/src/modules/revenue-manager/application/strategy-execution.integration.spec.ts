@@ -28,6 +28,8 @@ import { NestFactory } from "@nestjs/core";
 import { ProblemDetailsFilter } from "../../../shared/http/problem-details.filter.js";
 import { ReconcileChatMessageUseCase } from "../../checkout/application/use-cases/reconcile-chat-message.use-case.js";
 import { deriveChatStage } from "../../checkout/domain/services/customer-extraction.service.js";
+import { ExperimentMeasurementService } from "../../experiments/application/experiment-measurement.service.js";
+import { StrategyMetricsService } from "./strategy-metrics.service.js";
 
 // Only this disposable local database can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -111,6 +113,134 @@ function session(sessionId: string, overrides: Partial<CheckoutSession> = {}): C
 const turn = (sessionId: string, requestKey = "request-one", merchantId = "store") => ({ merchantId, sessionId, requestKey,
   inputHash: digest("buyer message fixture"), route: "primary_llm" as const, turn: { cartInfo: "Carrinho: R$100.00", stage: "payment" } });
 const integration = (name: string, fn: () => Promise<void>) => test(name, { skip: !enabled }, fn);
+
+async function measuredPopulation() {
+  const f = await activate();
+  for (const arm of ["control", "treatment"] as const) {
+    const buyers = Array.from({ length: 100 }, (_, i) => `metrics-buyer-${i}`)
+      .filter(id => strategyArm(f.execution.contract as any, id) === arm).slice(0, 2);
+    for (const [i, globalUserId] of buyers.entries()) await repo.createSessionIfAbsent(session(`${arm}-${i}`, { globalUserId }));
+  }
+  return { ...f, metrics: new ExperimentMeasurementService(prisma) };
+}
+async function measuredOrder(sessionId: string, id: string, amount = 100.25, completedAt = new Date()) {
+  return prisma.completedOrder.create({ data: { id, merchantId: "store", sessionId, externalOrderId: id,
+    currency: "BRL", orderTotal: amount, completedAt, status: "approved" } });
+}
+
+integration("strategy metrics include immutable participants without chat or purchase and preserve conversion boundaries", async () => {
+  const f = await measuredPopulation();
+  await repo.createSessionIfAbsent(session("excluded", { cohort: "holdout" }));
+  await repo.createSessionIfAbsent(session("legacy", { promptVariantId: f.review.plan.treatmentVariantId }));
+  await repo.createSessionIfAbsent(session("control-0", { merchantId: "other" }));
+  const original = await prisma.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: { merchantId: "store", sessionId: "control-0" } } });
+  await measuredOrder("control-0", "first"); await measuredOrder("control-0", "second", 25.25);
+  await measuredOrder("control-0", "too-late", 800, new Date(original.createdAt.getTime() + 24 * 3_600_000));
+  await measuredOrder("control-0", "before-entry", 800, new Date(original.createdAt.getTime() - 1));
+  await measuredOrder("excluded", "holdout-order"); await measuredOrder("legacy", "legacy-order");
+  await prisma.completedOrder.create({ data: { id: "foreign", merchantId: "other", sessionId: "control-0", externalOrderId: "foreign",
+    currency: "BRL", orderTotal: 999, completedAt: new Date() } });
+  assert.equal(await prisma.checkoutSession.count({ where: { merchantId: "store", promptVariantId: null } }), 5);
+  const now = new Date(Date.now() + 25 * 3_600_000);
+  const snapshot = await f.metrics.capture("store", f.execution.experimentId, "metrics-population", now);
+  const result = snapshot.result as any;
+  assert.equal(result.state, "collecting");
+  assert.deepEqual(result.reasons, []);
+  assert.deepEqual(result.control, { assigned: 2, mature: 2, converted: 1, orders: 2, revenueCents: 12550 });
+  assert.deepEqual(result.treatment, { assigned: 2, mature: 2, converted: 0, orders: 0, revenueCents: 0 });
+  assert.equal(result.delivery.control.sessionsWithTurn, 0);
+  assert.equal(result.delivery.control.sessionsWithDisplay, 0);
+  assert.equal(result.proposalHash, f.execution.proposalHash);
+  assert.equal(result.contributionCents, null); assert.equal(result.aiCostCents, null);
+  const final = (await f.metrics.capture("store", f.execution.experimentId, "metrics-final", new Date(Date.now() + 9 * 86_400_000))).result as any;
+  assert.equal(final.state, "inconclusive"); assert.ok(final.reasons.includes("planned_sample_not_reached"));
+});
+
+integration("strategy metrics separate pending buyers and preserve snapshots across corrections and concurrent retries", async () => {
+  const f = await measuredPopulation();
+  await measuredOrder("treatment-0", "pending-order");
+  const key = "metrics-pending", now = new Date();
+  const results = await Promise.all(Array.from({ length: 6 }, () => f.metrics.capture("store", f.execution.experimentId, key, now)));
+  assert.equal(new Set(results.map(row => row.id)).size, 1);
+  const pending = results[0].result as any;
+  assert.equal(pending.treatment.assigned, 2); assert.equal(pending.treatment.mature, 0);
+  assert.equal(pending.treatment.converted, 0); assert.equal(pending.treatment.revenueCents, 0);
+  assert.equal(pending.delivery.treatment.pendingConvertedSessions, 1);
+  assert.equal(pending.delivery.treatment.pendingRevenueCents, 10025);
+  const matureAt = new Date(Date.now() + 25 * 3_600_000);
+  const mature = await f.metrics.capture("store", f.execution.experimentId, "metrics-mature", matureAt);
+  assert.equal((mature.result as any).treatment.converted, 1);
+  await prisma.completedOrder.update({ where: { id: "pending-order" }, data: { status: "refunded" } });
+  assert.deepEqual(await f.metrics.capture("store", f.execution.experimentId, "metrics-mature", matureAt), mature);
+  const corrected = await f.metrics.capture("store", f.execution.experimentId, "metrics-corrected", matureAt);
+  assert.equal((corrected.result as any).treatment.converted, 0);
+  assert.notEqual(corrected.evidenceHash, mature.evidenceHash);
+  assert.equal(await prisma.experimentMeasurementReview.count(), 3);
+  await assert.rejects(prisma.experimentMeasurementReview.update({ where: { id: mature.id }, data: { result: {} } }), /immutable/i);
+});
+
+integration("strategy metrics distinguish saved text, client visibility and unresolved provider turns", async () => {
+  const f = await recoveryFixture(), requests = new CheckoutChatRequestService(prisma);
+  const execution = await prisma.strategyExecution.findFirstOrThrow();
+  const assigned = await prisma.strategyAssignment.findFirstOrThrow();
+  const metrics = new ExperimentMeasurementService(prisma);
+  await repo.createSessionIfAbsent(session("silent"));
+  await repo.createSessionIfAbsent(session("uncertain"));
+  const unresolved = await ledger.admitTurn(turn("uncertain"));
+  assert.equal(unresolved.status, "admitted");
+  const first = (await metrics.capture("store", execution.experimentId, "metrics-saved-only")).result as any;
+  assert.equal(first.delivery[assigned.arm].publishedTurns, 1);
+  assert.equal(first.delivery[assigned.arm].displayedTurns, 0);
+  assert.equal(first.control.assigned + first.treatment.assigned, 3);
+  assert.equal(first.delivery.control.unresolvedProviderTurns + first.delivery.treatment.unresolvedProviderTurns, 1);
+  await requests.reconcile(f.input);
+  await requests.recordDisplay("store", { session_id: "one", conversation_id: "conversation-one",
+    display_ref: { turn_id: f.candidate.turnId, text_hash: chatMessageTextHash(completed.result.content) }, definition: "widget-visible-text-v1" });
+  const second = (await metrics.capture("store", execution.experimentId, "metrics-visible")).result as any;
+  assert.equal(second.delivery[assigned.arm].sessionsWithDisplay, 1);
+  assert.equal(second.delivery[assigned.arm].displayedTurns, 1);
+  assert.equal(second.delivery.displayBasis, "authenticated_client_report_not_attention");
+  assert.deepEqual((await metrics.capture("store", execution.experimentId, "metrics-saved-only")).result, first);
+});
+
+integration("strategy metrics flag corrupted session context and early stopping without rewriting assignment", async () => {
+  const f = await measuredPopulation();
+  await prisma.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: "store", sessionId: "control-0" } },
+    data: { cart: { currency: "USD", total: 100 } } });
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "metrics-stop", kind: "stopped" });
+  const result = (await f.metrics.capture("store", f.execution.experimentId, "metrics-invalid", new Date(Date.now() + 9 * 86_400_000))).result as any;
+  assert.equal(result.state, "invalid");
+  assert.ok(result.reasons.includes("participant_currency_changed"));
+  assert.ok(result.reasons.includes("stopped_before_fixed_horizon"));
+  assert.equal(result.control.assigned, 2); assert.equal(result.promotionAllowed, false);
+});
+
+integration("strategy metrics API service scopes exact versions and bounds repeated collection to a server hour", async () => {
+  const f = await measuredPopulation();
+  const service = new StrategyMetricsService(prisma, f.metrics);
+  await assert.rejects(service.read("other", f.id, 1, true), /VERSION_NOT_FOUND/);
+  await assert.rejects(service.read("store", f.id, 2, true), /VERSION_NOT_FOUND/);
+  const initial = await service.read("store", f.id, 1);
+  assert.equal(initial.measurement, null);
+  const results = await Promise.all(Array.from({ length: 6 }, () => service.read("store", f.id, 1, true)));
+  assert.equal(await prisma.experimentMeasurementReview.count(), 1);
+  assert.ok(results.every(row => row.execution?.id === f.execution.id && row.version === 1));
+  assert.equal((results[0].execution as any).contract, undefined);
+  const serialized = JSON.stringify(results[0]);
+  for (const secret of ["metrics-buyer-", "conversation-control", "requestHash"]) assert.ok(!serialized.includes(secret));
+  const proposal = await proposalFixture("other");
+  assert.deepEqual(await service.read("other", proposal.id, 1, true), { strategyId: proposal.id, version: 1, execution: null, measurement: null });
+});
+
+integration("strategy metrics cannot mature sessions by rewriting their entry time", async () => {
+  const f = await measuredPopulation();
+  await assert.rejects(prisma.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: "store", sessionId: "control-0" } },
+    data: { createdAt: new Date(Date.now() - 2 * 86_400_000) } }), /creation time is immutable/);
+  const result = (await f.metrics.capture("store", f.execution.experimentId, "metrics-entry-drift")).result as any;
+  assert.equal(result.control.mature, 0);
+  assert.equal(result.state, "collecting");
+  assert.deepEqual(result.reasons, []);
+});
 
 integration("activation copies the exact reviewed plan and is idempotent under concurrency", async () => {
   const f = await proposalFixture();

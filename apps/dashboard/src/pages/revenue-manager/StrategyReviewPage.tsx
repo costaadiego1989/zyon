@@ -2,6 +2,7 @@ import React, { useEffect, useRef, useState } from "react";
 import { ArrowLeft, RefreshCw } from "lucide-react";
 import type { StrategyProposal } from "../../api/endpoints/strategy-review.js";
 import { StrategyReviewModal } from "./StrategyReviewModal.js";
+import { StrategyMetricsPanel } from "./StrategyMetricsPanel.js";
 import { useStrategyReview } from "./useStrategyReview.js";
 import { canReviewVersion, formatReviewDate as date, formatReviewNumber as number, REVISION_STATUSES, STRATEGY_STATUSES, versionExpired } from "./strategy-review-model.js";
 import "./strategy-review.css";
@@ -18,7 +19,7 @@ function MeasurementDetails({ proposal }: { proposal: StrategyProposal }) {
   const { plan } = measurement;
   return <section className="strategy-detail-section" aria-labelledby="strategy-measurement-title">
     <h2 id="strategy-measurement-title">Como o resultado será avaliado</h2>
-    <p>Teste proposto, ainda não iniciado. Metade dos participantes mantém a comunicação atual; a outra metade recebe a abordagem sugerida.</p>
+    <p>O plano divide os participantes em dois grupos: metade mantém a comunicação atual; a outra metade recebe a abordagem sugerida.</p>
     <dl className="strategy-measurement-facts">
       <div><dt>Duração planejada</dt><dd>{plan.durationDays} dias</dd></div>
       <div><dt>Janela para contar a compra</dt><dd>{plan.conversionWindowHours} horas por sessão</dd></div>
@@ -100,9 +101,7 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
           <p>Esta proposta altera a comunicação. Não cria cupom, desconto ou frete grátis. Os limites acima são os registrados nesta versão; não autorizam uma oferta nem comprovam sua margem.</p>
         </section>
         <MeasurementDetails proposal={proposal} />
-        <section className="strategy-detail-section"><h2>Resultados desta estratégia</h2>
-          <p>Sem resultados medidos. Esta proposta ainda não foi ativada. Conversão incremental, receita incremental e lucro estão indisponíveis.</p>
-        </section>
+        <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />
       </article>
       <section className="strategy-decision" aria-labelledby="strategy-decision-title">
         <h2 id="strategy-decision-title">Sua decisão</h2>

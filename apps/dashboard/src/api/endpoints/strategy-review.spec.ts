@@ -2,6 +2,14 @@ import { describe, expect, it, vi } from "vitest";
 import { revenueManagerEndpoints } from "./revenue-manager.js";
 
 describe("versioned strategy review transport", () => {
+  it("collects the exact strategy version without accepting counts or client budget authority", async () => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}"));
+    await revenueManagerEndpoints("https://api.test", fetchImpl).collectStrategyMetrics("a/b", 2);
+    expect(fetchImpl.mock.calls[0][0]).toBe("https://api.test/v1/revenue-manager/strategies/a%2Fb/metrics");
+    const options = fetchImpl.mock.calls[0][1];
+    expect(options).toMatchObject({ method: "POST", credentials: "include" });
+    expect(JSON.parse(String(options?.body))).toEqual({ version: 2 });
+  });
   it("reads with credentials and an encoded ID without writing a decision", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response(JSON.stringify({ id: "a/b" })));
     expect(await revenueManagerEndpoints("https://api.test", fetchImpl).getStrategyReview("a/b")).toEqual({ id: "a/b" });

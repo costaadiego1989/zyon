@@ -133,6 +133,12 @@ function mapLesson(raw: StrategyLessonApiResponse): StrategyLesson {
 
 export function revenueManagerEndpoints(base: string, f: typeof fetch) {
   return {
+    getStrategyMetrics(id: string, version: number): Promise<import("./strategy-metrics.js").StrategyMetrics> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/metrics?version=${version}`, { method: "GET" }, f);
+    },
+    collectStrategyMetrics(id: string, version: number): Promise<import("./strategy-metrics.js").StrategyMetrics> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/metrics`, { method: "POST", jsonBody: { version } }, f);
+    },
     getStrategyReview(id: string): Promise<StrategyReview> {
       return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}`, { method: "GET" }, f);
     },

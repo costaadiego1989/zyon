@@ -6,10 +6,11 @@ import { PrismaExperimentRepository } from "../infrastructure/repositories/prism
 import { PromptExperimentEntity } from "../domain/entities/prompt-experiment.entity.js";
 import { fingerprintVariants, type MeasurementPlan } from "../domain/services/measurement-plan.js";
 
-// Never truncate a caller-provided production database. This fixture is separate
-// from the weekly/budget suite, so the two suites can run independently.
+// Only named disposable databases may be truncated. Suites sharing the recovery
+// database must run with --test-concurrency=1, never in separate concurrent jobs.
 const url = new URL(process.env.REVENUE_MEASUREMENT_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
-const enabled = url.hostname === "127.0.0.1" && url.port === "5557" && url.pathname === "/revenue_measurement_0924";
+const enabled = url.hostname === "127.0.0.1" && url.port === "5557"
+  && ["/revenue_measurement_0924", "/revenue_recovery_final_0924"].includes(url.pathname);
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
 const service = new ExperimentMeasurementService(prisma);
 const repository = new PrismaExperimentRepository(prisma);

@@ -74,6 +74,14 @@
 .strategy-history li > span { display: block; font-size: 12px; color: var(--color-text-muted); }
 .strategy-history li p { margin: 6px 0; }
 .strategy-feedback-history { white-space: pre-wrap; }
+.strategy-metrics-table-wrap { width: 100%; min-width: 0; }
+.strategy-metrics-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 13px; }
+.strategy-metrics-table caption { text-align: left; color: var(--color-text-muted); padding-block: 8px 12px; }
+.strategy-metrics-table th, .strategy-metrics-table td { padding: 12px 8px; border-bottom: 1px solid var(--color-border); vertical-align: top; overflow-wrap: anywhere; }
+.strategy-metrics-table th { text-align: left; font-weight: 500; }
+.strategy-metrics-table th:first-child { width: 48%; padding-left: 0; }
+.strategy-metrics-table td, .strategy-metrics-table thead th:not(:first-child) { text-align: right; font-variant-numeric: tabular-nums; }
+.strategy-metrics-table thead { background: var(--surface-2); }
 @media (max-width: 600px) {
   .strategy-page h2 { font-size: 18px; }
   .strategy-version-bar { gap: 12px; align-items: flex-start; }

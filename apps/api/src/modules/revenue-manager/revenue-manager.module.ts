@@ -4,6 +4,8 @@ import { WeeklyAnalysisJob } from "./infrastructure/jobs/weekly-analysis.job.js"
 import { RevenueAiBudgetService } from "./infrastructure/revenue-ai-budget.service.js";
 import { StrategyReviewService } from "./application/strategy-review.service.js";
 import { StrategyReviewController } from "./presentation/http/strategy-review.controller.js";
+import { StrategyMetricsService } from "./application/strategy-metrics.service.js";
+import { StrategyMetricsController } from "./presentation/http/strategy-metrics.controller.js";
 import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
@@ -50,12 +52,13 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
 
 @Module({
   imports: [PersistenceModule, RedisModule, MessagingModule, ExperimentsModule, CheckoutSettingsModule],
-  controllers: [RevenueManagerController, StrategyReviewController],
+  controllers: [RevenueManagerController, StrategyReviewController, StrategyMetricsController],
   providers: [
     WeeklyAnalysisService,
     WeeklyAnalysisJob,
     RevenueAiBudgetService,
     StrategyReviewService,
+    StrategyMetricsService,
     BillingPlanMeteringService,
     PlanLimitGuard,
     {

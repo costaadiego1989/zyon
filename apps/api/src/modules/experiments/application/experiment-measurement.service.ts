@@ -4,6 +4,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { assessMeasurement, buildMeasurementPlan, digest, fingerprintVariants,
   type ArmMeasurement, type MeasurementPlan } from "../domain/services/measurement-plan.js";
+import { readStrategyMeasurement, strategyDeliveryMetrics } from "../infrastructure/strategy-measurement.reader.js";
 
 const DAY = 86_400_000;
 type Counts = Record<string, bigint | number | string>;
@@ -92,9 +93,12 @@ export class ExperimentMeasurementService {
       const start = experiment.startedAt ?? now;
       const end = new Date(start.getTime() + plan.durationDays * DAY);
       const hours = plan.conversionWindowHours;
+      const execution = await tx.strategyExecution.findFirst({ where: { experimentId, merchantId } });
+      if (execution && (execution.startedAt.getTime() !== start.getTime() || execution.endsAt.getTime() !== end.getTime()
+        || digest(execution.contract) !== execution.contractHash)) issues.push("strategy_execution_contract_changed");
       // One SQL statement observes assignments and order state in the same MVCC
       // snapshot. It starts at assignments, not result rows: non-buyers stay in.
-      const rows = await tx.$queryRaw<Counts[]>`
+      const rows = execution ? await readStrategyMeasurement(tx, execution, plan, now) : await tx.$queryRaw<Counts[]>`
         WITH assigned AS (
           SELECT s.*, s.created_at + (${hours} * INTERVAL '1 hour') AS cutoff,
             count(*) OVER (PARTITION BY s.global_user_id) AS buyer_sessions
@@ -124,6 +128,8 @@ export class ExperimentMeasurementService {
       for (const row of rows) {
         for (const [column, reason] of Object.entries({ outside_window: "assignment_outside_fixed_horizon",
           holdout: "holdout_contamination", unknown_cohort: "assignment_cohort_unknown", repeated_buyer: "session_independence_unverified",
+          changed_identity: "participant_identity_changed", changed_entry: "participant_entry_changed",
+          invalid_arm: "assignment_arm_invalid", changed_currency: "participant_currency_changed",
           other_currency: "mixed_order_currencies", bad_amount: "invalid_order_amount" })) {
           if (Number(row[column]) > 0) issues.push(reason);
         }
@@ -133,9 +139,12 @@ export class ExperimentMeasurementService {
         return { assigned: Number(row?.assigned ?? 0), mature: Number(row?.mature ?? 0), converted: Number(row?.converted ?? 0),
           orders: Number(row?.orders ?? 0), revenueCents: Number(row?.cents ?? 0) };
       };
-      const evidence = { control: arm(plan.controlVariantId), treatment: arm(plan.treatmentVariantId), issues };
-      const result = assessMeasurement(plan, evidence, { registeredAt: stored.createdAt,
-        startedAt: experiment.startedAt, completedAt: experiment.completedAt, asOf: now });
+      const delivery = execution ? strategyDeliveryMetrics(rows, plan) : undefined;
+      const evidence = { control: arm(plan.controlVariantId), treatment: arm(plan.treatmentVariantId), issues,
+        ...(delivery ? { delivery, executionId: execution!.id, proposalHash: execution!.proposalHash } : {}) };
+      const result = { ...assessMeasurement(plan, evidence, { registeredAt: stored.createdAt,
+        startedAt: experiment.startedAt, completedAt: experiment.completedAt, asOf: now }),
+        ...(delivery ? { delivery, executionId: execution!.id, strategyVersion: execution!.version, proposalHash: execution!.proposalHash } : {}) };
       return tx.experimentMeasurementReview.create({ data: { id: randomUUID(), experimentId, merchantId, requestKey,
         planHash: stored.planHash, evidenceHash: digest(evidence), result: result as unknown as Prisma.InputJsonValue, collectedAt: now } });
     });

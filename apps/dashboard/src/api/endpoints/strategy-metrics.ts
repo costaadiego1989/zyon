@@ -1,0 +1,22 @@
+export interface StrategyMetricArm {
+  assigned: number; mature: number; converted: number; orders: number; revenueCents: number;
+}
+export interface StrategyDeliveryArm {
+  assigned: number; mature: number; pending: number;
+  sessionsWithTurn: number; sessionsWithPublication: number; sessionsWithDisplay: number;
+  admittedTurns: number; publishedTurns: number; displayedTurns: number;
+  failedProviderTurns: number; unresolvedProviderTurns: number; suppressedTurns: number;
+  pendingConvertedSessions: number; pendingRevenueCents: number;
+}
+export interface StrategyMetrics {
+  strategyId: string; version: number;
+  execution: null | { id: string; proposalHash: string; status: string; startedAt: string; endsAt: string; stoppedAt: string | null };
+  measurement: null | { collectedAt: string; evidenceHash: string; result: {
+    definitionVersion: string; state: string; reasons: string[]; asOf: string; matureAt: string | null;
+    control: StrategyMetricArm; treatment: StrategyMetricArm; minimumSessionsPerArm: number;
+    interval: null | { effectBps: number; lowerBps: number; upperBps: number };
+    contributionCents: number | null; aiCostCents: number | null; promotionAllowed: boolean;
+    delivery?: { definition: string; populationSource: string; displayBasis: string;
+      control: StrategyDeliveryArm; treatment: StrategyDeliveryArm };
+  } };
+}
