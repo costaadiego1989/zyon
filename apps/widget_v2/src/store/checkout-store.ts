@@ -1200,6 +1200,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             hosted_card: Boolean(isCard && intent.invoice_url),
             stripe_client_secret: intent.stripe_client_secret,
             stripe_publishable_key: intent.stripe_publishable_key,
+            stripe_account_id: intent.stripe_account_id,
             expires_at_unix: intent.expires_at_unix,
             amount_cents: intent.amount_cents,
           },

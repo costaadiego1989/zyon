@@ -43,12 +43,23 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     const elapsed = Date.now() - Date.parse(firstAttemptAt);
     // Stripe v1 may prune keys after 24h. Stay below that bound; never POST an old key.
     if (Number.isFinite(elapsed) && elapsed >= 0 && elapsed < 23 * 60 * 60 * 1000) return this.createPayment(input);
-    const found = await this.requireStripe().paymentIntents.search({ query: `metadata['intent_id']:'${input.intentId.replace(/[^a-zA-Z0-9_-]/g, "")}'`, limit: 100 });
+    const found = await this.requireStripe().paymentIntents.search(
+      { query: `metadata['intent_id']:'${input.intentId.replace(/[^a-zA-Z0-9_-]/g, "")}'`, limit: 100 },
+      this.connectedAccountOptions(input),
+    );
     if (found.has_more || found.data.length > 1) throw new Error("stripe_payment_recovery_ambiguous");
     const payment = found.data[0];
     if (!payment) return null;
     if (payment.metadata.intent_id !== input.intentId || payment.metadata.merchant_id !== input.merchantId || payment.metadata.session_id !== input.sessionId || payment.amount !== input.amountCents || payment.currency.toUpperCase() !== input.currency || !payment.client_secret) throw new Error("stripe_payment_recovery_mismatch");
-    return { providerPaymentId: payment.id, status: "requires_action", buyerFacingPayload: { clientSecret: payment.client_secret, stripePublishableKey: this.requirePublishableKey() } };
+    return {
+      providerPaymentId: payment.id,
+      status: "requires_action",
+      buyerFacingPayload: {
+        clientSecret: payment.client_secret,
+        stripePublishableKey: this.requirePublishableKey(),
+        stripeAccountId: input.stripeChargeMode === "direct_v2" ? input.stripeConnectAccountId : undefined,
+      },
+    };
   }
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
@@ -68,14 +79,22 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       description: input.description ?? `${input.merchantId}:${input.sessionId}`
     };
 
-    if (input.stripeConnectAccountId) {
+    if (input.stripeConnectAccountId && input.stripeChargeMode === "direct_v2") {
+      // Accounts v2 Managed Risk requires a direct charge. The connected
+      // account is merchant of record and the platform retains its fee.
+      if (input.platformFeeCents && input.platformFeeCents > 0) paymentIntentParams.application_fee_amount = input.platformFeeCents;
+    } else if (input.stripeConnectAccountId) {
+      // Keep legacy destination charges for existing persisted payment intents.
       if (input.platformFeeCents && input.platformFeeCents > 0) paymentIntentParams.application_fee_amount = input.platformFeeCents;
       paymentIntentParams.transfer_data = { destination: input.stripeConnectAccountId };
     }
 
     const paymentIntent = await this.requireStripe().paymentIntents.create(
       paymentIntentParams,
-      { idempotencyKey: input.providerIdempotencyKey ?? input.intentId }
+      {
+        idempotencyKey: input.providerIdempotencyKey ?? input.intentId,
+        ...this.connectedAccountOptions(input),
+      }
     );
 
     if (!paymentIntent.client_secret) {
@@ -87,13 +106,18 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       status: "requires_action",
       buyerFacingPayload: {
         clientSecret: paymentIntent.client_secret,
-        stripePublishableKey: this.requirePublishableKey()
+        stripePublishableKey: this.requirePublishableKey(),
+        stripeAccountId: input.stripeChargeMode === "direct_v2" ? input.stripeConnectAccountId : undefined,
       }
     };
   }
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
-    const pi = await this.requireStripe().paymentIntents.retrieve(input.providerPaymentId);
+    const pi = await this.requireStripe().paymentIntents.retrieve(
+      input.providerPaymentId,
+      undefined,
+      this.connectedAccountOptions(input),
+    );
     return {
       state: stripeStateFromStatus(pi.status),
       approvedAmountCents: pi.amount_received || undefined
@@ -101,7 +125,11 @@ export class StripePaymentAdapter implements PaymentProviderPort {
   }
 
   async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
-    const refund = await this.requireStripe().refunds.retrieve(input.providerRefundId);
+    const refund = await this.requireStripe().refunds.retrieve(
+      input.providerRefundId,
+      undefined,
+      this.connectedAccountOptions(input),
+    );
     switch (refund.status) {
       case "succeeded":
         return { state: "succeeded" };
@@ -127,13 +155,21 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     return this.publishableKey;
   }
 
-  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string; idempotencyKey?: string }) {
+  async refundPayment(input: { merchantId: string; providerPaymentId: string; amountCents: number; reason?: string; idempotencyKey?: string; stripeConnectAccountId?: string; stripeChargeMode?: "direct_v2" }) {
     const stripe = this.requireStripe();
     const refund = await stripe.refunds.create({
       payment_intent: input.providerPaymentId,
       amount: input.amountCents,
       reason: "requested_by_customer",
-    }, input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : undefined);
+    }, {
+      ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
+      ...this.connectedAccountOptions(input),
+    });
     return { refundId: refund.id, status: refund.status === "succeeded" ? "succeeded" as const : "pending" as const };
+  }
+
+  private connectedAccountOptions(input: { stripeConnectAccountId?: string; stripeChargeMode?: "direct_v2" }): Stripe.RequestOptions | undefined {
+    if (input.stripeChargeMode !== "direct_v2" || !input.stripeConnectAccountId) return undefined;
+    return { stripeAccount: input.stripeConnectAccountId };
   }
 }

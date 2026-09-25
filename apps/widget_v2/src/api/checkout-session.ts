@@ -236,6 +236,7 @@ export interface PaymentIntent {
   pix_qr_url?: string;
   stripe_client_secret?: string;
   stripe_publishable_key?: string;
+  stripe_account_id?: string;
   invoice_url?: string;
   crypto_chain?: string;
   crypto_chain_label?: string;
@@ -479,6 +480,7 @@ export class CheckoutSession {
         invoiceUrl?: string;
         clientSecret?: string;
         stripePublishableKey?: string;
+        stripeAccountId?: string;
         quoteExpiresAt?: string;
         chain?: "polygon" | "base";
         chainLabel?: string;
@@ -517,6 +519,7 @@ export class CheckoutSession {
       pix_qr_url: pixQrUrl,
       stripe_client_secret: raw.buyerFacing?.clientSecret,
       stripe_publishable_key: raw.buyerFacing?.stripePublishableKey,
+      stripe_account_id: raw.buyerFacing?.stripeAccountId,
       invoice_url: raw.buyerFacing?.invoiceUrl,
       crypto_chain: raw.buyerFacing?.chain,
       crypto_chain_label: raw.buyerFacing?.chainLabel,

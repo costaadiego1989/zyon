@@ -45,6 +45,8 @@ export type CreateProviderPaymentInput = {
   };
   remoteIp?: string;
   stripeConnectAccountId?: string;
+  /** Accounts v2 Managed Risk direct charges belong to the connected account. */
+  stripeChargeMode?: "direct_v2";
   platformFeeCents?: number;
   /** Authenticated collector comparison, frozen before creating the payment. */
   mercadoPagoFeeMode?: "split" | "same_account";
@@ -101,6 +103,7 @@ export type CreateProviderPaymentOutput = {
     encodedQrImage?: string;
     clientSecret?: string;
     stripePublishableKey?: string;
+    stripeAccountId?: string;
   } & Partial<CryptoBuyerFacingPayload>;
 };
 
@@ -119,6 +122,8 @@ export type FetchPaymentStatusInput = {
   settlementMode?: MerchantSettlementMode;
   merchantId: string;
   providerPaymentId: string;
+  stripeConnectAccountId?: string;
+  stripeChargeMode?: "direct_v2";
 };
 
 export type FetchPaymentStatusOutput = {
@@ -138,6 +143,8 @@ export type RefundPaymentInput = {
   settlementMode?: MerchantSettlementMode;
   merchantId: string;
   providerPaymentId: string;
+  stripeConnectAccountId?: string;
+  stripeChargeMode?: "direct_v2";
   amountCents: number;
   reason?: string;
   /** Stable key for retrying the same return without issuing it twice. */
@@ -158,6 +165,8 @@ export type FetchRefundStatusInput = {
   settlementMode?: MerchantSettlementMode;
   merchantId: string;
   providerPaymentId: string;
+  stripeConnectAccountId?: string;
+  stripeChargeMode?: "direct_v2";
   providerRefundId: string;
   /**
    * Stable merchant reference for providers whose refund list lacks a

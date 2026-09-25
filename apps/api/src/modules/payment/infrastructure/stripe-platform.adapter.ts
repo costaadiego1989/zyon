@@ -52,22 +52,30 @@ export class StripePlatformAdapter implements StripePlatformPort {
     merchantName: string;
     email: string;
   }): Promise<{ accountId: string }> {
-    const account = await this.requireStripe().accounts.create(
+    // Stripe no longer accepts an Accounts v1 `type: "express"` account when
+    // the platform is the losses collector. Accounts v2 with Managed Risk
+    // makes Stripe the losses collector and requires a merchant configuration
+    // for the direct-charge flow used below in StripePaymentAdapter.
+    const account = await this.requireStripe().v2.core.accounts.create(
       {
-        type: "express",
-        country: "BR",
-        email: input.email,
-        capabilities: {
-          card_payments: { requested: true },
-          transfers: { requested: true },
+        contact_email: input.email,
+        dashboard: "full",
+        identity: { country: "BR" },
+        defaults: {
+          responsibilities: {
+            fees_collector: "stripe",
+            losses_collector: "stripe",
+          },
         },
-        business_profile: { name: input.merchantName },
+        configuration: {
+          merchant: {
+            capabilities: { card_payments: { requested: true } },
+          },
+        },
+        display_name: input.merchantName,
         metadata: { merchant_id: input.merchantId },
       },
-      // The original key can have a cached Stripe error from before Connect was
-      // enabled on the platform. Keep retries deterministic for this recovery
-      // generation, while allowing the corrected platform configuration to run.
-      { idempotencyKey: `connect:v2:${input.merchantId}` },
+      { idempotencyKey: `connect:v3:${input.merchantId}` },
     );
     return { accountId: account.id };
   }
@@ -77,32 +85,40 @@ export class StripePlatformAdapter implements StripePlatformPort {
     refreshUrl: string;
     returnUrl: string;
   }): Promise<{ url: string; expiresAt?: string }> {
-    const link = await this.requireStripe().accountLinks.create({
+    const link = await this.requireStripe().v2.core.accountLinks.create({
       account: input.accountId,
-      refresh_url: input.refreshUrl,
-      return_url: input.returnUrl,
-      type: "account_onboarding",
-      collection_options: { fields: "eventually_due" },
+      use_case: {
+        type: "account_onboarding",
+        account_onboarding: {
+          configurations: ["merchant"],
+          refresh_url: input.refreshUrl,
+          return_url: input.returnUrl,
+          collection_options: { fields: "eventually_due" },
+        },
+      },
     });
-    return { url: link.url, expiresAt: new Date(link.expires_at * 1000).toISOString() };
+    return { url: link.url, expiresAt: link.expires_at };
   }
 
   async retrieveConnectAccount(
     accountId: string,
   ): Promise<StripeConnectAccountStatus> {
-    const account = await this.requireStripe().accounts.retrieve(accountId);
-    if (account.deleted) {
+    const account = await this.requireStripe().v2.core.accounts.retrieve(accountId, {
+      include: ["configuration.merchant", "requirements"],
+    });
+    if (account.closed) {
       throw new Error("stripe_connect_account_deleted");
     }
+    const merchant = account.configuration?.merchant;
+    const requirements = (account.requirements?.entries ?? [])
+      .filter(entry => entry.minimum_deadline.status !== "eventually_due")
+      .map(entry => entry.description);
     return {
       accountId: account.id,
-      chargesEnabled: account.charges_enabled,
-      payoutsEnabled: account.payouts_enabled,
-      detailsSubmitted: account.details_submitted,
-      requirements: [
-        ...(account.requirements?.currently_due ?? []),
-        ...(account.requirements?.past_due ?? []),
-      ],
+      chargesEnabled: merchant?.capabilities?.card_payments?.status === "active",
+      payoutsEnabled: merchant?.capabilities?.stripe_balance?.payouts?.status === "active",
+      detailsSubmitted: requirements.length === 0,
+      requirements,
     };
   }
 

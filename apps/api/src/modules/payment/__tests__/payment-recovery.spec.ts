@@ -161,6 +161,37 @@ test("Stripe destination charge retains the Free R$2.98 platform split", async (
   assert.equal(calls[0].body.application_fee_amount, 298);
 });
 
+test("Accounts v2 Managed Risk creates and recovers a direct charge on the connected account", async () => {
+  const provider = new StripePaymentAdapter("sk_test_fake", "pk_test_fake");
+  const input: CreateProviderPaymentInput = {
+    ...prepared().snapshot().creation!.input,
+    method: "card",
+    stripeConnectAccountId: "acct_v2_merchant",
+    stripeChargeMode: "direct_v2",
+    platformFeeCents: 298,
+  };
+  const calls: any[] = [];
+  (provider as any).stripe = { paymentIntents: {
+    create: async (body: unknown, options: unknown) => {
+      calls.push({ body, options });
+      return { id: "pi_direct", client_secret: "client-secret" };
+    },
+    search: async (_body: unknown, options: unknown) => {
+      calls.push({ search: true, options });
+      return { has_more: false, data: [] };
+    },
+  } };
+
+  const created = await provider.createPayment(input);
+  assert.equal(calls[0].options.stripeAccount, "acct_v2_merchant");
+  assert.equal(calls[0].body.application_fee_amount, 298);
+  assert.equal(calls[0].body.transfer_data, undefined);
+  assert.equal(created.buyerFacingPayload.stripeAccountId, "acct_v2_merchant");
+
+  assert.equal(await provider.recoverPayment(input, new Date(Date.now() - 24 * 3600_000).toISOString()), null);
+  assert.equal(calls[1].options.stripeAccount, "acct_v2_merchant");
+});
+
 test("API014: card fee snapshot survives configuration changes and dispatch forwards captured total and intent ID", async t => {
   const keys = ["STRIPE_SECRET_KEY_TEST", "STRIPE_PUBLISHABLE_KEY_TEST", "PLATFORM_FEE_BRL"] as const;
   const old = Object.fromEntries(keys.map(key => [key, process.env[key]]));

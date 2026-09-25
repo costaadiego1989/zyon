@@ -491,11 +491,12 @@ function StripeCardBlockForm({
 }
 
 const stripePromiseCache = new Map<string, ReturnType<typeof loadStripe>>();
-function getStripePromise(publishableKey: string) {
-  let p = stripePromiseCache.get(publishableKey);
+function getStripePromise(publishableKey: string, stripeAccountId?: string) {
+  const cacheKey = `${publishableKey}:${stripeAccountId ?? "platform"}`;
+  let p = stripePromiseCache.get(cacheKey);
   if (!p) {
-    p = loadStripe(publishableKey);
-    stripePromiseCache.set(publishableKey, p);
+    p = loadStripe(publishableKey, stripeAccountId ? { stripeAccount: stripeAccountId } : undefined);
+    stripePromiseCache.set(cacheKey, p);
   }
   return p;
 }
@@ -504,6 +505,7 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
   const language = useCheckoutStore((s) => s.agent.language);
   const clientSecret = data?.stripe_client_secret as string | undefined;
   const publishableKey = data?.stripe_publishable_key as string | undefined;
+  const stripeAccountId = data?.stripe_account_id as string | undefined;
   const intentId = data?.intent_id as string | undefined;
   const amountCents = data?.amount_cents;
   const elementsOptions = useMemo(() => ({ clientSecret }), [clientSecret]);
@@ -517,7 +519,7 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
     );
   }
 
-  const stripePromise = getStripePromise(publishableKey);
+  const stripePromise = getStripePromise(publishableKey, stripeAccountId);
   const totalLabel = new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100);
 
   return (

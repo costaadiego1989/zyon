@@ -69,6 +69,7 @@ export type PaymentIntentSnapshot = {
     encodedQrImage?: string;
     clientSecret?: string;
     stripePublishableKey?: string;
+    stripeAccountId?: string;
     chainId?: number;
     chain?: string;
     evmNetwork?: string;

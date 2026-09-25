@@ -218,6 +218,8 @@ export class RefundPaymentService {
         provider: snap.creation?.input.provider,
         providerAccountFingerprint: snap.creation?.input.providerAccountFingerprint,
         settlementMode: snap.creation?.input.settlementMode,
+        stripeConnectAccountId: snap.creation?.input.stripeConnectAccountId,
+        stripeChargeMode: snap.creation?.input.stripeChargeMode,
         merchantId: input.merchantId,
         providerPaymentId: snap.providerPaymentId,
         amountCents,
@@ -282,6 +284,8 @@ export class RefundPaymentService {
         provider: snap.creation?.input.provider,
         providerAccountFingerprint: snap.creation?.input.providerAccountFingerprint,
         settlementMode: snap.creation?.input.settlementMode,
+        stripeConnectAccountId: snap.creation?.input.stripeConnectAccountId,
+        stripeChargeMode: snap.creation?.input.stripeChargeMode,
       });
       return { state: result.state, paymentIntentId: snap.id };
     } catch (error) {

@@ -74,6 +74,8 @@ export class ReconcilePaymentIntentsUseCase {
         provider: snap.creation?.input.provider,
         providerAccountFingerprint: snap.creation?.input.providerAccountFingerprint,
         settlementMode: snap.creation?.input.settlementMode,
+        stripeConnectAccountId: snap.creation?.input.stripeConnectAccountId,
+        stripeChargeMode: snap.creation?.input.stripeChargeMode,
         merchantId: snap.merchantId,
         providerPaymentId: snap.providerPaymentId
       });

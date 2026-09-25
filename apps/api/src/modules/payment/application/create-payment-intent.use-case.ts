@@ -514,6 +514,7 @@ export class CreatePaymentIntentUseCase {
         ...(isStripeCard ? {
           provider: "stripe" as const,
           stripeConnectAccountId,
+          stripeChargeMode: "direct_v2" as const,
           platformFeeCents: stripeApplicationFeeCents,
         }
         : usesMercadoPago ? {
