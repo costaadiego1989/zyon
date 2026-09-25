@@ -19,6 +19,7 @@ import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { randomUUID } from "node:crypto";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { chatPaymentSelection } from "../../domain/services/chat-payment-selection.js";
 
 export interface ChatReplyInput {
   reply: { message: string; objection: Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> };
@@ -76,11 +77,9 @@ export class ChatResponseBuilder {
       serviceFee: this.experienceConfig.platformFeeBrl
     });
 
-    const canSelectPayment = input.stage === "payment" && !input.suppressPaymentActions;
-    const wantsPix = /\b(pix|qr code)\b/i.test(input.userMessage) && canSelectPayment;
-    const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.userMessage) && canSelectPayment;
-    const wantsBoleto = /\bboleto\b/i.test(input.userMessage) && canSelectPayment;
-    const wantsCrypto = /\b(crypto|cripto|usdc|usdt|polygon|base|carteira|wallet|metamask)\b/i.test(input.userMessage) && canSelectPayment;
+    const selectedPaymentMethod = chatPaymentSelection(input.userMessage, input.stage, input.suppressPaymentActions);
+    const wantsPix = selectedPaymentMethod === "pix";
+    const wantsCard = selectedPaymentMethod === "credit_card";
 
     let suggestedProducts: SuggestedProduct[] = [];
     if (!input.isHoldout && input.stage === "payment" && input.previousStage === "shipping" && this.crossSellRecommender) {
@@ -110,12 +109,6 @@ export class ChatResponseBuilder {
     if (suggestedProducts.length === 0 && input.preSearchedProducts.length > 0) {
       suggestedProducts = input.preSearchedProducts;
     }
-
-    let selectedPaymentMethod: import("@zyon/shared-types").PaymentMethod | undefined;
-    if (wantsPix) selectedPaymentMethod = "pix";
-    else if (wantsCard) selectedPaymentMethod = "credit_card";
-    else if (wantsBoleto) selectedPaymentMethod = "boleto";
-    else if (wantsCrypto) selectedPaymentMethod = "crypto";
 
     let workingSession = updated;
     if (selectedPaymentMethod && !updated.paymentMethod) {

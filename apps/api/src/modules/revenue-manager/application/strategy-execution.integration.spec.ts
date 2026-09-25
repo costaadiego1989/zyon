@@ -19,6 +19,9 @@ import { StrategyChatDispatcher } from "./strategy-chat-dispatcher.js";
 import { StrategyChatPublisher } from "../infrastructure/strategy-chat-publisher.js";
 import { CheckoutChatRequestService } from "../../checkout/infrastructure/prisma/checkout-chat-request.service.js";
 import { chatMessageIdentity, chatMessageTextHash } from "../../checkout/domain/services/chat-message-identity.js";
+import { createSendChatUseCase } from "../../checkout/application/use-cases/send-chat-message.fixture.js";
+import { StrategyCheckoutChatService } from "../../checkout/application/services/strategy-checkout-chat.service.js";
+import { SafeAuthorizedOffer } from "../../checkout/domain/types/safe-authorized-offer.js";
 
 // Only this disposable local database can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -39,6 +42,7 @@ beforeEach(async () => {
   process.env = { ...env, REVENUE_STRATEGY_EXECUTION_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "store,other",
     REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED: "true",
     REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED: "true",
+    REVENUE_STRATEGY_MAIN_CHAT_ENABLED: "false",
     CHECKOUT_CHAT_REQUESTS_ENABLED: "true", CHECKOUT_CHAT_REQUEST_MERCHANT_IDS: "store,other",
     REVENUE_CHECKOUT_CONTRACT_ENABLED: "true", CHECKOUT_BEHAVIOR_REVISION: "a".repeat(40),
     CHECKOUT_LLM_PROVIDER: "openai", OPENAI_API_KEY: "fixture-only", OPENAI_MODEL: "fixture-model" };
@@ -925,4 +929,243 @@ integration("a suppression in the durable request workflow yields uncertainty, n
   assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
   await assert.rejects(requests.run(request, async () => {}, async () => { assert.fail("must not reenter"); }));
   assert.equal(calls, 1); assert.equal(await prisma.checkoutChatExchange.count(), 0);
+});
+
+// Real main use case, durable request, gateway, ledger and publication against
+// PostgreSQL. Customer/shipping are prepared; no real OTP, payment or delivery.
+function mainChatFixture(options: {
+  processCustomer?: (value: CheckoutSession) => Promise<CheckoutSession>;
+  offer?: SafeAuthorizedOffer;
+  requestPrisma?: PrismaClient;
+} = {}) {
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
+  const calls = { customer: 0, legacy: 0, tools: 0, payments: 0, conversation: 0 };
+  const gateway = new ChatLlmGatewayService();
+  gateway.call = async () => { calls.legacy++; return { content: "Resposta habitual.", toolCalls: [] }; };
+  const useCase = createSendChatUseCase(repo, {
+    chatRequests: new CheckoutChatRequestService(options.requestPrisma ?? prisma),
+    strategyChat: new StrategyCheckoutChatService(prisma, gateway),
+    chatLlmGateway: gateway,
+    chatToolExecutor: { async executeToolCalls() { calls.tools++; throw new Error("UNEXPECTED_TOOL"); } } as any,
+    createPaymentIntent: { async execute() { calls.payments++; throw new Error("UNEXPECTED_PAYMENT"); } } as any,
+    conversation: { async reply() { calls.conversation++; return { message: "Confira os dados do pedido.", objection: "unknown" }; } } as any,
+    customerService: { async correctCustomerInput() {}, async processCustomerInput(value: CheckoutSession) {
+      calls.customer++; return options.processCustomer ? options.processCustomer(value) : value;
+    } } as any,
+    shippingService: { async processShippingState(value: CheckoutSession) { return value; }, summarizeDelivery() {} } as any,
+    offerService: { async authorizeOffer(_message: string, value: CheckoutSession) {
+      return options.offer ?? SafeAuthorizedOffer.noOffer(value.merchantId, value.sessionId);
+    } } as any,
+  });
+  return { useCase, calls };
+}
+const httpStatus = (status: number) => (error: any) => error.getStatus?.() === status;
+async function assertNoMainEffects(calls: ReturnType<typeof mainChatFixture>["calls"]) {
+  assert.equal(calls.legacy, 0); assert.equal(calls.tools, 0); assert.equal(calls.payments, 0);
+  assert.equal(calls.conversation, 0); assert.equal(await prisma.completedOrder.count(), 0);
+}
+
+integration("main chat publishes both exact strategy arms without legacy provider, tools or a second session save", async () => {
+  const f = await activate();
+  const { useCase, calls } = mainChatFixture();
+  const sent: any[] = [];
+  globalThis.fetch = (async (_url: unknown, options: any) => { sent.push(JSON.parse(options.body)); return providerResponse(); }) as typeof fetch;
+  for (const arm of ["control", "treatment"] as const) {
+    const buyer = Array.from({ length: 100 }, (_, i) => `main-buyer-${i}`)
+      .find(id => strategyArm(f.execution.contract as any, id) === arm)!;
+    await repo.createSessionIfAbsent(primarySession(arm, { globalUserId: buyer }));
+    const response = await useCase.execute(buyerRequest(arm));
+    assert.equal(response.message, completed.result.content); assert.equal(response.turns.length, 2);
+    assert.equal(response.chat_request?.status, "completed"); assert.equal(response.stage, "payment");
+    assert.deepEqual(response.actions, []); assert.equal(response.experience, undefined);
+    assert.equal(response.authorized_offer, undefined); assert.equal(response.blocks, undefined);
+    assert.equal(sent.at(-1).messages[0].content, renderStrategyTurn(f.execution.contract as any, f.baseline, arm,
+      { cartInfo: "Carrinho: R$100.00", stage: "payment", paymentJustFailed: false }));
+    assert.doesNotMatch(sent.at(-1).messages[0].content, /fixture@example|52998224725|Fixture Street/);
+    const admitted = await prisma.strategyTurn.findFirstOrThrow({ where: { assignment: { sessionId: arm } } });
+    const saved = await prisma.checkoutSession.findFirstOrThrow({ where: { sessionId: arm } });
+    assert.equal(saved.strategyContextVersion, admitted.sessionContextVersion! + 1);
+  }
+  assert.equal(sent.length, 2); assert.equal(await prisma.strategyTurnPublication.count(), 2);
+  assert.equal(await prisma.checkoutChatExchange.count(), 2); await assertNoMainEffects(calls);
+});
+
+integration("main chat serializes duplicate requests, returns receipts on retries and accepts the next new message", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture(); let providerCalls = 0;
+  globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
+  const request = buyerRequest();
+  const results = await Promise.allSettled(Array.from({ length: 6 }, () => useCase.execute(request)));
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  for (const result of results) if (result.status === "rejected") assert.equal(result.reason.getStatus(), 409);
+  await assert.rejects(useCase.execute(request), httpStatus(409));
+  assert.equal(providerCalls, 1); assert.equal(calls.customer, 1);
+  assert.equal(await prisma.checkoutChatExchange.count(), 1);
+  const next = await useCase.execute(buyerRequest());
+  assert.equal(next.turns.length, 4); assert.equal(providerCalls, 2);
+  await assertNoMainEffects(calls);
+});
+
+integration("main chat keeps ownership when disabled and never escapes uncertainty with a fresh message key", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture(); let providerCalls = 0;
+  globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "false";
+  const request = buyerRequest();
+  await assert.rejects(useCase.execute(request), httpStatus(503));
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
+  await assert.rejects(useCase.execute(request), httpStatus(409));
+  await assert.rejects(useCase.execute(buyerRequest()), httpStatus(409));
+  assert.equal(providerCalls, 0); assert.equal(calls.customer, 1);
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+  assert.equal(await prisma.strategyTurn.count(), 0); await assertNoMainEffects(calls);
+});
+
+for (const scenario of ["main_flag", "pause", "cart", "tools", "unknown"] as const) {
+  integration(`main chat suppresses ${scenario} during provider work without tool, payment or legacy fallback`, async () => {
+    const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+    const { useCase, calls } = mainChatFixture(); let providerCalls = 0;
+    globalThis.fetch = (async () => {
+      providerCalls++;
+      if (scenario === "main_flag") process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "false";
+      if (scenario === "pause") await ledger.stop({ merchantId: "store", executionId: f.execution.id,
+        actorId: "fixture", requestKey: "main-pause", kind: "paused" });
+      if (scenario === "cart") {
+        const saved = (await repo.getSession("store", "one"))!;
+        await repo.saveSession({ ...saved, cart: { ...saved.cart, total: 200 } });
+      }
+      if (scenario === "unknown") throw new Error("SIMULATED_CONNECTION_LOSS");
+      if (scenario === "tools") return Response.json({ model: "fixture-model", choices: [{ finish_reason: "tool_calls",
+        message: { role: "assistant", content: "Posso ajudar.", tool_calls: [
+          { id: "fixture-tool", type: "function", function: { name: "apply_discount", arguments: '{"percent":10}' } },
+        ] } }] });
+      return providerResponse();
+    }) as typeof fetch;
+    const request = buyerRequest();
+    await assert.rejects(useCase.execute(request), httpStatus(503));
+    await assert.rejects(useCase.execute(request), httpStatus(409));
+    await assert.rejects(useCase.execute(buyerRequest()), httpStatus(409));
+    assert.equal(providerCalls, 1); assert.equal(calls.customer, 1);
+    assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+    assert.equal(await prisma.checkoutChatExchange.count(), 0);
+    const saved = (await repo.getSession("store", "one"))!;
+    assert.equal(saved.chatHistory.length, 0); assert.equal(saved.cart.total, scenario === "cart" ? 200 : 100);
+    if (scenario === "main_flag" || scenario === "tools") {
+      const publication = await prisma.strategyTurnPublication.findFirstOrThrow();
+      assert.equal(publication.decision, "suppressed");
+      assert.equal(publication.reason, scenario === "main_flag" ? "publication_disabled" : "unsupported_response");
+    }
+    await assertNoMainEffects(calls);
+  });
+}
+
+integration("main chat refuses a stale working session before provider I/O and preserves the current cart", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture({ async processCustomer(value) {
+    await repo.saveSession({ ...value, cart: { ...value.cart, total: 250 } });
+    return value;
+  } });
+  let providerCalls = 0;
+  globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
+  await assert.rejects(useCase.execute(buyerRequest()), httpStatus(503));
+  assert.equal(providerCalls, 0); assert.equal(await prisma.strategyTurn.count(), 0);
+  assert.equal((await repo.getSession("store", "one"))!.cart.total, 250);
+  assert.equal(await prisma.checkoutChatExchange.count(), 0); await assertNoMainEffects(calls);
+});
+
+for (const scenario of ["payment", "offer", "discount"] as const) {
+  integration(`main chat refuses unsupported ${scenario} before experimental provider work`, async () => {
+    await activate();
+    await repo.createSessionIfAbsent(primarySession("one", scenario === "discount"
+      ? { cart: { ...session("one").cart, currentDiscount: 1 } } : {}));
+    const offer = scenario === "offer" ? SafeAuthorizedOffer.fromRulesEngine({
+      ...SafeAuthorizedOffer.noOffer("store", "one").toAuthorizedOffer(), approved: true, type: "discount", value: 1,
+    }) : undefined;
+    const { useCase, calls } = mainChatFixture({ offer }); let providerCalls = 0;
+    globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
+    await assert.rejects(useCase.execute({ ...buyerRequest(),
+      user_message: scenario === "payment" ? "Vou usar pix" : "Como funciona esta etapa?" }), httpStatus(503));
+    assert.equal(providerCalls, 0); assert.equal(await prisma.strategyTurn.count(), 0);
+    assert.equal(await prisma.checkoutChatExchange.count(), 0); await assertNoMainEffects(calls);
+  });
+}
+
+integration("an assignment requires a durable message key before customer work even when request flags are off", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture();
+  process.env.CHECKOUT_CHAT_REQUESTS_ENABLED = "false";
+  await assert.rejects(useCase.execute({ ...buyerRequest(), message_id: undefined }), httpStatus(400));
+  assert.equal(calls.customer, 0); assert.equal(await prisma.checkoutChatRequest.count(), 0);
+  globalThis.fetch = (async () => providerResponse()) as typeof fetch;
+  assert.equal((await useCase.execute(buyerRequest())).chat_request?.status, "completed");
+  await assertNoMainEffects(calls);
+});
+
+integration("main chat keeps unassigned, holdout and deterministic paths outside strategy dispatch", async () => {
+  await repo.createSessionIfAbsent(primarySession("unassigned"));
+  await activate();
+  await repo.createSessionIfAbsent(primarySession("holdout", { cohort: "holdout" }));
+  await repo.createSessionIfAbsent(session("deterministic"));
+  const { useCase, calls } = mainChatFixture(); let providerCalls = 0;
+  globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
+  for (const id of ["unassigned", "holdout", "deterministic"]) {
+    const response = await useCase.execute(buyerRequest(id));
+    assert.equal(response.chat_request?.status, "completed"); assert.equal(response.turns.length, 2);
+  }
+  assert.equal(calls.legacy, 1); assert.equal(calls.conversation, 2); assert.equal(providerCalls, 0);
+  assert.equal(calls.tools, 0); assert.equal(calls.payments, 0);
+  assert.equal(await prisma.strategyTurn.count(), 0); assert.equal(await prisma.strategyTurnPublication.count(), 0);
+});
+
+integration("main chat cannot select a strategy owned by another store with the same session ID", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  await repo.createSessionIfAbsent(primarySession("one", { merchantId: "other" }));
+  const { useCase, calls } = mainChatFixture();
+  const response = await useCase.execute({ ...buyerRequest(), merchant_id: "other" });
+  assert.equal(response.message, "Resposta habitual."); assert.equal(calls.legacy, 1);
+  assert.equal(await prisma.strategyTurn.count(), 0);
+  assert.equal((await repo.getSession("store", "one"))!.chatHistory.length, 0);
+});
+
+integration("main chat preserves the deterministic transition from shipping to payment", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one", { shipping: undefined }));
+  const { useCase, calls } = mainChatFixture({ async processCustomer(value) {
+    const updated = { ...value, shipping: primarySession("one").shipping };
+    await repo.saveSession(updated);
+    return (await repo.getSession("store", "one"))!;
+  } });
+  const response = await useCase.execute(buyerRequest());
+  assert.equal(response.stage, "payment"); assert.equal(response.chat_request?.status, "completed");
+  assert.equal(calls.legacy, 0); assert.equal(calls.conversation, 1);
+  assert.equal(await prisma.strategyTurn.count(), 0); assert.equal(await prisma.checkoutChatExchange.count(), 1);
+});
+
+integration("main chat never resends or duplicates a published response after receipt finalization fails", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const broken = new Proxy(prisma, { get(target, prop) {
+    if (prop !== "$transaction") return Reflect.get(target, prop);
+    return (fn: any) => target.$transaction(async tx => fn(new Proxy(tx, { get(transaction, key) {
+      if (key !== "checkoutChatRequest") return Reflect.get(transaction, key);
+      return new Proxy(transaction.checkoutChatRequest, { get(delegate, method) {
+        if (method !== "updateMany") return Reflect.get(delegate, method);
+        return (args: any) => {
+          if (args.data.status === "completed") throw new Error("SIMULATED_RECEIPT_FAILURE");
+          return delegate.updateMany(args);
+        };
+      } });
+    } })));
+  } }) as PrismaClient;
+  const { useCase, calls } = mainChatFixture({ requestPrisma: broken });
+  let providerCalls = 0;
+  globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
+  const request = buyerRequest();
+  await assert.rejects(useCase.execute(request), httpStatus(503));
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+  assert.equal((await prisma.strategyTurnPublication.findFirstOrThrow()).decision, "persisted");
+  await assert.rejects(useCase.execute(request), httpStatus(409));
+  await assert.rejects(useCase.execute(buyerRequest()), httpStatus(409));
+  assert.equal(providerCalls, 1); assert.equal(calls.customer, 1);
+  assert.equal(await prisma.checkoutChatExchange.count(), 1);
+  assert.equal((await repo.getSession("store", "one"))!.chatHistory.length, 2);
+  await assertNoMainEffects(calls);
 });

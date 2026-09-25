@@ -5,9 +5,8 @@ import type { StrategyExecutionLedger } from "../infrastructure/strategy-executi
 
 type DispatchInput<T> = T extends unknown ? Omit<T, "inputHash"> & { userMessage: string } : never;
 
-/** Internal dispatch boundary, deliberately not injected into SendChatMessage
- * yet. That integration requires a durable buyer-message key and an atomic
- * response/tool-commit protocol. A candidate is NOT an exposure or permission
+/** Pinned dispatch boundary. Main chat reaches it only through the experimental
+ * text adapter with a durable buyer-message key. A candidate is NOT exposure or permission
  * to execute tools. No text is replayed from a prior/uncertain provider attempt. */
 export class StrategyChatDispatcher {
   constructor(private readonly ledger: StrategyExecutionLedger,
@@ -19,7 +18,8 @@ export class StrategyChatDispatcher {
     const admission = await this.ledger.admitTurn({ ...input, inputHash: digest(input.userMessage) });
     if (admission.status !== "admitted") return admission;
     let provider: PinnedChatResult;
-    if (!strategyExecutionEnabled(input.merchantId) || process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED !== "true") {
+    if (!strategyExecutionEnabled(input.merchantId) || process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED !== "true"
+      || (input.chatRequest && input.mainChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED !== "true")) {
       provider = { outcome: "provider_not_dispatched" };
     } else {
       try {

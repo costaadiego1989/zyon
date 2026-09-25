@@ -19,6 +19,7 @@ import type { ConversationRateLimitService } from "../services/conversation-rate
 import type { ChatLlmGatewayService } from "../services/chat-llm-gateway.service.js";
 import type { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
 import type { CheckoutChatRequestService } from "../../infrastructure/prisma/checkout-chat-request.service.js";
+import type { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.service.js";
 
 interface SendChatFixtureOverrides {
   conversation?: ConversationPort;
@@ -37,6 +38,7 @@ interface SendChatFixtureOverrides {
   chatLlmGateway?: ChatLlmGatewayService;
   chatToolExecutor?: ChatToolExecutorService;
   chatRequests?: CheckoutChatRequestService;
+  strategyChat?: StrategyCheckoutChatService;
 }
 
 /**
@@ -83,5 +85,6 @@ export function createSendChatUseCase(
     overrides.orderQuota as OrderQuotaService | undefined,
     overrides.conversationRateLimit as ConversationRateLimitService | undefined,
     overrides.chatRequests,
+    overrides.strategyChat,
   );
 }

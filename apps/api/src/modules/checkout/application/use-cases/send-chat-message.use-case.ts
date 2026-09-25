@@ -37,6 +37,8 @@ import { correctionLabels } from "../../domain/services/customer-correction-prom
 import { CheckoutChatRequestService } from "../../infrastructure/prisma/checkout-chat-request.service.js";
 import { chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
 import { checkoutCartPrompt } from "../../domain/services/checkout-chat-context.js";
+import { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.service.js";
+import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -65,6 +67,7 @@ export class SendChatMessageUseCase {
     private readonly orderQuota?: OrderQuotaService,
     private readonly conversationRateLimit?: ConversationRateLimitService,
     @Optional() private readonly chatRequests?: CheckoutChatRequestService,
+    @Optional() private readonly strategyChat?: StrategyCheckoutChatService,
   ) {}
 
   async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
@@ -201,6 +204,14 @@ export class SendChatMessageUseCase {
       || (previousStage === "shipping" && stage === "payment");
 
     if (!isHoldout && !forceDeterministic) {
+      if (!this.strategyChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED === "true"
+        && strategyExecutionEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "STRATEGY_MAIN_CHAT_UNAVAILABLE" });
+      const strategyReply = await this.strategyChat?.tryReply({ request: input, claim: chatRequest, session: working,
+        stage, previousStage, offer, hasBuyerIntent: context.buyerIntent !== undefined,
+        hasPreSearchedProducts: context.preSearchedProducts.length > 0 });
+      // This response is already published atomically. In particular, do not
+      // overwrite its session with attribution flags or append/pay via builder.
+      if (strategyReply) return strategyReply;
       const experimentPromptOverride = await this.resolveExperimentPrompt(
         input.merchant_id,
         input.session_id,

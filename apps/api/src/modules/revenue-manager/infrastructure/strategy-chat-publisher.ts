@@ -8,13 +8,13 @@ import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { lockCheckoutBaselineRows } from "./checkout-baseline.reader.js";
 import { currentStrategyTurnReason, executionClock } from "./strategy-execution-ledger.js";
 
-/** Internal publication primitive. No provider/tool/payment I/O and no client
- * delivery assertion. It is deliberately not wired into the main chat yet. */
+/** Publication primitive. No provider/tool/payment I/O or client delivery
+ * assertion. The main chat adapter returns only the committed textual result. */
 export class StrategyChatPublisher {
   constructor(private readonly prisma: PrismaClient, private readonly clock = executionClock) {}
 
   async publish(input: { merchantId: string; sessionId: string; turnId: string; claim: ChatExchangeClaim;
-    userMessage: string; result: LlmCallResult }) {
+    userMessage: string; result: LlmCallResult; mainChat?: true }) {
     input = structuredClone(input);
     const responseHash = digest(input.result);
     return this.prisma.$transaction(async tx => {
@@ -40,7 +40,8 @@ export class StrategyChatPublisher {
       const content = input.result.content;
       const message = typeof content === "string" ? content.replace(/^(?:Zion|Zyon)\s*:\s*/i, "") : "";
       let reason: string;
-      if (process.env.REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED !== "true") reason = "publication_disabled";
+      if (process.env.REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED !== "true"
+        || (input.mainChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED !== "true")) reason = "publication_disabled";
       else if (turn.completion.decision !== "eligible_at_recording") reason = "completion_suppressed";
       else if (!Array.isArray(input.result.toolCalls) || input.result.toolCalls.length !== 0
         || !message.trim() || message.length > 20_000) reason = "unsupported_response";

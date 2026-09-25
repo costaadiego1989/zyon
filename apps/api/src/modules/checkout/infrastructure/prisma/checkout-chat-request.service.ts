@@ -53,7 +53,12 @@ export class CheckoutChatRequestService {
       const scope = { merchantId: input.merchant_id, sessionId: input.session_id };
       // Sticky ownership survives config rollback and missing/new message IDs.
       const owned = await tx.checkoutChatRequest.findFirst({ where: scope, select: { id: true } });
-      if (!owned && !chatRequestsEnabled(input.merchant_id)) return { status: "legacy" as const };
+      if (!owned && !chatRequestsEnabled(input.merchant_id)) {
+        // An assigned strategy must never enter the legacy workflow without a
+        // durable key, even before its first message or after flags are disabled.
+        const assignment = await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } });
+        if (!assignment) return { status: "legacy" as const };
+      }
       const { request, requestHash } = chatMessageIdentity(input);
       const existing = await tx.checkoutChatRequest.findUnique({ where: { merchantId_sessionId_messageId: {
         ...scope, messageId: request.message_id } } });

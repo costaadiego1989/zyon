@@ -29,6 +29,7 @@ import { GetCheckoutSessionUseCase } from "./application/use-cases/get-checkout-
 import { SendChatMessageUseCase } from "./application/use-cases/send-chat-message.use-case.js";
 import { ChatToolExecutorService } from "./application/services/chat-tool-executor.service.js";
 import { ChatLlmGatewayService } from "./application/services/chat-llm-gateway.service.js";
+import { StrategyCheckoutChatService } from "./application/services/strategy-checkout-chat.service.js";
 import { StartCheckoutUseCase } from "./application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "./application/use-cases/track-checkout-event.use-case.js";
 import { UpdateOrderTrackingUseCase } from "./application/use-cases/update-order-tracking.use-case.js";
@@ -144,6 +145,11 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
     CartPromoResolutionService,
     InterventionRuleTextBuilder,
     ChatContextService,
+    {
+      provide: StrategyCheckoutChatService,
+      useFactory: (prisma: PrismaClient, gateway: ChatLlmGatewayService) => new StrategyCheckoutChatService(prisma, gateway),
+      inject: [PRISMA_CLIENT, ChatLlmGatewayService]
+    },
     ChatResponseBuilder,
     OtpService,
     BuyerRecognitionService,

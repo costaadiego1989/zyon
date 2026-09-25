@@ -11,10 +11,11 @@ import { chatMessageTextHash } from "../../checkout/domain/services/chat-message
 import { CHECKOUT_CHAT_BINDINGS_VERSION, checkoutSessionPrompt } from "../../checkout/domain/services/checkout-chat-context.js";
 import { missingFieldsForStage } from "../../checkout/domain/services/customer-extraction.service.js";
 import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout-session.mapper.js";
+import type { CheckoutSession as CheckoutSnapshot } from "@zyon/shared-types";
 
 type TurnInput = { merchantId: string; sessionId: string; requestKey: string; inputHash: string;
   route: "primary_llm" | "deterministic" | "fallback"; userMessage?: string } & (
-  { chatRequest: ChatExchangeClaim; turn?: never } |
+  { chatRequest: ChatExchangeClaim; turn?: never; expectedSession?: CheckoutSnapshot; mainChat?: true } |
   { chatRequest?: undefined; turn: Parameters<typeof renderStrategyTurn>[3] }
 );
 
@@ -154,6 +155,7 @@ export class StrategyExecutionLedger {
       if (!assignment) return { status: "unavailable" as const };
       if (input.chatRequest) {
         if (process.env.REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED !== "true") return { status: "unavailable" as const };
+        if (input.mainChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED !== "true") return { status: "unavailable" as const };
         if (input.turn !== undefined) throw new Error("STRATEGY_CALLER_CONTEXT_UNSUPPORTED");
         const request = await tx.checkoutChatRequest.findFirst({ where: { id: input.chatRequest.requestId,
           merchantId: input.merchantId, sessionId: input.sessionId, requestHash: input.chatRequest.requestHash,
@@ -185,6 +187,9 @@ export class StrategyExecutionLedger {
       let turn = input.turn;
       if (input.chatRequest) {
         const snapshot = toCheckoutSession(session);
+        if (input.mainChat && !input.expectedSession) throw new Error("STRATEGY_SESSION_SNAPSHOT_REQUIRED");
+        if (input.expectedSession && digest(JSON.parse(JSON.stringify(input.expectedSession)))
+          !== digest(JSON.parse(JSON.stringify(snapshot)))) throw new Error("STRATEGY_SESSION_CONTEXT_CONFLICT");
         // Both the bindings and full context hash come from this locked row.
         // Request/DTO fields cannot override cart, stage, rules or buyer memory.
         try { turn = checkoutSessionPrompt(snapshot); }
