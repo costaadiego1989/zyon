@@ -27,6 +27,7 @@ import { Body, Controller, HttpCode, Module, Post } from "@nestjs/common";
 import { NestFactory } from "@nestjs/core";
 import { ProblemDetailsFilter } from "../../../shared/http/problem-details.filter.js";
 import { ReconcileChatMessageUseCase } from "../../checkout/application/use-cases/reconcile-chat-message.use-case.js";
+import { deriveChatStage } from "../../checkout/domain/services/customer-extraction.service.js";
 
 // Only this disposable local database can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -943,6 +944,7 @@ function mainChatFixture(options: {
   processCustomer?: (value: CheckoutSession) => Promise<CheckoutSession>;
   offer?: SafeAuthorizedOffer;
   requestPrisma?: PrismaClient;
+  payment?: (input: any) => Promise<any>;
 } = {}) {
   process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
   const calls = { customer: 0, legacy: 0, tools: 0, payments: 0, conversation: 0 };
@@ -953,7 +955,9 @@ function mainChatFixture(options: {
     strategyChat: new StrategyCheckoutChatService(prisma, gateway),
     chatLlmGateway: gateway,
     chatToolExecutor: { async executeToolCalls() { calls.tools++; throw new Error("UNEXPECTED_TOOL"); } } as any,
-    createPaymentIntent: { async execute() { calls.payments++; throw new Error("UNEXPECTED_PAYMENT"); } } as any,
+    createPaymentIntent: { async execute(input: any) {
+      calls.payments++; if (options.payment) return options.payment(input); throw new Error("UNEXPECTED_PAYMENT");
+    } } as any,
     conversation: { async reply() { calls.conversation++; return { message: "Confira os dados do pedido.", objection: "unknown" }; } } as any,
     customerService: { async correctCustomerInput() {}, async processCustomerInput(value: CheckoutSession) {
       calls.customer++; return options.processCustomer ? options.processCustomer(value) : value;
@@ -1027,7 +1031,7 @@ integration("main chat keeps ownership when disabled and never escapes uncertain
   assert.equal(await prisma.strategyTurn.count(), 0); await assertNoMainEffects(calls);
 });
 
-for (const scenario of ["main_flag", "pause", "cart", "tools", "unknown"] as const) {
+for (const scenario of ["main_flag", "pause", "cart", "payment_method", "tools", "unknown"] as const) {
   integration(`main chat suppresses ${scenario} during provider work without tool, payment or legacy fallback`, async () => {
     const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
     const { useCase, calls } = mainChatFixture(); let providerCalls = 0;
@@ -1039,6 +1043,9 @@ for (const scenario of ["main_flag", "pause", "cart", "tools", "unknown"] as con
       if (scenario === "cart") {
         const saved = (await repo.getSession("store", "one"))!;
         await repo.saveSession({ ...saved, cart: { ...saved.cart, total: 200 } });
+      }
+      if (scenario === "payment_method") {
+        await repo.saveSession({ ...(await repo.getSession("store", "one"))!, paymentMethod: "pix" });
       }
       if (scenario === "unknown") throw new Error("SIMULATED_CONNECTION_LOSS");
       if (scenario === "tools") return Response.json({ model: "fixture-model", choices: [{ finish_reason: "tool_calls",
@@ -1056,6 +1063,7 @@ for (const scenario of ["main_flag", "pause", "cart", "tools", "unknown"] as con
     assert.equal(await prisma.checkoutChatExchange.count(), 0);
     const saved = (await repo.getSession("store", "one"))!;
     assert.equal(saved.chatHistory.length, 0); assert.equal(saved.cart.total, scenario === "cart" ? 200 : 100);
+    if (scenario === "payment_method") assert.equal(saved.paymentMethod, "pix");
     if (scenario === "main_flag" || scenario === "tools") {
       const publication = await prisma.strategyTurnPublication.findFirstOrThrow();
       assert.equal(publication.decision, "suppressed");
@@ -1079,7 +1087,7 @@ integration("main chat refuses a stale working session before provider I/O and p
   assert.equal(await prisma.checkoutChatExchange.count(), 0); await assertNoMainEffects(calls);
 });
 
-for (const scenario of ["payment", "offer", "discount"] as const) {
+for (const scenario of ["offer", "discount"] as const) {
   integration(`main chat refuses unsupported ${scenario} before experimental provider work`, async () => {
     await activate();
     await repo.createSessionIfAbsent(primarySession("one", scenario === "discount"
@@ -1089,12 +1097,150 @@ for (const scenario of ["payment", "offer", "discount"] as const) {
     }) : undefined;
     const { useCase, calls } = mainChatFixture({ offer }); let providerCalls = 0;
     globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
-    await assert.rejects(useCase.execute({ ...buyerRequest(),
-      user_message: scenario === "payment" ? "Vou usar pix" : "Como funciona esta etapa?" }), httpStatus(503));
+    await assert.rejects(useCase.execute({ ...buyerRequest(), user_message: "Como funciona esta etapa?" }), httpStatus(503));
     assert.equal(providerCalls, 0); assert.equal(await prisma.strategyTurn.count(), 0);
     assert.equal(await prisma.checkoutChatExchange.count(), 0); await assertNoMainEffects(calls);
   });
 }
+
+for (const [text, selected, providerMethod] of [
+  ["Vou pagar no PIX", "pix", "pix"], ["Cartão de crédito", "credit_card", "card"],
+  ["Boleto", "boleto", "boleto"], ["USDC", "crypto", "crypto"],
+] as const) integration(`payment selection ${selected} survives reload without calling the strategy or creating a second intent`, async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const assignment = await prisma.strategyAssignment.findFirstOrThrow();
+  const { useCase, calls } = mainChatFixture({ payment: async input => {
+    const saved = (await new PrismaCheckoutRepository(prisma).getSession("store", "one"))!;
+    assert.equal(saved.paymentMethod, selected); assert.equal(saved.chatHistory.length, 2);
+    assert.equal(deriveChatStage(saved), "payment_pending");
+    assert.equal(input.method, providerMethod);
+    const receipt = await prisma.checkoutChatRequest.findFirstOrThrow();
+    assert.equal(input.idempotency_key, `chat:${receipt.id}`);
+    return { id: "local-fixture-intent", status: "pending", amountCents: 10000, currency: "BRL" };
+  } });
+  // Pausing a communication test must not prevent a buyer from paying.
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "pause-before-pay", kind: "paused" });
+  const request = { ...buyerRequest(), user_message: text };
+  const response = await useCase.execute(request);
+  assert.equal(response.stage, "payment_pending"); assert.equal(response.experience?.stage, "payment_pending");
+  assert.equal(response.experience?.payment_intent?.status, "pending");
+  assert.equal(response.chat_request?.status, "completed");
+  await assert.rejects(useCase.execute(request), httpStatus(409));
+  const next = await useCase.execute({ ...buyerRequest(), user_message: "Já paguei, pode confirmar?" });
+  assert.equal(next.stage, "payment_pending"); assert.match(next.message, /Acompanhe a confirmação/);
+  const repeatedChoice = await useCase.execute({ ...buyerRequest(), user_message: text });
+  assert.equal(repeatedChoice.stage, "payment_pending");
+  assert.equal(calls.payments, 1); assert.equal(calls.legacy, 0); assert.equal(calls.tools, 0);
+  assert.equal(calls.conversation, 0);
+  assert.equal(await prisma.strategyTurn.count(), 0); assert.equal(await prisma.completedOrder.count(), 0);
+  assert.deepEqual(await prisma.strategyAssignment.findFirstOrThrow(), assignment);
+  assert.equal((await repo.getSession("store", "one"))!.paymentMethod, selected);
+});
+
+for (const arm of ["control", "treatment"] as const) integration(`payment continues after a published ${arm} communication`, async () => {
+  const f = await activate();
+  const contract = executionContract({ merchantId: "store", strategyId: f.id, version: 1, runId: f.run.id,
+    proposalHash: digest(f.proposal), proposal: f.proposal });
+  let buyer = "";
+  for (let i = 0; !buyer && i < 100; i++) if (strategyArm(contract, `payment-buyer-${i}`) === arm) buyer = `payment-buyer-${i}`;
+  assert.ok(buyer);
+  await repo.createSessionIfAbsent(primarySession("one", { globalUserId: buyer }));
+  let providerCalls = 0;
+  globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
+  const { useCase, calls } = mainChatFixture({ payment: async () => ({ id: "intent-fixture", status: "pending", amountCents: 10000, currency: "BRL" }) });
+  await useCase.execute(buyerRequest());
+  assert.equal((await prisma.strategyAssignment.findFirstOrThrow()).arm, arm);
+  const response = await useCase.execute({ ...buyerRequest(), user_message: "PIX" });
+  assert.equal(response.stage, "payment_pending"); assert.equal(providerCalls, 1); assert.equal(calls.payments, 1);
+  assert.equal(await prisma.strategyTurn.count(), 1); assert.equal(await prisma.strategyTurnPublication.count(), 1);
+  assert.equal((await repo.getSession("store", "one"))!.chatHistory.length, 4);
+});
+
+integration("uncertain payment preparation keeps the durable request blocked and cannot use text-only recovery", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture({ payment: async () => { throw new Error("PROVIDER_TIMEOUT"); } });
+  const request = { ...buyerRequest(), user_message: "PIX" };
+  await assert.rejects(useCase.execute(request), httpStatus(503));
+  const receipt = await prisma.checkoutChatRequest.findFirstOrThrow();
+  assert.equal(receipt.status, "unknown");
+  assert.equal((await repo.getSession("store", "one"))!.paymentMethod, "pix");
+  assert.equal(await prisma.checkoutChatExchange.count(), 1);
+  process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
+  await assert.rejects(new CheckoutChatRequestService(prisma).reconcile(request), httpStatus(409));
+  await assert.rejects(useCase.execute(request), httpStatus(409));
+  await assert.rejects(useCase.execute(buyerRequest()), httpStatus(409));
+  assert.equal(calls.payments, 1); assert.equal(await prisma.checkoutChatResolution.count(), 0);
+  assert.equal(await prisma.completedOrder.count(), 0);
+});
+
+integration("concurrent distinct payment messages cannot start a second payment while the first is pending", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  let entered!: () => void, release!: () => void;
+  const started = new Promise<void>(resolve => { entered = resolve; });
+  const finish = new Promise<void>(resolve => { release = resolve; });
+  const { useCase, calls } = mainChatFixture({ payment: async () => {
+    entered(); await finish;
+    return { id: "intent-fixture", status: "pending", amountCents: 10000, currency: "BRL" };
+  } });
+  const first = useCase.execute({ ...buyerRequest(), user_message: "PIX" });
+  await started;
+  try {
+    const others = await Promise.allSettled(Array.from({ length: 6 }, (_, i) =>
+      useCase.execute({ ...buyerRequest(), user_message: i % 2 ? "PIX" : "Cartão" })));
+    for (const result of others) {
+      assert.equal(result.status, "rejected");
+      if (result.status === "rejected") assert.equal(result.reason.getStatus(), 409);
+    }
+    assert.equal(calls.payments, 1); assert.equal(calls.customer, 1);
+    assert.equal(await prisma.checkoutChatRequest.count(), 1);
+    assert.equal(await prisma.checkoutChatExchange.count(), 1);
+  } finally { release(); }
+  assert.equal((await first).chat_request?.status, "completed");
+  assert.equal((await useCase.execute({ ...buyerRequest(), user_message: "Cartão" })).stage, "payment_pending");
+  assert.equal((await repo.getSession("store", "one"))!.paymentMethod, "pix");
+  assert.equal(calls.payments, 1); assert.equal(calls.legacy, 0); assert.equal(calls.tools, 0); assert.equal(calls.conversation, 0);
+});
+
+integration("payment selection rechecks the persisted stage before writing any conversation", async () => {
+  await repo.createSessionIfAbsent(session("one"));
+  const select = () => repo.appendChatExchange({ merchantId: "store", sessionId: "one", selectedPaymentMethod: "pix",
+    buyer: { role: "buyer", text: "PIX", occurredAt: new Date().toISOString() },
+    agent: { role: "agent", text: "Continue no checkout.", occurredAt: new Date().toISOString() } });
+  await assert.rejects(select(), /CHAT_PAYMENT_SELECTION_CONFLICT/);
+  assert.equal((await repo.getSession("store", "one"))!.chatHistory.length, 0);
+  await repo.saveSession(primarySession("one", { paymentMethod: "credit_card" }));
+  await assert.rejects(select(), /CHAT_PAYMENT_SELECTION_CONFLICT/);
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.paymentMethod, "credit_card"); assert.equal(saved.chatHistory.length, 0);
+});
+
+integration("payment selection and its chat exchange roll back together", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  await assert.rejects(prisma.$transaction(async tx => {
+    const transactional = new PrismaCheckoutRepository(tx, true);
+    await transactional.appendChatExchange({ merchantId: "store", sessionId: "one", selectedPaymentMethod: "pix",
+      buyer: { role: "buyer", text: "PIX", occurredAt: new Date().toISOString() },
+      agent: { role: "agent", text: "Acompanhe seu pagamento.", occurredAt: new Date().toISOString() } });
+    assert.equal((await transactional.getSession("store", "one"))!.paymentMethod, "pix");
+    throw new Error("SIMULATED_COMMIT_FAILURE");
+  }), /SIMULATED_COMMIT_FAILURE/);
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.paymentMethod, undefined); assert.equal(saved.chatHistory.length, 0);
+});
+
+integration("payment state preserves explicit resets, tenant isolation and rejects unsupported stored methods", async () => {
+  await repo.createSessionIfAbsent(primarySession("one", { paymentMethod: "pix" }));
+  await prisma.merchant.create({ data: { id: "other", name: "Other" } });
+  await repo.createSessionIfAbsent(primarySession("one", { merchantId: "other" }));
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(deriveChatStage(saved), "payment_pending");
+  assert.equal(deriveChatStage({ ...saved, paymentConfirmed: true } as any), "payment_pending");
+  assert.equal((await repo.getSession("other", "one"))!.paymentMethod, undefined);
+  await assert.rejects(prisma.$executeRaw`UPDATE checkout_sessions SET payment_method = 'invented' WHERE merchant_id = 'store'`);
+  await repo.saveSession({ ...saved, paymentMethod: undefined });
+  assert.equal((await repo.getSession("store", "one"))!.paymentMethod, undefined);
+  assert.equal((await prisma.checkoutSession.findFirstOrThrow({ where: { merchantId: "store" } })).paymentMethod, null);
+});
 
 integration("an assignment requires a durable message key before customer work even when request flags are off", async () => {
   await activate(); await repo.createSessionIfAbsent(primarySession("one"));

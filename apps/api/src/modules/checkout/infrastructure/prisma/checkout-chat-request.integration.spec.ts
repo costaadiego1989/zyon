@@ -276,10 +276,18 @@ integration("unclaimed pairs append atomically without replacing other session f
 
 integration("payment selection saves the freshly persisted pair instead of the pre-reply history", async () => {
   await seed();
+  await repo.saveSession({ ...(await repo.getSession("store", "session"))!,
+    customer: { fullName: "Fixture Buyer", email: "fixture@example.test", email_verified: true,
+      cpf: "52998224725", phone: "11987654321", address_verified: true,
+      address: { zip: "01310100", street: "Fixture Street", city: "São Paulo", state: "SP", number: "1", complement: "" } },
+    shipping: { service: "fixture", customerPrice: 0, estimatedDays: 3 } as any,
+  });
   const request = { ...input(), user_message: "pix" };
   let intents = 0;
   const builder = new ChatResponseBuilder(repo, undefined, { async execute() {
-    intents++; assert.equal((await repo.getSession("store", "session"))?.chatHistory.length, 2);
+    intents++;
+    const saved = (await repo.getSession("store", "session"))!;
+    assert.equal(saved.chatHistory.length, 2); assert.equal(saved.paymentMethod, "pix");
     return { id: "fixture-intent", status: "pending", amountCents: 10000, currency: "BRL" };
   } } as any);
   const result = await service.run(request, noPreflight, async (message, claim) => builder.build({
@@ -288,7 +296,7 @@ integration("payment selection saves the freshly persisted pair instead of the p
     offer: SafeAuthorizedOffer.noOffer("store", "session"), merchant: undefined, rules: DEFAULT_MERCHANT_RULES,
     stage: "payment", previousStage: "payment", missingFields: [], isHoldout: true, preSearchedProducts: [],
   }));
-  assert.equal(result.stage, "payment_pending"); assert.equal(intents, 1);
+  assert.equal(result.stage, "payment_pending"); assert.equal(result.experience?.stage, "payment_pending"); assert.equal(intents, 1);
   assert.equal((await repo.getSession("store", "session"))?.chatHistory.length, 2);
   assert.equal(await prisma.checkoutChatExchange.count(), 1);
 });

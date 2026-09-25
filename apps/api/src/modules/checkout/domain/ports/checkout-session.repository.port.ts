@@ -1,4 +1,4 @@
-import type { ChatTurn, CheckoutEventName, CheckoutSession } from "@zyon/shared-types";
+import type { ChatTurn, CheckoutEventName, CheckoutSession, PaymentMethod } from "@zyon/shared-types";
 
 export const CHECKOUT_SESSION_REPOSITORY = Symbol("CHECKOUT_SESSION_REPOSITORY");
 
@@ -17,6 +17,8 @@ export interface ChatExchangeInput {
   agent: ChatTurn;
   expectedSession?: CheckoutSession;
   claim?: ChatExchangeClaim;
+  /** Server-derived selection, committed with the conversation; never a charge. */
+  selectedPaymentMethod?: PaymentMethod;
 }
 
 export interface CheckoutSessionRepository {

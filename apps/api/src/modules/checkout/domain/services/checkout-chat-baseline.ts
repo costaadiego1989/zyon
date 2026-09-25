@@ -3,6 +3,7 @@ import { CHECKOUT_CHAT_PROGRAM, buildCheckoutChatPrompt, checkoutChatTools,
   type ChatPromptPart, type CheckoutChatPromptInput, type LlmToolDefinition } from "./checkout-chat-prompt.js";
 import { CHECKOUT_CHAT_SAMPLING, checkoutChatProviders } from "./checkout-chat-provider.js";
 import { CHECKOUT_CHAT_BINDINGS_VERSION } from "./checkout-chat-context.js";
+import { CHECKOUT_PAYMENT_ROUTING_VERSION } from "./chat-payment-selection.js";
 
 export interface CheckoutChatBaseline {
   definition: "checkout-chat-baseline-v1";
@@ -11,6 +12,7 @@ export interface CheckoutChatBaseline {
   merchantName: string;
   runtimeRevision: string;
   renderer: typeof CHECKOUT_CHAT_BINDINGS_VERSION;
+  paymentRouting: typeof CHECKOUT_PAYMENT_ROUTING_VERSION;
   program: ChatPromptPart[];
   tools: LlmToolDefinition[];
   sampling: typeof CHECKOUT_CHAT_SAMPLING;
@@ -43,6 +45,7 @@ export function captureCheckoutChatBaseline(input: Pick<CheckoutChatBaseline,
   const route = routes[0];
   const value: CheckoutChatBaseline = { definition: "checkout-chat-baseline-v1", scope: "primary_llm_turn_only",
     ...input, runtimeRevision: env.CHECKOUT_BEHAVIOR_REVISION!, renderer: CHECKOUT_CHAT_BINDINGS_VERSION,
+    paymentRouting: CHECKOUT_PAYMENT_ROUTING_VERSION,
     program: structuredClone([...CHECKOUT_CHAT_PROGRAM]), tools: checkoutChatTools(), sampling: { ...CHECKOUT_CHAT_SAMPLING },
     provider: { name: route.name, model: route.model, endpointHash: checkoutContractHash(route.url), timeoutMs: route.timeoutMs } };
   if (Buffer.byteLength(JSON.stringify(value), "utf8") > 100_000) return undefined;
@@ -52,6 +55,7 @@ export function captureCheckoutChatBaseline(input: Pick<CheckoutChatBaseline,
 export function assertCheckoutChatBaseline(baseline: CheckoutChatBaseline, merchantId: string): void {
   if (baseline.definition !== "checkout-chat-baseline-v1" || baseline.scope !== "primary_llm_turn_only"
     || baseline.merchantId !== merchantId || baseline.renderer !== CHECKOUT_CHAT_BINDINGS_VERSION
+    || baseline.paymentRouting !== CHECKOUT_PAYMENT_ROUTING_VERSION
     || checkoutContractHash(baseline.program) !== checkoutContractHash(CHECKOUT_CHAT_PROGRAM)
     || checkoutContractHash(baseline.tools) !== checkoutContractHash(checkoutChatTools())
     || checkoutContractHash(baseline.sampling) !== checkoutContractHash(CHECKOUT_CHAT_SAMPLING)) {

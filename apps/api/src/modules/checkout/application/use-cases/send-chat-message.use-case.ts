@@ -39,6 +39,7 @@ import { chatRequestsEnabled } from "../../domain/services/chat-message-identity
 import { checkoutCartPrompt } from "../../domain/services/checkout-chat-context.js";
 import { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.service.js";
 import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
+import { chatPaymentSelection } from "../../domain/services/chat-payment-selection.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -199,9 +200,12 @@ export class SendChatMessageUseCase {
 
     // Address confirmation only verifies the location. Number, complement and
     // shipping selection still belong to the same deterministic checkout flow.
+    const selectedPaymentMethod = chatPaymentSelection(input.user_message, stage);
     const forceDeterministic = stage === "data_collection"
       || (stage === "shipping" && missingFields.length > 0)
-      || (previousStage === "shipping" && stage === "payment");
+      || (previousStage === "shipping" && stage === "payment")
+      || !!selectedPaymentMethod
+      || stage === "payment_pending" || stage === "completed";
 
     if (!isHoldout && !forceDeterministic) {
       if (!this.strategyChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED === "true"
@@ -246,7 +250,11 @@ export class SendChatMessageUseCase {
       }
     }
 
-    if (advancedCouponCode) {
+    if (stage === "payment_pending") {
+      reply = { message: "Acompanhe a confirmação do pagamento no checkout.", objection: "unknown" };
+    } else if (selectedPaymentMethod) {
+      reply = { message: "Confira os dados e continue com o pagamento no checkout.", objection: "unknown" };
+    } else if (advancedCouponCode) {
       reply = {
         message: `Encontrei o cupom ${advancedCouponCode} para este carrinho. Insira-o no campo de cupom para validar a condição.`,
         objection: "price",

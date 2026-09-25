@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional, ServiceUnavailableException } from "@nestjs/common";
 import type {
   ChatMessageResponse,
   CheckoutSession,
@@ -53,9 +53,11 @@ export class ChatResponseBuilder {
 
   async build(input: ChatReplyInput & { merchantId: string; sessionId: string }): Promise<ChatMessageResponse> {
     const now = new Date().toISOString();
+    const selectedPaymentMethod = chatPaymentSelection(input.userMessage, input.stage, input.suppressPaymentActions);
     const updated = await this.sessions.appendChatExchange({
       merchantId: input.merchantId, sessionId: input.sessionId,
       expectedSession: input.session, claim: input.chatRequest,
+      selectedPaymentMethod,
       buyer: {
         role: "buyer",
         text: input.userMessage,
@@ -77,7 +79,6 @@ export class ChatResponseBuilder {
       serviceFee: this.experienceConfig.platformFeeBrl
     });
 
-    const selectedPaymentMethod = chatPaymentSelection(input.userMessage, input.stage, input.suppressPaymentActions);
     const wantsPix = selectedPaymentMethod === "pix";
     const wantsCard = selectedPaymentMethod === "credit_card";
 
@@ -110,18 +111,12 @@ export class ChatResponseBuilder {
       suggestedProducts = input.preSearchedProducts;
     }
 
-    let workingSession = updated;
-    if (selectedPaymentMethod && !updated.paymentMethod) {
-      workingSession = {
-        ...updated,
-        paymentMethod: selectedPaymentMethod,
-        updatedAt: new Date().toISOString()
-      } as typeof input.session;
-      await this.sessions.saveSession(workingSession);
+    const workingSession = updated;
+    if (selectedPaymentMethod) {
       this.logger.log(`[chat] payment.method.selected ${selectedPaymentMethod} session=${input.sessionId}`);
       // Record the funnel event with the chosen method so the "por pagamento"
       // breakdown reports real segments (pix / credit_card / boleto / crypto).
-      // Deterministic + idempotent (recordEvent no-ops on duplicates per session).
+      // Payment admission is protected separately; funnel telemetry is best-effort.
       try {
         await this.sessions.recordEvent(input.merchantId, input.sessionId, "payment_method_selected", {
           payment_method: selectedPaymentMethod,
@@ -148,7 +143,7 @@ export class ChatResponseBuilder {
         const intent = await this.createPaymentIntent.execute({
           merchant_id: input.merchantId,
           session_id: input.sessionId,
-          idempotency_key: randomUUID(),
+          idempotency_key: input.chatRequest ? `chat:${input.chatRequest.requestId}` : randomUUID(),
           method: intentMethod as any,
           ...(offerApplied ? { accepted_offer_id: input.offer.id } : {})
         });
@@ -166,6 +161,9 @@ export class ChatResponseBuilder {
         };
         this.logger.log(`[chat] payment.intent.created ${intent.id} status=${intent.status} method=${intentMethod}`);
       } catch (payErr) {
+        // The durable request must remain uncertain if payment preparation did
+        // not return a confirmed result. Text publication alone cannot release it.
+        if (input.chatRequest) throw new ServiceUnavailableException({ code: "CHAT_PAYMENT_RECONCILIATION_REQUIRED" });
         const errMsg = payErr instanceof Error ? payErr.message : String(payErr);
         const errStack = payErr instanceof Error ? payErr.stack : '';
         this.logger.error(`[chat] payment.intent.FAILED session=${input.sessionId} method=${intentMethod} error="${errMsg}"`, errStack);

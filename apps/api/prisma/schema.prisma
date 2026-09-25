@@ -365,6 +365,7 @@ model CheckoutSession {
   abandonmentScore Float    @default(0) @map("abandonment_score")
   triggerAgent     Boolean  @default(false) @map("trigger_agent")
   chatHistory      Json     @default("[]") @map("chat_history")
+  paymentMethod    String?  @map("payment_method")
   promptVariantId  String?  @map("prompt_variant_id")
   cohort           String?
   featuresApplied  Json?    @map("features_applied")

@@ -12,6 +12,7 @@ export function toCheckoutSession(row: {
   abandonmentScore: number;
   triggerAgent: boolean;
   chatHistory?: unknown | null;
+  paymentMethod?: string | null;
   promptVariantId?: string | null;
   cohort?: string | null;
   featuresApplied?: unknown | null;
@@ -31,6 +32,7 @@ export function toCheckoutSession(row: {
     abandonmentScore: row.abandonmentScore,
     triggerAgent: row.triggerAgent,
     chatHistory: ((row.chatHistory ?? []) as ChatTurn[]),
+    paymentMethod: (row.paymentMethod ?? undefined) as CheckoutSession["paymentMethod"],
     promptVariantId: row.promptVariantId ?? undefined,
     cohort: (row.cohort ?? undefined) as "holdout" | "treatment" | undefined,
     featuresApplied: (row.featuresApplied ?? undefined) as CheckoutSession["featuresApplied"],

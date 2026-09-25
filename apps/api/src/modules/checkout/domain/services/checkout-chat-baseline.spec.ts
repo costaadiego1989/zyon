@@ -82,6 +82,14 @@ test("provider route extraction preserves ordered fallbacks, pinning and duplica
   assert.equal(checkoutChatProviders(configured)[0].timeoutMs, 5000);
 });
 
+test("payment routing revision rejects preexisting proposals without changing their frozen baseline", () => {
+  const baseline = captureCheckoutChatBaseline(input, env)!;
+  const { paymentRouting, ...previous } = baseline;
+  assert.equal(paymentRouting, "checkout-payment-routing-v1");
+  assert.notEqual(checkoutBaselineReference(previous as any), checkoutBaselineReference(baseline));
+  assert.throws(() => renderCheckoutChatBaseline(previous as any, "store", { stage: "payment" }), /BASELINE_INVALID/);
+});
+
 test("legacy experiment adapter never forwards a recipe reference as buyer instructions", async () => {
   const adapter = new PromptExperimentAdapter({ findRunning: async () => ({ id: "exp", variants: [
     { system_prompt: checkoutBaselineReference(captureCheckoutChatBaseline(input, env)!) }, { system_prompt: "Treatment" },

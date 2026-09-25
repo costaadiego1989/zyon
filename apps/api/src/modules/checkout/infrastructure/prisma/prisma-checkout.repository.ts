@@ -28,6 +28,7 @@ import { enrollCreatedStrategySession, executionClock, lockExecutionMerchant } f
 import type { ChatExchangeInput } from "../../domain/ports/checkout-session.repository.port.js";
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
 import { chatMessageTextHash } from "../../domain/services/chat-message-identity.js";
+import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -243,6 +244,10 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const where = { merchantId_sessionId: { merchantId: input.merchantId, sessionId: input.sessionId } };
       const row = await tx.checkoutSession.findUnique({ where });
       if (!row) throw new Error("checkout_session_not_found");
+      if (input.selectedPaymentMethod !== undefined && (deriveChatStage(toCheckoutSession(row)) !== "payment"
+        || !["pix", "credit_card", "boleto", "crypto"].includes(input.selectedPaymentMethod))) {
+        throw new Error("CHAT_PAYMENT_SELECTION_CONFLICT");
+      }
       if (input.claim) {
         const request = await tx.checkoutChatRequest.findFirst({ where: { id: input.claim.requestId,
           merchantId: input.merchantId, sessionId: input.sessionId, requestHash: input.claim.requestHash,
@@ -263,7 +268,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         ...(input.claim ? { chatRequestId: input.claim.requestId } : {}) }));
       if (!Array.isArray(row.chatHistory)) throw new Error("CHAT_EXCHANGE_INVALID_HISTORY");
       const updated = await tx.checkoutSession.update({ where,
-        data: { chatHistory: [...row.chatHistory, ...pair].slice(-50) as Prisma.InputJsonValue, updatedAt: now } });
+        data: { chatHistory: [...row.chatHistory, ...pair].slice(-50) as Prisma.InputJsonValue, updatedAt: now,
+          ...(input.selectedPaymentMethod ? { paymentMethod: input.selectedPaymentMethod } : {}) } });
       if (input.claim) {
         // PostgreSQL JSONB text is the canonical representation for this evidence;
         // the insert trigger independently verifies it against the persisted pair.
@@ -623,6 +629,7 @@ function toCheckoutSessionCreate(session: CheckoutSession) {
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
+    paymentMethod: session.paymentMethod ?? null,
     promptVariantId: session.promptVariantId ?? null,
     cohort: session.cohort ?? null,
     featuresApplied: (session.featuresApplied ?? undefined) as unknown as Prisma.InputJsonValue,
@@ -645,6 +652,7 @@ function toCheckoutSessionUpdate(session: CheckoutSession) {
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
+    paymentMethod: session.paymentMethod ?? null,
     promptVariantId: session.promptVariantId ?? null,
     cohort: session.cohort ?? null,
     featuresApplied: (session.featuresApplied ?? undefined) as unknown as Prisma.InputJsonValue,
