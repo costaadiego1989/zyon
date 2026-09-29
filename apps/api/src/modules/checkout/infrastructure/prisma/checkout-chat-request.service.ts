@@ -10,6 +10,7 @@ import { normalizeBuyerFacing } from "../../../payment/infrastructure/prisma-pay
 import { checkoutNavigationBlocks, checkoutNavigationTools, MAIN_CHAT_PUBLICATION_POLICY } from "../../domain/services/checkout-chat-navigation.js";
 import { toCheckoutSession } from "./checkout-session.mapper.js";
 import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
+import { lockExecutionMerchant } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
 
 /** Durable, at-most-once entry to the REAL checkout workflow. No claim takeover,
  * cached offer replay, strategy exposure assertion or transaction around I/O. */
@@ -60,10 +61,13 @@ export class CheckoutChatRequestService {
           ...(publication ? { display_ref: { turn_id: publication.turnId, text_hash: publication.agentTextHash! } } : {}) });
       }
       const payment = !active ? await this.paymentReference(tx, merchantId, sessionId) : undefined;
+      const withheld = !active && request?.status === "reconciled" && !!await tx.checkoutChatResolution.findFirst({
+        where: { requestId: request.id, merchantId, sessionId, publication: { decision: "suppressed" } }, select: { requestId: true } });
       return { protocol: owned || chatRequestsEnabled(merchantId) ? "durable_v2" : "legacy", session_id: sessionId,
         conversation_id: session.conversationId, turns,
         ...(payment ? { payment_intent_id: payment } : {}),
-        ...(request ? { request: { message_id: request.messageId, status: request.status as NonNullable<ChatSessionStateResponse["request"]>["status"] } } : {}),
+        ...(request ? { request: { message_id: request.messageId, status: request.status as NonNullable<ChatSessionStateResponse["request"]>["status"],
+          ...(withheld ? { response_outcome: "withheld" as const } : {}) } } : {}),
         ...(active ? { active_request: { message_id: active.messageId, status: active.status as "processing" | "unknown" } } : {}) };
     }, { isolationLevel: "RepeatableRead" });
   }
@@ -173,6 +177,8 @@ export class CheckoutChatRequestService {
     // Recovery consumes only a bounded reference, never buyer text or selectors.
     const ref = chatMessageReference(input);
     return this.prisma.$transaction(async tx => {
+      // Match admission/publication order before changing participation.
+      await lockExecutionMerchant(tx, ref.merchant_id);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${ref.merchant_id}
         AND session_id = ${ref.session_id} FOR UPDATE`;
       const scope = { merchantId: ref.merchant_id, sessionId: ref.session_id };
@@ -209,6 +215,23 @@ export class CheckoutChatRequestService {
         && (process.env.CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS ?? "").split(",").map(id => id.trim())
           .filter(id => id && id !== "*").includes(ref.merchant_id);
       if (!enabled) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_RECOVERY_DISABLED" });
+      if (row.strategyPublication?.decision === "suppressed"
+        && process.env.CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED === "true") {
+        const [proof] = await tx.$queryRaw<Array<{ recoverable: boolean }>>`
+          SELECT checkout_chat_suppression_recoverable(${row.id}) AS recoverable`;
+        if (!proof?.recoverable || !row.strategyTurn) throw this.receiptConflict(row);
+        const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
+        // This ends future experimental turns, not original group membership.
+        // No response, tool or provider is replayed; AI settlement stays intact.
+        await tx.strategyAssignmentStop.createMany({ data: [{ assignmentId: row.strategyTurn.assignmentId,
+          merchantId: ref.merchant_id, reason: "checkout_response_suppressed", stoppedAt: clock.now }], skipDuplicates: true });
+        await tx.checkoutChatResolution.create({ data: { requestId: row.id, ...scope,
+          turnId: row.strategyTurn.id, previousStatus: row.status,
+          previousFinishedAt: row.finishedAt, resolvedAt: clock.now } });
+        await tx.checkoutChatRequest.update({ where: { id: row.id, merchantId: row.merchantId },
+          data: { status: "reconciled", finishedAt: clock.now, responseHash: null } });
+        return { chat_request: { message_id: row.messageId, status: "reconciled", next_action: "refresh_session" } };
+      }
       if (row.protocolVersion !== 2 || !["main_chat_text_only_v1", MAIN_CHAT_PUBLICATION_POLICY].includes(row.strategyTurn?.publicationPolicy ?? "")
         || row.strategyPublication?.decision !== "persisted" || !row.exchange
         || row.strategyPublication.exchangeRequestId !== row.id) throw this.receiptConflict(row);

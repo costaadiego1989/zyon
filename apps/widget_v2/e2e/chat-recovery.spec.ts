@@ -5,7 +5,7 @@ const widgetUrl = process.env.WIDGET_RECOVERY_TEST_URL ?? "http://127.0.0.1:5174
 
 async function setup(page: Page, theme = "light", unavailable = false,
   payment?: { method: "pix" | "boleto" | "card"; status: string; normal?: boolean; unavailable?: boolean },
-  display?: { normal?: boolean; failures?: number }, navigation?: "payment_methods" | "shipping_options") {
+  display?: { normal?: boolean; failures?: number }, navigation?: "payment_methods" | "shipping_options", withheld = false) {
   let currentId = "", recovered = false;
   let release!: () => void;
   const ready = new Promise<void>(resolve => { release = resolve; });
@@ -13,7 +13,7 @@ async function setup(page: Page, theme = "light", unavailable = false,
   const displays: unknown[] = [];
   const displayRef = { turn_id: "turn-visible", text_hash: createHash("sha256").update("Esta é a resposta que ficou salva.").digest("hex") };
   const state = () => ({ protocol: "durable_v2", session_id: "bound-session", conversation_id: "conversation-real",
-    turns: currentId ? [
+    turns: currentId && !withheld ? [
       { id: "saved:buyer", role: "buyer", text: "Pode explicar esta etapa?", occurred_at: "2026-09-25T02:00:00.000Z" },
       { id: "saved:agent", role: "agent", text: "Esta é a resposta que ficou salva.", occurred_at: "2026-09-25T02:00:00.000Z",
         ...(navigation && recovered ? { checkout_stage: "payment", blocks: [{ type: navigation, data: navigation === "payment_methods"
@@ -21,7 +21,8 @@ async function setup(page: Page, theme = "light", unavailable = false,
           : { selection_mode: "chat", options: [{ key: "chat-shipping-0", label: "Correios PAC", cost: 1234, sub: "5 dias úteis" }] } }] } : {}),
         ...(display && recovered ? { display_ref: displayRef } : {}) },
     ] : [],
-    ...(currentId ? { request: { message_id: currentId, status: recovered ? "reconciled" : "unknown" } } : {}),
+    ...(currentId ? { request: { message_id: currentId, status: recovered ? "reconciled" : "unknown",
+      ...(recovered && withheld ? { response_outcome: "withheld" } : {}) } } : {}),
     ...(currentId && !recovered ? { active_request: { message_id: currentId, status: "unknown" } } : {}),
     ...(payment && recovered ? { payment_intent_id: "pay_recovered_fixture" } : {}),
   });
@@ -87,6 +88,25 @@ async function setup(page: Page, theme = "light", unavailable = false,
   await expect(page.getByRole("textbox", { name: "Mensagem", exact: true })).toBeVisible();
   return { messages, calls, displays, allowRecovery: () => { unavailable = false; release(); } };
 }
+
+for (const width of [390, 1440]) test(`withheld response permits the next message without a retry control at ${width}px`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width, height: 820 });
+  const f = await setup(page, "light", false, undefined, undefined, undefined, true);
+  const input = page.getByRole("textbox", { name: "Mensagem", exact: true });
+  await input.fill("Pode explicar esta etapa?"); await input.press("Enter"); f.allowRecovery();
+  const notice = page.getByText("Não foi possível responder à última mensagem. Você pode continuar a conversa.", { exact: true });
+  await expect(notice).toBeVisible(); await expect(input).toBeEnabled();
+  await expect(page.getByText("Esta é a resposta que ficou salva.", { exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /Verificar conversa/ })).toHaveCount(0);
+  expect(f.messages).toHaveLength(1);
+  await page.reload(); await expect(notice).toBeVisible(); await expect(input).toBeEnabled();
+  await page.screenshot({ path: testInfo.outputPath(`withheld-${width}.png`), fullPage: true, animations: "disabled" });
+  await input.fill("Quero continuar"); await input.press("Enter");
+  await expect(page.getByText("Podemos continuar.", { exact: true })).toBeVisible();
+  await expect(notice).toHaveCount(0);
+  expect(f.messages).toHaveLength(2); expect(f.messages[1]).not.toBe(f.messages[0]);
+  expect(f.calls.some(path => path.includes("/payment/intents") || path.includes("/chat/display"))).toBe(false);
+});
 
 for (const navigation of ["payment_methods", "shipping_options"] as const) test(`recovers current ${navigation} after loss and reload without executing a commercial action`, async ({ page }, testInfo) => {
   await page.setViewportSize({ width: 320, height: 700 });

@@ -14,7 +14,7 @@ function version(n) {
   return { version: n, proposalHash: String(n).repeat(64), createdAt: stamp, expiresAt: expires,
     proposal: { definition: "checkout-strategy-review-v1", execution: "unavailable", expectedLiftStatus: "model_estimate_not_measured",
       baselineStatus: "primary_chat_contract_captured",
-      checkoutBaseline: { contextExit: "checkout-context-exit-v1" },
+      checkoutBaseline: { contextExit: "checkout-context-exit-v1", suppressionRecovery: "checkout-suppression-recovery-v1" },
       recommendation: { hypothesis_text: n === 1 ? firstTitle : secondTitle, reasoning: "A análise identificou dificuldades na etapa de pagamento.",
         expected_lift_percent: 2, template: { description: "Explicar as opções verificadas, sem oferecer descontos adicionais.",
           variant_a: { name: "Atual", system_prompt: "checkout-chat-baseline-v1:fixture", weight: 50, is_control: true },
@@ -221,10 +221,12 @@ try {
     await population.focus(); await page.keyboard.press("Enter");
     await page.getByText(/Participa a primeira sessão elegível/).waitFor();
     await page.getByText(/A sessão e suas compras continuam na comparação/).waitFor();
+    await page.getByText(/Se uma resposta do teste for bloqueada antes de ser publicada/).waitFor();
     review.versions[0].proposal.checkoutBaseline = undefined;
     await page.getByRole("button", { name: "Atualizar", exact: true }).click();
     await page.getByText(/A sessão e suas compras continuam na comparação/).waitFor({ state: "hidden" });
-    review.versions[0].proposal.checkoutBaseline = { contextExit: "checkout-context-exit-v1" };
+    await page.getByText(/Se uma resposta do teste for bloqueada antes de ser publicada/).waitFor({ state: "hidden" });
+    review.versions[0].proposal.checkoutBaseline = { contextExit: "checkout-context-exit-v1", suppressionRecovery: "checkout-suppression-recovery-v1" };
     await page.getByRole("button", { name: "Atualizar", exact: true }).click();
     await page.getByText(/A sessão e suas compras continuam na comparação/).waitFor();
     if (width === 390) { await page.setViewportSize({ width: 320, height: 800 }); await noOverflow(320); }

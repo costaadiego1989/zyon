@@ -30,6 +30,7 @@ export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const chatRecovery = useCheckoutStore((s) => s.chatRecovery);
+  const chatResponseUnavailable = useCheckoutStore((s) => s.chatResponseUnavailable);
   const connectionStatus = useChatRecovery();
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const continueVoiceCheckout = useCheckoutStore((s) => s.continueVoiceCheckout);
@@ -200,6 +201,10 @@ export function ChatPanel() {
         <div ref={chatEndRef} />
       </div>
 
+      {chatResponseUnavailable && !chatRecovery && <p role="status" aria-live="polite"
+        style={{ margin: "8px 0", color: "var(--mut)", fontSize: "12px", lineHeight: 1.5 }}>
+        Não foi possível responder à última mensagem. Você pode continuar a conversa.
+      </p>}
       {connectionStatus && (
         <div style={{ padding: "8px 0", color: "var(--mut)", fontSize: "12px", lineHeight: 1.5 }}>
           <p id="chat-recovery-status" role="status" aria-live="polite" style={{ margin: 0 }}>

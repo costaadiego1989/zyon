@@ -438,8 +438,8 @@ model CheckoutChatExchange {
   @@map("checkout_chat_exchanges")
 }
 
-/// Reconciles only a durably published main-chat text response. No replay,
-/// provider retry, payment recovery or delivery/exposure assertion.
+/// Reconciles an immutable main-chat publication decision. Suppression also
+/// requires its reviewed policy and stopped assignment. Never retries a provider.
 model CheckoutChatResolution {
   requestId String @id @map("request_id")
   merchantId String @map("merchant_id")

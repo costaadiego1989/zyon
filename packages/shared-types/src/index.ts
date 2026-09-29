@@ -1117,7 +1117,7 @@ export interface ChatSessionStateResponse {
   conversation_id: string;
   turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string; display_ref?: ChatDisplayReference;
     blocks?: ChatUiBlock[]; checkout_stage?: ChatStage }>;
-  request?: { message_id: string; status: "processing" | "unknown" | "completed" | "reconciled" | "rejected" };
+  request?: { message_id: string; status: "processing" | "unknown" | "completed" | "reconciled" | "rejected"; response_outcome?: "withheld" };
   active_request?: { message_id: string; status: "processing" | "unknown" };
   payment_intent_id?: string;
 }

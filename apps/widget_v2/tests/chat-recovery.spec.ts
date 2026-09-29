@@ -7,6 +7,15 @@ const config = { embedToken: "fixture-token", merchantId: "store", apiBaseUrl: "
 const initial = { session_id: "session", conversation_id: "conversation", chat_protocol: "durable_v2", experience: { items: [], totals: { subtotal: 0, total: 0 } } };
 const empty = { protocol: "durable_v2", session_id: "session", conversation_id: "conversation", turns: [] };
 
+test("withheld response is an explicit terminal outcome and never an agent reply", () => {
+  const parse = (status: string, outcome = "withheld") => parseChatState({ ...empty,
+    request: { message_id: "message_00000001", status, response_outcome: outcome } }, "session", "conversation");
+  assert.equal(parse("reconciled").request?.response_outcome, "withheld");
+  assert.equal(parse("reconciled").turns.length, 0);
+  for (const status of ["processing", "unknown", "completed", "rejected"]) assert.equal(parse(status).request?.response_outcome, undefined);
+  assert.equal(parse("reconciled", "unrecognized").request?.response_outcome, undefined);
+});
+
 test("recovery retains only current navigation and strips financial or stale controls", () => {
   const turn = { id: "saved:agent", role: "agent", text: "Confira o checkout.", occurred_at: "2026-09-28T01:00:00Z",
     display_ref: { turn_id: "turn-navigation", text_hash: "a".repeat(64) }, checkout_stage: "payment",

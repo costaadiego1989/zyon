@@ -12,6 +12,7 @@ export function chatDisplayReference(value: unknown): ChatDisplayReference | und
 export interface ChatReceipt {
   message_id: string;
   status: "processing" | "unknown" | "completed" | "reconciled" | "rejected";
+  response_outcome?: "withheld";
 }
 
 export interface ChatState {
@@ -30,7 +31,8 @@ export function chatReceipt(value: unknown): ChatReceipt | undefined {
   const row = value as Record<string, unknown>;
   if (typeof row.message_id !== "string" || !/^[a-zA-Z0-9_-]{16,128}$/.test(row.message_id)
     || !["processing", "unknown", "completed", "reconciled", "rejected"].includes(String(row.status))) return undefined;
-  return { message_id: row.message_id, status: row.status as ChatReceipt["status"] };
+  return { message_id: row.message_id, status: row.status as ChatReceipt["status"],
+    ...(row.status === "reconciled" && row.response_outcome === "withheld" ? { response_outcome: "withheld" as const } : {}) };
 }
 
 export function parseChatState(value: unknown, sessionId: string, conversationId: string): ChatState {

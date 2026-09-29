@@ -112,6 +112,16 @@ test("context exit requires a reviewed baseline with the same policy in both arm
   }
 });
 
+test("suppression recovery is a reviewed policy and cannot reinterpret old baselines", () => {
+  const baseline = captureCheckoutChatBaseline(input, env)!;
+  const { suppressionRecovery, ...previous } = baseline;
+  assert.equal(suppressionRecovery, "checkout-suppression-recovery-v1");
+  assert.notEqual(checkoutBaselineReference(previous as any), checkoutBaselineReference(baseline));
+  for (const outdated of [previous, { ...baseline, suppressionRecovery: "unknown" }]) {
+    assert.throws(() => renderCheckoutChatBaseline(outdated as any, "store", { stage: "payment" }), /BASELINE_INVALID/);
+  }
+});
+
 test("legacy experiment adapter never forwards a recipe reference as buyer instructions", async () => {
   const adapter = new PromptExperimentAdapter({ findRunning: async () => ({ id: "exp", variants: [
     { system_prompt: checkoutBaselineReference(captureCheckoutChatBaseline(input, env)!) }, { system_prompt: "Treatment" },

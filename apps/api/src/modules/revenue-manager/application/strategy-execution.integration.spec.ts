@@ -71,6 +71,7 @@ beforeEach(async () => {
     REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED: "true",
     REVENUE_STRATEGY_MAIN_CHAT_ENABLED: "false",
     CHECKOUT_CHAT_RECOVERY_ENABLED: "false", CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS: "store,other",
+    CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED: "false",
     CHECKOUT_CHAT_REQUESTS_ENABLED: "true", CHECKOUT_CHAT_REQUEST_MERCHANT_IDS: "store,other",
     REVENUE_CHECKOUT_CONTRACT_ENABLED: "true", CHECKOUT_BEHAVIOR_REVISION: "a".repeat(40),
     CHECKOUT_LLM_PROVIDER: "openai", OPENAI_API_KEY: "fixture-only", OPENAI_MODEL: "fixture-model",
@@ -2766,6 +2767,7 @@ integration("missing, uncertain and suppressed publications cannot release an un
   await activate(); process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
   process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
   for (const scenario of ["missing", "unknown", "suppressed"] as const) {
+    process.env.CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED = scenario === "suppressed" ? "false" : "true";
     await repo.createSessionIfAbsent(primarySession(scenario));
     const f = await claimFixture(scenario);
     if (scenario !== "missing") {
@@ -2885,6 +2887,174 @@ integration("lost recovery acknowledgement is safe to repeat without changing th
   const before = await prisma.checkoutChatResolution.findFirstOrThrow();
   assert.equal((await new CheckoutChatRequestService(prisma).reconcile(f.input)).chat_request.status, "reconciled");
   assert.deepEqual(await prisma.checkoutChatResolution.findFirstOrThrow(), before);
+});
+
+async function suppressionFixture(arm: "control" | "treatment" = "control", status: "processing" | "unknown" = "unknown",
+  cost: "priced" | "unknown" | "overrun" = "priced") {
+  const f = await activate();
+  const globalUserId = Array.from({ length: 100 }, (_, i) => `suppression-buyer-${i}`)
+    .find(buyer => strategyArm(f.execution.contract as any, buyer) === arm)!;
+  await repo.createSessionIfAbsent(primarySession("one", { globalUserId }));
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
+  process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
+  process.env.CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED = "true";
+  const { input, claim } = await claimFixture();
+  const result = { content: "Vou aplicar um desconto de 90%.", toolCalls: [] };
+  const candidate = await new StrategyChatDispatcher(ledger, { async callPinned() {
+    return { outcome: "provider_completed" as const, result, providerEventId: `suppression-${claim.requestId}`,
+      ...(cost === "unknown" ? {} : { usage: { prompt_tokens: 100, completion_tokens: cost === "overrun" ? 2000 : 10,
+        total_tokens: cost === "overrun" ? 2100 : 110 } }) };
+  } }).dispatch({ ...boundTurn("one", claim, input.user_message), mainChat: true,
+    expectedSession: (await repo.getSession("store", "one"))! });
+  if (candidate.status !== "candidate") throw new Error("missing suppression candidate");
+  const publication = await new StrategyChatPublisher(prisma).publish({ merchantId: "store", sessionId: "one",
+    turnId: candidate.turnId, claim, userMessage: input.user_message, result, mainChat: true });
+  assert.equal(publication.status, "suppressed");
+  if (status === "unknown") {
+    const [clock] = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
+    await prisma.checkoutChatRequest.update({ where: { id: claim.requestId }, data: { status, finishedAt: clock.now } });
+  }
+  return { ...f, input, claim, candidate };
+}
+
+for (const arm of ["control", "treatment"] as const) for (const status of ["processing", "unknown"] as const) {
+  integration(`suppression recovery frees ${arm} ${status} without replay or erasing settled AI spend`, async () => {
+    const f = await suppressionFixture(arm, status), service = new CheckoutChatRequestService(prisma);
+    const assignment = await prisma.strategyAssignment.findFirstOrThrow();
+    const reservations = await prisma.strategyAiReservation.findMany();
+    assert.equal(reservations[0].state, "settled");
+    assert.ok(reservations[0].amountMicros > 0);
+    const history = (await repo.getSession("store", "one"))!.chatHistory;
+    const reply = await service.reconcile(f.input);
+    assert.equal(reply.chat_request.status, "reconciled");
+    assert.deepEqual(await service.reconcile(f.input), reply);
+    const state = await service.readState("store", "one");
+    assert.equal(state.active_request, undefined);
+    assert.equal(state.request?.response_outcome, "withheld"); assert.equal(state.turns.length, history.length);
+    assert.deepEqual(await prisma.strategyAssignment.findFirstOrThrow(), assignment);
+    assert.deepEqual(await prisma.strategyAiReservation.findMany(), reservations);
+    assert.equal(await prisma.checkoutChatExchange.count(), 0); assert.equal(await prisma.paymentIntent.count(), 0);
+    assert.equal(await prisma.strategyMessageDisplay.count(), 0);
+    assert.equal((await prisma.strategyAssignmentStop.findFirstOrThrow()).reason, "checkout_response_suppressed");
+    await assert.rejects(service.run(f.input, async () => {}, async () => assert.fail("no replay")), httpStatus(409));
+    const { useCase, calls } = mainChatFixture();
+    assert.equal((await useCase.execute(buyerRequest())).message, "Resposta habitual.");
+    assert.equal(calls.legacy, 1); assert.equal(calls.payments, 0); assert.equal(calls.tools, 0);
+    assert.equal(await prisma.strategyTurn.count(), 1);
+    assert.equal((await service.readState("store", "one")).request?.response_outcome, undefined);
+    const metrics = await new ExperimentMeasurementService(prisma).capture("store", f.execution.experimentId,
+      "suppression-metrics", new Date(Date.now() + 25 * 3_600_000));
+    const measured = metrics.result as any;
+    assert.equal(measured[arm].assigned, 1); assert.equal(measured.participation[arm].stoppedSessions, 1);
+    assert.equal(measured.participation[arm].contextExitSessions, 0);
+    assert.equal(measured.delivery[arm].sessionsWithPublication, 0);
+    assert.equal(measured.delivery[arm].suppressedTurns, 1);
+  });
+}
+
+for (const cost of ["unknown", "overrun"] as const) integration(`suppression recovery refuses ${cost} AI spend`, async () => {
+  const f = await suppressionFixture("control", "unknown", cost), service = new CheckoutChatRequestService(prisma);
+  const reservation = await prisma.strategyAiReservation.findFirstOrThrow();
+  assert.equal(reservation.state, cost);
+  await assert.rejects(service.reconcile(f.input), httpStatus(409));
+  assert.deepEqual(await prisma.strategyAiReservation.findFirstOrThrow(), reservation);
+  assert.equal(await prisma.checkoutChatResolution.count(), 0); assert.equal(await prisma.strategyAssignmentStop.count(), 0);
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+});
+
+integration("suppression recovery is opt-in and refuses other tenants, conversations and message keys", async () => {
+  const f = await suppressionFixture(), service = new CheckoutChatRequestService(prisma);
+  process.env.CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED = "false";
+  await assert.rejects(service.reconcile(f.input), httpStatus(409));
+  process.env.CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED = "true";
+  process.env.CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS = "other";
+  await assert.rejects(service.reconcile(f.input), httpStatus(503));
+  process.env.CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS = "store";
+  for (const patch of [{ merchant_id: "other" }, { session_id: "other" }, { conversation_id: "other" }, { message_id: randomUUID() }]) {
+    await assert.rejects(service.reconcile({ ...f.input, ...patch }));
+  }
+  assert.equal(await prisma.checkoutChatResolution.count(), 0); assert.equal(await prisma.strategyAssignmentStop.count(), 0);
+  await service.reconcile(f.input);
+  process.env.CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED = "false";
+  assert.equal((await service.reconcile(f.input)).chat_request.status, "reconciled");
+});
+
+integration("suppression recovery is concurrent, atomic and immutable even after cart changes and pause", async () => {
+  const f = await suppressionFixture();
+  const changed = (await repo.getSession("store", "one"))!;
+  changed.cart.total = 123; await repo.saveSession(changed);
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "pause-suppression", kind: "paused" });
+  const replies = await Promise.all(Array.from({ length: 6 }, () => new CheckoutChatRequestService(prisma).reconcile(f.input)));
+  assert.ok(replies.every(r => r.chat_request.status === "reconciled"));
+  assert.equal(await prisma.checkoutChatResolution.count(), 1); assert.equal(await prisma.strategyAssignmentStop.count(), 1);
+  assert.equal((await repo.getSession("store", "one"))!.cart.total, 123);
+  await assert.rejects(prisma.checkoutChatResolution.deleteMany(), /IMMUTABLE/);
+  await assert.rejects(prisma.checkoutChatRequest.update({ where: { id: f.claim.requestId }, data: { status: "unknown" } }), /IMMUTABLE/);
+});
+
+integration("suppression recovery database proof requires stopped participation and terminal receipt together", async () => {
+  const f = await suppressionFixture();
+  const row = await prisma.checkoutChatRequest.findFirstOrThrow();
+  const [clock] = await prisma.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;
+  const proof = { requestId: row.id, merchantId: "store", sessionId: "one", turnId: f.candidate.turnId,
+    previousStatus: row.status, previousFinishedAt: row.finishedAt, resolvedAt: clock.now };
+  await assert.rejects(prisma.checkoutChatResolution.create({ data: proof }), /SUPPRESSION_EVIDENCE_REQUIRED/);
+  await assert.rejects(prisma.checkoutChatRequest.update({ where: { id: row.id }, data: { status: "reconciled", finishedAt: clock.now } }), /RESOLUTION_REQUIRED/);
+  await assert.rejects(prisma.$transaction(async tx => {
+    await tx.strategyAssignmentStop.create({ data: { assignmentId: (await tx.strategyAssignment.findFirstOrThrow()).id,
+      merchantId: "store", reason: "checkout_response_suppressed", stoppedAt: clock.now } });
+    await tx.checkoutChatResolution.create({ data: proof });
+  }), /RESOLUTION_NOT_APPLIED/);
+  assert.equal(await prisma.strategyAssignmentStop.count(), 0); assert.equal(await prisma.checkoutChatResolution.count(), 0);
+});
+
+integration("suppression recovery restores real main chat after a commercial tool is withheld and preserves settled spend", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture(); let attempts = 0;
+  globalThis.fetch = (async () => { attempts++; return navigationResponse(["apply_discount"], '{"percent":90}'); }) as typeof fetch;
+  const request = buyerRequest();
+  await assert.rejects(useCase.execute(request), httpStatus(503));
+  const reservation = await prisma.strategyAiReservation.findFirstOrThrow();
+  assert.notEqual(reservation.state, "unknown");
+  const usage = await prisma.aiUsageEvent.findMany();
+  assert.equal(usage.length, 1);
+  process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
+  process.env.CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED = "true";
+  await new CheckoutChatRequestService(prisma).reconcile(request);
+  assert.deepEqual(await prisma.strategyAiReservation.findFirstOrThrow(), reservation);
+  assert.deepEqual(await prisma.aiUsageEvent.findMany(), usage);
+  assert.equal((await useCase.execute(buyerRequest())).message, "Resposta habitual.");
+  assert.equal(attempts, 1); assert.equal(calls.legacy, 1); assert.equal(calls.tools, 0); assert.equal(calls.payments, 0);
+  assert.equal((await repo.getSession("store", "one"))!.cart.currentDiscount ?? 0, 0);
+});
+
+integration("suppression recovery rolls back participation and proof when receipt persistence fails", async () => {
+  const f = await suppressionFixture();
+  const broken = new Proxy(prisma, { get(target, prop) {
+    if (prop !== "$transaction") return Reflect.get(target, prop);
+    return (fn: any) => target.$transaction(async tx => fn(new Proxy(tx, { get(transaction, key) {
+      if (key !== "checkoutChatRequest") return Reflect.get(transaction, key);
+      return new Proxy(transaction.checkoutChatRequest, { get(delegate, method) {
+        if (method !== "update") return Reflect.get(delegate, method);
+        return () => { throw new Error("SIMULATED_SUPPRESSION_PERSISTENCE_FAILURE"); };
+      } });
+    } })));
+  } }) as PrismaClient;
+  await assert.rejects(new CheckoutChatRequestService(broken).reconcile(f.input), /SUPPRESSION_PERSISTENCE_FAILURE/);
+  assert.equal(await prisma.strategyAssignmentStop.count(), 0); assert.equal(await prisma.checkoutChatResolution.count(), 0);
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+  await new CheckoutChatRequestService(prisma).reconcile(f.input);
+});
+
+integration("suppression recovery fences late workers and cannot revive the discarded candidate", async () => {
+  const f = await suppressionFixture("control", "processing"), service = new CheckoutChatRequestService(prisma);
+  await service.reconcile(f.input);
+  const decision = await new StrategyChatPublisher(prisma).publish({ merchantId: "store", sessionId: "one",
+    turnId: f.candidate.turnId, claim: f.claim, userMessage: f.input.user_message, result: f.candidate.result, mainChat: true });
+  assert.equal(decision.status, "already_decided");
+  await assert.rejects(prisma.checkoutChatRequest.update({ where: { id: f.claim.requestId },
+    data: { status: "completed", responseHash: digest("stale"), finishedAt: new Date() } }), /IMMUTABLE/);
+  assert.equal(await prisma.checkoutChatExchange.count(), 0); assert.equal(await prisma.strategyMessageDisplay.count(), 0);
 });
 
 integration("loopback recovery returns a bounded receipt and a repeated send preserves it through the error filter", async () => {

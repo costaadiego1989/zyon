@@ -204,6 +204,7 @@ interface CheckoutState {
   messages: Message[];
   isTyping: boolean;
   chatRecovery: "blocked" | "checking" | null;
+  chatResponseUnavailable: boolean;
   recoverChat: () => Promise<void>;
   channel: "chat" | "voice";
 
@@ -433,6 +434,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   messages: [],
   isTyping: false,
   chatRecovery: null,
+  chatResponseUnavailable: false,
   channel: "chat",
   paymentIntent: null,
   paymentPolling: false,
@@ -456,7 +458,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       get().stopPolling();
-      set({ api, status: "loading", chatRecovery: null, isTyping: false, messages: [], paymentIntent: null });
+      set({ api, status: "loading", chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null });
 
       const response = await api.start();
       if (get().api !== api) return;
@@ -503,6 +505,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       set({
         sessionId: response.session_id,
         chatRecovery: api.requiresChatRecovery ? "blocked" : null,
+        chatResponseUnavailable: !api.requiresChatRecovery && api.chatState?.request?.response_outcome === "withheld",
         brand,
         agent,
         buyer,
@@ -631,7 +634,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       text,
       timestamp: Date.now(),
     };
-    set({ messages: [...messages, userMsg], isTyping: true });
+    set({ messages: [...messages, userMsg], isTyping: true, chatResponseUnavailable: false });
 
     const normalizedConfirm = text.trim().toLowerCase().replace(/[.!?,;]+$/, "");
     const isAddrConfirm = ["sim", "correto", "confirmo", "certo", "isso", "é esse", "esse mesmo"].includes(normalizedConfirm);
@@ -945,6 +948,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       if (get().api !== api) return;
       get().stopPolling();
       set({ messages: recoveredMessages(state, payment), paymentIntent: payment ?? null, chatRecovery: null, isTyping: false,
+        chatResponseUnavailable: state.request?.response_outcome === "withheld",
         ...(payment ? { cart: { ...get().cart, totalToPay: payment.amount_cents! / 100,
           // Approval certifies payment. It does not certify fulfillment/order completion.
           status: payment.status === "approved" ? "paid" : "ready_to_pay" } } : {}) });
@@ -1458,6 +1462,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       api: null,
       sessionId: null,
       chatRecovery: null,
+      chatResponseUnavailable: false,
       isTyping: false,
       cart: { items: [], total: 0, serviceFee: 0, discount: 0, status: "awaiting" },
       messages: [],

@@ -3,6 +3,7 @@ import type { SafeAuthorizedOffer } from "../types/safe-authorized-offer.js";
 
 // Part of the reviewed baseline. Applies identically to control and treatment.
 export const STRATEGY_CHAT_CONTEXT_EXIT_VERSION = "checkout-context-exit-v1" as const;
+export const STRATEGY_CHAT_SUPPRESSION_RECOVERY_VERSION = "checkout-suppression-recovery-v1" as const;
 
 /** Server-loaded context only. A change in eligibility ends further experimental
  * turns for this session; it never removes the original assignment or purchase. */
