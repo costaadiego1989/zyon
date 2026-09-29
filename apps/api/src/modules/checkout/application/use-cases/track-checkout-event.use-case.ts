@@ -203,7 +203,9 @@ export class TrackCheckoutEventUseCase {
         },
       });
     } catch {
-      // Non-blocking: banner still shows; payment falls back to prior discount.
+      // A concurrent checkout change invalidates this offer. Never advertise
+      // a discount that was not persisted for the payment to honor.
+      return undefined;
     }
 
     return {

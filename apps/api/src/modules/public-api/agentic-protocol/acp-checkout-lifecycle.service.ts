@@ -113,17 +113,23 @@ export class AcpCheckoutLifecycleService {
   }
 
   async updateSession(merchantId: string, sessionId: string, body: UpdateSessionBody) {
-    const session = await this.getCheckoutSession.execute(merchantId, sessionId);
+    let session = await this.getCheckoutSession.execute(merchantId, sessionId);
     await this.mutabilityPolicy.assertMutable(session);
 
     if (body.line_items) {
       await this.lineItemsResolver.resolveAndApply(merchantId, session, body.line_items);
+      session = await this.getCheckoutSession.execute(merchantId, sessionId);
+      await this.mutabilityPolicy.assertMutable(session);
     }
     if (body.buyer || body.fulfillment_address) {
       await this.buyerMerger.mergeAndApply(session, body.buyer, body.fulfillment_address);
+      session = await this.getCheckoutSession.execute(merchantId, sessionId);
+      await this.mutabilityPolicy.assertMutable(session);
     }
     if (body.coupon_code) {
       await this.couponApplier.applyCoupon(session, body.coupon_code);
+      session = await this.getCheckoutSession.execute(merchantId, sessionId);
+      await this.mutabilityPolicy.assertMutable(session);
     }
     if (body.fulfillment_option_id) {
       await this.fulfillmentSelector.selectAndApply(session, body.fulfillment_option_id);
@@ -138,15 +144,15 @@ export class AcpCheckoutLifecycleService {
     const session = await this.getCheckoutSession.execute(merchantId, sessionId);
     await this.mutabilityPolicy.assertMutable(session);
 
-    await this.sessions.recordEvent(merchantId, sessionId, "checkout_abandoned", {
-      source: "acp.protocol",
-      reason: "buyer_initiated",
-    });
     await this.sessions.saveSession({
       ...session,
       cart: { ...session.cart, items: [], total: 0 },
       shipping: undefined,
       updatedAt: new Date().toISOString(),
+    });
+    await this.sessions.recordEvent(merchantId, sessionId, "checkout_abandoned", {
+      source: "acp.protocol",
+      reason: "buyer_initiated",
     });
 
     const refreshed = await this.getCheckoutSession.execute(merchantId, sessionId);

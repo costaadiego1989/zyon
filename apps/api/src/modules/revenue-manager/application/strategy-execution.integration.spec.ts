@@ -36,6 +36,10 @@ import { StrategyMonitorService } from "../infrastructure/strategy-monitor.servi
 import { ChatToolExecutorService } from "../../checkout/application/services/chat-tool-executor.service.js";
 import { CheckoutCustomerService } from "../../checkout/application/services/checkout-customer.service.js";
 import { CheckoutShippingService } from "../../checkout/application/services/checkout-shipping.service.js";
+import { TrackCheckoutEventUseCase } from "../../checkout/application/use-cases/track-checkout-event.use-case.js";
+import { UpdateCartUseCase } from "../../checkout/application/use-cases/update-cart.use-case.js";
+import { GetCheckoutSessionUseCase } from "../../checkout/application/use-cases/get-checkout-session.use-case.js";
+import { AcpCheckoutLifecycleService } from "../../public-api/agentic-protocol/acp-checkout-lifecycle.service.js";
 import { CheckoutOfferService } from "../../checkout/application/services/checkout-offer.service.js";
 import { BuyerRecognitionService } from "../../checkout/application/services/buyer-recognition.service.js";
 import { OtpService } from "../../checkout/application/services/otp.service.js";
@@ -142,6 +146,165 @@ function session(sessionId: string, overrides: Partial<CheckoutSession> = {}): C
 const turn = (sessionId: string, requestKey = "request-one", merchantId = "store") => ({ merchantId, sessionId, requestKey,
   inputHash: digest("buyer message fixture"), route: "primary_llm" as const, turn: { cartInfo: "Carrinho: R$100.00", stage: "payment" } });
 const integration = (name: string, fn: () => Promise<void>) => test(name, { skip: !enabled }, fn);
+
+function versionedAcpFixture() {
+  return new AcpCheckoutLifecycleService(new GetCheckoutSessionUseCase(repo), new UpdateCartUseCase(repo, repo),
+    undefined as any, undefined as any, undefined as any, repo, undefined as any);
+}
+
+integration("session version ACP updates items and buyer without reverting either mutation", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one", { cart: { currency: "BRL", total: 100,
+    items: [{ sku: "fixture", name: "Fixture", price: 100, cost: 40, quantity: 1 }] } }));
+  await versionedAcpFixture().updateSession("store", "one", { line_items: [{ id: "fixture", quantity: 2 }],
+    buyer: { full_name: "Updated Buyer" } });
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.cart.total, 200); assert.equal(saved.cart.items[0].quantity, 2);
+  assert.equal(saved.customer?.fullName, "Updated Buyer");
+  assert.equal(saved.shipping, undefined);
+  assert.equal(saved.persistenceVersion, 2);
+  assert.equal(await prisma.strategyAssignment.count(), 1);
+});
+
+integration("session version ACP cancels the cart before its telemetry advances the snapshot", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  await versionedAcpFixture().cancelSession("store", "one");
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.cart.total, 0); assert.equal(saved.cart.items.length, 0);
+  assert.equal(saved.shipping, undefined);
+  assert.equal(saved.persistenceVersion, 2);
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "checkout_abandoned" } }), 1);
+  assert.equal(await prisma.strategyAssignment.count(), 1);
+});
+
+for (const arm of ["control", "treatment"] as const) integration(`session version ${arm} starts and resumes checkout after recording its initial event`, async () => {
+  const f = await activate();
+  const globalUserId = Array.from({ length: 100 }, (_, i) => `bootstrap-buyer-${i}`)
+    .find(buyer => strategyArm(f.execution.contract as any, buyer) === arm)!;
+  const bootstrap = new CheckoutBootstrapService(repo, { appendOutbox: async () => {} } as any);
+  const input = { merchant_id: "store", session_id: "one", cart: session("one").cart };
+  const first = await bootstrap.bootstrap(input, globalUserId, true);
+  assert.equal(first.session.persistenceVersion, 2);
+  assert.equal((await prisma.strategyAssignment.findFirstOrThrow()).arm, arm);
+  const resumed = await bootstrap.bootstrap(input, globalUserId, true);
+  assert.equal(resumed.session.persistenceVersion, 3);
+  assert.equal(await prisma.strategyAssignment.count(), 1);
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "checkout_started" } }), 1);
+});
+
+integration("session version keeps legacy coupon telemetry before the working snapshot", async () => {
+  await proposalFixture();
+  process.env.REVENUE_STRATEGY_EXECUTION_ENABLED = "false";
+  process.env.CHECKOUT_CHAT_REQUESTS_ENABLED = "false";
+  await repo.createSessionIfAbsent(primarySession("one"));
+  const offer = SafeAuthorizedOffer.fromRulesEngine({ ...SafeAuthorizedOffer.noOffer("store", "one").toAuthorizedOffer(),
+    reason: "advanced_coupon_available", discountCode: "VERIFICADO" });
+  const { useCase } = mainChatFixture({ offer });
+  const result = await useCase.execute({ ...buyerRequest(), user_message: "Tem algum cupom?" });
+  assert.match(result.message, /VERIFICADO/);
+  assert.equal((await repo.getSession("store", "one"))!.cart.commercialNudge?.couponCode, "VERIFICADO");
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "coupon_field_clicked" } }), 1);
+  assert.equal(await prisma.checkoutChatRequest.count(), 0);
+});
+
+for (const concurrentCartChange of [false, true]) integration(`session version progressive offer only reports its persisted discount, concurrent cart=${concurrentCartChange}`, async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one", { cart: { currency: "BRL", total: 100,
+    items: [{ sku: "fixture", name: "Fixture", price: 100, cost: 40, quantity: 1 }] } }));
+  const settings = { async getContext() { return { checkout_settings: { mode: "manual_only", enabled_triggers: [],
+    progressive_discount: { enabled: true, stages: { initial_coupon: 5 } } } }; } };
+  const rules = { async getRules() {
+    if (concurrentCartChange) {
+      const latest = (await repo.getSession("store", "one"))!;
+      await repo.saveSession({ ...latest, cart: { ...latest.cart, total: 250 } });
+    }
+    return { ...DEFAULT_MERCHANT_RULES, maxDiscountPercent: 5, couponBoxEnabled: true };
+  } };
+  const useCase = new TrackCheckoutEventUseCase(repo, { appendOutbox: async () => {} } as any, settings as any, rules as any);
+  const result = await useCase.execute({ merchant_id: "store", session_id: "one", event: "coupon_field_clicked" });
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.cart.total, concurrentCartChange ? 250 : 100);
+  assert.equal(saved.cart.currentDiscount ?? 0, concurrentCartChange ? 0 : 5);
+  if (concurrentCartChange) assert.equal(result.progressive_offer, undefined);
+  else assert.equal(result.progressive_offer?.approved_percent, 5);
+});
+
+for (const arm of ["control", "treatment"] as const) integration(`session version ${arm} rejects stale and unversioned writes after a concurrent cart change`, async () => {
+  const f = await activate();
+  const globalUserId = Array.from({ length: 100 }, (_, i) => `version-buyer-${i}`)
+    .find(buyer => strategyArm(f.execution.contract as any, buyer) === arm)!;
+  await repo.createSessionIfAbsent(primarySession("one", { globalUserId }));
+  const older = (await repo.getSession("store", "one"))!, newer = structuredClone(older);
+  const assignment = await prisma.strategyAssignment.findFirstOrThrow();
+  newer.cart.total = 222; await repo.saveSession(newer);
+  assert.equal(newer.persistenceVersion, older.persistenceVersion! + 1);
+  older.customer = { ...older.customer, fullName: "Stale buyer" };
+  await assert.rejects(repo.saveSession(older), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  const { persistenceVersion: _version, ...missingVersion } = newer;
+  await assert.rejects(repo.saveSession(missingVersion), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  assert.equal((await repo.getSession("store", "one"))!.cart.total, 222);
+  assert.deepEqual(await prisma.strategyAssignment.findFirstOrThrow(), assignment);
+});
+
+integration("session version detects restored values and timestamps and database rejects forged counters", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const original = (await repo.getSession("store", "one"))!;
+  const scope = { merchantId_sessionId: { merchantId: "store", sessionId: "one" } };
+  await prisma.checkoutSession.update({ where: scope, data: { cart: { ...original.cart, total: 200 } as any } });
+  await prisma.checkoutSession.update({ where: scope, data: { cart: original.cart as any, updatedAt: new Date(original.updatedAt) } });
+  assert.equal((await repo.getSession("store", "one"))!.persistenceVersion, original.persistenceVersion! + 2);
+  await assert.rejects(repo.saveSession(original), /VERSION_CONFLICT/);
+  await assert.rejects(repo.saveSessionIfUnchanged(original, original), /CHAT_SESSION_CHANGED/);
+  await assert.rejects(prisma.checkoutSession.update({ where: scope, data: { version: 0 } }), /VERSION_READ_ONLY/);
+  const f = await claimFixture();
+  await assert.rejects(repo.appendChatExchange({ merchantId: "store", sessionId: "one", expectedSession: original,
+    claim: f.claim, buyer: { role: "buyer", text: f.input.user_message, occurredAt: new Date().toISOString() },
+    agent: { role: "agent", text: "stale response", occurredAt: new Date().toISOString() } }), /CHAT_EXCHANGE_SESSION_CHANGED/);
+  assert.equal(await prisma.checkoutChatExchange.count(), 0);
+});
+
+integration("session version serializes simultaneous writers and advances a working snapshot across sequential saves", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const session = (await repo.getSession("store", "one"))!;
+  const results = await Promise.allSettled(Array.from({ length: 5 }, (_, i) => repo.saveSession({ ...structuredClone(session),
+    customer: { ...session.customer, fullName: `Writer ${i}` } })));
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  const fresh = (await repo.getSession("store", "one"))!;
+  fresh.customer = { ...fresh.customer, fullName: "First" }; await repo.saveSession(fresh);
+  fresh.customer.fullName = "Second"; await repo.saveSession(fresh);
+  assert.equal(fresh.persistenceVersion, session.persistenceVersion! + 3);
+  assert.equal((await repo.getSession("store", "one"))!.customer?.fullName, "Second");
+});
+
+integration("session version survives flag rollback and protects a request-owned session without an experiment", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  await repo.createSessionIfAbsent(primarySession("durable", { cohort: "holdout" }));
+  await claimFixture("durable");
+  process.env.REVENUE_STRATEGY_EXECUTION_ENABLED = "false";
+  process.env.CHECKOUT_CHAT_REQUESTS_ENABLED = "false";
+  for (const sessionId of ["one", "durable"]) {
+    const value = (await repo.getSession("store", sessionId))!;
+    const { persistenceVersion: _version, ...unversioned } = value;
+    await assert.rejects(repo.saveSession(unversioned), /VERSION_CONFLICT/);
+    await repo.recordEvent("store", sessionId, "cart_viewed");
+    await assert.rejects(repo.saveSession(value), /VERSION_CONFLICT/);
+    const fresh = (await repo.getSession("store", sessionId))!;
+    await repo.saveSession(fresh);
+  }
+});
+
+integration("session version rolls back with the surrounding transaction and does not leak writes between stores", async () => {
+  await activate(); await activate("other");
+  await repo.createSessionIfAbsent(primarySession("one"));
+  await repo.createSessionIfAbsent(primarySession("one", { merchantId: "other" }));
+  const before = (await repo.getSession("store", "one"))!, foreign = (await repo.getSession("other", "one"))!;
+  await assert.rejects(repo.transaction(async tx => {
+    await tx.saveSession({ ...before, cart: { ...before.cart, total: 777 } });
+    throw new Error("ROLLBACK_VERSION");
+  }), /ROLLBACK_VERSION/);
+  assert.deepEqual(await repo.getSession("store", "one"), before);
+  assert.deepEqual(await repo.getSession("other", "one"), foreign);
+  await repo.saveSession({ ...before, cart: { ...before.cart, total: 333 } });
+  assert.deepEqual(await repo.getSession("other", "one"), foreign);
+});
 
 async function measuredPopulation() {
   const f = await activate();
@@ -1047,7 +1210,7 @@ integration("identity verification or correction keeps checkout working and perm
   const stopped = await prisma.strategyAssignmentStop.findFirstOrThrow();
   assert.equal(stopped.reason, "session_context_changed");
   assert.equal((await ledger.admitTurn(turn("one"))).status, "unavailable");
-  await repo.saveSession(created.session);
+  await repo.saveSession({ ...(await repo.getSession("store", "one"))!, globalUserId: created.session.globalUserId });
   assert.equal((await ledger.admitTurn(turn("one", "after-restore"))).status, "unavailable");
   assert.equal(await prisma.strategyAssignment.count(), 1);
   assert.equal(await prisma.strategyAssignmentStop.count(), 1);
@@ -1264,10 +1427,13 @@ integration("changing and restoring the cart cannot restore eligibility for an i
   const original = await prisma.checkoutSession.findFirstOrThrow();
   const where = { merchantId_sessionId: { merchantId: "store", sessionId: "one" } };
   await prisma.checkoutSession.update({ where, data: { cart: { ...session("one").cart, total: 200 } } });
+  await assert.rejects(prisma.checkoutSession.update({ where, data: { cart: original.cart!, updatedAt: original.updatedAt,
+    strategyContextVersion: original.strategyContextVersion, version: original.version } }), /CHECKOUT_SESSION_VERSION_READ_ONLY/);
   await prisma.checkoutSession.update({ where, data: { cart: original.cart!, updatedAt: original.updatedAt,
-    strategyContextVersion: original.strategyContextVersion, version: original.version } });
+    strategyContextVersion: original.strategyContextVersion } });
   const restored = await prisma.checkoutSession.findFirstOrThrow();
   assert.equal(restored.strategyContextVersion, original.strategyContextVersion + 2);
+  assert.equal(restored.version, original.version + 2);
   assert.equal((await ledger.completeTurn("store", admission.turnId, completed)).reason, "session_changed");
 });
 
@@ -1952,7 +2118,7 @@ integration("checkout journey cannot reactivate a stopped assignment by restorin
   const original = (await repo.getSession("store", "one"))!;
   const assignment = await prisma.strategyAssignment.findFirstOrThrow();
   await repo.saveSession({ ...original, globalUserId: "verified-other-buyer" });
-  await repo.saveSession(original);
+  await repo.saveSession({ ...(await repo.getSession("store", "one"))!, globalUserId: original.globalUserId });
   process.env.REVENUE_STRATEGY_EXECUTION_ENABLED = "false";
   const { useCase, calls } = mainChatFixture();
   assert.equal((await useCase.execute(buyerRequest())).chat_request?.status, "completed");

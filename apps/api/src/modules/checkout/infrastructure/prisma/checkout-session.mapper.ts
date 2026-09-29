@@ -17,6 +17,7 @@ export function toCheckoutSession(row: {
   cohort?: string | null;
   featuresApplied?: unknown | null;
   aiCostCents?: number | null;
+  version?: number;
   createdAt: Date;
   updatedAt: Date;
 }): CheckoutSession {
@@ -37,6 +38,7 @@ export function toCheckoutSession(row: {
     cohort: (row.cohort ?? undefined) as "holdout" | "treatment" | undefined,
     featuresApplied: (row.featuresApplied ?? undefined) as CheckoutSession["featuresApplied"],
     aiCostCents: row.aiCostCents ?? 0,
+    ...(row.version !== undefined ? { persistenceVersion: row.version } : {}),
     createdAt: row.createdAt.toISOString(),
     updatedAt: row.updatedAt.toISOString()
   };

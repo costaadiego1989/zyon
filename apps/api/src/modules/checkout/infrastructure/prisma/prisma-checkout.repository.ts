@@ -1,4 +1,5 @@
 import { toCheckoutSession } from "./checkout-session.mapper.js";
+import { ConflictException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type {
   AcceptedOffer,
@@ -84,14 +85,32 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async saveSession(session: CheckoutSession): Promise<void> {
-    await this.prisma.checkoutSession.upsert({
-      where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } },
-      create: toCheckoutSessionCreate(session) as any,
-      update: toCheckoutSessionUpdate(session) as any
-    });
+    const snapshot = structuredClone(session);
+    const write = async (tx: Prisma.TransactionClient) => {
+      const scope = { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId };
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${scope.merchantId}
+        AND session_id = ${scope.sessionId} FOR UPDATE`;
+      const current = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
+      if (!current) {
+        // A concurrent insertion must not be turned into an unversioned update.
+        return tx.checkoutSession.create({ data: toCheckoutSessionCreate(snapshot) as any });
+      }
+      const owned = !!await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } })
+        || !!await tx.checkoutChatRequest.findFirst({ where: scope, select: { id: true } });
+      if ((owned || snapshot.persistenceVersion !== undefined)
+        && (!Number.isSafeInteger(snapshot.persistenceVersion) || snapshot.persistenceVersion !== current.version)) {
+        throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
+      }
+      return tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: toCheckoutSessionUpdate(snapshot) as any });
+    };
+    const saved = this.inTransaction ? await write(this.prisma) : await (this.prisma as PrismaClient).$transaction(write);
+    // Existing callers persist a working object several times. Advance only the
+    // server token after a successful write, never rebase a stale snapshot.
+    session.persistenceVersion = saved.version;
   }
 
   async saveSessionIfUnchanged(session: CheckoutSession, expected: CheckoutSession): Promise<void> {
+    const working = session;
     session = structuredClone(session); expected = structuredClone(expected);
     if (session.merchantId !== expected.merchantId || session.sessionId !== expected.sessionId) {
       throw new Error("CHAT_SESSION_SCOPE_CONFLICT");
@@ -102,11 +121,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
       const current = await tx.checkoutSession.findUnique({ where });
       const hash = (value: CheckoutSession) => digest(JSON.parse(JSON.stringify(toCheckoutSessionCreate(value))));
-      if (!current || hash(expected) !== hash(toCheckoutSession(current))) throw new Error("CHAT_SESSION_CHANGED");
-      await tx.checkoutSession.update({ where, data: toCheckoutSessionUpdate(session) as any });
+      if (!current || expected.persistenceVersion !== current.version
+        || hash(expected) !== hash(toCheckoutSession(current))) throw new Error("CHAT_SESSION_CHANGED");
+      return tx.checkoutSession.update({ where, data: toCheckoutSessionUpdate(session) as any });
     };
-    if (this.inTransaction) await write(this.prisma);
-    else await (this.prisma as PrismaClient).$transaction(write);
+    const saved = this.inTransaction ? await write(this.prisma) : await (this.prisma as PrismaClient).$transaction(write);
+    working.persistenceVersion = saved.version;
   }
 
   async createSessionIfAbsent(session: CheckoutSession): Promise<{ session: CheckoutSession; created: boolean }> {
@@ -191,6 +211,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): Promise<void> {
     if (!event) return; // Guard: missing event name should not 500
     const write = async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
+        AND session_id = ${sessionId} FOR UPDATE`;
       const session = await tx.checkoutSession.findUnique({
         where: { merchantId_sessionId: { merchantId, sessionId } }
       });
@@ -226,14 +248,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     if (!current) throw new Error("checkout_session_not_found");
     const next = [...current.chatHistory, turn].slice(-50);
 
-    // Optimistic locking: prevent concurrent overwrites using updatedAt timestamp.
-    // If session was updated since we read it, Prisma will return 0 rows and we throw.
-    const currentUpdatedAt = new Date(current.updatedAt);
+    // The database counter also detects two updates within the same millisecond.
     const result = await this.prisma.checkoutSession.updateMany({
       where: {
         merchantId,
         sessionId,
-        updatedAt: currentUpdatedAt
+        version: current.persistenceVersion
       },
       data: {
         chatHistory: next as unknown as Prisma.InputJsonValue,
@@ -278,7 +298,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         // Compare persisted domain values. Strategy publication still requires its
         // stronger admission revision/baseline/consent checks at the effect boundary.
         const hash = (session: CheckoutSession) => digest(JSON.parse(JSON.stringify(toCheckoutSessionCreate(session))));
-        if (!input.expectedSession || hash(input.expectedSession) !== hash(toCheckoutSession(row))) {
+        if (!input.expectedSession || input.expectedSession.persistenceVersion !== row.version
+          || hash(input.expectedSession) !== hash(toCheckoutSession(row))) {
           throw new Error("CHAT_EXCHANGE_SESSION_CHANGED");
         }
       }

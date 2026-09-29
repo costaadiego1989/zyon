@@ -24,6 +24,8 @@ export interface ChatExchangeInput {
 export interface CheckoutSessionRepository {
   /** Atomically creates a checkout without replacing an existing buyer/session. */
   createSessionIfAbsent?(session: CheckoutSession): MaybePromise<{ session: CheckoutSession; created: boolean }>;
+  /** Persists the server-loaded snapshot; implementations advance its storage
+   * token after success. A version conflict must be reread, never blindly retried. */
   saveSession(session: CheckoutSession): MaybePromise<void>;
   /** Persist a prepared snapshot only while its original state is still current. */
   saveSessionIfUnchanged?(session: CheckoutSession, expected: CheckoutSession): MaybePromise<void>;

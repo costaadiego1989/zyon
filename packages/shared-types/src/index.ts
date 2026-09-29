@@ -324,6 +324,8 @@ export interface CheckoutSession {
     intentPersonalization?: boolean;
   };
   aiCostCents?: number;
+  /** Server-loaded optimistic concurrency token. Never accept it from buyer input. */
+  persistenceVersion?: number;
   createdAt: string;
   updatedAt: string;
 }

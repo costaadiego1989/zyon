@@ -252,7 +252,10 @@ export class CheckoutShippingService {
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    return next;
+    // Recording the event updates the session too. Continue with its current
+    // snapshot, including any concurrent cart invalidation; never reapply the
+    // old selected quote over a newer cart or carry a stale persistence token.
+    return await this.repository.getSession(next.merchantId, next.sessionId) ?? next;
   }
 
   private selectShippingOption(text: string, options: ShippingQuote[]): ShippingQuote | null {

@@ -116,6 +116,9 @@ export class CheckoutBootstrapService {
         await this.sessions.saveSession(session);
         await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
       }
+      // The event advances the persisted session too. Continue from that state
+      // before hydration or the next save; never overwrite a concurrent cart.
+      session = await this.sessions.getSession(input.merchant_id, sessionId) ?? session;
     }
 
     // The embed capability remains bound to its first checkout buyer. A new
