@@ -562,14 +562,18 @@
 }
 .fnl-bar-count { flex-shrink: 0; }
 
-/* Filters follow the shared form layout; metric selectors remain unchanged. */
-.funnel-query { padding: 24px; display: grid; gap: 24px; }
-.funnel-query-periods { display: flex; flex-wrap: wrap; gap: 8px; }
-.funnel-query > .configuration-form { gap: 20px; }
-.funnel-query-compare { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-top: 28px; font: 14px/1.5 var(--font-sans); cursor: pointer; }
-.funnel-query-compare input { appearance: auto; width: 18px; height: 18px; min-width: 18px; margin: 0; accent-color: var(--color-brand); }
-.funnel-query > button { justify-self: start; }
+/* The query uses the same compact toolbar as the other Dashboard lists. */
+.funnel-query { min-width: 0; }
+.funnel-query .filter-toolbar__extra { flex: 0 1 auto; flex-wrap: wrap; gap: 12px; max-width: 100%; }
+.funnel-query-dates { display: flex; align-items: center; gap: 8px; min-width: 0; }
+.funnel-query-dates input { width: 148px; min-width: 0; height: var(--control-height); padding: 0 10px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--surface-1); color: var(--color-text); font: 13px var(--font-sans); color-scheme: dark; }
+.funnel-query-dates > span { color: var(--color-text-muted); font-size: 13px; }
+.funnel-query-compare { display: inline-flex; align-items: center; gap: 10px; min-height: 44px; font: 13px/1.5 var(--font-sans); cursor: pointer; }
 .funnel-reading-note { margin: 0; max-width: 75ch; font: 13px/1.6 var(--font-sans); color: var(--color-text-muted); }
 .funnel-page .fnl-chart-card, .funnel-page .fnl-breakdown-card { min-width: 0; }
 .funnel-page .fnl-bottleneck-title { text-transform: none; letter-spacing: normal; font: 600 15px/1.5 var(--font-sans); }
-@media(max-width:600px) { .funnel-query { padding: 16px; } .funnel-query-compare { margin-top: 0; } }
+@media(max-width:600px) {
+  .funnel-query .filter-toolbar__extra, .funnel-query-dates { width: 100%; }
+  .funnel-query-dates input { flex: 1; width: 0; }
+  .funnel-query .ui-filter-select { width: 100% !important; }
+}

@@ -1,6 +1,7 @@
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { FilterToolbar, FilterSelect } from "../../components/FilterToolbar.js";
+import { SetupGuide } from "../../components/SetupGuide.js";
 import "./revenue-manager.css";
 import { PageHeader } from "../../components/PageHeader.js";
 import { openStrategyReview } from "./strategy-review.js";
@@ -84,7 +85,11 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
     <div className="page-container revenue-manager-page">
       <PageHeader title="Otimização com IA" description="Revise sugestões para sua loja e acompanhe os dados que fundamentam cada decisão." />
 
-      <details className="revenue-manager-guide"><summary>Da sugestão ao resultado</summary><ol><li>Leia a proposta, as condições e a estimativa de impacto.</li><li>Revise como a estratégia será aplicada. As opções disponíveis aparecem na revisão.</li><li>Acompanhe a execução e a amostra antes de avaliar o resultado.</li></ol><p>Estimativas não garantem aumento de vendas. Os limites comerciais da loja continuam valendo.</p></details>
+      <SetupGuide title="Como usar as sugestões de melhoria" steps={[
+        { title: "Confira a proposta", description: "Leia a sugestão, as condições e a estimativa de impacto para sua loja." },
+        { title: "Revise antes de aplicar", description: "Abra a revisão para conferir as ações disponíveis. Os limites comerciais da loja continuam valendo." },
+        { title: "Acompanhe o resultado", description: "Confira a execução e a amostra antes de avaliar o resultado. Estimativas não garantem aumento de vendas." },
+      ]} />
 
       {/* Kill-switch — ativar/desativar o motor autônomo */}
       {vm.errors.engine ? <EmptyState title="Configuração indisponível" description={vm.errors.engine} action={<Button variant="outline" onClick={vm.refresh}>Tentar novamente</Button>} /> : <section style={{

@@ -9,6 +9,7 @@ import { TabBar } from "../../components/TabBar.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { DataPanel } from "../../components/DataPanel.js";
+import { SetupGuide } from "../../components/SetupGuide.js";
 import { FilterSelect } from "../../components/FilterToolbar.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { useIntentMemoryPage } from "./useIntentMemoryPage.js";
@@ -192,7 +193,7 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
                     {Object.entries(vm.distribution).map(([key, count]) => (
                       <div key={key}>
                         <div>
-                          <span>
+                          <span title={INTENT_DESCRIPTIONS[key]}>
                             {INTENT_LABELS[key] ?? "Perfil não identificado"}
                           </span>
                           <strong>
@@ -209,23 +210,11 @@ export function IntentMemoryPage(props: IntentMemoryPageProps) {
                   </div>
                 )}
               </section>
-              <details className="panel intent-memory-guide">
-                <summary>Como interpretar os perfis</summary>
-                <dl>
-                  {Object.entries(INTENT_DESCRIPTIONS).map(
-                    ([key, description]) => (
-                      <div key={key}>
-                        <dt>{INTENT_LABELS[key]}</dt>
-                        <dd>{description}</dd>
-                      </div>
-                    )
-                  )}
-                </dl>
-                <p>
-                  As condições comerciais da loja continuam valendo. O perfil
-                  não autoriza descontos ou prazos adicionais.
-                </p>
-              </details>
+              <SetupGuide title="Como interpretar os perfis" steps={[
+                { title: "Confira os sinais observados", description: "A distribuição resume os registros consultados. Um perfil indica uma preferência observada e pode mudar com novas interações." },
+                { title: "Consulte a atividade recente", description: "Filtre por perfil para entender o contexto: atenção ao preço, rapidez, avanço na compra ou exploração dos produtos. Nenhum sinal garante a conclusão do pedido." },
+                { title: "Respeite as condições da loja", description: "Use os sinais para esclarecer dúvidas e apresentar opções disponíveis. O perfil não autoriza descontos ou prazos adicionais." },
+              ]} />
             </>
           ) : (
             <>

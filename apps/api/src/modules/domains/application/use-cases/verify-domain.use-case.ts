@@ -7,6 +7,7 @@ import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { DnsVerificationService } from "../../infrastructure/dns-verification.service.js";
 import { domainOwnershipChallenge } from "../../domain-ownership.js";
+import { resolveDomainCnameTarget } from "../../domain-cname-target.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface VerifyDomainInput {
@@ -37,7 +38,7 @@ export class VerifyDomainUseCase {
 
     const cnameVerified = await this.dnsService.verifyCname(
       record.domain,
-      record.cnameTarget,
+      resolveDomainCnameTarget(record.cnameTarget),
     );
 
     const challenge = domainOwnershipChallenge(record);

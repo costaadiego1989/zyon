@@ -6,6 +6,7 @@ import { Injectable, Inject, NotFoundException , Logger} from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { domainOwnershipChallenge } from "../../domain-ownership.js";
+import { resolveDomainCnameTarget } from "../../domain-cname-target.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface DomainInfo {
@@ -41,7 +42,7 @@ export class ListDomainsUseCase {
       id: d.id,
       domain: d.domain,
       verified: d.verified && !!d.ownershipVerifiedAt,
-      cname_target: d.cnameTarget,
+      cname_target: resolveDomainCnameTarget(d.cnameTarget),
       verified_at: d.verifiedAt ?? undefined,
       created_at: d.createdAt,
     }));

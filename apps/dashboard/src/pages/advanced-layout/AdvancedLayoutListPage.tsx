@@ -9,6 +9,8 @@ import { FilterToolbar, FilterSelect } from "../../components/FilterToolbar.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
 import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
+import { SetupGuide } from "../../components/SetupGuide.js";
+import { contentLoadError } from "./content-load-error.js";
 
 export interface AdvancedLayoutListPageProps {
   me: MerchantProfile;
@@ -61,11 +63,7 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
       })
       .catch((err: unknown) => {
         if (cancelled) return;
-        const message =
-          err instanceof Error && err.message
-            ? err.message
-            : "Não foi possível carregar os produtos.";
-        setError(message);
+        setError(contentLoadError(err));
       })
       .finally(() => {
         if (!cancelled) setLoading(false);
@@ -146,6 +144,11 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
   return (
     <div className="page-container">
       <PageHeader title="Conteúdo do produto" description="Adicione detalhes, perguntas frequentes, avaliações e vídeos às páginas dos seus produtos." />
+      <SetupGuide title="Como preparar o conteúdo" steps={[
+        { title: "Escolha um produto", description: "Use a busca e os filtros para encontrar o produto que precisa de mais informações." },
+        { title: "Organize os detalhes", description: "Clique em Editar para adicionar blocos, perguntas frequentes, depoimentos ou vídeos." },
+        { title: "Revise e publique", description: "Confira as informações no editor e publique quando o conteúdo estiver pronto para aparecer na loja." },
+      ]} />
 
       {!error && <StatCardGroup columns={3}>
         <StatCard icon={<LayoutGrid size={16} />} label="Produtos ativos" value={totals.products} />
@@ -159,30 +162,13 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
       </StatCardGroup>}
 
       {error ? (
-        <div
-          role="alert"
-          style={{
-            padding: "12px 16px",
-            borderRadius: 8,
-            background: "var(--color-error-bg)",
-            border: "1px solid var(--color-error)",
-            font: "13px var(--font-sans)",
-            color: "var(--color-error)",
-          }}
-        >
-          {error}
+        <div role="alert" className="ui-notice ui-notice--error">
+          <p>{error}</p>
           <Button variant="outline" size="sm" onClick={() => setReload(value => value + 1)}>Tentar novamente</Button>
         </div>
       ) : null}
 
-      <div
-        style={{
-          background: "var(--surface-2)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 14,
-          overflow: "hidden",
-        }}
-      >
+      <div className="ui-table-container">
         <FilterToolbar
           tabs={[
             { key: "all", label: "Todos" },

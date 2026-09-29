@@ -10,9 +10,12 @@
 .theme-page .theme-color-input:focus-within { outline: 2px solid var(--color-brand); outline-offset: 2px; }
 .theme-page .theme-page__badge-entry { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; align-items: start; }
 .theme-page__badge-entry > .zyn-btn { margin-top: 29px; }
-.theme-page .split-panel-preview { min-width: 0; max-width: 100%; }
+.theme-page .split-panel-preview { min-width: 0; max-width: 100%; min-height: 560px; }
 .theme-page .panel label, .theme-page .theme-radius-label { text-transform: none; }
-@media (max-width: 1200px) { .theme-page .split-panel { grid-template-columns: minmax(0, 1fr); } }
+@media (max-width: 1200px) {
+  .theme-page .split-panel { grid-template-columns: minmax(0, 1fr); }
+  .theme-page .split-panel-preview { position: static; height: auto; max-height: none; }
+}
 @media (max-width: 600px) {
   .theme-page .theme-grid-2, .theme-page .theme-page__badge-entry { grid-template-columns: minmax(0, 1fr); }
   .theme-page__badge-entry > .zyn-btn { margin-top: 0; justify-self: start; }

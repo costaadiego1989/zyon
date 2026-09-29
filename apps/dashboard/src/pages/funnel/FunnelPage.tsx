@@ -6,7 +6,8 @@ import { TabBar } from "../../components/TabBar.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { Button } from "../../components/Button.js";
 import { PageLoader } from "../../components/PageLoader.js";
-import { FormField, FormSelect } from "../../components/FormField.js";
+import { FilterToolbar, FilterSelect } from "../../components/FilterToolbar.js";
+import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import {
   useFunnelPage,
   type FunnelBreakdownDimension,
@@ -16,7 +17,6 @@ import { FunnelMetrics } from "./components/FunnelMetrics.js";
 import { FunnelBreakdown } from "./components/FunnelBreakdown.js";
 import { ActiveSessionsList } from "./components/ActiveSessionsList.js";
 import { BottleneckBanner } from "./components/BottleneckBanner.js";
-import "../../components/configuration-form.css";
 import "./funnel-page.css";
 const PERIODS = [
   { key: "today", label: "Hoje" },
@@ -72,55 +72,22 @@ export function FunnelPage({
         />
       )}
       {vm.data && <FunnelMetrics data={vm.data} />}
-      <section className="panel funnel-query" aria-label="Filtros do funil">
-        <div
-          className="funnel-query-periods"
-          role="group"
-          aria-label="Período do funil"
-        >
-          {PERIODS.map(({ key, label }) => (
-            <Button
-              key={key}
-              variant={
-                vm.period === key && !vm.dateRange.from && !vm.dateRange.to
-                  ? "primary"
-                  : "outline"
-              }
-              aria-pressed={
-                vm.period === key && !vm.dateRange.from && !vm.dateRange.to
-              }
-              onClick={() => {
-                vm.setPeriod(key);
-                vm.setDateRange({ from: "", to: "" });
-              }}
-            >
-              {label}
-            </Button>
-          ))}
-        </div>
-        <div className="configuration-form">
-          <div className="configuration-form__grid">
-            <FormField
-              label="Data inicial (UTC)"
-              type="date"
-              value={vm.dateRange.from}
-              onChange={(value) =>
-                vm.setDateRange({ ...vm.dateRange, from: value })
-              }
-            />
-            <FormField
-              label="Data final (UTC)"
-              type="date"
-              value={vm.dateRange.to}
-              onChange={(value) =>
-                vm.setDateRange({ ...vm.dateRange, to: value })
-              }
-              inputProps={{ min: vm.dateRange.from || undefined }}
-            />
-          </div>
-          <div className="configuration-form__grid">
-            <FormSelect
-              label="Segmentar resultados"
+      <section className="funnel-query" aria-label="Filtros do funil">
+        <FilterToolbar
+          tabs={[...PERIODS]}
+          activeTab={vm.dateRange.from || vm.dateRange.to ? "" : vm.period}
+          onTabChange={(period) => {
+            vm.setPeriod(period as typeof vm.period);
+            vm.setDateRange({ from: "", to: "" });
+          }}
+          extra={<>
+            <div className="funnel-query-dates">
+              <input type="date" aria-label="Data inicial (UTC)" value={vm.dateRange.from} max={vm.dateRange.to || undefined} onChange={event => vm.setDateRange({ ...vm.dateRange, from: event.target.value })} />
+              <span>até</span>
+              <input type="date" aria-label="Data final (UTC)" value={vm.dateRange.to} min={vm.dateRange.from || undefined} onChange={event => vm.setDateRange({ ...vm.dateRange, to: event.target.value })} />
+            </div>
+            <FilterSelect
+              ariaLabel="Segmentar resultados"
               value={vm.breakdown}
               onChange={(value) =>
                 vm.setBreakdown(value as FunnelBreakdownDimension)
@@ -133,16 +100,14 @@ export function FunnelPage({
               ]}
             />
             <label className="funnel-query-compare">
-              <input
-                type="checkbox"
+              <ToggleSwitch
+                aria-label="Comparar com o período anterior"
                 checked={vm.compareEnabled}
-                onChange={(event) => vm.setCompareEnabled(event.target.checked)}
-              />{" "}
-              Comparar com o período anterior
+                onChange={vm.setCompareEnabled}
+              />
+              Comparar período anterior
             </label>
-          </div>
-        </div>
-        {(vm.dateRange.from ||
+            {(vm.dateRange.from ||
           vm.dateRange.to ||
           vm.breakdown !== "none" ||
           vm.compareEnabled) && (
@@ -154,9 +119,11 @@ export function FunnelPage({
               vm.setCompareEnabled(false);
             }}
           >
-            Limpar filtros adicionais
+            Limpar filtros
           </Button>
         )}
+          </>}
+        />
       </section>
       {vm.error && (
         <EmptyState

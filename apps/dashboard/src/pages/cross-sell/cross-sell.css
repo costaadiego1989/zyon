@@ -1,4 +1,4 @@
-.cross-sell-editor { max-width:880px; padding:24px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--surface-2); }
+.cross-sell-editor { width:100%; min-width:0; box-sizing:border-box; padding:24px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--surface-2); }
 .cross-sell-switch { display:flex; justify-content:space-between; align-items:center; gap:20px; }
 .cross-sell-switch label { font:600 16px/1.4 var(--font-sans); color:var(--color-text); cursor:pointer; }
 .cross-sell-switch p { margin-top:6px; }

@@ -9,7 +9,7 @@ import { EmptyState } from "../components/EmptyState.js";
 import { DataPanel } from "../components/DataPanel.js";
 import { FilterToolbar } from "../components/FilterToolbar.js";
 import { FormField, FormSelect } from "../components/FormField.js";
-import { useTeamPage, ROLE_LABELS, type MemberRole, type TeamMember } from "./useTeamPage.js";
+import { useTeamPage, ROLE_LABELS, formatTeamDate, type MemberRole, type TeamMember } from "./useTeamPage.js";
 import { maskPhone } from "../utils/masks.js";
 import "./administration-pages.css";
 
@@ -60,12 +60,12 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
         <div className="table-wrap"><table className="data-table"><thead><tr><th>E-mail</th><th>Função</th><th>Na equipe desde</th><th><span className="sr-only">Ações</span></th></tr></thead><tbody>
           {filtered.slice((currentPage - 1) * 10, currentPage * 10).map(m => <tr key={m.id}>
             <td className="admin-email">{m.email}</td><td>{m.role === "OWNER" ? <span className="badge ok">{ROLE_LABELS[m.role]}</span> : <select className="admin-role-select" aria-label={`Função de ${m.email}`} value={m.role} disabled={busy} onChange={e => void vm.updateRole(m.userId, e.target.value as MemberRole)}><option value="ADMIN">Administrador</option><option value="STAFF">Agente</option></select>}</td>
-            <td className="admin-muted">{new Date(m.joinedAt).toLocaleDateString("pt-BR")}</td><td>{m.role !== "OWNER" && <Button className="admin-icon-action" variant="ghost" disabled={busy} aria-label={`Remover ${m.email}`} onClick={() => { vm.setMessage(null); setRemoval(m); }}><Trash2 size={16} /></Button>}</td>
+            <td className="admin-muted">{formatTeamDate(m.joinedAt)}</td><td>{m.role !== "OWNER" && <Button className="admin-icon-action" variant="ghost" disabled={busy} aria-label={`Remover ${m.email}`} onClick={() => { vm.setMessage(null); setRemoval(m); }}><Trash2 size={16} /></Button>}</td>
           </tr>)}
         </tbody></table></div>
       </DataPanel>
       <p className="admin-help" style={{ marginTop: 16 }}>As mudanças de função são salvas ao selecionar uma opção. O acesso do proprietário não pode ser alterado nesta lista.</p>
-      {vm.invites.length > 0 && <DataPanel title="Convites" trailing={<span className="admin-muted">O acesso começa após o aceite</span>}><div className="table-wrap"><table className="data-table"><thead><tr><th>E-mail</th><th>Função</th><th>Situação</th><th>Expira em</th></tr></thead><tbody>{vm.invites.map(inv => <tr key={inv.id}><td className="admin-email">{inv.email}</td><td>{ROLE_LABELS[inv.role]}</td><td><span className={`badge ${inv.status === "PENDING" ? "warn" : inv.status === "ACCEPTED" ? "ok" : "muted"}`}>{inv.status === "PENDING" ? "Aguardando aceite" : inv.status === "ACCEPTED" ? "Aceito" : "Expirado"}</span></td><td>{new Date(inv.expiresAt).toLocaleDateString("pt-BR")}</td></tr>)}</tbody></table></div></DataPanel>}
+      {vm.invites.length > 0 && <DataPanel title="Convites" trailing={<span className="admin-muted">O acesso começa após o aceite</span>}><div className="table-wrap"><table className="data-table"><thead><tr><th>E-mail</th><th>Função</th><th>Situação</th><th>Expira em</th></tr></thead><tbody>{vm.invites.map(inv => <tr key={inv.id}><td className="admin-email">{inv.email}</td><td>{ROLE_LABELS[inv.role]}</td><td><span className={`badge ${inv.status === "PENDING" ? "warn" : inv.status === "ACCEPTED" ? "ok" : "muted"}`}>{inv.status === "PENDING" ? "Aguardando aceite" : inv.status === "ACCEPTED" ? "Aceito" : "Expirado"}</span></td><td>{formatTeamDate(inv.expiresAt)}</td></tr>)}</tbody></table></div></DataPanel>}
     </>}
     <Modal isOpen={showInviteModal} title="Convidar membro" subtitle="Informe os dados da pessoa e escolha a função que ela terá na loja." presentation="center" size="lg" onClose={closeInvite} footer={<div className="admin-modal-footer">{confirmDiscard ? <><p>Há um convite que ainda não foi enviado.</p><Button variant="outline" onClick={e => { e.preventDefault(); setConfirmDiscard(false); }}>Continuar editando</Button><Button variant="ghost" onClick={() => { vm.setInviteName(""); vm.setInviteEmail(""); vm.setInvitePhone(""); setShowInviteModal(false); setConfirmDiscard(false); }}>Descartar e fechar</Button></> : <><Button variant="ghost" disabled={vm.inviting} onClick={closeInvite}>Cancelar</Button><Button type="submit" form="team-invite" loading={vm.inviting} disabled={!vm.inviteName.trim() || !vm.inviteEmail.trim()}>Enviar convite</Button></>}</div>}>
       <form id="team-invite" className="configuration-form administration-page" onSubmit={async e => { e.preventDefault(); if (await vm.invite()) setShowInviteModal(false); }}>

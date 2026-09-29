@@ -4,6 +4,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { PageLoader } from "../../components/PageLoader.js";
+import { SetupGuide } from "../../components/SetupGuide.js";
 import { useReturnExchangesPage } from "./useReturnExchangesPage.js";
 import type { ReturnStatus } from "../../api/endpoints/returns.js";
 
@@ -67,20 +68,11 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
         </div>
       </header>
 
-      {/* Explicação */}
-      <div style={{
-        padding: "16px 20px",
-        borderRadius: "var(--radius-md)",
-        background: "var(--color-brand-subtle)",
-        border: "1px solid var(--color-brand-ring)",
-        font: "13px var(--font-sans)",
-        color: "var(--color-brand)",
-        lineHeight: 1.65,
-      }}>
-        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong>{" "}
-        O comprador solicita a devolução → você aprova e gera a etiqueta → o produto é enviado de volta →
-        você inspeciona e decide: reembolso, troca ou rejeição. Cada etapa gera uma notificação automática para ambas as partes.
-      </div>
+      <SetupGuide title="Como acompanhar trocas e devoluções" steps={[
+        { title: "Confira a solicitação", description: "Abra o pedido de devolução e avalie o motivo informado pelo comprador." },
+        { title: "Organize o retorno", description: "Após aprovar, confira a etiqueta e acompanhe o envio do produto de volta à loja." },
+        { title: "Inspecione e registre a decisão", description: "Ao receber o produto, registre o resultado da inspeção e acompanhe a troca, o reembolso ou a rejeição conforme as opções disponíveis." },
+      ]} />
 
       {/* KPIs */}
       <div className="grid-4" style={{ gap: 14 }}>

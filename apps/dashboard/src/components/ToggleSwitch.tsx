@@ -9,11 +9,17 @@ export function ToggleSwitch({
   disabled = false,
   onChange,
   id,
+  "aria-label": ariaLabel,
+  "aria-labelledby": ariaLabelledBy,
+  "aria-describedby": ariaDescribedBy,
 }: {
   checked: boolean;
   disabled?: boolean;
   onChange: (v: boolean) => void;
   id?: string;
+  "aria-label"?: string;
+  "aria-labelledby"?: string;
+  "aria-describedby"?: string;
 }) {
   return (
     <button
@@ -21,6 +27,9 @@ export function ToggleSwitch({
       id={id}
       role="switch"
       aria-checked={checked}
+      aria-label={ariaLabel}
+      aria-labelledby={ariaLabelledBy}
+      aria-describedby={ariaDescribedBy}
       disabled={disabled}
       onClick={() => onChange(!checked)}
       style={{
@@ -38,7 +47,6 @@ export function ToggleSwitch({
         alignItems: "center",
         transition: "background 0.2s ease",
         opacity: disabled ? 0.45 : 1,
-        outline: "none",
         boxSizing: "border-box",
       }}
     >

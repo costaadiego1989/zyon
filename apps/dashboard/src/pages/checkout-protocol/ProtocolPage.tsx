@@ -4,6 +4,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
+import { SetupGuide } from "../../components/SetupGuide.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useProtocolPage } from "./useProtocolPage.js";
 
@@ -70,23 +71,11 @@ export function ProtocolPage(props: ProtocolPageProps) {
         </p>
       </div>
 
-      {/* Como funciona */}
-      <div className="panel" style={{ padding: "20px 24px" }}>
-        <SectionHeader variant="secondary" title="Como funciona" />
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14 }}>
-          {[
-            { n: 1, t: "Crie uma chave de API", d: "Gere credenciais para autenticar seu sistema no protocolo." },
-            { n: 2, t: "Integre no seu sistema", d: "Conecte ERP, CRM ou automação usando os endpoints REST." },
-            { n: 3, t: "Controle o checkout via código", d: "Inicie sessões, acompanhe estados e receba webhooks." },
-          ].map((step) => (
-            <div key={step.n} style={{ padding: 14, border: "1px solid var(--color-border)", borderRadius: 9, background: "var(--surface-1)" }}>
-              <div style={{ font: "600 11px var(--font-mono)", color: "var(--color-brand)", marginBottom: 6 }}>PASSO {step.n}</div>
-              <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", marginBottom: 4 }}>{step.t}</div>
-              <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.45 }}>{step.d}</div>
-            </div>
-          ))}
-        </div>
-      </div>
+      <SetupGuide title="Como conectar seu sistema ao checkout" steps={[
+        { title: "Crie uma chave de API", description: "Gere credenciais para autenticar seu sistema no protocolo. Mantenha as credenciais no servidor da integração." },
+        { title: "Integre no seu sistema", description: "Conecte seu ERP, CRM ou automação usando os endpoints REST disponíveis." },
+        { title: "Confira o fluxo", description: "Teste a criação de uma sessão, acompanhe seus estados e valide o recebimento dos webhooks antes de usar a integração na operação da loja." },
+      ]} />
 
       {/* Exemplo concreto */}
       <div className="panel" style={{ padding: "20px 24px" }}>

@@ -1,6 +1,8 @@
 import { Button } from "../../components/Button.js";
 import "./revenue-lift.css";
 import { PageHeader } from "../../components/PageHeader.js";
+import { SetupGuide } from "../../components/SetupGuide.js";
+import { FilterToolbar } from "../../components/FilterToolbar.js";
 import React, { useState } from "react";
 import { TrendingUp, DollarSign, Zap, BarChart3 } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
@@ -59,23 +61,13 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
 
   return (
     <div className="page-container revenue-lift-page">
-      <PageHeader title="Impacto na receita" description="Compare os resultados das sessões com e sem IA no período selecionado." actions={<>
-<div style={{ display: "flex", gap: 8 }}>
-          {[7, 30, 90].map((d) => (
-            <button
-              key={d}
-              type="button"
-              className={`fnl-period-btn${vm.periodDays === d ? " active" : ""}`}
-              aria-pressed={vm.periodDays === d}
-              onClick={() => { vm.setPeriodDays(d); setTrendPage(0); }}
-            >
-              {d} dias
-            </button>
-          ))}
-        </div>
-</>} />
-
-      <details className="revenue-lift-method"><summary>Como interpretar esta comparação</summary><p>Comparamos a receita aprovada por sessão entre os grupos com e sem IA. O resultado pode ser positivo, negativo ou inconclusivo. A leitura depende da amostra e da qualidade dos dados disponíveis.</p><p>Receita associada a um recurso não comprova, isoladamente, que ele causou a diferença observada.</p></details>
+      <PageHeader title="Impacto na receita" description="Compare os resultados das sessões com e sem IA no período selecionado." />
+      <SetupGuide title="Como interpretar o impacto na receita" steps={[
+        { title: "Escolha um período", description: "Use os filtros para consultar os grupos com e sem IA no mesmo intervalo." },
+        { title: "Confira a amostra", description: "Verifique a qualidade dos dados, o número de sessões e a receita aprovada por sessão em cada grupo." },
+        { title: "Avalie a diferença", description: "O resultado pode ser positivo, negativo ou inconclusivo. Receita associada a um recurso não comprova, isoladamente, que ele causou a diferença observada." },
+      ]} />
+      <FilterToolbar tabs={[7, 30, 90].map(days => ({ key: String(days), label: `${days} dias` }))} activeTab={String(vm.periodDays)} onTabChange={value => { vm.setPeriodDays(Number(value)); setTrendPage(0); }} />
 
       {vm.loading ? (
         <PageLoader />

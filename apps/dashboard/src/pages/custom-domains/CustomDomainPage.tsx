@@ -13,12 +13,13 @@ export function CustomDomainPage({ onVerifiedDomainChange }: { onVerifiedDomainC
   const vm = useDomainsPage();
   const { state, setNewDomain, addDomain, verifyDomain, removeDomain } = vm;
   const [copiedId, setCopiedId] = useState<string | null>(null);
-  const [removing, setRemoving] = useState<string | null>(null);
+  const busy = state.adding || Boolean(state.verifying) || Boolean(state.removing);
   const [pendingRemoval, setPendingRemoval] = useState<{ id: string; domain: string } | null>(null);
   useEffect(() => {
+    if (state.loading || state.loadFailed) return;
     const domain = state.domains.find(entry => entry.verified)?.domain?.trim().toLowerCase();
     onVerifiedDomainChange?.(domain || undefined);
-  }, [onVerifiedDomainChange, state.domains]);
+  }, [onVerifiedDomainChange, state.domains, state.loading, state.loadFailed]);
   const copy = async (text: string, id: string) => {
     try { await navigator.clipboard.writeText(text); setCopiedId(id); showToast("success", "Registro copiado"); }
     catch { showToast("error", "Não foi possível copiar. Selecione e copie o valor manualmente."); }
@@ -26,7 +27,7 @@ export function CustomDomainPage({ onVerifiedDomainChange }: { onVerifiedDomainC
   return <div className="page-container domain-page">
     <PageHeader title="Domínio" description="Conecte o endereço da sua loja e confira o acesso seguro antes de divulgá-lo." />
     {state.loading ? <PageLoader /> : <>
-      {state.error && <div className="ui-notice ui-notice--error" role="alert"><p>{state.error}</p><Button variant="outline" size="sm" onClick={vm.reload}>Tentar novamente</Button></div>}
+      {state.error && !pendingRemoval && <div className="ui-notice ui-notice--error" role="alert"><p>{state.error}</p>{state.loadFailed && <Button variant="outline" size="sm" onClick={vm.reload}>Tentar novamente</Button>}</div>}
       <div className="configuration-layout">
         <div className="configuration-sections">
           <section className="configuration-section">
@@ -34,8 +35,8 @@ export function CustomDomainPage({ onVerifiedDomainChange }: { onVerifiedDomainC
             <form onSubmit={event => { event.preventDefault(); if (!state.adding && state.newDomain.trim()) void addDomain(); }}>
               <label className="ui-field-label" htmlFor="store-domain">Domínio da loja</label>
               <div className="domain-page__input-row">
-                <input id="store-domain" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="loja.suaempresa.com.br" aria-describedby="store-domain-help" value={state.newDomain} onChange={event => setNewDomain(event.target.value)} disabled={state.adding} />
-                <Button type="submit" loading={state.adding} disabled={!state.newDomain.trim()}>Adicionar domínio</Button>
+                <input id="store-domain" type="text" autoCapitalize="none" autoCorrect="off" spellCheck={false} placeholder="loja.suaempresa.com.br" aria-describedby="store-domain-help" value={state.newDomain} onChange={event => setNewDomain(event.target.value)} disabled={busy || state.loadFailed} />
+                <Button type="submit" loading={state.adding} disabled={busy || state.loadFailed || !state.newDomain.trim()}>Adicionar domínio</Button>
               </div>
               <p id="store-domain-help" className="ui-field-help">Informe apenas o endereço, sem https:// ou caminhos de páginas.</p>
             </form>
@@ -45,7 +46,7 @@ export function CustomDomainPage({ onVerifiedDomainChange }: { onVerifiedDomainC
             <div className="domain-page__list">{state.domains.map(domain => <article key={domain.id} className="domain-entry">
               <header className="domain-entry__header">
                 <div><h3><Globe size={17} aria-hidden="true" />{domain.domain}</h3><span className={"ui-status " + (domain.verified ? "ui-status--success" : "ui-status--warning")}>{domain.verified ? "DNS verificado" : "Aguardando apontamento"}</span></div>
-                <Button variant="ghost" size="sm" disabled={removing === domain.id} onClick={() => setPendingRemoval({ id: domain.id, domain: domain.domain })}>Remover</Button>
+                <Button variant="ghost" size="sm" disabled={busy || state.loadFailed} onClick={() => { vm.dismiss(); setPendingRemoval({ id: domain.id, domain: domain.domain }); }}>Remover</Button>
               </header>
               {domain.verified ? <div className="domain-entry__verified">
                 <p>{domain.verified_at ? "DNS verificado em " + new Date(domain.verified_at).toLocaleDateString("pt-BR") + ". " : "Apontamento confirmado. "}Abra o endereço e confira se a loja correta carrega com conexão segura.</p>
@@ -57,12 +58,12 @@ export function CustomDomainPage({ onVerifiedDomainChange }: { onVerifiedDomainC
                   {[{ label: "Nome / host", value: domain.domain, suffix: "host" }, { label: "Valor / destino", value: domain.cname_target, suffix: "target" }].map(record => <div key={record.suffix}><dt>{record.label}</dt><dd><code>{record.value}</code><button type="button" className="ui-icon-button" aria-label={"Copiar " + record.label.toLowerCase()} onClick={() => void copy(record.value, domain.id + record.suffix)}>{copiedId === domain.id + record.suffix ? <Check size={16} /> : <Copy size={16} />}</button></dd></div>)}
                 </dl>
                 {domain.txt_name && domain.txt_value && <dl className="domain-records">
-                  <div><dt>Tipo</dt><dd>TXT — confirmação de propriedade</dd></div>
+                  <div><dt>Tipo</dt><dd>TXT: confirmação de propriedade</dd></div>
                   {[{ label: "Nome / host TXT", value: domain.txt_name, suffix: "txt-host" }, { label: "Valor TXT", value: domain.txt_value, suffix: "txt-value" }].map(record => <div key={record.suffix}><dt>{record.label}</dt><dd><code>{record.value}</code><button type="button" className="ui-icon-button" aria-label={"Copiar " + record.label.toLowerCase()} onClick={() => void copy(record.value, domain.id + record.suffix)}>{copiedId === domain.id + record.suffix ? <Check size={16} /> : <Copy size={16} />}</button></dd></div>)}
                 </dl>}
                 <p className="ui-field-help">Mantenha o TXT para comprovar a propriedade. Use um CNAME visível no DNS; registros com proxy ou CNAME achatado não passam nesta verificação.</p>
                 <p className="ui-field-help">O provedor pode pedir o host completo ou apenas a parte anterior ao seu domínio. Se não aceitar CNAME neste endereço, consulte as instruções dele antes de alterar outros registros.</p>
-                <div className="configuration-actions"><Button variant="outline" loading={state.verifying === domain.id} onClick={() => void verifyDomain(domain.id)}>Verificar domínio</Button><span className="ui-field-help">A propagação depende do provedor.</span></div>
+                <div className="configuration-actions"><Button variant="outline" loading={state.verifying === domain.id} disabled={busy || state.loadFailed} onClick={() => void verifyDomain(domain.id)}>Verificar domínio</Button><span className="ui-field-help">A propagação depende do provedor.</span></div>
               </div>}
             </article>)}</div>
           </section>}
@@ -80,6 +81,6 @@ export function CustomDomainPage({ onVerifiedDomainChange }: { onVerifiedDomainC
         { title: "Verifique e confira a loja", description: "Volte para verificar o apontamento. Depois, abra o endereço por HTTPS e confira a loja antes de divulgá-lo." },
       ]} />
     </>}
-    <ConfirmDialog open={Boolean(pendingRemoval)} title="Remover domínio da loja?" description={pendingRemoval ? "O endereço " + pendingRemoval.domain + " deixará de estar associado à loja. Os registros no seu provedor DNS não serão removidos por esta ação." : ""} confirmLabel="Remover domínio" onCancel={() => setPendingRemoval(null)} onConfirm={() => { if (!pendingRemoval) return; const id = pendingRemoval.id; setPendingRemoval(null); setRemoving(id); void removeDomain(id).finally(() => setRemoving(null)); }} />
+    <ConfirmDialog open={Boolean(pendingRemoval)} title="Remover domínio da loja?" description={pendingRemoval ? "O endereço " + pendingRemoval.domain + " deixará de estar associado à loja. Os registros no seu provedor DNS não serão removidos por esta ação." : ""} confirmLabel="Remover domínio" busy={Boolean(state.removing)} error={state.error} onCancel={() => { vm.dismiss(); setPendingRemoval(null); }} onConfirm={() => { if (!pendingRemoval) return; void removeDomain(pendingRemoval.id).then(removed => { if (removed) setPendingRemoval(null); }); }} />
   </div>;
 }

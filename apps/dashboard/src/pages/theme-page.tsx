@@ -13,6 +13,7 @@ import { showToast } from "../components/Toast.js";
 import { Button } from "../components/Button.js";
 import { FormField, FormSelect } from "../components/FormField.js";
 import { reportError } from "../lib/observability/error-reporter.js";
+import { applyThemeMode, normalizeThemeDraft } from "./theme-page/theme-preview-palette.js";
 
 // ── Exported Constants & Helpers (testable) ──────────────────────────────────
 
@@ -117,10 +118,7 @@ function handleImageUpload(
 }
 
 function mergeTheme(theme?: Partial<MerchantTheme> | null): MerchantTheme {
-  return {
-    ...DEFAULT_MERCHANT_THEME,
-    ...(theme ?? {}),
-  };
+  return normalizeThemeDraft(theme);
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -471,7 +469,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
               <label>
                 Modo de cor
-                <br /><span className="field-hint" style={{ marginTop: 4, display: "inline-block" }}>Aparência geral do checkout</span>
+                <br /><span className="field-hint" style={{ marginTop: 4, display: "inline-block" }}>Escolha uma base para fundos e textos. A cor da marca, as imagens e as fontes são mantidas.</span>
               </label>
               <div className="filter-tabs">
                 {([
@@ -484,7 +482,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                     key={opt.value}
                     className={`filter-tab${(theme.mode ?? "light") === opt.value ? " active" : ""}`}
                     aria-pressed={(theme.mode ?? "light") === opt.value}
-                    onClick={() => patch({ mode: opt.value })}
+                    onClick={() => setTheme(current => applyThemeMode(current, opt.value))}
                   >
                     {opt.label}
                   </button>

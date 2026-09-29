@@ -1956,7 +1956,7 @@ model MerchantDomain {
   merchantId  String    @map("merchant_id")
   domain      String    @unique
   verified    Boolean   @default(false)
-  cnameTarget String    @default("stores.zyon.com") @map("cname_target")
+  cnameTarget String?   @default("stores.zyon.com") @map("cname_target")
   verifiedAt  DateTime? @map("verified_at")
   createdAt   DateTime  @default(now()) @map("created_at")
 

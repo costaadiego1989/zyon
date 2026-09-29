@@ -6,6 +6,7 @@ import { Injectable, Inject, BadRequestException, NotFoundException , Logger} fr
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { domainOwnershipChallenge } from "../../domain-ownership.js";
+import { resolveDomainCnameTarget } from "../../domain-cname-target.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 
 export interface RegisterDomainInput {
@@ -48,7 +49,7 @@ export class RegisterDomainUseCase {
     });
     if (existing) throw new BadRequestException("domain_already_registered");
 
-    const cnameTarget = process.env.STOREFRONT_CNAME_TARGET?.trim() || "stores.zyon.com";
+    const cnameTarget = resolveDomainCnameTarget();
     const created = await this.prisma.merchantDomain.create({
       data: {
         merchantId: input.merchant_id,

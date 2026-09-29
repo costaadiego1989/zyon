@@ -46,7 +46,7 @@ export function BillingPage({ me }: { apiBaseUrl: string; me: MerchantProfile | 
   const provider = subscription?.billing_provider?.toLowerCase();
   const unsupported = provider && provider !== "stripe" && invoices.length === 0;
   return <div className="billing-history">
-    <PageHeader title="Histórico de cobranças" description="Consulte as faturas da assinatura. Para trocar de plano ou atualizar o pagamento, acesse Planos e assinatura." actions={<a href="#billing-plans" className="btn btn-outline">Gerenciar plano</a>} />
+    <PageHeader title="Histórico de cobranças" description="Consulte as faturas da assinatura. Para trocar de plano ou atualizar o pagamento, acesse Planos e assinatura." actions={<a href="#billing-plans" className="zyn-btn zyn-btn--outline zyn-btn--md billing-history__manage">Gerenciar plano</a>} />
     {!me ? <EmptyState icon={Receipt} title="Entre para consultar as cobranças" description="Use a conta responsável pela assinatura da loja." /> : <>
       {subscription && <div className="billing-history__summary"><div><span className="billing-history__label">Assinatura atual</span><strong>{subscription.plan_name ?? subscription.plan}</strong></div><span className="badge muted">{SUB_STATUS[subscription.status] ?? "Status em consulta"}</span><p>Limites, consumo e alterações de plano ficam em Planos e assinatura.</p></div>}
       {subscriptionError && <div className="billing-history__notice" role="alert">Não foi possível consultar a assinatura. <Button variant="outline" size="sm" onClick={() => setAttempt(a => a + 1)}>Tentar novamente</Button></div>}

@@ -16,6 +16,7 @@ import { useSeoSettingsTab } from "./useSeoSettingsTab.js";
 import { SeoGtmTab } from "./components/SeoGtmTab.js";
 import { BudgetRequests } from "./components/BudgetRequests.js";
 import { maskPhone, maskCEP, maskCNPJ } from "../../utils/masks.js";
+import { formatBudgetPhone } from "./budget-phone.js";
 
 const DAY_LABELS: Record<string, string> = {
   seg: "Segunda", ter: "Terça", qua: "Quarta", qui: "Quinta",
@@ -88,15 +89,15 @@ export function StoreSettingsPage() {
           {state.activeTab === "budget" && (state.budgetAvailable ? (
             <div className="store-budget">
               <p className="admin-help">Receba solicitações para negociar com o comprador antes do pagamento. Salve as configurações para aplicar a mudança à loja.</p>
-              <label className="store-budget__activation">
-                <input type="checkbox" role="switch" aria-describedby="budget-mode-help" checked={state.budgetMode} onChange={event => setBudgetMode(event.target.checked)} />
-                <span><strong>Ativar modo orçamento</strong><span id="budget-mode-help">O comprador solicita uma proposta em vez de finalizar o pagamento.</span></span>
-              </label>
+              <div className="store-budget__activation">
+                <div><label id="budget-mode-label" htmlFor="budget-mode">Ativar modo orçamento</label><p id="budget-mode-help">O comprador solicita uma proposta em vez de finalizar o pagamento.</p></div>
+                <ToggleSwitch id="budget-mode" checked={state.budgetMode} disabled={busy} onChange={setBudgetMode} aria-labelledby="budget-mode-label" aria-describedby="budget-mode-help" />
+              </div>
               <div>
                 <SectionHeader title="Contatos para os avisos" subtitle="Informe os destinos de e-mail e WhatsApp. O envio depende da configuração dos canais da loja." variant="secondary" />
                 <div className="admin-fields">
                   <FormField label="E-mail para orçamentos" type="email" placeholder="contato@loja.com" value={state.budgetEmail} onChange={setBudgetEmail} maxLength={254} hint="Opcional." error={state.budgetErrors.email} inputProps={{ autoComplete: "email" }} />
-                  <FormField label="WhatsApp para orçamentos" type="tel" placeholder="+55 11 99999-9999" value={state.budgetWhatsapp} onChange={setBudgetWhatsapp} maxLength={32} hint="Opcional. Inclua o DDD e, para números internacionais, o código do país." error={state.budgetErrors.whatsapp} inputProps={{ autoComplete: "tel" }} />
+                  <FormField label="WhatsApp para orçamentos" type="tel" placeholder="(11) 99999-9999" value={formatBudgetPhone(state.budgetWhatsapp)} onChange={value => setBudgetWhatsapp(formatBudgetPhone(value))} maxLength={32} hint="Opcional. Inclua o DDD. Para outro país, comece com + e o código do país." error={state.budgetErrors.whatsapp} inputProps={{ autoComplete: "tel", inputMode: "tel" }} />
                 </div>
               </div>
             </div>

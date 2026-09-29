@@ -4,24 +4,13 @@ import { readError } from "../utils/read-error.js";
 import { useApi } from "../hooks/useApi.js";
 import { showToast } from "../components/Toast.js";
 import type { MerchantProfile } from "../api-client.js";
+import type { TeamMember, TeamInvite as PendingInvite, TeamRole as MemberRole } from "../api/endpoints/team-response.js";
+export type { TeamMember, TeamInvite as PendingInvite, TeamRole as MemberRole } from "../api/endpoints/team-response.js";
 
-export type MemberRole = "OWNER" | "ADMIN" | "STAFF";
-
-export interface TeamMember {
-  id: string;
-  userId: string;
-  email: string;
-  role: MemberRole;
-  joinedAt: string;
-}
-
-export interface PendingInvite {
-  id: string;
-  email: string;
-  role: MemberRole;
-  status: "PENDING" | "ACCEPTED" | "EXPIRED";
-  createdAt: string;
-  expiresAt: string;
+export function formatTeamDate(value: string | null | undefined): string {
+  if (!value?.trim()) return "Não informada";
+  const date = new Date(value);
+  return Number.isFinite(date.getTime()) ? date.toLocaleDateString("pt-BR") : "Não informada";
 }
 
 export interface TeamPageState {

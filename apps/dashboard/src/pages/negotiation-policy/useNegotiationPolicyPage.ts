@@ -50,9 +50,9 @@ function localToApi(
 }
 
 const DEFAULT_POLICY: NegotiationPolicy = {
-  negotiation_enabled: false,
+  negotiation_enabled: true,
   min_discount_percent: 5,
-  max_discount_percent: 25,
+  max_discount_percent: 10,
 };
 
 export function useNegotiationPolicyPage(props: {

@@ -3,6 +3,7 @@ import { CheckCircle2, Code2, Copy, KeyRound, Shield, Zap } from "lucide-react";
 import { type MerchantProfile } from "../api-client.js";
 import { EmptyState } from "../components/EmptyState.js";
 import { SectionHeader } from "../components/SectionHeader.js";
+import { SetupGuide } from "../components/SetupGuide.js";
 import { useEmbedPage } from "./useEmbedPage.js";
 
 // ── View ────────────────────────────────────────────────────────────────────
@@ -52,9 +53,11 @@ function InstallTab(props: {
 }) {
   return (
     <>
-      <div className="panel" style={{ marginBottom: "var(--space-4)" }}>
-        <SectionHeader title="Como funciona" subtitle="Cole o código abaixo no HTML do seu site, antes do &lt;/body&gt;. O widget carrega automaticamente." />
-      </div>
+      <SetupGuide title="Como instalar o checkout no seu site" steps={[
+        { title: "Prepare o acesso", description: "Tenha acesso ao HTML do site e confira se o código abaixo contém o token da sua loja." },
+        { title: "Copie o código de instalação", description: "Cole o código no HTML do site, antes da tag de fechamento </body>, e publique a alteração." },
+        { title: "Confira o funcionamento", description: "Abra o site no computador e no celular. Confira se o checkout carrega e se os produtos da loja aparecem corretamente." },
+      ]} />
 
       <div className="panel">
         <SectionHeader title="Código de instalação" variant="secondary" trailing={
