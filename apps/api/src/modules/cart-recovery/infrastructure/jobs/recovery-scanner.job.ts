@@ -158,6 +158,10 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     // Threshold check
     const MINIMUM_SCORE = 0.55;
     if (session.abandonmentScore < MINIMUM_SCORE) {
+      this.logger.debug("recovery-scanner: abandonment score below threshold", {
+        merchantId: session.merchantId,
+        sessionId: session.sessionId,
+      });
       return;
     }
 
@@ -230,8 +234,20 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       this.logger.warn("recovery-scanner: strategy configuration unavailable", { merchantId: session.merchantId });
       return;
     }
-    if (forcedStrategy?.type === "no_action") return;
-    if (forcedStrategy?.type === "offer_free_shipping" && !merchantPolicy.allowFreeShipping) return;
+    if (forcedStrategy?.type === "no_action") {
+      this.logger.debug("recovery-scanner: configured strategy cannot dispatch", {
+        merchantId: session.merchantId,
+        sessionId: session.sessionId,
+      });
+      return;
+    }
+    if (forcedStrategy?.type === "offer_free_shipping" && !merchantPolicy.allowFreeShipping) {
+      this.logger.debug("recovery-scanner: free shipping strategy disabled by merchant policy", {
+        merchantId: session.merchantId,
+        sessionId: session.sessionId,
+      });
+      return;
+    }
 
     // The shared router selects WhatsApp or email from the available contacts.
     let buyerPhone: string | undefined;
@@ -281,6 +297,10 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     });
 
     if (!result.created) {
+      this.logger.debug("recovery-scanner: recovery attempt not created", {
+        merchantId: session.merchantId,
+        sessionId: session.sessionId,
+      });
       return;
     }
 

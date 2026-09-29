@@ -23,6 +23,19 @@ test("legacy unselected coupon default becomes the dispatchable reminder", async
   });
 });
 
+test("legacy mismatched selected reminder and incomplete coupon config becomes the reminder", async () => {
+  const repo = repository({
+    config: { active_strategy: "offer_coupon" },
+    strategies: { personalized_cross_sell: true },
+  });
+
+  assert.deepEqual(await repo.getConfig("merchant"), {
+    active_strategy: "personalized_cross_sell",
+    coupon_code: undefined,
+    rule_id: undefined,
+  });
+});
+
 test("an explicit coupon selection remains paused until a coupon is configured", async () => {
   const repo = repository({
     config: { active_strategy: "offer_coupon" },
