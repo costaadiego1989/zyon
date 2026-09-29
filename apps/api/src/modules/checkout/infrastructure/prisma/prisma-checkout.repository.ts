@@ -91,6 +91,24 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     });
   }
 
+  async saveSessionIfUnchanged(session: CheckoutSession, expected: CheckoutSession): Promise<void> {
+    session = structuredClone(session); expected = structuredClone(expected);
+    if (session.merchantId !== expected.merchantId || session.sessionId !== expected.sessionId) {
+      throw new Error("CHAT_SESSION_SCOPE_CONFLICT");
+    }
+    const write = async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${session.merchantId}
+        AND session_id = ${session.sessionId} FOR UPDATE`;
+      const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
+      const current = await tx.checkoutSession.findUnique({ where });
+      const hash = (value: CheckoutSession) => digest(JSON.parse(JSON.stringify(toCheckoutSessionCreate(value))));
+      if (!current || hash(expected) !== hash(toCheckoutSession(current))) throw new Error("CHAT_SESSION_CHANGED");
+      await tx.checkoutSession.update({ where, data: toCheckoutSessionUpdate(session) as any });
+    };
+    if (this.inTransaction) await write(this.prisma);
+    else await (this.prisma as PrismaClient).$transaction(write);
+  }
+
   async createSessionIfAbsent(session: CheckoutSession): Promise<{ session: CheckoutSession; created: boolean }> {
     if (strategyExecutionEnabled(session.merchantId)) {
       const create = async (tx: Prisma.TransactionClient) => {

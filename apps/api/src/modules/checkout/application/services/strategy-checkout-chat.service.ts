@@ -6,7 +6,8 @@ import type { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-off
 import { chatPaymentSelection } from "../../domain/services/chat-payment-selection.js";
 import { deriveChatStage, missingFieldsForStage } from "../../domain/services/customer-extraction.service.js";
 import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
-import { StrategyExecutionLedger } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
+import { executionClock, StrategyExecutionLedger } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
+import { chatMessageTextHash } from "../../domain/services/chat-message-identity.js";
 import { StrategyChatDispatcher } from "../../../revenue-manager/application/strategy-chat-dispatcher.js";
 import { StrategyChatPublisher } from "../../../revenue-manager/infrastructure/strategy-chat-publisher.js";
 import type { ChatLlmGatewayService } from "./chat-llm-gateway.service.js";
@@ -18,9 +19,33 @@ export class StrategyCheckoutChatService {
   private readonly dispatcher: StrategyChatDispatcher;
   private readonly publisher: StrategyChatPublisher;
 
-  constructor(private readonly prisma: PrismaClient, gateway: Pick<ChatLlmGatewayService, "callPinned">) {
+  constructor(private readonly prisma: PrismaClient, gateway: Pick<ChatLlmGatewayService, "callPinned">,
+    private readonly clock = executionClock) {
     this.dispatcher = new StrategyChatDispatcher(new StrategyExecutionLedger(prisma), gateway);
     this.publisher = new StrategyChatPublisher(prisma);
+  }
+
+  /** Only a fresh, durable request may leave a terminal/expired experiment.
+   * Membership remains immutable for measurement. This is never a fallback
+   * after dispatch: existing or uncertain attempts keep their original receipt. */
+  async continueWithoutExperiment(request: ChatMessageRequest, claim?: ChatExchangeClaim): Promise<boolean> {
+    return this.prisma.$transaction(async tx => {
+      const owner = await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: {
+        merchantId: request.merchant_id, sessionId: request.session_id } }, include: { execution: true } });
+      if (!owner) return false;
+      const now = await this.clock(tx);
+      if (owner.execution.status === "running" && now < owner.execution.endsAt) return false;
+      if (!claim) throw new Error("STRATEGY_CHAT_REQUEST_REQUIRED");
+      const stored = await tx.checkoutChatRequest.findFirst({ where: { id: claim.requestId,
+        merchantId: request.merchant_id, sessionId: request.session_id, requestHash: claim.requestHash,
+        conversationId: request.conversation_id, messageId: request.message_id,
+        buyerMessageHash: chatMessageTextHash(request.user_message), status: "processing", protocolVersion: 2 },
+        include: { strategyTurn: true, exchange: true } });
+      if (!stored || stored.strategyTurn || stored.exchange) throw new Error("STRATEGY_CONTINUATION_REQUEST_CONFLICT");
+      // Execution status/horizon are immutable or terminal in PostgreSQL. A
+      // later store experiment cannot make this old assignment active again.
+      return true;
+    });
   }
 
   async tryReply(input: { request: ChatMessageRequest; claim?: ChatExchangeClaim; session: CheckoutSession;

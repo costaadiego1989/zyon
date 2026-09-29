@@ -20,6 +20,7 @@ import type { ChatLlmGatewayService } from "../services/chat-llm-gateway.service
 import type { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
 import type { CheckoutChatRequestService } from "../../infrastructure/prisma/checkout-chat-request.service.js";
 import type { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.service.js";
+import type { PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 
 interface SendChatFixtureOverrides {
   conversation?: ConversationPort;
@@ -39,6 +40,7 @@ interface SendChatFixtureOverrides {
   chatToolExecutor?: ChatToolExecutorService;
   chatRequests?: CheckoutChatRequestService;
   strategyChat?: StrategyCheckoutChatService;
+  promptExperiment?: PromptExperimentPort;
 }
 
 /**
@@ -78,7 +80,7 @@ export function createSendChatUseCase(
     overrides.experienceConfig ?? { platformFeeBrl: 1.99 },
     overrides.agentContext,
     overrides.merchantRepository,
-    undefined,
+    overrides.promptExperiment,
     undefined,
     overrides.chatToolExecutor,
     overrides.chatLlmGateway,

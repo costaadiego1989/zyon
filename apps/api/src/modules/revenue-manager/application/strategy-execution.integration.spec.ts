@@ -33,6 +33,7 @@ import { StrategyMetricsService } from "./strategy-metrics.service.js";
 import { StrategyAiBudget } from "../infrastructure/strategy-ai-budget.js";
 import { RevenueAiBudgetService } from "../infrastructure/revenue-ai-budget.service.js";
 import { StrategyMonitorService } from "../infrastructure/strategy-monitor.service.js";
+import { ChatToolExecutorService } from "../../checkout/application/services/chat-tool-executor.service.js";
 
 // Only these disposable local databases can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -1509,16 +1510,22 @@ function mainChatFixture(options: {
   offer?: SafeAuthorizedOffer;
   requestPrisma?: PrismaClient;
   payment?: (input: any) => Promise<any>;
+  clock?: () => Promise<Date>;
+  legacy?: () => Promise<{ content: string; toolCalls: Array<{ function: { name: string; arguments: string } }> }>;
+  tools?: ChatToolExecutorService;
+  promptExperiment?: { findRunningExperiment: (merchantId: string) => Promise<any> };
+  onOffer?: (options: { skipExperiment?: boolean } | undefined) => void;
 } = {}) {
   process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
   const calls = { customer: 0, legacy: 0, tools: 0, payments: 0, conversation: 0 };
   const gateway = new ChatLlmGatewayService();
-  gateway.call = async () => { calls.legacy++; return { content: "Resposta habitual.", toolCalls: [] }; };
+  gateway.call = async () => { calls.legacy++; return options.legacy ? options.legacy() : { content: "Resposta habitual.", toolCalls: [] }; };
   const useCase = createSendChatUseCase(repo, {
     chatRequests: new CheckoutChatRequestService(options.requestPrisma ?? prisma),
-    strategyChat: new StrategyCheckoutChatService(prisma, gateway),
+    strategyChat: new StrategyCheckoutChatService(prisma, gateway, options.clock),
+    promptExperiment: options.promptExperiment,
     chatLlmGateway: gateway,
-    chatToolExecutor: { async executeToolCalls() { calls.tools++; throw new Error("UNEXPECTED_TOOL"); } } as any,
+    chatToolExecutor: options.tools ?? { async executeToolCalls() { calls.tools++; throw new Error("UNEXPECTED_TOOL"); } } as any,
     createPaymentIntent: { async execute(input: any) {
       calls.payments++; if (options.payment) return options.payment(input); throw new Error("UNEXPECTED_PAYMENT");
     } } as any,
@@ -1527,7 +1534,9 @@ function mainChatFixture(options: {
       calls.customer++; return options.processCustomer ? options.processCustomer(value) : value;
     } } as any,
     shippingService: { async processShippingState(value: CheckoutSession) { return value; }, summarizeDelivery() {} } as any,
-    offerService: { async authorizeOffer(_message: string, value: CheckoutSession) {
+    offerService: { async authorizeOffer(_message: string, value: CheckoutSession, _rules: unknown, _stage: unknown, _missing: unknown,
+      offerOptions?: { skipExperiment?: boolean }) {
+      options.onOffer?.(offerOptions);
       return options.offer ?? SafeAuthorizedOffer.noOffer(value.merchantId, value.sessionId);
     } } as any,
   });
@@ -1538,6 +1547,137 @@ async function assertNoMainEffects(calls: ReturnType<typeof mainChatFixture>["ca
   assert.equal(calls.legacy, 0); assert.equal(calls.tools, 0); assert.equal(calls.payments, 0);
   assert.equal(calls.conversation, 0); assert.equal(await prisma.completedOrder.count(), 0);
 }
+
+for (const stop of ["paused", "stopped", "horizon"] as const) {
+  integration(`main continuation after ${stop} preserves assignment and uses normal checkout without another experiment`, async () => {
+    const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+    const original = await prisma.strategyAssignment.findFirstOrThrow();
+    if (stop !== "horizon") await ledger.stop({ merchantId: "store", executionId: f.execution.id,
+      actorId: "fixture", requestKey: `continuation-${stop}`, kind: stop });
+    let offerOptions: unknown, prompts = 0;
+    const { useCase, calls } = mainChatFixture({ clock: stop === "horizon" ? async () => f.execution.endsAt : undefined,
+      promptExperiment: { async findRunningExperiment() { prompts++; throw new Error("CANNOT_REASSIGN_OLD_SESSION"); } },
+      onOffer: value => { offerOptions = value; } });
+    process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "false";
+    process.env.REVENUE_STRATEGY_EXECUTION_ENABLED = "false";
+    const request = buyerRequest(), response = await useCase.execute(request);
+    assert.equal(response.message, "Resposta habitual."); assert.equal(response.chat_request?.status, "completed");
+    assert.equal(response.stage, "payment"); assert.equal(response.turns.length, 2);
+    assert.equal(response.display_ref, undefined); assert.ok(response.experience);
+    assert.equal(calls.legacy, 1); assert.equal(calls.tools, 0); assert.equal(calls.payments, 0); assert.equal(prompts, 0);
+    assert.deepEqual(offerOptions, { skipExperiment: true });
+    assert.deepEqual(await prisma.strategyAssignment.findFirstOrThrow(), original);
+    assert.equal(await prisma.strategyTurn.count(), 0); assert.equal(await prisma.strategyAiReservation.count(), 0);
+    assert.equal(await prisma.strategyTurnPublication.count(), 0); assert.equal(await prisma.checkoutChatExchange.count(), 1);
+    await assert.rejects(useCase.execute(request), httpStatus(409)); assert.equal(calls.legacy, 1);
+    const state = await new CheckoutChatRequestService(prisma).readState("store", "one");
+    assert.equal(state.turns.length, 2); assert.equal(state.turns[1].text, "Resposta habitual.");
+  });
+}
+
+integration("main continuation preserves published strategy history and counts late orders without inventing new exposure", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture(); let experimentalCalls = 0;
+  globalThis.fetch = (async () => { experimentalCalls++; return providerResponse(); }) as typeof fetch;
+  const first = await useCase.execute(buyerRequest()); assert.ok(first.display_ref);
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "stop-after-reply", kind: "stopped" });
+  const next = await useCase.execute(buyerRequest());
+  assert.equal(next.turns.length, 4); assert.equal(next.display_ref, undefined);
+  assert.equal(experimentalCalls, 1); assert.equal(calls.legacy, 1);
+  await measuredOrder("one", "late-order");
+  const review = await new ExperimentMeasurementService(prisma).capture("store", f.execution.experimentId,
+    "continuation-metrics", new Date(Date.now() + 25 * 3_600_000));
+  const result = review.result as any;
+  assert.equal(result.control.assigned + result.treatment.assigned, 1);
+  assert.equal(result.control.converted + result.treatment.converted, 1);
+  assert.equal(result.delivery.control.publishedTurns + result.delivery.treatment.publishedTurns, 1);
+  assert.equal(await prisma.checkoutChatExchange.count(), 2);
+});
+
+integration("main continuation cannot escape an uncertain provider attempt even after the experiment stops", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture(); let experimentalCalls = 0;
+  globalThis.fetch = (async () => { experimentalCalls++; throw new Error("UNKNOWN_PROVIDER_RESULT"); }) as typeof fetch;
+  const request = buyerRequest(); await assert.rejects(useCase.execute(request), httpStatus(503));
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "stop-unknown", kind: "stopped" });
+  await assert.rejects(useCase.execute(request), httpStatus(409));
+  await assert.rejects(useCase.execute(buyerRequest()), httpStatus(409));
+  assert.equal(experimentalCalls, 1); assert.equal(calls.legacy, 0); assert.equal(await prisma.checkoutChatExchange.count(), 0);
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+});
+
+integration("main continuation keeps tool discounts under commercial authority and cart mutations outside generated replies", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "stop-tool-policy", kind: "stopped" });
+  const original = (await repo.getSession("store", "one"))!.cart;
+  const { useCase, calls } = mainChatFixture({ tools: new ChatToolExecutorService(),
+    async legacy() { return { content: "", toolCalls: [
+      { function: { name: "apply_discount", arguments: '{"percent":90}' } },
+      { function: { name: "add_cross_sell_item", arguments: '{"sku":"unverified","quantity":10}' } },
+    ] }; } });
+  const result = await useCase.execute(buyerRequest());
+  assert.equal(result.chat_request?.status, "completed"); assert.doesNotMatch(result.message, /90%|adicionado ao carrinho/);
+  assert.equal(result.actions.some(action => action.type === "apply_offer"), false);
+  assert.deepEqual((await repo.getSession("store", "one"))!.cart, original);
+  assert.equal(calls.payments, 0); assert.equal(await prisma.strategyTurn.count(), 0);
+});
+
+integration("main continuation records a coupon request before comparing the snapshot and preserves the authorized nudge", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "stop-coupon-request", kind: "stopped" });
+  const offer = SafeAuthorizedOffer.fromRulesEngine({ ...SafeAuthorizedOffer.noOffer("store", "one").toAuthorizedOffer(),
+    reason: "advanced_coupon_available", discountCode: "VERIFICADO" });
+  const { useCase } = mainChatFixture({ offer });
+  const response = await useCase.execute({ ...buyerRequest(), user_message: "Tem algum cupom?" });
+  assert.equal(response.chat_request?.status, "completed"); assert.match(response.message, /VERIFICADO/);
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.cart.commercialNudge?.couponCode, "VERIFICADO"); assert.equal(saved.cart.total, 100);
+  assert.equal(saved.cart.currentDiscount ?? 0, 0);
+  assert.equal(await prisma.checkoutEvent.count({ where: { merchantId: "store", sessionId: "one", eventName: "coupon_field_clicked" } }), 1);
+  assert.equal(await prisma.strategyTurn.count(), 0);
+});
+
+integration("main continuation cannot overwrite a cart changed while the normal provider is answering", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "stop-cart-race", kind: "stopped" });
+  const { useCase, calls } = mainChatFixture({ async legacy() {
+    const current = (await repo.getSession("store", "one"))!;
+    await repo.saveSession({ ...current, cart: { ...current.cart, total: 250 } });
+    return { content: "Resposta antiga.", toolCalls: [] };
+  } });
+  await assert.rejects(useCase.execute(buyerRequest()), httpStatus(503));
+  assert.equal((await repo.getSession("store", "one"))!.cart.total, 250);
+  assert.equal(calls.legacy, 1); assert.equal(calls.payments, 0); assert.equal(await prisma.checkoutChatExchange.count(), 0);
+  await assert.rejects(useCase.execute(buyerRequest()), httpStatus(409)); assert.equal(calls.legacy, 1);
+});
+
+integration("main continuation requires its own fresh durable request and never reuses a dispatched turn", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const claimed = await claimFixture();
+  await new StrategyChatDispatcher(ledger, { async callPinned() { return completed; } }).dispatch(boundTurn("one", claimed.claim, claimed.input.user_message));
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "stop-bound-turn", kind: "stopped" });
+  const service = new StrategyCheckoutChatService(prisma, { async callPinned() { assert.fail("routing must not dispatch"); } });
+  await assert.rejects(service.continueWithoutExperiment(claimed.input), /REQUEST_REQUIRED/);
+  await assert.rejects(service.continueWithoutExperiment(claimed.input, claimed.claim), /REQUEST_CONFLICT/);
+  assert.equal(await service.continueWithoutExperiment({ ...claimed.input, merchant_id: "other" }, claimed.claim), false);
+  assert.equal(await prisma.strategyTurn.count(), 1); assert.equal(await prisma.checkoutChatExchange.count(), 0);
+});
+
+integration("main continuation serializes simultaneous retries and can proceed after verified recovery of old text", async () => {
+  const f = await recoveryFixture();
+  const execution = await prisma.strategyExecution.findFirstOrThrow();
+  await ledger.stop({ merchantId: "store", executionId: execution.id, actorId: "fixture", requestKey: "stop-recovered-text", kind: "stopped" });
+  const requests = new CheckoutChatRequestService(prisma);
+  assert.equal((await requests.reconcile(f.input)).chat_request.status, "reconciled");
+  const { useCase, calls } = mainChatFixture(), request = buyerRequest();
+  const results = await Promise.allSettled(Array.from({ length: 6 }, () => useCase.execute(request)));
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  for (const result of results) if (result.status === "rejected") assert.equal(result.reason.getStatus(), 409);
+  assert.equal(calls.legacy, 1); assert.equal(await prisma.strategyTurn.count(), 1);
+  assert.equal(await prisma.checkoutChatExchange.count(), 2);
+  const state = await requests.readState("store", "one");
+  assert.equal(state.turns.length, 4); assert.ok(state.turns[1].display_ref); assert.equal(state.turns[3].display_ref, undefined);
+});
 
 integration("main chat publishes both exact strategy arms without legacy provider, tools or a second session save", async () => {
   const f = await activate();

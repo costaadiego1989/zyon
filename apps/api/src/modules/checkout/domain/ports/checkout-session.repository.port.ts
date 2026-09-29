@@ -25,6 +25,8 @@ export interface CheckoutSessionRepository {
   /** Atomically creates a checkout without replacing an existing buyer/session. */
   createSessionIfAbsent?(session: CheckoutSession): MaybePromise<{ session: CheckoutSession; created: boolean }>;
   saveSession(session: CheckoutSession): MaybePromise<void>;
+  /** Persist a prepared snapshot only while its original state is still current. */
+  saveSessionIfUnchanged?(session: CheckoutSession, expected: CheckoutSession): MaybePromise<void>;
   getSession(merchantId: string, sessionId: string): MaybePromise<CheckoutSession | undefined>;
   findSessionsByEmail(merchantId: string, email: string): MaybePromise<CheckoutSession[]>;
   appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): MaybePromise<CheckoutSession>;

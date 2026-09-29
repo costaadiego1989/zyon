@@ -88,6 +88,13 @@ export class SendChatMessageUseCase {
   }
 
   private async processMessage(input: ChatMessageRequest, chatRequest?: ChatExchangeClaim): Promise<ChatMessageResponse> {
+    const continuation = await this.strategyChat?.continueWithoutExperiment(input, chatRequest) ?? false;
+    // Capture this telemetry before reading a continuation snapshot. Its update
+    // must not race the compare-and-save used to protect the buyer's cart.
+    if (continuation && this.looksLikeCouponRequest(input.user_message)) {
+      try { await this.sessions.recordEvent(input.merchant_id, input.session_id, "coupon_field_clicked"); }
+      catch (error) { this.logger.warn("coupon_field_clicked.record_failed", error as Error); }
+    }
     const context = await this.chatContextService.loadContext(
       input.merchant_id,
       input.session_id,
@@ -156,7 +163,7 @@ export class SendChatMessageUseCase {
     // Intent Memory signal: a buyer asking about a coupon/discount is the
     // strongest price-sensitivity signal the classifier consumes. Emit it
     // non-blockingly so it never affects the chat reply.
-    if (this.looksLikeCouponRequest(input.user_message)) {
+    if (!continuation && this.looksLikeCouponRequest(input.user_message)) {
       void Promise.resolve(
         this.sessions.recordEvent(input.merchant_id, input.session_id, "coupon_field_clicked"),
       ).catch((err) =>
@@ -168,9 +175,11 @@ export class SendChatMessageUseCase {
     const missingFields = missingFieldsForStage(working, stage);
     const cohortForOffer = (working as any).cohort;
     const isHoldout = cohortForOffer === "holdout";
+    const beforeOffer = continuation ? structuredCloneDeep(working) : undefined;
     const offer = cohortForOffer === "holdout"
       ? SafeAuthorizedOffer.noOffer(working.merchantId, working.sessionId)
-      : await this.offerService.authorizeOffer(input.user_message, working, context.rules, stage, missingFields);
+      : await this.offerService.authorizeOffer(input.user_message, working, context.rules, stage, missingFields,
+        continuation ? { skipExperiment: true } : undefined);
 
     const advancedCouponCode =
       !isHoldout && offer.reason === "advanced_coupon_available"
@@ -210,20 +219,20 @@ export class SendChatMessageUseCase {
     if (!isHoldout && !forceDeterministic) {
       if (!this.strategyChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED === "true"
         && strategyExecutionEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "STRATEGY_MAIN_CHAT_UNAVAILABLE" });
-      const strategyReply = await this.strategyChat?.tryReply({ request: input, claim: chatRequest, session: working,
+      const strategyReply = continuation ? undefined : await this.strategyChat?.tryReply({ request: input, claim: chatRequest, session: working,
         stage, previousStage, offer, hasBuyerIntent: context.buyerIntent !== undefined,
         hasPreSearchedProducts: context.preSearchedProducts.length > 0 });
       // This response is already published atomically. In particular, do not
       // overwrite its session with attribution flags or append/pay via builder.
       if (strategyReply) return strategyReply;
-      const experimentPromptOverride = await this.resolveExperimentPrompt(
+      const experimentPromptOverride = continuation ? undefined : await this.resolveExperimentPrompt(
         input.merchant_id,
         input.session_id,
         working.promptVariantId,
       );
       llmReply = await this.callLocalLlm(
         input.user_message, context.merchantRules ?? [], context.merchant?.name, working.cart, input.merchant_id, context.buyerIntent, experimentPromptOverride, offer,
-        this.buildLlmUiContext(working, context.rules, stage),
+        this.buildLlmUiContext(working, context.rules, stage, !continuation),
       );
     } else if (forceDeterministic) {
       this.logger.debug("chat.routing.forced-deterministic", { stage, missingFields });
@@ -244,8 +253,12 @@ export class SendChatMessageUseCase {
       }
       working.featuresApplied = features;
       try {
-        await this.sessions.saveSession(working);
+        if (continuation) {
+          if (!this.sessions.saveSessionIfUnchanged) throw new Error("CHAT_SESSION_COMPARE_REQUIRED");
+          await this.sessions.saveSessionIfUnchanged(working, beforeOffer!);
+        } else await this.sessions.saveSession(working);
       } catch (err) {
+        if (continuation) throw err;
         this.logger.warn("[revenue-lift] failed to persist attribution flags", err as Error);
       }
     }
@@ -395,7 +408,8 @@ export class SendChatMessageUseCase {
   private buildLlmUiContext(
     working: CheckoutSession,
     rules: import("@zyon/shared-types").MerchantRules,
-    stage: import("@zyon/shared-types").ChatStage
+    stage: import("@zyon/shared-types").ChatStage,
+    allowCartChanges = true,
   ) {
     const custAddr = (working.customer as any)?.address;
     const addressFormatted = custAddr?.street
@@ -414,8 +428,10 @@ export class SendChatMessageUseCase {
       shippingOptions: working.shippingOptions as any,
       paymentMethods,
       address: addressFormatted ? { ...custAddr, formatted: addressFormatted } : undefined,
-      addCrossSellItem: (sku: string, quantity: number) =>
-        this.addCrossSellItemToCart(working, sku, quantity),
+      // Continuations keep cart mutations on the normal cart endpoints until
+      // tool writes participate in the same compare-and-save protocol.
+      addCrossSellItem: allowCartChanges ? (sku: string, quantity: number) =>
+        this.addCrossSellItemToCart(working, sku, quantity) : undefined,
     };
   }
 
