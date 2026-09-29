@@ -5,15 +5,18 @@ import { SetupGuide } from "../../components/SetupGuide.js";
 import "./revenue-manager.css";
 import { PageHeader } from "../../components/PageHeader.js";
 import { openStrategyReview } from "./strategy-review.js";
+import { WeeklyAnalysisStatus } from "./WeeklyAnalysisStatus.js";
 import React, { useState } from "react";
 import { Lightbulb, TrendingUp, Eye, BookOpen, Brain, ArrowRight } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
+import { IncentivePolicySettings } from "./IncentivePolicySettings.js";
 import { TabBar } from "../../components/TabBar.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { useRevenueManagerPage } from "./useRevenueManagerPage.js";
+import { STRATEGY_STATUSES } from "./strategy-review-model.js";
 
 export interface RevenueManagerPageProps {
   apiBaseUrl: string;
@@ -44,8 +47,8 @@ const STATUS_COLORS: Record<string, { bg: string; color: string; label: string }
   experiment_failed: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Teste falhou" },
 };
 
-export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
-  const vm = useRevenueManagerPage(me);
+export function RevenueManagerPage(_props: RevenueManagerPageProps) {
+  const vm = useRevenueManagerPage(_props.me);
   const [tab, setTab] = useState<Tab>("hypotheses");
   const [hypPage, setHypPage] = useState(1);
   const [obsPage, setObsPage] = useState(1);
@@ -54,12 +57,13 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
   const [search, setSearch] = useState("");
   const [statusFilter, setStatusFilter] = useState("");
   const normalized = (value: string) => value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  const filteredHypotheses = vm.hypotheses.filter(h => (!statusFilter || h.status === statusFilter) && normalized(h.hypothesis_text).includes(normalized(search)));
+  const filteredHypotheses = vm.hypotheses.filter(h => (!statusFilter || (h.strategy_review?.status ?? h.status) === statusFilter) && normalized(h.strategy_review?.title ?? h.hypothesis_text).includes(normalized(search)));
   const currentHypPage = Math.min(hypPage, Math.max(1, Math.ceil(filteredHypotheses.length / PAGE_SIZE)));
   const currentObsPage = Math.min(obsPage, Math.max(1, Math.ceil(vm.observations.length / PAGE_SIZE)));
   const currentLessonPage = Math.min(lessonPage, Math.max(1, Math.ceil(vm.lessons.length / PAGE_SIZE)));
-  const pendingCount = vm.hypotheses.filter(h => h.status === "pending_review").length;
-  const approvedCount = vm.hypotheses.filter(h => h.status === "approved").length;
+  const pendingCount = vm.hypotheses.filter(h => (h.strategy_review?.status ?? h.status) === "pending_review"
+    && (!h.strategy_review || Date.parse(h.strategy_review.expires_at) > Date.now())).length;
+  const approvedCount = vm.hypotheses.filter(h => (h.strategy_review?.status ?? h.status) === "approved").length;
   const measuredConversions = vm.observations
     .map((observation) => observation.conversion_rate)
     .filter((rate): rate is number => rate !== null);
@@ -91,6 +95,11 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
         { title: "Acompanhe o resultado", description: "Confira a execução e a amostra antes de avaliar o resultado. Estimativas não garantem aumento de vendas." },
       ]} />
 
+      <WeeklyAnalysisStatus status={vm.analysisStatus} error={vm.analysisStatusError} />
+      {_props.me && <IncentivePolicySettings key={_props.me.id} merchantId={_props.me.id} />}
+      {vm.hypothesesError && <div role="alert" className="strategy-review-error"><p>Não foi possível atualizar as sugestões da loja. Os dados anteriores podem estar desatualizados.</p>
+        <button type="button" className="zyn-btn zyn-btn--secondary" onClick={() => void vm.refresh()}>Tentar novamente</button></div>}
+
       {/* Kill-switch — ativar/desativar o motor autônomo */}
       {vm.errors.engine ? <EmptyState title="Configuração indisponível" description={vm.errors.engine} action={<Button variant="outline" onClick={vm.refresh}>Tentar novamente</Button>} /> : <section style={{
         display: "flex", alignItems: "center", gap: 14,
@@ -119,7 +128,7 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
       {/* KPIs */}
       {!vm.errors.hypotheses && !vm.errors.observations && !vm.errors.lessons && <div className="grid-4" style={{ gap: 14 }}>
         <StatCard label="Aguardando revisão" value={pendingCount} icon={<Lightbulb size={16} />} accent="var(--color-warning)" />
-        <StatCard label="Testes ativos" value={approvedCount} icon={<Brain size={16} />} accent="var(--color-brand)" />
+        <StatCard label="Estratégias aprovadas" value={approvedCount} icon={<Brain size={16} />} accent="var(--color-brand)" />
         <StatCard label="Conversão média" value={`${avgConversion}%`} icon={<TrendingUp size={16} />} accent="var(--color-success)" />
         <StatCard label="Aprendizados" value={lessonsCount} icon={<BookOpen size={16} />} />
       </div>}
@@ -141,12 +150,16 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
         >
           {vm.errors.hypotheses ? <EmptyState title="Sugestões indisponíveis" description={vm.errors.hypotheses} action={<Button variant="outline" onClick={vm.refresh}>Tentar novamente</Button>} /> : <ul className="revenue-manager-proposals">
             {hypSlice.map((h) => {
+              const review = h.strategy_review;
               const risk = RISK_COLORS[h.risk_level] ?? RISK_COLORS.medium;
-              const status = STATUS_COLORS[h.status] ?? STATUS_COLORS.pending_review;
+              const state = review?.status ?? h.status;
+              const expired = review && Date.parse(review.expires_at) <= Date.now() && state === "pending_review";
+              const status = { ...(STATUS_COLORS[state] ?? STATUS_COLORS.pending_review),
+                label: expired ? "Proposta vencida" : STRATEGY_STATUSES[state] ?? STATUS_COLORS[state]?.label ?? "Aguardando atualização" };
               return (
                 <li key={h.id} className="revenue-manager-proposal" aria-labelledby={`proposal-${h.id}`}>
                   <div className="revenue-manager-proposal-content">
-                    <h3 id={`proposal-${h.id}`}>{h.hypothesis_text}</h3>
+                    <h3 id={`proposal-${h.id}`}>{review?.title ?? h.hypothesis_text}</h3>
                     {h.reasoning && <p className="revenue-manager-proposal-context">{h.reasoning}</p>}
                     <div className="revenue-manager-proposal-meta">
                       <span className={`revenue-manager-proposal-risk revenue-manager-proposal-risk--${h.risk_level}`}>Risco {risk.label.toLowerCase()}</span>
@@ -154,9 +167,10 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
                     </div>
                   </div>
                   <div className="revenue-manager-proposal-impact">
-                    <span>Impacto estimado</span>
-                    <strong className={h.expected_lift_percent < 0 ? "is-negative" : undefined}>{h.expected_lift_percent > 0 ? "+" : ""}{h.expected_lift_percent.toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%</strong>
-                    <small>A validar em teste</small>
+                    <span>{!review && h.template?.hypothesis_type === "discount_rule" ? "Efeito na conversão" : "Impacto estimado"}</span>
+                    <strong className={h.expected_lift_percent < 0 ? "is-negative" : undefined}>{!review && h.template?.hypothesis_type === "discount_rule" ? "A medir"
+                      : `${(review?.expected_lift_percent ?? h.expected_lift_percent) > 0 ? "+" : ""}${(review?.expected_lift_percent ?? h.expected_lift_percent).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}</strong>
+                    <small>A validar em teste{review ? ` · Versão ${review.version}` : ""}</small>
                   </div>
                   <div className="revenue-manager-proposal-actions">
                     <span className="revenue-manager-proposal-status" style={{ background: status.bg, color: status.color }}>{status.label}</span>
@@ -174,13 +188,13 @@ export function RevenueManagerPage({ me }: RevenueManagerPageProps) {
       {/* Observações */}
       {tab === "observations" && (
         <DataPanel
-          title="Análises diárias"
+          title="Histórico de análises"
           page={currentObsPage}
           pageSize={PAGE_SIZE}
           total={vm.observations.length}
           onPageChange={setObsPage}
           isEmpty={!vm.errors.observations && vm.observations.length === 0}
-          empty={{ icon: Eye, title: "Nenhuma análise registrada", description: "A IA analisa o checkout diariamente. Quando houver dados suficientes, as análises aparecerão aqui." }}
+          empty={{ icon: Eye, title: "Nenhuma análise registrada", description: "As análises concluídas aparecerão aqui com os dados do seu checkout." }}
         >
           {vm.errors.observations ? <EmptyState title="Observações indisponíveis" description={vm.errors.observations} action={<Button variant="outline" onClick={vm.refresh}>Tentar novamente</Button>} /> : <div style={{ overflowX: "auto" }}>
             <table style={{ width: "100%", borderCollapse: "collapse" }}>

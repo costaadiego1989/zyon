@@ -175,7 +175,8 @@ export class CheckoutOfferService {
     sessionObj: CheckoutSession,
     rules: MerchantRules,
     stage: ChatStage,
-    _missingFields: string[]
+    _missingFields: string[],
+    options?: { skipExperiment?: boolean }
   ): Promise<SafeAuthorizedOffer> {
     const isDataCollection = stage === "data_collection";
     const isIncompleteShipping = stage === "shipping";
@@ -357,7 +358,9 @@ export class CheckoutOfferService {
     // Experiment-aware shaping: control arm loses the experiment rule; treatment
     // arm gets its rule forced (bypass conditions) so the A/B actually delivers
     // what it promises. Non-experiment rules pass through untouched.
-    const { rules: advancedRules, forcedRuleId } = await this.shapeAdvancedRulesForExperiment(
+    const { rules: advancedRules, forcedRuleId } = options?.skipExperiment
+      ? { rules: allAdvancedRules, forcedRuleId: null }
+      : await this.shapeAdvancedRulesForExperiment(
       sessionObj.merchantId,
       sessionObj.sessionId,
       sessionObj.promptVariantId,

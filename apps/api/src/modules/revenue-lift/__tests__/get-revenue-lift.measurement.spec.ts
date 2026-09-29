@@ -42,4 +42,12 @@ test("GetRevenueLiftUseCase exposes lift only from the session and approved-orde
   assert.equal(result.treatment.sessions, 600);
   assert.equal(result.lift.holdoutAvgRevenueCents, 10000 / 30);
   assert.ok(result.lift.grossLiftPercent !== null);
+  assert.equal(result.estimatedRevenueDifferenceCents, 0);
+  assert.equal(result.recordedAiCostCents, 5000);
+  assert.equal(result.aiCostCents, null);
+  assert.equal(result.lift.netLiftCents, null);
+  assert.equal(result.lift.roiPercent, null);
+  assert.equal(result.contribution.status, "unavailable");
+  assert.equal(result.contribution.contributionCents, null);
+  assert.ok(result.contribution.missingComponents.includes("productCostCents"));
 });

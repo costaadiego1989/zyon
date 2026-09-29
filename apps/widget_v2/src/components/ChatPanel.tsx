@@ -10,14 +10,32 @@ import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkou
 import { renderInlineMarkdown, messageToSpeech } from "./chat/helpers";
 import { BlockRenderer } from "./chat/ChatBlocks";
 import { VoiceComposer } from "./chat/VoiceComposer";
+import { useChatRecovery } from "@/lib/use-chat-recovery";
+import { useChatDisplay } from "@/lib/use-chat-display";
+import type { CheckoutSession } from "@/api/checkout-session";
+import type { Message } from "@/store/checkout-store";
+
+function MessageText({ message, api }: { message: Message; api: CheckoutSession | null }) {
+  const ref = useChatDisplay(api, message.role === "agent" ? message.displayRef : undefined, message.text);
+  return <div ref={ref} data-neu="message" data-speaker={message.role === "user" ? "buyer" : "agent"}
+    style={{ padding: "10px 14px", borderRadius: "18px",
+      background: message.role === "user" ? "var(--aacp-accent, #0f766e)" : "var(--card)",
+      color: message.role === "user" ? "#fff" : "var(--tx)", fontSize: "13px", lineHeight: 1.5,
+      wordBreak: "break-word", border: message.role === "agent" ? "1px solid var(--bd)" : "none", whiteSpace: "pre-wrap" }}>
+    {message.role === "agent" ? renderInlineMarkdown(message.text!.replace(/^(?:Zion|Zyon)\s*:\s*/i, "")) : message.text}
+  </div>;
+}
 
 function isPaymentPresentationBlock(type: string): boolean {
-  return ["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card"].includes(type);
+  return ["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "checkout_price_review"].includes(type);
 }
 
 export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
   const isTyping = useCheckoutStore((s) => s.isTyping);
+  const chatRecovery = useCheckoutStore((s) => s.chatRecovery);
+  const chatResponseUnavailable = useCheckoutStore((s) => s.chatResponseUnavailable);
+  const connectionStatus = useChatRecovery();
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const pay = useCheckoutStore((s) => s.pay);
   const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
@@ -29,10 +47,17 @@ export function ChatPanel() {
   const api = useCheckoutStore((s) => s.api);
   const [input, setInput] = useState("");
   const chatEndRef = useRef<HTMLDivElement>(null);
+  const inputRef = useRef<HTMLInputElement>(null);
+  const wasRecovering = useRef(false);
   const voiceAutoStartedRef = useRef(false);
 
+  useEffect(() => {
+    if (wasRecovering.current && !chatRecovery) inputRef.current?.focus();
+    wasRecovering.current = !!chatRecovery;
+  }, [chatRecovery]);
+
   const voice = useRealtimeVoiceCheckout({
-    enabled: channel === "voice",
+    enabled: channel === "voice" && !chatRecovery,
     createSession: async () => {
       if (!api) throw new Error("checkout_session_missing");
       return api.createRealtimeVoiceSession();
@@ -40,6 +65,7 @@ export function ChatPanel() {
     onCommerceTurn: async (buyerMessage, action) => {
       await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage);
       const current = useCheckoutStore.getState();
+      if (current.chatRecovery) throw new Error("checkout_chat_recovery_required");
       const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
       return {
         agentMessage: agentReply ? (messageToSpeech(agentReply) || "Atualizei sua compra. Posso continuar?") : "Atualizei sua compra. Posso continuar?",
@@ -47,6 +73,7 @@ export function ChatPanel() {
       };
     },
     onBeginCheckout: async () => {
+      if (useCheckoutStore.getState().chatRecovery) throw new Error("checkout_chat_recovery_required");
       await continueVoiceCheckout();
       const current = useCheckoutStore.getState();
       const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
@@ -64,10 +91,11 @@ export function ChatPanel() {
       voiceAutoStartedRef.current = false;
       return;
     }
+    if (chatRecovery) { voiceAutoStartedRef.current = true; return; }
     if (voiceAutoStartedRef.current) return;
     voiceAutoStartedRef.current = true;
     voice.start();
-  }, [channel, voice.start]);
+  }, [channel, chatRecovery, voice.start]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -81,6 +109,8 @@ export function ChatPanel() {
   );
 
   const handlePaymentChoice = (text: string): boolean => {
+    // Server-owned stages must retain the durable chat request and recovery flow.
+    if (lastAgentMsg?.checkoutStage) return false;
     const method = paymentMethodForQuickReply(text);
     if (!method || !isPaymentChoiceStage || !isEnabledPaymentQuickReply(text, merchantPaymentConfig)) return false;
     void pay(method);
@@ -89,12 +119,13 @@ export function ChatPanel() {
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!input.trim()) return;
+    if (!input.trim() || isTyping || chatRecovery || paymentCreating) return;
     if (!handlePaymentChoice(input.trim())) void sendMessage(input.trim());
     setInput("");
   };
 
   const handleQuickReply = (text: string) => {
+    if (isTyping || chatRecovery || paymentCreating) return;
     if (!handlePaymentChoice(text)) void sendMessage(text);
   };
 
@@ -126,23 +157,12 @@ export function ChatPanel() {
 
             <div style={{ maxWidth: msg.blocks?.some((block) => isPaymentPresentationBlock(block.type)) ? "min(100%, 620px)" : "80%", display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
               {msg.text && (
-                <div data-neu="message" data-speaker={msg.role === "user" ? "buyer" : "agent"}
-                  style={{
-                    padding: "10px 14px",
-                    borderRadius: "18px",
-                    background: msg.role === "user" ? "var(--aacp-accent, #0f766e)" : "var(--card)",
-                    color: msg.role === "user" ? "#fff" : "var(--tx)",
-                    fontSize: "13px",
-                    lineHeight: 1.5,
-                    wordBreak: "break-word",
-                    border: msg.role === "agent" ? "1px solid var(--bd)" : "none",
-                    whiteSpace: "pre-wrap",
-                  }}
-                >
-                  {msg.role === "agent" ? renderInlineMarkdown(msg.text.replace(/^(?:Zion|Zyon)\s*:\s*/i, "")) : msg.text}
-                </div>
+                <MessageText message={msg} api={api} />
               )}
-              {msg.blocks?.map((block, j) => {
+              {!chatRecovery && msg.blocks?.map((block, j) => {
+                const navigation = ["address_confirmation", "shipping_options", "payment_methods"].includes(block.type)
+                  || (block.type === "form_field" && block.data?.field === "cep");
+                if (navigation && msg.checkoutStage && msg.id !== lastAgentMsg?.id) return null;
                 const paymentBlock = isPaymentPresentationBlock(block.type);
                 return (
                   <div
@@ -159,12 +179,12 @@ export function ChatPanel() {
           </div>
         ))}
 
-        {activeQuickReplies.length > 0 && (
+        {!chatRecovery && activeQuickReplies.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", paddingLeft: "36px" }}>
             {activeQuickReplies.map((qr) => (
               <button data-neu="control"
                 key={qr}
-                disabled={paymentCreating}
+                disabled={paymentCreating || isTyping || !!chatRecovery}
                 onClick={() => handleQuickReply(qr)}
                 style={{
                   padding: "8px 14px",
@@ -206,7 +226,20 @@ export function ChatPanel() {
         <div ref={chatEndRef} />
       </div>
 
-      {channel === "voice" ? (
+      {chatResponseUnavailable && !chatRecovery && <p role="status" aria-live="polite"
+        style={{ margin: "8px 0", color: "var(--mut)", fontSize: "12px", lineHeight: 1.5 }}>
+        Não foi possível responder à última mensagem. Você pode continuar a conversa.
+      </p>}
+      {connectionStatus && (
+        <div style={{ padding: "8px 0", color: "var(--mut)", fontSize: "12px", lineHeight: 1.5 }}>
+          <p id="chat-recovery-status" role="status" aria-live="polite" style={{ margin: 0 }}>
+            {connectionStatus === "offline" ? "Sem conexão. O chat será retomado quando a internet voltar."
+              : connectionStatus === "unavailable" ? "O chat está temporariamente indisponível. Tente mais tarde."
+              : "Reconectando..."}
+          </p>
+        </div>
+      )}
+      {channel === "voice" && !chatRecovery ? (
         <>
           <VoiceComposer voice={voice} />
           <button data-neu="text" type="button" onClick={() => {
@@ -226,17 +259,19 @@ export function ChatPanel() {
           >
             <PerimeterBorder radius="14px" variant="input" />
             <input data-neu="field"
+              ref={inputRef}
               type="text"
               value={input}
               onChange={(e) => setInput(e.target.value)}
-              placeholder={isTyping ? "Aguarde..." : "Escreva sua mensagem..."}
-              disabled={isTyping}
+              placeholder={isTyping || chatRecovery || paymentCreating ? "Aguarde..." : "Escreva sua mensagem..."}
+              disabled={isTyping || !!chatRecovery || paymentCreating}
+              aria-describedby={connectionStatus ? "chat-recovery-status" : undefined}
               aria-label="Mensagem"
               style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--tx)", fontSize: "13px", padding: 0, fontFamily: "inherit" }}
             />
             <button data-neu="send"
               type="submit"
-              disabled={!input.trim() || isTyping}
+              disabled={!input.trim() || isTyping || !!chatRecovery || paymentCreating}
               aria-label="Enviar mensagem"
               style={{ width: "36px", height: "36px", borderRadius: "10px", background: input.trim() && !isTyping ? "var(--aacp-accent, #0f766e)" : "var(--bd)", color: "#fff", border: "none", cursor: input.trim() && !isTyping ? "pointer" : "not-allowed", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}
             >

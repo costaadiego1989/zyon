@@ -6,6 +6,7 @@ export const TRIGGER_LABELS: Record<CheckoutTriggerName, string> = {
   payment_failed: "Pagamento falhou",
   exit_intent_detected: "Tentativa de sair",
   idle_30_seconds: "Inatividade",
+  checkout_abandoned: "Checkout abandonado",
 };
 
 export const TRIGGER_HELP: Record<CheckoutTriggerName, string> = {
@@ -14,6 +15,7 @@ export const TRIGGER_HELP: Record<CheckoutTriggerName, string> = {
   payment_failed: "Pagamento recusado → agente sugere método alternativo",
   exit_intent_detected: "Cursor sai da página → agente pergunta se pode ajudar",
   idle_30_seconds: "5 min sem interação → agente oferece ajuda proativa",
+  checkout_abandoned: "Abandono confirmado → recuperação respeita as preferências da loja",
 };
 
 export const TRIGGER_STATUS: Record<CheckoutTriggerName, "active" | "soon"> = {
@@ -22,6 +24,7 @@ export const TRIGGER_STATUS: Record<CheckoutTriggerName, "active" | "soon"> = {
   shipping_objection_detected: "soon",
   coupon_field_clicked: "soon",
   payment_failed: "active",
+  checkout_abandoned: "active",
 };
 
 export const ALL_TRIGGERS: CheckoutTriggerName[] = [
@@ -36,6 +39,7 @@ export const TRIGGER_FIXED_PRIORITIES: Record<CheckoutTriggerName, number> = {
   coupon_field_clicked: 80,
   exit_intent_detected: 70,
   idle_30_seconds: 60,
+  checkout_abandoned: 95,
 };
 
 export const PROGRESSIVE_PRESETS = {

@@ -1,4 +1,4 @@
-export const NOTIFICATION_TYPES = ["ai_strategy_suggestion", "ai_rule_suggestion", "inventory_alert", "plan_expiry", "handoff", "message", "return_requested", "chargeback_opened", "hold_released", "refund_processed", "order_paid"] as const;
+export const NOTIFICATION_TYPES = ["ai_analysis_update", "ai_strategy_suggestion", "ai_rule_suggestion", "inventory_alert", "plan_expiry", "handoff", "message", "return_requested", "chargeback_opened", "hold_released", "refund_processed", "order_paid"] as const;
 export interface NotificationItem {
   id: string;
   type: typeof NOTIFICATION_TYPES[number];
@@ -23,7 +23,7 @@ export function mapInboxNotification(value: unknown): NotificationItem | null {
     title: item.title as string,
     body: textField(item.body),
     createdAt: textField(item.createdAt) ?? "",
-    hypothesisId: textField(metadata.hypothesisId),
+    hypothesisId: textField(metadata.strategyId) ?? textField(metadata.hypothesisId),
     inventoryAlertId: textField(metadata.inventoryAlertId),
     inventoryItemId: textField(metadata.itemId),
     sku: textField(metadata.sku),

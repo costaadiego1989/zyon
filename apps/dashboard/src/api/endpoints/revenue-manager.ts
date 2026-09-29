@@ -1,6 +1,20 @@
 import { dashboardJson } from "../http/client.js";
+import type { StrategyReview, StrategyReviewCommand, StrategyReviewReceipt } from "./strategy-review.js";
+import type { IncentivePolicy, IncentivePolicyCommand } from "./incentive-policy.js";
+import type { IncentiveReview, IncentiveDecision, IncentiveReviewCommand, IncentiveReviewReceipt } from "./incentive-review.js";
 
 const PREFIX = "/revenue-manager";
+
+export interface AnalysisStatus {
+  mode: "weekly" | "legacy";
+  enabled: boolean;
+  queue_available: boolean;
+  next_eligible_at: string | null;
+  last_successful_at: string | null;
+  overdue: boolean;
+  run: null | { id: string; status: string; result: string | null; reason: string | null;
+    createdAt: string; startedAt: string | null; completedAt: string | null; hypothesisId: string | null };
+}
 
 /** Rule condition embedded in an AI candidate's discount_rule_json. */
 export interface HypothesisRuleCondition {
@@ -29,10 +43,19 @@ export interface HypothesisDiscountRule {
 export interface HypothesisTemplate {
   hypothesis_type?: string;
   discount_rule_json?: HypothesisDiscountRule;
+  discount_simulation?: {
+    definition: "discount-catalog-replay-v1";
+    sampleSize: number;
+    observedConversionRate: number;
+    minimumProjectedMarginPercent: number;
+    replayDiscountTotalCents: number;
+    paymentFeeAssumptionPercent: number;
+  };
   [key: string]: unknown;
 }
 
 export interface Hypothesis {
+  strategy_review?: { version: number; status: string; title: string; expires_at: string; expected_lift_percent: number };
   id: string;
   hypothesis_text: string;
   reasoning: string;
@@ -74,6 +97,7 @@ interface ObservationApiResponse {
   cohorts: Record<string, unknown>;
   revenue: Record<string, unknown>;
   ai_costs_cents: number;
+  data_quality?: { mature_sessions?: number };
   created_at: string;
 }
 
@@ -100,9 +124,9 @@ interface StrategyLessonApiResponse {
 function mapObservation(raw: ObservationApiResponse): DailyObservation {
   return {
     date: raw.observation_window_start ?? raw.created_at,
-    conversion_rate: raw.funnel?.conversion_rate ?? null,
-    top_objection: raw.objections?.top_objection ?? raw.objections?.top ?? "-",
-    sessions_count: raw.funnel?.sessions_count ?? raw.funnel?.total_sessions ?? 0,
+    conversion_rate: raw.funnel?.conversion_rate == null ? null : raw.funnel.conversion_rate * 100,
+    top_objection: typeof raw.abandonment?.top_abandonment_objection === "string" ? raw.abandonment.top_abandonment_objection : raw.objections?.top_objection ?? raw.objections?.top ?? "-",
+    sessions_count: raw.data_quality?.mature_sessions ?? raw.funnel?.sessions_count ?? raw.funnel?.total_sessions ?? 0,
   };
 }
 
@@ -119,6 +143,53 @@ function mapLesson(raw: StrategyLessonApiResponse): StrategyLesson {
 
 export function revenueManagerEndpoints(base: string, f: typeof fetch) {
   return {
+    getIncentiveMetrics(id: string, version: number): Promise<import("./incentive-metrics.js").IncentiveMetrics> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/incentive/metrics?version=${version}`, { method: "GET", cache: "no-store" }, f);
+    },
+    requestIncentiveAlternative(id: string, input: import("./incentive-review.js").IncentiveAlternativeCommand): Promise<import("./incentive-review.js").IncentiveAlternativeReceipt> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/incentive/alternatives`, {
+        method: "POST", headers: { "Idempotency-Key": input.request_key }, jsonBody: {
+          version: input.version, proposal_hash: input.proposal_hash, recommendation_hash: input.recommendation_hash,
+          request_key: input.request_key, ...(input.feedback === undefined ? {} : { feedback: input.feedback }),
+        },
+      }, f);
+    },
+    getIncentiveReview(id: string): Promise<IncentiveReview> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/incentive`, { method: "GET", cache: "no-store" }, f);
+    },
+    decideIncentive(id: string, kind: IncentiveDecision, input: IncentiveReviewCommand): Promise<IncentiveReviewReceipt> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/incentive/${kind}`, {
+        method: "POST", headers: { "Idempotency-Key": input.request_key }, jsonBody: {
+          version: input.version, proposal_hash: input.proposal_hash, recommendation_hash: input.recommendation_hash, request_key: input.request_key,
+        },
+      }, f);
+    },
+    getIncentivePolicy(): Promise<IncentivePolicy> {
+      return dashboardJson(base, `${PREFIX}/incentive-policy`, { method: "GET", cache: "no-store" }, f);
+    },
+    saveIncentivePolicy(command: IncentivePolicyCommand): Promise<IncentivePolicy> {
+      return dashboardJson(base, `${PREFIX}/incentive-policy`, { method: "PUT", jsonBody: command,
+        headers: { "Idempotency-Key": command.requestKey } }, f);
+    },
+    getStrategyMetrics(id: string, version: number): Promise<import("./strategy-metrics.js").StrategyMetrics> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/metrics?version=${version}`, { method: "GET" }, f);
+    },
+    collectStrategyMetrics(id: string, version: number): Promise<import("./strategy-metrics.js").StrategyMetrics> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/metrics`, { method: "POST", jsonBody: { version } }, f);
+    },
+    getStrategyReview(id: string): Promise<StrategyReview> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}`, { method: "GET" }, f);
+    },
+    decideStrategy(id: string, kind: "approve" | "reject" | "revision", input: StrategyReviewCommand): Promise<StrategyReviewReceipt> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/${kind === "revision" ? "revisions" : kind}`,
+        { method: "POST", headers: { "Idempotency-Key": input.request_key }, jsonBody: {
+          version: input.version, proposal_hash: input.proposal_hash, request_key: input.request_key,
+          ...(input.feedback === undefined ? {} : { feedback: input.feedback }),
+        } }, f);
+    },
+    getAnalysisStatus(): Promise<AnalysisStatus> {
+      return dashboardJson<AnalysisStatus>(base, `${PREFIX}/analysis-status`, { method: "GET" }, f);
+    },
     async getHypotheses(options?: { status?: string; limit?: number }): Promise<Hypothesis[]> {
       const params = new URLSearchParams();
       if (options?.status) params.set("status", options.status);

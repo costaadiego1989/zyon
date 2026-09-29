@@ -6,6 +6,7 @@ import type { MerchantProfile } from "../../../api-client.js";
 import type { Hypothesis } from "../../../api/endpoints/revenue-manager.js";
 import { openStrategyReview, STRATEGY_CHANGED_EVENT } from "../../revenue-manager/strategy-review.js";
 import "../../revenue-manager/strategy-review.css";
+import { STRATEGY_STATUSES } from "../../revenue-manager/strategy-review-model.js";
 
 export function AISuggestionsPanel({ me }: { me: MerchantProfile }) {
   const { hasFeature, loading, error } = usePlanFeatures();
@@ -22,7 +23,8 @@ function PendingStrategies() {
   const load = useCallback(async () => {
     if (inFlight.current) return;
     inFlight.current = true;
-    try { setItems(await api.getHypotheses({ status: "pending_review", limit: 100 })); setError(false); }
+    try { setItems((await api.getHypotheses({ status: "pending_review", limit: 100 })).filter(h => !h.strategy_review
+      || (["pending_review", "revision_pending"].includes(h.strategy_review.status) && Date.parse(h.strategy_review.expires_at) > Date.now()))); setError(false); }
     catch { setError(true); }
     finally { inFlight.current = false; }
   }, [api]);
@@ -37,13 +39,13 @@ function PendingStrategies() {
   if (!items.length && !error) return null;
   return <section className="strategy-notice" aria-labelledby="strategy-notice-title">
     <div className="strategy-notice-head"><Lightbulb size={22} aria-hidden="true" /><div>
-      <h2 id="strategy-notice-title">{items.length ? `${items.length} ${items.length === 1 ? "estratégia aguarda" : "estratégias aguardam"} sua aprovação` : "Sugestões de estratégia"}</h2>
+      <h2 id="strategy-notice-title">{items.length ? `${items.length} ${items.length === 1 ? "estratégia para acompanhar" : "estratégias para acompanhar"}` : "Sugestões de estratégia"}</h2>
     </div></div>
     {error && <p role="status">Não foi possível atualizar as sugestões. <button type="button" className="zyn-btn zyn-btn--ghost" onClick={() => void load()}>Tentar novamente</button></p>}
     <div className="strategy-notice-list">{(showAll ? items : items.slice(0, 3)).map(h => <div key={h.id} className="strategy-notice-row">
-      <div><strong>{h.hypothesis_text}</strong></div>
+      <div><strong>{h.strategy_review?.title ?? h.hypothesis_text}</strong>{h.strategy_review && <p>Versão {h.strategy_review.version} · {STRATEGY_STATUSES[h.strategy_review.status] ?? "Aguardando atualização"}</p>}</div>
       <div className="strategy-review-actions"><button type="button" className="zyn-btn zyn-btn--primary" onClick={() => openStrategyReview(h.id)}>
-        Revisar e aprovar <ArrowUpRight size={15} aria-hidden="true" />
+        Ver detalhes <ArrowUpRight size={15} aria-hidden="true" />
       </button></div>
     </div>)}</div>
     {items.length > 3 && <button type="button" className="zyn-btn zyn-btn--ghost strategy-notice-more" onClick={() => setShowAll(value => !value)}>{showAll ? "Mostrar menos" : `Ver mais ${items.length - 3} sugestões`}</button>}

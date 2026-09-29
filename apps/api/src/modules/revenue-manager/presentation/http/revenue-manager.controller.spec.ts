@@ -16,6 +16,38 @@ function controller(enqueueMerchantRun: (merchantId: string) => Promise<string>)
 
 const request = { user: { merchantId: "merchant-a", email: "owner@example.com", role: "owner" } };
 
+test("discount report remains attached to authenticated discovery and detail reads", async () => {
+  const simulation = { definition: "discount-catalog-replay-v1", sampleSize: 30, expectedLiftStatus: "not_estimated" };
+  const row = { snapshot: () => ({ id: "draft", template: {}, hypothesis_type: "discount_rule", discount_rule_json: { id: "rule" },
+    discount_simulation: simulation, expected_lift_percent: 0 }) };
+  const instance = new RevenueManagerController({} as never, {} as never, {} as never,
+    { findByMerchant: async (merchantId: string) => { assert.equal(merchantId, "merchant-a"); return [row]; },
+      findById: async (id: string, merchantId: string) => { assert.equal(id, "draft"); assert.equal(merchantId, "merchant-a"); return row; },
+    } as never, {} as never, {} as never);
+  const list = await instance.listHypotheses(request);
+  const detail = await instance.getHypothesis(request, "draft");
+  assert.deepEqual((list[0].template as any).discount_simulation, simulation);
+  assert.deepEqual(detail.template.discount_simulation, simulation);
+});
+
+test("strategy discovery adds the current review summary within the authenticated store", async () => {
+  const review = { version: 2, status: "revision_pending", title: "Current proposal", expires_at: new Date(), expected_lift_percent: 2 };
+  const instance = new RevenueManagerController({} as never, {} as never, {} as never,
+    { findByMerchant: async (merchantId: string) => {
+      assert.equal(merchantId, "merchant-a");
+      return [{ snapshot: () => ({ id: "hypothesis-a", template: {}, hypothesis_text: "Original proposal" }) },
+        { snapshot: () => ({ id: "legacy", template: {} }) }];
+    } } as never, {} as never, {} as never, undefined,
+    { summaries: async (merchantId: string, ids: string[]) => {
+      assert.equal(merchantId, "merchant-a"); assert.deepEqual(ids, ["hypothesis-a", "legacy"]);
+      return new Map([["hypothesis-a", review]]);
+    } } as never);
+  const rows = await instance.listHypotheses(request);
+  assert.deepEqual((rows[0] as unknown as { strategy_review: unknown }).strategy_review, review);
+  assert.equal("strategy_review" in rows[1], false);
+  assert.equal(rows[0].hypothesis_text, "Original proposal");
+});
+
 test("manual strategy trigger queues only the authenticated merchant", async () => {
   const queued: string[] = [];
   const result = await controller(async merchantId => {

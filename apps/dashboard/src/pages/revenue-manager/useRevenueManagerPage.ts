@@ -6,6 +6,7 @@ import { reportError } from "../../hooks/useErrorReporter.js";
 import type { MerchantProfile } from "../../api-client.js";
 import type {
   Hypothesis,
+  AnalysisStatus,
   DailyObservation,
   StrategyLesson,
 } from "../../api/endpoints/revenue-manager.js";
@@ -14,11 +15,14 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
   const [hypotheses, setHypotheses] = useState<Hypothesis[]>([]);
   const [observations, setObservations] = useState<DailyObservation[]>([]);
   const [lessons, setLessons] = useState<StrategyLesson[]>([]);
+  const [analysisStatus, setAnalysisStatus] = useState<AnalysisStatus | null>(null);
+  const [analysisStatusError, setAnalysisStatusError] = useState(false);
   const [loading, setLoading] = useState(true);
   const [errors, setErrors] = useState<Record<string, string>>({});
   const [actionError, setActionError] = useState("");
   const [approving, setApproving] = useState<Set<string>>(new Set());
   const [engineEnabled, setEngineEnabled] = useState(false);
+  const [hypothesesError, setHypothesesError] = useState(false);
   const [engineSaving, setEngineSaving] = useState(false);
   const refreshPending = useRef(false);
   const reading = useRef(0),
@@ -38,6 +42,7 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
     if (request !== reading.current) return;
     const nextErrors: Record<string, string> = {};
     const [h, o, l, r] = results;
+    setHypothesesError(h.status !== "fulfilled");
     if (h.status === "fulfilled") setHypotheses(h.value);
     else {
       setHypotheses([]);
@@ -88,6 +93,19 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
     }
   };
   useEffect(() => {
+    let active = true;
+    const refreshStatus = async () => {
+      try {
+        const status = await api.getAnalysisStatus();
+        if (active) { setAnalysisStatus(status); setAnalysisStatusError(false); }
+      } catch { if (active) setAnalysisStatusError(true); }
+    };
+    void refreshStatus();
+    const timer = window.setInterval(() => { void refreshStatus(); }, 30_000);
+    return () => { active = false; window.clearInterval(timer); };
+  }, [api]);
+
+  useEffect(() => {
     void load();
     const reload = () => {
       void load();
@@ -122,6 +140,9 @@ export function useRevenueManagerPage(me: MerchantProfile | null) {
   };
   return {
     hypotheses,
+    analysisStatus,
+    analysisStatusError,
+    hypothesesError,
     observations,
     lessons,
     loading,

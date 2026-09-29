@@ -344,6 +344,15 @@ export function createPublicApiDocument(document: OpenAPIObject): OpenAPIObject 
               },
             },
             correlation_id: { type: "string" },
+            chat_request: {
+              type: "object",
+              required: ["message_id", "status", "next_action"],
+              properties: {
+                message_id: { type: "string", pattern: "^[a-zA-Z0-9_-]{16,128}$" },
+                status: { type: "string", enum: ["processing", "unknown", "completed", "rejected"] },
+                next_action: { type: "string", enum: ["refresh_session"] },
+              },
+            },
           },
         },
       },

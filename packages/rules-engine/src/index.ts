@@ -1,12 +1,17 @@
 import type { Cart, MerchantRules, OfferType } from "@zyon/shared-types";
+import { assessIncentiveMargin, meetsMarginFloor, moneyCents } from "./incentive-margin.js";
+export * from "./incentive-margin.js";
+export * from "./contribution.js";
 
 export interface MarginResult {
-  grossRevenue: number;
-  productCost: number;
-  paymentFees: number;
+  grossRevenue: number | null;
+  productCost: number | null;
+  paymentFees: number | null;
   subsidy: number;
-  marginValue: number;
-  marginPercent: number;
+  marginValue: number | null;
+  marginPercent: number | null;
+  status: "estimated" | "unavailable";
+  reason: string;
 }
 
 export interface OfferEvaluation {
@@ -14,94 +19,48 @@ export interface OfferEvaluation {
   type: OfferType;
   value: number;
   reason: string;
+  /** Legacy field; zero on unavailable, rejected offers is not measured margin. */
   marginAfterOffer: number;
 }
 
-export function estimateMargin(
-  cart: Cart,
-  subsidy = 0,
-  paymentFeeRate = 0.04
-): MarginResult {
-  // Cart may arrive with no items (e.g. tracking events fired after checkout
-  // completed and the cart was cleared) — default to an empty list.
-  const items = cart?.items ?? [];
-  const productCost = items.reduce(
-    (sum, item) => sum + (item.cost ?? item.price * 0.5) * item.quantity,
-    0
-  );
-  const grossRevenue = Math.max((cart?.total ?? 0) - subsidy, 0);
-  const paymentFees = grossRevenue * paymentFeeRate;
-  const marginValue = grossRevenue - productCost - paymentFees;
-  const marginPercent = grossRevenue > 0 ? marginValue / grossRevenue : 0;
-
-  return { grossRevenue, productCost, paymentFees, subsidy, marginValue, marginPercent };
+export function estimateMargin(cart: Cart, subsidy = 0, paymentFeeRate = 0.04): MarginResult {
+  const margin = assessIncentiveMargin(cart, { totalDiscount: subsidy, paymentFeeRate });
+  const major = (cents: number | null) => cents === null ? null : cents / 100;
+  return { grossRevenue: major(margin.revenueCents), productCost: major(margin.productCostCents),
+    paymentFees: major(margin.paymentFeesCents), subsidy, marginValue: major(margin.marginCents),
+    marginPercent: margin.marginPercent, status: margin.status, reason: margin.reason };
 }
 
 export function evaluateDiscountOffer(
-  cart: Cart,
-  rules: MerchantRules,
-  requestedPercent: number,
-  maxReaisCap?: number
+  cart: Cart, rules: MerchantRules, requestedPercent: number, maxReaisCap?: number,
 ): OfferEvaluation {
+  const blocked = (reason: string, marginAfterOffer = 0): OfferEvaluation => ({
+    approved: false, type: "none", value: 0, reason, marginAfterOffer,
+  });
+  if (cart.currency !== "BRL") return blocked("incentive_currency_unsupported");
+  if (!Number.isFinite(requestedPercent) || !Number.isFinite(rules.maxDiscountPercent) ||
+      rules.maxDiscountPercent < 0 || rules.maxDiscountPercent > 100 ||
+      !Number.isFinite(rules.minimumMarginPercent) || rules.minimumMarginPercent < 0 || rules.minimumMarginPercent > 100 ||
+      (maxReaisCap != null && moneyCents(maxReaisCap) === null)) return blocked("economic_input_invalid");
+  if (requestedPercent <= 0 || rules.maxDiscountPercent === 0 || cart.total <= 0) return blocked("discount_not_requested");
+  const total = moneyCents(cart.total);
+  const existingDiscount = moneyCents(cart.currentDiscount ?? 0);
+  if (total === null || existingDiscount === null || existingDiscount > total) return blocked("economic_input_invalid");
   const percentCap = Math.min(requestedPercent, rules.maxDiscountPercent);
-  const cartTotal = cart.total ?? 0;
-
-  // Guard: cart.total <= 0 → no offer possible (avoids /0 on percent recompute).
-  if (cartTotal <= 0) {
-    const margin = estimateMargin(cart, 0);
-    return {
-      approved: false,
-      type: "none",
-      value: 0,
-      reason: "discount_not_requested",
-      marginAfterOffer: margin.marginPercent
-    };
-  }
-
-  const rawValue = cartTotal * (percentCap / 100);
-  let effectiveValue = rawValue;
-  let effectivePercent = percentCap;
-
-  if (maxReaisCap != null) {
-    effectiveValue = Math.min(rawValue, maxReaisCap);
-    effectivePercent = (effectiveValue / cartTotal) * 100;
-  }
-
-  const margin = estimateMargin(cart, effectiveValue);
-
-  if (effectivePercent <= 0) {
-    return {
-      approved: false,
-      type: "none",
-      value: 0,
-      reason: "discount_not_requested",
-      marginAfterOffer: margin.marginPercent
-    };
-  }
-
-  if (margin.marginPercent < rules.minimumMarginPercent / 100) {
-    return {
-      approved: false,
-      type: "none",
-      value: 0,
-      reason: "minimum_margin_violation",
-      marginAfterOffer: margin.marginPercent
-    };
-  }
-
-  const reaisCapBit = maxReaisCap != null && effectiveValue < rawValue;
-  const percentCapBit = percentCap < requestedPercent;
-  const reason = reaisCapBit
-    ? "capped_by_reais_limit"
-    : percentCapBit
-      ? "capped_by_max_discount_rule"
-      : "discount_allowed";
-
+  // Never round an incentive above the merchant's percentage or fixed cap.
+  const rawCents = Math.floor(Number((total * percentCap / 100).toFixed(6)));
+  const effectiveCents = Math.min(rawCents, maxReaisCap == null ? rawCents : moneyCents(maxReaisCap)!);
+  if (effectiveCents <= 0) return blocked("discount_not_requested");
+  const maxDiscountCents = Math.floor(Number((total * rules.maxDiscountPercent / 100).toFixed(6)));
+  if (existingDiscount > maxDiscountCents) return blocked("existing_discount_above_limit");
+  // Checkout replaces the discount; assessing the larger value protects an existing benefit.
+  const margin = assessIncentiveMargin(cart, { totalDiscount: Math.max(existingDiscount, effectiveCents) / 100 });
+  if (margin.status === "unavailable") return blocked(margin.reason);
+  if (!meetsMarginFloor(margin, rules.minimumMarginPercent)) return blocked("minimum_margin_violation", margin.marginPercent ?? 0);
   return {
-    approved: true,
-    type: "discount_percent",
-    value: effectivePercent,
-    reason,
-    marginAfterOffer: margin.marginPercent
+    approved: true, type: "discount_percent", value: effectiveCents * 100 / total,
+    reason: effectiveCents < rawCents ? "capped_by_reais_limit"
+      : percentCap < requestedPercent ? "capped_by_max_discount_rule" : "discount_allowed",
+    marginAfterOffer: margin.marginPercent!,
   };
 }

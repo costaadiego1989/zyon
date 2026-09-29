@@ -1,4 +1,5 @@
 import { Injectable } from "@nestjs/common";
+import { calculateContribution, type ContributionResult } from "@zyon/rules-engine";
 import { RevenueLiftRepository, type FeatureBreakout, type DailyTrendPoint } from "../../infrastructure/revenue-lift.repository.js";
 import { RevenueLiftCalculatorService, type LiftCalculationResult } from "../../domain/services/revenue-lift-calculator.service.js";
 
@@ -17,7 +18,10 @@ export interface RevenueLiftSummary {
   treatment: { sessions: number; orders: number; revenueCents: number; avgRevenueCents: number | null };
   lift: LiftCalculationResult;
   dataQuality: RevenueLiftDataQuality;
-  aiCostCents: number;
+  aiCostCents: number | null;
+  recordedAiCostCents: number;
+  estimatedRevenueDifferenceCents: number | null;
+  contribution: ContributionResult;
   featureBreakout: FeatureBreakout[];
 }
 
@@ -65,6 +69,15 @@ export class GetRevenueLiftUseCase {
       aiCostsTotalCents: totalAiCost,
     });
     const lift = dataQuality.status === "ready" ? calculatedLift : unavailableLift();
+    const estimatedRevenueDifferenceCents = lift.holdoutProjectedCents === null ? null
+      : cohorts.treatment.totalRevenueCents - lift.holdoutProjectedCents;
+    // Session ai_cost_cents is a legacy partial counter, not complete reconciled usage.
+    // Paid totals also lack an immutable component/refund snapshot. Missing is not zero.
+    const contribution = calculateContribution({ currency: "BRL", netReceiptsCents: null,
+      productCostCents: null, paymentFeesCents: null, taxCents: null, shippingCostCents: null,
+      commissionCents: null, communicationCostCents: null, aiCostCents: null });
+    lift.netLiftCents = null;
+    lift.roiPercent = null;
 
     return {
       periodDays,
@@ -82,7 +95,10 @@ export class GetRevenueLiftUseCase {
       },
       lift,
       dataQuality,
-      aiCostCents: totalAiCost,
+      aiCostCents: null,
+      recordedAiCostCents: totalAiCost,
+      estimatedRevenueDifferenceCents,
+      contribution,
       featureBreakout,
     };
   }

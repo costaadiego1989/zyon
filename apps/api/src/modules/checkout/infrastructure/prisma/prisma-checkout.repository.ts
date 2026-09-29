@@ -1,3 +1,5 @@
+import { toCheckoutSession } from "./checkout-session.mapper.js";
+import { ConflictException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type {
   AcceptedOffer,
@@ -14,7 +16,6 @@ import type {
   DomainEventEnvelope,
   MerchantRules,
   OfferType,
-  ShippingQuote,
   StorePeriod
 } from "@zyon/shared-types";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
@@ -23,6 +24,16 @@ import { CheckoutAbandonmentService } from "../../domain/services/checkout-aband
 import { CheckoutIdentityService } from "../../domain/services/checkout-identity.service.js";
 import { toNumber, toNumberOrNull, type DecimalLike } from "../../../../shared/persistence/decimal.util.js";
 import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
+import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
+import { enrollCreatedStrategySession, executionClock, lockExecutionMerchant } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
+import type { ChatExchangeInput, CheckoutCommercialMutation } from "../../domain/ports/checkout-session.repository.port.js";
+import { prepareCommercialMutation } from "../../domain/services/checkout-commercial-mutation.js";
+import { digest } from "../../../experiments/domain/services/measurement-plan.js";
+import { chatMessageTextHash } from "../../domain/services/chat-message-identity.js";
+import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
+import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
+import { chatPaymentRecoveryEnabled } from "../../domain/services/chat-payment-recovery.js";
+import { applyEligibleIncentive, incentiveExecutionEnabled, invalidateIncentiveCheckout, reviseIncentiveForPaymentReview } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -37,6 +48,11 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     if (this.inTransaction) return work(this);
     return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota)));
+  }
+
+  async reviseIncentiveForPaymentReview(merchantId: string, sessionId: string): Promise<CheckoutSession | undefined> {
+    const work = (tx: Prisma.TransactionClient) => reviseIncentiveForPaymentReview(tx, merchantId, sessionId);
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {
@@ -76,14 +92,110 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async saveSession(session: CheckoutSession): Promise<void> {
-    await this.prisma.checkoutSession.upsert({
-      where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } },
-      create: toCheckoutSessionCreate(session) as any,
-      update: toCheckoutSessionUpdate(session) as any
-    });
+    const snapshot = structuredClone(session);
+    const write = async (tx: Prisma.TransactionClient) => {
+      const scope = { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId };
+      if (incentiveExecutionEnabled(scope.merchantId)) await lockExecutionMerchant(tx, scope.merchantId);
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${scope.merchantId}
+        AND session_id = ${scope.sessionId} FOR UPDATE`;
+      const current = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
+      if (!current) {
+        // A concurrent insertion must not be turned into an unversioned update.
+        const created = await tx.checkoutSession.create({ data: toCheckoutSessionCreate(snapshot) as any });
+        return applyEligibleIncentive(tx, created);
+      }
+      const owned = !!await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } })
+        || !!await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } })
+        || !!await tx.checkoutChatRequest.findFirst({ where: scope, select: { id: true } });
+      if ((owned || snapshot.persistenceVersion !== undefined)
+        && (!Number.isSafeInteger(snapshot.persistenceVersion) || snapshot.persistenceVersion !== current.version)) {
+        throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
+      }
+      const saved = await tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: toCheckoutSessionUpdate(snapshot) as any });
+      return applyEligibleIncentive(tx, saved);
+    };
+    const saved = this.inTransaction ? await write(this.prisma) : await (this.prisma as PrismaClient).$transaction(write);
+    // Existing callers persist a working object several times. Advance only the
+    // server token after a successful write, never rebase a stale snapshot.
+    session.persistenceVersion = saved.version;
+    session.cart = toCheckoutSession(saved).cart;
+  }
+
+  async commitCommercialMutation(input: CheckoutCommercialMutation): Promise<CheckoutSession> {
+    input = structuredClone(input);
+    const mutation = prepareCommercialMutation(input);
+    const work = async (tx: Prisma.TransactionClient) => {
+      const { merchantId, sessionId } = input.expected;
+      await lockExecutionMerchant(tx, merchantId);
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
+      if (mutation.invalidated) await invalidateIncentiveCheckout(tx, merchantId, sessionId);
+      if (await tx.completedOrder.findFirst({ where: { merchantId, sessionId }, select: { id: true } })
+        || await tx.checkoutEvent.findFirst({ where: { merchantId, sessionId, eventName: "checkout_abandoned",
+          metadata: { path: ["reason"], equals: "buyer_initiated" } }, select: { id: true } })) {
+        throw new ConflictException("CHECKOUT_COMMERCIAL_SESSION_CLOSED");
+      }
+      const repository = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      try {
+        await repository.saveSessionIfUnchanged(mutation.session, input.expected);
+      } catch (error) {
+        if (error instanceof Error && error.message === "CHAT_SESSION_CHANGED") {
+          throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
+        }
+        throw error;
+      }
+      if (mutation.invalidated) await tx.couponRedemption.updateMany({
+        where: { merchantId, sessionId, status: "applied" }, data: { status: "cancelled" },
+      });
+      if (mutation.event) await repository.appendOutbox(mutation.event);
+      if (input.cancel) await repository.recordEvent(merchantId, sessionId, "checkout_abandoned", {
+        source: "acp.protocol", reason: "buyer_initiated",
+      });
+      return (await repository.getSession(merchantId, sessionId))!;
+    };
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
+  }
+
+  async saveSessionIfUnchanged(session: CheckoutSession, expected: CheckoutSession): Promise<void> {
+    const working = session;
+    session = structuredClone(session); expected = structuredClone(expected);
+    if (session.merchantId !== expected.merchantId || session.sessionId !== expected.sessionId) {
+      throw new Error("CHAT_SESSION_SCOPE_CONFLICT");
+    }
+    const write = async (tx: Prisma.TransactionClient) => {
+      if (incentiveExecutionEnabled(session.merchantId)) await lockExecutionMerchant(tx, session.merchantId);
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${session.merchantId}
+        AND session_id = ${session.sessionId} FOR UPDATE`;
+      const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
+      const current = await tx.checkoutSession.findUnique({ where });
+      const hash = (value: CheckoutSession) => digest(JSON.parse(JSON.stringify(toCheckoutSessionCreate(value))));
+      if (!current || expected.persistenceVersion !== current.version
+        || hash(expected) !== hash(toCheckoutSession(current))) throw new Error("CHAT_SESSION_CHANGED");
+      const saved = await tx.checkoutSession.update({ where, data: toCheckoutSessionUpdate(session) as any });
+      return applyEligibleIncentive(tx, saved);
+    };
+    const saved = this.inTransaction ? await write(this.prisma) : await (this.prisma as PrismaClient).$transaction(write);
+    working.persistenceVersion = saved.version;
+    working.cart = toCheckoutSession(saved).cart;
   }
 
   async createSessionIfAbsent(session: CheckoutSession): Promise<{ session: CheckoutSession; created: boolean }> {
+    if (strategyExecutionEnabled(session.merchantId) || incentiveExecutionEnabled(session.merchantId)) {
+      const create = async (tx: Prisma.TransactionClient) => {
+        // The store lock orders activation, creation, enrollment and stopping.
+        // Timestamp AFTER taking it, so concurrent starts cannot backdate the
+        // first eligible session or enroll a buyer from a later session.
+        await lockExecutionMerchant(tx, session.merchantId);
+        const previous = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: {
+          merchantId: session.merchantId, sessionId: session.sessionId } } });
+        if (previous) return { session: toCheckoutSession(previous), created: false };
+        const now = await executionClock(tx);
+        const row = await tx.checkoutSession.create({ data: { ...toCheckoutSessionCreate(session), createdAt: now, updatedAt: now } as any });
+        await enrollCreatedStrategySession(tx, row, now);
+        const incentive = await applyEligibleIncentive(tx, row);
+        return { session: toCheckoutSession(incentive), created: true };
+      };
+      return this.inTransaction ? create(this.prisma) : (this.prisma as PrismaClient).$transaction(create);
+    }
     try {
       const row = await this.prisma.checkoutSession.upsert({
         where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } },
@@ -149,6 +261,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): Promise<void> {
     if (!event) return; // Guard: missing event name should not 500
     const write = async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
+        AND session_id = ${sessionId} FOR UPDATE`;
       const session = await tx.checkoutSession.findUnique({
         where: { merchantId_sessionId: { merchantId, sessionId } }
       });
@@ -188,14 +302,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     if (!current) throw new Error("checkout_session_not_found");
     const next = [...current.chatHistory, turn].slice(-50);
 
-    // Optimistic locking: prevent concurrent overwrites using updatedAt timestamp.
-    // If session was updated since we read it, Prisma will return 0 rows and we throw.
-    const currentUpdatedAt = new Date(current.updatedAt);
+    // The database counter also detects two updates within the same millisecond.
     const result = await this.prisma.checkoutSession.updateMany({
       where: {
         merchantId,
         sessionId,
-        updatedAt: currentUpdatedAt
+        version: current.persistenceVersion
       },
       data: {
         chatHistory: next as unknown as Prisma.InputJsonValue,
@@ -213,6 +325,65 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     });
     if (!updated) throw new Error("checkout_session_not_found");
     return toCheckoutSession(updated);
+  }
+
+  /** The pair and its proof commit together. No external I/O inside this transaction. */
+  async appendChatExchange(input: ChatExchangeInput): Promise<CheckoutSession> {
+    input = structuredClone(input);
+    if (input.buyer.role !== "buyer" || input.agent.role !== "agent"
+      || typeof input.buyer.text !== "string" || typeof input.agent.text !== "string") throw new Error("CHAT_EXCHANGE_INVALID");
+    const write = async (tx: Prisma.TransactionClient) => {
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${input.merchantId}
+        AND session_id = ${input.sessionId} FOR UPDATE`;
+      const where = { merchantId_sessionId: { merchantId: input.merchantId, sessionId: input.sessionId } };
+      const row = await tx.checkoutSession.findUnique({ where });
+      if (!row) throw new Error("checkout_session_not_found");
+      if (input.selectedPaymentMethod !== undefined && (deriveChatStage(toCheckoutSession(row)) !== "payment"
+        || !["pix", "credit_card", "boleto", "crypto"].includes(input.selectedPaymentMethod))) {
+        throw new Error("CHAT_PAYMENT_SELECTION_CONFLICT");
+      }
+      if (input.claim) {
+        const request = await tx.checkoutChatRequest.findFirst({ where: { id: input.claim.requestId,
+          merchantId: input.merchantId, sessionId: input.sessionId, requestHash: input.claim.requestHash,
+          conversationId: row.conversationId, status: "processing", protocolVersion: 2 }, include: { exchange: true } });
+        if (!request || request.exchange || request.buyerMessageHash !== chatMessageTextHash(input.buyer.text)) {
+          throw new Error("CHAT_EXCHANGE_CLAIM_CONFLICT");
+        }
+        // Compare persisted domain values. Strategy publication still requires its
+        // stronger admission revision/baseline/consent checks at the effect boundary.
+        const hash = (session: CheckoutSession) => digest(JSON.parse(JSON.stringify(toCheckoutSessionCreate(session))));
+        if (!input.expectedSession || input.expectedSession.persistenceVersion !== row.version
+          || hash(input.expectedSession) !== hash(toCheckoutSession(row))) {
+          throw new Error("CHAT_EXCHANGE_SESSION_CHANGED");
+        }
+      }
+      const now = await executionClock(tx);
+      const pair = [input.buyer, input.agent].map(turn => ({ role: turn.role, text: turn.text,
+        occurredAt: now.toISOString(), ...(turn.authorizedOfferId ? { authorizedOfferId: turn.authorizedOfferId } : {}),
+        ...(input.claim ? { chatRequestId: input.claim.requestId } : {}) }));
+      if (!Array.isArray(row.chatHistory)) throw new Error("CHAT_EXCHANGE_INVALID_HISTORY");
+      const updated = await tx.checkoutSession.update({ where,
+        data: { chatHistory: [...row.chatHistory, ...pair].slice(-50) as Prisma.InputJsonValue, updatedAt: now,
+          ...(input.selectedPaymentMethod ? { paymentMethod: input.selectedPaymentMethod } : {}) } });
+      if (input.claim) {
+        // PostgreSQL JSONB text is the canonical representation for this evidence;
+        // the insert trigger independently verifies it against the persisted pair.
+        const [proof] = await tx.$queryRaw<Array<{ hash: string }>>`SELECT
+          encode(sha256(convert_to(jsonb_build_array(chat_history -> -2, chat_history -> -1)::text, 'UTF8')), 'hex') AS hash
+          FROM checkout_sessions WHERE merchant_id = ${input.merchantId} AND session_id = ${input.sessionId}`;
+        let paymentProof = {};
+        if (input.selectedPaymentMethod && chatPaymentRecoveryEnabled(input.merchantId)) {
+          const [context] = await tx.$queryRaw<Array<{ hash: string }>>`SELECT checkout_chat_payment_context_hash(s) AS hash
+            FROM checkout_sessions s WHERE merchant_id = ${input.merchantId} AND session_id = ${input.sessionId}`;
+          paymentProof = { paymentMethod: input.selectedPaymentMethod, paymentCartHash: paymentCartFingerprint(toCheckoutSession(updated)),
+            paymentContextHash: context.hash };
+        }
+        await tx.checkoutChatExchange.create({ data: { requestId: input.claim.requestId, merchantId: input.merchantId,
+          sessionId: input.sessionId, exchangeHash: proof.hash, recordedAt: now, ...paymentProof } });
+      }
+      return toCheckoutSession(updated);
+    };
+    return this.inTransaction ? write(this.prisma) : (this.prisma as PrismaClient).$transaction(write);
   }
 
   async saveOffer(offer: AuthorizedOffer): Promise<AuthorizedOffer> {
@@ -560,6 +731,7 @@ function toCheckoutSessionCreate(session: CheckoutSession) {
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
+    paymentMethod: session.paymentMethod ?? null,
     promptVariantId: session.promptVariantId ?? null,
     cohort: session.cohort ?? null,
     featuresApplied: (session.featuresApplied ?? undefined) as unknown as Prisma.InputJsonValue,
@@ -582,51 +754,12 @@ function toCheckoutSessionUpdate(session: CheckoutSession) {
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
+    paymentMethod: session.paymentMethod ?? null,
     promptVariantId: session.promptVariantId ?? null,
     cohort: session.cohort ?? null,
     featuresApplied: (session.featuresApplied ?? undefined) as unknown as Prisma.InputJsonValue,
     aiCostCents: session.aiCostCents ?? 0,
     updatedAt: new Date(session.updatedAt)
-  };
-}
-
-function toCheckoutSession(row: {
-  merchantId: string;
-  sessionId: string;
-  globalUserId: string;
-  conversationId: string;
-  cart: unknown;
-  customer: unknown | null;
-  shipping: unknown | null;
-  shippingOptions?: unknown | null;
-  abandonmentScore: number;
-  triggerAgent: boolean;
-  chatHistory?: unknown | null;
-  promptVariantId?: string | null;
-  cohort?: string | null;
-  featuresApplied?: unknown | null;
-  aiCostCents?: number | null;
-  createdAt: Date;
-  updatedAt: Date;
-}): CheckoutSession {
-  return {
-    merchantId: row.merchantId,
-    sessionId: row.sessionId,
-    globalUserId: row.globalUserId,
-    conversationId: row.conversationId,
-    cart: row.cart as Cart,
-    customer: (row.customer ?? undefined) as CustomerHints | undefined,
-    shipping: (row.shipping ?? undefined) as ShippingQuote | undefined,
-    shippingOptions: (row.shippingOptions ?? undefined) as ShippingQuote[] | undefined,
-    abandonmentScore: row.abandonmentScore,
-    triggerAgent: row.triggerAgent,
-    chatHistory: ((row.chatHistory ?? []) as ChatTurn[]),
-    promptVariantId: row.promptVariantId ?? undefined,
-    cohort: (row.cohort ?? undefined) as "holdout" | "treatment" | undefined,
-    featuresApplied: (row.featuresApplied ?? undefined) as CheckoutSession["featuresApplied"],
-    aiCostCents: row.aiCostCents ?? 0,
-    createdAt: row.createdAt.toISOString(),
-    updatedAt: row.updatedAt.toISOString()
   };
 }
 

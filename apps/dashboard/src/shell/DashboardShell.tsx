@@ -12,8 +12,8 @@ import { PlatformFeedbackFab } from "../components/PlatformFeedbackFab.js";
 import { FreeTrialNotice } from "../pages/billing-plans/FreeTrialNotice.js";
 import { PlanProvider } from "../components/FeatureGate.js";
 import { PremiumFeatureGate } from "../components/PremiumFeatureGate.js";
-import { StrategyReviewModal } from "../pages/revenue-manager/StrategyReviewModal.js";
-import { STRATEGY_REVIEW_EVENT, STRATEGY_CHANGED_EVENT } from "../pages/revenue-manager/strategy-review.js";
+import { StrategyReviewPage } from "../pages/revenue-manager/StrategyReviewPage.js";
+import { STRATEGY_REVIEW_EVENT, STRATEGY_CHANGED_EVENT, openStrategyReview, strategyReviewHash, strategyIdFromHash } from "../pages/revenue-manager/strategy-review.js";
 import { NotificationBell, type NotificationItem } from "../components/NotificationBell.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
 import { useNavCounts } from "./useNavCounts.js";
@@ -114,7 +114,7 @@ export interface DashboardShellProps {
 
 export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: initialOnboardingCompleted }: DashboardShellProps) {
   const resolveInitialTab = (): TabKey => {
-    const hash = window.location.hash.slice(1);
+    const hash = window.location.hash.slice(1).split("?")[0];
     if (hash) return hash as TabKey;
     return initialTab ?? "overview";
   };
@@ -126,16 +126,25 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   notificationMerchant.current = me.id;
   const [inventoryNotice, setInventoryNotice] = useState<{ id: string; itemId?: string; alertId?: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(null);
+  const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(() => strategyIdFromHash(window.location.hash));
   useEffect(() => {
-    setReviewStrategyId(null);
+    const navigate = () => {
+      setReviewStrategyId(strategyIdFromHash(window.location.hash));
+      const hash = window.location.hash.slice(1).split("?")[0];
+      setTab((hash || initialTab || "overview") as TabKey);
+    };
+    navigate();
     const review = (event: Event) => {
       const id = (event as CustomEvent<{ hypothesisId?: string }>).detail?.hypothesisId;
-      if (typeof id === "string" && id.trim()) setReviewStrategyId(id);
+      if (typeof id === "string" && id.trim() && id.length <= 150) {
+        window.location.hash = strategyReviewHash(id);
+        navigate();
+      }
     };
     window.addEventListener(STRATEGY_REVIEW_EVENT, review);
-    return () => window.removeEventListener(STRATEGY_REVIEW_EVENT, review);
-  }, [me.id]);
+    window.addEventListener("hashchange", navigate);
+    return () => { window.removeEventListener(STRATEGY_REVIEW_EVENT, review); window.removeEventListener("hashchange", navigate); };
+  }, [me.id, initialTab]);
   const [customDomain, setCustomDomain] = useState<string>();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("aacp_nav_collapsed");
@@ -152,14 +161,6 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
-  useEffect(() => {
-    const onHashChange = () => {
-      const hash = window.location.hash.slice(1);
-      if (hash) setTab(hash as TabKey);
-    };
-    window.addEventListener("hashchange", onHashChange);
-    return () => window.removeEventListener("hashchange", onHashChange);
-  }, []);
 
   // Onboarding state resolves asynchronously in the parent (after
   // getOnboardingState). useState reads props only on mount, so react to
@@ -200,6 +201,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   }, [searchQuery]);
 
   const changeTab = useCallback((next: TabKey) => {
+    setReviewStrategyId(null);
     setTab(next);
     window.location.hash = next;
   }, []);
@@ -552,7 +554,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 if (notificationMerchant.current === me.id) setNotifications([]);
               }}
               onClickNotification={async (n) => {
-                if (n.hypothesisId) setReviewStrategyId(n.hypothesisId);
+                if (n.type === "ai_analysis_update") changeTab("revenue-manager");
+                if (n.hypothesisId) openStrategyReview(n.hypothesisId);
                 if (n.type === "inventory_alert") { setInventoryNotice({ id: n.id, itemId: n.inventoryItemId, alertId: n.inventoryAlertId }); changeTab("inventory"); }
                 if (n.type === "plan_expiry") changeTab("billing-plans");
                 if (n.ticketId) changeTab("support");
@@ -567,7 +570,6 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </div>
         </div>
         <section className={"console-content" + (tab === "overview" ? "" : " dashboard-ui")} data-dashboard-page={tab} style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
-          {reviewStrategyId && <StrategyReviewModal key={me.id + reviewStrategyId} hypothesisId={reviewStrategyId} merchantId={me.id} onClose={() => setReviewStrategyId(null)} />}
           <FreeTrialNotice onViewPlans={() => changeTab("billing-plans")} />
           <PageErrorBoundary key={tab}>
             <Suspense fallback={<LoadingFallback />}>
@@ -688,7 +690,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "revenue-manager" ? (
               <RouteGuard me={me} require="revenue-manager">
                 <PremiumFeatureGate feature="revenueManager" requiredPlan="Scale" featureLabel="Otimizador IA" description="IA autônoma que gera hipóteses de otimização e ajusta estratégias de conversão continuamente.">
-                  <RevenueManagerPage apiBaseUrl={API_BASE_URL} me={me} />
+                  {reviewStrategyId ? <StrategyReviewPage key={`${me.id}:${reviewStrategyId}`} strategyId={reviewStrategyId} merchantId={me.id} onBack={() => changeTab("revenue-manager")} />
+                    : <RevenueManagerPage key={me.id} apiBaseUrl={API_BASE_URL} me={me} />}
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}

@@ -1,4 +1,5 @@
 import { CheckoutApiError } from "./checkout-api-error";
+import { ChatRecoveryRequired, PendingChatReference, chatReceipt, chatDisplayReference, parseChatState, type ChatState, type ChatDisplayReference } from "./chat-protocol";
 
 /**
  * CheckoutSession — API client for /embed/* endpoints.
@@ -168,6 +169,8 @@ export interface Experience {
 }
 
 export interface StartResponse {
+  conversation_id?: string;
+  chat_protocol?: "durable_v2";
   session_id: string;
   experience?: Experience;
 }
@@ -219,6 +222,8 @@ export interface ChatBlock {
 }
 
 export interface ChatResponse {
+  display_ref?: ChatDisplayReference;
+  chat_request?: { message_id: string; status: "completed" };
   blocks?: ChatBlock[];
   quick_replies?: string[];
   message?: string;
@@ -261,6 +266,7 @@ export interface PaymentIntent {
 }
 
 export class CheckoutSession {
+  private paymentRecoveryPending = false;
   private token: string;
   private merchantId: string;
   private baseUrl: string;
@@ -270,6 +276,17 @@ export class CheckoutSession {
   private sessionId: string | null = null;
   private experience?: Experience;
   private paymentRevision = 0;
+  private conversationId: string | null = null;
+  private protectedChat = false;
+  private pendingMessageId?: string;
+  private chatInFlight = false;
+  private pendingReference?: PendingChatReference;
+  chatState?: ChatState;
+  private readonly displayedTurns = new Set<string>();
+  private readonly displayInFlight = new Map<string, Promise<void>>();
+
+  get requiresChatRecovery(): boolean { return !!this.pendingMessageId || this.paymentRecoveryPending; }
+  get usesDurableChat(): boolean { return this.protectedChat; }
 
   constructor(config: CheckoutSessionConfig) {
     this.token = config.embedToken;
@@ -322,7 +339,15 @@ export class CheckoutSession {
     if (!res.ok) throw await CheckoutApiError.fromResponse("embed_start", res);
     const data = (await res.json()) as StartResponse;
     this.sessionId = data.session_id;
+    this.conversationId = data.conversation_id ?? data.session_id;
+    this.protectedChat = data.chat_protocol === "durable_v2";
+    this.pendingReference = new PendingChatReference(`zyon:chat:v2:${JSON.stringify([this.embedBaseUrl, this.merchantId, this.sessionId, this.conversationId])}`);
+    this.pendingMessageId = this.pendingReference.read();
     this.experience = data.experience;
+    if (this.protectedChat || this.pendingMessageId) {
+      this.protectedChat = true;
+      await this.refreshChatState();
+    }
     return data;
   }
 
@@ -332,23 +357,120 @@ export class CheckoutSession {
 
   async chat(message: string): Promise<ChatResponse> {
     this.assertSession();
-    const res = await fetch(`${this.embedBaseUrl}/embed/chat`, {
-      method: "POST",
-      headers: this.headers(),
-      body: JSON.stringify({
-        session_id: this.sessionId,
-        user_message: message,
-        conversation_id: this.sessionId,
-      }),
-    });
-    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat", res);
-    const response = await res.json() as ChatResponse;
-    if (response.experience) this.experience = { ...this.experience, ...response.experience };
-    return response;
+    if (this.requiresChatRecovery || this.chatInFlight) throw new ChatRecoveryRequired();
+    const messageId = crypto.randomUUID();
+    this.chatInFlight = true;
+    if (this.protectedChat) this.setPending(messageId);
+    try {
+      const res = await fetch(`${this.embedBaseUrl}/embed/chat`, {
+        method: "POST",
+        headers: this.headers(),
+        body: JSON.stringify({
+          session_id: this.sessionId,
+          user_message: message,
+          conversation_id: this.conversationId,
+          message_id: messageId,
+        }),
+      });
+      if (!res.ok) {
+        const error = await CheckoutApiError.fromResponse("embed_chat", res);
+        if (error.chatRequest) {
+          this.protectedChat = true;
+          this.setPending(error.chatRequest.message_id);
+        }
+        // A quota/rate rejection is reported without a receipt on its first
+        // response. Query the durable state instead of assuming no work ran.
+        if (this.protectedChat) throw new ChatRecoveryRequired();
+        throw error;
+      }
+      const response = await res.json() as ChatResponse;
+      const receipt = chatReceipt(response.chat_request);
+      if (this.protectedChat || receipt) {
+        this.protectedChat = true;
+        if (receipt?.message_id !== messageId || receipt.status !== "completed") throw new ChatRecoveryRequired();
+        this.setPending(undefined);
+      }
+      if (response.experience) this.experience = { ...this.experience, ...response.experience };
+      if (this.protectedChat && response.stage === "payment_pending") {
+        const state = await this.refreshChatState();
+        if (state.payment_intent_id) throw new ChatRecoveryRequired();
+      }
+      return response;
+    } catch (error) {
+      if (this.protectedChat) { if (!this.pendingMessageId) this.setPending(messageId); throw new ChatRecoveryRequired(); }
+      throw error;
+    } finally { this.chatInFlight = false; }
+  }
+
+  private setPending(messageId: string | undefined) {
+    this.pendingMessageId = messageId;
+    this.pendingReference?.write(messageId);
+  }
+
+  /** Visibility telemetry only. Never creates a chat/payment or blocks checkout.
+   * The component verifies visibility; this verifies the exact rendered text. */
+  async reportChatDisplay(reference: ChatDisplayReference, text: string): Promise<void> {
+    this.assertSession();
+    const ref = chatDisplayReference(reference);
+    if (!ref || !text || text.length > 20_000 || !globalThis.crypto?.subtle) return;
+    if (this.displayedTurns.has(ref.turn_id)) return;
+    const inFlight = this.displayInFlight.get(ref.turn_id);
+    if (inFlight) return inFlight;
+    const task = (async () => {
+      const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(text));
+      const hash = Array.from(new Uint8Array(bytes), value => value.toString(16).padStart(2, "0")).join("");
+      if (hash !== ref.text_hash) return;
+      const res = await fetch(`${this.embedBaseUrl}/embed/chat/display`, { method: "POST", headers: this.headers(),
+        signal: AbortSignal.timeout(10_000), body: JSON.stringify({ session_id: this.sessionId,
+          conversation_id: this.conversationId, display_ref: ref, definition: "widget-visible-text-v1" }) });
+      if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat_display", res);
+      const receipt = await res.json() as { status?: string };
+      if (receipt.status !== "recorded") throw new Error("checkout_chat_display_invalid_receipt");
+      this.displayedTurns.add(ref.turn_id);
+    })();
+    this.displayInFlight.set(ref.turn_id, task);
+    try { await task; } finally { this.displayInFlight.delete(ref.turn_id); }
+  }
+
+  async refreshChatState(): Promise<ChatState> {
+    this.assertSession();
+    const query = new URLSearchParams({ session_id: this.sessionId! });
+    if (this.pendingMessageId) query.set("message_id", this.pendingMessageId);
+    const res = await fetch(`${this.embedBaseUrl}/embed/chat/state?${query}`, { headers: this.headers(), cache: "no-store", signal: AbortSignal.timeout(10_000) });
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat_state", res);
+    const state = parseChatState(await res.json(), this.sessionId!, this.conversationId!);
+    if (this.protectedChat && state.protocol !== "durable_v2") throw new ChatRecoveryRequired();
+    this.protectedChat = state.protocol === "durable_v2";
+    if (state.active_request) this.setPending(state.active_request.message_id);
+    else if (this.pendingMessageId && state.request?.message_id === this.pendingMessageId
+      && ["completed", "reconciled", "rejected"].includes(state.request.status)) this.setPending(undefined);
+    this.chatState = state;
+    this.paymentRecoveryPending = !!state.payment_intent_id;
+    return state;
+  }
+
+  async recoverChat(): Promise<ChatState> {
+    if (this.chatInFlight) throw new ChatRecoveryRequired();
+    this.chatInFlight = true;
+    try {
+      await this.refreshChatState();
+      if (this.pendingMessageId) {
+        const res = await fetch(`${this.embedBaseUrl}/embed/chat/reconcile`, { method: "POST", headers: this.headers(), signal: AbortSignal.timeout(10_000),
+          body: JSON.stringify({ session_id: this.sessionId, conversation_id: this.conversationId, message_id: this.pendingMessageId }) });
+        if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat_reconcile", res);
+        const receipt = chatReceipt((await res.json() as { chat_request?: unknown }).chat_request);
+        if (receipt?.message_id !== this.pendingMessageId || !["completed", "reconciled", "rejected"].includes(receipt.status)) throw new ChatRecoveryRequired();
+        // A receipt never substitutes for refreshing the server conversation.
+        await this.refreshChatState();
+      }
+      if (this.pendingMessageId) throw new ChatRecoveryRequired();
+      return this.chatState!;
+    } finally { this.chatInFlight = false; }
   }
 
   async createRealtimeVoiceSession(): Promise<{ value: string; expires_at?: number }> {
     this.assertSession();
+    if (this.requiresChatRecovery) throw new ChatRecoveryRequired();
     const res = await fetch(`${this.embedBaseUrl}/embed/realtime/session`, {
       method: "POST",
       headers: this.headers(),
@@ -448,12 +570,34 @@ export class CheckoutSession {
     return result;
   }
 
+  async readChatPayment(state: ChatState): Promise<PaymentIntent | undefined> {
+    this.assertSession();
+    if (state.session_id !== this.sessionId || state.conversation_id !== this.conversationId || state.active_request) {
+      throw new ChatRecoveryRequired();
+    }
+    if (!state.payment_intent_id) return undefined;
+    const query = new URLSearchParams({ session_id: this.sessionId!, intent_id: state.payment_intent_id });
+    const res = await fetch(`${this.embedBaseUrl}/embed/chat/payment?${query}`, {
+      headers: this.headers(), cache: "no-store", signal: AbortSignal.timeout(10_000),
+    });
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_chat_payment", res);
+    const intent = await this.mapPaymentResponse(res);
+    if (intent.intent_id !== state.payment_intent_id || intent.status === "pending") throw new ChatRecoveryRequired();
+    if (intent.status === "requires_action" && (
+      (intent.method === "pix" && !intent.pix_code) || (intent.method === "boleto" && !intent.invoice_url)
+      || (intent.method === "credito" && !intent.invoice_url && (!intent.stripe_client_secret || !intent.stripe_publishable_key))
+    )) throw new ChatRecoveryRequired();
+    this.paymentRecoveryPending = false;
+    return intent;
+  }
+
   async createPaymentIntent(
     method: "pix" | "boleto" | "credito" | "debito" | "crypto",
     installments?: number,
-    options?: { chain?: "polygon" | "base" }
+    options?: { chain?: "polygon" | "base"; confirmedCartFingerprint?: string }
   ): Promise<PaymentIntent> {
     this.assertSession();
+    if (this.pendingMessageId || this.chatInFlight || this.chatState?.payment_intent_id) throw new ChatRecoveryRequired();
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
     const idempotencyKey = `pay_${this.sessionId}_${apiMethod}_${this.paymentRevision}`;
     console.log('[WIDGET-DBG] API createPaymentIntent', { method: apiMethod, sessionId: this.sessionId });
@@ -466,9 +610,25 @@ export class CheckoutSession {
         method: apiMethod,
         installments,
         ...(options?.chain ? { preferred_chain: options.chain } : {}),
+        ...(options?.confirmedCartFingerprint ? { confirmed_cart_fingerprint: options.confirmedCartFingerprint } : {}),
       }),
     });
-    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_payment", res);
+    if (!res.ok) {
+      const error = await CheckoutApiError.fromResponse("embed_payment", res);
+      if (error.checkoutReview) {
+        const review = error.checkoutReview;
+        this.experience = { ...this.experience, commercial_nudge: undefined,
+          items: review.cart.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, unit_price: item.price, variant: item.variant })),
+          shipping: review.shipping, totals: { subtotal: review.cart.total, discount: review.cart.currentDiscount ?? 0,
+            shipping: review.shipping?.customerPrice ?? 0, service_fee: review.service_fee_cents / 100,
+            total: review.order_total_cents / 100, total_to_pay: review.total_to_pay_cents / 100 } };
+      }
+      throw error;
+    }
+    return this.mapPaymentResponse(res, method);
+  }
+
+  private async mapPaymentResponse(res: Response, method?: PaymentIntent["method"]): Promise<PaymentIntent> {
     const raw = (await res.json()) as {
       id: string;
       status: string;
@@ -502,6 +662,11 @@ export class CheckoutSession {
         nativeCurrency?: { name: string; symbol: string; decimals: number };
       };
     };
+    if (!raw || typeof raw.id !== "string" || !/^[a-zA-Z0-9_-]{1,200}$/.test(raw.id)
+      || !["pix", "card", "boleto", "crypto"].includes(raw.method)
+      || !Number.isSafeInteger(raw.amountCents) || raw.amountCents <= 0
+      || !["pending", "requires_action", "approved", "failed", "cancelled", "refunded", "chargeback_pending",
+        "chargeback_disputed", "chargeback_lost", "chargeback_won"].includes(raw.status)) throw new Error("payment_response_invalid");
     if (method === "pix" && !raw.buyerFacing?.qrCodeCopyPaste?.trim()) {
       throw new Error("pix_payload_unavailable");
     }
@@ -513,7 +678,7 @@ export class CheckoutSession {
       : undefined;
     return {
       intent_id: raw.id,
-      method: method,
+      method: method ?? (raw.method === "card" ? "credito" : raw.method as PaymentIntent["method"]),
       status: raw.status,
       pix_code: raw.buyerFacing?.qrCodeCopyPaste,
       pix_qr_url: pixQrUrl,

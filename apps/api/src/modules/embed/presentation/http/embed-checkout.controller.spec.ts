@@ -9,6 +9,68 @@ import type { StartCheckoutRequest } from "@zyon/shared-types";
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 
 describe("EmbedCheckoutController", () => {
+  it("display telemetry uses the signed session and drops merchant, arm and timestamp selectors", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+    const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ merchantId: "m1", sessionId }));
+    const seen: unknown[] = [];
+    const controller = new EmbedCheckoutController({} as never, {} as never, {} as never, new EmbedCheckoutGuardHelper(repo),
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, undefined,
+      { recordDisplay(...args: unknown[]) { seen.push(args); return { status: "recorded" }; } } as never);
+    const report = { session_id: sessionId, conversation_id: "conversation", definition: "widget-visible-text-v1" as const,
+      display_ref: { turn_id: "turn", text_hash: "a".repeat(64) } };
+    await assert.rejects(controller.chatDisplay({ embedClaims: claims }, { ...report, session_id: "foreign" }), /binding_mismatch/);
+    assert.equal(seen.length, 0);
+    await controller.chatDisplay({ embedClaims: claims }, { ...report, merchant_id: "forged", arm: "treatment", recorded_at: "old" } as any);
+    assert.deepEqual(seen, [["m1", report]]);
+  });
+  it("payment recovery uses the signed session and merchant before reading financial credentials", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+    const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ merchantId: "m1", sessionId }));
+    const seen: unknown[] = [];
+    const controller = new EmbedCheckoutController({} as never, {} as never, {} as never, new EmbedCheckoutGuardHelper(repo),
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, undefined,
+      { readPayment(...args: unknown[]) { seen.push(args); return { id: "intent" }; } } as never);
+    await assert.rejects(controller.chatPayment({ embedClaims: claims }, "foreign", "intent"), /binding_mismatch/);
+    assert.equal(seen.length, 0);
+    assert.deepEqual(await controller.chatPayment({ embedClaims: claims }, sessionId, "intent"), { id: "intent" });
+    assert.deepEqual(seen, [["m1", sessionId, "intent"]]);
+  });
+  it("history requires the token-bound session and start advertises only capability", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+    const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ merchantId: "m1", sessionId }));
+    const seen: unknown[] = [];
+    const state = { protocol: "durable_v2", session_id: sessionId, conversation_id: "conversation", turns: [{ text: "private" }] };
+    const controller = new EmbedCheckoutController({ execute() { return { session_id: sessionId }; } } as never,
+      {} as never, {} as never, new EmbedCheckoutGuardHelper(repo), {} as never, {} as never, {} as never,
+      {} as never, {} as never, {} as never, {} as never, undefined,
+      { readState(...args: unknown[]) { seen.push(args); return state; } } as never);
+    await assert.rejects(controller.chatState({ embedClaims: claims }, "foreign"), /binding_mismatch/);
+    assert.equal(seen.length, 0);
+    assert.deepEqual(await controller.chatState({ embedClaims: claims }, sessionId, "message_00000001"), state);
+    assert.deepEqual(seen[0], ["m1", sessionId, "message_00000001"]);
+    const start = await controller.start({ embedClaims: claims }, { cart: { currency: "BRL", total: 0, items: [] } } as any);
+    assert.deepEqual(start, { session_id: sessionId, chat_protocol: "durable_v2" });
+  });
+
+  it("recovery is bound to the embed session and ignores a forged body merchant", async () => {
+    const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+    const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();
+    await repo.saveSession(checkoutSession({ merchantId: "m1", sessionId }));
+    const seen: any[] = [];
+    const controller = new EmbedCheckoutController({} as never, {} as never, {} as never, new EmbedCheckoutGuardHelper(repo),
+      {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, undefined,
+      { execute(input: unknown) { seen.push(input); return { chat_request: { message_id: "message_00000001", status: "reconciled", next_action: "refresh_session" } }; } } as never);
+    const input = { merchant_id: "forged", session_id: sessionId, conversation_id: "conversation", message_id: "message_00000001" };
+    await assert.rejects(controller.reconcileMessage({ embedClaims: claims }, { ...input, session_id: "other" }), /binding_mismatch/);
+    assert.equal(seen.length, 0);
+    const result = await controller.reconcileMessage({ embedClaims: claims }, input);
+    assert.equal(seen[0].merchant_id, "m1"); assert.equal(seen[0].session_id, sessionId);
+    assert.equal(result.chat_request.status, "reconciled");
+  });
+
   it("tokens of the same merchant cannot access each other's checkout", async () => {
     const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
     const other = { ...claims, nonce: "buyer-b" };

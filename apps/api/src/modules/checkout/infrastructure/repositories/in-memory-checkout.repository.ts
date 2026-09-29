@@ -15,7 +15,8 @@ import type {
   MerchantRules
 } from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
-import type { CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import type { ChatExchangeInput, CheckoutCommercialMutation, CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { prepareCommercialMutation } from "../../domain/services/checkout-commercial-mutation.js";
 import type { OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import type { OrderRepository } from "../../domain/ports/order.repository.port.js";
 import type { DashboardReadModel } from "../../domain/ports/dashboard-read-model.port.js";
@@ -25,6 +26,7 @@ import type { MerchantRulesRepository } from "../../../merchant/domain/ports/mer
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { MerchantTheme } from "../../../merchant/domain/merchant.types.js";
 import { CheckoutSessionEntity } from "../../domain/entities/checkout-session.entity.js";
+import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
 
 const DEFAULT_RULES: MerchantRules = {
   maxDiscountPercent: 10,
@@ -57,6 +59,16 @@ export class InMemoryCheckoutRepository
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     return work(this);
+  }
+
+  async commitCommercialMutation(input: CheckoutCommercialMutation): Promise<CheckoutSession> {
+    const mutation = prepareCommercialMutation(input);
+    this.saveSession(mutation.session);
+    if (mutation.event) await this.appendOutbox(mutation.event);
+    if (input.cancel) this.recordEvent(input.next.merchantId, input.next.sessionId, "checkout_abandoned", {
+      source: "acp.protocol", reason: "buyer_initiated",
+    });
+    return this.getSession(input.next.merchantId, input.next.sessionId)!;
   }
 
   createSessionIfAbsent(session: CheckoutSession): { session: CheckoutSession; created: boolean } {
@@ -167,6 +179,22 @@ export class InMemoryCheckoutRepository
     const existing = this.getSession(merchantId, sessionId);
     if (!existing) throw new Error("checkout_session_not_found");
     const next = CheckoutSessionEntity.rehydrate(existing).appendTurn(turn).snapshot();
+    this.saveSession(next);
+    return next;
+  }
+
+  appendChatExchange(input: ChatExchangeInput): CheckoutSession {
+    // This adapter cannot claim durable protocol evidence.
+    if (input.claim) throw new Error("CHAT_EXCHANGE_DURABLE_STORE_REQUIRED");
+    const current = this.getSession(input.merchantId, input.sessionId);
+    if (!current) throw new Error("checkout_session_not_found");
+    if (input.buyer.role !== "buyer" || input.agent.role !== "agent") throw new Error("CHAT_EXCHANGE_INVALID");
+    if (input.selectedPaymentMethod !== undefined && (deriveChatStage(current) !== "payment"
+      || !["pix", "credit_card", "boleto", "crypto"].includes(input.selectedPaymentMethod))) {
+      throw new Error("CHAT_PAYMENT_SELECTION_CONFLICT");
+    }
+    const next = CheckoutSessionEntity.rehydrate(current).appendTurn(input.buyer).appendTurn(input.agent).snapshot();
+    if (input.selectedPaymentMethod) next.paymentMethod = input.selectedPaymentMethod;
     this.saveSession(next);
     return next;
   }

@@ -285,6 +285,8 @@ export interface ChatTurn {
   text: string;
   occurredAt: string;
   authorizedOfferId?: string;
+  /** Server-owned link to the durable buyer-message admission, when present. */
+  chatRequestId?: string;
 }
 
 export interface CrossStoreLineItem {
@@ -322,6 +324,8 @@ export interface CheckoutSession {
     intentPersonalization?: boolean;
   };
   aiCostCents?: number;
+  /** Server-loaded optimistic concurrency token. Never accept it from buyer input. */
+  persistenceVersion?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -530,6 +534,8 @@ export interface CheckoutExperienceSnapshot {
 }
 
 export interface StartCheckoutResponse {
+  /** Present only for sessions owned by the durable message protocol. */
+  chat_protocol?: "durable_v2";
   conversation_id: string;
   session_id: string;
   global_user_id: string;
@@ -855,6 +861,8 @@ export interface ChatMessageRequest {
   user_message: string;
   agent_id?: string;
   agent_user_id?: string;
+  /** Stable for every retry of one buyer message. Required for the opted-in protocol. */
+  message_id?: string;
 }
 
 export type AgentRuleScope = "merchant_default" | "user_agent";
@@ -1085,7 +1093,47 @@ export interface ChatUiBlock {
   data?: Record<string, unknown>;
 }
 
+export interface ChatMessageReference {
+  merchant_id: string;
+  session_id: string;
+  conversation_id: string;
+  message_id: string;
+}
+
+/** Opaque publication identity; acknowledgement is client-reported visibility only. */
+export interface ChatDisplayReference {
+  turn_id: string;
+  text_hash: string;
+}
+
+export interface ChatDisplayReport {
+  session_id: string;
+  conversation_id: string;
+  display_ref: ChatDisplayReference;
+  definition: "widget-visible-text-v1";
+}
+
+/** Saved text, current navigation and a payment reference. Payment credentials require a separate financial scope. */
+export interface ChatSessionStateResponse {
+  protocol: "durable_v2" | "legacy";
+  session_id: string;
+  conversation_id: string;
+  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string; display_ref?: ChatDisplayReference;
+    blocks?: ChatUiBlock[]; checkout_stage?: ChatStage }>;
+  request?: { message_id: string; status: "processing" | "unknown" | "completed" | "reconciled" | "rejected"; response_outcome?: "withheld" };
+  active_request?: { message_id: string; status: "processing" | "unknown" };
+  payment_intent_id?: string;
+}
+
+/** Receipt only; never an old response, authorization or delivery confirmation. */
+export interface ChatMessageRecoveryResponse {
+  chat_request: { message_id: string; status: "completed" | "reconciled" | "rejected"; next_action: "refresh_session" };
+}
+
 export interface ChatMessageResponse {
+  display_ref?: ChatDisplayReference;
+  /** Processing receipt; does not assert browser delivery or experimental exposure. */
+  chat_request?: { message_id: string; status: "completed" };
   message: string;
   objection: "shipping_cost" | "price" | "trust" | "payment" | "unknown";
   authorized_offer?: AuthorizedOffer;

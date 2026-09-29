@@ -21,6 +21,7 @@ export type EmbedCreatePaymentIntentBody = {
   idempotency_key: string;
   method?: "pix" | "card" | "boleto";
   accepted_offer_id?: string;
+  confirmed_cart_fingerprint?: string;
 };
 
 export class AgenticCheckoutHttpError extends Error {

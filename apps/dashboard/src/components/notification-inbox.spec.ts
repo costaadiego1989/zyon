@@ -2,6 +2,10 @@ import { describe, expect, it } from "vitest";
 import { mapInboxNotification, notificationDate } from "./notification-inbox.js";
 
 describe("merchant notification inbox", () => {
+  it("keeps analysis updates and routes strategy notifications to their review", () => {
+    expect(mapInboxNotification({ id: "analysis:1", type: "ai_analysis_update", title: "Análise concluída", body: "Veja o resultado da análise semanal." })).toMatchObject({ type: "ai_analysis_update", body: "Veja o resultado da análise semanal." });
+    expect(mapInboxNotification({ id: "strategy:1", type: "ai_strategy_suggestion", title: "Nova sugestão", metadata: { strategyId: "strategy-1", hypothesisId: "legacy-1" } })).toMatchObject({ type: "ai_strategy_suggestion", hypothesisId: "strategy-1" });
+  });
   it("keeps the inventory product description and navigation metadata", () => {
     expect(mapInboxNotification({ id: "stock:1", type: "inventory_alert", title: "Estoque abaixo do limite", body: "Tênis Azul — 3 unidades disponíveis (SKU-A)", createdAt: "2026-09-24T21:35:00Z", metadata: { inventoryAlertId: "alert-1", itemId: "item-1", sku: "SKU-A" } })).toMatchObject({ body: "Tênis Azul — 3 unidades disponíveis (SKU-A)", inventoryAlertId: "alert-1", inventoryItemId: "item-1", sku: "SKU-A" });
   });

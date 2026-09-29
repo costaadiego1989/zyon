@@ -6,6 +6,8 @@ import {
   IsNumber,
   IsOptional,
   IsString,
+  Matches,
+  MaxLength,
   Min,
   ValidateNested,
 } from 'class-validator';
@@ -144,10 +146,37 @@ export class TrackCheckoutEventDto {
   metadata?: Record<string, unknown>;
 }
 
-/**
- * POST /v1/checkouts/:id/messages — Send a chat message to the AI agent.
- */
+/** POST /v1/checkouts/:id/messages/:messageId/reconcile — Resolve a durable receipt. */
+export class ReconcileCheckoutMessageDto {
+  @ApiProperty({ example: 'conversation_123', maxLength: 200 })
+  @IsString()
+  @IsNotEmpty()
+  @MaxLength(200)
+  conversation_id!: string;
+}
+
+class ChatMessageRecoveryReceiptDto {
+  @ApiProperty({ example: 'message_00000001' })
+  message_id!: string;
+  @ApiProperty({ enum: ['completed', 'reconciled', 'rejected'] })
+  status!: 'completed' | 'reconciled' | 'rejected';
+  @ApiProperty({ enum: ['refresh_session'] })
+  next_action!: 'refresh_session';
+}
+
+export class ChatMessageRecoveryResponseDto {
+  @ApiProperty({ type: ChatMessageRecoveryReceiptDto })
+  chat_request!: ChatMessageRecoveryReceiptDto;
+}
+
+/** POST /v1/checkouts/:id/messages — Send a chat message to the AI agent. */
 export class SendCheckoutMessageDto {
+  @ApiPropertyOptional({ description: 'Stable buyer-message identifier, retained across retries. Required for opted-in stores.', example: '28cf679a-d140-442f-9d89-5a6d045e8831' })
+  @IsOptional()
+  @IsString()
+  @Matches(/^[a-zA-Z0-9_-]{16,128}$/)
+  message_id?: string;
+
   @ApiProperty({ example: 'conv_xyz789' })
   @IsString()
   @IsNotEmpty()
@@ -367,6 +396,9 @@ export class TrackEventResponse {
 }
 
 export class ChatMessageResponse {
+  @ApiPropertyOptional({ description: 'Processing receipt, not proof of delivery or experimental exposure.', type: 'object', additionalProperties: true })
+  chat_request?: { message_id: string; status: 'completed' };
+
   @ApiProperty({ example: 'assistant', enum: ['user', 'assistant'] })
   role!: string;
 

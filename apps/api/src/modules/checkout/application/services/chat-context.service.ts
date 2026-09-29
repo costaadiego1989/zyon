@@ -17,6 +17,7 @@ import { PRODUCT_SEARCH_PORT, type ProductSearchPort } from "../../domain/ports/
 import { TenantBoundaryGuard } from "../../domain/services/tenant-boundary.guard.js";
 import { InterventionRuleTextBuilder } from "./intervention-rule-text.builder.js";
 import { BuyerContextService } from "./buyer-context.service.js";
+import { checkoutPaymentFailureSignal } from "../../domain/services/checkout-chat-context.js";
 
 export interface ConsentedBuyerIntent {
   primary_intent?: string;
@@ -113,7 +114,7 @@ export class ChatContextService {
     }
 
     let merchantRules: string[] | undefined;
-    const paymentJustFailed = this.detectPaymentFailure(session);
+    const paymentJustFailed = checkoutPaymentFailureSignal(session);
 
     try {
       const interventionConfig = await this.checkoutSettings?.getInterventionConfig(merchantId);
@@ -150,12 +151,5 @@ export class ChatContextService {
       if (match?.[1]) return match[1].replace(/[?.!,;]+$/, "").trim();
     }
     return null;
-  }
-
-  private detectPaymentFailure(session: CheckoutSession): boolean {
-    const lastAgentTurn = [...session.chatHistory]
-      .reverse()
-      .find((t) => t.role === "agent")?.text;
-    return /pagamento (falhou|recusad|não foi|nao foi|nao aprovad|não aprovad)/i.test(lastAgentTurn ?? "");
   }
 }

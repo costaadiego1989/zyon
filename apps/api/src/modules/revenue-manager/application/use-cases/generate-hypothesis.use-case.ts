@@ -7,8 +7,12 @@ import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
 import { assessHypothesisRisk } from "../../domain/value-objects/hypothesis-risk-level.js";
 import { validateHypothesisResponse, validateHypothesisSafety } from "../../domain/services/hypothesis-validator.service.js";
 import { HYPOTHESIS_MERCHANT_CONTEXT_PORT, type HypothesisMerchantContextPort } from "../../domain/ports/hypothesis-merchant-context.port.js";
+import { checkoutBaselineReference, checkoutContractHash } from "../../../checkout/domain/services/checkout-chat-baseline.js";
+import { strategyMeasurementEnabled } from "../../infrastructure/strategy-measurement-planning.js";
+import { discountStudyEnabled } from "../../infrastructure/strategy-discount-study.js";
 
 export interface GenerateHypothesisInput {
+  analysis_context?: { runId: string; leaseToken: number };
   merchant_id: string;
   observation_id: string;
 }
@@ -62,10 +66,28 @@ export class GenerateHypothesisUseCase {
       throw new Error("HYPOTHESIS_INVALID_MERCHANT_RULES");
     }
     const policySnapshot = JSON.stringify(rules);
-    const currentPrompt = await this.merchantContext.getCurrentPrompt(input.merchant_id);
+    const checkoutBaseline = await this.merchantContext.getCheckoutBaseline?.(input.merchant_id);
+    if (checkoutBaseline && !input.analysis_context) throw new Error("HYPOTHESIS_WEEKLY_CONTEXT_REQUIRED");
+    if (checkoutBaseline && checkoutBaseline.policyHash !== checkoutContractHash(rules)) throw new Error("HYPOTHESIS_MERCHANT_RULES_CHANGED");
+    const currentPrompt = checkoutBaseline ? checkoutBaselineReference(checkoutBaseline)
+      : this.merchantContext.getCheckoutBaseline ? undefined : await this.merchantContext.getCurrentPrompt(input.merchant_id);
     if (typeof currentPrompt !== "string" || !currentPrompt.trim()) throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
+    const measurementPlanning = input.analysis_context
+      ? await this.merchantContext.getMeasurementPlanning?.(input.merchant_id, input.analysis_context) : undefined;
+    if (strategyMeasurementEnabled() && (!checkoutBaseline || !measurementPlanning)) {
+      throw new Error("HYPOTHESIS_MEASUREMENT_CONTEXT_REQUIRED");
+    }
+    // Server-owned simulation is attached to review, never inserted into a
+    // communication prompt or handed to the LLM as an authorization to offer.
+    const discountStudy = input.analysis_context
+      ? await this.merchantContext.getDiscountStudy?.(input.merchant_id, input.analysis_context) : undefined;
+    if (input.analysis_context && discountStudyEnabled(input.merchant_id) && !discountStudy) {
+      throw new Error("HYPOTHESIS_DISCOUNT_STUDY_REQUIRED");
+    }
 
-    const pastLessons = await this.lessonRepo.findByMerchant(input.merchant_id, 20);
+    // Legacy lessons do not carry a preregistered plan or complete assignment
+    // population. Keep them out of weekly planning until evidence is versioned.
+    const pastLessons = input.analysis_context ? [] : await this.lessonRepo.findByMerchant(input.merchant_id, 20);
 
     const constraints = {
       max_discount_percent: rules.maxDiscountPercent,
@@ -76,10 +98,13 @@ export class GenerateHypothesisUseCase {
 
     // Call LLM to generate hypothesis
     const generationResponse = await this.generator.generate({
+      analysis_context: input.analysis_context,
       merchant_id: input.merchant_id,
       observation: observation.snapshot(),
       past_lessons: pastLessons.map((l) => l.snapshot()),
       current_prompt: currentPrompt,
+      checkout_baseline: checkoutBaseline,
+      measurement_planning: measurementPlanning,
       constraints,
     });
 
@@ -106,7 +131,7 @@ export class GenerateHypothesisUseCase {
     const approvalStrategy = "manual";
 
     // Create hypothesis entity
-    const hypothesis = HypothesisEntity.create({
+    let hypothesis = HypothesisEntity.create({
       merchant_id: input.merchant_id,
       observation_id: input.observation_id,
       hypothesis_text: generationResponse.hypothesis_text,
@@ -118,7 +143,8 @@ export class GenerateHypothesisUseCase {
     });
 
     // Save
-    await this.hypothesisRepo.save(hypothesis);
+    if (input.analysis_context) hypothesis = HypothesisEntity.rehydrate({ ...hypothesis.snapshot(), id: `analysis-${input.analysis_context.runId}` });
+    await this.hypothesisRepo.save(hypothesis, input.analysis_context ? { ...input.analysis_context, checkoutBaseline, measurementPlanning, discountStudy } : undefined);
 
     this.logger.log(
       `Generated hypothesis for merchant ${input.merchant_id}: ` +

@@ -1,3 +1,4 @@
+import { commitCheckoutMutation } from "../../checkout/application/services/commit-checkout-mutation.js";
 import {
   BadRequestException,
   Inject,
@@ -41,10 +42,10 @@ export class AcpFulfillmentSelector {
 
     const nextShipping: ShippingQuote = { ...selected };
 
-    await this.sessions.saveSession({
+    await commitCheckoutMutation(this.sessions, { expected: session, next: {
       ...session,
       shipping: nextShipping,
       updatedAt: new Date().toISOString(),
-    });
+    } });
   }
 }

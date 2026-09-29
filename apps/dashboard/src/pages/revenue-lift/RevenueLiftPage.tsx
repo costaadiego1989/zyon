@@ -75,7 +75,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
         <EmptyState
           icon={BarChart3}
           title="Sem dados ainda"
-          description="A comparação aparecerá quando houver dados suficientes nos grupos com e sem IA."
+          description="A comparação de receita aparecerá quando houver sessões e pedidos suficientes nos dois grupos."
         />
       ) : (
         <>
@@ -95,31 +95,35 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
           {/* KPIs */}
           <div className="grid-4" style={{ gap: 14 }}>
             <StatCard
-              label="Ganho"
+              label="Variação estimada de receita"
               value={vm.summary.lift.grossLiftPercent != null ? `${vm.summary.lift.grossLiftPercent > 0 ? "+" : ""}${vm.summary.lift.grossLiftPercent.toFixed(1)}%` : "—"}
               icon={<TrendingUp size={16} />}
-              accent={vm.summary.lift.grossLiftPercent != null && vm.summary.lift.grossLiftPercent > 0 ? "var(--color-success)" : "var(--color-error)"}
+              accent={vm.summary.lift.grossLiftPercent == null ? "var(--color-text-muted)" : vm.summary.lift.grossLiftPercent >= 0 ? "var(--color-success)" : "var(--color-error)"}
             />
             <StatCard
-              label="Receita Extra"
-              value={vm.summary.lift.netLiftCents != null ? formatBRL(vm.summary.lift.netLiftCents) : "—"}
+              label="Diferença estimada de receita"
+              value={vm.summary.estimatedRevenueDifferenceCents != null ? formatBRL(vm.summary.estimatedRevenueDifferenceCents) : "—"}
               icon={<DollarSign size={16} />}
               accent="var(--color-brand)"
             />
             <StatCard
-              label="Retorno"
-              value={vm.summary.lift.roiPercent != null ? `${vm.summary.lift.roiPercent.toFixed(0)}×` : "—"}
+              label="Contribuição"
+              value={vm.summary.contribution?.contributionCents != null ? formatBRL(vm.summary.contribution.contributionCents) : "—"}
               icon={<Zap size={16} />}
               accent="var(--color-brand)"
             />
             <StatCard
               label="Custo IA"
-              value={formatBRL(vm.summary.aiCostCents)}
+              value={vm.summary.aiCostCents != null ? formatBRL(vm.summary.aiCostCents) : "—"}
               icon={<DollarSign size={16} />}
             />
           </div>
 
           {/* Comparação */}
+          <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", maxWidth: "72ch" }}>
+            A comparação de receita é uma estimativa. A contribuição e o custo total de IA
+            ficam indisponíveis até a conciliação de estornos, mercadorias, frete, taxas e consumo.
+          </p>
           <div className="grid-2" style={{ gap: 14 }}>
             <div className="panel" style={{ padding: "20px 24px" }}>
               <SectionHeader variant="secondary" title="Sessões com IA" />

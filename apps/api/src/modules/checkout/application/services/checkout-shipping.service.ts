@@ -7,6 +7,7 @@ import { CheckoutCustomerService } from "./checkout-customer.service.js";
 import { HttpClientService } from "../../../../shared/http/http-client.service.js";
 import { QuoteShippingUseCase } from "../../../shipping/application/use-cases/quote-shipping.use-case.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
+import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 
 @Injectable()
 export class CheckoutShippingService {
@@ -21,7 +22,7 @@ export class CheckoutShippingService {
   ) { }
 
   async processShippingState(session: CheckoutSession, userMessage: string): Promise<CheckoutSession> {
-    let working = session;
+    let working = structuredClone(session);
     let confirmedAddressThisTurn = false;
 
     if (working.customer?.address?.street && !working.customer?.address_verified) {
@@ -30,10 +31,10 @@ export class CheckoutShippingService {
       const isNo = /^(nao|não|n|errado|esta\s+errado|está\s+errado|rejeitado|rejeito)$/i.test(normalizedMsg);
       if (isYes) {
         confirmedAddressThisTurn = true;
-        working = this.customerService.mergeCustomers(working, { address_verified: true });
-        await this.repository.saveSession(working);
+        working = await commitCheckoutMutation(this.repository, { expected: working,
+          next: this.customerService.mergeCustomers(working, { address_verified: true }) });
       } else if (isNo) {
-        working = this.customerService.mergeCustomers(working, {
+        working = await commitCheckoutMutation(this.repository, { expected: working, next: this.customerService.mergeCustomers(working, {
           address: {
             zip: undefined,
             street: undefined,
@@ -44,8 +45,7 @@ export class CheckoutShippingService {
             state: undefined
           },
           address_verified: false
-        });
-        await this.repository.saveSession(working);
+        }) });
         return working;
       } else {
         // neither yes nor no — stay in confirmation state, do not process as address data
@@ -58,8 +58,8 @@ export class CheckoutShippingService {
     // A yes/no answer cannot also become an address number or complement.
     const numberPatch = confirmedAddressThisTurn ? null : this.tryParseAddressNumbers(userMessage, working);
     if (numberPatch) {
-      working = this.customerService.mergeCustomers(working, numberPatch);
-      await this.repository.saveSession(working);
+      working = await commitCheckoutMutation(this.repository, { expected: working,
+        next: this.customerService.mergeCustomers(working, numberPatch) });
     }
 
     working = await this.tryEnsureShippingOptions(working);
@@ -77,8 +77,7 @@ export class CheckoutShippingService {
         const next = this.customerService.mergeCustomers(session, {
           address: this.customerService.mergeAddr(session.customer?.address, via)
         });
-        await this.repository.saveSession(next);
-        return next;
+        return commitCheckoutMutation(this.repository, { expected: session, next });
       }
     }
     return session;
@@ -125,6 +124,7 @@ export class CheckoutShippingService {
 
     // Try live quotes from MelhorEnvio via QuoteShippingUseCase
     if (this.quoteShipping) {
+      let shippingOptions: ShippingQuote[] | undefined;
       try {
         const cartTotal = session.cart?.items?.reduce(
           (sum, item) => sum + (item.price ?? 0) * (item.quantity ?? 1),
@@ -154,7 +154,7 @@ export class CheckoutShippingService {
         });
 
         if (quoteSnapshot.results.length > 0) {
-          const shippingOptions: ShippingQuote[] = quoteSnapshot.results.map((r) =>
+          shippingOptions = quoteSnapshot.results.map((r) =>
             toCheckoutShippingQuote({
               label: r.label,
               carrierKey: r.carrier_key,
@@ -164,18 +164,15 @@ export class CheckoutShippingService {
               destinationZip: addr.zip ?? ""
             })
           );
-
-          const next: CheckoutSession = {
-            ...session,
-            shippingOptions,
-            updatedAt: new Date().toISOString()
-          };
-          await this.repository.saveSession(next);
-          return next;
         }
       } catch (err) {
         this.logger.warn("Live shipping quote failed, falling back to estimate", err);
       }
+      // A persistence conflict is not a provider failure. Never substitute an
+      // estimate or reuse the response after the buyer/cart/address changed.
+      if (shippingOptions) return commitCheckoutMutation(this.repository, {
+        expected: session, next: { ...session, shippingOptions },
+      });
     }
 
     // Fallback: deterministic estimate based on state/region
@@ -217,8 +214,7 @@ export class CheckoutShippingService {
       ],
       updatedAt: new Date().toISOString()
     };
-    await this.repository.saveSession(next);
-    return next;
+    return commitCheckoutMutation(this.repository, { expected: session, next });
   }
 
   private async trySelectShippingOption(text: string, session: CheckoutSession): Promise<CheckoutSession> {
@@ -229,15 +225,14 @@ export class CheckoutShippingService {
     if (session.customer?.address?.complement === undefined) return session;
     // Guard: don't auto-select if text looks like an address complement
     // (e.g. "Apto 204", "Bloco B", "Casa 3") — prevents false regex matches.
-    if (this.looksLikeAddressComplement(text)) return session;
+    if (!text.trim().startsWith("Entrega ·") && this.looksLikeAddressComplement(text)) return session;
     const selected = this.selectShippingOption(text, session.shippingOptions);
     if (!selected) return session;
-    const next: CheckoutSession = {
+    const next = await commitCheckoutMutation(this.repository, { expected: session, next: {
       ...session,
       shipping: selected,
       updatedAt: new Date().toISOString()
-    };
-    await this.repository.saveSession(next);
+    } });
     // Intent Memory signal: a shipping-option selection is a buyer behaviour
     // signal the intent classifier consumes. Non-blocking — never break the
     // shipping flow if event recording fails.
@@ -252,15 +247,29 @@ export class CheckoutShippingService {
         error: err instanceof Error ? err.message : String(err),
       });
     }
-    return next;
+    // Recording the event updates the session too. Continue with its current
+    // snapshot, including any concurrent cart invalidation; never reapply the
+    // old selected quote over a newer cart or carry a stale persistence token.
+    return await this.repository.getSession(next.merchantId, next.sessionId) ?? next;
   }
 
   private selectShippingOption(text: string, options: ShippingQuote[]): ShippingQuote | null {
-    const normalized = text
+    const normalize = (value: string) => value
       .normalize("NFD")
       .replace(/\p{Diacritic}/gu, "")
-      .toLowerCase();
+      .toLowerCase().trim();
 
+    // A button identifies the complete server label. Never reinterpret a stale
+    // or ambiguous button as a fuzzy carrier match or a numbered option.
+    // Read the marker first: Unicode's Diacritic property also includes '·'.
+    if (text.trim().startsWith("Entrega ·")) {
+      const label = normalize(text.trim().slice("Entrega ·".length));
+      if (!label) return null;
+      const matches = options.filter(option => normalize([option.carrier, option.method].filter(Boolean).join(" ")) === label);
+      return matches.length === 1 ? matches[0]! : null;
+    }
+
+    const normalized = normalize(text);
     if (/(?<!\d)\b(1|primeir[ao]|pac|economi[ac]|barat[ao])\b(?!\d)/.test(normalized)) {
       return this.findOption(options, /pac|econom/i) ?? options[0] ?? null;
     }

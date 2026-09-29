@@ -1,5 +1,6 @@
 import { randomUUID } from "node:crypto";
 import type { AdvancedRule } from "@zyon/shared-types";
+import type { DiscountSimulation } from "../services/discount-rule-hypothesis.service.js";
 
 export type HypothesisType = "prompt" | "discount_rule";
 
@@ -22,6 +23,7 @@ export type HypothesisSnapshot = {
    * sem migration de coluna.
    */
   discount_rule_json?: AdvancedRule;
+  discount_simulation?: DiscountSimulation;
   template: {
     name: string;
     description: string;
@@ -54,6 +56,7 @@ export class HypothesisEntity {
     approval_strategy: "auto" | "manual";
     hypothesis_type?: HypothesisType;
     discount_rule_json?: AdvancedRule;
+    discount_simulation?: DiscountSimulation;
   }): HypothesisEntity {
     const id = randomUUID();
     const now = new Date().toISOString();
@@ -69,6 +72,7 @@ export class HypothesisEntity {
       risk_level: input.risk_level,
       hypothesis_type: hypothesisType,
       ...(input.discount_rule_json ? { discount_rule_json: input.discount_rule_json } : {}),
+      ...(input.discount_simulation ? { discount_simulation: structuredClone(input.discount_simulation) } : {}),
       template: input.template,
       status: isAutoApproved ? "approved" : "pending_review",
       approval_strategy: isAutoApproved ? "auto" : "manual",

@@ -372,10 +372,12 @@ model CheckoutSession {
   abandonmentScore Float    @default(0) @map("abandonment_score")
   triggerAgent     Boolean  @default(false) @map("trigger_agent")
   chatHistory      Json     @default("[]") @map("chat_history")
+  paymentMethod    String?  @map("payment_method")
   promptVariantId  String?  @map("prompt_variant_id")
   cohort           String?
   featuresApplied  Json?    @map("features_applied")
   aiCostCents      Int      @default(0) @map("ai_cost_cents")
+  strategyContextVersion Int @default(0) @map("strategy_context_version")
   version          Int      @default(0)
   createdAt        DateTime @map("created_at")
   updatedAt        DateTime @map("updated_at")
@@ -384,13 +386,100 @@ model CheckoutSession {
   authorizedOffers AuthorizedOffer[]
   acceptedOffers   AcceptedOffer[]
   completedOrders  CompletedOrder[]
+  strategyAssignments StrategyAssignment[]
+  chatRequests CheckoutChatRequest[]
+  incentiveReservations StrategyIncentiveReservation[]
 
   @@unique([merchantId, sessionId])
   @@index([merchantId, updatedAt])
   @@index([merchantId, createdAt])
   @@index([merchantId, cohort, createdAt])
+  @@index([merchantId, promptVariantId, createdAt])
   @@index([globalUserId, merchantId, createdAt])
   @@map("checkout_sessions")
+}
+
+model CheckoutChatRequest {
+  id             String   @id
+  merchantId     String   @map("merchant_id")
+  sessionId      String   @map("session_id")
+  conversationId String   @map("conversation_id")
+  messageId      String   @map("message_id")
+  requestHash    String   @map("request_hash")
+  status         String
+  responseHash   String?  @map("response_hash")
+  startedAt      DateTime @map("started_at")
+  finishedAt     DateTime? @map("finished_at")
+  protocolVersion Int     @default(2) @map("protocol_version")
+  buyerMessageHash String? @map("buyer_message_hash")
+
+  session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
+  exchange CheckoutChatExchange?
+  strategyTurn StrategyTurn?
+  strategyPublication StrategyTurnPublication?
+  resolution CheckoutChatResolution?
+  paymentResolution CheckoutChatPaymentResolution?
+
+  @@unique([id, merchantId])
+  @@unique([id, merchantId, sessionId])
+  @@unique([merchantId, sessionId, messageId])
+  @@index([status, startedAt])
+  @@map("checkout_chat_requests")
+}
+
+model CheckoutChatExchange {
+  requestId    String   @id @map("request_id")
+  merchantId   String   @map("merchant_id")
+  sessionId    String   @map("session_id")
+  exchangeHash String   @map("exchange_hash")
+  recordedAt   DateTime @map("recorded_at")
+
+  paymentMethod String? @map("payment_method")
+  paymentCartHash String? @map("payment_cart_hash")
+  paymentContextHash String? @map("payment_context_hash")
+
+  request CheckoutChatRequest @relation(fields: [requestId, merchantId, sessionId], references: [id, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
+  strategyPublication StrategyTurnPublication?
+
+  @@unique([requestId, merchantId, sessionId])
+  @@index([merchantId, sessionId, recordedAt])
+  @@map("checkout_chat_exchanges")
+}
+
+/// Reconciles an immutable main-chat publication decision. Suppression also
+/// requires its reviewed policy and stopped assignment. Never retries a provider.
+model CheckoutChatResolution {
+  requestId String @id @map("request_id")
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  turnId String @map("turn_id")
+  previousStatus String @map("previous_status")
+  previousFinishedAt DateTime? @map("previous_finished_at")
+  resolvedAt DateTime @map("resolved_at")
+  request CheckoutChatRequest @relation(fields: [requestId, merchantId, sessionId], references: [id, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict, map: "checkout_chat_resolution_request_fkey")
+  publication StrategyTurnPublication @relation(fields: [turnId, merchantId], references: [turnId, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([turnId, merchantId])
+  @@unique([requestId, merchantId, sessionId], map: "checkout_chat_resolution_request_scope_key")
+  @@index([merchantId, sessionId, resolvedAt], map: "checkout_chat_resolution_scope_idx")
+  @@map("checkout_chat_resolutions")
+}
+
+/// Read-only recovery of a persisted financial result, never permission to retry a charge.
+model CheckoutChatPaymentResolution {
+  requestId String @id @map("request_id")
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  paymentIntentId String @map("payment_intent_id")
+  paymentVersion Int @map("payment_version")
+  paymentStatus String @map("payment_status")
+  previousStatus String @map("previous_status")
+  previousFinishedAt DateTime? @map("previous_finished_at")
+  resolvedAt DateTime @map("resolved_at")
+  request CheckoutChatRequest @relation(fields: [requestId, merchantId, sessionId], references: [id, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict, map: "chat_payment_resolution_request_fk")
+  payment PaymentIntent @relation(fields: [paymentIntentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict, map: "chat_payment_resolution_intent_fk")
+  @@unique([requestId, merchantId, sessionId], map: "chat_payment_resolution_request_scope_key")
+  @@index([merchantId, sessionId, resolvedAt], map: "chat_payment_resolution_scope_idx")
+  @@map("checkout_chat_payment_resolutions")
 }
 
 model CheckoutEvent {
@@ -566,7 +655,9 @@ model CompletedOrder {
   cancellationReason String?   @map("cancellation_reason")
 
   session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Cascade)
+  strategyCostSnapshot StrategyOrderCostSnapshot?
 
+  @@unique([id, merchantId])
   @@unique([merchantId, sessionId, externalOrderId])
   @@index([merchantId, completedAt])
   @@index([merchantId, status, completedAt])
@@ -916,6 +1007,7 @@ model PaymentIntent {
   updatedAt           DateTime @updatedAt @map("updated_at")
 
   settlements PaymentSettlement[]
+  chatResolutions CheckoutChatPaymentResolution[]
 
   @@unique([merchantId, sessionId, idempotencyKey])
   @@unique([merchantId, providerPaymentId])
@@ -2148,11 +2240,46 @@ model PromptExperiment {
   updatedAt       DateTime  @updatedAt @map("updated_at")
 
   variants PromptVariant[]
+  measurementPlan ExperimentMeasurementPlan?
 
+  @@unique([id, merchantId])
   @@unique([merchantId, name])
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
   @@map("prompt_experiments")
+}
+
+/// Preregistered once, before assignment. Changes require a new experiment.
+model ExperimentMeasurementPlan {
+  experimentId String @id @map("experiment_id")
+  merchantId String @map("merchant_id")
+  planHash String @map("plan_hash")
+  plan Json
+  createdAt DateTime @default(now()) @map("created_at")
+  experiment PromptExperiment @relation(fields: [experimentId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  reviews ExperimentMeasurementReview[]
+  strategyExecution StrategyExecution?
+
+  @@unique([experimentId, merchantId])
+  @@index([merchantId, createdAt])
+  @@map("experiment_measurement_plans")
+}
+
+/// Immutable evidence snapshots. Corrections create a new snapshot.
+model ExperimentMeasurementReview {
+  id String @id
+  experimentId String @map("experiment_id")
+  merchantId String @map("merchant_id")
+  requestKey String @map("request_key")
+  planHash String @map("plan_hash")
+  evidenceHash String @map("evidence_hash")
+  result Json
+  collectedAt DateTime @default(now()) @map("collected_at")
+  measurementPlan ExperimentMeasurementPlan @relation(fields: [experimentId, merchantId], references: [experimentId, merchantId], onDelete: Restrict)
+
+  @@unique([merchantId, experimentId, requestKey], map: "experiment_measurement_reviews_request_key")
+  @@index([merchantId, experimentId, collectedAt], map: "experiment_measurement_reviews_collected_at_idx")
+  @@map("experiment_measurement_reviews")
 }
 
 model PromptVariant {
@@ -3297,4 +3424,583 @@ model WhatsAppDelivery {
   @@index([merchantId, state])
   @@index([providerMessageId])
   @@map("whatsapp_deliveries")
+}
+
+
+model AiUsageEvent {
+  id                String   @id @default(cuid())
+  idempotencyKey    String   @unique @map("idempotency_key")
+  providerEventId   String?  @map("provider_event_id")
+  merchantId        String   @map("merchant_id")
+  source            String
+  channel           String
+  component         String
+  provider          String
+  model             String
+  executionStatus   String   @map("execution_status")
+  promptTokens      Int?     @map("prompt_tokens")
+  completionTokens  Int?     @map("completion_tokens")
+  totalTokens       Int?     @map("total_tokens")
+  costMicros        BigInt?  @map("cost_micros")
+  currency          String?
+  pricingVersion    String?  @map("pricing_version")
+  costStatus        String   @default("unpriced") @map("cost_status")
+  startedAt         DateTime @map("started_at")
+  completedAt       DateTime @map("completed_at")
+  latencyMs         Int      @map("latency_ms")
+  conversationId    String?  @map("conversation_id")
+  voiceSessionId    String?  @map("voice_session_id")
+  correlationId     String?  @map("correlation_id")
+  parentUsageEventId String? @map("parent_usage_event_id")
+  metadata          Json?
+  capturedAt        DateTime @default(now()) @map("captured_at")
+
+  @@index([merchantId, startedAt])
+  @@index([merchantId, channel, startedAt])
+  @@index([provider, providerEventId])
+  @@index([conversationId, startedAt])
+  @@map("ai_usage_events")
+}
+
+model AiPriceVersion {
+  id                     String   @id @default(cuid())
+  version                String   @unique
+  provider               String
+  model                  String
+  channel                String
+  component              String
+  currency               String
+  inputMicrosPerMillion  BigInt?  @map("input_micros_per_million")
+  outputMicrosPerMillion BigInt?  @map("output_micros_per_million")
+  effectiveFrom          DateTime @map("effective_from")
+  effectiveTo            DateTime? @map("effective_to")
+  source                 String
+  createdAt              DateTime @default(now()) @map("created_at")
+
+  @@index([provider, model, channel, component, effectiveFrom])
+  @@map("ai_price_versions")
+}
+
+// Weekly Revenue Intelligence. All transitions are tenant scoped and fenced.
+model RevenueAnalysisSchedule {
+  merchantId String @id @map("merchant_id")
+  timezone String @default("America/Sao_Paulo")
+  group Int
+  nextDueAt DateTime @map("next_due_at")
+  lastSuccessfulAt DateTime? @map("last_successful_at")
+  currentRunId String? @map("current_run_id")
+  cycle Int @default(0)
+  migratedAt DateTime @default(now()) @map("migrated_at")
+  @@index([nextDueAt, merchantId])
+  @@map("revenue_analysis_schedules")
+}
+
+model RevenueAnalysisRun {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  cycle Int
+  status String @default("queued")
+  result String?
+  reason String?
+  attempts Int @default(0)
+  leaseToken Int @default(0) @map("lease_token")
+  leaseUntil DateTime? @map("lease_until")
+  retryAt DateTime @default(now()) @map("retry_at")
+  asOf DateTime? @map("as_of")
+  observationId String? @map("observation_id")
+  hypothesisId String? @map("hypothesis_id")
+  generatedJson Json? @map("generated_json")
+  measurementPlanningJson Json? @map("measurement_planning_json")
+  discountStudyJson Json? @map("discount_study_json")
+  incentiveRecommendationJson Json? @map("incentive_recommendation_json")
+  sharedLearningJson Json? @map("shared_learning_json")
+  createdAt DateTime @default(now()) @map("created_at")
+  startedAt DateTime? @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  strategies RevenueStrategy[]
+  @@unique([id, merchantId])
+  @@unique([merchantId, cycle])
+  @@index([status, retryAt, createdAt])
+  @@map("revenue_analysis_runs")
+}
+
+model RevenueAiReservation {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  runId String @map("run_id")
+  workType String @map("work_type")
+  provider String
+  model String
+  currency String
+  priceVersion String @map("price_version")
+  inputRate BigInt @map("input_rate")
+  outputRate BigInt @map("output_rate")
+  maxInputTokens Int @map("max_input_tokens")
+  maxOutputTokens Int @map("max_output_tokens")
+  amountMicros BigInt @map("amount_micros")
+  state String @default("dispatched")
+  usageKey String @unique @map("usage_key")
+  createdAt DateTime @default(now()) @map("created_at")
+  settledAt DateTime? @map("settled_at")
+  @@index([currency, createdAt])
+  @@index([runId])
+  @@index([provider, model, state, createdAt])
+  @@map("revenue_ai_reservations")
+}
+
+model RevenueStrategy {
+  id String @id
+  merchantId String @map("merchant_id")
+  runId String @map("run_id")
+  currentVersion Int @default(1) @map("current_version")
+  status String @default("pending_review")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  versions RevenueStrategyVersion[]
+  run RevenueAnalysisRun @relation(fields: [runId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([id, merchantId])
+  @@unique([merchantId, runId])
+  @@index([merchantId, createdAt, id])
+  @@map("revenue_strategies")
+}
+
+model RevenueStrategyVersion {
+  strategyId String @map("strategy_id")
+  merchantId String @map("merchant_id")
+  version Int
+  proposalHash String @map("proposal_hash")
+  proposal Json
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+  strategy RevenueStrategy @relation(fields: [strategyId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  actions RevenueStrategyAction[]
+  executions StrategyExecution[]
+  incentiveBudgets StrategyIncentiveBudget[]
+  incentiveReviews StrategyIncentiveReview[]
+  @@id([strategyId, merchantId, version])
+  @@map("revenue_strategy_versions")
+}
+
+// Accepted commands are immutable. Revision execution has its own lease/checkpoint.
+model RevenueStrategyAction {
+  id String @id
+  strategyId String @map("strategy_id")
+  merchantId String @map("merchant_id")
+  version Int
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  actorId String @map("actor_id")
+  kind String
+  feedback String? @db.Text
+  result Json
+  createdAt DateTime @default(now()) @map("created_at")
+  proposal RevenueStrategyVersion @relation(fields: [strategyId, merchantId, version], references: [strategyId, merchantId, version], onDelete: Restrict)
+  revision RevenueStrategyRevision?
+  execution StrategyExecution?
+  @@unique([strategyId, merchantId, requestKey], map: "revenue_strategy_action_request_key")
+  @@unique([id, merchantId])
+  @@index([strategyId, merchantId, createdAt])
+  @@map("revenue_strategy_actions")
+}
+
+/// Financial envelope only. Separate commercial execution/review must authorize
+/// every actual offer; the communication approval never creates this record.
+model StrategyIncentiveBudget {
+  id String @id
+  merchantId String @map("merchant_id")
+  strategyId String @map("strategy_id")
+  version Int
+  proposalHash String @map("proposal_hash")
+  termsHash String @map("terms_hash")
+  terms Json
+  policyVersion Int? @map("policy_version")
+  reviewId String? @map("review_id")
+  review StrategyIncentiveReview? @relation(fields: [reviewId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  policy MerchantIncentivePolicy? @relation(fields: [merchantId, policyVersion], references: [merchantId, version], onDelete: Restrict, onUpdate: Restrict)
+  actorId String @map("actor_id")
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  limitCents Int @map("limit_cents")
+  maxDiscountCents Int @map("max_discount_cents")
+  maxRedemptions Int @map("max_redemptions")
+  reservedCents Int @default(0) @map("reserved_cents")
+  spentCents Int @default(0) @map("spent_cents")
+  reservedCount Int @default(0) @map("reserved_count")
+  spentCount Int @default(0) @map("spent_count")
+  startsAt DateTime @map("starts_at")
+  endsAt DateTime @map("ends_at")
+  approvedAt DateTime @map("approved_at")
+  closedAt DateTime? @map("closed_at")
+  closedBy String? @map("closed_by")
+  closeReason String? @map("close_reason")
+  proposal RevenueStrategyVersion @relation(fields: [strategyId, merchantId, version], references: [strategyId, merchantId, version], onDelete: Restrict, onUpdate: Restrict)
+  reservations StrategyIncentiveReservation[]
+  @@unique([id, merchantId])
+  @@unique([merchantId, requestKey])
+  @@unique([strategyId, merchantId])
+  @@map("strategy_incentive_budgets")
+}
+
+/// No timeout releases funds. A terminal resolution requires durable evidence
+/// from the commerce transaction; an uncertain attempt remains reserved.
+model StrategyIncentiveReservation {
+  id String @id
+  merchantId String @map("merchant_id")
+  budgetId String @map("budget_id")
+  sessionId String @map("session_id")
+  buyerId String @map("buyer_id")
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  amountCents Int @map("amount_cents")
+  reservedAt DateTime @map("reserved_at")
+  status String @default("reserved")
+  spentCents Int? @map("spent_cents")
+  resolvedAt DateTime? @map("resolved_at")
+  evidenceKey String? @map("evidence_key")
+  resolutionHash String? @map("resolution_hash")
+  budget StrategyIncentiveBudget @relation(fields: [budgetId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([budgetId, merchantId, requestKey])
+  @@unique([budgetId, merchantId, evidenceKey])
+  @@index([budgetId, merchantId, status])
+  @@map("strategy_incentive_reservations")
+}
+
+/// A decision about the recommended incentive, never checkout activation.
+/// Sequence 1 approves/rejects; sequence 2 permanently withdraws an approval.
+model StrategyIncentiveReview {
+  id String @id
+  merchantId String @map("merchant_id")
+  strategyId String @map("strategy_id")
+  version Int
+  sequence Int
+  kind String
+  proposalHash String @map("proposal_hash")
+  recommendationHash String @map("recommendation_hash")
+  policyVersion Int @map("policy_version")
+  policyHash String @map("policy_hash")
+  actorId String @map("actor_id")
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  feedback String? @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+  proposal RevenueStrategyVersion @relation(fields: [strategyId, merchantId, version], references: [strategyId, merchantId, version], onDelete: Restrict, onUpdate: Restrict)
+  budgets StrategyIncentiveBudget[]
+  @@unique([id, merchantId])
+  @@unique([strategyId, merchantId, requestKey])
+  @@unique([strategyId, merchantId, version, sequence])
+  @@map("strategy_incentive_reviews")
+}
+
+model StrategyIncentiveReviewHead {
+  strategyId String @map("strategy_id")
+  merchantId String @map("merchant_id")
+  version Int
+  currentSequence Int @map("current_sequence")
+  @@id([strategyId, merchantId, version])
+  @@map("strategy_incentive_review_heads")
+}
+
+model MerchantIncentivePolicyHead {
+  merchantId     String @id @map("merchant_id")
+  currentVersion Int    @map("current_version")
+
+  @@map("merchant_incentive_policy_heads")
+}
+
+model MerchantIncentivePolicy {
+  merchantId String @map("merchant_id")
+  version Int
+  enabled Boolean
+  limitCents Int @map("limit_cents")
+  maxDiscountCents Int @map("max_discount_cents")
+  maxRedemptions Int @map("max_redemptions")
+  policyHash String @map("policy_hash")
+  actorId String @map("actor_id")
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+  budgets StrategyIncentiveBudget[]
+  @@id([merchantId, version])
+  @@unique([merchantId, requestKey])
+  @@map("merchant_incentive_policies")
+}
+
+model RevenueStrategyRevision {
+  id String @id
+  merchantId String @map("merchant_id")
+  status String @default("queued")
+  reason String?
+  attempts Int @default(0)
+  leaseToken Int @default(0) @map("lease_token")
+  leaseUntil DateTime? @map("lease_until")
+  retryAt DateTime @default(now()) @map("retry_at")
+  generatedJson Json? @map("generated_json")
+  completedAt DateTime? @map("completed_at")
+  action RevenueStrategyAction @relation(fields: [id, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([id, merchantId])
+  @@index([status, retryAt, id])
+  @@map("revenue_strategy_revisions")
+}
+
+/// Frozen approved recipe; lifecycle changes never replace the reviewed version.
+model StrategyExecution {
+  id String @id
+  merchantId String @map("merchant_id")
+  strategyId String @map("strategy_id")
+  version Int
+  approvalActionId String @unique @map("approval_action_id")
+  experimentId String @unique @map("experiment_id")
+  proposalHash String @map("proposal_hash")
+  contractHash String @map("contract_hash")
+  contract Json
+  status String
+  startedAt DateTime @map("started_at")
+  endsAt DateTime @map("ends_at")
+  stoppedAt DateTime? @map("stopped_at")
+  proposal RevenueStrategyVersion @relation(fields: [strategyId, merchantId, version], references: [strategyId, merchantId, version], onDelete: Restrict)
+  approval RevenueStrategyAction @relation(fields: [approvalActionId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  plan ExperimentMeasurementPlan @relation(fields: [experimentId, merchantId], references: [experimentId, merchantId], onDelete: Restrict)
+  assignments StrategyAssignment[]
+  events StrategyExecutionEvent[]
+  @@unique([id, merchantId])
+  @@unique([approvalActionId, merchantId])
+  @@unique([experimentId, merchantId])
+  @@index([merchantId, status])
+  @@map("strategy_executions")
+}
+
+/// Intent-to-treat denominator, immutable even if the buyer never chats or buys.
+model StrategyAssignment {
+  id String @id
+  executionId String @map("execution_id")
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  globalUserId String @map("global_user_id")
+  variantId String @map("variant_id")
+  arm String
+  assignedAt DateTime @map("assigned_at")
+  execution StrategyExecution @relation(fields: [executionId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Restrict)
+  turns StrategyTurn[]
+  stop StrategyAssignmentStop?
+  orderCosts StrategyOrderCostSnapshot[]
+  @@unique([id, merchantId])
+  @@unique([merchantId, sessionId])
+  @@unique([executionId, merchantId, globalUserId])
+  @@index([executionId, merchantId, assignedAt])
+  @@map("strategy_assignments")
+}
+
+/// Catalog costs captured atomically when an assigned order is first recorded.
+/// This is a configured merchandise cost, never proof of realized contribution.
+model StrategyOrderCostSnapshot {
+  orderId String @id @map("order_id")
+  merchantId String @map("merchant_id")
+  assignmentId String @map("assignment_id")
+  definition String
+  currency String
+  lineCosts Json @map("line_costs")
+  productCostCents BigInt? @map("product_cost_cents")
+  issues String[]
+  capturedAt DateTime @default(now()) @map("captured_at")
+  order CompletedOrder @relation(fields: [orderId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  assignment StrategyAssignment @relation(fields: [assignmentId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([orderId, merchantId])
+  @@index([merchantId, assignmentId])
+  @@map("strategy_order_cost_snapshots")
+}
+
+/// A verified/corrected checkout identity must not break checkout or silently
+/// replace the participant. Keep the denominator and stop experimental turns.
+model StrategyAssignmentStop {
+  assignmentId String @id @map("assignment_id")
+  merchantId String @map("merchant_id")
+  reason String
+  stoppedAt DateTime @map("stopped_at")
+  assignment StrategyAssignment @relation(fields: [assignmentId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([assignmentId, merchantId])
+  @@map("strategy_assignment_stops")
+}
+
+/// Admission is not proof of provider success or of a response shown to a buyer.
+model StrategyTurn {
+  id String @id
+  merchantId String @map("merchant_id")
+  assignmentId String @map("assignment_id")
+  requestKey String @map("request_key")
+  inputHash String @map("input_hash")
+  promptHash String @map("prompt_hash")
+  sessionContextHash String? @map("session_context_hash")
+  sessionContextVersion Int? @map("session_context_version")
+  chatRequestId String? @map("chat_request_id")
+  publicationPolicy String? @map("publication_policy")
+  admittedAt DateTime @map("admitted_at")
+  assignment StrategyAssignment @relation(fields: [assignmentId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  outcome StrategyTurnOutcome?
+  completion StrategyTurnCompletion?
+  aiReservation StrategyAiReservation?
+  chatRequest CheckoutChatRequest? @relation(fields: [chatRequestId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([chatRequestId, merchantId])
+  @@unique([id, merchantId])
+  @@unique([assignmentId, merchantId, requestKey])
+  @@map("strategy_turns")
+}
+
+/// One budget claim per admitted strategy turn, linked to the shared AI usage ledger.
+model StrategyAiReservation {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  provider String
+  model String
+  currency String
+  priceVersion String @map("price_version")
+  inputRate BigInt @map("input_rate")
+  outputRate BigInt @map("output_rate")
+  maxInputTokens Int @map("max_input_tokens")
+  maxOutputTokens Int @map("max_output_tokens")
+  amountMicros BigInt @map("amount_micros")
+  usageKey String @unique @map("usage_key")
+  payloadHash String @map("payload_hash")
+  state String @default("dispatched")
+  createdAt DateTime @default(now()) @map("created_at")
+  settledAt DateTime? @map("settled_at")
+  turn StrategyTurn @relation(fields: [turnId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([turnId, merchantId])
+  @@index([currency, createdAt])
+  @@index([provider, model, state, createdAt])
+  @@map("strategy_ai_reservations")
+}
+
+model StrategyTurnOutcome {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  outcome String
+  recordedAt DateTime @map("recorded_at")
+  turn StrategyTurn @relation(fields: [turnId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([turnId, merchantId])
+  @@map("strategy_turn_outcomes")
+}
+
+/// Eligibility when the provider result was recorded. Never an exposure,
+/// response-persistence receipt, or permission to execute tools later.
+model StrategyTurnCompletion {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  responseHash String? @map("response_hash")
+  decision String
+  reason String
+  recordedAt DateTime @map("recorded_at")
+  turn StrategyTurn @relation(fields: [turnId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  publication StrategyTurnPublication?
+  @@unique([turnId, merchantId])
+  @@map("strategy_turn_completions")
+}
+
+/// A one-time publication decision. Persisted means stored in checkout history,
+/// never proof that the buyer saw it or that tools/commercial effects succeeded.
+model StrategyTurnPublication {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  requestId String @map("request_id")
+  exchangeRequestId String? @map("exchange_request_id")
+  responseHash String @map("response_hash")
+  agentTextHash String? @map("agent_text_hash")
+  navigationTools Json? @map("navigation_tools")
+  decision String
+  reason String
+  recordedAt DateTime @map("recorded_at")
+  completion StrategyTurnCompletion @relation(fields: [turnId, merchantId], references: [turnId, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  request CheckoutChatRequest @relation(fields: [requestId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  exchange CheckoutChatExchange? @relation(fields: [exchangeRequestId, merchantId, sessionId], references: [requestId, merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict, map: "strategy_turn_publications_exchange_fkey")
+  resolution CheckoutChatResolution?
+  display StrategyMessageDisplay?
+  @@unique([turnId, merchantId])
+  @@unique([requestId, merchantId])
+  @@unique([exchangeRequestId, merchantId, sessionId], map: "strategy_turn_publications_exchange_scope_key")
+  @@index([merchantId, recordedAt])
+  @@map("strategy_turn_publications")
+}
+
+model StrategyExecutionEvent {
+  id String @id
+  executionId String @map("execution_id")
+  merchantId String @map("merchant_id")
+  requestKey String @map("request_key")
+  actorId String @map("actor_id")
+  kind String
+  occurredAt DateTime @map("occurred_at")
+  execution StrategyExecution @relation(fields: [executionId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  @@unique([executionId, merchantId, requestKey])
+  @@map("strategy_execution_events")
+}
+
+/// Authenticated client report of visible text, not proof of attention or purchase.
+/// Publication and assignment remain the source of version/arm attribution.
+model StrategyMessageDisplay {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  sessionId String @map("session_id")
+  conversationId String @map("conversation_id")
+  agentTextHash String @map("agent_text_hash")
+  definition String
+  recordedAt DateTime @default(now()) @map("recorded_at")
+  publication StrategyTurnPublication @relation(fields: [turnId, merchantId], references: [turnId, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([turnId, merchantId])
+  @@index([merchantId, sessionId, recordedAt])
+  @@map("strategy_message_displays")
+}
+
+model StrategyIncentiveExecution {
+  id String @id
+  merchantId String @map("merchant_id")
+  strategyId String @map("strategy_id")
+  version Int
+  reviewId String @unique @map("review_id")
+  budgetId String @unique @map("budget_id")
+  recommendation Json
+  recommendationHash String @map("recommendation_hash")
+  startedAt DateTime @map("started_at")
+  endsAt DateTime @map("ends_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([strategyId, merchantId])
+  @@unique([id, merchantId])
+  @@index([merchantId, endsAt])
+  @@map("strategy_incentive_executions")
+}
+
+model StrategyIncentiveAssignment {
+  id String @id
+  merchantId String @map("merchant_id")
+  executionId String @map("execution_id")
+  sessionId String @map("session_id")
+  buyerId String @map("buyer_id")
+  arm String
+  assignedAt DateTime @map("assigned_at")
+  cartHash String @map("cart_hash")
+  amountCents Int @map("amount_cents")
+  costCents Int @map("cost_cents")
+  reservationId String? @unique @map("reservation_id")
+  @@unique([merchantId, sessionId])
+  @@unique([executionId, merchantId, buyerId])
+  @@unique([id, merchantId])
+  @@index([executionId, merchantId, arm])
+  @@map("strategy_incentive_assignments")
+}
+
+model StrategyIncentivePaymentEvidence {
+  id String @id
+  merchantId String @map("merchant_id")
+  assignmentId String @map("assignment_id")
+  paymentId String @map("payment_id")
+  paymentVersion Int @map("payment_version")
+  status String
+  amountCents Int @map("amount_cents")
+  discountCents Int @map("discount_cents")
+  occurredAt DateTime @map("occurred_at")
+  @@unique([paymentId, paymentVersion])
+  @@index([assignmentId, merchantId, occurredAt])
+  @@map("strategy_incentive_payment_evidence")
 }

@@ -10,6 +10,7 @@ import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../../storefro
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { CartPromoResolutionService } from "./cart-promo-resolution.service.js";
 import type { TrustedCheckoutBuyer } from "./trusted-checkout-buyer.js";
+import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 
 interface BootstrapResult {
   session: CheckoutSession;
@@ -96,6 +97,12 @@ export class CheckoutBootstrapService {
         shipping: enrichedInput.shipping
       }).snapshot();
 
+      // Cohort must be known before atomic experiment enrollment. A resumed
+      // checkout keeps its original cohort rather than recomputing assignment.
+      session.cohort = this.holdoutGroupService
+        ? this.holdoutGroupService.assignCohort(session.globalUserId, session.merchantId)
+        : "treatment";
+
       if (cartRef && session.cart) {
         (session.cart as any).cart_ref = cartRef;
       }
@@ -110,6 +117,9 @@ export class CheckoutBootstrapService {
         await this.sessions.saveSession(session);
         await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
       }
+      // The event advances the persisted session too. Continue from that state
+      // before hydration or the next save; never overwrite a concurrent cart.
+      session = await this.sessions.getSession(input.merchant_id, sessionId) ?? session;
     }
 
     // The embed capability remains bound to its first checkout buyer. A new
@@ -126,13 +136,14 @@ export class CheckoutBootstrapService {
 
     if (identity?.refreshCart) {
       // Requote items, delivery and payment after absence, preserving verified identity.
-      session.cart = enrichedInput.cart;
-      session.shipping = undefined;
-      session.shippingOptions = undefined;
-      session.paymentMethod = undefined;
-      session.abandonmentScore = 0;
-      session.triggerAgent = false;
-      session.updatedAt = new Date().toISOString();
+      // Preserve the old benefit as input; the transaction removes it when its
+      // commercial context changes. A refresh cannot grant a caller's discount.
+      session = await commitCheckoutMutation(this.sessions, { expected: session, next: {
+        ...session, cart: { ...enrichedInput.cart, currentDiscount: session.cart.currentDiscount,
+          commercialNudge: session.cart.commercialNudge },
+        shipping: undefined, shippingOptions: undefined, paymentMethod: undefined,
+        abandonmentScore: 0, triggerAgent: false,
+      } });
     }
 
     this.logger.warn('[CHECKOUT-DBG] session saved', { sessionId, customer: { cpf: !!session.customer?.cpf, name: !!session.customer?.fullName, asaasId: !!session.customer?.asaasCustomerId } });
@@ -144,7 +155,7 @@ export class CheckoutBootstrapService {
     const cohort = this.holdoutGroupService
       ? this.holdoutGroupService.assignCohort(session.globalUserId, session.merchantId)
       : ("treatment" as const);
-    session.cohort = cohort;
+    session.cohort = session.cohort ?? cohort;
     session.featuresApplied = session.featuresApplied ?? {};
     session.aiCostCents = session.aiCostCents ?? 0;
 

@@ -3,6 +3,7 @@ import {
   Body,
   Controller,
   Get,
+  Header,
   Inject,
   Injectable,
   Logger,
@@ -12,12 +13,14 @@ import {
   Req,
   Param,
   UnauthorizedException,
+  ServiceUnavailableException,
   UseGuards
 } from "@nestjs/common";
 import type {
   ApplyOfferRequest,
   ApplyOfferResponse,
   ChatMessageRequest,
+  ChatMessageReference,
   StartCheckoutRequest,
   TrackEventRequest,
   UpdateCartRequest
@@ -26,6 +29,7 @@ import { ApplyOfferUseCase } from "../../../checkout/application/use-cases/apply
 import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/send-chat-message.use-case.js";
+import { ReconcileChatMessageUseCase } from "../../../checkout/application/use-cases/reconcile-chat-message.use-case.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { ConfirmCryptoPaymentUseCase } from "../../../payment/application/confirm-crypto-payment.use-case.js";
 import { ConfirmStripePaymentUseCase } from "../../../payment/application/confirm-stripe-payment.use-case.js";
@@ -105,6 +109,7 @@ export class EmbedCheckoutController {
     private readonly updateCart: UpdateCartUseCase,
     private readonly updateEmbedCustomer: UpdateEmbedCustomerUseCase,
     @Optional() private readonly resolveBuyer?: ResolveEmbedBuyerService,
+    @Optional() private readonly reconcileChat?: ReconcileChatMessageUseCase,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
@@ -141,12 +146,15 @@ export class EmbedCheckoutController {
       buyer_access_token?: unknown;
       global_user_id?: unknown;
     };
-    return this.startCheckout.execute({
+    const result = await this.startCheckout.execute({
       ...(rest as Omit<StartCheckoutRequest, "merchant_id">),
       merchant_id: embed.merchantId,
       session_id: sessionId,
       cart: recovered?.cart ?? (embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart),
     }, { storefrontCartRef: recovered ? (recovered.cart as { cart_ref?: string }).cart_ref : embed.storefrontCartRef, trustedBuyer, requireBuyerProof: true, refreshCart: !!recovered });
+    const chatState = await this.reconcileChat?.readState(embed.merchantId, result.session_id);
+    // start scope advertises capability only; reading history still requires chat scope.
+    return { ...result, ...(chatState?.protocol === "durable_v2" ? { chat_protocol: "durable_v2" as const } : {}) };
   }
 
   @Post("track")
@@ -178,6 +186,56 @@ export class EmbedCheckoutController {
       ...(rest as Omit<ChatMessageRequest, "merchant_id">),
       merchant_id: embed.merchantId
     });
+  }
+
+  @Post("chat/reconcile")
+  @RateLimit(120)
+  @RequireEmbedScope("checkout:chat")
+  async reconcileMessage(@Req() request: EmbedHttpRequest, @Body() body: ChatMessageReference) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.execute({ merchant_id: embed.merchantId, session_id: body.session_id,
+      conversation_id: body.conversation_id, message_id: body.message_id });
+  }
+
+  @Post("chat/display")
+  @RateLimit(120)
+  @RequireEmbedScope("checkout:chat")
+  async chatDisplay(@Req() request: EmbedHttpRequest, @Body() body: import("@zyon/shared-types").ChatDisplayReport) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.recordDisplay(embed.merchantId, { session_id: body.session_id,
+      conversation_id: body.conversation_id, display_ref: body.display_ref, definition: body.definition });
+  }
+
+  @Get("chat/state")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(120)
+  @RequireEmbedScope("checkout:chat")
+  async chatState(@Req() request: EmbedHttpRequest, @Query("session_id") sessionId: string,
+    @Query("message_id") messageId?: string) {
+    const embed = request.embedClaims!;
+    if (typeof sessionId !== "string") throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.readState(embed.merchantId, sessionId, messageId);
+  }
+
+  @Get("chat/payment")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(120)
+  @RequireEmbedScope("payment:intents:create")
+  async chatPayment(@Req() request: EmbedHttpRequest, @Query("session_id") sessionId: string,
+    @Query("intent_id") intentId: string) {
+    const embed = request.embedClaims!;
+    if (typeof sessionId !== "string" || typeof intentId !== "string") throw new BadRequestException("session_and_intent_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.readPayment(embed.merchantId, sessionId, intentId);
   }
 
   @Post("offers/apply")
@@ -268,6 +326,7 @@ export class EmbedCheckoutController {
       idempotency_key: string;
       method?: "pix" | "card" | "boleto" | "crypto";
       accepted_offer_id?: string;
+      confirmed_cart_fingerprint?: string;
       preferred_chain?: "polygon" | "base";
       credit_card?: {
         holderName: string;
@@ -296,6 +355,7 @@ export class EmbedCheckoutController {
       session_id: body.session_id.trim(),
       idempotency_key: body.idempotency_key.trim(),
       method: body.method,
+      confirmed_cart_fingerprint: body.confirmed_cart_fingerprint,
       accepted_offer_id:
         typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined,
       preferred_chain:

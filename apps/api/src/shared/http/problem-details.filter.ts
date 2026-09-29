@@ -64,6 +64,7 @@ export function toProblemDetails(
     const code = fields
       ? "validation_failed"
       : readCode(response.code, detail, status);
+    const chatRequest = readChatRequestReceipt(response.chat_request, code);
 
     return {
       type: problemType(code),
@@ -72,6 +73,7 @@ export function toProblemDetails(
       code,
       ...(detail ? { detail } : {}),
       ...(fields ? { fields } : {}),
+      ...(chatRequest ? { chat_request: chatRequest } : {}),
       correlation_id: correlationId,
     };
   }
@@ -84,6 +86,22 @@ export function toProblemDetails(
     detail: "An unexpected error occurred.",
     correlation_id: correlationId,
   };
+}
+
+// Only this explicit receipt projection crosses the public error boundary.
+// Never pass through arbitrary exception payloads, cached offers or message text.
+function readChatRequestReceipt(value: unknown, code: string) {
+  const states: Record<string, "processing" | "unknown" | "completed" | "rejected" | "reconciled"> = {
+    chat_message_in_progress: "processing",
+    chat_message_reconciliation_required: "unknown",
+    chat_message_already_completed: "completed",
+    chat_message_rejected: "rejected",
+    chat_message_reconciled: "reconciled",
+  };
+  if (!states[code] || !isRecord(value) || value.status !== states[code]
+    || typeof value.message_id !== "string" || !/^[a-zA-Z0-9_-]{16,128}$/.test(value.message_id)
+    || value.next_action !== "refresh_session") return undefined;
+  return { message_id: value.message_id, status: states[code], next_action: "refresh_session" as const };
 }
 
 function readDetail(payload: string | Record<string, unknown>, fallback: string): string {

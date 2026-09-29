@@ -78,7 +78,8 @@ function buildFullStack(repo: InMemoryCheckoutRepository) {
   const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(new RecordCompletedPurchaseUseCase(purchaseHistoryRepo));
   const completeOrder = new CompleteOrderUseCase(repo, repo, repo, undefined, purchaseHistoryPort);
   const conv = new FakeConv();
-  const custService = new CheckoutCustomerService(repo, undefined, new OtpService());
+  const custService = new CheckoutCustomerService(repo, undefined, new OtpService(), undefined, undefined,
+    { async send() { return { status: "sent", messageId: "fixture-otp-accepted" }; } } as never);
   const shipService = new CheckoutShippingService(repo, custService);
   const offerService = new CheckoutOfferService(repo);
   const merchantRepo = repo;

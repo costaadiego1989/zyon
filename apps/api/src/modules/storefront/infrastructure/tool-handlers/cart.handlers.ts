@@ -8,7 +8,6 @@ import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/applicat
 import type { CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
 import type { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
 import type { CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
-import type { Cart } from "@zyon/shared-types";
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import type { PrismaClient } from "@prisma/client";
@@ -16,7 +15,7 @@ import type { MerchantRepository } from "../../../merchant/domain/ports/merchant
 import type { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { Logger } from "@nestjs/common";
 import { buildCrossSellSuggestions, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
-import { CartRulesEngine, buildCartRuleContext } from "../../domain/services/cart-rules-engine.service.js";
+import { CartRulesEngine, buildCartRuleContext, toEngineCart } from "../../domain/services/cart-rules-engine.service.js";
 import { RuleProximityEngine, type RuleNudge, type ActiveRuleBadge } from "../../domain/services/rule-proximity.service.js";
 import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
@@ -26,6 +25,16 @@ const logger = new Logger("CartHandlers");
 
 const cartRulesEngine = new CartRulesEngine();
 const ruleProximityEngine = new RuleProximityEngine();
+
+/** Internal cost projection: never persist these values on the buyer-facing cart. */
+async function loadCartCosts(prisma: PrismaClient, merchantId: string, cart: StorefrontCart): Promise<Map<string, number>> {
+  const prices = await prisma.productPrice.findMany({
+    where: { variantId: { in: cart.items.map(item => item.variantId) }, currency: "BRL",
+      variant: { isActive: true, product: { merchantId, isActive: true } } },
+    select: { variantId: true, costInCents: true },
+  });
+  return new Map(prices.flatMap(price => price.costInCents == null ? [] : [[price.variantId, price.costInCents / 100] as const]));
+}
 
 interface CartRulesOutcome {
   cart: StorefrontCart;
@@ -74,7 +83,8 @@ export async function reevaluateCartRules(
       .map((i) => i.categoryId ?? "")
       .filter(Boolean);
     const ctx = buildCartRuleContext(cart, { categoriesInCart });
-    const outcome = cartRulesEngine.evaluate(cart, advancedRules, merchantRules, ctx);
+    const costs = await loadCartCosts(deps.prisma, merchantId, cart);
+    const outcome = cartRulesEngine.evaluate(cart, advancedRules, merchantRules, ctx, costs);
     logger.debug("cart.rules.applied", {
       merchantId, sessionId,
       discountCents: outcome.discountCents,
@@ -105,7 +115,12 @@ export async function reevaluateCartRules(
       sessionId,
       error: err instanceof Error ? err.message : String(err),
     });
-    return { cart };
+    // A failed cost/policy read must never keep an automatic incentive from
+    // a previous cart state. Coupon revalidation needs its own authority.
+    if (cart.couponCode) throw err;
+    const clean = await deps.cartRepo.applyRuleOutcome(merchantId, sessionId, { discountCents: 0, freeShipping: false });
+    const promoMeta = await applyProductPromoPricing(deps.productPromotionRepo, merchantId, clean);
+    return { cart: clean, promoMeta, nextNudge: null, activeRules: [] };
   }
 }
 
@@ -582,26 +597,15 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         return { applied: false, reason: "merchant_rules_unavailable" };
       }
 
-      const engineCart: Cart = {
-        currency: "BRL",
-        total: cart.total / 100,
-        items: cart.items.map((i) => ({
-          sku: i.sku,
-          name: i.name,
-          price: i.unitPriceCents / 100,
-          quantity: i.quantity,
-          category: i.categoryId,
-        })) as Cart["items"],
-        source: "storefront",
-      };
-
       try {
+        const engineCart = toEngineCart(cart, await loadCartCosts(deps.prisma, ctx.merchantId, cart));
         const result = await deps.applyCouponUseCase.execute({
           merchant_id: ctx.merchantId,
           session_id: sessionId,
           code,
           cart: engineCart,
           merchantRules,
+          has_existing_commercial_benefit: Boolean(cart.discount || cart.freeShipping || cart.couponCode),
           source: "manual",
         });
         const discountCents = Math.round((result.discount_applied ?? 0) * 100);

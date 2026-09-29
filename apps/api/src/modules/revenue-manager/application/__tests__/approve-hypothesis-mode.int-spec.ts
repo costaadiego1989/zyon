@@ -7,7 +7,7 @@ import { CheckoutSettingsEntity } from "../../../checkout-settings/domain/entiti
 const rule = { id: "offer", name: "Oferta", enabled: false, priority: 1,
   conditions: [{ field: "cart_total", operator: "gte", value: 200 }],
   action: { type: "offer_discount", params: { percent: 10, maxDiscountReais: 30 } } };
-function fixture(type: "prompt" | "discount_rule" = "discount_rule", options: { missingSettings?: boolean; experimentFailed?: boolean; conflict?: boolean } = {}) {
+function fixture(type: "prompt" | "discount_rule" = "discount_rule", options: { missingSettings?: boolean; experimentFailed?: boolean; conflict?: boolean; weekly?: boolean } = {}) {
   let hypothesis = HypothesisEntity.create({ merchant_id: "merchant", observation_id: "obs",
     hypothesis_text: "Comparar oferta", reasoning: "Abandono observado", expected_lift_percent: 5, risk_level: "low",
     hypothesis_type: type, approval_strategy: "manual", ...(type === "discount_rule" ? { discount_rule_json: rule as never } : {}),
@@ -24,7 +24,7 @@ function fixture(type: "prompt" | "discount_rule" = "discount_rule", options: { 
         if (options.conflict) throw Error("CHECKOUT_SETTINGS_CONFLICT");
         savedSettings = value; expectedVersion = version; return value;
       } } as never,
-    {} as never,
+    { revenueAnalysisSchedule: { findUnique: async () => options.weekly ? { merchantId: "merchant" } : null } } as never,
     { execute: async () => { experiments++; return options.experimentFailed ? { status: "failed", error: "unavailable" } : { status: "created", experiment_id: "experiment" }; } } as never,
   );
   return { original, get state() { return { savedSettings, expectedVersion, approvals, experiments }; },
@@ -58,4 +58,12 @@ test("concurrent settings changes propagate an error instead of reporting an app
   const f = fixture("discount_rule", { conflict: true });
   await assert.rejects(f.execute("apply_direct"), /CHECKOUT_SETTINGS_CONFLICT/);
   assert.equal(f.state.savedSettings, undefined);
+});
+
+test("weekly hypotheses reject legacy approval before any approval or commercial effect", async () => {
+  for (const mode of ["test_ab", "apply_direct"] as const) {
+    const f = fixture("discount_rule", { weekly: true });
+    await assert.rejects(f.execute(mode), (e: any) => e.getStatus() === 409 && e.message === "EXPERIMENT_VERSIONED_APPROVAL_REQUIRED");
+    assert.equal(f.state.approvals, 0); assert.equal(f.state.experiments, 0); assert.equal(f.state.savedSettings, undefined);
+  }
 });

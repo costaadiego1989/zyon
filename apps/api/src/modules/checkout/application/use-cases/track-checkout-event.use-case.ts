@@ -209,7 +209,8 @@ export class TrackCheckoutEventUseCase {
         },
       });
     } catch {
-      // Never advertise a discount which was not persisted in the payable cart.
+      // A concurrent checkout change invalidates this offer. Never advertise
+      // a discount that was not persisted for the payment to honor.
       return undefined;
     }
 

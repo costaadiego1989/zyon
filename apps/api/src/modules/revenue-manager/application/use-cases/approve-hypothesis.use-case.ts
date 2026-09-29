@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ConflictException, Inject, Injectable, Logger } from "@nestjs/common";
+import { requiresWeeklyReview } from "../../../experiments/application/weekly-experiment-governance.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
@@ -41,6 +42,9 @@ export class ApproveHypothesisUseCase {
     const hypothesis = await this.hypothesisRepo.findById(input.hypothesis_id, input.merchant_id);
     if (!hypothesis) {
       throw new Error("HYPOTHESIS_NOT_FOUND");
+    }
+    if (await requiresWeeklyReview(this.prisma, input.merchant_id)) {
+      throw new ConflictException("EXPERIMENT_VERSIONED_APPROVAL_REQUIRED");
     }
 
     if (input.mode === "apply_direct" && (hypothesis.hypothesis_type !== "discount_rule" || !hypothesis.discount_rule_json)) {

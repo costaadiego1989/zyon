@@ -9,6 +9,42 @@ import type { HypothesisGenerationRequest, HypothesisGenerationResponse } from "
 import type { HypothesisMerchantContextPort } from "../../domain/ports/hypothesis-merchant-context.port.js";
 import { LLMHypothesisGenerator } from "../../infrastructure/hypothesis-generator.adapter.js";
 import { PrismaHypothesisMerchantContext } from "../../infrastructure/hypothesis-merchant-context.adapter.js";
+import { AnalysisDeferred } from "../../domain/weekly-analysis-policy.js";
+
+test("weekly generator reserves each fallback, preserves uncertain usage and reuses a cached response", async () => {
+  const originalFetch = globalThis.fetch;
+  const env = { ...process.env };
+  Object.assign(process.env, { OPENAI_API_KEY: "fixture", DEEPSEEK_API_KEY: "fixture", OPENAI_BASE_URL: "https://openai.example/v1", DEEPSEEK_BASE_URL: "https://deepseek.example/v1" });
+  const order: string[] = [];
+  let cached: unknown = null;
+  const budget = {
+    cached: async () => cached,
+    reserve: async ({ provider }: { provider: string }) => { order.push(`reserve:${provider}`); return { id: provider, maxOutputTokens: 500 }; },
+    settle: async (r: { id: string }, usage: unknown) => { order.push(`settle:${r.id}:${usage ? "known" : "unknown"}`); },
+    cache: async (_c: unknown, _m: unknown, response: unknown) => { cached = response; },
+  };
+  globalThis.fetch = async (url, options) => {
+    const provider = String(url).includes("openai") ? "openai" : "deepseek";
+    order.push(`fetch:${provider}`);
+    const body = JSON.parse(String(options?.body));
+    if (provider === "openai") { assert.equal(body.max_completion_tokens, 500); throw new Error("uncertain timeout"); }
+    assert.equal(body.max_tokens, 500);
+    return new Response(JSON.stringify({ id: "call", usage: { prompt_tokens: 100, completion_tokens: 80 },
+      choices: [{ message: { content: JSON.stringify(proposal("Explain available checkout options without making new offers")) } }] }));
+  };
+  try {
+    const adapter = new LLMHypothesisGenerator(budget as never);
+    const context = { runId: "run", leaseToken: 1 };
+    const fixture = setup({ generate: request => adapter.generate({ ...request, analysis_context: context }) });
+    await fixture.execute();
+    await fixture.execute();
+    assert.deepEqual(order, ["reserve:openai", "fetch:openai", "settle:openai:unknown", "reserve:deepseek", "fetch:deepseek", "settle:deepseek:known"]);
+    cached = null;
+    budget.reserve = async () => { throw new AnalysisDeferred("budget_exhausted"); };
+    await assert.rejects(fixture.execute(), /budget_exhausted/);
+    assert.equal(order.filter(x => x.startsWith("fetch:")).length, 2);
+  } finally { globalThis.fetch = originalFetch; process.env = env; }
+});
 
 const baseline = "Merchant A: explain the checkout using verified cart and delivery details.";
 
@@ -58,6 +94,7 @@ function setup(options: {
   const saved: HypothesisEntity[] = [];
   const requests: HypothesisGenerationRequest[] = [];
   const reads: string[] = [];
+  const lessonReads: string[] = [];
   const rules = options.rules === null ? undefined : options.rules ?? merchantRules();
   const context = options.context ?? {
     async getRules(id: string) { reads.push(id); return rules; },
@@ -68,12 +105,23 @@ function setup(options: {
       findByFingerprint: async () => null, findLatestByMerchant: async () => obs, findByMerchant: async () => [obs] },
     { save: async (value) => { saved.push(value); }, findById: async () => null,
       findByMerchant: async () => [], findPendingByMerchant: async () => [], findByObservation: async () => [] },
-    { save: async () => {}, findByMerchant: async () => [], findByExperiment: async () => [], findByHypothesis: async () => null },
+    { save: async () => {}, findByMerchant: async (id) => { lessonReads.push(id); return []; }, findByExperiment: async () => [], findByHypothesis: async () => null },
     { generate: async (request) => { requests.push(request); return options.generate ? options.generate(request) : options.response === undefined ? proposal() : options.response as HypothesisGenerationResponse; } },
     context,
   );
-  return { execute: () => useCase.execute({ merchant_id: merchantId, observation_id: obs.id }), useCase, obs, saved, requests, reads };
+  return { execute: () => useCase.execute({ merchant_id: merchantId, observation_id: obs.id }), useCase, obs, saved, requests, reads, lessonReads };
 }
+
+test("weekly planning excludes unvalidated legacy lessons while preserving the current control", async () => {
+  const fixture = setup();
+  await fixture.useCase.execute({ merchant_id: "merchant-a", observation_id: fixture.obs.id,
+    analysis_context: { runId: "weekly-run", leaseToken: 1 } });
+  assert.deepEqual(fixture.lessonReads, []);
+  assert.deepEqual(fixture.requests[0].past_lessons, []);
+  assert.equal(fixture.saved[0].template.variant_a.system_prompt, baseline);
+  await fixture.execute();
+  assert.deepEqual(fixture.lessonReads, ["merchant-a"]);
+});
 
 test("MI-V15: tenant policies govern discount caps and shipping, with no fixed limits", async () => {
   const a = setup({ response: proposal("Offer 12% discount") });

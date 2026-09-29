@@ -83,6 +83,21 @@ function PaymentCompleted({ description = "Seu pedido está sendo processado." }
   );
 }
 
+function CheckoutPriceReviewBlock({ fingerprint }: { fingerprint: unknown }) {
+  const pending = useCheckoutStore(s => s.pendingPriceReview);
+  const busy = useCheckoutStore(s => s.paymentSubmitting || s.cartUpdating);
+  const confirm = useCheckoutStore(s => s.confirmUpdatedOrder);
+  if (!pending || pending.review.confirmation_fingerprint !== fingerprint) return null;
+  const total = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(pending.review.total_to_pay_cents / 100);
+  return <PaymentPanel title="Confira o novo total" totalLabel={total}
+    description="O pedido está sem o desconto anterior. Confirme este valor para continuar com o pagamento.">
+    <button type="button" data-neu="control" className="checkout-payment-panel__action" disabled={busy}
+      onClick={() => { void confirm(pending.review.confirmation_fingerprint); }}>
+      {busy ? "Preparando pagamento..." : `Confirmar pedido de ${total}`}
+    </button>
+  </PaymentPanel>;
+}
+
 function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
   if (!data) return null;
   const items = (data.items as Array<{ name: string; qty?: number; quantity?: number; total?: string; price?: number }>) ?? [];
@@ -117,17 +132,22 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
-function ShippingOptionsBlock({ options }: { options?: unknown }) {
+function ShippingOptionsBlock({ options, selectionMode }: { options?: unknown; selectionMode?: unknown }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const selectShipping = useCheckoutStore((s) => s.selectShipping);
   const selectedShipping = useCheckoutStore((s) => s.cart.shipping);
   const cartUpdating = useCheckoutStore((s) => s.cartUpdating);
+  const chatBusy = useCheckoutStore((s) => s.isTyping || Boolean(s.chatRecovery));
   const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.shippingPreference);
   const opts = ((options as Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>) ?? [])
     .filter((o) => o && o.key && o.label)
     .sort((left, right) => shippingPriority(left, preference) - shippingPriority(right, preference));
 
   const handleSelect = async (opt: (typeof opts)[0]) => {
+    if (selectionMode === "chat") {
+      await sendMessage(`Entrega · ${opt.label}`);
+      return;
+    }
     const selected = await selectShipping({ key: opt.key, label: translateShippingLabel(opt.label) });
     if (!selected) return;
     void sendMessage(`Entrega · ${translateShippingLabel(opt.label)}`);
@@ -142,7 +162,7 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
       {opts.map((opt) => (
         <button data-neu="choice"
           key={opt.key}
-          disabled={cartUpdating}
+          disabled={cartUpdating || (selectionMode === "chat" && chatBusy)}
           aria-pressed={selectedShipping?.key === opt.key}
           onClick={() => void handleSelect(opt)}
           style={{
@@ -1557,6 +1577,8 @@ function CryptoChainSelectBlock({ data }: { data?: Record<string, unknown> }) {
 
 export function BlockRenderer({ block }: { block: ChatBlock }) {
   switch (block.type) {
+    case "checkout_price_review":
+      return <CheckoutPriceReviewBlock fingerprint={block.data?.fingerprint} />;
     case "text":
     case "message":
       return <p style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--tx)", margin: 0, wordBreak: "break-word" }}>{String(block.data?.content || block.text || "")}</p>;
@@ -1565,7 +1587,7 @@ export function BlockRenderer({ block }: { block: ChatBlock }) {
     case "address_confirmation":
       return <AddressConfirmationBlock data={block.data} />;
     case "shipping_options":
-      return <ShippingOptionsBlock options={block.data?.options} />;
+      return <ShippingOptionsBlock options={block.data?.options} selectionMode={block.data?.selection_mode} />;
     case "coupon_input":
       return <CouponInputBlock data={block.data} />;
     case "payment_methods":

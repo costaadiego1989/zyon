@@ -13,6 +13,7 @@ Como o sistema é montado e para onde está indo.
 | [`architecture/refactor-plan.md`](./architecture/refactor-plan.md) | Plano de refactor: estado atual, problemas, alvo, ondas de migração, métricas. |
 | [`architecture/bounded-contexts.md`](./architecture/bounded-contexts.md) | Mapa de contextos, eventos, ACL, proibições. |
 | [`architecture/widget-architecture.md`](./architecture/widget-architecture.md) | Arquitetura atual do widget e roadmap (split de hooks, Shadow DOM, telemetria, Playwright). |
+| [`architecture/revenue-intelligence.md`](./architecture/revenue-intelligence.md) | Motor semanal de IA: análise, aprovação, experimentos, descontos protegidos, métricas, aprendizado privado e operação. |
 
 ### ADRs
 

@@ -24,7 +24,12 @@ function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, 
   const deps = {
     productRepo: { search: async () => ({ products }), findById: async (_m: string, id: string) => products.find((p) => p.id === id) ?? null },
     stockRepo: { getAvailableStock: async () => ({ quantity: 10 }) },
-    prisma: { checkoutSetting: { findUnique: async () => ({ advancedRules: rules }) }, productVariant: { findMany: async () => [] } },
+    prisma: { checkoutSetting: { findUnique: async () => ({ advancedRules: rules }) }, productVariant: { findMany: async () => [] },
+      productPrice: { findMany: async (query: any) => {
+        assert.equal(query.where.variant.product.merchantId, ctx.merchantId);
+        assert.equal(query.where.currency, "BRL");
+        return [{ variantId: "v-one", costInCents: 1000 }, { variantId: "v-two", costInCents: 1000 }];
+      } } },
     merchantRepo: { getRules: async () => ({ maxDiscountPercent: 20, minimumMarginPercent: 0, allowFreeShipping: true }) },
     productPromotionRepo: promotion ? { findActiveBySku: async () => [{ discountType: "percent", discountValue: 20 }] } : undefined,
     listEligibleCrossSells: eligibleCrossSell ? {
@@ -113,6 +118,20 @@ test("post_cart independently enables suggestions only after a successful add; f
     assert.equal(failed.error, "variant_not_resolved");
     assert.equal(failed.crossSellSuggestions, undefined);
   }
+});
+
+test("cost lookup failure clears previous automatic benefits without disclosing catalog costs", async () => {
+  const { handlers, deps } = fixture([rule]);
+  const added = await handlers.addItemToCart({ variantId: "v-one", quantity: 2 }) as any;
+  assert.equal(added.discount, 10);
+  assert.equal(JSON.stringify(added).includes("costInCents"), false);
+  (deps.prisma.productPrice as any).findMany = async () => { throw new Error("cost_store_unavailable"); };
+  const read = await handlers.getCart({ cartId: ctx.sessionId }) as any;
+  assert.equal(read.discount, 0);
+  assert.equal(read.freeShipping, false);
+  assert.deepEqual(read.activeRules, []);
+  const persisted = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
+  assert.equal(persisted.discount, 0);
 });
 
 test("pre_cart suggestions appear with product details and can coexist with post_cart", async () => {

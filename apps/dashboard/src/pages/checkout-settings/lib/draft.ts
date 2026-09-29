@@ -5,7 +5,11 @@ import type {
   CheckoutTriggerName,
   CheckoutWidgetPosition,
 } from "@zyon/shared-types";
-import { ALL_TRIGGERS, TRIGGER_FIXED_PRIORITIES } from "./constants.js";
+import { TRIGGER_FIXED_PRIORITIES } from "./constants.js";
+
+// The visual editor shows a subset. Preserve every server-owned trigger when
+// saving other settings, including an explicit cart-recovery opt-out.
+const PERSISTED_TRIGGERS = Object.keys(TRIGGER_FIXED_PRIORITIES) as CheckoutTriggerName[];
 
 export interface AdvancedRule {
   productId?: string;
@@ -58,6 +62,7 @@ export const DEFAULT_DRAFT: Draft = {
     payment_failed: { enabled: true },
     exit_intent_detected: { enabled: true },
     idle_30_seconds: { enabled: false },
+    checkout_abandoned: { enabled: true },
   },
   suppressAfterOfferAccepted: true,
   respectBuyerOptOut: true,
@@ -78,9 +83,9 @@ export const DEFAULT_DRAFT: Draft = {
 
 export function settingsToDraft(s: CheckoutSettings): Draft {
   const triggers = Object.fromEntries(
-    ALL_TRIGGERS.map((t) => {
+    PERSISTED_TRIGGERS.map((t) => {
       const rule = s.triggerRules.find((r) => r.trigger === t);
-      return [t, { enabled: rule?.enabled ?? false, message: rule?.message, cooldownSeconds: rule?.cooldownSeconds, couponCode: rule?.couponCode }];
+      return [t, { enabled: rule?.enabled ?? t === "checkout_abandoned", message: rule?.message, cooldownSeconds: rule?.cooldownSeconds, couponCode: rule?.couponCode }];
     })
   ) as Draft["triggers"];
 
@@ -137,7 +142,7 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
         stages,
       },
     },
-    triggerRules: ALL_TRIGGERS.map((t) => ({
+    triggerRules: PERSISTED_TRIGGERS.map((t) => ({
       trigger: t,
       enabled: d.triggers[t].enabled,
       priority: TRIGGER_FIXED_PRIORITIES[t],

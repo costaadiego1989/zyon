@@ -172,9 +172,9 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
     return "shipping";
   }
   if (!session.paymentMethod) return "payment";
-  // payment_pending: method selected but payment not yet confirmed via webhook
-  if (!(session as any).paymentConfirmed) return "payment_pending" as any;
-  return "completed";
+  // Only the explicit, server-verified `completed` argument can report success.
+  // A method selection (or an untyped field on a snapshot) is not payment proof.
+  return "payment_pending";
 }
 
 const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [

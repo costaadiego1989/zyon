@@ -15,6 +15,18 @@ Autonomia significa operação assistida por IA dentro de limites definidos pelo
 - **Conhecimento e voz** — busca por intenção, materiais da loja e conversa por voz, conforme o plano e a configuração.
 - **Inteligência comercial** — Revenue Manager e experimentação A/B para avaliar estratégias; resultados dependem de dados e critérios de medição válidos.
 
+## Motor de inteligência comercial
+
+O Revenue Manager analisa os dados de cada loja elegível em ciclos semanais, distribuídos pela madrugada e sujeitos a limites diários de processamento e custo de IA. A análise pode recomendar um teste de comunicação ou um incentivo com desconto limitado, manter a estratégia atual ou aguardar mais dados. O dashboard notifica o merchant, que revisa os detalhes, aprova, recusa ou pede uma alternativa; uma nova versão exige nova aprovação.
+
+O limite diário de IA é uma proteção para o consumo variável das APIs LLM, não uma cobrança fixa por loja ou por dia. Gerar recomendações e respostas pode consumir tokens; coletar métricas, verificar margens e aplicar regras são operações determinísticas, sem uma chamada à LLM por medição. O gasto efetivo depende do uso e da tarifa configurada, e o teto não obriga gastar o valor reservado.
+
+As condições comerciais são calculadas pelo servidor e verificadas pelas regras de margem, pelo orçamento e pelo estado atual do checkout. Aprovar uma comunicação não autoriza um desconto: o incentivo tem aprovação específica. Se um benefício expirar antes do pagamento, o comprador vê o novo total e precisa confirmar novamente.
+
+Cada estratégia tem métricas de execução, conversão e cobertura de custos. O Revenue Lift complementa essa leitura com a comparação entre grupos, sem tratar ausência de dados como ganho zero ou aumento de receita como lucro comprovado. O aprendizado entre lojas usa somente evidência madura e agregada de pelo menos cinco lojas independentes e compatíveis; com apenas uma loja, não há transferência de aprendizado.
+
+Consulte a [arquitetura do Revenue Intelligence](docs/architecture/revenue-intelligence.md) para fluxos, módulos, tabelas, configurações, limites de medição, observabilidade e rollback. Os recursos dependem das flags e da elegibilidade da loja; a existência do código não confirma sua ativação em produção.
+
 ## Estrutura
 
 ~~~text

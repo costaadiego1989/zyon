@@ -1,4 +1,5 @@
 import { embedAuthHeaders } from '../../../lib/embed-client';
+import { pulsePriceReview, PulsePriceReviewRequired } from './PulsePriceReview';
 
 import type {
   Bundle,
@@ -406,7 +407,7 @@ export class PulseAPI {
     ]);
   }
 
-  async createOrder(payMethod: string = 'pix', _sessionId?: string, installments?: number): Promise<{ id: string; pixQrCode?: string; pixCopyPaste?: string; pixExpiresAt?: string; clientSecret?: string; stripePublishableKey?: string }> {
+  async createOrder(payMethod: string = 'pix', _sessionId?: string, installments?: number, confirmedCartFingerprint?: string): Promise<{ id: string; pixQrCode?: string; pixCopyPaste?: string; pixExpiresAt?: string; clientSecret?: string; stripePublishableKey?: string }> {
     if (this.sessionToken && this.baseUrl) {
       try {
         const sessionId = _sessionId ?? await this.ensureSession();
@@ -420,6 +421,7 @@ export class PulseAPI {
             idempotency_key: pulseIdempotencyKey(sessionId, payMethod, installments),
             method,
             ...(installments ? { installments } : {}),
+            ...(confirmedCartFingerprint ? { confirmed_cart_fingerprint: confirmedCartFingerprint } : {}),
           }),
         });
         if (r.ok) {
@@ -437,8 +439,14 @@ export class PulseAPI {
           };
         }
         const errorText = await r.text().catch(() => '');
+        if (r.status === 409) {
+          let body: any;
+          try { body = JSON.parse(errorText); } catch { /* Unstructured errors have no authority to change a total. */ }
+          if (body?.code === 'checkout_review_required') throw new PulsePriceReviewRequired(pulsePriceReview(body.review));
+        }
         throw new Error(errorText || `payment_intent_failed_${r.status}`);
       } catch (error) {
+        if (error instanceof PulsePriceReviewRequired) throw error;
         console.warn('[PulseAPI] createOrder failed:', error);
         if (!this.allowDemoFallbacks) throw error;
       }

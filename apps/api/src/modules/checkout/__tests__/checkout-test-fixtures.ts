@@ -91,3 +91,17 @@ export function merchantRules(overrides: Partial<MerchantRules> = {}): MerchantR
     ...overrides
   };
 }
+
+/** Minimal adapter for controller/unit doubles. Transaction guarantees are tested with PostgreSQL. */
+export async function simulateCommercialMutation(
+  repository: import("../domain/ports/checkout-session.repository.port.js").CheckoutSessionRepository,
+  input: import("../domain/ports/checkout-session.repository.port.js").CheckoutCommercialMutation,
+) {
+  const { prepareCommercialMutation } = await import("../domain/services/checkout-commercial-mutation.js");
+  const mutation = prepareCommercialMutation(input);
+  await repository.saveSession(mutation.session);
+  if (input.cancel) await repository.recordEvent(input.next.merchantId, input.next.sessionId, "checkout_abandoned", {
+    source: "acp.protocol", reason: "buyer_initiated",
+  });
+  return mutation.session;
+}

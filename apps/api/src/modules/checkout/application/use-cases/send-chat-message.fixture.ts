@@ -18,6 +18,10 @@ import type { OrderQuotaService } from "../../../payment/application/services/or
 import type { ConversationRateLimitService } from "../services/conversation-rate-limit.service.js";
 import type { ChatLlmGatewayService } from "../services/chat-llm-gateway.service.js";
 import type { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
+import type { CheckoutChatRequestService } from "../../infrastructure/prisma/checkout-chat-request.service.js";
+import type { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.service.js";
+import type { PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
+import type { BuyerContextService } from "../services/buyer-context.service.js";
 
 interface SendChatFixtureOverrides {
   conversation?: ConversationPort;
@@ -35,6 +39,10 @@ interface SendChatFixtureOverrides {
   conversationRateLimit?: Pick<ConversationRateLimitService, "assertAllowed">;
   chatLlmGateway?: ChatLlmGatewayService;
   chatToolExecutor?: ChatToolExecutorService;
+  chatRequests?: CheckoutChatRequestService;
+  strategyChat?: StrategyCheckoutChatService;
+  promptExperiment?: PromptExperimentPort;
+  buyerContext?: BuyerContextService;
 }
 
 /**
@@ -53,7 +61,8 @@ export function createSendChatUseCase(
     overrides.agentContext,
     overrides.merchantRepository,
     undefined,
-    overrides.productSearch
+    overrides.productSearch,
+    overrides.buyerContext
   );
   const chatResponseBuilder = new ChatResponseBuilder(
     sessions,
@@ -74,11 +83,13 @@ export function createSendChatUseCase(
     overrides.experienceConfig ?? { platformFeeBrl: 1.99 },
     overrides.agentContext,
     overrides.merchantRepository,
-    undefined,
+    overrides.promptExperiment,
     undefined,
     overrides.chatToolExecutor,
     overrides.chatLlmGateway,
     overrides.orderQuota as OrderQuotaService | undefined,
     overrides.conversationRateLimit as ConversationRateLimitService | undefined,
+    overrides.chatRequests,
+    overrides.strategyChat,
   );
 }

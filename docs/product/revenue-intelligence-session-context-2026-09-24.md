@@ -1,0 +1,31 @@
+**Décima terceira entrega local — contexto da estratégia derivado da sessão**
+
+24/09/2026. Continuação de `cb7f0ca`, na branch `feat/revenue-intelligence-weekly`. Fecha a pendência de origem do contexto dinâmico para os turnos vinculados à requisição durável. RI-09 permanece parcial: despacho e publicação da estratégia ainda não estão conectados ao chat principal nem à aprovação pública. Configurações do piloto permanecem desabilitadas.
+
+**Contexto confirmado.** Na admissão vinculada, `StrategyExecutionLedger` monta carrinho, etapa e sinal consultivo de falha de pagamento a partir da mesma linha de sessão bloqueada usada para calcular o hash completo de contexto. O chamador fornece identidade da requisição e texto do comprador; não pode fornecer `turn`. A restrição existe no tipo e em execução. Campos extras fora do contrato não entram no prompt. As regras e o nome da loja continuam vindo do baseline revisado, revalidado contra a configuração corrente.
+
+O mapeamento da linha persistida foi extraído sem mudar seu comportamento para `checkout-session.mapper.ts`, compartilhado com o repositório. A construção reutiliza a determinação de etapa já usada pelo checkout. Cadastro, verificação de e-mail e frete com dados faltantes impedem a admissão experimental. Essa checagem não substitui o futuro adaptador de roteamento, que precisa preservar também correções, transições entre etapas, holdout e demais decisões do caso de uso principal.
+
+O sinal de falha mantém a heurística existente sobre a última mensagem do agente. Não é confirmação de falha pelo provedor de pagamento. Texto do comprador não gera esse sinal. Dados pessoais, histórico, nomes de produtos e memória de intenção não são copiados para o prompt de sistema. O texto do comprador continua sendo a mensagem de usuário, separado do sistema. Personalização por memória continua fora da política de publicação.
+
+O hash de entrada inclui os vínculos derivados e a versão do construtor; o hash da sessão continua incluindo sua revisão controlada pelo banco. A confirmação do provedor e a publicação mantêm a revalidação anterior. Repetir uma requisição já admitida após mudar o carrinho retorna somente a identificação do turno, sem remontar prompt, reenviar ou reapresentar resposta. A identidade e o texto exato continuam conferidos contra a requisição durável. Turnos internos sem vínculo mantêm o contrato anterior e continuam sem permissão de publicação.
+
+**Valores e versão.** O chat principal dividia `cart.total` por 100, embora o domínio já o represente em reais. Agora o chat principal e o contexto experimental usam o mesmo formatador: total 100 gera `Carrinho: R$100.00`; zero gera `R$0.00`. O formatador usa a validação monetária existente, rejeita moeda diferente de BRL, valores negativos, inválidos, fora do intervalo seguro ou com fração de centavo. Não recalcula preços, aplica descontos nem modifica o carrinho.
+
+Contexto monetário inválido impede a admissão experimental. No chat principal, impede a chamada ao gateway principal e mantém o caminho de resposta alternativa já existente; isso não é uma nova garantia sobre todos os possíveis efeitos desse caminho. A correção monetária do chat principal faz parte do código comum e não depende das flags do piloto.
+
+O baseline agora registra `checkout-chat-bindings-v2`. O hash muda mesmo se alguém conservar indevidamente a revisão de implantação. Baselines v1 não passam na validação de execução do novo código; propostas antigas não são atualizadas silenciosamente. Precisam de novo contexto/proposta e revisão. Programa textual, ferramentas e divisão controle/tratamento permanecem os mesmos. Não houve migration, alteração retroativa de evidências ou regeneração do cliente Prisma compartilhado.
+
+**Validação local.** Foram aprovados 568 testes distintos no escopo, além do TypeScript da API:
+
+- `.audit/revenue-weekly/context-focused.log`: 18 testes do contexto, baseline, carregador e percurso monetário no caso de uso real. Este último usa repositório em memória, gateway controlado e estado de cadastro/frete preparado; não valida OTP ou pagamento externo.
+- `context-regression.log`: 443 testes de Revenue Manager, experimentos, início do checkout, repositório, gateways e contratos/controladores HTTP.
+- `context-integration.log`: 73 testes PostgreSQL. Incluem os 69 cenários anteriores, ampliando o percurso nas duas variantes para conferir o prompt realmente enviado, mais quatro testes de origem persistida do contexto, etapas determinísticas, valores inválidos e repetição após mudança de sessão. Não houve skips.
+- `context-chat-compatibility.log`: 34 testes de identidade, recibos e gravação de conversa no banco, incluindo o transporte HTTP local por controlador de fixture.
+- `context-typecheck.log` vazio e `context-typecheck-exit.txt` com 0: verificação com cliente Prisma isolado e tipos locais, encerrada com sucesso.
+
+A suíte adicional de chat/cota teve 18 aprovados, oito falhas e um ignorado. Foi executada também com os arquivos anteriores de `cb7f0ca`; nomes e campos de asserção das oito falhas são iguais (`context-send-current.log`, `context-send-head.log`, `context-known-failures.json`). São falhas de cadastro/OTP já conhecidas e não estão resolvidas por esta entrega. Não declarar a jornada completa aprovada.
+
+O banco utilizado foi `revenue_publication_0924`, descartável e local, com o schema da décima segunda entrega. Gateway e dados são controlados; nenhuma chamada de IA externa, efeito comercial, implantação, push ou merge foi feito. Os testes demonstram origem e persistência do contexto, não qualidade real da LLM, entrega ao comprador ou aumento de receita.
+
+**Continuação.** O próximo adaptador deve ligar a admissão/publicação ao caso de uso preservando o controle e tratando respostas com ferramentas antes de qualquer efeito. Ainda é preciso resolver gravações de atribuição após a chamada, a persistência de método/estado de pagamento, transições determinísticas, reconciliação de requisições incertas e identificação estável nos chamadores. Depois vêm entrega/exposição, encerramento de experimentos, aprovação/ativação e métricas sobre todos os participantes. Cupons, descontos e aprendizado entre lojas permanecem nas etapas seguintes do plano.
