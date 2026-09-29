@@ -27,6 +27,7 @@ const QUIET_PERIOD_MS = 30 * 60 * 1000;
 export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RecoveryScannerJob.name);
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
+  private initialHandle: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
@@ -44,9 +45,20 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
    * Runs every 15 min.
    */
   onModuleInit(): void {
+    this.start();
+  }
+
+  /**
+   * Starts the scanner once.  The API bootstrap resolves this provider as a
+   * production liveness guard, while Nest lifecycle initialization remains a
+   * supported startup path for tests and local development.
+   */
+  start(): void {
+    if (this.intervalHandle || this.initialHandle) return;
     // Run an initial scan shortly after boot so recovery doesn't wait a full
     // interval after a restart, then schedule the recurring scan.
-    setTimeout(() => {
+    this.initialHandle = setTimeout(() => {
+      this.initialHandle = null;
       this.scan().catch((err) => {
         this.logger.error("recovery-scanner: initial scan failed", { error: err instanceof Error ? err.message : String(err) });
       });
@@ -66,8 +78,13 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
    * Clean up interval on module destroy (NestJS lifecycle hook).
    */
   onModuleDestroy(): void {
+    if (this.initialHandle) {
+      clearTimeout(this.initialHandle);
+      this.initialHandle = null;
+    }
     if (this.intervalHandle) {
       clearInterval(this.intervalHandle);
+      this.intervalHandle = null;
       this.logger.log("recovery-scanner: interval cleared");
     }
   }

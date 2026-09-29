@@ -10,6 +10,7 @@ import { NestFactory, Reflector } from "@nestjs/core";
 import type { NestExpressApplication } from "@nestjs/platform-express";
 import { AppModule } from "./app.module.js";
 import { E2eAppModule } from "./e2e-app.module.js";
+import { RecoveryScannerJob } from "./modules/cart-recovery/infrastructure/jobs/recovery-scanner.job.js";
 import { resolveSecurityHeaders } from "./shared/config/security-headers-config.js";
 import { resolveCorsConfig } from "./shared/config/cors-config.js";
 import { configureApiDocumentation } from "./shared/http/api-documentation.js";
@@ -108,6 +109,10 @@ async function bootstrap() {
   }
 
   app.enableShutdownHooks();
+
+  // Resolve the recovery scheduler explicitly. This is idempotent with its
+  // lifecycle hook and guarantees automatic recovery is live in production.
+  app.get(RecoveryScannerJob, { strict: false }).start();
 
   const port = Number(process.env.PORT ?? 3001);
   await app.listen(port);
