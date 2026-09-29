@@ -2,7 +2,7 @@
 
 import type { MerchantThemeAppearance } from "@zyon/shared-types";
 
-import { type ReactNode, useEffect, useMemo, useRef, useState } from "react";
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
 import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
@@ -27,7 +27,7 @@ import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
 import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
 import { checkoutApi } from "@/lib/api/api-client";
-import { useRealtimeProductNarration } from "@/lib/voice/use-realtime-product-narration";
+import { useRealtimeProductNarration, type ProductNarrationProgress } from "@/lib/voice/use-realtime-product-narration";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
 import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
 
@@ -321,8 +321,15 @@ export default function ConversationShell({
     },
     onBeginCheckout: async () => beginCheckout(),
   });
+  const narrationRequestIdRef = useRef<string | null>(null);
+  const publishNarrationProgress = useCallback((progress: ProductNarrationProgress) => {
+    const requestId = narrationRequestIdRef.current;
+    if (!requestId) return;
+    window.dispatchEvent(new CustomEvent("zyon:realtime-product-narration-progress", { detail: { requestId, ...progress } }));
+  }, []);
   const narrationVoice = useRealtimeProductNarration({
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
+    onProgress: publishNarrationProgress,
     createSession: async (summary) => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
@@ -420,13 +427,25 @@ export default function ConversationShell({
   }, [mode, mounted, selectChannel, supportsVoice]);
   useEffect(() => {
     const requestSummary = (event: Event) => {
-      const summary = (event as CustomEvent<{ summary?: unknown }>).detail?.summary;
+      const detail = (event as CustomEvent<{ summary?: unknown; requestId?: unknown }>).detail;
+      const summary = detail?.summary;
       if (typeof summary !== "string" || !summary.trim()) return;
+      narrationRequestIdRef.current = typeof detail?.requestId === "string" ? detail.requestId : null;
+      if (voiceCheckoutEnabled !== true || checkoutOpen) {
+        publishNarrationProgress({
+          status: "error",
+          hint: checkoutOpen
+            ? "Feche o checkout para ouvir este resumo."
+            : "O resumo em áudio está disponível a partir do plano Growth.",
+          transcript: "",
+        });
+        return;
+      }
       narrationVoice.play(summary);
     };
     window.addEventListener("zyon:realtime-product-summary", requestSummary);
     return () => window.removeEventListener("zyon:realtime-product-summary", requestSummary);
-  }, [narrationVoice.play]);
+  }, [checkoutOpen, narrationVoice.play, publishNarrationProgress, voiceCheckoutEnabled]);
   useEffect(() => {
     if (voiceCheckoutEnabled !== true && channel === "voice") toggleChannel();
   }, [voiceCheckoutEnabled, channel, toggleChannel]);

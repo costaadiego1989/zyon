@@ -167,6 +167,7 @@ test.describe("Advanced Product Layout @apl", () => {
     await page.route("https://api.openai.com/v1/realtime/calls", async (route) => {
       // The transport error is intentional: this contract verifies the client
       // never reaches for microphone or checkout state while starting audio.
+      await new Promise((resolve) => setTimeout(resolve, 250));
       await route.fulfill({ status: 503, body: "narration transport disabled in test" });
     });
     await page.addInitScript(() => {
@@ -201,6 +202,12 @@ test.describe("Advanced Product Layout @apl", () => {
     if (await narration.isEnabled()) {
       await narration.click();
       await expect.poll(() => narrationRequests).toBe(1);
+      // A pending narration is explicit and cannot create a duplicate paid
+      // session when the buyer taps the control again.
+      await expect(narration).toBeDisabled();
+      await expect(narration).toHaveAccessibleName("Preparando áudio");
+      await expect.poll(() => narrationRequests).toBe(1);
+      await expect(narration).toHaveAccessibleName("Tentar novamente");
       await expect(page.locator("[data-aacp-voice-composer]")).toHaveCount(0);
       await expect(page.locator("audio[data-zyon-realtime-audio]")).toHaveCount(0);
       await expect.poll(() => page.evaluate(() => (window as any).__productNarrationMicrophone.calls)).toBe(0);

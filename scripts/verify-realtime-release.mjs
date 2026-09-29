@@ -17,7 +17,7 @@ const requiredSource = [
   ["apps/widget_v2/src/api/checkout-session.ts", ["embed/realtime/session", "embedBaseUrl"]],
   ["apps/storefront/src/components/CheckoutPanel.tsx", ["embedApiBaseUrl=\"/api\""]],
   ["apps/storefront/src/components/conversation/RealtimeVoiceComposer.tsx", ["Ativar"]],
-  ["apps/storefront/src/lib/voice/use-realtime-product-narration.ts", ["recvonly", "realtime/calls"]],
+  ["apps/storefront/src/lib/voice/use-realtime-product-narration.ts", ["recvonly", "realtime/calls", "response.output_audio_transcript.done", "session.close", "session.closed"]],
 ];
 
 const failures = [];
