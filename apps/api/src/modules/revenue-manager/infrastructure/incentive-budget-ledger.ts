@@ -1,7 +1,7 @@
 import { randomUUID } from "node:crypto";
 import type { Prisma } from "@prisma/client";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
-import { assertIncentiveBudgetTerms, incentiveCents, incentiveKey, type IncentiveBudgetTerms } from "../domain/incentive-budget.js";
+import { assertRecommendedIncentiveBudgetTerms, incentiveCents, incentiveKey, type IncentiveBudgetTerms } from "../domain/incentive-budget.js";
 import type { StrategyProposal } from "../domain/strategy-proposal.js";
 import { lockCheckoutBaselineRows } from "./checkout-baseline.reader.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
@@ -17,6 +17,9 @@ export const incentiveBudgetEnabled = (merchantId: string) => process.env.REVENU
   && (process.env.REVENUE_INCENTIVE_BUDGET_MERCHANT_IDS ?? "").split(",").map(s => s.trim()).includes(merchantId);
 
 async function currentFundingSource(tx: Tx, terms: IncentiveBudgetTerms) {
+  // Lock the mutable version/status row as well as the merchant. This fences
+  // superseded proposals in READ COMMITTED and old REPEATABLE READ snapshots.
+  await tx.$queryRaw`SELECT id FROM revenue_strategies WHERE id = ${terms.strategyId} AND merchant_id = ${terms.merchantId} FOR SHARE`;
   const version = await tx.revenueStrategyVersion.findUnique({ where: { strategyId_merchantId_version: {
     strategyId: terms.strategyId, merchantId: terms.merchantId, version: terms.version } }, include: { strategy: true } });
   if (!version || version.proposalHash !== terms.proposalHash || digest(version.proposal) !== version.proposalHash
@@ -28,13 +31,16 @@ async function currentFundingSource(tx: Tx, terms: IncentiveBudgetTerms) {
   const policy = await readIncentivePolicy(tx, terms.merchantId);
   if (!policy.enabled || terms.policyVersion !== policy.version || terms.policyHash !== policy.policyHash) fail("POLICY_CHANGED");
   await assertStoredDiscountStudy(tx, terms.merchantId, version.strategy.runId, proposal.observation.id, rules, proposal.discountStudy, proposal.incentiveRecommendation);
-  assertIncentiveBudgetTerms(terms, { merchantId: terms.merchantId, strategyId: terms.strategyId,
-    version: terms.version, proposalHash: version.proposalHash, study: proposal.discountStudy, rules, policy });
+  const run = await tx.revenueAnalysisRun.findFirst({ where: { id: version.strategy.runId, merchantId: terms.merchantId } });
+  if (run?.status !== "completed") fail("ANALYSIS_NOT_COMPLETED");
+  assertRecommendedIncentiveBudgetTerms(terms, { merchantId: terms.merchantId, strategyId: terms.strategyId,
+    version: terms.version, proposalHash: version.proposalHash, study: proposal.discountStudy, rules, policy,
+    recommendation: proposal.incentiveRecommendation });
   return version;
 }
 
-/** INTERNAL transactional primitive. The future commercial review must present
- * these exact terms and authenticate the actor before invoking this function.
+/** INTERNAL transactional primitive. The future commercial review must derive
+ * and present recommendedIncentiveBudgetTerms and authenticate the actor.
  * No existing communication approval invokes it, and it activates no strategy. */
 export async function registerReviewedIncentiveBudget(tx: Tx, input: {
   merchantId: string; terms: IncentiveBudgetTerms; termsHash: string; actorId: string; requestKey: string;

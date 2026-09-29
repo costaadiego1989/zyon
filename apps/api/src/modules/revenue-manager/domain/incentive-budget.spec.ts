@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import { discountStudy } from "./strategy-discount-study.js";
-import { assertIncentiveBudgetTerms, incentiveBudgetTerms } from "./incentive-budget.js";
+import { assertIncentiveBudgetTerms, incentiveBudgetTerms, assertRecommendedIncentiveBudgetTerms, recommendedIncentiveBudgetTerms } from "./incentive-budget.js";
 import { incentivePolicySnapshot } from "./incentive-policy.js";
+import { incentiveRecommendation, plannedIncentiveRecommendation } from "./strategy-incentive-recommendation.js";
 
 const rules = { ...DEFAULT_MERCHANT_RULES, autonomousEngineEnabled: true, maxDiscountPercent: 10, minimumMarginPercent: 30 };
 const study = discountStudy({ merchantId: "store", runId: "run", observationId: "observation", rules,
@@ -62,4 +63,49 @@ test("merchant financial caps constrain each dimension and cannot enable themsel
     assert.throws(() => incentiveBudgetTerms({ ...source, policy: restricted }, limits), /INVALID_BUDGET_TERMS/);
   }
   assert.throws(() => incentiveBudgetTerms({ ...source, policy: { ...policy, merchantId: "other" } }, limits), /INVALID_BUDGET_TERMS/);
+});
+
+const fundedPolicy = incentivePolicySnapshot("store", 2, { enabled: true, limitCents: 1000500,
+  maxDiscountCents: 1000, maxRedemptions: 2000 });
+const baseline = { buyers: 10000, conversions: 10, complete: true,
+  windowStart: "2026-08-25T00:00:00.000Z", windowEnd: "2026-09-22T00:00:00.000Z" };
+const planned = { ...source, policy: fundedPolicy, recommendation: plannedIncentiveRecommendation(study, rules, fundedPolicy, baseline) };
+
+test("new funding takes the exact suggested envelope without merchant budget inputs", () => {
+  const terms = recommendedIncentiveBudgetTerms(planned, limits.startsAt);
+  assert.equal(terms.limitCents, 1000000); // unused 500 cents are not silently funded
+  assert.equal(terms.maxDiscountCents, 1000); assert.equal(terms.maxRedemptions, 1000);
+  assert.equal(terms.scope, "funding_only");
+  assertRecommendedIncentiveBudgetTerms(terms, planned);
+});
+
+for (const patch of [{ limitCents: 999000 }, { maxDiscountCents: 999 }, { maxRedemptions: 999 },
+  { limitCents: 1000500 }, { maxRedemptions: 1001 }, { scope: "discount" }, { execution: "running" }]) {
+  test(`new funding refuses a changed envelope ${JSON.stringify(patch)}`, () => {
+    const terms = { ...recommendedIncentiveBudgetTerms(planned, limits.startsAt), ...patch };
+    assert.throws(() => assertRecommendedIncentiveBudgetTerms(terms as never, planned), /RECOMMENDED_TERMS_CHANGED/);
+  });
+}
+test("a valid old envelope and a v1 recommendation cannot open new funding", () => {
+  const legacy = incentiveBudgetTerms(source, limits);
+  assertIncentiveBudgetTerms(legacy, source); // historical receipts stay readable
+  for (const recommendation of [undefined, incentiveRecommendation(study, rules, fundedPolicy)]) {
+    assert.throws(() => recommendedIncentiveBudgetTerms({ ...planned, recommendation }, limits.startsAt), /PLANNED_RECOMMENDATION_REQUIRED/);
+  }
+});
+test("canonical but insufficient history or funding cannot be approved by changing the requested envelope", () => {
+  for (const [financial, history] of [[fundedPolicy, { ...baseline, buyers: 1000, conversions: 100 }],
+    [policy, baseline], [fundedPolicy, { ...baseline, buyers: 0, conversions: 0, complete: false }]] as const) {
+    const recommendation = plannedIncentiveRecommendation(study, rules, financial, history);
+    assert.throws(() => recommendedIncentiveBudgetTerms({ ...source, policy: financial, recommendation }, limits.startsAt), /MEASUREMENT_BLOCKED/);
+  }
+});
+test("a manually cleared planning blocker never becomes a funding permission", () => {
+  const recommendation = plannedIncentiveRecommendation(study, rules, policy, baseline);
+  recommendation.planning!.status = "estimated_feasible"; recommendation.planning!.blockers = [];
+  assert.throws(() => recommendedIncentiveBudgetTerms({ ...source, recommendation }, limits.startsAt), /INVALID_INCENTIVE_RECOMMENDATION/);
+});
+test("a new financial version requires a new recommendation even when limits did not change", () => {
+  const policy = incentivePolicySnapshot("store", 3, fundedPolicy);
+  assert.throws(() => recommendedIncentiveBudgetTerms({ ...planned, policy }, limits.startsAt), /POLICY_CHANGED/);
 });

@@ -2,6 +2,7 @@ import type { MerchantRules } from "@zyon/shared-types";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { assertDiscountStudy, type StrategyDiscountStudy } from "./strategy-discount-study.js";
 import { incentivePolicySnapshot, type IncentivePolicySnapshot } from "./incentive-policy.js";
+import { assertIncentiveRecommendation, type StrategyIncentiveRecommendation } from "./strategy-incentive-recommendation.js";
 
 /** A reviewed funding envelope, not permission to issue an offer or to change
  * an existing communication experiment. Monetary values are integer BRL cents. */
@@ -71,4 +72,28 @@ export function incentiveBudgetTerms(source: Parameters<typeof assertIncentiveBu
     endsAt: new Date(start + 7 * 86_400_000).toISOString() };
   assertIncentiveBudgetTerms(terms, source);
   return terms;
+}
+
+type RecommendedFundingSource = Parameters<typeof assertIncentiveBudgetTerms>[1] & {
+  recommendation?: StrategyIncentiveRecommendation;
+};
+
+/** New funding is derived from the frozen AI recommendation. A merchant review
+ * chooses whether to accept; it never supplies an alternative discount/budget.
+ * This is still accounting only, not checkout activation or offer authority. */
+export function recommendedIncentiveBudgetTerms(source: RecommendedFundingSource, startsAt: string): IncentiveBudgetTerms {
+  const recommendation = source.recommendation;
+  if (!recommendation || recommendation.definition !== "weekly-incentive-recommendation-v2"
+    || recommendation.status !== "recommended") throw new Error("INCENTIVE_PLANNED_RECOMMENDATION_REQUIRED");
+  assertIncentiveRecommendation(recommendation, source.study, source.rules);
+  if (digest(recommendation.financialPolicy) !== digest(source.policy)) throw new Error("INCENTIVE_POLICY_CHANGED");
+  if (recommendation.planning?.status !== "estimated_feasible") throw new Error("INCENTIVE_MEASUREMENT_BLOCKED");
+  return incentiveBudgetTerms(source, { limitCents: recommendation.test.limitCents,
+    maxDiscountCents: recommendation.test.maxDiscountCents, maxRedemptions: recommendation.test.maxRedemptions, startsAt });
+}
+
+export function assertRecommendedIncentiveBudgetTerms(terms: IncentiveBudgetTerms, source: RecommendedFundingSource) {
+  if (digest(terms) !== digest(recommendedIncentiveBudgetTerms(source, terms.startsAt))) {
+    throw new Error("INCENTIVE_RECOMMENDED_TERMS_CHANGED");
+  }
 }

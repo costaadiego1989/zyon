@@ -4,7 +4,8 @@ import { randomUUID } from "node:crypto";
 import { PrismaClient, type Prisma } from "@prisma/client";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { discountStudy } from "../domain/strategy-discount-study.js";
-import { incentiveBudgetTerms } from "../domain/incentive-budget.js";
+import { incentiveBudgetTerms, recommendedIncentiveBudgetTerms } from "../domain/incentive-budget.js";
+import { incentiveRecommendation, plannedIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 import { IncentivePolicyService } from "../application/incentive-policy.service.js";
 import { ObservationEntity } from "../domain/entities/observation.entity.js";
 import { HypothesisEntity } from "../domain/entities/hypothesis.entity.js";
@@ -33,7 +34,8 @@ beforeEach(async () => {
     merchants, checkout_sessions, completed_orders, prompt_experiments, coupons CASCADE`);
 });
 
-async function fixture(merchantId = "store", caps = { limitCents: 1000, maxDiscountCents: 500, maxRedemptions: 10 }) {
+const defaultCaps = { limitCents: 500000, maxDiscountCents: 500, maxRedemptions: 1000 };
+async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned" | "legacy" | "missing" | "blocked" = "planned") {
   const now = new Date();
   await prisma.merchant.create({ data: { id: merchantId, name: "Fixture" } });
   const policy = await new IncentivePolicyService(prisma).save(merchantId, "owner", {
@@ -56,9 +58,14 @@ async function fixture(merchantId = "store", caps = { limitCents: 1000, maxDisco
     leaseUntil: new Date(now.getTime() + 600000), observationId: observation.id, asOf: now } });
   await prisma.revenueAnalysisSchedule.create({ data: { merchantId, group: 0, nextDueAt: now, currentRunId: run.id } });
   const study = discountStudy({ merchantId, runId: run.id, observationId: observation.id, rules,
-    asOf: now.toISOString(), capturedAt: now.toISOString(), cohorts: [{ intent: "price_sensitive", sampleSize: 30, conversionRate: .1,
-      carts: Array.from({ length: 30 }, () => ({ total: 100, currency: "BRL", items: [{ sku: "sku", name: "Produto", price: 100, cost: 40, quantity: 1 }] })) }] });
-  await prisma.revenueAnalysisRun.update({ where: { id: run.id }, data: { discountStudyJson: study } });
+    asOf: now.toISOString(), capturedAt: now.toISOString(), cohorts: [{ intent: "price_sensitive", sampleSize: 10000, conversionRate: .001,
+      carts: Array.from({ length: 10000 }, () => ({ total: 100, currency: "BRL", items: [{ sku: "sku", name: "Produto", price: 100, cost: 40, quantity: 1 }] })) }] });
+  const recommendation = mode === "missing" ? undefined : mode === "legacy" ? incentiveRecommendation(study, rules, policy)
+    : plannedIncentiveRecommendation(study, rules, policy, { buyers: mode === "blocked" ? 1000 : 10000,
+      conversions: mode === "blocked" ? 100 : 10, complete: true,
+      windowStart: new Date(now.getTime() - 35 * 86400000).toISOString(), windowEnd: new Date(now.getTime() - 7 * 86400000).toISOString() });
+  await prisma.revenueAnalysisRun.update({ where: { id: run.id }, data: { discountStudyJson: study,
+    ...(recommendation ? { incentiveRecommendationJson: recommendation as unknown as Prisma.InputJsonValue } : {}) } });
   const hypothesis = HypothesisEntity.create({ merchant_id: merchantId, observation_id: observation.id,
     hypothesis_text: "Testar uma explicação das etapas", reasoning: "Comparar as sessões observadas", expected_lift_percent: 1,
     template: { name: "Explicação", description: "Explicar as próximas etapas",
@@ -67,10 +74,12 @@ async function fixture(merchantId = "store", caps = { limitCents: 1000, maxDisco
     risk_level: "low", approval_strategy: "manual" });
   await new PrismaHypothesisRepository(prisma).save(hypothesis, { runId: run.id, leaseToken: 1, discountStudy: study });
   const version = await prisma.revenueStrategyVersion.findFirstOrThrow({ where: { strategyId: hypothesis.id } });
-  const terms = incentiveBudgetTerms({ merchantId, strategyId: hypothesis.id, version: 1, proposalHash: version.proposalHash, study, rules, policy },
-    { ...caps, startsAt: new Date(Date.now() + 400).toISOString() });
+  await prisma.revenueAnalysisRun.update({ where: { id: run.id }, data: { status: "completed" } });
+  const source = { merchantId, strategyId: hypothesis.id, version: 1, proposalHash: version.proposalHash, study, rules, policy, recommendation };
+  const startsAt = new Date(Date.now() + 700).toISOString();
+  const terms = mode === "planned" ? recommendedIncentiveBudgetTerms(source, startsAt) : incentiveBudgetTerms(source, { ...caps, startsAt });
   const input = { merchantId, terms, termsHash: digest(terms), actorId: "owner", requestKey: "budget-review" };
-  return { merchantId, input, terms, version, run, hypothesis };
+  return { merchantId, input, terms, version, run, hypothesis, source };
 }
 async function ready(caps?: { limitCents: number; maxDiscountCents: number; maxRedemptions: number }) {
   const f = await fixture("store", caps);
@@ -91,6 +100,84 @@ async function reserve(f: Awaited<ReturnType<typeof ready>>, amountCents = 500, 
 const totals = (f: Awaited<ReturnType<typeof ready>>) => tx(t => readIncentiveBudget(t, f.merchantId, f.budget.id));
 const resolution = (id: string, status: "spent" | "released" = "spent", spentCents = 500) => ({
   merchantId: "store", reservationId: id, status, spentCents, evidenceKey: `commerce:${id}` });
+
+// Fill via actual reservation evidence; never fabricate counters or disable a
+// guard. Leave a small remainder to exercise concurrent exhaustion efficiently.
+async function fill(f: Awaited<ReturnType<typeof ready>>, count: number, amountCents = 500) {
+  const now = new Date();
+  const buyers = Array.from({ length: count }, () => randomUUID());
+  await prisma.checkoutSession.createMany({ data: buyers.map(id => ({ merchantId: f.merchantId, sessionId: id,
+    globalUserId: id, conversationId: id, cohort: "treatment", cart: { currency: "BRL", total: 100 }, createdAt: now, updatedAt: now })) });
+  await prisma.strategyIncentiveReservation.createMany({ data: buyers.map(id => ({ id, merchantId: f.merchantId,
+    budgetId: f.budget.id, sessionId: id, buyerId: id, requestKey: id, requestHash: "a".repeat(64), amountCents, reservedAt: now })) });
+}
+
+function rawFunding(f: Awaited<ReturnType<typeof fixture>>, patch: Record<string, unknown> = {}) {
+  const terms = { ...f.terms, startsAt: new Date(Date.now() + 60000).toISOString() };
+  terms.endsAt = new Date(Date.parse(terms.startsAt) + 7 * 86400000).toISOString();
+  return { id: randomUUID(), merchantId: f.merchantId, strategyId: f.hypothesis.id, version: 1,
+    policyVersion: 1, proposalHash: f.version.proposalHash, terms, termsHash: digest(terms), actorId: "owner",
+    requestKey: randomUUID(), requestHash: "a".repeat(64), limitCents: terms.limitCents,
+    maxDiscountCents: terms.maxDiscountCents, maxRedemptions: terms.maxRedemptions,
+    startsAt: new Date(terms.startsAt), endsAt: new Date(terms.endsAt), approvedAt: new Date(), ...patch };
+}
+
+for (const mode of ["missing", "legacy", "blocked"] as const)
+spec(`new funding rejects ${mode} planning in the application and raw SQL`, async () => {
+  const f = await fixture("store", defaultCaps, mode);
+  await assert.rejects(tx(t => registerReviewedIncentiveBudget(t, f.input)), /PLANNED_RECOMMENDATION_REQUIRED|MEASUREMENT_BLOCKED/);
+  await assert.rejects(prisma.strategyIncentiveBudget.create({ data: rawFunding(f) }), /requires the planned recommendation/);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
+
+spec("a completed feasible recommendation binds every funding dimension even below merchant limits", async () => {
+  const f = await fixture();
+  for (const patch of [{ limitCents: 499500 }, { maxDiscountCents: 400 }, { maxRedemptions: 999 }]) {
+    const terms = { ...f.terms, ...patch };
+    await assert.rejects(tx(t => registerReviewedIncentiveBudget(t, { ...f.input, terms, termsHash: digest(terms) })), /RECOMMENDED_TERMS_CHANGED/);
+    const row = rawFunding(f, patch); row.terms = { ...row.terms, ...patch }; row.termsHash = digest(row.terms);
+    await assert.rejects(prisma.strategyIncentiveBudget.create({ data: row }), /requires the planned recommendation/);
+  }
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
+
+spec("publication alone cannot fund an unfinished analysis", async () => {
+  const f = await fixture();
+  await prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { status: "running" } });
+  await assert.rejects(tx(t => registerReviewedIncentiveBudget(t, f.input)), /ANALYSIS_NOT_COMPLETED/);
+  await assert.rejects(prisma.strategyIncentiveBudget.create({ data: rawFunding(f) }), /requires the planned recommendation/);
+});
+
+spec("raw reservations refuse a superseded or rejected recommendation and still allow terminal reconciliation", async () => {
+  const f = await ready(), existing = await reserve(f), buyer = await session();
+  const raw = { ...buyer, id: randomUUID(), budgetId: f.budget.id, requestKey: "raw-version", requestHash: "a".repeat(64),
+    amountCents: 500, reservedAt: new Date() };
+  for (const patch of [{ currentVersion: 2 }, { currentVersion: 1, status: "rejected" }, { status: "revision_pending" }]) {
+    await prisma.revenueStrategy.update({ where: { id: f.hypothesis.id }, data: patch });
+    await assert.rejects(prisma.strategyIncentiveReservation.create({ data: raw }), /requires the planned recommendation/);
+  }
+  assert.equal((await tx(t => reserveIncentiveBudget(t, existing.input))).id, existing.row.id);
+  await tx(t => resolveIncentiveBudget(t, resolution(existing.row.id)));
+  assert.equal((await totals(f)).spentCents, 500);
+});
+
+for (const isolationLevel of ["ReadCommitted", "RepeatableRead"] as const)
+spec(`${isolationLevel} fences funding from a proposal superseded after its snapshot`, async () => {
+  const f = await fixture();
+  let seen!: () => void, resume!: () => void;
+  const snapshot = new Promise<void>(resolve => { seen = resolve; });
+  const gate = new Promise<void>(resolve => { resume = resolve; });
+  const attempt = prisma.$transaction(async t => {
+    await t.revenueStrategy.findUniqueOrThrow({ where: { id: f.hypothesis.id } }); seen(); await gate;
+    return t.strategyIncentiveBudget.create({ data: rawFunding(f) });
+  }, { isolationLevel });
+  const rejected = assert.rejects(attempt, /requires the planned recommendation|serialize|write conflict|deadlock/i);
+  await snapshot;
+  try { await prisma.revenueStrategy.update({ where: { id: f.hypothesis.id }, data: { currentVersion: 2 } }); }
+  finally { resume(); }
+  await rejected;
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
 
 spec("funding approval is separate, exact, idempotent and creates no coupon or active experiment", async () => {
   const f = await fixture();
@@ -157,10 +244,10 @@ spec("financial settings history and version head cannot be rewritten or erased"
 });
 
 for (const [label, patch] of [["disabled", { enabled: false }], ["lower", { limitCents: 500 }],
-  ["higher", { limitCents: 2000 }], ["same values new version", {}]] as const)
+  ["higher", { limitCents: 1000000 }], ["same values new version", {}]] as const)
 spec(`a ${label} policy stops old funding and reservations while preserving settlement`, async () => {
   const f = await ready(), existing = await reserve(f);
-  await policies.save("store", "owner", { ...policyCommand, expectedVersion: 1, requestKey: "changed", ...patch });
+  await policies.save("store", "owner", { ...policyCommand, ...defaultCaps, expectedVersion: 1, requestKey: "changed", ...patch });
   await assert.rejects(reserve(f), /POLICY_CHANGED/);
   const buyer = await session();
   await assert.rejects(prisma.strategyIncentiveReservation.create({ data: { ...buyer, id: randomUUID(), budgetId: f.budget.id,
@@ -183,10 +270,10 @@ spec("raw funding cannot omit its policy, forge its binding or exceed merchant c
   const data = { id: randomUUID(), merchantId: "store", strategyId: f.hypothesis.id, version: 1,
     proposalHash: f.terms.proposalHash, termsHash: f.input.termsHash, terms: f.terms,
     policyVersion: 1, actorId: "owner", requestKey: "raw", requestHash: "a".repeat(64),
-    limitCents: 1000, maxDiscountCents: 500, maxRedemptions: 10,
+    ...defaultCaps,
     startsAt: new Date(f.terms.startsAt), endsAt: new Date(f.terms.endsAt), approvedAt: new Date() };
   for (const patch of [{ policyVersion: null }, { policyVersion: 2 }, { terms: { ...f.terms, policyHash: "b".repeat(64) } },
-    { limitCents: 1001 }, { maxDiscountCents: 501 }, { maxRedemptions: 11 }]) {
+    { limitCents: 500001 }, { maxDiscountCents: 501 }, { maxRedemptions: 1001 }]) {
     await assert.rejects(prisma.strategyIncentiveBudget.create({ data: { ...data, ...patch } }), /policy changed or unavailable/);
   }
   assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
@@ -261,22 +348,24 @@ spec("approval rejects changed policy, stale versions, past start and an already
 
 spec("parallel reservations cannot exceed the strategy monetary ceiling", async () => {
   const f = await ready();
+  await fill(f, 998);
   const inputs = await Promise.all(Array.from({ length: 12 }, async () => ({ ...await session(), budgetId: f.budget.id,
     requestKey: randomUUID(), amountCents: 400 })));
   const attempts = await Promise.allSettled(inputs.map(input => tx(t => reserveIncentiveBudget(t, input))));
   assert.equal(attempts.filter(r => r.status === "fulfilled").length, 2);
   const sum = await totals(f);
-  assert.equal(sum.reservedCents, 800); assert.equal(sum.uncommittedCents, 200); assert.equal(sum.spentCents, 0);
+  assert.equal(sum.reservedCents, 499800); assert.equal(sum.uncommittedCents, 200); assert.equal(sum.spentCents, 0);
 });
 
 spec("redemption slots and one use per buyer hold across concurrent different sessions", async () => {
-  const f = await ready({ limitCents: 10000, maxDiscountCents: 500, maxRedemptions: 2 });
+  const f = await ready();
+  await fill(f, 998, 1);
   const buyers = await Promise.all(Array.from({ length: 6 }, () => session("store", randomUUID(), "same-buyer")));
   const attempts = await Promise.allSettled(buyers.map(b => reserve(f, 100, randomUUID(), b)));
   assert.equal(attempts.filter(r => r.status === "fulfilled").length, 1);
   await reserve(f, 100);
   await assert.rejects(reserve(f, 1), /budget unavailable or exhausted/);
-  assert.equal((await totals(f)).reservedCount, 2);
+  assert.equal((await totals(f)).reservedCount, 1000);
 });
 
 spec("exact retry is stable and conflicting retry cannot alter money, session or buyer", async () => {
@@ -312,7 +401,7 @@ spec("unknown reservations retain funds after closure, and resolution works with
   await tx(t => resolveIncentiveBudget(t, input));
   await tx(t => resolveIncentiveBudget(t, input));
   const sum = await totals(f);
-  assert.equal(sum.status, "closed"); assert.equal(sum.reservedCents, 0); assert.equal(sum.uncommittedCents, 1000);
+  assert.equal(sum.status, "closed"); assert.equal(sum.reservedCents, 0); assert.equal(sum.uncommittedCents, 500000);
   assert.equal((await tx(t => registerReviewedIncentiveBudget(t, f.input))).id, f.budget.id);
 });
 
@@ -323,7 +412,7 @@ spec("partial consumption charges actual cents and releases the unused amount ex
   assert.equal(new Set(outcomes.map(row => row.id)).size, 1);
   const sum = await totals(f);
   assert.equal(sum.reservedCents, 0); assert.equal(sum.spentCents, 350); assert.equal(sum.spentCount, 1);
-  assert.equal(sum.uncommittedCents, 650);
+  assert.equal(sum.uncommittedCents, 499650);
   await assert.rejects(tx(t => resolveIncentiveBudget(t, resolution(r.row.id, "released", 0))), /RESOLUTION_CONFLICT/);
   await assert.rejects(reserve(f, 100, randomUUID(), r.input), /unique constraint/i);
 });
@@ -386,15 +475,17 @@ spec("database denies rewritten terms, fabricated counters, reopened reservation
 
 spec("raw concurrent inserts cannot bypass the accounting ceiling", async () => {
   const f = await ready();
+  await fill(f, 998);
   const inputs = await Promise.all(Array.from({ length: 10 }, async () => ({ ...await session(), id: randomUUID(),
     budgetId: f.budget.id, requestKey: randomUUID(), requestHash: "a".repeat(64), amountCents: 400, reservedAt: new Date() })));
   const attempts = await Promise.allSettled(inputs.map(input => prisma.strategyIncentiveReservation.create({ data: input })));
   assert.equal(attempts.filter(a => a.status === "fulfilled").length, 2);
-  assert.equal((await totals(f)).reservedCents, 800);
+  assert.equal((await totals(f)).reservedCents, 499800);
 });
 
 spec("repeatable-read snapshots are fenced rather than silently overspending", async () => {
-  const f = await ready({ limitCents: 500, maxDiscountCents: 500, maxRedemptions: 2 });
+  const f = await ready();
+  await fill(f, 999);
   const buyers = await Promise.all([session(), session()]);
   let arrived = 0; let release!: () => void;
   const gate = new Promise<void>(resolve => { release = resolve; });
@@ -406,7 +497,7 @@ spec("repeatable-read snapshots are fenced rather than silently overspending", a
       requestKey: randomUUID(), requestHash: "a".repeat(64), amountCents: 500, reservedAt: new Date() } });
   }, { isolationLevel: "RepeatableRead" })));
   assert.equal(attempts.filter(a => a.status === "fulfilled").length, 1);
-  assert.equal((await totals(f)).reservedCents, 500);
+  assert.equal((await totals(f)).reservedCents, 500000);
 });
 
 spec("a changed policy or superseded proposal blocks new reservations but leaves settlement possible", async () => {
