@@ -48,3 +48,29 @@ test("a legacy selected coupon without a code becomes the safe reminder", async 
     rule_id: undefined,
   });
 });
+
+test("an incomplete advanced rule becomes the safe reminder", async () => {
+  const repo = repository({
+    config: { active_strategy: "advanced_rule" },
+    strategies: { advanced_rule: true },
+  });
+
+  assert.deepEqual(await repo.getConfig("merchant"), {
+    active_strategy: "personalized_cross_sell",
+    coupon_code: undefined,
+    rule_id: undefined,
+  });
+});
+
+test("an unsupported legacy strategy becomes the safe reminder", async () => {
+  const repo = repository({
+    config: { active_strategy: "retired_strategy" },
+    strategies: {},
+  });
+
+  assert.deepEqual(await repo.getConfig("merchant"), {
+    active_strategy: "personalized_cross_sell",
+    coupon_code: undefined,
+    rule_id: undefined,
+  });
+});

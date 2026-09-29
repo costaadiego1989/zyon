@@ -43,20 +43,31 @@ export class PrismaStrategyPreferencesRepository implements StrategyPreferencesR
       };
     }
     const cfg = row.config as Record<string, unknown>;
-    const couponCode = (cfg.coupon_code as string | undefined) ?? undefined;
-    // The original database default created an incomplete coupon strategy.
-    // There is no coupon to send in that state. Regardless of which legacy
-    // boolean was persisted beside it, use the safe, no-discount reminder
-    // until a real coupon code is configured. A configured coupon is never
-    // replaced.
-    const activeStrategy = cfg.active_strategy === "offer_coupon"
-      && !couponCode
+    const couponCode = typeof cfg.coupon_code === "string" && cfg.coupon_code.trim()
+      ? cfg.coupon_code.trim()
+      : undefined;
+    const ruleId = typeof cfg.rule_id === "string" && cfg.rule_id.trim()
+      ? cfg.rule_id.trim()
+      : undefined;
+    const configuredStrategy = cfg.active_strategy;
+    const validStrategy = configuredStrategy === "offer_free_shipping"
+      || configuredStrategy === "personalized_cross_sell"
+      || configuredStrategy === "offer_coupon"
+      || configuredStrategy === "advanced_rule";
+
+    // Legacy preference rows can name a coupon without a code, an advanced
+    // rule without its rule id, or a now-removed strategy. None can produce a
+    // valid message, so fall back to the safe, no-discount reminder. Any
+    // complete, supported merchant configuration remains untouched.
+    const activeStrategy = !validStrategy
+      || (configuredStrategy === "offer_coupon" && !couponCode)
+      || (configuredStrategy === "advanced_rule" && !ruleId)
       ? "personalized_cross_sell"
-      : (cfg.active_strategy as StrategyConfig["active_strategy"] | undefined) ?? "personalized_cross_sell";
+      : configuredStrategy;
     return {
       active_strategy: activeStrategy,
       coupon_code: couponCode,
-      rule_id: (cfg.rule_id as string | undefined) ?? undefined,
+      rule_id: ruleId,
     };
   }
 
