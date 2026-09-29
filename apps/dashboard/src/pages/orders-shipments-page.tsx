@@ -28,6 +28,9 @@ import type { PurchaseShippingLabelPayload, PurchasedShippingLabel } from "../ap
 
 export { STATUS_LABELS, computeOrderMetrics, filterOrders, filterOrdersByPeriod } from "./orders-shipments/utils.js";
 
+export type OrderPeriod = "all" | "today" | "7d" | "15d" | "30d";
+export const DEFAULT_ORDER_PERIOD: OrderPeriod = "today";
+
 // ── Kanban Column Definitions ───────────────────────────────────────────────
 
 type KanbanColumnDef = {
@@ -88,7 +91,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   const vm = useOrdersShipmentsPage({ me });
   const [draggedOrder, setDraggedOrder] = useState<TenantOrder | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [period, setPeriod] = useState<"all" | "today" | "7d" | "15d" | "30d">("all");
+  const [period, setPeriod] = useState<OrderPeriod>(DEFAULT_ORDER_PERIOD);
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
   const filteredOrders = useMemo(() => {
@@ -176,7 +179,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         </div>
       ) : visibleOrders.length === 0 ? (
         <div className="panel">
-          <EmptyState icon={Package} title={vm.orders.length ? "Nenhum pedido com estes filtros" : "Os pedidos da sua loja aparecem aqui"} description={vm.orders.length ? "Altere a busca ou o período para localizar o pedido." : "Após uma venda no checkout, acompanhe o pagamento, o envio e a entrega por este painel."} action={vm.orders.length ? <Button variant="outline" onClick={() => { setSearch(""); setPeriod("all"); setDateRange({ from: "", to: "" }); }}>Limpar filtros</Button> : undefined} />
+        <EmptyState icon={Package} title={vm.orders.length ? "Nenhum pedido com estes filtros" : "Os pedidos da sua loja aparecem aqui"} description={vm.orders.length ? "Altere a busca ou o período para localizar o pedido." : "Após uma venda no checkout, acompanhe o pagamento, o envio e a entrega por este painel."} action={vm.orders.length ? <Button variant="outline" onClick={() => { setSearch(""); setPeriod(DEFAULT_ORDER_PERIOD); setDateRange({ from: "", to: "" }); }}>Limpar filtros</Button> : undefined} />
         </div>
       ) : (
         <div className="orders-kanban" role="region" aria-label="Pedidos por etapa" tabIndex={0}>
