@@ -1,6 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { loadDiscountCohorts } from "./discount-cohort.reader.js";
+import { incentivePlanningBaseline, loadDiscountCohorts, loadDiscountHistory } from "./discount-cohort.reader.js";
+import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
+import { discountStudy } from "../domain/strategy-discount-study.js";
+import { incentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
+import { incentivePolicySnapshot } from "../domain/incentive-policy.js";
 
 const now = new Date("2026-09-29T00:00:00Z"), createdAt = new Date("2026-09-20T00:00:00Z");
 const session = (buyer = "buyer") => ({ globalUserId: buyer, createdAt,
@@ -69,4 +73,39 @@ test("discount cohort refuses truncated samples and unknown consent instead of e
   assert.deepEqual(await loadDiscountCohorts(db(Array.from({ length: 10001 }, () => session())), "store", now, 30), []);
   assert.deepEqual(await loadDiscountCohorts(db([session()], Array.from({ length: 10001 }, () => intent())), "store", now, 30), []);
   assert.deepEqual(await loadDiscountCohorts(db([session()], []), "store", now, 30), []);
+});
+
+const rules = { ...DEFAULT_MERCHANT_RULES, autonomousEngineEnabled: true, maxDiscountPercent: 5, minimumMarginPercent: 30 };
+function recommendation() {
+  const study = discountStudy({ merchantId: "store", runId: "run", observationId: "obs", asOf: now.toISOString(), capturedAt: now.toISOString(), rules,
+    cohorts: [{ intent: "price_sensitive", sampleSize: 30, conversionRate: .1, carts: Array.from({ length: 30 }, () => ({
+      currency: "BRL", total: 100, items: [{ sku: "sku", name: "Produto", quantity: 1, price: 100, cost: 40 }] })) }] });
+  return incentiveRecommendation(study, rules, incentivePolicySnapshot("store", 1, { enabled: true, limitCents: 10000, maxDiscountCents: 400, maxRedemptions: 25 }));
+}
+test("incentive baseline counts eligible non-buyers, excludes holdout/unknown cohorts and carries exact conversions", async () => {
+  const sessions = Array.from({ length: 5 }, (_, i) => ({ ...session(`buyer-${i}`), cohort: i < 3 ? "treatment" : i === 3 ? "holdout" : null }));
+  sessions[0].completedOrders = [{ completedAt: createdAt }, { completedAt: createdAt }];
+  sessions[3].completedOrders = [{ completedAt: createdAt }];
+  const repeat = { ...sessions[1], completedOrders: [{ completedAt: createdAt }] };
+  const history = await loadDiscountHistory(db([...sessions, repeat], sessions.map(s => intent(s.globalUserId))), "store", now, 30);
+  const b = incentivePlanningBaseline(history, now, recommendation(), rules)!;
+  assert.deepEqual(b, { buyers: 3, conversions: 1, complete: true,
+    windowStart: "2026-08-25T00:00:00.000Z", windowEnd: "2026-09-22T00:00:00.000Z" });
+  assert.equal(JSON.stringify(b).includes("buyer-"), false);
+});
+
+test("incentive planning rechecks audience, cart range and capped offer margin against the captured catalog", () => {
+  const cart = { currency: "BRL", total: 100, items: [{ sku: "sku", name: "Produto", quantity: 1, price: 100, cost: 40 }] };
+  const buyer = { intent: "price_sensitive", cart, converted: false, cohort: "treatment" };
+  const history = { complete: true, buyers: [buyer, { ...buyer, intent: "returning" }, { ...buyer, cart: { ...cart, total: 200 } },
+    { ...buyer, cart: { ...cart, items: [{ ...cart.items[0], cost: 99 }] } }] };
+  const b = incentivePlanningBaseline(history, now, recommendation(), rules)!;
+  assert.equal(b.buyers, 1); assert.equal(b.conversions, 0);
+});
+
+test("incentive planning refuses partial histories and distinguishes them from an empty complete history", async () => {
+  const h = await loadDiscountHistory(db(Array.from({ length: 10001 }, () => session())), "store", now, 30);
+  const b = incentivePlanningBaseline(h, now, recommendation(), rules)!;
+  assert.equal(b.complete, false); assert.equal(b.buyers, 0);
+  assert.equal(incentivePlanningBaseline({ complete: true, buyers: [] }, now, recommendation(), rules)!.complete, true);
 });

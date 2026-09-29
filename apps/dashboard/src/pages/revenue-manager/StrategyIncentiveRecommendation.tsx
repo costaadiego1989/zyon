@@ -1,5 +1,6 @@
 import type { StrategyProposal } from "../../api/endpoints/strategy-review.js";
 import { formatReviewNumber as number } from "./strategy-review-model.js";
+import { StrategyIncentivePlanning } from "./StrategyIncentivePlanning.js";
 
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
@@ -9,7 +10,7 @@ export function StrategyIncentiveRecommendation({ recommendation: r, policyCurre
   if (!r) return null;
   const fallback = <section className="strategy-detail-section"><h2>Teste de desconto sugerido</h2>
     <p>Atualize o dashboard para consultar este formato de sugestão.</p></section>;
-  if (r.definition !== "weekly-incentive-recommendation-v1" || r.execution !== "unavailable"
+  if (!["weekly-incentive-recommendation-v1", "weekly-incentive-recommendation-v2"].includes(r.definition) || r.execution !== "unavailable"
     || r.approval !== "separate_incentive_review_required" || r.budgetStatus !== "not_reserved") return fallback;
   if (r.status === "not_recommended") {
     if (r.reason === "no_safe_candidate") return null; // Explained by the companion simulation.
@@ -24,7 +25,8 @@ export function StrategyIncentiveRecommendation({ recommendation: r, policyCurre
     || t.control !== "current_checkout_without_test_incentive" || t.stacking !== "no_other_coupon_or_incentive"
     || t.audience?.consent !== "required" || t.audience?.holdout !== "excluded"
     || t.audience?.identity !== "first_eligible_session_per_buyer"
-    || t.measurement?.result !== "not_measured" || t.measurement?.samplePlanning !== "required_before_activation"
+    || t.measurement?.result !== "not_measured" || t.measurement?.samplePlanning !== (r.definition === "weekly-incentive-recommendation-v2"
+      ? "included_in_recommendation" : "required_before_activation")
     || t.measurement?.conversionWindowHours !== 168
     || [t.maxDiscountCents, t.limitCents, t.maxRedemptions, t.audience.minCartTotalCents, t.audience.maxCartTotalCents]
       .some(n => !Number.isSafeInteger(n) || n <= 0)
@@ -45,6 +47,8 @@ export function StrategyIncentiveRecommendation({ recommendation: r, policyCurre
       <div><dt>Público sugerido</dt><dd>{t.audience.intent === "price_sensitive" ? "Compradores com sensibilidade ao preço" : "Compradores com o perfil de intenção da simulação"}, com consentimento</dd></div>
       <div><dt>Faixa de carrinho</dt><dd>{money(t.audience.minCartTotalCents)} a {money(t.audience.maxCartTotalCents)}</dd></div>
     </dl>
+    {r.definition === "weekly-incentive-recommendation-v2" && <StrategyIncentivePlanning planning={r.planning}
+      maxDiscountCents={t.maxDiscountCents} maxRedemptions={t.maxRedemptions} />}
     <p>Este teste de desconto ainda não está disponível para aprovação. Nenhum valor foi reservado.
       Aprovar a comunicação abaixo não autoriza o desconto.</p>
     <details className="strategy-review-details"><summary>Regras e métricas do teste sugerido</summary>
@@ -55,7 +59,7 @@ export function StrategyIncentiveRecommendation({ recommendation: r, policyCurre
         <p>O orçamento cobre o desconto máximo em todos os usos previstos. É um teto de gasto, não uma previsão de demanda.</p>
         <p>A métrica principal será a conversão em pedido aprovado por comprador, com acompanhamento de gastos com desconto,
           margem configurada e devoluções. O resultado ainda não foi medido.</p>
-        <p>O tamanho da amostra precisa ser avaliado antes da ativação. Após os sete dias de teste, as últimas participações
+        <p>{r.definition === "weekly-incentive-recommendation-v1" ? "O tamanho da amostra precisa ser avaliado antes da ativação. " : ""}Após os sete dias de teste, as últimas participações
           ainda precisam completar sua janela de compra de sete dias antes da leitura final.</p>
       </div>
     </details>

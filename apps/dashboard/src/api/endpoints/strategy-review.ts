@@ -16,7 +16,17 @@ export interface StrategyProposal {
   execution: "unavailable";
   expectedLiftStatus: "model_estimate_not_measured";
   incentiveRecommendation?: {
-    definition: "weekly-incentive-recommendation-v1";
+    definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2";
+    planning?: {
+      definition: "incentive-fixed-horizon-planning-v1";
+      baseline: { buyers: number; conversions: number; complete: boolean; windowStart: string; windowEnd: string };
+      durationDays: 7; conversionWindowHours: 168; allocation: "50/50";
+      minimumEffectBps: 100; confidence: 0.95; planningPower: 0.8;
+      minimumBuyersPerArm: number | null; weeklyBuyersPerArm: number | null;
+      fundedTreatmentBuyers: number; requiredBudgetCents: number | null;
+      status: "blocked" | "estimated_feasible"; result: "not_measured";
+      blockers: string[];
+    };
     approval: "separate_incentive_review_required"; execution: "unavailable"; budgetStatus: "not_reserved";
     financialPolicy: { version: number; policyHash: string };
     status: "recommended" | "not_recommended";
@@ -29,7 +39,7 @@ export interface StrategyProposal {
       maxPerBuyer: 1; durationDays: 7; start: "after_specific_approval"; allocation: "50/50";
       control: "current_checkout_without_test_incentive"; stacking: "no_other_coupon_or_incentive";
       minimumMarginPercent: number;
-      measurement: { result: "not_measured"; samplePlanning: "required_before_activation"; conversionWindowHours: 168 };
+      measurement: { result: "not_measured"; samplePlanning: "required_before_activation" | "included_in_recommendation"; conversionWindowHours: 168 };
     };
   };
   discountStudy?: {

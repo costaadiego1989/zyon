@@ -20,15 +20,20 @@ function version(n) {
           variant_a: { name: "Atual", system_prompt: "checkout-chat-baseline-v1:fixture", weight: 50, is_control: true },
           variant_b: { name: "Comunicação", system_prompt: "Pergunte qual etapa precisa de explicação e use apenas dados verificados.", weight: 50, is_control: false } } },
       rules: { maxDiscountPercent: 10, minimumMarginPercent: 38, allowFreeShipping: false, maxShippingSubsidy: 0 },
-      incentiveRecommendation: { definition: "weekly-incentive-recommendation-v1", status: "recommended",
+      incentiveRecommendation: { definition: "weekly-incentive-recommendation-v2", status: "recommended",
         approval: "separate_incentive_review_required", execution: "unavailable", budgetStatus: "not_reserved",
         financialPolicy: { version: 1, policyHash: "p".repeat(64) },
+        planning: { definition: "incentive-fixed-horizon-planning-v1", result: "not_measured", status: "blocked",
+          baseline: { buyers: 1000, conversions: 100, complete: true, windowStart: stamp, windowEnd: stamp },
+          durationDays: 7, conversionWindowHours: 168, allocation: "50/50", minimumEffectBps: 100, confidence: .95, planningPower: .8,
+          minimumBuyersPerArm: 14751, weeklyBuyersPerArm: 125, fundedTreatmentBuyers: 30, requiredBudgetCents: 14751000,
+          blockers: ["insufficient_weekly_traffic", "insufficient_budget"] },
         test: { kind: "capped_percentage_discount", currency: "BRL", discountPercent: 10, maxDiscountCents: 1000,
           limitCents: 30000, maxRedemptions: 30, maxPerBuyer: 1, durationDays: 7, start: "after_specific_approval",
           allocation: "50/50", control: "current_checkout_without_test_incentive", stacking: "no_other_coupon_or_incentive",
           minimumMarginPercent: 38, audience: { intent: "price_sensitive", consent: "required",
             identity: "first_eligible_session_per_buyer", holdout: "excluded", minCartTotalCents: 10000, maxCartTotalCents: 20000 },
-          measurement: { conversionWindowHours: 168, result: "not_measured", samplePlanning: "required_before_activation" } } },
+          measurement: { conversionWindowHours: 168, result: "not_measured", samplePlanning: "included_in_recommendation" } } },
       discountStudy: { definition: "weekly-discount-study-v1", asOf: stamp, capturedAt: stamp, lookbackDays: 28,
         approvalScope: "communication_only", commercialBudget: "not_reserved", status: "candidate_available",
         candidate: { intent: "price_sensitive", percent: 10, simulation: { sampleSize: 30,
@@ -162,6 +167,9 @@ try {
     await incentive.getByText(/10%, até R\$\s*10,00 por compra/).waitFor();
     await incentive.getByText("7 dias após aprovação específica", { exact: true }).waitFor();
     await incentive.getByText(/Aprovar a comunicação abaixo não autoriza o desconto/).waitFor();
+    await incentive.getByRole("heading", { name: "Condições para medir o teste", exact: true }).waitFor();
+    await incentive.getByText(/movimento estimado para sete dias fica abaixo/).waitFor();
+    await incentive.getByText(/orçamento e os usos sugeridos não cobrem/).waitFor();
     assert.equal(await incentive.locator("input, select, textarea, button").count(), 0, "The motor designs the test; reading is not spend authorization");
     await incentive.getByText("Regras e métricas do teste sugerido", { exact: true }).click();
     await incentive.getByText(/não uma previsão de demanda/).waitFor();
@@ -178,6 +186,41 @@ try {
     if (out) await incentive.screenshot({ path: `${out}/incentive-stale-policy-${width}.png` });
     if (out) await page.setViewportSize({ width, height: 900 });
     const savedIncentive = structuredClone(review.versions[0].proposal.incentiveRecommendation);
+    const refreshIncentive = async rec => {
+      review.versions[0].proposal.incentiveRecommendation = rec;
+      await page.reload({ waitUntil: "domcontentloaded" });
+    };
+    await refreshIncentive({ ...savedIncentive, test: { ...savedIncentive.test, limitCents: 20000000, maxRedemptions: 20000 },
+      planning: { ...savedIncentive.planning, status: "estimated_feasible", blockers: [],
+        baseline: { ...savedIncentive.planning.baseline, buyers: 10000, conversions: 10 },
+        minimumBuyersPerArm: 936, weeklyBuyersPerArm: 1250, fundedTreatmentBuyers: 20000, requiredBudgetCents: 936000 } });
+    await incentive.getByText(/histórico e os limites sugeridos comportavam a amostra/).waitFor();
+    await incentive.getByText("Como o motor planejou a medição", { exact: true }).click();
+    await incentive.getByText(/critério de planejamento, não uma previsão/).waitFor();
+    await incentive.getByText(/Quem não comprar não gera gasto/).waitFor();
+    await noOverflow(width);
+    if (out) await page.setViewportSize({ width, height: 2200 });
+    if (out) await incentive.screenshot({ path: `${out}/incentive-planning-feasible-${width}.png` });
+    if (out) await page.setViewportSize({ width, height: 900 });
+    for (const [reason, text] of [["insufficient_baseline", /menos de 100 compradores/], ["incomplete_history", /histórico excedeu o limite/],
+      ["unusable_conversion_rate", /taxa de conversão deste público/]]) {
+      const complete = reason !== "incomplete_history", buyers = complete ? 30 : 0;
+      await refreshIncentive({ ...savedIncentive, planning: { ...savedIncentive.planning, blockers: [reason],
+        baseline: { ...savedIncentive.planning.baseline, buyers, conversions: 0, complete },
+        minimumBuyersPerArm: null, requiredBudgetCents: null, weeklyBuyersPerArm: complete ? Math.floor(buyers / 8) : null } });
+      await incentive.getByText(text).waitFor();
+      await incentive.getByText("Ainda não calculável", { exact: true }).waitFor();
+    }
+    for (const planning of [undefined, { ...savedIncentive.planning, definition: "future" },
+      { ...savedIncentive.planning, minimumBuyersPerArm: -1 }, { ...savedIncentive.planning, blockers: ["future_reason"] },
+      { ...savedIncentive.planning, status: "estimated_feasible", blockers: [] }]) {
+      await refreshIncentive({ ...savedIncentive, planning });
+      await incentive.getByText("Atualize o dashboard para consultar o planejamento deste teste.", { exact: true }).waitFor();
+    }
+    await refreshIncentive({ ...savedIncentive, definition: "weekly-incentive-recommendation-v1", planning: undefined,
+      test: { ...savedIncentive.test, measurement: { ...savedIncentive.test.measurement, samplePlanning: "required_before_activation" } } });
+    await incentive.getByText(/300,00 para até 30 usos/).waitFor();
+    assert.equal(await incentive.getByRole("heading", { name: "Condições para medir o teste", exact: true }).count(), 0);
     for (const invalid of [
       { ...savedIncentive, definition: "future-format" },
       { ...savedIncentive, test: { ...savedIncentive.test, limitCents: -1 } },

@@ -2,11 +2,13 @@ import type { MerchantRules } from "@zyon/shared-types";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { assertDiscountStudy, type StrategyDiscountStudy } from "./strategy-discount-study.js";
 import { incentivePolicySnapshot, type IncentivePolicySnapshot } from "./incentive-policy.js";
+import { incentiveMeasurementPlanning, type IncentiveMeasurementPlanning, type IncentivePlanningBaseline } from "./incentive-measurement.js";
 
 /** Automatically planned terms for a SEPARATE incentive test. Neither this
  * document nor approval of its companion communication strategy permits spend. */
 export type StrategyIncentiveRecommendation = {
-  definition: "weekly-incentive-recommendation-v1";
+  definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2";
+  planning?: IncentiveMeasurementPlanning;
   merchantId: string; runId: string; observationId: string; studyHash: string;
   financialPolicy: IncentivePolicySnapshot;
   approval: "separate_incentive_review_required";
@@ -27,7 +29,7 @@ export type StrategyIncentiveRecommendation = {
     budgetBasis: "worst_case_discount_times_max_redemptions";
     measurement: { conversionWindowHours: 168; primary: "approved_order_conversion_per_assigned_buyer";
       guardrails: ["discount_spend", "configured_product_margin", "refunds"];
-      result: "not_measured"; samplePlanning: "required_before_activation" };
+      result: "not_measured"; samplePlanning: "required_before_activation" | "included_in_recommendation" };
   };
 });
 
@@ -63,7 +65,22 @@ export function incentiveRecommendation(study: StrategyDiscountStudy, rules: Mer
 
 export function assertIncentiveRecommendation(value: StrategyIncentiveRecommendation,
   study: StrategyDiscountStudy, rules: MerchantRules) {
-  if (!value || !study || digest(value) !== digest(incentiveRecommendation(study, rules, value.financialPolicy))) {
+  if (!value || !study || digest(value) !== digest(value.definition === "weekly-incentive-recommendation-v2"
+    ? plannedIncentiveRecommendation(study, rules, value.financialPolicy, value.planning?.baseline)
+    : incentiveRecommendation(study, rules, value.financialPolicy))) {
     throw new Error("STRATEGY_INVALID_INCENTIVE_RECOMMENDATION");
   }
+}
+
+/** v1 remains byte-for-byte reproducible for historical proposals. A new cycle
+ * captures v2 once; revisions cannot replan using later sales or budget limits. */
+export function plannedIncentiveRecommendation(study: StrategyDiscountStudy, rules: MerchantRules,
+  policy: IncentivePolicySnapshot, baseline?: IncentivePlanningBaseline): StrategyIncentiveRecommendation {
+  const result = incentiveRecommendation(study, rules, policy);
+  if (result.status === "not_recommended") return { ...result, definition: "weekly-incentive-recommendation-v2" };
+  if (!baseline) throw new Error("STRATEGY_INCENTIVE_PLANNING_REQUIRED");
+  const planning = incentiveMeasurementPlanning(baseline, { asOf: study.asOf,
+    maxDiscountCents: result.test.maxDiscountCents, maxRedemptions: result.test.maxRedemptions });
+  return { ...result, definition: "weekly-incentive-recommendation-v2", planning,
+    test: { ...result.test, measurement: { ...result.test.measurement, samplePlanning: "included_in_recommendation" } } };
 }

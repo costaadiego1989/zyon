@@ -3,10 +3,10 @@ import type { MerchantRules } from "@zyon/shared-types";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { AnalysisDeferred } from "../domain/weekly-analysis-policy.js";
 import { assertDiscountStudy, discountStudy, type StrategyDiscountStudy } from "../domain/strategy-discount-study.js";
-import { loadDiscountCohorts } from "./discount-cohort.reader.js";
+import { discountCohorts, incentivePlanningBaseline, loadDiscountHistory } from "./discount-cohort.reader.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
 import { readIncentivePolicy } from "./incentive-policy.reader.js";
-import { assertIncentiveRecommendation, incentiveRecommendation, type StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
+import { assertIncentiveRecommendation, incentiveRecommendation, plannedIncentiveRecommendation, type StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 
 export function discountStudyEnabled(merchantId: string) {
   return process.env.REVENUE_DISCOUNT_STUDY_ENABLED === "true"
@@ -35,10 +35,14 @@ export async function prepareDiscountStudy(prisma: PrismaClient, merchantId: str
           if (run.incentiveRecommendationJson) assertIncentiveRecommendation(run.incentiveRecommendationJson as unknown as StrategyIncentiveRecommendation, saved, rules);
           return saved;
         }
-        const cohorts = await loadDiscountCohorts(tx, merchantId, run.asOf, 28);
+        const history = await loadDiscountHistory(tx, merchantId, run.asOf, 28);
+        const cohorts = discountCohorts(history);
         const study = discountStudy({ merchantId, runId: run.id, observationId: run.observationId,
           asOf: run.asOf.toISOString(), capturedAt: now.toISOString(), rules, cohorts });
-        const recommendation = incentiveRecommendation(study, rules, await readIncentivePolicy(tx, merchantId));
+        const policy = await readIncentivePolicy(tx, merchantId);
+        const terms = incentiveRecommendation(study, rules, policy);
+        const recommendation = plannedIncentiveRecommendation(study, rules, policy,
+          incentivePlanningBaseline(history, run.asOf, terms, rules));
         const changed = await tx.$executeRaw`UPDATE revenue_analysis_runs SET discount_study_json = ${JSON.stringify(study)}::jsonb,
           incentive_recommendation_json = ${JSON.stringify(recommendation)}::jsonb
           WHERE id = ${run.id} AND merchant_id = ${merchantId} AND status = 'running'

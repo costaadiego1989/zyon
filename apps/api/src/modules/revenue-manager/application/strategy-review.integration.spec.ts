@@ -30,6 +30,7 @@ import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import { assertStoredDiscountStudy, prepareDiscountStudy } from "../infrastructure/strategy-discount-study.js";
 import type { StrategyDiscountStudy } from "../domain/strategy-discount-study.js";
 import { IncentivePolicyService } from "./incentive-policy.service.js";
+import { incentiveRecommendation, plannedIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 
 // Destructive setup is strictly restricted to this dedicated local fixture DB.
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -367,13 +368,13 @@ function configureIncentivePolicy(expectedVersion = 0, limitCents = 10500) {
     enabled: true, limitCents, maxDiscountCents: 400, maxRedemptions: 50 });
 }
 
-async function seedWeeklyDiscountHistory(f: Awaited<ReturnType<typeof fixture>>) {
+async function seedWeeklyDiscountHistory(f: Awaited<ReturnType<typeof fixture>>, count = 30) {
   Object.assign(process.env, { REVENUE_DISCOUNT_STUDY_ENABLED: "true", REVENUE_DISCOUNT_STUDY_MERCHANT_IDS: "store" });
   const product = await prisma.product.create({ data: { merchantId: f.merchantId, name: "Produto simulado" } });
   const variant = await prisma.productVariant.create({ data: { productId: product.id, sku: `weekly-${f.run.id}` } });
   await prisma.productPrice.create({ data: { variantId: variant.id, basePriceInCents: 10000, costInCents: 4000, currency: "BRL" } });
   const createdAt = new Date(f.run.asOf!.getTime() - 8 * 86_400_000);
-  for (let i = 0; i < 30; i++) {
+  for (let i = 0; i < count; i++) {
     const id = `weekly-${f.run.id}-${i}`;
     await prisma.buyerIntentMemoryConsent.create({ data: { merchantId: f.merchantId, globalUserId: id,
       optedIn: true, expiresAt: new Date(Date.now() + 30 * 86_400_000) } });
@@ -413,6 +414,11 @@ test("weekly discount study is opt-in per merchant and captures only once across
   assert.equal(frozen.test.maxDiscountCents, 400);
   assert.equal(frozen.test.maxRedemptions, 26);
   assert.equal(frozen.test.limitCents, 10400);
+  assert.equal(frozen.definition, "weekly-incentive-recommendation-v2");
+  assert.equal(frozen.test.measurement.samplePlanning, "included_in_recommendation");
+  assert.deepEqual(frozen.planning.blockers, ["insufficient_baseline"]);
+  assert.equal(frozen.planning.baseline.buyers, 30);
+  assert.equal(frozen.planning.baseline.conversions, 0);
   await configureIncentivePolicy(1, 400);
   await prisma.productPrice.updateMany({ where: { variantId }, data: { costInCents: 9999 } });
   process.env.REVENUE_DISCOUNT_STUDY_ENABLED = "false";
@@ -588,9 +594,58 @@ test("weekly incentive recommendation cannot be omitted or replaced by a canonic
   await assert.rejects(verify(), /INCENTIVE_RECOMMENDATION_CHANGED/);
   await assert.rejects(verify({ ...frozen, financialPolicy: await configureIncentivePolicy(1, 400) }), /INCENTIVE_RECOMMENDATION_CHANGED/);
   await assert.rejects(verify({ ...frozen, test: { ...frozen.test, limitCents: 99999 } }), /INCENTIVE_RECOMMENDATION_CHANGED/);
+  const canonicalButDifferent = plannedIncentiveRecommendation(study, rules, frozen.financialPolicy,
+    { ...frozen.planning.baseline, buyers: 10000, conversions: 10 });
+  await assert.rejects(verify(canonicalButDifferent), /INCENTIVE_RECOMMENDATION_CHANGED/);
   await verify(frozen);
   assert.equal(await prisma.merchantNotification.count(), 0);
   assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
+
+test("incentive planning uses exact mature conversions in the eligible audience and freezes them before publication", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await seedWeeklyDiscountHistory(f, 112); await configureIncentivePolicy();
+  const id = (i: number) => `weekly-${f.run.id}-${i}`;
+  await prisma.checkoutSession.updateMany({ where: { id: { in: [id(110), id(111)] } }, data: { cohort: "holdout" } });
+  const first = await prisma.checkoutSession.findUniqueOrThrow({ where: { id: id(0) } });
+  const orderAt = new Date(first.createdAt.getTime() + 1000);
+  await prisma.completedOrder.createMany({ data: [0, 1, 2, 110].map(i => ({ merchantId: "store", sessionId: id(i), externalOrderId: `order-${i}`,
+    currency: "BRL", orderTotal: 100, status: "approved", completedAt: orderAt })) });
+  await prisma.completedOrder.create({ data: { merchantId: "store", sessionId: id(0), externalOrderId: "second-order",
+    currency: "BRL", orderTotal: 100, status: "approved", completedAt: orderAt } });
+  await prisma.completedOrder.create({ data: { merchantId: "store", sessionId: id(3), externalOrderId: "late-order",
+    currency: "BRL", orderTotal: 100, status: "approved", completedAt: new Date(first.createdAt.getTime() + 7 * 86_400_000) } });
+  await prisma.completedOrder.create({ data: { merchantId: "store", sessionId: id(4), externalOrderId: "pending-order",
+    currency: "BRL", orderTotal: 100, status: "pending", completedAt: orderAt } });
+  const study = (await prepareDiscountStudy(prisma, "store", { runId: f.run.id, leaseToken: 1 }))!;
+  const frozen = (await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson as any;
+  assert.equal(frozen.planning.baseline.buyers, 110); assert.equal(frozen.planning.baseline.conversions, 3);
+  assert.equal(frozen.planning.weeklyBuyersPerArm, 13);
+  assert.deepEqual(frozen.planning.blockers, ["insufficient_weekly_traffic", "insufficient_budget"]);
+  assert.equal(JSON.stringify(frozen).includes(id(0)), false);
+  await prisma.completedOrder.updateMany({ where: { merchantId: "store" }, data: { status: "refunded" } });
+  await prepareDiscountStudy(prisma, "store", { runId: f.run.id, leaseToken: 1 });
+  await f.repo.save(f.hypothesis, { runId: f.run.id, leaseToken: 1, discountStudy: study });
+  const version = await prisma.revenueStrategyVersion.findFirstOrThrow({ where: { strategyId: f.hypothesis.id } });
+  assert.deepEqual((version.proposal as any).incentiveRecommendation, frozen);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+  assert.equal(await prisma.revenueAiReservation.count(), 0);
+});
+
+test("persisted v1 incentive recommendations remain readable without a planning retrofit", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false }); await seedWeeklyDiscountHistory(f);
+  const policy = await configureIncentivePolicy();
+  const study = (await prepareDiscountStudy(prisma, "store", { runId: f.run.id, leaseToken: 1 }))!;
+  const old = await prisma.revenueAnalysisRun.create({ data: { merchantId: "store", cycle: 2, status: "running",
+    leaseToken: 1, leaseUntil: f.run.leaseUntil, asOf: f.run.asOf, observationId: f.observation.id } });
+  const historical = { ...study, runId: old.id }, rules = (await context.getRules("store"))!;
+  const rec = incentiveRecommendation(historical, rules, policy);
+  await prisma.revenueAnalysisRun.update({ where: { id: old.id }, data: { discountStudyJson: historical as any, incentiveRecommendationJson: rec as any } });
+  await prepareDiscountStudy(prisma, "store", { runId: old.id, leaseToken: 1 });
+  const row = await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: old.id } });
+  assert.deepEqual(row.incentiveRecommendationJson, rec);
+  await prisma.$transaction(tx => assertStoredDiscountStudy(tx, "store", old.id, f.observation.id, rules, historical, rec));
+  assert.equal((row.incentiveRecommendationJson as any).planning, undefined);
 });
 
 test("weekly incentive recommendation keeps disabled limits frozen until the next analysis", { skip: !enabled }, async () => {
