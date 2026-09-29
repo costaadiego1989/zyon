@@ -9,6 +9,7 @@ import { incentiveMeasurementPlanning, type IncentiveMeasurementPlanning, type I
 export type StrategyIncentiveRecommendation = {
   definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2";
   planning?: IncentiveMeasurementPlanning;
+  alternative?: { definition: "incentive-conservative-alternative-v1"; sequence: number; sourceRecommendationHash: string };
   merchantId: string; runId: string; observationId: string; studyHash: string;
   financialPolicy: IncentivePolicySnapshot;
   approval: "separate_incentive_review_required";
@@ -65,11 +66,48 @@ export function incentiveRecommendation(study: StrategyDiscountStudy, rules: Mer
 
 export function assertIncentiveRecommendation(value: StrategyIncentiveRecommendation,
   study: StrategyDiscountStudy, rules: MerchantRules) {
-  if (!value || !study || digest(value) !== digest(value.definition === "weekly-incentive-recommendation-v2"
+  if (!value || !study) throw new Error("STRATEGY_INVALID_INCENTIVE_RECOMMENDATION");
+  const primary = value.definition === "weekly-incentive-recommendation-v2"
     ? plannedIncentiveRecommendation(study, rules, value.financialPolicy, value.planning?.baseline)
-    : incentiveRecommendation(study, rules, value.financialPolicy))) {
+    : incentiveRecommendation(study, rules, value.financialPolicy);
+  const expected = value.alternative ? conservativeIncentiveAlternative(primary, value.alternative.sequence) : primary;
+  if (!expected || digest(value) !== digest(expected)) {
     throw new Error("STRATEGY_INVALID_INCENTIVE_RECOMMENDATION");
   }
+}
+
+/** A server-selected alternative from the SAME frozen study. Reducing both the
+ * rate and per-buyer cap preserves the historical margin bound; audience,
+ * duration and exposure stay fixed, while each new version needs new consent.
+ * Feedback never supplies prices, caps or populations. No history or AI reread. */
+export function conservativeIncentiveAlternative(primary: StrategyIncentiveRecommendation,
+  sequence: number): StrategyIncentiveRecommendation | null {
+  if (!Number.isSafeInteger(sequence) || sequence < 1 || sequence > 3 || primary.alternative
+    || primary.definition !== "weekly-incentive-recommendation-v2" || primary.status !== "recommended" || !primary.planning) return null;
+  const factor = sequence + 1;
+  const discountBps = Math.floor(Math.round(primary.test.discountPercent * 100) / factor);
+  const maxDiscountCents = Math.min(Math.floor(primary.test.maxDiscountCents / factor),
+    Number(BigInt(primary.test.audience.maxCartTotalCents) * BigInt(discountBps) / 10000n));
+  if (discountBps < 1 || maxDiscountCents < 1) return null;
+  const result = structuredClone(primary);
+  if (result.status !== "recommended") return null;
+  result.alternative = { definition: "incentive-conservative-alternative-v1", sequence, sourceRecommendationHash: digest(primary) };
+  result.test.discountPercent = discountBps / 100;
+  result.test.maxDiscountCents = maxDiscountCents;
+  result.test.limitCents = maxDiscountCents * result.test.maxRedemptions;
+  result.planning = incentiveMeasurementPlanning(primary.planning.baseline, {
+    asOf: new Date(Date.parse(primary.planning.baseline.windowEnd) + 7 * 86400000).toISOString(),
+    maxDiscountCents, maxRedemptions: result.test.maxRedemptions,
+  });
+  return result;
+}
+
+/** Authenticate an alternative against the immutable cycle artifact, including
+ * its original baseline and policy. An alternate hash alone is not authority. */
+export function incentiveRecommendationMatchesFrozen(value: StrategyIncentiveRecommendation,
+  primary: StrategyIncentiveRecommendation): boolean {
+  const expected = value?.alternative ? conservativeIncentiveAlternative(primary, value.alternative.sequence) : primary;
+  return !!expected && digest(value) === digest(expected);
 }
 
 /** v1 remains byte-for-byte reproducible for historical proposals. A new cycle

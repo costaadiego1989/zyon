@@ -83,6 +83,21 @@ function PaymentCompleted({ description = "Seu pedido está sendo processado." }
   );
 }
 
+function CheckoutPriceReviewBlock({ fingerprint }: { fingerprint: unknown }) {
+  const pending = useCheckoutStore(s => s.pendingPriceReview);
+  const busy = useCheckoutStore(s => s.paymentSubmitting || s.cartUpdating);
+  const confirm = useCheckoutStore(s => s.confirmUpdatedOrder);
+  if (!pending || pending.review.confirmation_fingerprint !== fingerprint) return null;
+  const total = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(pending.review.total_to_pay_cents / 100);
+  return <PaymentPanel title="Confira o novo total" totalLabel={total}
+    description="O pedido está sem o desconto anterior. Confirme este valor para continuar com o pagamento.">
+    <button type="button" data-neu="control" className="checkout-payment-panel__action" disabled={busy}
+      onClick={() => { void confirm(pending.review.confirmation_fingerprint); }}>
+      {busy ? "Preparando pagamento..." : `Confirmar pedido de ${total}`}
+    </button>
+  </PaymentPanel>;
+}
+
 function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
   if (!data) return null;
   const items = (data.items as Array<{ name: string; qty?: number; quantity?: number; total?: string; price?: number }>) ?? [];
@@ -1547,6 +1562,8 @@ function CryptoChainSelectBlock({ data }: { data?: Record<string, unknown> }) {
 
 export function BlockRenderer({ block }: { block: ChatBlock }) {
   switch (block.type) {
+    case "checkout_price_review":
+      return <CheckoutPriceReviewBlock fingerprint={block.data?.fingerprint} />;
     case "text":
     case "message":
       return <p style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--tx)", margin: 0, wordBreak: "break-word" }}>{String(block.data?.content || block.text || "")}</p>;

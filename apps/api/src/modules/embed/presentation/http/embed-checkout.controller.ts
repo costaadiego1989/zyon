@@ -326,6 +326,7 @@ export class EmbedCheckoutController {
       idempotency_key: string;
       method?: "pix" | "card" | "boleto" | "crypto";
       accepted_offer_id?: string;
+      confirmed_cart_fingerprint?: string;
       preferred_chain?: "polygon" | "base";
       credit_card?: {
         holderName: string;
@@ -354,6 +355,7 @@ export class EmbedCheckoutController {
       session_id: body.session_id.trim(),
       idempotency_key: body.idempotency_key.trim(),
       method: body.method,
+      confirmed_cart_fingerprint: body.confirmed_cart_fingerprint,
       accepted_offer_id:
         typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined,
       preferred_chain:

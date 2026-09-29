@@ -12,6 +12,7 @@ import { paymentCartFingerprint } from "../../checkout/domain/services/payment-c
 import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
 import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
 import type { PaymentAmountBreakdown } from "../domain/payment-amount.js";
+import { paymentReviewFingerprint } from "../domain/payment-amount.js";
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../checkout/domain/ports/offer.repository.port.js";
@@ -46,6 +47,7 @@ export type CreatePaymentIntentRequest = {
   idempotency_key: string;
   method?: PaymentMethod;
   accepted_offer_id?: string;
+  confirmed_cart_fingerprint?: string;
   /**
    * Crypto-only: buyer-selected chain (e.g. "polygon" or "base"). Harmless for
    * non-crypto methods. Threaded into the crypto provider so the buyer-driven
@@ -384,6 +386,8 @@ export class CreatePaymentIntentUseCase {
       discountCents,
       shippingCents,
       platformFeeCents: buyerServiceFeeCents, totalCents: amountCents,
+      ...(typeof body.confirmed_cart_fingerprint === "string" && /^[a-f0-9]{64}$/.test(body.confirmed_cart_fingerprint)
+        ? { confirmedCartFingerprint: body.confirmed_cart_fingerprint } : {}),
     };
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
     let asaasPayoutDestination: string | undefined;
@@ -532,6 +536,21 @@ export class CreatePaymentIntentUseCase {
     });
     try { await this.payments.saveIntentWithSettlementPlan({ intent, settlementPlan }); }
     catch (error) {
+      if (error instanceof Error && /^INCENTIVE_PAYMENT_(AUTHORITY_CHANGED|POLICY_CHANGED|MARGIN_CHANGED|CART_CHANGED|REVIEW_REQUIRED)$/.test(error.message)) {
+        const revised = await this.checkout.reviseIncentiveForPaymentReview?.(merchantId, sessionId);
+        if (revised) {
+          const subtotal = Math.round(revised.cart.total * 100), discount = Math.round((revised.cart.currentDiscount ?? 0) * 100);
+          const shipping = Math.round((revised.shipping?.customerPrice ?? 0) * 100), orderTotal = subtotal - discount + shipping;
+          throw new ConflictException({ code: "checkout_review_required",
+          message: "O desconto deixou de estar disponível. Confira o novo total e confirme o pedido novamente antes de pagar.",
+          review: { cart: revised.cart, shipping: revised.shipping, currency: revised.cart.currency,
+            order_total_cents: orderTotal, service_fee_cents: buyerServiceFeeCents, total_to_pay_cents: orderTotal + buyerServiceFeeCents,
+            confirmation_fingerprint: paymentReviewFingerprint({ version: 1, currency: revised.cart.currency,
+              cartFingerprint: paymentCartFingerprint(revised), itemsSubtotalCents: subtotal, discountCents: discount,
+              shippingCents: shipping, platformFeeCents: buyerServiceFeeCents, totalCents: orderTotal + buyerServiceFeeCents }) } });
+        }
+        throw new ConflictException({ code: "checkout_review_required", message: "O benefício mudou. Revise o pedido antes de pagar." });
+      }
       if (!(error instanceof PaymentIntentConflictError)) throw error;
       const winner = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
       if (!winner) throw new ConflictException("payment_creation_concurrent_change");

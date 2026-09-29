@@ -15,6 +15,7 @@ import type { CheckoutSession as CheckoutSnapshot } from "@zyon/shared-types";
 import { StrategyAiBudget } from "./strategy-ai-budget.js";
 import { MAIN_CHAT_PUBLICATION_POLICY } from "../../checkout/domain/services/checkout-chat-navigation.js";
 import { assertStoredDiscountStudy } from "./strategy-discount-study.js";
+import { hasOpenIncentiveExecution } from "./incentive-execution-ledger.js";
 
 type TurnInput = { merchantId: string; sessionId: string; requestKey: string; inputHash: string;
   route: "primary_llm" | "deterministic" | "fallback"; userMessage?: string } & (
@@ -99,7 +100,8 @@ export async function registerApprovedExecution(tx: Tx, merchantId: string, appr
   if (!current || checkoutContractHash(current) !== checkoutContractHash(contract.baseline)) throw new Error("STRATEGY_EXECUTION_BASELINE_CHANGED");
   if (!await tx.revenueAnalysisSchedule.findUnique({ where: { merchantId } })) throw new Error("STRATEGY_WEEKLY_OWNERSHIP_REQUIRED");
   if (await tx.promptExperiment.count({ where: { merchantId, status: "running" } })
-    || await tx.strategyExecution.count({ where: { merchantId, status: { in: ["running", "paused"] } } })) {
+    || await tx.strategyExecution.count({ where: { merchantId, status: { in: ["running", "paused"] } } })
+    || await hasOpenIncentiveExecution(tx, merchantId, now)) {
     throw new Error("STRATEGY_EXECUTION_ALREADY_ACTIVE");
   }
   const review = contract.review;

@@ -82,7 +82,7 @@ async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned"
   const source = { merchantId, strategyId: hypothesis.id, version: 1, proposalHash: version.proposalHash, study, rules, policy, recommendation };
   const reviewCommand = { version: 1, proposal_hash: version.proposalHash, recommendation_hash: digest(recommendation ?? null), request_key: "specific-review" };
   const review = reviewed && mode === "planned" ? await reviews.decide(merchantId, "owner", hypothesis.id, "approve", reviewCommand) : null;
-  const startsAt = new Date(Date.now() + 700).toISOString();
+  const startsAt = new Date(Date.now() + 2_000).toISOString();
   const terms = mode === "planned" ? recommendedIncentiveBudgetTerms(source, startsAt) : incentiveBudgetTerms(source, { ...caps, startsAt });
   const input = { merchantId, terms, termsHash: digest(terms), actorId: "owner", requestKey: "budget-review" };
   return { merchantId, input, terms, version, run, hypothesis, source, reviewCommand, review };

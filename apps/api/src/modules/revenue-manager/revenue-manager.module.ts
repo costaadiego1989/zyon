@@ -7,6 +7,10 @@ import { IncentivePolicyService } from "./application/incentive-policy.service.j
 import { IncentivePolicyController } from "./presentation/http/incentive-policy.controller.js";
 import { IncentiveReviewService } from "./application/incentive-review.service.js";
 import { IncentiveReviewController } from "./presentation/http/incentive-review.controller.js";
+import { IncentiveAlternativeController } from "./presentation/http/incentive-alternative.controller.js";
+import { IncentiveMetricsController } from "./presentation/http/incentive-metrics.controller.js";
+import { IncentiveMetricsService } from "./application/incentive-metrics.service.js";
+import { SharedStrategyLearningService } from "./infrastructure/shared-strategy-learning.service.js";
 import { StrategyReviewController } from "./presentation/http/strategy-review.controller.js";
 import { StrategyMetricsService } from "./application/strategy-metrics.service.js";
 import { StrategyMetricsController } from "./presentation/http/strategy-metrics.controller.js";
@@ -58,7 +62,7 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
 
 @Module({
   imports: [PersistenceModule, RedisModule, MessagingModule, ExperimentsModule, CheckoutSettingsModule],
-  controllers: [RevenueManagerController, StrategyReviewController, StrategyMetricsController, IncentivePolicyController, IncentiveReviewController],
+  controllers: [RevenueManagerController, StrategyReviewController, StrategyMetricsController, IncentivePolicyController, IncentiveReviewController, IncentiveAlternativeController, IncentiveMetricsController],
   providers: [
     WeeklyAnalysisService,
     WeeklyAnalysisJob,
@@ -66,6 +70,8 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
     StrategyReviewService,
     IncentivePolicyService,
     IncentiveReviewService,
+    IncentiveMetricsService,
+    SharedStrategyLearningService,
     StrategyMetricsService,
     StrategyMonitorService,
     StrategyMonitorJob,

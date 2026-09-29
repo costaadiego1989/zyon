@@ -33,6 +33,7 @@ import { chatMessageTextHash } from "../../domain/services/chat-message-identity
 import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
 import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
 import { chatPaymentRecoveryEnabled } from "../../domain/services/chat-payment-recovery.js";
+import { applyEligibleIncentive, incentiveExecutionEnabled, invalidateIncentiveCheckout, reviseIncentiveForPaymentReview } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -47,6 +48,11 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     if (this.inTransaction) return work(this);
     return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota)));
+  }
+
+  async reviseIncentiveForPaymentReview(merchantId: string, sessionId: string): Promise<CheckoutSession | undefined> {
+    const work = (tx: Prisma.TransactionClient) => reviseIncentiveForPaymentReview(tx, merchantId, sessionId);
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {
@@ -89,25 +95,30 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     const snapshot = structuredClone(session);
     const write = async (tx: Prisma.TransactionClient) => {
       const scope = { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId };
+      if (incentiveExecutionEnabled(scope.merchantId)) await lockExecutionMerchant(tx, scope.merchantId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${scope.merchantId}
         AND session_id = ${scope.sessionId} FOR UPDATE`;
       const current = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
       if (!current) {
         // A concurrent insertion must not be turned into an unversioned update.
-        return tx.checkoutSession.create({ data: toCheckoutSessionCreate(snapshot) as any });
+        const created = await tx.checkoutSession.create({ data: toCheckoutSessionCreate(snapshot) as any });
+        return applyEligibleIncentive(tx, created);
       }
       const owned = !!await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } })
+        || !!await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } })
         || !!await tx.checkoutChatRequest.findFirst({ where: scope, select: { id: true } });
       if ((owned || snapshot.persistenceVersion !== undefined)
         && (!Number.isSafeInteger(snapshot.persistenceVersion) || snapshot.persistenceVersion !== current.version)) {
         throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
       }
-      return tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: toCheckoutSessionUpdate(snapshot) as any });
+      const saved = await tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: toCheckoutSessionUpdate(snapshot) as any });
+      return applyEligibleIncentive(tx, saved);
     };
     const saved = this.inTransaction ? await write(this.prisma) : await (this.prisma as PrismaClient).$transaction(write);
     // Existing callers persist a working object several times. Advance only the
     // server token after a successful write, never rebase a stale snapshot.
     session.persistenceVersion = saved.version;
+    session.cart = toCheckoutSession(saved).cart;
   }
 
   async commitCommercialMutation(input: CheckoutCommercialMutation): Promise<CheckoutSession> {
@@ -115,7 +126,9 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     const mutation = prepareCommercialMutation(input);
     const work = async (tx: Prisma.TransactionClient) => {
       const { merchantId, sessionId } = input.expected;
+      await lockExecutionMerchant(tx, merchantId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
+      if (mutation.invalidated) await invalidateIncentiveCheckout(tx, merchantId, sessionId);
       if (await tx.completedOrder.findFirst({ where: { merchantId, sessionId }, select: { id: true } })
         || await tx.checkoutEvent.findFirst({ where: { merchantId, sessionId, eventName: "checkout_abandoned",
           metadata: { path: ["reason"], equals: "buyer_initiated" } }, select: { id: true } })) {
@@ -149,6 +162,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       throw new Error("CHAT_SESSION_SCOPE_CONFLICT");
     }
     const write = async (tx: Prisma.TransactionClient) => {
+      if (incentiveExecutionEnabled(session.merchantId)) await lockExecutionMerchant(tx, session.merchantId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${session.merchantId}
         AND session_id = ${session.sessionId} FOR UPDATE`;
       const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
@@ -156,14 +170,16 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const hash = (value: CheckoutSession) => digest(JSON.parse(JSON.stringify(toCheckoutSessionCreate(value))));
       if (!current || expected.persistenceVersion !== current.version
         || hash(expected) !== hash(toCheckoutSession(current))) throw new Error("CHAT_SESSION_CHANGED");
-      return tx.checkoutSession.update({ where, data: toCheckoutSessionUpdate(session) as any });
+      const saved = await tx.checkoutSession.update({ where, data: toCheckoutSessionUpdate(session) as any });
+      return applyEligibleIncentive(tx, saved);
     };
     const saved = this.inTransaction ? await write(this.prisma) : await (this.prisma as PrismaClient).$transaction(write);
     working.persistenceVersion = saved.version;
+    working.cart = toCheckoutSession(saved).cart;
   }
 
   async createSessionIfAbsent(session: CheckoutSession): Promise<{ session: CheckoutSession; created: boolean }> {
-    if (strategyExecutionEnabled(session.merchantId)) {
+    if (strategyExecutionEnabled(session.merchantId) || incentiveExecutionEnabled(session.merchantId)) {
       const create = async (tx: Prisma.TransactionClient) => {
         // The store lock orders activation, creation, enrollment and stopping.
         // Timestamp AFTER taking it, so concurrent starts cannot backdate the
@@ -175,7 +191,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         const now = await executionClock(tx);
         const row = await tx.checkoutSession.create({ data: { ...toCheckoutSessionCreate(session), createdAt: now, updatedAt: now } as any });
         await enrollCreatedStrategySession(tx, row, now);
-        return { session: toCheckoutSession(row), created: true };
+        const incentive = await applyEligibleIncentive(tx, row);
+        return { session: toCheckoutSession(incentive), created: true };
       };
       return this.inTransaction ? create(this.prisma) : (this.prisma as PrismaClient).$transaction(create);
     }

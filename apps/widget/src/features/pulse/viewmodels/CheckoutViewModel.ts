@@ -2,6 +2,7 @@ import React from 'react';
 import { resolveTenantDiscount } from '../config/tenantDiscount';
 import type { AgentOrbPlacement } from '../config/agentOrbPresets';
 import { PulseAPI } from '../model/PulseAPI';
+import { PulsePriceReviewRequired } from '../model/PulsePriceReview';
 import type {
   Bundle,
   Cart,
@@ -121,6 +122,9 @@ interface WindowWithSpeech extends Window {
 
 function freshCart(): Cart {
   return { product: null, qty: 1, bundle: null, coupon: null, shipping: null, payMethod: null };
+}
+function reviewedCartKey(cart: Cart): string {
+  return JSON.stringify([cart.product, cart.qty, cart.bundle, cart.coupon, cart.shipping]);
 }
 
 function freshCustomer(): Customer {
@@ -255,6 +259,8 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
   private postFinalizeTimer: ReturnType<typeof setTimeout> | null = null;
   private urgencyInterval: ReturnType<typeof setInterval> | null = null;
   private _pixPollTimer: ReturnType<typeof setInterval> | null = null;
+  private paymentSubmitting = false;
+  private pendingPriceReview: { fingerprint: string; cartKey: string } | null = null;
 
   constructor(props: CheckoutProps, refs: DomRefs) {
     super(props, initialState());
@@ -473,7 +479,7 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     const bundle = c.bundle ? c.bundle.price : 0;
     const coupon = c.coupon ? c.coupon.amount : 0;
     const ship = c.shipping ? c.shipping.cost : null;
-    const total = product + bundle + coupon + (ship || 0);
+    const total = c.reviewedTotal?.cartKey === reviewedCartKey(c) ? c.reviewedTotal.amount : product + bundle + coupon + (ship || 0);
     const cashback = total > 0 ? total * 0.03 : 0;
     return {
       product,
@@ -1698,12 +1704,20 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     });
   };
 
-  async finalize(method: PayMethod): Promise<void> {
+  async finalize(method: PayMethod, confirmedCartFingerprint?: string): Promise<void> {
+    if (this.paymentSubmitting || (this.pendingPriceReview && confirmedCartFingerprint !== this.pendingPriceReview.fingerprint)) return;
+    if (this.pendingPriceReview && this.pendingPriceReview.cartKey !== reviewedCartKey(this.state.cart)) {
+      this.pendingPriceReview = null;
+      confirmedCartFingerprint = undefined;
+    }
+    this.paymentSubmitting = true;
+    try {
     const api = await this.ensureApi();
     const c = this.state.cart;
     const calc = this.calc(c);
     const crypto = method === 'crypto';
-    const order = await api.createOrder(method);
+    const order = await api.createOrder(method, undefined, this.state.installment, confirmedCartFingerprint);
+    this.pendingPriceReview = null;
 
     if (method === 'pix' && (order.pixQrCode || order.pixCopyPaste)) {
       this.setState({
@@ -1723,6 +1737,38 @@ export class CheckoutViewModel extends ViewModelBase<CheckoutState> {
     }
 
     this.completeOrder(method, order.id, crypto, c, calc);
+    } catch (error) {
+      if (error instanceof PulsePriceReviewRequired) {
+        const review = error.review;
+        if (!review) {
+          this.pendingPriceReview = null;
+          this.agentSay([{ role: 'agent', kind: 'text', text: 'As condições do pedido mudaram. Confira seu carrinho e o pagamento em andamento antes de continuar.' }], [], 0);
+          return;
+        }
+        const [first, ...remaining] = review.cart.items;
+        const cart: Cart = { ...this.state.cart,
+          product: { id: first.sku, title: first.name, subtitle: '', price: first.price, tags: [] }, qty: first.quantity,
+          bundle: remaining.length ? { id: 'reviewed-items', title: remaining.map(item => `${item.name} ×${item.quantity}`).join(', '),
+            subtitle: '', price: remaining.reduce((sum, item) => sum + item.price * item.quantity, 0), was: 0 } : null,
+          coupon: null, shipping: review.shipping ? { key: review.shipping.carrierKey ?? 'selected',
+            label: review.shipping.method ?? review.shipping.carrier ?? 'Entrega selecionada', tag: '', sub: '', cost: review.shipping.customerPrice } : null };
+        cart.reviewedTotal = { amount: review.total_to_pay_cents / 100, cartKey: reviewedCartKey(cart) };
+        this.pendingPriceReview = { fingerprint: review.confirmation_fingerprint, cartKey: reviewedCartKey(cart) };
+        this.setState({ cart, pixIntentId: null, pixQrCode: null, pixCopyPaste: null, pixStatus: 'idle' });
+        const total = this.brl(review.total_to_pay_cents / 100);
+        const fee = review.service_fee_cents ? ` A taxa de serviço de ${this.brl(review.service_fee_cents / 100)} já está incluída.` : '';
+        this.agentSay([{ role: 'agent', kind: 'text', text: `O desconto deixou de estar disponível. O novo total é ${total}.${fee} Nenhum pagamento foi criado. Confira o valor antes de continuar.` }],
+          [this.A(`Confirmar pedido de ${total}`, () => {
+            if (this.pendingPriceReview?.fingerprint !== review.confirmation_fingerprint) return;
+            void this.finalize(method, review.confirmation_fingerprint);
+          }, true)], 0);
+        return;
+      }
+      this.agentSay([{ role: 'agent', kind: 'text', text: 'Não foi possível preparar o pagamento. Confira o pedido e tente novamente.' }],
+        [this.A('Tentar novamente', () => { void this.finalize(method, confirmedCartFingerprint); }, true)], 0);
+    } finally {
+      this.paymentSubmitting = false;
+    }
   }
 
   startPixPolling(intentId: string): void {

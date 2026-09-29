@@ -593,7 +593,7 @@ export class CheckoutSession {
   async createPaymentIntent(
     method: "pix" | "boleto" | "credito" | "debito" | "crypto",
     installments?: number,
-    options?: { chain?: "polygon" | "base" }
+    options?: { chain?: "polygon" | "base"; confirmedCartFingerprint?: string }
   ): Promise<PaymentIntent> {
     this.assertSession();
     if (this.pendingMessageId || this.chatInFlight || this.chatState?.payment_intent_id) throw new ChatRecoveryRequired();
@@ -609,9 +609,21 @@ export class CheckoutSession {
         method: apiMethod,
         installments,
         ...(options?.chain ? { preferred_chain: options.chain } : {}),
+        ...(options?.confirmedCartFingerprint ? { confirmed_cart_fingerprint: options.confirmedCartFingerprint } : {}),
       }),
     });
-    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_payment", res);
+    if (!res.ok) {
+      const error = await CheckoutApiError.fromResponse("embed_payment", res);
+      if (error.checkoutReview) {
+        const review = error.checkoutReview;
+        this.experience = { ...this.experience, commercial_nudge: undefined,
+          items: review.cart.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, unit_price: item.price, variant: item.variant })),
+          shipping: review.shipping, totals: { subtotal: review.cart.total, discount: review.cart.currentDiscount ?? 0,
+            shipping: review.shipping?.customerPrice ?? 0, service_fee: review.service_fee_cents / 100,
+            total: review.order_total_cents / 100, total_to_pay: review.total_to_pay_cents / 100 } };
+      }
+      throw error;
+    }
     return this.mapPaymentResponse(res, method);
   }
 

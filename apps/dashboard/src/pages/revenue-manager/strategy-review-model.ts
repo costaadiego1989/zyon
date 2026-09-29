@@ -35,7 +35,7 @@ export function decisionMayHaveSucceeded(error: unknown) {
   return !(error instanceof DashboardHttpError) || error.status === 0 || error.status >= 500;
 }
 export function canReviewVersion(review: StrategyReview, version: StrategyVersion, now = Date.now()) {
-  return review.status === "pending_review" && review.currentVersion === version.version
+  return review.decision_available !== false && review.status === "pending_review" && review.currentVersion === version.version
     && version.proposal.definition === "checkout-strategy-review-v1"
     && review.versions.some(v => v.version === version.version && v.proposalHash === version.proposalHash)
     && Number.isFinite(Date.parse(version.expiresAt)) && Number.isFinite(now);

@@ -18,8 +18,10 @@ import { strategyActivationBlockers } from "../infrastructure/strategy-activatio
 import { executionClock, registerApprovedExecution } from "../infrastructure/strategy-execution-ledger.js";
 import { assertStoredDiscountStudy } from "../infrastructure/strategy-discount-study.js";
 import { readIncentivePolicy } from "../infrastructure/incentive-policy.reader.js";
+import { conservativeIncentiveAlternative, type StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 
 export type StrategyReviewCommand = { version: number; proposal_hash: string; request_key: string; feedback?: string };
+export type IncentiveAlternativeCommand = StrategyReviewCommand & { recommendation_hash: string };
 type ReviewKind = "approve" | "reject" | "revision";
 export const revisionsEnabled = () => weeklyAnalysisEnabled() && process.env.REVENUE_STRATEGY_REVISIONS_ENABLED === "true";
 const json = (value: unknown) => value as Prisma.InputJsonValue;
@@ -70,12 +72,25 @@ export class StrategyReviewService {
           ? recommendation.financialPolicy.policyHash === financialPolicy.policyHash : null };
       });
       const blockers = await strategyActivationBlockers(tx, strategy, versions[0], eligible, new Date());
+      const incentiveFunded = await tx.strategyIncentiveBudget.count({ where: { merchantId, strategyId: id } }) > 0;
+      if (incentiveFunded) blockers.push("incentive_already_funded");
+      let incentiveAlternativeAvailable = false;
+      if (!incentiveFunded && eligible && revisionsEnabled() && weeklyMerchantAllowed(merchantId) && strategy.status === "pending_review"
+        && versions[0]?.expiresAt > new Date() && Number.isSafeInteger(limit) && limit > 0
+        && actions.filter(action => action.kind === "revision").length < limit && current?.incentiveRecommendation) {
+        try { incentiveAlternativeAvailable = !!await this.alternative(tx, merchantId, strategy.id, strategy.runId, current); }
+        catch (error) {
+          if (!(error instanceof ConflictException) && !/STRATEGY_(INVALID|DISCOUNT_STUDY_CHANGED|INCENTIVE_RECOMMENDATION_CHANGED)/.test(String(error))) throw error;
+        }
+      }
       return { ...strategy, versions: projectedVersions, actions, approval_available: blockers.length === 0, activation_available: blockers.length === 0,
+        decision_available: !incentiveFunded && strategy.status === "pending_review",
+        incentive_alternative_available: incentiveAlternativeAvailable,
         expired: !!versions[0] && versions[0].expiresAt <= new Date(),
         activation_blockers: blockers,
         measurement_status: current?.experimentReview ? "included_in_proposal" : "awaiting_measurement_plan",
         measurement_warnings: current?.experimentReview?.capacity === "below_planned_sample" ? ["planned_sample_capacity_insufficient"] : [],
-        revision_available: revisionsEnabled() && weeklyMerchantAllowed(merchantId) && strategy.status === "pending_review"
+        revision_available: !incentiveFunded && revisionsEnabled() && weeklyMerchantAllowed(merchantId) && strategy.status === "pending_review"
           && !!versions[0] && versions[0].expiresAt > new Date() && Number.isSafeInteger(limit) && limit > 0
           && actions.filter(action => action.kind === "revision").length < limit };
     }, { isolationLevel: Prisma.TransactionIsolationLevel.RepeatableRead });
@@ -83,11 +98,23 @@ export class StrategyReviewService {
 
   /** Request identities are bound to actor, payload, action and exact proposal.
    * Retries return the original receipt, even after a newer version is published. */
-  async decide(merchantId: string, actorId: string, id: string, kind: ReviewKind, input: StrategyReviewCommand, now = new Date()) {
+  async requestIncentiveAlternative(merchantId: string, actorId: string, id: string, input: IncentiveAlternativeCommand, now = new Date()) {
+    if (!input || typeof input !== "object" || Array.isArray(input)
+      || Object.keys(input).some(key => !["version", "proposal_hash", "recommendation_hash", "request_key", "feedback"].includes(key))
+      || typeof input.recommendation_hash !== "string" || !/^[a-f0-9]{64}$/.test(input.recommendation_hash)
+      || typeof actorId !== "string" || !actorId.trim() || actorId.length > 150) throw new BadRequestException("INCENTIVE_ALTERNATIVE_INVALID_COMMAND");
+    this.validate(input);
+    return this.decide(merchantId, actorId, id, "revision", { version: input.version, proposal_hash: input.proposal_hash,
+      request_key: input.request_key, feedback: input.feedback?.trim() || "Sugira um desconto menor para o mesmo público, respeitando os limites configurados." },
+    now, { recommendationHash: input.recommendation_hash });
+  }
+
+  async decide(merchantId: string, actorId: string, id: string, kind: ReviewKind, input: StrategyReviewCommand, now = new Date(),
+    incentiveAlternative?: { recommendationHash: string }) {
     input = structuredClone(input);
     this.validate(input);
     if (!actorId?.trim()) throw new BadRequestException("STRATEGY_HUMAN_ACTOR_REQUIRED");
-    const requestHash = digest({ actorId, kind, ...input });
+    const requestHash = digest({ actorId, kind, ...input, ...(incentiveAlternative ? { incentiveAlternative } : {}) });
     const eligible = kind === "approve" && BILLING_PLANS[await this.billing.getEffectivePlan(merchantId)].features.revenueManager;
     return this.prisma.$transaction(async tx => {
       const strategy = await this.lock(tx, merchantId, id);
@@ -95,6 +122,12 @@ export class StrategyReviewService {
       if (previous) {
         if (previous.requestHash !== requestHash) throw new ConflictException("STRATEGY_IDEMPOTENCY_CONFLICT");
         return kind === "approve" ? this.approvalReceipt(tx, merchantId, previous.id, previous.result) : previous.result;
+      }
+      // This strategy's financial execution keeps its exact version and source
+      // status. A communication refusal/revision must not silently stop it or
+      // publish a different proposal over its immutable, lifetime budget.
+      if (!incentiveAlternative && await tx.strategyIncentiveBudget.count({ where: { merchantId, strategyId: id } })) {
+        throw new ConflictException("STRATEGY_INCENTIVE_ALREADY_FUNDED");
       }
       if (strategy.currentVersion !== input.version) throw new ConflictException("STRATEGY_VERSION_CONFLICT");
       const version = await tx.revenueStrategyVersion.findUniqueOrThrow({ where: { strategyId_merchantId_version: {
@@ -139,10 +172,21 @@ export class StrategyReviewService {
         const count = await tx.revenueStrategyAction.count({ where: { strategyId: id, merchantId, kind: "revision" } });
         if (count >= limit) throw new ConflictException("STRATEGY_REVISION_LIMIT_REACHED");
         await this.unchangedRules(tx, merchantId, version.proposal as unknown as StrategyProposal);
+        if (incentiveAlternative) {
+          if (!BILLING_PLANS[await this.billing.getEffectivePlan(merchantId)].features.revenueManager) {
+            throw new ConflictException("INCENTIVE_ALTERNATIVE_PLAN_REQUIRED");
+          }
+          const proposal = version.proposal as unknown as StrategyProposal;
+          if (digest(proposal.incentiveRecommendation ?? null) !== incentiveAlternative.recommendationHash) {
+            throw new ConflictException("INCENTIVE_ALTERNATIVE_RECOMMENDATION_CHANGED");
+          }
+          if (!await this.alternative(tx, merchantId, id, strategy.runId, proposal)) throw new ConflictException("INCENTIVE_ALTERNATIVE_UNAVAILABLE");
+        }
       }
       const actionId = randomUUID();
       const result = { action_id: actionId, strategy_id: id, version: input.version,
-        proposal_hash: version.proposalHash, status: kind === "reject" ? "rejected" : "revision_requested" };
+        proposal_hash: version.proposalHash, status: kind === "reject" ? "rejected" : "revision_requested",
+        ...(incentiveAlternative ? { revision_scope: "incentive" } : {}) };
       await tx.revenueStrategyAction.create({ data: { id: actionId, strategyId: id, merchantId, version: input.version,
         requestKey: input.request_key, requestHash, actorId, kind, feedback: input.feedback, result, createdAt: now } });
       await tx.revenueStrategy.update({ where: { id }, data: { status: kind === "reject" ? "rejected" : "revision_pending" } });
@@ -186,6 +230,11 @@ export class StrategyReviewService {
       if (!currentRules || digest(currentRules) !== digest(proposal.rules)) throw new Error("STRATEGY_POLICY_CHANGED");
       await this.prisma.$transaction(tx => assertStoredDiscountStudy(tx, work.merchantId,
         action.proposal.strategy.runId, proposal.observation.id, currentRules, proposal.discountStudy, proposal.incentiveRecommendation));
+      const incentiveAlternative = (action.result as { revision_scope?: string }).revision_scope === "incentive"
+        ? await this.prisma.$transaction(tx => this.alternative(tx, work.merchantId, action.strategyId, action.proposal.strategy.runId, proposal)) : null;
+      if ((action.result as { revision_scope?: string }).revision_scope === "incentive" && !incentiveAlternative) {
+        throw new Error("STRATEGY_INVALID_INCENTIVE_ALTERNATIVE");
+      }
       const checkoutBaseline = await this.context.getCheckoutBaseline?.(work.merchantId);
       const baseline = checkoutBaseline ? checkoutBaselineReference(checkoutBaseline)
         : this.context.getCheckoutBaseline ? undefined : await this.context.getCurrentPrompt(work.merchantId);
@@ -196,14 +245,19 @@ export class StrategyReviewService {
       if (baseline !== proposal.recommendation.template.variant_a.system_prompt) throw new Error("STRATEGY_BASELINE_CHANGED");
       const generated = await this.generator.generate({ merchant_id: work.merchantId,
         analysis_context: { runId: action.proposal.strategy.runId, revisionId: id, leaseToken: work.leaseToken },
-        revision: { preference: action.feedback!, previous_proposal: proposal.recommendation },
+        revision: { preference: action.feedback!, previous_proposal: proposal.recommendation,
+          ...(incentiveAlternative?.status === "recommended" ? { incentive_alternative: {
+            discount_percent: incentiveAlternative.test.discountPercent, max_discount_cents: incentiveAlternative.test.maxDiscountCents,
+            limit_cents: incentiveAlternative.test.limitCents, max_redemptions: incentiveAlternative.test.maxRedemptions,
+            duration_days: 7 as const, explanation: "lower_discount_same_audience" as const } } : {}) },
         observation: proposal.observation, current_prompt: baseline, checkout_baseline: checkoutBaseline,
         measurement_planning: planning, past_lessons: [], constraints: {
           max_discount_percent: currentRules.maxDiscountPercent, allow_free_shipping: currentRules.allowFreeShipping,
           max_running_experiments: 1, merchant_rules: currentRules } });
       if (generated.template.variant_a.system_prompt !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
       const experimentReview = planning ? strategyExperimentReview(action.strategyId, action.version + 1, generated, planning) : undefined;
-      const next = strategyProposal(generated, proposal.observation, currentRules, checkoutBaseline, experimentReview, proposal.discountStudy, proposal.incentiveRecommendation);
+      const next = strategyProposal(generated, proposal.observation, currentRules, checkoutBaseline, experimentReview, proposal.discountStudy,
+        incentiveAlternative ?? proposal.incentiveRecommendation);
       await this.eligible(work.merchantId);
       if (await this.context.getCurrentPrompt(work.merchantId) !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
       await this.prisma.$transaction(async tx => {
@@ -222,6 +276,12 @@ export class StrategyReviewService {
         if (planning) await assertStoredMeasurementPlanning(tx, work.merchantId, action.proposal.strategy.runId, planning);
         await assertStoredDiscountStudy(tx, work.merchantId, action.proposal.strategy.runId,
           proposal.observation.id, currentRules, proposal.discountStudy, proposal.incentiveRecommendation);
+        if (incentiveAlternative) {
+          const currentAlternative = await this.alternative(tx, work.merchantId, action.strategyId, action.proposal.strategy.runId, proposal);
+          if (!currentAlternative || digest(currentAlternative) !== digest(incentiveAlternative)) throw new Error("STRATEGY_INVALID_INCENTIVE_ALTERNATIVE");
+          await assertStoredDiscountStudy(tx, work.merchantId, action.proposal.strategy.runId,
+            proposal.observation.id, currentRules, proposal.discountStudy, incentiveAlternative);
+        }
         const version = action.version + 1;
         await tx.revenueStrategyVersion.create({ data: { strategyId: strategy.id, merchantId: work.merchantId, version,
           proposalHash: digest(next), proposal: json(next), expiresAt: base.expiresAt } });
@@ -285,6 +345,27 @@ export class StrategyReviewService {
   private async eligible(merchantId: string) {
     if (!revisionsEnabled() || !weeklyMerchantAllowed(merchantId)) throw new AnalysisDeferred("revision_disabled");
     if (!BILLING_PLANS[await this.billing.getEffectivePlan(merchantId)].features.revenueManager) throw new AnalysisDeferred("merchant_ineligible");
+  }
+  private async alternative(tx: Prisma.TransactionClient, merchantId: string, strategyId: string, runId: string,
+    proposal: StrategyProposal): Promise<StrategyIncentiveRecommendation | null> {
+    const recommendation = proposal.incentiveRecommendation;
+    if (!recommendation || recommendation.status !== "recommended" || !proposal.discountStudy) return null;
+    await assertStoredDiscountStudy(tx, merchantId, runId, proposal.observation.id, proposal.rules, proposal.discountStudy, recommendation);
+    const run = await tx.revenueAnalysisRun.findFirstOrThrow({ where: { id: runId, merchantId } });
+    if (run.status !== "completed") return null;
+    const currentRules = await tx.merchantRule.findUnique({ where: { merchantId } });
+    if (!currentRules || digest(merchantRulesSnapshot(currentRules)) !== digest(proposal.rules)) return null;
+    const policy = await readIncentivePolicy(tx, merchantId);
+    if (!policy.enabled || policy.policyHash !== recommendation.financialPolicy.policyHash) return null;
+    const reviews = await tx.strategyIncentiveReview.findMany({ where: { merchantId, strategyId }, orderBy: { sequence: "desc" } });
+    const latest = new Map<number, typeof reviews[number]>();
+    for (const review of reviews) if (!latest.has(review.version)) latest.set(review.version, review);
+    if ([...latest.values()].some(review => review.kind === "approve")) return null;
+    // A funded strategy owns one immutable budget/execution for its lifetime.
+    // Closing it stops new offers; it does not free this cycle for a second test.
+    if (await tx.strategyIncentiveBudget.count({ where: { merchantId, strategyId } })) return null;
+    return conservativeIncentiveAlternative(run.incentiveRecommendationJson as unknown as StrategyIncentiveRecommendation,
+      (recommendation.alternative?.sequence ?? 0) + 1);
   }
   private async notice(tx: Prisma.TransactionClient, merchantId: string, strategyId: string, revisionId: string, state: string, version: number) {
     const data = { title: state === "revision_ready" ? "Nova versão da estratégia para revisar" : "Revisão da estratégia aguardando atualização",

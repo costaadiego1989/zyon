@@ -15,6 +15,7 @@ import type {
 import type { PaymentIntentSnapshot, PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 import type { PaymentMethod } from "../domain/payment-intent.entity.js";
 import { appendPlannedSettlementInTransaction } from "./prisma-payment-settlement-ledger.repository.js";
+import { recordIncentivePayment, validateIncentivePayment } from "../../revenue-manager/infrastructure/incentive-execution-ledger.js";
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -195,21 +196,25 @@ export class PrismaPaymentRepository implements PaymentRepository {
   }
 
   private async saveVersion(tx: PrismaTx, snapshot: PaymentIntentSnapshot): Promise<void> {
+    await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snapshot.merchantId} FOR UPDATE`;
     const args = paymentIntentUpsertArgs(snapshot);
     const current = await tx.paymentIntent.findUnique({ where: { id: snapshot.id } });
     if (!current) {
       if ((snapshot.version ?? 0) !== 0) throw new PaymentIntentConflictError();
+      await validateIncentivePayment(tx, snapshot);
       try { await tx.paymentIntent.create({ data: args.create }); }
       catch (error) {
         if ((error as { code?: string }).code === "P2002") throw new PaymentIntentConflictError();
         throw error;
       }
+      await recordIncentivePayment(tx, snapshot);
       return;
     }
     if ((current.version ?? 0) !== (snapshot.version ?? 0)) throw new PaymentIntentConflictError();
     assertSamePaymentIdentity(snapshotFromRecord(current), snapshot);
     const updated = await tx.paymentIntent.updateMany({ where: { id: snapshot.id, merchantId: snapshot.merchantId, version: snapshot.version ?? 0 }, data: args.update });
     if (updated.count !== 1) throw new PaymentIntentConflictError();
+    await recordIncentivePayment(tx, snapshot);
   }
 
   async listStalePending(query: StalePendingQuery): Promise<PaymentIntentEntity[]> {

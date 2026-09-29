@@ -8,7 +8,9 @@ export const HYPOTHESIS_GENERATOR_PORT = Symbol("HYPOTHESIS_GENERATOR_PORT");
 
 export interface HypothesisGenerationRequest {
   analysis_context?: { runId: string; leaseToken: number; revisionId?: string };
-  revision?: { preference: string; previous_proposal: HypothesisGenerationResponse };
+  revision?: { preference: string; previous_proposal: HypothesisGenerationResponse;
+    incentive_alternative?: { discount_percent: number; max_discount_cents: number; limit_cents: number;
+      max_redemptions: number; duration_days: 7; explanation: "lower_discount_same_audience" } };
   merchant_id: string;
   observation: ObservationSnapshot;
   past_lessons: StrategyLessonSnapshot[];

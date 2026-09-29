@@ -16,6 +16,9 @@ describe("strategy review decision boundaries", () => {
   it.each(["revision_pending", "rejected", "approved", "active"])("blocks decisions in %s", status => {
     expect(canReviewVersion({ ...review, status }, version)).toBe(false);
   });
+  it("blocks communication decisions once an incentive test has been funded", () => {
+    expect(canReviewVersion({ ...review, decision_available: false }, version)).toBe(false);
+  });
   it("keeps expired proposals rejectable but rejects malformed contracts", () => {
     expect(canReviewVersion(review, { ...version, expiresAt: "2000-01-01T00:00:00Z" })).toBe(true);
     expect(canReviewVersion(review, { ...version, expiresAt: "invalid" })).toBe(false);

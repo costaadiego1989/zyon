@@ -6,7 +6,7 @@ import { assertDiscountStudy, discountStudy, type StrategyDiscountStudy } from "
 import { discountCohorts, incentivePlanningBaseline, loadDiscountHistory } from "./discount-cohort.reader.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
 import { readIncentivePolicy } from "./incentive-policy.reader.js";
-import { assertIncentiveRecommendation, incentiveRecommendation, plannedIncentiveRecommendation, type StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
+import { assertIncentiveRecommendation, incentiveRecommendation, incentiveRecommendationMatchesFrozen, plannedIncentiveRecommendation, type StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 
 export function discountStudyEnabled(merchantId: string) {
   return process.env.REVENUE_DISCOUNT_STUDY_ENABLED === "true"
@@ -71,7 +71,8 @@ export async function assertStoredDiscountStudy(tx: Prisma.TransactionClient, me
     || study.asOf !== run.asOf?.toISOString()) throw new Error("STRATEGY_DISCOUNT_STUDY_CHANGED");
   assertDiscountStudy(study, merchantId, runId, observationId, rules);
   if (run.incentiveRecommendationJson || recommendation) {
-    if (!study || !recommendation || !run.incentiveRecommendationJson || digest(recommendation) !== digest(run.incentiveRecommendationJson)) {
+    if (!study || !recommendation || !run.incentiveRecommendationJson
+      || !incentiveRecommendationMatchesFrozen(recommendation, run.incentiveRecommendationJson as unknown as StrategyIncentiveRecommendation)) {
       throw new Error("STRATEGY_INCENTIVE_RECOMMENDATION_CHANGED");
     }
     assertIncentiveRecommendation(recommendation, study, rules);

@@ -42,8 +42,8 @@ async function currentFundingSource(tx: Tx, terms: IncentiveBudgetTerms) {
 }
 
 /** INTERNAL financing only. Requires the separate merchant approval and its
- * actor, and derives exact recommended terms. No review endpoint invokes it;
- * activation must compose this with deterministic checkout authority. */
+ * actor, and derives exact recommended terms. Specific review composes this
+ * with activation; checkout authority is revalidated before granting a benefit. */
 export async function registerReviewedIncentiveBudget(tx: Tx, input: {
   merchantId: string; terms: IncentiveBudgetTerms; termsHash: string; actorId: string; requestKey: string;
 }) {

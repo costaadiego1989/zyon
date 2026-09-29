@@ -2,6 +2,8 @@
 
 Data: 24/09/2026. Complementa o [diagnóstico e roadmap](revenue-intelligence-roadmap-2026-09-24.md). Este documento especifica entregas; não representa código implementado, migração aplicada ou funcionalidade liberada.
 
+**Estado consolidado em 29/09/2026.** O [fechamento do motor integrado](revenue-intelligence-integrated-engine-2026-09-29.md) conecta aprovação, desconto protegido no checkout, alternativa financeira, métricas e aprendizado compartilhado de comunicação. As entregas abaixo são histórico de evolução e suas pendências não representam isoladamente o estado atual. A implementação é local; publicação, configuração e piloto real continuam separados.
+
 **Resultado esperado.** Cada loja elegível recebe uma análise estratégica por intervalo de sete dias. A plataforma distribui o processamento pelas madrugadas, respeita orçamento e capacidade e apresenta recomendações no dashboard. A IA prepara e revisa a estratégia; o lojista aprova a versão; o backend protege as condições comerciais; o experimento mede o resultado. Aprendizados entre lojas entram como hipóteses para novos testes locais.
 
 O primeiro piloto fecha esse ciclo com uma estratégia de comunicação no checkout e um experimento por loja. Cupons, descontos, frete subsidiado e contatos externos entram após os respectivos critérios econômicos e operacionais. A arquitetura e a medição desses recursos são preparadas desde o início.

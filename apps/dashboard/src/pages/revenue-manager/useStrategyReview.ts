@@ -4,7 +4,7 @@ import { createIdempotencyKey } from "../../api/http/idempotency.js";
 import { DashboardHttpError } from "../../api/http/error.js";
 import type { StrategyReview, StrategyReviewCommand, StrategyVersion } from "../../api/endpoints/strategy-review.js";
 import { canReviewVersion, decisionMayHaveSucceeded, reviewErrorCode, reviewErrorMessage, versionExpired } from "./strategy-review-model.js";
-import { strategyChanged } from "./strategy-review.js";
+import { strategyChanged, STRATEGY_CHANGED_EVENT } from "./strategy-review.js";
 
 type PendingDecision = { kind: "approve" | "reject" | "revision"; input: StrategyReviewCommand };
 
@@ -21,6 +21,7 @@ export function useStrategyReview(id: string, merchantId: string) {
   const [pending, setPending] = useState<PendingDecision | null>(null);
   const alive = useRef(false);
   const locked = useRef(false);
+  const refreshQueued = useRef(false);
 
   const read = useCallback(async () => {
     try {
@@ -44,9 +45,11 @@ export function useStrategyReview(id: string, merchantId: string) {
   }, [api, id, merchantId]);
 
   const refresh = useCallback(async () => {
-    if (locked.current) return;
+    if (locked.current) { refreshQueued.current = true; return; }
     locked.current = true;
-    try { await read(); } finally { locked.current = false; if (alive.current) setLoading(false); }
+    try {
+      do { refreshQueued.current = false; await read(); } while (alive.current && refreshQueued.current);
+    } finally { locked.current = false; if (alive.current) setLoading(false); }
   }, [read]);
 
   useEffect(() => {
@@ -54,9 +57,14 @@ export function useStrategyReview(id: string, merchantId: string) {
     void refresh();
     const timer = window.setInterval(() => { if (!document.hidden) void refresh(); }, 15_000);
     const focus = () => { void refresh(); };
+    const changed = (event: Event) => {
+      if ((event as CustomEvent<{ hypothesisId: string }>).detail?.hypothesisId === id) void refresh();
+    };
     window.addEventListener("focus", focus);
-    return () => { alive.current = false; window.clearInterval(timer); window.removeEventListener("focus", focus); };
-  }, [refresh]);
+    window.addEventListener(STRATEGY_CHANGED_EVENT, changed);
+    return () => { alive.current = false; window.clearInterval(timer); window.removeEventListener("focus", focus);
+      window.removeEventListener(STRATEGY_CHANGED_EVENT, changed); };
+  }, [refresh, id]);
 
   const send = async (command: PendingDecision) => {
     if (locked.current) return;
@@ -85,6 +93,7 @@ export function useStrategyReview(id: string, merchantId: string) {
     } finally {
       if (alive.current) { await read(); setBusy(false); }
       locked.current = false;
+      if (alive.current && refreshQueued.current) void refresh();
     }
   };
   const decide = async (kind: PendingDecision["kind"], version: StrategyVersion, feedback: string) => {

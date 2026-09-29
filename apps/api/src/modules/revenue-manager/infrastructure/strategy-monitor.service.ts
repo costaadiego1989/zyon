@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { ExperimentMeasurementService } from "../../experiments/application/experiment-measurement.service.js";
 import { StrategyExecutionLedger } from "./strategy-execution-ledger.js";
+import { IncentiveMetricsService } from "../application/incentive-metrics.service.js";
 
 /** Bounded, deterministic collection independent of an open dashboard. It never
  * generates a proposal, extends a test or promotes a winner. */
@@ -82,6 +83,8 @@ export class StrategyMonitorService {
         this.logger.warn("Strategy results collection failed; the next poll will retry");
       }
     }
+    try { await new IncentiveMetricsService(this.prisma).monitor(now); }
+    catch { this.logger.warn("Incentive results collection failed; the next poll will retry"); }
     return { processed, failed };
   }
 }

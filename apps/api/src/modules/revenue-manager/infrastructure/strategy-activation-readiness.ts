@@ -8,6 +8,7 @@ import { checkoutContractHash } from "../../checkout/domain/services/checkout-ch
 import { readCheckoutBaseline } from "./checkout-baseline.reader.js";
 import { assertStoredMeasurementPlanning } from "./strategy-measurement-planning.js";
 import { assertStoredDiscountStudy } from "./strategy-discount-study.js";
+import { hasOpenIncentiveExecution } from "./incentive-execution-ledger.js";
 
 /** Read-only readiness, shared by the dashboard and the locked approval command.
  * It never reserves budget or calls a provider. Dispatch still revalidates both. */
@@ -51,7 +52,8 @@ export async function strategyActivationBlockers(tx: Prisma.TransactionClient, s
     blockers.push("weekly_analysis_required");
   }
   if (await tx.promptExperiment.count({ where: { merchantId, status: "running" } })
-    || await tx.strategyExecution.count({ where: { merchantId, status: { in: ["running", "paused"] } } })) {
+    || await tx.strategyExecution.count({ where: { merchantId, status: { in: ["running", "paused"] } } })
+    || await hasOpenIncentiveExecution(tx, merchantId, now)) {
     blockers.push("experiment_already_active");
   }
 

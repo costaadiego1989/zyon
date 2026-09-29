@@ -31,6 +31,8 @@ import {
   MERCHANT_SALES_SUSPENDED_MESSAGE,
 } from "@/lib/checkout-error-message";
 import { checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
+import { CheckoutApiError } from "@/api/checkout-api-error";
+import type { CheckoutPriceReview } from "@/api/checkout-price-review";
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
@@ -62,6 +64,7 @@ interface PendingPayment {
   method: CheckoutPaymentMethod;
   installments?: number;
 }
+type PendingPriceReview = PendingPayment & { chain?: "polygon" | "base"; review: CheckoutPriceReview };
 
 function activeDiscountFromNudge(nudge: CommercialNudge | undefined | null): CheckoutState["activeDiscount"] {
   if (!nudge) return null;
@@ -209,6 +212,8 @@ interface CheckoutState {
   channel: "chat" | "voice";
 
   paymentIntent: PaymentIntent | null;
+  pendingPriceReview: PendingPriceReview | null;
+  paymentSubmitting: boolean;
   paymentPolling: boolean;
   cartUpdating: boolean;
   cartError: string | null;
@@ -245,9 +250,10 @@ interface CheckoutState {
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
   selectShipping: (option: Pick<ShippingOption, "key" | "label">) => Promise<boolean>;
-  pay: (method: CheckoutPaymentMethod, installments?: number) => Promise<void>;
+  pay: (method: CheckoutPaymentMethod, installments?: number, confirmedCartFingerprint?: string) => Promise<void>;
+  confirmUpdatedOrder: (fingerprint: string) => Promise<void>;
   registerLead: (input: LeadRegistrationInput) => Promise<{ ok: boolean; error?: string }>;
-  selectCryptoChain: (chain: "polygon" | "base") => Promise<void>;
+  selectCryptoChain: (chain: "polygon" | "base", confirmedCartFingerprint?: string) => Promise<void>;
   pollPayment: () => void;
   stopPolling: () => void;
   setActiveDiscount: (stage: DiscountStage, percent: number, couponCode?: string, message?: string) => void;
@@ -261,6 +267,21 @@ interface CheckoutState {
 }
 
 let pollTimer: ReturnType<typeof setInterval> | null = null;
+
+function priceReviewPatch(error: unknown, state: CheckoutState, payment: PendingPayment & { chain?: "polygon" | "base" }): Partial<CheckoutState> | undefined {
+  if (!(error instanceof CheckoutApiError) || error.code !== "checkout_review_required") return undefined;
+  const review = error.checkoutReview;
+  const message: Message = { id: `price_review_${Date.now()}`, role: "agent", timestamp: Date.now(),
+    text: review ? "O desconto deixou de estar disponível. Confira o novo total antes de continuar. Nenhum pagamento foi criado."
+      : "As condições do pedido mudaram. Confira seu carrinho e o pagamento em andamento antes de continuar.",
+    ...(review ? { blocks: [{ type: "checkout_price_review", data: { fingerprint: review.confirmation_fingerprint } }] } : {}) };
+  return { pendingPriceReview: review ? { ...payment, review } : null,
+    ...(review ? { paymentIntent: null, activeDiscount: null, cart: { ...state.cart, items: review.cart.items.map(item => ({ sku: item.sku, name: item.name,
+      price: item.price, quantity: item.quantity, variant: item.variant })), total: review.cart.total,
+      discount: review.cart.currentDiscount ?? 0, shipping: checkoutShippingFromExperience(review.shipping),
+      serviceFee: review.service_fee_cents / 100, totalToPay: review.total_to_pay_cents / 100, status: "ready_to_pay" as const } } : {}),
+    messages: [...state.messages, message] };
+}
 
 function recoveredMessages(state: ChatState, payment?: PaymentIntent): Message[] {
   const messages: Message[] = state.turns.map(turn => ({ id: `server_${turn.id}`, role: turn.role === "buyer" ? "user" : "agent",
@@ -437,6 +458,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   chatResponseUnavailable: false,
   channel: "chat",
   paymentIntent: null,
+  pendingPriceReview: null,
+  paymentSubmitting: false,
   paymentPolling: false,
   cartUpdating: false,
   cartError: null,
@@ -458,7 +481,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       get().stopPolling();
-      set({ api, status: "loading", chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null });
+      set({ api, status: "loading", chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
+        pendingPriceReview: null, paymentSubmitting: false });
 
       const response = await api.start();
       if (get().api !== api) return;
@@ -977,10 +1001,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   acceptCrossSell: async (suggestionId, sku) => {
     const { api, cartUpdating, status } = get();
-    if (!api || cartUpdating || status === "completed") {
+    if (!api || cartUpdating || get().paymentSubmitting || status === "completed") {
       return { ok: false, error: "checkout_unavailable" };
     }
-    set({ cartUpdating: true, cartError: null });
+    set({ cartUpdating: true, cartError: null, pendingPriceReview: null });
     try {
       const response = await api.acceptCrossSell(suggestionId, sku);
       const cart = cartFromExperience(response.experience);
@@ -1011,8 +1035,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   updateQty: async (sku, quantity, variant) => {
     const { api, cartUpdating, status } = get();
-    if (!api || cartUpdating || status === "completed") return;
-    set({ cartUpdating: true, cartError: null });
+    if (!api || cartUpdating || get().paymentSubmitting || status === "completed") return;
+    set({ cartUpdating: true, cartError: null, pendingPriceReview: null });
     try {
       const response = await api.updateCartItemQty(sku, quantity, variant);
       const cart = cartFromExperience(response.experience);
@@ -1040,8 +1064,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   selectShipping: async (option) => {
     const { api } = get();
-    if (!api || get().cartUpdating) return false;
-    set({ cartUpdating: true, cartError: null });
+    if (!api || get().cartUpdating || get().paymentSubmitting) return false;
+    set({ cartUpdating: true, cartError: null, pendingPriceReview: null });
     console.log('[WIDGET-DBG] selectShipping called', { key: option.key });
     try {
       const result = await api.selectShipping(option.key);
@@ -1126,9 +1150,17 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  pay: async (method, installments) => {
+  confirmUpdatedOrder: async (fingerprint) => {
+    const pending = get().pendingPriceReview;
+    if (!pending || get().paymentSubmitting || pending.review.confirmation_fingerprint !== fingerprint) return;
+    if (pending.chain) await get().selectCryptoChain(pending.chain, fingerprint);
+    else await get().pay(pending.method, pending.installments, fingerprint);
+  },
+
+  pay: async (method, installments, confirmedCartFingerprint) => {
     const { api, cart, leadRegistered } = get();
-    if (!api || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().paymentSubmitting || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
     const availableMethods = paymentMethodsForConfig(get().merchantPaymentConfig);
     if (!availableMethods.some((available) => available.key === method)) {
@@ -1182,11 +1214,14 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
+    set({ paymentSubmitting: true });
     try {
-      const intent = await api.createPaymentIntent(method, installments);
+      const intent = await api.createPaymentIntent(method, installments, { confirmedCartFingerprint });
+      if (get().api !== api) return;
       void trackEvent("payment_method_selected", { method, intent_id: intent.intent_id });
       set({
         paymentIntent: intent,
+        pendingPriceReview: null,
         cart: { ...get().cart, status: "ready_to_pay" },
       });
 
@@ -1233,6 +1268,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       };
       set((s) => ({ messages: [...s.messages, paymentMsg] }));
     } catch (error) {
+      if (get().api !== api) return;
+      const review = priceReviewPatch(error, get(), { method, installments });
+      if (review) { set(review); return; }
       if (isMerchantSalesSuspendedError(error)) {
         set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE });
         return;
@@ -1245,23 +1283,29 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg] }));
+    } finally {
+      if (get().api === api) set({ paymentSubmitting: false });
     }
   },
 
-  selectCryptoChain: async (chain) => {
+  selectCryptoChain: async (chain, confirmedCartFingerprint) => {
     const { api, leadRegistered } = get();
-    if (!api || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().paymentSubmitting || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
     if (!leadRegistered) {
       await get().pay("crypto");
       return;
     }
 
+    set({ paymentSubmitting: true });
     try {
-      const intent = await api.createPaymentIntent("crypto", undefined, { chain });
+      const intent = await api.createPaymentIntent("crypto", undefined, { chain, confirmedCartFingerprint });
+      if (get().api !== api) return;
       void trackEvent("payment_method_selected", { method: "crypto", intent_id: intent.intent_id, chain });
       set({
         paymentIntent: intent,
+        pendingPriceReview: null,
         cart: { ...get().cart, status: "ready_to_pay" },
       });
 
@@ -1293,6 +1337,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       };
       set((s) => ({ messages: [...s.messages, paymentMsg] }));
     } catch (error) {
+      if (get().api !== api) return;
+      const review = priceReviewPatch(error, get(), { method: "crypto", chain });
+      if (review) { set(review); return; }
       if (isMerchantSalesSuspendedError(error)) {
         set({ status: "error", error: MERCHANT_SALES_SUSPENDED_MESSAGE });
         return;
@@ -1305,6 +1352,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg] }));
+    } finally {
+      if (get().api === api) set({ paymentSubmitting: false });
     }
   },
 
@@ -1386,6 +1435,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const nudge = result.experience?.commercial_nudge;
       set({
         cart: { ...nextCart, status: get().cart.status },
+        pendingPriceReview: null,
         activeDiscount: activeDiscountFromNudge(nudge),
       });
       return { ok: true };
@@ -1467,6 +1517,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       cart: { items: [], total: 0, serviceFee: 0, discount: 0, status: "awaiting" },
       messages: [],
       paymentIntent: null,
+      pendingPriceReview: null,
+      paymentSubmitting: false,
       paymentPolling: false,
       cartUpdating: false,
       cartError: null,

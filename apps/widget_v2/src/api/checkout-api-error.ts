@@ -1,4 +1,5 @@
 import { chatReceipt, type ChatReceipt } from "./chat-protocol";
+import { checkoutPriceReview, type CheckoutPriceReview } from "./checkout-price-review";
 
 export class CheckoutApiError extends Error {
   constructor(
@@ -7,6 +8,7 @@ export class CheckoutApiError extends Error {
     readonly code?: string,
     readonly retryAfterSeconds?: number,
     readonly chatRequest?: ChatReceipt,
+    readonly checkoutReview?: CheckoutPriceReview,
   ) {
     super(`${operation}_failed: ${status}${code ? ` ${code}` : ""}`);
     this.name = "CheckoutApiError";
@@ -21,6 +23,7 @@ export class CheckoutApiError extends Error {
       typeof body.code === "string" ? body.code : undefined,
       positiveInteger(body.retry_after_seconds) ?? positiveInteger(body.retryAfterSeconds) ?? retryAfterHeader(response),
       chatReceipt(body.chat_request),
+      response.status === 409 && body.code === "checkout_review_required" ? checkoutPriceReview(body.review) : undefined,
     );
   }
 }

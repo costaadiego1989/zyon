@@ -3,6 +3,7 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import type { StrategyProposal } from "../../api/endpoints/strategy-review.js";
 import { StrategyReviewModal } from "./StrategyReviewModal.js";
 import { StrategyMetricsPanel } from "./StrategyMetricsPanel.js";
+import { StrategyIncentiveMetrics } from "./StrategyIncentiveMetrics.js";
 import { StrategyDiscountStudy } from "./StrategyDiscountStudy.js";
 import { StrategyIncentiveRecommendation } from "./StrategyIncentiveRecommendation.js";
 import { useStrategyReview } from "./useStrategyReview.js";
@@ -108,12 +109,17 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
         <StrategyDiscountStudy study={proposal.discountStudy} />
         <StrategyIncentiveRecommendation key={`incentive:${merchantId}:${strategyId}:${version.version}`} recommendation={proposal.incentiveRecommendation}
           policyCurrent={version.incentivePolicyCurrent} decisionContext={{ strategyId, version: version.version, proposalHash: version.proposalHash,
-            current: !!current, refreshToken: vm.review, disabled: vm.busy || !!vm.pending || !!vm.readError }} />
+            current: !!current, alternativeAvailable: vm.review.incentive_alternative_available === true,
+            refreshToken: vm.review, disabled: vm.busy || !!vm.pending || !!vm.readError }} />
         <MeasurementDetails proposal={proposal} />
+        {proposal.incentiveRecommendation?.status === "recommended" && <StrategyIncentiveMetrics
+          key={`incentive-metrics:${merchantId}:${strategyId}:${version.version}`} strategyId={strategyId} version={version.version}
+          proposalHash={version.proposalHash} refreshToken={vm.review} />}
         <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}:${vm.review.status}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />
       </article>
       <section className="strategy-decision" aria-labelledby="strategy-decision-title">
         <h2 id="strategy-decision-title">Sua decisão</h2>
+        {vm.review.activation_blockers.includes("incentive_already_funded") && <p>Este desconto já tem um teste registrado. Consulte os resultados ou cancele o desconto na seção acima.</p>}
         {vm.review.status === "pending_review" && !vm.review.approval_available && <div className="strategy-activation-note" id="strategy-activation-note"><strong>Aprovação indisponível no momento</strong>
           <p>Esta proposta ainda não reúne as condições para iniciar o teste nesta loja.</p>
           {vm.review.activation_blockers.includes("reviewed_measurement_plan_required") && <p>Também falta incluir o plano de medição na proposta.</p>}

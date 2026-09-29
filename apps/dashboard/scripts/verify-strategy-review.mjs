@@ -67,6 +67,7 @@ try {
     const posts = [], legacyMutations = [], receipts = new Map();
     const incentivePosts = [], incentiveReceipts = new Map();
     let incentiveDecision = null, incentiveEnabled = false, incentiveFail = null, incentiveReadFailed = false;
+    let incentiveExecution = false, incentiveAlternative = false;
     let outcome = "recommendations";
     await page.route("**/*", async route => {
       const req = route.request(), url = new URL(req.url()), path = url.pathname;
@@ -86,6 +87,27 @@ try {
           status: review.status, title: review.versions[0].proposal.recommendation.hypothesis_text, expected_lift_percent: 2, expires_at: expires } }] : [];
       else if (path.includes("/hypotheses/")) { hypothesisReads++; if (req.method() !== "GET") legacyMutations.push(path); body = { message: "Hypothesis not found" }; status = 404; }
       else if (path.endsWith(`/strategies/${review.id}`)) { status = readStatus; body = status === 200 ? review : { message: status === 404 ? "STRATEGY_NOT_FOUND" : "Forbidden" }; }
+      else if (path.endsWith(`/strategies/${review.id}/incentive/metrics`)) {
+        const metricVersion = Number(url.searchParams.get("version"));
+        const arm = { assigned: 100, mature: 80, converted: 8, orders: 8, revenueCents: 80000, discountCents: 0,
+          redemptions: 0, pendingReservations: 0, released: 0, refunds: 0, refundedDiscountCents: 0 };
+        body = { strategyId: review.id, version: metricVersion, proposalHash: String(metricVersion).repeat(64),
+          execution: incentiveExecution && incentiveDecision?.kind === "approve" ? { id: "incentive-execution", startedAt: stamp, endsAt: expires, stoppedAt: null } : null,
+          measurement: incentiveExecution && incentiveDecision?.kind === "approve" ? { definition: "incentive-assigned-buyer-results-v1", collectedAt: stamp,
+            state: "collecting", matureAt: expires, unit: "assigned_buyer", minimumBuyersPerArm: 100, control: arm,
+            treatment: { ...arm, converted: 12, orders: 12, revenueCents: 114000, discountCents: 6000, redemptions: 12, pendingReservations: 3 },
+            interval: null, budget: { limitCents: 50000, reservedCents: 1500, spentCents: 6000, availableCents: 42500 },
+            economics: "confirmed_discount_only_not_profit", promotionAllowed: false } : null };
+      }
+      else if (path.endsWith(`/strategies/${review.id}/incentive/alternatives`)) {
+        const input = req.postDataJSON();
+        assert.equal(incentiveAlternative, true); assert.equal(input.feedback, "Prefiro um desconto menor");
+        assert.equal(input.version, review.currentVersion); assert.equal(input.proposal_hash, review.versions[0].proposalHash);
+        assert.equal(input.recommendation_hash, "d".repeat(64)); assert.equal(req.headers()["idempotency-key"], input.request_key);
+        body = { action_id: "financial-alternative", strategy_id: review.id, version: input.version,
+          proposal_hash: input.proposal_hash, status: "revision_requested", revision_scope: "incentive" };
+        review.incentive_alternative_available = false;
+      }
       else if (path.includes(`/strategies/${review.id}/incentive`)) {
         const current = review.versions[0], rec = current.proposal.incentiveRecommendation;
         const ready = incentiveEnabled && current.incentivePolicyCurrent !== false && rec?.definition === "weekly-incentive-recommendation-v2" && rec.planning?.status === "estimated_feasible";
@@ -95,7 +117,8 @@ try {
             status: incentiveDecision?.status ?? "awaiting_review", decision: incentiveDecision,
             history: incentiveDecision ? [incentiveDecision] : [], approval_available: ready && !incentiveDecision,
             rejection_available: !incentiveDecision && rec?.status === "recommended", withdrawal_available: incentiveDecision?.kind === "approve",
-            approval_blockers: ready ? [] : ["review_disabled"], execution_status: "unavailable", budget: null };
+            approval_blockers: ready ? [] : ["review_disabled"], activation_available: incentiveExecution && ready && !incentiveDecision,
+            execution_status: incentiveExecution && incentiveDecision?.kind === "approve" ? "active" : "unavailable", budget: null };
         } else {
           const input = req.postDataJSON(), kind = path.split("/").at(-1);
           incentivePosts.push({ kind, input, key: req.headers()["idempotency-key"] });
@@ -292,7 +315,24 @@ try {
     await retryIncentive.waitFor({ state: "detached" });
     assert.equal(await incentive.getByText("Proposta de desconto aprovada. O teste ainda não foi iniciado.", { exact: true }).count(), 0,
       "A historical approval receipt cannot replace the current withdrawn state");
-    incentiveDecision = null; incentiveEnabled = false;
+    incentiveDecision = null; incentiveExecution = true;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await incentive.getByRole("button", { name: "Aprovar e iniciar teste de desconto", exact: true }).click();
+    await incentive.getByText(/O orçamento e o desconto ficam limitados/).waitFor();
+    await incentive.getByRole("button", { name: "Confirmar início do teste de desconto", exact: true }).click();
+    await incentive.getByText("Teste de desconto em andamento.", { exact: true }).waitFor();
+    const incentiveResults = page.getByRole("region", { name: "Resultados do teste de desconto", exact: true });
+    await incentiveResults.getByText("Compradores participantes", { exact: true }).waitFor();
+    await incentiveResults.getByText(/Descontos consumidos:/).waitFor();
+    await noOverflow(width);
+    if (out) await incentiveResults.screenshot({ path: `${out}/incentive-results-${width}.png` });
+    incentiveDecision = null; incentiveExecution = false; incentiveAlternative = true; review.incentive_alternative_available = true;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await incentive.getByRole("button", { name: "Pedir outra sugestão de desconto", exact: true }).click();
+    await incentive.getByLabel("O que você gostaria que a IA considerasse? (opcional)").fill("Prefiro um desconto menor");
+    await incentive.getByRole("button", { name: "Solicitar nova sugestão", exact: true }).click();
+    await incentive.getByText(/Pedido recebido. A IA preparará outra sugestão/).waitFor();
+    incentiveDecision = null; incentiveEnabled = false; incentiveAlternative = false; review.incentive_alternative_available = false;
     for (const [reason, text] of [["insufficient_baseline", /menos de 100 compradores/], ["incomplete_history", /histórico excedeu o limite/],
       ["unusable_conversion_rate", /taxa de conversão deste público/]]) {
       const complete = reason !== "incomplete_history", buyers = complete ? 30 : 0;
@@ -546,7 +586,7 @@ try {
     await page.getByText(/Ainda precisamos de mais sessões/).waitFor();
     assert.equal(await page.getByRole("button", { name: "Revisar estratégia", exact: true }).count(), 0);
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}px: incentive approval, rejection, withdrawal, ambiguous retry, historical receipt, conflict and read failure; automatic terms, stale policy, unknown/invalid terms, no checkout activation; communication review, navigation, history, metrics and responsive behavior (mock API)`);
+    console.log(`PASS ${width}px: incentive approval, rejection, withdrawal, ambiguous retry, historical receipt, conflict and read failure; automatic terms, stale policy, unknown/invalid terms; controlled activation, financial alternative, incentive metrics, communication review, navigation, history and responsive behavior (mock API)`);
     await page.close();
   }
 } finally { await browser.close(); }

@@ -143,6 +143,17 @@ function mapLesson(raw: StrategyLessonApiResponse): StrategyLesson {
 
 export function revenueManagerEndpoints(base: string, f: typeof fetch) {
   return {
+    getIncentiveMetrics(id: string, version: number): Promise<import("./incentive-metrics.js").IncentiveMetrics> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/incentive/metrics?version=${version}`, { method: "GET", cache: "no-store" }, f);
+    },
+    requestIncentiveAlternative(id: string, input: import("./incentive-review.js").IncentiveAlternativeCommand): Promise<import("./incentive-review.js").IncentiveAlternativeReceipt> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/incentive/alternatives`, {
+        method: "POST", headers: { "Idempotency-Key": input.request_key }, jsonBody: {
+          version: input.version, proposal_hash: input.proposal_hash, recommendation_hash: input.recommendation_hash,
+          request_key: input.request_key, ...(input.feedback === undefined ? {} : { feedback: input.feedback }),
+        },
+      }, f);
+    },
     getIncentiveReview(id: string): Promise<IncentiveReview> {
       return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/incentive`, { method: "GET", cache: "no-store" }, f);
     },

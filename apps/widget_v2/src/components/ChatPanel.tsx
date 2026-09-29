@@ -23,7 +23,7 @@ function MessageText({ message, api }: { message: Message; api: CheckoutSession 
 }
 
 function isPaymentPresentationBlock(type: string): boolean {
-  return ["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card"].includes(type);
+  return ["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "checkout_price_review"].includes(type);
 }
 
 export function ChatPanel() {

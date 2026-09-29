@@ -6,6 +6,7 @@ import { BILLING_PLANS } from "../../payment/domain/billing-plans.js";
 import { ObserveMetricsUseCase } from "../application/use-cases/observe-metrics.use-case.js";
 import { GenerateHypothesisUseCase } from "../application/use-cases/generate-hypothesis.use-case.js";
 import { MeasurementBaselineUnavailable } from "../domain/strategy-measurement.js";
+import { hasOpenIncentiveExecution } from "./incentive-execution-ledger.js";
 import { AnalysisDeferred, analysisGroup, isNight, LEASE_MS, MAX_RUN_ATTEMPTS, nextNight,
   positiveInteger, WEEK_MS, weeklyAnalysisEnabled, weeklyGenerationEnabled, weeklyMerchantAllowed } from "../domain/weekly-analysis-policy.js";
 
@@ -154,11 +155,12 @@ export class WeeklyAnalysisService {
       if (existing) return this.complete(run, "recommendations", existing.id);
       if (!weeklyGenerationEnabled()) throw new AnalysisDeferred("generation_disabled");
       // Existing experiments and pending decisions get time to collect outcomes.
-      const [active, pending] = await Promise.all([
+      const [active, pending, incentiveActive] = await Promise.all([
         this.prisma.promptExperiment.count({ where: { merchantId: run.merchantId, status: "running" } }),
         this.pendingDecisions(run.merchantId),
+        hasOpenIncentiveExecution(this.prisma, run.merchantId, this.clock()),
       ]);
-      if (active || pending) return this.complete(run, "keep_current");
+      if (active || pending || incentiveActive) return this.complete(run, "keep_current");
       const proposal = await this.generate.execute({ merchant_id: run.merchantId, observation_id: observationId,
         analysis_context: { runId: run.id, leaseToken: run.leaseToken } });
       await this.complete(run, "recommendations", proposal.hypothesis_id);

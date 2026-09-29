@@ -79,6 +79,8 @@ export interface StrategyReview {
   versions: StrategyVersion[]; actions: StrategyAction[];
   expired: boolean; approval_available: boolean; activation_available: boolean;
   revision_available: boolean; activation_blockers: string[];
+  incentive_alternative_available?: boolean;
+  decision_available?: boolean;
   measurement_status: string; measurement_warnings: string[];
 }
 export interface StrategyReviewCommand {

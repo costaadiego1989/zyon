@@ -29,6 +29,9 @@ export interface CheckoutCommercialMutation {
 }
 
 export interface CheckoutSessionRepository {
+  /** Releases only an unused experimental benefit. Caller must return the revised
+   * amount for buyer confirmation, never continue charging in the same request. */
+  reviseIncentiveForPaymentReview?(merchantId: string, sessionId: string): Promise<CheckoutSession | undefined>;
   /** Saves a current snapshot, invalidates benefits/reservations and records
    * commercial events in one transaction. Never retry with a newer snapshot. */
   commitCommercialMutation?(input: CheckoutCommercialMutation): Promise<CheckoutSession>;
