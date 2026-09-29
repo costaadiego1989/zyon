@@ -2,6 +2,17 @@ import { describe, expect, it, vi } from "vitest";
 import { revenueManagerEndpoints } from "./revenue-manager.js";
 
 describe("versioned strategy review transport", () => {
+  it.each(["approve", "reject", "withdraw"] as const)("sends a separate incentive %s without editable commercial values", async kind => {
+    const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}"));
+    const input = { version: 2, proposal_hash: "a".repeat(64), recommendation_hash: "b".repeat(64), request_key: "same-incentive-key",
+      merchantId: "forged", actorId: "forged", limitCents: 1, discountPercent: 50 };
+    await revenueManagerEndpoints("https://api.test", fetchImpl).decideIncentive("a/b", kind, input);
+    expect(fetchImpl.mock.calls[0][0]).toBe(`https://api.test/v1/revenue-manager/strategies/a%2Fb/incentive/${kind}`);
+    const options = fetchImpl.mock.calls[0][1];
+    expect(new Headers(options?.headers).get("Idempotency-Key")).toBe(input.request_key);
+    expect(JSON.parse(String(options?.body))).toEqual({ version: 2, proposal_hash: input.proposal_hash,
+      recommendation_hash: input.recommendation_hash, request_key: input.request_key });
+  });
   it("collects the exact strategy version without accepting counts or client budget authority", async () => {
     const fetchImpl = vi.fn<typeof fetch>().mockResolvedValue(new Response("{}"));
     await revenueManagerEndpoints("https://api.test", fetchImpl).collectStrategyMetrics("a/b", 2);

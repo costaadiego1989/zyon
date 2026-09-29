@@ -106,7 +106,9 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
           <p>Esta proposta altera a comunicação. Não cria cupom, desconto ou frete grátis. Os limites acima são os registrados nesta versão; não autorizam uma oferta nem comprovam sua margem.</p>
         </section>
         <StrategyDiscountStudy study={proposal.discountStudy} />
-        <StrategyIncentiveRecommendation recommendation={proposal.incentiveRecommendation} policyCurrent={version.incentivePolicyCurrent} />
+        <StrategyIncentiveRecommendation key={`incentive:${merchantId}:${strategyId}:${version.version}`} recommendation={proposal.incentiveRecommendation}
+          policyCurrent={version.incentivePolicyCurrent} decisionContext={{ strategyId, version: version.version, proposalHash: version.proposalHash,
+            current: !!current, refreshToken: vm.review, disabled: vm.busy || !!vm.pending || !!vm.readError }} />
         <MeasurementDetails proposal={proposal} />
         <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}:${vm.review.status}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />
       </article>

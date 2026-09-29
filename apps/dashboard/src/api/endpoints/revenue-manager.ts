@@ -1,6 +1,7 @@
 import { dashboardJson } from "../http/client.js";
 import type { StrategyReview, StrategyReviewCommand, StrategyReviewReceipt } from "./strategy-review.js";
 import type { IncentivePolicy, IncentivePolicyCommand } from "./incentive-policy.js";
+import type { IncentiveReview, IncentiveDecision, IncentiveReviewCommand, IncentiveReviewReceipt } from "./incentive-review.js";
 
 const PREFIX = "/revenue-manager";
 
@@ -142,6 +143,16 @@ function mapLesson(raw: StrategyLessonApiResponse): StrategyLesson {
 
 export function revenueManagerEndpoints(base: string, f: typeof fetch) {
   return {
+    getIncentiveReview(id: string): Promise<IncentiveReview> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/incentive`, { method: "GET", cache: "no-store" }, f);
+    },
+    decideIncentive(id: string, kind: IncentiveDecision, input: IncentiveReviewCommand): Promise<IncentiveReviewReceipt> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/incentive/${kind}`, {
+        method: "POST", headers: { "Idempotency-Key": input.request_key }, jsonBody: {
+          version: input.version, proposal_hash: input.proposal_hash, recommendation_hash: input.recommendation_hash, request_key: input.request_key,
+        },
+      }, f);
+    },
     getIncentivePolicy(): Promise<IncentivePolicy> {
       return dashboardJson(base, `${PREFIX}/incentive-policy`, { method: "GET", cache: "no-store" }, f);
     },

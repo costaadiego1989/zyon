@@ -65,6 +65,8 @@ try {
     let review = initialReview(), readStatus = 200, failAction = null, hypothesisReads = 0;
     let metricsState = null, metricsFailure = false, paymentCostMode = "covered", participationMode = "current";
     const posts = [], legacyMutations = [], receipts = new Map();
+    const incentivePosts = [], incentiveReceipts = new Map();
+    let incentiveDecision = null, incentiveEnabled = false, incentiveFail = null, incentiveReadFailed = false;
     let outcome = "recommendations";
     await page.route("**/*", async route => {
       const req = route.request(), url = new URL(req.url()), path = url.pathname;
@@ -84,6 +86,36 @@ try {
           status: review.status, title: review.versions[0].proposal.recommendation.hypothesis_text, expected_lift_percent: 2, expires_at: expires } }] : [];
       else if (path.includes("/hypotheses/")) { hypothesisReads++; if (req.method() !== "GET") legacyMutations.push(path); body = { message: "Hypothesis not found" }; status = 404; }
       else if (path.endsWith(`/strategies/${review.id}`)) { status = readStatus; body = status === 200 ? review : { message: status === 404 ? "STRATEGY_NOT_FOUND" : "Forbidden" }; }
+      else if (path.includes(`/strategies/${review.id}/incentive`)) {
+        const current = review.versions[0], rec = current.proposal.incentiveRecommendation;
+        const ready = incentiveEnabled && current.incentivePolicyCurrent !== false && rec?.definition === "weekly-incentive-recommendation-v2" && rec.planning?.status === "estimated_feasible";
+        if (req.method() === "GET") {
+          if (incentiveReadFailed) { status = 503; body = { message: "Unavailable" }; }
+          else body = { strategy_id: review.id, version: current.version, proposal_hash: current.proposalHash, recommendation_hash: "d".repeat(64),
+            status: incentiveDecision?.status ?? "awaiting_review", decision: incentiveDecision,
+            history: incentiveDecision ? [incentiveDecision] : [], approval_available: ready && !incentiveDecision,
+            rejection_available: !incentiveDecision && rec?.status === "recommended", withdrawal_available: incentiveDecision?.kind === "approve",
+            approval_blockers: ready ? [] : ["review_disabled"], execution_status: "unavailable", budget: null };
+        } else {
+          const input = req.postDataJSON(), kind = path.split("/").at(-1);
+          incentivePosts.push({ kind, input, key: req.headers()["idempotency-key"] });
+          assert.deepEqual(Object.keys(input).sort(), ["proposal_hash", "recommendation_hash", "request_key", "version"]);
+          assert.equal(input.proposal_hash, current.proposalHash); assert.equal(input.version, current.version);
+          assert.equal(input.recommendation_hash, "d".repeat(64)); assert.equal(req.headers()["idempotency-key"], input.request_key);
+          if (incentiveReceipts.has(input.request_key)) body = incentiveReceipts.get(input.request_key);
+          else if (incentiveFail === "conflict") { incentiveFail = null; status = 409; body = { code: "INCENTIVE_REVIEW_PREREQUISITES_REQUIRED" }; }
+          else {
+            assert.ok(["approve", "reject", "withdraw"].includes(kind));
+            if (kind === "approve") assert.equal(ready, true);
+            incentiveDecision = { review_id: `incentive-${incentivePosts.length}`, strategy_id: review.id, version: current.version,
+              proposal_hash: current.proposalHash, recommendation_hash: input.recommendation_hash, kind,
+              status: kind === "approve" ? "approved_awaiting_activation" : kind === "reject" ? "rejected" : "withdrawn",
+              scope: "incentive_recommendation_only", effect: "decision_recorded", reviewed_at: stamp, approval_expires_at: expires };
+            body = incentiveDecision; incentiveReceipts.set(input.request_key, body);
+            if (incentiveFail === "unknown") { status = 503; body = { message: "Timeout" }; incentiveFail = null; }
+          }
+        }
+      }
       else if (path.endsWith(`/strategies/${review.id}/metrics`)) {
         const input = req.postDataJSON(); assert.deepEqual(Object.keys(input), ["version"]);
         const metricVersion = input.version;
@@ -170,7 +202,8 @@ try {
     await incentive.getByRole("heading", { name: "Condições para medir o teste", exact: true }).waitFor();
     await incentive.getByText(/movimento estimado para sete dias fica abaixo/).waitFor();
     await incentive.getByText(/orçamento e os usos sugeridos não cobrem/).waitFor();
-    assert.equal(await incentive.locator("input, select, textarea, button").count(), 0, "The motor designs the test; reading is not spend authorization");
+    assert.equal(await incentive.locator("input, select, textarea").count(), 0, "The motor designs financial terms");
+    assert.equal(await incentive.getByRole("button", { name: "Aprovar proposta de desconto", exact: true }).count(), 0);
     await incentive.getByText("Regras e métricas do teste sugerido", { exact: true }).click();
     await incentive.getByText(/não uma previsão de demanda/).waitFor();
     await incentive.getByText(/janela de compra de sete dias/).waitFor();
@@ -202,6 +235,64 @@ try {
     if (out) await page.setViewportSize({ width, height: 2200 });
     if (out) await incentive.screenshot({ path: `${out}/incentive-planning-feasible-${width}.png` });
     if (out) await page.setViewportSize({ width, height: 900 });
+    // The merchant reviews immutable suggested values, never constructs a test.
+    assert.equal(incentivePosts.length, 0);
+    incentiveEnabled = true; review.versions[0].incentivePolicyCurrent = true;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    const approveIncentive = incentive.getByRole("button", { name: "Aprovar proposta de desconto", exact: true });
+    await approveIncentive.click();
+    await incentive.getByText(/Nenhum teste será iniciado agora/).waitFor();
+    incentiveFail = "unknown";
+    await incentive.getByRole("button", { name: "Registrar aprovação do desconto", exact: true }).click();
+    await incentive.getByText(/A confirmação não chegou/).waitFor();
+    const retryIncentive = incentive.getByRole("button", { name: "Confirmar decisão do desconto", exact: true });
+    await retryIncentive.click();
+    await incentive.getByText("Proposta de desconto aprovada. O teste ainda não foi iniciado.", { exact: true }).waitFor();
+    await retryIncentive.waitFor({ state: "detached" });
+    assert.equal(incentivePosts.length, 2);
+    assert.deepEqual(incentivePosts[0], incentivePosts[1], "Lost approval reply must reuse the exact command");
+    assert.equal(review.status, "pending_review"); assert.equal(posts.length, 0);
+    await noOverflow(width);
+    if (out) {
+      await page.setViewportSize({ width, height: 2400 });
+      await incentive.screenshot({ path: `${out}/incentive-approved-${width}.png` });
+      await page.setViewportSize({ width, height: 900 });
+    }
+    incentiveReadFailed = true;
+    await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+    await incentive.getByText(/Não foi possível conferir a decisão/).waitFor();
+    assert.equal(await incentive.getByRole("button", { name: "Cancelar aprovação do desconto", exact: true }).isDisabled(), true);
+    incentiveReadFailed = false;
+    await incentive.getByRole("button", { name: "Atualizar decisão do desconto", exact: true }).click();
+    await incentive.getByRole("button", { name: "Cancelar aprovação do desconto", exact: true }).click();
+    await incentive.getByRole("button", { name: "Confirmar cancelamento do desconto", exact: true }).click();
+    await incentive.getByText("A aprovação do desconto foi cancelada.", { exact: true }).waitFor();
+    assert.equal(incentivePosts.length, 3);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await incentive.getByText("A aprovação do desconto foi cancelada.", { exact: true }).waitFor();
+    assert.equal(await approveIncentive.count(), 0);
+    incentiveDecision = null;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await incentive.getByRole("button", { name: "Recusar proposta de desconto", exact: true }).click();
+    await incentive.getByRole("button", { name: "Confirmar recusa do desconto", exact: true }).click();
+    await incentive.getByText("Proposta de desconto recusada.", { exact: true }).waitFor();
+    assert.equal(posts.length, 0);
+    incentiveDecision = null;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await approveIncentive.click(); incentiveFail = "conflict";
+    await incentive.getByRole("button", { name: "Registrar aprovação do desconto", exact: true }).click();
+    await incentive.getByText(/A decisão não foi aceita/).waitFor();
+    assert.equal(await incentive.getByRole("button", { name: "Confirmar decisão do desconto", exact: true }).count(), 0);
+    await approveIncentive.click(); incentiveFail = "unknown";
+    await incentive.getByRole("button", { name: "Registrar aprovação do desconto", exact: true }).click();
+    await incentive.getByText(/A confirmação não chegou/).waitFor();
+    incentiveDecision = { ...incentiveDecision, kind: "withdraw", status: "withdrawn" };
+    await retryIncentive.click();
+    await incentive.getByText("A aprovação do desconto foi cancelada.", { exact: true }).waitFor();
+    await retryIncentive.waitFor({ state: "detached" });
+    assert.equal(await incentive.getByText("Proposta de desconto aprovada. O teste ainda não foi iniciado.", { exact: true }).count(), 0,
+      "A historical approval receipt cannot replace the current withdrawn state");
+    incentiveDecision = null; incentiveEnabled = false;
     for (const [reason, text] of [["insufficient_baseline", /menos de 100 compradores/], ["incomplete_history", /histórico excedeu o limite/],
       ["unusable_conversion_rate", /taxa de conversão deste público/]]) {
       const complete = reason !== "incomplete_history", buyers = complete ? 30 : 0;
@@ -455,7 +546,7 @@ try {
     await page.getByText(/Ainda precisamos de mais sessões/).waitFor();
     assert.equal(await page.getByRole("button", { name: "Revisar estratégia", exact: true }).count(), 0);
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}px: automatic incentive terms, stale policy, unknown/invalid terms, no spend authorization, direct/reload, notice, navigation, revision, ambiguous retry, exact version, conflict, history, reject, expiry, access, keyboard, responsive, insufficient data, measured/pending results, refresh failure, positive/invalid evidence, metrics version isolation (mock API)`);
+    console.log(`PASS ${width}px: incentive approval, rejection, withdrawal, ambiguous retry, historical receipt, conflict and read failure; automatic terms, stale policy, unknown/invalid terms, no checkout activation; communication review, navigation, history, metrics and responsive behavior (mock API)`);
     await page.close();
   }
 } finally { await browser.close(); }

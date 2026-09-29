@@ -1,11 +1,13 @@
 import type { StrategyProposal } from "../../api/endpoints/strategy-review.js";
 import { formatReviewNumber as number } from "./strategy-review-model.js";
-import { StrategyIncentivePlanning } from "./StrategyIncentivePlanning.js";
+import { StrategyIncentivePlanning, validIncentivePlanning } from "./StrategyIncentivePlanning.js";
+import { StrategyIncentiveDecision, type IncentiveDecisionContext } from "./StrategyIncentiveDecision.js";
 
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export function StrategyIncentiveRecommendation({ recommendation: r, policyCurrent }: {
+export function StrategyIncentiveRecommendation({ recommendation: r, policyCurrent, decisionContext }: {
   recommendation: StrategyProposal["incentiveRecommendation"]; policyCurrent?: boolean | null;
+  decisionContext?: IncentiveDecisionContext;
 }) {
   if (!r) return null;
   const fallback = <section className="strategy-detail-section"><h2>Teste de desconto sugerido</h2>
@@ -49,8 +51,9 @@ export function StrategyIncentiveRecommendation({ recommendation: r, policyCurre
     </dl>
     {r.definition === "weekly-incentive-recommendation-v2" && <StrategyIncentivePlanning planning={r.planning}
       maxDiscountCents={t.maxDiscountCents} maxRedemptions={t.maxRedemptions} />}
-    <p>Este teste de desconto ainda não está disponível para aprovação. Nenhum valor foi reservado.
-      Aprovar a comunicação abaixo não autoriza o desconto.</p>
+    {decisionContext ? <StrategyIncentiveDecision context={decisionContext} approvalDisplayValid={r.definition === "weekly-incentive-recommendation-v2"
+      && policyCurrent !== false && validIncentivePlanning(r.planning, t.maxDiscountCents, t.maxRedemptions) && r.planning.status === "estimated_feasible"} /> : <p>Este teste de desconto ainda não está disponível para aprovação.
+      Aprovar a comunicação abaixo não autoriza o desconto.</p>}
     <details className="strategy-review-details"><summary>Regras e métricas do teste sugerido</summary>
       <div className="strategy-review-details-body">
         <p>Um uso por comprador, sem acumular cupons ou outros incentivos. Compradores do grupo de referência da loja ficam fora deste teste.</p>

@@ -11,10 +11,8 @@ const reasons: Record<string, string> = {
   insufficient_budget: "O orçamento e os usos sugeridos não cobrem o desconto máximo para toda a amostra necessária.",
 };
 const count = (n: unknown): n is number => Number.isSafeInteger(n) && Number(n) >= 0;
-export function StrategyIncentivePlanning({ planning: p, maxDiscountCents, maxRedemptions }: {
-  planning: Planning; maxDiscountCents: number; maxRedemptions: number;
-}) {
-  if (!p || p.definition !== "incentive-fixed-horizon-planning-v1" || p.result !== "not_measured"
+export function validIncentivePlanning(p: Planning, maxDiscountCents: number, maxRedemptions: number): p is NonNullable<Planning> {
+  return !(!p || p.definition !== "incentive-fixed-horizon-planning-v1" || p.result !== "not_measured"
     || p.durationDays !== 7 || p.conversionWindowHours !== 168 || p.allocation !== "50/50"
     || p.minimumEffectBps !== 100 || p.confidence !== .95 || p.planningPower !== .8
     || !p.baseline || !count(p.baseline.buyers) || !count(p.baseline.conversions) || p.baseline.conversions > p.baseline.buyers
@@ -28,7 +26,12 @@ export function StrategyIncentivePlanning({ planning: p, maxDiscountCents, maxRe
     || (p.status === "blocked") !== (p.blockers.length > 0)
     || (p.status === "estimated_feasible" && (!p.baseline.complete || !p.minimumBuyersPerArm
       || p.weeklyBuyersPerArm === null || p.weeklyBuyersPerArm < p.minimumBuyersPerArm
-      || p.fundedTreatmentBuyers < p.minimumBuyersPerArm || !p.requiredBudgetCents))) {
+      || p.fundedTreatmentBuyers < p.minimumBuyersPerArm || !p.requiredBudgetCents)));
+}
+export function StrategyIncentivePlanning({ planning: p, maxDiscountCents, maxRedemptions }: {
+  planning: Planning; maxDiscountCents: number; maxRedemptions: number;
+}) {
+  if (!validIncentivePlanning(p, maxDiscountCents, maxRedemptions)) {
     return <p role="status">Atualize o dashboard para consultar o planejamento deste teste.</p>;
   }
   return <div>

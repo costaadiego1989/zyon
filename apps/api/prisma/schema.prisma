@@ -3548,6 +3548,7 @@ model RevenueStrategyVersion {
   actions RevenueStrategyAction[]
   executions StrategyExecution[]
   incentiveBudgets StrategyIncentiveBudget[]
+  incentiveReviews StrategyIncentiveReview[]
   @@id([strategyId, merchantId, version])
   @@map("revenue_strategy_versions")
 }
@@ -3585,6 +3586,8 @@ model StrategyIncentiveBudget {
   termsHash String @map("terms_hash")
   terms Json
   policyVersion Int? @map("policy_version")
+  reviewId String? @map("review_id")
+  review StrategyIncentiveReview? @relation(fields: [reviewId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
   policy MerchantIncentivePolicy? @relation(fields: [merchantId, policyVersion], references: [merchantId, version], onDelete: Restrict, onUpdate: Restrict)
   actorId String @map("actor_id")
   requestKey String @map("request_key")
@@ -3633,6 +3636,42 @@ model StrategyIncentiveReservation {
   @@unique([budgetId, merchantId, evidenceKey])
   @@index([budgetId, merchantId, status])
   @@map("strategy_incentive_reservations")
+}
+
+/// A decision about the recommended incentive, never checkout activation.
+/// Sequence 1 approves/rejects; sequence 2 permanently withdraws an approval.
+model StrategyIncentiveReview {
+  id String @id
+  merchantId String @map("merchant_id")
+  strategyId String @map("strategy_id")
+  version Int
+  sequence Int
+  kind String
+  proposalHash String @map("proposal_hash")
+  recommendationHash String @map("recommendation_hash")
+  policyVersion Int @map("policy_version")
+  policyHash String @map("policy_hash")
+  actorId String @map("actor_id")
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  feedback String? @db.Text
+  createdAt DateTime @default(now()) @map("created_at")
+  expiresAt DateTime @map("expires_at")
+  proposal RevenueStrategyVersion @relation(fields: [strategyId, merchantId, version], references: [strategyId, merchantId, version], onDelete: Restrict, onUpdate: Restrict)
+  budgets StrategyIncentiveBudget[]
+  @@unique([id, merchantId])
+  @@unique([strategyId, merchantId, requestKey])
+  @@unique([strategyId, merchantId, version, sequence])
+  @@map("strategy_incentive_reviews")
+}
+
+model StrategyIncentiveReviewHead {
+  strategyId String @map("strategy_id")
+  merchantId String @map("merchant_id")
+  version Int
+  currentSequence Int @map("current_sequence")
+  @@id([strategyId, merchantId, version])
+  @@map("strategy_incentive_review_heads")
 }
 
 model MerchantIncentivePolicyHead {

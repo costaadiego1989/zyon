@@ -5,6 +5,8 @@ import { RevenueAiBudgetService } from "./infrastructure/revenue-ai-budget.servi
 import { StrategyReviewService } from "./application/strategy-review.service.js";
 import { IncentivePolicyService } from "./application/incentive-policy.service.js";
 import { IncentivePolicyController } from "./presentation/http/incentive-policy.controller.js";
+import { IncentiveReviewService } from "./application/incentive-review.service.js";
+import { IncentiveReviewController } from "./presentation/http/incentive-review.controller.js";
 import { StrategyReviewController } from "./presentation/http/strategy-review.controller.js";
 import { StrategyMetricsService } from "./application/strategy-metrics.service.js";
 import { StrategyMetricsController } from "./presentation/http/strategy-metrics.controller.js";
@@ -56,13 +58,14 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
 
 @Module({
   imports: [PersistenceModule, RedisModule, MessagingModule, ExperimentsModule, CheckoutSettingsModule],
-  controllers: [RevenueManagerController, StrategyReviewController, StrategyMetricsController, IncentivePolicyController],
+  controllers: [RevenueManagerController, StrategyReviewController, StrategyMetricsController, IncentivePolicyController, IncentiveReviewController],
   providers: [
     WeeklyAnalysisService,
     WeeklyAnalysisJob,
     RevenueAiBudgetService,
     StrategyReviewService,
     IncentivePolicyService,
+    IncentiveReviewService,
     StrategyMetricsService,
     StrategyMonitorService,
     StrategyMonitorJob,

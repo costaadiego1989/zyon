@@ -7,6 +7,7 @@ import { discountStudy } from "../domain/strategy-discount-study.js";
 import { incentiveBudgetTerms, recommendedIncentiveBudgetTerms } from "../domain/incentive-budget.js";
 import { incentiveRecommendation, plannedIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 import { IncentivePolicyService } from "../application/incentive-policy.service.js";
+import { IncentiveReviewService } from "../application/incentive-review.service.js";
 import { ObservationEntity } from "../domain/entities/observation.entity.js";
 import { HypothesisEntity } from "../domain/entities/hypothesis.entity.js";
 import { PrismaObservationRepository } from "./prisma-observation.repository.js";
@@ -20,6 +21,7 @@ const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresq
 const enabled = url.hostname === "127.0.0.1" && url.port === "5557" && url.pathname === "/revenue_strategy_0924";
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } }, transactionOptions: { maxWait: 10000, timeout: 30000 } });
 const env = { ...process.env };
+const reviews = new IncentiveReviewService(prisma, { getEffectivePlan: async () => "scale" } as never);
 const tx = <T>(work: (client: Prisma.TransactionClient) => Promise<T>) => prisma.$transaction(work);
 const spec = (name: string, fn: () => Promise<void>) => test(name, { skip: !enabled }, fn);
 before(async () => { if (enabled) await prisma.$connect(); });
@@ -28,6 +30,7 @@ beforeEach(async () => {
   if (!enabled) return;
   process.env = { ...env, REVENUE_WEEKLY_ENABLED: "true", REVENUE_WEEKLY_MERCHANT_IDS: "*",
     REVENUE_INCENTIVE_BUDGET_ENABLED: "true", REVENUE_INCENTIVE_BUDGET_MERCHANT_IDS: "store,other",
+    REVENUE_INCENTIVE_REVIEW_ENABLED: "true", REVENUE_INCENTIVE_REVIEW_MERCHANT_IDS: "store,other",
     REVENUE_DISCOUNT_STUDY_ENABLED: "false", REVENUE_STRATEGY_MEASUREMENT_ENABLED: "false" };
   await prisma.$executeRawUnsafe(`TRUNCATE revenue_strategies, revenue_analysis_runs, revenue_analysis_schedules,
     revenue_manager_hypotheses, revenue_manager_observations, merchant_notifications, merchant_rules, checkout_settings,
@@ -35,8 +38,9 @@ beforeEach(async () => {
 });
 
 const defaultCaps = { limitCents: 500000, maxDiscountCents: 500, maxRedemptions: 1000 };
-async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned" | "legacy" | "missing" | "blocked" = "planned") {
+async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned" | "legacy" | "missing" | "blocked" = "planned", reviewed = true, ageMs = 0) {
   const now = new Date();
+  const asOf = new Date(now.getTime() - ageMs);
   await prisma.merchant.create({ data: { id: merchantId, name: "Fixture" } });
   const policy = await new IncentivePolicyService(prisma).save(merchantId, "owner", {
     expectedVersion: 0, requestKey: "policy-first", enabled: true, ...caps });
@@ -46,7 +50,7 @@ async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned"
     freeShippingMinCartValue: 200, maxShippingSubsidy: 0, maxPartialShippingDiscount: 0, offerExpirationMinutes: 15,
     blockedRegions: [], brandVoice: "consultative" } }));
   const observation = ObservationEntity.create({ merchant_id: merchantId,
-    observation_window_start: new Date(now.getTime() - 28 * 86400000), observation_window_end: now,
+    observation_window_start: new Date(asOf.getTime() - 28 * 86400000), observation_window_end: asOf,
     funnel: { total_sessions: 100, started_checkout: 100, reached_shipping: 80, reached_payment: 40, completed_order: 10, conversion_rate: .1 },
     abandonment: { abandoned_at_shipping: 40, abandoned_at_payment: 30, abandonment_rate: .9, top_abandonment_objection: "unknown" },
     objections: { shipping_cost_count: 0, price_count: 0, trust_count: 0, payment_count: 0, unknown_count: 90 },
@@ -55,15 +59,15 @@ async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned"
     revenue: { total_orders: 10, total_revenue_cents: 100000, avg_order_value_cents: 10000 }, ai_costs_cents: 0 });
   await new PrismaObservationRepository(prisma).save(observation);
   const run = await prisma.revenueAnalysisRun.create({ data: { merchantId, cycle: 1, status: "running", leaseToken: 1,
-    leaseUntil: new Date(now.getTime() + 600000), observationId: observation.id, asOf: now } });
+    leaseUntil: new Date(now.getTime() + 600000), observationId: observation.id, asOf } });
   await prisma.revenueAnalysisSchedule.create({ data: { merchantId, group: 0, nextDueAt: now, currentRunId: run.id } });
   const study = discountStudy({ merchantId, runId: run.id, observationId: observation.id, rules,
-    asOf: now.toISOString(), capturedAt: now.toISOString(), cohorts: [{ intent: "price_sensitive", sampleSize: 10000, conversionRate: .001,
+    asOf: asOf.toISOString(), capturedAt: now.toISOString(), cohorts: [{ intent: "price_sensitive", sampleSize: 10000, conversionRate: .001,
       carts: Array.from({ length: 10000 }, () => ({ total: 100, currency: "BRL", items: [{ sku: "sku", name: "Produto", price: 100, cost: 40, quantity: 1 }] })) }] });
   const recommendation = mode === "missing" ? undefined : mode === "legacy" ? incentiveRecommendation(study, rules, policy)
     : plannedIncentiveRecommendation(study, rules, policy, { buyers: mode === "blocked" ? 1000 : 10000,
       conversions: mode === "blocked" ? 100 : 10, complete: true,
-      windowStart: new Date(now.getTime() - 35 * 86400000).toISOString(), windowEnd: new Date(now.getTime() - 7 * 86400000).toISOString() });
+      windowStart: new Date(asOf.getTime() - 35 * 86400000).toISOString(), windowEnd: new Date(asOf.getTime() - 7 * 86400000).toISOString() });
   await prisma.revenueAnalysisRun.update({ where: { id: run.id }, data: { discountStudyJson: study,
     ...(recommendation ? { incentiveRecommendationJson: recommendation as unknown as Prisma.InputJsonValue } : {}) } });
   const hypothesis = HypothesisEntity.create({ merchant_id: merchantId, observation_id: observation.id,
@@ -76,10 +80,12 @@ async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned"
   const version = await prisma.revenueStrategyVersion.findFirstOrThrow({ where: { strategyId: hypothesis.id } });
   await prisma.revenueAnalysisRun.update({ where: { id: run.id }, data: { status: "completed" } });
   const source = { merchantId, strategyId: hypothesis.id, version: 1, proposalHash: version.proposalHash, study, rules, policy, recommendation };
+  const reviewCommand = { version: 1, proposal_hash: version.proposalHash, recommendation_hash: digest(recommendation ?? null), request_key: "specific-review" };
+  const review = reviewed && mode === "planned" ? await reviews.decide(merchantId, "owner", hypothesis.id, "approve", reviewCommand) : null;
   const startsAt = new Date(Date.now() + 700).toISOString();
   const terms = mode === "planned" ? recommendedIncentiveBudgetTerms(source, startsAt) : incentiveBudgetTerms(source, { ...caps, startsAt });
   const input = { merchantId, terms, termsHash: digest(terms), actorId: "owner", requestKey: "budget-review" };
-  return { merchantId, input, terms, version, run, hypothesis, source };
+  return { merchantId, input, terms, version, run, hypothesis, source, reviewCommand, review };
 }
 async function ready(caps?: { limitCents: number; maxDiscountCents: number; maxRedemptions: number }) {
   const f = await fixture("store", caps);
@@ -116,11 +122,240 @@ function rawFunding(f: Awaited<ReturnType<typeof fixture>>, patch: Record<string
   const terms = { ...f.terms, startsAt: new Date(Date.now() + 60000).toISOString() };
   terms.endsAt = new Date(Date.parse(terms.startsAt) + 7 * 86400000).toISOString();
   return { id: randomUUID(), merchantId: f.merchantId, strategyId: f.hypothesis.id, version: 1,
+    reviewId: f.review?.review_id,
     policyVersion: 1, proposalHash: f.version.proposalHash, terms, termsHash: digest(terms), actorId: "owner",
     requestKey: randomUUID(), requestHash: "a".repeat(64), limitCents: terms.limitCents,
     maxDiscountCents: terms.maxDiscountCents, maxRedemptions: terms.maxRedemptions,
     startsAt: new Date(terms.startsAt), endsAt: new Date(terms.endsAt), approvedAt: new Date(), ...patch };
 }
+
+spec("specific approval freezes the recommended version without activating or financing either test", async () => {
+  const f = await fixture("store", defaultCaps, "planned", false);
+  const before = await reviews.read("store", f.hypothesis.id);
+  assert.equal(before.approval_available, true); assert.equal(before.decision, null);
+  const results = await Promise.all(Array.from({ length: 6 }, () => reviews.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand)));
+  assert.equal(new Set(results.map(r => r.review_id)).size, 1);
+  assert.equal(results[0].status, "approved_awaiting_activation");
+  assert.equal(results[0].recommendation_hash, digest(f.source.recommendation));
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0); assert.equal(await prisma.strategyIncentiveReservation.count(), 0);
+  assert.equal(await prisma.strategyExecution.count(), 0); assert.equal(await prisma.promptExperiment.count(), 0);
+  assert.equal(await prisma.coupon.count(), 0); assert.equal(await prisma.revenueStrategyAction.count(), 0);
+  assert.equal((await prisma.revenueStrategy.findUniqueOrThrow({ where: { id: f.hypothesis.id } })).status, "pending_review");
+  assert.equal(await prisma.merchantNotification.count({ where: { id: { startsWith: "strategy-incentive-review:" } } }), 1);
+  const detail = await reviews.read("store", f.hypothesis.id);
+  assert.equal(detail.approval_available, false); assert.equal(detail.withdrawal_available, true);
+  assert.equal(detail.budget, null); assert.equal(detail.execution_status, "unavailable");
+  for (const patch of [{ request_key: "second" }, { recommendation_hash: "a".repeat(64) }, { feedback: "changed" }])
+    await assert.rejects(reviews.decide("store", "owner", f.hypothesis.id, "approve", { ...f.reviewCommand, ...patch }), /CONFLICT/);
+  await assert.rejects(reviews.decide("store", "another-owner", f.hypothesis.id, "approve", f.reviewCommand), /KEY_CONFLICT/);
+});
+
+spec("neither internal funding nor SQL can bypass the specific incentive approval", async () => {
+  const f = await fixture("store", defaultCaps, "planned", false);
+  await assert.rejects(tx(t => registerReviewedIncentiveBudget(t, f.input)), /SPECIFIC_APPROVAL_REQUIRED/);
+  await assert.rejects(prisma.strategyIncentiveBudget.create({ data: rawFunding(f) }), /requires specific merchant approval/);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
+
+spec("funding binds the approving actor and rejects an approval from another store", async () => {
+  const f = await fixture();
+  const other = await fixture("other");
+  await assert.rejects(tx(t => registerReviewedIncentiveBudget(t, { ...f.input, actorId: "another-owner" })), /ACTOR_CHANGED/);
+  for (const patch of [{ reviewId: other.review!.review_id }, { actorId: "another-owner" }])
+    await assert.rejects(prisma.strategyIncentiveBudget.create({ data: rawFunding(f, patch) }), /requires specific merchant approval/);
+  await assert.rejects(reviews.read("other", f.hypothesis.id), /NOT_FOUND/);
+  await assert.rejects(reviews.decide("other", "owner", f.hypothesis.id, "withdraw", f.reviewCommand), /NOT_FOUND/);
+});
+
+spec("rejection remains possible without a plan or flags and cannot become approval", async () => {
+  const f = await fixture("store", defaultCaps, "planned", false);
+  const downgraded = new IncentiveReviewService(prisma, { getEffectivePlan: async () => { throw new Error("billing unavailable"); } } as never);
+  process.env.REVENUE_INCENTIVE_REVIEW_ENABLED = "false";
+  const result = await downgraded.decide("store", "owner", f.hypothesis.id, "reject", f.reviewCommand);
+  assert.equal(result.status, "rejected");
+  assert.deepEqual(await downgraded.decide("store", "owner", f.hypothesis.id, "reject", f.reviewCommand), result);
+  process.env.REVENUE_INCENTIVE_REVIEW_ENABLED = "true";
+  await assert.rejects(reviews.decide("store", "owner", f.hypothesis.id, "approve", { ...f.reviewCommand, request_key: "after-refusal" }), /DECISION_CONFLICT/);
+  await assert.rejects(tx(t => registerReviewedIncentiveBudget(t, f.input)), /SPECIFIC_APPROVAL_REQUIRED/);
+});
+
+spec("withdrawal atomically closes funding, preserves uncertain reserves, and allows settlement", async () => {
+  const f = await ready(); const existing = await reserve(f), buyer = await session();
+  const command = { ...f.reviewCommand, request_key: "withdraw" };
+  process.env.REVENUE_INCENTIVE_REVIEW_ENABLED = "false";
+  const stopped = new IncentiveReviewService(prisma, { getEffectivePlan: async () => { throw new Error("billing unavailable"); } } as never);
+  const receipt = await stopped.decide("store", "owner", f.hypothesis.id, "withdraw", command);
+  assert.equal(receipt.status, "withdrawn");
+  assert.equal((await totals(f)).status, "closed"); assert.equal((await totals(f)).reservedCents, 500);
+  await assert.rejects(reserve(f, 500, "after-withdrawal", buyer), /SPECIFIC_APPROVAL_REQUIRED/);
+  await assert.rejects(prisma.strategyIncentiveReservation.create({ data: { id: randomUUID(), ...buyer, budgetId: f.budget.id,
+    requestKey: "raw-after-withdrawal", requestHash: "a".repeat(64), amountCents: 500, reservedAt: new Date() } }), /requires specific merchant approval/);
+  assert.deepEqual(await stopped.decide("store", "owner", f.hypothesis.id, "withdraw", command), receipt);
+  assert.deepEqual(await stopped.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand), f.review);
+  assert.equal((await reviews.read("store", f.hypothesis.id)).status, "withdrawn");
+  assert.equal((await tx(t => reserveIncentiveBudget(t, existing.input))).id, existing.row.id);
+  await tx(t => resolveIncentiveBudget(t, resolution(existing.row.id)));
+  assert.equal((await totals(f)).spentCents, 500);
+  assert.equal((await tx(t => registerReviewedIncentiveBudget(t, f.input))).id, f.budget.id);
+});
+
+for (const status of ["pending_review", "activation_pending", "active"])
+spec(`specific approval stays separate when communication is ${status}`, async () => {
+  const f = await fixture("store", defaultCaps, "planned", false);
+  await prisma.revenueStrategy.update({ where: { id: f.hypothesis.id }, data: { status } });
+  assert.equal((await reviews.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand)).status, "approved_awaiting_activation");
+  assert.equal((await prisma.revenueStrategy.findUniqueOrThrow({ where: { id: f.hypothesis.id } })).status, status);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
+
+for (const mode of ["legacy", "blocked"] as const)
+spec(`specific approval refuses ${mode} recommendations without affecting communication`, async () => {
+  const f = await fixture("store", defaultCaps, mode, false);
+  await assert.rejects(reviews.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand),
+    (error: any) => error.getResponse()?.code === "INCENTIVE_REVIEW_PREREQUISITES_REQUIRED");
+  assert.equal((await reviews.read("store", f.hypothesis.id)).approval_available, false);
+  assert.equal(await prisma.strategyIncentiveReview.count(), 0);
+});
+
+for (const stop of ["flag", "allowlist", "plan", "rules", "policy", "run", "strategy", "version"])
+spec(`specific approval rechecks ${stop} before recording merchant consent`, async () => {
+  const f = await fixture("store", defaultCaps, "planned", false);
+  let service = reviews;
+  if (stop === "flag") process.env.REVENUE_INCENTIVE_REVIEW_ENABLED = "false";
+  if (stop === "allowlist") process.env.REVENUE_INCENTIVE_REVIEW_MERCHANT_IDS = "*";
+  if (stop === "plan") service = new IncentiveReviewService(prisma, { getEffectivePlan: async () => "starter" } as never);
+  if (stop === "rules") await prisma.merchantRule.update({ where: { merchantId: "store" }, data: { minimumMarginPercent: 40 } });
+  if (stop === "policy") await new IncentivePolicyService(prisma).save("store", "owner", { enabled: false, ...defaultCaps, expectedVersion: 1, requestKey: "stop-policy" });
+  if (stop === "run") await prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { status: "running" } });
+  if (stop === "strategy") await prisma.revenueStrategy.update({ where: { id: f.hypothesis.id }, data: { status: "rejected" } });
+  if (stop === "version") await prisma.revenueStrategy.update({ where: { id: f.hypothesis.id }, data: { currentVersion: 2 } });
+  await assert.rejects(service.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand),
+    (error: any) => stop === "version" ? error.message === "INCENTIVE_REVIEW_PROPOSAL_CHANGED"
+      : error.getResponse()?.code === "INCENTIVE_REVIEW_PREREQUISITES_REQUIRED");
+  assert.equal(await prisma.strategyIncentiveReview.count(), 0);
+});
+
+spec("approval and rejection racing accept exactly one durable decision", async () => {
+  const f = await fixture("store", defaultCaps, "planned", false);
+  const results = await Promise.allSettled([reviews.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand),
+    reviews.decide("store", "owner", f.hypothesis.id, "reject", { ...f.reviewCommand, request_key: "refusal-race" })]);
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  assert.equal(await prisma.strategyIncentiveReview.count(), 1);
+  assert.equal(await prisma.strategyIncentiveReviewHead.count(), 1);
+});
+
+spec("expired recommendations cannot be approved through the service or raw SQL", async () => {
+  const f = await fixture("store", defaultCaps, "planned", false, 8 * 86400000);
+  await assert.rejects(reviews.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand),
+    (error: any) => error.getResponse()?.blockers.includes("proposal_expired"));
+  assert.equal((await reviews.read("store", f.hypothesis.id)).approval_available, false);
+  const raw = { id: randomUUID(), merchantId: "store", strategyId: f.hypothesis.id, version: 1, sequence: 1, kind: "approve",
+    proposalHash: f.version.proposalHash, recommendationHash: f.reviewCommand.recommendation_hash, policyVersion: 1,
+    policyHash: f.source.policy.policyHash, actorId: "owner", requestKey: "raw-expired", requestHash: "a".repeat(64),
+    createdAt: new Date(), expiresAt: f.version.expiresAt };
+  await assert.rejects(prisma.strategyIncentiveReview.create({ data: raw }), /prerequisites required/);
+  assert.equal((await reviews.decide("store", "owner", f.hypothesis.id, "reject", f.reviewCommand)).status, "rejected");
+});
+
+spec("new decisions require both the visible proposal hash and the incentive hash", async () => {
+  const f = await fixture("store", defaultCaps, "planned", false);
+  for (const patch of [{ proposal_hash: "a".repeat(64) }, { recommendation_hash: "b".repeat(64) }, { version: 9 }])
+    await assert.rejects(reviews.decide("store", "owner", f.hypothesis.id, "approve", { ...f.reviewCommand, ...patch }), /CHANGED|NOT_FOUND/);
+  await assert.rejects(reviews.decide("store", "owner", f.hypothesis.id, "withdraw", f.reviewCommand), /DECISION_CONFLICT/);
+  assert.equal(await prisma.strategyIncentiveReview.count(), 0);
+});
+
+spec("approval read exposes invalidation after financial policy drift without rewriting history", async () => {
+  const f = await fixture();
+  await new IncentivePolicyService(prisma).save("store", "owner", { enabled: true, ...defaultCaps, expectedVersion: 1, requestKey: "same-values-new-policy" });
+  const detail = await reviews.read("store", f.hypothesis.id);
+  assert.equal(detail.status, "approval_invalidated");
+  assert.equal(detail.decision?.status, "approved_awaiting_activation");
+  assert.equal(detail.withdrawal_available, true);
+  assert.ok(detail.approval_blockers.includes("financial_policy_changed"));
+  assert.deepEqual(await reviews.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand), f.review);
+});
+
+spec("withdrawal and closing funding roll back as a single operation", async () => {
+  const f = await ready(); const existing = await reserve(f);
+  const aborting = new IncentiveReviewService({ $transaction: (work: (t: Prisma.TransactionClient) => Promise<unknown>) => tx(async t => {
+    await work(t); throw new Error("rollback-withdrawal");
+  }) } as never, {} as never);
+  await assert.rejects(aborting.decide("store", "owner", f.hypothesis.id, "withdraw", { ...f.reviewCommand, request_key: "rollback" }), /rollback-withdrawal/);
+  assert.equal(await prisma.strategyIncentiveReview.count(), 1);
+  assert.equal((await prisma.strategyIncentiveReviewHead.findFirstOrThrow()).currentSequence, 1);
+  assert.equal((await totals(f)).status, "open"); assert.equal((await totals(f)).reservedCents, existing.row.amountCents);
+});
+
+spec("a reserve racing withdrawal either precedes it or fails, never escapes the closed budget", async () => {
+  const f = await ready(); const buyer = await session();
+  const outcomes = await Promise.allSettled([reserve(f, 500, "race-with-withdrawal", buyer),
+    reviews.decide("store", "owner", f.hypothesis.id, "withdraw", { ...f.reviewCommand, request_key: "stop-race" })]);
+  assert.equal(outcomes[1].status, "fulfilled");
+  if (outcomes[0].status === "rejected") assert.match(String(outcomes[0].reason), /SPECIFIC_APPROVAL_REQUIRED/);
+  const total = await totals(f);
+  assert.equal(total.status, "closed");
+  assert.equal(total.reservedCount, outcomes[0].status === "fulfilled" ? 1 : 0);
+  await assert.rejects(reserve(f, 500, "too-late"), /SPECIFIC_APPROVAL_REQUIRED/);
+});
+
+for (const mode of ["legacy", "blocked"] as const)
+spec(`raw SQL cannot approve a ${mode} incentive document`, async () => {
+  const f = await fixture("store", defaultCaps, mode, false);
+  await assert.rejects(prisma.strategyIncentiveReview.create({ data: { id: randomUUID(), merchantId: "store", strategyId: f.hypothesis.id,
+    version: 1, sequence: 1, kind: "approve", proposalHash: f.version.proposalHash, recommendationHash: f.reviewCommand.recommendation_hash,
+    policyVersion: 1, policyHash: f.source.policy.policyHash, actorId: "owner", requestKey: "raw-review", requestHash: "a".repeat(64),
+    createdAt: new Date(), expiresAt: f.version.expiresAt } }), /prerequisites required/);
+  assert.equal(await prisma.strategyIncentiveReviewHead.count(), 0);
+});
+
+spec("withdrawal is possible after supersession and policy changes; original approval stays historical", async () => {
+  const f = await fixture();
+  await prisma.revenueStrategy.update({ where: { id: f.hypothesis.id }, data: { currentVersion: 2, status: "revision_pending" } });
+  await new IncentivePolicyService(prisma).save("store", "owner", { enabled: false, ...defaultCaps, expectedVersion: 1, requestKey: "disable" });
+  assert.equal((await reviews.decide("store", "owner", f.hypothesis.id, "withdraw", { ...f.reviewCommand, request_key: "withdraw-old" })).status, "withdrawn");
+  assert.deepEqual(await reviews.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand), f.review);
+  await assert.rejects(reviews.decide("store", "owner", f.hypothesis.id, "withdraw", { ...f.reviewCommand, request_key: "twice" }), /DECISION_CONFLICT/);
+});
+
+spec("review, review head and notification roll back together", async () => {
+  const f = await fixture("store", defaultCaps, "planned", false);
+  const aborting = new IncentiveReviewService({ $transaction: (work: (t: Prisma.TransactionClient) => Promise<unknown>) => tx(async t => {
+    await work(t); throw new Error("rollback-review");
+  }) } as never, { getEffectivePlan: async () => "scale" } as never);
+  await assert.rejects(aborting.decide("store", "owner", f.hypothesis.id, "approve", f.reviewCommand), /rollback-review/);
+  assert.equal(await prisma.strategyIncentiveReview.count(), 0); assert.equal(await prisma.strategyIncentiveReviewHead.count(), 0);
+  assert.equal(await prisma.merchantNotification.count({ where: { id: { startsWith: "strategy-incentive-review:" } } }), 0);
+});
+
+spec("SQL keeps review receipts and heads immutable and rejects a fabricated withdrawal", async () => {
+  const f = await fixture();
+  await assert.rejects(prisma.strategyIncentiveReview.update({ where: { id: f.review!.review_id }, data: { kind: "reject" } }), /history is immutable/);
+  await assert.rejects(prisma.strategyIncentiveReview.delete({ where: { id: f.review!.review_id } }), /history is immutable/);
+  await assert.rejects(prisma.strategyIncentiveReviewHead.updateMany({ data: { currentSequence: 2 } }), /requires a decision/);
+  const other = await fixture("other", defaultCaps, "planned", false);
+  const row = await prisma.strategyIncentiveReview.findUniqueOrThrow({ where: { id: f.review!.review_id } });
+  await assert.rejects(prisma.strategyIncentiveReview.create({ data: { ...row, id: randomUUID(), merchantId: "other", strategyId: other.hypothesis.id,
+    proposalHash: other.version.proposalHash, recommendationHash: other.reviewCommand.recommendation_hash,
+    policyHash: other.source.policy.policyHash, expiresAt: other.version.expiresAt, createdAt: new Date(), kind: "withdraw", sequence: 2 } }), /withdrawal requires approval/);
+});
+
+for (const isolationLevel of ["ReadCommitted", "RepeatableRead"] as const)
+spec(`${isolationLevel} fences financial writes from snapshots preceding withdrawal`, async () => {
+  const f = await fixture();
+  let seen!: () => void, resume!: () => void;
+  const snapshot = new Promise<void>(resolve => { seen = resolve; }), gate = new Promise<void>(resolve => { resume = resolve; });
+  const attempt = prisma.$transaction(async t => {
+    await t.strategyIncentiveReviewHead.findMany(); seen(); await gate;
+    return t.strategyIncentiveBudget.create({ data: rawFunding(f) });
+  }, { isolationLevel });
+  const rejected = assert.rejects(attempt, /requires specific merchant approval|serialize|write conflict|deadlock/i);
+  await snapshot;
+  try { await reviews.decide("store", "owner", f.hypothesis.id, "withdraw", { ...f.reviewCommand, request_key: "withdraw-snapshot" }); }
+  finally { resume(); }
+  await rejected;
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
 
 for (const mode of ["missing", "legacy", "blocked"] as const)
 spec(`new funding rejects ${mode} planning in the application and raw SQL`, async () => {

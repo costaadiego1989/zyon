@@ -7,6 +7,7 @@ import { lockCheckoutBaselineRows } from "./checkout-baseline.reader.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
 import { assertStoredDiscountStudy } from "./strategy-discount-study.js";
 import { readIncentivePolicy } from "./incentive-policy.reader.js";
+import { approvedIncentiveReview } from "./incentive-review.reader.js";
 
 type Tx = Prisma.TransactionClient;
 const json = (value: unknown) => value as Prisma.InputJsonValue;
@@ -36,12 +37,13 @@ async function currentFundingSource(tx: Tx, terms: IncentiveBudgetTerms) {
   assertRecommendedIncentiveBudgetTerms(terms, { merchantId: terms.merchantId, strategyId: terms.strategyId,
     version: terms.version, proposalHash: version.proposalHash, study: proposal.discountStudy, rules, policy,
     recommendation: proposal.incentiveRecommendation });
-  return version;
+  const review = await approvedIncentiveReview(tx, terms, proposal.incentiveRecommendation);
+  return { ...version, review };
 }
 
-/** INTERNAL transactional primitive. The future commercial review must derive
- * and present recommendedIncentiveBudgetTerms and authenticate the actor.
- * No existing communication approval invokes it, and it activates no strategy. */
+/** INTERNAL financing only. Requires the separate merchant approval and its
+ * actor, and derives exact recommended terms. No review endpoint invokes it;
+ * activation must compose this with deterministic checkout authority. */
 export async function registerReviewedIncentiveBudget(tx: Tx, input: {
   merchantId: string; terms: IncentiveBudgetTerms; termsHash: string; actorId: string; requestKey: string;
 }) {
@@ -59,13 +61,14 @@ export async function registerReviewedIncentiveBudget(tx: Tx, input: {
   if (!incentiveBudgetEnabled(input.merchantId)) fail("BUDGET_DISABLED");
   const terms = input.terms;
   const version = await currentFundingSource(tx, terms);
+  if (version.review.actorId !== input.actorId) fail("APPROVAL_ACTOR_CHANGED");
   if (await tx.strategyIncentiveBudget.findUnique({ where: { strategyId_merchantId: {
     strategyId: terms.strategyId, merchantId: input.merchantId } } })) fail("BUDGET_ALREADY_REVIEWED");
   const now = await clock(tx);
   if (version.expiresAt <= now || Date.parse(terms.startsAt) <= now.getTime()
     || Date.parse(terms.startsAt) >= version.expiresAt.getTime()) fail("APPROVAL_EXPIRED");
   return tx.strategyIncentiveBudget.create({ data: { id: randomUUID(), merchantId: input.merchantId,
-    strategyId: terms.strategyId, version: terms.version, policyVersion: terms.policyVersion,
+    strategyId: terms.strategyId, version: terms.version, policyVersion: terms.policyVersion, reviewId: version.review.id,
     proposalHash: terms.proposalHash, terms: json(terms), termsHash: input.termsHash,
     actorId: input.actorId, requestKey: input.requestKey, requestHash, limitCents: terms.limitCents,
     maxDiscountCents: terms.maxDiscountCents, maxRedemptions: terms.maxRedemptions,
@@ -92,7 +95,8 @@ export async function reserveIncentiveBudget(tx: Tx, input: {
   const budget = await tx.strategyIncentiveBudget.findFirst({ where: { id: input.budgetId, merchantId: input.merchantId } });
   if (!budget) fail("BUDGET_NOT_FOUND");
   if (digest(budget.terms) !== budget.termsHash) fail("BUDGET_CORRUPT");
-  await currentFundingSource(tx, budget.terms as unknown as IncentiveBudgetTerms);
+  const source = await currentFundingSource(tx, budget.terms as unknown as IncentiveBudgetTerms);
+  if (budget.reviewId !== source.review.id) fail("SPECIFIC_APPROVAL_REQUIRED");
   // Database guard binds the session/buyer/currency, locks the budget, enforces
   // both caps and maintains counters even when another writer uses raw SQL.
   return tx.strategyIncentiveReservation.create({ data: { id: randomUUID(), ...input, requestHash, reservedAt: await clock(tx) } });
