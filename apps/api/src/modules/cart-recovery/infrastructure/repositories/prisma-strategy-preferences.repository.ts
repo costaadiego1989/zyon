@@ -44,20 +44,13 @@ export class PrismaStrategyPreferencesRepository implements StrategyPreferencesR
     }
     const cfg = row.config as Record<string, unknown>;
     const couponCode = (cfg.coupon_code as string | undefined) ?? undefined;
-    const rawStrategies = (row.strategies as Record<string, unknown> | null) ?? {};
-    const hasExplicitStrategySelection = Object.values(rawStrategies).some((value) => value === true);
-    const hasSelectedDefaultReminder = rawStrategies.personalized_cross_sell === true;
-
     // The original database default created an incomplete coupon strategy.
-    // There is no coupon to send in that state, so the scanner safely pauses
-    // every recovery. Treat only that legacy, unselected default as the same
-    // dispatchable reminder used for merchants with no saved preference. Some
-    // legacy rows also persisted that reminder as selected while leaving the
-    // obsolete coupon config in place; that mismatch is safe to normalize too.
-    // An explicit coupon selection remains paused until its code is configured.
+    // There is no coupon to send in that state. Regardless of which legacy
+    // boolean was persisted beside it, use the safe, no-discount reminder
+    // until a real coupon code is configured. A configured coupon is never
+    // replaced.
     const activeStrategy = cfg.active_strategy === "offer_coupon"
       && !couponCode
-      && (!hasExplicitStrategySelection || hasSelectedDefaultReminder)
       ? "personalized_cross_sell"
       : (cfg.active_strategy as StrategyConfig["active_strategy"] | undefined) ?? "personalized_cross_sell";
     return {

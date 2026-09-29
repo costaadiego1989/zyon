@@ -36,14 +36,14 @@ test("legacy mismatched selected reminder and incomplete coupon config becomes t
   });
 });
 
-test("an explicit coupon selection remains paused until a coupon is configured", async () => {
+test("a legacy selected coupon without a code becomes the safe reminder", async () => {
   const repo = repository({
     config: { active_strategy: "offer_coupon" },
     strategies: { offer_coupon: true },
   });
 
   assert.deepEqual(await repo.getConfig("merchant"), {
-    active_strategy: "offer_coupon",
+    active_strategy: "personalized_cross_sell",
     coupon_code: undefined,
     rule_id: undefined,
   });
