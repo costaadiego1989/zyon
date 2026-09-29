@@ -596,6 +596,244 @@ integration("atomic ACP patch races with cancellation without reopening a closed
   }
 });
 
+for (const [field, message] of [
+  ["phone", "Quero corrigir meu telefone para 11999990000"],
+  ["cpf", "Quero corrigir meu CPF para 11144477735"],
+  ["zip", "Quero corrigir o CEP para 20000000"],
+  ["number", "Quero corrigir o número do imóvel para 200"],
+  ["complement", "Quero corrigir o complemento para Apto 12"],
+  ["email", "Quero corrigir meu email para updated@example.invalid"],
+]) integration(`chat commercial ${field} correction invalidates benefits and frees reserved capacity`, async () => {
+  await activate(); await checkoutCoupon({ maxUsages: 1 });
+  const { session: s } = await applyToSession(await couponCheckout());
+  const correction = await new CheckoutCustomerService(repo).correctCustomerInput(s, message);
+  assert.ok(correction?.patch); assert.equal(correction.field, field);
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.deepEqual(correction.session, saved);
+  assert.equal(saved.cart.currentDiscount, 0); assert.equal(saved.cart.commercialNudge, undefined);
+  assert.equal(saved.shipping, undefined); assert.equal(saved.shippingOptions, undefined);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+  assert.equal(await prisma.strategyAssignment.count(), 1);
+  assert.equal(s.cart.currentDiscount, 5, "caller snapshot must not be mutated");
+  if (field === "email") {
+    assert.notEqual(saved.globalUserId, s.globalUserId); assert.equal(saved.customer?.email_verified, false);
+    assert.equal(saved.customer?.address, undefined);
+  }
+  await applyToSession(await couponCheckout("two"));
+  assert.equal(await prisma.couponRedemption.count({ where: { status: "applied" } }), 1);
+});
+
+for (const field of ["phone", "zip"] as const) integration(`chat commercial first ${field} capture invalidates a prior coupon`, async () => {
+  await activate(); await checkoutCoupon();
+  const customer = primarySession("one").customer!;
+  if (field === "phone") delete customer.phone;
+  else delete customer.address;
+  const { session: s } = await applyToSession(await couponCheckout("one", { customer }));
+  const saved = await new CheckoutCustomerService(repo).processCustomerInput(s,
+    field === "phone" ? "11999990000" : "CEP 20000000", field === "phone" ? "Qual seu celular com DDD?" : "Qual seu CEP?", "Fixture");
+  assert.equal(saved.cart.currentDiscount, 0); assert.equal(saved.shipping, undefined);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+  assert.deepEqual(saved, await repo.getSession("store", "one"));
+});
+
+integration("chat commercial verified returning buyer changes identity without retaining the anonymous coupon", async () => {
+  await activate(); await checkoutCoupon({ maxPerBuyer: 1 });
+  await couponCheckout("prior", { globalUserId: "recognized-buyer" });
+  const { session: s } = await applyToSession(await couponCheckout());
+  const service = new CheckoutCustomerService(repo, undefined, undefined, new BuyerRecognitionService(repo));
+  const saved = await service.hydrateReturningBuyerFromEmailHint(s);
+  assert.equal(saved.globalUserId, "recognized-buyer"); assert.equal(saved.customer?.recognized_buyer, true);
+  assert.equal(saved.cart.currentDiscount, 0); assert.equal(saved.shipping, undefined);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+  const reapplied = await applyToSession(saved);
+  assert.equal(reapplied.result.discount_applied, 5);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow({ where: { status: "applied" } })).buyerGlobalUserId, "recognized-buyer");
+});
+
+integration("chat commercial email correction revokes identity and coupon even when OTP delivery fails", async () => {
+  await activate(); await checkoutCoupon(); const { session: s } = await applyToSession(await couponCheckout());
+  const service = new CheckoutCustomerService(repo, undefined, new OtpService(), undefined, undefined,
+    { async send() { return { status: "skipped", messageId: "" }; } } as any);
+  await assert.rejects(service.correctCustomerInput(s, "Corrigir email para changed@example.invalid"), /enviar o código/);
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.customer?.email, "changed@example.invalid"); assert.equal(saved.customer?.email_verified, false);
+  assert.equal(saved.customer?.otp_code, ""); assert.notEqual(saved.globalUserId, s.globalUserId);
+  assert.equal(saved.cart.currentDiscount, 0);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+});
+
+integration("chat commercial postal hydration and address rejection clear a benefit tied to the previous destination", async () => {
+  await activate(); await checkoutCoupon();
+  const { session: s } = await applyToSession(await couponCheckout("one", { customer: {
+    ...primarySession("one").customer, address: { zip: "20000000" }, address_verified: false,
+  } }));
+  globalThis.fetch = (async () => Response.json({ logradouro: "Rua Fixture", localidade: "Rio", uf: "RJ" })) as typeof fetch;
+  const shipping = new CheckoutShippingService(repo, new CheckoutCustomerService(repo));
+  const hydrated = await shipping.processShippingState(s, "Confira meu endereço");
+  assert.equal(hydrated.customer?.address?.state, "RJ"); assert.equal(hydrated.cart.currentDiscount, 0);
+  assert.equal(hydrated.shipping, undefined); assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+  const { session: reapplied } = await applyToSession(hydrated);
+  const rejected = await shipping.processShippingState(reapplied, "Não");
+  assert.equal(rejected.customer?.address?.zip, undefined); assert.equal(rejected.cart.currentDiscount, 0);
+  assert.equal(await prisma.couponRedemption.count({ where: { status: "applied" } }), 0);
+});
+
+for (const field of ["number", "complement"] as const) integration(`chat commercial address ${field} collection invalidates the coupon before quoting again`, async () => {
+  await activate(); await checkoutCoupon();
+  const customer = primarySession("one").customer!;
+  delete customer.address![field];
+  const { session: s } = await applyToSession(await couponCheckout("one", { customer }));
+  const shipping = new CheckoutShippingService(repo, new CheckoutCustomerService(repo));
+  const saved = await shipping.processShippingState(s, field === "number" ? "200, apto 12" : "Apto 12");
+  assert.equal(saved.cart.currentDiscount, 0); assert.equal(saved.shipping, undefined);
+  assert.ok(saved.shippingOptions?.length); assert.ok(saved.customer?.address?.[field]);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+  assert.deepEqual(saved, await repo.getSession("store", "one"));
+});
+
+integration("chat commercial name correction same address and confirmation preserve eligible benefits", async () => {
+  await activate(); await checkoutCoupon(); const { session: s } = await applyToSession(await couponCheckout("one", {
+    customer: { ...primarySession("one").customer, address_verified: false },
+  }));
+  const customer = new CheckoutCustomerService(repo);
+  const named = (await customer.correctCustomerInput(s, "Corrigir meu nome para Maria Oliveira"))!.session;
+  const sameAddress = (await customer.correctCustomerInput(named, "Corrigir o número do imóvel para 1"))!.session;
+  const saved = await new CheckoutShippingService(repo, customer).processShippingState(sameAddress, "Sim");
+  assert.equal(saved.customer?.fullName, "Maria Oliveira"); assert.equal(saved.customer?.address_verified, true);
+  assert.equal(saved.cart.currentDiscount, 5); assert.deepEqual(saved.shipping, s.shipping);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "applied");
+});
+
+integration("chat commercial selecting a server shipping option clears the coupon and records the resulting version", async () => {
+  await activate(); await checkoutCoupon();
+  const { session: s } = await applyToSession(await couponCheckout("one", { shipping: undefined,
+    shippingOptions: [{ customerPrice: 20, realCost: 22, carrier: "Correios", method: "PAC" }] }));
+  const saved = await new CheckoutShippingService(repo, new CheckoutCustomerService(repo)).processShippingState(s, "Entrega · Correios PAC");
+  assert.equal(saved.shipping?.customerPrice, 20); assert.equal(saved.cart.currentDiscount, 0);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "shipping_option_selected" } }), 1);
+  assert.deepEqual(saved, await repo.getSession("store", "one"));
+});
+
+for (const path of ["customer", "shipping", "refresh"] as const) integration(`chat commercial ${path} rolls back its changes if cancelling the coupon fails`, async () => {
+  await activate(); await checkoutCoupon(); const { session: s } = await applyToSession(await couponCheckout("one", {
+    shipping: undefined, shippingOptions: [{ customerPrice: 20, realCost: 22, carrier: "Correios", method: "PAC" }],
+  }));
+  const before = await acpCommercialState();
+  const repository = new PrismaCheckoutRepository(failingCommercialClient("couponRedemption", "updateMany"));
+  const customer = new CheckoutCustomerService(repository);
+  const action = path === "customer" ? customer.correctCustomerInput(s, "Corrigir o número do imóvel para 200")
+    : path === "shipping" ? new CheckoutShippingService(repository, customer).processShippingState(s, "Entrega · Correios PAC")
+    : new CheckoutBootstrapService(repository, repository).bootstrap({ merchant_id: "store", session_id: "one",
+      cart: { ...s.cart, total: 200, items: [{ ...s.cart.items[0], quantity: 2 }] } }, s.globalUserId, true, { refreshCart: true });
+  await assert.rejects(action, /COMMERCIAL_WRITE_FAILED/);
+  assert.deepEqual(await acpCommercialState(), before);
+});
+
+integration("chat commercial a stale customer correction cannot cancel a newer coupon", async () => {
+  await activate(); await checkoutCoupon(); const stale = await couponCheckout(); await applyToSession(stale);
+  const before = await acpCommercialState();
+  await assert.rejects(new CheckoutCustomerService(repo).correctCustomerInput(stale, "Corrigir meu telefone para 11999990000"), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  assert.deepEqual(await acpCommercialState(), before);
+});
+
+integration("chat commercial concurrent address correction and shipping selection commit one complete outcome", async () => {
+  await activate(); await checkoutCoupon(); const { session: s } = await applyToSession(await couponCheckout("one", {
+    shipping: undefined, shippingOptions: [{ customerPrice: 20, realCost: 22, carrier: "Correios", method: "PAC" }],
+  }));
+  const customer = new CheckoutCustomerService(repo);
+  const results = await Promise.allSettled([
+    customer.correctCustomerInput(s, "Corrigir o número do imóvel para 200"),
+    new CheckoutShippingService(repo, customer).processShippingState(s, "Entrega · Correios PAC"),
+  ]);
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.cart.currentDiscount, 0); assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+  assert.equal(saved.customer?.address?.number === "200", saved.shipping === undefined);
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "shipping_option_selected" } }), saved.shipping ? 1 : 0);
+});
+
+for (const provider of ["postal", "shipping"] as const) integration(`chat commercial ignores a delayed ${provider} response after the cart changes`, async () => {
+  await activate(); await checkoutCoupon();
+  const { session: s } = await applyToSession(await couponCheckout("one", { shipping: undefined,
+    ...(provider === "postal" ? { customer: { ...primarySession("one").customer,
+      address: { zip: "20000000" }, address_verified: false } } : {}),
+  }));
+  let afterEdit: Awaited<ReturnType<typeof acpCommercialState>>;
+  const changeCart = async () => {
+    await new UpdateCartUseCase(repo, repo).execute({ merchant_id: "store", session_id: "one", items: [{ sku: "fixture", quantity: 2 }] });
+    afterEdit = await acpCommercialState();
+  };
+  globalThis.fetch = (async () => { await changeCart(); return Response.json({ logradouro: "Late Street", localidade: "Rio", uf: "RJ" }); }) as typeof fetch;
+  let commits = 0;
+  const repository = new Proxy(repo, { get(target, key) {
+    if (key === "commitCommercialMutation") return (input: any) => { commits++; return target.commitCommercialMutation(input); };
+    const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const quote = { async execute() { await changeCart(); return { results: [
+    { label: "Correios PAC", carrier_key: "pac", price: 1234, is_free: false, eta_days: 2 },
+  ] }; } };
+  await assert.rejects(new CheckoutShippingService(repository, new CheckoutCustomerService(repository), quote as any)
+    .processShippingState(s, "Confira o frete"), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  assert.equal(commits, 1, "a rejected quote must not trigger estimate persistence");
+  assert.deepEqual(await acpCommercialState(), afterEdit!);
+});
+
+integration("chat commercial a delayed OTP acknowledgement cannot overwrite a newer cart", async () => {
+  await activate(); await checkoutCoupon();
+  const { session: s } = await applyToSession(await couponCheckout("one", {
+    customer: { ...primarySession("one").customer, email: undefined, email_verified: false },
+  }));
+  let afterEdit: Awaited<ReturnType<typeof acpCommercialState>>;
+  let notices = 0;
+  const service = new CheckoutCustomerService(repo, { notifyCaptured() { notices++; } } as any,
+    new OtpService(), undefined, undefined, { async send() {
+      await new UpdateCartUseCase(repo, repo).execute({ merchant_id: "store", session_id: "one", items: [{ sku: "fixture", quantity: 2 }] });
+      afterEdit = await acpCommercialState();
+      // Even a caller altering its own object during I/O cannot replace the
+      // original comparison snapshot captured by processCustomerInput.
+      Object.assign(s, afterEdit.session);
+      return { status: "sent", messageId: "fixture-accepted-after-cart-edit" };
+    } } as any);
+  await assert.rejects(service.processCustomerInput(s, "new@example.invalid", "Qual seu email?", "Fixture"), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  assert.equal(notices, 0); assert.deepEqual(await acpCommercialState(), afterEdit!);
+  assert.equal((await repo.getSession("store", "one"))!.customer?.otp_code, undefined);
+});
+
+integration("chat commercial refreshed identical cart preserves an eligible product coupon without granting a submitted one", async () => {
+  await activate(); await checkoutCoupon(); const { session: s } = await applyToSession(await couponCheckout("one", { shipping: undefined }));
+  const { session: saved } = await new CheckoutBootstrapService(repo, repo).bootstrap({ merchant_id: "store", session_id: "one",
+    cart: { ...s.cart, currentDiscount: 99 } }, s.globalUserId, true, { refreshCart: true });
+  assert.equal(saved.cart.currentDiscount, 5); assert.equal(saved.cart.commercialNudge?.couponCode, "SAVE5");
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "applied");
+  assert.equal(await prisma.outboxMessage.count({ where: { eventType: "checkout.cart.updated" } }), 0);
+});
+
+integration("chat commercial refresh cancels old benefits before verified buyer hydration and ignores submitted discounts", async () => {
+  await activate(); await checkoutCoupon(); const { session: s } = await applyToSession(await couponCheckout());
+  const customer = new CheckoutCustomerService(repo, undefined, undefined, new BuyerRecognitionService(repo));
+  const bootstrap = new CheckoutBootstrapService(repo, repo, customer);
+  const { session: saved } = await bootstrap.bootstrap({ merchant_id: "store", session_id: "one", cart: {
+    ...s.cart, total: 200, items: [{ ...s.cart.items[0], quantity: 2 }], currentDiscount: 150,
+  } }, s.globalUserId, true, { refreshCart: true });
+  assert.equal(saved.cart.total, 200); assert.equal(saved.cart.currentDiscount, 0);
+  assert.equal(saved.shipping, undefined); assert.equal(saved.cart.commercialNudge, undefined);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+  assert.equal(await prisma.outboxMessage.count({ where: { eventType: "checkout.cart.updated" } }), 1);
+  assert.equal(await prisma.strategyAssignment.count(), 1);
+  assert.deepEqual(saved, await repo.getSession("store", "one"));
+});
+
+for (const closed of ["completed", "cancelled"] as const) integration(`chat commercial refuses customer changes after checkout is ${closed}`, async () => {
+  await activate(); await checkoutCoupon(); const { session: applied } = await applyToSession(await couponCheckout());
+  if (closed === "completed") await measuredOrder("one", "closed-one");
+  else await repo.commitCommercialMutation({ expected: applied, next: applied, cancel: true });
+  const s = (await repo.getSession("store", "one"))!;
+  const before = await acpCommercialState();
+  await assert.rejects(new CheckoutCustomerService(repo).correctCustomerInput(s, "Corrigir meu telefone para 11999990000"), /CHECKOUT_COMMERCIAL_SESSION_CLOSED/);
+  assert.deepEqual(await acpCommercialState(), before);
+});
+
 async function mutateCommercialSession(kind: string, s: CheckoutSession, client = prisma) {
   const repository = new PrismaCheckoutRepository(client);
   if (kind === "cancel") return repository.commitCommercialMutation({ expected: s, next: s, cancel: true });
@@ -2671,9 +2909,14 @@ integration("checkout journey recognizes a verified returning buyer and continue
   await send("fixture@example.invalid");
   assert.equal((await repo.getSession("store", "one"))!.globalUserId, assignment.globalUserId);
   const recognized = await send(fixture.emails[0]);
-  assert.equal(recognized.chat_request?.status, "completed"); assert.equal(recognized.stage, "payment");
+  assert.equal(recognized.chat_request?.status, "completed"); assert.equal(recognized.stage, "shipping");
   const saved = (await repo.getSession("store", "one"))!;
   assert.equal(saved.globalUserId, "recognized-buyer"); assert.equal(saved.customer?.email_verified, true);
+  assert.equal(saved.shipping, undefined, "the anonymous buyer's quote must be reselected after identity hydration");
+  assert.ok(saved.shippingOptions?.length);
+  const selected = await send("Entrega · Correios PAC");
+  assert.equal(selected.chat_request?.status, "completed"); assert.equal(selected.stage, "payment");
+  assert.equal((await repo.getSession("store", "one"))!.shipping?.customerPrice, saved.shippingOptions![0].customerPrice);
   assert.equal((await send("Como funciona esta etapa?")).chat_request?.status, "completed");
   assert.equal((await prisma.strategyAssignmentStop.findUniqueOrThrow({ where: { assignmentId: assignment.id } })).reason, "session_context_changed");
   assert.deepEqual(await prisma.strategyAssignment.findFirstOrThrow(), assignment);

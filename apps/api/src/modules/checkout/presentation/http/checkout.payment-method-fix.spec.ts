@@ -78,7 +78,8 @@ function buildFullStack(repo: InMemoryCheckoutRepository) {
   const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(new RecordCompletedPurchaseUseCase(purchaseHistoryRepo));
   const completeOrder = new CompleteOrderUseCase(repo, repo, repo, undefined, purchaseHistoryPort);
   const conv = new FakeConv();
-  const custService = new CheckoutCustomerService(repo, undefined, new OtpService());
+  const custService = new CheckoutCustomerService(repo, undefined, new OtpService(), undefined, undefined,
+    { async send() { return { status: "sent", messageId: "fixture-otp-accepted" }; } } as never);
   const shipService = new CheckoutShippingService(repo, custService);
   const offerService = new CheckoutOfferService(repo);
   const merchantRepo = repo;
@@ -129,7 +130,7 @@ async function driveToPayment(repo: InMemoryCheckoutRepository, ctrl: any, sid: 
   const otp = repo.getSession(MERCHANT, sid)?.customer?.otp_code;
   await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: `o codigo e ${otp}` });
 
-  await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "123.456.789-01" });
+  await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "529.982.247-25" });
   await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "(11) 98888-7777" });
   assert.equal(repo.getSession(MERCHANT, sid)?.customer?.phone_otp_code, undefined);
 
@@ -152,7 +153,7 @@ async function driveToPayment(repo: InMemoryCheckoutRepository, ctrl: any, sid: 
   }
 }
 
-test("FIX: buyer says PIX → paymentMethod set + intent created + stage=completed", async () => {
+test("buyer selects PIX and receives an intent while payment remains pending", async () => {
   const repo = new InMemoryCheckoutRepository();
   repo.setRules(MERCHANT, { maxDiscountPercent: 10, couponBoxEnabled: false, minimumMarginPercent: 10 });
   // Mock asaas customer creation in the provider — FakePaymentProvider handles it.
@@ -184,8 +185,8 @@ test("FIX: buyer says PIX → paymentMethod set + intent created + stage=complet
   assert.ok(intent.id, "intent id present");
   assert.ok(intent.amount_cents > 0, "intent amount > 0");
 
-  // VERIFY: stage advances to "completed"
-  assert.equal(pixRes.stage, "completed", "stage transitions to completed after PIX selection");
+  // Selecting a method or creating an intent is not proof of payment.
+  assert.equal(pixRes.stage, "payment_pending", "payment awaits provider confirmation");
   assert.deepEqual(pixRes.missing_fields, [], "no missing fields once paymentMethod set");
 });
 
@@ -201,12 +202,12 @@ test("FIX: buyer says cartao → paymentMethod=credit_card + intent OR graceful 
 
   assert.equal(repo.getSession(MERCHANT, sid)?.paymentMethod, "credit_card", "session.paymentMethod = credit_card");
   // Without Stripe configured (test env), card throws stripe_provider_not_configured.
-  // The chat layer catches it and still advances stage. The intent surface stays clean.
-  assert.equal(cardRes.stage, "completed", "stage still completes even when provider not configured");
+  // The chat layer catches it; selecting a method cannot mark the order paid.
+  assert.equal(cardRes.stage, "payment_pending", "missing provider does not complete a purchase");
   assert.deepEqual(cardRes.missing_fields, [], "no missing fields");
 });
 
-test("REGRESSION: paymentMethod already set → stage stays completed, no duplicate intent", async () => {
+test("repeated PIX selection remains pending without claiming payment completion", async () => {
   const repo = new InMemoryCheckoutRepository();
   repo.setRules(MERCHANT, { maxDiscountPercent: 10, couponBoxEnabled: false });
   const { ctrl } = buildFullStack(repo);
@@ -221,5 +222,5 @@ test("REGRESSION: paymentMethod already set → stage stays completed, no duplic
   const second = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "any", user_message: "PIX mesmo" });
   // paymentMethod is already set, so the working session preserves it; intent branch is skipped
   // (no new intent emitted on the response because selectedPaymentMethod is undefined after first turn)
-  assert.equal(second.stage, "completed");
+  assert.equal(second.stage, "payment_pending");
 });

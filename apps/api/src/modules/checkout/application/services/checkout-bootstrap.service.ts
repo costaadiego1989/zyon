@@ -10,6 +10,7 @@ import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../../storefro
 import { MetricsService } from "../../../../shared/observability/metrics.service.js";
 import { CartPromoResolutionService } from "./cart-promo-resolution.service.js";
 import type { TrustedCheckoutBuyer } from "./trusted-checkout-buyer.js";
+import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 
 interface BootstrapResult {
   session: CheckoutSession;
@@ -135,13 +136,14 @@ export class CheckoutBootstrapService {
 
     if (identity?.refreshCart) {
       // Requote items, delivery and payment after absence, preserving verified identity.
-      session.cart = enrichedInput.cart;
-      session.shipping = undefined;
-      session.shippingOptions = undefined;
-      session.paymentMethod = undefined;
-      session.abandonmentScore = 0;
-      session.triggerAgent = false;
-      session.updatedAt = new Date().toISOString();
+      // Preserve the old benefit as input; the transaction removes it when its
+      // commercial context changes. A refresh cannot grant a caller's discount.
+      session = await commitCheckoutMutation(this.sessions, { expected: session, next: {
+        ...session, cart: { ...enrichedInput.cart, currentDiscount: session.cart.currentDiscount,
+          commercialNudge: session.cart.commercialNudge },
+        shipping: undefined, shippingOptions: undefined, paymentMethod: undefined,
+        abandonmentScore: 0, triggerAgent: false,
+      } });
     }
 
     this.logger.warn('[CHECKOUT-DBG] session saved', { sessionId, customer: { cpf: !!session.customer?.cpf, name: !!session.customer?.fullName, asaasId: !!session.customer?.asaasCustomerId } });

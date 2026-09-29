@@ -19,6 +19,7 @@ import { BuyerAccountPersistenceService } from "./buyer-account-persistence.serv
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 import { WHATSAPP_TEMPLATE_REPOSITORY, type WhatsAppTemplateRepositoryPort } from "../../../whatsapp-templates/domain/ports/whatsapp-template-repository.port.js";
 import { WHATSAPP_TEMPLATE_SENDER, type WhatsAppTemplateSenderPort } from "../../../whatsapp-templates/domain/ports/whatsapp-template-sender.port.js";
+import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 
 // Re-export for backwards compatibility
 export { OtpValidationError } from "./otp.service.js";
@@ -51,6 +52,7 @@ export class CheckoutCustomerService {
     lastAgentTurn: string | undefined,
     merchantName: string | undefined
   ): Promise<CheckoutSession> {
+    session = structuredClone(session);
     const patch = this.buildCustomerPatch(userMessage, session.customer, lastAgentTurn);
     if (!patch) return session;
 
@@ -66,7 +68,7 @@ export class CheckoutCustomerService {
       });
     }
 
-    await this.repository.saveSession(working);
+    working = await commitCheckoutMutation(this.repository, { expected: session, next: working });
 
     if (patch.email && !hadEmailAlready && this.buyerEmailNotifier) {
       const merged = this.mergeHints(session.customer, patch);
@@ -82,7 +84,6 @@ export class CheckoutCustomerService {
 
     if (patch.email_verified) {
       working = await this.recognizeAndPersistVerifiedBuyer(working);
-      await this.repository.saveSession(working);
       await this.persistenceService?.ensureBuyerAccountPersisted(working, true);
     }
 
@@ -101,6 +102,7 @@ export class CheckoutCustomerService {
   }
 
   async correctCustomerInput(session: CheckoutSession, text: string, lastAgentTurn?: string, merchantName?: string): Promise<(CustomerCorrection & { session: CheckoutSession; message?: string; needsInput?: boolean; blocked?: boolean }) | null> {
+    session = structuredClone(session);
     const correction = customerCorrection(session, text, lastAgentTurn);
     if (!correction) return null;
     if (correction.cancelled) return { ...correction, session };
@@ -121,13 +123,11 @@ export class CheckoutCustomerService {
         },
       };
       // Revoke the old code before attempting delivery, including delivery failure.
-      await this.repository.saveSession(working);
+      working = await commitCheckoutMutation(this.repository, { expected: session, next: working });
       working = await this.processCustomerInput(working, correction.patch.email!, undefined, merchantName);
+      return { ...correction, session: working };
     }
-    if (["zip", "number", "complement"].includes(correction.field)) {
-      working = { ...working, shipping: undefined, shippingOptions: undefined };
-    }
-    await this.repository.saveSession(working);
+    working = await commitCheckoutMutation(this.repository, { expected: session, next: working });
     return { ...correction, session: working };
   }
 
@@ -238,6 +238,7 @@ export class CheckoutCustomerService {
 
   private async recognizeAndPersistVerifiedBuyer(session: CheckoutSession): Promise<CheckoutSession> {
     if (!this.recognitionService) return session;
+    session = structuredClone(session);
 
     const result = await this.recognitionService.recognizeVerifiedBuyer(
       session,
@@ -252,7 +253,7 @@ export class CheckoutCustomerService {
         updatedAt: new Date().toISOString()
       };
     }
-    await this.repository.saveSession(next);
+    next = await commitCheckoutMutation(this.repository, { expected: session, next });
     await this.persistenceService?.ensureBuyerAccountPersisted(next);
     return next;
   }
