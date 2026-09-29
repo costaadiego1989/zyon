@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 
 export function SliderField({
   label,
@@ -24,15 +24,16 @@ export function SliderField({
   error?: string;
 }) {
   const pct = Math.max(0, Math.min(100, ((value - min) / (max - min)) * 100));
+  const id = useId();
   return (
     <div className="cfg-slider">
       <div className="cfg-slider-head">
-        <label>{label}</label>
+        <label htmlFor={id}>{label}</label>
         <output className="cfg-value" style={{ color: error ? "var(--color-error)" : undefined }}>
           {display}
         </output>
       </div>
-      <input
+      <input id={id} aria-invalid={Boolean(error)} aria-describedby={[help && `${id}-help`, error && `${id}-error`].filter(Boolean).join(" ") || undefined}
         type="range"
         min={min}
         max={max}
@@ -43,8 +44,8 @@ export function SliderField({
         className="cfg-range"
         style={{ "--fill": `${pct}%` } as React.CSSProperties}
       />
-      {help ? <p className="cfg-help">{help}</p> : null}
-      {error ? <p className="cfg-inline-error">{error}</p> : null}
+      {help ? <p id={`${id}-help`} className="cfg-help">{help}</p> : null}
+      {error ? <p id={`${id}-error`} className="cfg-inline-error" role="alert">{error}</p> : null}
     </div>
   );
 }

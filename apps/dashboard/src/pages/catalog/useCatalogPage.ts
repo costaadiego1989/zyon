@@ -189,6 +189,7 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
     if (!merchantId) throw new Error("Merchant ID não disponível");
 
     setPageError(null);
+    const failedSkus: string[] = [];
 
     for (const row of rows) {
       try {
@@ -207,11 +208,15 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
           }],
         });
       } catch {
-        // Continue importing remaining rows
+        failedSkus.push(row.sku);
       }
     }
 
     await load();
+    if (failedSkus.length > 0) {
+      const confirmed = rows.length - failedSkus.length;
+      throw new Error(`${confirmed} de ${rows.length} produtos confirmados. Não foi possível confirmar: ${failedSkus.slice(0, 5).join(", ")}${failedSkus.length > 5 ? ` e mais ${failedSkus.length - 5}` : ""}.`);
+    }
   }, [catalog, merchantId, load]);
 
   const onImportStarted = useCallback(

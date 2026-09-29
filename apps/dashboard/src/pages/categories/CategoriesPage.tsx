@@ -1,3 +1,4 @@
+import { PageHeader } from "../../components/PageHeader.js";
 import React, { useEffect, useMemo, useState } from "react";
 import { Plus, FolderTree, Layers, CheckCircle, PauseCircle } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
@@ -8,7 +9,8 @@ import { StatCard } from "../overview/components/StatCard.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
-import { showToast } from "../../components/Toast.js";
+import { EmptyState } from "../../components/EmptyState.js";
+import "./categories.css";
 import type { CreateCategoryInput, UpdateCategoryInput } from "../../api/endpoints/catalog.js";
 import { Button } from "../../components/Button.js";
 
@@ -24,21 +26,9 @@ export function CategoriesPage(props: CategoriesPageProps) {
   const [activeOnly, setActiveOnly] = useState(false);
   const [page, setPage] = useState(1);
 
-  if (!props.me) {
-    return (
-      <header className="page-head">
-        <div><h1>Categorias</h1><p className="page-lead">Login necessário</p></div>
-      </header>
-    );
-  }
-
-  const vm = useCategoriesPage({ merchantId: props.me.id });
+  const vm = useCategoriesPage({ merchantId: props.me?.id ?? "" });
   const [confirmDeleteId, setConfirmDeleteId] = useState<string | null>(null);
-  const confirmCatName = vm.tree.find((c) => c.id === confirmDeleteId)?.name ?? "esta categoria";
-
-  useEffect(() => {
-    if (vm.error) showToast("error", vm.error);
-  }, [vm.error]);
+  const confirmCatName = vm.categories.find((c) => c.id === confirmDeleteId)?.name ?? "esta categoria";
 
   const filteredTree = useMemo(() => {
     if (!search && !activeOnly) return vm.tree;
@@ -53,7 +43,7 @@ export function CategoriesPage(props: CategoriesPageProps) {
         const childMatches = filterNodes(node.children);
         const selfMatch = matches(node.name) && (!activeOnly || node.is_active);
         if (selfMatch || childMatches.length > 0) {
-          result.push({ ...node, children: selfMatch ? node.children : childMatches });
+          result.push({ ...node, children: childMatches });
         }
       }
       return result;
@@ -71,13 +61,17 @@ export function CategoriesPage(props: CategoriesPageProps) {
 
   // Paginate root nodes (children follow parent)
   const paginatedTree = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
+    const validPage = Math.min(page, Math.max(1, Math.ceil(filteredTree.length / PAGE_SIZE)));
+    const start = (validPage - 1) * PAGE_SIZE;
     return filteredTree.slice(start, start + PAGE_SIZE);
   }, [filteredTree, page]);
 
   // Reset page on filter change
   useEffect(() => { setPage(1); }, [search, activeOnly]);
 
+  useEffect(() => { setPage(current => Math.min(current, Math.max(1, Math.ceil(filteredTree.length / PAGE_SIZE)))); }, [filteredTree.length]);
+  const filtered = Boolean(search || activeOnly);
+  if (!props.me) return <PageHeader title="Categorias" description="Faça login para organizar seu catálogo." />;
   return (
     <div className="page-container">
       <ConfirmDialog
@@ -86,21 +80,18 @@ export function CategoriesPage(props: CategoriesPageProps) {
         description={`Tem certeza que deseja excluir "${confirmCatName}"? Produtos vinculados ficarão sem categoria.`}
         confirmLabel="Excluir"
         variant="danger"
-        onConfirm={() => { vm.deleteCategory(confirmDeleteId!); setConfirmDeleteId(null); }}
-        onCancel={() => setConfirmDeleteId(null)}
+        busy={vm.mutating}
+        error={vm.actionError}
+        onConfirm={async () => { if (confirmDeleteId && await vm.deleteCategory(confirmDeleteId)) setConfirmDeleteId(null); }}
+        onCancel={() => { if (!vm.mutating) setConfirmDeleteId(null); }}
       />
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Loja</span>
-          <h1>Categorias</h1>
-          <p className="page-lead">Organize os produtos da sua loja em categorias</p>
-        </div>
-        <Button variant="primary" size="sm" arrow onClick={() => vm.startCreate()}>
+      <PageHeader title="Categorias" description="Organize os produtos da sua loja em categorias" actions={<>
+<Button variant="primary" size="sm" arrow disabled={vm.loading || !!vm.error || vm.mutating} onClick={() => vm.startCreate()}>
           <Plus size={14} /> Nova categoria
         </Button>
-      </header>
+</>} />
 
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
+      {!vm.loading && !vm.error && <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12, marginBottom: 20 }}>
         <StatCard
           label="Categorias"
           value={totals.total}
@@ -118,13 +109,14 @@ export function CategoriesPage(props: CategoriesPageProps) {
           icon={<PauseCircle size={16} />}
           accent="var(--color-text-faint)"
         />
-      </div>
+      </div>}
 
-      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, overflow: "hidden" }}>
+      {vm.actionError && !confirmDeleteId && <p role="alert" className="form-field-error">{vm.actionError}</p>}
+      {vm.error ? <EmptyState title="Categorias indisponíveis" description={vm.error} action={<Button variant="outline" onClick={vm.fetchCategories}>Tentar novamente</Button>} /> : <div className="categories-list">
         {/* Filters bar */}
         <FilterToolbar
           tabs={[
-            { key: "all", label: "Todos" },
+            { key: "all", label: "Todas" },
             { key: "active", label: "Ativas" },
           ]}
           activeTab={activeOnly ? "active" : "all"}
@@ -141,22 +133,23 @@ export function CategoriesPage(props: CategoriesPageProps) {
           total={filteredTree.length}
           onPageChange={setPage}
           isEmpty={filteredTree.length === 0 && !vm.loading}
-          empty={{ icon: FolderTree, title: "Nenhuma categoria criada", description: "Clique em 'Nova categoria' para começar a organizar seus produtos.", action: <Button variant="primary" size="sm" arrow onClick={() => vm.startCreate()}><Plus size={14} /> Nova categoria</Button> }}
+          empty={{ icon: FolderTree, title: filtered ? "Nenhuma categoria com estes filtros" : "Organize seu catálogo em categorias", description: filtered ? "Tente outro nome ou remova os filtros." : "Crie grupos como Roupas ou Acessórios e, se precisar, organize subcategorias dentro deles.", action: filtered ? <Button variant="outline" onClick={() => { setSearch(""); setActiveOnly(false); }}>Limpar filtros</Button> : <Button onClick={() => vm.startCreate()}>Nova categoria</Button> }}
         >
           {vm.loading ? (
             <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando categorias...</div>
           ) : (
             <CategoryTree
               tree={paginatedTree}
+              disabled={vm.mutating}
               onEdit={vm.startEdit}
-              onDelete={(id) => setConfirmDeleteId(id)}
+              onDelete={(id) => { vm.clearActionError(); setConfirmDeleteId(id); }}
               onToggleActive={vm.toggleActive}
               onAddChild={(parentId) => vm.startCreate(parentId)}
               onReparent={vm.reparentCategory}
             />
           )}
         </DataPanel>
-      </div>
+      </div>}
 
       {vm.showForm ? (
         <CategoryForm
@@ -165,6 +158,7 @@ export function CategoriesPage(props: CategoriesPageProps) {
           parentOptions={vm.parentOptions}
           defaultParentId={vm.parentIdForCreate}
           saving={vm.saving}
+          saveError={vm.formError}
           onSave={(data) => {
             if (vm.formMode === "edit" && vm.editingCategory) {
               void vm.updateCategory(vm.editingCategory.id, data as UpdateCategoryInput);

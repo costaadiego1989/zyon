@@ -1,5 +1,10 @@
+import { EmptyState } from "../../components/EmptyState.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
+import "../administration-pages.css";
+import "./store-settings.css";
+import { PageHeader } from "../../components/PageHeader.js";
 import React, { useRef, useState } from "react";
-import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload, Trash2, Palette } from "lucide-react";
+import { Save, Instagram, Facebook, Linkedin, Youtube, MapPin, Sparkles, Upload, Trash2, Palette, Settings } from "lucide-react";
 import { TabBar } from "../../components/TabBar.js";
 import { Button } from "../../components/Button.js";
 import { FormField, FormSelect, FormTextarea } from "../../components/FormField.js";
@@ -23,43 +28,43 @@ export function StoreSettingsPage() {
   const seoVm = useSeoSettingsTab();
   const { state: seoState, setSeo, setGtm, setSlug, handleSave: handleSeoSave, handleGenerate, handleApplySuggestion, openGeneratorModal, closeGeneratorModal, toggleSection } = seoVm;
 
-  if (state.loading || seoState.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)" }}>Carregando...</div>;
+  const busy = state.saving || seoState.saving || !!state.generatingPolicy || seoState.generatingAi;
+  if (state.loading) return <div className="administration-page"><PageHeader title="Configurações da loja" description="Organize os dados e as informações que seus clientes consultam." /><section className="panel admin-skeleton" aria-label="Carregando configurações" aria-busy="true">{[1,2,3].map(n => <div className="skeleton-cell" key={n} />)}</section></div>;
+  if (state.loadError) return <div><PageHeader title="Configurações da loja" /><section className="panel"><EmptyState icon={Settings} title="Configurações indisponíveis" description="Não foi possível carregar os dados atuais. Tente novamente antes de editar." action={<Button variant="outline" onClick={vm.reload}>Tentar novamente</Button>} /></section></div>;
 
   return (
-    <div className="page-container">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">LOJA</span>
-          <h1 >Configurações</h1>
-          <p className="page-lead">Dados da empresa, endereço, horários, políticas, redes sociais, SEO e GTM</p>
-        </div>
-        <Button variant="primary" size="sm" arrow onClick={state.activeTab === "seo-gtm" ? handleSeoSave : handleSave} disabled={state.saving || seoState.saving} loading={state.saving || seoState.saving}>
+    <div className="page-container administration-page store-settings-page">
+      <PageHeader title="Configurações da loja" description="Organize os dados e as informações que seus clientes consultam." actions={<>
+<Button variant="primary" size="sm" arrow onClick={state.activeTab === "seo-gtm" ? handleSeoSave : handleSave} disabled={busy || (state.activeTab === "budget" && !state.budgetAvailable) || (state.activeTab === "seo-gtm" && (seoState.loading || !!seoState.loadError))} loading={state.saving || seoState.saving}>
           <Save size={14} /> Salvar configurações
         </Button>
-      </header>
+</>} />
 
       {/* Card container */}
       <TabBar
         tabs={[
           { key: "company", label: "Empresa" },
           { key: "policies", label: "Políticas" },
-          { key: "social", label: "Redes Sociais" },
-          { key: "seo-gtm", label: "SEO & GTM" },
+          { key: "social", label: "Redes sociais" },
+          { key: "seo-gtm", label: "Busca e rastreamento" },
           { key: "budget", label: "Orçamento" },
         ]}
         activeTab={state.activeTab as string}
-        onTabChange={(k) => setActiveTab(k as any)}
+        onTabChange={(k) => { if (!busy) setActiveTab(k as typeof state.activeTab); }}
       />
 
-      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, overflow: "hidden" }}>
+      {(state.activeTab === "seo-gtm" ? seoState.actionError : state.saveError) && <p role="alert" className="admin-feedback admin-feedback--error">{state.activeTab === "seo-gtm" ? seoState.actionError : state.saveError}</p>}
+      {(state.activeTab === "seo-gtm" ? seoState.saveMessage : state.saveResult === "success") && <p role="status" className="admin-feedback admin-feedback--ok">{state.activeTab === "seo-gtm" ? seoState.saveMessage : state.activeTab === "budget" ? "Configurações de orçamento salvas." : "Dados da loja salvos."}</p>}
+      <div className="panel configuration-form store-settings-content">
 
         {/* Content */}
-        <div style={{ padding: "24px 22px", minHeight: 400 }}>
+        <fieldset className="store-settings-fieldset" disabled={busy}>
           {state.activeTab === "company" && <CompanyTab company={state.company} businessHours={state.businessHours} cepLoading={state.cepLoading} onCompanyChange={setCompany} onHoursChange={setBusinessHours} onCepChange={handleCepChange} />}
           {state.activeTab === "policies" && <PoliciesTab policies={state.policies} onChange={setPolicies} onGenerate={generatePolicy} generatingPolicy={state.generatingPolicy} />}
           {state.activeTab === "social" && <SocialTab social={state.social} onChange={setSocial} />}
-          {state.activeTab === "seo-gtm" && (
+          {state.activeTab === "seo-gtm" && (seoState.loading ? <div className="admin-skeleton" aria-label="Carregando busca e rastreamento" aria-busy="true"><div className="skeleton-cell" /></div> : seoState.loadError ? <EmptyState icon={Settings} title="Busca e rastreamento indisponíveis" description="Não foi possível carregar estas configurações. Os dados das outras abas continuam disponíveis." action={<Button variant="outline" onClick={seoVm.reload}>Tentar novamente</Button>} /> :
             <SeoGtmTab
+              actionError={seoState.actionError}
               seo={seoState.seo}
               gtm={seoState.gtm}
               slug={seoState.slug}
@@ -80,33 +85,24 @@ export function StoreSettingsPage() {
               onToggleSection={toggleSection}
             />
           )}
-          {state.activeTab === "budget" && (
-            <div>
-              <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: "0 0 16px", lineHeight: 1.5 }}>
-                Quando ativado, clientes enviam uma solicitação com os itens e dados de contato. As solicitações aparecem abaixo, com um aviso no painel.
-              </p>
-              <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", borderBottom: "1px solid var(--color-border)" }}>
-                <div>
-                  <strong style={{ fontSize: 13, color: "var(--color-text)" }}>Ativar modo orçamento</strong>
-                  <p style={{ fontSize: 11, color: "var(--color-text-muted)", margin: "2px 0 0" }}>Substitui &quot;Finalizar pedido&quot; por &quot;Solicitar orçamento&quot;</p>
+          {state.activeTab === "budget" && (state.budgetAvailable ? (
+            <div className="store-budget">
+              <p className="admin-help">Receba solicitações para negociar com o comprador antes do pagamento. Salve as configurações para aplicar a mudança à loja.</p>
+              <label className="store-budget__activation">
+                <input type="checkbox" role="switch" aria-describedby="budget-mode-help" checked={state.budgetMode} onChange={event => setBudgetMode(event.target.checked)} />
+                <span><strong>Ativar modo orçamento</strong><span id="budget-mode-help">O comprador solicita uma proposta em vez de finalizar o pagamento.</span></span>
+              </label>
+              <div>
+                <SectionHeader title="Contatos para os avisos" subtitle="Informe os destinos de e-mail e WhatsApp. O envio depende da configuração dos canais da loja." variant="secondary" />
+                <div className="admin-fields">
+                  <FormField label="E-mail para orçamentos" type="email" placeholder="contato@loja.com" value={state.budgetEmail} onChange={setBudgetEmail} maxLength={254} hint="Opcional." error={state.budgetErrors.email} inputProps={{ autoComplete: "email" }} />
+                  <FormField label="WhatsApp para orçamentos" type="tel" placeholder="+55 11 99999-9999" value={state.budgetWhatsapp} onChange={setBudgetWhatsapp} maxLength={32} hint="Opcional. Inclua o DDD e, para números internacionais, o código do país." error={state.budgetErrors.whatsapp} inputProps={{ autoComplete: "tel" }} />
                 </div>
-                <label style={{ position: "relative", width: 42, height: 24, cursor: "pointer" }}>
-                  <input type="checkbox" aria-label="Ativar modo orçamento" checked={state.budgetMode} onChange={(e) => setBudgetMode(e.target.checked)} style={{ opacity: 0, width: "100%", height: "100%", margin: 0, position: "absolute", inset: 0, zIndex: 1, cursor: "pointer" }} />
-                  <span style={{ position: "absolute", inset: 0, borderRadius: 12, background: state.budgetMode ? "var(--accent, #0f766e)" : "var(--color-border)", transition: "background 0.2s" }}>
-                    <span style={{ position: "absolute", top: 2, left: state.budgetMode ? 20 : 2, width: 20, height: 20, borderRadius: "50%", background: "#fff", transition: "left 0.2s", boxShadow: "0 1px 3px rgba(0,0,0,0.2)" }} />
-                  </span>
-                </label>
               </div>
-              {state.budgetMode && (
-                <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 16 }}>
-                  <FormField label="Email para orçamentos" type="email" placeholder="contato@loja.com" value={state.budgetEmail} onChange={(v) => setBudgetEmail(v)} />
-                  <FormField label="WhatsApp para orçamentos" type="tel" placeholder="(11) 99999-9999" value={maskPhone(state.budgetWhatsapp)} onChange={(v) => setBudgetWhatsapp(maskPhone(v))} maxLength={15} />
-                </div>
-              )}
-              <BudgetRequests />
             </div>
-          )}
-        </div>
+          ) : <EmptyState icon={Settings} title="Orçamento indisponível" description="Não foi possível consultar a configuração atual de orçamento. Tente novamente antes de editar." action={<Button variant="outline" onClick={vm.reload}>Tentar novamente</Button>} />)}
+        </fieldset>
+        {state.activeTab === "budget" && <BudgetRequests />}
       </div>
 
     </div>
@@ -127,30 +123,30 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
     <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
       {/* Company Info */}
       <div>
-        <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Informações Principais</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <SectionHeader title="Dados da empresa" variant="secondary" />
+        <div className="admin-fields">
           <FormField label="Nome da loja" placeholder="Minha Loja" value={company.storeName} onChange={(v) => onCompanyChange({ ...company, storeName: v })} />
-          <FormField label="Razão Social" placeholder="Empresa LTDA" value={company.razaoSocial} onChange={(v) => onCompanyChange({ ...company, razaoSocial: v })} />
+          <FormField label="Razão social" placeholder="Empresa LTDA" value={company.razaoSocial} onChange={(v) => onCompanyChange({ ...company, razaoSocial: v })} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12, marginTop: 12 }}>
+        <div className="admin-fields" style={{ marginTop: 24 }}>
           <FormField label="CNPJ" placeholder="00.000.000/0000-00" value={maskCNPJ(company.cnpj)} onChange={(v) => onCompanyChange({ ...company, cnpj: v.replace(/\D/g, "") })} />
-          <FormField label="Inscrição Estadual" placeholder="000.000.000" value={company.inscricaoEstadual} onChange={(v) => onCompanyChange({ ...company, inscricaoEstadual: v })} />
-          <FormField label="Email de contato" type="email" placeholder="contato@empresa.com" value={company.email} onChange={(v) => onCompanyChange({ ...company, email: v })} />
+          <FormField label="Inscrição estadual" placeholder="000.000.000" value={company.inscricaoEstadual} onChange={(v) => onCompanyChange({ ...company, inscricaoEstadual: v })} />
+          <FormField label="E-mail de contato" type="email" placeholder="contato@empresa.com" value={company.email} onChange={(v) => onCompanyChange({ ...company, email: v })} />
           <FormField label="Telefone" type="tel" placeholder="(11) 99999-9999" value={maskPhone(company.phone)} onChange={(v) => onCompanyChange({ ...company, phone: v.replace(/\D/g, "") })} />
         </div>
       </div>
 
       {/* Address */}
       <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--color-brand)" }}>Endereço</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 12, marginBottom: 12 }}>
+        <SectionHeader title="Endereço" variant="secondary" />
+        <div className="admin-fields" style={{ marginBottom: 24 }}>
           <FormField label="CEP" placeholder="01311-100" value={maskCEP(company.zip)} onChange={(v) => { const digits = v.replace(/\D/g, ""); onCepChange(digits); }} disabled={cepLoading} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "3fr 1fr", gap: 12 }}>
+        <div className="admin-fields">
           <FormField label="Rua" placeholder="Av. Paulista" value={company.street} onChange={(v) => onCompanyChange({ ...company, street: v })} />
-          <FormField label="Nº" placeholder="1000" value={company.number} onChange={(v) => onCompanyChange({ ...company, number: v })} />
+          <FormField label="Número" placeholder="1000" value={company.number} onChange={(v) => onCompanyChange({ ...company, number: v })} />
         </div>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 12, marginTop: 12 }}>
+        <div className="admin-fields" style={{ marginTop: 24 }}>
           <FormField label="Bairro" placeholder="Centro" value={company.neighborhood} onChange={(v) => onCompanyChange({ ...company, neighborhood: v })} />
           <FormField label="Cidade" placeholder="São Paulo" value={company.city} onChange={(v) => onCompanyChange({ ...company, city: v })} />
           <FormField label="Estado" placeholder="SP" value={company.state} onChange={(v) => onCompanyChange({ ...company, state: v.toUpperCase() })} />
@@ -162,17 +158,17 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
 
       {/* Business Hours */}
       <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16 }}>
-        <h3 style={{ fontSize: 13, fontWeight: 600, marginBottom: 12, color: "var(--color-brand)" }}>Horário de Atendimento</h3>
+        <SectionHeader title="Horários de atendimento" variant="secondary" />
         <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
           {businessHours.map((hour, idx) => (
-            <div key={hour.day} style={{ display: "grid", gridTemplateColumns: "120px 1fr 1fr 80px", gap: 12, alignItems: "center" }}>
+            <div key={hour.day} className="store-hour-row">
               <span style={{ fontSize: 12, fontWeight: 500, color: "var(--color-text)" }}>{DAY_LABELS[hour.day]}</span>
-              <input type="time" value={hour.closed ? "" : hour.startTime} onChange={(e) => {
+              <input aria-label={`Abertura na ${DAY_LABELS[hour.day].toLowerCase()}`} type="time" value={hour.closed ? "" : hour.startTime} onChange={(e) => {
                 const newHours = [...businessHours];
                 newHours[idx] = { ...hour, startTime: e.target.value, closed: false };
                 onHoursChange(newHours);
               }} disabled={hour.closed} style={{ ...fieldStyle, opacity: hour.closed ? 0.5 : 1 }} />
-              <input type="time" value={hour.closed ? "" : hour.endTime} onChange={(e) => {
+              <input aria-label={`Fechamento na ${DAY_LABELS[hour.day].toLowerCase()}`} type="time" value={hour.closed ? "" : hour.endTime} onChange={(e) => {
                 const newHours = [...businessHours];
                 newHours[idx] = { ...hour, endTime: e.target.value, closed: false };
                 onHoursChange(newHours);
@@ -188,7 +184,7 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
                     onHoursChange(newHours);
                   }}
                 />
-                <span id={`closed-${hour.day}`} style={{ fontSize: 11, color: "var(--color-text-faint)" }}>Fechado</span>
+                <label htmlFor={`closed-${hour.day}`}>Fechado</label>
               </div>
             </div>
           ))}
@@ -198,83 +194,14 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
   );
 }
 
-function PoliciesTab({ policies, onChange, onGenerate, generatingPolicy }: {
-  policies: PoliciesForm;
-  onChange: (p: PoliciesForm) => void;
-  onGenerate: (type: "privacy" | "returns" | "terms" | "shipping") => void;
-  generatingPolicy: string | null;
-}) {
-  const fieldStyle: React.CSSProperties = { width: "100%", padding: "8px 12px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", fontSize: "13px", outline: "none", fontFamily: "inherit", resize: "vertical", color: "var(--color-text)" };
-
-  const fields: Array<{ key: "privacy" | "returns" | "terms" | "shipping"; label: string }> = [
-    { key: "privacy", label: "Política de Privacidade" },
-    { key: "returns", label: "Política de Devolução e Trocas" },
-    { key: "terms", label: "Termos de Uso" },
-    { key: "shipping", label: "Política de Envio e Frete" },
-  ];
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {fields.map(({ key, label }) => (
-        <div key={key} style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-faint)" }}>{label}</span>
-            <button
-              type="button"
-              onClick={() => onGenerate(key)}
-              disabled={generatingPolicy !== null}
-              style={{
-                display: "flex", alignItems: "center", gap: 5,
-                padding: "4px 10px", borderRadius: 6,
-                border: "1px solid var(--color-border)",
-                background: "var(--surface-2)",
-                font: "500 11px var(--font-sans)",
-                color: generatingPolicy === key ? "var(--color-success)" : "var(--color-text-muted)",
-                cursor: generatingPolicy !== null ? "not-allowed" : "pointer",
-                opacity: generatingPolicy !== null && generatingPolicy !== key ? 0.5 : 1,
-              }}
-            >
-              <Sparkles size={12} />
-              {generatingPolicy === key ? "Gerando..." : "Gerar com IA"}
-            </button>
-          </div>
-          <textarea style={{ ...fieldStyle, minHeight: 80 }} placeholder={`URL ou texto da ${label.toLowerCase()}`} value={policies[key]} onChange={(e) => onChange({ ...policies, [key]: e.target.value })} />
-        </div>
-      ))}
-    </div>
-  );
+function PoliciesTab({ policies, onChange, onGenerate, generatingPolicy }: { policies: PoliciesForm; onChange: (p: PoliciesForm) => void; onGenerate: (type: keyof PoliciesForm) => void; generatingPolicy: string | null }) {
+  const fields: Array<{ key: keyof PoliciesForm; label: string }> = [{ key: "privacy", label: "Política de privacidade" }, { key: "returns", label: "Trocas e devoluções" }, { key: "terms", label: "Termos de uso" }, { key: "shipping", label: "Envio e frete" }];
+  return <div className="store-policy-list"><p className="admin-help">Explique as condições da loja em linguagem simples. A IA cria um rascunho; revise os dados e salve para aplicar o texto.</p>{fields.map(({key,label}) => <section key={key}><FormTextarea label={label} value={policies[key]} onChange={v => onChange({ ...policies, [key]: v })} placeholder="Informe o texto ou o endereço da política" rows={6} /><div className="admin-actions"><Button aria-label={`Gerar rascunho de ${label.toLowerCase()}`} variant="outline" disabled={generatingPolicy !== null} loading={generatingPolicy === key} onClick={() => onGenerate(key)}><Sparkles size={16} /> Gerar rascunho</Button></div></section>)}</div>;
 }
 
-function SocialTab({ social, onChange }: {
-  social: SocialForm;
-  onChange: (s: SocialForm) => void;
-}) {
-  const fieldStyle: React.CSSProperties = { flex: 1, padding: "8px 12px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", fontSize: "13px", outline: "none" };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-      <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Instagram size={18} style={{ color: "var(--color-success)", flex: "none" }} />
-        <input placeholder="https://instagram.com/sua-loja" value={social.instagram} onChange={(e) => onChange({ ...social, instagram: e.target.value })} style={fieldStyle} />
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Facebook size={18} style={{ color: "var(--color-success)", flex: "none" }} />
-        <input placeholder="https://facebook.com/sua-loja" value={social.facebook} onChange={(e) => onChange({ ...social, facebook: e.target.value })} style={fieldStyle} />
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Linkedin size={18} style={{ color: "var(--color-success)", flex: "none" }} />
-        <input placeholder="https://linkedin.com/company/sua-empresa" value={social.linkedin} onChange={(e) => onChange({ ...social, linkedin: e.target.value })} style={fieldStyle} />
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <Youtube size={18} style={{ color: "var(--color-success)", flex: "none" }} />
-        <input placeholder="https://youtube.com/@seu-canal" value={social.youtube} onChange={(e) => onChange({ ...social, youtube: e.target.value })} style={fieldStyle} />
-      </label>
-      <label style={{ display: "flex", alignItems: "center", gap: 12 }}>
-        <MapPin size={18} style={{ color: "var(--color-success)", flex: "none" }} />
-        <input placeholder="https://maps.google.com/..." value={social.googleMaps} onChange={(e) => onChange({ ...social, googleMaps: e.target.value })} style={fieldStyle} />
-      </label>
-    </div>
-  );
+function SocialTab({ social, onChange }: { social: SocialForm; onChange: (s: SocialForm) => void }) {
+  const fields: Array<{key:keyof SocialForm;label:string;placeholder:string}> = [{key:"instagram",label:"Instagram",placeholder:"https://instagram.com/sua-loja"},{key:"facebook",label:"Facebook",placeholder:"https://facebook.com/sua-loja"},{key:"linkedin",label:"LinkedIn",placeholder:"https://linkedin.com/company/sua-empresa"},{key:"youtube",label:"YouTube",placeholder:"https://youtube.com/@seu-canal"},{key:"googleMaps",label:"Localização no Google Maps",placeholder:"https://maps.google.com/..."}];
+  return <div><SectionHeader title="Canais da loja" variant="secondary" /><p className="admin-help">Adicione os links completos dos canais que seus clientes podem visitar. Preencha apenas os que a loja utiliza.</p><div className="admin-fields">{fields.map(({key,label,placeholder}) => <FormField key={key} label={label} type="url" placeholder={placeholder} value={social[key]} onChange={v => onChange({ ...social, [key]: v })} />)}</div></div>;
 }
 
 function StylesTab({ styles, onChange }: {
@@ -337,7 +264,7 @@ function StylesTab({ styles, onChange }: {
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 20 }}>
         {/* Logo */}
         <div>
-          <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Logotipo</h3>
+          <SectionHeader title="Logotipo" variant="secondary" />
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ width: 64, height: 64, borderRadius: "50%", border: "1px solid var(--color-border)", background: "var(--surface-1)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {logoPreview ? (
@@ -372,7 +299,7 @@ function StylesTab({ styles, onChange }: {
 
         {/* Favicon */}
         <div>
-          <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Favicon</h3>
+          <SectionHeader title="Favicon" variant="secondary" />
           <div style={{ display: "flex", alignItems: "center", gap: 16 }}>
             <div style={{ width: 48, height: 48, borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-1)", overflow: "hidden", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
               {faviconPreview ? (
@@ -408,8 +335,8 @@ function StylesTab({ styles, onChange }: {
 
       {/* Colors */}
       <div>
-        <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Cores</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <SectionHeader title="Cores" variant="secondary" />
+        <div className="admin-fields">
           <label style={{ display: "flex", flexDirection: "column", gap: 4 }}>
             <span style={{ fontSize: 11, fontWeight: 600, color: "var(--color-text-faint)" }}>Cor Primária</span>
             <div style={{ display: "flex", gap: 8 }}>
@@ -429,8 +356,8 @@ function StylesTab({ styles, onChange }: {
 
       {/* Fonts */}
       <div>
-        <h3 style={{ font: "600 13px var(--font-sans)", marginBottom: 12, color: "var(--color-brand)" }}>Tipografia</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+        <SectionHeader title="Tipografia" variant="secondary" />
+        <div className="admin-fields">
           <FormSelect label="Fonte de Títulos" value={styles.fontDisplay} onChange={(v) => onChange({ ...styles, fontDisplay: v })} options={FONT_OPTIONS.map((font) => ({ value: font, label: font.split(",")[0].trim() }))} />
           <FormSelect label="Fonte de Corpo" value={styles.fontFamily} onChange={(v) => onChange({ ...styles, fontFamily: v })} options={FONT_OPTIONS.map((font) => ({ value: font, label: font.split(",")[0].trim() }))} />
         </div>
@@ -438,4 +365,3 @@ function StylesTab({ styles, onChange }: {
     </div>
   );
 }
-

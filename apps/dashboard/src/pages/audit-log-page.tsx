@@ -1,51 +1,25 @@
 import React from "react";
-import { Activity, ChevronRight, Download, RefreshCw, ShieldCheck } from "lucide-react";
+import { Activity, ChevronRight, Download, ShieldCheck } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
+import { PageHeader } from "../components/PageHeader.js";
 import { Button } from "../components/Button.js";
-import { StatCard } from "./overview/components/StatCard.js";
 import { DataPanel } from "../components/DataPanel.js";
-import {
-  useAuditLogPage,
-  type AuditFilters,
-  actionBadgeClass,
-  formatRelativeTime,
-  formatAbsoluteTime,
-} from "./useAuditLogPage.js";
+import { EmptyState } from "../components/EmptyState.js";
+import { FilterSelect, FilterToolbar } from "../components/FilterToolbar.js";
+import { StatCard } from "./overview/components/StatCard.js";
+import { useAuditLogPage, actionBadgeClass, formatAbsoluteTime, formatRelativeTime, type AuditFilters } from "./useAuditLogPage.js";
+import "./administration-pages.css";
 
 export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useAuditLogPage({ me: props.me });
-
-  if (!props.me) {
-    return (
-      <header className="page-head">
-        <div>
-          <h1>Auditoria</h1>
-          <p className="page-lead">Login necessário para acompanhar as ações do painel</p>
-        </div>
-      </header>
-    );
-  }
-
-  return (
-    <>
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Conta</span>
-          <h1>Log de Auditoria</h1>
-          <p className="page-lead">Acompanhe todas as ações realizadas no painel</p>
-        </div>
-        <div className="button-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <Button variant="primary" size="sm" arrow onClick={vm.exportCsv} aria-label="Exportar registros">
-            <Download size={14} /> Exportar
-          </Button>
-        </div>
-      </header>
-
-      {vm.error && !vm.loading ? <p className="panel panel-warn">{vm.error}</p> : null}
-
+  const filtered = Object.values(vm.filters).some(v => v !== "all");
+  const clearFilters = () => vm.setFilters({ dateRange: "all", actionCategory: "all", actorType: "all" });
+  if (!props.me) return <PageHeader title="Histórico de atividades" description="Entre na sua conta para consultar as atividades da loja." />;
+  return <div className="administration-page">
+    <PageHeader title="Histórico de atividades" description="Consulte quem realizou cada ação e quando ela aconteceu." actions={<Button variant="outline" disabled={vm.loading || !vm.totalFiltered} onClick={vm.exportCsv}><Download size={16} /> Exportar registros carregados</Button>} />
       {/* KPIs */}
       {!vm.loading && vm.events.length > 0 ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 14, marginBottom: 20 }}>
+        <div className="grid-3" style={{ gap: 14, marginBottom: 20 }}>
           <StatCard
             label="Total de eventos"
             value={vm.events.length}
@@ -64,193 +38,25 @@ export function AuditLogPage(props: { apiBaseUrl: string; me: MerchantProfile | 
         </div>
       ) : null}
 
-      {/* Filters */}
-      <div className="audit-filter-bar" style={{ display: "flex", gap: "var(--space-3)", alignItems: "center", marginBottom: "var(--space-4)", flexWrap: "wrap" }}>
-        <select
-          value={vm.filters.dateRange}
-          onChange={e => vm.setFilters(f => ({ ...f, dateRange: e.target.value as AuditFilters["dateRange"] }))}
-          style={{ flex: 1, minWidth: 120 }}
-        >
-          <option value="all">Período</option>
-          <option value="7d">7 dias</option>
-          <option value="30d">30 dias</option>
-          <option value="90d">90 dias</option>
-        </select>
-        <select
-          value={vm.filters.actionCategory}
-          onChange={e => vm.setFilters(f => ({ ...f, actionCategory: e.target.value as AuditFilters["actionCategory"] }))}
-          style={{ flex: 1, minWidth: 120 }}
-        >
-          <option value="all">Tipo de ação</option>
-          <option value="destructive">Exclusão</option>
-          <option value="constructive">Criação</option>
-          <option value="update">Alteração</option>
-        </select>
-        <select
-          value={vm.filters.actorType}
-          onChange={e => vm.setFilters(f => ({ ...f, actorType: e.target.value as AuditFilters["actorType"] }))}
-          style={{ flex: 1, minWidth: 120 }}
-        >
-          <option value="all">Autor</option>
-          <option value="human">Pessoa</option>
-          <option value="service">Sistema</option>
-        </select>
-        <span className="audit-summary" style={{ marginLeft: "auto", whiteSpace: "nowrap" }}>
-          Exibindo {vm.pagedEvents.length} de {vm.totalFiltered} eventos
-        </span>
-      </div>
 
-      {/* Table content */}
-      <div aria-live="polite" aria-busy={vm.loading}>
-        {vm.loading ? (
-          <DataPanel
-            title="Eventos recentes"
-            page={vm.page}
-            pageSize={vm.pageSize}
-            total={vm.totalFiltered}
-            onPageChange={vm.setPage}
-            isEmpty={false}
-          >
-            <div className="table-wrap">
-              <table className="data-table">
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Tipo</th>
-                    <th>Ação</th>
-                    <th>Recurso</th>
-                    <th>Resultado</th>
-                    <th>Ator</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Array.from({ length: 5 }).map((_, i) => (
-                    <tr key={i} className="skeleton-row">
-                      <td><div className="skeleton-cell" style={{ width: 80 }} /></td>
-                      <td><div className="skeleton-cell" style={{ width: 50 }} /></td>
-                      <td><div className="skeleton-cell" style={{ width: 100 }} /></td>
-                      <td><div className="skeleton-cell" style={{ width: 90 }} /></td>
-                      <td><div className="skeleton-cell" style={{ width: 60 }} /></td>
-                      <td><div className="skeleton-cell" style={{ width: 70 }} /></td>
-                      <td><div className="skeleton-cell" style={{ width: 20 }} /></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </DataPanel>
-        ) : (
-          <DataPanel
-            title="Eventos recentes"
-            page={vm.page}
-            pageSize={vm.pageSize}
-            total={vm.totalFiltered}
-            onPageChange={vm.setPage}
-            isEmpty={vm.pagedEvents.length === 0}
-            empty={{ icon: ShieldCheck, title: "Nenhuma atividade registrada", description: "Nenhuma atividade registrada no período selecionado." }}
-          >
-            <div className="table-wrap">
-              <table className="data-table">
-                <caption className="sr-only">Log de auditoria do merchant</caption>
-                <thead>
-                  <tr>
-                    <th>Data</th>
-                    <th>Tipo</th>
-                    <th>Ação</th>
-                    <th>Recurso</th>
-                    <th>Resultado</th>
-                    <th>Ator</th>
-                    <th></th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {vm.pagedEvents.map((evt, idx) => (
-                    <React.Fragment key={evt.id}>
-                      <tr style={{ background: idx % 2 === 0 ? "var(--color-surface-raised)" : undefined, borderBottom: "1px solid var(--color-border)" }}>
-                        <td>
-                          <time dateTime={evt.occurred_at} title={formatAbsoluteTime(evt.occurred_at)}>
-                            {formatRelativeTime(evt.occurred_at)}
-                          </time>
-                        </td>
-                        <td>
-                          <span className={`actor-badge ${evt.actor_type}`}>
-                            {evt.actor_type === "human" ? "Pessoa" : "Sistema"}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={actionBadgeClass(evt.action)} style={{ display: "inline-block", fontSize: 11, padding: "2px 8px", whiteSpace: "nowrap", minWidth: 72, textAlign: "center" }}>
-                            <code>{evt.action}</code>
-                          </span>
-                        </td>
-                        <td>
-                          <span>{evt.resource_type}</span>
-                          {evt.resource_id ? (
-                            <code style={{ display: "block", fontSize: 10, color: "var(--color-muted)", marginTop: 2 }}>{evt.resource_id}</code>
-                          ) : null}
-                        </td>
-                        <td>
-                          <span className={evt.outcome === "failed" ? "badge bad" : "badge ok"} style={{ fontSize: 10, padding: "2px 6px" }}>
-                            {evt.outcome === "failed" ? "Falhou" : "OK"}
-                          </span>
-                        </td>
-                        <td>
-                          <code>{evt.actor_id ?? "sistema"}</code>
-                        </td>
-                        <td>
-                          <button
-                            type="button"
-                            onClick={() => vm.toggleExpand(evt.id)}
-                            aria-expanded={vm.expandedRowId === evt.id}
-                            aria-controls={`detail-${evt.id}`}
-                            aria-label="Expandir detalhes do evento"
-                            style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}
-                          >
-                            <ChevronRight
-                              size={14}
-                              style={{
-                                transform: vm.expandedRowId === evt.id ? "rotate(90deg)" : "none",
-                                transition: "transform 0.15s",
-                              }}
-                            />
-                          </button>
-                        </td>
-                      </tr>
-                      {vm.expandedRowId === evt.id ? (
-                        <tr className="audit-detail-row" id={`detail-${evt.id}`}>
-                          <td colSpan={7}>
-                            <div style={{ display: "flex", flexDirection: "column", gap: 8, padding: "8px 0" }}>
-                              {evt.correlation_id ? (
-                                <p style={{ margin: 0, fontSize: 12 }}>
-                                  <strong>ID Correlação:</strong> <code>{evt.correlation_id}</code>
-                                </p>
-                              ) : null}
-                              {evt.ip_address ? (
-                                <p style={{ margin: 0, fontSize: 12 }}>
-                                  <strong>IP:</strong> <code>{evt.ip_address}</code>
-                                </p>
-                              ) : null}
-                              {evt.user_agent ? (
-                                <p style={{ margin: 0, fontSize: 12 }}>
-                                  <strong>User-Agent:</strong> <code style={{ wordBreak: "break-all" }}>{evt.user_agent}</code>
-                                </p>
-                              ) : null}
-                              <div>
-                                <strong style={{ fontSize: 12 }}>Metadados:</strong>
-                                <pre>{evt.metadata ? JSON.stringify(evt.metadata, null, 2) : "—"}</pre>
-                              </div>
-                            </div>
-                          </td>
-                        </tr>
-                      ) : null}
-                    </React.Fragment>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </DataPanel>
-        )}
-      </div>
-    </>
-  );
+    <FilterToolbar tabs={[]} activeTab="" onTabChange={() => {}} extra={<>
+      <FilterSelect ariaLabel="Período" value={vm.filters.dateRange} onChange={v => vm.setFilters(f => ({ ...f, dateRange: v as AuditFilters["dateRange"] }))} options={[{value:"all",label:"Todo o período"},{value:"7d",label:"Últimos 7 dias"},{value:"30d",label:"Últimos 30 dias"},{value:"90d",label:"Últimos 90 dias"}]} />
+      <FilterSelect ariaLabel="Tipo de ação" value={vm.filters.actionCategory} onChange={v => vm.setFilters(f => ({ ...f, actionCategory: v as AuditFilters["actionCategory"] }))} options={[{value:"all",label:"Todas as ações"},{value:"destructive",label:"Exclusões"},{value:"constructive",label:"Criações"},{value:"update",label:"Alterações"}]} />
+      <FilterSelect ariaLabel="Autor da ação" value={vm.filters.actorType} onChange={v => vm.setFilters(f => ({ ...f, actorType: v as AuditFilters["actorType"] }))} options={[{value:"all",label:"Todos os autores"},{value:"human",label:"Pessoas"},{value:"service",label:"Sistema"}]} />
+      {filtered && <Button variant="ghost" onClick={clearFilters}>Limpar filtros</Button>}
+    </>} />
+    <p className="sr-only" role="status" aria-live="polite" aria-atomic="true">
+      {vm.loading ? "Carregando atividades." : vm.loadingMore ? "Carregando registros anteriores." : vm.error ? "Não foi possível carregar as atividades." : vm.moreError ? "Não foi possível carregar mais registros. Os registros atuais foram mantidos." : `${vm.totalFiltered} atividades encontradas. Exibindo ${vm.pagedEvents.length} na página ${vm.page}.`}
+    </p>
+    {vm.loading ? <section className="panel admin-skeleton" aria-label="Carregando atividades" aria-busy="true">{[1,2,3,4].map(n => <div key={n} className="skeleton-cell" />)}</section> : vm.error ? <section className="panel"><EmptyState icon={ShieldCheck} title="Histórico indisponível" description="Não foi possível consultar as atividades. Tente novamente para acessar os registros." action={<Button variant="outline" onClick={() => void vm.load()}>Tentar novamente</Button>} /></section> : <>
+      <DataPanel title="Atividades registradas" page={vm.page} pageSize={vm.pageSize} total={vm.totalFiltered} onPageChange={vm.setPage} isEmpty={!vm.pagedEvents.length} empty={{icon:ShieldCheck,title:filtered ? "Nenhuma atividade com estes filtros" : "Nenhuma atividade registrada",description:filtered ? "Altere os filtros ou carregue registros anteriores, se disponíveis." : "As ações realizadas na loja aparecerão aqui com data, autor e resultado.",action:filtered ? <Button variant="outline" onClick={clearFilters}>Limpar filtros</Button> : undefined}}>
+        <div className="table-wrap"><table className="data-table"><caption className="sr-only">Atividades da loja</caption><thead><tr><th>Data</th><th>Tipo de autor</th><th>Ação</th><th>Recurso</th><th>Resultado</th><th>Autor</th><th><span className="sr-only">Detalhes</span></th></tr></thead><tbody>{vm.pagedEvents.map(evt => <React.Fragment key={evt.id}>
+          <tr><td><time dateTime={evt.occurred_at} title={formatAbsoluteTime(evt.occurred_at)}>{formatRelativeTime(evt.occurred_at)}</time></td><td>{evt.actor_type === "human" ? "Pessoa" : "Sistema"}</td><td><span className={actionBadgeClass(evt.action)}>{evt.action}</span></td><td>{evt.resource_type}</td><td><span className={`badge ${evt.outcome === "failed" ? "bad" : "ok"}`}>{evt.outcome === "failed" ? "Falhou" : "Concluído"}</span></td><td>{evt.actor_id ?? "Sistema"}</td><td><Button className="admin-icon-action" variant="ghost" aria-label={`${vm.expandedRowId === evt.id ? "Recolher" : "Ver"} detalhes de ${evt.action}`} aria-expanded={vm.expandedRowId === evt.id} aria-controls={`detail-${evt.id}`} onClick={() => vm.toggleExpand(evt.id)}><ChevronRight size={18} style={{transform:vm.expandedRowId === evt.id ? "rotate(90deg)" : undefined}} /></Button></td></tr>
+          {vm.expandedRowId === evt.id && <tr id={`detail-${evt.id}`}><td colSpan={7}><div className="admin-detail"><p><strong>Data e hora:</strong> {formatAbsoluteTime(evt.occurred_at)}</p>{evt.resource_id && <p><strong>Identificador do recurso:</strong> <code>{evt.resource_id}</code></p>}{evt.correlation_id && <p><strong>Identificador de rastreamento:</strong> <code>{evt.correlation_id}</code></p>}{evt.ip_address && <p><strong>Endereço IP:</strong> <code>{evt.ip_address}</code></p>}{evt.user_agent && <p><strong>Navegador ou aplicativo:</strong> <code>{evt.user_agent}</code></p>}<div><strong>Dados do evento</strong><pre>{evt.metadata ? JSON.stringify(evt.metadata,null,2) : "Nenhum dado adicional registrado."}</pre></div></div></td></tr>}
+        </React.Fragment>)}</tbody></table></div>
+      </DataPanel>
+      <div className="admin-list-footer"><p className="admin-help">{vm.events.length} registros carregados. Os filtros e a exportação consideram esses registros.</p>{vm.hasMore && <Button variant="outline" onClick={() => void vm.loadMore()} loading={vm.loadingMore}>Carregar registros anteriores</Button>}</div>
+      {vm.moreError && <p role="alert" className="admin-feedback admin-feedback--error">Não foi possível carregar mais registros. Os registros atuais foram mantidos. Tente novamente.</p>}
+    </>}
+  </div>;
 }

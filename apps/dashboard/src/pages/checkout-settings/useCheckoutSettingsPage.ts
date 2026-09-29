@@ -16,9 +16,9 @@ function errText(e: unknown): string {
     if (e.status === 412) {
       return "As configurações foram alteradas desde a última leitura. Recarregue-as, revise e tente salvar novamente.";
     }
-    return e.responseBody.slice(0, 160);
+    return "Não foi possível concluir a solicitação. Tente novamente.";
   }
-  return e instanceof Error ? e.message : String(e);
+  return "Não foi possível concluir a solicitação. Tente novamente.";
 }
 
 export interface CheckoutSettingsViewModel {
@@ -96,7 +96,7 @@ export function useCheckoutSettingsPage(props: {
   }
 
   async function save() {
-    if (!draft) return;
+    if (!draft || busy || reloadRequired || !settings) return;
     const errs = validate(draft);
     if (Object.keys(errs).length > 0) {
       setMessage({ text: "Corrija os erros antes de salvar.", kind: "error" });
@@ -115,7 +115,6 @@ export function useCheckoutSettingsPage(props: {
       const conflict = e instanceof DashboardHttpError && e.status === 412;
       setMessage({ text: `Erro ao salvar: ${errText(e)}`, kind: "error" });
       setReloadRequired(conflict);
-      showToast("error", conflict ? "A configuração mudou. Recarregue antes de salvar." : `Erro ao salvar: ${errText(e)}`);
       reportError({ source: "checkout-settings.save", error: e, severity: "warning" });
     } finally {
       setBusy(false);
@@ -123,12 +122,6 @@ export function useCheckoutSettingsPage(props: {
   }
 
   function restoreDefaults() {
-    if (
-      !window.confirm(
-        "Voltar tudo para o padrão recomendado? Você ainda precisa salvar para aplicar."
-      )
-    )
-      return;
     setDraft({ ...DEFAULT_DRAFT, triggers: { ...DEFAULT_DRAFT.triggers } });
     setMessage({
       text: "Valores padrão carregados. Revise e salve para aplicar.",

@@ -561,3 +561,15 @@
   line-height: 1.2;
 }
 .fnl-bar-count { flex-shrink: 0; }
+
+/* Filters follow the shared form layout; metric selectors remain unchanged. */
+.funnel-query { padding: 24px; display: grid; gap: 24px; }
+.funnel-query-periods { display: flex; flex-wrap: wrap; gap: 8px; }
+.funnel-query > .configuration-form { gap: 20px; }
+.funnel-query-compare { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-top: 28px; font: 14px/1.5 var(--font-sans); cursor: pointer; }
+.funnel-query-compare input { appearance: auto; width: 18px; height: 18px; min-width: 18px; margin: 0; accent-color: var(--color-brand); }
+.funnel-query > button { justify-self: start; }
+.funnel-reading-note { margin: 0; max-width: 75ch; font: 13px/1.6 var(--font-sans); color: var(--color-text-muted); }
+.funnel-page .fnl-chart-card, .funnel-page .fnl-breakdown-card { min-width: 0; }
+.funnel-page .fnl-bottleneck-title { text-transform: none; letter-spacing: normal; font: 600 15px/1.5 var(--font-sans); }
+@media(max-width:600px) { .funnel-query { padding: 16px; } .funnel-query-compare { margin-top: 0; } }

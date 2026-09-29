@@ -1,4 +1,6 @@
-import React, { useState } from "react";
+import { SetupGuide } from "../../components/SetupGuide.js";
+import { PageHeader } from "../../components/PageHeader.js";
+import React, { useId, useState } from "react";
 import { Star, ThumbsUp, ThumbsDown, MessageCircle, CheckCircle2, Settings } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { StatCard } from "../overview/components/StatCard.js";
@@ -6,6 +8,7 @@ import { TabBar } from "../../components/TabBar.js";
 import { DataPanel } from "../../components/DataPanel.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { Button } from "../../components/Button.js";
+import { EmptyState } from "../../components/EmptyState.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
 import { usePostSalePage } from "./usePostSalePage.js";
 import { usePostSaleConfig } from "./usePostSaleConfig.js";
@@ -24,29 +27,18 @@ export function PostSalePage(props: PostSalePageProps) {
 
   if (!props.me) {
     return (
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Pós-Venda</span>
-          <h1>Pós-Venda</h1>
-          <p className="page-lead">Login necessário</p>
-        </div>
-      </header>
+      <PageHeader title="Pós-venda" description="Login necessário" />
     );
   }
 
   return (
-    <div className="page-container">
+    <div className="page-container post-sale-page">
       {/* Header */}
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Inteligência IA</span>
-          <h1 style={{ color: "var(--color-brand)" }}>Pós-Venda</h1>
-          <p className="page-lead">Engajamento inteligente após a compra. Envie follow-ups personalizados, colete reviews e NPS com IA</p>
-        </div>
-      </header>
+      <PageHeader title="Pós-venda" description="Configure mensagens após a compra e acompanhe as avaliações e a satisfação dos seus compradores." />
+      <SetupGuide title="Como configurar mensagens após a compra" steps={[{"title":"Escolha o cenário","description":"Defina a finalidade da mensagem, como acompanhar a compra ou solicitar uma avaliação."},{"title":"Configure momento e canal","description":"Revise o intervalo e o canal. O envio depende da conexão, das permissões do cliente e das aprovações indicadas."},{"title":"Revise o texto e salve","description":"Confira a mensagem e salve o rascunho. Acompanhe os estados das tentativas; mensagem enviada não comprova entrega ao cliente."}]} />
 
       {/* Stats Row */}
-      <div className="grid-4" style={{ gap: 14 }}>
+      {!vm.loading && !vm.error && <div className="grid-4" style={{ gap: 14 }}>
         <StatCard
           icon={<MessageCircle size={16} />}
           value={vm.stats?.totalMessagesSent ?? 0}
@@ -73,24 +65,25 @@ export function PostSalePage(props: PostSalePageProps) {
           value={vm.stats?.npsAverage?.toFixed(1) ?? "—"}
           label="NPS Score"
         />
-      </div>
+      </div>}
 
       {/* Tabs */}
       <TabBar
         tabs={[
           { key: "overview", label: "Visão geral" },
-          { key: "reviews", label: `Reviews (${vm.reviews.length})` },
-          { key: "nps", label: `NPS (${vm.npsItems.length})` },
+          { key: "reviews", label: `Avaliações (${vm.reviewsTotal})` },
+          { key: "nps", label: `Satisfação (${vm.npsTotal})` },
           { key: "config", label: "Configurações" },
         ]}
         activeTab={tab}
         onTabChange={(k) => setTab(k as "overview" | "reviews" | "nps" | "config")}
       />
 
+      {tab !== "config" && vm.error && <EmptyState title="Resultados indisponíveis" description={vm.error} action={<Button variant="outline" onClick={vm.retry}>Tentar novamente</Button>} />}
       {/* Overview Tab */}
-      {tab === "overview" && (
+      {tab === "overview" && !vm.error && (
         <div className="panel" style={{ padding: "20px 24px" }}>
-          <SectionHeader title="Resumo de Atividades" variant="secondary" />
+          <SectionHeader title="Resumo das mensagens" variant="secondary" />
           {vm.loading ? (
             <div style={{ padding: "40px 0", textAlign: "center", color: "var(--color-text-faint)" }}>
               Carregando...
@@ -115,7 +108,7 @@ export function PostSalePage(props: PostSalePageProps) {
               </div>
               <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "12px 0" }}>
                 <div style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>
-                  Taxa de entrega
+                  Enviadas / programadas
                 </div>
                 <div style={{ font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>
                   {vm.stats?.totalMessagesScheduled
@@ -129,27 +122,29 @@ export function PostSalePage(props: PostSalePageProps) {
       )}
 
       {/* Reviews Tab */}
-      {tab === "reviews" && (
+      {tab === "reviews" && !vm.error && (
         <DataPanel
-          title="Reviews"
-          isEmpty={vm.reviews.length === 0}
-          empty={{ icon: Star, title: "Nenhum review", description: "Reviews aparecerão aqui após buyers submeterem" }}
+          title="Avaliações" page={vm.reviewsPage} pageSize={20} total={vm.reviewsTotal} onPageChange={page => { if (!vm.loading) vm.setReviewsPage(page); }}
+          isEmpty={!vm.loading && vm.reviews.length === 0}
+          empty={{ icon: Star, title: "Nenhuma avaliação recebida", description: "As avaliações dos compradores aparecerão aqui conforme forem enviadas." }}
         >
-          {vm.reviews.length > 0 && (
+          {vm.moderationError && <p className="post-sale-template-editor__feedback post-sale-template-editor__feedback--error" role="alert">{vm.moderationError}</p>}
+          {vm.loading && <p role="status" className="post-sale-results-loading">Carregando avaliações…</p>}
+          {!vm.loading && vm.reviews.length > 0 && (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>
                       Avaliação
                     </th>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>
                       Texto
                     </th>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>
                       Status
                     </th>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>
                       Ações
                     </th>
                   </tr>
@@ -158,7 +153,7 @@ export function PostSalePage(props: PostSalePageProps) {
                   {vm.reviews.map((review, i) => (
                     <tr key={review.id} style={{ borderBottom: i < vm.reviews.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
                       <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)" }}>
-                        <span style={{ display: "flex", gap: 4, alignItems: "center" }}>
+                        <span role="img" aria-label={`${review.rating} de 5 estrelas`} style={{ display: "flex", gap: 4, alignItems: "center" }}>
                           {[...Array(5)].map((_, idx) => (
                             <span
                               key={idx}
@@ -179,7 +174,7 @@ export function PostSalePage(props: PostSalePageProps) {
                         <span style={{
                           padding: "2px 8px",
                           borderRadius: "var(--radius-full)",
-                          font: "600 10px var(--font-mono)",
+                          font: "500 12px var(--font-sans)",
                           background: review.moderationStatus === "approved" ? "var(--color-success-bg)" : "var(--color-warning-bg)",
                           color: review.moderationStatus === "approved" ? "var(--color-success)" : "var(--color-warning)",
                         }}>
@@ -192,12 +187,14 @@ export function PostSalePage(props: PostSalePageProps) {
                             <Button
                               size="sm"
                               variant="primary"
+                              disabled={!!vm.moderatingId} loading={vm.moderatingId === review.id}
                               onClick={() => vm.handleModerateReview(review.id, "approved")}
                             >
                               Aprovar
                             </Button>
                             <Button
                               size="sm"
+                              disabled={!!vm.moderatingId}
                               onClick={() => vm.handleModerateReview(review.id, "rejected")}
                             >
                               Rejeitar
@@ -215,27 +212,28 @@ export function PostSalePage(props: PostSalePageProps) {
       )}
 
       {/* NPS Tab */}
-      {tab === "nps" && (
+      {tab === "nps" && !vm.error && (
         <DataPanel
-          title="NPS Responses"
-          isEmpty={vm.npsItems.length === 0}
-          empty={{ icon: ThumbsUp, title: "Sem respostas NPS", description: "NPS aparecerá aqui após buyers responderem" }}
+          title="Respostas de satisfação" page={vm.npsPage} pageSize={20} total={vm.npsTotal} onPageChange={page => { if (!vm.loading) vm.setNpsPage(page); }}
+          isEmpty={!vm.loading && vm.npsItems.length === 0}
+          empty={{ icon: ThumbsUp, title: "Nenhuma resposta de satisfação", description: "As notas de 0 a 10 e os comentários aparecerão aqui conforme os compradores responderem à pesquisa." }}
         >
-          {vm.npsItems.length > 0 && (
+          {vm.loading && <p role="status" className="post-sale-results-loading">Carregando respostas…</p>}
+          {!vm.loading && vm.npsItems.length > 0 && (
             <div style={{ overflowX: "auto" }}>
               <table style={{ width: "100%", borderCollapse: "collapse" }}>
                 <thead>
                   <tr>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
-                      Score
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>
+                      Nota
                     </th>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>
                       Classificação
                     </th>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
-                      Feedback
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>
+                      Comentário
                     </th>
-                    <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
+                    <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>
                       Data
                     </th>
                   </tr>
@@ -250,7 +248,7 @@ export function PostSalePage(props: PostSalePageProps) {
                         <span style={{
                           padding: "2px 8px",
                           borderRadius: "var(--radius-full)",
-                          font: "600 10px var(--font-mono)",
+                          font: "500 12px var(--font-sans)",
                           background: item.classification === "promoter" ? "var(--color-success-bg)" : item.classification === "passive" ? "var(--color-warning-bg)" : "var(--color-error-bg)",
                           color: item.classification === "promoter" ? "var(--color-success)" : item.classification === "passive" ? "var(--color-warning)" : "var(--color-error)",
                         }}>
@@ -284,22 +282,24 @@ export function PostSalePage(props: PostSalePageProps) {
 }
 
 function CampaignSettings({ cfg }: { cfg: ReturnType<typeof usePostSaleConfig> }) {
+  const id = useId();
   const campaigns = [
-    { title: "Follow-up de Entrega", description: "Enviar mensagem após confirmação de entrega", enabled: cfg.config.followUpEnabled, update: (value: boolean) => cfg.update("followUpEnabled", value) },
-    { title: "Pedido de Review", description: `Agendar D+${cfg.config.reviewDelayDays}`, enabled: cfg.config.reviewEnabled, update: (value: boolean) => cfg.update("reviewEnabled", value) },
-    { title: "NPS", description: `Agendar D+${cfg.config.npsDelayDays}`, enabled: cfg.config.npsEnabled, update: (value: boolean) => cfg.update("npsEnabled", value) },
-    { title: "Cross-sell", description: `Agendar D+${cfg.config.crossSellDelayDays}`, enabled: cfg.config.crossSellEnabled, update: (value: boolean) => cfg.update("crossSellEnabled", value) },
-    { title: "Win-back com Cupom", description: `Escanear inativos após ${cfg.config.winBackThresholdDays} dias`, enabled: cfg.config.winBackEnabled, update: (value: boolean) => cfg.update("winBackEnabled", value) },
-    { title: "Cupom de Fidelidade", description: `Marcos: ${cfg.config.loyaltyMilestones.split(",").join(", ")}ª compra`, enabled: cfg.config.loyaltyEnabled, update: (value: boolean) => cfg.update("loyaltyEnabled", value) },
-    { title: "Recompra Consumível", description: "Lembrete de recompra automático", enabled: cfg.config.reorderEnabled, update: (value: boolean) => cfg.update("reorderEnabled", value) },
+    { title: "Acompanhamento da entrega", description: "Contato após a confirmação de entrega do pedido.", enabled: cfg.config.followUpEnabled, update: (value: boolean) => cfg.update("followUpEnabled", value) },
+    { title: "Pedido de avaliação", description: `${cfg.config.reviewDelayDays} dias após a confirmação de entrega.`, enabled: cfg.config.reviewEnabled, update: (value: boolean) => cfg.update("reviewEnabled", value) },
+    { title: "Pesquisa de satisfação (NPS)", description: `Peça uma nota de 0 a 10, ${cfg.config.npsDelayDays} dias após a confirmação de entrega.`, enabled: cfg.config.npsEnabled, update: (value: boolean) => cfg.update("npsEnabled", value) },
+    { title: "Produtos complementares", description: `${cfg.config.crossSellDelayDays} dias após a confirmação de entrega.`, enabled: cfg.config.crossSellEnabled, update: (value: boolean) => cfg.update("crossSellEnabled", value) },
+    { title: "Retorno de clientes", description: `Procura clientes sem compras há ${cfg.config.winBackThresholdDays} dias para um convite com cupom.`, enabled: cfg.config.winBackEnabled, update: (value: boolean) => cfg.update("winBackEnabled", value) },
+    { title: "Cupom de fidelidade", description: `Reconheça a fidelidade nas compras de número ${cfg.config.loyaltyMilestones.split(",").join(", ")}.`, enabled: cfg.config.loyaltyEnabled, update: (value: boolean) => cfg.update("loyaltyEnabled", value) },
+    { title: "Lembrete de recompra", description: "Lembrete para produtos que precisam de reposição.", enabled: cfg.config.reorderEnabled, update: (value: boolean) => cfg.update("reorderEnabled", value) },
   ];
 
   return (
     <section className="panel post-sale-campaigns" aria-busy={cfg.loading || cfg.saving}>
       <SectionHeader
-        title="Campanhas de Pós-Venda"
-        subtitle="Defina quais contatos entram na jornada depois da compra. Cada campanha respeita os canais e o consentimento do comprador."
+        title="Campanhas de pós-venda"
+        subtitle="Defina quais contatos entram na jornada depois da compra. Cada alteração é salva ao acionar o botão da campanha."
       />
+      {cfg.saveError && <p role="alert" className="post-sale-template-editor__feedback post-sale-template-editor__feedback--error">{cfg.saveError}</p>}
       {cfg.loading ? (
         <div className="post-sale-campaigns__loading" role="status">
           <span />
@@ -307,17 +307,17 @@ function CampaignSettings({ cfg }: { cfg: ReturnType<typeof usePostSaleConfig> }
           <span />
           Carregando campanhas…
         </div>
-      ) : (
+      ) : cfg.loadError ? <EmptyState title="Campanhas indisponíveis" description={cfg.loadError} action={<Button variant="outline" onClick={cfg.reload}>Tentar novamente</Button>} /> : (
         <div className="post-sale-campaigns__list">
-          {campaigns.map((campaign) => (
+          {campaigns.map((campaign, index) => (
             <article className="post-sale-campaign" data-enabled={campaign.enabled} key={campaign.title}>
               <div className="post-sale-campaign__content">
-                <h3>{campaign.title}</h3>
+                <h3><label htmlFor={`${id}-${index}`}>{campaign.title}</label></h3>
                 <p>{campaign.description}</p>
               </div>
               <div className="post-sale-campaign__control">
                 <span>{campaign.enabled ? "Ativa" : "Pausada"}</span>
-                <ToggleSwitch checked={campaign.enabled} disabled={cfg.saving} onChange={campaign.update} />
+                <ToggleSwitch id={`${id}-${index}`} checked={campaign.enabled} disabled={cfg.saving} onChange={campaign.update} />
               </div>
             </article>
           ))}

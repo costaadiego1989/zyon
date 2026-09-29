@@ -59,7 +59,7 @@ export function TriggerCard({
         {TRIGGER_ICONS[trigger] ?? <Zap size={18} strokeWidth={1.6} />}
       </div>
       <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", lineHeight: 1.3 }}>
+        <div id={`trigger-${trigger}`} style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", lineHeight: 1.3 }}>
           {TRIGGER_LABELS[trigger]}
         </div>
         <div style={{ font: "11.5px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2, lineHeight: 1.4 }}>

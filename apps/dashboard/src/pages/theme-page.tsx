@@ -1,4 +1,8 @@
-import React, { useEffect, useMemo, useState } from "react";
+import "./theme-page/theme-page.css";
+import { EmptyState } from "../components/EmptyState.js";
+import { ConfirmDialog } from "../components/ConfirmDialog.js";
+import { PageHeader } from "../components/PageHeader.js";
+import React, { useEffect, useMemo, useRef, useState } from "react";
 import { RotateCcw, Save, X, Type, Shield, Palette, Image, Layout } from "lucide-react";
 import { DEFAULT_MERCHANT_THEME, type MerchantTheme } from "@zyon/shared-types";
 import { createDashboardApi, DashboardHttpError, type MerchantProfile } from "../api-client.js";
@@ -25,15 +29,15 @@ export const LABELS = {
   reset: "Restaurar padrão",
   saveSuccess: "Tema salvo com sucesso.",
   resetConfirm: "Restaurar o tema padrão? Suas alterações não salvas serão perdidas.",
-  urlInvalid: "URL inválida — use https://...",
+  urlInvalid: "Use um endereço válido, começando com https://",
   unsavedChanges: "Alterações não salvas",
   badgesMax: "máximo 4",
   addBadge: "Adicionar",
 } as const;
 
 export const COLOR_FIELDS: Array<{ key: keyof MerchantTheme; label: string }> = [
-  { key: "accentColor", label: "Cor principal — botões e destaques" },
-  { key: "secondaryColor", label: "Cor secundária — elementos de apoio" },
+  { key: "accentColor", label: "Cor principal: botões e destaques" },
+  { key: "secondaryColor", label: "Cor secundária: elementos de apoio" },
   { key: "textColor", label: "Texto principal" },
   { key: "mutedTextColor", label: "Texto discreto" },
   { key: "backgroundColor", label: "Fundo da página" },
@@ -45,9 +49,9 @@ export const COLOR_FIELDS: Array<{ key: keyof MerchantTheme; label: string }> = 
 ];
 
 export const DENSITY_OPTIONS: Array<{ value: NonNullable<MerchantTheme["density"]>; label: string; desc: string }> = [
-  { value: "compact", label: "Estreito", desc: "Widget fino, ideal para sidebar" },
+  { value: "compact", label: "Estreito", desc: "Checkout estreito, ideal para uma coluna lateral" },
   { value: "comfortable", label: "Médio", desc: "Tamanho padrão equilibrado" },
-  { value: "spacious", label: "Full", desc: "Ocupa toda largura disponível" },
+  { value: "spacious", label: "Amplo", desc: "Ocupa toda largura disponível" },
 ];
 
 export function isValidUrl(value: string): boolean {
@@ -126,7 +130,12 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
   const [theme, setTheme] = useState<MerchantTheme>(mergeTheme());
   const [badgesText, setBadgesText] = useState((DEFAULT_MERCHANT_THEME.trustBadges ?? []).join(", "));
   const [badgeInput, setBadgeInput] = useState("");
-  const [busy, setBusy] = useState(false);
+  const [busy, setBusy] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [reload, setReload] = useState(0);
+  const [confirmReset, setConfirmReset] = useState(false);
+  const saving = useRef(false);
   const [loaded, setLoaded] = useState(false);
   const [initialTheme, setInitialTheme] = useState<MerchantTheme>(mergeTheme());
   const [initialBadges, setInitialBadges] = useState((DEFAULT_MERCHANT_THEME.trustBadges ?? []).join(", "));
@@ -136,17 +145,21 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     [theme, badgesText, initialTheme, initialBadges]
   );
 
+  const invalidColors = COLOR_FIELDS.filter(field => !/^#[0-9a-f]{6}$/i.test(String(theme[field.key] ?? "")));
+
   // ── Load theme ──
   useEffect(() => {
+    let active = true;
     async function load() {
       if (!props.me) {
         setTheme(mergeTheme());
         setLoaded(true);
         return;
       }
-      setBusy(true);
+      setBusy(true); setLoadError(null);
       try {
         const next = mergeTheme(await api.getMerchantTheme());
+        if (!active) return;
         setTheme(next);
         const badges = (next.trustBadges ?? []).join(", ");
         setBadgesText(badges);
@@ -155,14 +168,14 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       } catch (e) {
         reportError({ source: "theme-page-load", error: e });
         const text = e instanceof DashboardHttpError ? e.responseBody.slice(0, 160) : e instanceof Error ? e.message : String(e);
-        showToast("error", text);
+        if (active) setLoadError("Não foi possível carregar a aparência salva. Tente novamente antes de editar.");
       } finally {
-        setBusy(false);
-        setLoaded(true);
+        if (active) { setBusy(false); setLoaded(true); }
       }
     }
     void load();
-  }, [api, props.me]);
+    return () => { active = false; };
+  }, [api, props.me, reload]);
 
   // Preview updates reactively via ThemeInlinePreview props
 
@@ -188,6 +201,8 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
   }
 
   async function save() {
+    if (saving.current || !loaded || loadError || !dirty || invalidColors.length) return;
+    saving.current = true; setSaveError(null);
     setBusy(true);
     try {
       const payload = normalizedTheme();
@@ -219,17 +234,15 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     } catch (e) {
       reportError({ source: "theme-page-save", error: e });
       const text = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : String(e);
-      showToast("error", text);
+      setSaveError("Não foi possível salvar a aparência. Suas alterações foram preservadas para você tentar novamente.");
     } finally {
+      saving.current = false;
       setBusy(false);
     }
   }
 
   function reset() {
-    if (dirty) {
-      const confirmed = window.confirm(LABELS.resetConfirm);
-      if (!confirmed) return;
-    }
+    setConfirmReset(false); setSaveError(null);
     const next = mergeTheme();
     setTheme(next);
     setBadgesText((next.trustBadges ?? []).join(", "));
@@ -237,7 +250,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
   function addBadge() {
     const trimmed = badgeInput.trim();
-    if (!trimmed || !canAddBadge(badgesText)) return;
+    if (!trimmed || trimmed.length > 40 || !canAddBadge(badgesText)) return;
     const current = parseBadges(badgesText);
     current.push(trimmed);
     setBadgesText(current.join(", "));
@@ -254,36 +267,28 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
   if (!props.me) {
     return (
       <>
-        <header className="page-head">
-          <div>
-            <h1>Aparência</h1>
-            <p className="page-lead">{LABELS.loginRequired}</p>
-          </div>
-        </header>
+        <PageHeader title="Aparência do checkout" description="Personalize a identidade visual do checkout e confira as alterações na prévia." />
       </>
     );
   }
 
   return (
-    <>
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">CHECKOUT</span>
-          <h1>Aparência do checkout</h1>
-          <p className="page-lead">Adapte cores, fontes e imagens para combinar com sua marca</p>
-        </div>
-        <div className="button-row">
+    <div className="page-container theme-page">
+      <PageHeader title="Aparência do checkout" description="Personalize a identidade visual do checkout e confira as alterações na prévia." actions={<>
+<div className="button-row">
           {dirty && <span className="badge warn">Alterações não salvas</span>}
-          <Button variant="ghost" onClick={reset} disabled={busy}>
-            <RotateCcw size={14} style={{ marginRight: 6 }} /> Resetar
+          <Button variant="ghost" onClick={() => setConfirmReset(true)} disabled={busy || Boolean(loadError)}>
+            <RotateCcw size={14} style={{ marginRight: 6 }} /> Restaurar padrão
           </Button>
-          <Button variant="primary" arrow onClick={() => void save()} disabled={busy} loading={busy}>
+          <Button variant="primary" arrow onClick={() => void save()} disabled={busy || !dirty || Boolean(loadError) || invalidColors.length > 0} loading={busy}>
             <Save size={14} style={{ marginRight: 6 }} /> Salvar
           </Button>
         </div>
-      </header>
+</>} />
 
-      {!loaded && busy ? (
+      <ConfirmDialog open={confirmReset} title="Restaurar aparência padrão?" description="As cores, fontes e imagens da prévia voltarão ao padrão. A loja só será alterada quando você salvar." confirmLabel="Restaurar prévia" variant="default" busy={busy} onConfirm={reset} onCancel={() => setConfirmReset(false)} />
+      {saveError && <div className="panel-error" role="alert">{saveError}</div>}
+      {loadError ? <EmptyState icon={Palette} title="Aparência indisponível" description={loadError} action={<Button variant="outline" disabled={busy} onClick={() => setReload(value => value + 1)}>Tentar novamente</Button>} /> : !loaded ? (
         <div className="split-panel" data-testid="theme-skeleton">
           <div className="split-panel-controls">
             <section className="panel stacked skeleton-panel">
@@ -305,7 +310,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       ) : (
         <div className="split-panel">
           {/* ── controls column ── */}
-          <div className="split-panel-controls">
+          <fieldset className="split-panel-controls theme-page__controls configuration-form" disabled={busy}>
 
             {/* Panel 1 — Identidade */}
             <div className="panel stacked">
@@ -336,7 +341,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
             {/* Panel — Selos de confiança */}
             <div className="panel stacked">
-              <SectionHeader title="Selos de confiança" subtitle="Exibidos como badges no rodapé do widget. Máximo 4." />
+              <SectionHeader title="Selos de confiança" subtitle="Adicione até 4 informações curtas sobre a loja. Use apenas condições que você oferece." />
 
               {parseBadges(badgesText).length > 0 && (
                 <div className="chip-list">
@@ -351,42 +356,36 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 </div>
               )}
 
-              <div style={{ display: 'flex', gap: 'var(--space-2)' }}>
-                <input
-                  style={{ flex: 1 }}
-                  value={badgeInput}
-                  onChange={(e) => setBadgeInput(e.target.value)}
-                  onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addBadge(); } }}
-                  placeholder="Ex: Compra Segura, Frete Grátis..."
-                  disabled={!canAddBadge(badgesText)}
-                />
-                <Button variant="primary" onClick={addBadge} disabled={!badgeInput.trim() || !canAddBadge(badgesText)}>
-                  Adicionar selo
-                </Button>
-              </div>
+              <div className="theme-page__badge-entry"><FormField label="Novo selo" value={badgeInput} onChange={setBadgeInput} maxLength={40} disabled={busy || !canAddBadge(badgesText)} placeholder="Ex.: Compra segura" hint="Até 40 caracteres por selo." onKeyDown={event => { if (event.key === "Enter") { event.preventDefault(); addBadge(); } }} /><Button variant="outline" onClick={addBadge} disabled={!badgeInput.trim() || !canAddBadge(badgesText)}>Adicionar selo</Button></div>
               <span className="field-hint">{parseBadges(badgesText).length}/4 selos</span>
             </div>
 
             {/* Panel 2 — Cores */}
             <div className="panel stacked">
-              <SectionHeader title="Paleta de cores" variant="secondary" />
+              <SectionHeader title="Paleta de cores" subtitle="Use códigos hexadecimais de 6 dígitos, como #0F766E. Nos modos escuro e cinza, as cores de fundo e texto seguem a paleta do modo." variant="secondary" />
               <div className="theme-grid-2">
                 {COLOR_FIELDS.map((field) => (
                   <div key={String(field.key)} className="theme-color-field">
-                    <span className="theme-color-label">{field.label}</span>
+                    <label className="theme-color-label" htmlFor={"theme-color-" + field.key}>{field.label}</label>
                     <div className="theme-color-input">
                       <input
+                        aria-label={"Selecionar " + field.label.toLocaleLowerCase("pt-BR")}
                         type="color"
-                        value={String(theme[field.key] ?? "#000000")}
+                        value={/^#[0-9a-f]{6}$/i.test(String(theme[field.key])) ? String(theme[field.key]) : "#0F766E"}
                         onChange={(e) => patch({ [field.key]: e.target.value } as Partial<MerchantTheme>)}
                       />
                       <input
+                        id={"theme-color-" + field.key}
+                        aria-invalid={!/^#[0-9a-f]{6}$/i.test(String(theme[field.key]))}
+                        aria-describedby={"theme-color-help-" + field.key}
+                        maxLength={7}
                         type="text"
                         value={String(theme[field.key] ?? "")}
                         onChange={(e) => patch({ [field.key]: e.target.value } as Partial<MerchantTheme>)}
                         style={{ flex: 1, fontFamily: 'var(--font-mono)', fontSize: 12 }}
                       />
                     </div>
+                    <span id={"theme-color-help-" + field.key} className="form-field-hint">{!/^#[0-9a-f]{6}$/i.test(String(theme[field.key])) ? "Informe # e 6 dígitos de 0 a 9 ou A a F." : ""}</span>
                   </div>
                 ))}
               </div>
@@ -423,7 +422,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
                 <ImageUploader
                   label="Imagem de fundo"
-                  hint="Background do painel principal"
+                  hint="Fundo do painel principal"
                   value={theme.backgroundImageUrl}
                   onChange={(url) => patch({ backgroundImageUrl: url })}
                   height={88}
@@ -460,8 +459,8 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   <button
                     type="button"
                     key={opt.value}
-                    className={`filter-tab${theme.density === opt.value ? " active" : ""}`}
                     aria-pressed={theme.density === opt.value}
+                    className={`filter-tab${theme.density === opt.value ? " active" : ""}`}
                     onClick={() => patch({ density: opt.value })}
                     title={opt.desc}
                   >
@@ -476,9 +475,9 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               </label>
               <div className="filter-tabs">
                 {([
-                  { value: "dark", label: "Dark" },
-                  { value: "grey", label: "Grey" },
-                  { value: "light", label: "Light" },
+                  { value: "dark", label: "Escuro" },
+                  { value: "grey", label: "Cinza" },
+                  { value: "light", label: "Claro" },
                 ] as const).map((opt) => (
                   <button
                     type="button"
@@ -493,15 +492,15 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
               </div>
             </div>
 
-          </div>
+          </fieldset>
 
           {/* ── Preview — native replica of the storefront intro, updates live ── */}
           <div className="split-panel-preview">
-            <ThemePreviewCard theme={theme} storeName={props.me?.name ?? "Sua loja"} />
+            <ThemePreviewCard theme={{ ...theme, trustBadges: parseBadges(badgesText) }} storeName={props.me?.name ?? "Sua loja"} />
           </div>
         </div>
       )}
-    </>
+    </div>
   );
 }
 

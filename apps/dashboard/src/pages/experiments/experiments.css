@@ -1,0 +1,22 @@
+.experiment-section-heading { display:flex; justify-content:space-between; align-items:center; gap:16px; flex-wrap:wrap; }
+.experiment-section-heading h4 { margin:0; font:600 14px/1.5 var(--font-sans); color:var(--color-text); }
+.experiment-section-heading > span { font:400 12px/1.5 var(--font-sans); color:var(--color-text-muted); }
+.experiment-variant { display:grid; gap:16px; padding-top:20px; border-top:1px solid var(--color-border); min-width:0; }
+.experiment-variant > button { justify-self:start; }
+.experiments-automation { padding:20px 24px; border:1px solid var(--color-border); border-radius:var(--radius-md); background:var(--surface-2); }
+.experiments-automation label { font:600 16px/1.5 var(--font-sans); color:var(--color-text); cursor:pointer; }
+.experiments-automation p { font:400 13px/1.6 var(--font-sans); color:var(--color-text-muted); margin:6px 0 0; }
+.experiments-workspace { display:grid; grid-template-columns:minmax(280px,360px) minmax(0,1fr); align-items:start; gap:24px; }
+.experiments-list, .experiments-detail { min-width:0; }
+.experiments-filters { display:grid; gap:12px; }
+.experiments-count { margin:14px 0; color:var(--color-text-muted); font:400 12px/1.5 var(--font-sans); }
+.experiments-items { display:grid; gap:8px; }
+.experiment-card { width:100%; min-width:0; }
+.experiment-detail-heading { display:flex; justify-content:space-between; align-items:flex-start; gap:16px; flex-wrap:wrap; margin-bottom:12px; }
+.experiment-detail-heading > div { min-width:0; overflow-wrap:anywhere; }
+.experiment-detail-actions { display:flex; flex-wrap:wrap; gap:8px; }
+@media(max-width:1100px) { .experiments-workspace { grid-template-columns:minmax(0,1fr); } }
+@media(max-width:540px) { .experiments-automation { padding:20px 16px; } }
+
+.experiment-variants-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:24px; }
+@container(max-width:460px) { .experiment-variants-grid { grid-template-columns:minmax(0,1fr); } }

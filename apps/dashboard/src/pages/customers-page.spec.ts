@@ -79,8 +79,8 @@ describe("toCustomerRows", () => {
       last_seen_at: "2026-06-10T00:00:00Z",
     };
     const rows = toCustomerRows([empty]);
-    expect(rows[0].email).toBe("email@exemplo.com");
-    expect(rows[0].phone).toBe("(00) 00000-0000");
+    expect(rows[0].email).toBe("Não informado");
+    expect(rows[0].phone).toBe("Não informado");
   });
 });
 

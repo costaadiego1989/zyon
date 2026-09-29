@@ -1,3 +1,8 @@
+import { Modal } from "../components/Modal.js";
+import { FormField, FormTextarea } from "../components/FormField.js";
+import { SearchInput } from "../components/SearchInput.js";
+import "./orders-shipments/orders-shipments.css";
+import { PageHeader } from "../components/PageHeader.js";
 import React, { useEffect, useMemo, useRef, useState } from "react";
 import {
   CheckCircle,
@@ -7,7 +12,6 @@ import {
   Receipt,
   ShoppingCart,
   Truck,
-  X,
 } from "lucide-react";
 import { PeriodFilter } from "../components/PeriodFilter.js";
 import { EmptyState } from "../components/EmptyState.js";
@@ -74,13 +78,7 @@ function canDrop(fromStatus: string, toColumnId: string): boolean {
 export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   if (!props.me) {
     return (
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Loja</span>
-          <h1>Pedidos e Envios</h1>
-          <p className="page-lead">Login necessário</p>
-        </div>
-      </header>
+      <PageHeader title="Pedidos e envios" description="Login necessário" />
     );
   }
   return <OrdersShipmentsView me={props.me} />;
@@ -96,6 +94,14 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   const filteredOrders = useMemo(() => {
     return filterOrdersByPeriod(vm.orders, period, dateRange);
   }, [vm.orders, period, dateRange]);
+  const [search, setSearch] = useState("");
+  const visibleOrders = useMemo(() => {
+    const term = search.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return filteredOrders.filter(order => {
+      const customer = order.customer as { full_name?: string; email?: string } | null;
+      return [order.external_order_id, customer?.full_name, customer?.email, order.tracking_code].some(value => value?.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(term));
+    });
+  }, [filteredOrders, search]);
   const metrics = useMemo(() => computeOrderMetrics(filteredOrders), [filteredOrders]);
 
   function handleDragStart(e: React.DragEvent, order: TenantOrder) {
@@ -134,17 +140,12 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   }
 
   return (
-    <div className="page-container">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Loja</span>
-          <h1>Pedidos e Envios</h1>
-          <p className="page-lead">Arraste os cards entre colunas para atualizar o status do pedido</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => vm.exportCsv(filteredOrders)}>
-          <Download size={14} /> CSV
+    <div className="page-container orders-page">
+      <PageHeader title="Pedidos e envios" description="Acompanhe cada pedido, registre o rastreamento e atualize a etapa da entrega." actions={<>
+<Button variant="outline" size="sm" disabled={!vm.hasLoaded || visibleOrders.length === 0} onClick={() => vm.exportCsv(visibleOrders)}>
+          <Download size={14} /> Exportar CSV
         </Button>
-      </header>
+</>} />
 
       {/* Stats */}
       <StatCardGroup>
@@ -155,7 +156,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         <StatCard label="Ticket Médio" value={vm.hasLoaded ? formatMinor(metrics.averageOrderValue, "BRL") : "R$ 0"} icon={<Receipt size={16} />} accent="var(--color-brand)" />
       </StatCardGroup>
 
-      {vm.message ? <div className="panel-error">{vm.message}</div> : null}
+      {vm.message && !vm.expandedOrderId ? <div className="panel-error orders-feedback" role="alert"><span>{vm.message}</span><Button variant="outline" size="sm" disabled={vm.busy} onClick={() => void vm.reload()}>Tentar novamente</Button></div> : null}
 
       <PeriodFilter
         presets={[{ key: "all", label: "Todos" }, { key: "today", label: "Hoje" }, { key: "7d", label: "Últimos 7 dias" }, { key: "15d", label: "Últimos 15 dias" }, { key: "30d", label: "Últimos 30 dias" }]}
@@ -165,21 +166,22 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         onDate={(field, value) => { setDateRange(range => ({ ...range, [field]: value })); setPeriod("all"); }}
       />
 
+      <div className="orders-toolbar"><p>Abra um pedido para ver os detalhes e alterar a etapa. Você também pode arrastar os cards entre as colunas.</p><SearchInput value={search} onChange={setSearch} placeholder="Buscar pedido, cliente ou rastreio" width={320} /></div>
       {/* Kanban Board */}
-      {!vm.hasLoaded ? (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 14 }}>
+      {!vm.hasLoaded && vm.message ? null : !vm.hasLoaded ? (
+        <div className="orders-loading">
           {Array.from({ length: 5 }).map((_, i) => (
             <div key={i} style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", height: 400, animation: "pulse 1.5s ease-in-out infinite" }} />
           ))}
         </div>
-      ) : filteredOrders.length === 0 ? (
+      ) : visibleOrders.length === 0 ? (
         <div className="panel">
-          <EmptyState icon={Package} title="Nenhum pedido encontrado" description="Pedidos aparecerão aqui após vendas concluídas no checkout." />
+          <EmptyState icon={Package} title={vm.orders.length ? "Nenhum pedido com estes filtros" : "Os pedidos da sua loja aparecem aqui"} description={vm.orders.length ? "Altere a busca ou o período para localizar o pedido." : "Após uma venda no checkout, acompanhe o pagamento, o envio e a entrega por este painel."} action={vm.orders.length ? <Button variant="outline" onClick={() => { setSearch(""); setPeriod("all"); setDateRange({ from: "", to: "" }); }}>Limpar filtros</Button> : undefined} />
         </div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 12, alignItems: "flex-start", minHeight: 500 }}>
+        <div className="orders-kanban" role="region" aria-label="Pedidos por etapa" tabIndex={0}>
           {KANBAN_COLUMNS.map((col) => {
-            const colOrders = filteredOrders.filter((o) => col.statuses.includes(o.status));
+            const colOrders = visibleOrders.filter((o) => col.statuses.includes(o.status));
             const isValidTarget = draggedOrder ? canDrop(draggedOrder.status, col.id) : false;
             const isHovering = dropTarget === col.id;
 
@@ -212,7 +214,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
 
                 {/* Cards */}
                 {colOrders.length === 0 ? (
-                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-faint)", font: "12px var(--font-sans)", padding: "40px 8px", textAlign: "center" }}>
+                  <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text-muted)", font: "12px var(--font-sans)", padding: "40px 8px", textAlign: "center" }}>
                     {draggedOrder && isValidTarget ? "Solte aqui" : "Nenhum pedido"}
                   </div>
                 ) : (
@@ -223,7 +225,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
                         order={order}
                         onDragStart={(e) => handleDragStart(e, order)}
                         onDragEnd={handleDragEnd}
-                        onClick={() => vm.openOrderDetails(order.id)}
+                        onClick={() => { if (!vm.busy) vm.openOrderDetails(order.id); }}
                         isDragging={draggedOrder?.id === order.id}
                         disabled={vm.busy}
                       />
@@ -257,6 +259,11 @@ function KanbanCard({ order, onDragStart, onDragEnd, onClick, isDragging, disabl
 
   return (
     <div
+      className="order-kanban-card"
+      role="button"
+      tabIndex={disabled ? -1 : 0}
+      aria-label={"Ver pedido " + order.external_order_id + " de " + name}
+      onKeyDown={event => { if (!disabled && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}
       draggable={!disabled}
       aria-disabled={disabled}
       onDragStart={onDragStart}
@@ -295,8 +302,8 @@ function KanbanCard({ order, onDragStart, onDragEnd, onClick, isDragging, disabl
           {formatDate(order.completed_at)}
         </span>
         {order.tracking_code && (
-          <span style={{ font: "600 9px var(--font-mono)", color: "var(--color-success)", background: "var(--color-success-bg)", padding: "2px 6px", borderRadius: 4 }}>
-            RASTREADO
+          <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-success)", background: "var(--color-success-bg)", padding: "2px 6px", borderRadius: 4 }}>
+            Com rastreio
           </span>
         )}
       </div>
@@ -334,18 +341,13 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
   );
 
   const sectionStyle: React.CSSProperties = { padding: "16px 0", borderBottom: "1px solid var(--color-border)" };
-  const labelStyle: React.CSSProperties = { font: "600 11px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-muted)", marginBottom: 10, textTransform: "uppercase" as const };
+  const labelStyle: React.CSSProperties = { font: "600 15px var(--font-sans)", color: "var(--color-text)", marginBottom: 16 };
   const valueStyle: React.CSSProperties = { font: "13px var(--font-sans)", color: "var(--color-text)" };
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 900, display: "flex", justifyContent: "flex-end" }} onClick={vm.closeOrderDetails}>
-      <div style={{ position: "absolute", inset: 0, background: "rgba(0,0,0,0.6)", backdropFilter: "blur(4px)" }} />
-      <aside style={{ position: "relative", width: 480, maxWidth: "90vw", height: "100vh", overflowY: "auto", background: "var(--surface-2)", borderLeft: "1px solid var(--color-border)", padding: "28px 24px", display: "flex", flexDirection: "column", gap: 20, animation: "slideInRight 0.2s ease-out", boxShadow: "0 20px 60px rgba(0,0,0,0.5)" }} onClick={(e) => e.stopPropagation()}>
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-          <h2 style={{ font: "600 18px var(--font-sans)", color: "var(--color-brand)", margin: 0 }}>Pedido {order.external_order_id}</h2>
-          <button type="button" onClick={vm.closeOrderDetails} aria-label="Fechar" style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--color-border)", background: "transparent", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text)" }}><X size={20} /></button>
-        </div>
-
+    <Modal isOpen title={"Pedido " + order.external_order_id} subtitle="Itens, cliente, entrega e histórico de atualizações." presentation="center" size="lg" onClose={() => { if (!vm.busy) vm.closeOrderDetails(); }} footer={<Button variant="outline" disabled={vm.busy} onClick={vm.closeOrderDetails}>Fechar</Button>}>
+      <div className="order-detail configuration-form">
+        {vm.message && <div className="panel-error" role="alert">{vm.message}</div>}
         {/* Status + Total */}
         <div style={{ ...sectionStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -377,9 +379,9 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
         <div style={sectionStyle}>
           <div style={labelStyle}>Cliente</div>
           {customer ? (
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+            <div className="order-detail__grid">
               {customer.full_name && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Nome</span><div style={valueStyle}>{customer.full_name}</div></div>}
-              {customer.email && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Email</span><div style={valueStyle}>{customer.email}</div></div>}
+              {customer.email && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>E-mail</span><div style={valueStyle}>{customer.email}</div></div>}
               {customer.phone && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Telefone</span><div style={valueStyle}>{formatPhone(customer.phone)}</div></div>}
             </div>
           ) : <p style={{ ...valueStyle, color: "var(--color-text-muted)" }}>Sem dados do cliente</p>}
@@ -388,18 +390,18 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
         {/* Payment */}
         <div style={sectionStyle}>
           <div style={labelStyle}>Pagamento</div>
-          <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+          <div className="order-detail__grid">
             <div>
               <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Método</span>
               <div style={valueStyle}>{order.payment_method ? PAYMENT_METHOD_LABELS[order.payment_method] || order.payment_method : "—"}</div>
             </div>
             <div>
-              <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Provider</span>
+              <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Provedor</span>
               <div style={valueStyle}>{order.payment_provider ? PAYMENT_PROVIDER_LABELS[order.payment_provider] || order.payment_provider : "—"}</div>
             </div>
             {order.paid_at && (
               <div style={{ gridColumn: "1 / -1" }}>
-                <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Data pagamento</span>
+                <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Data do pagamento</span>
                 <div style={valueStyle}>{formatDate(order.paid_at)}</div>
               </div>
             )}
@@ -410,7 +412,7 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
         {hasAddress && (
           <div style={sectionStyle}>
             <div style={labelStyle}>Endereço</div>
-            <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: "8px 16px" }}>
+            <div className="order-detail__grid">
               {address?.street && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Rua</span><div style={valueStyle}>{address.street}{address.number ? `, ${address.number}` : ""}</div></div>}
               {address?.complement && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Complemento</span><div style={valueStyle}>{address.complement}</div></div>}
               {address?.neighborhood && <div><span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Bairro</span><div style={valueStyle}>{address.neighborhood}</div></div>}
@@ -445,17 +447,9 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
             customer={customer}
             vm={vm}
           />
-          <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-            <input
-              placeholder="Inserir código de rastreio"
-              value={vm.trackingDrafts[order.id] ?? ""}
-              onChange={(e) => vm.updateTrackingDraft(order.id, e.target.value)}
-              readOnly={Boolean(order.tracking_code)}
-              style={{ flex: 1, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: order.tracking_code ? "var(--surface-1)" : "var(--surface-3)", color: "var(--color-text)", font: "13px var(--font-mono)", cursor: order.tracking_code ? "not-allowed" : "text" }}
-            />
-            <Button variant="primary" size="md" arrow disabled={Boolean(order.tracking_code) || vm.busy || !(vm.trackingDrafts[order.id] ?? "").trim()} onClick={() => void vm.saveManualTracking(order)}>
-              Salvar
-            </Button>
+          <div className="order-detail__tracking">
+            <FormField label="Código de rastreamento" placeholder="Ex.: AB123456789BR" value={order.tracking_code || vm.trackingDrafts[order.id] || ""} onChange={value => vm.updateTrackingDraft(order.id, value)} disabled={Boolean(order.tracking_code) || vm.busy} hint="Use o código informado pela transportadora." />
+            <Button variant="primary" disabled={Boolean(order.tracking_code) || vm.busy || !(vm.trackingDrafts[order.id] ?? "").trim()} onClick={() => void vm.saveManualTracking(order)}>Salvar rastreio</Button>
           </div>
           <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 10 }}>
             A etiqueta exige uma cotação confirmada e as dimensões reais dos itens. Este painel não gera etiquetas com dados estimados.
@@ -464,9 +458,9 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
 
         {/* Status — info only, change via drag on board */}
         <div style={{ ...sectionStyle, borderBottom: "none" }}>
-          <div style={labelStyle}>Status atual</div>
-          <OrderStatusBadge status={order.status} />
-          <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 8 }}>Arraste o card no board para atualizar o fluxo. Cancelamentos exigem motivo e usam a ação abaixo.</p>
+          <div style={labelStyle}>Atualizar etapa</div>
+          <p className="order-detail__hint">Registre a etapa após conferir o pagamento ou a entrega. Cancelamentos exigem o motivo abaixo.</p>
+          <div className="order-detail__actions">{KANBAN_COLUMNS.filter(column => column.acceptsFrom.includes(order.status)).map(column => <Button key={column.id} variant="outline" disabled={vm.busy} onClick={() => void vm.changeOrderStatus(order, column.id)}>Marcar como {column.label.toLocaleLowerCase("pt-BR")}</Button>)}{!KANBAN_COLUMNS.some(column => column.acceptsFrom.includes(order.status)) && <OrderStatusBadge status={order.status} />}</div>
         </div>
 
         <CancelOrderAction order={order} vm={vm} />
@@ -477,8 +471,8 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
             <div style={{ font: "13px var(--font-sans)", color: "var(--color-text)" }}>{order.cancellation_reason}</div>
           </div>
         ) : null}
-      </aside>
-    </div>
+      </div>
+    </Modal>
   );
 }
 
@@ -492,13 +486,10 @@ function CancelOrderAction({ order, vm }: { order: TenantOrder; vm: ReturnType<t
 
   return (
     <div style={{ padding: "16px 0", borderBottom: "1px solid var(--color-border)" }}>
-      <div style={{ font: "600 11px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-error)", marginBottom: 10, textTransform: "uppercase" }}>Cancelar pedido</div>
-      <label style={{ display: "block", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 8 }}>
-        Motivo
-        <input value={reason} onChange={(event) => setReason(event.target.value)} maxLength={500} placeholder="Explique o cancelamento" style={{ width: "100%", height: 38, marginTop: 6, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-3)", color: "var(--color-text)", font: "13px var(--font-sans)" }} />
-      </label>
-      <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 8 }}><input type="checkbox" checked={notifyCustomer} onChange={(event) => setNotifyCustomer(event.target.checked)} /> Solicitar notificação ao cliente</label>
-      <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 12 }}><input type="checkbox" checked={restock} onChange={(event) => setRestock(event.target.checked)} /> Solicitar reposição de estoque</label>
+      <h3 className="order-detail__section-title">Cancelar pedido</h3>
+      <FormTextarea label="Motivo do cancelamento" value={reason} onChange={setReason} maxLength={500} disabled={vm.busy} placeholder="Explique por que este pedido precisa ser cancelado." hint="O motivo ficará registrado no histórico do pedido." />
+      <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 8 }}><input type="checkbox" disabled={vm.busy} checked={notifyCustomer} onChange={(event) => setNotifyCustomer(event.target.checked)} /> Solicitar notificação ao cliente</label>
+      <label style={{ display: "flex", gap: 8, alignItems: "center", font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 12 }}><input type="checkbox" disabled={vm.busy} checked={restock} onChange={(event) => setRestock(event.target.checked)} /> Solicitar reposição de estoque</label>
       <Button variant="danger" size="md" loading={vm.cancelBusyOrderId === order.id} disabled={!reason.trim() || vm.busy} onClick={() => void vm.cancelOrder(order, { reason, notifyCustomer, restock })}>Cancelar pedido</Button>
     </div>
   );
@@ -661,8 +652,8 @@ function ShippingLabelPurchaseAction({
 
   const packageDraft = form.packages[0]!;
   const disabled = loadingConfig || !carrierReady || uncertain || vm.shippingLabelBusyOrderId === order.id;
-  const fieldStyle: React.CSSProperties = { width: "100%", height: 36, padding: "0 10px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-3)", color: "var(--color-text)", font: "13px var(--font-sans)" };
-  const labelStyle: React.CSSProperties = { display: "grid", gap: 5, font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" };
+  const fieldStyle: React.CSSProperties = { width: "100%", minWidth: 0, height: 44, padding: "0 10px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-3)", color: "var(--color-text)", font: "13px var(--font-sans)" };
+  const labelStyle: React.CSSProperties = { display: "grid", gap: 8, font: "500 13px var(--font-sans)", color: "var(--color-text-muted)" };
 
   return (
     <div style={{ marginBottom: 12, padding: 12, borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)" }}>
@@ -671,7 +662,7 @@ function ShippingLabelPurchaseAction({
       {loadingConfig && <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Verificando conexão do Melhor Envio…</p>}
       {configError && <p className="panel-error" role="alert">{configError}</p>}
       {!loadingConfig && !configError && !carrierReady && <p className="panel-error" role="alert">Conecte e ative o Melhor Envio em Entregas antes de comprar uma etiqueta.</p>}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+      <fieldset disabled={disabled} className="order-label-fields"><div className="order-detail__grid">
         <label style={labelStyle}>Serviço da cotação<input type="number" min="1" value={form.service_id} onChange={(event) => updateField("service_id", event.target.value)} placeholder="Ex.: 1" style={fieldStyle} /></label>
         <label style={labelStyle}>CEP de origem<input value={form.from_zip} onChange={(event) => updateField("from_zip", event.target.value)} placeholder="00000-000" style={fieldStyle} /></label>
         <label style={labelStyle}>CEP do destinatário<input value={form.to_zip} onChange={(event) => updateField("to_zip", event.target.value)} placeholder="00000-000" style={fieldStyle} /></label>
@@ -680,17 +671,18 @@ function ShippingLabelPurchaseAction({
         <label style={{ ...labelStyle, gridColumn: "1 / -1" }}>Chave NF-e (opcional)<input value={form.invoice_key ?? ""} onChange={(event) => updateField("invoice_key", event.target.value)} style={fieldStyle} /></label>
       </div>
       <div style={{ marginTop: 12, font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>Pacote (medidas reais)</div>
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(5, 1fr)", gap: 6, marginTop: 6 }}>
-        <label style={labelStyle}>kg<input type="number" min="0.001" step="0.001" value={packageDraft.weightKg} onChange={(event) => updatePackage("weightKg", event.target.value)} style={fieldStyle} /></label>
-        <label style={labelStyle}>Larg. cm<input type="number" min="0.1" step="0.1" value={packageDraft.widthCm} onChange={(event) => updatePackage("widthCm", event.target.value)} style={fieldStyle} /></label>
-        <label style={labelStyle}>Alt. cm<input type="number" min="0.1" step="0.1" value={packageDraft.heightCm} onChange={(event) => updatePackage("heightCm", event.target.value)} style={fieldStyle} /></label>
-        <label style={labelStyle}>Comp. cm<input type="number" min="0.1" step="0.1" value={packageDraft.lengthCm} onChange={(event) => updatePackage("lengthCm", event.target.value)} style={fieldStyle} /></label>
-        <label style={labelStyle}>Qtd.<input type="number" min="1" step="1" value={packageDraft.quantity} onChange={(event) => updatePackage("quantity", event.target.value)} style={fieldStyle} /></label>
+      <div className="order-detail__grid" style={{ marginTop: 12 }}>
+        <label style={labelStyle}>Peso (kg)<input type="number" min="0.001" step="0.001" value={packageDraft.weightKg} onChange={(event) => updatePackage("weightKg", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Largura (cm)<input type="number" min="0.1" step="0.1" value={packageDraft.widthCm} onChange={(event) => updatePackage("widthCm", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Altura (cm)<input type="number" min="0.1" step="0.1" value={packageDraft.heightCm} onChange={(event) => updatePackage("heightCm", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Comprimento (cm)<input type="number" min="0.1" step="0.1" value={packageDraft.lengthCm} onChange={(event) => updatePackage("lengthCm", event.target.value)} style={fieldStyle} /></label>
+        <label style={labelStyle}>Quantidade de volumes<input type="number" min="1" step="1" value={packageDraft.quantity} onChange={(event) => updatePackage("quantity", event.target.value)} style={fieldStyle} /></label>
       </div>
       <label style={{ display: "flex", gap: 8, alignItems: "flex-start", marginTop: 12, font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
-        <input type="checkbox" checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
+        <input type="checkbox" disabled={vm.busy} checked={acknowledged} onChange={(event) => setAcknowledged(event.target.checked)} />
         <span>Confirmo que os dados e a cotação foram revisados e quero solicitar a compra desta etiqueta.</span>
       </label>
+      </fieldset>
       {error && <p className="panel-error" role="alert" style={{ marginTop: 10 }}>{error}</p>}
       <div style={{ display: "flex", gap: 8, marginTop: 12 }}>
         <Button variant="primary" size="sm" disabled={disabled || !acknowledged} onClick={() => void purchase()}>{vm.shippingLabelBusyOrderId === order.id ? "Solicitando…" : "Comprar e gerar"}</Button>

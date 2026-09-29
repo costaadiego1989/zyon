@@ -8,11 +8,11 @@ interface BottleneckBannerProps {
 }
 
 const MODULE_LABELS: Record<FunnelInsight["module"], string> = {
-  "intent-memory": "Intent Memory",
-  "cart-recovery": "Cart Recovery",
-  "revenue-manager": "Revenue Manager",
-  "rules-engine": "Rules Engine",
-  "shipping-engine": "Shipping Engine",
+  "intent-memory": "Memória de intenção",
+  "cart-recovery": "Recuperação de carrinho",
+  "revenue-manager": "Otimização com IA",
+  "rules-engine": "Regras da loja",
+  "shipping-engine": "Frete",
   "general": "Análise geral",
 };
 
@@ -21,11 +21,11 @@ export function BottleneckBanner({ bottleneck, steps }: BottleneckBannerProps): 
   const insight = bottleneck.insight;
 
   return (
-    <div className="fnl-bottleneck" role="alert">
+    <div className="fnl-bottleneck" role="status">
       <AlertTriangle size={18} strokeWidth={2} className="fnl-bottleneck-icon" />
       <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
         <p className="fnl-bottleneck-title">
-          Gargalo: {stepLabel} ({bottleneck.dropOff.toFixed(0)}% abandono)
+          Maior abandono: {stepLabel} ({bottleneck.dropOff.toFixed(0)}% abandono)
         </p>
         {insight ? (
           <>
@@ -42,7 +42,7 @@ export function BottleneckBanner({ bottleneck, steps }: BottleneckBannerProps): 
             </p>
             <p
               className="fnl-bottleneck-text"
-              style={{ fontSize: 10, color: "var(--color-text-faint)", letterSpacing: "0.04em", textTransform: "uppercase" }}
+              style={{ fontSize: 10, color: "var(--color-text-faint)", letterSpacing: "normal", textTransform: "none" }}
             >
               Origem: {MODULE_LABELS[insight.module]}
             </p>

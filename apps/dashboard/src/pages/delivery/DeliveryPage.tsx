@@ -1,8 +1,12 @@
+import { SetupGuide } from "../../components/SetupGuide.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import React from "react";
 import { Package, Link2 } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { DataPanel } from "../../components/DataPanel.js";
-import { SidePanel } from "../../components/SidePanel.js";
+import { FilterSelect } from "../../components/FilterToolbar.js";
+import { EmptyState } from "../../components/EmptyState.js";
+import { showToast } from "../../components/Toast.js";
 import { Button } from "../../components/Button.js";
 import { useDeliveryPage } from "./useDeliveryPage.js";
 import { MelhorEnvioCard } from "./components/MelhorEnvioCard.js";
@@ -52,132 +56,40 @@ const carrierLabel = (carrier: string | null | undefined): string =>
 
 export function DeliveryPage(props: DeliveryPageProps) {
   const vm = useDeliveryPage();
-
-  if (!props.me) {
-    return (
-      <div style={{ padding: "60px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
-        Login necessário
-      </div>
-    );
+  const unavailable = vm.shipmentsLoading || !!vm.shipmentsError;
+  const header = <PageHeader title="Frete e entregas" description="Configure a entrega da loja e acompanhe os envios dos pedidos." />;
+  async function copyTracking(code: string) {
+    try { await navigator.clipboard.writeText(code); showToast("success", "Código de rastreio copiado"); }
+    catch { showToast("error", "Não foi possível copiar. Selecione o código de rastreio e copie manualmente."); }
   }
-
-  if (vm.loading) {
-    return (
-      <div style={{ padding: "60px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>
-        Carregando...
-      </div>
-    );
-  }
-
-  if (vm.configError) {
-    return (
-      <div style={{ padding: "60px 22px", textAlign: "center", color: "var(--color-text-muted)", font: "13px var(--font-sans)" }} role="alert">
-        <p>{vm.configError}</p>
-        <Button size="md" onClick={() => void vm.reloadConfig()}>Tentar novamente</Button>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-      {/* Header */}
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Logística</span>
-          <h1>Frete & Entregas</h1>
-          <p className="page-lead">Configure transportadoras, entrega própria e gerencie envios</p>
-        </div>
-      </header>
-
-      {/* Cards side by side */}
-      <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16 }}>
-        <MelhorEnvioCard
-          config={vm.config}
-          saving={vm.saving}
-          onToggle={vm.toggleMelhorEnvio}
-          onConnect={vm.connectMelhorEnvio}
-        />
-        <OwnDeliveryCard
-          config={vm.config.ownDelivery}
-          saving={vm.saving}
-          onToggle={vm.toggleOwnDelivery}
-          onOpenConfig={() => vm.setOwnDeliveryPanelOpen(true)}
-        />
-      </div>
-
-      {/* Entregas list */}
-      <DataPanel
-        title="Entregas Recentes"
-        trailing={
-          <select
-            value={vm.shipmentsFilter}
-            onChange={(e) => vm.setShipmentsFilter(e.target.value)}
-            style={{ width: 150, flex: "0 0 auto", padding: "6px 10px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "12px var(--font-sans)", color: "var(--color-text)", cursor: "pointer" }}
-          >
-            {SHIPMENT_STATUSES.map((s) => <option key={s.value} value={s.value}>{s.label}</option>)}
-          </select>
-        }
-        isEmpty={vm.shipments.length === 0}
-        empty={{
-          icon: Package,
-          title: vm.shipmentsError ? "Não foi possível carregar as entregas" : "Nenhuma entrega registrada",
-          description: vm.shipmentsError ?? "As entregas aparecerão aqui conforme pedidos forem concluídos.",
-        }}
-        page={vm.shipmentsPage}
-        pageSize={vm.shipmentsPageSize}
-        total={vm.shipmentsTotal}
-        onPageChange={vm.setShipmentsPage}
-      >
-        <table style={{ width: "100%", borderCollapse: "collapse" }}>
-          <thead>
-            <tr>
-              {["Pedido", "Transportadora", "Rastreio", "Status", "Ação"].map((h, i) => (
-                <th key={h} style={{ textAlign: i === 4 ? "right" : "left", padding: "10px 16px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>
-                  {h}
-                </th>
-              ))}
-            </tr>
-          </thead>
-          <tbody>
-            {vm.shipments.map((s) => (
-              <tr key={s.id} style={{ borderBottom: "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" }}>
-                <td style={{ padding: "12px 16px", font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>#{(s.orderId ?? s.externalOrderId ?? s.id).slice(0, 8)}</td>
-                <td style={{ padding: "12px 16px", font: "13px var(--font-sans)", color: "var(--color-text)" }}>{carrierLabel(s.carrier)}</td>
-                <td style={{ padding: "12px 16px", font: "12px var(--font-mono)", color: "var(--color-text-muted)" }}>{isRealTrackingCode(s.trackingCode) ? s.trackingCode : "—"}</td>
-                <td style={{ padding: "12px 16px" }}>
-                  <span style={{ padding: "3px 8px", borderRadius: 99, font: "11px var(--font-mono)", fontWeight: 600, background: s.status === "delivered" ? "var(--good-soft)" : "var(--surface-2)", color: shipmentStatusColor(s.status) }}>
-                    {shipmentStatusLabel(s.status)}
-                  </span>
-                </td>
-                <td style={{ padding: "12px 16px", textAlign: "right" }}>
-                  {isRealTrackingCode(s.trackingCode) ? (
-                    <button onClick={() => navigator.clipboard.writeText(s.trackingCode!)} style={{ padding: "4px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "transparent", color: "var(--color-text-muted)", font: "11px var(--font-sans)", cursor: "pointer" }}>
-                      <Link2 size={11} /> Copiar
-                    </button>
-                  ) : (
-                    <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>{isCarrierShipment(s.carrier) ? "Aguardando etiqueta" : "Entrega própria"}</span>
-                  )}
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      </DataPanel>
-
-      {/* Side panel for own delivery config */}
-      <SidePanel
-        isOpen={vm.ownDeliveryPanelOpen}
-        title="Configurar Entrega Própria"
-        onClose={() => vm.setOwnDeliveryPanelOpen(false)}
-      >
-        <OwnDeliveryConfigPanel
-          config={vm.config.ownDelivery}
-          saving={vm.saving}
-          onSave={vm.saveOwnDeliveryConfig}
-          onClose={() => vm.setOwnDeliveryPanelOpen(false)}
-          originZip={vm.config.originZip}
-        />
-      </SidePanel>
+  if (!props.me) return <div>{header}<p className="delivery-state">Entre na sua conta para configurar as entregas.</p></div>;
+  if (vm.loading) return <div>{header}<p className="delivery-state" role="status">Carregando configuração de entregas…</p></div>;
+  if (vm.configError) return <div>{header}<EmptyState icon={Package} title="Não foi possível carregar a configuração" description={vm.configError} action={<Button onClick={() => void vm.reloadConfig()}>Tentar novamente</Button>} /></div>;
+  return <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    {header}
+    <SetupGuide title="Como preparar as entregas" steps={[
+      { title: "Escolha a modalidade", description: "Conecte o Melhor Envio ou configure a entrega própria. O frete é uma etapa necessária para preparar a loja." },
+      { title: "Revise os dados", description: "Confira o endereço de origem, os preços e os prazos antes de ativar a modalidade." },
+      { title: "Acompanhe os pedidos", description: "Veja o status de cada envio e copie o rastreio quando estiver disponível." },
+    ]} />
+    <div className="delivery-provider-grid">
+      <MelhorEnvioCard config={vm.config} saving={vm.saving} onToggle={vm.toggleMelhorEnvio} onConnect={vm.connectMelhorEnvio} />
+      <OwnDeliveryCard config={vm.config.ownDelivery} saving={vm.saving} onToggle={vm.toggleOwnDelivery} onOpenConfig={() => vm.setOwnDeliveryPanelOpen(true)} />
     </div>
-  );
+    <DataPanel title="Entregas recentes" trailing={<FilterSelect ariaLabel="Status das entregas" value={vm.shipmentsFilter} onChange={vm.setShipmentsFilter} options={SHIPMENT_STATUSES} />}
+      isEmpty={!unavailable && vm.shipments.length === 0}
+      empty={{ icon: Package, title: vm.shipmentsFilter === "all" ? "Nenhuma entrega registrada" : "Nenhuma entrega com este status", description: vm.shipmentsFilter === "all" ? "Os envios dos pedidos aparecerão aqui conforme forem registrados." : "Escolha outro status ou veja todas as entregas.", action: vm.shipmentsFilter !== "all" ? <Button variant="outline" onClick={() => vm.setShipmentsFilter("all")}>Ver todas as entregas</Button> : undefined }}
+      page={vm.shipmentsPage} pageSize={vm.shipmentsPageSize} total={unavailable ? 0 : vm.shipmentsTotal} onPageChange={vm.setShipmentsPage}>
+      {vm.shipmentsLoading ? <p className="delivery-state" role="status">Carregando entregas…</p> : vm.shipmentsError ? <EmptyState icon={Package} title="Não foi possível carregar as entregas" description="Tente novamente para consultar os envios da loja." action={<Button variant="outline" onClick={vm.reloadShipments}>Tentar novamente</Button>} /> : <div className="delivery-table-scroll" tabIndex={0} role="region" aria-label="Lista de entregas">
+        <table className="delivery-table"><thead><tr>{["Pedido", "Transportadora", "Rastreio", "Status", "Ação"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
+          <tbody>{vm.shipments.map(shipment => <tr key={shipment.id}>
+            <td>#{(shipment.orderId ?? shipment.externalOrderId ?? shipment.id).slice(0, 8)}</td>
+            <td>{carrierLabel(shipment.carrier)}</td><td>{isRealTrackingCode(shipment.trackingCode) ? shipment.trackingCode : "—"}</td>
+            <td><span style={{ color: shipmentStatusColor(shipment.status) }}>{shipmentStatusLabel(shipment.status)}</span></td>
+            <td>{isRealTrackingCode(shipment.trackingCode) ? <Button variant="outline" size="sm" onClick={() => void copyTracking(shipment.trackingCode!)} aria-label={"Copiar rastreio " + shipment.trackingCode}><Link2 size={14} /> Copiar</Button> : <span>{isCarrierShipment(shipment.carrier) ? "Aguardando rastreio" : "Entrega própria"}</span>}</td>
+          </tr>)}</tbody></table>
+      </div>}
+    </DataPanel>
+    {vm.ownDeliveryPanelOpen && <OwnDeliveryConfigPanel config={vm.config.ownDelivery} saving={vm.saving} onSave={vm.saveOwnDeliveryConfig} onClose={() => vm.setOwnDeliveryPanelOpen(false)} originZip={vm.config.originZip} />}
+  </div>;
 }

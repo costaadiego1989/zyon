@@ -91,7 +91,7 @@ export function useDomainsPage() {
       if (result.verified) {
         showToast("success", `${result.domain} verificado com sucesso`);
       } else {
-        showToast("error", `CNAME ou TXT de propriedade não encontrado para ${result.domain}. Verifique sua configuração DNS.`);
+        showToast("error", `Ainda não confirmamos o apontamento de ${result.domain}. Confira os registros no provedor e tente verificar novamente.`);
       }
     } catch (e) {
       const msg = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : "Erro ao verificar domínio";
@@ -101,9 +101,6 @@ export function useDomainsPage() {
   }
 
   async function removeDomain(domainId: string) {
-    if (!window.confirm("Tem certeza que deseja remover este domínio? Isso não pode ser desfeito.")) {
-      return;
-    }
 
     setState((p) => ({ ...p, error: null }));
     try {

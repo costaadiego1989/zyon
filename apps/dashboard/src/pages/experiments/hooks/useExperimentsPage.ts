@@ -1,4 +1,4 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApi } from "../../../hooks/useApi.js";
 import { showToast } from "../../../components/Toast.js";
 import { reportError } from "../../../hooks/useErrorReporter.js";
@@ -10,7 +10,17 @@ import { useExperimentForm } from "./useExperimentForm.js";
 export function useExperimentsPage(props: { me: MerchantProfile | null }) {
   const api = useApi();
   const [experiments, setExperiments] = useState<Experiment[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [archiveError, setArchiveError] = useState<string | null>(null);
+  const [resultsError, setResultsError] = useState<string | null>(null);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const [resultsAttempt, setResultsAttempt] = useState(0);
+  const [autoLoaded, setAutoLoaded] = useState(false);
+  const [autoError, setAutoError] = useState(false);
+  const [autoAttempt, setAutoAttempt] = useState(0);
+  const formBusy = useRef(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
   const [autoEnabled, setAutoEnabled] = useState(true);
@@ -26,7 +36,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
   const formState = useExperimentForm();
 
   const filteredExperiments = useMemo(() => {
-    let result = experiments;
+    let result = [...experiments];
     if (filterStatus !== "all") {
       result = result.filter((e) => e.status === filterStatus);
     }
@@ -50,6 +60,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setLoadError(null);
       try {
         const data = (await api.getExperiments?.()) as Experiment[] | undefined;
         if (cancelled) return;
@@ -61,7 +72,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
       } catch (e) {
         reportError({ source: "experiments.load", error: e });
         if (!cancelled) {
-          showToast("error", e instanceof Error ? e.message : "Erro ao carregar experimentos");
+          setLoadError("Não foi possível carregar os testes. Tente novamente.");
         }
       } finally {
         if (!cancelled) {
@@ -73,7 +84,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
     return () => {
       cancelled = true;
     };
-  }, [api, props.me]);
+  }, [api, props.me, loadAttempt]);
 
   useEffect(() => {
     if (!props.me) return;
@@ -83,16 +94,19 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
         const rules = await api.getMerchantRules?.();
         if (cancelled || !rules) return;
         setAutoEnabled((rules as { autonomousEngineEnabled?: boolean }).autonomousEngineEnabled !== false);
+        setAutoLoaded(true); setAutoError(false);
       } catch (e) {
         reportError({ source: "experiments.loadAutoState", error: e });
+        if (!cancelled) { setAutoLoaded(false); setAutoError(true); }
       }
     })();
     return () => {
       cancelled = true;
     };
-  }, [api, props.me]);
+  }, [api, props.me, autoAttempt]);
 
   async function handleToggleAuto(next: boolean) {
+    if (autoToggleBusy || !autoLoaded) return;
     const prev = autoEnabled;
     setAutoEnabled(next); // optimistic
     setAutoToggleBusy(true);
@@ -122,6 +136,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
     let cancelled = false;
     (async () => {
       setResultsLoading(true);
+      setSelectedResults(null); setResultsError(null);
       try {
         const results = (await api.getExperimentResults?.(selectedId)) as
           | ExperimentResults
@@ -131,7 +146,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
       } catch (e) {
         reportError({ source: "experiments.loadResults", error: e });
         if (!cancelled) {
-          showToast("error", e instanceof Error ? e.message : "Erro ao carregar resultados");
+          setResultsError("Não foi possível carregar os resultados deste teste.");
         }
       } finally {
         if (!cancelled) {
@@ -142,13 +157,15 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
     return () => {
       cancelled = true;
     };
-  }, [selectedId, experiments, api]);
+  }, [selectedId, experiments, api, resultsAttempt]);
 
   async function handleCreateExperiment() {
+    if (formBusy.current) return;
     if (formState.hasErrors) {
       showToast("error", "Corrija os erros antes de criar");
       return;
     }
+    formBusy.current = true; setFormError(null);
     setSaving(true);
     try {
       const newExp = (await api.createExperiment?.(formState.form)) as Experiment | undefined;
@@ -159,9 +176,9 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
       }
     } catch (e) {
       reportError({ source: "experiments.create", error: e });
-      showToast("error", humanizeExperimentError(e));
+      setFormError(humanizeExperimentError(e) + " Seus dados foram mantidos.");
     } finally {
-      setSaving(false);
+      formBusy.current = false; setSaving(false);
     }
   }
 
@@ -229,19 +246,20 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
 
   const [archiveConfirmId, setArchiveConfirmId] = useState<string | null>(null);
   function requestArchive(experimentId: string) {
+    setArchiveError(null);
     setArchiveConfirmId(experimentId);
   }
   function cancelArchive() {
-    setArchiveConfirmId(null);
+    if (!saving) setArchiveConfirmId(null);
   }
   async function confirmArchive() {
     const id = archiveConfirmId;
-    setArchiveConfirmId(null);
-    if (id) await handleArchiveExperiment(id);
+    if (id && !saving && await handleArchiveExperiment(id)) setArchiveConfirmId(null);
   }
 
   async function handleArchiveExperiment(experimentId: string) {
-    setSaving(true);
+    if (saving) return false;
+    setArchiveError(null); setSaving(true);
     try {
       const updated = (await api.archiveExperiment?.(experimentId)) as Experiment | undefined;
       if (updated) {
@@ -249,11 +267,13 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
         if (selectedId === experimentId) {
           setSelectedId(null);
         }
-        showToast("success", "Experimento arquivado");
+        showToast("success", "Teste arquivado");
+        return true;
       }
     } catch (e) {
       reportError({ source: "experiments.archive", error: e });
-      showToast("error", humanizeExperimentError(e));
+      setArchiveError(humanizeExperimentError(e));
+      return false;
     } finally {
       setSaving(false);
     }
@@ -261,6 +281,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
 
   const [generatingVariants, setGeneratingVariants] = useState(false);
   async function handleGenerateVariants() {
+    if (formBusy.current) return;
     const merchantId = props.me?.id;
     if (!merchantId) return;
     const name = formState.form.name.trim();
@@ -268,6 +289,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
       showToast("error", "Dê um nome ao teste antes de gerar variantes com IA");
       return;
     }
+    formBusy.current = true; setFormError(null);
     setGeneratingVariants(true);
     try {
       const goal = formState.form.description?.trim() || "";
@@ -279,7 +301,7 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
       });
       const prompt = result?.description?.trim();
       if (!prompt) {
-        showToast("error", "IA não retornou uma variante. Tente novamente.");
+        setFormError("Não recebemos uma sugestão da IA. Tente novamente ou escreva a abordagem manualmente.");
         return;
       }
       const controlIdx = 0;
@@ -294,9 +316,9 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
       showToast("success", "Variante gerada com IA");
     } catch (e) {
       reportError({ source: "experiments.generateVariants", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao gerar variantes com IA");
+      setFormError("Não foi possível gerar a abordagem. Seus textos foram mantidos. Tente novamente ou edite manualmente.");
     } finally {
-      setGeneratingVariants(false);
+      formBusy.current = false; setGeneratingVariants(false);
     }
   }
 
@@ -320,6 +342,11 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
   return {
     // List
     experiments: filteredExperiments,
+    allExperiments: experiments,
+    loadError, formError, archiveError, resultsError, autoLoaded, autoError,
+    reload: () => setLoadAttempt(v => v + 1),
+    reloadResults: () => setResultsAttempt(v => v + 1),
+    reloadAuto: () => setAutoAttempt(v => v + 1),
     searchText,
     setSearchText,
     filterStatus,
@@ -346,8 +373,8 @@ export function useExperimentsPage(props: { me: MerchantProfile | null }) {
     hasErrors: formState.hasErrors,
     saving,
     formMode: formState.formMode,
-    openCreateForm: formState.openCreateForm,
-    closeForm: formState.closeForm,
+    openCreateForm: () => { setFormError(null); formState.openCreateForm(); },
+    closeForm: () => { if (!formBusy.current) formState.closeForm(); },
     handleCreateExperiment,
 
     // Actions

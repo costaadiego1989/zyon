@@ -30,6 +30,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
   const seo = useProductSeo();
 
   // Page-level state
+  const [loadAttempt, setLoadAttempt] = useState(0);
   const [loading, setLoading] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loadError, setLoadError] = useState<string | null>(null);
@@ -57,12 +58,14 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       setLoaded(true);
       return;
     }
+    let active = true;
     setLoading(true);
     setLoadError(null);
     setLoaded(false);
     (async () => {
       try {
         const product = await api.getProduct(merchantId, productId);
+        if (!active) return;
         form.loadProduct(product);
         seo.loadSeo(product);
 
@@ -98,16 +101,18 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
         Object.entries(mediaMap).forEach(([variantId, items]) => {
           items.forEach((item) => media.addMedia(variantId, item));
         });
+        setLoaded(true);
       } catch (e) {
+        if (!active) return;
         const msg = e instanceof Error ? e.message : String(e);
-        setLoadError(msg);
+        setLoadError("Não foi possível carregar o produto. Tente novamente para editar com os dados atuais.");
         reportError({ source: "ProductDetailPage.load", error: e });
       } finally {
-        setLoading(false);
-        setLoaded(true);
+        if (active) setLoading(false);
       }
     })();
-  }, [api, merchantId, productId, isEditing]);
+    return () => { active = false; };
+  }, [api, merchantId, productId, isEditing, loadAttempt]);
 
   // Validation
   const variantErrors = useMemo(() => {
@@ -122,11 +127,11 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
     return errors;
   }, [form.name, variantErrors]);
 
-  const canSave = Object.keys(formErrors).length === 0 && !saving && loaded;
+  const canSave = Object.keys(formErrors).length === 0 && !saving && loaded && !loading && !loadError;
 
   // Save handler
   async function handleSave() {
-    if (!merchantId) return;
+    if (!merchantId || saving || !loaded || loadError) return;
     if (Object.keys(formErrors).length > 0) {
       setSaveResult("error");
       setSaveErrorMsg("Corrija os erros antes de salvar");
@@ -376,6 +381,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
     setPostSaveNotice,
 
     // Actions
+    retryLoad: () => setLoadAttempt(attempt => attempt + 1),
     handleSave,
     generateDescription,
     createCategory,

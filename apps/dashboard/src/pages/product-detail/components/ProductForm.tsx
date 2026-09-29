@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 import { Package, Download, Clock, Utensils, Plus, Trash2 } from "lucide-react";
 import { PrefixInput } from "../../../components/PrefixInput.js";
 import { CategoryCombobox } from "./CategoryCombobox.js";
@@ -34,6 +34,8 @@ function formatCents(cents: number): string {
 }
 
 export function ProductForm(props: ProductFormProps) {
+  const descriptionId = useId();
+  const nameErrorId = useId();
   const {
     name,
     onNameChange,
@@ -61,11 +63,12 @@ export function ProductForm(props: ProductFormProps) {
     <>
       {/* PRODUCT TYPE SELECTOR */}
       <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
-        <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>TIPO DE PRODUTO</h3>
-        <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12 }}>
+        <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>Tipo de produto</h3>
+        <div className="product-detail__types">
           {(["physical", "digital", "service", "food"] as const).map((type) => (
             <button
               key={type}
+              aria-pressed={productType === type}
               type="button"
               onClick={() => onProductTypeChange(type)}
               style={{
@@ -98,27 +101,28 @@ export function ProductForm(props: ProductFormProps) {
         </div>
       </section>
 
-      {/* INFORMAÇÕES BÁSICAS */}
+      {/* Informações básicas */}
       <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
-        <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>INFORMAÇÕES BÁSICAS</h3>
+        <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>Informações básicas</h3>
         <label style={{ display: "block", marginBottom: 12 }}>
           <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>Nome *</span>
           <input
             value={name}
+            aria-invalid={Boolean(formErrors.name)} aria-describedby={formErrors.name ? nameErrorId : undefined}
             onChange={(e) => onNameChange(e.target.value)}
             placeholder="Ex: Camiseta preta M"
             style={{ width: "100%", padding: "8px 12px", borderRadius: 8, border: `1px solid ${formErrors["name"] ? "var(--color-error)" : "var(--color-border)"}`, font: "13px var(--font-sans)", color: "var(--color-text)", outline: "none", background: "var(--surface-1)" }}
           />
           {formErrors["name"] ? (
-            <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{formErrors["name"]}</span>
+            <span id={nameErrorId} role="alert" style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{formErrors["name"]}</span>
           ) : null}
         </label>
         <div style={{ marginBottom: 12 }}>
           <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 4 }}>
-            <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Descrição</span>
+            <label htmlFor={descriptionId} style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Descrição</label>
             <button
               type="button"
-              disabled={generatingDesc}
+              disabled={generatingDesc || !name.trim()}
               onClick={onGenerateDescription}
               style={{ display: "inline-flex", alignItems: "center", gap: 5, padding: "5px 12px", borderRadius: 6, border: generatingDesc ? "1px solid var(--color-brand-hover)" : "1px solid var(--color-brand-ring)", background: generatingDesc ? "var(--color-brand-hover)" : "var(--color-brand-subtle)", color: generatingDesc ? "#fff" : "var(--color-brand-hover)", font: "600 11px var(--font-sans)", cursor: generatingDesc ? "not-allowed" : "pointer" }}
             >
@@ -132,7 +136,7 @@ export function ProductForm(props: ProductFormProps) {
               )}
             </button>
           </div>
-          <textarea
+          <textarea id={descriptionId}
             value={description}
             onChange={(e) => onDescriptionChange(e.target.value)}
             rows={4}
@@ -161,7 +165,7 @@ export function ProductForm(props: ProductFormProps) {
       {/* DIGITAL-ONLY FIELDS */}
       {productType === "digital" && (
         <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
-          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>INFORMAÇÕES DO DOWNLOAD</h3>
+          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>Informações do download</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
             <Field label="URL de Download" value={metadata.downloadUrl ?? ""} onChange={(val) => onMetadataChange({ ...metadata, downloadUrl: val })} placeholder="https://example.com/download/arquivo" />
             <Field label="Tamanho do arquivo" value={metadata.fileSize ?? ""} onChange={(val) => onMetadataChange({ ...metadata, fileSize: val })} placeholder="Ex: 15.5 MB, 320 KB" />
@@ -173,7 +177,7 @@ export function ProductForm(props: ProductFormProps) {
       {/* SERVICE-ONLY FIELDS */}
       {productType === "service" && (
         <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
-          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>AGENDAMENTO DO SERVIÇO</h3>
+          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>Agendamento do serviço</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 14 }}>
             <label style={{ display: "block" }}>
               <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>Modalidade *</span>
@@ -228,7 +232,7 @@ export function ProductForm(props: ProductFormProps) {
       {/* FOOD-ONLY FIELDS */}
       {productType === "food" && (
         <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
-          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>VARIAÇÕES DO PRODUTO</h3>
+          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>Variações do produto</h3>
           <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 14 }}>
             Crie categorias de variações (ex: Bordas, Recheio). Cada categoria tem itens com acréscimo opcional. Limite: {MAX_OPTION_GROUPS} categorias, {MAX_ITEMS_PER_GROUP} itens por categoria.
           </p>

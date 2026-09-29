@@ -1,111 +1,66 @@
-import React, { useEffect, useState } from "react";
-import { Sparkles, Check } from "lucide-react";
+﻿import React, { useEffect, useState } from "react";
 import { ToggleSwitch } from "../../../components/ToggleSwitch.js";
+import { Button } from "../../../components/Button.js";
 import { useApi } from "../../../hooks/useApi.js";
 import { usePlanFeatures } from "../../../hooks/api/usePlanFeatures.js";
 import { showToast } from "../../../components/Toast.js";
 import { reportError } from "../../../lib/observability/error-reporter.js";
 
-/**
- * Onboarding step 6 — activate the autonomous AI engine. A single toggle turns
- * on BOTH the autonomous revenue engine (MerchantRules.autonomousEngineEnabled)
- * and intent memory (storeSettings.intentMemory.intent_tracking_enabled).
- * Growth+ only — the wizard auto-skips this step for lower plans, but the gate
- * is enforced here too.
- */
 export function StepAiEngine() {
   const api = useApi();
   const { plan, loading: planLoading } = usePlanFeatures();
   const isGrowthPlus = plan === "growth" || plan === "scale";
-
   const [enabled, setEnabled] = useState(false);
   const [saving, setSaving] = useState(false);
   const [loaded, setLoaded] = useState(false);
-
+  const [attempt, setAttempt] = useState(0);
+  const [error, setError] = useState<string | null>(null);
   useEffect(() => {
     let alive = true;
-    void (async () => {
-      try {
-        const rules = await api.getMerchantRules?.().catch(() => null);
-        if (alive && rules && typeof rules.autonomousEngineEnabled === "boolean") {
-          setEnabled(rules.autonomousEngineEnabled);
-        }
-      } catch (err) {
-        reportError({ source: "onboarding.aiEngine.load", error: err, severity: "warning" });
-      } finally {
-        if (alive) setLoaded(true);
-      }
-    })();
+    setLoaded(false);
+    setError(null);
+    void api.getMerchantRules().then(rules => {
+      if (alive) { setEnabled(rules.autonomousEngineEnabled === true); setLoaded(true); }
+    }).catch(err => {
+      reportError({ source: "onboarding.aiEngine.load", error: err, severity: "warning" });
+      if (alive) setError("Não foi possível consultar a automação. Tente novamente antes de alterar.");
+    });
     return () => { alive = false; };
-  }, [api]);
+  }, [api, attempt]);
 
-  const toggle = async (next: boolean) => {
-    setEnabled(next); // optimistic
+  async function toggle(next: boolean) {
     setSaving(true);
-    try {
-      await Promise.all([
-        api.putMerchantRules?.({ autonomousEngineEnabled: next }),
-        api.putStoreSettings?.({ intentMemory: { intent_tracking_enabled: next } }),
-      ]);
-      showToast("success", next ? "Motor de IA ativado" : "Motor de IA desativado");
-    } catch (err) {
-      setEnabled(!next); // revert
-      reportError({ source: "onboarding.aiEngine.toggle", error: err, severity: "warning" });
-      showToast("error", "Não foi possível alterar o motor de IA");
-    } finally {
-      setSaving(false);
+    setError(null);
+    // Wait for both writes before reconciling a partial failure.
+    const results = await Promise.allSettled([
+      api.putMerchantRules({ autonomousEngineEnabled: next }),
+      api.putStoreSettings({ intentMemory: { intent_tracking_enabled: next } }),
+    ]);
+    if (results.every(result => result.status === "fulfilled")) {
+      setEnabled(next);
+      showToast("success", next ? "Automação ativada" : "Automação desativada");
+    } else {
+      results.forEach(result => { if (result.status === "rejected") reportError({ source: "onboarding.aiEngine.toggle", error: result.reason, severity: "warning" }); });
+      try {
+        const rules = await api.getMerchantRules();
+        setEnabled(rules.autonomousEngineEnabled === true);
+        setError("A alteração não foi concluída em todos os recursos. O status abaixo reflete a automação salva. Tente aplicar novamente para sincronizar a memória de intenção.");
+      } catch {
+        setLoaded(false);
+        setError("Não foi possível confirmar o resultado. Consulte novamente antes de alterar.");
+      }
     }
-  };
-
-  const FEATURES = [
-    "Descobre e testa hipóteses de receita automaticamente",
-    "Aprende a intenção de compra de cada cliente",
-    "Ajusta ofertas e mensagens dentro dos seus limites",
-  ];
-
-  return (
-    <div className="onb-field-group">
-      <div className="onb-hero-icon" aria-hidden="true">
-        <Sparkles size={22} />
+    setSaving(false);
+  }
+  return <div className="onb-field-group">
+    {!isGrowthPlus && !planLoading ? <p className="onb-help">A automação de vendas está disponível nos planos Growth e Scale. Você pode concluir a configuração sem ativá-la.</p> : <>
+      <p className="onb-help">Permita que a IA teste oportunidades de venda dentro das regras da loja. Revise os limites de desconto e margem antes de ativar.</p>
+      <ol className="onb-review-list"><li>Configure ofertas e limites em Regras comerciais.</li><li>Ative a automação quando essas regras estiverem prontas.</li><li>Acompanhe resultados e testes nas páginas de inteligência.</li></ol>
+      <div className="onb-toggle-row"><div><label htmlFor="onb-ai-toggle" className="onb-toggle-title">Automação de vendas</label><div className="onb-toggle-sub" role="status">{saving ? "Salvando…" : !loaded ? (error ? "Status indisponível" : "Consultando status…") : enabled ? "Ativada" : "Desativada"}</div></div>
+        <ToggleSwitch id="onb-ai-toggle" checked={enabled} disabled={saving || !loaded || planLoading} onChange={next => void toggle(next)} />
       </div>
-
-      {!isGrowthPlus && !planLoading ? (
-        <>
-          <p className="onb-help">
-            O Motor de IA autônomo está disponível nos planos <strong>Growth</strong> e
-            <strong> Scale</strong>. Faça upgrade para ativar a IA que descobre e testa
-            oportunidades de receita sozinha.
-          </p>
-          <span className="onb-plan-badge">Growth+</span>
-        </>
-      ) : (
-        <>
-          <p className="onb-help">
-            Ative a IA autônoma de vendas. Ela trabalha nos bastidores, sempre dentro dos
-            limites que você define nas regras da loja.
-          </p>
-
-          <ul className="onb-feature-list">
-            {FEATURES.map((f) => (
-              <li key={f}><Check size={14} aria-hidden="true" /> {f}</li>
-            ))}
-          </ul>
-
-          <div className="onb-toggle-row">
-            <div>
-              <div className="onb-toggle-title">Motor de IA autônomo</div>
-              <div className="onb-toggle-sub">
-                {enabled ? "Ativado — a IA já está trabalhando." : "Desativado."}
-              </div>
-            </div>
-            <ToggleSwitch
-              checked={enabled}
-              onChange={(v) => void toggle(v)}
-              disabled={saving || !loaded}
-            />
-          </div>
-        </>
-      )}
-    </div>
-  );
+      <p className="onb-help">Esta opção é salva ao alterar. Você pode continuar com a automação desativada.</p>
+      {error && <div className="onb-ai-feedback"><p role="alert" className="onb-message">{error}</p><Button variant="outline" disabled={saving} onClick={() => loaded ? void toggle(enabled) : setAttempt(value => value + 1)}>{loaded ? "Sincronizar configuração" : "Consultar novamente"}</Button></div>}
+    </>}
+  </div>;
 }

@@ -1,4 +1,4 @@
-import { readSubscriptionCycle } from "../../auth/subscription-intent.js";
+import { useBillingCycle } from "./useBillingCycle.js";
 import type { BillingCycle } from "@zyon/shared-types";
 import { useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
@@ -9,7 +9,7 @@ import { toPlanDef, selectedBillingOffer } from "./plan-catalog.js";
 
 export function useBillingPlansPage() {
   const api = useApi();
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>(readSubscriptionCycle);
+  const [billingCycle, setBillingCycle] = useBillingCycle();
   const [pendingChange, setPendingChange] = useState<PlanDef | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);

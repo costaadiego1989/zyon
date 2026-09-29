@@ -23,6 +23,9 @@ export function PartnerStoreDropdown({ api, ticketId, onTransferred }: PartnerSt
   const [confirming, setConfirming] = useState<PartnerStore | null>(null);
   const [transferring, setTransferring] = useState(false);
   const [activeIndex, setActiveIndex] = useState(-1);
+  const [error, setError] = useState<string | null>(null);
+  const request = useRef(0);
+  const transferInFlight = useRef(false);
   const debounceRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 
   useEffect(() => {
@@ -36,29 +39,36 @@ export function PartnerStoreDropdown({ api, ticketId, onTransferred }: PartnerSt
   }, [query]);
 
   async function fetchStores(q: string) {
+    const current = ++request.current;
     setLoading(true);
+    setError(null);
     try {
       const result = await api.listPartnerStores(q || undefined);
+      if (current !== request.current) return;
       setStores(result.stores ?? []);
       setActiveIndex(-1);
     } catch (e) {
       reportError({ source: "PartnerStoreDropdown.fetchStores", error: e });
-      setStores([]);
+      if (current === request.current) { setStores([]); setError("Não foi possível carregar as lojas parceiras. Tente novamente."); }
     } finally {
-      setLoading(false);
+      if (current === request.current) setLoading(false);
     }
   }
 
   async function handleConfirmTransfer(store: PartnerStore) {
+    if (transferInFlight.current) return;
+    transferInFlight.current = true;
     setTransferring(true);
+    setError(null);
     try {
       await api.transferTicket(ticketId, store.merchantId);
       onTransferred(store.storeName);
     } catch (e) {
       reportError({ source: "PartnerStoreDropdown.transferTicket", error: e });
-      setConfirming(null);
+      setError("A transferência não foi confirmada. Confira o chamado antes de tentar novamente.");
     } finally {
       setTransferring(false);
+      transferInFlight.current = false;
     }
   }
 
@@ -90,7 +100,8 @@ export function PartnerStoreDropdown({ api, ticketId, onTransferred }: PartnerSt
         <p style={{ fontSize: "13px", color: "var(--color-text)", margin: "0 0 12px" }}>
           Transferir chamado para <strong>{confirming.storeName}</strong>?
         </p>
-        <div style={{ display: "flex", gap: "8px" }}>
+        {error && <p className="panel-error" role="alert">{error}</p>}
+        <div style={{ display: "flex", gap: "8px", flexWrap: "wrap" }}>
           <Button
             variant="primary"
             size="sm"
@@ -128,7 +139,7 @@ export function PartnerStoreDropdown({ api, ticketId, onTransferred }: PartnerSt
           display: "block",
           fontSize: "11px",
           fontWeight: 600,
-          textTransform: "uppercase",
+          textTransform: "none",
           color: "var(--color-text-muted)",
           marginBottom: "6px",
         }}
@@ -185,7 +196,7 @@ export function PartnerStoreDropdown({ api, ticketId, onTransferred }: PartnerSt
           <Loader2 size={14} className="spin" />
           Carregando...
         </div>
-      ) : stores.length === 0 ? (
+      ) : error ? <div className="panel-error" role="alert">{error}<Button variant="outline" size="sm" onClick={() => void fetchStores(query)}>Tentar novamente</Button></div> : stores.length === 0 ? (
         <div
           style={{
             padding: "12px",

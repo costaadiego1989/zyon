@@ -3,7 +3,8 @@ import { ArrowLeft, Save } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { showToast } from "../../components/Toast.js";
 import { Button } from "../../components/Button.js";
-import { SectionHeader } from "../../components/SectionHeader.js";
+import { PageHeader } from "../../components/PageHeader.js";
+import "./product-detail.css";
 import { useProductDetailPage } from "./hooks/useProductDetailPage.js";
 import { ProductForm } from "./components/ProductForm.js";
 import { VariantManager } from "./components/VariantManager.js";
@@ -85,41 +86,18 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
   }
 
   return (
-    <div className="page-container">
-      <header className="page-head">
-        <div>
-          <button
-            type="button"
-            onClick={() => props.onBack?.()}
-            style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: 0, border: "none", background: "transparent", cursor: "pointer", color: "var(--color-text-muted)", font: "500 12px var(--font-sans)", marginBottom: 8 }}
-          >
-            <ArrowLeft size={12} /> Voltar para o catálogo
-          </button>
-          <span className="eyebrow">Loja</span>
-          <h1>{page.isEditing ? "Editar produto" : "Novo produto"}</h1>
-        </div>
-        <Button variant="primary" size="sm" arrow disabled={!page.canSave} onClick={() => void page.handleSave()}>
-          <Save size={14} /> {page.saving ? "Salvando..." : page.isEditing ? "Salvar alterações" : "Criar produto"}
-        </Button>
-      </header>
-
+    <div className="page-container product-detail">
+      <div className="product-detail__header">
+        <Button variant="ghost" size="sm" onClick={() => props.onBack?.()}><ArrowLeft size={14} /> Voltar para Produtos</Button>
+        <PageHeader title={page.isEditing ? (page.form.name || "Editar produto") : "Novo produto"} description="Preencha as informações, defina preço e estoque e adicione as imagens." actions={<Button variant="primary" loading={page.saving} disabled={!page.canSave} onClick={() => void page.handleSave()}><Save size={14} /> {page.isEditing ? "Salvar alterações" : "Criar produto"}</Button>} />
+      </div>
       {page.loading ? (
         <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando produto...</div>
+      ) : page.loadError ? (
+        <div className="product-detail__feedback" role="alert"><p>{page.loadError}</p><Button variant="outline" onClick={page.retryLoad}>Tentar novamente</Button></div>
       ) : (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 16 }}>
-          <SectionErrorBoundary sectionName="Mídia">
-          <MediaUploader
-            merchantId={page.merchantId!}
-            variants={page.variantManager.variants}
-            hasVariants={page.variantManager.hasVariants}
-            variantMedia={page.media.variantMedia}
-            uploadingVariant={page.media.uploadingVariant}
-            onUploadingChange={page.media.setUploadingVariant}
-            onAddMedia={page.media.addMedia}
-            onRemoveMedia={page.media.removeMedia}
-            onUpdateVariant={page.variantManager.updateVariant}
-          />
-          </SectionErrorBoundary>
+        <fieldset className="product-detail__fields" disabled={page.saving} aria-label="Dados do produto">
+
 
           <SectionErrorBoundary sectionName="Formulário do Produto">
           <ProductForm
@@ -164,8 +142,24 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
           />
           </SectionErrorBoundary>
 
+          <SectionErrorBoundary sectionName="Mídia">
+          <MediaUploader
+            merchantId={page.merchantId!}
+            variants={page.variantManager.variants}
+            hasVariants={page.variantManager.hasVariants}
+            variantMedia={page.media.variantMedia}
+            uploadingVariant={page.media.uploadingVariant}
+            onUploadingChange={page.media.setUploadingVariant}
+            onAddMedia={page.media.addMedia}
+            onRemoveMedia={page.media.removeMedia}
+            onUpdateVariant={page.variantManager.updateVariant}
+          />
+          </SectionErrorBoundary>
+
           {page.isEditing && page.merchantId && (
             <SectionErrorBoundary sectionName="SEO">
+            <details className="product-detail__advanced"><summary><strong>Busca e compartilhamento</strong><span>Título, descrição e endereço usados para apresentar o produto.</span></summary>
+
             <SeoSection
               merchantId={page.merchantId}
               productId={page.createdProductId || props.productId!}
@@ -184,11 +178,14 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
                 page.seo.setSeoKeywords(seo.keywords);
               }}
             />
+            </details>
             </SectionErrorBoundary>
           )}
 
           {page.merchantId && (
             <SectionErrorBoundary sectionName="Promoção">
+            <details className="product-detail__advanced"><summary><strong>Promoções e regras do produto</strong><span>Defina condições comerciais específicas. Alterações em produtos existentes têm salvamento próprio.</span></summary>
+
             <PromotionSection
               merchantId={page.merchantId}
               productId={page.createdProductId || props.productId}
@@ -196,18 +193,22 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
               onPendingPromoChange={page.setPendingPromoConfig}
               onPendingRulesChange={page.setPendingRulesConfig}
             />
+            </details>
             </SectionErrorBoundary>
           )}
 
-          {showAdvancedLayout && page.merchantId && (
+          {showAdvancedLayout && page.merchantId && (page.createdProductId || props.productId) && (
             <SectionErrorBoundary sectionName="Conteúdo Avançado">
+            <details className="product-detail__advanced"><summary><strong>Conteúdo avançado</strong><span>Personalize a apresentação e salve no editor de conteúdo.</span></summary>
+
               <AdvancedLayoutTab
                 merchantId={page.merchantId}
                 productId={page.createdProductId || props.productId!}
               />
+            </details>
             </SectionErrorBoundary>
           )}
-        </div>
+        </fieldset>
       )}
     </div>
   );

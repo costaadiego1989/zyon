@@ -1,4 +1,4 @@
-import React from "react";
+import React, { useId } from "react";
 
 export function NumberField({
   label,
@@ -21,11 +21,12 @@ export function NumberField({
   error?: string;
   suffix?: string;
 }) {
+  const id = useId();
   return (
     <div className="cfg-field">
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <div className={`cfg-number${error ? " has-error" : ""}`}>
-        <input
+        <input id={id} aria-invalid={Boolean(error)} aria-describedby={[help && `${id}-help`, error && `${id}-error`].filter(Boolean).join(" ") || undefined}
           type="number"
           min={min}
           max={max}
@@ -41,8 +42,8 @@ export function NumberField({
         />
         {suffix ? <span className="cfg-number-suffix">{suffix}</span> : null}
       </div>
-      {help ? <p className="cfg-help">{help}</p> : null}
-      {error ? <p className="cfg-inline-error">{error}</p> : null}
+      {help ? <p id={`${id}-help`} className="cfg-help">{help}</p> : null}
+      {error ? <p id={`${id}-error`} className="cfg-inline-error" role="alert">{error}</p> : null}
     </div>
   );
 }

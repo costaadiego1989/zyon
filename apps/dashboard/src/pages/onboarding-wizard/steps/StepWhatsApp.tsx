@@ -75,7 +75,7 @@ export function StepWhatsApp({ me }: StepWhatsAppProps) {
             <div className="onb-message" role="alert">{vm.connectError}</div>
           )}
           {vm.settings?.configured && <p className="onb-help onb-help-muted">
-            O popup oficial da Meta permite selecionar a conta Business e o número da loja. Templates precisam da aprovação da Meta antes do envio.
+            Na janela oficial da Meta, selecione a conta da empresa e o número da loja. Os modelos de mensagem precisam da aprovação da Meta antes do envio.
           </p>}
         </>
       )}

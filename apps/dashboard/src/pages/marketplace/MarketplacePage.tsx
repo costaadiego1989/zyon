@@ -1,9 +1,13 @@
+import "../../components/configuration-form.css";
+import { SetupGuide } from "../../components/SetupGuide.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import React from "react";
-import { Store, ShoppingBag, Zap, Clock, TrendingUp, Truck, BarChart3, DollarSign, CheckCircle } from "lucide-react";
+import { Store, ShoppingBag, Zap, Clock, TrendingUp, Truck, BarChart3, DollarSign, CheckCircle, AlertCircle } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { EmptyState } from "../../components/EmptyState.js";
 import { TabBar } from "../../components/TabBar.js";
-import { ToggleSwitch } from "../../components/ToggleSwitch.js";
+import { Button } from "../../components/Button.js";
+import { Modal } from "../../components/Modal.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { DataPanel } from "../../components/DataPanel.js";
@@ -12,13 +16,13 @@ import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useMarketplacePage } from "./useMarketplacePage.js";
 import { OrderRow } from "./components/OrderRow.js";
 import { SettlementDetailPanel } from "./components/SettlementDetailPanel.js";
-import { BlockedMerchantForm } from "./components/BlockedMerchantForm.js";
+import { MarketplaceSettings } from "./components/MarketplaceSettings.js";
 import { StoreDiscoveryGrid } from "./components/StoreDiscoveryGrid.js";
 import "./marketplace-page.css";
 
 const SETTLEMENT_STATUS_PT: Record<string, string> = {
   awaiting_return_window: "Aguardando devolução",
-  awaiting_chargeback_window: "Aguardando chargeback",
+  awaiting_chargeback_window: "Aguardando contestação",
   transfer_scheduled: "Repasse agendado",
   transferred: "Repasse executado",
   finalized: "Finalizado",
@@ -31,6 +35,8 @@ const SETTLEMENT_STATUS_PT: Record<string, string> = {
 const settlementStatusLabel = (status: string): string =>
   SETTLEMENT_STATUS_PT[status] ?? status.replace(/_/g, " ");
 
+const formatCurrency = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+
 interface MarketplacePageProps {
   apiBaseUrl: string;
   me: MerchantProfile | null;
@@ -38,8 +44,8 @@ interface MarketplacePageProps {
 
 export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
   const { state, actions } = useMarketplacePage(me);
-  const { config, orders, stats, loading, saving, tab, settlements, chargebacks, chargebackStats, selectedSettlementId } = state;
-  const { saveConfig, markShipped, markDelivered, setTab, setSelectedSettlementId } = actions;
+  const { config, orders, stats, loading, saving, tab, settlements, chargebacks, chargebackStats, selectedSettlementId, errors, actionError } = state;
+  const { saveConfig, markShipped, markDelivered, setTab, setSelectedSettlementId, retrySection, clearActionError } = actions;
 
   // Page-based pagination for the data lists, matching the Produtos/Estoque layout.
   const LIST_PAGE_SIZE = 10;
@@ -47,7 +53,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
   const [settlementsPage, setSettlementsPage] = React.useState(1);
   const [returnsPage, setReturnsPage] = React.useState(1);
   const [chargebacksPage, setChargebacksPage] = React.useState(1);
-  const pageSlice = <T,>(arr: T[], page: number): T[] => arr.slice((page - 1) * LIST_PAGE_SIZE, page * LIST_PAGE_SIZE);
+  const pageSlice = <T,>(arr: T[], page: number): T[] => { const safe = Math.min(page, Math.max(1, Math.ceil(arr.length / LIST_PAGE_SIZE))); return arr.slice((safe - 1) * LIST_PAGE_SIZE, safe * LIST_PAGE_SIZE); };
 
   // Filters (FilterToolbar) per data list — status chips + search, like the Produtos screen.
   const [ordersStatus, setOrdersStatus] = React.useState("all");
@@ -57,16 +63,14 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
   const [returnsSearch, setReturnsSearch] = React.useState("");
   const [chargebacksSearch, setChargebacksSearch] = React.useState("");
 
+  const [settingsDirty, setSettingsDirty] = React.useState(false);
+  const [pendingTab, setPendingTab] = React.useState<string | null>(null);
+  const sectionError = errors[tab === "returns" ? "settlements" : tab];
+  const changeTab = (key: string) => { if (saving || key === tab) return; if (settingsDirty && tab === "settings") { setPendingTab(key); return; } clearActionError(); setTab(key as typeof tab); };
   if (!me) {
     return (
       <div className="marketplace-page">
-        <header className="page-head">
-          <div>
-            <span className="eyebrow">INTEGRAÇÕES</span>
-            <h1>Marketplace</h1>
-            <p className="page-lead">Gerencie como seus produtos aparecem em lojas parceiras</p>
-          </div>
-        </header>
+        <PageHeader title="Marketplace" description="Gerencie como seus produtos aparecem em lojas parceiras" />
         <EmptyState
           icon={Store}
           title="Login necessário"
@@ -79,12 +83,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
   if (loading) {
     return (
       <div className="marketplace-page">
-        <header className="page-head">
-          <div>
-            <span className="eyebrow">INTEGRAÇÕES</span>
-            <h1>Marketplace</h1>
-          </div>
-        </header>
+        <PageHeader title="Marketplace" />
         <PageLoader />
       </div>
     );
@@ -92,23 +91,16 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
 
   return (
     <div className="marketplace-page">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">INTEGRAÇÕES</span>
-          <h1>Marketplace</h1>
-          <p className="page-lead">
-            {tab === "settings"
+      <PageHeader title="Marketplace" description={<>{tab === "settings"
               ? "Gerencie comissões, janelas de pagamento e lojas parceiras"
               : tab === "settlements"
-              ? "Acompanhe repasses, janelas e status de cada transação cross-store"
+              ? "Acompanhe repasses, janelas e status de cada venda entre lojas"
               : tab === "chargebacks"
-              ? "Visualize chargebacks recebidos e impacto nos repasses"
+              ? "Acompanhe contestações e seus efeitos nos repasses"
               : tab === "stores"
               ? "Descubra e habilite lojas parceiras para vender seus produtos"
-              : "Pedidos recebidos de lojas parceiras que vendem seus produtos"}
-          </p>
-        </div>
-      </header>
+              : "Pedidos recebidos de lojas parceiras que vendem seus produtos"}</>} />
+      <SetupGuide title="Como organizar as vendas com parceiros" steps={[{"title":"Revise as lojas participantes","description":"Confira a conexão com cada loja e quais produtos fazem parte da operação."},{"title":"Defina as condições","description":"Revise comissões, devoluções e repasses. Exemplo: 10% de comissão sobre R$ 100 corresponde a R$ 10, antes de outras condições aplicáveis."},{"title":"Acompanhe a operação","description":"Use Pedidos, Repasses e Devoluções para conferir cada etapa. O estado exibido depende do processamento da operação."}]} />
 
       <TabBar
         tabs={[
@@ -116,11 +108,11 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
           { key: "orders", label: "Pedidos" },
           { key: "settlements", label: "Repasses" },
           { key: "returns", label: "Devoluções" },
-          { key: "chargebacks", label: "Chargebacks" },
+          { key: "chargebacks", label: "Contestações" },
           { key: "settings", label: "Configurações" },
         ]}
         activeTab={tab}
-        onTabChange={(key) => setTab(key as any)}
+        onTabChange={changeTab}
       />
 
       {tab === "stores" && (
@@ -129,150 +121,11 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
         </SectionErrorBoundary>
       )}
 
-      {tab === "settings" && (
-        <div className="marketplace-page__settings">
-          <div className="panel">
-            <div className="marketplace-section__header">
-              <h2 className="marketplace-section__title">Habilitar Marketplace</h2>
-            </div>
-            <div className="marketplace-enable">
-              <div className="marketplace-enable__checkbox">
-                <ToggleSwitch
-                  id="marketplace-enabled"
-                  checked={config.enabled}
-                  onChange={(v) => void saveConfig({ enabled: v })}
-                  disabled={saving}
-                />
-              </div>
-              <div className="marketplace-enable__content">
-                <label htmlFor="marketplace-enabled" className="marketplace-enable__label">
-                  Permitir marketplace
-                </label>
-                <p className="marketplace-enable__description">
-                  Permitir que lojas parceiras vendam seus produtos e vice-versa.
-                </p>
-                <span className="marketplace-enable__status marketplace-enable__status-active">
-                  <span className="status-dot status-dot--active" />
-                  {config.enabled ? "Ativo" : "Inativo"}
-                </span>
-              </div>
-            </div>
-          </div>
+      {sectionError && <EmptyState icon={AlertCircle} title="Esta seção está indisponível" description={sectionError} action={<Button onClick={() => void retrySection()}>Tentar novamente</Button>} />}
+      {actionError && <p className="marketplace-error" role="alert">{actionError}</p>}
+      {tab === "settings" && !sectionError && <MarketplaceSettings config={config} saving={saving} saveConfig={saveConfig} onDirtyChange={setSettingsDirty} />}
 
-          <div className="panel">
-            <div className="marketplace-section__header">
-              <h2 className="marketplace-section__title">Comissão e Janelas de Pagamento</h2>
-            </div>
-
-            <div className="marketplace-config__grid">
-              <div className="marketplace-config__field">
-                <label className="marketplace-config__label">Comissão (%)</label>
-                <input
-                  type="number"
-                  className="marketplace-config__input"
-                  value={config.commission_percent}
-                  onChange={(e) =>
-                    void saveConfig({
-                      commission_percent: Math.max(1, Math.min(50, Number(e.target.value))),
-                    })
-                  }
-                  min="1"
-                  max="50"
-                  disabled={saving}
-                />
-                <span style={{ font: "400 10px var(--font-sans)", color: "var(--color-text-muted)" }}>
-                  Intervalo: 1-50%
-                </span>
-              </div>
-
-              <div className="marketplace-config__field">
-                <label className="marketplace-config__label">Prazo de Devolução (dias)</label>
-                <input
-                  type="number"
-                  className="marketplace-config__input"
-                  value={config.return_window_days}
-                  onChange={(e) =>
-                    void saveConfig({
-                      return_window_days: Math.max(1, Math.min(30, Number(e.target.value))),
-                    })
-                  }
-                  min="1"
-                  max="30"
-                  disabled={saving}
-                />
-                <span style={{ font: "400 10px var(--font-sans)", color: "var(--color-text-muted)" }}>
-                  Intervalo: 1-30 dias
-                </span>
-              </div>
-
-              <div className="marketplace-config__field">
-                <label className="marketplace-config__label">Prazo de Repasse (dias)</label>
-                <input
-                  type="number"
-                  className="marketplace-config__input"
-                  value={config.settlement_window_days}
-                  onChange={(e) =>
-                    void saveConfig({
-                      settlement_window_days: Math.max(1, Math.min(30, Number(e.target.value))),
-                    })
-                  }
-                  min="1"
-                  max="30"
-                  disabled={saving}
-                />
-                <span style={{ font: "400 10px var(--font-sans)", color: "var(--color-text-muted)" }}>
-                  Intervalo: 1-30 dias
-                </span>
-              </div>
-
-              <div className="marketplace-config__field">
-                <label className="marketplace-config__label">Janela de Chargeback (dias)</label>
-                <input
-                  type="number"
-                  className="marketplace-config__input"
-                  value={config.chargeback_window_days}
-                  onChange={(e) =>
-                    void saveConfig({
-                      chargeback_window_days: Math.max(7, Math.min(30, Number(e.target.value))),
-                    })
-                  }
-                  min="7"
-                  max="30"
-                  disabled={saving}
-                />
-                <span style={{ font: "400 10px var(--font-sans)", color: "var(--color-text-muted)" }}>
-                  Intervalo: 7-30 dias
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <div className="panel">
-            <div className="marketplace-section__header">
-              <h2 className="marketplace-section__title">Lojas Bloqueadas</h2>
-            </div>
-            <p className="marketplace-enable__description" style={{ marginTop: 0 }}>
-              Merchants que você não quer que vendam em sua loja
-            </p>
-
-            {/* Add Blocked Merchant Form */}
-            <BlockedMerchantForm
-              blockedIds={config.blocked_merchant_ids}
-              saving={saving}
-              onAdd={(merchantId) => {
-                const updated = [...config.blocked_merchant_ids, merchantId];
-                void saveConfig({ blocked_merchant_ids: updated });
-              }}
-              onRemove={(merchantId) => {
-                const updated = config.blocked_merchant_ids.filter((id) => id !== merchantId);
-                void saveConfig({ blocked_merchant_ids: updated });
-              }}
-            />
-          </div>
-        </div>
-      )}
-
-      {tab === "orders" && (
+      {tab === "orders" && !sectionError && (
         <SectionErrorBoundary sectionName="Pedidos Marketplace">
         <div className="marketplace-page__orders">
           {stats && (
@@ -315,16 +168,8 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
               return true;
             });
             return (
-              <DataPanel
-                title="Pedidos Recebidos"
-                isEmpty={rows.length === 0}
-                empty={{ icon: ShoppingBag, title: "Você ainda não recebeu pedidos via marketplace", description: "Quando lojas parceiras venderem seus produtos, os pedidos aparecerão aqui." }}
-                page={ordersPage}
-                pageSize={LIST_PAGE_SIZE}
-                total={rows.length}
-                onPageChange={setOrdersPage}
-              >
-                <FilterToolbar
+              <>
+<FilterToolbar
                   tabs={[
                     { key: "all", label: "Todos" },
                     { key: "pending", label: "Pendente" },
@@ -337,11 +182,21 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                   onSearchChange={(v) => { setOrdersSearch(v); setOrdersPage(1); }}
                   searchPlaceholder="Buscar por pedido, produto ou loja..."
                 />
+<DataPanel
+                title="Pedidos recebidos"
+                isEmpty={rows.length === 0}
+                empty={{ icon: ShoppingBag, title: orders.length ? "Nenhum pedido com estes filtros" : "Nenhum registro por enquanto", description: orders.length ? "Ajuste a busca ou limpe os filtros para ver os registros." : "Quando uma loja parceira vender seus produtos, o pedido aparecerá aqui.", action: orders.length ? <Button variant="outline" onClick={() => { setOrdersSearch(""); setOrdersStatus("all"); setOrdersPage(1); }}>Limpar filtros</Button> : undefined }}
+                page={Math.min(ordersPage, Math.max(1, Math.ceil(rows.length / LIST_PAGE_SIZE)))}
+                pageSize={LIST_PAGE_SIZE}
+                total={rows.length}
+                onPageChange={setOrdersPage}
+              >
+
                 <table className="marketplace-orders__table">
                   <thead>
                     <tr>
                       <th>Pedido</th>
-                      <th>Loja Host</th>
+                      <th>Loja parceira</th>
                       <th>Produto</th>
                       <th>Valor</th>
                       <th>Status</th>
@@ -362,13 +217,14 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                   </tbody>
                 </table>
               </DataPanel>
+</>
             );
           })()}
         </div>
         </SectionErrorBoundary>
       )}
 
-      {tab === "settlements" && (
+      {tab === "settlements" && !sectionError && (
         <SectionErrorBoundary sectionName="Repasses">
         <div className="marketplace-page__settlements">
           <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 14 }}>
@@ -410,16 +266,8 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
             return true;
           });
           return (
-          <DataPanel
-            title="Repasses"
-            isEmpty={filteredSettlements.length === 0}
-            empty={{ icon: Clock, title: "Nenhum repasse registrado", description: "Quando pedidos forem finalizados, os repasses aparecerão aqui com a timeline completa." }}
-            page={settlementsPage}
-            pageSize={LIST_PAGE_SIZE}
-            total={filteredSettlements.length}
-            onPageChange={setSettlementsPage}
-          >
-            <FilterToolbar
+          <>
+<FilterToolbar
               tabs={[
                 { key: "all", label: "Todos" },
                 { key: "awaiting_return_window", label: "Aguardando devolução" },
@@ -433,12 +281,22 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
               onSearchChange={(v) => { setSettlementsSearch(v); setSettlementsPage(1); }}
               searchPlaceholder="Buscar por ID ou pedido..."
             />
+<DataPanel
+            title="Repasses"
+            isEmpty={filteredSettlements.length === 0}
+            empty={{ icon: Clock, title: settlements.length ? "Nenhum repasse com estes filtros" : "Nenhum registro por enquanto", description: settlements.length ? "Ajuste a busca ou limpe os filtros para ver os registros." : "Acompanhe aqui os repasses e as etapas de cada pagamento.", action: settlements.length ? <Button variant="outline" onClick={() => { setSettlementsSearch(""); setSettlementsStatus("all"); setSettlementsPage(1); }}>Limpar filtros</Button> : undefined }}
+            page={Math.min(settlementsPage, Math.max(1, Math.ceil(filteredSettlements.length / LIST_PAGE_SIZE)))}
+            pageSize={LIST_PAGE_SIZE}
+            total={filteredSettlements.length}
+            onPageChange={setSettlementsPage}
+          >
+
             <table className="marketplace-orders__table">
               <thead>
                 <tr>
                   <th>ID</th>
                   <th>Pedido</th>
-                  <th>Valor Líquido</th>
+                  <th>Valor líquido</th>
                   <th>Status</th>
                   <th>Criado</th>
                   <th>Ações</th>
@@ -450,7 +308,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                     <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
                     <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
                     <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-                      R$ {(s.sellerNetCents / 100).toFixed(2)}
+                      {formatCurrency(s.sellerNetCents)}
                     </td>
                     <td>
                       <span className={`settlement-status settlement-status--${s.status}`}>
@@ -461,22 +319,23 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                       {new Date(s.createdAt).toLocaleDateString("pt-BR")}
                     </td>
                     <td>
-                      <button className="btn-sm" onClick={() => setSelectedSettlementId(s.id)}>
+                      <Button variant="outline" onClick={() => setSelectedSettlementId(s.id)}>
                         Detalhes
-                      </button>
+                      </Button>
                     </td>
                   </tr>
                 ))}
               </tbody>
             </table>
           </DataPanel>
+</>
           );
           })()}
         </div>
         </SectionErrorBoundary>
       )}
 
-      {tab === "returns" && (() => {
+      {tab === "returns" && !sectionError && (() => {
         const allReturned = settlements.filter((s) => s.status === "return_cancelled");
         const rq = returnsSearch.trim().toLowerCase();
         const returned = rq ? allReturned.filter((s) => `${s.id} ${s.orderId}`.toLowerCase().includes(rq)) : allReturned;
@@ -496,33 +355,35 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
               <StatCard label="Taxa de Devolução" value={`${Math.round(returnRate * 100)}%`} icon={<BarChart3 size={16} />} accent="var(--info)" />
             </div>
 
-            <DataPanel
-              title="Devoluções de Marketplace"
-              isEmpty={returned.length === 0}
-              empty={{ icon: Store, title: "Nenhuma devolução de marketplace", description: "Quando compradores de pedidos cross-store solicitarem devoluções, elas aparecerão aqui." }}
-              page={returnsPage}
-              pageSize={LIST_PAGE_SIZE}
-              total={returned.length}
-              onPageChange={setReturnsPage}
-            >
-              <FilterToolbar
+            <>
+<FilterToolbar
                 tabs={[{ key: "all", label: "Todas" }]}
                 activeTab="all"
                 onTabChange={() => {}}
                 search={returnsSearch}
                 onSearchChange={(v) => { setReturnsSearch(v); setReturnsPage(1); }}
-                searchPlaceholder="Buscar por settlement ou pedido..."
+                searchPlaceholder="Buscar por repasse ou pedido"
               />
+<DataPanel
+              title="Devoluções de vendas entre lojas"
+              isEmpty={returned.length === 0}
+              empty={{ icon: Store, title: allReturned.length ? "Nenhuma devolução com estes filtros" : "Nenhum registro por enquanto", description: allReturned.length ? "Ajuste a busca ou limpe os filtros para ver os registros." : "As devoluções de vendas entre lojas aparecerão aqui quando registradas.", action: allReturned.length ? <Button variant="outline" onClick={() => { setReturnsSearch(""); setReturnsPage(1); }}>Limpar filtros</Button> : undefined }}
+              page={Math.min(returnsPage, Math.max(1, Math.ceil(returned.length / LIST_PAGE_SIZE)))}
+              pageSize={LIST_PAGE_SIZE}
+              total={returned.length}
+              onPageChange={setReturnsPage}
+            >
+
               <table className="marketplace-orders__table">
                 <thead>
-                  <tr><th>Settlement</th><th>Pedido</th><th>Valor</th><th>Status</th><th>Data</th></tr>
+                  <tr><th>Repasse</th><th>Pedido</th><th>Valor</th><th>Status</th><th>Data</th></tr>
                 </thead>
                 <tbody>
                   {pageSlice(returned, returnsPage).map((s) => (
                     <tr key={s.id}>
                       <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.id.slice(0, 8)}...</td>
                       <td style={{ fontFamily: "var(--font-mono)", fontSize: 12 }}>{s.orderId.slice(0, 8)}...</td>
-                      <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>R$ {(s.sellerNetCents / 100).toFixed(2)}</td>
+                      <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>{formatCurrency(s.sellerNetCents)}</td>
                       <td><span className={`settlement-status settlement-status--${s.status}`}>{settlementStatusLabel(s.status)}</span></td>
                       <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>{new Date(s.createdAt).toLocaleDateString("pt-BR")}</td>
                     </tr>
@@ -530,11 +391,12 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                 </tbody>
               </table>
             </DataPanel>
+</>
           </div>
         );
       })()}
 
-      {tab === "chargebacks" && (
+      {tab === "chargebacks" && !sectionError && (
         <div className="marketplace-page__chargebacks" style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
           {/* Stats Cards */}
           <div style={{ display: "grid", gridTemplateColumns: "repeat(3, 1fr)", gap: 12 }}>
@@ -567,27 +429,29 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
             ? chargebacks.filter((cb) => `${cb.settlement.id} ${cb.settlement.orderId}`.toLowerCase().includes(cq))
             : chargebacks;
           return (
-          <DataPanel
-            title="Chargebacks"
-            isEmpty={filteredChargebacks.length === 0}
-            empty={{ icon: Zap, title: "Nenhum chargeback registrado", description: "Chargebacks recebidos de pedidos cross-store aparecerão aqui." }}
-            page={chargebacksPage}
-            pageSize={LIST_PAGE_SIZE}
-            total={filteredChargebacks.length}
-            onPageChange={setChargebacksPage}
-          >
-              <FilterToolbar
+          <>
+<FilterToolbar
                 tabs={[{ key: "all", label: "Todos" }]}
                 activeTab="all"
                 onTabChange={() => {}}
                 search={chargebacksSearch}
                 onSearchChange={(v) => { setChargebacksSearch(v); setChargebacksPage(1); }}
-                searchPlaceholder="Buscar por settlement ou pedido..."
+                searchPlaceholder="Buscar por repasse ou pedido"
               />
+<DataPanel
+            title="Contestações"
+            isEmpty={filteredChargebacks.length === 0}
+            empty={{ icon: Zap, title: chargebacks.length ? "Nenhuma contestação com estes filtros" : "Nenhum registro por enquanto", description: chargebacks.length ? "Ajuste a busca ou limpe os filtros para ver os registros." : "As contestações de vendas entre lojas aparecerão aqui quando registradas.", action: chargebacks.length ? <Button variant="outline" onClick={() => { setChargebacksSearch(""); setChargebacksPage(1); }}>Limpar filtros</Button> : undefined }}
+            page={Math.min(chargebacksPage, Math.max(1, Math.ceil(filteredChargebacks.length / LIST_PAGE_SIZE)))}
+            pageSize={LIST_PAGE_SIZE}
+            total={filteredChargebacks.length}
+            onPageChange={setChargebacksPage}
+          >
+
               <table className="marketplace-orders__table">
                 <thead>
                   <tr>
-                    <th>Settlement</th>
+                    <th>Repasse</th>
                     <th>Pedido</th>
                     <th>Valor</th>
                     <th>Tipo</th>
@@ -605,7 +469,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                         {cb.settlement.orderId.slice(0, 8)}...
                       </td>
                       <td style={{ fontFamily: "var(--font-mono)", fontWeight: 600 }}>
-                        R$ {(cb.settlement.sellerNetCents / 100).toFixed(2)}
+                        {formatCurrency(cb.settlement.sellerNetCents)}
                       </td>
                       <td>
                         <span className={`settlement-status settlement-status--${cb.type}`}>
@@ -613,7 +477,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                         </span>
                       </td>
                       <td style={{ fontFamily: "var(--font-mono)", color: cb.debt ? "var(--color-error)" : "var(--color-text-muted)" }}>
-                        {cb.debt ? `R$ ${(cb.debt.amountCents / 100).toFixed(2)}` : "—"}
+                        {cb.debt ? formatCurrency(cb.debt.amountCents) : "—"}
                       </td>
                       <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                         {cb.settlement.chargebackAt
@@ -625,11 +489,13 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                 </tbody>
               </table>
           </DataPanel>
+</>
           );
           })()}
         </div>
       )}
 
+      <Modal isOpen={pendingTab !== null} title="Sair sem salvar as configurações?" subtitle="As alterações desta tela ainda não foram aplicadas." presentation="center" size="md" onClose={() => setPendingTab(null)} footer={<><Button variant="outline" onClick={() => setPendingTab(null)}>Continuar editando</Button><Button variant="danger" onClick={() => { if (pendingTab) setTab(pendingTab as typeof tab); setPendingTab(null); setSettingsDirty(false); clearActionError(); }}>Descartar e sair</Button></>}><p className="marketplace-help">Salve a configuração para aplicar a participação, os prazos e os bloqueios.</p></Modal>
       {/* Settlement Detail Panel */}
       {selectedSettlementId && (
         <SettlementDetailPanel

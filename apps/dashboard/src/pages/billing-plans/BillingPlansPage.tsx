@@ -1,3 +1,4 @@
+import { PageHeader } from "../../components/PageHeader.js";
 import { BillingCycleSelector } from "./components/BillingCycleSelector.js";
 import { billingMoney, selectedBillingOffer } from "./plan-catalog.js";
 import React from "react";
@@ -5,6 +6,7 @@ import { useBillingPlansPage } from "./useBillingPlansPage.js";
 import { CurrentPlanCard } from "./components/CurrentPlanCard.js";
 import { UsageMeters, type UsageMeter } from "./components/UsageMeters.js";
 import { PlanCard } from "./components/PlanCard.js";
+import { BillingTerms } from "./components/BillingPlanDetails.js";
 import "./billing-plans-page.css";
 
 
@@ -18,13 +20,7 @@ function getPlanIndex(plan: string | null): number {
 
 export function BillingPlansPage() {
   const vm = useBillingPlansPage();
-  const header = <header className="page-head billing-plans__header">
-    <div>
-      <span className="eyebrow">CONTA</span>
-      <h1 className="billing-plans__title">Planos e Assinatura</h1>
-      <p className="page-lead billing-plans__subtitle">Gerencie seu plano e acompanhe o uso dos recursos.</p>
-    </div>
-  </header>;
+  const header = <PageHeader title="Planos e assinatura" description="Gerencie seu plano e acompanhe o uso dos recursos." />;
 
   if (vm.loading && !vm.subscription) {
     return (
@@ -209,6 +205,7 @@ export function BillingPlansPage() {
             );
           })}
         </div>
+        <p className="billing-plan-terms"><BillingTerms /></p>
       </section>
     </div>
   );

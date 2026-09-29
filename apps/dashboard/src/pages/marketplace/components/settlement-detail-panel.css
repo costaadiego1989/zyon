@@ -99,3 +99,9 @@
     max-height: 80vh;
   }
 }
+
+.settlement-panel__body { padding: 0; overflow: visible; min-width: 0; }
+.settlement-panel__info { padding: 0 0 20px; background: transparent; border-radius: 0; border-bottom: 1px solid var(--color-border); }
+.settlement-panel__info-row { gap: 20px; align-items: flex-start; line-height: 1.6; }
+.settlement-panel__info-row > span { min-width: 0; overflow-wrap: anywhere; }
+.settlement-panel__info-row > span:last-child { text-align: right; }

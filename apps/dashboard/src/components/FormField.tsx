@@ -1,8 +1,8 @@
-import React from "react";
+import React, { useId } from "react";
 
 export interface FormFieldProps {
   label: string;
-  type?: "text" | "email" | "tel" | "password" | "number" | "url";
+  type?: "text" | "email" | "tel" | "password" | "number" | "url" | "date";
   placeholder?: string;
   value: string;
   onChange: (value: string) => void;
@@ -12,13 +12,18 @@ export interface FormFieldProps {
   autoFocus?: boolean;
   maxLength?: number;
   onKeyDown?: (e: React.KeyboardEvent<HTMLInputElement>) => void;
+  inputProps?: Omit<React.InputHTMLAttributes<HTMLInputElement>, "value" | "onChange" | "id" | "type">;
 }
 
-export function FormField({ label, type = "text", placeholder, value, onChange, disabled, hint, error, autoFocus, maxLength, onKeyDown }: FormFieldProps) {
+export function FormField({ label, type = "text", placeholder, value, onChange, disabled, hint, error, autoFocus, maxLength, onKeyDown, inputProps }: FormFieldProps) {
+  const id = useId();
   return (
     <div className="form-field">
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <input
+        {...inputProps}
+        id={id}
+        aria-describedby={hint || error ? id + "-help" : undefined}
         type={type}
         placeholder={placeholder}
         value={value}
@@ -29,8 +34,8 @@ export function FormField({ label, type = "text", placeholder, value, onChange, 
         autoFocus={autoFocus}
         onKeyDown={onKeyDown}
       />
-      {hint && !error ? <span className="form-field-hint">{hint}</span> : null}
-      {error ? <span className="form-field-error">{error}</span> : null}
+      {hint && !error ? <span id={id + "-help"} className="form-field-hint">{hint}</span> : null}
+      {error ? <span id={id + "-help"} className="form-field-error" role="alert">{error}</span> : null}
     </div>
   );
 }
@@ -45,15 +50,16 @@ export interface FormSelectProps {
 }
 
 export function FormSelect({ label, value, onChange, options, disabled, hint }: FormSelectProps) {
+  const id = useId();
   return (
     <div className="form-field">
-      <label>{label}</label>
-      <select value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
+      <label htmlFor={id}>{label}</label>
+      <select id={id} aria-describedby={hint ? id + "-help" : undefined} value={value} onChange={(e) => onChange(e.target.value)} disabled={disabled}>
         {options.map((opt) => (
           <option key={opt.value} value={opt.value}>{opt.label}</option>
         ))}
       </select>
-      {hint ? <span className="form-field-hint">{hint}</span> : null}
+      {hint ? <span id={id + "-help"} className="form-field-hint">{hint}</span> : null}
     </div>
   );
 }
@@ -70,10 +76,13 @@ export interface FormTextareaProps {
 }
 
 export function FormTextarea({ label, placeholder, value, onChange, disabled, rows = 3, hint, maxLength }: FormTextareaProps) {
+  const id = useId();
   return (
     <div className="form-field">
-      <label>{label}</label>
+      <label htmlFor={id}>{label}</label>
       <textarea
+        id={id}
+        aria-describedby={hint ? id + "-help" : undefined}
         placeholder={placeholder}
         value={value}
         onChange={(e) => onChange(e.target.value)}
@@ -81,7 +90,7 @@ export function FormTextarea({ label, placeholder, value, onChange, disabled, ro
         rows={rows}
         maxLength={maxLength}
       />
-      {hint ? <span className="form-field-hint">{hint}</span> : null}
+      {hint ? <span id={id + "-help"} className="form-field-hint">{hint}</span> : null}
     </div>
   );
 }

@@ -1,7 +1,13 @@
 import React, { useMemo } from "react";
 import { Calendar, CheckCircle2, Clock, AlertCircle, DollarSign } from "lucide-react";
-import type { SettlementDetail, SettlementStatus, SettlementTimelineEntry } from "../../../api/endpoints/marketplace-v2.js";
+import type {
+  SettlementDetail,
+  SettlementStatus,
+  SettlementTimelineEntry,
+} from "../../../api/endpoints/marketplace-v2.js";
 import "./settlement-timeline.css";
+
+const formatCurrency = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 
 interface SettlementTimelineProps {
   detail: SettlementDetail;
@@ -11,17 +17,17 @@ interface SettlementTimelineProps {
 const STATUS_CONFIG: Record<SettlementStatus, { color: string; label: string; icon: React.ReactNode }> = {
   awaiting_return_window: {
     color: "var(--info)",
-    label: "Aguardando Devolução",
+    label: "Aguardando devolução",
     icon: <Clock size={16} />,
   },
   transfer_scheduled: {
     color: "var(--warning)",
-    label: "Repasse Agendado",
+    label: "Repasse agendado",
     icon: <Calendar size={16} />,
   },
   transferred: {
     color: "var(--success)",
-    label: "Repasse Executado",
+    label: "Repasse executado",
     icon: <CheckCircle2 size={16} />,
   },
   finalized: {
@@ -36,19 +42,23 @@ const STATUS_CONFIG: Record<SettlementStatus, { color: string; label: string; ic
   },
   chargeback_cancelled: {
     color: "var(--color-error)",
-    label: "Chargeback Cancelado",
+    label: "Contestação cancelada",
     icon: <AlertCircle size={16} />,
   },
   chargeback_debt: {
     color: "var(--color-error)",
-    label: "Débito por Chargeback",
+    label: "Débito por contestação",
     icon: <AlertCircle size={16} />,
   },
 };
 
 export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProps) {
   const { settlement, timeline, debt } = detail;
-  const currentStatus = STATUS_CONFIG[settlement.status];
+  const currentStatus = STATUS_CONFIG[settlement.status] ?? {
+    color: "var(--color-text-muted)",
+    label: "Estado em atualização",
+    icon: <Clock size={16} />,
+  };
 
   const windowDates = useMemo(() => {
     return {
@@ -74,7 +84,7 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
     return (
       <div className="settlement-timeline settlement-timeline--loading">
         <div style={{ padding: 24, textAlign: "center", color: "var(--color-text-muted)" }}>
-          Carregando timeline...
+          Carregando histórico...
         </div>
       </div>
     );
@@ -93,15 +103,15 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
               width: 32,
               height: 32,
               borderRadius: "50%",
-              background: `${currentStatus.color}20`,
+              background: "var(--surface-2)",
               color: currentStatus.color,
             }}
           >
             {currentStatus.icon}
           </div>
           <div>
-            <div style={{ fontSize: 12, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
-              Status Atual
+            <div style={{ fontSize: 12, color: "var(--color-text-muted)", textTransform: "none" }}>
+              Estado atual
             </div>
             <div style={{ fontSize: 16, fontWeight: 600, color: "var(--color-text)" }}>
               {currentStatus.label}
@@ -120,13 +130,19 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
       <div className="settlement-timeline__line-container">
         <div className="settlement-timeline__line" />
         {timeline.map((entry: SettlementTimelineEntry, idx: number) => {
-          const config = STATUS_CONFIG[entry.status];
+          const config = STATUS_CONFIG[entry.status] ?? {
+            color: "var(--color-text-muted)",
+            label: "Atualização registrada",
+            icon: <Clock size={16} />,
+          };
           const isCurrent = entry.status === settlement.status;
 
           return (
             <div
               key={`${entry.status}-${idx}`}
-              className={`settlement-timeline__entry ${isCurrent ? "settlement-timeline__entry--current" : ""}`}
+              className={`settlement-timeline__entry ${
+                isCurrent ? "settlement-timeline__entry--current" : ""
+              }`}
             >
               {/* Circle */}
               <div
@@ -134,7 +150,7 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
                 style={{
                   background: isCurrent ? config.color : "var(--color-border)",
                   borderColor: isCurrent ? config.color : "var(--color-border)",
-                  boxShadow: isCurrent ? `0 0 0 4px ${config.color}20` : "none",
+                  boxShadow: "none",
                 }}
               />
 
@@ -148,14 +164,14 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
                     <span
                       style={{
                         fontSize: 11,
-                        background: `${config.color}20`,
+                        background: "var(--surface-2)",
                         color: config.color,
                         padding: "2px 8px",
                         borderRadius: 4,
                         fontWeight: 600,
                       }}
                     >
-                      AGORA
+                      Atual
                     </span>
                   )}
                 </div>
@@ -173,8 +189,8 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
       {/* Windows Info */}
       <div className="settlement-timeline__windows">
         <div className="settlement-timeline__window">
-          <div style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
-            Janela de Devolução
+          <div style={{ fontSize: 13, color: "var(--color-text-muted)", textTransform: "none" }}>
+            Prazo de devolução
           </div>
           <div style={{ fontSize: 14, fontFamily: "var(--font-mono)", fontWeight: 600 }}>
             Até {formatDate(windowDates.returnWindowUntil)}
@@ -182,8 +198,8 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
         </div>
 
         <div className="settlement-timeline__window">
-          <div style={{ fontSize: 11, color: "var(--color-text-muted)", textTransform: "uppercase" }}>
-            Janela de Chargeback
+          <div style={{ fontSize: 13, color: "var(--color-text-muted)", textTransform: "none" }}>
+            Prazo de contestação
           </div>
           <div style={{ fontSize: 14, fontFamily: "var(--font-mono)", fontWeight: 600 }}>
             Até {formatDate(windowDates.chargebackWindowUntil)}
@@ -192,11 +208,18 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
 
         {settlement.status === "chargeback_debt" && debt && (
           <div className="settlement-timeline__window settlement-timeline__window--debt">
-            <div style={{ fontSize: 11, color: "var(--color-error)", textTransform: "uppercase" }}>
-              Débito Criado
+            <div style={{ fontSize: 13, color: "var(--color-error)", textTransform: "none" }}>
+              Débito registrado
             </div>
-            <div style={{ fontSize: 14, fontFamily: "var(--font-mono)", fontWeight: 600, color: "var(--color-error)" }}>
-              R$ {(debt.amountCents / 100).toFixed(2)}
+            <div
+              style={{
+                fontSize: 14,
+                fontFamily: "var(--font-mono)",
+                fontWeight: 600,
+                color: "var(--color-error)",
+              }}
+            >
+              {formatCurrency(debt.amountCents)}
             </div>
           </div>
         )}
@@ -206,13 +229,13 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
       <div className="settlement-timeline__amounts">
         <div style={{ display: "flex", alignItems: "center", gap: 8, marginBottom: 12 }}>
           <DollarSign size={16} style={{ color: "var(--success)" }} />
-          <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Valor Líquido do Vendedor</span>
+          <span style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Valor líquido do vendedor</span>
         </div>
         <div style={{ fontSize: 20, fontFamily: "var(--font-mono)", fontWeight: 700 }}>
-          R$ {(settlement.sellerNetCents / 100).toFixed(2)}
+          {formatCurrency(settlement.sellerNetCents)}
         </div>
         <div style={{ fontSize: 12, color: "var(--color-text-muted)", marginTop: 8 }}>
-          Comissão: R$ {(settlement.commissionCents / 100).toFixed(2)}
+          Comissão: {formatCurrency(settlement.commissionCents)}
         </div>
       </div>
     </div>

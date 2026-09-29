@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import type { CrossSellConfig, CrossSellTouchpoint, CrossSellStrategy } from "@zyon/shared-types";
@@ -11,116 +11,67 @@ const DEFAULT: CrossSellConfig = {
   discount: { enabled: false, percent: 10 },
   display: { mode: "inline" },
 };
-
-export type CrossSellContext = "store" | "checkout";
-
-export interface CrossSellPageState {
-  config: CrossSellConfig;
-  loading: boolean;
-  saving: boolean;
+function normalize(config: Partial<CrossSellConfig>): CrossSellConfig {
+  return { ...DEFAULT, ...config, touchpoints: { ...DEFAULT.touchpoints, ...config.touchpoints },
+    limits: { ...DEFAULT.limits, ...config.limits }, discount: { ...DEFAULT.discount, ...config.discount }, display: { ...DEFAULT.display, ...config.display } };
 }
+export type CrossSellContext = "store" | "checkout";
+export interface CrossSellPageState { config: CrossSellConfig; loading: boolean; saving: boolean; }
 
 export function useCrossSellPage(context: CrossSellContext) {
   const api = useApi();
-  const [state, setState] = useState<CrossSellPageState>({
-    config: DEFAULT,
-    loading: true,
-    saving: false,
-  });
-
+  const [state, setState] = useState<CrossSellPageState>({ config: DEFAULT, loading: true, saving: false });
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
+  const [savedConfig, setSavedConfig] = useState<CrossSellConfig | null>(null);
+  const [attempt, setAttempt] = useState(0);
+  const savingRef = useRef(false);
   useEffect(() => {
     let cancelled = false;
-    (async () => {
-      try {
-        const config = await api.getCrossSellConfig();
-        if (cancelled) return;
-        setState((p) => ({ ...p, config: { ...DEFAULT, ...config, touchpoints: { ...DEFAULT.touchpoints, ...config.touchpoints } }, loading: false }));
-      } catch {
-        if (!cancelled) setState((p) => ({ ...p, loading: false }));
-      }
-    })();
+    setState(p => ({ ...p, loading: true })); setLoadError(null);
+    api.getCrossSellConfig().then(raw => {
+      if (cancelled) return;
+      const config = normalize(raw);
+      setSavedConfig(config); setState(p => ({ ...p, config, loading: false }));
+    }).catch(() => {
+      if (!cancelled) { setLoadError("Não foi possível carregar as configurações. Tente novamente antes de editar."); setState(p => ({ ...p, loading: false })); }
+    });
     return () => { cancelled = true; };
-  }, [api]);
-
-  const visibleTouchpoints: CrossSellTouchpoint[] = context === "store"
-    ? ["pre_cart", "post_cart"]
-    : ["pre_payment", "post_purchase"];
-
+  }, [api, attempt]);
+  const visibleTouchpoints: CrossSellTouchpoint[] = context === "store" ? ["pre_cart", "post_cart"] : ["pre_payment", "post_purchase"];
   function patchConfig(partial: Partial<CrossSellConfig>) {
-    setState((p) => ({
-      ...p,
-      config: {
-        ...p.config,
-        ...partial,
-        touchpoints: { ...p.config.touchpoints, ...(partial.touchpoints ?? {}) },
-        limits: { ...p.config.limits, ...(partial.limits ?? {}) },
-        discount: { ...p.config.discount, ...(partial.discount ?? {}) },
-        display: { ...p.config.display, ...(partial.display ?? {}) },
-      },
-    }));
+    if (savingRef.current || state.loading || loadError) return;
+    setState(p => ({ ...p, config: { ...p.config, ...partial,
+      touchpoints: { ...p.config.touchpoints, ...partial.touchpoints }, limits: { ...p.config.limits, ...partial.limits },
+      discount: { ...p.config.discount, ...partial.discount }, display: { ...p.config.display, ...partial.display } } }));
   }
-
-  function toggleTouchpoint(tp: CrossSellTouchpoint) {
-    setState((p) => ({
-      ...p,
-      config: {
-        ...p.config,
-        touchpoints: { ...p.config.touchpoints, [tp]: !p.config.touchpoints[tp] },
-      },
-    }));
-  }
-
+  function toggleTouchpoint(tp: CrossSellTouchpoint) { patchConfig({ touchpoints: { ...state.config.touchpoints, [tp]: !state.config.touchpoints[tp] } }); }
   function selectTouchpoint(tp: CrossSellTouchpoint) {
-    setState((p) => {
-      const next = { ...p.config.touchpoints };
-      for (const key of visibleTouchpoints) {
-        next[key] = key === tp;
-      }
-      return { ...p, config: { ...p.config, touchpoints: next } };
-    });
+    const next = { ...state.config.touchpoints }; for (const key of visibleTouchpoints) next[key] = key === tp;
+    patchConfig({ touchpoints: next });
   }
-
   function toggleStrategy(strategy: CrossSellStrategy) {
-    setState((p) => {
-      const has = p.config.strategies.includes(strategy);
-      return {
-        ...p,
-        config: {
-          ...p.config,
-          strategies: has
-            ? p.config.strategies.filter((s) => s !== strategy)
-            : [...p.config.strategies, strategy],
-        },
-      };
-    });
+    patchConfig({ strategies: state.config.strategies.includes(strategy) ? state.config.strategies.filter(s => s !== strategy) : [...state.config.strategies, strategy] });
   }
-
+  const { config } = state;
+  const fieldErrors: Record<string, string> = {};
+  if (config.enabled) {
+    if (!Number.isInteger(config.limits.maxSuggestionsPerSession) || config.limits.maxSuggestionsPerSession < 1 || config.limits.maxSuggestionsPerSession > 5) fieldErrors.max = "Informe de 1 a 5 sugestões.";
+    if (!Number.isInteger(config.limits.cooldownSeconds) || config.limits.cooldownSeconds < 30 || config.limits.cooldownSeconds > 600) fieldErrors.cooldown = "Informe de 30 a 600 segundos.";
+    if (config.discount.enabled && (config.discount.mode ?? "percent") === "percent" && (!Number.isInteger(config.discount.percent) || config.discount.percent < 1 || config.discount.percent > 50)) fieldErrors.percent = "Informe de 1% a 50%.";
+    if (config.discount.enabled && config.discount.mode === "coupon" && !config.discount.couponCode?.trim()) fieldErrors.coupon = "Informe o código de um cupom ativo.";
+  }
   async function save() {
-    let latest: CrossSellConfig = state.config;
-    setState((p) => {
-      latest = p.config;
-      return { ...p, saving: true };
-    });
+    if (savingRef.current || state.loading || loadError) return;
+    if (Object.keys(fieldErrors).length) { setSaveError("Revise os campos indicados antes de salvar."); return; }
+    savingRef.current = true; setSaveError(null); setState(p => ({ ...p, saving: true }));
     try {
-      const saved = await api.putCrossSellConfig(latest);
-      // Reconcile local state with what the server actually persisted.
-      setState((p) => ({ ...p, config: { ...DEFAULT, ...saved, touchpoints: { ...DEFAULT.touchpoints, ...saved.touchpoints } } }));
-      showToast("success", "Configurações de Cross Sell salvas");
-    } catch {
-      showToast("error", "Erro ao salvar configurações");
-    } finally {
-      setState((p) => ({ ...p, saving: false }));
-    }
+      const saved = normalize(await api.putCrossSellConfig(config));
+      setSavedConfig(saved); setState(p => ({ ...p, config: saved }));
+      showToast("success", "Configurações de produtos complementares salvas");
+    } catch { setSaveError("Não foi possível salvar. Seus ajustes foram mantidos. Tente novamente."); }
+    finally { savingRef.current = false; setState(p => ({ ...p, saving: false })); }
   }
-
-  return {
-    state,
-    context,
-    visibleTouchpoints,
-    patchConfig,
-    toggleTouchpoint,
-    selectTouchpoint,
-    toggleStrategy,
-    save,
-  };
+  return { state, context, visibleTouchpoints, patchConfig, toggleTouchpoint, selectTouchpoint, toggleStrategy, save,
+    loadError, saveError, fieldErrors, dirty: savedConfig !== null && JSON.stringify(config) !== JSON.stringify(savedConfig), reload: () => setAttempt(v => v + 1) };
 }

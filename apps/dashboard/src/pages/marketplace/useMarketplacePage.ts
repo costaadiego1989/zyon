@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useState, useRef } from "react";
 import { showToast } from "../../components/Toast.js";
 import { useApi } from "../../hooks/useApi.js";
 import { reportError } from "../../lib/observability/error-reporter.js";
@@ -43,22 +43,32 @@ export function useMarketplacePage(me: MerchantProfile | null) {
   const [stats, setStats] = useState<MarketplaceStats>(DEFAULT_STATS);
   const [settlements, setSettlements] = useState<MarketplaceSettlement[]>([]);
   const [chargebacks, setChargebacks] = useState<ChargebackEntry[]>([]);
-  const [chargebackStats, setChargebackStats] = useState({ totalDebtCents: 0, totalCancelled: 0, totalWithDebt: 0 });
+  const [chargebackStats, setChargebackStats] = useState({
+    totalDebtCents: 0,
+    totalCancelled: 0,
+    totalWithDebt: 0,
+  });
   const [selectedSettlementId, setSelectedSettlementId] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
 
+  const [errors, setErrors] = useState<Record<string, string>>({});
+  const [actionError, setActionError] = useState<string | null>(null);
+  const working = useRef(false);
+  const errorFor = (key: string, value: string) => setErrors((prev) => ({ ...prev, [key]: value }));
   const loadConfig = useCallback(async () => {
+    errorFor("settings", "");
     try {
       const cfg = await api.getMarketplaceConfig();
       if (cfg) setConfig(cfg);
     } catch (err) {
-      // Use default config — endpoint may not be reachable yet
+      errorFor("settings", "Não foi possível carregar esta seção. Tente novamente.");
       reportError({ source: "marketplace.loadConfig", error: err, severity: "warning" });
     }
   }, [api]);
 
   const loadOrders = useCallback(async () => {
+    errorFor("orders", "");
     try {
       const [orderList, orderStats] = await Promise.all([
         api.getMarketplaceOrders(),
@@ -68,11 +78,18 @@ export function useMarketplacePage(me: MerchantProfile | null) {
       // grouped MarketplaceOrder rows with a snake_case line_items[] array. Normalize.
       const raw = Array.isArray(orderList)
         ? orderList
-        : (orderList && Array.isArray((orderList as any).orders) ? (orderList as any).orders : []);
+        : orderList && Array.isArray((orderList as any).orders)
+        ? (orderList as any).orders
+        : [];
       const normalized = raw.map((li: any) => {
         // Already grouped? keep as-is.
         if (Array.isArray(li.line_items)) return li;
-        const statusMap: Record<string, string> = { fulfilled: "delivered", shipped: "shipped", pending: "pending", created: "pending" };
+        const statusMap: Record<string, string> = {
+          fulfilled: "delivered",
+          shipped: "shipped",
+          pending: "pending",
+          created: "pending",
+        };
         const qty = li.quantity ?? 1;
         const unit = (li.unitPriceCents ?? 0) / 100;
         return {
@@ -80,21 +97,23 @@ export function useMarketplacePage(me: MerchantProfile | null) {
           seller_merchant_id: li.sellerMerchantId,
           host_merchant_id: li.hostMerchantId,
           host_store_name: li.hostStoreName ?? li.host_store_name ?? li.hostMerchantId,
-          total_amount: (li.unitPriceCents ?? 0) * qty / 100,
+          total_amount: ((li.unitPriceCents ?? 0) * qty) / 100,
           status: statusMap[li.fulfillmentStatus] ?? "pending",
           created_at: li.createdAt ?? new Date().toISOString(),
           updated_at: li.updatedAt ?? new Date().toISOString(),
-          line_items: [{
-            id: li.id,
-            order_id: li.orderId ?? li.id,
-            product_id: li.federatedProductId ?? "",
-            product_name: li.productName ?? li.federatedProductId ?? "Produto",
-            quantity: qty,
-            unit_price: unit,
-            total_price: unit * qty,
-            status: statusMap[li.fulfillmentStatus] ?? "pending",
-            tracking_number: li.fulfillmentReference ?? undefined,
-          }],
+          line_items: [
+            {
+              id: li.id,
+              order_id: li.orderId ?? li.id,
+              product_id: li.federatedProductId ?? "",
+              product_name: li.productName ?? li.federatedProductId ?? "Produto",
+              quantity: qty,
+              unit_price: unit,
+              total_price: unit * qty,
+              status: statusMap[li.fulfillmentStatus] ?? "pending",
+              tracking_number: li.fulfillmentReference ?? undefined,
+            },
+          ],
         };
       });
       setOrders(normalized);
@@ -109,26 +128,28 @@ export function useMarketplacePage(me: MerchantProfile | null) {
         });
       }
     } catch (err) {
-      // Use defaults
+      errorFor("orders", "Não foi possível carregar esta seção. Tente novamente.");
       reportError({ source: "marketplace.loadOrders", error: err, severity: "warning" });
     }
   }, [api]);
 
   const loadSettlements = useCallback(async () => {
+    errorFor("settlements", "");
     try {
-      const res = await api.getMarketplaceSettlements?.();
+      const res = await api.getMarketplaceSettlements();
       if (res && Array.isArray(res.settlements)) {
         setSettlements(res.settlements);
       }
     } catch (err) {
-      // Settlements endpoint may not exist yet
+      errorFor("settlements", "Não foi possível carregar esta seção. Tente novamente.");
       reportError({ source: "marketplace.loadSettlements", error: err, severity: "warning" });
     }
   }, [api]);
 
   const loadChargebacks = useCallback(async () => {
+    errorFor("chargebacks", "");
     try {
-      const res = await api.getMarketplaceChargebacks?.();
+      const res = await api.getMarketplaceChargebacks();
       if (res && Array.isArray(res.chargebacks)) {
         setChargebacks(res.chargebacks);
         setChargebackStats({
@@ -138,7 +159,7 @@ export function useMarketplacePage(me: MerchantProfile | null) {
         });
       }
     } catch (err) {
-      // Chargebacks endpoint may not exist yet
+      errorFor("chargebacks", "Não foi possível carregar esta seção. Tente novamente.");
       reportError({ source: "marketplace.loadChargebacks", error: err, severity: "warning" });
     }
   }, [api]);
@@ -154,47 +175,99 @@ export function useMarketplacePage(me: MerchantProfile | null) {
       return;
     }
     setLoading(true);
-    Promise.all([loadConfig(), loadOrders(), loadSettlements(), loadChargebacks()]).finally(() => setLoading(false));
+    Promise.all([loadConfig(), loadOrders(), loadSettlements(), loadChargebacks()]).finally(() =>
+      setLoading(false)
+    );
   }, [me, loadConfig, loadOrders, loadSettlements, loadChargebacks]);
 
   async function saveConfig(updates: Partial<MarketplaceConfig>) {
-    const previous = config;
-    const merged = { ...config, ...updates };
-    setConfig(merged);
+    if (working.current || errors.settings) return false;
+    working.current = true;
     setSaving(true);
+    setActionError(null);
     try {
-      await api.updateMarketplaceConfig(updates);
+      const saved = await api.updateMarketplaceConfig(updates);
+      setConfig(saved);
       showToast("success", "Configurações salvas");
+      return true;
     } catch {
-      setConfig(previous);
-      showToast("error", "Erro ao salvar configurações");
+      setActionError("Não foi possível salvar. Suas alterações foram preservadas para tentar novamente.");
+      return false;
     } finally {
+      working.current = false;
       setSaving(false);
     }
   }
-
   async function markShipped(lineItemId: string, trackingNumber: string) {
+    if (working.current) return false;
+    working.current = true;
+    setSaving(true);
+    setActionError(null);
     try {
       await api.markMarketplaceItemShipped(lineItemId, trackingNumber);
-      showToast("success", "Item marcado como enviado");
+      showToast("success", "Envio registrado");
       await loadOrders();
+      return true;
     } catch {
-      showToast("error", "Erro ao marcar item como enviado");
+      setActionError("Não foi possível registrar o envio. Confira o rastreamento e tente novamente.");
+      return false;
+    } finally {
+      working.current = false;
+      setSaving(false);
     }
   }
-
   async function markDelivered(lineItemId: string) {
+    if (working.current) return false;
+    working.current = true;
+    setSaving(true);
+    setActionError(null);
     try {
       await api.markMarketplaceItemDelivered(lineItemId);
-      showToast("success", "Item marcado como entregue");
+      showToast("success", "Entrega registrada");
       await loadOrders();
+      return true;
     } catch {
-      showToast("error", "Erro ao marcar item como entregue");
+      setActionError("Não foi possível registrar a entrega. Tente novamente.");
+      return false;
+    } finally {
+      working.current = false;
+      setSaving(false);
     }
   }
-
+  async function retrySection() {
+    setLoading(true);
+    try {
+      if (tab === "settings") await loadConfig();
+      else if (tab === "orders") await loadOrders();
+      else if (tab === "settlements" || tab === "returns") await loadSettlements();
+      else if (tab === "chargebacks") await loadChargebacks();
+    } finally {
+      setLoading(false);
+    }
+  }
   return {
-    state: { config, orders, stats, loading, saving, tab, settlements, chargebacks, chargebackStats, selectedSettlementId },
-    actions: { saveConfig, markShipped, markDelivered, setTab, setSelectedSettlementId },
+    state: {
+      config,
+      orders,
+      stats,
+      loading,
+      saving,
+      tab,
+      settlements,
+      chargebacks,
+      chargebackStats,
+      selectedSettlementId,
+      errors,
+      actionError,
+    },
+    actions: {
+      saveConfig,
+      markShipped,
+      markDelivered,
+      setTab,
+      setSelectedSettlementId,
+      retrySection,
+      clearActionError: () => setActionError(null),
+    },
   };
 }

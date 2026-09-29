@@ -1,0 +1,22 @@
+.orders-toolbar, .orders-feedback { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.orders-toolbar p { margin: 0; max-width: 65ch; font: 13px/1.6 var(--font-sans); color: var(--color-text-muted); }
+.orders-loading { display: grid; grid-template-columns: repeat(5, minmax(180px, 1fr)); gap: 14px; overflow: hidden; }
+.order-kanban-card:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.order-detail { min-width: 0; overflow-wrap: anywhere; }
+.order-detail__grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 20px 24px; }
+.order-detail__grid > div, .order-detail__grid > label { min-width: 0; }
+.order-detail__tracking { display: grid; gap: 16px; }
+.order-detail__tracking > .zyn-btn { justify-self: start; }
+.order-detail__actions { display: flex; gap: 12px; flex-wrap: wrap; }
+.order-detail__section-title { margin: 0 0 16px; font: 600 15px var(--font-sans); color: var(--color-text); }
+.order-detail__hint { font: 13px/1.6 var(--font-sans); color: var(--color-text-muted); margin: 0 0 16px; }
+.order-label-fields { border: 0; min-width: 0; padding: 0; margin: 0; }
+.order-detail .form-field { margin-bottom: 16px; }
+.order-detail .form-field input, .order-detail .form-field select { min-height: 44px; }
+.order-detail .form-field textarea { min-height: 120px; }
+.order-detail input[type="checkbox"] { flex: 0 0 18px; width: 18px; height: 18px; min-height: 18px; accent-color: var(--color-brand); }
+@media (max-width: 600px) {
+  .order-detail__grid { grid-template-columns: minmax(0, 1fr); }
+  .orders-toolbar > *, .orders-toolbar .search-input-wrap { width: 100% !important; min-width: 0; }
+  .order-detail__actions > .zyn-btn { width: 100%; }
+}

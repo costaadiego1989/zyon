@@ -1,9 +1,12 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
 import type { MerchantProfile } from "../../api-client.js";
-import type { NegotiationPolicy as ApiNegotiationPolicy, NegotiationPolicyResponse } from "../../api/types.js";
+import type {
+  NegotiationPolicy as ApiNegotiationPolicy,
+  NegotiationPolicyResponse,
+} from "../../api/types.js";
 
 export interface NegotiationAttempt {
   id: string;
@@ -28,7 +31,10 @@ function apiToLocal(api: ApiNegotiationPolicy): NegotiationPolicy {
   };
 }
 
-function localToApi(local: NegotiationPolicy, existing?: ApiNegotiationPolicy): ApiNegotiationPolicy {
+function localToApi(
+  local: NegotiationPolicy,
+  existing?: ApiNegotiationPolicy
+): ApiNegotiationPolicy {
   return {
     enabled: local.negotiation_enabled,
     global: {
@@ -49,87 +55,99 @@ const DEFAULT_POLICY: NegotiationPolicy = {
   max_discount_percent: 25,
 };
 
-export function useNegotiationPolicyPage(props: { me: MerchantProfile | null }) {
+export function useNegotiationPolicyPage(props: {
+  me: MerchantProfile | null;
+}) {
   const api = useApi();
-  const [attempts, setAttempts] = useState<NegotiationAttempt[]>([]);
   const [policy, setPolicy] = useState<NegotiationPolicy>(DEFAULT_POLICY);
-  const [rawApiPolicy, setRawApiPolicy] = useState<ApiNegotiationPolicy | undefined>();
-  const [loading, setLoading] = useState(false);
+  const [rawApiPolicy, setRawApiPolicy] = useState<ApiNegotiationPolicy>();
+  const [tempPolicy, setTempPolicy] =
+    useState<NegotiationPolicy>(DEFAULT_POLICY);
+  const [loading, setLoading] = useState(true);
   const [saving, setSaving] = useState(false);
-  const [loaded, setLoaded] = useState(false);
-  const [isEditingPolicy, setIsEditingPolicy] = useState(false);
-  const [tempPolicy, setTempPolicy] = useState<NegotiationPolicy>(DEFAULT_POLICY);
-
-  useEffect(() => {
-    if (!props.me) {
-      setLoaded(true);
-      return;
-    }
-    let cancelled = false;
-    (async () => {
-      setLoading(true);
-      try {
-        const res: NegotiationPolicyResponse = await api.getNegotiationPolicy();
-        if (cancelled) return;
-        const local = apiToLocal(res.policy);
-        setRawApiPolicy(res.policy);
-        setPolicy(local);
-        setTempPolicy(local);
-      } catch (e) {
-        reportError({ source: "negotiation-policy.load", error: e });
-        if (!cancelled) {
-          showToast("error", e instanceof Error ? e.message : "Erro ao carregar política de negociação");
-        }
-      } finally {
-        if (!cancelled) {
-          setLoading(false);
-          setLoaded(true);
-        }
-      }
-    })();
-    return () => {
-      cancelled = true;
-    };
-  }, [api, props.me]);
-
-  async function handleSavePolicy() {
-    if (tempPolicy.min_discount_percent >= tempPolicy.max_discount_percent) {
-      showToast("error", "Desconto mínimo deve ser menor que o máximo");
-      return;
-    }
-    setSaving(true);
+  const [loadError, setLoadError] = useState("");
+  const [saveError, setSaveError] = useState("");
+  const reading = useRef(0),
+    working = useRef(false);
+  const reload = useCallback(async () => {
+    if (!props.me || working.current) return;
+    const request = ++reading.current;
+    setLoading(true);
+    setLoadError("");
     try {
-      const payload = localToApi(tempPolicy, rawApiPolicy);
-      const res: NegotiationPolicyResponse = await api.putNegotiationPolicy(payload);
+      const res = await api.getNegotiationPolicy();
+      if (request !== reading.current) return;
       const local = apiToLocal(res.policy);
       setRawApiPolicy(res.policy);
       setPolicy(local);
       setTempPolicy(local);
-      setIsEditingPolicy(false);
-      showToast("success", "Política de negociação atualizada");
-    } catch (e) {
-      reportError({ source: "negotiation-policy.save", error: e });
-      showToast("error", e instanceof Error ? e.message : "Erro ao salvar política");
+    } catch (error) {
+      reportError({ source: "negotiation-policy.load", error });
+      if (request === reading.current)
+        setLoadError(
+          "Não foi possível consultar os limites. Tente novamente antes de editar."
+        );
     } finally {
+      if (request === reading.current) setLoading(false);
+    }
+  }, [api, props.me?.id]);
+  useEffect(() => {
+    void reload();
+    return () => {
+      reading.current++;
+    };
+  }, [reload]);
+
+  async function handleSavePolicy(draft: NegotiationPolicy) {
+    if (working.current || loading || loadError || !rawApiPolicy) return;
+    if (
+      ![draft.min_discount_percent, draft.max_discount_percent].every(
+        Number.isFinite
+      ) ||
+      draft.min_discount_percent < 0 ||
+      draft.max_discount_percent > 100 ||
+      draft.min_discount_percent > draft.max_discount_percent
+    ) {
+      setSaveError("Confira a faixa de desconto antes de salvar.");
+      return;
+    }
+    working.current = true;
+    setSaving(true);
+    setSaveError("");
+    try {
+      const res: NegotiationPolicyResponse = await api.putNegotiationPolicy(
+        localToApi(draft, rawApiPolicy)
+      );
+      const local = apiToLocal(res.policy);
+      setRawApiPolicy(res.policy);
+      setPolicy(local);
+      setTempPolicy(local);
+      showToast("success", "Limites de negociação salvos");
+    } catch (error) {
+      reportError({ source: "negotiation-policy.save", error });
+      setSaveError(
+        "Não foi possível salvar os limites. Suas alterações continuam no formulário."
+      );
+    } finally {
+      working.current = false;
       setSaving(false);
     }
   }
-
   function handleCancelPolicy() {
-    setTempPolicy(policy);
-    setIsEditingPolicy(false);
+    if (!working.current) {
+      setTempPolicy(policy);
+      setSaveError("");
+    }
   }
-
   return {
-    attempts,
     policy,
     loading,
-    loaded,
     saving,
-    isEditingPolicy,
     tempPolicy,
     setTempPolicy,
-    setIsEditingPolicy,
+    loadError,
+    saveError,
+    reload,
     handleSavePolicy,
     handleCancelPolicy,
   };

@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useState, useRef } from "react";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
 import { copyText } from "../utils/clipboard.js";
@@ -61,6 +61,9 @@ export interface IntegrationsPageState {
   webhookUrl: string;
   selectedEvents: string[];
   message: string | null;
+  loadError: string | null;
+  messageKind: "error" | "success";
+  secretKind: "api" | "webhook";
   busy: boolean;
   loading: boolean;
   apiReachable: boolean | null;
@@ -69,7 +72,7 @@ export interface IntegrationsPageState {
 export interface IntegrationsPageActions {
   load: () => void;
   createKey: () => void;
-  revokeKey: (apiKeyId: string) => void;
+  revokeKey: (apiKeyId: string) => Promise<boolean>;
   createWebhook: () => void;
   testWebhook: (endpointId: string) => void;
   replay: (deliveryId: string) => void;
@@ -120,7 +123,10 @@ export function relativeTime(iso: string): string {
   return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(iso));
 }
 
-export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | null): IntegrationsPageViewModel {
+export function useIntegrationsPage(
+  apiBaseUrl: string,
+  me: MerchantProfile | null
+): IntegrationsPageViewModel {
   const api = useApi();
   const [apiKeys, setApiKeys] = useState<MerchantApiKey[]>([]);
   const [webhooks, setWebhooks] = useState<WebhookEndpoint[]>([]);
@@ -129,184 +135,190 @@ export function useIntegrationsPage(apiBaseUrl: string, me: MerchantProfile | nu
   const [installationHealth, setInstallationHealth] = useState<Record<string, string>>({});
   const [newKeyName, setNewKeyName] = useState("Backend principal");
   const [newSecret, setNewSecret] = useState<string | null>(null);
+  const [secretKind, setSecretKind] = useState<"api" | "webhook">("api");
   const [selectedScopes, setSelectedScopes] = useState<string[]>([...ALL_SCOPES]);
   const [webhookUrl, setWebhookUrl] = useState("");
-  const [selectedEvents, setSelectedEvents] = useState<string[]>(["order.approved", "customer.upserted", "tracking.updated"]);
+  const [selectedEvents, setSelectedEvents] = useState<string[]>([
+    "order.approved",
+    "customer.upserted",
+    "tracking.updated",
+  ]);
   const [message, setMessage] = useState<string | null>(null);
+  const [messageKind, setMessageKind] = useState<"error" | "success">("success");
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [busy, setBusy] = useState(false);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [apiReachable, setApiReachable] = useState<boolean | null>(null);
-
+  const working = useRef(false);
+  const readVersion = useRef(0);
   const documentationRoot = useMemo(() => apiDocumentationRoot(apiBaseUrl), [apiBaseUrl]);
   const quickstart = useMemo(() => embedSessionQuickstart(documentationRoot), [documentationRoot]);
-
-  useEffect(() => {
-    if (!me) {
-      setApiKeys([]);
-      setWebhooks([]);
-      setDeliveries([]);
-      setInstallations([]);
+  const load = useCallback(async () => {
+    if (!me || working.current) {
+      if (!me) setLoading(false);
       return;
     }
-    void load();
-  }, [me]);
-
-  const load = useCallback(async () => {
+    const version = ++readVersion.current;
     setLoading(true);
-    setApiReachable(null);
-    setMessage(null);
+    setLoadError(null);
     try {
-      const [keys, endpoints, logs, installs] = await Promise.all([
+      const [keys, endpoints, logs] = await Promise.all([
         api.getIntegrationApiKeys(),
         api.getWebhookEndpoints(),
         api.getWebhookDeliveries(20),
-        api.getInstallations().catch((e) => {
-          reportError({ source: "integrations-page-load-installations", error: e });
-          return [] as Installation[];
-        }),
       ]);
+      if (version !== readVersion.current) return;
       setApiKeys(keys);
       setWebhooks(endpoints);
       setDeliveries(logs);
-      setInstallations(installs);
       setApiReachable(true);
-    } catch (e) {
-      reportError({ source: "integrations-page-load", error: e });
-      setApiReachable(false);
-      setMessage(readError(e));
+    } catch {
+      if (version === readVersion.current) {
+        setApiReachable(null);
+        setLoadError(
+          "Não foi possível consultar as integrações. Tente novamente para conferir o estado atual."
+        );
+      }
     } finally {
-      setLoading(false);
+      if (version === readVersion.current) setLoading(false);
     }
-  }, [api]);
-
-  const createKey = useCallback(async () => {
+  }, [api, me?.id]);
+  useEffect(() => {
+    void load();
+    return () => {
+      readVersion.current++;
+    };
+  }, [load]);
+  const run = async (action: () => Promise<void>, fallback: string) => {
+    if (working.current || loading || loadError) return false;
+    working.current = true;
     setBusy(true);
     setMessage(null);
     try {
-      const created = await api.createIntegrationApiKey({ name: newKeyName, scopes: selectedScopes });
+      await action();
+      setMessageKind("success");
+      return true;
+    } catch {
+      setMessageKind("error");
+      setMessage(fallback);
+      return false;
+    } finally {
+      working.current = false;
+      setBusy(false);
+    }
+  };
+  const createKey = () =>
+    run(async () => {
+      if (newSecret || !newKeyName.trim() || !selectedScopes.length) return;
+      const created = await api.createIntegrationApiKey({ name: newKeyName.trim(), scopes: selectedScopes });
+      setSecretKind("api");
       setNewSecret(created.secret_key);
       setApiKeys((prev) => [created.api_key, ...prev]);
-      setMessage("Chave criada.");
-    } catch (e) {
-      reportError({ source: "integrations-page-create-key", error: e });
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [api, newKeyName, selectedScopes]);
-
-  const revokeKey = useCallback(async (apiKeyId: string) => {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const revoked = await api.revokeIntegrationApiKey(apiKeyId);
-      setApiKeys((prev) => prev.map((key) => (key.id === apiKeyId ? revoked : key)));
-      setMessage("Chave revogada.");
-    } catch (e) {
-      reportError({ source: "integrations-page-revoke-key", error: e });
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [api]);
-
-  const createWebhook = useCallback(async () => {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const created = await api.createWebhookEndpoint({ url: webhookUrl, events: selectedEvents, enabled: true });
+      setMessage("Chave criada. Copie e guarde o segredo antes de fechar.");
+    }, "Não foi possível criar a chave. O nome e as permissões foram preservados.");
+  const revokeKey = (id: string) =>
+    run(async () => {
+      const revoked = await api.revokeIntegrationApiKey(id);
+      setApiKeys((prev) => prev.map((key) => (key.id === id ? revoked : key)));
+      setMessage("Chave revogada. Ela não autoriza mais chamadas à API.");
+    }, "Não foi possível revogar a chave. Tente novamente.");
+  const createWebhook = () =>
+    run(async () => {
+      if (newSecret || !selectedEvents.length) return;
+      const url = new URL(webhookUrl.trim());
+      if (url.protocol !== "https:" && url.protocol !== "http:") throw new Error("invalid_url");
+      const created = await api.createWebhookEndpoint({
+        url: webhookUrl.trim(),
+        events: selectedEvents,
+        enabled: true,
+      });
       setWebhookUrl("");
       setWebhooks((prev) => [created, ...prev]);
-      setMessage(created.signingSecret ? `Webhook criado. Segredo: ${created.signingSecret}` : "Webhook criado.");
-    } catch (e) {
-      reportError({ source: "integrations-page-create-webhook", error: e });
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [api, webhookUrl, selectedEvents]);
-
-  const testWebhook = useCallback(async (endpointId: string) => {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const delivery = await api.testWebhookEndpoint(endpointId);
+      if (created.signingSecret) {
+        setSecretKind("webhook");
+        setNewSecret(created.signingSecret);
+      }
+      setMessage("Webhook cadastrado. Use Testar para registrar uma tentativa de entrega.");
+    }, "Não foi possível cadastrar o webhook. Confira o endereço e tente novamente; os campos foram preservados.");
+  const testWebhook = (id: string) =>
+    run(async () => {
+      const delivery = await api.testWebhookEndpoint(id);
       setDeliveries((prev) => [delivery, ...prev]);
-      setMessage("Teste enfileirado.");
-    } catch (e) {
-      reportError({ source: "integrations-page-test-webhook", error: e });
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [api]);
-
-  const replay = useCallback(async (deliveryId: string) => {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const current = deliveries.find((item) => item.id === deliveryId);
+      setMessage("Teste solicitado. Confira o resultado no histórico de entregas.");
+    }, "Não foi possível solicitar o teste. Tente novamente.");
+  const replay = (id: string) =>
+    run(async () => {
+      const current = deliveries.find((d) => d.id === id);
       if (!current) return;
-      const delivery = await api.replayWebhookDelivery(current.endpointId, deliveryId);
-      setDeliveries((prev) => prev.map((item) => (item.id === deliveryId ? delivery : item)));
-      setMessage("Replay enfileirado.");
-    } catch (e) {
-      reportError({ source: "integrations-page-replay", error: e });
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [api, deliveries]);
-
-  const checkHealth = useCallback(async (installationId: string) => {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const result = await api.checkInstallationHealth(installationId);
-      setInstallationHealth((prev) => ({ ...prev, [installationId]: result.status }));
-      setMessage(`Health: ${result.status}`);
-    } catch (e) {
-      reportError({ source: "integrations-page-check-health", error: e });
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }, [api]);
-
-  const toggleEvent = useCallback((eventName: string) => {
-    setSelectedEvents((prev) => prev.includes(eventName) ? prev.filter((i) => i !== eventName) : [...prev, eventName]);
-  }, []);
-
-  const toggleScope = useCallback((scope: string) => {
-    setSelectedScopes((prev) => prev.includes(scope) ? prev.filter((i) => i !== scope) : [...prev, scope]);
-  }, []);
-
-  const handleCopySecret = useCallback(async () => {
+      const delivery = await api.replayWebhookDelivery(current.endpointId, id);
+      setDeliveries((prev) => prev.map((d) => (d.id === id ? delivery : d)));
+      setMessage("Nova tentativa solicitada. Confira o resultado no histórico de entregas.");
+    }, "Não foi possível solicitar o reenvio. Tente novamente.");
+  const checkHealth = (id: string) =>
+    run(async () => {
+      const result = await api.checkInstallationHealth(id);
+      setInstallationHealth((prev) => ({ ...prev, [id]: result.status }));
+      setMessage("Estado da instalação atualizado.");
+    }, "Não foi possível consultar a instalação.");
+  const copySecret = async () => {
     if (!newSecret) return;
     const ok = await copyText(newSecret);
-    setMessage(ok ? "Chave copiada! Guarde em local seguro." : "Falha ao copiar. Copie manualmente.");
-  }, [newSecret]);
-
-  const activeKeysCount = apiKeys.filter((k) => !k.revokedAt).length;
-  const activeWebhooksCount = webhooks.filter((w) => w.enabled).length;
-  const deliverySuccessRate = deliveries.length > 0
-    ? Math.round((deliveries.filter((d) => d.status === "delivered").length / deliveries.length) * 100)
-    : 0;
-
+    setMessageKind(ok ? "success" : "error");
+    setMessage(
+      ok
+        ? "Segredo copiado. Guarde em local seguro."
+        : "Não foi possível copiar. Selecione e copie o segredo manualmente."
+    );
+  };
   return {
     state: {
-      apiKeys, webhooks, deliveries, installations, installationHealth,
-      newKeyName, newSecret, selectedScopes, webhookUrl, selectedEvents,
-      message, busy, loading, apiReachable,
+      apiKeys,
+      webhooks,
+      deliveries,
+      installations,
+      installationHealth,
+      newKeyName,
+      newSecret,
+      secretKind,
+      selectedScopes,
+      webhookUrl,
+      selectedEvents,
+      message,
+      messageKind,
+      loadError,
+      busy,
+      loading,
+      apiReachable,
     },
     actions: {
-      load, createKey, revokeKey, createWebhook, testWebhook, replay, checkHealth,
-      toggleEvent, toggleScope, copySecret: handleCopySecret,
-      setNewKeyName, setWebhookUrl, dismissSecret: () => setNewSecret(null),
+      load,
+      createKey,
+      revokeKey,
+      createWebhook,
+      testWebhook,
+      replay,
+      checkHealth,
+      toggleEvent: (event) =>
+        setSelectedEvents((prev) =>
+          prev.includes(event) ? prev.filter((e) => e !== event) : [...prev, event]
+        ),
+      toggleScope: (scope) =>
+        setSelectedScopes((prev) =>
+          prev.includes(scope) ? prev.filter((s) => s !== scope) : [...prev, scope]
+        ),
+      copySecret,
+      setNewKeyName,
+      setWebhookUrl,
+      dismissSecret: () => setNewSecret(null),
     },
     computed: {
-      activeKeysCount, activeWebhooksCount, deliverySuccessRate,
-      documentationRoot, quickstart,
+      activeKeysCount: apiKeys.filter((k) => !k.revokedAt).length,
+      activeWebhooksCount: webhooks.filter((w) => w.enabled).length,
+      deliverySuccessRate: deliveries.length
+        ? Math.round((deliveries.filter((d) => d.status === "delivered").length / deliveries.length) * 100)
+        : 0,
+      documentationRoot,
+      quickstart,
     },
   };
 }

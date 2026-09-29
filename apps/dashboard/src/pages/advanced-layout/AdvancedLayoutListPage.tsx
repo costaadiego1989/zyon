@@ -1,3 +1,5 @@
+import { Button } from "../../components/Button.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import React, { useEffect, useMemo, useState } from "react";
 import { LayoutGrid, Pencil, Layers, MessageSquare, Star, Video } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
@@ -31,6 +33,8 @@ const PAGE_SIZE = 20;
 export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutListPageProps) {
   const catalog = useCatalogApi();
   const [products, setProducts] = useState<Product[]>([]);
+  const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
+  const [reload, setReload] = useState(0);
   const [statuses, setStatuses] = useState<ProductLayoutStatusEntry[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
@@ -46,12 +50,14 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
     setError(null);
     Promise.all([
       catalog.listProducts(me.id, { limit: 200 }),
-      catalog.getProductsWithLayoutStatus(me.id).catch(() => ({ entries: [], total: 0 })),
+      catalog.getProductsWithLayoutStatus(me.id),
+      catalog.listCategories(me.id),
     ])
-      .then(([productResult, layoutResult]) => {
+      .then(([productResult, layoutResult, categoryResult]) => {
         if (cancelled) return;
         setProducts(productResult.products.filter((p) => p.isActive));
         setStatuses(layoutResult.entries);
+        setCategories(categoryResult);
       })
       .catch((err: unknown) => {
         if (cancelled) return;
@@ -67,21 +73,13 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
     return () => {
       cancelled = true;
     };
-  }, [catalog, me.id]);
+  }, [catalog, me.id, reload]);
 
   const statusByProduct = useMemo(() => {
     const map = new Map<string, ProductLayoutStatusEntry>();
     statuses.forEach((s) => map.set(s.productId, s));
     return map;
   }, [statuses]);
-
-  const categories = useMemo(() => {
-    const map = new Map<string, { id: string; name: string }>();
-    products.forEach((p) => {
-      if (p.categoryId) map.set(p.categoryId, { id: p.categoryId, name: p.categoryId });
-    });
-    return Array.from(map.values());
-  }, [products]);
 
   const filtered = useMemo(() => {
     const needle = search.trim().toLowerCase();
@@ -147,15 +145,9 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
 
   return (
     <div className="page-container">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">LOJA</span>
-          <h1>Conteúdo avançado</h1>
-          <p className="page-lead">Monte páginas de produto ricas com blocos estruturados, FAQ, depoimentos e vídeos.</p>
-        </div>
-      </header>
+      <PageHeader title="Conteúdo do produto" description="Adicione detalhes, perguntas frequentes, avaliações e vídeos às páginas dos seus produtos." />
 
-      <StatCardGroup columns={3}>
+      {!error && <StatCardGroup columns={3}>
         <StatCard icon={<LayoutGrid size={16} />} label="Produtos ativos" value={totals.products} />
         <StatCard
           icon={<Layers size={16} />}
@@ -164,7 +156,7 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
           accent="var(--color-success)"
         />
         <StatCard icon={<Layers size={16} />} label="Blocos publicados" value={totals.totalBlocks} />
-      </StatCardGroup>
+      </StatCardGroup>}
 
       {error ? (
         <div
@@ -179,6 +171,7 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
           }}
         >
           {error}
+          <Button variant="outline" size="sm" onClick={() => setReload(value => value + 1)}>Tentar novamente</Button>
         </div>
       ) : null}
 
@@ -202,13 +195,13 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
           onSearchChange={(next) => resetPage(() => setSearch(next))}
           searchPlaceholder="Buscar por nome..."
           extra={
-            <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+            <div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
               {categories.length > 0 ? (
                 <FilterSelect
                   value={categoryFilter}
                   onChange={(next) => resetPage(() => setCategoryFilter(next))}
                   options={categories.map((c) => ({ value: c.id, label: c.name }))}
-                  placeholder="Todas categorias"
+                  placeholder="Todas as categorias"
                 />
               ) : null}
               <SortSelect value={sort} onChange={(next) => resetPage(() => setSort(next))} />
@@ -216,8 +209,8 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
           }
         />
 
-        {loading ? (
-          <PageLoader />
+        {error ? null : loading ? (
+          <PageLoader variant="section" />
         ) : (
           <DataPanel
             title="Produtos"
@@ -238,7 +231,7 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {["PRODUTO", "BLOCOS", "FAQ", "DEPOIMENTOS", "VÍDEOS", "ATUALIZADO", ""].map((c) => (
+                  {["Produto", "Blocos", "Perguntas", "Depoimentos", "Vídeos", "Atualizado", "Ações"].map((c) => (
                     <th
                       key={c}
                       style={{

@@ -1,3 +1,4 @@
+import { PageHeader } from "../../components/PageHeader.js";
 import React, { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { CheckCircle2, CircleAlert, Clock3, FileVideo, MessageSquare, Star, XCircle } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
@@ -11,7 +12,7 @@ import { PageLoader } from "../../components/PageLoader.js";
 import { Pagination } from "../../components/Pagination.js";
 import { PeriodFilter } from "../../components/PeriodFilter.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
-import { SidePanel } from "../../components/SidePanel.js";
+import { Modal } from "../../components/Modal.js";
 import { TabBar } from "../../components/TabBar.js";
 import { showToast } from "../../components/Toast.js";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
@@ -135,6 +136,10 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
   const [selected, setSelected] = useState<ProductReview | null>(null);
   const [busyId, setBusyId] = useState<string | null>(null);
   const loadRequestId = useRef(0);
+  const moderationBusy = useRef(false);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [productsError, setProductsError] = useState(false);
+  const [productsReload, setProductsReload] = useState(0);
 
   const load = useCallback(async () => {
     if (!merchantId) return;
@@ -170,6 +175,8 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
       ) as Partial<Record<ReviewStatus, number>>;
       if (requestedStatus) counts[requestedStatus] = next.total;
       setReviews(next);
+      const lastPage = Math.max(1, Math.ceil(next.total / PAGE_SIZE));
+      if (page > lastPage) setPage(lastPage);
       setStats({
         total: total.total,
         pending: counts.pending ?? 0,
@@ -187,8 +194,9 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
   }, [apiBaseUrl, dateFrom, dateTo, kind, merchantId, page, productId, status]);
 
   useEffect(() => {
+    setLoading(true);
     const timeout = window.setTimeout(() => void load(), 180);
-    return () => window.clearTimeout(timeout);
+    return () => { window.clearTimeout(timeout); loadRequestId.current += 1; };
   }, [load]);
 
   useEffect(() => {
@@ -202,19 +210,19 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
   useEffect(() => {
     if (!merchantId) return;
     let cancelled = false;
-    setProductsLoading(true);
+    setProductsLoading(true); setProductsError(false);
     catalog.listProducts(merchantId, { limit: 200 })
       .then((result) => {
         if (!cancelled) setProducts(result.products);
       })
       .catch(() => {
-        if (!cancelled) setProducts([]);
+        if (!cancelled) { setProducts([]); setProductsError(true); }
       })
       .finally(() => {
         if (!cancelled) setProductsLoading(false);
       });
     return () => { cancelled = true; };
-  }, [catalog, merchantId]);
+  }, [catalog, merchantId, productsReload]);
 
   const resetPage = (change: () => void) => {
     change();
@@ -239,7 +247,8 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
   };
 
   const moderate = async (review: ProductReview, nextStatus: "approved" | "rejected") => {
-    if (!merchantId) return;
+    if (!merchantId || moderationBusy.current) return;
+    moderationBusy.current = true; setActionError(null);
     setBusyId(review.id);
     try {
       const segment = review.kind === "testimonial" ? "testimonials" : "videos";
@@ -252,9 +261,9 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
       showToast("success", nextStatus === "approved" ? "Avaliação aprovada e publicada." : "Avaliação rejeitada.");
       await load();
     } catch (caught) {
-      showToast("error", caught instanceof Error ? caught.message : "Não foi possível atualizar a avaliação.");
+      setActionError("Não foi possível atualizar a avaliação. A decisão anterior foi mantida. Tente novamente.");
     } finally {
-      setBusyId(null);
+      moderationBusy.current = false; setBusyId(null);
     }
   };
 
@@ -268,14 +277,9 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
 
   return (
     <div className="reviews-page page-container">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">LOJA</span>
-          <h1>Avaliações</h1>
-          <p className="page-lead">Revise contribuições dos compradores antes que apareçam na página do produto.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => void load()} disabled={loading || retryAfterSeconds !== null}>Atualizar</Button>
-      </header>
+      <PageHeader title="Avaliações" description="Revise contribuições dos compradores antes que apareçam na página do produto." actions={<>
+<Button variant="outline" size="sm" onClick={() => void load()} disabled={loading || retryAfterSeconds !== null}>Atualizar</Button>
+</>} />
 
       {error ? (
         <div role="alert" className="reviews-error">
@@ -292,12 +296,12 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
         </div>
       ) : null}
 
-      <StatCardGroup>
+      {!error && <StatCardGroup>
         <StatCard label="Recebidas" value={loading ? "—" : stats.total} icon={<MessageSquare size={16} />} />
         <StatCard label="Pendentes" value={loading ? "—" : stats.pending} icon={<Clock3 size={16} />} accent="var(--color-warning)" />
         <StatCard label="Publicadas" value={loading ? "—" : stats.approved} icon={<CheckCircle2 size={16} />} accent="var(--color-success)" />
         <StatCard label="Rejeitadas" value={loading ? "—" : stats.rejected} icon={<XCircle size={16} />} accent="var(--color-error)" />
-      </StatCardGroup>
+      </StatCardGroup>}
 
       <section className="panel reviews-filter-panel" aria-label="Filtros de avaliações">
         <div className="reviews-filter-panel__toolbar">
@@ -335,9 +339,10 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
             />
           </div>
         </div>
+        {productsError && <div className="reviews-products-error" role="alert"><span>Não foi possível carregar os produtos para o filtro. As avaliações continuam disponíveis.</span><Button variant="outline" size="sm" onClick={() => setProductsReload(value => value + 1)}>Atualizar produtos</Button></div>}
         <PeriodFilter
           presets={PERIOD_PRESETS}
-          active={period}
+          active={dateFrom || dateTo ? period === "all" ? "custom" : period : "all"}
           onPreset={(next) => setReviewPeriod(next as ReviewPeriod)}
           from={dateFrom}
           to={dateTo}
@@ -345,7 +350,7 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
         />
       </section>
 
-      <section id={`reviews-${kind}-list`} className="panel reviews-list" aria-busy={loading} role="tabpanel" aria-labelledby={`reviews-${kind}-list-tab`}>
+      {!error && <section id={`reviews-${kind}-list`} className="panel reviews-list" aria-busy={loading} role="tabpanel" aria-labelledby={`reviews-${kind}-list-tab`}>
         <div className="reviews-list__header">
           <SectionHeader
             variant="secondary"
@@ -359,6 +364,7 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
             <EmptyState
               icon={kind === "video" ? FileVideo : MessageSquare}
               title={status === "pending" ? "Nenhuma avaliação pendente" : "Nenhuma avaliação encontrada"}
+              action={productId || dateFrom || dateTo || status !== "pending" ? <Button variant="outline" onClick={() => { setStatus("pending"); setProductId(""); setReviewPeriod("all"); }}>Limpar filtros</Button> : undefined}
               description={status === "pending"
                 ? "Quando um cliente enviar uma avaliação, ela aparecerá aqui para sua decisão."
                 : "Ajuste os filtros para consultar outras avaliações."}
@@ -370,10 +376,10 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
               <thead>
                 <tr>
                   {[
-                    kind === "video" ? "VÍDEO" : "CLIENTE",
-                    "PRODUTO",
-                    "STATUS",
-                    "ENVIADA EM",
+                    kind === "video" ? "Vídeo" : "Cliente",
+                    "Produto",
+                    "Situação",
+                    "Enviada em",
                     "",
                   ].map((label) => <th key={label} style={headerCellStyle}>{label}</th>)}
                 </tr>
@@ -395,7 +401,7 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
                     <td style={bodyCellStyle}><StatusBadge value={review.moderationStatus} /></td>
                     <td style={bodyCellStyle}>{formatDate(review.createdAt)}</td>
                     <td style={{ ...bodyCellStyle, textAlign: "right" }}>
-                      <Button variant="outline" onClick={() => setSelected(review)}>Ver</Button>
+                      <Button variant="outline" aria-label={"Ver avaliação de " + (review.authorName || "cliente") + " sobre " + review.productName} onClick={() => { setActionError(null); setSelected(review); }}>Ver avaliação</Button>
                     </td>
                   </tr>
                 ))}
@@ -412,20 +418,19 @@ export function ReviewsPage({ apiBaseUrl, me }: ReviewsPageProps) {
             onChange={setPage}
           />
         ) : null}
-      </section>
+      </section>}
 
-      <SidePanel isOpen={Boolean(selected)} title={panelTitle} onClose={() => setSelected(null)}>
-        {selected ? (
-          <ReviewInspector review={selected} busy={busyId === selected.id} onModerate={moderate} />
-        ) : null}
-      </SidePanel>
+      <Modal isOpen={Boolean(selected)} title={panelTitle} subtitle="Confira o conteúdo antes de decidir o que aparece na loja." presentation="center" size="lg" onClose={() => { if (!busyId) setSelected(null); }} footer={selected?.moderationStatus === "pending" ? <><Button variant="outline" disabled={Boolean(busyId)} onClick={() => void moderate(selected, "rejected")}><XCircle size={16} /> Rejeitar</Button><Button variant="primary" loading={Boolean(busyId)} disabled={Boolean(busyId)} onClick={() => void moderate(selected, "approved")}><CheckCircle2 size={16} /> Aprovar e publicar</Button></> : <Button variant="outline" onClick={() => setSelected(null)}>Fechar</Button>}>
+        {actionError && <div className="panel-error" role="alert">{actionError}</div>}
+        {selected && <ReviewInspector review={selected} />}
+      </Modal>
     </div>
   );
 }
 
-function ReviewInspector({ review, busy, onModerate }: { review: ProductReview; busy: boolean; onModerate: (review: ProductReview, status: "approved" | "rejected") => Promise<void> }) {
+function ReviewInspector({ review }: { review: ProductReview }) {
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+    <div className="review-inspector" style={{ display: "flex", flexDirection: "column", gap: 24 }}>
       <div style={detailCardStyle}>
         <Detail label="Produto" value={review.productName} />
         <Detail label="Enviada em" value={formatDate(review.createdAt, true)} />
@@ -439,28 +444,23 @@ function ReviewInspector({ review, busy, onModerate }: { review: ProductReview; 
             <Detail label="Nota" value={<ReviewRating value={review.rating} expanded />} />
           </div>
           <section>
-            <p style={detailLabelStyle}>AVALIAÇÃO</p>
+            <p style={detailLabelStyle}>Avaliação</p>
             <p style={{ margin: 0, color: "var(--color-text)", font: "14px/1.65 var(--font-sans)", whiteSpace: "pre-wrap" }}>{review.body}</p>
           </section>
         </>
       ) : (
         <section>
-          <p style={detailLabelStyle}>VÍDEO</p>
+          <p style={detailLabelStyle}>Vídeo</p>
           <h3 style={{ margin: "0 0 10px", color: "var(--color-text)", font: "600 15px var(--font-sans)" }}>{review.title || "Vídeo sem título"}</h3>
           {review.videoUrl ? (
-            <video controls preload="metadata" src={review.videoUrl} style={{ display: "block", width: "100%", borderRadius: 10, background: "#000" }}>
+            <video controls preload="metadata" src={review.videoUrl} style={{ display: "block", width: "100%", borderRadius: 10, background: "var(--surface-1)" }}>
               Seu navegador não suporta a reprodução deste vídeo.
             </video>
           ) : null}
         </section>
       )}
 
-      {review.moderationStatus === "pending" ? (
-        <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10, marginTop: 4 }}>
-          <Button variant="outline" onClick={() => void onModerate(review, "rejected")} disabled={busy}><XCircle size={16} /> Rejeitar</Button>
-          <Button onClick={() => void onModerate(review, "approved")} disabled={busy}><CheckCircle2 size={16} /> Aprovar</Button>
-        </div>
-      ) : null}
+
     </div>
   );
 }
@@ -492,7 +492,7 @@ function ReviewRating({ value, expanded = false }: { value?: number | null; expa
 function StatusBadge({ value }: { value: Exclude<ModerationStatus, "all"> }) {
   const labels = { pending: "Pendente", approved: "Aprovada", rejected: "Rejeitada" } as const;
   const color = value === "approved" ? "var(--color-success)" : value === "rejected" ? "var(--color-error)" : "var(--color-warning, #D97706)";
-  return <span style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 8px", borderRadius: 999, color, background: `color-mix(in srgb, ${color} 14%, transparent)`, font: "700 10.5px var(--font-mono)", letterSpacing: "0.02em" }}>{labels[value]}</span>;
+  return <span style={{ display: "inline-flex", alignItems: "center", minHeight: 24, padding: "0 8px", borderRadius: 999, color, background: `color-mix(in srgb, ${color} 14%, transparent)`, font: "600 12px var(--font-sans)", letterSpacing: "normal" }}>{labels[value]}</span>;
 }
 
 function formatDate(value: string, withTime = false): string {
@@ -501,7 +501,7 @@ function formatDate(value: string, withTime = false): string {
   return parsed.toLocaleDateString("pt-BR", withTime ? { day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" } : { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-const headerCellStyle: React.CSSProperties = { textAlign: "left", padding: "10px 20px", borderBottom: "1px solid var(--color-border)", color: "var(--color-text-faint)", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em" };
+const headerCellStyle: React.CSSProperties = { textAlign: "left", padding: "10px 20px", borderBottom: "1px solid var(--color-border)", color: "var(--color-text-faint)", font: "600 13px var(--font-sans)", letterSpacing: "normal" };
 const bodyCellStyle: React.CSSProperties = { padding: "13px 20px", borderBottom: "1px solid var(--color-border)", color: "var(--color-text-muted)", font: "13px var(--font-sans)", verticalAlign: "middle" };
-const detailCardStyle: React.CSSProperties = { display: "grid", gap: 14, padding: 14, border: "1px solid var(--color-border)", borderRadius: 10, background: "var(--surface-2)" };
-const detailLabelStyle: React.CSSProperties = { color: "var(--color-text-faint)", font: "600 10px var(--font-mono)", letterSpacing: "0.06em" };
+const detailCardStyle: React.CSSProperties = { display: "grid", gap: 20, padding: "0 0 24px", borderBottom: "1px solid var(--color-border)" };
+const detailLabelStyle: React.CSSProperties = { color: "var(--color-text-faint)", font: "500 13px var(--font-sans)", letterSpacing: "normal" };

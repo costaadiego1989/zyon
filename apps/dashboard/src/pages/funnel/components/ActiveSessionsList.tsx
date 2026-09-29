@@ -42,10 +42,10 @@ export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProp
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Comprador</th>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Etapa</th>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Última atividade</th>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Risco</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 13px var(--font-sans)", letterSpacing: "normal", color: "var(--color-text-faint)", textTransform: "none", borderBottom: "1px solid var(--color-border)" }}>Comprador</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 13px var(--font-sans)", letterSpacing: "normal", color: "var(--color-text-faint)", textTransform: "none", borderBottom: "1px solid var(--color-border)" }}>Etapa</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 13px var(--font-sans)", letterSpacing: "normal", color: "var(--color-text-faint)", textTransform: "none", borderBottom: "1px solid var(--color-border)" }}>Última atividade</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 13px var(--font-sans)", letterSpacing: "normal", color: "var(--color-text-faint)", textTransform: "none", borderBottom: "1px solid var(--color-border)" }}>Risco</th>
               </tr>
             </thead>
             <tbody>
@@ -67,7 +67,7 @@ export function ActiveSessionsList({ sessions, loading }: ActiveSessionsListProp
                       {s.buyerEmail || s.buyerPhone || s.buyerHint || s.sessionId.slice(0, 16)}
                     </td>
                     <td style={{ padding: "12px 20px" }}>
-                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>
+                      <span style={{ padding: "2px 8px", borderRadius: "var(--radius-full)", font: "600 13px var(--font-sans)", background: "var(--surface-2)", color: "var(--color-text-muted)" }}>
                         {STAGE_LABELS[s.stage] ?? s.stage}
                       </span>
                     </td>

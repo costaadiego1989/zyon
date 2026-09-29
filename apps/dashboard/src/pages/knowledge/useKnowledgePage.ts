@@ -38,12 +38,14 @@ export function useKnowledgePage() {
   const [form, setForm] = useState<PolicyForm>(EMPTY_FORM);
   const [status, setStatus] = useState<KnowledgeStatusResponse | null>(null);
   const [loading, setLoading] = useState(true);
+  const [loadError, setLoadError] = useState<string | null>(null);
   const [saving, setSaving] = useState(false);
   const [indexing, setIndexing] = useState(false);
   const [reindexing, setReindexing] = useState(false);
 
   const fetchAll = useCallback(async () => {
     setLoading(true);
+    setLoadError(null);
     try {
       const [policy, statusData] = await Promise.all([
         api.getKnowledgePolicies(),
@@ -52,7 +54,7 @@ export function useKnowledgePage() {
       setForm(toForm(policy));
       setStatus(statusData);
     } catch (e) {
-      showToast("error", e instanceof Error ? e.message : "Falha ao carregar");
+      setLoadError("Não foi possível carregar as políticas. Tente novamente antes de editar.");
     } finally {
       setLoading(false);
     }
@@ -90,14 +92,15 @@ export function useKnowledgePage() {
       showToast("error", e instanceof Error ? e.message : "Falha ao salvar");
     } finally {
       setSaving(false);
+      setIndexing(false);
     }
   }, [api, form]);
 
   const reindexAll = useCallback(async () => {
     setReindexing(true);
     try {
-      await api.postKnowledgeReindex();
-      showToast("success", "Reindexação iniciada");
+      const result = await api.postKnowledgeReindex();
+      showToast(result.reindexed ? "success" : "error", result.reindexed ? "Base do agente atualizada" : "A atualização da base não foi confirmada. Tente novamente.");
       const statusData = await api.getKnowledgeStatus();
       setStatus(statusData);
     } catch (e) {
@@ -109,6 +112,7 @@ export function useKnowledgePage() {
 
   return {
     form,
+    loadError,
     status,
     loading,
     saving,

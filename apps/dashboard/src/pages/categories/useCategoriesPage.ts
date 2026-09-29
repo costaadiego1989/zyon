@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
+import { showToast } from "../../components/Toast.js";
 import type { ProductCategoryDTO, CreateCategoryInput, UpdateCategoryInput } from "../../api/endpoints/catalog.js";
 
 export interface CategoryTreeNode extends ProductCategoryDTO {
@@ -64,13 +65,14 @@ export function useCategoriesPage(props: { merchantId: string }) {
   const tree = useMemo(() => buildTree(categories), [categories]);
 
   const fetchCategories = useCallback(async () => {
+    if (!props.merchantId) { setLoading(false); return; }
     setLoading(true);
     setError(null);
     try {
       const data = await api.listCategories(props.merchantId);
       setCategories(data as ProductCategoryDTO[]);
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      setError("Não foi possível carregar as categorias. Tente novamente.");
     } finally {
       setLoading(false);
     }
@@ -80,79 +82,56 @@ export function useCategoriesPage(props: { merchantId: string }) {
     void fetchCategories();
   }, [fetchCategories]);
 
-  const createCategory = useCallback(async (data: CreateCategoryInput) => {
-    setSaving(true);
-    setError(null);
+  const [formError, setFormError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [mutating, setMutating] = useState(false);
+  const mutation = useRef(false);
+
+  async function mutate(action: () => Promise<unknown>, scope: "form" | "list", success: string) {
+    if (mutation.current) return false;
+    mutation.current = true;
+    setMutating(true);
+    setSaving(scope === "form");
+    const setFailure = scope === "form" ? setFormError : setActionError;
+    setFailure(null);
     try {
-      await api.createCategory(props.merchantId, data);
-      setShowForm(false);
+      await action();
+      if (scope === "form") { setShowForm(false); setEditingCategory(null); }
+      showToast("success", success);
       await fetchCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      return true;
+    } catch {
+      setFailure(scope === "form"
+        ? "Não foi possível salvar a categoria. Seus dados foram mantidos. Tente novamente."
+        : "Não foi possível atualizar a categoria. Tente novamente.");
+      return false;
     } finally {
+      mutation.current = false;
+      setMutating(false);
       setSaving(false);
     }
-  }, [api, props.merchantId, fetchCategories]);
-
-  const updateCategory = useCallback(async (id: string, data: UpdateCategoryInput) => {
-    setSaving(true);
-    setError(null);
-    try {
-      await api.updateCategory(props.merchantId, id, data);
-      setShowForm(false);
-      setEditingCategory(null);
-      await fetchCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    } finally {
-      setSaving(false);
-    }
-  }, [api, props.merchantId, fetchCategories]);
-
-  const deleteCategory = useCallback(async (id: string) => {
-    setError(null);
-    try {
-      await api.deleteCategory(props.merchantId, id);
-      await fetchCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [api, props.merchantId, fetchCategories]);
-
-  const toggleActive = useCallback(async (id: string, isActive: boolean) => {
-    setError(null);
-    try {
-      await api.updateCategory(props.merchantId, id, { is_active: !isActive });
-      setCategories((current) => current.map((category) => (
-        category.id === id ? { ...category, is_active: !isActive } : category
-      )));
-      await fetchCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [api, props.merchantId, fetchCategories]);
-
-  const reparentCategory = useCallback(async (categoryId: string, newParentId: string | null) => {
-    if (categoryId === newParentId) return;
-    const descendants = getDescendantIds(categories, categoryId);
-    if (newParentId && descendants.has(newParentId)) return;
-
-    setError(null);
-    try {
-      await api.updateCategory(props.merchantId, categoryId, { parent_id: newParentId });
-      await fetchCategories();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
-    }
-  }, [api, props.merchantId, categories, fetchCategories]);
+  }
+  const createCategory = (data: CreateCategoryInput) => mutate(() => api.createCategory(props.merchantId, data), "form", "Categoria criada");
+  const updateCategory = (id: string, data: UpdateCategoryInput) => mutate(() => api.updateCategory(props.merchantId, id, data), "form", "Categoria salva");
+  const deleteCategory = (id: string) => mutate(() => api.deleteCategory(props.merchantId, id), "list", "Categoria excluída");
+  const toggleActive = (id: string, active: boolean) => mutate(async () => {
+    await api.updateCategory(props.merchantId, id, { is_active: !active });
+    setCategories(current => current.map(category => category.id === id ? { ...category, is_active: !active } : category));
+  }, "list", active ? "Categoria pausada" : "Categoria ativada");
+  async function reparentCategory(id: string, parentId: string | null) {
+    if (id === parentId || (parentId && getDescendantIds(categories, id).has(parentId))) return;
+    await mutate(() => api.updateCategory(props.merchantId, id, { parent_id: parentId }), "list", "Organização atualizada");
+  }
 
   const startEdit = useCallback((category: ProductCategoryDTO) => {
+    setFormError(null);
     setEditingCategory(category);
     setFormMode("edit");
     setShowForm(true);
   }, []);
 
   const startCreate = useCallback((parentId?: string) => {
+    setFormError(null);
     setEditingCategory(null);
     setFormMode("create");
     setParentIdForCreate(parentId);
@@ -160,6 +139,7 @@ export function useCategoriesPage(props: { merchantId: string }) {
   }, []);
 
   const cancelForm = useCallback(() => {
+    if (mutation.current) return;
     setShowForm(false);
     setEditingCategory(null);
     setParentIdForCreate(undefined);
@@ -176,6 +156,7 @@ export function useCategoriesPage(props: { merchantId: string }) {
 
   return {
     categories,
+    formError, actionError, mutating, clearActionError: () => setActionError(null),
     loading,
     error,
     editingCategory,

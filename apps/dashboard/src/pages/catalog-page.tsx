@@ -1,3 +1,5 @@
+import { RowActionMenu } from "../components/RowActionMenu.js";
+import { PageHeader } from "../components/PageHeader.js";
 import React from "react";
 import { Plus, ShoppingBag, Trash2, Pencil, Upload, Pause, Play, Package, Sparkles } from "lucide-react";
 import type { MerchantProfile, Product } from "../api-client.js";
@@ -50,26 +52,18 @@ export function CatalogPage(props: CatalogPageProps) {
   if (!props.me) {
     return (
       <>
-        <header className="page-head">
-          <div>
-            <span className="eyebrow">Loja</span>
-            <h1>Catálogo</h1>
-            <p className="page-lead">Login necessário</p>
-          </div>
-        </header>
+        <PageHeader title="Produtos" description="Login necessário" />
       </>
     );
   }
 
+  const hasFilters = !!vm.search.trim() || !!vm.categoryFilter || vm.statusFilter !== "all";
+  const clearFilters = () => { vm.setSearch(""); vm.setCategoryFilter(""); vm.setStatusFilter("all"); vm.setPage(1); };
+
   return (
     <div>
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Loja</span>
-          <h1>Catálogo</h1>
-          <p className="page-lead">Gerencie os produtos disponíveis na sua loja</p>
-        </div>
-        <div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+      <PageHeader title="Produtos" description="Organize os produtos, preços e disponibilidade da sua loja." actions={<>
+<div style={{ display: "flex", gap: 8, alignItems: "center" }}>
           {vm.aiImportEnabled ? (
             <Button variant="outline" size="sm" onClick={() => vm.setShowCsvModal(true)}>
               <Sparkles size={14} /> Importar planilha (IA)
@@ -83,7 +77,7 @@ export function CatalogPage(props: CatalogPageProps) {
             <Plus size={14} /> Novo produto
           </Button>
         </div>
-      </header>
+</>} />
 
       {vm.pageError || vm.error ? (
         <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
@@ -98,7 +92,7 @@ export function CatalogPage(props: CatalogPageProps) {
       </div>
 
       <SectionErrorBoundary sectionName="Tabela do Catálogo">
-      <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, overflow: "hidden" }}>
+      <div className="ui-table-container">
         <FilterToolbar
           tabs={[
             { key: "all", label: "Todos" },
@@ -129,7 +123,7 @@ export function CatalogPage(props: CatalogPageProps) {
           total={vm.total}
           onPageChange={vm.setPage}
           isEmpty={vm.filteredItems.length === 0 && !vm.loading}
-          empty={{ icon: ShoppingBag, title: "Nenhum produto cadastrado", description: "Clique em 'Novo produto' para começar.", action: <Button variant="primary" size="sm" arrow onClick={() => props.onCreate?.()}><Plus size={14} /> Novo produto</Button> }}
+          empty={{ icon: ShoppingBag, title: hasFilters ? "Nenhum produto encontrado" : "Cadastre seu primeiro produto", description: hasFilters ? "Nenhum produto corresponde à busca e aos filtros selecionados." : "Adicione nome, preço e disponibilidade para começar a vender.", action: hasFilters ? <Button variant="outline" size="sm" onClick={clearFilters}>Limpar filtros</Button> : <Button variant="primary" size="sm" onClick={() => props.onCreate?.()}><Plus size={14} /> Novo produto</Button> }}
         >
           {vm.loading ? (
             <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando produtos...</div>
@@ -137,7 +131,7 @@ export function CatalogPage(props: CatalogPageProps) {
             <table style={{ width: "100%", borderCollapse: "collapse" }}>
               <thead>
                 <tr>
-                  {["NOME", "TIPO", "PREÇO", "ESTOQUE", "STATUS", ""].map((c) => (
+                  {["Produto", "Tipo", "Preço", "Estoque", "Status", "Ações"].map((c) => (
                     <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{c}</th>
                   ))}
                 </tr>
@@ -161,32 +155,11 @@ export function CatalogPage(props: CatalogPageProps) {
                       <td style={{ padding: "12px 22px", font: "12px var(--font-mono)", color: p.isActive ? "var(--color-success)" : "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{p.isActive ? "Ativo" : "Inativo"}</td>
                       <td style={{ padding: "12px 22px", borderBottom: "1px solid var(--color-border)", textAlign: "right" }}>
                         <div style={{ display: "inline-flex", gap: 6 }} onClick={(e) => e.stopPropagation()}>
-                          <button
-                            type="button"
-                            onClick={() => props.onEdit?.(p.id)}
-                            aria-label={`Editar ${p.name}`}
-                            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", cursor: "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)" }}
-                          >
-                            <Pencil size={12} /> Editar
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void vm.toggleActive(p)}
-                            disabled={vm.togglingId === p.id}
-                            aria-label={p.isActive ? `Pausar ${p.name}` : `Ativar ${p.name}`}
-                            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: p.isActive ? "var(--color-text-muted)" : "var(--color-success)", cursor: vm.togglingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)", opacity: vm.togglingId === p.id ? 0.6 : 1 }}
-                          >
-                            {p.isActive ? <><Pause size={12} /> Pausar</> : <><Play size={12} /> Ativar</>}
-                          </button>
-                          <button
-                            type="button"
-                            onClick={() => void vm.confirmDelete(p)}
-                            disabled={vm.deletingId === p.id}
-                            aria-label={`Remover ${p.name}`}
-                            style={{ padding: "5px 9px", borderRadius: 6, border: "1px solid var(--color-error)", background: "var(--color-error-bg)", color: "var(--color-error)", cursor: vm.deletingId === p.id ? "not-allowed" : "pointer", display: "inline-flex", alignItems: "center", gap: 4, font: "600 11.5px var(--font-sans)", opacity: vm.deletingId === p.id ? 0.6 : 1 }}
-                          >
-                            <Trash2 size={12} /> Remover
-                          </button>
+                          <Button variant="outline" size="sm" onClick={() => props.onEdit?.(p.id)} aria-label={`Editar ${p.name}`}><Pencil size={14} /> Editar</Button>
+                          <RowActionMenu label={`Mais ações para ${p.name}`} actions={[
+                            { label: p.isActive ? "Pausar produto" : "Ativar produto", icon: p.isActive ? <Pause size={16} /> : <Play size={16} />, disabled: vm.togglingId === p.id, onSelect: () => { void vm.toggleActive(p); } },
+                            { label: "Remover produto", icon: <Trash2 size={16} />, danger: true, disabled: vm.deletingId === p.id, onSelect: () => { vm.confirmDelete(p); } },
+                          ]} />
                         </div>
                       </td>
                     </tr>

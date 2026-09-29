@@ -1,4 +1,5 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { reportError } from "../hooks/useErrorReporter.js";
 import { readError } from "../utils/read-error.js";
 import { useApi } from "../hooks/useApi.js";
 import { showToast } from "../components/Toast.js";
@@ -47,7 +48,7 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
   const api = useApi();
   const [members, setMembers] = useState<TeamMember[]>([]);
   const [invites, setInvites] = useState<PendingInvite[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [message, setMessage] = useState<{ text: string; kind: "ok" | "error" } | null>(null);
   const [inviteName, setInviteName] = useState("");
@@ -57,6 +58,9 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
   const [inviting, setInviting] = useState(false);
   const [removingId, setRemovingId] = useState<string | null>(null);
 
+  const working = useRef(false);
+  const [updatingId, setUpdatingId] = useState<string | null>(null);
+  const [inviteError, setInviteError] = useState<string | null>(null);
   const merchantId = props.me?.id;
 
   const load = useCallback(async () => {
@@ -79,13 +83,12 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
   }, [props.me]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const invite = useCallback(async () => {
-    if (!merchantId || !inviteEmail.trim() || !inviteName.trim()) return;
+    if (!merchantId || working.current || !inviteEmail.trim() || !inviteName.trim()) return false;
+    working.current = true;
+    setInviteError(null);
     setInviting(true);
     setMessage(null);
     try {
-      // Preserve current merchant ID to detect if session was lost during the call
-      const preInviteMerchantId = merchantId;
-
       await api.inviteTeamMember(merchantId, {
         name: inviteName.trim(),
         email: inviteEmail.trim(),
@@ -93,45 +96,54 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
         role: inviteRole,
       });
 
-      // Verify we're still authenticated (T-005: prevent disconnect bug)
-      if (!preInviteMerchantId) {
-        showToast("error", "Sessão expirou durante o convite.");
-        return;
-      }
-
-      showToast("success", `Convite enviado para ${inviteEmail}`);
+      showToast("success", `Convite criado para ${inviteEmail}`);
       setInviteName("");
       setInviteEmail("");
       setInvitePhone("");
+      setMessage({ text: `Convite criado para ${inviteEmail.trim()}. A pessoa precisa aceitar o convite para acessar a loja.`, kind: "ok" });
       void load();
+      return true;
     } catch (e) {
-      showToast("error", readError(e));
+      reportError({ source: "dashboard.team.invite", error: e });
+      setInviteError("Não foi possível enviar o convite. Seus dados foram mantidos; confira o e-mail e tente novamente.");
+      return false;
     } finally {
+      working.current = false;
       setInviting(false);
     }
-  }, [api, merchantId, inviteEmail, inviteRole, load]);
+  }, [api, merchantId, inviteName, inviteEmail, invitePhone, inviteRole, load]);
 
   const updateRole = useCallback(async (userId: string, role: MemberRole) => {
-    if (!merchantId) return;
+    if (!merchantId || working.current) return;
+    working.current = true;
+    setUpdatingId(userId);
+    setMessage(null);
     try {
       await api.updateTeamMemberRole(merchantId, userId, role);
       setMembers((prev) => prev.map((m) => m.userId === userId ? { ...m, role } : m));
       showToast("success", "Função atualizada");
     } catch (e) {
-      showToast("error", readError(e));
-    }
+      reportError({ source: "dashboard.team.role", error: e });
+      setMessage({ text: "Não foi possível alterar a função. A função anterior foi mantida; tente novamente.", kind: "error" });
+    } finally { working.current = false; setUpdatingId(null); }
   }, [api, merchantId]);
 
   const removeMember = useCallback(async (userId: string) => {
-    if (!merchantId) return;
+    if (!merchantId || working.current) return false;
+    working.current = true;
+    setMessage(null);
     setRemovingId(userId);
     try {
       await api.removeTeamMember(merchantId, userId);
       setMembers((prev) => prev.filter((m) => m.userId !== userId));
-      showToast("success", "Membro removido");
+      setMessage({ text: "Acesso removido da loja.", kind: "ok" });
+      return true;
     } catch (e) {
-      showToast("error", readError(e));
+      reportError({ source: "dashboard.team.remove", error: e });
+      setMessage({ text: "Não foi possível remover o acesso. Tente novamente.", kind: "error" });
+      return false;
     } finally {
+      working.current = false;
       setRemovingId(null);
     }
   }, [api, merchantId]);
@@ -148,6 +160,9 @@ export function useTeamPage(props: { me: MerchantProfile | null }) {
     inviteRole,
     inviting,
     removingId,
+    updatingId,
+    inviteError,
+    setInviteError,
     setInviteName,
     setInviteEmail,
     setInvitePhone,

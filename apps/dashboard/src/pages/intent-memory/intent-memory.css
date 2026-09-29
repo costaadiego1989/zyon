@@ -1,0 +1,115 @@
+﻿.intent-memory-setting,
+.intent-memory-section,
+.intent-memory-guide {
+  padding: 24px;
+}
+.intent-memory-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+}
+.intent-memory-toggle label {
+  display: grid;
+  gap: 6px;
+  cursor: pointer;
+  font: 14px/1.6 var(--font-sans);
+}
+.intent-memory-toggle label span {
+  color: var(--color-text-muted);
+  max-width: 70ch;
+}
+.intent-memory-toggle [role="switch"]:focus-visible {
+  outline: 2px solid var(--color-brand) !important;
+  outline-offset: 4px;
+}
+.intent-memory-page .intent-memory-note {
+  font: 13px/1.6 var(--font-sans);
+  color: var(--color-text-muted);
+  margin: -8px 0 0;
+  max-width: 75ch;
+}
+.intent-memory-distribution {
+  display: grid;
+  gap: 20px;
+}
+.intent-memory-distribution > div > div:first-child {
+  display: flex;
+  gap: 16px;
+  justify-content: space-between;
+  font: 14px/1.5 var(--font-sans);
+}
+.intent-memory-track {
+  background: var(--surface-2);
+  height: 6px;
+  border-radius: 4px;
+  overflow: hidden;
+  margin-top: 8px;
+}
+.intent-memory-track span {
+  display: block;
+  height: 100%;
+  background: var(--color-brand);
+}
+.intent-memory-guide summary {
+  cursor: pointer;
+  font: 600 16px/1.5 var(--font-sans);
+}
+.intent-memory-guide dl {
+  margin: 16px 0 0;
+}
+.intent-memory-guide dl > div {
+  padding: 16px 0;
+  border-top: 1px solid var(--color-border);
+}
+.intent-memory-guide dt {
+  font: 600 14px/1.5 var(--font-sans);
+}
+.intent-memory-guide dd,
+.intent-memory-guide p {
+  margin: 6px 0 0;
+  font: 14px/1.6 var(--font-sans);
+  color: var(--color-text-muted);
+  max-width: 75ch;
+}
+.intent-memory-filters {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+}
+.intent-memory-table {
+  overflow-x: auto;
+}
+.intent-memory-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.intent-memory-table th,
+.intent-memory-table td {
+  padding: 14px 20px;
+  text-align: left;
+  font: 14px/1.5 var(--font-sans);
+  border-bottom: 1px solid var(--color-border);
+}
+.intent-memory-table th {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text-muted);
+}
+.intent-memory-table td:last-child {
+  white-space: nowrap;
+}
+.intent-memory-error {
+  font: 14px/1.6 var(--font-sans);
+  color: var(--color-error);
+  margin: 16px 0 0;
+}
+@media (max-width: 600px) {
+  .intent-memory-setting,
+  .intent-memory-section,
+  .intent-memory-guide {
+    padding: 16px;
+  }
+}

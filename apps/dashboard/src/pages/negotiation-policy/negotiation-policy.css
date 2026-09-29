@@ -1,0 +1,72 @@
+﻿.negotiation-policy-form {
+  padding: 24px;
+}
+.negotiation-policy-toggle {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 24px;
+  padding-bottom: 24px;
+  border-bottom: 1px solid var(--color-border);
+}
+.negotiation-policy-toggle label {
+  display: grid;
+  gap: 6px;
+  cursor: pointer;
+  font: 14px/1.5 var(--font-sans);
+}
+.negotiation-policy-toggle label span {
+  color: var(--color-text-muted);
+  max-width: 70ch;
+}
+.negotiation-policy-toggle [role="switch"]:focus-visible {
+  outline: 2px solid var(--color-brand) !important;
+  outline-offset: 4px;
+}
+.negotiation-policy-actions {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 24px;
+}
+.negotiation-policy-actions span {
+  font: 13px/1.5 var(--font-sans);
+  color: var(--color-text-muted);
+}
+.negotiation-policy-error {
+  color: var(--color-error);
+  font: 14px/1.6 var(--font-sans);
+  margin: 16px 0;
+}
+.negotiation-history-table {
+  overflow-x: auto;
+}
+.negotiation-history-table table {
+  width: 100%;
+  border-collapse: collapse;
+}
+.negotiation-history-table th,
+.negotiation-history-table td {
+  padding: 14px 20px;
+  font: 14px/1.5 var(--font-sans);
+  text-align: left;
+  border-bottom: 1px solid var(--color-border);
+}
+.negotiation-history-table th {
+  font-weight: 600;
+  text-transform: none;
+  letter-spacing: normal;
+  color: var(--color-text-muted);
+}
+.negotiation-history-table td:last-child {
+  white-space: nowrap;
+}
+.negotiation-history-more {
+  padding: 16px 20px;
+}
+@media (max-width: 600px) {
+  .negotiation-policy-form {
+    padding: 16px;
+  }
+}

@@ -11,7 +11,7 @@ interface ExperimentCardProps {
 export function ExperimentCard({ experiment, metrics, selected, onSelect }: ExperimentCardProps) {
   const statusLabel = {
     draft: "Rascunho",
-    running: "Em Execução",
+    running: "Em execução",
     paused: "Pausado",
     completed: "Concluído",
     archived: "Arquivado",
@@ -38,6 +38,7 @@ export function ExperimentCard({ experiment, metrics, selected, onSelect }: Expe
 
   return (
     <button
+      type="button" className="experiment-card" aria-pressed={selected}
       onClick={onSelect}
       style={{
         background: selected ? "color-mix(in srgb, var(--color-brand) 8%, var(--surface-2))" : "var(--surface-2)",
@@ -46,27 +47,28 @@ export function ExperimentCard({ experiment, metrics, selected, onSelect }: Expe
         padding: "16px 18px",
         cursor: "pointer",
         textAlign: "left",
-        transition: "all 0.15s",
+        transition: "border-color 0.15s, background 0.15s",
         width: "100%",
         display: "flex",
         flexDirection: "column",
+        alignItems: "stretch",
         gap: 10,
       }}
     >
       {/* Row 1: Title + Status */}
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 8 }}>
-        <span style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", flex: 1 }}>
+        <span style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", minWidth: 0, overflowWrap: "anywhere", lineHeight: 1.5, flex: 1 }}>
           {experiment.name}
         </span>
         <span
           style={{
-            font: "700 9px var(--font-mono)",
+            font: "500 12px var(--font-sans)",
             color: statusColor,
             background: `color-mix(in srgb, ${statusColor} 12%, transparent)`,
             border: `1px solid color-mix(in srgb, ${statusColor} 30%, transparent)`,
             padding: "3px 8px",
             borderRadius: "var(--radius-full)",
-            textTransform: "uppercase",
+            textTransform: "none",
             letterSpacing: "0.04em",
             whiteSpace: "nowrap",
             flexShrink: 0,
@@ -86,14 +88,14 @@ export function ExperimentCard({ experiment, metrics, selected, onSelect }: Expe
           style={{
             background: isAuto ? "var(--color-brand-subtle)" : "var(--surface-3, var(--color-surface-raised))",
             color: isAuto ? "var(--color-brand)" : "var(--color-text-muted)",
-            font: "600 9px var(--font-mono)",
+            font: "500 12px var(--font-sans)",
             padding: "2px 7px",
             borderRadius: "var(--radius-full)",
-            textTransform: "uppercase",
+            textTransform: "none",
             letterSpacing: "0.03em",
           }}
         >
-          {isAuto ? "🤖 AUTO" : "✏️ MANUAL"}
+          {isAuto ? "Automático" : "Manual"}
         </span>
         <span style={{ width: 3, height: 3, borderRadius: "50%", background: "var(--color-text-faint)" }} />
         <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>

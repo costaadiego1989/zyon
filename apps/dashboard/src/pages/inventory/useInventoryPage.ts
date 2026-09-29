@@ -111,12 +111,13 @@ export function useInventoryPage(options: {
   }, [api, options.me, loadData]);
 
   const connectErp = useCallback(async (provider: string, credentials?: Record<string, string>) => {
-    if (!options.me) return;
+    if (!options.me) return false;
     try {
       if (provider === "omie" || provider === "tiny") {
         const conn = await api.connectErp(options.me.id, provider, credentials);
         setErpConnections((prev) => [...prev.filter((c) => c.provider !== provider), conn]);
         showToast("success", `${provider === "omie" ? "Omie" : "Tiny"} conectado; sincronização inicial agendada`);
+        return true;
       } else {
         // Bling OAuth flow.
         const data = await (api as any).getErpOAuthUrl(options.me.id, provider);
@@ -130,7 +131,9 @@ export function useInventoryPage(options: {
         }
       }
     } catch (err) {
-      showToast("error", err instanceof Error ? err.message : `Erro ao conectar ${provider}`);
+      // Credential forms keep a persistent inline error beside the entered fields.
+      if (provider !== "omie" && provider !== "tiny") showToast("error", `Não foi possível conectar ${provider}. Tente novamente.`);
+      return false;
     }
   }, [api, options.me, loadData]);
 

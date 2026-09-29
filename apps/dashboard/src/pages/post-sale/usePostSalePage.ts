@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
@@ -57,9 +57,16 @@ export function usePostSalePage(props: { me: MerchantProfile | null }) {
   const [stats, setStats] = useState<PostSaleStats | null>(null);
   const [reviews, setReviews] = useState<Review[]>([]);
   const [npsItems, setNpsItems] = useState<NpsItem[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const [moderationError, setModerationError] = useState<string | null>(null);
+  const [moderatingId, setModeratingId] = useState<string | null>(null);
+  const moderating = useRef(false);
+  const [loadVersion, setLoadVersion] = useState(0);
   const [reviewsPage, setReviewsPage] = useState(1);
   const [npsPage, setNpsPage] = useState(1);
+  const [reviewsTotal, setReviewsTotal] = useState(0);
+  const [npsTotal, setNpsTotal] = useState(0);
   const [loaded, setLoaded] = useState(false);
 
   useEffect(() => {
@@ -71,11 +78,12 @@ export function usePostSalePage(props: { me: MerchantProfile | null }) {
     let cancelled = false;
     (async () => {
       setLoading(true);
+      setError(null);
       try {
         const [statsData, reviewsData, npsData] = await Promise.all([
           api.getPostSaleStats(),
-          api.getPostSaleReviews(1),
-          api.getPostSaleNps(1),
+          api.getPostSaleReviews(reviewsPage),
+          api.getPostSaleNps(npsPage),
         ]);
 
         if (cancelled) return;
@@ -83,10 +91,13 @@ export function usePostSalePage(props: { me: MerchantProfile | null }) {
         setStats(statsData);
         setReviews(reviewsData.items || []);
         setNpsItems(npsData.items || []);
+        setReviewsTotal(reviewsData.total); setNpsTotal(npsData.total);
+        setReviewsPage(p => Math.min(p, Math.max(1, Math.ceil(reviewsData.total / 20))));
+        setNpsPage(p => Math.min(p, Math.max(1, Math.ceil(npsData.total / 20))));
       } catch (e) {
         reportError({ source: "post-sale.load", error: e });
         if (!cancelled) {
-          showToast("error", e instanceof Error ? e.message : "Erro ao carregar Pós-venda");
+          setError("Não foi possível carregar os resultados de pós-venda. Tente novamente.");
         }
       } finally {
         if (!cancelled) {
@@ -99,9 +110,11 @@ export function usePostSalePage(props: { me: MerchantProfile | null }) {
     return () => {
       cancelled = true;
     };
-  }, [props.me]);
+  }, [api, props.me, loadVersion, reviewsPage, npsPage]);
 
   async function handleModerateReview(reviewId: string, status: "approved" | "rejected") {
+    if (moderating.current) return;
+    moderating.current = true; setModeratingId(reviewId); setModerationError(null);
     try {
       await api.moderateReview(reviewId, status);
 
@@ -111,11 +124,11 @@ export function usePostSalePage(props: { me: MerchantProfile | null }) {
         )
       );
 
-      showToast("success", `Review ${status === "approved" ? "aprovada" : "rejeitada"}`);
+      showToast("success", `Avaliação ${status === "approved" ? "aprovada" : "rejeitada"}`);
     } catch (e) {
       reportError({ source: "post-sale.moderate", error: e });
-      showToast("error", "Erro ao moderar review");
-    }
+      setModerationError("Não foi possível moderar a avaliação. O estado anterior foi mantido; tente novamente.");
+    } finally { moderating.current = false; setModeratingId(null); }
   }
 
   return {
@@ -124,7 +137,13 @@ export function usePostSalePage(props: { me: MerchantProfile | null }) {
     npsItems,
     loading,
     loaded,
+    error,
+    moderationError,
+    moderatingId,
+    retry: () => setLoadVersion(value => value + 1),
     reviewsPage,
+    reviewsTotal,
+    npsTotal,
     setReviewsPage,
     npsPage,
     setNpsPage,

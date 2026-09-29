@@ -1,12 +1,14 @@
 import { BillingCycleSelector } from "../../billing-plans/components/BillingCycleSelector.js";
-import { rememberSubscriptionPlan, readSubscriptionCycle, type SubscriptionPlan } from "../../../auth/subscription-intent.js";
+import { rememberSubscriptionPlan, type SubscriptionPlan } from "../../../auth/subscription-intent.js";
 import React, { useEffect, useRef, useState } from "react";
 import { useApi } from "../../../hooks/useApi.js";
 import type { PlanDef } from "../../billing-plans/components/PlanCard.js";
-import { ArrowRight, Check, CheckCircle2, LoaderCircle, ShieldCheck } from "lucide-react";
+import { ArrowRight, CheckCircle2, LoaderCircle, ShieldCheck } from "lucide-react";
 import { Button } from "../../../components/Button.js";
 import { toPlanDef, selectedBillingOffer, billingMoney } from "../../billing-plans/plan-catalog.js";
-import { BILLING_PLAN_PRESENTATION, type BillingCycle } from "@zyon/shared-types";
+import type { BillingCycle } from "@zyon/shared-types";
+import { BillingPlanDetails, BillingTerms } from "../../billing-plans/components/BillingPlanDetails.js";
+import { useBillingCycle } from "../../billing-plans/useBillingCycle.js";
 import "../../billing-plans/billing-plans-page.css";
 import "./signup-plans-modern.css";
 
@@ -20,7 +22,7 @@ type Props = {
 
 export function PlanSelection({ merchantName, initialPlan, onDone, onExit }: Props) {
   const api = useApi();
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>(readSubscriptionCycle);
+  const [billingCycle, setBillingCycle] = useBillingCycle();
   const [plans, setPlans] = useState<PlanDef[]>([]);
   const [busy, setBusy] = useState(false);
   const [selected, setSelected] = useState<PlanDef["key"]>(initialPlan ?? "starter");
@@ -114,7 +116,7 @@ export function PlanSelection({ merchantName, initialPlan, onDone, onExit }: Pro
       {plans.filter(plan => expanded || plan.key === selected).map(plan => <SignupPlan key={plan.key} plan={plan} billingCycle={billingCycle} selected={selected === plan.key} onSelect={() => setSelected(plan.key)} />)}
     </fieldset>}
     {initialPlan && <button type="button" className="plan-selection__change" disabled={busy || confirming || paymentPending} onClick={() => setExpanded(!expanded)}>{expanded ? "Voltar ao resumo do plano" : "Comparar ou trocar plano"}</button>}
-    <p className="plan-selection__terms"><ShieldCheck size={18} /><span>Confira o período e o total no Stripe antes de assinar. O anual é pago de uma vez; o desconto vale somente para a assinatura. As cotas de compras são mensais. O comprador paga R$ 0,99 de serviço por compra. Taxas do provedor de pagamento são separadas. No Free, novos cadastros têm 14 dias sem a taxa de transação Zyon da loja.</span></p>
+    <p className="plan-selection__terms"><ShieldCheck size={18} /><span><BillingTerms /></span></p>
     <footer className="plan-selection__footer">
       <div aria-live="polite"><span>Plano selecionado</span><strong>{selectedPlan ? selectedPlan.name + " · " + (selectedOffer ? billingMoney(selectedOffer.amountCents) : "Indisponível") : "Carregando…"}<small>{selectedOffer?.cycle === "annual" ? "/ano, à vista" : "/mês"}</small></strong></div>
       <Button variant="primary" disabled={loading || busy || confirming || paymentPending || !selectedPlan || !selectedOffer} onClick={() => void select(selected)}>
@@ -127,29 +129,8 @@ export function PlanSelection({ merchantName, initialPlan, onDone, onExit }: Pro
 
 function SignupPlan({ plan, billingCycle, selected, onSelect }: { plan: PlanDef; billingCycle: BillingCycle; selected: boolean; onSelect: () => void }) {
   const offer = selectedBillingOffer(plan, billingCycle);
-  const copy = BILLING_PLAN_PRESENTATION[plan.key];
-  const highlights = plan.highlights ?? [];
-  const visible = [...highlights.slice(0,4), ...plan.features.slice(0,3)];
-  const additional = [...highlights.slice(4), ...plan.features.slice(3)];
-  return <article className={`signup-plan${plan.recommended ? " signup-plan--featured" : ""}${selected ? " signup-plan--selected" : ""}`}>
-    <div className="signup-plan__label">{copy.eyebrow}<span>{copy.badge}</span></div>
-    <label className="signup-plan__choice" htmlFor={`signup-plan-${plan.key}`}>
-      <div className="signup-plan__heading"><h2>{plan.name}</h2><input id={`signup-plan-${plan.key}`} type="radio" name="signup-plan" value={plan.key} checked={selected} disabled={!offer} onChange={onSelect} aria-label={`Selecionar ${plan.name}`} /></div>
-      <p className="signup-plan__description">{formatPlanCapacityDescription(plan.highlights ?? [])}</p>
-      <div className="signup-plan__price"><strong>{offer ? billingMoney(offer.equivalentMonthlyCents) : "Indisponível"}</strong><span>/mês</span></div>
-      <p className="signup-plan__fee">{plan.key === "starter" ? `Após os 14 dias iniciais: ${plan.fee} por transação.` : `${plan.fee} por transação. Tarifa fixa por compra.`}</p>
-    </label>
-    {offer?.cycle === "annual" && <p className="signup-plan__fee">Total anual: <strong>{billingMoney(offer.amountCents)}</strong>. Economia de {billingMoney(offer.savingsCents)} ({offer.discountPercent}%).</p>}
-    <p className="signup-plan__includes">{copy.includes}</p>
-    <ul className="signup-plan__features">{visible.map(feature => <li key={feature}><Check size={15} />{feature}</li>)}</ul>
-    {additional.length > 0 && <details className="signup-plan__details"><summary>Todos os recursos e limites <span aria-hidden="true">+</span></summary><ul className="signup-plan__features">{additional.map(feature => <li key={feature}><Check size={15} />{feature}</li>)}</ul></details>}
+  return <article data-plan-key={plan.key} className={`signup-plan${plan.recommended ? " signup-plan--featured" : ""}${selected ? " signup-plan--selected" : ""}`}>
+    <BillingPlanDetails plan={plan} billingCycle={billingCycle} choice={<input type="radio" name="signup-plan" value={plan.key} checked={selected} disabled={!offer} onChange={onSelect} aria-label={`Selecionar ${plan.name}`} />} />
     <button type="button" className="signup-plan__select" disabled={!offer} onClick={onSelect}>{selected ? <><CheckCircle2 size={16} /> Plano selecionado</> : <>Escolher {plan.name}<ArrowRight size={16} /></>}</button>
   </article>;
-}
-
-function formatPlanCapacityDescription(highlights: string[]): string {
-  const entries = highlights.slice(0, 4).map((entry, index) =>
-    index === 0 ? entry : entry.charAt(0).toLocaleLowerCase("pt-BR") + entry.slice(1),
-  );
-  return new Intl.ListFormat("pt-BR", { style: "long", type: "conjunction" }).format(entries) + ".";
 }

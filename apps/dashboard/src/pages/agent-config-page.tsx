@@ -1,3 +1,5 @@
+import { SetupGuide } from "../components/SetupGuide.js";
+import { PageHeader } from "../components/PageHeader.js";
 import React, { useState } from "react";
 import { Save, ChevronDown, ChevronRight, X, Plus, Info } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
@@ -25,30 +27,16 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
 
   if (!props.me) {
     return (
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Agente IA</span>
-          <h1>Configuração do Agente</h1>
-          <p className="page-lead">Login necessário</p>
-        </div>
-      </header>
+      <PageHeader title="Agente IA" description="Login necessário" />
     );
   }
 
   return (
-    <div>
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 20 }}>
-        <header className="page-head">
-          <div>
-            <span className="eyebrow">Agente IA</span>
-            <h1>Configuração do Agente</h1>
-            <p className="page-lead">Personalize o agente que atende seus clientes</p>
-          </div>
-        </header>
-        <Button variant="primary" size="sm" arrow onClick={() => void vm.handleSave()} disabled={!vm.loaded || Boolean(vm.loadError) || vm.saving || vm.hasErrors} loading={vm.saving}>
+    <div className="page-container agent-config-page">
+      <PageHeader title="Agente IA" description="Defina a identidade, as mensagens e o momento de atuação do agente." actions={<Button variant="primary" size="sm" arrow onClick={() => void vm.handleSave()} disabled={!vm.loaded || Boolean(vm.loadError) || vm.saving || vm.hasErrors} loading={vm.saving}>
           <Save size={14} /> Salvar alterações
-        </Button>
-      </div>
+        </Button>} />
+      <SetupGuide title="Como preparar o atendimento" steps={[{"title":"Defina a identidade","description":"Escolha o nome e descreva o papel do agente. Use uma apresentação curta que explique como ele pode ajudar."},{"title":"Escolha quando participar","description":"Na loja, defina se o agente espera um sinal, inicia a conversa ou responde apenas quando chamado. Revise as mensagens de loja e checkout separadamente."},{"title":"Revise e salve","description":"Em Respostas rápidas, organize as sugestões por etapa da compra. Salve as alterações e confira o atendimento na sua loja."}]} />
 
       {vm.loading ? (
         <div style={{ padding: "40px 22px", textAlign: "center", color: "var(--color-text-faint)", font: "13px var(--font-sans)" }}>Carregando configuração do agente...</div>
@@ -63,18 +51,18 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
           <TabBar
             tabs={[
               { key: "identity", label: "Identidade" },
-              { key: "quick-replies", label: "Quick Replies" },
+              { key: "quick-replies", label: "Respostas rápidas" },
             ]}
             activeTab={vm.activeTab}
             onTabChange={(k) => vm.setActiveTab(k as typeof vm.activeTab)}
           />
 
           {vm.activeTab === "identity" && (
-            <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
-              <SectionHeader title="Identidade do Agente" variant="secondary" />
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
+            <div className="configuration-layout"><section className="agent-identity-fields">
+              <SectionHeader title="Identidade e tom de voz" subtitle="Estas informações orientam como o agente se apresenta e conversa." />
+              <div className="agent-fields-grid">
                 <label>
-                  <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>Nome do Agente</span>
+                  <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>Nome do agente</span>
                   <input value={vm.form.agentName} onChange={(e) => vm.patch({ agentName: e.target.value })} placeholder="Assistente" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${vm.errors.agentName ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-sans)" }} />
                   {vm.errors.agentName && <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{vm.errors.agentName}</span>}
                 </label>
@@ -88,7 +76,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                 </label>
                 <label>
                   <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
-                    Tom de Voz
+                    Tom de voz
                     <span title="Define o estilo de comunicação: Consultivo (orientação), Premium (exclusividade), Direto (objetivo), Amigável (casual), Técnico (preciso)" style={{ color: "var(--color-text-faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
                   </span>
                   <select value={vm.form.tone} onChange={(e) => vm.patch({ tone: e.target.value as AgentTone })} style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-sans)" }}>
@@ -99,10 +87,10 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
                 </label>
                 <label>
                   <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
-                    Persona
+                    Papel do agente
                     <span title="Descreva quem é o agente: ex. 'Vendedora simpática de loja feminina' ou 'Especialista em tech'" style={{ color: "var(--color-text-faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
                   </span>
-                  <input value={vm.form.persona} onChange={(e) => vm.patch({ persona: e.target.value })} placeholder="Ex: Vendedora experiente e atenciosa" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${vm.errors.persona ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-sans)" }} />
+                  <input value={vm.form.persona} onChange={(e) => vm.patch({ persona: e.target.value })} placeholder="Ex.: Assistente que explica os produtos e ajuda a escolher" style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${vm.errors.persona ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-sans)" }} />
                   {vm.errors.persona && <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{vm.errors.persona}</span>}
                 </label>
               </div>
@@ -110,10 +98,10 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
               <div style={{ marginTop: 12 }}>
                 <label>
                   <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
-                    Texto de Apresentação
+                    Mensagem de apresentação
                     <span title="Primeiro texto que o cliente vê ao abrir o chat na loja. Apresente o agente e diga como ele pode ajudar." style={{ color: "var(--color-text-faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
                   </span>
-                  <textarea value={vm.form.greeting} onChange={(e) => vm.patch({ greeting: e.target.value })} placeholder={"Olá! Sou a Micha 👋\nA partir de agora serei sua vendedora particular..."} rows={3} style={{ width: "100%", padding: "9px 10px", borderRadius: 7, border: `1px solid ${vm.errors.greeting ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-sans)", resize: "vertical", lineHeight: 1.5 }} />
+                  <textarea value={vm.form.greeting} onChange={(e) => vm.patch({ greeting: e.target.value })} placeholder={"Olá! Sou o assistente da loja. Posso ajudar você a encontrar um produto ou tirar uma dúvida."} rows={3} style={{ width: "100%", padding: "9px 10px", borderRadius: 7, border: `1px solid ${vm.errors.greeting ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-sans)", resize: "vertical", lineHeight: 1.5 }} />
                   {vm.errors.greeting && <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{vm.errors.greeting}</span>}
                 </label>
               </div>
@@ -122,7 +110,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
               {isStorefront && (
               <div style={{ marginTop: 18, paddingTop: 16, borderTop: "1px solid var(--color-border)" }}>
                 <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "flex", alignItems: "center", gap: 4, marginBottom: 4 }}>
-                  Como o agente ativa na loja
+                  Quando o agente participa na loja
                   <span title="Define quando o agente aborda o cliente que está navegando na loja." style={{ color: "var(--color-text-faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
                 </span>
                 <p style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", margin: "0 0 10px" }}>Escolha se o agente age sozinho, espera um sinal do cliente, ou só responde quando chamado.</p>
@@ -146,14 +134,14 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
               <div style={{ marginTop: 12 }}>
                 <label>
                   <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "flex", alignItems: "center", gap: 4, marginBottom: 8 }}>
-                    Texto de Apresentação (Checkout — carrinho vazio)
+                    Mensagem no checkout com carrinho vazio
                     <span title="Texto exibido quando o cliente abre o checkout sem produtos no carrinho. Convide-o a buscar produtos." style={{ color: "var(--color-text-faint)", cursor: "help", display: "inline-flex" }}><Info size={12} /></span>
                   </span>
                   <textarea value={vm.form.emptyCartGreeting} onChange={(e) => vm.patch({ emptyCartGreeting: e.target.value })} placeholder={"O que você deseja comprar? Digite aqui que encontro para você."} rows={3} style={{ width: "100%", padding: "9px 10px", borderRadius: 7, border: `1px solid ${vm.errors.emptyCartGreeting ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-sans)", resize: "vertical", lineHeight: 1.5 }} />
                   {vm.errors.emptyCartGreeting && <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{vm.errors.emptyCartGreeting}</span>}
                 </label>
               </div>
-            </section>
+            </section><aside className="configuration-aside"><h2>Um papel claro</h2><p>Descreva a especialidade do agente e como ele ajuda. Exemplo: “Assistente da loja que explica produtos e ajuda a escolher”.</p><h2>Tom de voz</h2><p>Em um tom consultivo, prefira perguntas úteis e recomendações objetivas. Exemplo: “Como você pretende usar este produto?”.</p><h2>Loja e checkout</h2><p>A apresentação da loja recebe quem está navegando. A mensagem de carrinho vazio orienta quem abriu o checkout sem produtos.</p></aside></div>
           )}
 
           {vm.activeTab === "quick-replies" && (
@@ -201,7 +189,7 @@ function StageQuickRepliesEditor({ config, onChange }: { config: StageQrConfig; 
   return (
     <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
       <div style={{ marginBottom: 8 }}>
-        <SectionHeader title="Quick Replies por Estágio" variant="secondary" />
+        <SectionHeader title="Respostas rápidas por Estágio" variant="secondary" />
         <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4, margin: 0 }}>Configure as sugestões em cada etapa da jornada de compra</p>
       </div>
       {config.stages.map((stage, stageIdx) => {
@@ -214,7 +202,7 @@ function StageQuickRepliesEditor({ config, onChange }: { config: StageQrConfig; 
                 <span style={{ font: "600 13px var(--font-sans)" }}>{stage.label}</span>
                 <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>{stage.stage}</span>
               </div>
-              <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-muted)" }}>{stage.replies.length} replies</span>
+              <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-muted)" }}>{stage.replies.length} respostas</span>
             </button>
             {isExpanded && (
               <div style={{ padding: "0 16px 14px", display: "flex", flexDirection: "column", gap: 10 }}>
@@ -222,14 +210,14 @@ function StageQuickRepliesEditor({ config, onChange }: { config: StageQrConfig; 
                   {stage.replies.map((reply, ri) => (
                     <span key={ri} style={{ display: "inline-flex", alignItems: "center", gap: 4, background: "var(--color-brand-subtle)", color: "var(--color-brand)", borderRadius: 999, padding: "4px 12px", font: "12px var(--font-sans)" }}>
                       {reply}
-                      <button type="button" onClick={() => removeReply(stageIdx, ri)} style={{ border: "none", background: "none", color: "var(--color-brand)", cursor: "pointer", padding: 0, display: "flex" }}><X size={12} /></button>
+                      <button type="button" aria-label={"Remover resposta: " + reply} onClick={() => removeReply(stageIdx, ri)} style={{ border: "none", background: "none", color: "var(--color-brand)", cursor: "pointer", padding: 0, display: "flex" }}><X size={12} /></button>
                     </span>
                   ))}
                 </div>
                 <div style={{ display: "flex", gap: 6 }}>
-                  <input value={newReply} onChange={(e) => setNewReply(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addReply(stageIdx); } }} placeholder="Nova resposta..." style={{ flex: 1, padding: "6px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "12px var(--font-sans)" }} />
+                  <input aria-label="Nova resposta rápida" value={newReply} onChange={(e) => setNewReply(e.target.value)} onKeyDown={(e) => { if (e.key === "Enter") { e.preventDefault(); addReply(stageIdx); } }} placeholder="Nova resposta..." style={{ flex: 1, padding: "6px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "12px var(--font-sans)" }} />
                   <button type="button" onClick={() => addReply(stageIdx)} style={{ padding: "6px 12px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text)", cursor: "pointer", font: "600 11px var(--font-sans)", display: "flex", alignItems: "center", gap: 4 }}><Plus size={12} /> Adicionar</button>
-                  <button type="button" onClick={() => resetStage(stageIdx)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text-muted)", cursor: "pointer", font: "600 11px var(--font-sans)" }}>Resetar</button>
+                  <button type="button" onClick={() => resetStage(stageIdx)} style={{ padding: "6px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "var(--color-text-muted)", cursor: "pointer", font: "600 11px var(--font-sans)" }}>Restaurar padrão</button>
                 </div>
               </div>
             )}

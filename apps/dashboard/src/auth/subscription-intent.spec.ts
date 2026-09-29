@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { clearSubscriptionIntent, readSubscriptionIntent, rememberSubscriptionPlan } from "./subscription-intent.js";
+import { clearSubscriptionIntent, readSubscriptionIntent, rememberSubscriptionPlan, readSubscriptionCycle, rememberSubscriptionCycle } from "./subscription-intent.js";
 
 describe("subscription entry intent", () => {
   let values: Map<string, string>;
@@ -9,6 +9,28 @@ describe("subscription entry intent", () => {
     vi.stubGlobal("window", { location: { search: "" } });
   });
   afterEach(() => { vi.unstubAllGlobals(); vi.useRealTimers(); });
+  it("preserves the comparison cycle when Free is selected and across dashboard pages", () => {
+    rememberSubscriptionCycle("annual");
+    rememberSubscriptionPlan("starter", "annual");
+    expect(readSubscriptionCycle()).toBe("annual");
+    expect(readSubscriptionIntent()).toBe("starter");
+    rememberSubscriptionCycle("monthly");
+    expect(readSubscriptionCycle()).toBe("monthly");
+  });
+  it("honors an explicit entry cycle and restores the dashboard preference after navigation", () => {
+    rememberSubscriptionCycle("monthly");
+    window.location.search = "?plan=growth&cycle=annual";
+    expect(readSubscriptionCycle()).toBe("annual");
+    window.location.search = "";
+    expect(readSubscriptionCycle()).toBe("monthly");
+  });
+  it("keeps the old annual entry intent compatible and survives disabled storage", () => {
+    rememberSubscriptionPlan("growth", "annual");
+    expect(readSubscriptionCycle()).toBe("annual");
+    vi.stubGlobal("sessionStorage", { getItem: () => { throw new Error("disabled"); }, setItem: () => { throw new Error("disabled"); } });
+    expect(() => rememberSubscriptionCycle("annual")).not.toThrow();
+    expect(readSubscriptionCycle()).toBe("monthly");
+  });
   it("keeps the selected plan across OAuth and the checkout return without storing credentials", () => {
     window.location.search = "?mode=signup&plan=scale";
     expect(readSubscriptionIntent()).toBe("scale");

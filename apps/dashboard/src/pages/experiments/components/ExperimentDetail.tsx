@@ -9,6 +9,8 @@ interface ExperimentDetailProps {
   experiment: Experiment;
   results: ExperimentResults | null;
   loading: boolean;
+  resultsError?: string | null;
+  onRetryResults?: () => void;
   saving: boolean;
   onStart: () => void;
   onStop: () => void;
@@ -20,6 +22,7 @@ export function ExperimentDetail({
   experiment,
   results,
   loading,
+  resultsError, onRetryResults,
   saving,
   onStart,
   onStop,
@@ -30,7 +33,7 @@ export function ExperimentDetail({
     <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
       {/* Header */}
       <div style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 10, padding: "16px 20px" }}>
-        <div style={{ display: "flex", alignItems: "start", justifyContent: "space-between", marginBottom: 12 }}>
+        <div className="experiment-detail-heading">
           <div>
             <h3 style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", margin: 0, marginBottom: 4 }}>
               {experiment.name}
@@ -39,7 +42,7 @@ export function ExperimentDetail({
               Criado em {new Date(experiment.created_at).toLocaleDateString("pt-BR")}
             </p>
           </div>
-          <div style={{ display: "flex", gap: 6 }}>
+          <div className="experiment-detail-actions">
             {experiment.status === "draft" && (
               <Button size="sm" variant="primary" onClick={onStart} loading={saving}>
                 <Play size={12} /> Iniciar
@@ -61,7 +64,7 @@ export function ExperimentDetail({
         {/* Variants */}
         <div style={{ marginTop: 14, paddingTop: 14, borderTop: "1px solid var(--color-border)" }}>
           <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>
-            VARIANTES
+            Versões
           </span>
           <div style={{ display: "flex", gap: 6, flexWrap: "wrap" }}>
             {(experiment.variants ?? []).map((v) => (
@@ -79,7 +82,7 @@ export function ExperimentDetail({
                 }}
               >
                 {v.name}
-                {v.id === experiment.control_variant_id && <span style={{ font: "9px" }}>CONTROL</span>}
+                {v.id === experiment.control_variant_id && <span style={{ font: "9px" }}>Referência</span>}
               </span>
             ))}
           </div>
@@ -91,7 +94,7 @@ export function ExperimentDetail({
         <div style={{ padding: "20px", textAlign: "center", color: "var(--color-text-faint)" }}>
           Carregando resultados...
         </div>
-      ) : results && results.metrics && results.metrics.length > 0 ? (
+      ) : resultsError ? <EmptyState title="Resultados indisponíveis" description={resultsError} action={<Button variant="outline" onClick={onRetryResults}>Tentar carregar resultados</Button>} /> : results && results.metrics && results.metrics.length > 0 ? (
         <ExperimentMetrics results={results} experiment={experiment} saving={saving} onPromote={onPromote} />
       ) : (
         <EmptyState

@@ -1,5 +1,14 @@
 import type { BillingCycle, BillingOffer } from "@zyon/shared-types";
 import { dashboardJson } from "../http/client.js";
+export interface BillingInvoice {
+  invoice_id: string;
+  amount_brl: number;
+  period_start: string;
+  period_end: string;
+  status: string;
+  created_at: string;
+  invoice_url?: string;
+}
 import type {
   PaymentConnection,
   PaymentOnboardingLinkResponse,
@@ -17,6 +26,9 @@ export function billingEndpoints(base: string, f: typeof fetch) {
   return {
     getBillingSubscription(): Promise<BillingSubscription> {
       return billingJson("/billing/subscription");
+    },
+    listBillingInvoices(): Promise<BillingInvoice[]> {
+      return billingJson("/billing/invoices");
     },
     // Billing catalog and subscription lifecycle
     async listBillingPlans(): Promise<BillingPlanCard[]> {

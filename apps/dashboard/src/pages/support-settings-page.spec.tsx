@@ -222,20 +222,24 @@ describe("SupportSettingsPage — structure", () => {
 
   it("has a page header for the ticket summary", () => {
     const src = readSource();
-    // Redesign replaced the .metric strip with a page-head + status badges.
-    expect(src).toContain('page-head');
+    expect(src).toContain('PageHeader');
     expect(src).toContain('badge');
   });
 
-  it("uses panel stacked class for sections", () => {
+  it("groups the FAQ in a semantic panel section", () => {
     const src = readSource();
-    expect(src).toContain('panel stacked');
+    expect(src).toMatch(/<section\b[^>]*className="[^"]*\bpanel\b/);
   });
 
   it("opens the human support conversation from a selected ticket", () => {
     const src = readSource();
     expect(src).toContain("<SupportChatDrawer");
     expect(src).toContain("selectedTicket");
+  });
+
+  it("explains escalation to human support in Portuguese", () => {
+    const src = readSource();
+    expect(src).toContain("encaminha uma conversa para atendimento humano");
   });
 
   it("contains atendimento in Portuguese", () => {
@@ -280,14 +284,14 @@ describe("SupportSettingsPage — structure", () => {
     expect(src).toContain("disabled");
   });
 
-  it("has empty-state for no data scenario", () => {
+  it("uses the shared empty state when no tickets are available", () => {
     const src = readSource();
-    expect(src).toContain("<EmptyState");
+    expect(src).toMatch(/<EmptyState\s+icon=\{Ticket\}\s+title="Nenhum chamado"/);
   });
 
   it("has FAQ section with limit notice", () => {
     const src = readSource();
-    expect(src).toContain("FAQ");
+    expect(src).toContain('title="Perguntas frequentes"');
     expect(src).toContain("Limite de 20 perguntas atingido");
   });
 

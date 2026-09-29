@@ -18,8 +18,8 @@ export function useStepReview(deps: UseStepReviewDeps) {
       // leaving step 5). checkout_config is idempotent — safe to re-affirm.
       await deps.markOnboardingStep("checkout_config");
       await deps.markOnboardingStep("ai_engine");
-      localStorage.removeItem(deps.storageKey);
-      deps.setOnboardingState((prev) => prev ? { ...prev, completed: true } : prev);
+      try { localStorage.removeItem(deps.storageKey); } catch { /* Optional local draft. */ }
+      // Completion is returned by the server through markOnboardingStep.
     } catch (e) {
       deps.setMessage(friendlyError(e));
     } finally {

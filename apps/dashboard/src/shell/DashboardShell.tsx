@@ -1,3 +1,5 @@
+import { mapInboxNotification } from "../components/notification-inbox.js";
+import "../components/dashboard-ui.css";
 import "./dashboard-responsive.css";
 import React, { lazy, Suspense, useCallback, useEffect, useMemo, useState } from "react";
 import { LogOut, ExternalLink, ChevronDown, Search, X } from "lucide-react";
@@ -120,6 +122,9 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [editingProductId, setEditingProductId] = useState<string | null>(null);
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const appliedOnboardingTabRef = React.useRef(false);
+  const notificationMerchant = React.useRef(me.id);
+  notificationMerchant.current = me.id;
+  const [inventoryNotice, setInventoryNotice] = useState<{ id: string; itemId?: string; alertId?: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
   const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(null);
   useEffect(() => {
@@ -232,6 +237,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     let stopped = false;
     let polling = false;
     setNotifications([]);
+    setInventoryNotice(null);
     const poll = async () => {
       if (polling) return;
       polling = true;
@@ -240,10 +246,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
         if (!res.ok || stopped) return;
         const data = await res.json();
         if (!Array.isArray(data.items) || stopped) return;
-        const incoming: NotificationItem[] = data.items.map((item: any) => ({
-          id: item.id, type: item.type, title: item.title, createdAt: item.createdAt,
-          hypothesisId: typeof item.metadata?.hypothesisId === "string" ? item.metadata.hypothesisId : undefined,
-        }));
+        const incoming: NotificationItem[] = data.items.map(mapInboxNotification).filter((item: NotificationItem | null): item is NotificationItem => item !== null);
         setNotifications(prev => {
           const merged = new Map(prev.filter(n => n.ticketId).map(n => [n.id, n]));
           incoming.forEach(n => merged.set(n.id, n));
@@ -292,7 +295,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
 
   const activeItem = visibleNavItems.find((item) => item.key === tab) ?? NAV_ITEMS[0]!;
   const ActiveIcon = activeItem.icon;
-  const activeSection = activeItem.section;
+  const activeSection = NAV_SECTIONS.find(section => section.id === activeItem.section)?.label ?? activeItem.section;
 
   return (
     <>
@@ -516,6 +519,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             <option value="logout">Sair da conta</option>
           </select>
           <div className="console-desktop-heading" style={{ display: "flex", alignItems: "center", gap: 12 }}>
+            {tab === "overview" ? <>
             <div style={{ width: 34, height: 34, borderRadius: 9, background: "var(--color-brand-subtle)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <ActiveIcon size={17} color="var(--color-brand-hover)" />
             </div>
@@ -525,6 +529,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               </div>
               <div style={{ font: "600 22px var(--font-serif)", color: "var(--color-text)", letterSpacing: "-0.005em" }}>{activeItem.label}</div>
             </div>
+            </> : <div className="ui-breadcrumb"><ActiveIcon size={17} aria-hidden="true" /><span>{activeSection}</span><span aria-hidden="true">/</span><span className="ui-breadcrumb__current">{activeItem.label}</span></div>}
           </div>
           <div className="console-topbar-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
             {(me.plan === "STORE_ONLY" || me.plan === "BOTH") && storefrontHref && (
@@ -540,28 +545,28 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             )}
             <NotificationBell
               notifications={notifications}
-              onClear={() => {
-                void dashboardFetch(
-                  API_BASE_URL,
-                  `/merchants/${me.id}/notifications/read-all`,
-                  { method: "POST" },
-                ).finally(() => setNotifications([]));
+              key={me.id}
+              onClear={async () => {
+                const response = await dashboardFetch(API_BASE_URL, `/merchants/${me.id}/notifications/read-all`, { method: "POST" });
+                if (!response.ok) throw new Error("notification_read_failed");
+                if (notificationMerchant.current === me.id) setNotifications([]);
               }}
-              onClickNotification={(n) => {
+              onClickNotification={async (n) => {
                 if (n.hypothesisId) setReviewStrategyId(n.hypothesisId);
-                if (n.type === "inventory_alert") changeTab("inventory" as TabKey);
+                if (n.type === "inventory_alert") { setInventoryNotice({ id: n.id, itemId: n.inventoryItemId, alertId: n.inventoryAlertId }); changeTab("inventory"); }
                 if (n.type === "plan_expiry") changeTab("billing-plans");
-                void dashboardFetch(API_BASE_URL, `/merchants/${me.id}/notifications/${encodeURIComponent(n.id)}/read`, { method: "POST" });
-                if (n.ticketId) {
-                  changeTab("support" as TabKey);
+                if (n.ticketId) changeTab("support");
+                else {
+                  const response = await dashboardFetch(API_BASE_URL, `/merchants/${me.id}/notifications/${encodeURIComponent(n.id)}/read`, { method: "POST" });
+                  if (!response.ok) throw new Error("notification_read_failed");
                 }
-                setNotifications((prev) => prev.filter((x) => x.id !== n.id));
+                if (notificationMerchant.current === me.id) setNotifications(prev => prev.filter(x => x.id !== n.id));
               }}
             />
             <MerchantStoreSwitcher currentStoreId={me.id} currentStoreName={me.name || me.id} />
           </div>
         </div>
-        <section className="console-content" style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
+        <section className={"console-content" + (tab === "overview" ? "" : " dashboard-ui")} data-dashboard-page={tab} style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
           {reviewStrategyId && <StrategyReviewModal key={me.id + reviewStrategyId} hypothesisId={reviewStrategyId} merchantId={me.id} onClose={() => setReviewStrategyId(null)} />}
           <FreeTrialNotice onViewPlans={() => changeTab("billing-plans")} />
           <PageErrorBoundary key={tab}>
@@ -704,7 +709,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
-            {tab === "inventory" ? <RouteGuard me={me} require="inventory"><InventoryPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "inventory" ? <RouteGuard me={me} require="inventory"><InventoryPage apiBaseUrl={API_BASE_URL} me={me} notificationTarget={inventoryNotice} /></RouteGuard> : null}
             {tab === "negotiation-policy" ? (
               <RouteGuard me={me} require="negotiation-policy">
                 <PremiumFeatureGate feature="advancedRules" requiredPlan="Growth" featureLabel="Negociação" description="Política de negociação e barganha: o agente negocia descontos dentro dos limites que você define.">

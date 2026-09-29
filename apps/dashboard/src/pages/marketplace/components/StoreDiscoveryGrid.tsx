@@ -1,277 +1,269 @@
-import React, { useEffect, useState, useCallback } from "react";
-import { Search, Store } from "lucide-react";
+import React, { useEffect, useState, useCallback, useRef } from "react";
+import { Store, AlertCircle, Copy } from "lucide-react";
 import { useApi } from "../../../hooks/useApi.js";
 import { showToast } from "../../../components/Toast.js";
 import { EmptyState } from "../../../components/EmptyState.js";
 import { PageLoader } from "../../../components/PageLoader.js";
-import { reportError } from "../../../lib/observability/error-reporter.js";
+import { FilterToolbar, FilterSelect } from "../../../components/FilterToolbar.js";
+import { Button } from "../../../components/Button.js";
+import { Modal } from "../../../components/Modal.js";
+import { copyText } from "../../../utils/clipboard.js";
 import type { AvailableStore } from "../../../api/endpoints/marketplace-v2.js";
-
-interface StoreDiscoveryGridProps {
+interface Props {
   apiBaseUrl: string;
 }
-
 const DEFAULT_NICHES = [
-  "Moda", "Eletrônicos", "Casa & Decoração", "Beleza", "Esportes",
-  "Alimentos", "Pet", "Livros", "Brinquedos", "Saúde",
+  "Moda",
+  "Eletrônicos",
+  "Casa & Decoração",
+  "Beleza",
+  "Esportes",
+  "Alimentos",
+  "Pet",
+  "Livros",
+  "Brinquedos",
+  "Saúde",
 ];
-
-export function StoreDiscoveryGrid({ apiBaseUrl }: StoreDiscoveryGridProps) {
+export function StoreDiscoveryGrid(_props: Props) {
   const api = useApi();
   const [stores, setStores] = useState<AvailableStore[]>([]);
   const [loading, setLoading] = useState(true);
-  const [searching, setSearching] = useState(false);
-  const [connecting, setConnecting] = useState<string | null>(null);
-  const [searchTerm, setSearchTerm] = useState("");
-  const [selectedCategory, setSelectedCategory] = useState<string | null>(null);
+  const [loadingMore, setLoadingMore] = useState(false);
+  const [connecting, setConnecting] = useState(false);
+  const [search, setSearch] = useState("");
+  const [category, setCategory] = useState("");
   const [nextCursor, setNextCursor] = useState<string | null>(null);
-
-  // Derive categories from stores (with fallback to defaults)
-  const categories = stores.length > 0
-    ? [...new Set(stores.map((s) => s.category))].sort()
-    : DEFAULT_NICHES;
-
-  // Load initial stores
-  useEffect(() => {
-    loadStores();
-  }, []);
-
-  const loadStores = useCallback(async (cursor?: string) => {
-    setSearching(true);
-    try {
-      const result = await api.listAvailableStores({
-        category: selectedCategory || undefined,
-        search: searchTerm || undefined,
-        limit: 20,
-        cursor,
-      });
-      if (cursor) {
-        setStores((prev) => [...prev, ...result.stores]);
-      } else {
-        setStores(result.stores);
+  const [error, setError] = useState<string | null>(null);
+  const [moreError, setMoreError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [disconnecting, setDisconnecting] = useState<AvailableStore | null>(null);
+  const readVersion = useRef(0);
+  const working = useRef(false);
+  const loadStores = useCallback(
+    async (cursor?: string) => {
+      const version = ++readVersion.current;
+      setLoading(!cursor);
+      setLoadingMore(!!cursor);
+      setError(null);
+      setMoreError(null);
+      try {
+        const result = await api.listAvailableStores({
+          category: category || undefined,
+          search: search.trim() || undefined,
+          limit: 20,
+          cursor,
+        });
+        if (version !== readVersion.current) return;
+        setStores((prev) =>
+          cursor
+            ? [
+                ...prev,
+                ...result.stores.filter((store) => !prev.some((existing) => existing.id === store.id)),
+              ]
+            : result.stores
+        );
+        setNextCursor(result.nextCursor);
+      } catch {
+        if (version === readVersion.current) {
+          if (cursor) setMoreError("Não foi possível carregar mais lojas. Os resultados anteriores foram mantidos.");
+          else setError("Não foi possível consultar as lojas. Tente novamente para atualizar os resultados.");
+        }
+      } finally {
+        if (version === readVersion.current) { setLoading(false); setLoadingMore(false); }
       }
-      setNextCursor(result.nextCursor);
-    } catch (err) {
-      reportError({ source: "store_discovery.loadStores", error: err, severity: "warning" });
-    } finally {
-      setSearching(false);
-      setLoading(false);
-    }
-  }, [api, selectedCategory, searchTerm]);
-
-  const handleSearch = useCallback((term: string) => {
-    setSearchTerm(term);
-    setLoading(true);
-  }, []);
-
-  // Debounce search
+    },
+    [api, search, category]
+  );
   useEffect(() => {
-    const timer = setTimeout(() => {
-      if (loading) {
-        loadStores();
-      }
-    }, 300);
-    return () => clearTimeout(timer);
-  }, [loading, loadStores]);
-
-  const handleCategoryChange = useCallback((cat: string | null) => {
-    setSelectedCategory(cat);
+    readVersion.current++;
     setLoading(true);
-  }, []);
-
-  // Reload when category changes
-  useEffect(() => {
-    loadStores();
-  }, [selectedCategory]);
-
-  const handleConnect = async (storeId: string) => {
-    setConnecting(storeId);
+    const timeout = setTimeout(() => void loadStores(), 250);
+    return () => {
+      clearTimeout(timeout);
+      readVersion.current++;
+    };
+  }, [loadStores]);
+  const changeConnection = async (store: AvailableStore) => {
+    if (working.current) return;
+    working.current = true;
+    setConnecting(true);
+    setActionError(null);
     try {
-      await api.connectStore(storeId);
+      const result = store.connected ? await api.disconnectStore(store.id) : await api.connectStore(store.id);
       setStores((prev) =>
-        prev.map((s) => (s.id === storeId ? { ...s, connected: true } : s))
+        prev.map((current) =>
+          current.id === store.id ? { ...current, connected: result.connected } : current
+        )
       );
-      showToast("success", "Loja habilitada com sucesso");
-    } catch (err) {
-      reportError({ source: "store_discovery.connectStore", error: err, severity: "warning" });
-      showToast("error", "Erro ao habilitar loja");
+      setDisconnecting(null);
+      showToast("success", result.connected ? "Loja habilitada" : "Loja desconectada");
+    } catch {
+      setActionError("Não foi possível alterar a conexão. O estado anterior foi mantido; tente novamente.");
     } finally {
-      setConnecting(null);
+      working.current = false;
+      setConnecting(false);
     }
   };
-
-  const handleDisconnect = async (storeId: string) => {
-    setConnecting(storeId);
-    try {
-      await api.disconnectStore(storeId);
-      setStores((prev) =>
-        prev.map((s) => (s.id === storeId ? { ...s, connected: false } : s))
-      );
-      showToast("success", "Loja desabilitada com sucesso");
-    } catch (err) {
-      reportError({ source: "store_discovery.disconnectStore", error: err, severity: "warning" });
-      showToast("error", "Erro ao desabilitar loja");
-    } finally {
-      setConnecting(null);
-    }
+  const clear = () => {
+    setSearch("");
+    setCategory("");
   };
-
-  if (loading && stores.length === 0) {
-    return (
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        <PageLoader variant="section" />
-      </div>
-    );
-  }
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      {/* Search Bar */}
-      <div style={{ position: "relative" }}>
-        <Search size={15} style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--color-text-faint)", pointerEvents: "none" }} />
-        <input
-          type="text"
-          placeholder="Buscar lojas por nome..."
-          value={searchTerm}
-          onChange={(e) => handleSearch(e.target.value)}
-          style={{
-            width: "100%",
-            padding: "10px 14px 10px 38px",
-            borderRadius: "var(--radius-sm)",
-            border: "1px solid var(--color-border)",
-            background: "var(--surface-2)",
-            color: "var(--color-text)",
-            font: "13px var(--font-sans)",
-          }}
+    <div className="marketplace-discovery">
+      <FilterToolbar
+        tabs={[{ key: "all", label: "Lojas disponíveis" }]}
+        activeTab="all"
+        onTabChange={() => {}}
+        search={search}
+        onSearchChange={setSearch}
+        searchPlaceholder="Buscar lojas por nome"
+        extra={
+          <FilterSelect
+            value={category}
+            onChange={setCategory}
+            ariaLabel="Categoria da loja"
+            options={[
+              { value: "", label: "Todas as categorias" },
+              ...[...new Set([...DEFAULT_NICHES, ...(category ? [category] : []), ...stores.map((store) => store.category)])]
+                .sort()
+                .map((value) => ({ value, label: value })),
+            ]}
+          />
+        }
+      />
+      {actionError && !disconnecting && (
+        <p className="marketplace-error" role="alert">
+          {actionError}
+        </p>
+      )}
+      {loading ? (
+        <PageLoader variant="section" />
+      ) : error ? (
+        <EmptyState
+          icon={AlertCircle}
+          title="Lojas indisponíveis"
+          description={error}
+          action={<Button onClick={() => void loadStores()}>Tentar novamente</Button>}
         />
-      </div>
-
-      {/* Category Filter Chips */}
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <button
-          type="button"
-          onClick={() => handleCategoryChange(null)}
-          style={{
-            padding: "5px 12px",
-            borderRadius: "var(--radius-full)",
-            border: "1px solid var(--color-border)",
-            background: selectedCategory === null ? "var(--color-brand)" : "transparent",
-            color: selectedCategory === null ? "#fff" : "var(--color-text-muted)",
-            font: "500 11px var(--font-sans)",
-            cursor: "pointer",
-          }}
-        >
-          Todas
-        </button>
-        {categories.map((cat) => (
-          <button
-            key={cat}
-            type="button"
-            onClick={() => handleCategoryChange(cat)}
-            style={{
-              padding: "5px 12px",
-              borderRadius: "var(--radius-full)",
-              border: "1px solid var(--color-border)",
-              background: selectedCategory === cat ? "var(--color-brand)" : "transparent",
-              color: selectedCategory === cat ? "#fff" : "var(--color-text-muted)",
-              font: "500 11px var(--font-sans)",
-              cursor: "pointer",
-            }}
-          >
-            {cat}
-          </button>
-        ))}
-      </div>
-
-      {/* Stores Grid or Empty — wrapped in the standard dark container */}
-      {stores.length === 0 ? (
+      ) : !stores.length ? (
         <EmptyState
           icon={Store}
-          title={searchTerm || selectedCategory ? "Nenhuma loja encontrada" : "Nenhuma loja disponível"}
-          description={searchTerm || selectedCategory ? "Tente ajustar seus filtros de busca" : "Não há lojas parceiras disponíveis no momento"}
+          title={search || category ? "Nenhuma loja com estes filtros" : "Nenhuma loja disponível"}
+          description={
+            search || category
+              ? "Ajuste a busca ou limpe os filtros para encontrar uma parceria."
+              : "As lojas disponíveis para parceria aparecerão aqui."
+          }
+          action={
+            search || category ? (
+              <Button variant="outline" onClick={clear}>
+                Limpar filtros
+              </Button>
+            ) : undefined
+          }
         />
       ) : (
-        <div className="panel" style={{ padding: 16, display: "flex", flexDirection: "column", gap: 16 }}>
-          <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(280px, 1fr))", gap: 12 }}>
+        <>
+          <div className="marketplace-store-list">
             {stores.map((store) => (
-              <div key={store.id} style={{ padding: "16px", background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", display: "flex", flexDirection: "column", gap: 12 }}>
-                {/* Logo + Info */}
-                <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                  <div style={{ width: 40, height: 40, borderRadius: "var(--radius-sm)", background: "var(--color-brand)", color: "#fff", display: "grid", placeItems: "center", font: "600 16px var(--font-sans)", flexShrink: 0 }}>
-                    {store.logoUrl ? <img src={store.logoUrl} alt="" style={{ width: 40, height: 40, borderRadius: "var(--radius-sm)", objectFit: "cover" }} /> : store.name.charAt(0).toUpperCase()}
-                  </div>
-                  <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{store.name}</div>
-                    <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 2 }}>
-                      {store.category} · {store.commissionPercent}% comissão
-                    </div>
-                  </div>
+              <article key={store.id} className="marketplace-store-row">
+                <div className="marketplace-store-avatar">
+                  {store.logoUrl ? <img src={store.logoUrl} alt="" /> : <Store size={24} />}
                 </div>
-
-                {/* Description */}
-                {store.description && (
-                  <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", margin: 0, lineHeight: 1.5, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>
-                    {store.description}
+                <div className="marketplace-store-content">
+                  <h3>{store.name}</h3>
+                  <p>
+                    {store.category} · {store.commissionPercent}% de comissão
                   </p>
-                )}
-
-                {/* Store code (copy to blocklist) */}
-                <div style={{ display: "flex", alignItems: "center", gap: 6 }}>
-                  <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)" }}>Código:</span>
-                  <button
-                    type="button"
-                    onClick={() => { try { navigator.clipboard.writeText(store.id); showToast("success", "Código copiado"); } catch { /* clipboard off */ } }}
-                    title="Copiar código da loja (para bloquear)"
-                    style={{ flex: 1, minWidth: 0, textAlign: "left", padding: "4px 8px", borderRadius: "var(--radius-sm)", border: "1px dashed var(--color-border)", background: "transparent", color: "var(--color-text-muted)", font: "11px var(--font-mono)", cursor: "pointer", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}
+                  {store.description && <p>{store.description}</p>}
+                  <Button
+                    variant="ghost"
+                    onClick={async () => {
+                      const ok = await copyText(store.id);
+                      showToast(
+                        ok ? "success" : "error",
+                        ok ? "Código da loja copiado" : "Não foi possível copiar o código. Tente novamente."
+                      );
+                    }}
+                    aria-label={`Copiar código de ${store.name}`}
                   >
-                    {store.id}
-                  </button>
+                    <Copy size={14} /> Copiar código da loja
+                  </Button>
                 </div>
-
-                {/* Status + Action */}
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-                  {store.connected ? (
-                    <span style={{ padding: "3px 8px", borderRadius: "var(--radius-full)", font: "600 10px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)" }}>Habilitada</span>
-                  ) : (
-                    <span />
-                  )}
-                  <button
-                    type="button"
-                    onClick={() => store.connected ? handleDisconnect(store.id) : handleConnect(store.id)}
-                    disabled={connecting === store.id}
-                    style={{
-                      padding: "5px 12px",
-                      borderRadius: "var(--radius-sm)",
-                      border: "1px solid var(--color-border)",
-                      background: store.connected ? "transparent" : "var(--color-brand)",
-                      color: store.connected ? "var(--color-text-muted)" : "#fff",
-                      font: "500 11px var(--font-sans)",
-                      cursor: "pointer",
+                <div className="marketplace-store-actions">
+                  <span className={store.connected ? "badge ok" : "badge muted"}>
+                    {store.connected ? "Habilitada" : "Não conectada"}
+                  </span>
+                  <Button
+                    variant={store.connected ? "outline" : "primary"}
+                    disabled={connecting}
+                    onClick={() => {
+                      setActionError(null);
+                      if (store.connected) setDisconnecting(store);
+                      else void changeConnection(store);
                     }}
                   >
-                    {connecting === store.id ? "..." : store.connected ? "Desconectar" : "Habilitar"}
-                  </button>
+                    {store.connected ? "Desconectar" : "Habilitar loja"}
+                  </Button>
                 </div>
-              </div>
+              </article>
             ))}
           </div>
-
-          {/* Pagination — load more */}
+          {moreError && <p className="marketplace-error" role="alert">{moreError}</p>}
           {nextCursor && (
-            <div style={{ display: "flex", justifyContent: "center", paddingTop: 8 }}>
-              <button
-                type="button"
-                className="zyn-btn"
-                onClick={() => loadStores(nextCursor)}
-                disabled={searching}
-                style={{ padding: "8px 20px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", color: "var(--color-text-muted)", font: "500 12px var(--font-sans)", cursor: "pointer" }}
-              >
-                {searching ? "Carregando..." : "Carregar mais lojas"}
-              </button>
+            <div className="marketplace-more">
+              <Button variant="outline" loading={loadingMore} onClick={() => void loadStores(nextCursor)}>
+                {moreError ? "Tentar carregar mais lojas" : "Carregar mais lojas"}
+              </Button>
             </div>
           )}
-        </div>
+        </>
       )}
+      <Modal
+        isOpen={disconnecting !== null}
+        title="Desconectar loja parceira?"
+        subtitle={disconnecting?.name}
+        presentation="center"
+        size="md"
+        onClose={() => {
+          if (!connecting) {
+            setDisconnecting(null);
+            setActionError(null);
+          }
+        }}
+        footer={
+          <>
+            <Button
+              variant="outline"
+              disabled={connecting}
+              onClick={() => {
+                setDisconnecting(null);
+                setActionError(null);
+              }}
+            >
+              Manter conexão
+            </Button>
+            <Button
+              variant="danger"
+              loading={connecting}
+              onClick={() => {
+                if (disconnecting) void changeConnection(disconnecting);
+              }}
+            >
+              Desconectar
+            </Button>
+          </>
+        }
+      >
+        <p className="marketplace-help">
+          A loja deixará de estar habilitada como parceira. Confira os pedidos existentes na aba Pedidos.
+        </p>
+        {actionError && (
+          <p className="marketplace-error" role="alert">
+            {actionError}
+          </p>
+        )}
+      </Modal>
     </div>
   );
 }

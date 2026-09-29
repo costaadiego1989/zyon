@@ -1,5 +1,8 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Upload, FileSpreadsheet, AlertTriangle, Loader2 } from "lucide-react";
+import { Upload, FileSpreadsheet, Loader2 } from "lucide-react";
+import { Modal } from "../Modal.js";
+import { Button } from "../Button.js";
+import "../import-dialog.css";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
 
 export interface AiSpreadsheetImportModalProps {
@@ -44,8 +47,7 @@ function readFileAsBase64(file: File): Promise<string> {
 }
 
 function classifyError(err: unknown): string {
-  if (err instanceof Error) return err.message;
-  return String(err);
+  return "Não foi possível confirmar o envio. Consulte o andamento em Produtos antes de tentar novamente.";
 }
 
 export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImportStarted }: AiSpreadsheetImportModalProps) {
@@ -74,6 +76,7 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
     const okByMime = ACCEPTED_MIMES.includes(selected.type);
     const okByExt = /\.(csv|xls|xlsx)$/i.test(selected.name);
     if (!okByMime && !okByExt) {
+      setFile(null);
       setErrorMsg(`Formato não suportado. Aceitos: ${ACCEPTED_EXT_LABEL}`);
       return;
     }
@@ -109,73 +112,18 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
   const inFlight = phase.kind === "uploading";
 
   return (
-    <div
-      onClick={closeable ? onClose : undefined}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.5)",
-        backdropFilter: "blur(2px)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "relative",
-          background: "var(--surface-2)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 14,
-          width: "90vw",
-          maxWidth: 640,
-          maxHeight: "90vh",
-          display: "flex",
-          flexDirection: "column",
-          animation: "slideInUp 0.2s ease-out",
-          overflow: "hidden",
-        }}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid var(--color-border)" }}>
-          <div>
-            <div style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-brand)", textTransform: "uppercase", marginBottom: 6 }}>
-              Growth+
-            </div>
-            <h2 style={{ font: "600 18px var(--font-serif)", color: "var(--color-text)", margin: 0 }}>
-              Importar planilha com IA
-            </h2>
-          </div>
-          <button
-            type="button"
-            onClick={closeable ? onClose : undefined}
-            disabled={!closeable}
-            aria-label="Fechar"
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: 20,
-              cursor: closeable ? "pointer" : "not-allowed",
-              color: "var(--color-text-faint)",
-              padding: 0,
-              opacity: closeable ? 1 : 0.5,
-            }}
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div style={{ flex: 1, padding: "24px", overflowY: "auto" }}>
+    <Modal isOpen={isOpen} title="Importar planilha com IA" subtitle="Envie o arquivo e acompanhe o processamento em Produtos." presentation="center" size="md" onClose={() => { if (closeable) onClose(); }} footer={<>
+      <Button variant="outline" disabled={inFlight} onClick={onClose}>Cancelar</Button>
+      <Button variant="primary" disabled={!file || inFlight} loading={inFlight} onClick={() => void startImport()}><Upload size={16} /> {inFlight ? "Enviando…" : "Enviar e processar"}</Button>
+    </>}>
+      <div className="import-dialog">
           {(phase.kind === "idle") && (
             <>
               <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 16 }}>
-                A IA ajusta sua planilha automaticamente. Envie no seu formato — reconhecemos colunas como nome, SKU, preço, estoque e variações automaticamente. Nenhum template necessário.
+                Envie uma planilha com nome, código (SKU), preço, estoque e variações, quando houver. A IA interpreta as colunas para importar os produtos. Depois do processamento, confira o resultado e as linhas com erro no catálogo.
               </p>
 
-              <div
+              <button type="button" className="import-dialog__dropzone"
                 onDragOver={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onDragLeave={(e) => { e.preventDefault(); e.stopPropagation(); }}
                 onDrop={(e) => {
@@ -192,7 +140,7 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
                   cursor: "pointer",
                   background: "var(--surface-1)",
                   marginBottom: 16,
-                  transition: "all 0.2s",
+                  width: "100%",
                 }}
               >
                 <FileSpreadsheet size={32} style={{ color: "var(--color-brand)", margin: "0 auto 12px" }} />
@@ -202,18 +150,19 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
                 <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", margin: 0 }}>
                   Arquivos aceitos: {ACCEPTED_EXT_LABEL}
                 </p>
-              </div>
+              </button>
 
               <input
                 ref={fileInputRef}
+                aria-label="Selecionar planilha"
                 type="file"
                 accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
                 style={{ display: "none" }}
-                onChange={(e) => handleFileSelection(e.target.files?.[0] ?? null)}
+                onChange={(e) => { handleFileSelection(e.target.files?.[0] ?? null); e.target.value = ""; }}
               />
 
               {errorMsg && (
-                <div style={{ background: "var(--color-error-bg)", border: "1px solid var(--color-error)", borderRadius: 8, padding: "12px 14px" }}>
+                <div role="alert" style={{ background: "var(--color-error-bg)", border: "1px solid var(--color-error)", borderRadius: 8, padding: "12px 14px" }}>
                   <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-error)" }}>{errorMsg}</div>
                 </div>
               )}
@@ -221,7 +170,7 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
           )}
 
           {phase.kind === "uploading" && (
-            <div style={{ padding: "32px 16px", textAlign: "center" }}>
+            <div role="status" style={{ padding: "32px 16px", textAlign: "center" }}>
               <Loader2 size={36} style={{ color: "var(--color-brand)", margin: "0 auto 16px", animation: "spin 1s linear infinite" }} />
               <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", marginBottom: 6 }}>
                 Enviando planilha...
@@ -233,63 +182,6 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
           )}
         </div>
 
-        {/* Footer */}
-        <div style={{ display: "flex", gap: 10, padding: "16px 24px", borderTop: "1px solid var(--color-border)" }}>
-          {phase.kind === "idle" && (
-            <>
-              <button
-                type="button"
-                onClick={onClose}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-border)",
-                  background: "var(--surface-1)",
-                  font: "600 12.5px var(--font-sans)",
-                  color: "var(--color-text)",
-                  cursor: "pointer",
-                }}
-              >
-                Cancelar
-              </button>
-              <button
-                type="button"
-                onClick={() => void startImport()}
-                disabled={!file}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-brand-hover)",
-                  background: "var(--color-brand-hover)",
-                  font: "600 12.5px var(--font-sans)",
-                  color: "white",
-                  cursor: file ? "pointer" : "not-allowed",
-                  opacity: file ? 1 : 0.6,
-                  display: "inline-flex",
-                  alignItems: "center",
-                  justifyContent: "center",
-                  gap: 6,
-                }}
-              >
-                <Upload size={14} /> Enviar e processar
-              </button>
-            </>
-          )}
-        </div>
-
-        <style>{`
-          @keyframes slideInUp {
-            from { transform: translateY(12px); opacity: 0; }
-            to { transform: translateY(0); opacity: 1; }
-          }
-          @keyframes spin {
-            from { transform: rotate(0deg); }
-            to { transform: rotate(360deg); }
-          }
-        `}</style>
-      </div>
-    </div>
+    </Modal>
   );
 }

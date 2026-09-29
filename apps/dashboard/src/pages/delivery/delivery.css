@@ -1,0 +1,21 @@
+.delivery-provider { padding: 24px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--surface-1); min-width: 0; }
+.delivery-provider__heading { display: flex; align-items: start; gap: 12px; }
+.delivery-provider__heading > svg { flex-shrink: 0; color: var(--color-brand); margin-top: 2px; }
+.delivery-provider h2 { font: 600 15px/1.4 var(--font-sans); color: var(--color-text); margin: 0; }
+.delivery-provider p { font: 13px/1.6 var(--font-sans); color: var(--color-text-muted); margin: 4px 0 0; }
+.delivery-provider__activation { display: flex; justify-content: space-between; gap: 16px; align-items: center; margin: 24px 0 16px; font: 500 13px/1.5 var(--font-sans); }
+.delivery-provider__summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 16px; border-top: 1px solid var(--color-border); padding-top: 16px; }
+.delivery-provider__summary strong { font: 600 14px/1.5 var(--font-sans); }
+.delivery-neighborhoods { padding: 0; margin: 0; list-style: none; }
+.delivery-neighborhoods li { display: flex; align-items: center; gap: 12px; padding: 8px 0; border-bottom: 1px solid var(--color-border); font: 13px/1.5 var(--font-sans); }
+.delivery-neighborhoods li > span { flex: 1; min-width: 0; overflow-wrap: anywhere; }
+.delivery-neighborhoods li > strong { white-space: nowrap; font-weight: 500; }
+.delivery-radius { display: grid; gap: 16px; }
+.delivery-radius__map { height: 220px; border-radius: 8px; overflow: hidden; border: 1px solid var(--color-border); background: var(--surface-2); z-index: 0; }
+.delivery-radius__placeholder { display: grid; align-content: center; justify-items: center; gap: 12px; min-height: 150px; padding: 24px; text-align: center; background: var(--surface-2); border-radius: 8px; }
+.delivery-state { padding: 32px 24px; font: 14px/1.6 var(--font-sans); color: var(--color-text-muted); }
+.delivery-table-scroll { overflow-x: auto; }
+.delivery-table { width: 100%; border-collapse: collapse; text-align: left; }
+.delivery-table th { padding: 14px 20px; font: 500 12px/1.4 var(--font-sans); color: var(--color-text-muted); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+.delivery-table td { padding: 16px 20px; font: 13px/1.5 var(--font-sans); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
+.delivery-table th:last-child, .delivery-table td:last-child { text-align: right; }

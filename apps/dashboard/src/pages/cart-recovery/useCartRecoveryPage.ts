@@ -20,6 +20,7 @@ export function useCartRecoveryPage() {
   const saving = useRef(false);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const [saveError, setSaveError] = useState<string | null>(null);
   const [loadVersion, setLoadVersion] = useState(0);
   const [coupons, setCoupons] = useState<CouponOption[]>([]);
   const [rules, setRules] = useState<RuleOption[]>([]);
@@ -55,6 +56,7 @@ export function useCartRecoveryPage() {
     const previousConfig = config;
     const nextConfig = { ...config, ...patch };
     saving.current = true;
+    setSaveError(null);
     setSavingKey(patch.active_strategy ?? config.active_strategy);
     setConfig(nextConfig);
     try {
@@ -66,19 +68,19 @@ export function useCartRecoveryPage() {
     } catch (cause) {
       setConfig(previousConfig);
       reportError({ source: "cart-recovery.config", error: cause });
-      showToast("error", cause instanceof Error ? cause.message : "Erro ao salvar configuração");
+      setSaveError("Não foi possível salvar. A configuração anterior foi restaurada. Confira sua escolha e tente novamente.");
       return false;
     } finally {
       saving.current = false;
       setSavingKey(null);
     }
-  }, [api, config.active_strategy, loading, error]);
+  }, [api, config, loading, error]);
 
   const selectStrategy = useCallback((key: CartRecoveryStrategyKey) => {
     if (key === config.active_strategy) return Promise.resolve(true);
     return saveConfig({ active_strategy: key });
   }, [config.active_strategy, saveConfig]);
 
-  return { metrics, attempts, config, savingKey, loading, error,
+  return { metrics, attempts, config, savingKey, loading, error, saveError,
     retry: () => setLoadVersion(value => value + 1), selectStrategy, saveConfig, coupons, rules };
 }

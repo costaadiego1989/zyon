@@ -1,9 +1,13 @@
-import React, { useCallback, useEffect, useRef, useState } from "react";
-import { X, Upload, Image as ImageIcon } from "lucide-react";
+import React, { useId, useRef, useState } from "react";
+import { Upload, Trash2 } from "lucide-react";
 import type { ProductCategoryDTO, CreateCategoryInput, UpdateCategoryInput } from "../../../api/endpoints/catalog.js";
 import { slugify } from "../useCategoriesPage.js";
 import { useApi } from "../../../hooks/useApi.js";
-import { ModalButton } from "../../../components/ModalButton.js";
+import { Modal } from "../../../components/Modal.js";
+import { Button } from "../../../components/Button.js";
+import { FormField, FormSelect, FormTextarea } from "../../../components/FormField.js";
+import "../../../components/configuration-form.css";
+import "../categories.css";
 
 interface CategoryFormProps {
   mode: "create" | "edit";
@@ -11,226 +15,101 @@ interface CategoryFormProps {
   parentOptions: ProductCategoryDTO[];
   defaultParentId?: string;
   saving: boolean;
+  saveError?: string | null;
   onSave: (data: CreateCategoryInput | UpdateCategoryInput) => void;
   onCancel: () => void;
 }
 
-export function CategoryForm({
-  mode,
-  category,
-  parentOptions,
-  defaultParentId,
-  saving,
-  onSave,
-  onCancel,
-}: CategoryFormProps) {
+export function CategoryForm({ mode, category, parentOptions, defaultParentId, saving, saveError, onSave, onCancel }: CategoryFormProps) {
   const api = useApi();
+  const formId = useId();
   const fileRef = useRef<HTMLInputElement>(null);
-
-  const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
-  const [parentId, setParentId] = useState("");
-  const [description, setDescription] = useState("");
-  const [imageUrl, setImageUrl] = useState("");
-  const [imagePreview, setImagePreview] = useState("");
+  const formRef = useRef<HTMLFormElement>(null);
+  const [name, setName] = useState(category?.name ?? "");
+  const [slug, setSlug] = useState(category?.slug ?? "");
+  const [slugEdited, setSlugEdited] = useState(mode === "edit");
+  const [parentId, setParentId] = useState(category?.parent_id ?? defaultParentId ?? "");
+  const [description, setDescription] = useState(category?.description ?? "");
+  const [imageUrl, setImageUrl] = useState(category?.image_url ?? "");
   const [uploading, setUploading] = useState(false);
-  const [error, setError] = useState<string | null>(null);
+  const [imageError, setImageError] = useState<string | null>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const busy = saving || uploading;
+  const nameError = submitted && !name.trim() ? "Informe o nome da categoria." : undefined;
+  const slugError = submitted && mode === "create" && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(slug || slugify(name))
+    ? "Use letras minúsculas, números e hífens." : undefined;
 
-  useEffect(() => {
-    if (mode === "edit" && category) {
-      setName(category.name);
-      setSlug(category.slug);
-      setParentId(category.parent_id ?? "");
-      setDescription(category.description ?? "");
-      setImageUrl(category.image_url ?? "");
-      setImagePreview(category.image_url ?? "");
-    } else {
-      setName("");
-      setSlug("");
-      setParentId(defaultParentId ?? "");
-      setDescription("");
-      setImageUrl("");
-      setImagePreview("");
-    }
-    setError(null);
-  }, [mode, category, defaultParentId]);
-
-  const handleNameChange = useCallback((value: string) => {
-    setName(value);
-    if (mode === "create" && !slug) {
-      setSlug(slugify(value));
-    }
-  }, [mode, slug]);
-
-  async function handleImageUpload(e: React.ChangeEvent<HTMLInputElement>) {
-    const file = e.target.files?.[0];
-    if (!file) return;
-
-    const reader = new FileReader();
-    reader.onload = async () => {
-      const base64 = reader.result as string;
-      setImagePreview(base64);
-      setUploading(true);
-      try {
-        const { logoUrl } = await api.uploadLogo(base64);
-        setImageUrl(logoUrl);
-      } catch {
-        setImageUrl(base64);
-      } finally {
-        setUploading(false);
-      }
-    };
-    reader.readAsDataURL(file);
+  async function upload(event: React.ChangeEvent<HTMLInputElement>) {
+    const file = event.target.files?.[0];
+    event.target.value = "";
+    if (!file || busy) return;
+    setImageError(null);
+    if (!file.type.startsWith("image/")) { setImageError("Escolha um arquivo de imagem."); return; }
+    setUploading(true);
+    try {
+      const base64 = await new Promise<string>((resolve, reject) => {
+        const reader = new FileReader();
+        reader.onload = () => resolve(String(reader.result));
+        reader.onerror = reject;
+        reader.readAsDataURL(file);
+      });
+      const result = await api.uploadLogo(base64);
+      if (!result.logoUrl) throw new Error("missing_image_url");
+      setImageUrl(result.logoUrl);
+    } catch {
+      setImageError("Não foi possível enviar a imagem. A imagem anterior foi mantida. Tente novamente.");
+    } finally { setUploading(false); }
   }
 
-  const handleSubmit = useCallback(
-    (e: React.FormEvent) => {
-      e.preventDefault();
-      setError(null);
-
-      const trimmedName = name.trim();
-      const trimmedSlug = slug.trim() || slugify(trimmedName);
-
-      if (!trimmedName) {
-        setError("Nome é obrigatório");
-        return;
-      }
-
-      if (mode === "create") {
-        const data: CreateCategoryInput = {
-          name: trimmedName,
-          slug: trimmedSlug,
-          parent_id: parentId || undefined,
-          description: description.trim() || undefined,
-          image_url: imageUrl || undefined,
-        };
-        onSave(data);
-      } else {
-        const data: UpdateCategoryInput = {
-          name: trimmedName,
-          parent_id: parentId || null,
-          description: description.trim() || undefined,
-          image_url: imageUrl || undefined,
-        };
-        onSave(data);
-      }
-    },
-    [name, slug, description, imageUrl, parentId, mode, onSave],
-  );
-
-  const inputStyle: React.CSSProperties = {
-    width: "100%",
-    padding: "9px 12px",
-    borderRadius: 7,
-    border: "1px solid var(--color-border)",
-    font: "13px var(--font-sans)",
-    color: "var(--color-text)",
-    background: "var(--surface-1)",
-    outline: "none",
-  };
+  function submit(event: React.FormEvent) {
+    event.preventDefault();
+    if (busy) return;
+    setSubmitted(true);
+    const finalSlug = slug.trim() || slugify(name);
+    if (!name.trim() || (mode === "create" && !/^[a-z0-9]+(?:-[a-z0-9]+)*$/.test(finalSlug))) {
+      requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus());
+      return;
+    }
+    const data = { name: name.trim(), description: description.trim(), image_url: imageUrl };
+    onSave(mode === "create" ? { ...data, slug: finalSlug, parent_id: parentId || undefined } : { ...data, parent_id: parentId || null });
+  }
 
   return (
-    <div
-      style={{
-        position: "fixed",
-        top: 0,
-        right: 0,
-        bottom: 0,
-        width: 420,
-        background: "var(--surface-2)",
-        borderLeft: "1px solid var(--color-border)",
-        display: "flex",
-        flexDirection: "column",
-        boxShadow: "-8px 0 24px rgba(0,0,0,0.2)",
-        zIndex: 1000,
-      }}
-    >
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--color-border)" }}>
-        <h2 style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)", margin: 0 }}>
-          {mode === "edit" ? `Editar: ${category?.name ?? ""}` : "Nova categoria"}
-        </h2>
-        <button
-          type="button"
-          onClick={onCancel}
-          disabled={saving}
-          aria-label="Fechar"
-          style={{ width: 40, height: 40, borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-2)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--color-text)" }}
-        >
-          <X size={20} />
-        </button>
-      </div>
-
-      <form onSubmit={handleSubmit} style={{ flex: 1, display: "flex", flexDirection: "column", overflow: "hidden" }}>
-        <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column", gap: 16 }}>
-          {error && (
-            <div style={{ padding: "8px 12px", borderRadius: 6, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "12px var(--font-sans)", color: "var(--color-error)" }}>
-              {error}
+    <Modal isOpen presentation="center" size="lg" title={mode === "edit" ? "Editar categoria" : "Nova categoria"}
+      subtitle="Agrupe produtos para ajudar seus clientes a encontrar o que procuram."
+      onClose={() => { if (!busy) onCancel(); }}
+      footer={<><Button variant="outline" onClick={onCancel} disabled={busy}>Cancelar</Button><Button type="submit" form={formId} loading={saving} disabled={busy}>{mode === "edit" ? "Salvar categoria" : "Criar categoria"}</Button></>}>
+      <form id={formId} ref={formRef} onSubmit={submit} noValidate>
+        <fieldset className="configuration-form" disabled={busy} aria-busy={busy}>
+          {saveError && <p className="form-field-error" role="alert">{saveError}</p>}
+          <section className="configuration-form__section">
+            <h3>Nome e organização</h3>
+            <div className="configuration-form__grid">
+              <FormField label="Nome da categoria" value={name} error={nameError} placeholder="Ex.: Camisetas"
+                onChange={value => { setName(value); if (!slugEdited) setSlug(slugify(value)); }} />
+              <FormSelect label="Categoria superior" value={parentId} onChange={setParentId}
+                options={[{ value: "", label: "Nenhuma, categoria principal" }, ...parentOptions.map(cat => ({ value: cat.id, label: cat.name }))]}
+                hint="Exemplo: Camisetas pode ficar dentro de Roupas." />
             </div>
-          )}
-
-          <label style={{ display: "block" }}>
-            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Nome *</span>
-            <input type="text" value={name} onChange={(e) => handleNameChange(e.target.value)} placeholder="Ex: Camisetas" disabled={saving} style={inputStyle} />
-          </label>
-
-          <label style={{ display: "block" }}>
-            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Slug</span>
-            <input type="text" value={slug} onChange={(e) => setSlug(e.target.value)} placeholder="camisetas" disabled={saving} style={{ ...inputStyle, fontFamily: "var(--font-mono)" }} />
-          </label>
-
-          <label style={{ display: "block" }}>
-            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Categoria pai</span>
-            <select value={parentId} onChange={(e) => setParentId(e.target.value)} disabled={saving} style={inputStyle}>
-              <option value="">— Nenhuma (raiz) —</option>
-              {parentOptions.map((cat) => (
-                <option key={cat.id} value={cat.id}>{cat.name}</option>
-              ))}
-            </select>
-          </label>
-
-          <label style={{ display: "block" }}>
-            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Descrição</span>
-            <textarea value={description} onChange={(e) => setDescription(e.target.value)} placeholder="Descreva esta categoria..." disabled={saving} rows={3} style={{ ...inputStyle, minHeight: 72, resize: "vertical" }} />
-          </label>
-
-          <div>
-            <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 6 }}>Imagem</span>
-            <input ref={fileRef} type="file" accept="image/*" onChange={handleImageUpload} style={{ display: "none" }} />
-            {imagePreview ? (
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <img src={imagePreview} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: "1px solid var(--color-border)" }} />
-                <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                  <button type="button" onClick={() => fileRef.current?.click()} disabled={saving || uploading} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", cursor: "pointer", font: "600 11px var(--font-sans)", display: "inline-flex", alignItems: "center", gap: 4 }}>
-                    <Upload size={11} /> {uploading ? "Enviando..." : "Trocar"}
-                  </button>
-                  <button type="button" onClick={() => { setImageUrl(""); setImagePreview(""); }} style={{ padding: "5px 10px", borderRadius: 6, border: "1px solid var(--color-error)", background: "transparent", color: "var(--color-error)", cursor: "pointer", font: "600 11px var(--font-sans)" }}>
-                    Remover
-                  </button>
-                </div>
-              </div>
-            ) : (
-              <button
-                type="button"
-                onClick={() => fileRef.current?.click()}
-                disabled={saving || uploading}
-                style={{ width: "100%", padding: "20px", borderRadius: 8, border: "2px dashed var(--color-border)", background: "var(--surface-1)", color: "var(--color-text-faint)", cursor: "pointer", display: "flex", flexDirection: "column", alignItems: "center", gap: 6, font: "12px var(--font-sans)" }}
-              >
-                <ImageIcon size={20} />
-                {uploading ? "Enviando..." : "Clique para fazer upload"}
-              </button>
-            )}
-          </div>
-        </div>
-
-        <div style={{ padding: "16px 20px", borderTop: "1px solid var(--color-border)", display: "flex", gap: 12 }}>
-          <ModalButton variant="secondary" onClick={onCancel} disabled={saving}>
-            Cancelar
-          </ModalButton>
-          <ModalButton variant="primary" type="submit" disabled={saving || uploading} loading={saving} style={{ flex: 1 }}>
-            {saving ? "Salvando..." : mode === "edit" ? "Atualizar" : "Criar categoria"}
-          </ModalButton>
-        </div>
+            <FormField label="Identificador no endereço" value={slug} disabled={mode === "edit"} error={slugError}
+              onChange={value => { setSlugEdited(true); setSlug(value); }}
+              hint={mode === "edit" ? "Definido na criação da categoria e mantido ao editar." : "Gerado a partir do nome. Exemplo: camisetas-infantis."} />
+            <FormTextarea label="Descrição (opcional)" value={description} onChange={setDescription} rows={3}
+              placeholder="Ex.: Camisetas para o dia a dia, em diferentes cores e tamanhos." />
+          </section>
+          <section className="configuration-form__section">
+            <h3>Imagem da categoria</h3>
+            <p>Escolha uma imagem que represente este grupo de produtos. O envio é opcional.</p>
+            <input ref={fileRef} type="file" accept="image/*" onChange={upload} hidden />
+            <div className="category-image">
+              {imageUrl && <img src={imageUrl} alt="Imagem atual da categoria" />}
+              <Button variant="outline" onClick={() => fileRef.current?.click()} loading={uploading}><Upload size={16} />{imageUrl ? "Trocar imagem" : "Enviar imagem"}</Button>
+              {imageUrl && <Button variant="ghost" onClick={() => { setImageUrl(""); setImageError(null); }}><Trash2 size={16} /> Remover imagem</Button>}
+            </div>
+            {imageError && <p role="alert" className="form-field-error">{imageError}</p>}
+          </section>
+        </fieldset>
       </form>
-    </div>
+    </Modal>
   );
 }

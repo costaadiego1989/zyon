@@ -505,3 +505,41 @@
     padding: var(--space-2) var(--space-3);
   }
 }
+
+/* Scoped refinement of marketplace forms and operational lists. */
+.marketplace-page { min-width: 0; }
+.marketplace-page .data-panel__body { overflow-x: auto; }
+.marketplace-page .marketplace-orders__table { min-width: 740px; width: 100%; }
+.marketplace-page .marketplace-orders__table th { text-transform: none; font: 600 13px var(--font-sans); letter-spacing: 0; }
+.marketplace-page .marketplace-orders__table td { font: 14px/1.5 var(--font-sans); }
+.marketplace-page .marketplace-orders__table td:first-child { overflow-wrap: anywhere; max-width: 190px; }
+.marketplace-settings-grid { display: grid; grid-template-columns: repeat(2,minmax(0,1fr)); gap: 24px; }
+.marketplace-page .form-field input, .marketplace-shipping-form .form-field input { min-height: 44px; }
+.marketplace-page .marketplace-enable__label { font: 600 14px/1.5 var(--font-sans); }
+.marketplace-page .marketplace-enable__description, .marketplace-help { margin: 0; font: 14px/1.6 var(--font-sans); color: var(--color-text-muted); max-width: 72ch; }
+.marketplace-saved-state { font: 13px var(--font-sans); color: var(--color-text-muted); }
+.marketplace-save-bar { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; padding-top: 8px; }
+.marketplace-save-bar p { margin: 0 auto 0 0; font: 14px var(--font-sans); color: var(--color-text-muted); }
+.marketplace-error { margin: 0; padding: 14px 16px; font: 14px/1.6 var(--font-sans); color: var(--color-error); background: var(--color-error-bg); border: 1px solid var(--color-error); border-radius: var(--radius-sm); }
+.marketplace-block-row { display: grid; grid-template-columns: minmax(0,1fr) auto; gap: 16px; align-items: end; }
+.marketplace-block-list { margin: 16px 0 0; padding: 0; list-style: none; }
+.marketplace-block-list li { display: flex; align-items: center; justify-content: space-between; gap: 16px; padding: 12px 0; border-top: 1px solid var(--color-border); }
+.marketplace-block-list code { overflow-wrap: anywhere; min-width: 0; font-size: 13px; }
+.marketplace-discovery { min-width: 0; display: flex; flex-direction: column; gap: 24px; }
+.marketplace-store-list { padding: 0 24px; border: 1px solid var(--color-border); border-radius: var(--radius-md); background: var(--surface-1); }
+.marketplace-store-row { display: grid; grid-template-columns: 48px minmax(0,1fr) auto; gap: 20px; align-items: start; padding: 24px 0; border-top: 1px solid var(--color-border); }
+.marketplace-store-row:first-child { border-top: 0; }
+.marketplace-store-avatar { width: 48px; height: 48px; display: grid; place-items: center; border-radius: var(--radius-sm); background: var(--surface-2); color: var(--color-text-muted); overflow: hidden; }
+.marketplace-store-avatar img { width: 100%; height: 100%; object-fit: cover; }
+.marketplace-store-content { min-width: 0; }
+.marketplace-store-content h3 { font: 600 16px/1.5 var(--font-sans); margin: 0 0 4px; overflow-wrap: anywhere; }
+.marketplace-store-content p { font: 14px/1.6 var(--font-sans); color: var(--color-text-muted); margin: 0 0 8px; max-width: 68ch; overflow-wrap: anywhere; }
+.marketplace-store-actions { display: flex; align-items: flex-end; flex-direction: column; gap: 16px; }
+.marketplace-more { display: flex; justify-content: center; }
+@media (max-width: 700px) { .marketplace-settings-grid, .marketplace-block-row { grid-template-columns: minmax(0,1fr); } .marketplace-block-row > button { justify-self: start; } .marketplace-save-bar p { flex-basis: 100%; } .marketplace-store-list { padding: 0 16px; } .marketplace-store-row { grid-template-columns: 40px minmax(0,1fr); gap: 12px; } .marketplace-store-avatar { width: 40px; height: 40px; } .marketplace-store-actions { grid-column: 1 / -1; flex-direction: row; align-items: center; justify-content: space-between; } }
+
+.marketplace-page .settlement-status { font: 500 12px/1.5 var(--font-sans); text-transform: none; letter-spacing: 0; }
+.marketplace-page .settlement-status--awaiting_return_window { color: var(--color-info); background: var(--color-info-bg); }
+.marketplace-page .settlement-status--transfer_scheduled { color: var(--color-warning); background: var(--color-warning-bg); }
+.marketplace-page .settlement-status--transferred, .marketplace-page .settlement-status--finalized { color: var(--color-success); background: var(--color-success-bg); }
+.marketplace-page .settlement-status--chargeback_debt, .marketplace-page .settlement-status--chargeback_cancelled { color: var(--color-error); background: var(--color-error-bg); }

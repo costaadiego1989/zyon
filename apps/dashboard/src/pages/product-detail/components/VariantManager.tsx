@@ -43,7 +43,7 @@ export function VariantManager(props: VariantManagerProps) {
       {!hasVariants && (
         <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
           <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>
-            {productType === "physical" ? "PREÇO E ESTOQUE" : "PREÇO"}
+            {productType === "physical" ? "Preço e estoque" : "Preço"}
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
             <Field label="SKU *" value={variants[0].sku} onChange={(val) => onUpdateVariant(0, { sku: val })} error={formErrors["simple_sku"]} placeholder="Auto-gerado do nome se vazio" />
@@ -61,7 +61,7 @@ export function VariantManager(props: VariantManagerProps) {
       {/* DIMENSIONS - SIMPLE MODE & PHYSICAL ONLY */}
       {!hasVariants && productType === "physical" && (
         <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
-          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>DIMENSÕES</h3>
+          <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>Dimensões</h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
             <PrefixInput prefix="g" label="Peso" value={variants[0].weightInput} onChange={(val) => onUpdateVariant(0, { weightInput: val })} error={formErrors["simple_weight"]} placeholder="300" />
             <PrefixInput prefix="cm" label="Comprimento" value={variants[0].lengthInput} onChange={(val) => onUpdateVariant(0, { lengthInput: val })} placeholder="20" />

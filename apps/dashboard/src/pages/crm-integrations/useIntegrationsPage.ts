@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import type { MerchantProfile } from "../../api-client.js";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
@@ -9,7 +9,6 @@ export interface CrmConnectionDTO {
   status: "connected" | "disconnected" | "error";
   lastSyncAt?: string | null;
 }
-
 export interface CrmSyncLogDTO {
   id: string;
   provider: string;
@@ -24,55 +23,93 @@ export function useIntegrationsPage(options: { me: MerchantProfile | null }) {
   const api = useApi();
   const [crmConnections, setCrmConnections] = useState<CrmConnectionDTO[]>([]);
   const [syncLog, setSyncLog] = useState<CrmSyncLogDTO[]>([]);
-  const [loading, setLoading] = useState(false);
-
+  const [loading, setLoading] = useState(true);
+  const [connectionsError, setConnectionsError] = useState<string | null>(null);
+  const [logError, setLogError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
+  const working = useRef(false);
+  const generation = useRef(0);
   const loadData = useCallback(async () => {
-    if (!options.me) return;
-    setLoading(true);
-    try {
-      const list = await (api as any).getCrmConnections?.(options.me.id)?.catch?.(() => []) ?? [];
-      setCrmConnections(Array.isArray(list) ? list : []);
-      const log = await (api as any).getCrmSyncLog?.(50)?.catch?.(() => []) ?? [];
-      setSyncLog(Array.isArray(log) ? log : []);
-    } catch {
-      setCrmConnections([]);
-      setSyncLog([]);
-    } finally {
+    if (!options.me) {
       setLoading(false);
+      return;
     }
-  }, [api, options.me]);
-
+    const current = ++generation.current;
+    setLoading(true);
+    const [connections, logs] = await Promise.allSettled([
+      api.getCrmConnections(options.me.id),
+      api.getCrmSyncLog(50),
+    ]);
+    if (current !== generation.current) return;
+    setConnectionsError(
+      connections.status === "rejected"
+        ? "Não foi possível consultar as conexões. Tente novamente antes de configurar um CRM."
+        : null
+    );
+    setLogError(
+      logs.status === "rejected" ? "Não foi possível consultar o histórico de sincronização." : null
+    );
+    if (connections.status === "fulfilled") setCrmConnections(connections.value);
+    if (logs.status === "fulfilled") setSyncLog(logs.value);
+    setLoading(false);
+  }, [api, options.me?.id]);
   useEffect(() => {
-    loadData();
+    void loadData();
+    return () => {
+      generation.current++;
+    };
   }, [loadData]);
-
-  const connectCrm = useCallback(async (provider: string, credentials: Record<string, string>) => {
-    if (!options.me) return;
+  const connectCrm = async (provider: string, credentials: Record<string, string>) => {
+    if (!options.me || working.current) return false;
+    working.current = true;
+    setBusy(true);
+    setActionError(null);
     try {
-      const conn = await (api as any).connectCrm?.(options.me.id, provider, credentials);
-      if (conn) setCrmConnections((prev) => [...prev.filter((c) => c.provider !== provider), conn]);
-      showToast("success", `${provider} conectado com sucesso`);
-    } catch (err) {
-      showToast("error", err instanceof Error ? err.message : `Erro ao conectar ${provider}`);
+      const conn = await api.connectCrm(options.me.id, provider, credentials);
+      if (!conn?.id) throw new Error("missing_connection");
+      setCrmConnections((prev) => [...prev.filter((c) => c.provider !== provider), conn]);
+      showToast("success", "Conexão cadastrada. Confira o estado e acompanhe a sincronização.");
+      return true;
+    } catch {
+      setActionError(
+        "Não foi possível conectar. Confira o token e as permissões no provedor e tente novamente."
+      );
+      return false;
+    } finally {
+      working.current = false;
+      setBusy(false);
     }
-  }, [api, options.me]);
-
-  const disconnectCrm = useCallback(async (connectionId: string) => {
-    if (!options.me) return;
+  };
+  const disconnectCrm = async (connectionId: string) => {
+    if (!options.me || working.current) return false;
+    working.current = true;
+    setBusy(true);
+    setActionError(null);
     try {
-      await (api as any).disconnectCrm?.(options.me.id, connectionId);
+      await api.disconnectCrm(options.me.id, connectionId);
       setCrmConnections((prev) => prev.filter((c) => c.id !== connectionId));
       showToast("success", "CRM desconectado");
-    } catch (err) {
-      showToast("error", err instanceof Error ? err.message : "Erro ao desconectar");
+      return true;
+    } catch {
+      setActionError("Não foi possível desconectar o CRM. Tente novamente.");
+      return false;
+    } finally {
+      working.current = false;
+      setBusy(false);
     }
-  }, [api, options.me]);
-
+  };
   return {
     crmConnections,
     syncLog,
     loading,
+    connectionsError,
+    logError,
+    actionError,
+    busy,
     connectCrm,
     disconnectCrm,
+    loadData,
+    clearActionError: () => setActionError(null),
   };
 }

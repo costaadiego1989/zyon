@@ -49,7 +49,7 @@ export function EmptyState({ icon, title, message, description, action }: EmptyS
     >
       {icon ? <div style={{ display: "flex" }}>{renderIcon(icon)}</div> : null}
       {title ? (
-        <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text-secondary)" }}>
+        <div className="empty-state__title" style={{ font: "600 12px var(--font-sans)", color: "var(--color-text-secondary)" }}>
           {title}
         </div>
       ) : null}
@@ -66,7 +66,7 @@ export function EmptyState({ icon, title, message, description, action }: EmptyS
           {body}
         </p>
       ) : null}
-      {action ? <div>{action}</div> : null}
+      {action ? <div className="empty-state__action">{action}</div> : null}
     </div>
   );
 }

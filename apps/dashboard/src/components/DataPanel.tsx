@@ -36,26 +36,25 @@ export function DataPanel({
   empty,
   isEmpty,
 }: DataPanelProps) {
-  const showPagination = page != null && pageSize != null && total != null && onPageChange != null && total > pageSize;
+  const showPagination = page != null && pageSize != null && total != null && onPageChange != null && total > 0;
   const showEmpty = isEmpty && empty;
 
   return (
     <div
-      className="panel"
-      style={{ overflow: "hidden", padding: 0 }}
+      className="panel data-panel"
     >
       {/* Header */}
-      <div style={{ padding: "20px 20px 0" }}>
+      <div className="data-panel__header">
         <SectionHeader variant="secondary" title={title} trailing={trailing} />
       </div>
 
       {/* Content or Empty */}
       {showEmpty ? (
-        <div style={{ padding: "0 20px 24px" }}>
+        <div className="data-panel__empty">
           <EmptyState icon={empty.icon} title={empty.title} description={empty.description} action={empty.action} />
         </div>
       ) : (
-        children
+        <div className="data-panel__body">{children}</div>
       )}
 
       {/* Pagination */}

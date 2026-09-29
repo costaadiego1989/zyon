@@ -12,7 +12,9 @@ import { StatCard } from "../../overview/components/StatCard.js";
 import { EmptyState } from "../../../components/EmptyState.js";
 import { SupportChatDrawer } from "../components/SupportChatDrawer.js";
 import { useSupportTickets } from "../hooks/useSupportTickets.js";
-import { showToast } from "../../../components/Toast.js";
+import { Button } from "../../../components/Button.js";
+import { PeriodFilter } from "../../../components/PeriodFilter.js";
+import { SearchInput } from "../../../components/SearchInput.js";
 import { downloadCsv } from "../../../hooks/useCsvExport.js";
 import type { SupportTicketStatus } from "@zyon/shared-types";
 import { createDashboardApi } from "../../../api-client.js";
@@ -54,13 +56,17 @@ export function SupportTicketsTab(props: Props) {
     setOpenTicketId,
     updateTicketStatus,
     ticketBusy,
+    loadError,
+    actionError,
+    reload,
   } = useSupportTickets(props.api);
 
   const [draggedTicket, setDraggedTicket] = useState<(typeof tickets)[0] | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [period, setPeriod] = useState<"today" | "7d" | "15d" | "30d">("today");
+  const [period, setPeriod] = useState<"all" | "today" | "7d" | "15d" | "30d">("all");
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
+  const [search, setSearch] = useState("");
   const selectedTicket = tickets.find((t) => t.id === openTicketId);
 
   const filteredTickets = useMemo(() => {
@@ -71,7 +77,7 @@ export function SupportTicketsTab(props: Props) {
       // Custom date range takes over the preset
       if (dateRange.from) result = result.filter((t) => new Date(t.createdAt).toISOString() >= dateRange.from);
       if (dateRange.to) result = result.filter((t) => new Date(t.createdAt).toISOString() <= dateRange.to + "T23:59:59");
-    } else {
+    } else if (period !== "all") {
       // Preset period filter (relative to now)
       const days = period === "today" ? 0 : period === "7d" ? 7 : period === "15d" ? 15 : 30;
       const cutoff = new Date();
@@ -81,14 +87,16 @@ export function SupportTicketsTab(props: Props) {
       result = result.filter((t) => new Date(t.createdAt).toISOString() >= cutoffIso);
     }
 
-    return result;
-  }, [tickets, period, dateRange]);
+    const term = search.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+    return result.filter(ticket => [ticket.id, ticket.buyerMessage, ticket.sessionId].some(value => value?.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(term)));
+  }, [tickets, period, dateRange, search]);
 
   const openCount = filteredTickets.filter((t) => t.status === "open").length;
   const inProgressCount = filteredTickets.filter((t) => t.status === "in_progress").length;
   const resolvedCount = filteredTickets.filter((t) => t.status === "resolved").length;
 
   function handleDragStart(e: React.DragEvent, ticket: (typeof tickets)[0]) {
+    if (ticketBusy) return;
     setDraggedTicket(ticket);
     e.dataTransfer.effectAllowed = "move";
     e.dataTransfer.setData("text/plain", ticket.id);
@@ -117,9 +125,9 @@ export function SupportTicketsTab(props: Props) {
     if (!draggedTicket) return;
     if (!canDrop(draggedTicket.status, columnId)) return;
 
-    const col = COLUMNS.find((c) => c.id === columnId);
+
     void updateTicketStatus(draggedTicket.id, columnId);
-    showToast("success", `Chamado → ${col?.label ?? columnId}`);
+
     setDraggedTicket(null);
   }
 
@@ -131,6 +139,8 @@ export function SupportTicketsTab(props: Props) {
       </div>
     );
   }
+
+  if (loadError && tickets.length === 0) return <EmptyState icon={Ticket} title="Chamados indisponíveis" description={loadError} action={<Button variant="outline" onClick={() => void reload()}>Tentar novamente</Button>} />;
 
   if (tickets.length === 0) {
     return (
@@ -152,96 +162,13 @@ export function SupportTicketsTab(props: Props) {
         <StatCard label="Resolvidos" value={resolvedCount} icon={<CheckCircle size={16} />} accent="var(--color-success)" />
       </div>
 
-      {/* Period filter bar — tabs left, date range + CSV right */}
-      <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "12px 0", gap: "16px", flexWrap: "wrap" }}>
-        <div style={{ display: "flex", gap: "0.5rem", alignItems: "center" }}>
-          {(["today", "7d", "15d", "30d"] as const).map((key) => {
-            const labels: Record<string, string> = { today: "Hoje", "7d": "Últimos 7 dias", "15d": "Últimos 15 dias", "30d": "Últimos 30 dias" };
-            const isActive = period === key && !dateRange.from && !dateRange.to;
-            return (
-              <button
-                key={key}
-                type="button"
-                onClick={() => { setPeriod(key); setDateRange({ from: "", to: "" }); }}
-                style={{
-                  padding: "6px 14px",
-                  borderRadius: "var(--radius-full, 20px)",
-                  border: isActive ? "1px solid var(--color-brand)" : "1px solid var(--color-border)",
-                  background: isActive ? "var(--color-brand)" : "transparent",
-                  color: isActive ? "#fff" : "var(--color-text-muted)",
-                  font: "500 12px var(--font-sans)",
-                  cursor: "pointer",
-                  transition: "all 0.15s ease",
-                }}
-              >
-                {labels[key]}
-              </button>
-            );
-          })}
-        </div>
-        <div style={{ display: "flex", gap: "8px", alignItems: "center" }}>
-          <input
-            type="date"
-            value={dateRange.from}
-            onChange={(e) => setDateRange((d) => ({ ...d, from: e.target.value }))}
-            style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "#fff", font: "12px var(--font-sans)", colorScheme: "dark" }}
-          />
-          <span style={{ color: "var(--color-text-muted)", fontSize: "12px" }}>até</span>
-          <input
-            type="date"
-            value={dateRange.to}
-            onChange={(e) => setDateRange((d) => ({ ...d, to: e.target.value }))}
-            style={{ padding: "7px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-2)", color: "#fff", font: "12px var(--font-sans)", colorScheme: "dark" }}
-          />
-          <button
-            type="button"
-            onClick={() => {
-              const header = "id,status,mensagem,sessao,criado_em,atualizado_em";
-              const rows = filteredTickets.map((t) =>
-                [
-                  t.id,
-                  t.status,
-                  `"${(t.buyerMessage ?? "").replace(/"/g, '""')}"`,
-                  t.sessionId ?? "",
-                  t.createdAt ?? "",
-                  t.updatedAt ?? "",
-                ].join(","),
-              );
-              const bom = String.fromCharCode(0xfeff);
-              downloadCsv(bom + header, rows, `support-tickets-${new Date().toISOString().slice(0, 10)}.csv`);
-            }}
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: 4,
-              padding: "7px 12px",
-              borderRadius: "var(--radius-sm)",
-              border: "1px solid var(--color-border)",
-              background: "transparent",
-              color: "var(--color-text-muted)",
-              font: "500 12px var(--font-sans)",
-              cursor: "pointer",
-              transition: "all 0.15s ease",
-            }}
-          >
-            <Download size={14} /> CSV
-          </button>
-        </div>
-      </div>
-
-      {/* Kanban instruction */}
-      <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", textAlign: "center" }}>
-        Arraste os cards entre colunas para atualizar o status do chamado
-      </div>
-
+      {loadError && <div className="panel-error" role="alert">{loadError}<Button variant="outline" size="sm" onClick={() => void reload()}>Tentar novamente</Button></div>}
+      {actionError && <div className="panel-error" role="alert">{actionError}</div>}
+      <PeriodFilter presets={[{ key: "all", label: "Todos" }, { key: "today", label: "Hoje" }, { key: "7d", label: "Últimos 7 dias" }, { key: "15d", label: "Últimos 15 dias" }, { key: "30d", label: "Últimos 30 dias" }]} active={dateRange.from || dateRange.to ? "custom" : period} onPreset={key => { setPeriod(key as typeof period); setDateRange({ from: "", to: "" }); }} from={dateRange.from} to={dateRange.to} onDate={(field, value) => setDateRange(current => ({ ...current, [field]: value }))} action={<Button variant="outline" size="sm" disabled={!filteredTickets.length} onClick={() => { const header = "Chamado,Etapa,Mensagem,Criado em"; const cell = (value: string) => '"' + (/^[=+\-@]/.test(value.trimStart()) ? "'" : "") + value.replace(/"/g, '""') + '"'; downloadCsv(header, filteredTickets.map(ticket => [ticket.id, COLUMNS.find(column => column.id === ticket.status)?.label || ticket.status, ticket.buyerMessage || "", ticket.createdAt].map(cell).join(",")), "chamados.csv"); }}><Download size={14} /> Exportar CSV</Button>} />
+      <div className="support-tickets__toolbar"><p>Abra um chamado para responder e atualizar a etapa do atendimento.</p><SearchInput value={search} onChange={setSearch} placeholder="Buscar chamado ou mensagem" width={320} /></div>
+      {!filteredTickets.length && <EmptyState icon={Ticket} title="Nenhum chamado com estes filtros" description="Altere a busca ou o período para encontrar o atendimento." action={<Button variant="outline" onClick={() => { setSearch(""); setPeriod("all"); setDateRange({ from: "", to: "" }); }}>Limpar filtros</Button>} />}
       {/* Kanban Board */}
-      <div
-        style={{
-          display: "grid",
-          gridTemplateColumns: `repeat(${COLUMNS.length}, 1fr)`,
-          gap: 12,
-          minHeight: 400,
-        }}
+      <div className="support-tickets__board" role="region" aria-label="Chamados por etapa" tabIndex={0}
         onDragEnd={handleDragEnd}
       >
         {COLUMNS.map((col) => {
@@ -299,9 +226,15 @@ export function SupportTicketsTab(props: Props) {
                 {colTickets.map((ticket) => (
                   <div
                     key={ticket.id}
-                    draggable
+                    role="button"
+                    tabIndex={ticketBusy ? -1 : 0}
+                    aria-label={"Abrir chamado " + ticket.id.slice(0, 8)}
+                    aria-disabled={Boolean(ticketBusy)}
+                    className="support-ticket-card"
+                    onKeyDown={event => { if (!ticketBusy && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); setOpenTicketId(ticket.id); } }}
+                    draggable={!ticketBusy}
                     onDragStart={(e) => handleDragStart(e, ticket)}
-                    onClick={() => setOpenTicketId(ticket.id)}
+                    onClick={() => { if (!ticketBusy) setOpenTicketId(ticket.id); }}
                     style={{
                       padding: "10px 12px",
                       borderRadius: "var(--radius-sm)",
@@ -358,7 +291,13 @@ export function SupportTicketsTab(props: Props) {
       {/* Support Chat Drawer */}
       {openTicketId && selectedTicket ? (
         <SupportChatDrawer
+          key={openTicketId}
           ticketId={openTicketId}
+          connected={props.socket.connected}
+          busy={Boolean(ticketBusy)}
+          actionError={actionError}
+          onStatus={next => void updateTicketStatus(openTicketId, next)}
+          statusOptions={COLUMNS.filter(column => column.acceptsFrom.includes(selectedTicket.status)).map(column => ({ value: column.id, label: column.label }))}
           buyerMessage={selectedTicket.buyerMessage}
           status={selectedTicket.status}
           api={props.api}

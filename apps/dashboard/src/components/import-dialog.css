@@ -1,0 +1,10 @@
+.import-dialog { display: grid; gap: 20px; min-width: 0; font: 14px/1.65 var(--font-sans); color: var(--color-text-secondary); }
+.import-dialog p { margin: 0; max-width: 72ch; }
+.import-dialog__dropzone { display: flex; flex-direction: column; align-items: center; gap: 10px; width: 100%; padding: 32px 20px; background: var(--surface-1); border: 1px dashed var(--color-border); border-radius: 12px; color: var(--color-text); cursor: pointer; font: inherit; }
+.import-dialog__dropzone > span { font-size: 13px; color: var(--color-text-muted); }
+.import-dialog__dropzone svg { color: var(--color-brand); }
+.import-dialog__dropzone:hover, .import-dialog__dropzone[data-dragging] { border-color: var(--color-brand); }
+.import-dialog__dropzone p { overflow-wrap: anywhere; max-width: 100%; }
+.import-dialog__error { display: grid; gap: 8px; padding: 16px; border: 1px solid var(--color-error); background: var(--color-error-bg); border-radius: 10px; }
+.import-dialog__progress { display: grid; gap: 12px; }
+.import-dialog__progress progress { width: 100%; height: 8px; accent-color: var(--color-brand); }

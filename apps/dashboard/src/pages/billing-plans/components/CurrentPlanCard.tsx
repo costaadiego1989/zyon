@@ -102,7 +102,7 @@ export function CurrentPlanCard({
       </div>
 
       {/* Pricing */}
-      <div style={{ display: "flex", gap: 32, alignItems: "baseline" }}>
+      <div style={{ display: "flex", flexWrap: "wrap", gap: "16px 32px", alignItems: "baseline" }}>
         <div>
           <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-muted)", marginBottom: 2 }}>
             {billingCycle === "annual" ? "VALOR ANUAL" : "VALOR MENSAL"}

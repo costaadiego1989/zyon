@@ -1,234 +1,121 @@
-import React from "react";
-import { Save } from "lucide-react";
+import React, { useId, useRef, useState } from "react";
+import { Check, Save } from "lucide-react";
+import { SetupGuide } from "../../components/SetupGuide.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import { Button } from "../../components/Button.js";
 import { ToggleSwitch } from "../../components/ToggleSwitch.js";
+import { EmptyState } from "../../components/EmptyState.js";
+import { FormField, FormSelect } from "../../components/FormField.js";
 import { useCrossSellPage, type CrossSellContext } from "./useCrossSellPage.js";
 import type { CrossSellTouchpoint, CrossSellStrategy, CrossSellDisplayMode } from "@zyon/shared-types";
+import "../../components/configuration-form.css";
+import "./cross-sell.css";
 
-const TOUCHPOINT_LABELS: Record<CrossSellTouchpoint, { title: string; desc: string }> = {
-  browsing: { title: "Durante navegação", desc: "IA sugere complementos enquanto buyer navega a loja" },
-  pre_cart: { title: "Nos detalhes do produto", desc: "Mostra complementos na visualização do produto, antes de adicioná-lo ao carrinho" },
-  post_cart: { title: "Após adicionar ao carrinho", desc: "Sugere complementos depois que a adição do produto for confirmada" },
-  pre_payment: { title: "Antes do pagamento", desc: "Mostra sugestões no checkout, antes de pagar" },
-  post_purchase: { title: "Pós-compra", desc: "Sugere na tela de confirmação do pedido" },
+const MOMENTS: Record<CrossSellTouchpoint, [string, string]> = {
+  browsing: ["Durante a navegação", "Sugere produtos enquanto o cliente navega pela loja."],
+  pre_cart: ["Nos detalhes do produto", "Mostra complementos na visualização do produto, antes de adicioná-lo ao carrinho."],
+  post_cart: ["Após adicionar ao carrinho", "Depois que o produto é adicionado com sucesso."],
+  pre_payment: ["Antes do pagamento", "Durante o checkout, antes de pagar."],
+  post_purchase: ["Após a compra", "Na confirmação do pedido."],
 };
-
-const STRATEGY_LABELS: Record<CrossSellStrategy, { title: string; desc: string }> = {
-  same_category: { title: "Mesma categoria", desc: "Produtos do mesmo segmento" },
-  bought_together: { title: "Comprados juntos", desc: "Baseado em histórico de compras" },
-  cart_value_upgrade: { title: "Upgrade por valor", desc: "Sugere premium ao atingir threshold" },
-  complementary: { title: "Complementares", desc: "Sapato → meia, celular → capinha" },
-  ai_personalized: { title: "IA personalizada", desc: "Modelo decide com base no contexto" },
+const STRATEGIES: Record<CrossSellStrategy, [string, string]> = {
+  same_category: ["Mesma categoria", "Outros produtos da categoria que o cliente está consultando."],
+  bought_together: ["Comprados juntos", "Combinações identificadas no histórico de compras."],
+  cart_value_upgrade: ["Opções de maior valor", "Alternativas de maior valor conforme as condições do carrinho."],
+  complementary: ["Itens que se complementam", "Exemplo: uma capa para acompanhar um celular."],
+  ai_personalized: ["Sugestões personalizadas por IA", "Produtos escolhidos a partir do contexto da conversa."],
 };
-
-const DISPLAY_OPTIONS: Array<{ value: CrossSellDisplayMode; label: string }> = [
-  { value: "inline", label: "Inline (chat)" },
-  { value: "modal", label: "Modal (popup)" },
-  { value: "banner", label: "Banner (topo)" },
-  { value: "interstitial", label: "Interstitial (sheet)" },
+const DISPLAY: Array<{ value: CrossSellDisplayMode; label: string }> = [
+  { value: "inline", label: "Na conversa" }, { value: "modal", label: "Janela sobre a página" },
+  { value: "banner", label: "Faixa no topo" }, { value: "interstitial", label: "Painel sobre a etapa da compra" },
 ];
+
+function CrossSellChoice({ type, name, checked, title, description, onChange }: {
+  type: "checkbox" | "radio";
+  name?: string;
+  checked: boolean;
+  title: string;
+  description: string;
+  onChange: () => void;
+}) {
+  const id = useId();
+  return <label className="cross-sell-choice">
+    <input type={type} name={name} checked={checked} onChange={onChange}
+      aria-labelledby={id + '-title'} aria-describedby={id + '-description'} />
+    <span className="cross-sell-choice__content">
+      <strong id={id + '-title'}>{title}</strong>
+      <small id={id + '-description'}>{description}</small>
+    </span>
+    <Check className="cross-sell-choice__check" size={20} strokeWidth={2} aria-hidden="true" />
+  </label>;
+}
 
 export function CrossSellPage({ context }: { context: CrossSellContext }) {
   const vm = useCrossSellPage(context);
-  const { state, visibleTouchpoints, toggleTouchpoint, toggleStrategy, patchConfig, save } = vm;
-  const { config } = state;
-
-  if (state.loading) return <div style={{ padding: 40, textAlign: "center", color: "var(--color-text-faint)" }}>Carregando...</div>;
-
-  const sectionLabel = context === "store" ? "LOJA" : "CHECKOUT";
-
-  return (
-    <div className="page-container">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">{sectionLabel}</span>
-          <h1>Cross Sell</h1>
-          <p className="page-lead">Configure quando e como a IA sugere produtos complementares</p>
-        </div>
-        <Button variant="primary" size="sm" arrow onClick={save} disabled={state.saving} loading={state.saving}>
-          <Save size={14} /> Salvar
-        </Button>
-      </header>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-        {/* Global toggle */}
-        <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
-          <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between" }}>
-            <div>
-              <h3 style={{ font: "600 14px var(--font-sans)", color: "var(--color-text)", margin: "0 0 4px" }}>Cross Sell ativo</h3>
-              <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", margin: 0 }}>Habilita sugestões de produtos complementares pela IA</p>
+  const { config, loading, saving } = vm.state;
+  const id = useId(); const formRef = useRef<HTMLFormElement>(null);
+  const [submitted, setSubmitted] = useState(false);
+  const error = (key: string) => submitted ? vm.fieldErrors[key] : undefined;
+  function save(event: React.FormEvent) {
+    event.preventDefault(); setSubmitted(true); void vm.save();
+    requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus());
+  }
+  return <div className="page-container cross-sell-page">
+    <PageHeader title="Produtos complementares" description={context === "store" ? "Configure as sugestões que acompanham a escolha de produtos na loja." : "Configure as sugestões apresentadas durante o checkout."}
+      actions={<Button type="submit" form={id} loading={saving} disabled={loading || !!vm.loadError || !vm.dirty}><Save size={16} /> Salvar sugestões</Button>} />
+    <SetupGuide title="Como configurar as sugestões" steps={[
+      { title: "Escolha o momento", description: "Marque as etapas da compra em que uma sugestão faz sentido." },
+      { title: "Defina os produtos", description: "Escolha a estratégia de recomendação para sua loja." },
+      { title: "Revise e salve", description: "Confira frequência, desconto e apresentação. As mudanças entram em vigor ao salvar." },
+    ]} />
+    {loading ? <div className="panel" role="status" style={{ padding: 24 }}>Carregando configurações…</div> : vm.loadError ?
+      <EmptyState title="Configurações indisponíveis" description={vm.loadError} action={<Button variant="outline" onClick={vm.reload}>Tentar novamente</Button>} /> :
+      <form id={id} ref={formRef} onSubmit={save} noValidate className="cross-sell-editor">
+        <fieldset className="configuration-form" disabled={saving} aria-busy={saving}>
+          {vm.saveError && <p className="form-field-error" role="alert">{vm.saveError}</p>}
+          <section className="configuration-form__section">
+            <div className="cross-sell-switch">
+              <div><label htmlFor={id + '-enabled'}>Sugestões de produtos</label><p>Ative para oferecer produtos relacionados durante a compra.</p></div>
+              <ToggleSwitch id={id + '-enabled'} checked={config.enabled} disabled={saving} onChange={enabled => vm.patchConfig({ enabled })} />
             </div>
-            <ToggleSwitch checked={config.enabled} onChange={() => patchConfig({ enabled: !config.enabled })} />
-          </div>
-        </section>
-
-        {config.enabled && (
-          <>
-            {/* Touchpoints — mutually exclusive per context */}
-            <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
-              <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Onde sugerir</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {visibleTouchpoints.map((tp) => (
-                  <label key={tp} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: config.touchpoints[tp] ? "1.5px solid var(--color-brand)" : "1px solid var(--color-border)", cursor: "pointer", background: config.touchpoints[tp] ? "rgba(15,118,110,0.06)" : "transparent", transition: "all 0.15s ease" }}>
-                    <input
-                      type="checkbox"
-                      name={`cross-sell-touchpoint-${context}`}
-                      checked={Boolean(config.touchpoints[tp])}
-                      onChange={() => toggleTouchpoint(tp)}
-                      style={{ width: 16, height: 16, accentColor: "var(--color-brand)", cursor: "pointer" }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>{TOUCHPOINT_LABELS[tp].title}</div>
-                      <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>{TOUCHPOINT_LABELS[tp].desc}</div>
-                    </div>
-                  </label>
-                ))}
+            {!config.enabled && <p>As sugestões estão desativadas neste rascunho. Salve para aplicar essa escolha.</p>}
+          </section>
+          {config.enabled && <>
+            <section className="configuration-form__section" aria-labelledby={id + '-moments'}>
+              <h3 id={id + '-moments'}>Quando sugerir</h3><p id={id + '-moments-hint'}>Você pode escolher mais de um momento.</p>
+              <div className="cross-sell-choices" role="group" aria-labelledby={id + '-moments'} aria-describedby={id + '-moments-hint'}>
+                {vm.visibleTouchpoints.map(tp => <CrossSellChoice key={tp} type="checkbox"
+                  checked={!!config.touchpoints[tp]} onChange={() => vm.toggleTouchpoint(tp)}
+                  title={MOMENTS[tp][0]} description={MOMENTS[tp][1]} />)}
               </div>
             </section>
-
-            {/* Strategies */}
-            <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
-              <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Estratégia de recomendação</h3>
-              <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                {(Object.keys(STRATEGY_LABELS) as CrossSellStrategy[]).map((s) => (
-                  <label key={s} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 12px", borderRadius: 8, border: config.strategies.includes(s) ? "1.5px solid var(--color-brand)" : "1px solid var(--color-border)", cursor: "pointer", background: config.strategies.includes(s) ? "rgba(15,118,110,0.06)" : "transparent", transition: "all 0.15s ease" }}>
-                    <input
-                      type="checkbox"
-                      name="cross-sell-strategy"
-                      checked={config.strategies.includes(s)}
-                      onChange={() => toggleStrategy(s)}
-                      style={{ width: 16, height: 16, accentColor: "var(--color-brand)", cursor: "pointer" }}
-                    />
-                    <div style={{ flex: 1 }}>
-                      <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>{STRATEGY_LABELS[s].title}</div>
-                      <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>{STRATEGY_LABELS[s].desc}</div>
-                    </div>
-                  </label>
-                ))}
+            <section className="configuration-form__section" aria-labelledby={id + '-strategy'}>
+              <h3 id={id + '-strategy'}>Como escolher os produtos</h3><p id={id + '-strategy-hint'}>Escolha as estratégias que devem orientar as recomendações.</p>
+              <div className="cross-sell-choices" role="group" aria-labelledby={id + '-strategy'} aria-describedby={id + '-strategy-hint'}>
+                {(Object.keys(STRATEGIES) as CrossSellStrategy[]).map(strategy => <CrossSellChoice key={strategy} type="checkbox"
+                  name={id + '-strategy'} checked={config.strategies.includes(strategy)} onChange={() => vm.toggleStrategy(strategy)}
+                  title={STRATEGIES[strategy][0]} description={STRATEGIES[strategy][1]} />)}
               </div>
             </section>
-
-            {/* Limits + Discount + Display */}
-            <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)", padding: "20px 22px" }}>
-              <h3 style={{ font: "600 14px var(--font-sans)", letterSpacing: "-0.01em", color: "var(--color-brand)", marginBottom: 14 }}>Limites e apresentação</h3>
-              <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 14 }}>
-                <div>
-                  <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>Máx. sugestões por sessão</span>
-                  <input
-                    type="number"
-                    min={1}
-                    max={5}
-                    value={config.limits.maxSuggestionsPerSession}
-                    onChange={(e) => patchConfig({ limits: { ...config.limits, maxSuggestionsPerSession: Math.max(1, Math.min(5, parseInt(e.target.value) || 2)) } })}
-                    style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none" }}
-                  />
-                </div>
-                <div>
-                  <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 8 }}>Cooldown entre sugestões (s)</span>
-                  <input
-                    type="number"
-                    min={30}
-                    max={600}
-                    step={30}
-                    value={config.limits.cooldownSeconds}
-                    onChange={(e) => patchConfig({ limits: { ...config.limits, cooldownSeconds: Math.max(30, Math.min(600, parseInt(e.target.value) || 120)) } })}
-                    style={{ width: "100%", height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none" }}
-                  />
-                </div>
+            <section className="configuration-form__section">
+              <h3>Frequência e apresentação</h3>
+              <div className="configuration-form__grid">
+                <FormField label="Máximo de sugestões por sessão" type="number" value={String(config.limits.maxSuggestionsPerSession || '')} onChange={value => vm.patchConfig({ limits: { ...config.limits, maxSuggestionsPerSession: Number(value) } })} inputProps={{ min: 1, max: 5 }} hint="De 1 a 5 sugestões durante a visita." error={error('max')} />
+                <FormField label="Intervalo entre sugestões (segundos)" type="number" value={String(config.limits.cooldownSeconds || '')} onChange={value => vm.patchConfig({ limits: { ...config.limits, cooldownSeconds: Number(value) } })} inputProps={{ min: 30, max: 600 }} hint="De 30 a 600 segundos." error={error('cooldown')} />
               </div>
-
-              <div style={{ marginTop: 16, padding: "12px 0", borderTop: "1px solid var(--color-border)" }}>
-                <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 10 }}>
-                  <div>
-                    <span style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)" }}>Desconto no cross-sell</span>
-                    <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", display: "block", marginTop: 2 }}>Oferecer desconto no produto sugerido</span>
-                  </div>
-                  <ToggleSwitch checked={config.discount.enabled} onChange={() => patchConfig({ discount: { ...config.discount, enabled: !config.discount.enabled } })} />
-                </div>
-                {config.discount.enabled && (
-                  <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
-                    {/* Discount mode: percent OR coupon */}
-                    <div style={{ display: "flex", gap: 8 }}>
-                      {(["percent", "coupon"] as const).map((m) => {
-                        const active = (config.discount.mode ?? "percent") === m;
-                        return (
-                          <button
-                            key={m}
-                            type="button"
-                            onClick={() => patchConfig({ discount: { ...config.discount, mode: m } })}
-                            style={{
-                              padding: "6px 12px", borderRadius: 8,
-                              border: `2px solid ${active ? "var(--color-brand)" : "var(--color-border)"}`,
-                              background: active ? "var(--color-brand-subtle, rgba(15,118,110,0.08))" : "transparent",
-                              font: "600 12px var(--font-sans)",
-                              color: active ? "var(--color-brand)" : "var(--color-text)",
-                              cursor: "pointer", transition: "all 0.15s",
-                            }}
-                          >
-                            {m === "percent" ? "Percentual" : "Cupom da loja"}
-                          </button>
-                        );
-                      })}
-                    </div>
-                    {(config.discount.mode ?? "percent") === "percent" ? (
-                      <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                        <input
-                          type="number"
-                          min={1}
-                          max={50}
-                          value={config.discount.percent}
-                          onChange={(e) => patchConfig({ discount: { ...config.discount, percent: Math.max(1, Math.min(50, parseInt(e.target.value) || 10)) } })}
-                          style={{ width: 80, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none" }}
-                        />
-                        <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>% de desconto</span>
-                      </div>
-                    ) : (
-                      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-                        <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-                          <input
-                            type="text"
-                            value={config.discount.couponCode ?? ""}
-                            onChange={(e) => patchConfig({ discount: { ...config.discount, couponCode: e.target.value.trim().toUpperCase() } })}
-                            placeholder="EX: LEVEMAIS10"
-                            style={{ width: 180, height: 38, padding: "0 12px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--surface-1)", font: "13px var(--font-mono)", color: "var(--color-text)", outline: "none", textTransform: "uppercase" }}
-                          />
-                          <span style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>código do cupom</span>
-                        </div>
-                        <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Use um cupom ativo da loja. O desconto segue as regras do cupom.</span>
-                      </div>
-                    )}
-                  </div>
-                )}
-              </div>
-
-              <div style={{ marginTop: 16, padding: "12px 0", borderTop: "1px solid var(--color-border)" }}>
-                <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 10 }}>Modo de exibição</span>
-                <div style={{ display: "flex", gap: 8 }}>
-                  {DISPLAY_OPTIONS.map((opt) => (
-                    <button
-                      key={opt.value}
-                      type="button"
-                      onClick={() => patchConfig({ display: { mode: opt.value } })}
-                      style={{
-                        padding: "8px 14px",
-                        borderRadius: 8,
-                        border: `2px solid ${config.display.mode === opt.value ? "var(--color-brand)" : "var(--color-border)"}`,
-                        background: config.display.mode === opt.value ? "var(--color-brand-subtle, rgba(15,118,110,0.08))" : "transparent",
-                        font: "600 12px var(--font-sans)",
-                        color: config.display.mode === opt.value ? "var(--color-brand)" : "var(--color-text)",
-                        cursor: "pointer",
-                        transition: "all 0.15s",
-                      }}
-                    >
-                      {opt.label}
-                    </button>
-                  ))}
-                </div>
-              </div>
+              <FormSelect label="Apresentação da sugestão" value={config.display.mode} onChange={value => vm.patchConfig({ display: { mode: value as CrossSellDisplayMode } })} options={DISPLAY} />
             </section>
-          </>
-        )}
-      </div>
-    </div>
-  );
+            <section className="configuration-form__section">
+              <div className="cross-sell-switch"><div><label htmlFor={id + '-discount'}>Oferecer desconto</label><p>Incentivo opcional para o produto sugerido.</p></div><ToggleSwitch id={id + '-discount'} checked={config.discount.enabled} disabled={saving} onChange={enabled => vm.patchConfig({ discount: { ...config.discount, enabled } })} /></div>
+              {config.discount.enabled && <div className="configuration-form__grid">
+                <FormSelect label="Tipo de incentivo" value={config.discount.mode ?? "percent"} onChange={mode => vm.patchConfig({ discount: { ...config.discount, mode: mode as "percent" | "coupon" } })} options={[{ value: "percent", label: "Desconto percentual" }, { value: "coupon", label: "Cupom da loja" }]} />
+                {(config.discount.mode ?? "percent") === "percent" ? <FormField label="Desconto (%)" type="number" value={String(config.discount.percent || '')} onChange={value => vm.patchConfig({ discount: { ...config.discount, percent: Number(value) } })} inputProps={{ min: 1, max: 50 }} hint="De 1% a 50%." error={error('percent')} /> :
+                  <FormField label="Código do cupom" value={config.discount.couponCode ?? ''} onChange={value => vm.patchConfig({ discount: { ...config.discount, couponCode: value.trim().toUpperCase() } })} hint="Use um cupom ativo. Validade e condições do cupom continuam valendo." error={error('coupon')} />}
+              </div>}
+            </section>
+          </>}
+          <p role="status">{vm.dirty ? "Você tem alterações para salvar." : "Configurações sincronizadas com a loja."}</p>
+        </fieldset>
+      </form>}
+  </div>;
 }

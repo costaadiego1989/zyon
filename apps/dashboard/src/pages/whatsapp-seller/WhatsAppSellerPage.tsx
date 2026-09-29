@@ -1,4 +1,5 @@
 import { WhatsAppDeliveryIssues } from "./WhatsAppDeliveryIssues.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import React, { useState } from "react";
 import { CheckCircle, ExternalLink, Loader2, RefreshCw, ShieldCheck } from "lucide-react";
 import { Button } from "../../components/Button.js";
@@ -25,18 +26,13 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
   return (
     <div className="page-container whatsapp-seller">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Integrações</span>
-          <h1>WhatsApp Seller</h1>
-          <p className="page-lead">Conecte o WhatsApp Business da sua loja pela integração oficial da Meta.</p>
-        </div>
-        {active && <span className="whatsapp-seller__connected"><CheckCircle size={16} /> Conexão Meta ativa</span>}
-      </header>
+      <PageHeader title="WhatsApp" description="Conecte o WhatsApp Business da sua loja pela integração oficial da Meta." actions={<>
+{active && <span className="whatsapp-seller__connected"><CheckCircle size={16} /> Conexão Meta ativa</span>}
+</>} />
       {!props.me ? <p>Entre na sua conta para configurar o WhatsApp.</p> : <>
-        <TabBar tabs={[{ key: "connection", label: "Conexão" }, { key: "templates", label: "Templates" }]}
+        <TabBar tabs={[{ key: "connection", label: "Conexão" }, { key: "templates", label: "Modelos de mensagem" }]}
           activeTab={tab} onTabChange={key => setTab(key as "connection" | "templates")} />
-        {tab === "templates" && <PremiumFeatureGate feature="postSale" requiredPlan="Growth" featureLabel="Templates de WhatsApp">
+        {tab === "templates" && <PremiumFeatureGate feature="postSale" requiredPlan="Growth" featureLabel="Modelos de mensagem do WhatsApp">
           <WhatsAppTemplatesTab me={props.me} />
         </PremiumFeatureGate>}
         {tab === "connection" && <div className="whatsapp-seller__content">
@@ -98,9 +94,9 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
             <section className="whatsapp-seller__guidance">
               <ShieldCheck size={20} aria-hidden="true" />
               <div>
-                <h2>Templates aprovados antes do envio</h2>
-                <p>Confirmações e recuperação de carrinho usam templates da loja. O envio por WhatsApp depende de conexão ativa, autorização do cliente e aprovação dos templates pela Meta.</p>
-                <Button variant="ghost" onClick={() => setTab("templates")}>Ver templates da loja</Button>
+                <h2>Modelos aprovados antes do envio</h2>
+                <p>Confirmações e recuperação de carrinho usam modelos de mensagem da loja. O envio por WhatsApp depende de conexão ativa, autorização do cliente e aprovação dos modelos pela Meta.</p>
+                <Button variant="ghost" onClick={() => setTab("templates")}>Ver modelos de mensagem</Button>
               </div>
             </section>
           </>}

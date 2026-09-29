@@ -1,4 +1,10 @@
 .finance-page__tabs { display: flex; align-items: center; justify-content: space-between; flex-wrap: wrap; gap: 16px; }
 .finance-page__columns { display: grid; grid-template-columns: minmax(0, 1.55fr) minmax(280px, .85fr); gap: 16px; }
 .finance-page__explainers { padding: 0 20px 20px; display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 12px; }
+.finance-page .data-panel tbody tr:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
+.finance-page__panel-header, .finance-page__error { flex-wrap: wrap; }
+.finance-page__panel-header > div, .finance-page__columns > * { min-width: 0; }
+.finance-page__tabs > span { overflow-wrap: anywhere; }
+.finance-page .data-panel th { text-transform: none; }
+.finance-page__error > span { flex: 1 1 240px; }
 @media (max-width: 900px) { .finance-page__columns, .finance-page__explainers { grid-template-columns: minmax(0, 1fr); } }

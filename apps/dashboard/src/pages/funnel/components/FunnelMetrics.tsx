@@ -49,7 +49,7 @@ export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement 
         icon={<Users size={16} />}
       />
       <StatCard
-        label="Maior Drop-off"
+        label="Maior abandono"
         value={`${biggestDropOff.toFixed(0)}%`}
         icon={<AlertTriangle size={16} />}
         accent={biggestDropOff > 50 ? "var(--color-error)" : undefined}

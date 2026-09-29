@@ -1,3 +1,7 @@
+import { Modal } from "../../components/Modal.js";
+import { FormField } from "../../components/FormField.js";
+import { SetupGuide } from "../../components/SetupGuide.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import React, { useState, useMemo } from "react";
 import { Package, AlertTriangle, DollarSign, Boxes, AlertCircle, RefreshCw, Plug, Unplug, ExternalLink } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
@@ -15,6 +19,7 @@ import { useInventoryPage } from "./useInventoryPage.js";
 export interface InventoryPageProps {
   apiBaseUrl: string;
   me: MerchantProfile | null;
+  notificationTarget?: { id: string; itemId?: string; alertId?: string } | null;
 }
 
 type InventoryTab = "overview" | "movements" | "alerts" | "erp";
@@ -75,7 +80,8 @@ const PAGE_SIZE = 10;
 
 export function InventoryPage(props: InventoryPageProps) {
   const vm = useInventoryPage({ me: props.me });
-  const [tab, setTab] = useState<InventoryTab>("overview");
+  const [tab, setTab] = useState<InventoryTab>(props.notificationTarget ? "alerts" : "overview");
+  React.useEffect(() => { if (props.notificationTarget) setTab("alerts"); }, [props.notificationTarget]);
   const [itemPage, setItemPage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
   const [statusFilter, setStatusFilter] = useState<"all" | "in_stock" | "low_stock" | "out_of_stock">("all");
@@ -120,17 +126,6 @@ export function InventoryPage(props: InventoryPageProps) {
     finally { setLoadingDetail(false); }
   };
 
-  if (!props.me) {
-    return (
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Loja</span>
-          <h1>Estoque</h1>
-          <p className="page-lead">Login necessário</p>
-        </div>
-      </header>
-    );
-  }
 
   const summary = vm.summary ?? {};
   const totalSkus = summary.totalSkus ?? summary.total_skus ?? 0;
@@ -170,29 +165,16 @@ export function InventoryPage(props: InventoryPageProps) {
     setProductDetail(null);
   };
 
+  if (!props.me) {
+    return (
+      <PageHeader title="Estoque" description="Login necessário" />
+    );
+  }
+
   return (
     <div className="page-container">
       {/* Header */}
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Loja</span>
-          <h1>Estoque</h1>
-          <p className="page-lead">Gerenciamento centralizado de SKUs, estoque e movimentações. Rastreie em tempo real e receba alertas</p>
-        </div>
-      </header>
-
-      {/* Explanation Card */}
-      <div style={{
-        padding: "16px 20px",
-        borderRadius: "var(--radius-md)",
-        background: "var(--accent-soft)",
-        border: "1px solid var(--accent-line)",
-        font: "13px var(--font-sans)",
-        color: "var(--color-brand)",
-        lineHeight: 1.65,
-      }}>
-        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> Controle total do estoque por SKU com visibilidade de quantidade disponível, reservada e custo médio. O sistema avisa quando o estoque fica baixo. Integre seus dados ERP para sincronização automática.
-      </div>
+      <PageHeader title="Estoque" description="Acompanhe o saldo disponível, as reservas e os produtos que precisam de reposição." />
 
       {/* KPI Stats */}
       <div className="grid-4" style={{ gap: 14 }}>
@@ -237,20 +219,7 @@ export function InventoryPage(props: InventoryPageProps) {
       {/* Tab: Visão Geral */}
       {tab === "overview" && (
         <>
-          <DataPanel
-            title="Produtos em estoque"
-            page={itemPage}
-            pageSize={PAGE_SIZE}
-            total={filteredItems.length}
-            onPageChange={setItemPage}
-            isEmpty={filteredItems.length === 0}
-            empty={{
-              icon: Package,
-              title: "Nenhum produto registrado",
-              description: "Comece a adicionar SKUs ao seu catálogo de estoque.",
-            }}
-          >
-            <FilterToolbar
+<FilterToolbar
               tabs={[
                 { key: "all", label: "Todos" },
                 { key: "in_stock", label: "Em estoque" },
@@ -261,14 +230,28 @@ export function InventoryPage(props: InventoryPageProps) {
               onTabChange={(k) => { setStatusFilter(k as any); setItemPage(1); }}
               search={searchQuery}
               onSearchChange={(v) => { setSearchQuery(v); setItemPage(1); }}
-              searchPlaceholder="Buscar por SKU ou nome..."
+              searchPlaceholder="Buscar por produto ou SKU..."
             />
+          <DataPanel
+            title="Produtos em estoque"
+            page={itemPage}
+            pageSize={PAGE_SIZE}
+            total={filteredItems.length}
+            onPageChange={setItemPage}
+            isEmpty={filteredItems.length === 0}
+            empty={{
+              icon: Package,
+              title: searchQuery || statusFilter !== "all" ? "Nenhum produto com estes filtros" : "Nenhum item de estoque ainda",
+              description: searchQuery || statusFilter !== "all" ? "Tente outro nome ou remova os filtros para ver mais produtos." : "Cadastre seus produtos ou conecte seu ERP para acompanhar o estoque.",
+              action: searchQuery || statusFilter !== "all" ? <Button variant="outline" onClick={() => { setSearchQuery(""); setStatusFilter("all"); setItemPage(1); }}>Limpar filtros</Button> : <Button variant="outline" onClick={() => setTab("erp")}>Conectar ERP</Button>,
+            }}
+          >
+
             {filteredItems.length > 0 && (
               <div style={{ overflowX: "auto" }}>
                 <table style={{ width: "100%", borderCollapse: "collapse" }}>
                   <thead>
                     <tr>
-                      <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>SKU</th>
                       <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Produto</th>
                       <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Local</th>
                       <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Disponível</th>
@@ -285,8 +268,7 @@ export function InventoryPage(props: InventoryPageProps) {
                       const statusInfo = STOCK_STATUS_COLORS[status] ?? STOCK_STATUS_COLORS.in_stock;
                       return (
                         <tr key={item.id} onClick={() => openItemDetail(item)} style={{ borderBottom: i < paginatedItems.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined, cursor: "pointer", transition: "background 0.1s" }} onMouseEnter={(e) => e.currentTarget.style.background = "var(--surface-2)"} onMouseLeave={(e) => e.currentTarget.style.background = ""}>
-                          <td style={{ padding: "12px 20px", font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{item.sku ?? "—"}</td>
-                          <td style={{ padding: "12px 20px", font: "500 13px var(--font-sans)", color: "var(--color-text)" }}>{item.productName ?? item.product_name ?? "—"}</td>
+                          <td style={{ padding: "14px 20px", minWidth: 200 }}><button type="button" className="ui-product-link" onClick={event => { event.stopPropagation(); void openItemDetail(item); }}>{item.productName ?? item.product_name ?? item.sku ?? "Produto"}</button><span className="ui-cell-meta">{item.sku ?? "SKU não informado"}</span></td>
                           <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{item.locationName ?? item.location_name ?? "—"}</td>
                           <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: "var(--color-text)", textAlign: "right" }}>{available}</td>
                           <td style={{ padding: "12px 20px", font: "13px var(--font-data)", color: "var(--color-text-muted)", textAlign: "right" }}>{item.reserved ?? 0}</td>
@@ -376,7 +358,7 @@ export function InventoryPage(props: InventoryPageProps) {
           empty={{
             icon: AlertCircle,
             title: "Nenhum alerta ativo",
-            description: "Alertas aparecerão aqui quando houver situações que exijam atenção (estoque baixo e etc).",
+            description: "Os itens monitorados não têm alertas pendentes. Novos avisos aparecerão quando precisarem de atenção.",
           }}
         >
           {vm.alerts.length > 0 && (
@@ -386,6 +368,8 @@ export function InventoryPage(props: InventoryPageProps) {
                 return (
                   <div
                     key={alert.id}
+                    className="inventory-alert-row"
+                    data-highlighted={props.notificationTarget?.alertId === alert.id || undefined}
                     style={{
                       padding: "16px 20px",
                       borderBottom: i < vm.alerts.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined,
@@ -402,7 +386,7 @@ export function InventoryPage(props: InventoryPageProps) {
                         </span>
                         <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{alert.sku ?? "—"}</span>
                         <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
-                          {alert.available ?? 0}/{alert.threshold ?? 0} unidades
+                          {alert.available != null ? "Disponível: " + alert.available : "Saldo não informado"}{alert.threshold != null ? " · Limite: " + alert.threshold : ""}
                         </span>
                       </div>
                       <p style={{ margin: 0, font: "13px var(--font-sans)", color: "var(--color-text)", lineHeight: 1.5 }}>
@@ -411,17 +395,17 @@ export function InventoryPage(props: InventoryPageProps) {
                     </div>
                     {alert.acknowledged_at == null && (
                       <Button
-                        variant="primary"
+                        variant="outline"
                         size="sm"
                         onClick={() => vm.acknowledgeAlert(alert.id)}
                         style={{ flexShrink: 0 }}
                       >
-                        Reconhecer
+                        Marcar como visto
                       </Button>
                     )}
                     {alert.acknowledged_at != null && (
                       <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)", flexShrink: 0 }}>
-                        Reconhecido
+                        Visto
                       </span>
                     )}
                   </div>
@@ -436,6 +420,11 @@ export function InventoryPage(props: InventoryPageProps) {
       {tab === "erp" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
           
+<SetupGuide title="Como conectar e conferir seu estoque" defaultOpen={vm.erpConnections.length === 0} steps={[
+            { title: "Escolha seu sistema de gestão", description: "Use a conta da empresa que contém os produtos e os depósitos da loja." },
+            { title: "Autorize a conexão", description: "Conclua o acesso no provedor ou informe as credenciais solicitadas. Aguarde o estado de conexão exibido abaixo." },
+            { title: "Confira os itens sincronizados", description: "Após sincronizar, confira os produtos por SKU e local. Quantidade disponível é o saldo total menos as unidades reservadas." },
+          ]} />
           {/* Section 2: Conectar ERP */}
           <div className="panel" style={{ padding: "20px 24px" }}>
             <SectionHeader icon={<Package size={16} />} title="Conectar ERP" subtitle="Integre seu sistema de gestão para sincronização automática de estoque" />
@@ -699,7 +688,7 @@ interface ErpProviderCardProps {
   name: string;
   description: string;
   connection?: ErpConnectionDTO;
-  onConnect: (credentials?: Record<string, string>) => void | Promise<void>;
+  onConnect: (credentials?: Record<string, string>) => void | Promise<boolean | void>;
   onDisconnect: (id: string) => void;
   onSync: (id: string) => void;
 }
@@ -716,17 +705,20 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
   const [omieAppKey, setOmieAppKey] = React.useState("");
   const [omieAppSecret, setOmieAppSecret] = React.useState("");
   const [tinyApiToken, setTinyApiToken] = React.useState("");
+  const [credentialError, setCredentialError] = React.useState<string | null>(null);
   const [omieLoading, setOmieLoading] = React.useState(false);
 
   const isCredentialProvider = provider === "omie" || provider === "tiny";
   const handleCredentialConnect = async () => {
     if ((provider === "omie" && (!omieAppKey || !omieAppSecret)) || (provider === "tiny" && !tinyApiToken)) {
-      alert(provider === "omie" ? "Por favor preencha App Key e App Secret" : "Por favor preencha o token da API Tiny/Olist");
+      setCredentialError(provider === "omie" ? "Preencha a App Key e a App Secret do aplicativo Omie." : "Preencha o token da API Tiny/Olist.");
       return;
     }
+    setCredentialError(null);
     setOmieLoading(true);
     try {
-      await onConnect(provider === "omie" ? { appKey: omieAppKey, appSecret: omieAppSecret } : { apiToken: tinyApiToken });
+      const connected = await onConnect(provider === "omie" ? { appKey: omieAppKey, appSecret: omieAppSecret } : { apiToken: tinyApiToken });
+      if (connected === false) { setCredentialError("Não foi possível conectar. Confira as credenciais e tente novamente."); return; }
       setShowCredentialModal(false);
       setOmieAppKey("");
       setOmieAppSecret("");
@@ -777,7 +769,7 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
       {/* Last sync */}
       {connection?.lastSyncAt && (
         <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
-          Última sync: {new Date(connection.lastSyncAt).toLocaleString("pt-BR")}
+          Última sincronização: {new Date(connection.lastSyncAt).toLocaleString("pt-BR")}
         </span>
       )}
 
@@ -807,96 +799,18 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
         )}
       </div>
 
-      {isCredentialProvider && showCredentialModal && (
-        <div style={{
-          position: "fixed",
-          inset: 0,
-          background: "rgba(0,0,0,0.3)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          zIndex: 1000,
-        }}>
-          <div style={{
-            background: "var(--surface-1)",
-            border: "1px solid var(--color-border)",
-            borderRadius: "var(--radius-lg)",
-            padding: "24px",
-            width: "100%",
-            maxWidth: "400px",
-            boxShadow: "0 20px 40px rgba(0,0,0,0.1)",
-          }}>
-            <h2 style={{ font: "600 16px var(--font-sans)", marginBottom: 6, color: "var(--color-text)" }}>
-              Conectar {provider === "omie" ? "Omie" : "Tiny/Olist"}
-            </h2>
-            <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.5, marginBottom: 12 }}>
-              {provider === "omie" ? "Cole as chaves do seu aplicativo Omie." : "Cole o token de API gerado na sua conta Tiny/Olist."}
-              {provider === "omie" && <a
-                href="https://developer.omie.com.br/my-apps/"
-                target="_blank"
-                rel="noopener noreferrer"
-                style={{ color: "var(--color-brand)", textDecoration: "underline" }}
-              >
-                Gerar chaves no portal Omie →
-              </a>}
-            </p>
-            <div style={{ display: "flex", flexDirection: "column", gap: 4, marginBottom: 16 }}>
-              <label hidden={provider !== "omie"} style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)" }}>App Key</label>
-              <input
-                data-testid="erp-omie-app-key"
-                hidden={provider !== "omie"}
-                type="text"
-                placeholder="Ex: 8070492596166"
-                value={omieAppKey}
-                onChange={(e) => setOmieAppKey(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  font: "13px var(--font-mono)",
-                  background: "var(--surface-0)",
-                  color: "var(--color-text)",
-                }}
-              />
-              <label hidden={provider !== "omie"} style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 8 }}>App Secret</label>
-              <input
-                data-testid="erp-omie-app-secret"
-                hidden={provider !== "omie"}
-                type="password"
-                placeholder="Ex: 1d460e07841d8af88a9b5e43aee13c5f"
-                value={omieAppSecret}
-                onChange={(e) => setOmieAppSecret(e.target.value)}
-                style={{
-                  padding: "8px 12px",
-                  border: "1px solid var(--color-border)",
-                  borderRadius: "var(--radius-sm)",
-                  font: "13px var(--font-mono)",
-                  background: "var(--surface-0)",
-                  color: "var(--color-text)",
-                }}
-              />
-              {provider === "tiny" && <>
-                <label style={{ font: "600 11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 8 }}>Token da API Tiny/Olist</label>
-                <input
-                  data-testid="erp-tiny-api-token"
-                  type="password"
-                  value={tinyApiToken}
-                  onChange={(e) => setTinyApiToken(e.target.value)}
-                  style={{ padding: "8px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", font: "13px var(--font-mono)", background: "var(--surface-0)", color: "var(--color-text)" }}
-                />
-              </>}
-            </div>
-            <div style={{ display: "flex", gap: 8 }}>
-              <Button variant="ghost" size="sm" onClick={() => setShowCredentialModal(false)} style={{ flex: 1 }}>
-                Cancelar
-              </Button>
-              <Button data-testid={`erp-credential-submit-${provider}`} variant="primary" size="sm" onClick={handleCredentialConnect} disabled={omieLoading} style={{ flex: 1 }}>
-                {omieLoading ? "Validando..." : "Conectar"}
-              </Button>
-            </div>
-          </div>
+      {isCredentialProvider && <Modal isOpen={showCredentialModal} title={`Conectar ${name}`} subtitle="Autorize a integração de produtos e estoque com as credenciais da sua conta." onClose={() => { if (!omieLoading) { setShowCredentialModal(false); setCredentialError(null); } }}
+        footer={<><Button variant="outline" disabled={omieLoading} onClick={() => setShowCredentialModal(false)}>Cancelar</Button><Button data-testid={`erp-credential-submit-${provider}`} variant="primary" loading={omieLoading} onClick={handleCredentialConnect}>Conectar {name}</Button></>}>
+        <div className="configuration-sections">
+          <p className="ui-field-help">{provider === "omie" ? "Abra o aplicativo no portal Omie, copie a App Key e a App Secret e cole nos campos abaixo." : "Gere um token de API na sua conta Tiny/Olist e cole no campo abaixo."}</p>
+          {provider === "omie" ? <>
+            <a href="https://developer.omie.com.br/my-apps/" target="_blank" rel="noopener noreferrer">Abrir meus aplicativos no Omie →</a>
+            <FormField label="App Key" value={omieAppKey} onChange={setOmieAppKey} inputProps={{ "data-testid": "erp-omie-app-key", autoComplete: "off" } as React.InputHTMLAttributes<HTMLInputElement>} />
+            <FormField label="App Secret" type="password" value={omieAppSecret} onChange={setOmieAppSecret} inputProps={{ "data-testid": "erp-omie-app-secret", autoComplete: "off" } as React.InputHTMLAttributes<HTMLInputElement>} />
+          </> : <FormField label="Token da API Tiny/Olist" type="password" value={tinyApiToken} onChange={setTinyApiToken} inputProps={{ "data-testid": "erp-tiny-api-token", autoComplete: "off" } as React.InputHTMLAttributes<HTMLInputElement>} />}
+          {credentialError && <p className="form-field-error" role="alert">{credentialError}</p>}
         </div>
-      )}
+      </Modal>}
     </div>
   );
 }

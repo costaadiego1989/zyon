@@ -20,6 +20,27 @@
 .whatsapp-seller__guidance p { margin-bottom: 8px; }
 .whatsapp-seller__error { border: 1px solid var(--color-error); border-radius: 12px; padding: 16px 20px; }
 .whatsapp-seller__error p { margin: 0 0 12px; color: var(--color-text); line-height: 1.6; }
+.whatsapp-template-catalog { display:grid; gap:20px; min-width:0; }
+.whatsapp-template-loading { display:grid; gap:12px; padding:24px; font:400 13px/1.6 var(--font-sans); color:var(--color-text-muted); }
+.whatsapp-template-loading > span { max-width:460px; height:14px; border-radius:4px; background:var(--color-border); }
+.whatsapp-template-loading > span + span { max-width:280px; }
+.whatsapp-template-list { display:grid; }
+.whatsapp-template-row { display:flex; align-items:center; justify-content:space-between; gap:20px; width:100%; min-width:0; padding:18px 24px; border:0; background:transparent; text-align:left; cursor:pointer; color:var(--color-text); }
+.whatsapp-template-row + .whatsapp-template-row { border-top:1px solid var(--color-border); }
+.whatsapp-template-row:hover { background:var(--surface-3); }
+.whatsapp-template-row:focus-visible { outline:2px solid var(--color-brand); outline-offset:-3px; }
+.whatsapp-template-row__copy { min-width:0; display:grid; gap:5px; overflow-wrap:anywhere; }
+.whatsapp-template-row__copy strong { font:500 14px/1.5 var(--font-sans); }
+.whatsapp-template-row__copy small { font:400 12px/1.5 var(--font-sans); color:var(--color-text-muted); }
+.whatsapp-template-row__action { display:flex; align-items:center; gap:12px; flex-shrink:0; }
+.message-status-badge { display:inline-flex; border-radius:var(--radius-full); padding:4px 10px; font:500 12px/1.5 var(--font-sans); color:var(--color-text-muted); background:var(--surface-3); }
+.message-status-badge[data-status="approved"] { color:var(--color-success); background:var(--color-success-bg); }
+.message-status-badge[data-status="submitted"], .message-status-badge[data-status="submitting"], .message-status-badge[data-status="submission_unknown"] { color:var(--color-warning); background:var(--color-warning-bg); }
+.message-status-badge[data-status="rejected"], .message-status-badge[data-status="disabled"] { color:var(--color-error); background:var(--color-error-bg); }
+@media (max-width:700px) {
+  .whatsapp-template-row { align-items:flex-start; flex-direction:column; gap:12px; padding:18px 16px; }
+  .whatsapp-template-row__action { width:100%; justify-content:space-between; flex-shrink:1; }
+}
 @media (max-width: 560px) {
   .whatsapp-seller__actions { align-items: stretch; flex-direction: column; }
   .whatsapp-seller__actions button { width: 100%; }

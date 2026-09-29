@@ -138,18 +138,18 @@ export const NAV_ITEMS: NavItem[] = [
   // ─── DIÁRIO ─── operações que o lojista abre todo dia
   { key: "overview", label: "Visão Geral", section: "daily", icon: Activity, keywords: ["dashboard", "home", "resumo", "métricas"] },
   { key: "finance", label: "Financeiro", section: "daily", icon: Landmark, requiredPlan: STORE, keywords: ["financeiro", "finance", "transações", "receita", "reembolsos", "relatórios"] },
-  { key: "shipments", label: "Pedidos & Envios", section: "daily", icon: PackageSearch, requiredPlan: STORE, badgeKey: "orders", keywords: ["pedidos", "orders", "envios", "shipments", "entregas"] },
+  { key: "shipments", label: "Pedidos e envios", section: "daily", icon: PackageSearch, requiredPlan: STORE, badgeKey: "orders", keywords: ["pedidos", "orders", "envios", "shipments", "entregas"] },
   { key: "customers", label: "Clientes", section: "daily", icon: UsersRound, requiredPlan: STORE, keywords: ["clientes", "customers", "compradores"] },
-  { key: "cart-recovery", label: "Recuperação de Carrinho", section: "daily", icon: ShoppingCart, requiredPlan: STORE, badgeKey: "cart-recovery", keywords: ["carrinho", "cart", "recovery", "abandonado", "recuperação"] },
+  { key: "cart-recovery", label: "Recuperação de carrinho", section: "daily", icon: ShoppingCart, requiredPlan: STORE, badgeKey: "cart-recovery", keywords: ["carrinho", "cart", "recovery", "abandonado", "recuperação"] },
   { key: "support", label: "Atendimento", section: "daily", icon: MessageSquare, badgeKey: "messages", keywords: ["suporte", "support", "atendimento", "chamados", "tickets", "mensagens"] },
 
   // ─── VENDAS ─── otimização de conversão
-  { key: "funnel", label: "Funil de Conversão", section: "sales", icon: BarChart3, requiredPlan: STORE, keywords: ["funil", "funnel", "conversão", "conversion"] },
+  { key: "funnel", label: "Funil de conversão", section: "sales", icon: BarChart3, requiredPlan: STORE, keywords: ["funil", "funnel", "conversão", "conversion"] },
   { key: "settings", label: "Checkout", section: "sales", icon: Settings2, requiredPlan: STORE, keywords: ["checkout", "configurações checkout", "widget config"] },
   { key: "coupons", label: "Cupons", section: "sales", icon: Tag, requiredPlan: STORE, keywords: ["cupons", "coupons", "desconto", "discount", "promoção"] },
-  { key: "cross-sell", label: "Cross Sell", section: "sales", icon: Sparkles, requiredPlan: STORE, keywords: ["cross-sell", "cross sell", "venda cruzada", "sugestões"] },
+  { key: "cross-sell", label: "Produtos complementares", section: "sales", icon: Sparkles, requiredPlan: STORE, keywords: ["cross-sell", "cross sell", "venda cruzada", "sugestões"] },
   { key: "experiments", label: "Testes A/B", section: "sales", icon: Zap, requiredPlan: STORE, keywords: ["testes", "experimentos", "a/b", "experiments", "ab test"] },
-  { key: "negotiation-policy", label: "Negociação", section: "sales", icon: Handshake, requiredPlan: STORE, keywords: ["negociação", "negotiation", "barganha", "oferta"] },
+  { key: "negotiation-policy", label: "Limites de negociação", section: "sales", icon: Handshake, requiredPlan: STORE, keywords: ["negociação", "negotiation", "barganha", "oferta"] },
   // Disabled: M2M / Checkout Programável hidden — no market applicability at this stage. Route + page code retained; re-enable when ACP/M2M becomes a strategy priority.
   // { key: "checkout-programavel", label: "Automações", section: "sales", icon: Code2, requiredPlan: STORE, keywords: ["automações", "programável", "regras", "rules", "automation"] },
 
@@ -158,38 +158,38 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "reviews", label: "Avaliações", section: "catalog", icon: Star, requiredPlan: STORE, keywords: ["avaliações", "reviews", "depoimentos", "vídeos", "moderação"] },
   { key: "categories", label: "Categorias", section: "catalog", icon: FolderTree, requiredPlan: STORE, keywords: ["categorias", "categories", "coleções"] },
   { key: "inventory", label: "Estoque", section: "catalog", icon: Package, requiredPlan: STORE, keywords: ["estoque", "inventory", "inventário", "quantidade"] },
-  { key: "delivery", label: "Frete & Entregas", section: "catalog", icon: PackageSearch, requiredPlan: STORE, keywords: ["frete", "entrega", "delivery", "shipping", "melhor envio", "etiqueta", "rastreio"] },
+  { key: "delivery", label: "Frete e entregas", section: "catalog", icon: PackageSearch, requiredPlan: STORE, keywords: ["frete", "entrega", "delivery", "shipping", "melhor envio", "etiqueta", "rastreio"] },
   { key: "stories", label: "Stories", section: "catalog", icon: CircleDashed, requiredPlan: STORE, keywords: ["stories", "histórias", "destaques"] },
-  { key: "advanced-layout", label: "Conteúdo Avançado", section: "catalog", icon: LayoutGrid, requiredPlan: STORE, keywords: ["conteúdo avançado", "advanced", "layout", "blocos", "structured content", "product page"] },
+  { key: "advanced-layout", label: "Conteúdo do produto", section: "catalog", icon: LayoutGrid, requiredPlan: STORE, keywords: ["conteúdo avançado", "advanced", "layout", "blocos", "structured content", "product page"] },
 
   // ─── CANAIS ─── multi-channel + aparência
   { key: "agent-config", label: "Agente IA", section: "channels", icon: Bot, requiredPlan: STORE, keywords: ["agente", "agent", "ia", "ai", "assistente", "bot"] },
-  { key: "theme", label: "Tema & Aparência", section: "channels", icon: Palette, requiredPlan: STORE, keywords: ["tema", "theme", "aparência", "cores", "visual", "branding"] },
+  { key: "theme", label: "Aparência do checkout", section: "channels", icon: Palette, requiredPlan: STORE, keywords: ["tema", "theme", "aparência", "cores", "visual", "branding"] },
   { key: "whatsapp-seller", label: "WhatsApp", section: "channels", icon: Smartphone, keywords: ["whatsapp", "zap", "wpp", "vendedor"] },
   { key: "marketplace", label: "Marketplace", section: "channels", icon: ShoppingBag, keywords: ["marketplace", "mercado", "conexões"] },
   { key: "custom-domain", label: "Domínio", section: "channels", icon: Globe, requiredPlan: STORE, keywords: ["domínio", "domain", "dns", "url", "site"] },
 
   // ─── INTEGRAÇÕES ─── conexões técnicas
   { key: "payment-connections", label: "Pagamentos", section: "integrations", icon: CreditCard, keywords: ["pagamentos", "payments", "asaas", "stripe", "mercado pago", "gateway"] },
-  { key: "integrations", label: "API & Webhooks", section: "integrations", icon: Webhook, keywords: ["api", "webhooks", "chaves", "keys", "desenvolvedor", "integração", "shopify", "woocommerce", "vtex"] },
-  { key: "crm-integrations", label: "CRM & Marketing", section: "integrations", icon: Plug, keywords: ["crm", "marketing", "hubspot", "pipedrive", "rd station"] },
+  { key: "integrations", label: "API e webhooks", section: "integrations", icon: Webhook, keywords: ["api", "webhooks", "chaves", "keys", "desenvolvedor", "integração", "shopify", "woocommerce", "vtex"] },
+  { key: "crm-integrations", label: "CRM e marketing", section: "integrations", icon: Plug, keywords: ["crm", "marketing", "hubspot", "pipedrive", "rd station"] },
 
   // ─── INTELIGÊNCIA IA ─── features avançadas/analytics
-  { key: "revenue-manager", label: "Otimizador IA", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["otimizador", "revenue manager", "ia", "hipóteses", "otimização"] },
-  { key: "revenue-lift", label: "Impacto no Revenue", section: "intelligence", icon: TrendingUp, requiredPlan: STORE, keywords: ["revenue lift", "impacto", "incremento", "holdout", "atribuição"] },
-  { key: "intent-memory", label: "Memória de Intenção", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["intent", "intenção", "memória", "memory", "perfil"] },
-  { key: "post-sale", label: "Pós-Venda", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["pós-venda", "post-sale", "follow-up", "reviews", "nps", "engajamento"] },
-  { key: "knowledge", label: "Base de Conhecimento", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["base de conhecimento", "knowledge", "políticas", "faq", "chunks"] },
+  { key: "revenue-manager", label: "Otimização com IA", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["otimizador", "revenue manager", "ia", "hipóteses", "otimização"] },
+  { key: "revenue-lift", label: "Impacto na receita", section: "intelligence", icon: TrendingUp, requiredPlan: STORE, keywords: ["revenue lift", "impacto", "incremento", "holdout", "atribuição"] },
+  { key: "intent-memory", label: "Memória de intenção", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["intent", "intenção", "memória", "memory", "perfil"] },
+  { key: "post-sale", label: "Pós-venda", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["pós-venda", "post-sale", "follow-up", "reviews", "nps", "engajamento"] },
+  { key: "knowledge", label: "Base de conhecimento", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["base de conhecimento", "knowledge", "políticas", "faq", "chunks"] },
   // Temporarily hidden while M2M is outside the current product scope. Route and page remain available for a future reactivation.
 
   // ─── CONFIGURAÇÕES ─── raramente mexido
-  { key: "account-settings", label: "Conta", section: "settings", icon: Settings, keywords: ["conta", "account", "perfil", "senha", "email"] },
+  { key: "account-settings", label: "Minha conta", section: "settings", icon: Settings, keywords: ["conta", "account", "perfil", "senha", "email"] },
   { key: "team", label: "Equipe", section: "settings", icon: Users, keywords: ["equipe", "team", "membros", "usuários", "convidar"] },
-  { key: "billing-plans", label: "Planos & Faturamento", section: "settings", icon: Crown, keywords: ["planos", "plans", "faturamento", "billing", "assinatura", "upgrade"] },
-  { key: "billing", label: "Histórico de Cobrança", section: "settings", icon: CreditCard, keywords: ["cobrança", "faturas", "invoices", "histórico", "pagamento"] },
-  { key: "chargebacks", label: "Chargebacks", section: "sales", icon: AlertTriangle, keywords: ["chargebacks", "disputas", "contestações", "estornos"] },
-  { key: "audit-log", label: "Auditoria", section: "settings", icon: ShieldCheck, keywords: ["auditoria", "audit", "log", "histórico", "segurança"] },
-  { key: "store-settings", label: "Config. da Loja", section: "settings", icon: Save, requiredPlan: STORE, keywords: ["configurações loja", "store settings", "políticas", "seo"] },
+  { key: "billing-plans", label: "Plano e assinatura", section: "settings", icon: Crown, keywords: ["planos", "plans", "faturamento", "billing", "assinatura", "upgrade"] },
+  { key: "billing", label: "Histórico de cobranças", section: "settings", icon: CreditCard, keywords: ["cobrança", "faturas", "invoices", "histórico", "pagamento"] },
+  { key: "chargebacks", label: "Contestações de pagamento", section: "sales", icon: AlertTriangle, keywords: ["chargebacks", "disputas", "contestações", "estornos"] },
+  { key: "audit-log", label: "Histórico de atividades", section: "settings", icon: ShieldCheck, keywords: ["auditoria", "audit", "log", "histórico", "segurança"] },
+  { key: "store-settings", label: "Configurações da loja", section: "settings", icon: Save, requiredPlan: STORE, keywords: ["configurações loja", "store settings", "políticas", "seo"] },
 ];
 
 /**

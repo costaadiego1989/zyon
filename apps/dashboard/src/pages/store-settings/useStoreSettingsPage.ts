@@ -1,9 +1,9 @@
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { reportError } from "../../hooks/useErrorReporter.js";
 import { lookupViaCep } from "../../api/external/via-cep.js";
-import { DashboardHttpError } from "../../api/http/index.js";
 import { showToast } from "../../components/Toast.js";
+import { normalizeBudgetSettings, readBudgetSettings, validateBudgetSettings, type BudgetErrors } from "./budget-settings.js";
 
 export interface StoreSettingsState {
   company: CompanyForm;
@@ -13,6 +13,7 @@ export interface StoreSettingsState {
   styles: StylesForm;
   activeTab: "company" | "policies" | "social" | "styles" | "seo-gtm" | "budget";
   loading: boolean;
+  loadError: string | null;
   saving: boolean;
   saveResult: "success" | "error" | null;
   saveError: string | null;
@@ -22,6 +23,8 @@ export interface StoreSettingsState {
   budgetMode: boolean;
   budgetEmail: string;
   budgetWhatsapp: string;
+  budgetAvailable: boolean;
+  budgetErrors: BudgetErrors;
 }
 
 export interface StylesForm {
@@ -91,6 +94,8 @@ const EMPTY_BUSINESS_HOURS: BusinessHour[] = [
 
 export function useStoreSettingsPage() {
   const api = useApi();
+  const working = useRef(false);
+  const [reloadTick, setReloadTick] = useState(0);
   const [state, setState] = useState<StoreSettingsState>({
     company: EMPTY_COMPANY,
     policies: EMPTY_POLICIES,
@@ -99,6 +104,7 @@ export function useStoreSettingsPage() {
     styles: EMPTY_STYLES,
     activeTab: "company",
     loading: true,
+    loadError: null,
     saving: false,
     saveResult: null,
     saveError: null,
@@ -108,10 +114,13 @@ export function useStoreSettingsPage() {
     budgetMode: false,
     budgetEmail: "",
     budgetWhatsapp: "",
+    budgetAvailable: false,
+    budgetErrors: {},
   });
 
   useEffect(() => {
     let cancelled = false;
+    setState(p => ({ ...p, loading: true, loadError: null }));
     (async () => {
       try {
         const [settings, profile] = await Promise.all([
@@ -126,6 +135,8 @@ export function useStoreSettingsPage() {
           theme = await api.getMerchantTheme();
         } catch {}
 
+        if (cancelled) return;
+        const budget = readBudgetSettings(settings);
         setState((prev) => ({
           ...prev,
           company: settings?.company ? {
@@ -155,17 +166,19 @@ export function useStoreSettingsPage() {
             fontFamily: theme?.fontFamily ?? "Inter, ui-sans-serif, system-ui, sans-serif",
           },
           logoUrl: loadedLogoUrl,
-          budgetMode: settings?.budget?.enabled === true,
-          budgetEmail: settings?.budget?.email ?? "",
-          budgetWhatsapp: settings?.budget?.whatsapp ?? "",
+          budgetMode: budget?.enabled ?? false,
+          budgetEmail: budget?.email ?? "",
+          budgetWhatsapp: budget?.whatsapp ?? "",
+          budgetAvailable: budget !== null,
+          budgetErrors: {},
           loading: false,
         }));
       } catch {
-        if (!cancelled) setState((p) => ({ ...p, loading: false }));
+        if (!cancelled) setState((p) => ({ ...p, loading: false, loadError: "Não foi possível carregar as configurações atuais da loja." }));
       }
     })();
     return () => { cancelled = true; };
-  }, [api]);
+  }, [api, reloadTick]);
 
   async function handleCepChange(zip: string) {
     setState((p) => ({ ...p, company: { ...p.company, zip } }));
@@ -191,14 +204,28 @@ export function useStoreSettingsPage() {
   }
 
   async function handleSave() {
+    if (working.current || state.loading || state.loadError) return;
+    const isBudget = state.activeTab === "budget";
+    const budget = { enabled: state.budgetMode, email: state.budgetEmail, whatsapp: state.budgetWhatsapp };
+    if (isBudget) {
+      if (!state.budgetAvailable) return;
+      const budgetErrors = validateBudgetSettings(budget);
+      if (Object.keys(budgetErrors).length) {
+        setState(p => ({ ...p, budgetErrors, saveResult: null, saveError: "Revise os contatos de orçamento antes de salvar." }));
+        return;
+      }
+    }
+    working.current = true;
+    let settingsSaved = false;
     setState((p) => ({ ...p, saving: true, saveResult: null, saveError: null }));
     try {
-      if (state.activeTab === "budget") {
-        await api.putStoreSettings({ budget: {
-          enabled: state.budgetMode,
-          email: state.budgetEmail.trim(),
-          whatsapp: state.budgetWhatsapp.replace(/\D/g, ""),
-        } });
+      if (isBudget) {
+        const requested = normalizeBudgetSettings(budget);
+        const saved = readBudgetSettings(await api.putStoreSettings({ budget: requested }));
+        if (!saved || saved.enabled !== requested.enabled || saved.email !== requested.email || saved.whatsapp !== requested.whatsapp) {
+          throw new Error("budget_settings_not_confirmed");
+        }
+        setState(p => ({ ...p, budgetMode: saved.enabled, budgetEmail: saved.email, budgetWhatsapp: saved.whatsapp, budgetErrors: {} }));
       } else if (state.activeTab === "styles") {
         // Save theme
         await api.putMerchantTheme({
@@ -234,21 +261,25 @@ export function useStoreSettingsPage() {
           ...(state.logoUrl && { logoUrl: state.logoUrl }),
         };
         await api.putStoreSettings(payload);
+        settingsSaved = true;
         if (state.company.storeName) {
           await api.putStoreName(state.company.storeName);
         }
       }
       setState((p) => ({ ...p, saveResult: "success", saving: false }));
-      showToast("success", "Configurações salvas com sucesso");
+      showToast("success", isBudget ? "Configurações de orçamento salvas." : "Configurações salvas com sucesso");
     } catch (e) {
-      const msg = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : String(e);
+      reportError({ source: "dashboard.store-settings.save", error: e });
+      const msg = isBudget ? "Não foi possível confirmar o salvamento do orçamento. Seus dados foram mantidos; tente novamente." : settingsSaved ? "As configurações foram salvas, mas o nome da loja não foi atualizado. Seus dados foram mantidos; tente salvar novamente." : "Não foi possível salvar. Suas alterações foram mantidas; tente novamente.";
       setState((p) => ({ ...p, saveResult: "error", saveError: msg, saving: false }));
       showToast("error", msg || "Erro ao salvar configurações");
-    }
+    } finally { working.current = false; }
   }
 
   async function generatePolicy(type: "privacy" | "returns" | "terms" | "shipping") {
-    setState((p) => ({ ...p, generatingPolicy: type }));
+    if (working.current || state.loading || state.loadError) return;
+    working.current = true;
+    setState((p) => ({ ...p, generatingPolicy: type, saveError: null, saveResult: null }));
     try {
       const companyData = {
         razaoSocial: state.company.razaoSocial,
@@ -264,12 +295,13 @@ export function useStoreSettingsPage() {
         generatingPolicy: null,
       }));
     } catch {
-      setState((p) => ({ ...p, generatingPolicy: null }));
-    }
+      setState((p) => ({ ...p, generatingPolicy: null, saveResult: "error", saveError: "Não foi possível gerar o texto. A política anterior foi mantida." }));
+    } finally { working.current = false; }
   }
 
   return {
     state,
+    reload: () => setReloadTick(n => n + 1),
     setState,
     setCompany: (company: CompanyForm) => setState((p) => ({ ...p, company })),
     setPolicies: (policies: PoliciesForm) => setState((p) => ({ ...p, policies })),
@@ -277,10 +309,10 @@ export function useStoreSettingsPage() {
     setBusinessHours: (hours: BusinessHour[]) => setState((p) => ({ ...p, businessHours: hours })),
     setStyles: (styles: StylesForm) => setState((p) => ({ ...p, styles })),
     setLogoUrl: (url: string) => setState((p) => ({ ...p, logoUrl: url })),
-    setBudgetMode: (v: boolean) => setState((p) => ({ ...p, budgetMode: v })),
-    setBudgetEmail: (v: string) => setState((p) => ({ ...p, budgetEmail: v })),
-    setBudgetWhatsapp: (v: string) => setState((p) => ({ ...p, budgetWhatsapp: v })),
-    setActiveTab: (tab: "company" | "policies" | "social" | "styles" | "seo-gtm" | "budget") => setState((p) => ({ ...p, activeTab: tab })),
+    setBudgetMode: (v: boolean) => setState((p) => ({ ...p, budgetMode: v, saveResult: null, saveError: null })),
+    setBudgetEmail: (v: string) => setState((p) => ({ ...p, budgetEmail: v, budgetErrors: { ...p.budgetErrors, email: undefined }, saveResult: null, saveError: null })),
+    setBudgetWhatsapp: (v: string) => setState((p) => ({ ...p, budgetWhatsapp: v, budgetErrors: { ...p.budgetErrors, whatsapp: undefined }, saveResult: null, saveError: null })),
+    setActiveTab: (tab: "company" | "policies" | "social" | "styles" | "seo-gtm" | "budget") => setState((p) => ({ ...p, activeTab: tab, saveResult: null, saveError: null })),
     handleCepChange,
     handleSave,
     generatePolicy,

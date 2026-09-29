@@ -1,0 +1,34 @@
+.support-page [hidden] { display: none; }
+.support-faq { display: grid; gap: 24px; }
+.support-faq__items { display: grid; gap: 28px; }
+.support-faq .form-field input { min-height: 44px; }
+.support-faq .form-field textarea { min-height: 144px; }
+.support-faq__item { display: grid; gap: 20px; min-width: 0; padding: 20px 0 24px; margin: 0; border: 0; border-bottom: 1px solid var(--color-border); }
+.support-faq__item legend { padding: 0; color: var(--color-text); font: 600 15px var(--font-sans); }
+.support-faq__item > .zyn-btn { justify-self: start; }
+.support-faq__actions { display: flex; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.support-faq__hint, .support-tickets__toolbar p { margin: 0; font: 13px/1.6 var(--font-sans); color: var(--color-text-muted); max-width: 65ch; }
+.support-tickets__toolbar { display: flex; align-items: center; justify-content: space-between; gap: 20px; flex-wrap: wrap; }
+.support-tickets__board { display: grid; grid-template-columns: repeat(4, minmax(224px, 1fr)); gap: 12px; min-height: 400px; max-width: 100%; overflow-x: auto; padding: 3px; }
+.support-ticket-card:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.support-chat { display: grid; gap: 20px; }
+.support-chat__status, .support-chat__actions { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; }
+.support-chat__status > span:last-child { color: var(--color-text-muted); font: 13px var(--font-sans); }
+.support-chat__messages { display: flex; flex-direction: column; gap: 16px; min-height: 180px; }
+.support-chat__messages p { overflow-wrap: anywhere; white-space: pre-wrap; }
+.support-chat__messages .support-msg { max-width: 90%; }
+.support-chat__messages .support-msg-label { text-transform: none; letter-spacing: normal; font: 600 12px var(--font-sans); }
+.support-chat__footer { display: grid; gap: 16px; width: 100%; }
+.support-chat__footer .form-field textarea { min-height: 104px; width: 100%; }
+.support-chat__footer > .zyn-btn { justify-self: end; }
+.support-chat__footer > p, .support-chat__close > p { margin: 0; color: var(--color-text-muted); font: 14px/1.6 var(--font-sans); }
+.support-chat__close { display: flex; flex-wrap: wrap; gap: 12px; width: 100%; }
+.support-chat__close p { width: 100%; }
+.support-chat .partner-store-dropdown label { text-transform: none !important; font-size: 13px !important; }
+.support-chat .partner-store-dropdown input { min-height: 44px; }
+@media (max-width: 600px) {
+  .support-tickets__toolbar > *, .support-tickets__toolbar .search-input-wrap { width: 100% !important; min-width: 0; }
+  .support-faq__actions > .zyn-btn, .support-chat__actions > .zyn-btn { width: 100%; }
+  .support-chat__messages .support-msg { max-width: 100%; }
+  .support-chat__footer > .zyn-btn { width: 100%; }
+}

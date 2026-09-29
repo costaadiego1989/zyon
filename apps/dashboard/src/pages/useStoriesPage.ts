@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import {
   listStoryCategories,
   createStoryCategory,
@@ -33,203 +33,82 @@ export interface StoryEditorState {
   uploading: boolean;
 }
 
+import { showToast } from "../components/Toast.js";
+
 export function useStoriesPage(apiBaseUrl: string) {
   const [categories, setCategories] = useState<StoryCategoryDTO[]>([]);
   const [selectedCategory, setSelectedCategory] = useState<StoryCategoryDTO | null>(null);
   const [stories, setStories] = useState<StoryDTO[]>([]);
   const [loading, setLoading] = useState(true);
+  const [storiesLoading, setStoriesLoading] = useState(false);
+  const [loadError, setLoadError] = useState<string | null>(null);
+  const [storiesError, setStoriesError] = useState<string | null>(null);
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [uploadError, setUploadError] = useState<string | null>(null);
+  const [busy, setBusy] = useState(false);
   const [showCreateCategory, setShowCreateCategory] = useState(false);
   const [showCreateStory, setShowCreateStory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
-
-  const [editor, setEditor] = useState<StoryEditorState>({
-    imageUrl: "",
-    imagePreview: "",
-    title: "",
-    duration: 7,
-    titleConfig: { ...DEFAULT_TITLE_CONFIG },
-    uploading: false,
-  });
-
+  const emptyEditor = (): StoryEditorState => ({ imageUrl: "", imagePreview: "", title: "", duration: 7, titleConfig: { ...DEFAULT_TITLE_CONFIG }, uploading: false });
+  const [editor, setEditor] = useState<StoryEditorState>(emptyEditor);
+  const working = useRef(false);
+  const uploading = useRef(false);
+  const storyRequest = useRef(0);
   const loadCategories = useCallback(async () => {
-    try {
-      const cats = await listStoryCategories(apiBaseUrl);
-      setCategories(cats);
-      setSelectedCategory(prev => {
-        if (prev && !cats.some(c => c.id === prev.id)) return cats[0] ?? null;
-        if (!prev && cats.length > 0) return cats[0];
-        return prev;
-      });
-    } catch (err) {
-      reportError({ source: "stories.loadCategories", error: err, severity: "warning" });
-    }
-    setLoading(false);
+    setLoading(true); setLoadError(null);
+    try { const cats = await listStoryCategories(apiBaseUrl); setCategories(cats); setSelectedCategory(current => cats.find(cat => cat.id === current?.id) ?? cats[0] ?? null); }
+    catch (error) { setLoadError("Não foi possível carregar as categorias de stories. Tente novamente."); reportError({ source: "stories.loadCategories", error, severity: "warning" }); }
+    finally { setLoading(false); }
   }, [apiBaseUrl]);
-
   const loadStories = useCallback(async () => {
-    if (!selectedCategory) { setStories([]); return; }
-    try {
-      const items = await listStories(apiBaseUrl, selectedCategory.id);
-      setStories(items);
-    } catch (err) {
-      reportError({ source: "stories.loadStories", error: err, severity: "warning" });
-    }
+    const request = ++storyRequest.current;
+    if (!selectedCategory) { setStories([]); setStoriesLoading(false); return; }
+    setStoriesLoading(true); setStoriesError(null); setStories([]);
+    try { const items = await listStories(apiBaseUrl, selectedCategory.id); if (request === storyRequest.current) setStories(items); }
+    catch (error) { if (request === storyRequest.current) setStoriesError("Não foi possível carregar os stories desta categoria. Tente novamente."); reportError({ source: "stories.loadStories", error, severity: "warning" }); }
+    finally { if (request === storyRequest.current) setStoriesLoading(false); }
   }, [apiBaseUrl, selectedCategory]);
-
-  useEffect(() => { loadCategories(); }, [loadCategories]);
-  useEffect(() => { loadStories(); }, [loadStories]);
-
+  useEffect(() => { void loadCategories(); }, [loadCategories]);
+  useEffect(() => { void loadStories(); return () => { storyRequest.current += 1; }; }, [loadStories]);
+  async function mutate(action: () => Promise<void>, message: string): Promise<boolean> {
+    if (working.current || uploading.current) return false;
+    working.current = true; setBusy(true); setActionError(null);
+    try { await action(); return true; }
+    catch (error) { setActionError(message); reportError({ source: "stories.update", error, severity: "warning" }); return false; }
+    finally { working.current = false; setBusy(false); }
+  }
   const handleCreateCategory = async () => {
-    if (!newCategoryName.trim()) return;
-    try {
-      await createStoryCategory(apiBaseUrl, { name: newCategoryName.trim() });
-      setNewCategoryName("");
-      setShowCreateCategory(false);
-      await loadCategories();
-    } catch (err) {
-      console.error("[Stories] Failed to create category:", err);
-      alert("Erro ao criar categoria. Verifique sua conexão.");
-    }
+    if (!newCategoryName.trim()) return false;
+    return mutate(async () => { const created = await createStoryCategory(apiBaseUrl, { name: newCategoryName.trim() }); setCategories(current => [...current, created]); setSelectedCategory(created); setNewCategoryName(""); setShowCreateCategory(false); showToast("success", "Categoria criada."); }, "Não foi possível criar a categoria. O nome foi preservado para você tentar novamente.");
   };
-
-  const handleDeleteCategory = async (id: string) => {
-    try {
-      await archiveStoryCategory(apiBaseUrl, id);
-      setCategories((current) => current.filter((category) => category.id !== id));
-      if (selectedCategory?.id === id) {
-        setSelectedCategory(null);
-        setStories([]);
-      }
-      await loadCategories();
-    } catch (err) {
-      reportError({ source: "stories.deleteCategory", error: err, severity: "error" });
-    }
-  };
-
+  const handleDeleteCategory = (id: string) => mutate(async () => {
+    await archiveStoryCategory(apiBaseUrl, id); const remaining = categories.filter(cat => cat.id !== id); setCategories(remaining); if (selectedCategory?.id === id) { storyRequest.current += 1; setStories([]); setSelectedCategory(remaining[0] ?? null); } showToast("success", "Categoria removida.");
+  }, "Não foi possível remover a categoria. Tente novamente.");
+  const handleDeleteStory = (id: string) => mutate(async () => { await archiveStory(apiBaseUrl, id); storyRequest.current += 1; setStoriesLoading(false); setStories(current => current.filter(story => story.id !== id)); showToast("success", "Story removido."); }, "Não foi possível remover o story. Tente novamente.");
   const handleFileUpload = async (file: File) => {
-    if (!file.type.startsWith("image/")) return;
-    if (file.size > 5 * 1024 * 1024) { alert("Imagem deve ter no máximo 5MB"); return; }
-
-    const reader = new FileReader();
-    reader.onload = async (e) => {
-      const base64 = e.target?.result as string;
-      setEditor((s) => ({ ...s, imagePreview: base64, uploading: true }));
-      try {
-        const result = await uploadStoryImage(apiBaseUrl, base64);
-        setEditor((s) => ({ ...s, imageUrl: result.url, uploading: false }));
-      } catch (err) {
-        reportError({ source: "stories.uploadImage", error: err, severity: "warning" });
-        setEditor((s) => ({ ...s, imageUrl: base64, uploading: false }));
-      }
-    };
-    reader.readAsDataURL(file);
+    if (working.current || uploading.current) return;
+    setUploadError(null);
+    if (!["image/jpeg", "image/png", "image/webp"].includes(file.type)) { setUploadError("Selecione uma imagem JPEG, PNG ou WebP."); return; }
+    if (file.size > 5 * 1024 * 1024) { setUploadError("A imagem deve ter no máximo 5 MB. Escolha um arquivo menor."); return; }
+    uploading.current = true; setEditor(current => ({ ...current, uploading: true, imageUrl: "" }));
+    try {
+      const dataUrl = await new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => typeof reader.result === "string" ? resolve(reader.result) : reject(new Error("invalid_image")); reader.onerror = () => reject(reader.error); reader.readAsDataURL(file); });
+      setEditor(current => ({ ...current, imagePreview: dataUrl }));
+      const result = await uploadStoryImage(apiBaseUrl, dataUrl);
+      if (!result.url) throw new Error("image_upload_missing_url");
+      setEditor(current => ({ ...current, imageUrl: result.url }));
+    } catch (error) { setUploadError("Não foi possível enviar a imagem. A prévia foi preservada. Selecione a imagem novamente para tentar o envio."); reportError({ source: "stories.uploadImage", error, severity: "warning" }); }
+    finally { uploading.current = false; setEditor(current => ({ ...current, uploading: false })); }
   };
-
+  const resetEditor = () => { setEditor(emptyEditor()); setUploadError(null); setActionError(null); };
   const handleCreateStory = async () => {
-    // Use categories from state (which openCreateStory refreshed)
-    const cat = selectedCategory ?? categories[0];
-    if (!cat || !editor.imageUrl) return;
-    try {
-      await createStory(apiBaseUrl, cat.id, {
-        imageUrl: editor.imageUrl,
-        title: editor.title || undefined,
-        titleConfig: editor.title ? editor.titleConfig : undefined,
-        duration: editor.duration,
-      });
-      resetEditor();
-      setShowCreateStory(false);
-      await loadStories();
-    } catch (err: any) {
-      reportError({ source: "stories.createStory", error: err, severity: "error" });
-      console.error("[Stories] Create story failed:", err);
-      await loadCategories();
-      const status = err?.status ?? err?.statusCode;
-      if (status === 404) {
-        alert("Categoria não encontrada no servidor. A lista foi atualizada — selecione a categoria e tente novamente.");
-      } else {
-        alert("Erro ao criar story. Verifique os logs do servidor (console da API).");
-      }
-    }
+    if (!selectedCategory || !editor.imageUrl || editor.uploading || editor.duration < 3 || editor.duration > 15) return false;
+    return mutate(async () => { await createStory(apiBaseUrl, selectedCategory.id, { imageUrl: editor.imageUrl, title: editor.title.trim() || undefined, titleConfig: editor.title.trim() ? editor.titleConfig : undefined, duration: editor.duration }); resetEditor(); setShowCreateStory(false); showToast("success", "Story criado."); await loadStories(); }, "Não foi possível criar o story. Sua imagem e seu texto foram preservados. Confira a categoria e tente novamente.");
   };
-
-  const handleDeleteStory = async (id: string) => {
-    try {
-      await archiveStory(apiBaseUrl, id);
-      setStories((current) => current.filter((story) => story.id !== id));
-      await loadStories();
-    } catch (err) {
-      reportError({ source: "stories.deleteStory", error: err, severity: "error" });
-    }
-  };
-
   const openCreateStory = async () => {
-    // Refresh from DB to ensure we have current data
-    let freshCats: typeof categories = [];
-    try {
-      freshCats = await listStoryCategories(apiBaseUrl);
-      setCategories(freshCats);
-      if (freshCats.length === 0) {
-        setSelectedCategory(null);
-        alert("Nenhuma categoria disponível. Crie uma categoria primeiro.");
-        return;
-      }
-      // Ensure selectedCategory is valid
-      const current = selectedCategory;
-      if (!current || !freshCats.some(c => c.id === current.id)) {
-        setSelectedCategory(freshCats[0]);
-      }
-    } catch (err) {
-      reportError({ source: "stories.openCreateStory", error: err, severity: "warning" });
-      alert("Erro ao carregar categorias.");
-      return;
-    }
-    resetEditor();
-    setShowCreateStory(true);
+    await mutate(async () => { const cats = await listStoryCategories(apiBaseUrl); setCategories(cats); const target = cats.find(cat => cat.id === selectedCategory?.id) ?? cats[0]; if (!target) { setSelectedCategory(null); setActionError("Crie uma categoria antes de adicionar um story."); return; } setSelectedCategory(current => current?.id === target.id ? current : target); resetEditor(); setShowCreateStory(true); }, "Não foi possível confirmar a categoria. Tente novamente.");
   };
-
-  const resetEditor = () => {
-    setEditor({
-      imageUrl: "",
-      imagePreview: "",
-      title: "",
-      duration: 7,
-      titleConfig: { ...DEFAULT_TITLE_CONFIG },
-      uploading: false,
-    });
-  };
-
-  const updateEditorField = <K extends keyof StoryEditorState>(key: K, value: StoryEditorState[K]) => {
-    setEditor((s) => ({ ...s, [key]: value }));
-  };
-
-  const updateTitleConfig = (partial: Partial<TitleConfig>) => {
-    setEditor((s) => ({ ...s, titleConfig: { ...s.titleConfig, ...partial } }));
-  };
-
-  return {
-    // State
-    categories,
-    selectedCategory,
-    stories,
-    loading,
-    showCreateCategory,
-    showCreateStory,
-    newCategoryName,
-    editor,
-
-    // Actions
-    setSelectedCategory,
-    setShowCreateCategory,
-    setShowCreateStory,
-    setNewCategoryName,
-    updateEditorField,
-    updateTitleConfig,
-    handleCreateCategory,
-    handleDeleteCategory,
-    handleFileUpload,
-    handleCreateStory,
-    handleDeleteStory,
-    openCreateStory,
-    resetEditor,
-  };
+  const updateEditorField = <K extends keyof StoryEditorState>(key: K, value: StoryEditorState[K]) => { setEditor(current => ({ ...current, [key]: value })); };
+  const updateTitleConfig = (partial: Partial<TitleConfig>) => { setEditor(current => ({ ...current, titleConfig: { ...current.titleConfig, ...partial } })); };
+  return { categories, selectedCategory, stories, loading, storiesLoading, loadError, storiesError, actionError, uploadError, busy, showCreateCategory, showCreateStory, newCategoryName, editor, setSelectedCategory, setShowCreateCategory, setShowCreateStory, setNewCategoryName, updateEditorField, updateTitleConfig, handleCreateCategory, handleDeleteCategory, handleFileUpload, handleCreateStory, handleDeleteStory, openCreateStory, resetEditor, reload: loadCategories, reloadStories: loadStories, clearError: () => setActionError(null) };
 }

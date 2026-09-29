@@ -434,7 +434,7 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
           {/* Advanced rules — plan gated */}
           <div style={{ borderTop: "1px solid var(--color-border)", paddingTop: 16, marginTop: 4 }}>
             <h4 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 10, display: "inline-flex", alignItems: "center", gap: 8 }}>
-              <Sparkles size={13} /> REGRAS AVANÇADAS
+              <Sparkles size={13} /> Regras avançadas
             </h4>
             {hasFeature("advancedRules") ? (
               <div className="cfg-page">
@@ -469,6 +469,8 @@ export function PromotionSection({ merchantId, productId, variantSkus, onPending
                 />
                 {editorOpen && (
                   <RuleEditor
+                    saveLabel={productId ? "Salvar regra" : "Aplicar ao rascunho"}
+                    saveHint={productId ? "A regra será salva para este produto ao confirmar." : "A regra será criada junto com o produto."}
                     rule={editingRule}
                     busy={savingRules || !rulesLoaded}
                     onSave={(rule) => {

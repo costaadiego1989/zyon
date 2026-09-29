@@ -1,3 +1,4 @@
+import { EmptyState } from "../../../components/EmptyState.js";
 import React from "react";
 import { SectionHeader } from "../../../components/SectionHeader.js";
 import type { FunnelSegment } from "../useFunnelPage.js";
@@ -8,15 +9,15 @@ interface FunnelBreakdownProps {
 }
 
 const DIMENSION_LABELS: Record<string, string> = {
-  device: "Dispositivo",
-  buyer_type: "Tipo de Comprador",
-  payment_method: "Pagamento",
+  device: "dispositivo",
+  buyer_type: "tipo de comprador",
+  payment_method: "pagamento",
 };
 
 const SEGMENT_LABELS: Record<string, string> = {
   unknown: "Não informado",
-  mobile: "Mobile",
-  desktop: "Desktop",
+  mobile: "Celular",
+  desktop: "Computador",
   tablet: "Tablet",
   new: "Novo",
   returning: "Recorrente",
@@ -24,23 +25,11 @@ const SEGMENT_LABELS: Record<string, string> = {
   card: "Cartão",
   credit_card: "Cartão",
   boleto: "Boleto",
-  crypto: "Crypto (USDC)",
-};
-
-const DIMENSION_DEFAULTS: Record<string, string[]> = {
-  device: ["mobile", "desktop", "tablet"],
-  buyer_type: ["new", "returning"],
-  payment_method: ["pix", "credit_card", "boleto", "crypto"],
+  crypto: "Criptomoeda (USDC)",
 };
 
 export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps): React.ReactElement {
-  let entries = Object.entries(breakdowns);
-
-  // If no data, show zeroed structure so layout is visible
-  if (entries.length === 0) {
-    const defaults = DIMENSION_DEFAULTS[dimension] ?? ["unknown"];
-    entries = defaults.map(key => [key, { steps: [], overallConversion: 0 }]);
-  }
+  const entries = Object.entries(breakdowns);
 
   return (
     <div className="fnl-breakdown-card">
@@ -48,7 +37,7 @@ export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps)
         variant="secondary"
         title={`Por ${DIMENSION_LABELS[dimension] ?? dimension}`}
       />
-      <div className="fnl-breakdown-items">
+      {!entries.length ? <EmptyState title="Sem dados para esta segmentação" description="Tente outra segmentação ou um período com mais sessões." /> : <div className="fnl-breakdown-items">
         {entries.map(([key, segment]) => (
           <div key={key} className="fnl-breakdown-item">
             <div className="fnl-breakdown-item-head">
@@ -67,7 +56,7 @@ export function FunnelBreakdown({ breakdowns, dimension }: FunnelBreakdownProps)
             </div>
           </div>
         ))}
-      </div>
+      </div>}
     </div>
   );
 }

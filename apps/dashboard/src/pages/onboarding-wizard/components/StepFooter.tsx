@@ -8,9 +8,11 @@ interface StepFooterProps {
   busy: boolean;
   onBack: () => void;
   onNext: () => void;
+  nextLabel?: string;
+  nextDisabled?: boolean;
 }
 
-export function StepFooter({ currentStep, totalSteps, busy, onBack, onNext }: StepFooterProps) {
+export function StepFooter({ currentStep, totalSteps, busy, onBack, onNext, nextLabel, nextDisabled }: StepFooterProps) {
   const isLast = currentStep === totalSteps;
 
   return (
@@ -25,15 +27,15 @@ export function StepFooter({ currentStep, totalSteps, busy, onBack, onNext }: St
         )}
       </div>
 
-      <Button variant="primary" arrow={!isLast} disabled={busy} loading={busy} onClick={onNext}>
-        {isLast ? (
+      <Button variant="primary" arrow={!isLast} disabled={busy || nextDisabled} loading={busy} onClick={onNext}>
+        {nextLabel ?? (isLast ? (
           <>
             <Rocket size={15} style={{ marginRight: 8 }} />
-            Finalizar
+            Concluir configuração
           </>
         ) : (
           "Continuar"
-        )}
+        ))}
       </Button>
     </footer>
   );

@@ -1,0 +1,41 @@
+.store-settings-content { padding: 24px; }
+.store-settings-fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
+.store-budget { display: grid; gap: 24px; }
+.store-budget > .admin-help { margin: 0; max-width: 70ch; }
+.store-budget__activation { display: flex; align-items: flex-start; gap: 14px; min-height: 44px; padding: 16px 0 24px; border-bottom: 1px solid var(--color-border); cursor: pointer; }
+.store-budget__activation input { width: 20px; height: 20px; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--color-brand, var(--accent)); }
+.store-budget__activation input:focus-visible { outline: 2px solid var(--color-brand, var(--accent)); outline-offset: 3px; }
+.store-budget__activation > span { display: grid; gap: 6px; font-size: 14px; line-height: 1.6; }
+.store-budget__activation strong { font-size: 15px; font-weight: 600; }
+.store-budget__activation span span { color: var(--color-text-muted); }
+.store-settings-page .store-hour-row { display: grid; grid-template-columns: 120px minmax(0,1fr) minmax(0,1fr) 112px; align-items: center; gap: 20px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
+.store-settings-page .store-hour-row:last-child { border-bottom: 0; }
+.store-settings-page .store-hour-row label { font-size: 14px; cursor: pointer; }
+.store-settings-page .store-policy-list { display: grid; gap: 32px; }
+.store-settings-page .store-policy-list section + section { border-top: 1px solid var(--color-border); padding-top: 32px; }
+.store-settings-page .store-policy-list textarea { min-height: 160px; }
+.store-settings-page .store-policy-list .admin-actions { margin-top: 12px; }
+.store-settings-page .store-hour-row input:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.store-seo-section + .store-seo-section { border-top: 1px solid var(--color-border); padding-top: 32px; margin-top: 32px; }
+.store-seo-section { display: grid; gap: 24px; }
+.store-seo-section .form-field { margin: 0; }
+.store-seo-details { border: 0; border-top: 1px solid var(--color-border); padding-top: 16px; }
+.store-seo-details summary { cursor: pointer; padding: 12px 0; min-height: 44px; font-size: 15px; font-weight: 600; }
+.store-seo-details .admin-fields { margin-top: 16px; }
+.store-keywords { display: flex; flex-wrap: wrap; gap: 10px; margin: 12px 0 0; padding: 0; list-style: none; }
+.store-keywords li { display: flex; align-items: center; gap: 8px; border: 1px solid var(--color-border); border-radius: 8px; padding-left: 12px; }
+.store-seo-choice { display: flex; align-items: flex-start; gap: 12px; padding: 16px; border: 1px solid var(--color-border); border-radius: 10px; cursor: pointer; font-size: 14px; line-height: 1.6; }
+.store-seo-choice:has(input:checked) { border-color: var(--color-primary); background: var(--color-primary-subtle, var(--color-surface)); }
+.store-seo-choice:focus-within { outline: 2px solid var(--color-primary); outline-offset: 2px; }
+.store-seo-choice input { width: 18px; height: 18px; margin-top: 3px; flex: 0 0 auto; accent-color: var(--color-primary); }
+.store-seo-choices { border: 0; padding: 0; margin: 0 0 24px; display: grid; gap: 12px; min-width: 0; }
+.store-seo-choices legend { margin-bottom: 12px; font-weight: 600; font-size: 15px; }
+.store-seo-switch { display: flex; gap: 12px; align-items: flex-start; }
+.store-seo-switch label { cursor: pointer; font-size: 14px; line-height: 1.5; }
+@media (max-width: 800px) {
+ .store-settings-page .store-hour-row { grid-template-columns: minmax(0,1fr) minmax(0,1fr); gap: 12px; }
+ .store-hour-row > span { grid-column: 1; }
+ .store-hour-row > div:last-child { grid-column: 2; grid-row: 1; justify-content: flex-end; }
+ .store-hour-row > input { grid-row: 2; }
+}
+@media (max-width: 700px) { .store-settings-content { padding: 20px 16px; } }

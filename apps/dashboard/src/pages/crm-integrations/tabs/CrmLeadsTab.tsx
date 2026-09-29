@@ -2,6 +2,9 @@ import React, { useMemo, useState } from "react";
 import { Users, UserPlus, ShoppingBag } from "lucide-react";
 import type { CrmSyncLogDTO } from "../useIntegrationsPage.js";
 import { StatCard, StatCardGroup } from "../../overview/components/StatCard.js";
+import { FilterToolbar, FilterSelect } from "../../../components/FilterToolbar.js";
+import { DataPanel } from "../../../components/DataPanel.js";
+import { Button } from "../../../components/Button.js";
 
 interface CrmLeadsTabProps {
   syncLog: CrmSyncLogDTO[];
@@ -41,17 +44,8 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
   // Reset to page 1 whenever a filter narrows the set below the current page.
   React.useEffect(() => { setPage(1); }, [stage, status, search]);
 
-  const selectStyle: React.CSSProperties = {
-    padding: "7px 10px",
-    borderRadius: "var(--radius-sm)",
-    border: "1px solid var(--color-border)",
-    background: "var(--surface-1)",
-    color: "var(--color-text)",
-    font: "13px var(--font-sans)",
-  };
-
   return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--page-section-gap, 24px)" }}>
+    <div className="crm-history">
       {/* Stats */}
       <StatCardGroup columns={3}>
         <StatCard label="Total sincronizado" value={totals.total} icon={<Users size={18} />} />
@@ -59,47 +53,12 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
         <StatCard label="Clientes (compraram)" value={totals.customers} icon={<ShoppingBag size={18} />} />
       </StatCardGroup>
 
-      {/* Filters */}
-      <div style={{ display: "flex", gap: 10, flexWrap: "wrap", alignItems: "center" }}>
-        <input
-          type="text"
-          placeholder="Buscar por e-mail..."
-          value={search}
-          onChange={(e) => setSearch(e.target.value)}
-          style={{ ...selectStyle, flex: "1 1 220px", fontFamily: "var(--font-mono)", fontSize: 12 }}
-        />
-        <select value={stage} onChange={(e) => setStage(e.target.value as StageFilter)} style={selectStyle} aria-label="Filtrar por tipo">
-          <option value="all">Todos os tipos</option>
-          <option value="lead">Apenas leads</option>
-          <option value="customer">Apenas clientes</option>
-        </select>
-        <select value={status} onChange={(e) => setStatus(e.target.value as StatusFilter)} style={selectStyle} aria-label="Filtrar por status">
-          <option value="all">Todos os status</option>
-          <option value="success">Enviados (OK)</option>
-          <option value="failed">Com falha</option>
-        </select>
-      </div>
-
-      {/* List */}
-      {filtered.length === 0 ? (
-        <div className="panel" style={{ padding: "28px 20px", textAlign: "center", color: "var(--color-text-muted)", font: "13px var(--font-sans)" }}>
-          {syncLog.length === 0
-            ? "Nenhum lead sincronizado ainda. Conecte um CRM — os contatos aparecem aqui conforme os compradores se identificam e compram."
-            : "Nenhum registro corresponde aos filtros."}
-        </div>
-      ) : (
-        <>
+      <p className="crm-history__note">Até 50 tentativas recentes. O resultado de cada envio aparece abaixo; uma falha não significa que o contato foi recebido pelo CRM.</p>
+      <FilterToolbar tabs={[{ key: "all", label: "Todos os contatos" }, { key: "lead", label: "Leads" }, { key: "customer", label: "Clientes" }]} activeTab={stage} onTabChange={v => setStage(v as StageFilter)} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar contato por e-mail" extra={<FilterSelect ariaLabel="Resultado da sincronização" value={status} onChange={v => setStatus(v as StatusFilter)} options={[{ value: "all", label: "Todos os resultados" }, { value: "success", label: "Enviado ao CRM" }, { value: "failed", label: "Com falha" }]} />} />
+      <DataPanel title="Histórico de sincronização" page={safePage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} isEmpty={filtered.length === 0} empty={{ icon: Users, title: syncLog.length ? "Nenhum contato com estes filtros" : "Nenhuma sincronização registrada", description: syncLog.length ? "Ajuste a busca ou limpe os filtros para ver os contatos." : "Conecte um CRM para acompanhar as tentativas de envio dos contatos da loja.", action: syncLog.length ? <Button variant="outline" onClick={() => { setSearch(""); setStage("all"); setStatus("all"); }}>Limpar filtros</Button> : undefined }}>
           <div className="table-wrap">
             <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Contato</th>
-                  <th>Tipo</th>
-                  <th>CRM</th>
-                  <th>Status</th>
-                  <th>Quando</th>
-                </tr>
-              </thead>
+              <thead><tr><th>Contato</th><th>Tipo</th><th>CRM</th><th>Resultado</th><th>Quando</th></tr></thead>
               <tbody>
                 {pageRows.map((row) => (
                   <tr key={row.id}>
@@ -121,8 +80,8 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
                     </td>
                     <td style={{ textTransform: "capitalize" }}>{row.provider}</td>
                     <td>
-                      <span style={{ color: row.status === "success" ? "var(--color-brand)" : "var(--color-danger, #dc2626)" }}>
-                        {row.status === "success" ? "OK" : "Falhou"}
+                      <span style={{ color: row.status === "success" ? "var(--color-brand)" : "var(--color-error)" }}>
+                        {row.status === "success" ? "Enviado ao CRM" : "Falha no envio"}
                       </span>
                     </td>
                     <td style={{ color: "var(--color-text-muted)", fontSize: 12 }}>
@@ -134,34 +93,7 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
             </table>
           </div>
 
-          {/* Pagination */}
-          {pageCount > 1 ? (
-            <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12 }}>
-              <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
-                {filtered.length} registro{filtered.length !== 1 ? "s" : ""} · página {safePage} de {pageCount}
-              </span>
-              <div style={{ display: "flex", gap: 8 }}>
-                <button
-                  type="button"
-                  disabled={safePage <= 1}
-                  onClick={() => setPage((p) => Math.max(1, p - 1))}
-                  style={{ ...selectStyle, cursor: safePage <= 1 ? "not-allowed" : "pointer", opacity: safePage <= 1 ? 0.4 : 1 }}
-                >
-                  Anterior
-                </button>
-                <button
-                  type="button"
-                  disabled={safePage >= pageCount}
-                  onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
-                  style={{ ...selectStyle, cursor: safePage >= pageCount ? "not-allowed" : "pointer", opacity: safePage >= pageCount ? 0.4 : 1 }}
-                >
-                  Próxima
-                </button>
-              </div>
-            </div>
-          ) : null}
-        </>
-      )}
+      </DataPanel>
     </div>
   );
 }
