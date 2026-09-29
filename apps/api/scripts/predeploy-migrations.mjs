@@ -1,6 +1,7 @@
 import { spawnSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import pg from "pg";
+import { repairRevenueFoundationFailure, revenueFoundationMigration } from "./revenue-foundation-repair.mjs";
 
 const databaseUrl = process.env.DATABASE_URL;
 if (!databaseUrl) throw new Error("DATABASE_URL is required for migrations");
@@ -203,6 +204,13 @@ try {
     }
     console.log("Rolling back the verified idempotent multistore migration record");
     prisma(["migrate", "resolve", "--rolled-back", failedMultiStoreMigration]);
+  }
+  const failedRevenueFoundationRows = schema.has_migrations ? (await client.query(
+    `SELECT logs, finished_at, rolled_back_at FROM "_prisma_migrations"
+     WHERE migration_name = $1 ORDER BY started_at DESC LIMIT 1`, [revenueFoundationMigration],
+  )).rows : [];
+  if (await repairRevenueFoundationFailure(client, failedRevenueFoundationRows[0], prisma)) {
+    console.log("Replaying the verified compatible Revenue foundation migration");
   }
   const baselineRows = schema.has_migrations ? (await client.query(
     `SELECT 1 FROM "_prisma_migrations" WHERE migration_name = $1 AND finished_at IS NOT NULL LIMIT 1`,

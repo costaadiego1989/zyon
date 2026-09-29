@@ -8,7 +8,7 @@ import { CheckoutChatRequestService } from "./checkout-chat-request.service.js";
 import { PrismaCheckoutRepository } from "./prisma-checkout.repository.js";
 import { createSendChatUseCase } from "../../application/use-cases/send-chat-message.fixture.js";
 import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
-import { chatMessageIdentity, chatMessageTextHash } from "../../domain/services/chat-message-identity.js";
+import { chatMessageIdentity, chatMessageTextHash } from "../../application/services/chat-message-identity.js";
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
 import { ProblemDetailsFilter } from "../../../../shared/http/problem-details.filter.js";
 import { OtpValidationError } from "../../application/services/checkout-customer.service.js";

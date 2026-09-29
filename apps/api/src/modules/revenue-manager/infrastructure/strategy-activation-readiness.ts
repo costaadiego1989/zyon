@@ -2,8 +2,8 @@ import type { Prisma, RevenueStrategy, RevenueStrategyVersion } from "@prisma/cl
 import { executionContract, strategyExecutionEnabled } from "../domain/strategy-execution.js";
 import type { StrategyProposal } from "../domain/strategy-proposal.js";
 import { positiveInteger, weeklyAnalysisEnabled, weeklyMerchantAllowed } from "../domain/weekly-analysis-policy.js";
-import { chatRequestsEnabled } from "../../checkout/domain/services/chat-message-identity.js";
-import { chatPaymentRecoveryEnabled } from "../../checkout/domain/services/chat-payment-recovery.js";
+import { chatRequestsEnabled } from "../../checkout/application/services/chat-message-identity.js";
+import { chatPaymentRecoveryEnabled } from "../../checkout/application/services/chat-payment-recovery.js";
 import { checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import { readCheckoutBaseline } from "./checkout-baseline.reader.js";
 import { assertStoredMeasurementPlanning } from "./strategy-measurement-planning.js";

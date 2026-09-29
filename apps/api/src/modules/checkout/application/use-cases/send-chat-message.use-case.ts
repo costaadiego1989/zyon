@@ -35,7 +35,7 @@ import { OrderQuotaService } from "../../../payment/application/services/order-q
 import { ConversationRateLimitService } from "../services/conversation-rate-limit.service.js";
 import { correctionLabels } from "../../domain/services/customer-correction-prompts.js";
 import { CheckoutChatRequestService } from "../../infrastructure/prisma/checkout-chat-request.service.js";
-import { chatRequestsEnabled } from "../../domain/services/chat-message-identity.js";
+import { chatRequestsEnabled } from "../services/chat-message-identity.js";
 import { checkoutCartPrompt } from "../../domain/services/checkout-chat-context.js";
 import { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.service.js";
 import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";

@@ -7,7 +7,7 @@ import { chatPaymentSelection } from "../../domain/services/chat-payment-selecti
 import { deriveChatStage, missingFieldsForStage } from "../../domain/services/customer-extraction.service.js";
 import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
 import { executionClock, lockExecutionMerchant, StrategyExecutionLedger } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
-import { chatMessageTextHash } from "../../domain/services/chat-message-identity.js";
+import { chatMessageTextHash } from "./chat-message-identity.js";
 import { StrategyChatDispatcher } from "../../../revenue-manager/application/strategy-chat-dispatcher.js";
 import { StrategyChatPublisher } from "../../../revenue-manager/infrastructure/strategy-chat-publisher.js";
 import type { ChatLlmGatewayService } from "./chat-llm-gateway.service.js";

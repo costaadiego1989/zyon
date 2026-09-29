@@ -25,7 +25,7 @@ async function startSession(
     cart: {
       currency: "BRL",
       total,
-      items: [{ sku: "sku1", name: "Produto", price: total, quantity: 1 }]
+      items: [{ sku: "sku1", name: "Produto", price: total, cost: total / 2, quantity: 1 }]
     },
     customer: { email: "buyer@test.com" }
   });

@@ -1,4 +1,4 @@
-import test, { beforeEach, afterEach } from "node:test";
+import test, { beforeEach, afterEach, describe } from "node:test";
 import assert from "node:assert/strict";
 import type { AgentContext } from "@zyon/shared-types";
 import type { AgentContextPort } from "../domain/ports/agent-context.port.js";
@@ -28,6 +28,7 @@ import { InMemoryBuyerAccountRepository } from "../../buyer-account/infrastructu
 import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
 import type { EmailSenderPort } from "../../notifications/domain/ports/email-sender.port.js";
 
+describe("checkout chat request fixtures", () => {
 // OTP persistence requires provider acceptance. This transport is local only;
 // Brevo capture notifications are not evidence that an OTP was sent.
 const acceptedEmail: EmailSenderPort = {
@@ -1207,3 +1208,4 @@ function testAgentContext(): AgentContext {
     copy_constraints: ["Mention offers only when authorized by deterministic modules."]
   };
 }
+});

@@ -1,7 +1,7 @@
 import test, { beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { ChatLlmGatewayService } from "./chat-llm-gateway.service.js";
-import { captureCheckoutChatBaseline } from "../../domain/services/checkout-chat-baseline.js";
+import { captureCheckoutChatBaseline } from "../../infrastructure/adapters/checkout-chat-baseline-capture.js";
 
 const originalEnv = { ...process.env };
 const originalFetch = globalThis.fetch;

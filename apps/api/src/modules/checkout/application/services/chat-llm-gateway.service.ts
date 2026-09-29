@@ -1,6 +1,6 @@
 import { Injectable, Logger } from "@nestjs/common";
 import { assertCheckoutChatBaseline, checkoutContractHash, type CheckoutChatBaseline } from "../../domain/services/checkout-chat-baseline.js";
-import { checkoutChatProviders, CHECKOUT_CHAT_SAMPLING } from "../../domain/services/checkout-chat-provider.js";
+import { checkoutChatProviders, CHECKOUT_CHAT_SAMPLING } from "../../infrastructure/adapters/checkout-chat-provider.js";
 import { checkoutChatTools, buildCheckoutChatPrompt, buildBuyerIntentContext,
   type CheckoutChatPromptInput, type LlmToolDefinition, type BuyerIntentPromptContext,
   type LlmMessage, type LlmCallResult } from "../../domain/services/checkout-chat-prompt.js";

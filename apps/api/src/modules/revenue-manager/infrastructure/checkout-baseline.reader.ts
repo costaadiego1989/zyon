@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
 import { InterventionRuleTextBuilder } from "../../checkout/application/services/intervention-rule-text.builder.js";
-import { captureCheckoutChatBaseline, checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
+import { captureCheckoutChatBaseline } from "../../checkout/infrastructure/adapters/checkout-chat-baseline-capture.js";
+import { checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import type { InterventionPolicy } from "../../checkout/domain/ports/checkout-settings.port.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
 

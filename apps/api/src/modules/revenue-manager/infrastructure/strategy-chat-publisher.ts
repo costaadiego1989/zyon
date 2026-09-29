@@ -1,7 +1,7 @@
 import type { PrismaClient } from "@prisma/client";
 import type { ChatExchangeClaim } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import type { LlmCallResult } from "../../checkout/domain/services/checkout-chat-prompt.js";
-import { chatMessageTextHash } from "../../checkout/domain/services/chat-message-identity.js";
+import { chatMessageTextHash } from "../../checkout/application/services/chat-message-identity.js";
 import { isSafeGeneratedMessage } from "../../checkout/domain/types/safe-generated-message.js";
 import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";

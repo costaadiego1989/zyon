@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { BadRequestException } from "@nestjs/common";
-import { chatMessageIdentity, chatMessageReference, chatRequestsEnabled } from "./chat-message-identity.js";
+import { chatMessageIdentity, chatMessageReference, chatRequestsEnabled } from "../../application/services/chat-message-identity.js";
 
 const input = { merchant_id: "store", session_id: "session", conversation_id: "conversation",
   user_message: "Minha mensagem", message_id: "message_00000001" };

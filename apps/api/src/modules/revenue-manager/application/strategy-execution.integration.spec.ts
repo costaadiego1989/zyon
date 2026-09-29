@@ -18,7 +18,7 @@ import { ChatLlmGatewayService } from "../../checkout/application/services/chat-
 import { StrategyChatDispatcher } from "./strategy-chat-dispatcher.js";
 import { StrategyChatPublisher } from "../infrastructure/strategy-chat-publisher.js";
 import { CheckoutChatRequestService } from "../../checkout/infrastructure/prisma/checkout-chat-request.service.js";
-import { chatMessageIdentity, chatMessageTextHash } from "../../checkout/domain/services/chat-message-identity.js";
+import { chatMessageIdentity, chatMessageTextHash } from "../../checkout/application/services/chat-message-identity.js";
 import { createSendChatUseCase } from "../../checkout/application/use-cases/send-chat-message.fixture.js";
 import { StrategyCheckoutChatService } from "../../checkout/application/services/strategy-checkout-chat.service.js";
 import { SafeAuthorizedOffer } from "../../checkout/domain/types/safe-authorized-offer.js";

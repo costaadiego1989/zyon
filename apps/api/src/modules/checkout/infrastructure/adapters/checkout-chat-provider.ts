@@ -1,4 +1,4 @@
-export const CHECKOUT_CHAT_SAMPLING = { max_tokens: 300, temperature: 0.3 } as const;
+export { CHECKOUT_CHAT_SAMPLING } from "../../domain/services/checkout-chat-sampling.js";
 export type CheckoutChatProvider = { name: string; url: string; key: string; model: string; timeoutMs: number };
 
 /** Same ordered routes for runtime and baseline inspection. Never serialize keys. */

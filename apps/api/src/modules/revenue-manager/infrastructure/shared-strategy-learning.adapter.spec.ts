@@ -1,7 +1,8 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
-import { captureCheckoutChatBaseline, checkoutBaselineReference, checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
+import { captureCheckoutChatBaseline } from "../../checkout/infrastructure/adapters/checkout-chat-baseline-capture.js";
+import { checkoutBaselineReference, checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import { LLMHypothesisGenerator } from "./hypothesis-generator.adapter.js";
 import type { HypothesisGenerationRequest } from "../domain/ports/hypothesis-generator.port.js";
 import type { SharedStrategyLearning } from "../domain/shared-strategy-learning.js";

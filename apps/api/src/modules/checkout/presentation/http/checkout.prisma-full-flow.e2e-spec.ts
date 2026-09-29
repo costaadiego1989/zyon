@@ -119,7 +119,11 @@ function buildController(repo: InMemoryCheckoutRepository) {
 async function startVerifiedFixture(ctrl: CheckoutController, repo: InMemoryCheckoutRepository, input: StartCheckoutRequest) {
   const started = await ctrl.start(input);
   const session = repo.getSession(input.merchant_id, started.session_id)!;
-  await repo.saveSession({ ...session, customer: input.customer, shipping: input.shipping });
+  // These scenarios start after address completion and a selected quote.
+  // An undefined complement would still be captured and invalidate that quote.
+  const customer = input.customer?.address ? { ...input.customer,
+    address: { ...input.customer.address, complement: input.customer.address.complement ?? "" } } : input.customer;
+  await repo.saveSession({ ...session, customer, shipping: input.shipping });
   return started;
 }
 

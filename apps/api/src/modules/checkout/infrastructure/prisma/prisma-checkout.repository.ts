@@ -29,10 +29,10 @@ import { enrollCreatedStrategySession, executionClock, lockExecutionMerchant } f
 import type { ChatExchangeInput, CheckoutCommercialMutation } from "../../domain/ports/checkout-session.repository.port.js";
 import { prepareCommercialMutation } from "../../domain/services/checkout-commercial-mutation.js";
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
-import { chatMessageTextHash } from "../../domain/services/chat-message-identity.js";
+import { chatMessageTextHash } from "../../application/services/chat-message-identity.js";
 import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
 import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
-import { chatPaymentRecoveryEnabled } from "../../domain/services/chat-payment-recovery.js";
+import { chatPaymentRecoveryEnabled } from "../../application/services/chat-payment-recovery.js";
 import { applyEligibleIncentive, incentiveExecutionEnabled, invalidateIncentiveCheckout, reviseIncentiveForPaymentReview } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
 
 // P2 fix: single canonical default — no inline copy here.

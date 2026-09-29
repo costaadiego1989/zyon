@@ -2,8 +2,9 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { createHash } from "node:crypto";
 import { ChatLlmGatewayService } from "../../application/services/chat-llm-gateway.service.js";
-import { captureCheckoutChatBaseline, checkoutBaselineReference, checkoutContractHash, renderCheckoutChatBaseline } from "./checkout-chat-baseline.js";
-import { checkoutChatProviders } from "./checkout-chat-provider.js";
+import { captureCheckoutChatBaseline } from "../../infrastructure/adapters/checkout-chat-baseline-capture.js";
+import { checkoutBaselineReference, checkoutContractHash, renderCheckoutChatBaseline } from "./checkout-chat-baseline.js";
+import { checkoutChatProviders } from "../../infrastructure/adapters/checkout-chat-provider.js";
 import { PromptExperimentAdapter } from "../../infrastructure/adapters/prompt-experiment.adapter.js";
 
 const env = { REVENUE_CHECKOUT_CONTRACT_ENABLED: "true", CHECKOUT_BEHAVIOR_REVISION: "a".repeat(40),

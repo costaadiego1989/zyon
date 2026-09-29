@@ -7,7 +7,7 @@ import type { StrategyProposal } from "../domain/strategy-proposal.js";
 import { lockCheckoutBaselineRows, readCheckoutBaseline } from "./checkout-baseline.reader.js";
 import type { PinnedChatResult } from "../../checkout/application/services/chat-llm-gateway.service.js";
 import type { ChatExchangeClaim } from "../../checkout/domain/ports/checkout-session.repository.port.js";
-import { chatMessageTextHash } from "../../checkout/domain/services/chat-message-identity.js";
+import { chatMessageTextHash } from "../../checkout/application/services/chat-message-identity.js";
 import { CHECKOUT_CHAT_BINDINGS_VERSION, checkoutSessionPrompt } from "../../checkout/domain/services/checkout-chat-context.js";
 import { missingFieldsForStage } from "../../checkout/domain/services/customer-extraction.service.js";
 import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout-session.mapper.js";

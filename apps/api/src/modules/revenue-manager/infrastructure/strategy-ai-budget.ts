@@ -1,6 +1,6 @@
 import type { PrismaClient } from "@prisma/client";
 import type { PinnedChatResult } from "../../checkout/application/services/chat-llm-gateway.service.js";
-import { chatMessageTextHash } from "../../checkout/domain/services/chat-message-identity.js";
+import { chatMessageTextHash } from "../../checkout/application/services/chat-message-identity.js";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import type { StrategyExecutionContract } from "../domain/strategy-execution.js";
 import { positiveInteger } from "../domain/weekly-analysis-policy.js";
