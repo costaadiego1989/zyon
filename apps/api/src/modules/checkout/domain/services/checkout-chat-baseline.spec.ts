@@ -102,6 +102,16 @@ test("navigation requires a new reviewed baseline instead of changing an existin
     "store", { stage: "payment" }), /BASELINE_INVALID/);
 });
 
+test("context exit requires a reviewed baseline with the same policy in both arms", () => {
+  const baseline = captureCheckoutChatBaseline(input, env)!;
+  const { contextExit, ...previous } = baseline;
+  assert.equal(contextExit, "checkout-context-exit-v1");
+  assert.notEqual(checkoutBaselineReference(previous as any), checkoutBaselineReference(baseline));
+  for (const outdated of [previous, { ...baseline, contextExit: "unknown" }]) {
+    assert.throws(() => renderCheckoutChatBaseline(outdated as any, "store", { stage: "payment" }), /BASELINE_INVALID/);
+  }
+});
+
 test("legacy experiment adapter never forwards a recipe reference as buyer instructions", async () => {
   const adapter = new PromptExperimentAdapter({ findRunning: async () => ({ id: "exp", variants: [
     { system_prompt: checkoutBaselineReference(captureCheckoutChatBaseline(input, env)!) }, { system_prompt: "Treatment" },

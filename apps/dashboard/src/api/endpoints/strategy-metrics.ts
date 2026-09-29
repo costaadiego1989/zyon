@@ -34,6 +34,9 @@ export interface StrategyMetrics {
     aiUsage?: { definition: string; scope: string; tariffBasis: string; control: StrategyAiUsageArm; treatment: StrategyAiUsageArm };
     paymentCosts?: { definition: string; currency: string; scope: string; source: string;
       control: StrategyPaymentCostArm; treatment: StrategyPaymentCostArm };
+    participation?: { definition: string; populationSource: string;
+      control: { assigned: number; stoppedSessions: number; contextExitSessions: number };
+      treatment: { assigned: number; stoppedSessions: number; contextExitSessions: number } };
     delivery?: { definition: string; populationSource: string; displayBasis: string;
       control: StrategyDeliveryArm; treatment: StrategyDeliveryArm };
   } };

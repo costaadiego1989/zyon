@@ -4,7 +4,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { assessMeasurement, buildMeasurementPlan, digest, fingerprintVariants,
   type ArmMeasurement, type MeasurementPlan } from "../domain/services/measurement-plan.js";
-import { readStrategyMeasurement, strategyDeliveryMetrics, strategyCostCoverage, strategyAiUsage, strategyPaymentCosts } from "../infrastructure/strategy-measurement.reader.js";
+import { readStrategyMeasurement, strategyDeliveryMetrics, strategyCostCoverage, strategyAiUsage, strategyPaymentCosts, strategyParticipation } from "../infrastructure/strategy-measurement.reader.js";
 
 const DAY = 86_400_000;
 type Counts = Record<string, bigint | number | string>;
@@ -143,11 +143,12 @@ export class ExperimentMeasurementService {
       const economics = execution ? strategyCostCoverage(rows, plan) : undefined;
       const aiUsage = execution ? strategyAiUsage(rows, plan) : undefined;
       const paymentCosts = execution ? strategyPaymentCosts(rows, plan) : undefined;
+      const participation = execution ? strategyParticipation(rows, plan) : undefined;
       const evidence = { control: arm(plan.controlVariantId), treatment: arm(plan.treatmentVariantId), issues,
-        ...(delivery ? { delivery, economics, aiUsage, paymentCosts, executionId: execution!.id, proposalHash: execution!.proposalHash } : {}) };
+        ...(delivery ? { delivery, economics, aiUsage, paymentCosts, participation, executionId: execution!.id, proposalHash: execution!.proposalHash } : {}) };
       const result = { ...assessMeasurement(plan, evidence, { registeredAt: stored.createdAt,
         startedAt: experiment.startedAt, completedAt: experiment.completedAt, asOf: now }),
-        ...(delivery ? { delivery, economics, aiUsage, paymentCosts, executionId: execution!.id, strategyVersion: execution!.version, proposalHash: execution!.proposalHash } : {}) };
+        ...(delivery ? { delivery, economics, aiUsage, paymentCosts, participation, executionId: execution!.id, strategyVersion: execution!.version, proposalHash: execution!.proposalHash } : {}) };
       return tx.experimentMeasurementReview.create({ data: { id: randomUUID(), experimentId, merchantId, requestKey,
         planHash: stored.planHash, evidenceHash: digest(evidence), result: result as unknown as Prisma.InputJsonValue, collectedAt: now } });
     });

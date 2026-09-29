@@ -12,6 +12,7 @@ export interface StrategyProposal {
     data_quality?: { mature_sessions?: number; missing_metrics?: string[] } };
   rules: { maxDiscountPercent: number; minimumMarginPercent: number; allowFreeShipping: boolean; maxShippingSubsidy: number };
   baselineStatus: "awaiting_checkout_contract" | "primary_chat_contract_captured";
+  checkoutBaseline?: { contextExit?: string };
   execution: "unavailable";
   expectedLiftStatus: "model_estimate_not_measured";
   experimentReview?: {

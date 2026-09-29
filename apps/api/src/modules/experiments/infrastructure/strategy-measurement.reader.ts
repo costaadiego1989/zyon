@@ -18,9 +18,12 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
     ), measured AS (
       SELECT a.*, o.orders, o.cents, o.other_currency, o.bad_amount, o.cost_snapshots, o.priced_orders, o.catalog_cost,
         o.linked_payments, o.confirmed_payments, o.platform_fees, o.provider_fees,
+        st.reason AS stop_reason,
         t.turns, t.published, t.displayed, t.provider_failed, t.provider_unknown, t.suppressed,
         t.ai_priced, t.ai_not_dispatched, t.ai_cost, t.ai_held, t.ai_currencies, t.ai_overruns
       FROM assigned a
+      LEFT JOIN strategy_assignment_stops st ON st.assignment_id = a.assignment_id AND st.merchant_id = ${merchantId}
+        AND st.stopped_at <= ${asOf}
       LEFT JOIN LATERAL (
         SELECT count(*) AS orders,
           count(c.order_id) AS cost_snapshots, count(c.product_cost_cents) AS priced_orders,
@@ -103,6 +106,9 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
       count(*) FILTER (WHERE turns > 0) AS sessions_with_turn,
       count(*) FILTER (WHERE published > 0) AS sessions_with_publication,
       count(*) FILTER (WHERE displayed > 0) AS sessions_with_display,
+      count(*) FILTER (WHERE stop_reason IS NOT NULL) AS stopped_sessions,
+      count(*) FILTER (WHERE stop_reason IN ('checkout_context_personalization', 'checkout_context_catalog',
+        'checkout_context_crypto', 'checkout_context_offer', 'checkout_context_incentive', 'checkout_context_payment')) AS context_exits,
       COALESCE(sum(turns), 0) AS turns, COALESCE(sum(published), 0) AS publications,
       COALESCE(sum(displayed), 0) AS displays, COALESCE(sum(provider_failed), 0) AS provider_failed,
       COALESCE(sum(provider_unknown), 0) AS provider_unknown, COALESCE(sum(suppressed), 0) AS suppressed,
@@ -120,6 +126,17 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
       count(*) FILTER (WHERE cart->>'currency' IS DISTINCT FROM 'BRL') AS changed_currency,
       COALESCE(sum(other_currency), 0) AS other_currency, COALESCE(sum(bad_amount), 0) AS bad_amount
     FROM measured GROUP BY variant_id ORDER BY variant_id`;
+}
+
+/** Exits are operational evidence, never an exclusion from the original arms. */
+export function strategyParticipation(rows: Array<Record<string, bigint | number | string>>, plan: MeasurementPlan) {
+  const arm = (id: string) => {
+    const row = rows.find(r => r.variant === id);
+    return { assigned: Number(row?.assigned ?? 0), stoppedSessions: Number(row?.stopped_sessions ?? 0),
+      contextExitSessions: Number(row?.context_exits ?? 0) };
+  };
+  return { definition: "strategy-participation-v1", populationSource: "immutable_strategy_assignments",
+    control: arm(plan.controlVariantId), treatment: arm(plan.treatmentVariantId) };
 }
 
 /** Native-currency estimates for this execution's pinned chat calls only. Never

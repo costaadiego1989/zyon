@@ -14,6 +14,7 @@ function version(n) {
   return { version: n, proposalHash: String(n).repeat(64), createdAt: stamp, expiresAt: expires,
     proposal: { definition: "checkout-strategy-review-v1", execution: "unavailable", expectedLiftStatus: "model_estimate_not_measured",
       baselineStatus: "primary_chat_contract_captured",
+      checkoutBaseline: { contextExit: "checkout-context-exit-v1" },
       recommendation: { hypothesis_text: n === 1 ? firstTitle : secondTitle, reasoning: "A análise identificou dificuldades na etapa de pagamento.",
         expected_lift_percent: 2, template: { description: "Explicar as opções verificadas, sem oferecer descontos adicionais.",
           variant_a: { name: "Atual", system_prompt: "checkout-chat-baseline-v1:fixture", weight: 50, is_control: true },
@@ -42,7 +43,7 @@ try {
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     let review = initialReview(), readStatus = 200, failAction = null, hypothesisReads = 0;
-    let metricsState = null, metricsFailure = false, paymentCostMode = "covered";
+    let metricsState = null, metricsFailure = false, paymentCostMode = "covered", participationMode = "current";
     const posts = [], legacyMutations = [], receipts = new Map();
     let outcome = "recommendations";
     await page.route("**/*", async route => {
@@ -80,6 +81,10 @@ try {
               control: arm, treatment: { ...arm, converted: 12, orders: 12, revenueCents: 150000 }, minimumSessionsPerArm: 14800,
               interval: metricsState === "positive" ? { effectBps: 500, lowerBps: 100, upperBps: 900 } : null,
               contributionCents: null, aiCostCents: null, promotionAllowed: false,
+              participation: participationMode === "absent" ? undefined : { definition: participationMode === "unknown" ? "unknown" : "strategy-participation-v1",
+                populationSource: "immutable_strategy_assignments",
+                control: { assigned: 100, stoppedSessions: 4, contextExitSessions: 3 },
+                treatment: { assigned: 100, stoppedSessions: 6, contextExitSessions: 5 } },
               paymentCosts: paymentCostMode === "absent" ? undefined : { definition: "strategy-payment-cost-coverage-v1", currency: "BRL", scope: "mature_approved_orders",
                 source: "latest_recorded_payment_settlement",
                 control: { orders: 9, linkedOrders: 9, coveredOrders: 9, confirmedPlatformFeeCents: paymentCostMode === "zero" ? 0 : 1200,
@@ -215,6 +220,13 @@ try {
     const population = page.getByText("Público e base de comparação", { exact: true });
     await population.focus(); await page.keyboard.press("Enter");
     await page.getByText(/Participa a primeira sessão elegível/).waitFor();
+    await page.getByText(/A sessão e suas compras continuam na comparação/).waitFor();
+    review.versions[0].proposal.checkoutBaseline = undefined;
+    await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+    await page.getByText(/A sessão e suas compras continuam na comparação/).waitFor({ state: "hidden" });
+    review.versions[0].proposal.checkoutBaseline = { contextExit: "checkout-context-exit-v1" };
+    await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+    await page.getByText(/A sessão e suas compras continuam na comparação/).waitFor();
     if (width === 390) { await page.setViewportSize({ width: 320, height: 800 }); await noOverflow(320); }
     else { await page.setViewportSize({ width: 720, height: 900 }); await noOverflow("200% equivalent"); }
     metricsState = "collecting";
@@ -223,6 +235,8 @@ try {
     const results = page.getByRole("region", { name: "Resultados desta estratégia" });
     await results.getByRole("table").waitFor();
     assert.match(await results.getByRole("row", { name: /Sessões participantes/ }).innerText(), /100\s+100/);
+    assert.match(await results.getByRole("row", { name: /Sessões que seguiram sem o experimento/ }).innerText(), /3\s+5/);
+    assert.match(await results.innerText(), /permanecem no grupo original, incluindo suas compras/);
     assert.match(await results.getByRole("row", { name: /Conversão nas sessões encerradas/ }).innerText(), /10%\s+15%/);
     assert.match(await results.innerText(), /40 sessões ainda podem converter/);
     assert.match(await results.innerText(), /não representa receita incremental/);
@@ -236,7 +250,9 @@ try {
     assert.match(await results.innerText(), /não é o valor faturado/);
     await noOverflow("metrics");
     if (out) {
-      await results.getByRole("row", { name: /Taxas de pagamento confirmadas/ }).scrollIntoViewIfNeeded();
+      await page.setViewportSize({ width, height: 900 });
+      await noOverflow(`metrics ${width}`);
+      await results.getByRole("row", { name: /Sessões que seguiram sem o experimento/ }).scrollIntoViewIfNeeded();
       await page.screenshot({ path: `${out}/strategy-metrics-${width}.png`, animations: "disabled" });
     }
     metricsFailure = true;
@@ -250,6 +266,13 @@ try {
     await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
     await results.getByRole("row", { name: /Taxas de pagamento confirmadas/ }).waitFor({ state: "hidden" });
     assert.equal(await results.getByRole("table").count(), 1, "Historical measurements without payment costs remain readable");
+    for (const mode of ["absent", "unknown"]) {
+      participationMode = mode;
+      await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
+      await results.getByRole("button", { name: "Atualizar resultados", exact: true }).waitFor();
+      assert.equal(await results.getByRole("row", { name: /Sessões que seguiram sem o experimento/ }).count(), 0);
+      assert.equal(await results.getByRole("table").count(), 1, "Unknown or historical exit definitions do not become zero exits");
+    }
     metricsFailure = false; metricsState = "positive";
     await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
     await results.getByRole("heading", { name: "Melhora de conversão observada" }).waitFor();

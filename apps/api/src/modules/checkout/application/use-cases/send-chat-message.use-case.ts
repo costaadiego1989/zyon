@@ -185,7 +185,7 @@ export class SendChatMessageUseCase {
     const missingFields = missingFieldsForStage(working, stage);
     const cohortForOffer = (working as any).cohort;
     const isHoldout = cohortForOffer === "holdout";
-    const beforeOffer = continuation ? structuredCloneDeep(working) : undefined;
+    const beforeOffer = structuredCloneDeep(working);
     const offer = cohortForOffer === "holdout"
       ? SafeAuthorizedOffer.noOffer(working.merchantId, working.sessionId)
       : await this.offerService.authorizeOffer(input.user_message, working, context.rules, stage, missingFields,
@@ -229,13 +229,14 @@ export class SendChatMessageUseCase {
     if (!isHoldout && !forceDeterministic) {
       if (!this.strategyChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED === "true"
         && strategyExecutionEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "STRATEGY_MAIN_CHAT_UNAVAILABLE" });
-      const strategyReply = continuation ? undefined : await this.strategyChat?.tryReply({ request: input, claim: chatRequest, session: working,
+      const strategyReply = continuation ? undefined : await this.strategyChat?.tryReply({ request: input, claim: chatRequest, session: working, beforeOffer,
         stage, previousStage, offer, hasBuyerIntent: context.buyerIntent !== undefined,
         cryptoEnabled: !!context.rules.cryptoPayments?.enabled,
         hasPreSearchedProducts: context.preSearchedProducts.length > 0 });
       // This response is already published atomically. In particular, do not
       // overwrite its session with attribution flags or append/pay via builder.
-      if (strategyReply) return strategyReply;
+      if (strategyReply && "continueWithoutExperiment" in strategyReply) continuation = true;
+      else if (strategyReply) return strategyReply;
       const experimentPromptOverride = continuation ? undefined : await this.resolveExperimentPrompt(
         input.merchant_id,
         input.session_id,
@@ -266,7 +267,7 @@ export class SendChatMessageUseCase {
       try {
         if (continuation) {
           if (!this.sessions.saveSessionIfUnchanged) throw new Error("CHAT_SESSION_COMPARE_REQUIRED");
-          await this.sessions.saveSessionIfUnchanged(working, beforeOffer!);
+          await this.sessions.saveSessionIfUnchanged(working, beforeOffer);
         } else await this.sessions.saveSession(working);
       } catch (err) {
         if (continuation) throw err;

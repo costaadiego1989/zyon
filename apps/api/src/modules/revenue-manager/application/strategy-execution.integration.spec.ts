@@ -1644,6 +1644,9 @@ function mainChatFixture(options: {
   tools?: ChatToolExecutorService;
   promptExperiment?: { findRunningExperiment: (merchantId: string) => Promise<any> };
   onOffer?: (options: { skipExperiment?: boolean } | undefined) => void;
+  buyerIntent?: Record<string, unknown>;
+  cryptoEnabled?: boolean;
+  products?: Array<any>;
 } = {}) {
   process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
   const calls = { customer: 0, legacy: 0, tools: 0, payments: 0, conversation: 0 };
@@ -1653,6 +1656,10 @@ function mainChatFixture(options: {
     chatRequests: new CheckoutChatRequestService(options.requestPrisma ?? prisma),
     strategyChat: new StrategyCheckoutChatService(prisma, gateway, options.clock),
     promptExperiment: options.promptExperiment,
+    buyerContext: options.buyerIntent ? { async load() { return { buyerIntent: options.buyerIntent }; } } as any : undefined,
+    productSearch: options.products ? { async execute() { return options.products; } } as any : undefined,
+    merchantRepository: options.cryptoEnabled ? { async getRules() { return { ...DEFAULT_MERCHANT_RULES,
+      cryptoPayments: { enabled: true } }; }, async getProfile() { return { id: "store", name: "Fixture" }; } } as any : undefined,
     chatLlmGateway: gateway,
     chatToolExecutor: options.tools ?? { async executeToolCalls() { calls.tools++; throw new Error("UNEXPECTED_TOOL"); } } as any,
     createPaymentIntent: { async execute(input: any) {
@@ -2212,21 +2219,178 @@ integration("main chat refuses a stale working session before provider I/O and p
   assert.equal(await prisma.checkoutChatExchange.count(), 0); await assertNoMainEffects(calls);
 });
 
-for (const scenario of ["offer", "discount"] as const) {
-  integration(`main chat refuses unsupported ${scenario} before experimental provider work`, async () => {
-    await activate();
-    await repo.createSessionIfAbsent(primarySession("one", scenario === "discount"
-      ? { cart: { ...session("one").cart, currentDiscount: 1 } } : {}));
-    const offer = scenario === "offer" ? SafeAuthorizedOffer.fromRulesEngine({
-      ...SafeAuthorizedOffer.noOffer("store", "one").toAuthorizedOffer(), approved: true, type: "discount", value: 1,
+for (const arm of ["control", "treatment"] as const) for (const scenario of ["offer", "discount", "coupon", "intent", "crypto", "catalog"] as const) {
+  integration(`context exit ${arm} ${scenario} continues checkout before dispatch and preserves measured membership`, async () => {
+    const f = await activate();
+    const globalUserId = Array.from({ length: 100 }, (_, i) => `exit-buyer-${i}`)
+      .find(buyer => strategyArm(f.execution.contract as any, buyer) === arm)!;
+    await repo.createSessionIfAbsent(primarySession("one", { globalUserId,
+      cart: { ...session("one").cart, ...(scenario === "discount" ? { currentDiscount: 1 } : {}),
+        ...(scenario === "catalog" ? { items: [], total: 0 } : {}) } }));
+    const assignment = await prisma.strategyAssignment.findFirstOrThrow();
+    const offer = ["offer", "coupon"].includes(scenario) ? SafeAuthorizedOffer.fromRulesEngine({
+      ...SafeAuthorizedOffer.noOffer("store", "one").toAuthorizedOffer(), ...(scenario === "offer"
+        ? { approved: true, type: "discount" as const, value: 1 }
+        : { reason: "advanced_coupon_available", discountCode: "FIXTURE5" }),
     }) : undefined;
-    const { useCase, calls } = mainChatFixture({ offer }); let providerCalls = 0;
+    let experimentLookups = 0;
+    const { useCase, calls } = mainChatFixture({ offer, cryptoEnabled: scenario === "crypto",
+      buyerIntent: scenario === "intent" ? { primary_intent: "ready_to_buy", pain_points: ["price"] } : undefined,
+      products: scenario === "catalog" ? [{ sku: "fixture", name: "Produto", price: 100 }] : undefined,
+      promptExperiment: { async findRunningExperiment() { experimentLookups++; throw new Error("DO_NOT_REASSIGN"); } } });
+    let providerCalls = 0;
     globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
-    await assert.rejects(useCase.execute({ ...buyerRequest(), user_message: "Como funciona esta etapa?" }), httpStatus(503));
-    assert.equal(providerCalls, 0); assert.equal(await prisma.strategyTurn.count(), 0);
-    assert.equal(await prisma.checkoutChatExchange.count(), 0); await assertNoMainEffects(calls);
+    const request = { ...buyerRequest(), user_message: scenario === "catalog" ? "Quero produto" : "Como funciona esta etapa?" };
+    const response = await useCase.execute(request);
+    assert.equal(response.chat_request?.status, "completed"); assert.equal(response.display_ref, undefined);
+    assert.equal(providerCalls, 0); assert.equal(calls.legacy, 1); assert.equal(calls.payments, 0);
+    assert.equal(await prisma.strategyTurn.count(), 0); assert.equal(await prisma.strategyAiReservation.count(), 0);
+    assert.equal(await prisma.checkoutChatExchange.count(), 1);
+    assert.equal(experimentLookups, 0);
+    assert.deepEqual(await prisma.strategyAssignment.findFirstOrThrow(), assignment);
+    const stopped = await prisma.strategyAssignmentStop.findFirstOrThrow();
+    const reasons = { offer: "offer", coupon: "offer", discount: "incentive", intent: "personalization", crypto: "crypto", catalog: "catalog" };
+    assert.equal(stopped.reason, `checkout_context_${reasons[scenario]}`);
+    assert.equal((await prisma.strategyExecution.findUniqueOrThrow({ where: { id: f.execution.id } })).status, "running");
+    if (scenario === "coupon") assert.equal((await repo.getSession("store", "one"))!.cart.commercialNudge?.couponCode, "FIXTURE5");
+    await assert.rejects(useCase.execute(request), httpStatus(409));
+    // Removing the condition does not reactivate the assignment on later turns.
+    const next = mainChatFixture();
+    assert.equal((await next.useCase.execute(buyerRequest())).chat_request?.status, "completed");
+    assert.equal(next.calls.legacy, 1); assert.equal(providerCalls, 0);
+    assert.equal(await prisma.strategyAssignmentStop.count(), 1);
+    await measuredOrder("one", `after-exit-${scenario}`);
+    const metrics = new ExperimentMeasurementService(prisma);
+    const beforeExit = await metrics.capture("store", f.execution.experimentId, "before-context-exit", new Date(stopped.stoppedAt.getTime() - 1));
+    assert.equal((beforeExit.result as any).participation[arm].contextExitSessions, 0);
+    const review = await metrics.capture("store", f.execution.experimentId, "after-context-exit", new Date(Date.now() + 25 * 3_600_000));
+    const result = review.result as any;
+    assert.equal(result[arm].assigned, 1); assert.equal(result[arm].converted, 1);
+    assert.equal(result.participation[arm].contextExitSessions, 1); assert.equal(result.delivery[arm].publishedTurns, 0);
+    assert.equal(result.promotionAllowed, false);
+    assert.doesNotMatch(JSON.stringify(result.participation), /exit-buyer|fixture@example|FIXTURE5|ready_to_buy/);
+    assert.deepEqual(await metrics.capture("store", f.execution.experimentId, "before-context-exit"), beforeExit);
   });
 }
+
+integration("context exit preserves prior publication and protects another eligible session", async () => {
+  const f = await activate();
+  await repo.createSessionIfAbsent(primarySession("one")); await repo.createSessionIfAbsent(primarySession("two"));
+  let providerCalls = 0;
+  globalThis.fetch = (async () => { providerCalls++; return providerResponse(); }) as typeof fetch;
+  const first = mainChatFixture(); await first.useCase.execute(buyerRequest());
+  const saved = (await repo.getSession("store", "one"))!;
+  await repo.saveSession({ ...saved, cart: { ...saved.cart, currentDiscount: 1 } });
+  await first.useCase.execute(buyerRequest());
+  await first.useCase.execute(buyerRequest("two"));
+  assert.equal(providerCalls, 2); assert.equal(first.calls.legacy, 1);
+  assert.equal(await prisma.strategyAssignmentStop.count(), 1);
+  assert.equal(await prisma.strategyTurnPublication.count({ where: { decision: "persisted" } }), 2);
+  await measuredOrder("one", "exit-after-publication");
+  const review = await new ExperimentMeasurementService(prisma).capture("store", f.execution.experimentId,
+    "published-context-exit", new Date(Date.now() + 25 * 3_600_000));
+  const result = review.result as any;
+  assert.equal(result.control.assigned + result.treatment.assigned, 2);
+  assert.equal(result.control.converted + result.treatment.converted, 1);
+  assert.equal(result.delivery.control.publishedTurns + result.delivery.treatment.publishedTurns, 2);
+  assert.equal(result.participation.control.contextExitSessions + result.participation.treatment.contextExitSessions, 1);
+});
+
+integration("context exit never releases uncertainty or retries after an experimental call", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture(); let providerCalls = 0;
+  globalThis.fetch = (async () => { providerCalls++; throw new Error("PROVIDER_UNKNOWN"); }) as typeof fetch;
+  const request = buyerRequest(); await assert.rejects(useCase.execute(request), httpStatus(503));
+  const saved = (await repo.getSession("store", "one"))!;
+  await repo.saveSession({ ...saved, cart: { ...saved.cart, currentDiscount: 1 } });
+  await assert.rejects(useCase.execute(request), httpStatus(409));
+  await assert.rejects(useCase.execute(buyerRequest()), httpStatus(409));
+  assert.equal(providerCalls, 1); assert.equal(calls.legacy, 0);
+  assert.equal(await prisma.strategyAssignmentStop.count(), 0);
+  assert.equal(await prisma.strategyAiReservation.count({ where: { state: "unknown" } }), 1);
+});
+
+integration("context exit serializes retries and refuses a cart changed before or during normal provider work", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one", { cart: { ...session("one").cart, currentDiscount: 1 } }));
+  const { useCase, calls } = mainChatFixture();
+  const request = buyerRequest();
+  const responses = await Promise.allSettled(Array.from({ length: 6 }, () => useCase.execute(request)));
+  assert.equal(responses.filter(r => r.status === "fulfilled").length, 1);
+  assert.equal(calls.legacy, 1); assert.equal(await prisma.strategyAssignmentStop.count(), 1);
+  for (const r of responses) if (r.status === "rejected") assert.equal(r.reason.getStatus(), 409);
+  for (const moment of ["before", "during"] as const) {
+    await repo.createSessionIfAbsent(primarySession(moment, { cart: { ...session(moment).cart, currentDiscount: 1 } }));
+    const mutate = async () => { const current = (await repo.getSession("store", moment))!;
+      await repo.saveSession({ ...current, cart: { ...current.cart, total: 250 } }); };
+    const next = mainChatFixture({ processCustomer: async value => { if (moment === "before") await mutate(); return value; },
+      legacy: async () => { await mutate(); return { content: "Resposta habitual.", toolCalls: [] }; } });
+    await assert.rejects(next.useCase.execute(buyerRequest(moment)), httpStatus(503));
+    assert.equal(next.calls.legacy, moment === "before" ? 0 : 1);
+    assert.equal((await repo.getSession("store", moment))!.cart.total, 250);
+    assert.equal(await prisma.checkoutChatExchange.count({ where: { sessionId: moment } }), 0);
+    assert.equal(await prisma.strategyAssignmentStop.count({ where: { assignment: { sessionId: moment } } }), moment === "before" ? 0 : 1);
+  }
+});
+
+for (const scenario of ["hash", "message", "conversation", "snapshot", "admitted", "disabled"] as const) {
+  integration(`context exit rejects ${scenario} without creating a stop or normal-provider permit`, async () => {
+    await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+    process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
+    const claimed = await claimFixture(), saved = (await repo.getSession("store", "one"))!;
+    const service = new StrategyCheckoutChatService(prisma, { async callPinned() { assert.fail("must not dispatch"); } });
+    const input = { request: claimed.input, claim: claimed.claim, session: saved, beforeOffer: saved,
+      stage: "payment" as const, previousStage: "payment" as const, offer: SafeAuthorizedOffer.noOffer("store", "one"),
+      hasBuyerIntent: true, hasPreSearchedProducts: false };
+    if (scenario === "hash") input.claim = { ...claimed.claim, requestHash: "a".repeat(64) };
+    if (scenario === "message") input.request = { ...claimed.input, user_message: "Mensagem diferente" };
+    if (scenario === "conversation") input.request = { ...claimed.input, conversation_id: "other-conversation" };
+    if (scenario === "snapshot") await repo.saveSession({ ...saved, cart: { ...saved.cart, total: 250 } });
+    if (scenario === "admitted") await ledger.admitTurn({ ...boundTurn("one", claimed.claim, claimed.input.user_message),
+      inputHash: digest(claimed.input.user_message), mainChat: true, expectedSession: saved });
+    if (scenario === "disabled") process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "false";
+    await assert.rejects(service.tryReply(input));
+    assert.equal(await prisma.strategyAssignmentStop.count(), 0);
+    assert.equal(await prisma.checkoutChatExchange.count(), 0);
+  });
+}
+
+integration("context exit and turn admission cannot both own the same durable message", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
+  const claimed = await claimFixture(), saved = (await repo.getSession("store", "one"))!;
+  const service = new StrategyCheckoutChatService(prisma, { async callPinned() { assert.fail("must not dispatch"); } });
+  const [exit, admission] = await Promise.allSettled([
+    service.tryReply({ request: claimed.input, claim: claimed.claim, session: saved, beforeOffer: saved,
+      stage: "payment", previousStage: "payment", offer: SafeAuthorizedOffer.noOffer("store", "one"),
+      hasBuyerIntent: true, hasPreSearchedProducts: false }),
+    ledger.admitTurn({ ...boundTurn("one", claimed.claim, claimed.input.user_message), inputHash: digest(claimed.input.user_message),
+      mainChat: true, expectedSession: saved }),
+  ]);
+  assert.equal(admission.status, "fulfilled");
+  if (exit.status === "fulfilled") {
+    assert.deepEqual(exit.value, { continueWithoutExperiment: true });
+    assert.equal((admission as PromiseFulfilledResult<any>).value.status, "unavailable");
+    assert.equal(await prisma.strategyTurn.count(), 0);
+  } else {
+    assert.match(String(exit.reason), /CONTINUATION_REQUEST_CONFLICT/);
+    assert.equal((admission as PromiseFulfilledResult<any>).value.status, "admitted");
+    assert.equal(await prisma.strategyAssignmentStop.count(), 0);
+  }
+});
+
+integration("context exit keeps commercial tools under the authorized offer and leaves cart writes to checkout", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one", { cart: { ...session("one").cart, currentDiscount: 1 } }));
+  const initial = (await repo.getSession("store", "one"))!;
+  const { useCase, calls } = mainChatFixture({ tools: new ChatToolExecutorService(), legacy: async () => ({ content: null,
+    toolCalls: [{ function: { name: "apply_discount", arguments: '{"percent":90}' } },
+      { function: { name: "add_cross_sell_item", arguments: '{"sku":"other-product","quantity":2}' } }] }) });
+  const response = await useCase.execute(buyerRequest());
+  assert.equal(response.chat_request?.status, "completed");
+  assert.doesNotMatch(response.message, /90%/);
+  assert.deepEqual((await repo.getSession("store", "one"))!.cart, initial.cart);
+  assert.equal(calls.legacy, 1); assert.equal(calls.payments, 0);
+  assert.equal(await prisma.strategyTurn.count(), 0); assert.equal(await prisma.completedOrder.count(), 0);
+});
 
 for (const [text, selected, providerMethod] of [
   ["Vou pagar no PIX", "pix", "pix"], ["Cartão de crédito", "credit_card", "card"],

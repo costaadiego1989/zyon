@@ -5,6 +5,7 @@ import { CHECKOUT_CHAT_SAMPLING, checkoutChatProviders } from "./checkout-chat-p
 import { CHECKOUT_CHAT_BINDINGS_VERSION } from "./checkout-chat-context.js";
 import { CHECKOUT_PAYMENT_ROUTING_VERSION } from "./chat-payment-selection.js";
 import { CHECKOUT_CHAT_NAVIGATION_VERSION } from "./checkout-chat-navigation.js";
+import { STRATEGY_CHAT_CONTEXT_EXIT_VERSION } from "./strategy-chat-context-exit.js";
 
 export interface CheckoutChatBaseline {
   definition: "checkout-chat-baseline-v1";
@@ -15,6 +16,7 @@ export interface CheckoutChatBaseline {
   renderer: typeof CHECKOUT_CHAT_BINDINGS_VERSION;
   paymentRouting: typeof CHECKOUT_PAYMENT_ROUTING_VERSION;
   navigation: typeof CHECKOUT_CHAT_NAVIGATION_VERSION;
+  contextExit: typeof STRATEGY_CHAT_CONTEXT_EXIT_VERSION;
   program: ChatPromptPart[];
   tools: LlmToolDefinition[];
   sampling: typeof CHECKOUT_CHAT_SAMPLING;
@@ -49,6 +51,7 @@ export function captureCheckoutChatBaseline(input: Pick<CheckoutChatBaseline,
     ...input, runtimeRevision: env.CHECKOUT_BEHAVIOR_REVISION!, renderer: CHECKOUT_CHAT_BINDINGS_VERSION,
     paymentRouting: CHECKOUT_PAYMENT_ROUTING_VERSION,
     navigation: CHECKOUT_CHAT_NAVIGATION_VERSION,
+    contextExit: STRATEGY_CHAT_CONTEXT_EXIT_VERSION,
     program: structuredClone([...CHECKOUT_CHAT_PROGRAM]), tools: checkoutChatTools(), sampling: { ...CHECKOUT_CHAT_SAMPLING },
     provider: { name: route.name, model: route.model, endpointHash: checkoutContractHash(route.url), timeoutMs: route.timeoutMs } };
   if (Buffer.byteLength(JSON.stringify(value), "utf8") > 100_000) return undefined;
@@ -60,6 +63,7 @@ export function assertCheckoutChatBaseline(baseline: CheckoutChatBaseline, merch
     || baseline.merchantId !== merchantId || baseline.renderer !== CHECKOUT_CHAT_BINDINGS_VERSION
     || baseline.paymentRouting !== CHECKOUT_PAYMENT_ROUTING_VERSION
     || baseline.navigation !== CHECKOUT_CHAT_NAVIGATION_VERSION
+    || baseline.contextExit !== STRATEGY_CHAT_CONTEXT_EXIT_VERSION
     || checkoutContractHash(baseline.program) !== checkoutContractHash(CHECKOUT_CHAT_PROGRAM)
     || checkoutContractHash(baseline.tools) !== checkoutContractHash(checkoutChatTools())
     || checkoutContractHash(baseline.sampling) !== checkoutContractHash(CHECKOUT_CHAT_SAMPLING)) {
