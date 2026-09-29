@@ -3,13 +3,15 @@ import assert from "node:assert/strict";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import { discountStudy } from "./strategy-discount-study.js";
 import { assertIncentiveBudgetTerms, incentiveBudgetTerms } from "./incentive-budget.js";
+import { incentivePolicySnapshot } from "./incentive-policy.js";
 
 const rules = { ...DEFAULT_MERCHANT_RULES, autonomousEngineEnabled: true, maxDiscountPercent: 10, minimumMarginPercent: 30 };
 const study = discountStudy({ merchantId: "store", runId: "run", observationId: "observation", rules,
   asOf: "2026-09-29T00:00:00.000Z", capturedAt: "2026-09-29T00:00:00.000Z",
   cohorts: [{ intent: "price_sensitive", sampleSize: 30, conversionRate: .1,
     carts: Array.from({ length: 30 }, () => ({ total: 100, currency: "BRL", items: [{ sku: "sku", name: "Produto", price: 100, cost: 40, quantity: 1 }] })) }] });
-const source = { merchantId: "store", strategyId: "strategy", version: 1, proposalHash: "a".repeat(64), study, rules };
+const policy = incentivePolicySnapshot("store", 1, { enabled: true, limitCents: 10000, maxDiscountCents: 1000, maxRedemptions: 100 });
+const source = { merchantId: "store", strategyId: "strategy", version: 1, proposalHash: "a".repeat(64), study, rules, policy };
 const limits = { limitCents: 3000, maxDiscountCents: 500, maxRedemptions: 10, startsAt: "2026-09-30T03:00:00.000Z" };
 
 test("funding requires explicit merchant limits rather than the historical replay total", () => {
@@ -38,6 +40,8 @@ for (const [label, mutate] of [
   ["other proposal", (v: any) => v.proposalHash = "b".repeat(64)],
   ["other version", (v: any) => v.version = 2],
   ["other study", (v: any) => v.studyHash = "b".repeat(64)],
+  ["other financial policy", (v: any) => v.policyHash = "b".repeat(64)],
+  ["old financial version", (v: any) => v.policyVersion = 0],
   ["invalid start", (v: any) => v.startsAt = "tomorrow"],
   ["longer spending horizon", (v: any) => v.endsAt = "2026-10-08T03:00:00.000Z"],
   ["executable authorization", (v: any) => v.scope = "discount"],
@@ -50,4 +54,12 @@ for (const [label, mutate] of [
 test("a study without a safe candidate cannot support a funding envelope", () => {
   const empty = { ...study, status: "no_safe_candidate" as const }; delete (empty as any).candidate;
   assert.throws(() => incentiveBudgetTerms({ ...source, study: empty }, limits), /INVALID_BUDGET_TERMS/);
+});
+
+test("merchant financial caps constrain each dimension and cannot enable themselves", () => {
+  for (const limitsOverride of [{ enabled: false }, { limitCents: 2500 }, { maxDiscountCents: 400 }, { maxRedemptions: 9 }]) {
+    const restricted = incentivePolicySnapshot("store", 2, { ...policy, ...limitsOverride });
+    assert.throws(() => incentiveBudgetTerms({ ...source, policy: restricted }, limits), /INVALID_BUDGET_TERMS/);
+  }
+  assert.throws(() => incentiveBudgetTerms({ ...source, policy: { ...policy, merchantId: "other" } }, limits), /INVALID_BUDGET_TERMS/);
 });

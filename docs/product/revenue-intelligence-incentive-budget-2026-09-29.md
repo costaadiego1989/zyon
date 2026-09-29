@@ -2,6 +2,8 @@
 
 Entrega local de RI-11 em 29/09/2026. A simulação semanal já descreve um desconto possível, mas o controle legado de cupons limita usos, não o total de dinheiro comprometido pela estratégia. Esta entrega implementa o registro financeiro necessário para que várias ofertas não ultrapassem o teto revisado.
 
+Atualização posterior: a [configuração financeira por loja](revenue-intelligence-incentive-policy-2026-09-29.md) adiciona a interface e o contrato v2 vinculado à versão dos limites. A descrição abaixo registra o escopo original da quadragésima entrega.
+
 ## Contrato e comportamento
 
 - `strategy-incentive-budget-v1`: loja, estratégia, versão, hash da proposta e do estudo, BRL em centavos inteiros, teto total, teto por oferta, quantidade máxima, um uso por comprador e janela de sete dias. Os limites são entradas explícitas; não há orçamento inferido do total simulado nem da resposta da LLM.

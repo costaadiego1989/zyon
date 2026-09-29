@@ -5,6 +5,7 @@ import { PrismaClient, type Prisma } from "@prisma/client";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { discountStudy } from "../domain/strategy-discount-study.js";
 import { incentiveBudgetTerms } from "../domain/incentive-budget.js";
+import { IncentivePolicyService } from "../application/incentive-policy.service.js";
 import { ObservationEntity } from "../domain/entities/observation.entity.js";
 import { HypothesisEntity } from "../domain/entities/hypothesis.entity.js";
 import { PrismaObservationRepository } from "./prisma-observation.repository.js";
@@ -35,6 +36,8 @@ beforeEach(async () => {
 async function fixture(merchantId = "store", caps = { limitCents: 1000, maxDiscountCents: 500, maxRedemptions: 10 }) {
   const now = new Date();
   await prisma.merchant.create({ data: { id: merchantId, name: "Fixture" } });
+  const policy = await new IncentivePolicyService(prisma).save(merchantId, "owner", {
+    expectedVersion: 0, requestKey: "policy-first", enabled: true, ...caps });
   const rules = merchantRulesSnapshot(await prisma.merchantRule.create({ data: { merchantId,
     maxDiscountPercent: 5, minimumMarginPercent: 30, allowFreeShipping: false, allowShippingDiscount: false,
     allowBonusItem: false, allowStackDiscountAndFreeShipping: false, couponBoxEnabled: true, autonomousEngineEnabled: true,
@@ -64,7 +67,7 @@ async function fixture(merchantId = "store", caps = { limitCents: 1000, maxDisco
     risk_level: "low", approval_strategy: "manual" });
   await new PrismaHypothesisRepository(prisma).save(hypothesis, { runId: run.id, leaseToken: 1, discountStudy: study });
   const version = await prisma.revenueStrategyVersion.findFirstOrThrow({ where: { strategyId: hypothesis.id } });
-  const terms = incentiveBudgetTerms({ merchantId, strategyId: hypothesis.id, version: 1, proposalHash: version.proposalHash, study, rules },
+  const terms = incentiveBudgetTerms({ merchantId, strategyId: hypothesis.id, version: 1, proposalHash: version.proposalHash, study, rules, policy },
     { ...caps, startsAt: new Date(Date.now() + 400).toISOString() });
   const input = { merchantId, terms, termsHash: digest(terms), actorId: "owner", requestKey: "budget-review" };
   return { merchantId, input, terms, version, run, hypothesis };
@@ -98,6 +101,130 @@ spec("funding approval is separate, exact, idempotent and creates no coupon or a
   assert.equal((await prisma.revenueStrategy.findUniqueOrThrow({ where: { id: f.hypothesis.id } })).status, "pending_review");
   await assert.rejects(tx(t => registerReviewedIncentiveBudget(t, { ...f.input, actorId: "other-owner" })), /APPROVAL_KEY_CONFLICT/);
   await assert.rejects(tx(t => registerReviewedIncentiveBudget(t, { ...f.input, requestKey: "duplicate" })), /ALREADY_REVIEWED/);
+});
+
+const policies = new IncentivePolicyService(prisma);
+const policyCommand = { expectedVersion: 0, requestKey: "settings", enabled: true, limitCents: 1000, maxDiscountCents: 500, maxRedemptions: 10 };
+
+spec("stores start disabled and reading settings does not create a financial permission", async () => {
+  await prisma.merchant.create({ data: { id: "store", name: "Loja" } });
+  const value = await policies.read("store");
+  assert.equal(value.enabled, false); assert.equal(value.version, 0); assert.equal(value.limitCents, 0);
+  assert.equal(await prisma.merchantIncentivePolicy.count(), 0);
+  await assert.rejects(policies.save("missing", "owner", policyCommand), /STORE_NOT_FOUND/);
+});
+
+spec("saving settings is idempotent and a lost-response retry returns the historical receipt", async () => {
+  await prisma.merchant.create({ data: { id: "store", name: "Loja" } });
+  const first = await policies.save("store", "owner", policyCommand);
+  await policies.save("store", "owner", { ...policyCommand, expectedVersion: 1, requestKey: "next", enabled: false });
+  assert.deepEqual(await policies.save("store", "owner", policyCommand), first);
+  assert.equal((await policies.read("store")).version, 2);
+  await assert.rejects(policies.save("store", "owner", { ...policyCommand, enabled: false }), /REQUEST_CONFLICT/);
+  await assert.rejects(policies.save("store", "other", policyCommand), /REQUEST_CONFLICT/);
+  await assert.rejects(policies.save("store", "owner", { ...policyCommand, requestKey: "stale" }), /VERSION_CONFLICT/);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0); assert.equal(await prisma.coupon.count(), 0);
+});
+
+spec("concurrent settings changes accept exactly one version and keep stores separate", async () => {
+  await prisma.merchant.createMany({ data: [{ id: "store", name: "A" }, { id: "other", name: "B" }] });
+  const results = await Promise.allSettled(Array.from({ length: 5 }, (_, i) => policies.save("store", "owner", { ...policyCommand, requestKey: `save-${i}` })));
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  await policies.save("other", "owner", { ...policyCommand, limitCents: 2000 });
+  assert.equal((await policies.read("store")).limitCents, 1000);
+  assert.equal((await policies.read("other")).limitCents, 2000);
+});
+
+spec("invalid monetary limits never create a policy or advance its head", async () => {
+  await prisma.merchant.create({ data: { id: "store", name: "Loja" } });
+  for (const patch of [{ enabled: "true" }, { limitCents: 0 }, { limitCents: 2147483648 }, { limitCents: 999.5 },
+    { maxDiscountCents: 1001 }, { maxRedemptions: 0 }, { maxRedemptions: 1000001 }, { limitCents: "1000" }, { maxDiscountCents: -1 }]) {
+    await assert.rejects(policies.save("store", "owner", { ...policyCommand, ...patch } as never), /INVALID_LIMITS/);
+  }
+  assert.equal(await prisma.merchantIncentivePolicyHead.count(), 0);
+  await policies.save("store", "owner", { ...policyCommand, enabled: false, limitCents: 0, maxDiscountCents: 0, maxRedemptions: 0 });
+});
+
+spec("financial settings history and version head cannot be rewritten or erased", async () => {
+  await fixture();
+  await assert.rejects(prisma.merchantIncentivePolicy.update({ where: { merchantId_version: { merchantId: "store", version: 1 } }, data: { enabled: false } }), /immutable/);
+  await assert.rejects(prisma.merchantIncentivePolicy.deleteMany(), /immutable/);
+  await assert.rejects(prisma.merchantIncentivePolicyHead.update({ where: { merchantId: "store" }, data: { currentVersion: 9 } }), /requires a new policy/);
+  await assert.rejects(prisma.merchantIncentivePolicyHead.deleteMany(), /requires a new policy/);
+  const row = await prisma.merchantIncentivePolicy.findFirstOrThrow();
+  await assert.rejects(prisma.merchantIncentivePolicy.create({ data: { ...row, version: 3, requestKey: "skip" } }), /version conflict/);
+  assert.equal((await prisma.merchantIncentivePolicyHead.findFirstOrThrow()).currentVersion, 1);
+});
+
+for (const [label, patch] of [["disabled", { enabled: false }], ["lower", { limitCents: 500 }],
+  ["higher", { limitCents: 2000 }], ["same values new version", {}]] as const)
+spec(`a ${label} policy stops old funding and reservations while preserving settlement`, async () => {
+  const f = await ready(), existing = await reserve(f);
+  await policies.save("store", "owner", { ...policyCommand, expectedVersion: 1, requestKey: "changed", ...patch });
+  await assert.rejects(reserve(f), /POLICY_CHANGED/);
+  const buyer = await session();
+  await assert.rejects(prisma.strategyIncentiveReservation.create({ data: { ...buyer, id: randomUUID(), budgetId: f.budget.id,
+    requestKey: "raw-stale", requestHash: "a".repeat(64), amountCents: 100, reservedAt: new Date() } }), /policy changed or unavailable/);
+  assert.equal((await tx(t => registerReviewedIncentiveBudget(t, f.input))).id, f.budget.id);
+  assert.equal((await tx(t => reserveIncentiveBudget(t, existing.input))).id, existing.row.id);
+  await tx(t => resolveIncentiveBudget(t, resolution(existing.row.id)));
+  assert.equal((await totals(f)).spentCents, 500); assert.equal((await totals(f)).reservedCents, 0);
+});
+
+spec("a policy change between preparing and approving funding requires fresh terms", async () => {
+  const f = await fixture();
+  await policies.save("store", "owner", { ...policyCommand, expectedVersion: 1, requestKey: "changed" });
+  await assert.rejects(tx(t => registerReviewedIncentiveBudget(t, f.input)), /POLICY_CHANGED/);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
+
+spec("raw funding cannot omit its policy, forge its binding or exceed merchant caps", async () => {
+  const f = await fixture();
+  const data = { id: randomUUID(), merchantId: "store", strategyId: f.hypothesis.id, version: 1,
+    proposalHash: f.terms.proposalHash, termsHash: f.input.termsHash, terms: f.terms,
+    policyVersion: 1, actorId: "owner", requestKey: "raw", requestHash: "a".repeat(64),
+    limitCents: 1000, maxDiscountCents: 500, maxRedemptions: 10,
+    startsAt: new Date(f.terms.startsAt), endsAt: new Date(f.terms.endsAt), approvedAt: new Date() };
+  for (const patch of [{ policyVersion: null }, { policyVersion: 2 }, { terms: { ...f.terms, policyHash: "b".repeat(64) } },
+    { limitCents: 1001 }, { maxDiscountCents: 501 }, { maxRedemptions: 11 }]) {
+    await assert.rejects(prisma.strategyIncentiveBudget.create({ data: { ...data, ...patch } }), /policy changed or unavailable/);
+  }
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
+
+spec("a rejected raw financial policy rolls back its version head", async () => {
+  await fixture();
+  const row = await prisma.merchantIncentivePolicy.findFirstOrThrow();
+  await assert.rejects(prisma.merchantIncentivePolicy.create({ data: { ...row, version: 2, requestKey: "invalid", limitCents: -1 } }), /constraint/i);
+  assert.equal((await prisma.merchantIncentivePolicyHead.findFirstOrThrow()).currentVersion, 1);
+  assert.equal((await policies.read("store")).version, 1);
+});
+
+spec("disabled financial settings preserve a cancelled reservation until explicit resolution", async () => {
+  const f = await ready(), existing = await reserve(f);
+  await policies.save("store", "owner", { ...policyCommand, expectedVersion: 1, requestKey: "off", enabled: false });
+  assert.equal((await totals(f)).reservedCents, 500);
+  await tx(t => resolveIncentiveBudget(t, resolution(existing.row.id, "released", 0)));
+  assert.equal((await totals(f)).reservedCents, 0); assert.equal((await totals(f)).spentCents, 0);
+});
+
+for (const isolationLevel of ["ReadCommitted", "RepeatableRead"] as const)
+spec(`${isolationLevel} cannot reserve from a policy snapshot taken before a committed change`, async () => {
+  const f = await ready(), buyer = await session();
+  let seen!: () => void, resume!: () => void;
+  const snapshot = new Promise<void>(resolve => { seen = resolve; });
+  const gate = new Promise<void>(resolve => { resume = resolve; });
+  const attempt = prisma.$transaction(async t => {
+    await t.merchantIncentivePolicy.findFirstOrThrow(); seen(); await gate;
+    return t.strategyIncentiveReservation.create({ data: { ...buyer, id: randomUUID(), budgetId: f.budget.id,
+      requestKey: "stale-snapshot", requestHash: "a".repeat(64), amountCents: 100, reservedAt: new Date() } });
+  }, { isolationLevel });
+  const rejected = assert.rejects(attempt, /policy changed|serialize|write conflict|deadlock/i);
+  await snapshot;
+  try { await policies.save("store", "owner", { ...policyCommand, expectedVersion: 1, requestKey: "changed", enabled: false }); }
+  finally { resume(); }
+  await rejected;
+  assert.equal((await totals(f)).reservedCents, 0);
 });
 
 spec("funding requires an explicit store flag and exact terms, actor and source proposal", async () => {

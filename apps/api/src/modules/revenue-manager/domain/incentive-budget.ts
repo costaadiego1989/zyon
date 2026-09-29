@@ -1,17 +1,20 @@
 import type { MerchantRules } from "@zyon/shared-types";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { assertDiscountStudy, type StrategyDiscountStudy } from "./strategy-discount-study.js";
+import { incentivePolicySnapshot, type IncentivePolicySnapshot } from "./incentive-policy.js";
 
 /** A reviewed funding envelope, not permission to issue an offer or to change
  * an existing communication experiment. Monetary values are integer BRL cents. */
 export type IncentiveBudgetTerms = {
-  definition: "strategy-incentive-budget-v1";
+  definition: "strategy-incentive-budget-v2";
   scope: "funding_only";
   merchantId: string;
   strategyId: string;
   version: number;
   proposalHash: string;
   studyHash: string;
+  policyVersion: number;
+  policyHash: string;
   currency: "BRL";
   limitCents: number;
   maxDiscountCents: number;
@@ -27,17 +30,22 @@ export const incentiveCents = (v: unknown): v is number => typeof v === "number"
 
 export function assertIncentiveBudgetTerms(terms: IncentiveBudgetTerms, source: {
   merchantId: string; strategyId: string; version: number; proposalHash: string;
-  study: StrategyDiscountStudy; rules: MerchantRules;
+  study: StrategyDiscountStudy; rules: MerchantRules; policy: IncentivePolicySnapshot;
 }): void {
   const invalid = () => { throw new Error("INCENTIVE_INVALID_BUDGET_TERMS"); };
   const iso = (v: string) => typeof v === "string" && Number.isFinite(Date.parse(v)) && new Date(v).toISOString() === v;
   assertDiscountStudy(source.study, source.merchantId, source.study.runId, source.study.observationId, source.rules);
-  if (!terms || source.study.status !== "candidate_available" || terms.definition !== "strategy-incentive-budget-v1"
+  const p = source.policy;
+  if (!p || !p.enabled || p.merchantId !== source.merchantId || p.version < 1
+    || p.policyHash !== incentivePolicySnapshot(p.merchantId, p.version, p).policyHash) invalid();
+  if (!terms || source.study.status !== "candidate_available" || terms.definition !== "strategy-incentive-budget-v2"
     || terms.scope !== "funding_only" || terms.merchantId !== source.merchantId || terms.strategyId !== source.strategyId
     || !incentiveKey(terms.merchantId) || !incentiveKey(terms.strategyId)
     || terms.version !== source.version || !Number.isSafeInteger(terms.version) || terms.version < 1
     || !/^[a-f0-9]{64}$/.test(terms.proposalHash) || terms.proposalHash !== source.proposalHash
     || terms.studyHash !== digest(source.study) || terms.currency !== "BRL" || terms.maxPerBuyer !== 1
+    || terms.policyVersion !== p.version || terms.policyHash !== p.policyHash
+    || terms.limitCents > p.limitCents || terms.maxDiscountCents > p.maxDiscountCents || terms.maxRedemptions > p.maxRedemptions
     || !incentiveCents(terms.limitCents) || !incentiveCents(terms.maxDiscountCents)
     || terms.maxDiscountCents > source.study.candidate.simulation.maxDiscountCents
     || terms.maxDiscountCents > terms.limitCents
@@ -45,7 +53,7 @@ export function assertIncentiveBudgetTerms(terms: IncentiveBudgetTerms, source: 
     || !iso(terms.startsAt) || !iso(terms.endsAt)
     || Date.parse(terms.endsAt) - Date.parse(terms.startsAt) !== 7 * 86_400_000) invalid();
   if (Object.keys(terms).sort().join() !== ["definition", "scope", "merchantId", "strategyId", "version", "proposalHash",
-    "studyHash", "currency", "limitCents", "maxDiscountCents", "maxRedemptions", "maxPerBuyer", "startsAt", "endsAt"].sort().join()) invalid();
+    "studyHash", "policyVersion", "policyHash", "currency", "limitCents", "maxDiscountCents", "maxRedemptions", "maxPerBuyer", "startsAt", "endsAt"].sort().join()) invalid();
 }
 
 /** Explicit merchant limits are required; neither sample totals nor the LLM
@@ -55,9 +63,10 @@ export function incentiveBudgetTerms(source: Parameters<typeof assertIncentiveBu
 }): IncentiveBudgetTerms {
   const start = Date.parse(limits.startsAt);
   if (!Number.isFinite(start) || !Number.isFinite(start + 7 * 86_400_000)) throw new Error("INCENTIVE_INVALID_BUDGET_TERMS");
-  const terms: IncentiveBudgetTerms = { definition: "strategy-incentive-budget-v1", scope: "funding_only",
+  const terms: IncentiveBudgetTerms = { definition: "strategy-incentive-budget-v2", scope: "funding_only",
     merchantId: source.merchantId, strategyId: source.strategyId, version: source.version, proposalHash: source.proposalHash,
-    studyHash: digest(source.study), currency: "BRL", limitCents: limits.limitCents, maxDiscountCents: limits.maxDiscountCents,
+    studyHash: digest(source.study), policyVersion: source.policy.version, policyHash: source.policy.policyHash,
+    currency: "BRL", limitCents: limits.limitCents, maxDiscountCents: limits.maxDiscountCents,
     maxRedemptions: limits.maxRedemptions, maxPerBuyer: 1, startsAt: limits.startsAt,
     endsAt: new Date(start + 7 * 86_400_000).toISOString() };
   assertIncentiveBudgetTerms(terms, source);

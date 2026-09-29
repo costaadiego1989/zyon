@@ -3,6 +3,7 @@ import { WeeklyAnalysisStatus } from "./WeeklyAnalysisStatus.js";
 import React, { useState } from "react";
 import { Lightbulb, TrendingUp, Eye, BookOpen, Brain } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
+import { IncentivePolicySettings } from "./IncentivePolicySettings.js";
 import { TabBar } from "../../components/TabBar.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { PageLoader } from "../../components/PageLoader.js";
@@ -104,6 +105,7 @@ export function RevenueManagerPage(_props: RevenueManagerPageProps) {
       </div>
 
       <WeeklyAnalysisStatus status={vm.analysisStatus} error={vm.analysisStatusError} />
+      {_props.me && <IncentivePolicySettings key={_props.me.id} merchantId={_props.me.id} />}
       {vm.hypothesesError && <div role="alert" className="strategy-review-error"><p>Não foi possível atualizar as sugestões da loja. Os dados anteriores podem estar desatualizados.</p>
         <button type="button" className="zyn-btn zyn-btn--secondary" onClick={() => void vm.refresh()}>Tentar novamente</button></div>}
 

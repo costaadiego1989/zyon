@@ -3583,6 +3583,8 @@ model StrategyIncentiveBudget {
   proposalHash String @map("proposal_hash")
   termsHash String @map("terms_hash")
   terms Json
+  policyVersion Int? @map("policy_version")
+  policy MerchantIncentivePolicy? @relation(fields: [merchantId, policyVersion], references: [merchantId, version], onDelete: Restrict, onUpdate: Restrict)
   actorId String @map("actor_id")
   requestKey String @map("request_key")
   requestHash String @map("request_hash")
@@ -3630,6 +3632,31 @@ model StrategyIncentiveReservation {
   @@unique([budgetId, merchantId, evidenceKey])
   @@index([budgetId, merchantId, status])
   @@map("strategy_incentive_reservations")
+}
+
+model MerchantIncentivePolicyHead {
+  merchantId     String @id @map("merchant_id")
+  currentVersion Int    @map("current_version")
+
+  @@map("merchant_incentive_policy_heads")
+}
+
+model MerchantIncentivePolicy {
+  merchantId String @map("merchant_id")
+  version Int
+  enabled Boolean
+  limitCents Int @map("limit_cents")
+  maxDiscountCents Int @map("max_discount_cents")
+  maxRedemptions Int @map("max_redemptions")
+  policyHash String @map("policy_hash")
+  actorId String @map("actor_id")
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+  budgets StrategyIncentiveBudget[]
+  @@id([merchantId, version])
+  @@unique([merchantId, requestKey])
+  @@map("merchant_incentive_policies")
 }
 
 model RevenueStrategyRevision {

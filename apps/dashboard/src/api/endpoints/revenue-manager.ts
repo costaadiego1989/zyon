@@ -1,5 +1,6 @@
 import { dashboardJson } from "../http/client.js";
 import type { StrategyReview, StrategyReviewCommand, StrategyReviewReceipt } from "./strategy-review.js";
+import type { IncentivePolicy, IncentivePolicyCommand } from "./incentive-policy.js";
 
 const PREFIX = "/revenue-manager";
 
@@ -141,6 +142,13 @@ function mapLesson(raw: StrategyLessonApiResponse): StrategyLesson {
 
 export function revenueManagerEndpoints(base: string, f: typeof fetch) {
   return {
+    getIncentivePolicy(): Promise<IncentivePolicy> {
+      return dashboardJson(base, `${PREFIX}/incentive-policy`, { method: "GET", cache: "no-store" }, f);
+    },
+    saveIncentivePolicy(command: IncentivePolicyCommand): Promise<IncentivePolicy> {
+      return dashboardJson(base, `${PREFIX}/incentive-policy`, { method: "PUT", jsonBody: command,
+        headers: { "Idempotency-Key": command.requestKey } }, f);
+    },
     getStrategyMetrics(id: string, version: number): Promise<import("./strategy-metrics.js").StrategyMetrics> {
       return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/metrics?version=${version}`, { method: "GET" }, f);
     },

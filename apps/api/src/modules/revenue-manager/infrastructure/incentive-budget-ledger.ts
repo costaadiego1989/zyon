@@ -6,6 +6,7 @@ import type { StrategyProposal } from "../domain/strategy-proposal.js";
 import { lockCheckoutBaselineRows } from "./checkout-baseline.reader.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
 import { assertStoredDiscountStudy } from "./strategy-discount-study.js";
+import { readIncentivePolicy } from "./incentive-policy.reader.js";
 
 type Tx = Prisma.TransactionClient;
 const json = (value: unknown) => value as Prisma.InputJsonValue;
@@ -24,9 +25,11 @@ async function currentFundingSource(tx: Tx, terms: IncentiveBudgetTerms) {
   const proposal = version.proposal as unknown as StrategyProposal;
   if (!proposal.discountStudy) fail("STUDY_REQUIRED");
   const rules = merchantRulesSnapshot(await tx.merchantRule.findUniqueOrThrow({ where: { merchantId: terms.merchantId } }));
+  const policy = await readIncentivePolicy(tx, terms.merchantId);
+  if (!policy.enabled || terms.policyVersion !== policy.version || terms.policyHash !== policy.policyHash) fail("POLICY_CHANGED");
   await assertStoredDiscountStudy(tx, terms.merchantId, version.strategy.runId, proposal.observation.id, rules, proposal.discountStudy);
   assertIncentiveBudgetTerms(terms, { merchantId: terms.merchantId, strategyId: terms.strategyId,
-    version: terms.version, proposalHash: version.proposalHash, study: proposal.discountStudy, rules });
+    version: terms.version, proposalHash: version.proposalHash, study: proposal.discountStudy, rules, policy });
   return version;
 }
 
@@ -56,7 +59,8 @@ export async function registerReviewedIncentiveBudget(tx: Tx, input: {
   if (version.expiresAt <= now || Date.parse(terms.startsAt) <= now.getTime()
     || Date.parse(terms.startsAt) >= version.expiresAt.getTime()) fail("APPROVAL_EXPIRED");
   return tx.strategyIncentiveBudget.create({ data: { id: randomUUID(), merchantId: input.merchantId,
-    strategyId: terms.strategyId, version: terms.version, proposalHash: terms.proposalHash, terms: json(terms), termsHash: input.termsHash,
+    strategyId: terms.strategyId, version: terms.version, policyVersion: terms.policyVersion,
+    proposalHash: terms.proposalHash, terms: json(terms), termsHash: input.termsHash,
     actorId: input.actorId, requestKey: input.requestKey, requestHash, limitCents: terms.limitCents,
     maxDiscountCents: terms.maxDiscountCents, maxRedemptions: terms.maxRedemptions,
     startsAt: new Date(terms.startsAt), endsAt: new Date(terms.endsAt), approvedAt: now } });
