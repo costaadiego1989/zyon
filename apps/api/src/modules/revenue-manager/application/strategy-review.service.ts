@@ -17,6 +17,7 @@ import { assertCurrentMeasurementPolicy, assertStoredMeasurementPlanning } from 
 import { strategyActivationBlockers } from "../infrastructure/strategy-activation-readiness.js";
 import { executionClock, registerApprovedExecution } from "../infrastructure/strategy-execution-ledger.js";
 import { assertStoredDiscountStudy } from "../infrastructure/strategy-discount-study.js";
+import { readIncentivePolicy } from "../infrastructure/incentive-policy.reader.js";
 
 export type StrategyReviewCommand = { version: number; proposal_hash: string; request_key: string; feedback?: string };
 type ReviewKind = "approve" | "reject" | "revision";
@@ -61,8 +62,15 @@ export class StrategyReviewService {
         include: { revision: { select: { status: true, reason: true, completedAt: true } } } });
       const limit = Number(process.env.REVENUE_AI_MAX_REVISIONS_PER_CYCLE);
       const current = versions[0]?.proposal as unknown as StrategyProposal | undefined;
+      const financialPolicy = versions.some(v => (v.proposal as unknown as StrategyProposal).incentiveRecommendation)
+        ? await readIncentivePolicy(tx, merchantId) : null;
+      const projectedVersions = versions.map(version => {
+        const recommendation = (version.proposal as unknown as StrategyProposal).incentiveRecommendation;
+        return { ...version, incentivePolicyCurrent: recommendation && financialPolicy
+          ? recommendation.financialPolicy.policyHash === financialPolicy.policyHash : null };
+      });
       const blockers = await strategyActivationBlockers(tx, strategy, versions[0], eligible, new Date());
-      return { ...strategy, versions, actions, approval_available: blockers.length === 0, activation_available: blockers.length === 0,
+      return { ...strategy, versions: projectedVersions, actions, approval_available: blockers.length === 0, activation_available: blockers.length === 0,
         expired: !!versions[0] && versions[0].expiresAt <= new Date(),
         activation_blockers: blockers,
         measurement_status: current?.experimentReview ? "included_in_proposal" : "awaiting_measurement_plan",
@@ -177,7 +185,7 @@ export class StrategyReviewService {
       const currentRules = await this.context.getRules(work.merchantId);
       if (!currentRules || digest(currentRules) !== digest(proposal.rules)) throw new Error("STRATEGY_POLICY_CHANGED");
       await this.prisma.$transaction(tx => assertStoredDiscountStudy(tx, work.merchantId,
-        action.proposal.strategy.runId, proposal.observation.id, currentRules, proposal.discountStudy));
+        action.proposal.strategy.runId, proposal.observation.id, currentRules, proposal.discountStudy, proposal.incentiveRecommendation));
       const checkoutBaseline = await this.context.getCheckoutBaseline?.(work.merchantId);
       const baseline = checkoutBaseline ? checkoutBaselineReference(checkoutBaseline)
         : this.context.getCheckoutBaseline ? undefined : await this.context.getCurrentPrompt(work.merchantId);
@@ -195,7 +203,7 @@ export class StrategyReviewService {
           max_running_experiments: 1, merchant_rules: currentRules } });
       if (generated.template.variant_a.system_prompt !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
       const experimentReview = planning ? strategyExperimentReview(action.strategyId, action.version + 1, generated, planning) : undefined;
-      const next = strategyProposal(generated, proposal.observation, currentRules, checkoutBaseline, experimentReview, proposal.discountStudy);
+      const next = strategyProposal(generated, proposal.observation, currentRules, checkoutBaseline, experimentReview, proposal.discountStudy, proposal.incentiveRecommendation);
       await this.eligible(work.merchantId);
       if (await this.context.getCurrentPrompt(work.merchantId) !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
       await this.prisma.$transaction(async tx => {
@@ -213,7 +221,7 @@ export class StrategyReviewService {
         await this.unchangedRules(tx, work.merchantId, proposal);
         if (planning) await assertStoredMeasurementPlanning(tx, work.merchantId, action.proposal.strategy.runId, planning);
         await assertStoredDiscountStudy(tx, work.merchantId, action.proposal.strategy.runId,
-          proposal.observation.id, currentRules, proposal.discountStudy);
+          proposal.observation.id, currentRules, proposal.discountStudy, proposal.incentiveRecommendation);
         const version = action.version + 1;
         await tx.revenueStrategyVersion.create({ data: { strategyId: strategy.id, merchantId: work.merchantId, version,
           proposalHash: digest(next), proposal: json(next), expiresAt: base.expiresAt } });

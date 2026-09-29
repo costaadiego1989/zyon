@@ -28,7 +28,7 @@ export async function strategyActivationBlockers(tx: Prisma.TransactionClient, s
   try { contract = executionContract({ merchantId, strategyId: strategy.id, version: version.version,
     runId: strategy.runId, proposalHash: version.proposalHash, proposal }); }
   catch { return [...blockers, "proposal_requires_new_analysis"]; }
-  try { await assertStoredDiscountStudy(tx, merchantId, strategy.runId, proposal.observation.id, proposal.rules, proposal.discountStudy); }
+  try { await assertStoredDiscountStudy(tx, merchantId, strategy.runId, proposal.observation.id, proposal.rules, proposal.discountStudy, proposal.incentiveRecommendation); }
   catch { return [...blockers, "proposal_requires_new_analysis"]; }
 
   const flags = ["REVENUE_STRATEGY_MAIN_CHAT_ENABLED", "REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED",

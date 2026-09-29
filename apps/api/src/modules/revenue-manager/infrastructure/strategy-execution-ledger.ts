@@ -86,7 +86,7 @@ export async function registerApprovedExecution(tx: Tx, merchantId: string, appr
   const contract = executionContract({ merchantId, strategyId: approval.strategyId, version: approval.version,
     runId: version.strategy.runId, proposalHash: version.proposalHash, proposal: version.proposal as unknown as StrategyProposal });
   const proposal = version.proposal as unknown as StrategyProposal;
-  await assertStoredDiscountStudy(tx, merchantId, version.strategy.runId, proposal.observation.id, proposal.rules, proposal.discountStudy);
+  await assertStoredDiscountStudy(tx, merchantId, version.strategy.runId, proposal.observation.id, proposal.rules, proposal.discountStudy, proposal.incentiveRecommendation);
   const previous = await tx.strategyExecution.findUnique({ where: { approvalActionId: approvalId } });
   if (previous) {
     if (previous.merchantId !== merchantId || previous.contractHash !== digest(contract)) throw new Error("STRATEGY_EXECUTION_CONFLICT");

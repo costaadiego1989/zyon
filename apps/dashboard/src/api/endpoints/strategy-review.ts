@@ -15,6 +15,23 @@ export interface StrategyProposal {
   checkoutBaseline?: { contextExit?: string; suppressionRecovery?: string };
   execution: "unavailable";
   expectedLiftStatus: "model_estimate_not_measured";
+  incentiveRecommendation?: {
+    definition: "weekly-incentive-recommendation-v1";
+    approval: "separate_incentive_review_required"; execution: "unavailable"; budgetStatus: "not_reserved";
+    financialPolicy: { version: number; policyHash: string };
+    status: "recommended" | "not_recommended";
+    reason?: "no_safe_candidate" | "financial_policy_disabled";
+    test?: {
+      kind: "capped_percentage_discount"; currency: "BRL";
+      audience: { intent: string; consent: "required"; identity: "first_eligible_session_per_buyer";
+        holdout: "excluded"; minCartTotalCents: number; maxCartTotalCents: number };
+      discountPercent: number; maxDiscountCents: number; limitCents: number; maxRedemptions: number;
+      maxPerBuyer: 1; durationDays: 7; start: "after_specific_approval"; allocation: "50/50";
+      control: "current_checkout_without_test_incentive"; stacking: "no_other_coupon_or_incentive";
+      minimumMarginPercent: number;
+      measurement: { result: "not_measured"; samplePlanning: "required_before_activation"; conversionWindowHours: 168 };
+    };
+  };
   discountStudy?: {
     definition: "weekly-discount-study-v1";
     asOf: string; capturedAt: string; lookbackDays: 28;
@@ -41,6 +58,7 @@ export interface StrategyProposal {
 
 export interface StrategyVersion {
   version: number; proposalHash: string; proposal: StrategyProposal; createdAt: string; expiresAt: string;
+  incentivePolicyCurrent?: boolean | null;
 }
 export interface StrategyAction {
   id: string; kind: string; version: number; feedback: string | null; createdAt: string;

@@ -27,7 +27,7 @@ async function currentFundingSource(tx: Tx, terms: IncentiveBudgetTerms) {
   const rules = merchantRulesSnapshot(await tx.merchantRule.findUniqueOrThrow({ where: { merchantId: terms.merchantId } }));
   const policy = await readIncentivePolicy(tx, terms.merchantId);
   if (!policy.enabled || terms.policyVersion !== policy.version || terms.policyHash !== policy.policyHash) fail("POLICY_CHANGED");
-  await assertStoredDiscountStudy(tx, terms.merchantId, version.strategy.runId, proposal.observation.id, rules, proposal.discountStudy);
+  await assertStoredDiscountStudy(tx, terms.merchantId, version.strategy.runId, proposal.observation.id, rules, proposal.discountStudy, proposal.incentiveRecommendation);
   assertIncentiveBudgetTerms(terms, { merchantId: terms.merchantId, strategyId: terms.strategyId,
     version: terms.version, proposalHash: version.proposalHash, study: proposal.discountStudy, rules, policy });
   return version;

@@ -23,7 +23,7 @@ export function executionContract(input: { merchantId: string; strategyId: strin
     || p.observation.merchant_id !== input.merchantId
     || p.experimentReview.strategyId !== input.strategyId || p.experimentReview.version !== input.version
     || p.experimentReview.planning.runId !== input.runId
-    || digest(p) !== digest(strategyProposal(p.recommendation, p.observation, p.rules, p.checkoutBaseline, p.experimentReview, p.discountStudy))) {
+    || digest(p) !== digest(strategyProposal(p.recommendation, p.observation, p.rules, p.checkoutBaseline, p.experimentReview, p.discountStudy, p.incentiveRecommendation))) {
     throw new Error("STRATEGY_EXECUTION_INVALID_PROPOSAL");
   }
   return structuredClone({ definition: "checkout-strategy-execution-v1", merchantId: input.merchantId,

@@ -5,6 +5,8 @@ import { AnalysisDeferred } from "../domain/weekly-analysis-policy.js";
 import { assertDiscountStudy, discountStudy, type StrategyDiscountStudy } from "../domain/strategy-discount-study.js";
 import { loadDiscountCohorts } from "./discount-cohort.reader.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
+import { readIncentivePolicy } from "./incentive-policy.reader.js";
+import { assertIncentiveRecommendation, incentiveRecommendation, type StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 
 export function discountStudyEnabled(merchantId: string) {
   return process.env.REVENUE_DISCOUNT_STUDY_ENABLED === "true"
@@ -30,12 +32,15 @@ export async function prepareDiscountStudy(prisma: PrismaClient, merchantId: str
           const saved = run.discountStudyJson as unknown as StrategyDiscountStudy;
           assertDiscountStudy(saved, merchantId, run.id, run.observationId, rules);
           if (saved.asOf !== run.asOf.toISOString()) throw new Error("STRATEGY_INVALID_DISCOUNT_STUDY");
+          if (run.incentiveRecommendationJson) assertIncentiveRecommendation(run.incentiveRecommendationJson as unknown as StrategyIncentiveRecommendation, saved, rules);
           return saved;
         }
         const cohorts = await loadDiscountCohorts(tx, merchantId, run.asOf, 28);
         const study = discountStudy({ merchantId, runId: run.id, observationId: run.observationId,
           asOf: run.asOf.toISOString(), capturedAt: now.toISOString(), rules, cohorts });
-        const changed = await tx.$executeRaw`UPDATE revenue_analysis_runs SET discount_study_json = ${JSON.stringify(study)}::jsonb
+        const recommendation = incentiveRecommendation(study, rules, await readIncentivePolicy(tx, merchantId));
+        const changed = await tx.$executeRaw`UPDATE revenue_analysis_runs SET discount_study_json = ${JSON.stringify(study)}::jsonb,
+          incentive_recommendation_json = ${JSON.stringify(recommendation)}::jsonb
           WHERE id = ${run.id} AND merchant_id = ${merchantId} AND status = 'running'
             AND lease_token = ${context.leaseToken} AND lease_until > clock_timestamp()`;
         if (changed !== 1) throw new AnalysisDeferred("analysis_lease_lost");
@@ -52,10 +57,19 @@ export async function prepareDiscountStudy(prisma: PrismaClient, merchantId: str
 }
 
 export async function assertStoredDiscountStudy(tx: Prisma.TransactionClient, merchantId: string, runId: string,
-  observationId: string, rules: MerchantRules, study?: StrategyDiscountStudy) {
+  observationId: string, rules: MerchantRules, study?: StrategyDiscountStudy, recommendation?: StrategyIncentiveRecommendation) {
   const run = await tx.revenueAnalysisRun.findFirstOrThrow({ where: { id: runId, merchantId } });
-  if (!study && !run.discountStudyJson) return;
+  if (!study && !run.discountStudyJson) {
+    if (recommendation || run.incentiveRecommendationJson) throw new Error("STRATEGY_INCENTIVE_RECOMMENDATION_CHANGED");
+    return;
+  }
   if (!study || !run.discountStudyJson || digest(study) !== digest(run.discountStudyJson)
     || study.asOf !== run.asOf?.toISOString()) throw new Error("STRATEGY_DISCOUNT_STUDY_CHANGED");
   assertDiscountStudy(study, merchantId, runId, observationId, rules);
+  if (run.incentiveRecommendationJson || recommendation) {
+    if (!study || !recommendation || !run.incentiveRecommendationJson || digest(recommendation) !== digest(run.incentiveRecommendationJson)) {
+      throw new Error("STRATEGY_INCENTIVE_RECOMMENDATION_CHANGED");
+    }
+    assertIncentiveRecommendation(recommendation, study, rules);
+  }
 }

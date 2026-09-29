@@ -25,8 +25,8 @@ export function StrategyDiscountStudy({ study }: { study: StrategyProposal["disc
       <div><dt>Conversão observada</dt><dd>{number(s.observedConversionRate * 100)}%</dd></div>
       <div><dt>Efeito do desconto</dt><dd>A medir</dd></div>
     </dl>
-    <p>Para ativar descontos, ainda será necessário definir e aprovar um orçamento comercial e um teste próprio,
-      com controle de resgates. Nenhum valor foi reservado.</p>
+    <p>A ativação de descontos depende de aprovação específica de um orçamento e de um teste com controle de resgates.
+      Nenhum valor foi reservado.</p>
     <details className="strategy-review-details"><summary>Como a simulação foi calculada</summary>
       <div className="strategy-review-details-body">
         <p>Foi usada a primeira sessão elegível de cada comprador com consentimento, com uma janela de compra de {s.conversionWindowHours} horas já encerrada.

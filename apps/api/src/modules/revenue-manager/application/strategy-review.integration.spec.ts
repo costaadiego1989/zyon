@@ -27,8 +27,9 @@ import { ExperimentMeasurementService } from "../../experiments/application/expe
 import { DiscountRuleHypothesisService } from "../domain/services/discount-rule-hypothesis.service.js";
 import { loadDiscountCohorts } from "../infrastructure/discount-cohort.reader.js";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
-import { prepareDiscountStudy } from "../infrastructure/strategy-discount-study.js";
+import { assertStoredDiscountStudy, prepareDiscountStudy } from "../infrastructure/strategy-discount-study.js";
 import type { StrategyDiscountStudy } from "../domain/strategy-discount-study.js";
+import { IncentivePolicyService } from "./incentive-policy.service.js";
 
 // Destructive setup is strictly restricted to this dedicated local fixture DB.
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -195,7 +196,7 @@ async function measuredProposal(withDiscountStudy = false) {
   const f = await fixture("store", { publish: false });
   await configureRealBaseline();
   await configureMeasurement(f);
-  if (withDiscountStudy) await seedWeeklyDiscountHistory(f);
+  if (withDiscountStudy) { await seedWeeklyDiscountHistory(f); await configureIncentivePolicy(); }
   const output = await realGeneration().execute({ merchant_id: "store", observation_id: f.observation.id,
     analysis_context: { runId: f.run.id, leaseToken: 1 } });
   const s = new StrategyReviewService(prisma, context, { generate: async request => recipeResponse(request) }, billing as never);
@@ -361,6 +362,11 @@ async function fixture(merchantId = "store", options: { expired?: boolean; publi
     input: { version: 1, proposal_hash: version?.proposalHash ?? "", request_key: "request-1", feedback: "Prefiro uma explicação mais curta." } };
 }
 
+function configureIncentivePolicy(expectedVersion = 0, limitCents = 10500) {
+  return new IncentivePolicyService(prisma).save("store", "owner", { expectedVersion, requestKey: `policy-${expectedVersion}`,
+    enabled: true, limitCents, maxDiscountCents: 400, maxRedemptions: 50 });
+}
+
 async function seedWeeklyDiscountHistory(f: Awaited<ReturnType<typeof fixture>>) {
   Object.assign(process.env, { REVENUE_DISCOUNT_STUDY_ENABLED: "true", REVENUE_DISCOUNT_STUDY_MERCHANT_IDS: "store" });
   const product = await prisma.product.create({ data: { merchantId: f.merchantId, name: "Produto simulado" } });
@@ -391,6 +397,7 @@ test("weekly discount study is opt-in per merchant and captures only once across
   process.env.REVENUE_DISCOUNT_STUDY_MERCHANT_IDS = "other";
   assert.equal(await prepareDiscountStudy(prisma, "store", input), undefined);
   process.env.REVENUE_DISCOUNT_STUDY_MERCHANT_IDS = "store";
+  const financialPolicy = await configureIncentivePolicy();
   const results = await Promise.allSettled(Array.from({ length: 6 }, () => prepareDiscountStudy(prisma, "store", input)));
   const studies = results.map(result => { assert.equal(result.status, "fulfilled"); return result.value; });
   for (const study of studies) assert.deepEqual(study, studies[0]);
@@ -399,9 +406,19 @@ test("weekly discount study is opt-in per merchant and captures only once across
   assert.equal(study.candidate?.simulation.sampleSize, 30);
   assert.equal(study.candidate?.percent, 5);
   assert.equal(JSON.stringify(study).includes(variantId), false);
+  const frozen = (await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson as any;
+  assert.equal(frozen.status, "recommended");
+  assert.deepEqual(frozen.financialPolicy, financialPolicy);
+  assert.equal(frozen.test.discountPercent, 5);
+  assert.equal(frozen.test.maxDiscountCents, 400);
+  assert.equal(frozen.test.maxRedemptions, 26);
+  assert.equal(frozen.test.limitCents, 10400);
+  await configureIncentivePolicy(1, 400);
   await prisma.productPrice.updateMany({ where: { variantId }, data: { costInCents: 9999 } });
   process.env.REVENUE_DISCOUNT_STUDY_ENABLED = "false";
   assert.deepEqual(await prepareDiscountStudy(prisma, "store", input), study);
+  assert.deepEqual((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson, frozen);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
   assert.equal(await prisma.revenueAiReservation.count(), 0);
   assert.equal(await prisma.coupon.count(), 0);
   assert.equal(await prisma.revenueManagerHypothesis.count(), 0);
@@ -413,11 +430,16 @@ test("weekly discount study freezes no-candidate outcome until a different weekl
   const input = { runId: f.run.id, leaseToken: 1 };
   const empty = await prepareDiscountStudy(prisma, "store", input);
   assert.equal(empty?.status, "no_safe_candidate");
+  const frozen = (await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson as any;
+  assert.equal(frozen.reason, "no_safe_candidate");
+  await configureIncentivePolicy();
   await seedWeeklyDiscountHistory(f);
   assert.deepEqual(await prepareDiscountStudy(prisma, "store", input), empty);
+  assert.deepEqual((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson, frozen);
   const next = await prisma.revenueAnalysisRun.create({ data: { merchantId: "store", cycle: 2, status: "running",
     leaseToken: 1, leaseUntil: f.run.leaseUntil, asOf: f.run.asOf, observationId: f.observation.id } });
   assert.equal((await prepareDiscountStudy(prisma, "store", { runId: next.id, leaseToken: 1 }))?.status, "candidate_available");
+  assert.equal(((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: next.id } })).incentiveRecommendationJson as any).status, "recommended");
 });
 
 test("weekly discount study refuses a foreign store, lost lease and changed policy before model dispatch", { skip: !enabled }, async () => {
@@ -427,6 +449,7 @@ test("weekly discount study refuses a foreign store, lost lease and changed poli
   await assert.rejects(prepareDiscountStudy(prisma, "foreign", input), /analysis_lease_lost/);
   await assert.rejects(prepareDiscountStudy(prisma, "store", { ...input, leaseToken: 2 }), /analysis_lease_lost/);
   assert.equal((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).discountStudyJson, null);
+  assert.equal((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson, null);
   await prepareDiscountStudy(prisma, "store", input);
   await prisma.merchantRule.update({ where: { merchantId: "store" }, data: { minimumMarginPercent: 40 } });
   let calls = 0;
@@ -441,6 +464,8 @@ test("weekly discount study refuses a foreign store, lost lease and changed poli
 test("weekly discount study cannot be rewritten, detached or deleted in PostgreSQL", { skip: !enabled }, async () => {
   const f = await fixture("store", { publish: false }); await seedWeeklyDiscountHistory(f);
   await prepareDiscountStudy(prisma, "store", { runId: f.run.id, leaseToken: 1 });
+  await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { incentiveRecommendationJson: {} } }), /INCENTIVE_RECOMMENDATION_IMMUTABLE/);
+  await assert.rejects(prisma.$executeRaw`UPDATE revenue_analysis_runs SET incentive_recommendation_json = NULL WHERE id = ${f.run.id}`, /INCENTIVE_RECOMMENDATION_IMMUTABLE/);
   await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { discountStudyJson: {} } }), /DISCOUNT_STUDY_IMMUTABLE/);
   await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { observationId: "changed" } }), /DISCOUNT_STUDY_IMMUTABLE/);
   await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { asOf: new Date(0) } }), /DISCOUNT_STUDY_IMMUTABLE/);
@@ -451,17 +476,27 @@ test("weekly discount study cannot be rewritten, detached or deleted in PostgreS
 test("weekly discount study survives a failed model attempt without resampling the current catalog", { skip: !enabled }, async () => {
   const f = await fixture("store", { publish: false }); await configureRealBaseline();
   const variantId = await seedWeeklyDiscountHistory(f);
+  await configureIncentivePolicy();
   let calls = 0;
   const generate = realGeneration(async request => { if (++calls === 1) throw new Error("fixture model unavailable"); return recipeResponse(request); });
   const input = { merchant_id: "store", observation_id: f.observation.id, analysis_context: { runId: f.run.id, leaseToken: 1 } };
   await assert.rejects(generate.execute(input), /fixture model unavailable/);
   const saved = (await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).discountStudyJson;
+  const frozen = (await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson as any;
+  assert.equal(frozen.status, "recommended");
   assert.equal((saved as any).status, "candidate_available");
   assert.equal(await prisma.merchantNotification.count(), 0);
   await prisma.productPrice.updateMany({ where: { variantId }, data: { costInCents: null } });
+  await configureIncentivePolicy(1, 400);
   const output = await generate.execute(input);
   const version = await prisma.revenueStrategyVersion.findFirstOrThrow({ where: { strategyId: output.hypothesis_id } });
   assert.deepEqual((version.proposal as any).discountStudy, saved);
+  assert.deepEqual((version.proposal as any).incentiveRecommendation, frozen);
+  const notice = await prisma.merchantNotification.findFirstOrThrow();
+  assert.match(notice.body, /sugestão de teste de desconto/);
+  assert.equal((notice.metadata as any).proposalHash, version.proposalHash);
+  assert.equal((await new StrategyReviewService(prisma, context, { generate: async request => recipeResponse(request) }, billing as never)
+    .read("store", output.hypothesis_id)).versions[0].incentivePolicyCurrent, false);
   assert.equal(calls, 2); assert.equal(await prisma.merchantNotification.count(), 1);
 });
 
@@ -482,10 +517,13 @@ test("weekly discount study must match the saved artifact for atomic proposal pu
 test("weekly discount study reaches review and survives a revision without entering LLM prompts", { skip: !enabled }, async () => {
   const f = await fixture("store", { publish: false }); await configureRealBaseline();
   const variantId = await seedWeeklyDiscountHistory(f);
+  await configureIncentivePolicy();
   let calls = 0;
   const generate = async (request: HypothesisGenerationRequest) => {
     calls++;
     assert.equal(JSON.stringify(request).includes("weekly-discount-study"), false);
+    assert.equal(JSON.stringify(request).includes("weekly-incentive-recommendation"), false);
+    assert.equal(JSON.stringify(request).includes("financialPolicy"), false);
     assert.equal(JSON.stringify(request).includes(variantId), false);
     return recipeResponse(request);
   };
@@ -494,6 +532,10 @@ test("weekly discount study reaches review and survives a revision without enter
   const s = new StrategyReviewService(prisma, context, { generate }, billing as never);
   const read = await s.read("store", output.hypothesis_id);
   const study = (read.versions[0].proposal as any).discountStudy as StrategyDiscountStudy;
+  const incentive = (read.versions[0].proposal as any).incentiveRecommendation;
+  assert.equal(incentive.status, "recommended");
+  assert.equal(read.versions[0].incentivePolicyCurrent, true);
+  await configureIncentivePolicy(1, 400);
   assert.equal(study.status, "candidate_available");
   await prisma.productPrice.updateMany({ where: { variantId }, data: { basePriceInCents: 99999, costInCents: null } });
   process.env.REVENUE_DISCOUNT_STUDY_ENABLED = "false";
@@ -505,6 +547,10 @@ test("weekly discount study reaches review and survives a revision without enter
   assert.equal(next.currentVersion, 2); assert.equal(calls, 2);
   assert.deepEqual((next.versions[0].proposal as any).discountStudy, study);
   assert.deepEqual((next.versions[1].proposal as any).discountStudy, study);
+  for (const version of next.versions) {
+    assert.deepEqual((version.proposal as any).incentiveRecommendation, incentive);
+    assert.equal(version.incentivePolicyCurrent, false);
+  }
   assert.equal(next.versions[0].expiresAt.toISOString(), read.versions[0].expiresAt.toISOString());
   assert.equal(await prisma.coupon.count(), 0);
   await assert.rejects(s.read("foreign", output.hypothesis_id), /STRATEGY_NOT_FOUND/);
@@ -516,11 +562,13 @@ test("weekly discount study approval starts communication only and never creates
   const study = (f.read.versions[0].proposal as any).discountStudy;
   assert.equal(study.status, "candidate_available");
   assert.equal(study.commercialBudget, "not_reserved");
+  assert.equal((f.read.versions[0].proposal as any).incentiveRecommendation.status, "recommended");
   const settings = await prisma.checkoutSetting.findUniqueOrThrow({ where: { merchantId: "store" } });
   const receipt = await f.s.decide("store", "owner", f.id, "approve", f.input) as any;
   assert.equal(receipt.status, "active");
   const execution = await prisma.strategyExecution.findUniqueOrThrow({ where: { id: receipt.execution_id } });
   assert.equal(JSON.stringify(execution.contract).includes("weekly-discount-study"), false);
+  assert.equal(JSON.stringify(execution.contract).includes("weekly-incentive-recommendation"), false);
   assert.equal(await prisma.promptVariant.count({ where: { appliedRuleId: { not: null } } }), 0);
   assert.equal(await prisma.coupon.count(), 0);
   assert.equal(await prisma.couponRedemption.count(), 0);
@@ -529,6 +577,48 @@ test("weekly discount study approval starts communication only and never creates
   assert.equal(await prisma.revenueAiReservation.count(), 0);
   assert.deepEqual((await prisma.checkoutSetting.findUniqueOrThrow({ where: { merchantId: "store" } })).advancedRules, settings.advancedRules);
   assert.deepEqual(await f.s.decide("store", "owner", f.id, "approve", f.input), receipt);
+});
+
+test("weekly incentive recommendation cannot be omitted or replaced by a canonical but different financial policy", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false }); await seedWeeklyDiscountHistory(f); await configureIncentivePolicy();
+  const study = (await prepareDiscountStudy(prisma, "store", { runId: f.run.id, leaseToken: 1 }))!;
+  const frozen = (await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson as any;
+  const rules = (await context.getRules("store"))!;
+  const verify = (rec?: any) => prisma.$transaction(tx => assertStoredDiscountStudy(tx, "store", f.run.id, f.observation.id, rules, study, rec));
+  await assert.rejects(verify(), /INCENTIVE_RECOMMENDATION_CHANGED/);
+  await assert.rejects(verify({ ...frozen, financialPolicy: await configureIncentivePolicy(1, 400) }), /INCENTIVE_RECOMMENDATION_CHANGED/);
+  await assert.rejects(verify({ ...frozen, test: { ...frozen.test, limitCents: 99999 } }), /INCENTIVE_RECOMMENDATION_CHANGED/);
+  await verify(frozen);
+  assert.equal(await prisma.merchantNotification.count(), 0);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+});
+
+test("weekly incentive recommendation keeps disabled limits frozen until the next analysis", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false }); await seedWeeklyDiscountHistory(f);
+  const input = { runId: f.run.id, leaseToken: 1 };
+  await prepareDiscountStudy(prisma, "store", input);
+  const frozen = (await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson as any;
+  assert.equal(frozen.reason, "financial_policy_disabled");
+  assert.equal(frozen.test, undefined);
+  await configureIncentivePolicy();
+  await prepareDiscountStudy(prisma, "store", input);
+  assert.deepEqual((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson, frozen);
+});
+
+test("weekly incentive recommendation does not retrofit previously captured studies or fabricate an absent study", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false }); await seedWeeklyDiscountHistory(f);
+  const study = (await prepareDiscountStudy(prisma, "store", { runId: f.run.id, leaseToken: 1 }))!;
+  const old = await prisma.revenueAnalysisRun.create({ data: { merchantId: "store", cycle: 2, status: "running",
+    leaseToken: 1, leaseUntil: f.run.leaseUntil, asOf: f.run.asOf, observationId: f.observation.id } });
+  const historical = { ...study, runId: old.id };
+  await prisma.revenueAnalysisRun.update({ where: { id: old.id }, data: { discountStudyJson: historical as any } });
+  await configureIncentivePolicy();
+  assert.deepEqual(await prepareDiscountStudy(prisma, "store", { runId: old.id, leaseToken: 1 }), historical);
+  assert.equal((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: old.id } })).incentiveRecommendationJson, null);
+  const rules = (await context.getRules("store"))!;
+  await prisma.$transaction(tx => assertStoredDiscountStudy(tx, "store", old.id, f.observation.id, rules, historical));
+  const empty = await prisma.revenueAnalysisRun.create({ data: { merchantId: "store", cycle: 3, status: "running" } });
+  await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: empty.id }, data: { incentiveRecommendationJson: {} } }), /revenue_incentive_recommendation_object/);
 });
 
 test("discovery summaries show the latest immutable proposal without crossing stores or exposing its context", { skip: !enabled }, async () => {

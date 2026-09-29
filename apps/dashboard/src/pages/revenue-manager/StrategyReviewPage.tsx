@@ -4,6 +4,7 @@ import type { StrategyProposal } from "../../api/endpoints/strategy-review.js";
 import { StrategyReviewModal } from "./StrategyReviewModal.js";
 import { StrategyMetricsPanel } from "./StrategyMetricsPanel.js";
 import { StrategyDiscountStudy } from "./StrategyDiscountStudy.js";
+import { StrategyIncentiveRecommendation } from "./StrategyIncentiveRecommendation.js";
 import { useStrategyReview } from "./useStrategyReview.js";
 import { canReviewVersion, formatReviewDate as date, formatReviewNumber as number, REVISION_STATUSES, STRATEGY_STATUSES, versionExpired } from "./strategy-review-model.js";
 import "./strategy-review.css";
@@ -105,6 +106,7 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
           <p>Esta proposta altera a comunicação. Não cria cupom, desconto ou frete grátis. Os limites acima são os registrados nesta versão; não autorizam uma oferta nem comprovam sua margem.</p>
         </section>
         <StrategyDiscountStudy study={proposal.discountStudy} />
+        <StrategyIncentiveRecommendation recommendation={proposal.incentiveRecommendation} policyCurrent={version.incentivePolicyCurrent} />
         <MeasurementDetails proposal={proposal} />
         <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}:${vm.review.status}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />
       </article>

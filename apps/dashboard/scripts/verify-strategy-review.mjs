@@ -11,7 +11,7 @@ const expires = new Date(Date.now() + 7 * 86400000).toISOString();
 const firstTitle = "Explicar as opções de pagamento com mais clareza";
 const secondTitle = "Perguntar qual dúvida impede a conclusão da compra";
 function version(n) {
-  return { version: n, proposalHash: String(n).repeat(64), createdAt: stamp, expiresAt: expires,
+  return { version: n, proposalHash: String(n).repeat(64), createdAt: stamp, expiresAt: expires, incentivePolicyCurrent: true,
     proposal: { definition: "checkout-strategy-review-v1", execution: "unavailable", expectedLiftStatus: "model_estimate_not_measured",
       baselineStatus: "primary_chat_contract_captured",
       checkoutBaseline: { contextExit: "checkout-context-exit-v1", suppressionRecovery: "checkout-suppression-recovery-v1" },
@@ -20,6 +20,15 @@ function version(n) {
           variant_a: { name: "Atual", system_prompt: "checkout-chat-baseline-v1:fixture", weight: 50, is_control: true },
           variant_b: { name: "Comunicação", system_prompt: "Pergunte qual etapa precisa de explicação e use apenas dados verificados.", weight: 50, is_control: false } } },
       rules: { maxDiscountPercent: 10, minimumMarginPercent: 38, allowFreeShipping: false, maxShippingSubsidy: 0 },
+      incentiveRecommendation: { definition: "weekly-incentive-recommendation-v1", status: "recommended",
+        approval: "separate_incentive_review_required", execution: "unavailable", budgetStatus: "not_reserved",
+        financialPolicy: { version: 1, policyHash: "p".repeat(64) },
+        test: { kind: "capped_percentage_discount", currency: "BRL", discountPercent: 10, maxDiscountCents: 1000,
+          limitCents: 30000, maxRedemptions: 30, maxPerBuyer: 1, durationDays: 7, start: "after_specific_approval",
+          allocation: "50/50", control: "current_checkout_without_test_incentive", stacking: "no_other_coupon_or_incentive",
+          minimumMarginPercent: 38, audience: { intent: "price_sensitive", consent: "required",
+            identity: "first_eligible_session_per_buyer", holdout: "excluded", minCartTotalCents: 10000, maxCartTotalCents: 20000 },
+          measurement: { conversionWindowHours: 168, result: "not_measured", samplePlanning: "required_before_activation" } } },
       discountStudy: { definition: "weekly-discount-study-v1", asOf: stamp, capturedAt: stamp, lookbackDays: 28,
         approvalScope: "communication_only", commercialBudget: "not_reserved", status: "candidate_available",
         candidate: { intent: "price_sensitive", percent: 10, simulation: { sampleSize: 30,
@@ -148,6 +157,53 @@ try {
     await page.getByText(/tráfego estimado está abaixo/).waitFor();
     assert.equal(posts.length, 0, "Reading never submits a decision");
     assert.equal(await page.getByText(/checkout-chat-baseline-v1:/).count(), 0);
+    const incentive = page.getByRole("region", { name: "Teste de desconto sugerido", exact: true });
+    await incentive.getByText(/300,00 para até 30 usos/).waitFor();
+    await incentive.getByText(/10%, até R\$\s*10,00 por compra/).waitFor();
+    await incentive.getByText("7 dias após aprovação específica", { exact: true }).waitFor();
+    await incentive.getByText(/Aprovar a comunicação abaixo não autoriza o desconto/).waitFor();
+    assert.equal(await incentive.locator("input, select, textarea, button").count(), 0, "The motor designs the test; reading is not spend authorization");
+    await incentive.getByText("Regras e métricas do teste sugerido", { exact: true }).click();
+    await incentive.getByText(/não uma previsão de demanda/).waitFor();
+    await incentive.getByText(/janela de compra de sete dias/).waitFor();
+    await noOverflow(width);
+    // A taller capture keeps the complete section below the sticky app header.
+    // The interaction checks still use the 900px viewport above and below.
+    if (out) await page.setViewportSize({ width, height: 1800 });
+    if (out) await incentive.screenshot({ path: `${out}/incentive-recommendation-${width}.png` });
+    review.versions[0].incentivePolicyCurrent = false;
+    await page.getByRole("button", { name: "Atualizar", exact: true }).click();
+    await incentive.getByText(/Os limites financeiros mudaram após esta análise/).waitFor();
+    await incentive.getByText(/300,00 para até 30 usos/).waitFor();
+    if (out) await incentive.screenshot({ path: `${out}/incentive-stale-policy-${width}.png` });
+    if (out) await page.setViewportSize({ width, height: 900 });
+    const savedIncentive = structuredClone(review.versions[0].proposal.incentiveRecommendation);
+    for (const invalid of [
+      { ...savedIncentive, definition: "future-format" },
+      { ...savedIncentive, test: { ...savedIncentive.test, limitCents: -1 } },
+      { ...savedIncentive, test: { ...savedIncentive.test, currency: "USD" } },
+    ]) {
+      review.versions[0].proposal.incentiveRecommendation = invalid;
+      await page.reload({ waitUntil: "domcontentloaded" });
+      await page.getByText("Atualize o dashboard para consultar este formato de sugestão.", { exact: true }).waitFor();
+      assert.equal(await page.getByText("Orçamento máximo sugerido", { exact: true }).count(), 0);
+    }
+    review.versions[0].proposal.incentiveRecommendation = { ...savedIncentive, status: "not_recommended", reason: "financial_policy_disabled", test: undefined };
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByText(/Os limites financeiros estavam desativados nesta análise/).waitFor();
+    review.versions[0].proposal.incentiveRecommendation.reason = "no_safe_candidate";
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("heading", { name: firstTitle, exact: true }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Teste de desconto sugerido", exact: true }).count(), 0);
+    delete review.versions[0].proposal.incentiveRecommendation;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("heading", { name: firstTitle, exact: true }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Teste de desconto sugerido", exact: true }).count(), 0);
+    review.versions[0].proposal.incentiveRecommendation = savedIncentive;
+    review.versions[0].incentivePolicyCurrent = true;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await incentive.getByText(/300,00 para até 30 usos/).waitFor();
+    assert.equal(posts.length, 0, "Review of incentive terms never sends a commercial decision");
     const discountStudy = page.getByRole("region", { name: "Simulação de desconto", exact: true });
     await discountStudy.getByText("46%", { exact: true }).waitFor();
     await discountStudy.getByText("A medir", { exact: true }).waitFor();
@@ -356,7 +412,7 @@ try {
     await page.getByText(/Ainda precisamos de mais sessões/).waitFor();
     assert.equal(await page.getByRole("button", { name: "Revisar estratégia", exact: true }).count(), 0);
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}px: direct/reload, notice, navigation, revision, ambiguous retry, exact version, conflict, history, reject, expiry, access, keyboard, responsive, insufficient data, measured/pending results, refresh failure, positive/invalid evidence, metrics version isolation (mock API)`);
+    console.log(`PASS ${width}px: automatic incentive terms, stale policy, unknown/invalid terms, no spend authorization, direct/reload, notice, navigation, revision, ambiguous retry, exact version, conflict, history, reject, expiry, access, keyboard, responsive, insufficient data, measured/pending results, refresh failure, positive/invalid evidence, metrics version isolation (mock API)`);
     await page.close();
   }
 } finally { await browser.close(); }

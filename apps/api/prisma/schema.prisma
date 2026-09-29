@@ -3485,6 +3485,7 @@ model RevenueAnalysisRun {
   generatedJson Json? @map("generated_json")
   measurementPlanningJson Json? @map("measurement_planning_json")
   discountStudyJson Json? @map("discount_study_json")
+  incentiveRecommendationJson Json? @map("incentive_recommendation_json")
   createdAt DateTime @default(now()) @map("created_at")
   startedAt DateTime? @map("started_at")
   completedAt DateTime? @map("completed_at")
