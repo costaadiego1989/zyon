@@ -512,6 +512,7 @@ test("weekly discount study reaches review and survives a revision without enter
 
 test("weekly discount study approval starts communication only and never creates a discount or budget reservation", { skip: !enabled }, async () => {
   const f = await approvableProposal(true);
+  Object.assign(process.env, { REVENUE_INCENTIVE_BUDGET_ENABLED: "true", REVENUE_INCENTIVE_BUDGET_MERCHANT_IDS: "store" });
   const study = (f.read.versions[0].proposal as any).discountStudy;
   assert.equal(study.status, "candidate_available");
   assert.equal(study.commercialBudget, "not_reserved");
@@ -523,6 +524,8 @@ test("weekly discount study approval starts communication only and never creates
   assert.equal(await prisma.promptVariant.count({ where: { appliedRuleId: { not: null } } }), 0);
   assert.equal(await prisma.coupon.count(), 0);
   assert.equal(await prisma.couponRedemption.count(), 0);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+  assert.equal(await prisma.strategyIncentiveReservation.count(), 0);
   assert.equal(await prisma.revenueAiReservation.count(), 0);
   assert.deepEqual((await prisma.checkoutSetting.findUniqueOrThrow({ where: { merchantId: "store" } })).advancedRules, settings.advancedRules);
   assert.deepEqual(await f.s.decide("store", "owner", f.id, "approve", f.input), receipt);

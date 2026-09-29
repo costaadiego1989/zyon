@@ -381,6 +381,7 @@ model CheckoutSession {
   completedOrders  CompletedOrder[]
   strategyAssignments StrategyAssignment[]
   chatRequests CheckoutChatRequest[]
+  incentiveReservations StrategyIncentiveReservation[]
 
   @@unique([merchantId, sessionId])
   @@index([merchantId, updatedAt])
@@ -3545,6 +3546,7 @@ model RevenueStrategyVersion {
   strategy RevenueStrategy @relation(fields: [strategyId, merchantId], references: [id, merchantId], onDelete: Restrict)
   actions RevenueStrategyAction[]
   executions StrategyExecution[]
+  incentiveBudgets StrategyIncentiveBudget[]
   @@id([strategyId, merchantId, version])
   @@map("revenue_strategy_versions")
 }
@@ -3569,6 +3571,65 @@ model RevenueStrategyAction {
   @@unique([id, merchantId])
   @@index([strategyId, merchantId, createdAt])
   @@map("revenue_strategy_actions")
+}
+
+/// Financial envelope only. Separate commercial execution/review must authorize
+/// every actual offer; the communication approval never creates this record.
+model StrategyIncentiveBudget {
+  id String @id
+  merchantId String @map("merchant_id")
+  strategyId String @map("strategy_id")
+  version Int
+  proposalHash String @map("proposal_hash")
+  termsHash String @map("terms_hash")
+  terms Json
+  actorId String @map("actor_id")
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  limitCents Int @map("limit_cents")
+  maxDiscountCents Int @map("max_discount_cents")
+  maxRedemptions Int @map("max_redemptions")
+  reservedCents Int @default(0) @map("reserved_cents")
+  spentCents Int @default(0) @map("spent_cents")
+  reservedCount Int @default(0) @map("reserved_count")
+  spentCount Int @default(0) @map("spent_count")
+  startsAt DateTime @map("starts_at")
+  endsAt DateTime @map("ends_at")
+  approvedAt DateTime @map("approved_at")
+  closedAt DateTime? @map("closed_at")
+  closedBy String? @map("closed_by")
+  closeReason String? @map("close_reason")
+  proposal RevenueStrategyVersion @relation(fields: [strategyId, merchantId, version], references: [strategyId, merchantId, version], onDelete: Restrict, onUpdate: Restrict)
+  reservations StrategyIncentiveReservation[]
+  @@unique([id, merchantId])
+  @@unique([merchantId, requestKey])
+  @@unique([strategyId, merchantId])
+  @@map("strategy_incentive_budgets")
+}
+
+/// No timeout releases funds. A terminal resolution requires durable evidence
+/// from the commerce transaction; an uncertain attempt remains reserved.
+model StrategyIncentiveReservation {
+  id String @id
+  merchantId String @map("merchant_id")
+  budgetId String @map("budget_id")
+  sessionId String @map("session_id")
+  buyerId String @map("buyer_id")
+  requestKey String @map("request_key")
+  requestHash String @map("request_hash")
+  amountCents Int @map("amount_cents")
+  reservedAt DateTime @map("reserved_at")
+  status String @default("reserved")
+  spentCents Int? @map("spent_cents")
+  resolvedAt DateTime? @map("resolved_at")
+  evidenceKey String? @map("evidence_key")
+  resolutionHash String? @map("resolution_hash")
+  budget StrategyIncentiveBudget @relation(fields: [budgetId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  session CheckoutSession @relation(fields: [merchantId, sessionId], references: [merchantId, sessionId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([budgetId, merchantId, requestKey])
+  @@unique([budgetId, merchantId, evidenceKey])
+  @@index([budgetId, merchantId, status])
+  @@map("strategy_incentive_reservations")
 }
 
 model RevenueStrategyRevision {
