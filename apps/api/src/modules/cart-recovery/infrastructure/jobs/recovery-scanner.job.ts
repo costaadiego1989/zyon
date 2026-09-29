@@ -12,13 +12,16 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 
-const SCAN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
-const QUIET_PERIOD_MS = 30 * 60 * 1000;
+// Recovery is promised after five minutes of real inactivity. Scan once a
+// minute so a qualified cart is dispatched within about one minute of that
+// threshold, rather than waiting for a fifteen-minute polling window.
+const SCAN_INTERVAL_MS = 60 * 1000;
+const QUIET_PERIOD_MS = 5 * 60 * 1000;
 
 /**
  * RecoveryScannerJob
  *
- * Runs every 15 min: loads candidate sessions and delegates attempts to the
+ * Runs every minute: loads candidate sessions and delegates attempts to the
  * module's shared recovery use case, including connection/template routing.
  * Delivery is revalidated against the current checkout, order and payment
  * state immediately before delegating to the channel router.
@@ -42,7 +45,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Start the interval on module init (NestJS lifecycle hook).
-   * Runs every 15 min.
+   * Runs every minute.
    */
   onModuleInit(): void {
     this.start();
@@ -71,7 +74,7 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         );
       });
     }, SCAN_INTERVAL_MS);
-    this.logger.log("recovery-scanner: scheduled for every 15 minutes (initial scan in 5s)", { intervalMs: SCAN_INTERVAL_MS });
+    this.logger.log("recovery-scanner: scheduled for every minute (initial scan in 5s)", { intervalMs: SCAN_INTERVAL_MS });
   }
 
   /**
@@ -90,13 +93,14 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
   }
 
   /**
-   * Main scan loop. Called by job scheduler (every 15 min).
+   * Main scan loop. Called by job scheduler every minute.
    * Isolated: each session is processed independently; failures are logged, not fatal.
-   * Multi-instance safety: use random jitter (0-30s) to minimize collision probability.
+   * Multi-instance safety: use a short random jitter to minimize collision probability.
    */
   async scan(): Promise<{ scanned: number; attempted: number; errors: number }> {
-    // Apply random jitter to minimize multi-instance collisions
-    const jitter = Math.random() * 30 * 1000; // 0-30s
+    // Apply a short jitter to minimize multi-instance collisions without
+    // turning the five-minute recovery promise into a multi-minute delay.
+    const jitter = Math.random() * 5 * 1000;
     await new Promise(resolve => setTimeout(resolve, jitter));
 
     const stats = { scanned: 0, attempted: 0, errors: 0 };

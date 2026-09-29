@@ -37,14 +37,14 @@ export class PrismaStrategyPreferencesRepository implements StrategyPreferencesR
     });
     if (!row || !row.config) {
       return {
-        active_strategy: "offer_coupon",
+        active_strategy: "personalized_cross_sell",
         coupon_code: undefined,
         rule_id: undefined,
       };
     }
     const cfg = row.config as Record<string, unknown>;
     return {
-      active_strategy: (cfg.active_strategy as any) ?? "offer_coupon",
+      active_strategy: (cfg.active_strategy as any) ?? "personalized_cross_sell",
       coupon_code: (cfg.coupon_code as string | undefined) ?? undefined,
       rule_id: (cfg.rule_id as string | undefined) ?? undefined,
     };
@@ -57,7 +57,7 @@ export class PrismaStrategyPreferencesRepository implements StrategyPreferencesR
         return await this.prisma.$transaction(async tx => {
           const row = await tx.cartRecoveryStrategyPref.findUnique({ where: { merchantId } });
           const cfg = {
-            active_strategy: "offer_coupon",
+            active_strategy: "personalized_cross_sell",
             ...((row?.config as Record<string, unknown> | null) ?? {}),
             ...defined,
           } as StrategyConfig;

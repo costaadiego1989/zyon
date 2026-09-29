@@ -1,6 +1,7 @@
 "use client";
 
 import { conversationFetch } from "@/lib/conversation-access";
+import { getValidBuyer } from "@/lib/buyer-auth";
 
 export type TriggerName = "idle_30_seconds" | "exit_intent_detected";
 
@@ -17,9 +18,13 @@ function reportTriggerEvent(triggerName: TriggerName, config: TriggerConfig): vo
   if (!config.sessionId || !config.merchantId) return;
   const apiUrl = config.apiBaseUrl || "http://localhost:3009";
   try {
+    const buyerToken = getValidBuyer()?.token;
     conversationFetch(config.sessionId, `${apiUrl}/storefront/conversations/${encodeURIComponent(config.sessionId)}/events`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: {
+        "Content-Type": "application/json",
+        ...(buyerToken ? { "X-Buyer-Authorization": `Bearer ${buyerToken}` } : {}),
+      },
       body: JSON.stringify({
         merchant_id: config.merchantId,
         event: triggerName,
@@ -40,7 +45,7 @@ export function setupIdleTrigger(
     idleTimer = setTimeout(() => {
       onTrigger("idle_30_seconds");
       reportTriggerEvent("idle_30_seconds", config);
-    }, (config.idleSeconds ?? 30) * 1000);
+    }, (config.idleSeconds ?? 300) * 1000);
   };
   const events = ["mousemove", "keydown", "scroll", "click", "touchstart"];
   events.forEach((e) => document.addEventListener(e, resetIdle, { passive: true }));

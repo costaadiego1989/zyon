@@ -274,7 +274,7 @@ export class StorefrontController {
   async trackEvent(
     @Param("conversationId") conversationId: string,
     @Body() body: { merchant_id?: string; event: string; metadata?: Record<string, unknown> },
-    @Req() request: { headers?: { authorization?: string; origin?: string } },
+    @Req() request: { headers?: { authorization?: string; origin?: string; "x-buyer-authorization"?: string | string[] } },
   ) {
     const claims = this.conversationAccess(request, conversationId, body.merchant_id);
     body = { ...body, merchant_id: claims.merchantId };
@@ -285,6 +285,7 @@ export class StorefrontController {
     await this.trackStorefrontEvent.execute({
       merchantId: body.merchant_id,
       conversationId,
+      globalUserId: this.buyerId(request, claims.merchantId),
       event: body.event,
       metadata: body.metadata,
     });

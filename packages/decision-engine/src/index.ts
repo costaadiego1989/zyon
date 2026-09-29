@@ -12,11 +12,16 @@ const EVENT_WEIGHTS: Record<CheckoutEventName, number> = {
   payment_method_selected: 0.04,
   payment_failed: 0.3,
   exit_intent_detected: 0.3,
-  idle_30_seconds: 0.2,
+  // The persisted trigger name is legacy, but the storefront now fires it
+  // after five minutes. That level of inactivity is enough to qualify a cart
+  // for recovery; the scanner still revalidates cart, payment and consent.
+  idle_30_seconds: 0.55,
   offer_viewed: 0.05,
   offer_accepted: -0.15,
   order_completed: -1,
-  checkout_abandoned: 0.45,
+  // Closing checkout is an explicit abandonment signal and must independently
+  // reach the Cart Recovery threshold.
+  checkout_abandoned: 0.55,
   cross_sell_accepted: -0.1,
   cross_sell_added: -0.05,
   auth_phone_submitted: 0.05,

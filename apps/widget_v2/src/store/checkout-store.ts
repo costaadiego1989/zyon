@@ -551,7 +551,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
               enabledTriggers: (settings.enabledTriggers ?? []) as TriggerName[],
               cooldownMs: (settings.cooldownSeconds ?? 120) * 1000,
               maxInterventions: settings.maxInterventionsPerSession ?? 3,
-              idleSeconds: settings.idleSeconds ?? 30,
+              idleSeconds: settings.idleSeconds ?? 300,
             },
             triggerMessages: settings.triggerMessages ?? null,
             progressiveDiscount: settings.progressiveDiscount ?? null,

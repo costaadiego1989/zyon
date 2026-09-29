@@ -157,12 +157,16 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       });
       if (!session) return;
       const score = CheckoutAbandonmentService.applyEvent(session.abandonmentScore, event);
+      // Idle and terminal abandonment events describe time that has already
+      // elapsed; they must not reset the last-real-activity clock that Cart
+      // Recovery uses for its five-minute quiet-period check.
+      const preservesLastActivity = event === "idle_30_seconds" || event === "checkout_abandoned";
       await tx.checkoutSession.update({
         where: { merchantId_sessionId: { merchantId, sessionId } },
         data: {
           abandonmentScore: score.nextScore,
           triggerAgent: score.triggerAgent,
-          updatedAt: new Date()
+          ...(preservesLastActivity ? {} : { updatedAt: new Date() })
         }
       });
     };

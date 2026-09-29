@@ -13,7 +13,7 @@ export const TRIGGER_HELP: Record<CheckoutTriggerName, string> = {
   coupon_field_clicked: "Comprador abre campo de cupom → agente sugere cupom disponível",
   payment_failed: "Pagamento recusado → agente sugere método alternativo",
   exit_intent_detected: "Cursor sai da página → agente pergunta se pode ajudar",
-  idle_30_seconds: "30s sem interação → agente oferece ajuda proativa",
+  idle_30_seconds: "5 min sem interação → agente oferece ajuda proativa",
 };
 
 export const TRIGGER_STATUS: Record<CheckoutTriggerName, "active" | "soon"> = {

@@ -35,7 +35,8 @@ export interface TrackEventResult {
 
 export async function trackEvent(
   event: CheckoutEventName,
-  data?: Record<string, unknown>
+  data?: Record<string, unknown>,
+  options?: { keepalive?: boolean },
 ): Promise<TrackEventResult | undefined> {
   // The approved-payment flow records completion on the server.
   if (event === "order_completed" || !api || !sessionId) return undefined;
@@ -51,6 +52,9 @@ export async function trackEvent(
         event,
         metadata: data ?? {},
       }),
+      // A normal fetch is cancelled as the page is closed. Cart recovery must
+      // receive the terminal event even when the buyer closes the tab/window.
+      keepalive: options?.keepalive === true,
     });
     if (res.ok) return (await res.json()) as TrackEventResult;
   } catch {
@@ -59,12 +63,21 @@ export async function trackEvent(
 }
 
 export function setupAbandonmentTracking(): () => void {
+  let reported = false;
   const handler = () => {
-    trackEvent("checkout_abandoned", {
+    if (reported) return;
+    reported = true;
+    void trackEvent("checkout_abandoned", {
       timestamp: new Date().toISOString(),
       url: window.location.href,
-    });
+    }, { keepalive: true });
   };
+  // pagehide is fired for normal tab/window closes as well as mobile browser
+  // lifecycle changes. beforeunload remains as a compatibility fallback.
+  window.addEventListener("pagehide", handler);
   window.addEventListener("beforeunload", handler);
-  return () => window.removeEventListener("beforeunload", handler);
+  return () => {
+    window.removeEventListener("pagehide", handler);
+    window.removeEventListener("beforeunload", handler);
+  };
 }

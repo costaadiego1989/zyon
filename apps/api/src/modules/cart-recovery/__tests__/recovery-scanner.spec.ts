@@ -123,7 +123,7 @@ for (const scenario of ["missing_coupon", "missing_rule", "configuration_unavail
     context.mock.method(Math, "random", () => 0);
     context.mock.timers.enable({ apis: ["setTimeout", "Date"], now });
     const session = checkoutSession({ triggerAgent: true, abandonmentScore: 0.95,
-      updatedAt: new Date(now.getTime() - (scenario === "recent_activity" ? 5 : 31) * 60_000).toISOString(),
+      updatedAt: new Date(now.getTime() - (scenario === "recent_activity" ? 4 : 31) * 60_000).toISOString(),
       ...(scenario === "empty_cart" ? { cart: { ...checkoutSession().cart, items: [] } } : {}),
     });
     const sessions = new InMemoryCheckoutRepository();

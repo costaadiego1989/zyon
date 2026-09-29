@@ -8,7 +8,10 @@ import { test, expect, type Page } from "@playwright/test";
 
 const WIDGET_URL = "http://127.0.0.1:5174";
 
-async function setupEmbedMocks(page: Page, options: { enabledTriggers?: string[] } = {}) {
+async function setupEmbedMocks(page: Page, options: {
+  enabledTriggers?: string[];
+  onTrack?: (event: { event?: string; metadata?: Record<string, unknown> }) => void;
+} = {}) {
   await page.route("**/embed/start", async (route) => {
     await route.fulfill({
       status: 200, contentType: "application/json",
@@ -48,7 +51,10 @@ async function setupEmbedMocks(page: Page, options: { enabledTriggers?: string[]
       }),
     });
   });
-  await page.route("**/embed/track", (route) => route.fulfill({ status: 200, body: "{}" }));
+  await page.route("**/embed/track", async (route) => {
+    options.onTrack?.(route.request().postDataJSON());
+    await route.fulfill({ status: 200, body: "{}" });
+  });
 }
 
 async function navigateEmbed(page: Page) {
@@ -57,8 +63,10 @@ async function navigateEmbed(page: Page) {
 
 async function enterChat(page: Page) {
   const chatBtn = page.locator("button", { hasText: "Por chat" });
-  await chatBtn.waitFor({ state: "visible", timeout: 15000 });
-  await chatBtn.click();
+  // A restored checkout session can already be in the chat channel. In that
+  // case the selector is intentionally absent and the assertion below is the
+  // stable readiness signal.
+  if (await chatBtn.isVisible().catch(() => false)) await chatBtn.click();
   await page.locator("text=/carrinho|Olá|produto ideal/i").first().waitFor({ state: "visible", timeout: 10000 });
 }
 
@@ -72,6 +80,17 @@ test("embedded: idle trigger fires after inactivity", async ({ page }) => {
   // Wait for idle (2s configured + buffer)
   await page.waitForTimeout(3500);
   await expect(page.locator(".discount-banner")).toBeVisible({ timeout: 3000 });
+});
+
+test("embedded: closing the checkout records an abandonment event", async ({ page }) => {
+  const events: { event?: string; metadata?: Record<string, unknown> }[] = [];
+  await setupEmbedMocks(page, { onTrack: event => events.push(event) });
+  await navigateEmbed(page);
+  await enterChat(page);
+
+  await page.evaluate(() => window.dispatchEvent(new Event("pagehide")));
+
+  await expect.poll(() => events.some(event => event.event === "checkout_abandoned")).toBe(true);
 });
 
 // ─── Exit-intent fires in embedded InlineCheckout ────────────────────────────

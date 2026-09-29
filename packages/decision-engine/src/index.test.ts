@@ -48,9 +48,9 @@ describe("scoreEvent", () => {
       ["payment_method_selected", 0.04],
       ["payment_failed", 0.3],
       ["exit_intent_detected", 0.3],
-      ["idle_30_seconds", 0.2],
+      ["idle_30_seconds", 0.55],
       ["offer_viewed", 0.05],
-      ["checkout_abandoned", 0.45],
+      ["checkout_abandoned", 0.55],
     ] as Array<[CheckoutEventName, number]>)(
       "adds %s weight (%s) to the current score",
       (event, expectedWeight) => {
@@ -120,8 +120,8 @@ describe("scoreEvent", () => {
 
   it("clamps to 1 when accumulating events past the ceiling", () => {
     let score = 0;
-    score = scoreEvent(score, "checkout_abandoned"); // 0.45
-    score = scoreEvent(score, "shipping_objection_detected"); // 0.80
+    score = scoreEvent(score, "checkout_abandoned"); // 0.55
+    score = scoreEvent(score, "shipping_objection_detected"); // 0.90
     score = scoreEvent(score, "payment_failed"); // 1.10 -> clamped
     expect(score).toBe(1);
   });
@@ -193,12 +193,12 @@ describe("scoreEvent", () => {
       "shipping_calculated", // 0.22
       "shipping_option_selected", // 0.30
       "exit_intent_detected", // 0.60
-      "idle_30_seconds", // 0.80
+      "idle_30_seconds", // 1.00
     ];
     for (const event of sequence) {
       score = scoreEvent(score, event);
     }
-    expect(score).toBeCloseTo(0.8, 9);
+    expect(score).toBe(1);
   });
 });
 
@@ -319,16 +319,16 @@ describe("orchestration integration: scoreEvent -> decideIntervention", () => {
     });
   });
 
-  it("triggers moderate intervention after coupon field click + idle", () => {
+  it("triggers high intervention after coupon field click + five-minute idle", () => {
     let score = 0;
     score = scoreEvent(score, "checkout_started"); // 0.05
     score = scoreEvent(score, "shipping_calculated"); // 0.17
     score = scoreEvent(score, "coupon_field_clicked"); // 0.39
-    score = scoreEvent(score, "idle_30_seconds"); // 0.59
-    expect(score).toBeCloseTo(0.59, 9);
+    score = scoreEvent(score, "idle_30_seconds"); // 0.94
+    expect(score).toBeCloseTo(0.94, 9);
     expect(decideIntervention(score)).toEqual({
       trigger: true,
-      reason: "moderate_hesitation_detected",
+      reason: "high_abandonment_score",
     });
   });
 
@@ -367,22 +367,17 @@ describe("orchestration integration: scoreEvent -> decideIntervention", () => {
     });
   });
 
-  it("checkout_abandoned alone is sufficient to trigger high intervention", () => {
-    // 0.45 weight: lands in the moderate band (0.55 <= 0.45? no).
-    // Actually 0.45 < 0.55 so a single abandoned event alone is moderate only
-    // if baseline pushes it; document the actual behaviour.
+  it("checkout_abandoned alone qualifies the session for recovery", () => {
     const single = scoreEvent(0, "checkout_abandoned");
-    expect(single).toBe(0.45);
+    expect(single).toBe(0.55);
     expect(decideIntervention(single)).toEqual({
-      trigger: false,
-      reason: "below_intervention_threshold",
+      trigger: true,
+      reason: "moderate_hesitation_detected",
     });
-    // Combined with another moderate push it crosses the line.
+    // A later inactivity event remains safely clamped.
     const combined = scoreEvent(single, "idle_30_seconds");
-    expect(combined).toBeCloseTo(0.65, 9);
-    expect(decideIntervention(combined).reason).toBe(
-      "moderate_hesitation_detected",
-    );
+    expect(combined).toBe(1);
+    expect(decideIntervention(combined).reason).toBe("high_abandonment_score");
   });
 });
 
@@ -393,7 +388,7 @@ describe("internal clamp behaviour (observable via scoreEvent)", () => {
   });
 
   it("clamps to 1 when adding past the ceiling", () => {
-    // baseline 0.95 + 0.45 (checkout_abandoned) = 1.40 -> clamp to 1
+    // baseline 0.95 + 0.55 (checkout_abandoned) = 1.50 -> clamp to 1
     expect(scoreEvent(0.95, "checkout_abandoned")).toBe(1);
   });
 

@@ -5,6 +5,14 @@ import { UpdateStrategyPreferencesUseCase } from "../application/use-cases/updat
 import { InMemoryStrategyPreferencesRepository } from "../infrastructure/repositories/in-memory-strategy-preferences.repository.js";
 import { TOGGLEABLE_STRATEGY_KEYS } from "../domain/values/recovery-strategy.js";
 
+test("a merchant without a saved strategy starts with a dispatchable reminder", async () => {
+  const repo = new InMemoryStrategyPreferencesRepository();
+  assert.deepEqual(await repo.getConfig("new-shop"), {
+    active_strategy: "personalized_cross_sell", coupon_code: undefined, rule_id: undefined,
+  });
+  assert.equal((await repo.get("new-shop")).personalized_cross_sell, true);
+});
+
 for (const strategy of TOGGLEABLE_STRATEGY_KEYS) {
   test("configuration preserves links and synchronizes selection: " + strategy, async () => {
     const repo = new InMemoryStrategyPreferencesRepository();
