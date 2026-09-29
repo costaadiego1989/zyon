@@ -14,6 +14,7 @@ Como o sistema é montado e para onde está indo.
 | [`architecture/bounded-contexts.md`](./architecture/bounded-contexts.md) | Mapa de contextos, eventos, ACL, proibições. |
 | [`architecture/widget-architecture.md`](./architecture/widget-architecture.md) | Arquitetura atual do widget e roadmap (split de hooks, Shadow DOM, telemetria, Playwright). |
 | [`architecture/revenue-intelligence.md`](./architecture/revenue-intelligence.md) | Motor semanal de IA: análise, aprovação, experimentos, descontos protegidos, métricas, aprendizado privado e operação. |
+| [`product/revenue-intelligence-production-2026-09-29.md`](./product/revenue-intelligence-production-2026-09-29.md) | Publicação verificada do motor, configuração da Athom, testes e limites da evidência. |
 
 ### ADRs
 

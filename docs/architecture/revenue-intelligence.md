@@ -310,9 +310,9 @@ Preservar agendas, propostas, versões, atribuições, recibos e snapshots. Não
 | --- | --- |
 | Implementação e contratos | Descritos a partir do código de 29/09/2026. |
 | Validação local | Suítes focadas de agenda/orçamento/revisão/execução/medição/aprendizado e checkout; browser de confirmação de preço em 390 e 1440 px com provedor controlado. Consultar relatório da release para a rodada consolidada. |
-| Revisão API / migrations em produção | Pendente de evidência da publicação. |
-| Dashboard e widget/storefront públicos | Pendente de evidência da publicação. |
-| Flags e limites efetivos da Athom | Pendente de registro da configuração publicada. |
+| Revisão API / migrations em produção | `b76f7ec`, API saudável, 66 migrations aplicadas e nenhuma falha pendente; ver [registro de publicação](../product/revenue-intelligence-production-2026-09-29.md). |
+| Dashboard e widget/storefront públicos | Revisão `b76f7ec` publicada nas três superfícies; endpoints e bundles públicos conferidos. |
+| Flags e limites efetivos da Athom | Agenda semanal e monitor ligados apenas para Athom, teto de uma análise iniciada/dia; primeira agenda 03/10/2026 às 03h em São Paulo. Geração paga e novas execuções comerciais desligadas. |
 | Ciclo semanal e entrega real de recomendação | Não inferidos da publicação; verificar depois na agenda e nos registros reais. |
 | Resultado comercial / aprendizado entre lojas | Não demonstrado; depende de dados, maturidade e quantidade de lojas independentes. |
 

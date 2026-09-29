@@ -27,6 +27,8 @@ Cada estratégia tem métricas de execução, conversão e cobertura de custos. 
 
 Consulte a [arquitetura do Revenue Intelligence](docs/architecture/revenue-intelligence.md) para fluxos, módulos, tabelas, configurações, limites de medição, observabilidade e rollback. Os recursos dependem das flags e da elegibilidade da loja; a existência do código não confirma sua ativação em produção.
 
+**Produção em 29/09/2026:** código publicado nas quatro superfícies; agenda semanal e monitor ligados somente para a Athom. A geração paga e a execução de novas estratégias permanecem desligadas até configurar os limites e ativar os controles correspondentes. Veja o [registro da publicação](docs/product/revenue-intelligence-production-2026-09-29.md), com revisão, migrações, validações e limites da evidência.
+
 ## Estrutura
 
 ~~~text
