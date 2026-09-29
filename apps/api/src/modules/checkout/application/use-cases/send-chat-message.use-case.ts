@@ -40,7 +40,7 @@ import { checkoutCartPrompt } from "../../domain/services/checkout-chat-context.
 import { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.service.js";
 import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
 import { chatPaymentSelection } from "../../domain/services/chat-payment-selection.js";
-import { checkoutNavigationContext } from "../../domain/services/checkout-chat-navigation.js";
+import { checkoutNavigationContext, CHECKOUT_CHAT_NAVIGATION_MESSAGE } from "../../domain/services/checkout-chat-navigation.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -493,7 +493,7 @@ export class SendChatMessageUseCase {
       );
       const textContent = result.content?.trim() || "";
       const hasUiBlocks = execution.blocks && execution.blocks.length > 0;
-      const fallbackMsg = hasUiBlocks ? "" : "Como posso ajudar com o seu pedido?";
+      const fallbackMsg = hasUiBlocks ? CHECKOUT_CHAT_NAVIGATION_MESSAGE : "Como posso ajudar com o seu pedido?";
       const finalMsg = execution.message
         ? `${textContent ? textContent + "\n" : ""}${execution.message}`
         : textContent || fallbackMsg;

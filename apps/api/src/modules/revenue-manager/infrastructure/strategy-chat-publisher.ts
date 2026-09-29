@@ -7,7 +7,7 @@ import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/p
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { lockCheckoutBaselineRows } from "./checkout-baseline.reader.js";
 import { currentStrategyTurnReason, executionClock } from "./strategy-execution-ledger.js";
-import { checkoutNavigationBlocks, checkoutNavigationTools, MAIN_CHAT_PUBLICATION_POLICY } from "../../checkout/domain/services/checkout-chat-navigation.js";
+import { checkoutNavigationBlocks, checkoutNavigationTools, MAIN_CHAT_PUBLICATION_POLICY, CHECKOUT_CHAT_NAVIGATION_MESSAGE } from "../../checkout/domain/services/checkout-chat-navigation.js";
 
 /** Publication primitive. No provider/tool/payment I/O or client delivery
  * assertion. The main chat adapter returns committed text and pure navigation. */
@@ -46,7 +46,7 @@ export class StrategyChatPublisher {
       const content = input.result.content;
       const text = typeof content === "string" ? content.replace(/^(?:Zion|Zyon)\s*:\s*/i, "") : "";
       // Keep a readable, recoverable agent turn even for tool-only responses.
-      const message = text.trim() ? text : blocks.length ? "Confira as opções no checkout." : "";
+      const message = text.trim() ? text : blocks.length ? CHECKOUT_CHAT_NAVIGATION_MESSAGE : "";
       let reason: string;
       if (process.env.REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED !== "true"
         || (input.mainChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED !== "true")) reason = "publication_disabled";

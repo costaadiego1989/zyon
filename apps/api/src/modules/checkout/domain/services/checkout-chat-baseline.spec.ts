@@ -95,10 +95,10 @@ test("payment routing revision rejects preexisting proposals without changing th
 test("navigation requires a new reviewed baseline instead of changing an existing proposal", () => {
   const baseline = captureCheckoutChatBaseline(input, env)!;
   const { navigation, ...previous } = baseline;
-  assert.equal(navigation, "checkout-navigation-v1");
+  assert.equal(navigation, "checkout-navigation-v2");
   assert.notEqual(checkoutBaselineReference(previous as any), checkoutBaselineReference(baseline));
   assert.throws(() => renderCheckoutChatBaseline(previous as any, "store", { stage: "payment" }), /BASELINE_INVALID/);
-  assert.throws(() => renderCheckoutChatBaseline({ ...baseline, navigation: "unknown" } as any,
+  assert.throws(() => renderCheckoutChatBaseline({ ...baseline, navigation: "checkout-navigation-v1" } as any,
     "store", { stage: "payment" }), /BASELINE_INVALID/);
 });
 

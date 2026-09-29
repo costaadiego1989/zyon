@@ -1524,7 +1524,7 @@ function mainChatFixture(options: {
   requestPrisma?: PrismaClient;
   payment?: (input: any) => Promise<any>;
   clock?: () => Promise<Date>;
-  legacy?: () => Promise<{ content: string; toolCalls: Array<{ function: { name: string; arguments: string } }> }>;
+  legacy?: () => Promise<{ content: string | null; toolCalls: Array<{ function: { name: string; arguments: string } }> }>;
   tools?: ChatToolExecutorService;
   promptExperiment?: { findRunningExperiment: (merchantId: string) => Promise<any> };
   onOffer?: (options: { skipExperiment?: boolean } | undefined) => void;
@@ -1607,6 +1607,32 @@ for (const arm of ["control", "treatment"] as const) for (const name of navigati
     await repo.createSessionIfAbsent(primarySession("one", { merchantId: "other" }));
     assert.equal((await new CheckoutChatRequestService(prisma).readState("other", "one")).turns.length, 0);
     assert.equal(providerCalls, 1); await assertNoMainEffects(calls);
+  });
+}
+
+for (const name of navigationToolNames) for (const content of [null, "Zyon: Confira os dados disponíveis."]) {
+  integration(`navigation response parity ${name} with ${content ? "text" : "tool only"} preserves normal checkout controls`, async () => {
+    const f = await activate();
+    const globalUserId = Array.from({ length: 100 }, (_, i) => `parity-buyer-${i}`)
+      .find(buyer => strategyArm(f.execution.contract as any, buyer) === "control")!;
+    const state = { globalUserId, shippingOptions: [{ carrier: "Correios", method: "PAC", customerPrice: 12.34, deliveryDays: 5 }] };
+    await repo.createSessionIfAbsent(primarySession("one", state));
+    // A second checkout for this buyer is outside the experiment, preserving
+    // the same store, rules, address and cart for the normal runtime comparison.
+    await repo.createSessionIfAbsent(primarySession("normal", state));
+    assert.equal(await prisma.strategyAssignment.count({ where: { sessionId: "normal" } }), 0);
+    const normal = mainChatFixture({ legacy: async () => ({ content, toolCalls: [{ function: { name, arguments: "{}" } }] }),
+      tools: new ChatToolExecutorService() });
+    const usual = await normal.useCase.execute(buyerRequest("normal"));
+    globalThis.fetch = (async () => navigationResponse([name], "{}", content)) as typeof fetch;
+    const experimental = mainChatFixture();
+    const control = await experimental.useCase.execute(buyerRequest());
+    assert.deepEqual({ message: control.message, blocks: control.blocks, stage: control.stage, missing: control.missing_fields },
+      { message: usual.message, blocks: usual.blocks, stage: usual.stage, missing: usual.missing_fields });
+    assert.equal(usual.blocks?.length, 1); assert.equal(usual.chat_request?.status, "completed");
+    assert.equal(normal.calls.legacy, 1); assert.equal(normal.calls.conversation, 0); assert.equal(normal.calls.payments, 0);
+    await assertNoMainEffects(experimental.calls);
+    assert.equal(await prisma.paymentIntent.count(), 0);
   });
 }
 

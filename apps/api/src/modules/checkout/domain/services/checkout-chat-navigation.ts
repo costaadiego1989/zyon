@@ -1,7 +1,8 @@
 import type { ChatUiBlock, CheckoutSession } from "@zyon/shared-types";
 import type { LlmCallResult } from "./checkout-chat-prompt.js";
 
-export const CHECKOUT_CHAT_NAVIGATION_VERSION = "checkout-navigation-v1" as const;
+export const CHECKOUT_CHAT_NAVIGATION_VERSION = "checkout-navigation-v2" as const;
+export const CHECKOUT_CHAT_NAVIGATION_MESSAGE = "Confira as opções no checkout.";
 export const MAIN_CHAT_PUBLICATION_POLICY = "main_chat_navigation_v2";
 export const navigationToolNames = ["confirm_address", "request_cep", "show_shipping_options", "show_payment_methods"] as const;
 type NavigationTool = typeof navigationToolNames[number];
