@@ -17,6 +17,11 @@ export interface StrategyAiUsageArm {
   currencies: string[]; currency: string | null; estimatedCostMicros: number | null;
   knownEstimatedCostMicros: number | null; heldUpperBoundMicros: number | null; overrunTurns: number;
 }
+export interface StrategyPaymentCostArm {
+  orders: number; linkedOrders: number; coveredOrders: number;
+  confirmedPlatformFeeCents: number | null; confirmedProviderFeeCents: number | null;
+  confirmedPaymentFeesCents: number | null; knownConfirmedPaymentFeesCents: number | null;
+}
 export interface StrategyMetrics {
   strategyId: string; version: number;
   execution: null | { id: string; proposalHash: string; status: string; startedAt: string; endsAt: string; stoppedAt: string | null };
@@ -27,6 +32,8 @@ export interface StrategyMetrics {
     contributionCents: number | null; aiCostCents: number | null; promotionAllowed: boolean;
     economics?: { definition: string; source: string; control: StrategyCostArm; treatment: StrategyCostArm };
     aiUsage?: { definition: string; scope: string; tariffBasis: string; control: StrategyAiUsageArm; treatment: StrategyAiUsageArm };
+    paymentCosts?: { definition: string; currency: string; scope: string; source: string;
+      control: StrategyPaymentCostArm; treatment: StrategyPaymentCostArm };
     delivery?: { definition: string; populationSource: string; displayBasis: string;
       control: StrategyDeliveryArm; treatment: StrategyDeliveryArm };
   } };

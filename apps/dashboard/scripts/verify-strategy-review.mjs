@@ -42,7 +42,7 @@ try {
     const errors = [];
     page.on("pageerror", error => errors.push(error.message));
     let review = initialReview(), readStatus = 200, failAction = null, hypothesisReads = 0;
-    let metricsState = null, metricsFailure = false;
+    let metricsState = null, metricsFailure = false, paymentCostMode = "covered";
     const posts = [], legacyMutations = [], receipts = new Map();
     let outcome = "recommendations";
     await page.route("**/*", async route => {
@@ -80,6 +80,13 @@ try {
               control: arm, treatment: { ...arm, converted: 12, orders: 12, revenueCents: 150000 }, minimumSessionsPerArm: 14800,
               interval: metricsState === "positive" ? { effectBps: 500, lowerBps: 100, upperBps: 900 } : null,
               contributionCents: null, aiCostCents: null, promotionAllowed: false,
+              paymentCosts: paymentCostMode === "absent" ? undefined : { definition: "strategy-payment-cost-coverage-v1", currency: "BRL", scope: "mature_approved_orders",
+                source: "latest_recorded_payment_settlement",
+                control: { orders: 9, linkedOrders: 9, coveredOrders: 9, confirmedPlatformFeeCents: paymentCostMode === "zero" ? 0 : 1200,
+                  confirmedProviderFeeCents: paymentCostMode === "zero" ? 0 : 2800, confirmedPaymentFeesCents: paymentCostMode === "zero" ? 0 : 4000,
+                  knownConfirmedPaymentFeesCents: paymentCostMode === "zero" ? 0 : 4000 },
+                treatment: { orders: 12, linkedOrders: 12, coveredOrders: 10, confirmedPlatformFeeCents: null,
+                  confirmedProviderFeeCents: null, confirmedPaymentFeesCents: null, knownConfirmedPaymentFeesCents: 4500 } },
               aiUsage: { definition: "strategy-chat-ai-usage-v1", scope: "pinned_strategy_chat_calls", tariffBasis: "upper_bound_estimate",
                 control: { admittedTurns: 80, pricedTurns: 80, notDispatchedTurns: 0, unknownTurns: 0, currency: "USD", estimatedCostMicros: 13 },
                 treatment: { admittedTurns: 90, pricedTurns: 89, notDispatchedTurns: 0, unknownTurns: 1, currency: "USD", estimatedCostMicros: null } },
@@ -221,18 +228,28 @@ try {
     assert.match(await results.innerText(), /não representa receita incremental/);
     assert.match(await results.getByRole("row", { name: /Custo de produtos cadastrado/ }).innerText(), /500,00\s+Sem dados/);
     assert.match(await results.innerText(), /preservados para 19 de 21 pedidos/);
+    assert.match(await results.getByRole("row", { name: /Taxas de pagamento confirmadas/ }).innerText(), /40,00\s+Sem dados/);
+    assert.match(await results.innerText(), /Taxas da plataforma e do provedor confirmadas para 19 de 21 pedidos/);
+    assert.match(await results.innerText(), /Valores planejados não entram nessa soma/);
     assert.match(await results.getByRole("row", { name: /IA das conversas do teste/ }).innerText(), /USD 0,000013\s+Sem dados/);
     assert.match(await results.innerText(), /Uso de IA conhecido em 169 de 170/);
     assert.match(await results.innerText(), /não é o valor faturado/);
     await noOverflow("metrics");
     if (out) {
-      await results.getByRole("heading", { name: "Resultados desta estratégia" }).scrollIntoViewIfNeeded();
-      await page.screenshot({ path: `${out}/strategy-metrics-${width}.png` });
+      await results.getByRole("row", { name: /Taxas de pagamento confirmadas/ }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${out}/strategy-metrics-${width}.png`, animations: "disabled" });
     }
     metricsFailure = true;
     await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
     await results.getByRole("alert").waitFor();
     assert.equal(await results.getByRole("table").count(), 1, "A failed refresh preserves the dated snapshot");
+    metricsFailure = false; paymentCostMode = "zero";
+    await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
+    await results.getByRole("row", { name: /Taxas de pagamento confirmadas.*0,00.*Sem dados/ }).waitFor();
+    paymentCostMode = "absent";
+    await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
+    await results.getByRole("row", { name: /Taxas de pagamento confirmadas/ }).waitFor({ state: "hidden" });
+    assert.equal(await results.getByRole("table").count(), 1, "Historical measurements without payment costs remain readable");
     metricsFailure = false; metricsState = "positive";
     await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
     await results.getByRole("heading", { name: "Melhora de conversão observada" }).waitFor();

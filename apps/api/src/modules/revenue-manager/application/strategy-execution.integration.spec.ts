@@ -41,6 +41,7 @@ import { BuyerRecognitionService } from "../../checkout/application/services/buy
 import { OtpService } from "../../checkout/application/services/otp.service.js";
 import { CreatePaymentIntentUseCase } from "../../payment/application/create-payment-intent.use-case.js";
 import { PrismaPaymentRepository } from "../../payment/infrastructure/prisma-payment.repository.js";
+import { PrismaPaymentSettlementLedgerRepository } from "../../payment/infrastructure/prisma-payment-settlement-ledger.repository.js";
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import { PrismaPaymentApprovalReader } from "../../checkout/infrastructure/adapters/prisma-payment-approval.reader.js";
 import { checkoutNavigationContext, navigationToolNames, MAIN_CHAT_PUBLICATION_POLICY } from "../../checkout/domain/services/checkout-chat-navigation.js";
@@ -491,6 +492,121 @@ integration("catalog cost coverage in strategy results uses frozen costs and nev
   assert.equal(partial.economics.control.configuredProductCostCents, null);
   assert.equal(partial.economics.control.knownConfiguredProductCostCents, 5000);
   assert.equal(partial.contributionCents, null); assert.equal(partial.aiCostCents, null);
+});
+
+async function feePayment(id: string, sessionId = "control-0", overrides: Record<string, unknown> = {}) {
+  const payment = await prisma.paymentIntent.create({ data: { id: `fee-${id}`, merchantId: "store", sessionId,
+    idempotencyKey: id, amountCents: 10000, approvedAmountCents: 10000, currency: "BRL", method: "pix",
+    status: "approved", providerPaymentId: id, ...overrides } });
+  const settlementLedger = new PrismaPaymentSettlementLedgerRepository(prisma);
+  await settlementLedger.appendPlanned({ merchantId: payment.merchantId, paymentIntentId: payment.id,
+    provider: "fixture", currency: payment.currency, occurredAt: new Date(), plannedGrossCents: 10000,
+    plannedPlatformFeeCents: 100, plannedProviderFeeCents: 0, plannedMerchantNetCents: 9900,
+    entries: [{ entryKey: "platform_fee", entryType: "platform_fee", direction: "credit", recipientType: "platform", plannedAmountCents: 100 },
+      { entryKey: "merchant_payout", entryType: "merchant_payout", direction: "credit", recipientType: "merchant", plannedAmountCents: 9900 }] });
+  const confirm = () => settlementLedger.appendObservation({ merchantId: payment.merchantId, paymentIntentId: payment.id,
+    provider: "fixture", currency: payment.currency, providerPaymentId: id, providerSettlementId: `confirmed-${id}`,
+    status: "confirmed", occurredAt: new Date(), confirmedAt: new Date(), confirmedGrossCents: 10000,
+    confirmedPlatformFeeCents: 120, confirmedProviderFeeCents: 280, confirmedMerchantNetCents: 9600, entries: [] });
+  return { payment, confirm };
+}
+
+// Malformed/incomplete facts already in the ledger: no provider call and no
+// editing append-only snapshots. The normal confirmation uses the real adapter.
+async function feeObservation(paymentId: string, overrides: Record<string, unknown> = {}) {
+  const prior = await prisma.paymentSettlement.findFirstOrThrow({ where: { paymentIntentId: paymentId }, orderBy: { sequence: "desc" } });
+  return prisma.paymentSettlement.create({ data: { merchantId: prior.merchantId, paymentIntentId: paymentId,
+    sequence: prior.sequence + 1, provider: "fixture", providerPaymentId: paymentId.replace(/^fee-/, ""),
+    providerSettlementId: randomUUID(), status: "confirmed", currency: "BRL", occurredAt: new Date(), confirmedAt: new Date(),
+    plannedGrossCents: 10000, plannedPlatformFeeCents: 100, plannedProviderFeeCents: 0, plannedMerchantNetCents: 9900,
+    confirmedGrossCents: 10000, confirmedPlatformFeeCents: 120, confirmedProviderFeeCents: 280, confirmedMerchantNetCents: 9600,
+    ...overrides } });
+}
+
+integration("payment cost coverage uses confirmed fees once and keeps prior measurements immutable", async () => {
+  const f = await measuredPopulation(), p = await feePayment("paid");
+  await measuredOrder("control-0", "paid", 100); await p.confirm(); await p.confirm();
+  const when = new Date(Date.now() + 25 * 3_600_000);
+  const first = await f.metrics.capture("store", f.execution.experimentId, "fees-first", when);
+  assert.deepEqual((first.result as any).paymentCosts.control, { orders: 1, linkedOrders: 1, coveredOrders: 1,
+    confirmedPlatformFeeCents: 120, confirmedProviderFeeCents: 280, confirmedPaymentFeesCents: 400, knownConfirmedPaymentFeesCents: 400 });
+  assert.equal(await prisma.paymentSettlement.count(), 2);
+  await feeObservation(p.payment.id, { confirmedPlatformFeeCents: 200, confirmedProviderFeeCents: 300, confirmedMerchantNetCents: 9500 });
+  const second = await f.metrics.capture("store", f.execution.experimentId, "fees-next", when);
+  assert.equal((second.result as any).paymentCosts.control.confirmedPaymentFeesCents, 500);
+  assert.notEqual(first.evidenceHash, second.evidenceHash);
+  assert.deepEqual(await f.metrics.capture("store", f.execution.experimentId, "fees-first", when), first);
+  assert.equal((second.result as any).contributionCents, null);
+  assert.equal((second.result as any).promotionAllowed, false);
+  for (const secret of [p.payment.id, "confirmed-paid", "metrics-buyer-"]) assert.ok(!JSON.stringify(second.result).includes(secret));
+});
+
+integration("payment cost coverage leaves plans and partial groups unavailable and accepts confirmed zero", async () => {
+  const f = await measuredPopulation(), one = await feePayment("plan-only");
+  await measuredOrder("control-0", "plan-only", 100);
+  const when = new Date(Date.now() + 25 * 3_600_000);
+  const planned = (await f.metrics.capture("store", f.execution.experimentId, "fees-planned", when)).result as any;
+  assert.equal(planned.paymentCosts.control.coveredOrders, 0);
+  assert.equal(planned.paymentCosts.control.confirmedPaymentFeesCents, null);
+  assert.equal(planned.paymentCosts.control.knownConfirmedPaymentFeesCents, null);
+  assert.equal(planned.paymentCosts.treatment.confirmedPaymentFeesCents, null);
+  await one.confirm(); await measuredOrder("control-1", "missing-payment", 100);
+  const partial = (await f.metrics.capture("store", f.execution.experimentId, "fees-partial", when)).result as any;
+  assert.deepEqual(partial.paymentCosts.control, { orders: 2, linkedOrders: 1, coveredOrders: 1,
+    confirmedPlatformFeeCents: null, confirmedProviderFeeCents: null, confirmedPaymentFeesCents: null, knownConfirmedPaymentFeesCents: 400 });
+  const zero = await feePayment("zero", "treatment-0"); await measuredOrder("treatment-0", "zero", 100);
+  await feeObservation(zero.payment.id, { confirmedPlatformFeeCents: 0, confirmedProviderFeeCents: 0, confirmedMerchantNetCents: 10000 });
+  const confirmedZero = (await f.metrics.capture("store", f.execution.experimentId, "fees-zero", when)).result as any;
+  assert.equal(confirmedZero.paymentCosts.treatment.confirmedPaymentFeesCents, 0);
+});
+
+integration("payment cost coverage never falls back past a later incomplete or inconsistent observation", async () => {
+  const f = await measuredPopulation(), p = await feePayment("bad-latest");
+  await measuredOrder("control-0", "bad-latest", 100); await p.confirm();
+  const when = new Date(Date.now() + 25 * 3_600_000);
+  const cases = [ { status: "blocked" }, { confirmedProviderFeeCents: null }, { confirmedPlatformFeeCents: null },
+    { confirmedMerchantNetCents: null }, { confirmedAt: null }, { confirmedGrossCents: 9999 },
+    { confirmedMerchantNetCents: 9500 }, { plannedGrossCents: 9999 }, { currency: "USD" },
+    { providerPaymentId: "another-payment" }, { provider: "another-provider" }, { occurredAt: new Date(when.getTime() + 1) },
+    { confirmedAt: new Date(when.getTime() + 1) } ];
+  for (const [index, change] of cases.entries()) {
+    await feeObservation(p.payment.id, change);
+    const result = (await f.metrics.capture("store", f.execution.experimentId, `fees-invalid-${index}`, when)).result as any;
+    assert.equal(result.paymentCosts.control.coveredOrders, 0, JSON.stringify(change));
+    assert.equal(result.paymentCosts.control.confirmedPaymentFeesCents, null, JSON.stringify(change));
+  }
+});
+
+integration("payment cost coverage binds store session amount currency and current approval", async () => {
+  const f = await measuredPopulation();
+  const cases = [ { merchantId: "other" }, { sessionId: "different-session" }, { currency: "USD" },
+    { amountCents: 10001 }, { approvedAmountCents: 9999 }, { approvedAmountCents: null }, { status: "refunded" } ];
+  for (const [index, overrides] of cases.entries()) {
+    const id = `identity-${index}`, p = await feePayment(id, "control-0", overrides);
+    await p.confirm(); await measuredOrder("control-0", id, 100);
+  }
+  const result = (await f.metrics.capture("store", f.execution.experimentId, "fees-identities", new Date(Date.now() + 25 * 3_600_000))).result as any;
+  assert.equal(result.paymentCosts.control.orders, cases.length);
+  assert.equal(result.paymentCosts.control.linkedOrders, cases.length - 2);
+  assert.equal(result.paymentCosts.control.coveredOrders, 0);
+  assert.equal(result.paymentCosts.control.confirmedPaymentFeesCents, null);
+});
+
+integration("payment cost coverage respects recording time maturity and approved order scope", async () => {
+  const f = await measuredPopulation(), p = await feePayment("timed");
+  await measuredOrder("control-0", "timed", 100); await p.confirm();
+  const pending = (await f.metrics.capture("store", f.execution.experimentId, "fees-pending")).result as any;
+  assert.equal(pending.paymentCosts.control.orders, 0); assert.equal(pending.paymentCosts.control.confirmedPaymentFeesCents, null);
+  const when = new Date(Date.now() + 25 * 3_600_000);
+  await feeObservation(p.payment.id, { createdAt: new Date(when.getTime() + 3_600_000), confirmedProviderFeeCents: null });
+  const before = (await f.metrics.capture("store", f.execution.experimentId, "fees-before-recording", when)).result as any;
+  assert.equal(before.paymentCosts.control.confirmedPaymentFeesCents, 400);
+  const after = (await f.metrics.capture("store", f.execution.experimentId, "fees-after-recording", new Date(when.getTime() + 7_200_000))).result as any;
+  assert.equal(after.paymentCosts.control.confirmedPaymentFeesCents, null);
+  await prisma.completedOrder.update({ where: { id: "timed" }, data: { status: "refunded" } });
+  const refunded = (await f.metrics.capture("store", f.execution.experimentId, "fees-refunded", when)).result as any;
+  assert.equal(refunded.paymentCosts.control.orders, 0);
+  assert.equal(refunded.paymentCosts.control.confirmedPaymentFeesCents, null);
 });
 
 const meteredReply = () => ({ outcome: "provider_completed" as const, result: { content: "Posso explicar esta etapa.", toolCalls: [] },

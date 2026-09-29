@@ -42,6 +42,8 @@ export function StrategyMetricsPanel({ strategyId, version, proposalHash }: { st
     && result.delivery?.definition === "strategy-assignment-delivery-v1";
   const costs = result?.economics?.definition === "strategy-order-cost-coverage-v1" ? result.economics : undefined;
   const ai = result?.aiUsage?.definition === "strategy-chat-ai-usage-v1" ? result.aiUsage : undefined;
+  const paymentCosts = result?.paymentCosts?.definition === "strategy-payment-cost-coverage-v1"
+    && result.paymentCosts.currency === "BRL" && result.paymentCosts.scope === "mature_approved_orders" ? result.paymentCosts : undefined;
   return <section className="strategy-detail-section strategy-metrics" aria-labelledby="strategy-results-title">
     <h2 id="strategy-results-title">Resultados desta estratégia</h2>
     {error && <p role="alert" className="strategy-review-error">Não foi possível atualizar os resultados.{data?.measurement ? " Os dados abaixo são da última consulta." : ""}</p>}
@@ -67,6 +69,9 @@ export function StrategyMetricsPanel({ strategyId, version, proposalHash }: { st
             ...(costs ? [["Custo de produtos cadastrado (R$)",
               costs.control.configuredProductCostCents == null ? "Sem dados" : money(costs.control.configuredProductCostCents),
               costs.treatment.configuredProductCostCents == null ? "Sem dados" : money(costs.treatment.configuredProductCostCents)]] : []),
+            ...(paymentCosts ? [["Taxas de pagamento confirmadas (R$)",
+              paymentCosts.control.confirmedPaymentFeesCents == null ? "Sem dados" : money(paymentCosts.control.confirmedPaymentFeesCents),
+              paymentCosts.treatment.confirmedPaymentFeesCents == null ? "Sem dados" : money(paymentCosts.treatment.confirmedPaymentFeesCents)]] : []),
             ["Sessões com mensagem salva", number(result.delivery!.control.sessionsWithPublication), number(result.delivery!.treatment.sessionsWithPublication)],
             ["Sessões com exibição informada", number(result.delivery!.control.sessionsWithDisplay), number(result.delivery!.treatment.sessionsWithDisplay)],
             ...(ai ? [["IA das conversas do teste (estimativa)", aiCost(ai.control), aiCost(ai.treatment)]] : []),
@@ -75,6 +80,7 @@ export function StrategyMetricsPanel({ strategyId, version, proposalHash }: { st
       </table></div>
       <p>Todas as sessões participantes entram na comparação, mesmo sem conversa ou compra. Receita e conversão acima consideram apenas sessões com a janela de compra encerrada.</p>
       {costs && costs.control.orders + costs.treatment.orders > 0 && <p>Custos do catálogo preservados para {number(costs.control.coveredOrders + costs.treatment.coveredOrders)} de {number(costs.control.orders + costs.treatment.orders)} pedidos aprovados. O total do grupo só aparece quando todos os pedidos têm esse custo registrado. Esses valores não incluem frete, taxas ou outros custos e não comprovam lucro.</p>}
+      {paymentCosts && paymentCosts.control.orders + paymentCosts.treatment.orders > 0 && <p>Taxas da plataforma e do provedor confirmadas para {number(paymentCosts.control.coveredOrders + paymentCosts.treatment.coveredOrders)} de {number(paymentCosts.control.orders + paymentCosts.treatment.orders)} pedidos aprovados. O total do grupo só aparece quando todos os pedidos têm confirmação completa. Valores planejados não entram nessa soma. As taxas de pagamentos recusados, cancelados ou estornados não estão incluídas.</p>}
       {ai && ai.control.admittedTurns + ai.treatment.admittedTurns > 0 && <p>Uso de IA conhecido em {number(ai.control.pricedTurns + ai.control.notDispatchedTurns + ai.treatment.pricedTurns + ai.treatment.notDispatchedTurns)} de {number(ai.control.admittedTurns + ai.treatment.admittedTurns)} respostas avaliadas. A estimativa usa o consumo informado e a tarifa limite configurada; não é o valor faturado pelo provedor. Inclui respostas do teste mesmo sem compra ou publicação, mas não a análise semanal nem outras chamadas de IA. Valores sem confirmação ficam pendentes e moedas diferentes não são somadas.</p>}
       {!!(result.delivery!.control.pending + result.delivery!.treatment.pending) && <p>{number(result.delivery!.control.pending + result.delivery!.treatment.pending)} sessões ainda podem converter. As compras dessas sessões entrarão na comparação quando a janela encerrar.</p>}
       <p>Amostra planejada: {number(result.minimumSessionsPerArm)} sessões por grupo.{result.matureAt ? ` Prazo para concluir as janelas de compra: ${date(result.matureAt)}.` : ""}</p>
