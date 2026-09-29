@@ -28,6 +28,7 @@ export interface CustomersPageViewModel {
   reload: () => Promise<void>;
   retryDetail: () => void;
   metrics: CustomerKpis | null;
+  metricsError: string | null;
   setSearchTerm: (v: string) => void;
   setSortCol: (col: "name" | "email" | "lastSeen") => void;
   setSortDir: (dir: "asc" | "desc") => void;
@@ -105,6 +106,7 @@ export function useCustomersPage(props: {
   const [customerDetail, setCustomerDetail] = useState<unknown | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [metrics, setMetrics] = useState<CustomerKpis | null>(null);
+  const [metricsError, setMetricsError] = useState<string | null>(null);
   const [detailError, setDetailError] = useState<string | null>(null);
   const detailRequest = useRef(0);
   const moreRequest = useRef(false);
@@ -118,6 +120,7 @@ export function useCustomersPage(props: {
     setNextCursor(null);
     setHasMore(false);
     setMetrics(null);
+    setMetricsError(null);
     setPage(1);
     try {
       const page: CursorPage<TenantCustomer> = await api.getCustomersPage(PAGE_SIZE);
@@ -133,6 +136,7 @@ export function useCustomersPage(props: {
         setMetrics(toCustomerKpis(allTime, last7Days));
       } catch (e) {
         reportError({ source: "customers.metrics", error: e, severity: "warning" });
+        setMetricsError("Não foi possível carregar os indicadores. A lista de clientes continua disponível.");
       }
     } catch (e) {
       reportError({ source: "customers.load", error: e, severity: "warning" });
@@ -230,6 +234,7 @@ export function useCustomersPage(props: {
     reload: load,
     retryDetail: () => { if (selectedCustomerId) void loadCustomerDetail(selectedCustomerId); },
     metrics,
+    metricsError,
     setSearchTerm,
     setSortCol,
     setSortDir,

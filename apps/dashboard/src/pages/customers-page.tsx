@@ -115,6 +115,9 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
     });
   }, [vm.rows, vm.searchTerm, vm.dateFilter, vm.sortCol, vm.sortDir]);
   const metrics = vm.metrics;
+  const repeatRate = metrics && Number.isFinite(metrics.repeatRateLast7Days)
+    ? Math.round(metrics.repeatRateLast7Days * 100)
+    : null;
   const paginatedRows = filteredRows.slice((vm.page - 1) * vm.pageSize, vm.page * vm.pageSize);
   const hasFilters = Boolean(vm.searchTerm.trim() || vm.dateFilter !== "all");
   useEffect(() => { vm.setPage(Math.max(1, Math.min(vm.page, Math.ceil(filteredRows.length / vm.pageSize)))); }, [filteredRows.length, vm.page, vm.pageSize]);
@@ -132,7 +135,6 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
           label="Total de Compradores"
           value={metrics?.totalCustomers ?? "—"}
           icon={<UsersRound size={16} />}
-          trend={0}
           note="Pedidos concluídos desde o início"
         />
         <StatCard
@@ -140,20 +142,17 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
           value={metrics?.newCustomersLast7Days ?? "—"}
           icon={<UserPlus size={16} />}
           accent="var(--color-success)"
-          trend={0}
         />
         <StatCard
           label="Taxa de Recompra (7 dias)"
-          value={metrics ? `${Math.round(metrics.repeatRateLast7Days * 100)}` : "—"}
-          suffix="%"
+          value={repeatRate ?? "—"}
+          suffix={repeatRate === null ? undefined : "%"}
           icon={<Repeat size={16} />}
           accent="var(--color-brand)"
-          trend={0}
           note="Somente compradores com pedido anterior"
         />
       </div>
-
-
+      {vm.metricsError && <div className="panel-error operations-feedback" role="alert"><span>{vm.metricsError}</span><Button variant="outline" size="sm" disabled={vm.busy} onClick={() => void vm.reload()}>Atualizar indicadores</Button></div>}
     <SectionErrorBoundary sectionName="Clientes">
       <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "7d", label: "Últimos 7 dias" }, { key: "30d", label: "Últimos 30 dias" }]} activeTab={vm.dateFilter} onTabChange={key => { vm.setDateFilter(key as typeof vm.dateFilter); vm.setPage(1); }} search={vm.searchTerm} onSearchChange={value => { vm.setSearchTerm(value); vm.setPage(1); }} searchPlaceholder="Buscar nome, e-mail ou telefone" />
       {vm.message && <div className="panel-error operations-feedback" role="alert"><span>{vm.message}</span><Button variant="outline" size="sm" disabled={vm.busy} onClick={() => void (vm.rows.length ? vm.loadMore() : vm.reload())}>Tentar novamente</Button></div>}

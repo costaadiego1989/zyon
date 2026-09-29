@@ -44,7 +44,7 @@ export function customerEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
-    getCustomerMetrics(input: {
+    async getCustomerMetrics(input: {
       dateFrom: string;
       dateTo: string;
     }): Promise<CustomerMetricsResponse> {
@@ -52,12 +52,23 @@ export function customerEndpoints(base: string, f: typeof fetch) {
         date_from: input.dateFrom,
         date_to: input.dateTo,
       });
-      return dashboardJson<CustomerMetricsResponse>(
+      const response = await dashboardJson<CustomerMetricsResponse | { data: CustomerMetricsResponse; meta: unknown }>(
         base,
         `/analytics/customers?${params.toString()}`,
         { method: "GET" },
         f,
       );
+      // The public analytics controller wraps its metrics in { data, meta }.
+      const metrics = response && typeof response === "object" && "data" in response && "meta" in response
+        ? response.data
+        : response;
+      if (!metrics || typeof metrics !== "object"
+        || ![metrics.total_customers, metrics.new_customers, metrics.returning_customers].every(value => Number.isSafeInteger(value) && value >= 0)
+        || typeof metrics.repeat_rate !== "number" || !Number.isFinite(metrics.repeat_rate)
+        || metrics.repeat_rate < 0 || metrics.repeat_rate > 1) {
+        throw new Error("customer_metrics_invalid_response");
+      }
+      return metrics;
     },
   };
 }
