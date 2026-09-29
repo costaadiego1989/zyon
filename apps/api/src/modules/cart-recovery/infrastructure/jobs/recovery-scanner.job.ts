@@ -110,6 +110,14 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       const candidates = await this.sessions.findSessionsWithTrigger();
       stats.scanned = candidates.length;
 
+      // Keep the asynchronous recovery path observable in production without
+      // exposing contact or cart data.  A scan with no candidates is expected
+      // most of the time, but recording it at debug level makes it possible to
+      // distinguish an empty queue from a scheduler that never ran.
+      this.logger.debug("recovery-scanner: scan completed", {
+        candidates: stats.scanned,
+      });
+
       for (const session of candidates) {
         try {
           await this.processSession(session);
