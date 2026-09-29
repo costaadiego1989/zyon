@@ -304,20 +304,23 @@ export class PrismaAnalyticsRepository implements AnalyticsRepositoryPort {
         merchantId,
         completedAt: { gte: from, lte: to },
       },
+      select: { orderId: true, globalUserId: true, merchantCustomerId: true },
     });
 
-    const customerIds = new Set(
-      purchases
-        .map(customerMetricIdentity)
-        .filter((identity): identity is string => identity !== null),
-    );
-    const totalCustomers = customerIds.size;
+    const customerOrders = new Map<string, Set<string>>();
+    for (const purchase of purchases) {
+      const identity = customerMetricIdentity(purchase);
+      if (identity === null) continue;
+      const orders = customerOrders.get(identity) ?? new Set<string>();
+      orders.add(purchase.orderId);
+      customerOrders.set(identity, orders);
+    }
+    const totalCustomers = customerOrders.size;
 
-    // A repeat customer must have a purchase before the selected period. Counting
-    // rows cannot establish that: one prior row used to mark every current buyer
-    // as returning. Anonymous purchases have no durable buyer identity, so they
-    // are deliberately excluded from customer and retention metrics.
-    const previousPurchases = customerIds.size
+    // A returning buyer either purchased before the period or completed multiple
+    // distinct orders within it. Anonymous purchases have no durable identity and
+    // are excluded. Historical purchases stay scoped to this merchant and buyers.
+    const previousPurchases = totalCustomers
       ? await this.prisma.buyerPurchaseRecord.findMany({
           where: {
             merchantId,
@@ -335,8 +338,12 @@ export class PrismaAnalyticsRepository implements AnalyticsRepositoryPort {
         .map(customerMetricIdentity)
         .filter((identity): identity is string => identity !== null),
     );
-    const returningCustomers = [...customerIds].filter((id) => previousCustomerIds.has(id)).length;
-    const newCustomers = totalCustomers - returningCustomers;
+    const returningCustomers = [...customerOrders].filter(
+      ([identity, orders]) => previousCustomerIds.has(identity) || orders.size >= 2,
+    ).length;
+    // A first-time buyer may also return within the selected period, so these
+    // cohorts overlap and new customers cannot be derived by subtracting repeats.
+    const newCustomers = [...customerOrders.keys()].filter((id) => !previousCustomerIds.has(id)).length;
     const repeatRate = totalCustomers > 0
       ? Math.round((returningCustomers / totalCustomers) * 10000) / 10000
       : 0;

@@ -16,9 +16,21 @@ const apiFor = (response: unknown) => customerEndpoints("https://example.test", 
 
 describe("customer analytics response contract", () => {
   it("reads the public API envelope before computing the customer cards", async () => {
-    const allTime = await apiFor(envelope({ ...metrics, total_customers: 42 })).getCustomerMetrics(period);
-    const last7Days = await apiFor(envelope(metrics)).getCustomerMetrics(period);
-    expect(toCustomerKpis(allTime, last7Days)).toEqual({ totalCustomers: 42, newCustomersLast7Days: 3, repeatRateLast7Days: 0.625 });
+    const selectedPeriod = await apiFor(envelope(metrics)).getCustomerMetrics(period);
+    expect(toCustomerKpis(selectedPeriod)).toEqual({ totalCustomers: 8, newCustomers: 3, returningCustomers: 5, repeatRate: 0.625 });
+  });
+
+  it("sends the full selected date bounds without truncating the final day", async () => {
+    const selected = { dateFrom: "2026-07-02T00:00:00.000Z", dateTo: "2026-09-29T23:59:59.999Z" };
+    let requestedUrl = "";
+    const api = customerEndpoints("https://example.test", (async (url: string) => {
+      requestedUrl = url;
+      return new Response(JSON.stringify(envelope(metrics)), { status: 200 });
+    }) as typeof fetch);
+    await api.getCustomerMetrics(selected);
+    const url = new URL(requestedUrl);
+    expect(url.searchParams.get("date_from")).toBe(selected.dateFrom);
+    expect(url.searchParams.get("date_to")).toBe(selected.dateTo);
   });
 
   it("keeps direct responses compatible", async () => {

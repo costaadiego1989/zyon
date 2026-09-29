@@ -18,7 +18,7 @@ export interface CustomersPageViewModel {
   hasMore: boolean;
   sortCol: "name" | "email" | "lastSeen";
   sortDir: "asc" | "desc";
-  dateFilter: "all" | "7d" | "30d";
+  dateFilter: CustomerDateFilter;
   page: number;
   pageSize: number;
   selectedCustomerId: string | null;
@@ -29,11 +29,13 @@ export interface CustomersPageViewModel {
   retryDetail: () => void;
   metrics: CustomerKpis | null;
   metricsError: string | null;
+  metricsLoading: boolean;
+  reloadMetrics: () => void;
   setSearchTerm: (v: string) => void;
   setSortCol: (col: "name" | "email" | "lastSeen") => void;
   setSortDir: (dir: "asc" | "desc") => void;
   toggleSort: (col: "name" | "email" | "lastSeen") => void;
-  setDateFilter: (f: "all" | "7d" | "30d") => void;
+  setDateFilter: (f: CustomerDateFilter) => void;
   setPage: (p: number) => void;
   loadMore: () => Promise<void>;
   openCustomerDetail: (customerId: string) => void;
@@ -44,39 +46,35 @@ export interface CustomersPageViewModel {
 
 export type CustomerKpis = {
   totalCustomers: number;
-  newCustomersLast7Days: number;
-  repeatRateLast7Days: number;
+  newCustomers: number;
+  returningCustomers: number;
+  repeatRate: number;
 };
 
-const PAGE_SIZE = 10;
-const CUSTOMER_METRICS_START = "1970-01-01";
+export type CustomerDateFilter = "all" | "7d" | "30d" | "90d";
 
-export function customerMetricPeriods(now = new Date()): {
-  allTime: { dateFrom: string; dateTo: string };
-  last7Days: { dateFrom: string; dateTo: string };
-} {
+const PAGE_SIZE = 10;
+
+export function customerMetricPeriod(filter: CustomerDateFilter, now = new Date()) {
   const end = new Date(now);
   const start = new Date(now);
-  start.setUTCDate(start.getUTCDate() - 6);
+  end.setUTCHours(23, 59, 59, 999);
+  start.setUTCHours(0, 0, 0, 0);
+  if (filter === "all") start.setTime(0);
+  else start.setUTCDate(start.getUTCDate() - (Number.parseInt(filter, 10) - 1));
   return {
-    allTime: { dateFrom: CUSTOMER_METRICS_START, dateTo: toIsoDate(end) },
-    last7Days: { dateFrom: toIsoDate(start), dateTo: toIsoDate(end) },
+    dateFrom: start.toISOString(),
+    dateTo: end.toISOString(),
   };
 }
 
-export function toCustomerKpis(
-  allTime: CustomerMetricsResponse,
-  last7Days: CustomerMetricsResponse,
-): CustomerKpis {
+export function toCustomerKpis(metrics: CustomerMetricsResponse): CustomerKpis {
   return {
-    totalCustomers: allTime.total_customers,
-    newCustomersLast7Days: last7Days.new_customers,
-    repeatRateLast7Days: last7Days.repeat_rate,
+    totalCustomers: metrics.total_customers,
+    newCustomers: metrics.new_customers,
+    returningCustomers: metrics.returning_customers,
+    repeatRate: metrics.repeat_rate,
   };
-}
-
-function toIsoDate(value: Date): string {
-  return value.toISOString().slice(0, 10);
 }
 
 function errorMessage(e: unknown): string {
@@ -100,13 +98,18 @@ export function useCustomersPage(props: {
   const [hasMore, setHasMore] = useState(false);
   const [sortCol, setSortCol] = useState<"name" | "email" | "lastSeen">("lastSeen");
   const [sortDir, setSortDir] = useState<"asc" | "desc">("desc");
-  const [dateFilter, setDateFilter] = useState<"all" | "7d" | "30d">("all");
+  const [dateFilter, setDateFilter] = useState<CustomerDateFilter>("all");
   const [page, setPage] = useState(1);
   const [selectedCustomerId, setSelectedCustomerId] = useState<string | null>(null);
   const [customerDetail, setCustomerDetail] = useState<unknown | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
-  const [metrics, setMetrics] = useState<CustomerKpis | null>(null);
-  const [metricsError, setMetricsError] = useState<string | null>(null);
+  const [metricsResult, setMetricsResult] = useState<{
+    filter: CustomerDateFilter;
+    merchantId: string;
+    data: CustomerKpis | null;
+    error: string | null;
+  } | null>(null);
+  const [metricsRevision, setMetricsRevision] = useState(0);
   const [detailError, setDetailError] = useState<string | null>(null);
   const detailRequest = useRef(0);
   const moreRequest = useRef(false);
@@ -119,25 +122,12 @@ export function useCustomersPage(props: {
     setRows([]);
     setNextCursor(null);
     setHasMore(false);
-    setMetrics(null);
-    setMetricsError(null);
     setPage(1);
     try {
       const page: CursorPage<TenantCustomer> = await api.getCustomersPage(PAGE_SIZE);
       setRows(toCustomerRows(page.data));
       setNextCursor(page.next_cursor);
       setHasMore(page.has_more);
-      try {
-        const periods = customerMetricPeriods();
-        const [allTime, last7Days] = await Promise.all([
-          api.getCustomerMetrics(periods.allTime),
-          api.getCustomerMetrics(periods.last7Days),
-        ]);
-        setMetrics(toCustomerKpis(allTime, last7Days));
-      } catch (e) {
-        reportError({ source: "customers.metrics", error: e, severity: "warning" });
-        setMetricsError("Não foi possível carregar os indicadores. A lista de clientes continua disponível.");
-      }
     } catch (e) {
       reportError({ source: "customers.load", error: e, severity: "warning" });
       setMessage("Não foi possível carregar os clientes. Tente novamente.");
@@ -146,6 +136,25 @@ export function useCustomersPage(props: {
       setLoading(false);
     }
   }, [props.me, api]);
+
+  const merchantId = props.me?.id;
+  useEffect(() => {
+    let active = true;
+    setMetricsResult(null);
+    if (!merchantId) return;
+    void api.getCustomerMetrics(customerMetricPeriod(dateFilter)).then(data => {
+      if (active) setMetricsResult({ filter: dateFilter, merchantId, data: toCustomerKpis(data), error: null });
+    }).catch(error => {
+      if (!active) return;
+      reportError({ source: "customers.metrics", error, severity: "warning" });
+      setMetricsResult({ filter: dateFilter, merchantId, data: null, error: "Não foi possível carregar os indicadores deste período. A lista de clientes continua disponível." });
+    });
+    // An earlier period's slow response must never replace the selected period.
+    return () => { active = false; };
+  }, [merchantId, api, dateFilter, metricsRevision]);
+
+  const currentMetrics = metricsResult?.filter === dateFilter && metricsResult.merchantId === merchantId
+    ? metricsResult : null;
 
   const loadMore = useCallback(async () => {
     if (!nextCursor || moreRequest.current) return;
@@ -233,8 +242,10 @@ export function useCustomersPage(props: {
     detailError,
     reload: load,
     retryDetail: () => { if (selectedCustomerId) void loadCustomerDetail(selectedCustomerId); },
-    metrics,
-    metricsError,
+    metrics: currentMetrics?.data ?? null,
+    metricsError: currentMetrics?.error ?? null,
+    metricsLoading: Boolean(merchantId && !currentMetrics),
+    reloadMetrics: () => { setMetricsResult(null); setMetricsRevision(value => value + 1); },
     setSearchTerm,
     setSortCol,
     setSortDir,

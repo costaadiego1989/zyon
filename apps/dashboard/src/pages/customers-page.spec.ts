@@ -6,7 +6,7 @@ import {
   filterRows,
   formatDate,
 } from "./customers-page.js";
-import { customerMetricPeriods, toCustomerKpis } from "./useCustomersPage.js";
+import { customerMetricPeriod, toCustomerKpis } from "./useCustomersPage.js";
 import type { TenantCustomer } from "../api-client.js";
 
 // ── getInitials ─────────────────────────────────────────────────────────────
@@ -109,18 +109,35 @@ describe("formatDate", () => {
 // ── computeMetrics ──────────────────────────────────────────────────────────
 
 describe("customer KPIs", () => {
-  it("uses stable all-time and seven-day server periods", () => {
-    expect(customerMetricPeriods(new Date("2026-09-10T12:00:00Z"))).toEqual({
-      allTime: { dateFrom: "1970-01-01", dateTo: "2026-09-10" },
-      last7Days: { dateFrom: "2026-09-04", dateTo: "2026-09-10" },
+  it.each([
+    ["all", "1970-01-01"],
+    ["7d", "2026-09-04"],
+    ["30d", "2026-08-12"],
+    ["90d", "2026-06-13"],
+  ] as const)("uses the selected %s period and includes the entire final UTC day", (filter, from) => {
+    expect(customerMetricPeriod(filter, new Date("2026-09-10T12:00:00Z"))).toEqual({
+      dateFrom: `${from}T00:00:00.000Z`,
+      dateTo: "2026-09-10T23:59:59.999Z",
+    });
+  });
+
+  it("uses UTC calendar days across a year boundary", () => {
+    expect(customerMetricPeriod("7d", new Date("2026-01-01T23:30:00-03:00"))).toEqual({
+      dateFrom: "2025-12-27T00:00:00.000Z",
+      dateTo: "2026-01-02T23:59:59.999Z",
     });
   });
 
   it("uses completed-purchase metrics returned by the server", () => {
     expect(toCustomerKpis(
-      { total_customers: 42, new_customers: 42, returning_customers: 0, repeat_rate: 0, period_from: "1970-01-01", period_to: "2026-09-10" },
       { total_customers: 8, new_customers: 3, returning_customers: 5, repeat_rate: 0.625, period_from: "2026-09-04", period_to: "2026-09-10" },
-    )).toEqual({ totalCustomers: 42, newCustomersLast7Days: 3, repeatRateLast7Days: 0.625 });
+    )).toEqual({ totalCustomers: 8, newCustomers: 3, returningCustomers: 5, repeatRate: 0.625 });
+  });
+
+  it("preserves a new buyer who also buys again during the selected period", () => {
+    expect(toCustomerKpis(
+      { total_customers: 1, new_customers: 1, returning_customers: 1, repeat_rate: 1, period_from: "1970-01-01", period_to: "2026-09-10" },
+    )).toEqual({ totalCustomers: 1, newCustomers: 1, returningCustomers: 1, repeatRate: 1 });
   });
 });
 

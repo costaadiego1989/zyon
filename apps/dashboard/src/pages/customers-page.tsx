@@ -7,7 +7,7 @@ import { type MerchantProfile } from "../api-client.js";
 import { type TenantCustomer } from "../api/types.js";
 import { FilterToolbar } from "../components/FilterToolbar.js";
 import { downloadCsv } from "../hooks/useCsvExport.js";
-import { useCustomersPage } from "./useCustomersPage.js";
+import { customerMetricPeriod, useCustomersPage } from "./useCustomersPage.js";
 import { SectionErrorBoundary } from "../components/PageErrorBoundary.js";
 import { maskPhone } from "../utils/masks.js";
 
@@ -106,8 +106,13 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   const filteredRows = useMemo(() => {
     let filtered = filterRows(vm.rows, vm.searchTerm);
     if (vm.dateFilter !== "all") {
-      const cutoff = Date.now() - (vm.dateFilter === "7d" ? 7 : 30) * 86_400_000;
-      filtered = filtered.filter((row) => new Date(row.lastSeen).getTime() >= cutoff);
+      const period = customerMetricPeriod(vm.dateFilter);
+      const from = new Date(period.dateFrom).getTime();
+      const to = new Date(period.dateTo).getTime();
+      filtered = filtered.filter((row) => {
+        const activity = new Date(row.lastSeen).getTime();
+        return activity >= from && activity <= to;
+      });
     }
     return [...filtered].sort((a, b) => {
       const cmp = a[vm.sortCol].localeCompare(b[vm.sortCol], "pt-BR");
@@ -115,9 +120,10 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
     });
   }, [vm.rows, vm.searchTerm, vm.dateFilter, vm.sortCol, vm.sortDir]);
   const metrics = vm.metrics;
-  const repeatRate = metrics && Number.isFinite(metrics.repeatRateLast7Days)
-    ? Math.round(metrics.repeatRateLast7Days * 100)
+  const repeatRate = metrics && Number.isFinite(metrics.repeatRate)
+    ? (metrics.repeatRate * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })
     : null;
+  const periodLabel = vm.dateFilter === "all" ? "Todo o período" : `Últimos ${Number.parseInt(vm.dateFilter, 10)} dias`;
   const paginatedRows = filteredRows.slice((vm.page - 1) * vm.pageSize, vm.page * vm.pageSize);
   const hasFilters = Boolean(vm.searchTerm.trim() || vm.dateFilter !== "all");
   useEffect(() => { vm.setPage(Math.max(1, Math.min(vm.page, Math.ceil(filteredRows.length / vm.pageSize)))); }, [filteredRows.length, vm.page, vm.pageSize]);
@@ -130,31 +136,34 @@ export function CustomersPage(props: { apiBaseUrl: string; me: MerchantProfile |
   return <div className="page-container customers-page">
     <PageHeader title="Clientes" description="Encontre um cliente e consulte seu histórico de compras." actions={<Button variant="outline" size="sm" disabled={vm.loading || filteredRows.length === 0} onClick={exportCsv}><Download size={14} /> Exportar CSV</Button>} />
       {/* KPI cards */}
-      <div className="grid-3" style={{ gap: 14 }}>
+      <div className="grid-3" style={{ gap: 14 }} aria-label={`Indicadores de clientes: ${periodLabel}`} aria-busy={vm.metricsLoading}>
         <StatCard
-          label="Total de Compradores"
+          label={vm.dateFilter === "all" ? "Total de compradores" : "Compradores no período"}
           value={metrics?.totalCustomers ?? "—"}
           icon={<UsersRound size={16} />}
-          note="Pedidos concluídos desde o início"
+          note={`${periodLabel} · Pedidos concluídos`}
         />
         <StatCard
-          label="Novos Compradores (7 dias)"
-          value={metrics?.newCustomersLast7Days ?? "—"}
+          label="Novos compradores"
+          value={metrics?.newCustomers ?? "—"}
           icon={<UserPlus size={16} />}
           accent="var(--color-success)"
+          note="Primeira compra no período selecionado"
         />
         <StatCard
-          label="Taxa de Recompra (7 dias)"
+          label="Taxa de recompra"
           value={repeatRate ?? "—"}
           suffix={repeatRate === null ? undefined : "%"}
           icon={<Repeat size={16} />}
           accent="var(--color-brand)"
-          note="Somente compradores com pedido anterior"
+          note={metrics ? metrics.totalCustomers > 0 ? `${metrics.returningCustomers} de ${metrics.totalCustomers} compradores compraram novamente` : "Sem compras concluídas no período" : "Compradores que voltaram a comprar no período"}
         />
       </div>
-      {vm.metricsError && <div className="panel-error operations-feedback" role="alert"><span>{vm.metricsError}</span><Button variant="outline" size="sm" disabled={vm.busy} onClick={() => void vm.reload()}>Atualizar indicadores</Button></div>}
+      <p className="customers-period-help">A recompra considera compras anteriores de todo o histórico, mesmo de meses atrás. Cada comprador conta uma vez na taxa.</p>
+      {vm.metricsError && <div className="panel-error operations-feedback" role="alert"><span>{vm.metricsError}</span><Button variant="outline" size="sm" disabled={vm.metricsLoading} onClick={vm.reloadMetrics}>Atualizar indicadores</Button></div>}
     <SectionErrorBoundary sectionName="Clientes">
-      <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "7d", label: "Últimos 7 dias" }, { key: "30d", label: "Últimos 30 dias" }]} activeTab={vm.dateFilter} onTabChange={key => { vm.setDateFilter(key as typeof vm.dateFilter); vm.setPage(1); }} search={vm.searchTerm} onSearchChange={value => { vm.setSearchTerm(value); vm.setPage(1); }} searchPlaceholder="Buscar nome, e-mail ou telefone" />
+      <FilterToolbar tabs={[{ key: "all", label: "Todo o período" }, { key: "7d", label: "Últimos 7 dias" }, { key: "30d", label: "Últimos 30 dias" }, { key: "90d", label: "Últimos 90 dias" }]} activeTab={vm.dateFilter} onTabChange={key => { vm.setDateFilter(key as typeof vm.dateFilter); vm.setPage(1); }} search={vm.searchTerm} onSearchChange={value => { vm.setSearchTerm(value); vm.setPage(1); }} searchPlaceholder="Buscar nome, e-mail ou telefone" />
+      <p className="customers-period-help">O período vale para os indicadores e a última atividade da lista, em UTC. A busca filtra apenas a lista.</p>
       {vm.message && <div className="panel-error operations-feedback" role="alert"><span>{vm.message}</span><Button variant="outline" size="sm" disabled={vm.busy} onClick={() => void (vm.rows.length ? vm.loadMore() : vm.reload())}>Tentar novamente</Button></div>}
       {!vm.message || vm.rows.length ? <DataPanel title="Lista de clientes" page={vm.page} pageSize={vm.pageSize} total={vm.loading ? 0 : filteredRows.length} onPageChange={vm.setPage} isEmpty={!vm.loading && filteredRows.length === 0} empty={{ icon: UsersRound, title: hasFilters ? "Nenhum cliente com estes filtros" : "Sua lista de clientes começa aqui", description: hasFilters ? "Altere a busca ou o período da última atividade para encontrar o cliente." : "Os clientes aparecem após interagirem com o checkout da sua loja.", action: hasFilters ? <Button variant="outline" onClick={clearFilters}>Limpar filtros</Button> : undefined }}>
         {vm.loading ? <PageLoader /> : <div className="table-wrap"><table className="data-table"><caption className="sr-only">Clientes e última atividade na loja</caption><thead><tr>
