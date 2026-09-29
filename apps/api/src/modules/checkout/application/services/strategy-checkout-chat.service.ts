@@ -25,16 +25,17 @@ export class StrategyCheckoutChatService {
     this.publisher = new StrategyChatPublisher(prisma);
   }
 
-  /** Only a fresh, durable request may leave a terminal/expired experiment.
+  /** Only a fresh, durable request may leave a terminal/expired experiment or
+   * a permanently stopped assignment (for example after verified recognition).
    * Membership remains immutable for measurement. This is never a fallback
    * after dispatch: existing or uncertain attempts keep their original receipt. */
   async continueWithoutExperiment(request: ChatMessageRequest, claim?: ChatExchangeClaim): Promise<boolean> {
     return this.prisma.$transaction(async tx => {
       const owner = await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: {
-        merchantId: request.merchant_id, sessionId: request.session_id } }, include: { execution: true } });
+        merchantId: request.merchant_id, sessionId: request.session_id } }, include: { execution: true, stop: true } });
       if (!owner) return false;
       const now = await this.clock(tx);
-      if (owner.execution.status === "running" && now < owner.execution.endsAt) return false;
+      if (!owner.stop && owner.execution.status === "running" && now < owner.execution.endsAt) return false;
       if (!claim) throw new Error("STRATEGY_CHAT_REQUEST_REQUIRED");
       const stored = await tx.checkoutChatRequest.findFirst({ where: { id: claim.requestId,
         merchantId: request.merchant_id, sessionId: request.session_id, requestHash: claim.requestHash,
@@ -42,8 +43,8 @@ export class StrategyCheckoutChatService {
         buyerMessageHash: chatMessageTextHash(request.user_message), status: "processing", protocolVersion: 2 },
         include: { strategyTurn: true, exchange: true } });
       if (!stored || stored.strategyTurn || stored.exchange) throw new Error("STRATEGY_CONTINUATION_REQUEST_CONFLICT");
-      // Execution status/horizon are immutable or terminal in PostgreSQL. A
-      // later store experiment cannot make this old assignment active again.
+      // Execution status/horizon and assignment stops are terminal in PostgreSQL.
+      // Restoring an identity or starting another test cannot reactivate membership.
       return true;
     });
   }

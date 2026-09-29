@@ -88,10 +88,10 @@ export class SendChatMessageUseCase {
   }
 
   private async processMessage(input: ChatMessageRequest, chatRequest?: ChatExchangeClaim): Promise<ChatMessageResponse> {
-    const continuation = await this.strategyChat?.continueWithoutExperiment(input, chatRequest) ?? false;
-    // Capture this telemetry before reading a continuation snapshot. Its update
+    let continuation = await this.strategyChat?.continueWithoutExperiment(input, chatRequest) ?? false;
+    // Capture this telemetry before reading a protected snapshot. Its update
     // must not race the compare-and-save used to protect the buyer's cart.
-    if (continuation && this.looksLikeCouponRequest(input.user_message)) {
+    if (chatRequest && this.looksLikeCouponRequest(input.user_message)) {
       try { await this.sessions.recordEvent(input.merchant_id, input.session_id, "coupon_field_clicked"); }
       catch (error) { this.logger.warn("coupon_field_clicked.record_failed", error as Error); }
     }
@@ -160,10 +160,19 @@ export class SendChatMessageUseCase {
 
     working = await this.shippingService.processShippingState(working, input.user_message);
 
+    // Verified account recognition/correction can change participation identity
+    // in this very turn. PostgreSQL permanently stops that assignment; check
+    // the durable stop before attempting the primary provider, without reassigning.
+    if (!continuation && this.strategyChat && (working.globalUserId !== context.session.globalUserId
+      || working.cohort !== context.session.cohort || working.cart.currency !== context.session.cart.currency
+      || working.promptVariantId !== context.session.promptVariantId)) {
+      continuation = await this.strategyChat.continueWithoutExperiment(input, chatRequest);
+    }
+
     // Intent Memory signal: a buyer asking about a coupon/discount is the
     // strongest price-sensitivity signal the classifier consumes. Emit it
     // non-blockingly so it never affects the chat reply.
-    if (!continuation && this.looksLikeCouponRequest(input.user_message)) {
+    if (!chatRequest && this.looksLikeCouponRequest(input.user_message)) {
       void Promise.resolve(
         this.sessions.recordEvent(input.merchant_id, input.session_id, "coupon_field_clicked"),
       ).catch((err) =>

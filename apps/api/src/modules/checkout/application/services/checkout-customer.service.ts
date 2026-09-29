@@ -168,7 +168,12 @@ export class CheckoutCustomerService {
     }
 
     // An 11-digit mobile reply is not a CPF, even though both share a length.
-    const answeringPhone = /\b(celular|telefone|DDD)\b/i.test(lastAgentTurn ?? "");
+    const phone = extractPhone(userMessage);
+    const explicitCpf = /\bCPF\b|\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/i.test(userMessage);
+    // The first message has no previous agent turn. A valid mobile supplied
+    // there must not be consumed as CPF just because both contain 11 digits.
+    const answeringPhone = /\b(celular|telefone|DDD)\b/i.test(lastAgentTurn ?? "")
+      || (!existing?.phone && !!phone && isBrazilianMobilePhone(phone) && !explicitCpf);
     if (!existing?.cpf && !answeringPhone) {
       const cpf = extractCpf(userMessage);
       if (cpf) patch.cpf = cpf;
@@ -176,7 +181,6 @@ export class CheckoutCustomerService {
 
     const currentPhone = existing?.phone;
     if (!currentPhone || !isBrazilianMobilePhone(currentPhone)) {
-      const phone = extractPhone(userMessage);
       const cpfInThisTurn = patch.cpf ?? existing?.cpf;
       if (phone && phone !== cpfInThisTurn) {
         if (this.otpService) {

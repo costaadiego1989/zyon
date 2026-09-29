@@ -1,4 +1,4 @@
-import test from "node:test";
+import test, { beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
 import type { AgentContext } from "@zyon/shared-types";
 import type { AgentContextPort } from "../domain/ports/agent-context.port.js";
@@ -26,6 +26,20 @@ import { BuyerRecognitionService } from "../application/services/buyer-recogniti
 import { BuyerAccountPersistenceService } from "../application/services/buyer-account-persistence.service.js";
 import { InMemoryBuyerAccountRepository } from "../../buyer-account/infrastructure/in-memory-buyer-account.repository.js";
 import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
+import type { EmailSenderPort } from "../../notifications/domain/ports/email-sender.port.js";
+
+// OTP persistence requires provider acceptance. This transport is local only;
+// Brevo capture notifications are not evidence that an OTP was sent.
+const acceptedEmail: EmailSenderPort = {
+  async send(input) {
+    assert.equal(input.requireDelivery, true);
+    assert.match(input.idempotencyKey ?? "", /^checkout-otp:/);
+    return { status: "sent", messageId: "fixture-email-accepted" };
+  },
+};
+const originalFetch = globalThis.fetch;
+beforeEach(() => { globalThis.fetch = async () => { throw new Error("EXTERNAL_NETWORK_FORBIDDEN_IN_FIXTURE"); }; });
+afterEach(() => { globalThis.fetch = originalFetch; });
 
 function createTestUseCase(
   repository: InMemoryCheckoutRepository,
@@ -39,7 +53,7 @@ function createTestUseCase(
   const otpService = new OtpService();
   const recognitionService = new BuyerRecognitionService(repository, buyerAccounts);
   const persistenceService = new BuyerAccountPersistenceService(buyerAccounts);
-  const custService = new CheckoutCustomerService(repository, brevoNotifier, otpService, recognitionService, persistenceService);
+  const custService = new CheckoutCustomerService(repository, brevoNotifier, otpService, recognitionService, persistenceService, acceptedEmail);
   const shipService = new CheckoutShippingService(repository, custService);
   const offerService = new CheckoutOfferService(repository);
   return createSendChatUseCase(repository, {
@@ -284,7 +298,7 @@ test("SendChatMessageUseCase requires email OTP for an embed-prefilled email bef
   const otpService = new OtpService();
   const recognitionService = new BuyerRecognitionService(repository, buyerAccounts);
   const persistenceService = new BuyerAccountPersistenceService(buyerAccounts);
-  const customerService = new CheckoutCustomerService(repository, undefined, otpService, recognitionService, persistenceService);
+  const customerService = new CheckoutCustomerService(repository, undefined, otpService, recognitionService, persistenceService, acceptedEmail);
   await createStartCheckoutUseCase(repository, repository, { customerService }).execute(
     startCheckoutRequest({
       session_id: "chk_embed_account",
@@ -1075,7 +1089,8 @@ test("SendChatMessageUseCase accepts email OTP pasted with API log metadata", as
   const sessionAfter = await repository.getSession("mrc_1", "chk_otp_log");
   assert.equal(sessionAfter?.customer?.email_verified, true, "E-mail foi verificado mesmo com metadados do log");
   assert.equal(sessionAfter?.customer?.otp_code, "", "Codigo de OTP foi limpo apos validar");
-  assert.equal(res.missing_fields?.[0], "CPF");
+  assert.equal(res.missing_fields?.[0], "telefone");
+  assert.ok(res.missing_fields?.includes("CPF"));
 });
 
 test("SendChatMessageUseCase captures contact phone after verified email without SMS OTP", async () => {

@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { createServer } from "node:http";
 import { randomUUID } from "node:crypto";
 import { PrismaClient } from "@prisma/client";
-import { DEFAULT_MERCHANT_RULES, type CheckoutSession } from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_RULES, type CheckoutSession, type MerchantRules } from "@zyon/shared-types";
 import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 import { CheckoutBootstrapService } from "../../checkout/application/services/checkout-bootstrap.service.js";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
@@ -34,6 +34,15 @@ import { StrategyAiBudget } from "../infrastructure/strategy-ai-budget.js";
 import { RevenueAiBudgetService } from "../infrastructure/revenue-ai-budget.service.js";
 import { StrategyMonitorService } from "../infrastructure/strategy-monitor.service.js";
 import { ChatToolExecutorService } from "../../checkout/application/services/chat-tool-executor.service.js";
+import { CheckoutCustomerService } from "../../checkout/application/services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../../checkout/application/services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../../checkout/application/services/checkout-offer.service.js";
+import { BuyerRecognitionService } from "../../checkout/application/services/buyer-recognition.service.js";
+import { OtpService } from "../../checkout/application/services/otp.service.js";
+import { CreatePaymentIntentUseCase } from "../../payment/application/create-payment-intent.use-case.js";
+import { PrismaPaymentRepository } from "../../payment/infrastructure/prisma-payment.repository.js";
+import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
+import { PrismaPaymentApprovalReader } from "../../checkout/infrastructure/adapters/prisma-payment-approval.reader.js";
 
 // Only these disposable local databases can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -74,11 +83,11 @@ beforeEach(async () => {
   globalThis.fetch = (async () => { throw new Error("EXTERNAL_NETWORK_FORBIDDEN_IN_FIXTURE"); }) as typeof fetch;
 });
 
-async function proposalFixture(merchantId = "store", suffix = "one") {
+async function proposalFixture(merchantId = "store", suffix = "one", rulesOverride: Partial<MerchantRules> = {}) {
   const now = new Date();
   await prisma.merchant.upsert({ where: { id: merchantId }, create: { id: merchantId, name: "Fixture" }, update: {} });
   await repo.getRules(merchantId);
-  await repo.setRules(merchantId, { ...DEFAULT_MERCHANT_RULES, autonomousEngineEnabled: true, maxDiscountPercent: 5, minimumMarginPercent: 30 });
+  await repo.setRules(merchantId, { ...DEFAULT_MERCHANT_RULES, autonomousEngineEnabled: true, maxDiscountPercent: 5, minimumMarginPercent: 30, ...rulesOverride });
   await prisma.checkoutSetting.upsert({ where: { merchantId }, update: {}, create: { merchantId, mode: "conversational",
     widgetBehavior: {}, triggerRules: {}, suppressionRules: {}, handoff: {}, interventionPolicy: {}, advancedRules: [] } });
   const context = new PrismaHypothesisMerchantContext(prisma);
@@ -113,8 +122,8 @@ async function proposalFixture(merchantId = "store", suffix = "one") {
       strategy_id: id, version: 1, proposal_hash: digest(proposal), status: "activation_pending" } } });
   return { id, merchantId, approvalId, proposal, review, baseline, run };
 }
-async function activate(merchantId = "store") {
-  const f = await proposalFixture(merchantId);
+async function activate(merchantId = "store", rulesOverride: Partial<MerchantRules> = {}) {
+  const f = await proposalFixture(merchantId, "one", rulesOverride);
   const execution = await prisma.$transaction(tx => registerApprovedExecution(tx, merchantId, f.approvalId));
   return { ...f, execution };
 }
@@ -1547,6 +1556,162 @@ async function assertNoMainEffects(calls: ReturnType<typeof mainChatFixture>["ca
   assert.equal(calls.legacy, 0); assert.equal(calls.tools, 0); assert.equal(calls.payments, 0);
   assert.equal(calls.conversation, 0); assert.equal(await prisma.completedOrder.count(), 0);
 }
+
+// Real customer/OTP, recognition, shipping, offer, payment preparation and order
+// application services. Only external transports are controlled; no sends/charges.
+function checkoutJourneyFixture() {
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
+  process.env.PAYMENT_MERCHANT_SETTLEMENT_MODE = "immediate_split";
+  const emails: string[] = [], calls = { pinned: 0, legacy: 0, payments: 0, postal: 0 };
+  const customer = new CheckoutCustomerService(repo, undefined, new OtpService(), new BuyerRecognitionService(repo), undefined, {
+    async send(input) {
+      assert.equal(input.requireDelivery, true); assert.match(input.idempotencyKey!, /^checkout-otp:store:/);
+      emails.push(input.subject.match(/^\d{6}/)![0]);
+      return { status: "sent", messageId: `fixture-email-${emails.length}` };
+    },
+  });
+  const gateway = new ChatLlmGatewayService();
+  gateway.call = async () => { calls.legacy++; return { content: "Confira os dados no checkout.", toolCalls: [] }; };
+  globalThis.fetch = (async (input, init) => {
+    const address = String(input);
+    if (address === "https://viacep.com.br/ws/01001000/json/") {
+      calls.postal++;
+      return Response.json({ logradouro: "Praça da Sé", bairro: "Sé", localidade: "São Paulo", uf: "SP" });
+    }
+    assert.equal(address, "https://api.openai.com/v1/chat/completions");
+    assert.equal(JSON.parse(String(init?.body)).model, "fixture-model"); calls.pinned++;
+    return Response.json({ id: `fixture-chat-${calls.pinned}`, model: "fixture-model",
+      usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 },
+      choices: [{ finish_reason: "stop", message: { role: "assistant", content: "Posso explicar esta etapa." } }] });
+  }) as typeof fetch;
+  const payments = new PrismaPaymentRepository(prisma);
+  const merchants = { async getProfile() { return { id: "store", name: "Fixture" }; },
+    async getRules(merchantId: string) { return repo.getRules(merchantId); } } as any;
+  const payment = new CreatePaymentIntentUseCase(repo, merchants, payments, {
+    async createCustomer() { return "cus_journey_fixture"; },
+    async createPayment(input) {
+      assert.equal(input.merchantId, "store"); assert.equal(input.method, "pix"); calls.payments++;
+      return { providerPaymentId: `fixture-payment-${input.intentId}`, status: "requires_action",
+        buyerFacingPayload: { qrCodeCopyPaste: "fixture-only-not-payable" } };
+    },
+  });
+  const useCase = createSendChatUseCase(repo, {
+    merchantRepository: merchants,
+    chatRequests: new CheckoutChatRequestService(prisma), strategyChat: new StrategyCheckoutChatService(prisma, gateway),
+    chatLlmGateway: gateway, chatToolExecutor: new ChatToolExecutorService(), createPaymentIntent: payment,
+    customerService: customer, shippingService: new CheckoutShippingService(repo, customer), offerService: new CheckoutOfferService(repo),
+    conversation: { async reply() { return { message: "Confira os dados do pedido.", objection: "unknown" }; } },
+  });
+  const orders = new CompleteOrderUseCase(repo, repo, repo, repo, undefined, undefined, undefined, repo,
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, new PrismaPaymentApprovalReader(prisma));
+  return { useCase, calls, emails, payments, orders };
+}
+
+for (const arm of ["control", "treatment"] as const) integration(`checkout journey ${arm} persists registration through a measured order after closing the strategy`, async () => {
+  const f = await activate("store", { maxDiscountPercent: 0, allowFreeShipping: false });
+  const variant = await costCatalog();
+  const globalUserId = Array.from({ length: 100 }, (_, i) => `journey-buyer-${i}`)
+    .find(buyer => strategyArm(f.execution.contract as any, buyer) === arm)!;
+  await repo.createSessionIfAbsent(session("one", { globalUserId, cart: { ...session("one").cart,
+    items: [{ sku: variant.sku, variantId: variant.id, name: "Fixture", quantity: 2, price: 50, cost: 25 }] } }));
+  const assignment = await prisma.strategyAssignment.findFirstOrThrow();
+  const fixture = checkoutJourneyFixture();
+  const send = (user_message: string) => fixture.useCase.execute({ ...buyerRequest(), user_message });
+  const phone = await send("(11) 98765-4321"); assert.equal(phone.missing_fields?.[0], "email");
+  const email = await send("journey@example.invalid");
+  assert.equal(email.missing_fields?.[0], "código de verificação");
+  assert.equal(email.experience?.customer?.otp_code, undefined); assert.equal(fixture.emails.length, 1);
+  const wrongCode = fixture.emails[0] === "000000" ? "111111" : "000000";
+  assert.match((await send(wrongCode)).message, /inválido/i);
+  assert.notEqual((await repo.getSession("store", "one"))!.customer?.email_verified, true);
+  await send(fixture.emails[0]); await send("Maria Silva"); await send("529.982.247-25");
+  const postal = await send("01001-000"); assert.equal(postal.stage, "shipping");
+  await send("Sim"); await send("100");
+  const options = await send("Sem complemento"); assert.equal(options.missing_fields?.[0], "frete");
+  assert.equal(options.experience?.shippingOptions?.length, 3);
+  assert.equal((await send("Quero PAC")).stage, "payment");
+  assert.equal(fixture.calls.pinned, 0); assert.equal(fixture.calls.legacy, 0);
+  const communication = await send("Como funciona esta etapa?");
+  assert.equal(communication.chat_request?.status, "completed"); assert.equal(fixture.calls.pinned, 1);
+  assert.equal(await prisma.strategyTurnPublication.count({ where: { decision: "persisted" } }), 1);
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "journey-stop", kind: "stopped" });
+  const request = { ...buyerRequest(), user_message: "PIX" };
+  const pay = await fixture.useCase.execute(request);
+  assert.equal(pay.stage, "payment_pending"); assert.equal(pay.experience?.payment_intent?.status, "requires_action");
+  assert.equal(fixture.calls.payments, 1); assert.equal(await prisma.completedOrder.count(), 0);
+  await assert.rejects(fixture.useCase.execute(request), httpStatus(409));
+  assert.equal((await send("Já paguei")).stage, "payment_pending"); assert.equal(fixture.calls.payments, 1);
+  const intent = (await fixture.payments.getIntentById("store", pay.experience!.payment_intent!.id))!;
+  const snapshot = intent.snapshot(), amount = snapshot.amountBreakdown!;
+  const completion = { merchant_id: "store", session_id: "one", external_order_id: snapshot.providerPaymentId!,
+    currency: "BRL" as const, order_total: (amount.itemsSubtotalCents - amount.discountCents + amount.shippingCents) / 100 };
+  await assert.rejects(fixture.orders.executePaymentApproval(completion, intent.id), /payment_approval_mismatch/);
+  // Simulated provider confirmation is persisted, then read by the real order service.
+  intent.markApproved({ providerPaymentId: snapshot.providerPaymentId!, approvedAmountCents: snapshot.amountCents });
+  await fixture.payments.saveIntent({ intent });
+  assert.equal((await fixture.orders.executePaymentApproval(completion, intent.id)).recorded, true);
+  assert.equal((await fixture.orders.executePaymentApproval(completion, intent.id)).idempotent, true);
+  assert.equal(await prisma.completedOrder.count(), 1);
+  assert.deepEqual(await prisma.strategyAssignment.findFirstOrThrow(), assignment);
+  const metrics = (await new ExperimentMeasurementService(prisma).capture("store", f.execution.experimentId,
+    "journey-results", new Date(Date.now() + 25 * 3_600_000))).result as any;
+  assert.equal(metrics[arm].assigned, 1); assert.equal(metrics[arm].converted, 1);
+  assert.equal(metrics[arm].revenueCents, Math.round(completion.order_total * 100));
+  assert.equal((await prisma.strategyOrderCostSnapshot.findFirstOrThrow()).productCostCents, 5000n);
+  assert.equal(fixture.calls.postal, 1); assert.equal(fixture.calls.pinned, 1); assert.equal(fixture.calls.legacy, 0);
+});
+
+integration("checkout journey recognizes a verified returning buyer and continues outside the old assignment", async () => {
+  await activate("store", { maxDiscountPercent: 0, allowFreeShipping: false });
+  // A previous nonparticipant session supplies the authenticated buyer profile.
+  await repo.saveSession(primarySession("previous", { globalUserId: "recognized-buyer" }));
+  await repo.createSessionIfAbsent(primarySession("one", { customer: {
+    fullName: "Fixture Buyer", email: "fixture@example.invalid", phone: "11987654321", email_verified: false,
+  } }));
+  const assignment = await prisma.strategyAssignment.findFirstOrThrow();
+  const fixture = checkoutJourneyFixture();
+  const send = (user_message: string) => fixture.useCase.execute({ ...buyerRequest(), user_message });
+  await send("fixture@example.invalid");
+  assert.equal((await repo.getSession("store", "one"))!.globalUserId, assignment.globalUserId);
+  const recognized = await send(fixture.emails[0]);
+  assert.equal(recognized.chat_request?.status, "completed"); assert.equal(recognized.stage, "payment");
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.globalUserId, "recognized-buyer"); assert.equal(saved.customer?.email_verified, true);
+  assert.equal((await send("Como funciona esta etapa?")).chat_request?.status, "completed");
+  assert.equal((await prisma.strategyAssignmentStop.findUniqueOrThrow({ where: { assignmentId: assignment.id } })).reason, "session_context_changed");
+  assert.deepEqual(await prisma.strategyAssignment.findFirstOrThrow(), assignment);
+  assert.equal(await prisma.strategyTurn.count(), 0); assert.equal(fixture.calls.pinned, 0);
+  assert.ok(fixture.calls.legacy > 0);
+});
+
+integration("checkout journey cannot reactivate a stopped assignment by restoring the old identity", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const original = (await repo.getSession("store", "one"))!;
+  const assignment = await prisma.strategyAssignment.findFirstOrThrow();
+  await repo.saveSession({ ...original, globalUserId: "verified-other-buyer" });
+  await repo.saveSession(original);
+  process.env.REVENUE_STRATEGY_EXECUTION_ENABLED = "false";
+  const { useCase, calls } = mainChatFixture();
+  assert.equal((await useCase.execute(buyerRequest())).chat_request?.status, "completed");
+  assert.equal(calls.legacy, 1); assert.equal(await prisma.strategyTurn.count(), 0);
+  assert.deepEqual(await prisma.strategyAssignment.findFirstOrThrow(), assignment);
+  assert.equal(await prisma.strategyAssignmentStop.count(), 1);
+});
+
+integration("checkout journey identity change cannot release an uncertain provider attempt", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  const { useCase, calls } = mainChatFixture(); let providerCalls = 0;
+  globalThis.fetch = (async () => { providerCalls++; throw new Error("SIMULATED_PROVIDER_TIMEOUT"); }) as typeof fetch;
+  const request = buyerRequest();
+  await assert.rejects(useCase.execute(request), httpStatus(503));
+  const previous = (await repo.getSession("store", "one"))!;
+  await repo.saveSession({ ...previous, globalUserId: "verified-other-buyer" });
+  await assert.rejects(useCase.execute(request), httpStatus(409));
+  await assert.rejects(useCase.execute(buyerRequest()), httpStatus(409));
+  assert.equal(providerCalls, 1); assert.equal(calls.legacy, 0);
+  assert.equal(await prisma.checkoutChatExchange.count(), 0);
+  assert.equal((await prisma.checkoutChatRequest.findFirstOrThrow()).status, "unknown");
+});
 
 for (const stop of ["paused", "stopped", "horizon"] as const) {
   integration(`main continuation after ${stop} preserves assignment and uses normal checkout without another experiment`, async () => {
