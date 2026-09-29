@@ -11,6 +11,7 @@ import { InMemoryPaymentRepository } from "../../payment/infrastructure/in-memor
 import { PrismaPaymentRepository } from "../../payment/infrastructure/prisma-payment.repository.js";
 import { PaymentIntentEntity, type PaymentIntentStatus } from "../../payment/domain/payment-intent.entity.js";
 import { paymentCartFingerprint } from "../domain/services/payment-cart-fingerprint.js";
+import { CheckoutSettingsEntity } from "../../checkout-settings/domain/entities/checkout-settings.entity.js";
 
 for (const status of ["pending", "requires_action", "approved", "refunded", "failed", "cancelled"] as PaymentIntentStatus[]) {
   test(`automatic discounts preserve a committed ${status} payment quote`, async () => {
@@ -274,6 +275,27 @@ test("TrackCheckoutEventUseCase suppresses trigger when checkout-settings disabl
   assert.equal(response.abandonment_score, 0.85);
   assert.equal(response.trigger_agent, false);
   assert.equal(persisted?.triggerAgent, false);
+});
+
+test("TrackCheckoutEventUseCase makes a closed checkout a recovery candidate for legacy settings", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  repository.saveSession(checkoutSession());
+  const legacy = CheckoutSettingsEntity.createDefault({ merchantId: "mrc_1" }).snapshot();
+  legacy.triggerRules = legacy.triggerRules.filter((rule) => rule.trigger !== "checkout_abandoned");
+  const settings: CheckoutSettingsPort = {
+    getContext: async () => CheckoutSettingsEntity.rehydrate(legacy).toContext(),
+    getInterventionConfig: async () => ({ advancedRules: null, interventionPolicy: null }),
+  };
+  const useCase = new TrackCheckoutEventUseCase(repository, repository, settings);
+
+  const response = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    event: "checkout_abandoned",
+  });
+
+  assert.equal(response.trigger_agent, true);
+  assert.equal((await repository.getSession("mrc_1", "chk_1"))?.triggerAgent, true);
 });
 
 const TRACK_LEDGER_TRIGGERS: CheckoutTriggerName[] = [

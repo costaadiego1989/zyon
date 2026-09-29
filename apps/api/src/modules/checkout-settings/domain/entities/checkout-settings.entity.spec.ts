@@ -17,7 +17,17 @@ test("CheckoutSettingsEntity creates safe operational defaults", () => {
   assert.equal(snapshot.interventionPolicy.progressiveDiscount?.enabled, false);
   assert.equal(snapshot.interventionPolicy.progressiveDiscount?.stages.abandoned_cart, 10);
   assert.deepEqual(context.checkout_settings.enabled_triggers.includes("coupon_field_clicked"), true);
+  assert.deepEqual(context.checkout_settings.enabled_triggers.includes("checkout_abandoned"), true);
   assert.equal(context.operational_constraints.some((constraint) => constraint.includes("deterministic")), true);
+});
+
+test("CheckoutSettingsEntity enables cart recovery for legacy settings without replacing an explicit opt-out", () => {
+  const legacy = CheckoutSettingsEntity.createDefault({ merchantId: "mrc_1" }).snapshot();
+  legacy.triggerRules = legacy.triggerRules.filter((rule) => rule.trigger !== "checkout_abandoned");
+  assert.equal(CheckoutSettingsEntity.rehydrate(legacy).toContext().checkout_settings.enabled_triggers.includes("checkout_abandoned"), true);
+
+  legacy.triggerRules.push({ trigger: "checkout_abandoned", enabled: false, priority: 95 });
+  assert.equal(CheckoutSettingsEntity.rehydrate(legacy).toContext().checkout_settings.enabled_triggers.includes("checkout_abandoned"), false);
 });
 
 test("CheckoutSettingsEntity validates pressure limits and known triggers", () => {

@@ -941,7 +941,8 @@ export type CheckoutTriggerName =
   | "coupon_field_clicked"
   | "payment_failed"
   | "exit_intent_detected"
-  | "idle_30_seconds";
+  | "idle_30_seconds"
+  | "checkout_abandoned";
 
 export type ProgressiveDiscountStage =
   | "initial_coupon"
