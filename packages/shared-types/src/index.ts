@@ -1110,12 +1110,13 @@ export interface ChatDisplayReport {
   definition: "widget-visible-text-v1";
 }
 
-/** Read-only text and a payment reference. Payment credentials require a separate financial scope. */
+/** Saved text, current navigation and a payment reference. Payment credentials require a separate financial scope. */
 export interface ChatSessionStateResponse {
   protocol: "durable_v2" | "legacy";
   session_id: string;
   conversation_id: string;
-  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string; display_ref?: ChatDisplayReference }>;
+  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string; display_ref?: ChatDisplayReference;
+    blocks?: ChatUiBlock[]; checkout_stage?: ChatStage }>;
   request?: { message_id: string; status: "processing" | "unknown" | "completed" | "reconciled" | "rejected" };
   active_request?: { message_id: string; status: "processing" | "unknown" };
   payment_intent_id?: string;

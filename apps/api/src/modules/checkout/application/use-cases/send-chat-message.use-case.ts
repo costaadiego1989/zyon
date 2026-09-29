@@ -40,6 +40,7 @@ import { checkoutCartPrompt } from "../../domain/services/checkout-chat-context.
 import { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.service.js";
 import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
 import { chatPaymentSelection } from "../../domain/services/chat-payment-selection.js";
+import { checkoutNavigationContext } from "../../domain/services/checkout-chat-navigation.js";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -230,6 +231,7 @@ export class SendChatMessageUseCase {
         && strategyExecutionEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "STRATEGY_MAIN_CHAT_UNAVAILABLE" });
       const strategyReply = continuation ? undefined : await this.strategyChat?.tryReply({ request: input, claim: chatRequest, session: working,
         stage, previousStage, offer, hasBuyerIntent: context.buyerIntent !== undefined,
+        cryptoEnabled: !!context.rules.cryptoPayments?.enabled,
         hasPreSearchedProducts: context.preSearchedProducts.length > 0 });
       // This response is already published atomically. In particular, do not
       // overwrite its session with attribution flags or append/pay via builder.
@@ -420,23 +422,9 @@ export class SendChatMessageUseCase {
     stage: import("@zyon/shared-types").ChatStage,
     allowCartChanges = true,
   ) {
-    const custAddr = (working.customer as any)?.address;
-    const addressFormatted = custAddr?.street
-      ? `${custAddr.street}, ${custAddr.number ?? ""}${custAddr.complement ? ", " + custAddr.complement : ""} - ${custAddr.city ?? ""}/${custAddr.state ?? ""}`
-      : undefined;
-    const paymentMethods: Array<{ key: string; label: string; sub?: string }> = [
-      { key: "pix", label: "Pix", sub: "Pagamento instantâneo, sem taxas" },
-      { key: "credito", label: "Cartão de crédito", sub: "Parcele em até 12x" },
-      { key: "debito", label: "Cartão de débito", sub: "Débito à vista" },
-    ];
-    if (rules.cryptoPayments && (rules.cryptoPayments as any).enabled) {
-      paymentMethods.push({ key: "crypto", label: "Crypto · USDC", sub: "Polygon ou Base" });
-    }
     return {
       stage,
-      shippingOptions: working.shippingOptions as any,
-      paymentMethods,
-      address: addressFormatted ? { ...custAddr, formatted: addressFormatted } : undefined,
+      ...checkoutNavigationContext(working, !!rules.cryptoPayments?.enabled),
       // Continuations keep cart mutations on the normal cart endpoints until
       // tool writes participate in the same compare-and-save protocol.
       addCrossSellItem: allowCartChanges ? (sku: string, quantity: number) =>

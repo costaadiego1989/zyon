@@ -7,6 +7,9 @@ import { chatMessageIdentity, chatMessageReference, chatMessageTextHash, chatReq
 import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
 import { chatPaymentRecoveryEnabled } from "../../domain/services/chat-payment-recovery.js";
 import { normalizeBuyerFacing } from "../../../payment/infrastructure/prisma-payment.repository.js";
+import { checkoutNavigationBlocks, checkoutNavigationTools, MAIN_CHAT_PUBLICATION_POLICY } from "../../domain/services/checkout-chat-navigation.js";
+import { toCheckoutSession } from "./checkout-session.mapper.js";
+import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
 
 /** Durable, at-most-once entry to the REAL checkout workflow. No claim takeover,
  * cached offer replay, strategy exposure assertion or transaction around I/O. */
@@ -24,8 +27,7 @@ export class CheckoutChatRequestService {
     // commits must not release a client whose publication is still unresolved.
     return this.prisma.$transaction(async tx => {
       const scope = { merchantId, sessionId };
-      const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope },
-        select: { conversationId: true, chatHistory: true } });
+      const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
       if (!session) throw new NotFoundException({ code: "CHECKOUT_SESSION_NOT_FOUND" });
       const active = await tx.checkoutChatRequest.findFirst({ where: { ...scope, status: { in: ["processing", "unknown"] } } });
       const request = messageId ? await tx.checkoutChatRequest.findUnique({ where: { merchantId_sessionId_messageId: { ...scope, messageId } } })
@@ -37,15 +39,24 @@ export class CheckoutChatRequestService {
         && typeof item.chatRequestId === "string" ? [item.chatRequestId] : []);
       const publications = await tx.strategyTurnPublication.findMany({ where: { merchantId, sessionId,
         requestId: { in: requestIds }, decision: "persisted", request: { status: { in: ["completed", "reconciled"] } } },
-        select: { requestId: true, turnId: true, agentTextHash: true } });
+        include: { completion: { include: { turn: true } } } });
       const turns: ChatSessionStateResponse["turns"] = [];
       for (const [index, item] of history.entries()) {
         if (!item || typeof item !== "object" || Array.isArray(item)) continue;
         if ((item.role !== "buyer" && item.role !== "agent") || typeof item.text !== "string" || typeof item.occurredAt !== "string") continue;
         const publication = item.role === "agent" ? publications.find(p => p.requestId === item.chatRequestId
           && p.agentTextHash === chatMessageTextHash(item.text as string)) : undefined;
+        // Recover only the last unchanged context. Earlier controls must not
+        // invite selecting stale shipping, address or payment options.
+        const turn = publication?.completion.turn;
+        const names = publication && Array.isArray(publication.navigationTools)
+          ? checkoutNavigationTools(publication.navigationTools.map(name => ({ function: { name: String(name), arguments: {} } }))) : undefined;
+        const blocks = !active && index === history.length - 1 && turn?.publicationPolicy === MAIN_CHAT_PUBLICATION_POLICY
+          && turn.sessionContextVersion !== null && session.strategyContextVersion === turn.sessionContextVersion + 1 && names
+          ? checkoutNavigationBlocks(names, toCheckoutSession(session)) : [];
         turns.push({ id: typeof item.chatRequestId === "string" ? `${item.chatRequestId}:${item.role}` : `${index}:${item.occurredAt}`,
           role: item.role, text: item.text, occurred_at: item.occurredAt,
+          ...(blocks.length ? { blocks, checkout_stage: deriveChatStage(toCheckoutSession(session)) } : {}),
           ...(publication ? { display_ref: { turn_id: publication.turnId, text_hash: publication.agentTextHash! } } : {}) });
       }
       const payment = !active ? await this.paymentReference(tx, merchantId, sessionId) : undefined;
@@ -198,7 +209,7 @@ export class CheckoutChatRequestService {
         && (process.env.CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS ?? "").split(",").map(id => id.trim())
           .filter(id => id && id !== "*").includes(ref.merchant_id);
       if (!enabled) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_RECOVERY_DISABLED" });
-      if (row.protocolVersion !== 2 || row.strategyTurn?.publicationPolicy !== "main_chat_text_only_v1"
+      if (row.protocolVersion !== 2 || !["main_chat_text_only_v1", MAIN_CHAT_PUBLICATION_POLICY].includes(row.strategyTurn?.publicationPolicy ?? "")
         || row.strategyPublication?.decision !== "persisted" || !row.exchange
         || row.strategyPublication.exchangeRequestId !== row.id) throw this.receiptConflict(row);
       const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;

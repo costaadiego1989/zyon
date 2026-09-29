@@ -134,6 +134,9 @@ export function ChatPanel() {
                 <MessageText message={msg} api={api} />
               )}
               {!chatRecovery && msg.blocks?.map((block, j) => {
+                const navigation = ["address_confirmation", "shipping_options", "payment_methods"].includes(block.type)
+                  || (block.type === "form_field" && block.data?.field === "cep");
+                if (navigation && msg.checkoutStage && msg.id !== lastAgentMsg?.id) return null;
                 const paymentBlock = isPaymentPresentationBlock(block.type);
                 return (
                   <div

@@ -92,6 +92,16 @@ test("payment routing revision rejects preexisting proposals without changing th
   assert.throws(() => renderCheckoutChatBaseline(previous as any, "store", { stage: "payment" }), /BASELINE_INVALID/);
 });
 
+test("navigation requires a new reviewed baseline instead of changing an existing proposal", () => {
+  const baseline = captureCheckoutChatBaseline(input, env)!;
+  const { navigation, ...previous } = baseline;
+  assert.equal(navigation, "checkout-navigation-v1");
+  assert.notEqual(checkoutBaselineReference(previous as any), checkoutBaselineReference(baseline));
+  assert.throws(() => renderCheckoutChatBaseline(previous as any, "store", { stage: "payment" }), /BASELINE_INVALID/);
+  assert.throws(() => renderCheckoutChatBaseline({ ...baseline, navigation: "unknown" } as any,
+    "store", { stage: "payment" }), /BASELINE_INVALID/);
+});
+
 test("legacy experiment adapter never forwards a recipe reference as buyer instructions", async () => {
   const adapter = new PromptExperimentAdapter({ findRunning: async () => ({ id: "exp", variants: [
     { system_prompt: checkoutBaselineReference(captureCheckoutChatBaseline(input, env)!) }, { system_prompt: "Treatment" },

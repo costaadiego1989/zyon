@@ -51,7 +51,7 @@ export class StrategyCheckoutChatService {
 
   async tryReply(input: { request: ChatMessageRequest; claim?: ChatExchangeClaim; session: CheckoutSession;
     stage: ChatStage; previousStage: ChatStage; offer: SafeAuthorizedOffer;
-    hasBuyerIntent: boolean; hasPreSearchedProducts: boolean }): Promise<ChatMessageResponse | undefined> {
+    hasBuyerIntent: boolean; hasPreSearchedProducts: boolean; cryptoEnabled?: boolean }): Promise<ChatMessageResponse | undefined> {
     // Snapshot mutable request/session inputs; keep no callback capable of effects.
     const value = structuredClone(input);
     const { request, session, claim } = value;
@@ -63,7 +63,7 @@ export class StrategyCheckoutChatService {
     }
     if (!claim || request.merchant_id !== session.merchantId || request.session_id !== session.sessionId
       || request.conversation_id !== session.conversationId) throw new Error("STRATEGY_CHAT_REQUEST_REQUIRED");
-    if (value.hasBuyerIntent || (session as any).buyerIntent !== undefined || value.hasPreSearchedProducts
+    if (value.hasBuyerIntent || (session as any).buyerIntent !== undefined || value.hasPreSearchedProducts || value.cryptoEnabled
       || value.offer.approved || value.offer.type !== "none" || value.offer.value !== 0 || value.offer.discountCode
       || value.offer.reason === "advanced_coupon_available" || (session.cart.currentDiscount ?? 0) !== 0
       || session.cart.commercialNudge || session.paymentMethod || (session as any).paymentConfirmed
@@ -83,6 +83,7 @@ export class StrategyCheckoutChatService {
     // response builder here: it appends again and can create a payment intent.
     const stage = deriveChatStage(publication.session);
     return { message: publication.message, objection: "unknown", actions: [], turns: publication.session.chatHistory,
+      ...(publication.blocks.length ? { blocks: publication.blocks } : {}),
       stage, missing_fields: missingFieldsForStage(publication.session, stage) };
   }
 }

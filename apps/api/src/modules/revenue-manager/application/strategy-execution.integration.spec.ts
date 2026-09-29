@@ -43,12 +43,16 @@ import { CreatePaymentIntentUseCase } from "../../payment/application/create-pay
 import { PrismaPaymentRepository } from "../../payment/infrastructure/prisma-payment.repository.js";
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import { PrismaPaymentApprovalReader } from "../../checkout/infrastructure/adapters/prisma-payment-approval.reader.js";
+import { checkoutNavigationContext, navigationToolNames, MAIN_CHAT_PUBLICATION_POLICY } from "../../checkout/domain/services/checkout-chat-navigation.js";
 
 // Only these disposable local databases can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
 const enabled = url.hostname === "127.0.0.1" && url.port === "5557"
   && ["/revenue_recovery_final_0924", "/revenue_release_0928"].includes(url.pathname);
-const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
+// Disposable Docker storage may serialize concurrent writers beyond Prisma's
+// default five seconds. This fixture allowance does not change product limits.
+const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } },
+  transactionOptions: { maxWait: 10_000, timeout: 30_000 } });
 const env = { ...process.env };
 const repo = new PrismaCheckoutRepository(prisma);
 const ledger = new StrategyExecutionLedger(prisma);
@@ -58,7 +62,7 @@ after(async () => { await prisma.$disconnect(); process.env = env; });
 afterEach(() => { globalThis.fetch = originalFetch; });
 beforeEach(async () => {
   if (!enabled) return;
-  await prisma.$executeRawUnsafe(`TRUNCATE merchants, merchant_rules, checkout_settings, checkout_sessions,
+  await prisma.$executeRawUnsafe(`TRUNCATE merchants, merchant_rules, checkout_settings, checkout_sessions, payment_intents,
     revenue_analysis_runs, revenue_analysis_schedules, revenue_manager_observations, revenue_strategies, prompt_experiments,
     revenue_ai_reservations, ai_usage_events, ai_price_versions, merchant_notifications CASCADE`);
   process.env = { ...env, REVENUE_STRATEGY_EXECUTION_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "store,other",
@@ -1556,6 +1560,115 @@ async function assertNoMainEffects(calls: ReturnType<typeof mainChatFixture>["ca
   assert.equal(calls.legacy, 0); assert.equal(calls.tools, 0); assert.equal(calls.payments, 0);
   assert.equal(calls.conversation, 0); assert.equal(await prisma.completedOrder.count(), 0);
 }
+
+function navigationResponse(names: string[], args = "{}", content: string | null = null) {
+  return Response.json({ id: "fixture-navigation", model: "fixture-model",
+    usage: { prompt_tokens: 100, completion_tokens: 10, total_tokens: 110 },
+    choices: [{ finish_reason: "tool_calls", message: { role: "assistant", content,
+      tool_calls: names.map((name, i) => ({ id: `fixture-tool-${i}`, type: "function", function: { name, arguments: args } })) } }] });
+}
+
+for (const arm of ["control", "treatment"] as const) for (const name of navigationToolNames) {
+  integration(`main navigation ${arm} ${name} publishes server data with normal tool parity and no effects`, async () => {
+    const f = await activate();
+    const globalUserId = Array.from({ length: 100 }, (_, i) => `navigation-buyer-${i}`)
+      .find(buyer => strategyArm(f.execution.contract as any, buyer) === arm)!;
+    await repo.createSessionIfAbsent(primarySession("one", { globalUserId,
+      shippingOptions: [{ carrier: "Correios", method: "PAC", customerPrice: 12.34, deliveryDays: 5 }] }));
+    const before = (await repo.getSession("store", "one"))!;
+    const { useCase, calls } = mainChatFixture(); let providerCalls = 0;
+    globalThis.fetch = (async () => { providerCalls++; return navigationResponse([name]); }) as typeof fetch;
+    const request = buyerRequest();
+    const response = await useCase.execute(request);
+    const normal = await new ChatToolExecutorService().executeToolCalls([{ function: { name, arguments: "{}" } }],
+      { merchantId: "store", ...checkoutNavigationContext(before) });
+    assert.deepEqual(response.blocks, normal.blocks); assert.equal(response.blocks?.length, 1);
+    if (name === "show_shipping_options") assert.deepEqual(response.blocks[0]!.data, {
+      options: [{ key: "chat-shipping-0", label: "Correios PAC", cost: 1234, tag: "5 dias úteis", sub: "5 dias úteis" }], selection_mode: "chat",
+    });
+    if (name === "show_payment_methods") {
+      assert.ok((response.blocks[0]!.data?.methods as any[]).some(method => method.key === "boleto"));
+      assert.doesNotMatch(JSON.stringify(response.blocks), /sem taxas|12x/);
+    }
+    assert.equal(response.message, "Confira as opções no checkout.");
+    assert.equal(response.chat_request?.status, "completed"); assert.ok(response.display_ref);
+    const publication = await prisma.strategyTurnPublication.findFirstOrThrow();
+    assert.deepEqual(publication.navigationTools, [name]);
+    assert.equal((await prisma.strategyTurn.findFirstOrThrow()).publicationPolicy, MAIN_CHAT_PUBLICATION_POLICY);
+    const saved = (await repo.getSession("store", "one"))!;
+    assert.deepEqual(saved.cart, before.cart); assert.deepEqual(saved.shipping, before.shipping);
+    assert.equal(saved.paymentMethod, undefined);
+    const state = await new CheckoutChatRequestService(prisma).readState("store", "one");
+    assert.deepEqual(state.turns.at(-1)?.blocks, response.blocks); assert.equal(state.turns.at(-1)?.checkout_stage, "payment");
+    await assert.rejects(useCase.execute(request), httpStatus(409));
+    await assert.rejects(prisma.strategyTurnPublication.update({ where: { turnId: publication.turnId }, data: { navigationTools: [] } }), /IMMUTABLE/);
+    await repo.saveSession({ ...saved, cart: { ...saved.cart, total: 250 } });
+    assert.equal((await new CheckoutChatRequestService(prisma).readState("store", "one")).turns.at(-1)?.blocks, undefined);
+    await repo.createSessionIfAbsent(primarySession("one", { merchantId: "other" }));
+    assert.equal((await new CheckoutChatRequestService(prisma).readState("other", "one")).turns.length, 0);
+    assert.equal(providerCalls, 1); await assertNoMainEffects(calls);
+  });
+}
+
+for (const scenario of ["mixed", "arguments", "duplicate", "unsafe", "cart", "pause"] as const) {
+  integration(`main navigation rejects ${scenario} before any publication or tool effect`, async () => {
+    const f = await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+    const { useCase, calls } = mainChatFixture();
+    globalThis.fetch = (async () => {
+      if (scenario === "cart") await repo.saveSession({ ...(await repo.getSession("store", "one"))!, cart: { ...session("one").cart, total: 250 } });
+      if (scenario === "pause") await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "fixture", requestKey: "navigation-pause", kind: "paused" });
+      return navigationResponse(scenario === "mixed" ? ["show_payment_methods", "add_cross_sell_item"]
+        : scenario === "duplicate" ? ["show_payment_methods", "show_payment_methods"] : ["show_payment_methods"],
+        scenario === "arguments" ? '{"methods":[{"key":"crypto","label":"Inventado"}]}' : "{}",
+        scenario === "unsafe" ? "Vou aplicar desconto de 90%." : null);
+    }) as typeof fetch;
+    await assert.rejects(useCase.execute(buyerRequest()), httpStatus(503));
+    assert.equal(await prisma.checkoutChatExchange.count(), 0);
+    assert.equal((await new CheckoutChatRequestService(prisma).readState("store", "one")).turns.length, 0);
+    await assertNoMainEffects(calls);
+  });
+}
+
+integration("main navigation recovers a committed tool response without repeating provider or selecting payment", async () => {
+  await activate(); await repo.createSessionIfAbsent(primarySession("one"));
+  process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED = "true";
+  process.env.CHECKOUT_CHAT_RECOVERY_ENABLED = "true";
+  const f = await claimFixture(); let providerCalls = 0;
+  const result = { content: null, toolCalls: [{ function: { name: "show_payment_methods", arguments: "{}" } }] };
+  const candidate = await new StrategyChatDispatcher(ledger, { async callPinned() { providerCalls++; return { outcome: "provider_completed", result }; } })
+    .dispatch({ ...boundTurn("one", f.claim, f.input.user_message), mainChat: true, expectedSession: (await repo.getSession("store", "one"))! });
+  if (candidate.status !== "candidate") assert.fail("candidate expected");
+  const published = await new StrategyChatPublisher(prisma).publish({ merchantId: "store", sessionId: "one", claim: f.claim,
+    turnId: candidate.turnId, userMessage: f.input.user_message, result, mainChat: true });
+  assert.equal(published.status, "persisted");
+  const requests = new CheckoutChatRequestService(prisma);
+  assert.equal((await requests.readState("store", "one")).turns.at(-1)?.blocks, undefined);
+  const reconciled = await Promise.all([requests.reconcile(f.input), requests.reconcile(f.input)]);
+  assert.ok(reconciled.every(value => value.chat_request.status === "reconciled"));
+  const state = await requests.readState("store", "one");
+  assert.equal(state.turns.at(-1)?.blocks?.[0].type, "payment_methods");
+  assert.equal(state.turns.at(-1)?.checkout_stage, "payment");
+  assert.equal(await prisma.checkoutChatResolution.count(), 1); assert.equal(providerCalls, 1);
+  assert.equal(await prisma.paymentIntent.count(), 0); assert.equal(await prisma.completedOrder.count(), 0);
+  assert.equal((await repo.getSession("store", "one"))!.paymentMethod, undefined);
+});
+
+for (const scenario of ["exact", "stale", "ambiguous"] as const) integration(`navigation shipping selection ${scenario} uses the current complete server label`, async () => {
+  await activate();
+  const options = [
+    { carrier: "Transportadora", method: "Loja 1", customerPrice: 10, deliveryDays: 5 },
+    { carrier: "Transportadora", method: "Loja 2", customerPrice: 12.34, deliveryDays: 3 },
+  ];
+  if (scenario === "ambiguous") options.push({ ...options[1]!, customerPrice: 50 });
+  await repo.createSessionIfAbsent(primarySession("one", { shipping: undefined, shippingOptions: options }));
+  const before = (await repo.getSession("store", "one"))!;
+  const shipping = new CheckoutShippingService(repo, new CheckoutCustomerService(repo));
+  const selected = await shipping.processShippingState(before, scenario === "stale" ? "Entrega · Transportadora Loja 3" : "Entrega · Transportadora Loja 2");
+  assert.deepEqual(selected.shipping, scenario === "exact" ? options[1] : undefined);
+  assert.deepEqual((await repo.getSession("store", "one"))!.shipping, selected.shipping);
+  assert.deepEqual(selected.cart, before.cart);
+  assert.equal(await prisma.paymentIntent.count(), 0);
+});
 
 // Real customer/OTP, recognition, shipping, offer, payment preparation and order
 // application services. Only external transports are controlled; no sends/charges.

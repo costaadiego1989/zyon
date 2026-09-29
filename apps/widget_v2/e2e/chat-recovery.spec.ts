@@ -5,7 +5,7 @@ const widgetUrl = process.env.WIDGET_RECOVERY_TEST_URL ?? "http://127.0.0.1:5174
 
 async function setup(page: Page, theme = "light", unavailable = false,
   payment?: { method: "pix" | "boleto" | "card"; status: string; normal?: boolean; unavailable?: boolean },
-  display?: { normal?: boolean; failures?: number }) {
+  display?: { normal?: boolean; failures?: number }, navigation?: "payment_methods" | "shipping_options") {
   let currentId = "", recovered = false;
   let release!: () => void;
   const ready = new Promise<void>(resolve => { release = resolve; });
@@ -16,6 +16,9 @@ async function setup(page: Page, theme = "light", unavailable = false,
     turns: currentId ? [
       { id: "saved:buyer", role: "buyer", text: "Pode explicar esta etapa?", occurred_at: "2026-09-25T02:00:00.000Z" },
       { id: "saved:agent", role: "agent", text: "Esta é a resposta que ficou salva.", occurred_at: "2026-09-25T02:00:00.000Z",
+        ...(navigation && recovered ? { checkout_stage: "payment", blocks: [{ type: navigation, data: navigation === "payment_methods"
+          ? { methods: [{ key: "pix", label: "Pix", sub: "Pagamento instantâneo" }] }
+          : { selection_mode: "chat", options: [{ key: "chat-shipping-0", label: "Correios PAC", cost: 1234, sub: "5 dias úteis" }] } }] } : {}),
         ...(display && recovered ? { display_ref: displayRef } : {}) },
     ] : [],
     ...(currentId ? { request: { message_id: currentId, status: recovered ? "reconciled" : "unknown" } } : {}),
@@ -29,6 +32,7 @@ async function setup(page: Page, theme = "light", unavailable = false,
     const json = (body: unknown, status = 200) => route.fulfill({ status, contentType: "application/json", body: JSON.stringify(body) });
     if (path === "/embed/start") return json({ session_id: "bound-session", conversation_id: "conversation-real", chat_protocol: "durable_v2",
       experience: { brand: { name: "Loja de teste", theme: { mode: theme } }, agent: { name: "Assistente" },
+        ...(navigation ? { paymentMethods: { pix: true, card: false, boleto: false } } : {}),
         items: [{ sku: "P1", name: "Produto de teste", unit_price: 99.9, quantity: 1 }], totals: { subtotal: 99.9, total: 99.9 }, rules: { showBranding: false } } });
     if (path === "/embed/chat/state") return json(state());
     if (path === "/embed/chat/display") {
@@ -83,6 +87,28 @@ async function setup(page: Page, theme = "light", unavailable = false,
   await expect(page.getByRole("textbox", { name: "Mensagem", exact: true })).toBeVisible();
   return { messages, calls, displays, allowRecovery: () => { unavailable = false; release(); } };
 }
+
+for (const navigation of ["payment_methods", "shipping_options"] as const) test(`recovers current ${navigation} after loss and reload without executing a commercial action`, async ({ page }, testInfo) => {
+  await page.setViewportSize({ width: 320, height: 700 });
+  const f = await setup(page, "light", false, undefined, {}, navigation);
+  const input = page.getByRole("textbox", { name: "Mensagem", exact: true });
+  await input.fill("Pode explicar esta etapa?"); await input.press("Enter"); f.allowRecovery();
+  const control = page.getByRole("button", { name: navigation === "payment_methods" ? /Pix/ : /Correios PAC/ });
+  await expect(control).toBeVisible(); await expect(input).toBeEnabled();
+  await page.reload(); await expect(control).toBeVisible();
+  await page.screenshot({ path: testInfo.outputPath(`navigation-${navigation}.png`), fullPage: true, animations: "disabled" });
+  expect(f.messages).toHaveLength(1);
+  expect(f.calls.some(path => path.includes("/payment/intents") || path.includes("/shipping/select"))).toBe(false);
+  await expect(page.getByRole("button", { name: /Verificar conversa/ })).toHaveCount(0);
+  if (navigation === "shipping_options") {
+    await expect(control).toContainText("R$ 12,34");
+    await expect(control).toContainText("5 dias úteis");
+    await control.click(); await expect.poll(() => f.messages.length).toBe(2);
+    expect(f.calls.some(path => path.includes("/shipping/select"))).toBe(false);
+    await expect(page.getByText("Podemos continuar.", { exact: true })).toBeVisible();
+    await expect(control).toHaveCount(0);
+  }
+});
 
 for (const normal of [true, false]) test(`reports visible strategy text after ${normal ? "normal response" : "recovery"} and reload`, async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });

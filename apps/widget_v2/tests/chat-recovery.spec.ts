@@ -7,6 +7,22 @@ const config = { embedToken: "fixture-token", merchantId: "store", apiBaseUrl: "
 const initial = { session_id: "session", conversation_id: "conversation", chat_protocol: "durable_v2", experience: { items: [], totals: { subtotal: 0, total: 0 } } };
 const empty = { protocol: "durable_v2", session_id: "session", conversation_id: "conversation", turns: [] };
 
+test("recovery retains only current navigation and strips financial or stale controls", () => {
+  const turn = { id: "saved:agent", role: "agent", text: "Confira o checkout.", occurred_at: "2026-09-28T01:00:00Z",
+    display_ref: { turn_id: "turn-navigation", text_hash: "a".repeat(64) }, checkout_stage: "payment",
+    blocks: [{ type: "payment_methods", data: { methods: [{ key: "pix", label: "Pix", private: "discard" }] } }] };
+  const parse = (patch = {}) => parseChatState({ ...empty, turns: [turn], ...patch }, "session", "conversation");
+  assert.deepEqual(parse().turns[0].blocks, [{ type: "payment_methods", data: { methods: [{ key: "pix", label: "Pix" }] } }]);
+  assert.equal(parse().turns[0].checkout_stage, "payment");
+  assert.equal(parse({ active_request: { message_id: "message_00000001", status: "unknown" } }).turns[0].blocks, undefined);
+  assert.equal(parse({ payment_intent_id: "pay_fixture" }).turns[0].blocks, undefined);
+  assert.equal(parse({ turns: [turn, { ...turn, id: "later", blocks: undefined }] }).turns[0].blocks, undefined);
+  for (const blocks of [[{ type: "pix_payment", data: { qrCode: "forged" } }], [{ type: "form_field", data: { field: "card" } }],
+    [{ type: "shipping_options", data: { options: [{}] } }]]) {
+    assert.equal(parse({ turns: [{ ...turn, blocks }] }).turns[0].blocks, undefined);
+  }
+});
+
 test("persisted payment uses a financial GET and never falls back to creating another payment", async () => fixture(async f => {
   const state = { ...empty, payment_intent_id: "pay_fixture" };
   f.route(url => {

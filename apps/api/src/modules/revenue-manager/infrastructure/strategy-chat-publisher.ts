@@ -7,9 +7,10 @@ import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/p
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { lockCheckoutBaselineRows } from "./checkout-baseline.reader.js";
 import { currentStrategyTurnReason, executionClock } from "./strategy-execution-ledger.js";
+import { checkoutNavigationBlocks, checkoutNavigationTools, MAIN_CHAT_PUBLICATION_POLICY } from "../../checkout/domain/services/checkout-chat-navigation.js";
 
 /** Publication primitive. No provider/tool/payment I/O or client delivery
- * assertion. The main chat adapter returns only the committed textual result. */
+ * assertion. The main chat adapter returns committed text and pure navigation. */
 export class StrategyChatPublisher {
   constructor(private readonly prisma: PrismaClient, private readonly clock = executionClock) {}
 
@@ -26,7 +27,7 @@ export class StrategyChatPublisher {
       const request = await tx.checkoutChatRequest.findFirst({ where: { id: input.claim.requestId,
         merchantId: input.merchantId, sessionId: input.sessionId, requestHash: input.claim.requestHash, protocolVersion: 2 } });
       if (!turn || !request || turn.chatRequestId !== request.id || turn.assignment.sessionId !== input.sessionId
-        || turn.publicationPolicy !== (input.mainChat ? "main_chat_text_only_v1" : "text_only_no_personalization_v1")
+        || turn.publicationPolicy !== (input.mainChat ? MAIN_CHAT_PUBLICATION_POLICY : "text_only_no_personalization_v1")
         || request.buyerMessageHash !== chatMessageTextHash(input.userMessage)) throw new Error("STRATEGY_PUBLICATION_REQUEST_CONFLICT");
       if (!turn.completion || turn.completion.responseHash !== responseHash) throw new Error("STRATEGY_PUBLICATION_RESPONSE_CONFLICT");
       if (turn.completion.publication) {
@@ -37,13 +38,20 @@ export class StrategyChatPublisher {
       const session = await tx.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: {
         merchantId: input.merchantId, sessionId: input.sessionId } } });
       const now = await this.clock(tx);
+      const repository = new PrismaCheckoutRepository(tx, true);
+      const snapshot = (await repository.getSession(input.merchantId, input.sessionId))!;
+      const navigation = input.mainChat ? checkoutNavigationTools(input.result.toolCalls)
+        : Array.isArray(input.result.toolCalls) && input.result.toolCalls.length === 0 ? [] : undefined;
+      const blocks = navigation ? checkoutNavigationBlocks(navigation, snapshot) : [];
       const content = input.result.content;
-      const message = typeof content === "string" ? content.replace(/^(?:Zion|Zyon)\s*:\s*/i, "") : "";
+      const text = typeof content === "string" ? content.replace(/^(?:Zion|Zyon)\s*:\s*/i, "") : "";
+      // Keep a readable, recoverable agent turn even for tool-only responses.
+      const message = text.trim() ? text : blocks.length ? "Confira as opções no checkout." : "";
       let reason: string;
       if (process.env.REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED !== "true"
         || (input.mainChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED !== "true")) reason = "publication_disabled";
       else if (turn.completion.decision !== "eligible_at_recording") reason = "completion_suppressed";
-      else if (!Array.isArray(input.result.toolCalls) || input.result.toolCalls.length !== 0
+      else if (!navigation
         || !message.trim() || message.length > 20_000) reason = "unsupported_response";
       // No offer is authorized by this primitive. Commercial tools and memory
       // personalization require their own atomic validation, not this filter.
@@ -56,15 +64,15 @@ export class StrategyChatPublisher {
           ...base, decision: "suppressed", reason, recordedAt: await executionClock(tx) } });
         return { status: "suppressed" as const, publication };
       }
-      const repository = new PrismaCheckoutRepository(tx, true);
       const updated = await repository.appendChatExchange({ merchantId: input.merchantId, sessionId: input.sessionId,
-        expectedSession: await repository.getSession(input.merchantId, input.sessionId), claim: input.claim,
+        expectedSession: snapshot, claim: input.claim,
         buyer: { role: "buyer", text: input.userMessage, occurredAt: now.toISOString() },
         agent: { role: "agent", text: message, occurredAt: now.toISOString() } });
       const publication = await tx.strategyTurnPublication.create({ data: { ...base,
         decision: "persisted", reason: "current_at_publication", exchangeRequestId: request.id,
+        ...(input.mainChat ? { navigationTools: navigation } : {}),
         agentTextHash: chatMessageTextHash(message), recordedAt: await this.clock(tx) } });
-      return { status: "persisted" as const, publication, session: updated, message };
+      return { status: "persisted" as const, publication, session: updated, message, blocks };
     });
   }
 }

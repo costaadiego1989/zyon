@@ -117,17 +117,22 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
-function ShippingOptionsBlock({ options }: { options?: unknown }) {
+function ShippingOptionsBlock({ options, selectionMode }: { options?: unknown; selectionMode?: unknown }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const selectShipping = useCheckoutStore((s) => s.selectShipping);
   const selectedShipping = useCheckoutStore((s) => s.cart.shipping);
   const cartUpdating = useCheckoutStore((s) => s.cartUpdating);
+  const chatBusy = useCheckoutStore((s) => s.isTyping || Boolean(s.chatRecovery));
   const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.shippingPreference);
   const opts = ((options as Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>) ?? [])
     .filter((o) => o && o.key && o.label)
     .sort((left, right) => shippingPriority(left, preference) - shippingPriority(right, preference));
 
   const handleSelect = async (opt: (typeof opts)[0]) => {
+    if (selectionMode === "chat") {
+      await sendMessage(`Entrega · ${opt.label}`);
+      return;
+    }
     const selected = await selectShipping({ key: opt.key, label: translateShippingLabel(opt.label) });
     if (!selected) return;
     void sendMessage(`Entrega · ${translateShippingLabel(opt.label)}`);
@@ -142,7 +147,7 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
       {opts.map((opt) => (
         <button data-neu="choice"
           key={opt.key}
-          disabled={cartUpdating}
+          disabled={cartUpdating || (selectionMode === "chat" && chatBusy)}
           aria-pressed={selectedShipping?.key === opt.key}
           onClick={() => void handleSelect(opt)}
           style={{
@@ -1550,7 +1555,7 @@ export function BlockRenderer({ block }: { block: ChatBlock }) {
     case "address_confirmation":
       return <AddressConfirmationBlock data={block.data} />;
     case "shipping_options":
-      return <ShippingOptionsBlock options={block.data?.options} />;
+      return <ShippingOptionsBlock options={block.data?.options} selectionMode={block.data?.selection_mode} />;
     case "coupon_input":
       return <CouponInputBlock data={block.data} />;
     case "payment_methods":

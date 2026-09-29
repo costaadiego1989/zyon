@@ -3751,6 +3751,7 @@ model StrategyTurnPublication {
   exchangeRequestId String? @map("exchange_request_id")
   responseHash String @map("response_hash")
   agentTextHash String? @map("agent_text_hash")
+  navigationTools Json? @map("navigation_tools")
   decision String
   reason String
   recordedAt DateTime @map("recorded_at")

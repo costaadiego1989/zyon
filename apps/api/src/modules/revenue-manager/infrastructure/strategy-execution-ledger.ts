@@ -13,6 +13,7 @@ import { missingFieldsForStage } from "../../checkout/domain/services/customer-e
 import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout-session.mapper.js";
 import type { CheckoutSession as CheckoutSnapshot } from "@zyon/shared-types";
 import { StrategyAiBudget } from "./strategy-ai-budget.js";
+import { MAIN_CHAT_PUBLICATION_POLICY } from "../../checkout/domain/services/checkout-chat-navigation.js";
 
 type TurnInput = { merchantId: string; sessionId: string; requestKey: string; inputHash: string;
   route: "primary_llm" | "deterministic" | "fallback"; userMessage?: string } & (
@@ -216,7 +217,7 @@ export class StrategyExecutionLedger {
         assignmentId: assignment.id, requestKey: input.requestKey, inputHash: requestHash, promptHash: digest(systemPrompt),
         sessionContextHash: sessionContextHash(session), admittedAt: now,
         ...(input.chatRequest ? { chatRequestId: input.chatRequest.requestId, sessionContextVersion: session.strategyContextVersion,
-          publicationPolicy: input.mainChat ? "main_chat_text_only_v1" : "text_only_no_personalization_v1" } : {}) } });
+          publicationPolicy: input.mainChat ? MAIN_CHAT_PUBLICATION_POLICY : "text_only_no_personalization_v1" } : {}) } });
       return { status: "admitted" as const, turnId: row.id, systemPrompt, baseline: contract.baseline };
     });
   }

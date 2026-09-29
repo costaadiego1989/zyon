@@ -229,7 +229,7 @@ export class CheckoutShippingService {
     if (session.customer?.address?.complement === undefined) return session;
     // Guard: don't auto-select if text looks like an address complement
     // (e.g. "Apto 204", "Bloco B", "Casa 3") — prevents false regex matches.
-    if (this.looksLikeAddressComplement(text)) return session;
+    if (!text.trim().startsWith("Entrega ·") && this.looksLikeAddressComplement(text)) return session;
     const selected = this.selectShippingOption(text, session.shippingOptions);
     if (!selected) return session;
     const next: CheckoutSession = {
@@ -256,11 +256,22 @@ export class CheckoutShippingService {
   }
 
   private selectShippingOption(text: string, options: ShippingQuote[]): ShippingQuote | null {
-    const normalized = text
+    const normalize = (value: string) => value
       .normalize("NFD")
       .replace(/\p{Diacritic}/gu, "")
-      .toLowerCase();
+      .toLowerCase().trim();
 
+    // A button identifies the complete server label. Never reinterpret a stale
+    // or ambiguous button as a fuzzy carrier match or a numbered option.
+    // Read the marker first: Unicode's Diacritic property also includes '·'.
+    if (text.trim().startsWith("Entrega ·")) {
+      const label = normalize(text.trim().slice("Entrega ·".length));
+      if (!label) return null;
+      const matches = options.filter(option => normalize([option.carrier, option.method].filter(Boolean).join(" ")) === label);
+      return matches.length === 1 ? matches[0]! : null;
+    }
+
+    const normalized = normalize(text);
     if (/(?<!\d)\b(1|primeir[ao]|pac|economi[ac]|barat[ao])\b(?!\d)/.test(normalized)) {
       return this.findOption(options, /pac|econom/i) ?? options[0] ?? null;
     }
