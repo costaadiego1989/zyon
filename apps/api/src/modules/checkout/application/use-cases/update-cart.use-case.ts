@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional , Logger} from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { Cart, CartItem, CheckoutSession, UpdateCartRequest, UpdateCartResponse } from "@zyon/shared-types";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
@@ -7,10 +7,10 @@ import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/mes
 import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
-import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
+import { PrismaCheckoutRepository } from "../../infrastructure/prisma/prisma-checkout.repository.js";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -28,15 +28,13 @@ function recomputeTotal(items: CartItem[]): number {
 
 @Injectable()
 export class UpdateCartUseCase {
-  private readonly logger = new Logger(UpdateCartUseCase.name);
-
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
-    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Pick<PrismaClient, "couponRedemption">
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {
@@ -96,30 +94,26 @@ export class UpdateCartUseCase {
       updatedAt: new Date().toISOString()
     };
 
-    const cancelledCouponReservationIds = cartChanged
-      ? await this.cancelCouponReservations(merchantId, sessionId)
-      : [];
-    try {
+    const event = cartChanged ? createCheckoutEventEnvelope({
+      eventType: "checkout.cart.updated", merchantId,
+      payload: { session_id: sessionId, currency: nextCart.currency, total: nextCart.total,
+        item_count: items.reduce((sum, item) => sum + item.quantity, 0) },
+      causationId: sessionId,
+    }) : undefined;
+    if (this.prisma) {
+      // The version check, invalidated reservations and event commit together.
+      // Never compensate a failed write by restoring another writer's coupon.
+      await this.prisma.$transaction(async (tx) => {
+        const repository = new PrismaCheckoutRepository(tx, true);
+        await repository.saveSession(nextSession);
+        if (cartChanged) await tx.couponRedemption.updateMany({
+          where: { merchantId, sessionId, status: "applied" }, data: { status: "cancelled" },
+        });
+        if (event) await repository.appendOutbox(event);
+      });
+    } else {
       await this.sessions.saveSession(nextSession);
-    } catch (error) {
-      await this.restoreCouponReservations(cancelledCouponReservationIds);
-      throw error;
-    }
-
-    if (cartChanged) {
-      await this.outbox.appendOutbox(
-        createCheckoutEventEnvelope({
-          eventType: "checkout.cart.updated",
-          merchantId,
-          payload: {
-            session_id: sessionId,
-            currency: nextCart.currency,
-            total: nextCart.total,
-            item_count: items.reduce((sum, item) => sum + item.quantity, 0)
-          },
-          causationId: sessionId
-        })
-      );
+      if (event) await this.outbox.appendOutbox(event);
     }
 
     const merchant = await this.merchants?.getProfile(merchantId);
@@ -137,35 +131,5 @@ export class UpdateCartUseCase {
         serviceFee: this.experienceConfig.platformFeeBrl
       })
     };
-  }
-
-  private async cancelCouponReservations(merchantId: string, sessionId: string): Promise<string[]> {
-    if (!this.prisma) return [];
-    const applied = await this.prisma.couponRedemption.findMany({
-      where: { merchantId, sessionId, status: "applied" },
-      select: { id: true }
-    });
-    const cancelled: string[] = [];
-    for (const redemption of applied) {
-      const result = await this.prisma.couponRedemption.updateMany({
-        where: { id: redemption.id, status: "applied" },
-        data: { status: "cancelled" }
-      });
-      if (result.count === 1) cancelled.push(redemption.id);
-    }
-    if (cancelled.length > 0) {
-      this.logger.log("checkout.coupon_reservations.cancelled", { merchantId, sessionId, count: cancelled.length });
-    }
-    return cancelled;
-  }
-
-  private async restoreCouponReservations(redemptionIds: string[]): Promise<void> {
-    if (!this.prisma || redemptionIds.length === 0) return;
-    await Promise.all(redemptionIds.map((id) =>
-      this.prisma!.couponRedemption.updateMany({
-        where: { id, status: "cancelled" },
-        data: { status: "applied" }
-      })
-    ));
   }
 }

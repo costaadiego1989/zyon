@@ -1,4 +1,4 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { CouponEntity } from "../../domain/entities/coupon.entity.js";
 import type { CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 import { toCouponCreateInput, toCouponEntity, toCouponUpdateInput } from "./prisma-coupon.converters.js";
@@ -7,7 +7,7 @@ import { toCouponCreateInput, toCouponEntity, toCouponUpdateInput } from "./pris
  * H1: Prisma implementation of CouponRepository — production persistence.
  */
 export class PrismaCouponRepository implements CouponRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient | Prisma.TransactionClient) {}
 
   async save(coupon: CouponEntity): Promise<void> {
     await this.prisma.coupon.upsert({

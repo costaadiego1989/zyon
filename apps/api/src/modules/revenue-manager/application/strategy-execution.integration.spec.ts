@@ -49,6 +49,14 @@ import { PrismaPaymentSettlementLedgerRepository } from "../../payment/infrastru
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";
 import { PrismaPaymentApprovalReader } from "../../checkout/infrastructure/adapters/prisma-payment-approval.reader.js";
 import { checkoutNavigationContext, navigationToolNames, MAIN_CHAT_PUBLICATION_POLICY } from "../../checkout/domain/services/checkout-chat-navigation.js";
+import { ApplyCouponUseCase } from "../../coupons/application/use-cases/apply-coupon.use-case.js";
+import { PrismaCouponRepository } from "../../coupons/infrastructure/repositories/prisma-coupon.repository.js";
+import { PrismaCouponTransactionRepository } from "../../coupons/infrastructure/repositories/prisma-coupon-transaction.repository.js";
+import { RulesEngineDiscountAdapter } from "../../coupons/infrastructure/adapters/rules-engine-discount.adapter.js";
+import { WidgetCouponsController } from "../../coupons/presentation/http/widget-coupons.controller.js";
+import { EmbedCheckoutGuardHelper } from "../../embed/presentation/http/embed-checkout.controller.js";
+import { embedCheckoutSessionId } from "../../embed/domain/embed-checkout-session.js";
+import { AcpCouponApplier } from "../../public-api/agentic-protocol/acp-coupon.applier.js";
 
 // Only these disposable local databases can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -69,7 +77,8 @@ beforeEach(async () => {
   if (!enabled) return;
   await prisma.$executeRawUnsafe(`TRUNCATE merchants, merchant_rules, checkout_settings, checkout_sessions, payment_intents,
     revenue_analysis_runs, revenue_analysis_schedules, revenue_manager_observations, revenue_strategies, prompt_experiments,
-    revenue_ai_reservations, ai_usage_events, ai_price_versions, merchant_notifications CASCADE`);
+    revenue_ai_reservations, ai_usage_events, ai_price_versions, merchant_notifications,
+    coupons, coupon_redemptions, outbox_messages CASCADE`);
   process.env = { ...env, REVENUE_STRATEGY_EXECUTION_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "store,other",
     REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED: "true",
     REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED: "true",
@@ -146,6 +155,217 @@ function session(sessionId: string, overrides: Partial<CheckoutSession> = {}): C
 const turn = (sessionId: string, requestKey = "request-one", merchantId = "store") => ({ merchantId, sessionId, requestKey,
   inputHash: digest("buyer message fixture"), route: "primary_llm" as const, turn: { cartInfo: "Carrinho: R$100.00", stage: "payment" } });
 const integration = (name: string, fn: () => Promise<void>) => test(name, { skip: !enabled }, fn);
+
+function atomicCoupon(client = prisma) {
+  return new ApplyCouponUseCase(new PrismaCouponRepository(client), new PrismaCouponTransactionRepository(client),
+    new RulesEngineDiscountAdapter(), client);
+}
+async function couponCheckout(sessionId = "one", overrides: Partial<CheckoutSession> = {}) {
+  return (await repo.createSessionIfAbsent(primarySession(sessionId, { cart: { currency: "BRL", total: 100,
+    items: [{ sku: "fixture", name: "Fixture", price: 100, cost: 40, quantity: 1 }] }, ...overrides }))).session;
+}
+async function checkoutCoupon(data: Record<string, unknown> = {}) {
+  return prisma.coupon.create({ data: { id: randomUUID(), merchantId: "store", code: "SAVE5", discountType: "percent", discountValue: 5,
+    startsAt: new Date(Date.now() - 60_000), ...data } as any });
+}
+function applyToSession(s: CheckoutSession, code = "SAVE5", client = prisma) {
+  return atomicCoupon(client).executeForCheckout({ merchant_id: s.merchantId, session_id: s.sessionId,
+    expectedVersion: s.persistenceVersion, code });
+}
+function failingCommercialClient(model: string, operation: string) {
+  return new Proxy(prisma, { get(target, key) {
+    if (key === "$transaction") return (work: (tx: any) => Promise<unknown>) => target.$transaction(tx => work(new Proxy(tx, {
+      get(transaction, property) {
+        if (property === model) return new Proxy((transaction as any)[property], { get(delegate, method) {
+          if (method === operation) return async () => { throw new Error("COMMERCIAL_WRITE_FAILED"); };
+          const value = Reflect.get(delegate, method); return typeof value === "function" ? value.bind(delegate) : value;
+        } });
+        const value = Reflect.get(transaction, property); return typeof value === "function" ? value.bind(transaction) : value;
+      },
+    })));
+    const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
+  } });
+}
+
+integration("atomic coupon widget ignores forged cart, buyer and region and persists all effects", async () => {
+  await activate(); await checkoutCoupon({ allowedRegions: ["SP"], maxPerBuyer: 1 });
+  const claims = { typ: "aacp_embed_v1" as const, merchantId: "store", nonce: "atomic-coupon",
+    issuedAtUnix: 1, expiresAtUnix: 9999999999 };
+  const s = await couponCheckout(embedCheckoutSessionId(claims));
+  const controller = new WidgetCouponsController(atomicCoupon(), new EmbedCheckoutGuardHelper(repo), repo,
+    { async getProfile() { return { name: "Fixture" }; } } as any, { platformFeeBrl: 0 });
+  const response = await controller.apply({ embedClaims: claims }, { session_id: s.sessionId, merchant_id: "other",
+    code: " SAVE5 ", cart: { currency: "BRL", total: 99999, items: [] }, buyer_global_user_id: "forged", buyer_region: "XX" });
+  assert.equal(response.discount_applied, 5); assert.equal(response.experience.totals.discount, 5);
+  const saved = (await repo.getSession("store", s.sessionId))!;
+  assert.equal(saved.cart.currentDiscount, 5); assert.equal(saved.cart.total, 100);
+  assert.equal(saved.cart.commercialNudge?.couponCode, "SAVE5"); assert.equal(saved.persistenceVersion, 1);
+  const redemption = await prisma.couponRedemption.findFirstOrThrow();
+  assert.equal(redemption.buyerGlobalUserId, s.globalUserId); assert.equal(Number(redemption.discountApplied), 5);
+  assert.equal(await prisma.outboxMessage.count({ where: { eventType: "coupon.applied" } }), 1);
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "coupon_applied" } }), 1);
+  assert.equal(await prisma.strategyAssignment.count(), 1);
+});
+
+integration("atomic coupon ACP saves the discount into the checkout charged later", async () => {
+  await activate(); await checkoutCoupon(); const s = await couponCheckout();
+  await new AcpCouponApplier(atomicCoupon()).applyCoupon(s, "save5");
+  assert.equal((await repo.getSession("store", "one"))!.cart.currentDiscount, 5);
+  assert.equal(await prisma.couponRedemption.count({ where: { status: "applied" } }), 1);
+});
+
+integration("atomic coupon authorized shipping and reservation commit together", async () => {
+  await activate("store", { allowFreeShipping: true, freeShippingMinCartValue: 0, maxShippingSubsidy: 20 });
+  await checkoutCoupon({ code: "FRETE", discountType: "shipping_free", discountValue: 0 });
+  const s = await couponCheckout(); const result = await applyToSession(s, "FRETE");
+  assert.equal(result.result.shipping_discount_applied, 10);
+  assert.equal((await repo.getSession("store", "one"))!.shipping?.customerPrice, 0);
+  assert.equal(await prisma.couponRedemption.count(), 1);
+  await assert.rejects(applyToSession(result.session, "FRETE"), /CHECKOUT_COMMERCIAL_BENEFIT_ALREADY_APPLIED/);
+});
+
+integration("atomic coupon ACP selects fulfillment before authorizing a shipping coupon", async () => {
+  await activate("store", { allowFreeShipping: true, freeShippingMinCartValue: 0, maxShippingSubsidy: 20 });
+  await checkoutCoupon({ code: "FRETE", discountType: "shipping_free", discountValue: 0 });
+  await couponCheckout("one", { shipping: undefined, shippingOptions: [{ customerPrice: 15, realCost: 15, region: "SP" }] });
+  const lifecycle = new AcpCheckoutLifecycleService(new GetCheckoutSessionUseCase(repo), new UpdateCartUseCase(repo, repo),
+    undefined as any, atomicCoupon(), undefined as any, repo, undefined as any);
+  await lifecycle.updateSession("store", "one", { fulfillment_option_id: "Correios-0", coupon_code: "FRETE" });
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.shipping?.customerPrice, 0); assert.equal(saved.cart.commercialNudge?.couponCode, "FRETE");
+  assert.equal(saved.persistenceVersion, 2); assert.equal(await prisma.couponRedemption.count(), 1);
+});
+
+for (const reason of ["unknown-cost", "existing-benefit", "missing-buyer"] as const) {
+  integration(`atomic coupon rejects ${reason} without any commercial writes`, async () => {
+    await activate(); await checkoutCoupon({ maxPerBuyer: 1 }); const s = await couponCheckout();
+    const invalid = { ...s, cart: { ...s.cart, items: s.cart.items.map(item => ({ ...item })) } };
+    if (reason === "unknown-cost") delete invalid.cart.items[0].cost;
+    if (reason === "existing-benefit") invalid.cart.currentDiscount = 2;
+    if (reason === "missing-buyer") invalid.globalUserId = "";
+    await repo.saveSession(invalid);
+    await assert.rejects(applyToSession(invalid), reason === "unknown-cost" ? /COUPON_DISCOUNT_REJECTED/
+      : reason === "existing-benefit" ? /CHECKOUT_COMMERCIAL_BENEFIT_ALREADY_APPLIED/ : /COUPON_BUYER_IDENTITY_REQUIRED/);
+    assert.equal(await prisma.couponRedemption.count(), 0);
+    assert.equal(await prisma.outboxMessage.count({ where: { eventType: "coupon.applied" } }), 0);
+    assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "coupon_applied" } }), 0);
+  });
+}
+
+integration("atomic coupon concurrent duplicate requests apply once without stacking", async () => {
+  await activate(); await checkoutCoupon(); const s = await couponCheckout();
+  const results = await Promise.allSettled([applyToSession(s), applyToSession(s), applyToSession(s)]);
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  for (const r of results) if (r.status === "rejected") assert.match(String(r.reason), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  assert.equal(await prisma.couponRedemption.count(), 1);
+  assert.equal(await prisma.outboxMessage.count({ where: { eventType: "coupon.applied" } }), 1);
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "coupon_applied" } }), 1);
+  assert.equal((await repo.getSession("store", "one"))!.cart.currentDiscount, 5);
+});
+
+for (const limit of ["global", "buyer"]) integration(`atomic coupon enforces ${limit} usage across concurrent checkouts`, async () => {
+  await activate(); await checkoutCoupon(limit === "global" ? { maxUsages: 1 } : { maxPerBuyer: 1 });
+  const a = await couponCheckout("one", { globalUserId: "shared-buyer" });
+  const b = await couponCheckout("two", { globalUserId: "shared-buyer" });
+  const results = await Promise.allSettled([applyToSession(a), applyToSession(b)]);
+  assert.equal(results.filter(r => r.status === "fulfilled").length, 1);
+  assert.equal(await prisma.couponRedemption.count(), 1);
+  const saved = await Promise.all([repo.getSession("store", "one"), repo.getSession("store", "two")]);
+  assert.equal(saved.filter(s => s!.cart.currentDiscount === 5).length, 1);
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "coupon_applied" } }), 1);
+});
+
+integration("atomic coupon rejects stale or absent versions without reserving a use", async () => {
+  await activate(); await checkoutCoupon(); const s = await couponCheckout();
+  await repo.saveSession({ ...s, cart: { ...s.cart, total: 200, items: [{ ...s.cart.items[0], quantity: 2 }] } });
+  await assert.rejects(applyToSession(s), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  await assert.rejects(applyToSession({ ...s, persistenceVersion: undefined }), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  assert.equal(await prisma.couponRedemption.count(), 0);
+  assert.equal(await prisma.outboxMessage.count({ where: { eventType: "coupon.applied" } }), 0);
+  assert.equal((await repo.getSession("store", "one"))!.cart.total, 200);
+});
+
+integration("atomic coupon respects current coupon state and merchant margins after acquiring locks", async () => {
+  await activate(); const coupon = await checkoutCoupon(); const s = await couponCheckout();
+  let release!: () => void, locked!: () => void;
+  const acquired = new Promise<void>(resolve => { locked = resolve; });
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  const editing = prisma.$transaction(async tx => {
+    await tx.$queryRaw`SELECT id FROM merchants WHERE id = 'store' FOR UPDATE`;
+    locked(); await gate;
+    await tx.coupon.update({ where: { id: coupon.id }, data: { status: "paused" } });
+  });
+  await acquired; const pending = applyToSession(s); release(); await editing;
+  await assert.rejects(pending, /COUPON_INVALID/);
+  await prisma.coupon.update({ where: { id: coupon.id }, data: { status: "active" } });
+  await repo.setRules("store", { minimumMarginPercent: 99 });
+  await assert.rejects(applyToSession(s), /COUPON_DISCOUNT_REJECTED/);
+  assert.equal(await prisma.couponRedemption.count(), 0);
+});
+
+integration("atomic coupon requires persisted region and enforces tenant scope", async () => {
+  await activate(); await activate("other"); await checkoutCoupon({ allowedRegions: ["SP"] });
+  const s = await couponCheckout("one", { customer: {} });
+  await assert.rejects(applyToSession(s), /COUPON_BUYER_REGION_REQUIRED/);
+  const other = await couponCheckout("two", { merchantId: "other" });
+  await assert.rejects(applyToSession(other), /COUPON_NOT_FOUND/);
+  await assert.rejects(applyToSession({ ...s, merchantId: "other" }), /checkout_session_not_found/);
+  assert.equal(await prisma.couponRedemption.count(), 0);
+});
+
+for (const [model, operation] of [["outboxMessage", "upsert"], ["checkoutEvent", "create"]]) {
+  integration(`atomic coupon rolls back reservation and checkout when ${model} fails`, async () => {
+    await activate(); await checkoutCoupon(); const s = await couponCheckout();
+    await assert.rejects(applyToSession(s, "SAVE5", failingCommercialClient(model, operation)), /COMMERCIAL_WRITE_FAILED/);
+    assert.equal(await prisma.couponRedemption.count(), 0);
+    assert.equal(await prisma.outboxMessage.count({ where: { eventType: "coupon.applied" } }), 0);
+    assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "coupon_applied" } }), 0);
+    assert.deepEqual(await repo.getSession("store", "one"), s);
+    await applyToSession(s); // Failed transaction consumed neither version nor capacity.
+  });
+}
+
+integration("atomic coupon cart change cancels capacity and permits reapplication with the new total", async () => {
+  await activate(); await checkoutCoupon({ maxUsages: 1 }); const s = await couponCheckout();
+  await applyToSession(s);
+  const update = new UpdateCartUseCase(repo, repo, undefined, undefined, undefined, prisma);
+  await update.execute({ merchant_id: "store", session_id: "one", items: [{ sku: "fixture", quantity: 2 }] });
+  const changed = (await repo.getSession("store", "one"))!;
+  assert.equal(changed.cart.currentDiscount, 0); assert.equal(changed.cart.total, 200);
+  assert.equal(changed.cart.commercialNudge, undefined); assert.equal(changed.shipping, undefined);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "cancelled");
+  assert.equal(await prisma.outboxMessage.count({ where: { eventType: "checkout.cart.updated" } }), 1);
+  const again = await applyToSession(changed);
+  assert.equal(again.result.discount_applied, 10); assert.equal(await prisma.couponRedemption.count(), 1);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "applied");
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "coupon_applied" } }), 1);
+});
+
+integration("atomic coupon cart change failure preserves cart and applied reservation", async () => {
+  await activate(); await checkoutCoupon(); await applyToSession(await couponCheckout());
+  const before = await repo.getSession("store", "one");
+  const update = new UpdateCartUseCase(repo, repo, undefined, undefined, undefined, failingCommercialClient("outboxMessage", "upsert"));
+  await assert.rejects(update.execute({ merchant_id: "store", session_id: "one", items: [{ sku: "fixture", quantity: 2 }] }), /COMMERCIAL_WRITE_FAILED/);
+  assert.deepEqual(await repo.getSession("store", "one"), before);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "applied");
+  assert.equal(await prisma.outboxMessage.count({ where: { eventType: "checkout.cart.updated" } }), 0);
+});
+
+integration("atomic coupon stale cart update cannot cancel a newly applied reservation", async () => {
+  await activate(); await checkoutCoupon(); await couponCheckout();
+  const racing = new Proxy(repo, { get(target, key) {
+    if (key === "getSession") return async (merchant: string, sessionId: string) => {
+      const stale = (await target.getSession(merchant, sessionId))!;
+      await applyToSession(stale); return stale;
+    };
+    const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const update = new UpdateCartUseCase(racing, repo, undefined, undefined, undefined, prisma);
+  await assert.rejects(update.execute({ merchant_id: "store", session_id: "one", items: [{ sku: "fixture", quantity: 2 }] }), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  assert.equal((await repo.getSession("store", "one"))!.cart.currentDiscount, 5);
+  assert.equal((await prisma.couponRedemption.findFirstOrThrow()).status, "applied");
+  assert.equal(await prisma.outboxMessage.count({ where: { eventType: "checkout.cart.updated" } }), 0);
+});
 
 function versionedAcpFixture() {
   return new AcpCheckoutLifecycleService(new GetCheckoutSessionUseCase(repo), new UpdateCartUseCase(repo, repo),

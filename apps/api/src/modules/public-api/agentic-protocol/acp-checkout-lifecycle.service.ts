@@ -97,7 +97,7 @@ export class AcpCheckoutLifecycleService {
     this.mutabilityPolicy = new AcpMutabilityPolicy(this.statusPolicy);
     this.lineItemsResolver = new AcpLineItemsResolver(updateCart, sessions, variantLookup);
     this.buyerMerger = new AcpBuyerMerger(sessions);
-    this.couponApplier = new AcpCouponApplier(applyCoupon, coupons, merchantRules);
+    this.couponApplier = new AcpCouponApplier(applyCoupon);
     this.fulfillmentSelector = new AcpFulfillmentSelector(sessions);
     this.paymentOrchestrator = new AcpPaymentOrchestrator(
       createPaymentIntent,
@@ -126,13 +126,15 @@ export class AcpCheckoutLifecycleService {
       session = await this.getCheckoutSession.execute(merchantId, sessionId);
       await this.mutabilityPolicy.assertMutable(session);
     }
-    if (body.coupon_code) {
-      await this.couponApplier.applyCoupon(session, body.coupon_code);
+    if (body.fulfillment_option_id) {
+      await this.fulfillmentSelector.selectAndApply(session, body.fulfillment_option_id);
       session = await this.getCheckoutSession.execute(merchantId, sessionId);
       await this.mutabilityPolicy.assertMutable(session);
     }
-    if (body.fulfillment_option_id) {
-      await this.fulfillmentSelector.selectAndApply(session, body.fulfillment_option_id);
+    if (body.coupon_code) {
+      // Shipping coupons must authorize the selected quote, and the selection
+      // must not overwrite the discount immediately after it was applied.
+      await this.couponApplier.applyCoupon(session, body.coupon_code);
     }
 
     const refreshed = await this.getCheckoutSession.execute(merchantId, sessionId);

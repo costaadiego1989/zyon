@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { checkCouponLimits } from "../../domain/policies/coupon-limit.policy.js";
 import type {
   CouponReservationResult,
@@ -15,10 +15,14 @@ type LockedCouponLimits = {
 
 @Injectable()
 export class PrismaCouponTransactionRepository implements CouponTransactionRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient | Prisma.TransactionClient, private readonly inTransaction = false) {}
+
+  private transaction<T>(work: (tx: Prisma.TransactionClient) => Promise<T>): Promise<T> {
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
+  }
 
   async reserve(input: Parameters<CouponTransactionRepository["reserve"]>[0]): Promise<CouponReservationResult> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.transaction(async (tx) => {
       const locked = await tx.$queryRaw<LockedCouponLimits[]>`
         SELECT "max_usages" AS "maxUsages", "max_per_buyer" AS "maxPerBuyer"
         FROM "coupons"
@@ -77,7 +81,7 @@ export class PrismaCouponTransactionRepository implements CouponTransactionRepos
   }
 
   async redeem(input: Parameters<CouponTransactionRepository["redeem"]>[0]): Promise<void> {
-    await this.prisma.$transaction(async (tx) => {
+    await this.transaction(async (tx) => {
       const applied = await tx.couponRedemption.findMany({
         where: { merchantId: input.merchantId, sessionId: input.sessionId, status: "applied" }
       });
