@@ -1,3 +1,4 @@
+import { simulateCommercialMutation } from "../../checkout/__tests__/checkout-test-fixtures.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { CheckoutSession } from "@zyon/shared-types";
@@ -26,6 +27,7 @@ function createRepo(): CheckoutSessionRepository & {
   const saved: CheckoutSession[] = [];
   return {
     saved,
+    async commitCommercialMutation(input) { return simulateCommercialMutation(this, input); },
     async saveSession(s) {
       saved.push(s);
     },

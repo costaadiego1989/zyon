@@ -21,7 +21,17 @@ export interface ChatExchangeInput {
   selectedPaymentMethod?: PaymentMethod;
 }
 
+export interface CheckoutCommercialMutation {
+  expected: CheckoutSession;
+  next: CheckoutSession;
+  /** Buyer-requested cancellation, including its durable lifecycle event. */
+  cancel?: boolean;
+}
+
 export interface CheckoutSessionRepository {
+  /** Saves a current snapshot, invalidates benefits/reservations and records
+   * commercial events in one transaction. Never retry with a newer snapshot. */
+  commitCommercialMutation?(input: CheckoutCommercialMutation): Promise<CheckoutSession>;
   /** Atomically creates a checkout without replacing an existing buyer/session. */
   createSessionIfAbsent?(session: CheckoutSession): MaybePromise<{ session: CheckoutSession; created: boolean }>;
   /** Persists the server-loaded snapshot; implementations advance its storage

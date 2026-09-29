@@ -26,7 +26,8 @@ import { toNumber, toNumberOrNull, type DecimalLike } from "../../../../shared/p
 import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
 import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
 import { enrollCreatedStrategySession, executionClock, lockExecutionMerchant } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
-import type { ChatExchangeInput } from "../../domain/ports/checkout-session.repository.port.js";
+import type { ChatExchangeInput, CheckoutCommercialMutation } from "../../domain/ports/checkout-session.repository.port.js";
+import { prepareCommercialMutation } from "../../domain/services/checkout-commercial-mutation.js";
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
 import { chatMessageTextHash } from "../../domain/services/chat-message-identity.js";
 import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
@@ -107,6 +108,38 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     // Existing callers persist a working object several times. Advance only the
     // server token after a successful write, never rebase a stale snapshot.
     session.persistenceVersion = saved.version;
+  }
+
+  async commitCommercialMutation(input: CheckoutCommercialMutation): Promise<CheckoutSession> {
+    input = structuredClone(input);
+    const mutation = prepareCommercialMutation(input);
+    const work = async (tx: Prisma.TransactionClient) => {
+      const { merchantId, sessionId } = input.expected;
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
+      if (await tx.completedOrder.findFirst({ where: { merchantId, sessionId }, select: { id: true } })
+        || await tx.checkoutEvent.findFirst({ where: { merchantId, sessionId, eventName: "checkout_abandoned",
+          metadata: { path: ["reason"], equals: "buyer_initiated" } }, select: { id: true } })) {
+        throw new ConflictException("CHECKOUT_COMMERCIAL_SESSION_CLOSED");
+      }
+      const repository = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      try {
+        await repository.saveSessionIfUnchanged(mutation.session, input.expected);
+      } catch (error) {
+        if (error instanceof Error && error.message === "CHAT_SESSION_CHANGED") {
+          throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
+        }
+        throw error;
+      }
+      if (mutation.invalidated) await tx.couponRedemption.updateMany({
+        where: { merchantId, sessionId, status: "applied" }, data: { status: "cancelled" },
+      });
+      if (mutation.event) await repository.appendOutbox(mutation.event);
+      if (input.cancel) await repository.recordEvent(merchantId, sessionId, "checkout_abandoned", {
+        source: "acp.protocol", reason: "buyer_initiated",
+      });
+      return (await repository.getSession(merchantId, sessionId))!;
+    };
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
   }
 
   async saveSessionIfUnchanged(session: CheckoutSession, expected: CheckoutSession): Promise<void> {

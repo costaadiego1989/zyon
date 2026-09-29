@@ -15,7 +15,8 @@ import type {
   MerchantRules
 } from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
-import type { ChatExchangeInput, CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import type { ChatExchangeInput, CheckoutCommercialMutation, CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { prepareCommercialMutation } from "../../domain/services/checkout-commercial-mutation.js";
 import type { OfferRepository } from "../../domain/ports/offer.repository.port.js";
 import type { OrderRepository } from "../../domain/ports/order.repository.port.js";
 import type { DashboardReadModel } from "../../domain/ports/dashboard-read-model.port.js";
@@ -58,6 +59,16 @@ export class InMemoryCheckoutRepository
 
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     return work(this);
+  }
+
+  async commitCommercialMutation(input: CheckoutCommercialMutation): Promise<CheckoutSession> {
+    const mutation = prepareCommercialMutation(input);
+    this.saveSession(mutation.session);
+    if (mutation.event) await this.appendOutbox(mutation.event);
+    if (input.cancel) this.recordEvent(input.next.merchantId, input.next.sessionId, "checkout_abandoned", {
+      source: "acp.protocol", reason: "buyer_initiated",
+    });
+    return this.getSession(input.next.merchantId, input.next.sessionId)!;
   }
 
   createSessionIfAbsent(session: CheckoutSession): { session: CheckoutSession; created: boolean } {

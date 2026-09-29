@@ -1,3 +1,4 @@
+import { commitCheckoutMutation } from "../../checkout/application/services/commit-checkout-mutation.js";
 import {
   BadRequestException,
   ForbiddenException,
@@ -146,16 +147,7 @@ export class AcpCheckoutLifecycleService {
     const session = await this.getCheckoutSession.execute(merchantId, sessionId);
     await this.mutabilityPolicy.assertMutable(session);
 
-    await this.sessions.saveSession({
-      ...session,
-      cart: { ...session.cart, items: [], total: 0 },
-      shipping: undefined,
-      updatedAt: new Date().toISOString(),
-    });
-    await this.sessions.recordEvent(merchantId, sessionId, "checkout_abandoned", {
-      source: "acp.protocol",
-      reason: "buyer_initiated",
-    });
+    await commitCheckoutMutation(this.sessions, { expected: session, next: session, cancel: true });
 
     const refreshed = await this.getCheckoutSession.execute(merchantId, sessionId);
     return CheckoutSessionMapper.toAcp({ session: refreshed, aacpStatus: "canceled" });

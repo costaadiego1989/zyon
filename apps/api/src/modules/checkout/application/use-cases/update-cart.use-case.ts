@@ -4,13 +4,11 @@ import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
-import { createCheckoutEventEnvelope } from "../../domain/events/checkout-domain-event.js";
 import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
-import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import type { PrismaClient } from "@prisma/client";
-import { PrismaCheckoutRepository } from "../../infrastructure/prisma/prisma-checkout.repository.js";
+
+import { commitCheckoutMutation } from "../services/commit-checkout-mutation.js";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -34,7 +32,6 @@ export class UpdateCartUseCase {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
-    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {
@@ -86,7 +83,7 @@ export class UpdateCartUseCase {
     }
     // Cart mutation invalidates any prior freight quote; buyer must re-select shipping
     // so the payment amount stays consistent with the current cart.
-    const nextSession: CheckoutSession = {
+    let nextSession: CheckoutSession = {
       ...session,
       cart: nextCart,
       shipping: cartChanged ? undefined : session.shipping,
@@ -94,27 +91,7 @@ export class UpdateCartUseCase {
       updatedAt: new Date().toISOString()
     };
 
-    const event = cartChanged ? createCheckoutEventEnvelope({
-      eventType: "checkout.cart.updated", merchantId,
-      payload: { session_id: sessionId, currency: nextCart.currency, total: nextCart.total,
-        item_count: items.reduce((sum, item) => sum + item.quantity, 0) },
-      causationId: sessionId,
-    }) : undefined;
-    if (this.prisma) {
-      // The version check, invalidated reservations and event commit together.
-      // Never compensate a failed write by restoring another writer's coupon.
-      await this.prisma.$transaction(async (tx) => {
-        const repository = new PrismaCheckoutRepository(tx, true);
-        await repository.saveSession(nextSession);
-        if (cartChanged) await tx.couponRedemption.updateMany({
-          where: { merchantId, sessionId, status: "applied" }, data: { status: "cancelled" },
-        });
-        if (event) await repository.appendOutbox(event);
-      });
-    } else {
-      await this.sessions.saveSession(nextSession);
-      if (event) await this.outbox.appendOutbox(event);
-    }
+    nextSession = await commitCheckoutMutation(this.sessions, { expected: session, next: nextSession });
 
     const merchant = await this.merchants?.getProfile(merchantId);
     const rules = await this.merchants?.getRules(merchantId);

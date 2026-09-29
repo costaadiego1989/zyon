@@ -14,5 +14,5 @@ export interface ProductVariantLookupPort {
   findBySku(
     merchantId: string,
     sku: string
-  ): Promise<{ name?: string; price?: number; imageUrl?: string } | undefined>;
+  ): Promise<{ name?: string; price?: number; cost?: number; currency?: string; imageUrl?: string } | undefined>;
 }
