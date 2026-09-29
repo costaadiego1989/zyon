@@ -23,6 +23,8 @@ export function reviewErrorMessage(error: unknown): string {
   if (code === "STRATEGY_DECISION_CONFLICT") return "Esta estratégia já recebeu uma decisão. Atualizamos o estado para você conferir.";
   if (code === "STRATEGY_PROPOSAL_EXPIRED") return "Esta proposta venceu. Aguarde uma nova análise da loja.";
   if (code === "STRATEGY_POLICY_CHANGED") return "Os limites da loja mudaram. Esta proposta precisa de uma nova análise.";
+  if (code === "STRATEGY_APPROVAL_PREREQUISITES_REQUIRED") return "O teste não pode ser iniciado nas condições atuais. Atualizamos a proposta para você conferir a disponibilidade.";
+  if (code === "STRATEGY_APPROVAL_EXECUTION_MISSING") return "Não foi possível confirmar o início deste teste. Atualize para consultar o estado da estratégia.";
   if (code === "STRATEGY_REVISION_LIMIT_REACHED") return "O limite de alternativas deste ciclo foi atingido. Aguarde a próxima análise.";
   if (code === "STRATEGY_REVISIONS_UNAVAILABLE" || code === "STRATEGY_REVISION_LIMIT_REQUIRED") return "O pedido de alternativa está indisponível neste momento. Tente novamente mais tarde.";
   if (error instanceof DashboardHttpError && error.status === 403) return "Sua conta não tem acesso a esta estratégia. Confira a loja e as permissões de acesso.";

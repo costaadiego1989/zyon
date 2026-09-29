@@ -20,11 +20,16 @@ import { ChatLlmGatewayService } from "../../checkout/application/services/chat-
 import { readCheckoutBaseline, lockCheckoutBaselineRows } from "../infrastructure/checkout-baseline.reader.js";
 import { prepareStrategyMeasurement } from "../infrastructure/strategy-measurement-planning.js";
 import { MeasurementBaselineUnavailable, type StrategyExperimentReview } from "../domain/strategy-measurement.js";
+import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
+import { StrategyExecutionLedger } from "../infrastructure/strategy-execution-ledger.js";
+import { StrategyMetricsService } from "./strategy-metrics.service.js";
+import { ExperimentMeasurementService } from "../../experiments/application/experiment-measurement.service.js";
 
 // Destructive setup is strictly restricted to this dedicated local fixture DB.
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
 const enabled = url.hostname === "127.0.0.1" && url.port === "5557" && url.pathname === "/revenue_strategy_0924";
-const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
+const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } },
+  transactionOptions: { maxWait: 10_000, timeout: 30_000 } });
 const env = { ...process.env };
 const baseline = "Explique o checkout com os dados verificados do carrinho.";
 const context = new PrismaHypothesisMerchantContext(prisma);
@@ -100,6 +105,131 @@ async function measuredProposal() {
   const review = (read.versions[0].proposal as any).experimentReview as StrategyExperimentReview;
   return { f, s, read, review, id: output.hypothesis_id, input: { ...f.input, proposal_hash: read.versions[0].proposalHash } };
 }
+
+async function approvableProposal() {
+  const f = await measuredProposal();
+  Object.assign(process.env, { REVENUE_STRATEGY_APPROVAL_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_ENABLED: "true",
+    REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "store", REVENUE_STRATEGY_MAIN_CHAT_ENABLED: "true",
+    REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED: "true", REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED: "true",
+    REVENUE_STRATEGY_MONITOR_ENABLED: "true", CHECKOUT_CHAT_REQUESTS_ENABLED: "true", CHECKOUT_CHAT_REQUEST_MERCHANT_IDS: "store",
+    CHECKOUT_CHAT_RECOVERY_ENABLED: "true", CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS: "store",
+    CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED: "true", CHECKOUT_CHAT_PAYMENT_RECOVERY_ENABLED: "true",
+    REVENUE_STRATEGY_AI_EXECUTION_LIMIT_MICROS: "50000", REVENUE_STRATEGY_AI_SESSION_MAX_CALLS: "10",
+    REDIS_ENABLED: "true", REDIS_URL: "redis://127.0.0.1:6397/15" }); // Configuration only; no queue/provider I/O in approval.
+  await prisma.aiPriceVersion.create({ data: { version: "approval-price", provider: "openai", model: "fixture-model",
+    channel: "chat", component: "text_generation", currency: "USD", source: "revenue-upper-bound-v1",
+    inputMicrosPerMillion: 1000, outputMicrosPerMillion: 2000, effectiveFrom: new Date("2020-01-01T00:00:00Z") } });
+  await prisma.revenueAnalysisRun.update({ where: { id: f.f.run.id }, data: { status: "completed" } });
+  return f;
+}
+
+test("human approval starts the exact reviewed experiment, notification, enrollment and metrics atomically", { skip: !enabled }, async () => {
+  const f = await approvableProposal();
+  const ready = await f.s.read("store", f.id);
+  assert.equal(ready.approval_available, true); assert.deepEqual(ready.activation_blockers, []);
+  const receipt = await f.s.decide("store", "owner", f.id, "approve", f.input) as any;
+  assert.equal(receipt.status, "active"); assert.equal(receipt.proposal_hash, f.input.proposal_hash);
+  assert.equal((await f.s.read("store", f.id)).status, "active");
+  assert.equal((await prisma.experimentMeasurementPlan.findUniqueOrThrow({ where: { experimentId: receipt.experiment_id } })).planHash, f.review.planHash);
+  assert.equal((await prisma.promptVariant.findFirstOrThrow({ where: { experimentId: receipt.experiment_id, isControl: true } })).systemPrompt,
+    f.review.variants[0].systemPrompt);
+  assert.equal(await prisma.merchantNotification.count({ where: { id: `strategy-activation:${receipt.action_id}`, read: false } }), 1);
+  assert.equal((await prisma.revenueManagerHypothesis.findUniqueOrThrow({ where: { id: f.id } })).createdExperimentId, receipt.experiment_id);
+  const sessions = new PrismaCheckoutRepository(prisma);
+  const stamp = new Date().toISOString();
+  await sessions.createSessionIfAbsent({ merchantId: "store", sessionId: "after-approval", globalUserId: "new-buyer",
+    conversationId: "new-conversation", cohort: "treatment", cart: { currency: "BRL", total: 100, items: [] },
+    chatHistory: [], abandonmentScore: 0, triggerAgent: false, createdAt: stamp, updatedAt: stamp });
+  assert.equal(await prisma.strategyAssignment.count({ where: { executionId: receipt.execution_id } }), 1);
+  assert.equal(await prisma.strategyAssignment.count({ where: { sessionId: { startsWith: "history-" } } }), 0);
+  const metrics = await new StrategyMetricsService(prisma, new ExperimentMeasurementService(prisma)).read("store", f.id, 1, true);
+  assert.equal(metrics.execution?.id, receipt.execution_id); assert.ok(metrics.measurement);
+  assert.equal(await prisma.revenueAiReservation.count(), 0);
+});
+
+test("human approval retry keeps one receipt and never restarts after flags change or a stop", { skip: !enabled }, async () => {
+  const f = await approvableProposal();
+  const replies = await Promise.all(Array.from({ length: 4 }, () => f.s.decide("store", "owner", f.id, "approve", f.input)));
+  assert.equal(new Set(replies.map(digest)).size, 1);
+  const first = replies[0] as any;
+  await new StrategyExecutionLedger(prisma).stop({ merchantId: "store", executionId: first.execution_id, actorId: "owner", kind: "stopped", requestKey: "stop" });
+  process.env.REVENUE_STRATEGY_APPROVAL_ENABLED = "false";
+  assert.deepEqual(await f.s.decide("store", "owner", f.id, "approve", f.input), first);
+  assert.equal((await prisma.strategyExecution.findUniqueOrThrow({ where: { id: first.execution_id } })).status, "stopped");
+  assert.equal(await prisma.promptExperiment.count(), 1); assert.equal(await prisma.revenueStrategyAction.count(), 1);
+  assert.equal(await prisma.merchantNotification.count({ where: { id: { startsWith: "strategy-activation:" } } }), 1);
+  await assert.rejects(f.s.decide("store", "other-actor", f.id, "approve", f.input), /IDEMPOTENCY_CONFLICT/);
+  await assert.rejects(f.s.decide("store", "owner", f.id, "reject", f.input), /IDEMPOTENCY_CONFLICT/);
+});
+
+for (const [setting, value] of [
+  ["REVENUE_STRATEGY_APPROVAL_ENABLED", "false"], ["REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS", "*"],
+  ["REVENUE_STRATEGY_MAIN_CHAT_ENABLED", "false"], ["REVENUE_STRATEGY_MONITOR_ENABLED", "false"],
+  ["CHECKOUT_CHAT_REQUEST_MERCHANT_IDS", "*"], ["CHECKOUT_CHAT_SUPPRESSION_RECOVERY_ENABLED", "false"],
+  ["CHECKOUT_CHAT_PAYMENT_RECOVERY_ENABLED", "false"], ["REVENUE_AI_DAILY_LIMIT_MICROS", ""],
+  ["REVENUE_AI_REVISION_RESERVE_PERCENT", "100"], ["REVENUE_EXPERIMENT_DURATION_DAYS", "14"],
+  ["REDIS_ENABLED", "false"], ["REDIS_URL", ""],
+] as const) test(`human approval refuses unavailable ${setting} without any activation writes`, { skip: !enabled }, async () => {
+  const f = await approvableProposal(); process.env[setting] = value;
+  assert.equal((await f.s.read("store", f.id)).approval_available, false);
+  await assert.rejects(f.s.decide("store", "owner", f.id, "approve", f.input), (e: any) => e.getResponse().code === "STRATEGY_APPROVAL_PREREQUISITES_REQUIRED");
+  assert.equal(await prisma.revenueStrategyAction.count(), 0); assert.equal(await prisma.promptExperiment.count(), 0);
+});
+
+test("human approval rejects absent pricing, changed baseline, unfinished analysis and ineligible plan", { skip: !enabled }, async () => {
+  const f = await approvableProposal();
+  await prisma.aiPriceVersion.deleteMany();
+  assert.ok((await f.s.read("store", f.id)).activation_blockers.includes("ai_pricing_required"));
+  await prisma.merchant.update({ where: { id: "store" }, data: { name: "Changed" } });
+  await prisma.revenueAnalysisRun.update({ where: { id: f.f.run.id }, data: { status: "running" } });
+  const denied = new StrategyReviewService(prisma, context, {} as never, { getEffectivePlan: async () => "starter" } as never);
+  const read = await denied.read("store", f.id);
+  for (const reason of ["checkout_baseline_changed", "weekly_analysis_required", "merchant_ineligible"]) assert.ok(read.activation_blockers.includes(reason));
+  await assert.rejects(denied.decide("store", "owner", f.id, "approve", f.input));
+  assert.equal(await prisma.strategyExecution.count(), 0); assert.equal(await prisma.revenueStrategyAction.count(), 0);
+});
+
+for (const competing of ["reject", "revision"] as const) test(`human approval versus ${competing} has one winner and no orphan execution`, { skip: !enabled }, async () => {
+  const f = await approvableProposal();
+  const responses = await Promise.allSettled([
+    f.s.decide("store", "owner", f.id, "approve", f.input),
+    f.s.decide("store", "owner", f.id, competing, { ...f.input, request_key: "other-decision" }),
+  ]);
+  assert.equal(responses.filter(r => r.status === "fulfilled").length, 1);
+  const action = await prisma.revenueStrategyAction.findFirstOrThrow();
+  assert.equal(await prisma.strategyExecution.count(), action.kind === "approve" ? 1 : 0);
+  assert.equal(await prisma.revenueStrategyRevision.count(), action.kind === "revision" ? 1 : 0);
+});
+
+test("human approval notification failure rolls back receipt experiment and strategy, allowing safe retry", { skip: !enabled }, async () => {
+  const f = await approvableProposal();
+  const broken = new Proxy(prisma, { get(target, key) {
+    if (key === "$transaction") return (work: (tx: any) => Promise<unknown>) => target.$transaction(tx => work(new Proxy(tx, {
+      get(inner, name) {
+        if (name === "merchantNotification") return { ...inner.merchantNotification, create: async () => { throw new Error("NOTICE_FAILED"); } };
+        const v = Reflect.get(inner, name); return typeof v === "function" ? v.bind(inner) : v;
+      },
+    })));
+    const v = Reflect.get(target, key); return typeof v === "function" ? v.bind(target) : v;
+  } });
+  await assert.rejects(new StrategyReviewService(broken, context, {} as never, billing as never).decide("store", "owner", f.id, "approve", f.input), /NOTICE_FAILED/);
+  assert.equal(await prisma.revenueStrategyAction.count(), 0); assert.equal(await prisma.promptExperiment.count(), 0);
+  assert.equal(await prisma.strategyExecutionEvent.count(), 0);
+  assert.equal((await f.s.read("store", f.id)).status, "pending_review");
+  assert.equal((await f.s.decide("store", "owner", f.id, "approve", f.input) as any).status, "active");
+});
+
+test("human approval rechecks experiment ownership and policy after a ready dashboard read", { skip: !enabled }, async () => {
+  const f = await approvableProposal();
+  assert.equal((await f.s.read("store", f.id)).approval_available, true);
+  await prisma.promptExperiment.create({ data: { id: "existing-test", merchantId: "store", name: "Existing", status: "running" } });
+  assert.ok((await f.s.read("store", f.id)).activation_blockers.includes("experiment_already_active"));
+  await assert.rejects(f.s.decide("store", "owner", f.id, "approve", f.input), (e: any) => e.getResponse().blockers.includes("experiment_already_active"));
+  await prisma.promptExperiment.update({ where: { id: "existing-test" }, data: { status: "completed" } });
+  await prisma.merchantRule.update({ where: { merchantId: "store" }, data: { minimumMarginPercent: 45 } });
+  await assert.rejects(f.s.decide("store", "owner", f.id, "approve", f.input), /POLICY_CHANGED/);
+  assert.equal(await prisma.revenueStrategyAction.count(), 0); assert.equal(await prisma.strategyExecution.count(), 0);
+});
 
 async function fixture(merchantId = "store", options: { expired?: boolean; publish?: boolean } = {}) {
   const now = new Date();

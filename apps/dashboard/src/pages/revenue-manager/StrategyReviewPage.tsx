@@ -47,7 +47,7 @@ function MeasurementDetails({ proposal }: { proposal: StrategyProposal }) {
 export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strategyId: string; merchantId: string; onBack: () => void }) {
   const vm = useStrategyReview(strategyId, merchantId);
   const [feedback, setFeedback] = useState("");
-  const [form, setForm] = useState<"revision" | "reject" | null>(null);
+  const [form, setForm] = useState<"approve" | "revision" | "reject" | null>(null);
   const title = useRef<HTMLHeadingElement>(null);
   useEffect(() => { title.current?.focus(); }, []);
   const version = vm.review?.versions.find(v => v.version === vm.selectedVersion);
@@ -56,6 +56,7 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
   const expired = !!(vm.review && version && versionExpired(vm.review, version));
   const canDecide = !!(vm.review && version && canReviewVersion(vm.review, version) && !vm.busy && !vm.readError && !vm.pending);
   const revisionAvailable = canDecide && !expired && vm.review?.revision_available;
+  const approvalAvailable = canDecide && !expired && vm.review?.approval_available && vm.review.activation_available;
   return <div className="page-container strategy-page">
     <button type="button" className="zyn-btn zyn-btn--ghost strategy-back" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" /> Voltar às sugestões</button>
     <header className="page-head"><div><span className="eyebrow">Otimização de Checkout</span>
@@ -103,23 +104,34 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
           <p>Esta proposta altera a comunicação. Não cria cupom, desconto ou frete grátis. Os limites acima são os registrados nesta versão; não autorizam uma oferta nem comprovam sua margem.</p>
         </section>
         <MeasurementDetails proposal={proposal} />
-        <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />
+        <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}:${vm.review.status}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />
       </article>
       <section className="strategy-decision" aria-labelledby="strategy-decision-title">
         <h2 id="strategy-decision-title">Sua decisão</h2>
-        <div className="strategy-activation-note" id="strategy-activation-note"><strong>Aprovação indisponível nesta etapa</strong>
-          <p>O checkout ainda precisa permitir a execução da versão revisada e registrar os participantes e as exposições do teste antes de habilitar a aprovação.</p>
+        {vm.review.status === "pending_review" && !vm.review.approval_available && <div className="strategy-activation-note" id="strategy-activation-note"><strong>Aprovação indisponível no momento</strong>
+          <p>Esta proposta ainda não reúne as condições para iniciar o teste nesta loja.</p>
           {vm.review.activation_blockers.includes("reviewed_measurement_plan_required") && <p>Também falta incluir o plano de medição na proposta.</p>}
           {vm.review.activation_blockers.includes("versioned_checkout_contract_required") && <p>Também falta registrar a comunicação atual do checkout para comparação.</p>}
-        </div>
+          {vm.review.activation_blockers.includes("checkout_baseline_changed") && <p>O checkout mudou desde a análise. É necessário revisar a proposta antes de iniciar.</p>}
+          {vm.review.activation_blockers.includes("experiment_already_active") && <p>Já existe um teste ativo ou pausado nesta loja.</p>}
+        </div>}
+        {current && vm.review.status === "active" && <p role="status">Esta versão está em teste. Os resultados acima serão atualizados conforme as sessões forem avaliadas.</p>}
         <div className="strategy-review-actions strategy-decision-actions">
-          <button type="button" className="zyn-btn zyn-btn--secondary" disabled aria-describedby="strategy-activation-note">Aprovar estratégia</button>
-          <button type="button" className={`zyn-btn ${form ? "zyn-btn--secondary" : "zyn-btn--primary"}`} disabled={!revisionAvailable} onClick={() => setForm("revision")}>Pedir alternativa</button>
+          <button type="button" className={`zyn-btn ${approvalAvailable && !form ? "zyn-btn--primary" : "zyn-btn--secondary"}`} disabled={!approvalAvailable}
+            aria-describedby={!vm.review.approval_available && vm.review.status === "pending_review" ? "strategy-activation-note" : undefined} onClick={() => setForm("approve")}>Aprovar estratégia</button>
+          <button type="button" className={`zyn-btn ${form || approvalAvailable ? "zyn-btn--secondary" : "zyn-btn--primary"}`} disabled={!revisionAvailable} onClick={() => setForm("revision")}>Pedir alternativa</button>
           <button type="button" className="zyn-btn zyn-btn--ghost" disabled={!canDecide} onClick={() => setForm("reject")}>Recusar estratégia</button>
         </div>
         {current && vm.review.status === "pending_review" && !expired && !vm.review.revision_available && <p>Novas alternativas estão indisponíveis neste ciclo. Os pedidos dependem da configuração e dos limites de revisão da loja.</p>}
         {vm.review.status === "revision_pending" && <p role="status">A IA recebeu seu pedido de alternativa. A revisão respeita o orçamento e a disponibilidade do ciclo. Nenhuma mudança foi aplicada ao checkout.</p>}
-        {form && canDecide && (form === "reject" || revisionAvailable) && <form className="strategy-feedback" onSubmit={event => { event.preventDefault(); void vm.decide(form, version, feedback); }}>
+        {form === "approve" && approvalAvailable && <form className="strategy-feedback" onSubmit={event => { event.preventDefault(); void vm.decide("approve", version, ""); }}>
+          <h3>Iniciar o teste da versão {version.version}?</h3>
+          <p>A abordagem de comunicação será testada por {proposal.experimentReview?.plan.durationDays} dias. Metade dos participantes mantém a comunicação atual. A IA acompanha as métricas; o resultado pode ser inconclusivo.</p>
+          <p>A aprovação vale para esta versão. Uma nova proposta precisa de outra aprovação.</p>
+          <div className="strategy-review-actions"><button type="button" className="zyn-btn zyn-btn--ghost" onClick={() => setForm(null)}>Cancelar</button>
+            <button type="submit" className="zyn-btn zyn-btn--primary">Aprovar e iniciar teste</button></div>
+        </form>}
+        {form && form !== "approve" && canDecide && (form === "reject" || revisionAvailable) && <form className="strategy-feedback" onSubmit={event => { event.preventDefault(); void vm.decide(form, version, feedback); }}>
           <label htmlFor="strategy-feedback">{form === "revision" ? "O que a IA deve considerar na alternativa?" : "Motivo da recusa (opcional)"}</label>
           <p id="strategy-feedback-help">{form === "revision" ? "Descreva o objetivo ou a preferência. A IA prepara uma nova proposta para você revisar, mantendo os limites da loja. Evite dados pessoais de compradores." : "A recusa encerra esta proposta e não altera as regras ativas da loja."}</p>
           <textarea id="strategy-feedback" aria-describedby="strategy-feedback-help" maxLength={2000} rows={4} value={feedback}
@@ -137,7 +149,7 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
         <ol>{vm.review.versions.map(v => <li key={`version-${v.version}`}><strong>Versão {v.version} criada</strong><span>{date(v.createdAt)}</span>
           <p>{v.proposal.recommendation.hypothesis_text}</p><button type="button" className="zyn-btn zyn-btn--ghost" disabled={vm.busy || !!vm.pending || version.version === v.version} onClick={() => { vm.selectVersion(v.version); setForm(null); title.current?.focus(); }}>Consultar versão {v.version}</button></li>)}</ol>
         {vm.review.actions.length ? <ol>{vm.review.actions.map(action => <li key={action.id}>
-          <strong>{action.kind === "revision" ? "Alternativa solicitada" : action.kind === "reject" ? "Estratégia recusada" : "Decisão registrada"} · versão {action.version}</strong><span>{date(action.createdAt)}</span>
+          <strong>{action.kind === "revision" ? "Alternativa solicitada" : action.kind === "reject" ? "Estratégia recusada" : action.kind === "approve" ? "Estratégia aprovada" : "Decisão registrada"} · versão {action.version}</strong><span>{date(action.createdAt)}</span>
           {action.feedback && <p className="strategy-feedback-history">{action.feedback}</p>}
           {action.revision && <p>{REVISION_STATUSES[action.revision.status] ?? "Aguardando atualização"}{action.revision.reason === "proposal_requires_new_analysis" ? ". A proposta precisa de uma nova análise." : action.revision.reason === "proposal_expired" ? ". A validade da proposta terminou." : ""}</p>}
         </li>)}</ol> : <p>Nenhuma decisão registrada. Abrir os detalhes não aprova nem recusa a proposta.</p>}

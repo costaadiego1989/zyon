@@ -14,6 +14,8 @@ import { readCheckoutBaseline, lockCheckoutBaselineRows } from "../infrastructur
 import { checkoutBaselineReference, checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import { assertStrategyExperimentReview, strategyExperimentReview } from "../domain/strategy-measurement.js";
 import { assertCurrentMeasurementPolicy, assertStoredMeasurementPlanning } from "../infrastructure/strategy-measurement-planning.js";
+import { strategyActivationBlockers } from "../infrastructure/strategy-activation-readiness.js";
+import { executionClock, registerApprovedExecution } from "../infrastructure/strategy-execution-ledger.js";
 
 export type StrategyReviewCommand = { version: number; proposal_hash: string; request_key: string; feedback?: string };
 type ReviewKind = "approve" | "reject" | "revision";
@@ -49,6 +51,7 @@ export class StrategyReviewService {
   }
 
   async read(merchantId: string, id: string) {
+    const eligible = BILLING_PLANS[await this.billing.getEffectivePlan(merchantId)].features.revenueManager;
     return this.prisma.$transaction(async tx => {
       const strategy = await tx.revenueStrategy.findFirst({ where: { id, merchantId } });
       if (!strategy) throw new NotFoundException("STRATEGY_NOT_FOUND");
@@ -57,9 +60,10 @@ export class StrategyReviewService {
         include: { revision: { select: { status: true, reason: true, completedAt: true } } } });
       const limit = Number(process.env.REVENUE_AI_MAX_REVISIONS_PER_CYCLE);
       const current = versions[0]?.proposal as unknown as StrategyProposal | undefined;
-      return { ...strategy, versions, actions, approval_available: false, activation_available: false,
+      const blockers = await strategyActivationBlockers(tx, strategy, versions[0], eligible, new Date());
+      return { ...strategy, versions, actions, approval_available: blockers.length === 0, activation_available: blockers.length === 0,
         expired: !!versions[0] && versions[0].expiresAt <= new Date(),
-        activation_blockers: this.activationBlockers(current),
+        activation_blockers: blockers,
         measurement_status: current?.experimentReview ? "included_in_proposal" : "awaiting_measurement_plan",
         measurement_warnings: current?.experimentReview?.capacity === "below_planned_sample" ? ["planned_sample_capacity_insufficient"] : [],
         revision_available: revisionsEnabled() && weeklyMerchantAllowed(merchantId) && strategy.status === "pending_review"
@@ -71,15 +75,17 @@ export class StrategyReviewService {
   /** Request identities are bound to actor, payload, action and exact proposal.
    * Retries return the original receipt, even after a newer version is published. */
   async decide(merchantId: string, actorId: string, id: string, kind: ReviewKind, input: StrategyReviewCommand, now = new Date()) {
+    input = structuredClone(input);
     this.validate(input);
     if (!actorId?.trim()) throw new BadRequestException("STRATEGY_HUMAN_ACTOR_REQUIRED");
     const requestHash = digest({ actorId, kind, ...input });
+    const eligible = kind === "approve" && BILLING_PLANS[await this.billing.getEffectivePlan(merchantId)].features.revenueManager;
     return this.prisma.$transaction(async tx => {
       const strategy = await this.lock(tx, merchantId, id);
       const previous = await tx.revenueStrategyAction.findFirst({ where: { merchantId, strategyId: id, requestKey: input.request_key } });
       if (previous) {
         if (previous.requestHash !== requestHash) throw new ConflictException("STRATEGY_IDEMPOTENCY_CONFLICT");
-        return previous.result;
+        return kind === "approve" ? this.approvalReceipt(tx, merchantId, previous.id, previous.result) : previous.result;
       }
       if (strategy.currentVersion !== input.version) throw new ConflictException("STRATEGY_VERSION_CONFLICT");
       const version = await tx.revenueStrategyVersion.findUniqueOrThrow({ where: { strategyId_merchantId_version: {
@@ -92,10 +98,28 @@ export class StrategyReviewService {
       if (kind !== "reject" && version.expiresAt <= now) throw new ConflictException("STRATEGY_PROPOSAL_EXPIRED");
       if (kind === "approve") {
         await this.unchangedRules(tx, merchantId, version.proposal as unknown as StrategyProposal);
-        // A frozen measurement proposal does not authorize an execution path.
-        // RI-09 must bind publication, assignment, exposure and stopping first.
-        throw new ConflictException({ code: "STRATEGY_APPROVAL_PREREQUISITES_REQUIRED",
-          blockers: this.activationBlockers(version.proposal as unknown as StrategyProposal) });
+        const approvedAt = await executionClock(tx);
+        const blockers = await strategyActivationBlockers(tx, strategy, version, eligible, approvedAt);
+        if (blockers.length) throw new ConflictException({ code: "STRATEGY_APPROVAL_PREREQUISITES_REQUIRED", blockers });
+        const actionId = randomUUID();
+        const receipt = { action_id: actionId, strategy_id: id, version: input.version,
+          proposal_hash: version.proposalHash, status: "activation_pending" };
+        await tx.revenueStrategyAction.create({ data: { id: actionId, strategyId: id, merchantId, version: input.version,
+          requestKey: input.request_key, requestHash, actorId, kind, feedback: input.feedback, result: receipt, createdAt: approvedAt } });
+        await tx.revenueStrategy.update({ where: { id }, data: { status: "activation_pending" } });
+        // Receipt, reviewed plan, execution and notices either commit together or
+        // roll back together. No LLM, queue or provider participates in approval.
+        const execution = await registerApprovedExecution(tx, merchantId, actionId);
+        await tx.revenueManagerHypothesis.updateMany({ where: { id, merchantId, status: "pending_review" }, data: {
+          status: "experiment_created", merchantApprovedAt: approvedAt, merchantApprovedBy: actorId,
+          merchantApprovalReason: input.feedback, createdExperimentId: execution.experimentId,
+        } });
+        await tx.merchantNotification.updateMany({ where: { merchantId, id: `strategy:${id}` }, data: { read: true } });
+        await tx.merchantNotification.create({ data: { id: `strategy-activation:${actionId}`, merchantId,
+          type: "ai_strategy_suggestion", title: "Teste da estratégia iniciado",
+          body: "Acompanhe os resultados da versão aprovada no Revenue Manager.", read: false,
+          metadata: { strategyId: id, hypothesisId: id, executionId: execution.id, version: input.version, state: "active" } } });
+        return this.approvalReceipt(tx, merchantId, actionId, receipt);
       }
       if (kind === "revision") {
         if (!input.feedback?.trim()) throw new BadRequestException("STRATEGY_REVISION_FEEDBACK_REQUIRED");
@@ -226,12 +250,16 @@ export class StrategyReviewService {
   private fence(work: { id: string; merchantId: string; leaseToken: number }) {
     return { id: work.id, merchantId: work.merchantId, leaseToken: work.leaseToken, status: "running", leaseUntil: { gt: new Date() } };
   }
-  private activationBlockers(proposal?: StrategyProposal) {
-    return ["versioned_checkout_execution_required", "durable_assignment_and_exposure_required",
-      ...(!proposal?.checkoutBaseline ? ["versioned_checkout_contract_required"] : []),
-      ...(!proposal?.experimentReview ? ["reviewed_measurement_plan_required"] : [])];
+  private async approvalReceipt(tx: Prisma.TransactionClient, merchantId: string, actionId: string, receipt: Prisma.JsonValue) {
+    const execution = await tx.strategyExecution.findFirst({ where: { merchantId, approvalActionId: actionId } });
+    if (!execution) throw new ConflictException("STRATEGY_APPROVAL_EXECUTION_MISSING");
+    // A historical receipt, including after a later stop. Current status is read
+    // separately; replay never resumes or extends an execution.
+    return { ...(receipt as Record<string, unknown>), status: "active", execution_id: execution.id,
+      experiment_id: execution.experimentId, started_at: execution.startedAt.toISOString(), ends_at: execution.endsAt.toISOString() };
   }
   private async lock(tx: Prisma.TransactionClient, merchantId: string, id: string) {
+    await lockCheckoutBaselineRows(tx, merchantId);
     const rows = await tx.$queryRaw<{ id: string }[]>`SELECT id FROM revenue_strategies WHERE id = ${id} AND merchant_id = ${merchantId} FOR UPDATE`;
     if (!rows.length) throw new NotFoundException("STRATEGY_NOT_FOUND");
     return tx.revenueStrategy.findFirstOrThrow({ where: { id, merchantId } });

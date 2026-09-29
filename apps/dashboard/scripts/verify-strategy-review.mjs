@@ -111,13 +111,16 @@ try {
         else {
           assert.equal(input.version, review.currentVersion);
           assert.equal(input.proposal_hash, review.versions[0].proposalHash);
-          assert.deepEqual(Object.keys(input).sort(), ["feedback", "proposal_hash", "request_key", "version"]);
+          const approve = path.endsWith("/approve");
+          assert.deepEqual(Object.keys(input).sort(), approve ? ["proposal_hash", "request_key", "version"] : ["feedback", "proposal_hash", "request_key", "version"]);
           const revision = path.endsWith("/revisions");
           body = { action_id: `action-${posts.length}`, strategy_id: review.id, version: input.version, proposal_hash: input.proposal_hash,
-            status: revision ? "revision_requested" : "rejected" };
+            status: approve ? "active" : revision ? "revision_requested" : "rejected",
+            ...(approve ? { execution_id: "exec-fixture", experiment_id: "experiment-fixture", started_at: stamp, ends_at: expires } : {}) };
           receipts.set(input.request_key, body);
-          review.status = revision ? "revision_pending" : "rejected"; review.revision_available = false;
-          review.actions.unshift({ id: body.action_id, version: input.version, kind: revision ? "revision" : "reject", feedback: input.feedback,
+          review.status = approve ? "active" : revision ? "revision_pending" : "rejected"; review.revision_available = false;
+          if (approve) { review.approval_available = false; review.activation_available = false; }
+          review.actions.unshift({ id: body.action_id, version: input.version, kind: approve ? "approve" : revision ? "revision" : "reject", feedback: input.feedback,
             createdAt: stamp, revision: revision ? { status: "deferred", reason: "budget_exhausted", completedAt: null } : null });
           status = revision ? 202 : 200;
           if (failAction === "unknown") { status = 503; body = { message: "Gateway timeout" }; failAction = null; }
@@ -289,6 +292,28 @@ try {
     await page.getByRole("button", { name: "Ver versão atual", exact: true }).click();
     await results.getByText(/Esta versão ainda não foi ativada/).waitFor();
     assert.equal(await results.getByRole("table").count(), 0, "A new version never inherits the previous version's metrics");
+    // An explicit current-version confirmation starts a test; a lost response
+    // retries the same identity, including after the read already shows active.
+    review = initialReview(); receipts.clear(); metricsState = null;
+    review.approval_available = true; review.activation_available = true; review.activation_blockers = [];
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("button", { name: "Aprovar estratégia", exact: true }).click();
+    await page.getByRole("heading", { name: "Iniciar o teste da versão 1?", exact: true }).waitFor();
+    const beforeApproval = posts.length;
+    await noOverflow(width);
+    if (out) await page.screenshot({ path: `${out}/strategy-approval-${width}.png`, fullPage: true });
+    failAction = "unknown";
+    await page.getByRole("button", { name: "Aprovar e iniciar teste", exact: true }).click();
+    await page.getByRole("button", { name: "Confirmar envio", exact: true }).click();
+    await page.getByText(/Aprovação confirmada. O teste desta versão foi iniciado/).waitFor();
+    assert.equal(posts.length, beforeApproval + 2); assert.deepEqual(posts.at(-1), posts.at(-2));
+    assert.ok(posts.at(-1).path.endsWith("/approve"));
+    assert.equal(review.actions.filter(a => a.kind === "approve").length, 1);
+    await page.getByText(/Esta versão está em teste/).waitFor();
+    assert.equal(await page.getByRole("button", { name: "Aprovar estratégia", exact: true }).isDisabled(), true);
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByText(/Esta versão está em teste/).waitFor();
+    assert.equal(posts.length, beforeApproval + 2);
     outcome = "insufficient_data";
     await page.getByRole("button", { name: "Voltar às sugestões" }).click();
     await page.getByText("Ver detalhes da análise", { exact: true }).click();

@@ -69,8 +69,8 @@ export async function currentStrategyTurnReason(tx: Tx, turn: StrategyTurn, exec
     || checkoutContractHash(baseline) !== checkoutContractHash(contract.baseline) ? "baseline_changed" : "current_at_recording";
 }
 
-/** Internal publisher primitive. No HTTP route calls it yet. The approval must
- * already be durable and exact; copying the reviewed plan never replans it. */
+/** Internal publisher primitive, composed with the exact human approval in one
+ * transaction. Copying the reviewed plan never replans it. */
 export async function registerApprovedExecution(tx: Tx, merchantId: string, approvalId: string, clock = executionClock) {
   if (!strategyExecutionEnabled(merchantId)) throw new Error("STRATEGY_EXECUTION_DISABLED");
   await lockCheckoutBaselineRows(tx, merchantId);

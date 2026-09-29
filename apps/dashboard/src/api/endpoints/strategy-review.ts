@@ -47,5 +47,6 @@ export interface StrategyReviewCommand {
 }
 export interface StrategyReviewReceipt {
   action_id: string; strategy_id: string; version: number; proposal_hash: string;
-  status: "rejected" | "revision_requested";
+  status: "rejected" | "revision_requested" | "active";
+  execution_id?: string; experiment_id?: string; started_at?: string; ends_at?: string;
 }

@@ -6,7 +6,7 @@ import type { StrategyReview, StrategyReviewCommand, StrategyVersion } from "../
 import { canReviewVersion, decisionMayHaveSucceeded, reviewErrorCode, reviewErrorMessage, versionExpired } from "./strategy-review-model.js";
 import { strategyChanged } from "./strategy-review.js";
 
-type PendingDecision = { kind: "reject" | "revision"; input: StrategyReviewCommand };
+type PendingDecision = { kind: "approve" | "reject" | "revision"; input: StrategyReviewCommand };
 
 export function useStrategyReview(id: string, merchantId: string) {
   const api = useApi();
@@ -65,10 +65,15 @@ export function useStrategyReview(id: string, merchantId: string) {
       const receipt = await api.decideStrategy(id, command.kind, command.input);
       if (receipt.strategy_id !== id || receipt.version !== command.input.version
         || receipt.proposal_hash !== command.input.proposal_hash
-        || receipt.status !== (command.kind === "reject" ? "rejected" : "revision_requested")) throw new Error("Invalid decision receipt");
+        || receipt.status !== (command.kind === "approve" ? "active" : command.kind === "reject" ? "rejected" : "revision_requested")
+        || (command.kind === "approve" && (!receipt.execution_id || !receipt.experiment_id
+          || !Number.isFinite(Date.parse(receipt.started_at ?? "")) || !Number.isFinite(Date.parse(receipt.ends_at ?? ""))))) {
+        throw new Error("Invalid decision receipt");
+      }
       if (!alive.current) return;
       setPending(null);
-      setMessage(command.kind === "reject" ? "Estratégia recusada. Nenhuma alteração foi aplicada."
+      setMessage(command.kind === "approve" ? "Aprovação confirmada. O teste desta versão foi iniciado. Acompanhe o estado e os resultados acima."
+        : command.kind === "reject" ? "Estratégia recusada. Nenhuma alteração foi aplicada."
         : "Pedido recebido. A IA preparará uma alternativa conforme a disponibilidade e os limites do ciclo. Você receberá uma notificação.");
       strategyChanged(id);
     } catch (error) {
@@ -82,9 +87,10 @@ export function useStrategyReview(id: string, merchantId: string) {
       locked.current = false;
     }
   };
-  const decide = async (kind: "reject" | "revision", version: StrategyVersion, feedback: string) => {
+  const decide = async (kind: PendingDecision["kind"], version: StrategyVersion, feedback: string) => {
     if (!review || pending || readError || !canReviewVersion(review, version) || locked.current) return;
     if (kind === "revision" && (!review.revision_available || versionExpired(review, version) || !feedback.trim())) return;
+    if (kind === "approve" && (!review.approval_available || !review.activation_available || versionExpired(review, version))) return;
     await send({ kind, input: { version: version.version, proposal_hash: version.proposalHash,
       request_key: createIdempotencyKey(), ...(feedback.trim() ? { feedback: feedback.trim() } : {}) } });
   };

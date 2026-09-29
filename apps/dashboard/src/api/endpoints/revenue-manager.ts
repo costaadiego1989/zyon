@@ -142,8 +142,8 @@ export function revenueManagerEndpoints(base: string, f: typeof fetch) {
     getStrategyReview(id: string): Promise<StrategyReview> {
       return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}`, { method: "GET" }, f);
     },
-    decideStrategy(id: string, kind: "reject" | "revision", input: StrategyReviewCommand): Promise<StrategyReviewReceipt> {
-      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/${kind === "revision" ? "revisions" : "reject"}`,
+    decideStrategy(id: string, kind: "approve" | "reject" | "revision", input: StrategyReviewCommand): Promise<StrategyReviewReceipt> {
+      return dashboardJson(base, `${PREFIX}/strategies/${encodeURIComponent(id)}/${kind === "revision" ? "revisions" : kind}`,
         { method: "POST", headers: { "Idempotency-Key": input.request_key }, jsonBody: {
           version: input.version, proposal_hash: input.proposal_hash, request_key: input.request_key,
           ...(input.feedback === undefined ? {} : { feedback: input.feedback }),
