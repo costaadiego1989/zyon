@@ -1,14 +1,19 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
-import type { StrategyMetrics, StrategyMetricArm } from "../../api/endpoints/strategy-metrics.js";
+import type { StrategyMetrics, StrategyMetricArm, StrategyAiUsageArm } from "../../api/endpoints/strategy-metrics.js";
 import { formatReviewDate as date, formatReviewNumber as number } from "./strategy-review-model.js";
 
 const states: Record<string, string> = {
   not_started: "Teste ainda não iniciado", collecting: "Coletando resultados", awaiting_maturity: "Aguardando as últimas compras",
-  invalid: "Resultado requer verificação", inconclusive: "Ainda sem conclusão", positive: "Melhora de conversão observada", negative: "Queda de conversão observada",
+  invalid: "Resultado requer verificação", inconclusive: "Teste encerrado sem conclusão", positive: "Melhora de conversão observada", negative: "Queda de conversão observada",
 };
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
 const rate = (arm: StrategyMetricArm) => arm.mature ? `${number(arm.converted / arm.mature * 100)}%` : "Aguardando";
+const aiCost = (arm: StrategyAiUsageArm) => {
+  if (arm.admittedTurns > 0 && arm.notDispatchedTurns === arm.admittedTurns) return "Sem chamada";
+  if (arm.estimatedCostMicros == null || !arm.currency) return "Sem dados";
+  return `${arm.currency} ${(arm.estimatedCostMicros / 1_000_000).toLocaleString("pt-BR", { maximumFractionDigits: 6 })}`;
+};
 
 export function StrategyMetricsPanel({ strategyId, version, proposalHash }: { strategyId: string; version: number; proposalHash: string }) {
   const api = useApi(), alive = useRef(false), locked = useRef(false);
@@ -36,6 +41,7 @@ export function StrategyMetricsPanel({ strategyId, version, proposalHash }: { st
   const supported = result?.definitionVersion === "session-conversion-fixed-horizon-v1"
     && result.delivery?.definition === "strategy-assignment-delivery-v1";
   const costs = result?.economics?.definition === "strategy-order-cost-coverage-v1" ? result.economics : undefined;
+  const ai = result?.aiUsage?.definition === "strategy-chat-ai-usage-v1" ? result.aiUsage : undefined;
   return <section className="strategy-detail-section strategy-metrics" aria-labelledby="strategy-results-title">
     <h2 id="strategy-results-title">Resultados desta estratégia</h2>
     {error && <p role="alert" className="strategy-review-error">Não foi possível atualizar os resultados.{data?.measurement ? " Os dados abaixo são da última consulta." : ""}</p>}
@@ -45,8 +51,8 @@ export function StrategyMetricsPanel({ strategyId, version, proposalHash }: { st
     {result && !supported && <p>Esta medição usa outro formato. Atualize o dashboard para consultar os resultados.</p>}
     {result && supported && <>
       <h3>{states[result.state] ?? "Resultado indisponível"}</h3>
-      <p className="strategy-review-note">Dados de {date(data!.measurement!.collectedAt)}. A medição é atualizada no máximo uma vez por hora.</p>
-      {data!.execution!.stoppedAt && <p>Teste interrompido em {date(data!.execution!.stoppedAt)}.</p>}
+      <p className="strategy-review-note">Dados de {date(data!.measurement!.collectedAt)}. Os resultados são atualizados por hora e ao encerrar o teste.</p>
+      {data!.execution!.stoppedAt && <p>Teste {new Date(data!.execution!.stoppedAt) >= new Date(data!.execution!.endsAt) ? "encerrado" : "interrompido"} em {date(data!.execution!.stoppedAt)}.</p>}
       <div className="strategy-metrics-table-wrap"><table className="strategy-metrics-table">
         <caption>Comparação da comunicação atual com a abordagem sugerida</caption>
         <thead><tr><th scope="col">Indicador</th><th scope="col">Atual</th><th scope="col">Sugerida</th></tr></thead>
@@ -63,17 +69,19 @@ export function StrategyMetricsPanel({ strategyId, version, proposalHash }: { st
               costs.treatment.configuredProductCostCents == null ? "Sem dados" : money(costs.treatment.configuredProductCostCents)]] : []),
             ["Sessões com mensagem salva", number(result.delivery!.control.sessionsWithPublication), number(result.delivery!.treatment.sessionsWithPublication)],
             ["Sessões com exibição informada", number(result.delivery!.control.sessionsWithDisplay), number(result.delivery!.treatment.sessionsWithDisplay)],
+            ...(ai ? [["IA das conversas do teste (estimativa)", aiCost(ai.control), aiCost(ai.treatment)]] : []),
           ]).map(([label, control, treatment]) => <tr key={label}><th scope="row">{label}</th><td>{control}</td><td>{treatment}</td></tr>)}
         </tbody>
       </table></div>
       <p>Todas as sessões participantes entram na comparação, mesmo sem conversa ou compra. Receita e conversão acima consideram apenas sessões com a janela de compra encerrada.</p>
       {costs && costs.control.orders + costs.treatment.orders > 0 && <p>Custos do catálogo preservados para {number(costs.control.coveredOrders + costs.treatment.coveredOrders)} de {number(costs.control.orders + costs.treatment.orders)} pedidos aprovados. O total do grupo só aparece quando todos os pedidos têm esse custo registrado. Esses valores não incluem frete, taxas ou outros custos e não comprovam lucro.</p>}
+      {ai && ai.control.admittedTurns + ai.treatment.admittedTurns > 0 && <p>Uso de IA conhecido em {number(ai.control.pricedTurns + ai.control.notDispatchedTurns + ai.treatment.pricedTurns + ai.treatment.notDispatchedTurns)} de {number(ai.control.admittedTurns + ai.treatment.admittedTurns)} respostas avaliadas. A estimativa usa o consumo informado e a tarifa limite configurada; não é o valor faturado pelo provedor. Inclui respostas do teste mesmo sem compra ou publicação, mas não a análise semanal nem outras chamadas de IA. Valores sem confirmação ficam pendentes e moedas diferentes não são somadas.</p>}
       {!!(result.delivery!.control.pending + result.delivery!.treatment.pending) && <p>{number(result.delivery!.control.pending + result.delivery!.treatment.pending)} sessões ainda podem converter. As compras dessas sessões entrarão na comparação quando a janela encerrar.</p>}
       <p>Amostra planejada: {number(result.minimumSessionsPerArm)} sessões por grupo.{result.matureAt ? ` Prazo para concluir as janelas de compra: ${date(result.matureAt)}.` : ""}</p>
       {result.state === "inconclusive" && <p>A amostra ou a diferença observada ainda não sustenta uma conclusão de melhora.</p>}
       {result.state === "invalid" && <p>Há uma interrupção ou inconsistência nos dados. Esta medição não pode fundamentar a adoção da estratégia.</p>}
       {result.interval && ["positive", "negative", "inconclusive"].includes(result.state) && <p>Diferença de conversão: {number(result.interval.effectBps / 100)} pontos percentuais. Intervalo de confiança de 95%: {number(result.interval.lowerBps / 100)} a {number(result.interval.upperBps / 100)} pontos.</p>}
-      <p className="strategy-review-note">A exibição é informada pelo widget; não confirma leitura pelo comprador. Receita observada não representa receita incremental. Margem, lucro e custo de IA desta estratégia ainda estão indisponíveis. Esta medição não altera a estratégia automaticamente.</p>
+      <p className="strategy-review-note">A exibição é informada pelo widget; não confirma leitura pelo comprador. Receita observada não representa receita incremental. Margem, lucro e custo total de IA desta estratégia ainda estão indisponíveis. Esta medição não altera a estratégia automaticamente.</p>
     </>}
     {(error || data?.execution) && <button type="button" className="zyn-btn zyn-btn--ghost" disabled={busy} onClick={() => void refresh()}>{busy ? "Atualizando resultados…" : "Atualizar resultados"}</button>}
   </section>;

@@ -3683,11 +3683,37 @@ model StrategyTurn {
   assignment StrategyAssignment @relation(fields: [assignmentId, merchantId], references: [id, merchantId], onDelete: Restrict)
   outcome StrategyTurnOutcome?
   completion StrategyTurnCompletion?
+  aiReservation StrategyAiReservation?
   chatRequest CheckoutChatRequest? @relation(fields: [chatRequestId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
   @@unique([chatRequestId, merchantId])
   @@unique([id, merchantId])
   @@unique([assignmentId, merchantId, requestKey])
   @@map("strategy_turns")
+}
+
+/// One budget claim per admitted strategy turn, linked to the shared AI usage ledger.
+model StrategyAiReservation {
+  turnId String @id @map("turn_id")
+  merchantId String @map("merchant_id")
+  provider String
+  model String
+  currency String
+  priceVersion String @map("price_version")
+  inputRate BigInt @map("input_rate")
+  outputRate BigInt @map("output_rate")
+  maxInputTokens Int @map("max_input_tokens")
+  maxOutputTokens Int @map("max_output_tokens")
+  amountMicros BigInt @map("amount_micros")
+  usageKey String @unique @map("usage_key")
+  payloadHash String @map("payload_hash")
+  state String @default("dispatched")
+  createdAt DateTime @default(now()) @map("created_at")
+  settledAt DateTime? @map("settled_at")
+  turn StrategyTurn @relation(fields: [turnId, merchantId], references: [id, merchantId], onDelete: Restrict, onUpdate: Restrict)
+  @@unique([turnId, merchantId])
+  @@index([currency, createdAt])
+  @@index([provider, model, state, createdAt])
+  @@map("strategy_ai_reservations")
 }
 
 model StrategyTurnOutcome {

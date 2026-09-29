@@ -6,6 +6,8 @@ import { StrategyReviewService } from "./application/strategy-review.service.js"
 import { StrategyReviewController } from "./presentation/http/strategy-review.controller.js";
 import { StrategyMetricsService } from "./application/strategy-metrics.service.js";
 import { StrategyMetricsController } from "./presentation/http/strategy-metrics.controller.js";
+import { StrategyMonitorService } from "./infrastructure/strategy-monitor.service.js";
+import { StrategyMonitorJob } from "./infrastructure/jobs/strategy-monitor.job.js";
 import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
@@ -59,6 +61,8 @@ import { RevenueManagerController } from "./presentation/http/revenue-manager.co
     RevenueAiBudgetService,
     StrategyReviewService,
     StrategyMetricsService,
+    StrategyMonitorService,
+    StrategyMonitorJob,
     BillingPlanMeteringService,
     PlanLimitGuard,
     {

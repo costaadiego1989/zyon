@@ -30,11 +30,14 @@ import { ReconcileChatMessageUseCase } from "../../checkout/application/use-case
 import { deriveChatStage } from "../../checkout/domain/services/customer-extraction.service.js";
 import { ExperimentMeasurementService } from "../../experiments/application/experiment-measurement.service.js";
 import { StrategyMetricsService } from "./strategy-metrics.service.js";
+import { StrategyAiBudget } from "../infrastructure/strategy-ai-budget.js";
+import { RevenueAiBudgetService } from "../infrastructure/revenue-ai-budget.service.js";
+import { StrategyMonitorService } from "../infrastructure/strategy-monitor.service.js";
 
-// Only this disposable local database can be truncated by this suite.
+// Only these disposable local databases can be truncated by this suite.
 const url = new URL(process.env.REVENUE_EXECUTION_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
 const enabled = url.hostname === "127.0.0.1" && url.port === "5557"
-  && url.pathname === "/revenue_recovery_final_0924";
+  && ["/revenue_recovery_final_0924", "/revenue_release_0928"].includes(url.pathname);
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
 const env = { ...process.env };
 const repo = new PrismaCheckoutRepository(prisma);
@@ -46,7 +49,8 @@ afterEach(() => { globalThis.fetch = originalFetch; });
 beforeEach(async () => {
   if (!enabled) return;
   await prisma.$executeRawUnsafe(`TRUNCATE merchants, merchant_rules, checkout_settings, checkout_sessions,
-    revenue_analysis_runs, revenue_analysis_schedules, revenue_manager_observations, revenue_strategies, prompt_experiments CASCADE`);
+    revenue_analysis_runs, revenue_analysis_schedules, revenue_manager_observations, revenue_strategies, prompt_experiments,
+    revenue_ai_reservations, ai_usage_events, ai_price_versions, merchant_notifications CASCADE`);
   process.env = { ...env, REVENUE_STRATEGY_EXECUTION_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "store,other",
     REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED: "true",
     REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED: "true",
@@ -54,7 +58,16 @@ beforeEach(async () => {
     CHECKOUT_CHAT_RECOVERY_ENABLED: "false", CHECKOUT_CHAT_RECOVERY_MERCHANT_IDS: "store,other",
     CHECKOUT_CHAT_REQUESTS_ENABLED: "true", CHECKOUT_CHAT_REQUEST_MERCHANT_IDS: "store,other",
     REVENUE_CHECKOUT_CONTRACT_ENABLED: "true", CHECKOUT_BEHAVIOR_REVISION: "a".repeat(40),
-    CHECKOUT_LLM_PROVIDER: "openai", OPENAI_API_KEY: "fixture-only", OPENAI_MODEL: "fixture-model" };
+    CHECKOUT_LLM_PROVIDER: "openai", OPENAI_API_KEY: "fixture-only", OPENAI_MODEL: "fixture-model",
+    REVENUE_AI_MAX_INPUT_TOKENS: "200000", REVENUE_AI_MAX_OUTPUT_TOKENS: "1000",
+    REVENUE_AI_DAILY_LIMIT_MICROS: "1000000000", REVENUE_AI_MONTHLY_LIMIT_MICROS: "10000000000",
+    REVENUE_AI_CYCLE_LIMIT_MICROS: "1000000000", REVENUE_AI_MAX_CALLS_PER_CYCLE: "1000",
+    REVENUE_STRATEGY_AI_EXECUTION_LIMIT_MICROS: "1000000000", REVENUE_STRATEGY_AI_SESSION_MAX_CALLS: "1000",
+    REVENUE_AI_PROVIDER_RPM: "10000", REVENUE_AI_PROVIDER_TPM: "1000000000", REVENUE_AI_PROVIDER_CONCURRENCY: "1000",
+    REVENUE_AI_REVISION_RESERVE_PERCENT: "0", REVENUE_AI_BUDGET_CURRENCY: "BRL" };
+  await prisma.aiPriceVersion.create({ data: { version: "strategy-fixture-price", provider: "openai", model: "fixture-model",
+    channel: "chat", component: "text_generation", currency: "BRL", source: "revenue-upper-bound-v1",
+    inputMicrosPerMillion: 1000, outputMicrosPerMillion: 2000, effectiveFrom: new Date("2020-01-01T00:00:00Z") } });
   delete process.env.LOCAL_LLM_BASE_URL; delete process.env.OLLAMA_BASE_URL;
   // Every dispatch test supplies a controlled transport; never call a provider.
   globalThis.fetch = (async () => { throw new Error("EXTERNAL_NETWORK_FORBIDDEN_IN_FIXTURE"); }) as typeof fetch;
@@ -127,6 +140,128 @@ async function measuredOrder(sessionId: string, id: string, amount = 100.25, com
   return prisma.completedOrder.create({ data: { id, merchantId: "store", sessionId, externalOrderId: id,
     currency: "BRL", orderTotal: amount, completedAt, status: "approved" } });
 }
+
+function monitor(metrics = new ExperimentMeasurementService(prisma), client = prisma) {
+  process.env.REVENUE_STRATEGY_MONITOR_ENABLED = "true";
+  process.env.REVENUE_STRATEGY_MONITOR_BATCH_LIMIT = "100";
+  return new StrategyMonitorService(client, metrics);
+}
+
+integration("strategy monitor is opt-in and rejects an invalid batch before reading executions", async () => {
+  const service = new StrategyMonitorService({ $queryRaw() { assert.fail("disabled monitor must not read"); } } as any, {} as any);
+  delete process.env.REVENUE_STRATEGY_MONITOR_ENABLED;
+  assert.deepEqual(await service.run(), { processed: 0, failed: 0 });
+  process.env.REVENUE_STRATEGY_MONITOR_ENABLED = "true";
+  process.env.REVENUE_STRATEGY_MONITOR_BATCH_LIMIT = "501";
+  await assert.rejects(service.run(), /LIMIT_INVALID/);
+});
+
+integration("strategy monitor shares hourly evidence with the dashboard and concurrent workers without AI", async () => {
+  const f = await measuredPopulation(), service = monitor(f.metrics);
+  const now = new Date();
+  const key = `strategy-hour-${now.toISOString().slice(0, 13).replace(/\D/g, "")}`;
+  await Promise.all([service.run(now), service.run(now), f.metrics.capture("store", f.execution.experimentId, key, now)]);
+  assert.equal(await prisma.experimentMeasurementReview.count(), 1);
+  assert.deepEqual(await service.run(now), { processed: 0, failed: 0 });
+  assert.equal(await prisma.merchantNotification.count(), 0);
+  assert.equal(await prisma.strategyExecution.count({ where: { status: "running" } }), 1);
+  assert.equal(await prisma.aiUsageEvent.count(), 0);
+  assert.equal(await prisma.strategyAiReservation.count(), 0);
+});
+
+integration("strategy monitor stops at the fixed horizon and collects through conversion maturity", async () => {
+  const f = await measuredPopulation(), service = monitor(f.metrics);
+  const horizon = new Date(f.execution.endsAt.getTime());
+  // Simulate a dashboard read in the same hour before the stop.
+  const key = `strategy-hour-${horizon.toISOString().slice(0, 13).replace(/\D/g, "")}`;
+  await f.metrics.capture("store", f.execution.experimentId, key, new Date(horizon.getTime() - 1));
+  const runs = await Promise.all([service.run(horizon), service.run(horizon)]);
+  assert.ok(runs.every(r => r.failed === 0));
+  const execution = await prisma.strategyExecution.findUniqueOrThrow({ where: { id: f.execution.id } });
+  assert.equal(execution.status, "stopped"); assert.equal(execution.stoppedAt!.getTime(), horizon.getTime());
+  assert.equal(await prisma.strategyExecutionEvent.count({ where: { executionId: execution.id, kind: "stopped" } }), 1);
+  const read = await new StrategyMetricsService(prisma, f.metrics).read("store", f.id, 1);
+  assert.equal((read.measurement!.result as any).state, "awaiting_maturity");
+  assert.equal(await prisma.merchantNotification.count(), 0);
+  const mature = new Date(horizon.getTime() + 24 * 3_600_000);
+  assert.deepEqual(await service.run(mature), { processed: 1, failed: 0 });
+  const notice = await prisma.merchantNotification.findFirstOrThrow();
+  assert.equal(notice.merchantId, "store"); assert.equal((notice.metadata as any).strategyId, f.id);
+  assert.equal((notice.metadata as any).state, "inconclusive");
+  assert.equal((notice.metadata as any).version, 1);
+  assert.deepEqual(await service.run(new Date(mature.getTime() + 2 * 3_600_000)), { processed: 0, failed: 0 });
+  assert.equal(await prisma.merchantNotification.count(), 1);
+  assert.equal(await prisma.aiUsageEvent.count(), 0);
+});
+
+integration("strategy monitor retries a lost final notification without duplicating evidence or notices", async () => {
+  const f = await measuredPopulation(); let attempted = 0;
+  const client = new Proxy(prisma, { get(target, property) {
+    if (property === "merchantNotification") return { createMany: async () => { attempted++; throw new Error("NOTICE_UNAVAILABLE"); } };
+    const value = Reflect.get(target, property); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  const now = new Date(f.execution.endsAt.getTime() + 25 * 3_600_000);
+  assert.deepEqual(await monitor(f.metrics, client).run(now), { processed: 0, failed: 1 });
+  assert.equal(attempted, 1); assert.equal(await prisma.experimentMeasurementReview.count(), 1);
+  const service = monitor(f.metrics);
+  const retries = await Promise.all([service.run(now), service.run(now)]);
+  assert.ok(retries.every(r => r.failed === 0));
+  assert.equal(await prisma.experimentMeasurementReview.count(), 1);
+  assert.equal(await prisma.merchantNotification.count(), 1);
+  assert.deepEqual(await service.run(now), { processed: 0, failed: 0 });
+});
+
+integration("strategy monitor stops invalid evidence before the horizon and preserves both snapshots", async () => {
+  const f = await measuredPopulation();
+  await prisma.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: "store", sessionId: "control-0" } },
+    data: { cart: { currency: "USD", total: 100 } } });
+  const now = new Date();
+  assert.deepEqual(await monitor(f.metrics).run(now), { processed: 1, failed: 0 });
+  const execution = await prisma.strategyExecution.findFirstOrThrow();
+  assert.equal(execution.status, "stopped"); assert.ok(execution.stoppedAt! < execution.endsAt);
+  const reviews = await prisma.experimentMeasurementReview.findMany({ orderBy: { collectedAt: "asc" } });
+  assert.equal(reviews.length, 2); assert.ok(reviews[0].collectedAt < reviews[1].collectedAt);
+  assert.ok(!(reviews[0].result as any).reasons.includes("stopped_before_fixed_horizon"));
+  assert.ok((reviews[1].result as any).reasons.includes("stopped_before_fixed_horizon"));
+  assert.equal((reviews[1].result as any).promotionAllowed, false);
+  assert.equal((await prisma.merchantNotification.findFirstOrThrow()).title, "O teste precisa de revisão");
+});
+
+integration("strategy monitor stops an AI overrun and never promotes a partial result", async () => {
+  const f = await activate(); await repo.createSessionIfAbsent(session("one"));
+  const costly = { ...meteredReply(), usage: { prompt_tokens: 200001, completion_tokens: 301, total_tokens: 200302 } };
+  await new StrategyChatDispatcher(ledger, { async callPinned() { return costly; } }).dispatch(meteredInput());
+  assert.deepEqual(await monitor().run(), { processed: 1, failed: 0 });
+  assert.equal((await prisma.strategyExecution.findFirstOrThrow()).status, "stopped");
+  assert.ok(await prisma.strategyExecutionEvent.findFirst({ where: { requestKey: `monitor:ai-overrun:${f.execution.id}` } }));
+  const review = await prisma.experimentMeasurementReview.findFirstOrThrow({ orderBy: { collectedAt: "desc" } });
+  assert.equal((review.result as any).state, "invalid"); assert.equal((review.result as any).promotionAllowed, false);
+  assert.equal(await prisma.aiUsageEvent.count(), 1);
+});
+
+integration("strategy monitor processes bounded batches across stores without starving uncollected results", async () => {
+  const first = await activate(), second = await activate("other"), service = monitor();
+  process.env.REVENUE_STRATEGY_MONITOR_BATCH_LIMIT = "1";
+  const now = new Date();
+  assert.deepEqual(await service.run(now), { processed: 1, failed: 0 });
+  assert.deepEqual(await service.run(now), { processed: 1, failed: 0 });
+  assert.deepEqual(await service.run(now), { processed: 0, failed: 0 });
+  const rows = await prisma.experimentMeasurementReview.findMany();
+  assert.deepEqual(rows.map(r => r.merchantId).sort(), [first.merchantId, second.merchantId].sort());
+  assert.equal(await prisma.merchantNotification.count(), 0);
+});
+
+integration("strategy monitor preserves an earlier merchant pause when closing at the horizon", async () => {
+  const f = await measuredPopulation();
+  await ledger.stop({ merchantId: "store", executionId: f.execution.id, actorId: "merchant-actor", requestKey: "merchant-pause", kind: "paused" });
+  const paused = await prisma.strategyExecution.findFirstOrThrow();
+  assert.deepEqual(await monitor(f.metrics).run(new Date(f.execution.endsAt.getTime() + 1)), { processed: 1, failed: 0 });
+  const stopped = await prisma.strategyExecution.findFirstOrThrow();
+  assert.equal(stopped.status, "stopped"); assert.deepEqual(stopped.stoppedAt, paused.stoppedAt);
+  const review = await prisma.experimentMeasurementReview.findFirstOrThrow({ orderBy: { collectedAt: "desc" } });
+  assert.ok((review.result as any).reasons.includes("stopped_before_fixed_horizon"));
+  assert.equal((review.result as any).promotionAllowed, false);
+});
 
 integration("strategy metrics include immutable participants without chat or purchase and preserve conversion boundaries", async () => {
   const f = await measuredPopulation();
@@ -342,6 +477,201 @@ integration("catalog cost coverage in strategy results uses frozen costs and nev
   assert.equal(partial.economics.control.configuredProductCostCents, null);
   assert.equal(partial.economics.control.knownConfiguredProductCostCents, 5000);
   assert.equal(partial.contributionCents, null); assert.equal(partial.aiCostCents, null);
+});
+
+const meteredReply = () => ({ outcome: "provider_completed" as const, result: { content: "Posso explicar esta etapa.", toolCalls: [] },
+  usage: { prompt_tokens: 12000, completion_tokens: 40, total_tokens: 12040 }, providerEventId: "fixture-usage-event" });
+const meteredInput = (id = "one", requestKey = "request-one", merchantId = "store") => ({
+  ...turn(id, requestKey, merchantId), userMessage: "buyer message fixture" });
+async function plannerRun(now = new Date()) {
+  const run = await prisma.revenueAnalysisRun.create({ data: { merchantId: "store", cycle: 99, status: "running",
+    leaseToken: 1, leaseUntil: new Date(now.getTime() + 600_000), asOf: now } });
+  return { runId: run.id, leaseToken: 1 };
+}
+
+integration("strategy AI budget reserves before I/O, freezes its tariff and writes one immutable usage event", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one")); let calls = 0;
+  const dispatcher = new StrategyChatDispatcher(ledger, { async callPinned() {
+    calls++;
+    const reservation = await prisma.strategyAiReservation.findFirstOrThrow();
+    assert.equal(reservation.state, "dispatched"); assert.equal(reservation.amountMicros, 201n);
+    assert.equal(await prisma.aiUsageEvent.count(), 0);
+    await prisma.aiPriceVersion.update({ where: { version: "strategy-fixture-price" }, data: { inputMicrosPerMillion: 9000 } });
+    return meteredReply();
+  } });
+  const result = await dispatcher.dispatch(meteredInput()); assert.equal(result.status, "candidate");
+  const reservation = await prisma.strategyAiReservation.findFirstOrThrow(), usage = await prisma.aiUsageEvent.findFirstOrThrow();
+  assert.equal(reservation.state, "settled"); assert.equal(reservation.inputRate, 1000n);
+  assert.equal(usage.costMicros, 13n); assert.equal(usage.costStatus, "estimated");
+  assert.equal(usage.source, "checkout_strategy"); assert.equal(usage.providerEventId, "fixture-usage-event");
+  assert.equal((await dispatcher.dispatch(meteredInput())).status, "already_admitted"); assert.equal(calls, 1);
+  await ledger.settleAi("store", reservation.turnId, meteredReply());
+  assert.equal(await prisma.aiUsageEvent.count(), 1);
+  await assert.rejects(prisma.strategyAiReservation.update({ where: { turnId: reservation.turnId }, data: { amountMicros: 1 } }), /IMMUTABLE/);
+  await assert.rejects(prisma.aiUsageEvent.update({ where: { id: usage.id }, data: { costMicros: 0 } }), /IMMUTABLE/);
+  await assert.rejects(prisma.aiUsageEvent.delete({ where: { id: usage.id } }), /IMMUTABLE/);
+  const scoped = registerTenantMiddleware(prisma, { get: () => ({ merchantId: "other" }) } as any);
+  assert.equal(await scoped.strategyAiReservation.count({ where: { merchantId: "store" } }), 0);
+});
+
+integration("strategy AI budget admits only one simultaneous store when the shared daily ceiling is exhausted", async () => {
+  await activate(); await activate("other");
+  await repo.createSessionIfAbsent(session("one")); await repo.createSessionIfAbsent(session("one", { merchantId: "other" }));
+  process.env.REVENUE_AI_DAILY_LIMIT_MICROS = "201"; let calls = 0;
+  const dispatcher = new StrategyChatDispatcher(ledger, { async callPinned() { calls++; return meteredReply(); } });
+  const results = await Promise.all([dispatcher.dispatch(meteredInput()), dispatcher.dispatch(meteredInput("one", "request-one", "other"))]);
+  assert.equal(calls, 1); assert.equal(results.filter(r => r.status === "candidate").length, 1);
+  assert.equal(await prisma.strategyAiReservation.count(), 1);
+  assert.equal(await prisma.strategyTurnOutcome.count({ where: { outcome: "provider_not_dispatched" } }), 1);
+});
+
+integration("strategy AI budget and the weekly planner share spending in both directions", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const planner = new RevenueAiBudgetService(prisma), context = await plannerRun();
+  process.env.REVENUE_AI_DAILY_LIMIT_MICROS = "402";
+  const held = await planner.reserve({ merchantId: "store", context, provider: "openai", model: "fixture-model", inputBytes: 10 });
+  assert.equal(held.amountMicros, 202n);
+  const first = await new StrategyChatDispatcher(ledger, { async callPinned() { assert.fail("planner reservation consumes capacity"); } }).dispatch(meteredInput());
+  assert.equal(first.status, "suppressed"); assert.equal(await prisma.strategyAiReservation.count(), 0);
+  await planner.settle(held, { prompt_tokens: 0, completion_tokens: 0 });
+  process.env.REVENUE_AI_DAILY_LIMIT_MICROS = "210";
+  const next = await new StrategyChatDispatcher(ledger, { async callPinned() { return meteredReply(); } }).dispatch(meteredInput("one", "request-two"));
+  assert.equal(next.status, "candidate");
+  await assert.rejects(planner.reserve({ merchantId: "store", context, provider: "openai", model: "fixture-model", inputBytes: 10 }), /budget_exhausted/);
+});
+
+integration("strategy AI budget keeps unreported usage reserved across periods and never turns it into zero", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const missing = { outcome: "provider_completed" as const, result: meteredReply().result };
+  assert.equal((await new StrategyChatDispatcher(ledger, { async callPinned() { return missing; } }).dispatch(meteredInput())).status, "candidate");
+  const reservation = await prisma.strategyAiReservation.findFirstOrThrow();
+  assert.equal(reservation.state, "unknown");
+  assert.equal((await prisma.aiUsageEvent.findFirstOrThrow()).costMicros, null);
+  const tomorrow = new Date(Date.now() + 2 * 86_400_000), context = await plannerRun(tomorrow);
+  process.env.REVENUE_AI_DAILY_LIMIT_MICROS = "402";
+  await assert.rejects(new RevenueAiBudgetService(prisma).reserve({ merchantId: "store", context,
+    provider: "openai", model: "fixture-model", inputBytes: 10 }, tomorrow), /budget_exhausted/);
+  await ledger.settleAi("store", reservation.turnId, meteredReply());
+  assert.equal((await prisma.strategyAiReservation.findFirstOrThrow()).state, "settled");
+  assert.equal((await prisma.aiUsageEvent.findFirstOrThrow()).costMicros, 13n);
+  assert.equal(await prisma.strategyTurn.count(), 1);
+});
+
+integration("strategy AI budget denies missing prices and changed scope before any provider request", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const admission = await ledger.admitTurn(turn("one"));
+  assert.equal(admission.status, "admitted"); if (admission.status !== "admitted") assert.fail("missing admission");
+  const budget = new StrategyAiBudget(prisma);
+  await assert.rejects(budget.reserve("other", admission.turnId, admission.systemPrompt, "buyer message fixture"), /TURN_NOT_AVAILABLE/);
+  await assert.rejects(budget.reserve("store", admission.turnId, "forged prompt", "buyer message fixture"), /CONTEXT_CHANGED/);
+  await prisma.aiPriceVersion.deleteMany();
+  const result = await new StrategyChatDispatcher(ledger, { async callPinned() { assert.fail("no tariff, no request"); } })
+    .dispatch(meteredInput("one", "request-two"));
+  assert.equal(result.status, "suppressed"); assert.equal(await prisma.strategyAiReservation.count(), 0);
+});
+
+integration("strategy AI budget enforces per-session limits and blocks after an overrun", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  process.env.REVENUE_STRATEGY_AI_SESSION_MAX_CALLS = "1";
+  let calls = 0;
+  const dispatcher = new StrategyChatDispatcher(ledger, { async callPinned() { calls++; return meteredReply(); } });
+  assert.equal((await dispatcher.dispatch(meteredInput())).status, "candidate");
+  assert.equal((await dispatcher.dispatch(meteredInput("one", "request-two"))).status, "suppressed"); assert.equal(calls, 1);
+  await repo.createSessionIfAbsent(session("overrun"));
+  const costly = { ...meteredReply(), usage: { prompt_tokens: 200001, completion_tokens: 301, total_tokens: 200302 } };
+  await new StrategyChatDispatcher(ledger, { async callPinned() { return costly; } }).dispatch(meteredInput("overrun"));
+  assert.equal(await prisma.strategyAiReservation.count({ where: { state: "overrun" } }), 1);
+  await repo.createSessionIfAbsent(session("blocked"));
+  assert.equal((await new StrategyChatDispatcher(ledger, { async callPinned() { assert.fail("overrun requires reconciliation"); } })
+    .dispatch(meteredInput("blocked"))).status, "suppressed");
+});
+
+integration("strategy AI budget releases a lost reservation acknowledgement only when no provider was invoked", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const worker = new StrategyExecutionLedger(prisma), reserve = worker.reserveAi.bind(worker);
+  worker.reserveAi = async (...args) => { await reserve(...args); throw new Error("RESERVATION_ACK_LOST"); };
+  const dispatcher = new StrategyChatDispatcher(worker, { async callPinned() { assert.fail("not dispatched"); } });
+  assert.equal((await dispatcher.dispatch(meteredInput())).status, "suppressed");
+  assert.equal((await prisma.strategyAiReservation.findFirstOrThrow()).state, "released");
+  const usage = await prisma.aiUsageEvent.findFirstOrThrow();
+  assert.equal(usage.costMicros, 0n); assert.equal(usage.executionStatus, "not_dispatched");
+  assert.equal((await dispatcher.dispatch(meteredInput())).status, "already_admitted");
+});
+
+integration("strategy AI budget settlement failure releases no candidate and never repeats the provider", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const worker = new StrategyExecutionLedger(prisma); let calls = 0;
+  worker.settleAi = async () => { throw new Error("SETTLEMENT_UNAVAILABLE"); };
+  const dispatcher = new StrategyChatDispatcher(worker, { async callPinned() { calls++; return meteredReply(); } });
+  await assert.rejects(dispatcher.dispatch(meteredInput()), /SETTLEMENT_UNAVAILABLE/);
+  assert.equal((await prisma.strategyAiReservation.findFirstOrThrow()).state, "dispatched");
+  assert.equal(await prisma.aiUsageEvent.count(), 0); assert.equal(await prisma.strategyTurnCompletion.count(), 0);
+  assert.equal((await dispatcher.dispatch(meteredInput())).status, "already_admitted"); assert.equal(calls, 1);
+});
+
+integration("strategy AI usage measures nonbuyers, unresolved calls and later reconciliation without rewriting results", async () => {
+  const f = await measuredPopulation();
+  const dispatcher = new StrategyChatDispatcher(ledger, { async callPinned() { return meteredReply(); } });
+  await dispatcher.dispatch(meteredInput("control-0"));
+  const uncertain = await new StrategyChatDispatcher(ledger, { async callPinned() { return { outcome: "provider_unknown" }; } })
+    .dispatch(meteredInput("control-1"));
+  assert.equal(uncertain.status, "suppressed"); if (!("turnId" in uncertain)) assert.fail("turn required");
+  // Missing configuration is proven no-I/O, not an inferred zero for uncertainty.
+  process.env.REVENUE_STRATEGY_AI_SESSION_MAX_CALLS = "";
+  await dispatcher.dispatch(meteredInput("treatment-0"));
+  const asOf = new Date();
+  const first = await f.metrics.capture("store", f.execution.experimentId, "ai-usage-before", asOf);
+  const result = first.result as any;
+  assert.equal(result.control.converted, 0); assert.equal(result.control.mature, 0);
+  assert.deepEqual(result.aiUsage.control, { admittedTurns: 2, pricedTurns: 1, notDispatchedTurns: 0, unknownTurns: 1,
+    currencies: ["BRL"], currency: "BRL", estimatedCostMicros: null, knownEstimatedCostMicros: 13, heldUpperBoundMicros: 201, overrunTurns: 0 });
+  assert.equal(result.aiUsage.treatment.notDispatchedTurns, 1); assert.equal(result.aiUsage.treatment.unknownTurns, 0);
+  assert.equal(result.aiCostCents, null); assert.equal(result.contributionCents, null);
+  assert.equal(result.delivery.control.publishedTurns, 0);
+  await ledger.settleAi("store", uncertain.turnId!, meteredReply());
+  assert.deepEqual(await f.metrics.capture("store", f.execution.experimentId, "ai-usage-before", new Date()), first);
+  const historical = await f.metrics.capture("store", f.execution.experimentId, "ai-usage-historical", asOf);
+  assert.deepEqual((historical.result as any).aiUsage, result.aiUsage);
+  const final = (await f.metrics.capture("store", f.execution.experimentId, "ai-usage-after", new Date())).result as any;
+  assert.equal(final.aiUsage.control.estimatedCostMicros, 26); assert.equal(final.aiUsage.control.heldUpperBoundMicros, 0);
+  assert.equal(final.aiUsage.control.unknownTurns, 0); assert.notEqual(digest(final.aiUsage), digest(result.aiUsage));
+});
+
+integration("strategy AI usage never combines native currencies or reads another store's charges", async () => {
+  const f = await measuredPopulation();
+  const dispatcher = new StrategyChatDispatcher(ledger, { async callPinned() { return meteredReply(); } });
+  await dispatcher.dispatch(meteredInput("control-0"));
+  await prisma.aiPriceVersion.create({ data: { version: "usd-fixture", provider: "openai", model: "fixture-model",
+    channel: "chat", component: "text_generation", currency: "USD", source: "revenue-upper-bound-v1",
+    inputMicrosPerMillion: 1000, outputMicrosPerMillion: 2000, effectiveFrom: new Date("2020-01-01Z") } });
+  process.env.REVENUE_AI_BUDGET_CURRENCY = "USD";
+  await dispatcher.dispatch(meteredInput("control-0", "request-two"));
+  await activate("other"); await repo.createSessionIfAbsent(session("control-0", { merchantId: "other" }));
+  await dispatcher.dispatch(meteredInput("control-0", "request-one", "other"));
+  const result = (await f.metrics.capture("store", f.execution.experimentId, "ai-usage-currencies", new Date())).result as any;
+  assert.equal(result.aiUsage.control.admittedTurns, 2); assert.equal(result.aiUsage.control.pricedTurns, 2);
+  assert.deepEqual(result.aiUsage.control.currencies, ["BRL", "USD"]);
+  assert.equal(result.aiUsage.control.currency, null); assert.equal(result.aiUsage.control.estimatedCostMicros, null);
+  assert.equal(result.aiUsage.control.knownEstimatedCostMicros, null); assert.equal(result.aiUsage.control.heldUpperBoundMicros, null);
+});
+
+integration("strategy AI budget respects revision reserve, execution ceilings, provider capacity and context caps", async () => {
+  await activate(); await repo.createSessionIfAbsent(session("one"));
+  const cases = [
+    { REVENUE_AI_DAILY_LIMIT_MICROS: "400", REVENUE_AI_REVISION_RESERVE_PERCENT: "50" },
+    { REVENUE_STRATEGY_AI_EXECUTION_LIMIT_MICROS: "200" },
+    { REVENUE_AI_PROVIDER_TPM: "200299" },
+    { REVENUE_AI_MAX_INPUT_TOKENS: "100" },
+    { REVENUE_AI_MAX_OUTPUT_TOKENS: "299" },
+  ];
+  const original = { ...process.env };
+  const dispatcher = new StrategyChatDispatcher(ledger, { async callPinned() { assert.fail("capacity denied before I/O"); } });
+  for (const [index, limits] of cases.entries()) {
+    Object.assign(process.env, limits);
+    assert.equal((await dispatcher.dispatch(meteredInput("one", `limited-${index}`))).status, "suppressed");
+    process.env = { ...original };
+  }
+  assert.equal(await prisma.strategyAiReservation.count(), 0);
 });
 
 integration("activation copies the exact reviewed plan and is idempotent under concurrency", async () => {
@@ -824,7 +1154,8 @@ integration("model drift after admission is recorded as not dispatched with zero
   globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
   const wrapped = { admitTurn: async (...args: Parameters<StrategyExecutionLedger["admitTurn"]>) => {
     const admission = await ledger.admitTurn(...args); process.env.OPENAI_MODEL = "changed"; return admission;
-  }, completeTurn: ledger.completeTurn.bind(ledger) } as StrategyExecutionLedger;
+  }, reserveAi: ledger.reserveAi.bind(ledger), settleAi: ledger.settleAi.bind(ledger),
+  completeTurn: ledger.completeTurn.bind(ledger) } as StrategyExecutionLedger;
   const result = await new StrategyChatDispatcher(wrapped, new ChatLlmGatewayService()).dispatch(dispatchInput());
   assert.equal(result.status, "suppressed");
   assert.equal((await prisma.strategyTurnOutcome.findFirstOrThrow()).outcome, "provider_not_dispatched");
@@ -836,7 +1167,8 @@ integration("failure to persist a completion releases no candidate and retry can
   await activate(); await repo.createSessionIfAbsent(session("one"));
   let calls = 0;
   globalThis.fetch = (async () => { calls++; return providerResponse(); }) as typeof fetch;
-  const wrapped = { admitTurn: ledger.admitTurn.bind(ledger), completeTurn: async () => { throw new Error("SIMULATED_DATABASE_OUTAGE"); } } as unknown as StrategyExecutionLedger;
+  const wrapped = { admitTurn: ledger.admitTurn.bind(ledger), reserveAi: ledger.reserveAi.bind(ledger), settleAi: ledger.settleAi.bind(ledger),
+    completeTurn: async () => { throw new Error("SIMULATED_DATABASE_OUTAGE"); } } as unknown as StrategyExecutionLedger;
   await assert.rejects(new StrategyChatDispatcher(wrapped, new ChatLlmGatewayService()).dispatch(dispatchInput()), /DATABASE_OUTAGE/);
   assert.equal((await dispatcher().dispatch(dispatchInput())).status, "already_admitted");
   assert.equal(await prisma.strategyTurnOutcome.count(), 0);

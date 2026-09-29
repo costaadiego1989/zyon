@@ -6,9 +6,11 @@ import { checkoutChatTools, buildCheckoutChatPrompt, buildBuyerIntentContext,
   type LlmMessage, type LlmCallResult } from "../../domain/services/checkout-chat-prompt.js";
 export type { LlmToolDefinition, BuyerIntentPromptContext, LlmMessage, LlmCallResult } from "../../domain/services/checkout-chat-prompt.js";
 
-export type PinnedChatResult =
+export type PinnedChatUsage = { prompt_tokens: number; completion_tokens: number; total_tokens: number };
+export type PinnedChatResult = (
   | { outcome: "provider_completed"; result: LlmCallResult }
-  | { outcome: "provider_not_dispatched" | "provider_failed" | "provider_unknown" };
+  | { outcome: "provider_not_dispatched" | "provider_failed" | "provider_unknown" }
+) & { usage?: PinnedChatUsage; providerEventId?: string };
 
 /**
  * Gateway to local/cloud LLM providers.
@@ -55,7 +57,8 @@ export class ChatLlmGatewayService {
       }
       const payload = await readBoundedProviderResponse(response);
       const result = parsePinnedChatResult(payload, baseline);
-      return result ? { outcome: "provider_completed", result } : { outcome: "provider_unknown" };
+      const usage = parsePinnedUsage(payload, baseline.provider.model);
+      return result ? { outcome: "provider_completed", result, ...usage } : { outcome: "provider_unknown", ...usage };
     } catch {
       // A network error/timeout does not prove the provider did not process it.
       return { outcome: "provider_unknown" };
@@ -117,6 +120,18 @@ export class ChatLlmGatewayService {
       return null;
     }
   }
+}
+
+/** Token evidence is separate from valid content. A charged but unusable reply
+ * still has cost; absent/invalid counters must never be synthesized as zero. */
+function parsePinnedUsage(payload: any, model: string): { usage?: PinnedChatUsage; providerEventId?: string } {
+  if (payload?.model !== model) return {};
+  const counts = payload?.usage;
+  if (!counts || [counts.prompt_tokens, counts.completion_tokens, counts.total_tokens]
+    .some(value => !Number.isSafeInteger(value) || value < 0 || value > 2_147_483_647)
+    || counts.prompt_tokens + counts.completion_tokens !== counts.total_tokens) return {};
+  return { usage: { prompt_tokens: counts.prompt_tokens, completion_tokens: counts.completion_tokens, total_tokens: counts.total_tokens },
+    ...(typeof payload.id === "string" && /^[a-zA-Z0-9_.:-]{1,200}$/.test(payload.id) ? { providerEventId: payload.id } : {}) };
 }
 
 async function readBoundedProviderResponse(response: Response): Promise<unknown> {

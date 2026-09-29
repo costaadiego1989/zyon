@@ -4,7 +4,7 @@ import type { StrategyReview, StrategyVersion } from "../../api/endpoints/strate
 export const STRATEGY_STATUSES: Record<string, string> = {
   pending_review: "Aguardando revisão", revision_pending: "Preparando alternativa", rejected: "Recusada",
   approved: "Aprovada, aguardando ativação", activation_pending: "Aguardando ativação",
-  active: "Em teste", paused: "Pausada", completed: "Concluída",
+  active: "Em teste", paused: "Pausada", stopped: "Encerrada", completed: "Concluída",
 };
 export const REVISION_STATUSES: Record<string, string> = {
   queued: "Na fila para revisão", running: "Preparando alternativa", deferred: "Aguardando disponibilidade",

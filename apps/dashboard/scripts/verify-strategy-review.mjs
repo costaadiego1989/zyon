@@ -72,12 +72,17 @@ try {
           const arm = { assigned: 100, mature: 80, converted: 8, orders: 9, revenueCents: 100000 };
           const delivery = { assigned: 100, mature: 80, pending: 20, sessionsWithPublication: 70, sessionsWithDisplay: 60 };
           body = { strategyId: review.id, version: metricVersion,
-            execution: active ? { id: "execution-fixture", proposalHash: "1".repeat(64), status: "running", startedAt: stamp, endsAt: expires, stoppedAt: null } : null,
+            execution: active ? { id: "execution-fixture", proposalHash: "1".repeat(64),
+              status: ["positive", "invalid"].includes(metricsState) ? "stopped" : "running", startedAt: stamp, endsAt: expires,
+              stoppedAt: metricsState === "positive" ? expires : metricsState === "invalid" ? stamp : null } : null,
             measurement: active ? { collectedAt: stamp, evidenceHash: "e".repeat(64), result: {
               definitionVersion: "session-conversion-fixed-horizon-v1", state: metricsState, reasons: [], asOf: stamp, matureAt: expires,
               control: arm, treatment: { ...arm, converted: 12, orders: 12, revenueCents: 150000 }, minimumSessionsPerArm: 14800,
               interval: metricsState === "positive" ? { effectBps: 500, lowerBps: 100, upperBps: 900 } : null,
               contributionCents: null, aiCostCents: null, promotionAllowed: false,
+              aiUsage: { definition: "strategy-chat-ai-usage-v1", scope: "pinned_strategy_chat_calls", tariffBasis: "upper_bound_estimate",
+                control: { admittedTurns: 80, pricedTurns: 80, notDispatchedTurns: 0, unknownTurns: 0, currency: "USD", estimatedCostMicros: 13 },
+                treatment: { admittedTurns: 90, pricedTurns: 89, notDispatchedTurns: 0, unknownTurns: 1, currency: "USD", estimatedCostMicros: null } },
               economics: { definition: "strategy-order-cost-coverage-v1", source: "catalog_at_order_recording",
                 control: { orders: 9, capturedOrders: 9, coveredOrders: 9, configuredProductCostCents: 50000, knownConfiguredProductCostCents: 50000 },
                 treatment: { orders: 12, capturedOrders: 12, coveredOrders: 10, configuredProductCostCents: null, knownConfiguredProductCostCents: 60000 } },
@@ -216,8 +221,14 @@ try {
     assert.match(await results.innerText(), /não representa receita incremental/);
     assert.match(await results.getByRole("row", { name: /Custo de produtos cadastrado/ }).innerText(), /500,00\s+Sem dados/);
     assert.match(await results.innerText(), /preservados para 19 de 21 pedidos/);
+    assert.match(await results.getByRole("row", { name: /IA das conversas do teste/ }).innerText(), /USD 0,000013\s+Sem dados/);
+    assert.match(await results.innerText(), /Uso de IA conhecido em 169 de 170/);
+    assert.match(await results.innerText(), /não é o valor faturado/);
     await noOverflow("metrics");
-    if (out) await results.screenshot({ path: `${out}/strategy-metrics-${width}.png` });
+    if (out) {
+      await results.getByRole("heading", { name: "Resultados desta estratégia" }).scrollIntoViewIfNeeded();
+      await page.screenshot({ path: `${out}/strategy-metrics-${width}.png` });
+    }
     metricsFailure = true;
     await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
     await results.getByRole("alert").waitFor();
@@ -226,9 +237,11 @@ try {
     await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
     await results.getByRole("heading", { name: "Melhora de conversão observada" }).waitFor();
     await results.getByText(/Intervalo de confiança de 95%/).waitFor();
+    await results.getByText(/Teste encerrado em/).waitFor();
     metricsState = "invalid";
     await results.getByRole("button", { name: "Atualizar resultados", exact: true }).click();
     await results.getByText(/não pode fundamentar a adoção/).waitFor();
+    await results.getByText(/Teste interrompido em/).waitFor();
     review.currentVersion = 2; review.versions = [version(2), version(1)];
     await page.getByRole("button", { name: "Atualizar", exact: true }).click();
     await page.getByRole("button", { name: "Ver versão atual", exact: true }).click();

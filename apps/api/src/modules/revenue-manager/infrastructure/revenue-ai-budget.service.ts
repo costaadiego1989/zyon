@@ -86,7 +86,7 @@ export class RevenueAiBudgetService {
             CASE WHEN r.state IN ('dispatched','unknown') THEN r.amount_micros ELSE COALESCE(u.cost_micros, r.amount_micros) END ELSE 0 END), 0)::bigint AS scheduled,
           count(*) FILTER (WHERE r.run_id = ${run.id})::bigint AS calls,
           count(*) FILTER (WHERE r.state = 'overrun' OR u.cost_micros > r.amount_micros)::bigint AS overruns
-        FROM revenue_ai_reservations r LEFT JOIN ai_usage_events u ON u.idempotency_key = r.usage_key
+        FROM revenue_ai_budget_reservations r LEFT JOIN ai_usage_events u ON u.idempotency_key = r.usage_key
         WHERE r.currency = ${currency}`;
       if (totals.overruns > 0n) throw new AnalysisDeferred("cost_reconciliation_required");
       if (totals.calls >= BigInt(maxCalls)) throw new AnalysisDeferred("cycle_call_limit");
@@ -97,7 +97,7 @@ export class RevenueAiBudgetService {
         SELECT count(*) FILTER (WHERE state IN ('dispatched','unknown'))::bigint AS inflight,
           count(*) FILTER (WHERE created_at >= ${minuteAgo})::bigint AS requests,
           COALESCE(sum(max_input_tokens + max_output_tokens) FILTER (WHERE created_at >= ${minuteAgo}), 0)::bigint AS tokens
-        FROM revenue_ai_reservations WHERE provider = ${input.provider} AND model = ${input.model}`;
+        FROM revenue_ai_budget_reservations WHERE provider = ${input.provider} AND model = ${input.model}`;
       if (capacity.inflight >= BigInt(concurrency) || capacity.requests >= BigInt(rpm) || capacity.tokens + BigInt(maxInput + maxOutput) > BigInt(tpm))
         throw new AnalysisDeferred("provider_capacity");
       const id = randomUUID();

@@ -17,7 +17,8 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
       WHERE a.merchant_id = ${merchantId} AND a.execution_id = ${execution.id}
     ), measured AS (
       SELECT a.*, o.orders, o.cents, o.other_currency, o.bad_amount, o.cost_snapshots, o.priced_orders, o.catalog_cost,
-        t.turns, t.published, t.displayed, t.provider_failed, t.provider_unknown, t.suppressed
+        t.turns, t.published, t.displayed, t.provider_failed, t.provider_unknown, t.suppressed,
+        t.ai_priced, t.ai_not_dispatched, t.ai_cost, t.ai_held, t.ai_currencies, t.ai_overruns
       FROM assigned a
       LEFT JOIN LATERAL (
         SELECT count(*) AS orders,
@@ -37,11 +38,22 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
           count(*) FILTER (WHERE d.recorded_at <= ${asOf}) AS displayed,
           count(*) FILTER (WHERE r.outcome = 'provider_failed' AND r.recorded_at <= ${asOf}) AS provider_failed,
           count(*) FILTER (WHERE r.turn_id IS NULL OR r.recorded_at > ${asOf} OR r.outcome = 'provider_unknown') AS provider_unknown,
-          count(*) FILTER (WHERE p.decision = 'suppressed' AND p.recorded_at <= ${asOf}) AS suppressed
+          count(*) FILTER (WHERE p.decision = 'suppressed' AND p.recorded_at <= ${asOf}) AS suppressed,
+          count(*) FILTER (WHERE b.state IN ('settled','overrun') AND b.settled_at <= ${asOf}
+            AND u.cost_status = 'estimated' AND u.cost_micros IS NOT NULL) AS ai_priced,
+          count(*) FILTER (WHERE (b.state = 'released' AND b.settled_at <= ${asOf} AND u.cost_status = 'not_incurred')
+            OR (b.turn_id IS NULL AND r.outcome = 'provider_not_dispatched' AND r.recorded_at <= ${asOf})) AS ai_not_dispatched,
+          COALESCE(sum(u.cost_micros) FILTER (WHERE b.state IN ('settled','overrun') AND b.settled_at <= ${asOf}
+            AND u.cost_status = 'estimated'), 0) AS ai_cost,
+          COALESCE(sum(b.amount_micros) FILTER (WHERE b.settled_at IS NULL OR b.settled_at > ${asOf}), 0) AS ai_held,
+          string_agg(DISTINCT b.currency, ',') AS ai_currencies,
+          count(*) FILTER (WHERE b.state = 'overrun' AND b.settled_at <= ${asOf}) AS ai_overruns
         FROM strategy_turns t
           LEFT JOIN strategy_turn_publications p ON p.turn_id = t.id AND p.merchant_id = t.merchant_id
           LEFT JOIN strategy_message_displays d ON d.turn_id = p.turn_id AND d.merchant_id = p.merchant_id
           LEFT JOIN strategy_turn_outcomes r ON r.turn_id = t.id AND r.merchant_id = t.merchant_id
+          LEFT JOIN strategy_ai_reservations b ON b.turn_id = t.id AND b.merchant_id = t.merchant_id AND b.created_at <= ${asOf}
+          LEFT JOIN ai_usage_events u ON u.idempotency_key = b.usage_key AND u.merchant_id = b.merchant_id AND u.completed_at <= ${asOf}
         WHERE t.assignment_id = a.assignment_id AND t.merchant_id = ${merchantId} AND t.admitted_at <= ${asOf}
       ) t ON true
     ) SELECT variant_id AS variant, count(*) AS assigned,
@@ -60,6 +72,10 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
       COALESCE(sum(turns), 0) AS turns, COALESCE(sum(published), 0) AS publications,
       COALESCE(sum(displayed), 0) AS displays, COALESCE(sum(provider_failed), 0) AS provider_failed,
       COALESCE(sum(provider_unknown), 0) AS provider_unknown, COALESCE(sum(suppressed), 0) AS suppressed,
+      COALESCE(sum(ai_priced), 0) AS ai_priced, COALESCE(sum(ai_not_dispatched), 0) AS ai_not_dispatched,
+      COALESCE(sum(ai_cost), 0) AS ai_cost, COALESCE(sum(ai_held), 0) AS ai_held,
+      COALESCE(string_agg(DISTINCT ai_currencies, ','), '') AS ai_currencies,
+      COALESCE(sum(ai_overruns), 0) AS ai_overruns,
       count(*) FILTER (WHERE assigned_at < ${execution.startedAt} OR assigned_at > ${asOf} OR assigned_at >= ${execution.endsAt}) AS outside_window,
       count(*) FILTER (WHERE created_at <> assigned_at) AS changed_entry,
       count(*) FILTER (WHERE cohort = 'holdout') AS holdout,
@@ -70,6 +86,26 @@ export async function readStrategyMeasurement(tx: Prisma.TransactionClient, exec
       count(*) FILTER (WHERE cart->>'currency' IS DISTINCT FROM 'BRL') AS changed_currency,
       COALESCE(sum(other_currency), 0) AS other_currency, COALESCE(sum(bad_amount), 0) AS bad_amount
     FROM measured GROUP BY variant_id ORDER BY variant_id`;
+}
+
+/** Native-currency estimates for this execution's pinned chat calls only. Never
+ * add currencies or mistake a held reservation for a charge or unknown for zero. */
+export function strategyAiUsage(rows: Array<Record<string, bigint | number | string>>, plan: MeasurementPlan) {
+  const arm = (id: string) => {
+    const row = rows.find(r => r.variant === id);
+    const n = (key: string) => Number(row?.[key] ?? 0);
+    const currencies = [...new Set(String(row?.ai_currencies ?? "").split(",").filter(Boolean))].sort();
+    const monetary = (key: string) => currencies.length === 1 && Number.isSafeInteger(n(key)) && n(key) >= 0 ? n(key) : null;
+    const admittedTurns = n("turns"), pricedTurns = n("ai_priced"), notDispatchedTurns = n("ai_not_dispatched");
+    const unknownTurns = admittedTurns - pricedTurns - notDispatchedTurns;
+    return { admittedTurns, pricedTurns, notDispatchedTurns, unknownTurns, currencies,
+      currency: currencies.length === 1 ? currencies[0] : null,
+      estimatedCostMicros: admittedTurns > 0 && unknownTurns === 0 ? monetary("ai_cost") : null,
+      knownEstimatedCostMicros: pricedTurns > 0 ? monetary("ai_cost") : null,
+      heldUpperBoundMicros: monetary("ai_held"), overrunTurns: n("ai_overruns") };
+  };
+  return { definition: "strategy-chat-ai-usage-v1", scope: "pinned_strategy_chat_calls", tariffBasis: "upper_bound_estimate",
+    control: arm(plan.controlVariantId), treatment: arm(plan.treatmentVariantId) };
 }
 
 export function strategyCostCoverage(rows: Array<Record<string, bigint | number | string>>, plan: MeasurementPlan) {

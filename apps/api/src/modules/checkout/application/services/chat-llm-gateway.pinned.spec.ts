@@ -48,6 +48,35 @@ test("configuration, tenant and captured program drift never sends a request", a
   assert.equal(requests.length, 0);
 });
 
+test("pinned token evidence is preserved for usable and unusable content without inventing counts", async () => {
+  const gateway = new ChatLlmGatewayService(), captured = baseline();
+  const usage = { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 };
+  for (const choices of [payload().choices, []]) {
+    answer = async () => Response.json({ ...payload(), choices, usage: { ...usage, untrusted_cost: 0 }, id: "provider-event-1" });
+    const result = await gateway.callPinned("store", captured, []);
+    assert.equal(result.outcome, choices.length ? "provider_completed" : "provider_unknown");
+    assert.deepEqual(result.usage, usage); assert.equal(result.providerEventId, "provider-event-1");
+    assert.equal((result as any).untrusted_cost, undefined);
+  }
+});
+
+test("pinned usage rejects mismatched model, fractional, missing, inconsistent and oversized counters", async () => {
+  const gateway = new ChatLlmGatewayService(), captured = baseline();
+  const usage = { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 };
+  for (const invalid of [undefined, {}, { ...usage, prompt_tokens: "120" }, { ...usage, prompt_tokens: -1 },
+    { ...usage, completion_tokens: 1.5 }, { ...usage, total_tokens: 151 },
+    { prompt_tokens: 2_147_483_647, completion_tokens: 1, total_tokens: 2_147_483_648 }]) {
+    answer = async () => Response.json({ ...payload(), usage: invalid });
+    const result = await gateway.callPinned("store", captured, []);
+    assert.equal(result.outcome, "provider_completed"); assert.equal(result.usage, undefined);
+  }
+  answer = async () => Response.json({ ...payload(), model: "different-model", usage });
+  assert.equal((await gateway.callPinned("store", captured, [])).usage, undefined);
+  answer = async () => Response.json({ ...payload(), usage, id: "untrusted\nmetadata" });
+  const valid = await gateway.callPinned("store", captured, []);
+  assert.deepEqual(valid.usage, usage); assert.equal(valid.providerEventId, undefined);
+});
+
 test("credential rotation retains the pinned behavior without serializing old credentials", async () => {
   const captured = baseline(); process.env.OPENAI_API_KEY = "rotated-fixture-key";
   await new ChatLlmGatewayService().callPinned("store", captured, []);

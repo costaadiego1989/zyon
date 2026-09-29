@@ -23,11 +23,23 @@ export class StrategyChatDispatcher {
       provider = { outcome: "provider_not_dispatched" };
     } else {
       try {
-        provider = await this.gateway.callPinned(input.merchantId, admission.baseline, [
-          { role: "system", content: admission.systemPrompt }, { role: "user", content: input.userMessage },
-        ]);
-      } catch { provider = { outcome: "provider_unknown" }; }
+        await this.ledger.reserveAi(input.merchantId, admission.turnId, admission.systemPrompt, input.userMessage);
+        if (!strategyExecutionEnabled(input.merchantId) || process.env.REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED !== "true"
+          || (input.chatRequest && input.mainChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED !== "true")) {
+          provider = { outcome: "provider_not_dispatched" };
+        } else {
+          try {
+            provider = await this.gateway.callPinned(input.merchantId, admission.baseline, [
+              { role: "system", content: admission.systemPrompt }, { role: "user", content: input.userMessage },
+            ]);
+          } catch { provider = { outcome: "provider_unknown" }; }
+        }
+      } catch { provider = { outcome: "provider_not_dispatched" }; }
     }
+    // Even a lost reservation acknowledgement can be reconciled to zero here:
+    // this worker has proof that it never invoked the gateway. Once invoked,
+    // missing usage remains committed and blocks budget reuse.
+    await this.ledger.settleAi(input.merchantId, admission.turnId, provider);
     // Persistence failure deliberately propagates. Do not release a candidate
     // without durable evidence and do not resend the admitted request on retry.
     const completion = await this.ledger.completeTurn(input.merchantId, admission.turnId, provider);

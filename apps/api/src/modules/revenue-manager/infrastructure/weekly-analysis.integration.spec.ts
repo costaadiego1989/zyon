@@ -8,9 +8,10 @@ import { WeeklyAnalysisService } from "./weekly-analysis.service.js";
 import { RevenueAiBudgetService } from "./revenue-ai-budget.service.js";
 import { LEASE_MS, WEEK_MS, nextNight } from "../domain/weekly-analysis-policy.js";
 
-// This suite is destructive ONLY to its dedicated local fixture database.
+// Destructive local fixtures only. Run sequentially with the execution suite.
 const url = new URL(process.env.REVENUE_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
-const enabled = url.hostname === "127.0.0.1" && url.port === "5557" && url.pathname === "/revenue_weekly";
+const enabled = url.hostname === "127.0.0.1" && url.port === "5557"
+  && ["/revenue_weekly", "/revenue_recovery_final_0924"].includes(url.pathname);
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } } });
 const environment = { ...process.env };
 const at = (value: string) => new Date(value);

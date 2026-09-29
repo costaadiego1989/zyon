@@ -4,7 +4,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { assessMeasurement, buildMeasurementPlan, digest, fingerprintVariants,
   type ArmMeasurement, type MeasurementPlan } from "../domain/services/measurement-plan.js";
-import { readStrategyMeasurement, strategyDeliveryMetrics, strategyCostCoverage } from "../infrastructure/strategy-measurement.reader.js";
+import { readStrategyMeasurement, strategyDeliveryMetrics, strategyCostCoverage, strategyAiUsage } from "../infrastructure/strategy-measurement.reader.js";
 
 const DAY = 86_400_000;
 type Counts = Record<string, bigint | number | string>;
@@ -141,11 +141,12 @@ export class ExperimentMeasurementService {
       };
       const delivery = execution ? strategyDeliveryMetrics(rows, plan) : undefined;
       const economics = execution ? strategyCostCoverage(rows, plan) : undefined;
+      const aiUsage = execution ? strategyAiUsage(rows, plan) : undefined;
       const evidence = { control: arm(plan.controlVariantId), treatment: arm(plan.treatmentVariantId), issues,
-        ...(delivery ? { delivery, economics, executionId: execution!.id, proposalHash: execution!.proposalHash } : {}) };
+        ...(delivery ? { delivery, economics, aiUsage, executionId: execution!.id, proposalHash: execution!.proposalHash } : {}) };
       const result = { ...assessMeasurement(plan, evidence, { registeredAt: stored.createdAt,
         startedAt: experiment.startedAt, completedAt: experiment.completedAt, asOf: now }),
-        ...(delivery ? { delivery, economics, executionId: execution!.id, strategyVersion: execution!.version, proposalHash: execution!.proposalHash } : {}) };
+        ...(delivery ? { delivery, economics, aiUsage, executionId: execution!.id, strategyVersion: execution!.version, proposalHash: execution!.proposalHash } : {}) };
       return tx.experimentMeasurementReview.create({ data: { id: randomUUID(), experimentId, merchantId, requestKey,
         planHash: stored.planHash, evidenceHash: digest(evidence), result: result as unknown as Prisma.InputJsonValue, collectedAt: now } });
     });

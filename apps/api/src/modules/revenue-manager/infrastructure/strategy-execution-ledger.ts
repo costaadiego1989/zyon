@@ -12,6 +12,7 @@ import { CHECKOUT_CHAT_BINDINGS_VERSION, checkoutSessionPrompt } from "../../che
 import { missingFieldsForStage } from "../../checkout/domain/services/customer-extraction.service.js";
 import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout-session.mapper.js";
 import type { CheckoutSession as CheckoutSnapshot } from "@zyon/shared-types";
+import { StrategyAiBudget } from "./strategy-ai-budget.js";
 
 type TurnInput = { merchantId: string; sessionId: string; requestKey: string; inputHash: string;
   route: "primary_llm" | "deterministic" | "fallback"; userMessage?: string } & (
@@ -139,6 +140,14 @@ export async function enrollCreatedStrategySession(tx: Tx, session: CheckoutSess
 
 export class StrategyExecutionLedger {
   constructor(private readonly prisma: PrismaClient, private readonly clock = executionClock) {}
+
+  async reserveAi(merchantId: string, turnId: string, systemPrompt: string, userMessage: string) {
+    return new StrategyAiBudget(this.prisma).reserve(merchantId, turnId, systemPrompt, userMessage);
+  }
+
+  async settleAi(merchantId: string, turnId: string, result: PinnedChatResult) {
+    return new StrategyAiBudget(this.prisma).settle(merchantId, turnId, result);
+  }
 
   /** Admission is a one-use claim, not a replayable instruction. An uncertain
    * provider attempt must not be retried under the same key. No message text is stored. */

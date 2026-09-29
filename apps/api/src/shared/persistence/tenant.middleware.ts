@@ -125,6 +125,7 @@ export const TENANT_SCOPED_MODELS = [
   "RevenueStrategy",
   "StrategyMessageDisplay",
   "StrategyOrderCostSnapshot",
+  "StrategyAiReservation",
   "RevenueStrategyAction",
   "RevenueStrategyRevision",
   "RevenueStrategyVersion",
