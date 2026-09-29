@@ -1,11 +1,11 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import type { ProductVariantLookupPort } from "../../domain/ports/product-variant-lookup.port.js";
 
 @Injectable()
 export class ProductVariantLookupAdapter implements ProductVariantLookupPort {
-  constructor(@Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient) {}
+  constructor(@Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient | Prisma.TransactionClient) {}
 
   async findBySku(
     merchantId: string,

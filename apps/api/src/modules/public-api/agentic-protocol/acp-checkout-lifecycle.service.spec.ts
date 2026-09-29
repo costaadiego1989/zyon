@@ -4,6 +4,8 @@ import assert from "node:assert/strict";
 import type { CheckoutSession, CheckoutEventName } from "@zyon/shared-types";
 import { ConflictException, ForbiddenException, BadRequestException } from "@nestjs/common";
 import { AcpCheckoutLifecycleService } from "./acp-checkout-lifecycle.service.js";
+import type { AcpCheckoutUpdateService } from "./acp-checkout-update.service.js";
+import { applyAcpSessionPatch } from "./acp-checkout-patch.js";
 import type { CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import type { MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
 import type { GetCheckoutSessionUseCase } from "../../checkout/application/use-cases/get-checkout-session.use-case.js";
@@ -123,15 +125,17 @@ function buildService(opts: {
   const getUseCase = opts.getUseCase ?? createGetUseCase(sessionRepo);
   const service = new AcpCheckoutLifecycleService(
     getUseCase,
-    (opts.updateCart ?? stubUseCase<UpdateCartUseCase>()) as UpdateCartUseCase,
     (opts.complete ?? stubUseCase<CompleteOrderUseCase>()) as CompleteOrderUseCase,
-    (opts.applyCoupon ?? stubUseCase<ApplyCouponUseCase>()) as ApplyCouponUseCase,
     (opts.payment ?? stubUseCase<CreatePaymentIntentUseCase>()) as CreatePaymentIntentUseCase,
     sessionRepo,
     opts.merchants ?? createMerchantRepo(),
-    opts.variantLookup,
-    opts.coupons,
-    opts.merchantRules,
+    // These tests cover orchestration only. Real rollback is covered on PostgreSQL.
+    { execute: (merchantId, sessionId, body) => applyAcpSessionPatch({
+      sessions: sessionRepo,
+      updateCart: opts.updateCart ?? stubUseCase<UpdateCartUseCase>(),
+      applyCoupon: opts.applyCoupon ?? stubUseCase<ApplyCouponUseCase>(),
+      variantLookup: opts.variantLookup,
+    }, merchantId, sessionId, body) } as AcpCheckoutUpdateService,
   );
   return { service, sessionRepo };
 }

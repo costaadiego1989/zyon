@@ -1,11 +1,11 @@
-import { BadRequestException, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
 import type { CheckoutSession } from "@zyon/shared-types";
 import { ApplyCouponUseCase } from "../../coupons/application/use-cases/apply-coupon.use-case.js";
 
 /** Shares the atomic checkout coupon path with the widget. */
 @Injectable()
 export class AcpCouponApplier {
-  constructor(private readonly applyCouponUseCase: ApplyCouponUseCase) {}
+  constructor(@Inject(ApplyCouponUseCase) private readonly applyCouponUseCase: Pick<ApplyCouponUseCase, "executeForCheckout">) {}
 
   async applyCoupon(session: CheckoutSession, code: string): Promise<void> {
     const trimmed = code.trim();

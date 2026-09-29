@@ -40,6 +40,7 @@ import { TrackCheckoutEventUseCase } from "../../checkout/application/use-cases/
 import { UpdateCartUseCase } from "../../checkout/application/use-cases/update-cart.use-case.js";
 import { GetCheckoutSessionUseCase } from "../../checkout/application/use-cases/get-checkout-session.use-case.js";
 import { AcpCheckoutLifecycleService } from "../../public-api/agentic-protocol/acp-checkout-lifecycle.service.js";
+import { AcpCheckoutUpdateService } from "../../public-api/agentic-protocol/acp-checkout-update.service.js";
 import { CheckoutOfferService } from "../../checkout/application/services/checkout-offer.service.js";
 import { BuyerRecognitionService } from "../../checkout/application/services/buyer-recognition.service.js";
 import { OtpService } from "../../checkout/application/services/otp.service.js";
@@ -232,8 +233,7 @@ integration("atomic coupon ACP selects fulfillment before authorizing a shipping
   await activate("store", { allowFreeShipping: true, freeShippingMinCartValue: 0, maxShippingSubsidy: 20 });
   await checkoutCoupon({ code: "FRETE", discountType: "shipping_free", discountValue: 0 });
   await couponCheckout("one", { shipping: undefined, shippingOptions: [{ customerPrice: 15, realCost: 15, region: "SP" }] });
-  const lifecycle = new AcpCheckoutLifecycleService(new GetCheckoutSessionUseCase(repo), new UpdateCartUseCase(repo, repo),
-    undefined as any, atomicCoupon(), undefined as any, repo, undefined as any);
+  const lifecycle = versionedAcpFixture();
   await lifecycle.updateSession("store", "one", { fulfillment_option_id: "Correios-0", coupon_code: "FRETE" });
   const saved = (await repo.getSession("store", "one"))!;
   assert.equal(saved.shipping?.customerPrice, 0); assert.equal(saved.cart.commercialNudge?.couponCode, "FRETE");
@@ -371,10 +371,230 @@ integration("atomic coupon stale cart update cannot cancel a newly applied reser
   assert.equal(await prisma.outboxMessage.count({ where: { eventType: "checkout.cart.updated" } }), 0);
 });
 
-function versionedAcpFixture() {
-  return new AcpCheckoutLifecycleService(new GetCheckoutSessionUseCase(repo), new UpdateCartUseCase(repo, repo),
-    undefined as any, undefined as any, undefined as any, repo, undefined as any);
+function versionedAcpFixture(client = prisma) {
+  const sessions = new PrismaCheckoutRepository(client);
+  return new AcpCheckoutLifecycleService(new GetCheckoutSessionUseCase(sessions),
+    undefined as any, undefined as any, sessions, undefined as any,
+    new AcpCheckoutUpdateService(client, atomicCoupon(client)));
 }
+
+async function acpCommercialState() {
+  return {
+    session: await repo.getSession("store", "one"),
+    reservations: await prisma.couponRedemption.findMany({ orderBy: { id: "asc" } }),
+    outbox: await prisma.outboxMessage.findMany({ orderBy: { eventId: "asc" } }),
+    events: await prisma.checkoutEvent.findMany({ orderBy: { id: "asc" } }),
+  };
+}
+
+integration("atomic ACP patch commits cart buyer region and recalculated coupon together", async () => {
+  await activate(); await checkoutCoupon({ maxUsages: 1, allowedRegions: ["SP", "RJ"] });
+  await applyToSession(await couponCheckout());
+  const result = await versionedAcpFixture().updateSession("store", "one", {
+    line_items: [{ id: "fixture", quantity: 2 }], buyer: { full_name: "New Buyer", email: "new@example.invalid" },
+    fulfillment_address: { state: "RJ", postal_code: "20000000" }, coupon_code: "SAVE5",
+  });
+  const state = await acpCommercialState();
+  assert.equal(result.status, "not_ready_for_payment");
+  assert.equal(state.session!.cart.total, 200); assert.equal(state.session!.cart.currentDiscount, 10);
+  assert.equal(state.session!.customer?.email, "new@example.invalid");
+  assert.equal(state.session!.customer?.address?.state, "RJ");
+  assert.equal(state.session!.shipping, undefined);
+  assert.equal(state.reservations.length, 1); assert.equal(state.reservations[0].status, "applied");
+  assert.equal(Number(state.reservations[0].discountApplied), 10);
+  assert.equal(state.outbox.filter(x => x.eventType === "checkout.cart.updated").length, 1);
+  assert.equal(state.events.filter(x => x.eventName === "coupon_applied").length, 1);
+});
+
+for (const failure of ["missing-coupon", "wrong-region", "stale-shipping"] as const) {
+  integration(`atomic ACP patch ${failure} restores earlier cart buyer reservation and events`, async () => {
+    await activate(); await checkoutCoupon({ allowedRegions: ["SP"] });
+    await applyToSession(await couponCheckout());
+    const before = await acpCommercialState();
+    await assert.rejects(versionedAcpFixture().updateSession("store", "one", {
+      line_items: [{ id: "fixture", quantity: 2 }], buyer: { email: "new@example.invalid" },
+      fulfillment_address: { state: "RJ" },
+      ...(failure === "stale-shipping" ? { fulfillment_option_id: "Correios-0" } :
+        { coupon_code: failure === "missing-coupon" ? "MISSING" : "SAVE5" }),
+    }), failure === "stale-shipping" ? /acp_no_shipping_options/ :
+      failure === "missing-coupon" ? /COUPON_NOT_FOUND/ : /COUPON_REGION/);
+    assert.deepEqual(await acpCommercialState(), before);
+  });
+}
+
+integration("atomic ACP patch invalid shipping rolls back a preceding display edit", async () => {
+  await activate(); await couponCheckout("one", { shippingOptions: [{ customerPrice: 15, realCost: 15 }] });
+  const before = await acpCommercialState();
+  await assert.rejects(versionedAcpFixture().updateSession("store", "one", {
+    buyer: { full_name: "Changed" }, fulfillment_option_id: "Correios-9",
+  }), /acp_fulfillment_option_not_found/);
+  assert.deepEqual(await acpCommercialState(), before);
+});
+
+integration("atomic ACP patch coupon failure restores a selected shipping option", async () => {
+  await activate(); await couponCheckout("one", { shippingOptions: [{ customerPrice: 15, realCost: 15 }] });
+  const before = await acpCommercialState();
+  await assert.rejects(versionedAcpFixture().updateSession("store", "one", {
+    buyer: { full_name: "Changed" }, fulfillment_option_id: "Correios-0", coupon_code: "MISSING",
+  }), /COUPON_NOT_FOUND/);
+  assert.deepEqual(await acpCommercialState(), before);
+});
+
+for (const model of ["couponRedemption", "checkoutEvent"] as const) {
+  integration(`atomic ACP patch late ${model} failure rolls back every prior mutation`, async () => {
+    await activate(); await checkoutCoupon(); await couponCheckout();
+    const before = await acpCommercialState();
+    await assert.rejects(versionedAcpFixture(failingCommercialClient(model, "create")).updateSession("store", "one", {
+      line_items: [{ id: "fixture", quantity: 2 }], buyer: { full_name: "Changed" }, coupon_code: "SAVE5",
+    }), /COMMERCIAL_WRITE_FAILED/);
+    assert.deepEqual(await acpCommercialState(), before);
+    // Rollback consumes neither the snapshot version nor the coupon's capacity.
+    await versionedAcpFixture().updateSession("store", "one", {
+      line_items: [{ id: "fixture", quantity: 2 }], coupon_code: "SAVE5",
+    });
+    assert.equal((await repo.getSession("store", "one"))!.cart.currentDiscount, 10);
+  });
+}
+
+for (const cost of [null, 2000]) {
+  integration(`atomic ACP patch catalogue and coupon ${cost === null ? "reject unknown cost without adding product" : "commit server price and cost"}`, async () => {
+    await activate(); await checkoutCoupon(); await couponCheckout();
+    await prisma.product.create({ data: { id: "patch-product", merchantId: "store", name: "Item", slug: "patch-product",
+      variants: { create: { sku: "patch-sku", price: { create: { basePriceInCents: 5000, costInCents: cost, currency: "BRL" } } } },
+    } });
+    const before = await acpCommercialState();
+    const request = versionedAcpFixture().updateSession("store", "one", {
+      line_items: [{ id: "patch-sku", quantity: 2 }], buyer: { full_name: "Changed" }, coupon_code: "SAVE5",
+    });
+    if (cost === null) {
+      await assert.rejects(request, /COUPON_DISCOUNT_REJECTED/);
+      assert.deepEqual(await acpCommercialState(), before);
+    } else {
+      await request;
+      const saved = (await repo.getSession("store", "one"))!;
+      assert.equal(saved.cart.total, 200); assert.equal(saved.cart.currentDiscount, 10);
+      assert.equal(saved.cart.items[1].price, 50); assert.equal(saved.cart.items[1].cost, 20);
+    }
+  });
+}
+
+integration("atomic ACP patch rejects another store and closed checkouts even for empty patches", async () => {
+  await activate(); await couponCheckout();
+  const before = await acpCommercialState();
+  await assert.rejects(versionedAcpFixture().updateSession("other", "one", {}), /checkout_session_not_found/);
+  assert.deepEqual(await acpCommercialState(), before);
+  await versionedAcpFixture().cancelSession("store", "one");
+  const canceled = await acpCommercialState();
+  await assert.rejects(versionedAcpFixture().updateSession("store", "one", {}), /Cannot mutate a canceled session/);
+  assert.deepEqual(await acpCommercialState(), canceled);
+  await couponCheckout("completed");
+  await measuredOrder("completed", "completed-order");
+  await assert.rejects(versionedAcpFixture().updateSession("store", "completed", {}), /acp_session_completed/);
+});
+
+integration("atomic ACP patch preserves benefits for unchanged commerce and display edits", async () => {
+  await activate(); await checkoutCoupon(); await applyToSession(await couponCheckout());
+  const before = await acpCommercialState();
+  await versionedAcpFixture().updateSession("store", "one", {
+    line_items: [{ id: "fixture", quantity: 1 }], buyer: { full_name: "Display only" },
+  });
+  const after = await acpCommercialState();
+  assert.deepEqual(after.session!.cart, before.session!.cart);
+  assert.deepEqual(after.session!.shipping, before.session!.shipping);
+  assert.equal(after.session!.customer?.fullName, "Display only");
+  assert.deepEqual(after.reservations, before.reservations);
+  assert.deepEqual(after.events, before.events); assert.deepEqual(after.outbox, before.outbox);
+});
+
+integration("atomic ACP patch uses only its transaction client after locking and freezes the request", async () => {
+  await activate(); await checkoutCoupon(); await couponCheckout();
+  let transactions = 0, inside = false;
+  const body = { line_items: [{ id: "fixture", quantity: 2 }], coupon_code: "SAVE5" };
+  const client = new Proxy(prisma, { get(target, key) {
+    assert.equal(inside, false, "must not access the root client inside a checkout transaction");
+    if (key === "$transaction") return (work: (tx: any) => Promise<unknown>) => {
+      transactions++;
+      body.line_items[0].quantity = 99; body.coupon_code = "MISSING";
+      return target.$transaction(async tx => {
+        inside = true;
+        try { return await work(tx); } finally { inside = false; }
+      });
+    };
+    const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
+  } });
+  await versionedAcpFixture(client).updateSession("store", "one", body);
+  assert.equal(transactions, 1);
+  const saved = (await repo.getSession("store", "one"))!;
+  assert.equal(saved.cart.items[0].quantity, 2); assert.equal(saved.cart.currentDiscount, 10);
+});
+
+/** Both callers finish their initial server read before either opens its transaction. */
+function concurrentCommercialClient() {
+  let arrivals = 0;
+  let release!: () => void;
+  const ready = new Promise<void>(resolve => { release = resolve; });
+  return new Proxy(prisma, { get(target, key) {
+    if (key === "$transaction") return async (work: (tx: any) => Promise<unknown>) => {
+      if (++arrivals === 2) release();
+      await ready;
+      return target.$transaction(work);
+    };
+    const value = Reflect.get(target, key); return typeof value === "function" ? value.bind(target) : value;
+  } });
+}
+
+integration("atomic ACP patch competing complete updates keep exactly one cart buyer and discount", async () => {
+  await activate(); await checkoutCoupon(); await couponCheckout();
+  const client = concurrentCommercialClient();
+  const results = await Promise.allSettled([2, 3].map(quantity => versionedAcpFixture(client).updateSession("store", "one", {
+    line_items: [{ id: "fixture", quantity }], buyer: { full_name: `Buyer ${quantity}` }, coupon_code: "SAVE5",
+  })));
+  assert.equal(results.filter(x => x.status === "fulfilled").length, 1);
+  assert.match(String((results.find(x => x.status === "rejected") as PromiseRejectedResult).reason), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  const state = await acpCommercialState();
+  const quantity = state.session!.cart.items[0].quantity;
+  assert.equal(state.session!.customer?.fullName, `Buyer ${quantity}`);
+  assert.equal(state.session!.cart.currentDiscount, quantity * 5);
+  assert.equal(state.reservations.length, 1);
+  assert.equal(state.outbox.filter(x => x.eventType === "checkout.cart.updated").length, 1);
+});
+
+integration("atomic ACP patch races with the widget coupon without partial changes or stacking", async () => {
+  await activate(); await checkoutCoupon({ maxUsages: 1 }); const s = await couponCheckout();
+  const client = concurrentCommercialClient();
+  const results = await Promise.allSettled([
+    versionedAcpFixture(client).updateSession("store", "one", { line_items: [{ id: "fixture", quantity: 2 }], coupon_code: "SAVE5" }),
+    applyToSession(s, "SAVE5", client),
+  ]);
+  assert.equal(results.filter(x => x.status === "fulfilled").length, 1);
+  assert.match(String((results.find(x => x.status === "rejected") as PromiseRejectedResult).reason), /CHECKOUT_SESSION_VERSION_CONFLICT/);
+  const state = await acpCommercialState();
+  const quantity = results[0].status === "fulfilled" ? 2 : 1;
+  assert.equal(state.session!.cart.items[0].quantity, quantity);
+  assert.equal(state.session!.cart.currentDiscount, quantity * 5);
+  assert.equal(state.reservations.length, 1); assert.equal(state.reservations[0].status, "applied");
+});
+
+integration("atomic ACP patch races with cancellation without reopening a closed checkout", async () => {
+  await activate(); await checkoutCoupon(); await applyToSession(await couponCheckout());
+  const client = concurrentCommercialClient();
+  const results = await Promise.allSettled([
+    versionedAcpFixture(client).updateSession("store", "one", { line_items: [{ id: "fixture", quantity: 2 }], coupon_code: "SAVE5" }),
+    versionedAcpFixture(client).cancelSession("store", "one"),
+  ]);
+  assert.equal(results.filter(x => x.status === "fulfilled").length, 1);
+  const state = await acpCommercialState();
+  if (results[1].status === "fulfilled") {
+    assert.equal(state.session!.cart.items.length, 0);
+    assert.equal(state.session!.cart.currentDiscount, 0);
+    assert.equal(state.reservations[0].status, "cancelled");
+    assert.equal(state.events.filter(x => x.eventName === "checkout_abandoned").length, 1);
+  } else {
+    assert.equal(state.session!.cart.total, 200); assert.equal(state.session!.cart.currentDiscount, 10);
+    assert.equal(state.reservations[0].status, "applied");
+    assert.equal(state.events.filter(x => x.eventName === "checkout_abandoned").length, 0);
+  }
+});
 
 async function mutateCommercialSession(kind: string, s: CheckoutSession, client = prisma) {
   const repository = new PrismaCheckoutRepository(client);
