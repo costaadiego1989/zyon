@@ -171,7 +171,9 @@ export function RevenueManagerPage(_props: RevenueManagerPageProps) {
                     </div>
                   </div>
                   <div style={{ display: "flex", alignItems: "center", flexWrap: "wrap", gap: 16, font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
-                    <span>Estimativa da IA: <strong>{(review?.expected_lift_percent ?? h.expected_lift_percent).toLocaleString("pt-BR")}%</strong>, ainda não medida</span>
+                    {!review && h.template?.hypothesis_type === "discount_rule"
+                      ? <span>Efeito na conversão: <strong>a medir</strong></span>
+                      : <span>Estimativa da IA: <strong>{(review?.expected_lift_percent ?? h.expected_lift_percent).toLocaleString("pt-BR")}%</strong>, ainda não medida</span>}
                     {review && <span>Versão {review.version}</span>}
                     <span>{new Date(h.created_at).toLocaleDateString("pt-BR")}</span>
                       <div style={{ marginLeft: "auto", display: "flex", gap: 6 }}>

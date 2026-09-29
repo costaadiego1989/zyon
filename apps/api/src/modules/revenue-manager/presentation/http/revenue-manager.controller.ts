@@ -123,7 +123,8 @@ export class RevenueManagerController {
         expected_lift_percent: snap.expected_lift_percent,
         risk_level: snap.risk_level,
         template: { ...snap.template, hypothesis_type: snap.hypothesis_type ?? "prompt",
-          ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}) },
+          ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}),
+          ...(snap.discount_simulation ? { discount_simulation: snap.discount_simulation } : {}) },
         status: snap.status,
         approval_strategy: snap.approval_strategy,
         merchant_approved_at: snap.merchant_approved_at,
@@ -144,7 +145,8 @@ export class RevenueManagerController {
     if (!hypothesis) throw new NotFoundException("Hypothesis not found");
     const snap = hypothesis.snapshot();
     return { ...snap, template: { ...snap.template, hypothesis_type: snap.hypothesis_type ?? "prompt",
-      ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}) } };
+      ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}),
+      ...(snap.discount_simulation ? { discount_simulation: snap.discount_simulation } : {}) } };
   }
 
   // ===== Approve/Reject =====

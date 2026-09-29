@@ -24,6 +24,9 @@ import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/p
 import { StrategyExecutionLedger } from "../infrastructure/strategy-execution-ledger.js";
 import { StrategyMetricsService } from "./strategy-metrics.service.js";
 import { ExperimentMeasurementService } from "../../experiments/application/experiment-measurement.service.js";
+import { DiscountRuleHypothesisService } from "../domain/services/discount-rule-hypothesis.service.js";
+import { loadDiscountCohorts } from "../infrastructure/discount-cohort.reader.js";
+import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 
 // Destructive setup is strictly restricted to this dedicated local fixture DB.
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -64,6 +67,98 @@ const recommendation = (prompt = "Pergunte qual etapa precisa de ajuda.") => ({
 const service = (generate: (request: HypothesisGenerationRequest) => Promise<any> = async () => recommendation("Explique os próximos passos."),
   currentPrompt: () => Promise<string | undefined> = async () => baseline) => new StrategyReviewService(prisma,
     { getRules: id => context.getRules(id), getCurrentPrompt: currentPrompt }, { generate }, billing as never);
+
+function discountDraft(f: { merchantId: string; observation: { id: string } }) {
+  const candidate = new DiscountRuleHypothesisService().generate([{ intent: "price_sensitive", sampleSize: 30,
+    conversionRate: .05, carts: Array.from({ length: 30 }, () => ({ total: 100, currency: "BRL",
+      items: [{ sku: "sku", name: "Produto", price: 100, cost: 40, quantity: 1 }] })) }],
+    { ...DEFAULT_MERCHANT_RULES, autonomousEngineEnabled: true, maxDiscountPercent: 10, minimumMarginPercent: 30 })!;
+  return HypothesisEntity.create({ merchant_id: f.merchantId, observation_id: f.observation.id,
+    ...recommendation(), hypothesis_text: candidate.rationale, expected_lift_percent: 0, risk_level: "medium",
+    approval_strategy: "manual", hypothesis_type: "discount_rule", discount_rule_json: candidate.rule,
+    discount_simulation: candidate.simulation });
+}
+
+test("discount simulation persists once across replicas and exposes the same frozen report", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  const drafts = Array.from({ length: 6 }, () => discountDraft(f));
+  await Promise.all(drafts.map(draft => new PrismaHypothesisRepository(prisma).save(draft)));
+  const stored = await f.repo.findByObservation(f.observation.id);
+  assert.equal(stored.length, 1); assert.equal(stored[0].status, "pending_review");
+  assert.deepEqual(stored[0].snapshot().discount_simulation, drafts[0].snapshot().discount_simulation);
+  assert.equal(await prisma.merchantNotification.count({ where: { merchantId: "store" } }), 1);
+  assert.equal(await prisma.revenueStrategy.count(), 0);
+  assert.equal(await prisma.promptExperiment.count(), 0);
+});
+
+test("discount simulation dedup is isolated by merchant and observation and survives rejection", { skip: !enabled }, async () => {
+  const a = await fixture("store", { publish: false }), b = await fixture("other", { publish: false });
+  await a.repo.save(discountDraft(a)); await b.repo.save(discountDraft(b));
+  const [saved] = await a.repo.findByObservation(a.observation.id);
+  await a.repo.save(saved.reject("Prefiro aguardar")); await a.repo.save(discountDraft(a));
+  assert.equal((await a.repo.findByObservation(a.observation.id)).length, 1);
+  assert.equal((await a.repo.findByObservation(a.observation.id))[0].status, "rejected");
+  const { id: _, ...observation } = await prisma.revenueManagerObservation.findUniqueOrThrow({ where: { id: a.observation.id } });
+  const next = await prisma.revenueManagerObservation.create({ data: { ...observation, fingerprint: "next-observation" } });
+  await a.repo.save(discountDraft({ merchantId: "store", observation: next }));
+  assert.equal(await prisma.revenueManagerHypothesis.count(), 3);
+  assert.equal(await prisma.merchantNotification.count({ where: { merchantId: "store", read: false } }), 1);
+  assert.equal(await b.repo.findById(saved.id, "other"), null);
+});
+
+test("discount simulation report and suggestion roll back when notification persistence fails", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  const broken = new Proxy(prisma, { get(target, key) {
+    if (key !== "$transaction") return Reflect.get(target, key);
+    return (fn: any) => target.$transaction(tx => fn(new Proxy(tx, { get(inner, field) {
+      if (field === "merchantNotification") return { upsert: async () => { throw new Error("notice unavailable"); } };
+      return Reflect.get(inner, field);
+    } })));
+  } });
+  const draft = discountDraft(f);
+  await assert.rejects(new PrismaHypothesisRepository(broken).save(draft), /notice unavailable/);
+  assert.equal(await prisma.revenueManagerHypothesis.count(), 0);
+  assert.equal(await prisma.merchantNotification.count(), 0);
+  await f.repo.save(draft);
+  assert.equal(await prisma.revenueManagerHypothesis.count(), 1);
+});
+
+test("discount simulation reader uses mature buyers, consent, paid windows and tenant catalog in PostgreSQL", { skip: !enabled }, async () => {
+  await fixture("store", { publish: false }); await fixture("other", { publish: false });
+  await prisma.$executeRawUnsafe("TRUNCATE customer_intent_records, buyer_intent_memory_consents");
+  const now = new Date("2026-09-29T00:00:00Z"), createdAt = new Date("2026-09-20T00:00:00Z");
+  const variants: string[] = [];
+  for (const [merchantId, costInCents] of [["store", 4000], ["other", 0], ["store", null]] as const) {
+    const product = await prisma.product.create({ data: { merchantId, name: "Produto" } });
+    const v = await prisma.productVariant.create({ data: { productId: product.id, sku: `sku-${variants.length}` } });
+    await prisma.productPrice.create({ data: { variantId: v.id, basePriceInCents: 10000, costInCents, currency: "BRL" } });
+    variants.push(v.id);
+  }
+  for (let i = 0; i < 35; i++) {
+    const buyer = `simulation-buyer-${i}`;
+    await prisma.buyerIntentMemoryConsent.create({ data: { merchantId: "store", globalUserId: buyer,
+      optedIn: i !== 31, expiresAt: new Date(i === 34 ? "2026-09-28" : "2026-10-30") } });
+    await prisma.customerIntentRecord.create({ data: { merchantId: "store", globalUserId: buyer,
+      primaryIntent: "price_sensitive", urgency: "low", budgetTier: "standard", categoryFocus: [], painPoints: [],
+      conversionLikelihoodPct: 5, behavioralSignalsJson: {}, generatedAt: new Date("2026-09-19") } });
+    await prisma.checkoutSession.create({ data: { id: `simulation-${i}`, merchantId: "store", sessionId: `simulation-${i}`,
+      globalUserId: buyer, conversationId: `simulation-${i}`, cohort: "treatment",
+      createdAt: i === 30 ? new Date("2026-09-25") : createdAt, updatedAt: createdAt,
+      cart: { currency: "BRL", total: 999, items: [{ variantId: variants[i === 32 ? 1 : i === 33 ? 2 : 0],
+        price: 999, cost: 0, quantity: 1 }] } } });
+  }
+  await prisma.checkoutSession.create({ data: { id: "simulation-repeat", merchantId: "store", sessionId: "simulation-repeat",
+    globalUserId: "simulation-buyer-0", conversationId: "repeat", createdAt: new Date(createdAt.getTime() + 1000), updatedAt: createdAt,
+    cart: { currency: "BRL", items: [{ variantId: variants[0], quantity: 1 }] } } });
+  for (let i = 0; i < 3; i++) await prisma.completedOrder.create({ data: { merchantId: "store", sessionId: `simulation-${i}`,
+    externalOrderId: `simulation-order-${i}`, currency: "BRL", orderTotal: 100, status: i === 1 ? "pending" : "approved",
+    completedAt: i === 2 ? new Date("2026-09-27") : new Date("2026-09-21") } });
+  const stats = await prisma.$transaction(tx => loadDiscountCohorts(tx, "store", now, 30), { isolationLevel: "RepeatableRead" });
+  assert.equal(stats.length, 1); assert.equal(stats[0].sampleSize, 30); assert.equal(stats[0].conversionRate, 1 / 30);
+  assert.ok(stats[0].carts.every(cart => cart.total === 100 && cart.items[0].cost === 40));
+  assert.ok(new DiscountRuleHypothesisService().generate(stats, { ...DEFAULT_MERCHANT_RULES,
+    autonomousEngineEnabled: true, maxDiscountPercent: 20, minimumMarginPercent: 35 }));
+});
 before(async () => { if (enabled) await prisma.$connect(); });
 after(async () => { await prisma.$disconnect(); process.env = env; });
 beforeEach(async () => {

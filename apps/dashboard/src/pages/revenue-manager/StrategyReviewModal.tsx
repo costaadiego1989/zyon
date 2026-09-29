@@ -23,7 +23,8 @@ export function StrategyRuleDetails({ rule }: { rule: HypothesisDiscountRule }) 
     </p>
     {rule.conditions.length ? <ul>{rule.conditions.map((c, i) => <li key={i}>
       {FIELDS[c.field] ?? c.field} {OPS[c.operator] ?? c.operator}{" "}
-      {c.field === "cart_total" && typeof c.value === "number" ? currency(c.value) : String(c.value)}
+      {c.field === "cart_total" && typeof c.value === "number" ? currency(c.value)
+        : typeof c.value === "boolean" ? c.value ? "Sim" : "Não" : String(c.value)}
     </li>)}</ul> : <p>Válida sem condições adicionais.</p>}
   </section>;
 }
@@ -73,6 +74,7 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose, approva
     } finally { setBusy(false); }
   };
   const rule = hypothesis?.template?.discount_rule_json;
+  const simulation = hypothesis?.template?.discount_simulation;
   const canApplyDirect = hypothesis?.template?.hypothesis_type === "discount_rule" && !!rule;
   const a = variant(hypothesis?.template?.variant_a);
   const b = variant(hypothesis?.template?.variant_b);
@@ -108,8 +110,16 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose, approva
           <div className="strategy-review-details-body">
             <section className="strategy-detail-section"><h3>Por que foi sugerida</h3><p>{hypothesis.reasoning || "Proposta para comparar com os resultados atuais da loja."}</p></section>
             <dl className="strategy-review-facts"><div><dt>Risco estimado</dt><dd>{RISK[hypothesis.risk_level]}</dd></div>
-              <div><dt>Impacto estimado</dt><dd>{hypothesis.expected_lift_percent > 0 ? "+" : ""}{hypothesis.expected_lift_percent.toLocaleString("pt-BR")}%</dd></div></dl>
-            <p className="strategy-review-note">Estimativas do motor, sujeitas à validação pelos resultados.</p>
+              <div><dt>{rule ? "Efeito na conversão" : "Impacto estimado"}</dt><dd>{rule ? "A medir"
+                : `${hypothesis.expected_lift_percent > 0 ? "+" : ""}${hypothesis.expected_lift_percent.toLocaleString("pt-BR")}%`}</dd></div></dl>
+            {simulation?.definition === "discount-catalog-replay-v1" && <section className="strategy-detail-section" aria-label="Simulação do desconto">
+              <h3>Simulação do desconto</h3>
+              <p>{simulation.sampleSize.toLocaleString("pt-BR")} compradores com janela de sete dias encerrada. Conversão observada: {(simulation.observedConversionRate * 100).toLocaleString("pt-BR", { maximumFractionDigits: 1 })}%.</p>
+              <p>Menor margem estimada entre os carrinhos: {simulation.minimumProjectedMarginPercent.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%. Preços e custos do catálogo atual, com taxa de pagamento estimada de {simulation.paymentFeeAssumptionPercent}%.</p>
+              <p>Se todos esses carrinhos recebessem a oferta, os descontos somariam {currency(simulation.replayDiscountTotalCents / 100)}. Esse valor não é uma previsão de gasto nem um orçamento reservado.</p>
+              <p className="strategy-review-note">Tributos, frete, estornos e custo de IA não estão incluídos. A simulação não comprova lucro ou aumento de conversão.</p>
+            </section>}
+            {!rule && <p className="strategy-review-note">Estimativas do motor, sujeitas à validação pelos resultados.</p>}
             {!rule && <section className="strategy-detail-section">
               <h3>Abordagem proposta</h3><p className="strategy-review-copy">{b.system_prompt || "Detalhes da abordagem não disponíveis."}</p>
               <h3>Abordagem atual</h3><p className="strategy-review-copy">{a.system_prompt || "Abordagem atual da loja."}</p>

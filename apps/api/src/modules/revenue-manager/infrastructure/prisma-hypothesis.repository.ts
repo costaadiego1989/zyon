@@ -14,6 +14,7 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
       ...snap.template,
       hypothesis_type: snap.hypothesis_type ?? "prompt",
       ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}),
+      ...(snap.discount_simulation ? { discount_simulation: snap.discount_simulation } : {}),
     } as unknown as Prisma.InputJsonValue;
     await this.prisma.$transaction(async (tx) => {
       if (analysisContext) {
@@ -25,6 +26,15 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
       await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snap.merchant_id} FOR UPDATE`;
       const existing = await tx.revenueManagerHypothesis.findUnique({ where: { id: snap.id } });
       if (existing && existing.merchantId !== snap.merchant_id) throw new Error("HYPOTHESIS_NOT_FOUND");
+      // Merchant lock serializes replicas. Dedup belongs to the store/observation,
+      // never to a long-lived generator instance shared across stores.
+      if (!existing && snap.hypothesis_type === "discount_rule" && snap.discount_rule_json) {
+        const duplicate = await tx.revenueManagerHypothesis.findFirst({ where: {
+          merchantId: snap.merchant_id, observationId: snap.observation_id,
+          templateJson: { path: ["discount_rule_json", "id"], equals: snap.discount_rule_json.id },
+        } });
+        if (duplicate) return;
+      }
       // Versioned proposals can only be decided with an exact version and hash.
       // Preserve legacy IDs/reads, but do not let a stale legacy action bypass review.
       if (existing && !analysisContext && await tx.revenueStrategy.findFirst({ where: { id: snap.id, merchantId: snap.merchant_id } })) {
@@ -153,6 +163,7 @@ export class PrismaHypothesisRepository implements HypothesisRepositoryPort {
       template: tpl as HypothesisSnapshot["template"],
       hypothesis_type: hypothesisType,
       ...(discountRuleJson ? { discount_rule_json: discountRuleJson } : {}),
+      ...(tpl.discount_simulation ? { discount_simulation: tpl.discount_simulation as HypothesisSnapshot["discount_simulation"] } : {}),
       status: rec.status as HypothesisSnapshot["status"],
       approval_strategy: rec.approvalStrategy as HypothesisSnapshot["approval_strategy"],
       merchant_approved_at: rec.merchantApprovedAt?.toISOString(),

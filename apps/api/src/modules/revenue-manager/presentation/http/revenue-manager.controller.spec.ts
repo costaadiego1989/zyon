@@ -16,6 +16,20 @@ function controller(enqueueMerchantRun: (merchantId: string) => Promise<string>)
 
 const request = { user: { merchantId: "merchant-a", email: "owner@example.com", role: "owner" } };
 
+test("discount report remains attached to authenticated discovery and detail reads", async () => {
+  const simulation = { definition: "discount-catalog-replay-v1", sampleSize: 30, expectedLiftStatus: "not_estimated" };
+  const row = { snapshot: () => ({ id: "draft", template: {}, hypothesis_type: "discount_rule", discount_rule_json: { id: "rule" },
+    discount_simulation: simulation, expected_lift_percent: 0 }) };
+  const instance = new RevenueManagerController({} as never, {} as never, {} as never,
+    { findByMerchant: async (merchantId: string) => { assert.equal(merchantId, "merchant-a"); return [row]; },
+      findById: async (id: string, merchantId: string) => { assert.equal(id, "draft"); assert.equal(merchantId, "merchant-a"); return row; },
+    } as never, {} as never, {} as never);
+  const list = await instance.listHypotheses(request);
+  const detail = await instance.getHypothesis(request, "draft");
+  assert.deepEqual((list[0].template as any).discount_simulation, simulation);
+  assert.deepEqual(detail.template.discount_simulation, simulation);
+});
+
 test("strategy discovery adds the current review summary within the authenticated store", async () => {
   const review = { version: 2, status: "revision_pending", title: "Current proposal", expires_at: new Date(), expected_lift_percent: 2 };
   const instance = new RevenueManagerController({} as never, {} as never, {} as never,

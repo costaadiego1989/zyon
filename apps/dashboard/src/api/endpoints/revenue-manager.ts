@@ -41,6 +41,14 @@ export interface HypothesisDiscountRule {
 export interface HypothesisTemplate {
   hypothesis_type?: string;
   discount_rule_json?: HypothesisDiscountRule;
+  discount_simulation?: {
+    definition: "discount-catalog-replay-v1";
+    sampleSize: number;
+    observedConversionRate: number;
+    minimumProjectedMarginPercent: number;
+    replayDiscountTotalCents: number;
+    paymentFeeAssumptionPercent: number;
+  };
   [key: string]: unknown;
 }
 

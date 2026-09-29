@@ -9,6 +9,7 @@ import { ObserveMetricsUseCase } from "../../application/use-cases/observe-metri
 import { GenerateHypothesisUseCase } from "../../application/use-cases/generate-hypothesis.use-case.js";
 import { CreateExperimentFromHypothesisUseCase } from "../../application/use-cases/create-experiment-from-hypothesis.use-case.js";
 import { DiscountRuleHypothesisService } from "../../domain/services/discount-rule-hypothesis.service.js";
+import { loadDiscountCohorts } from "../discount-cohort.reader.js";
 import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
 import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
 
@@ -33,34 +34,10 @@ interface DailyObservationJobData {
   merchantId?: string;
 }
 
-interface CartItemSnapshot {
-  variantId?: unknown;
-  price?: unknown;
-  cost?: unknown;
-  quantity?: unknown;
-}
-
-interface CartSnapshot {
-  items?: unknown;
-  currentDiscount?: unknown;
-}
-
-interface SessionMarginInput {
-  globalUserId: string;
-  createdAt: Date;
-  cart: unknown;
-  completedOrders: { id: string }[];
-}
-
 function ruleOptimizerLookbackDays(): number {
   const configured = Number(process.env.RULE_OPTIMIZER_LOOKBACK_DAYS);
   if (!Number.isFinite(configured)) return DEFAULT_RULE_OPTIMIZER_LOOKBACK_DAYS;
   return Math.min(Math.max(Math.floor(configured), 7), MAX_RULE_OPTIMIZER_LOOKBACK_DAYS);
-}
-
-function finiteNonNegative(value: unknown): number | null {
-  const parsed = typeof value === "number" ? value : Number(value);
-  return Number.isFinite(parsed) && parsed >= 0 ? parsed : null;
 }
 
 function redisConnection(): RedisOptions | null {
@@ -338,8 +315,11 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
         return;
       }
 
-      // Fetch cohort stats aggregated by intent (conversion × margin per cohort).
+      // Reprice mature, consented buyer observations from this store's catalog.
       const cohortStats = await this.loadCohortStats(merchantId);
+      const existing = await this.hypothesisRepository.findByObservation(observationId);
+      const excluded = new Set(existing.filter(h => h.merchant_id === merchantId)
+        .flatMap(h => h.discount_rule_json ? [h.discount_rule_json.id] : []));
 
       // ADI-F2-01..03: call DiscountRuleHypothesisService to generate a safe candidate.
       // Prisma Decimal caps are coerced to number for the pure domain service.
@@ -350,7 +330,8 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
           minimumMarginPercent: Number(merchantRules.minimumMarginPercent),
           autonomousEngineEnabled: merchantRules.autonomousEngineEnabled,
         } as unknown as Parameters<DiscountRuleHypothesisService["generate"]>[1],
-        parseInt(process.env.RULE_OPTIMIZER_MIN_SAMPLES ?? "30", 10)
+        Number(process.env.RULE_OPTIMIZER_MIN_SAMPLES ?? "30"),
+        excluded,
       );
 
       if (!candidate) {
@@ -363,12 +344,14 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
         merchant_id: merchantId,
         observation_id: observationId,
         hypothesis_text: candidate.rationale,
-        reasoning: `Auto-generated discount rule for ${candidate.rule.name}`,
-        expected_lift_percent: candidate.projectedLiftPercent,
-        risk_level: "low",
+        reasoning: "Simulação com preços e custos atuais do catálogo e taxa de pagamento estimada de 4%. "
+          + "Não inclui tributos, frete, estornos ou custo de IA; não comprova lucro nem aumento de conversão.",
+        expected_lift_percent: 0, // Legacy numeric column; no uplift estimate is asserted for discount drafts.
+        risk_level: "medium",
         approval_strategy: "manual", // ADI-F3-01/INV-08: always merchant-approved
         hypothesis_type: "discount_rule",
         discount_rule_json: candidate.rule,
+        discount_simulation: candidate.simulation,
         template: {
           name: "discount_rule_system",
           description: "System-generated discount rule",
@@ -382,7 +365,7 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
 
       // The repository persists the suggestion and its notification atomically.
       this.logger.log(
-        `Merchant ${merchantId}: generated discount rule hypothesis ${hypothesisEntity.id} (${candidate.rule.name}), sent notification`
+        `Merchant ${merchantId}: processed discount draft ${candidate.fingerprint} for observation ${observationId}`
       );
     } catch (err) {
       this.logger.warn(
@@ -392,115 +375,8 @@ export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
     }
   }
 
-  /**
-   * Load cohort stats (conversion × margin per intent) for the discount rule
-   * generator. Returns empty when analytics are unavailable, in which case the
-   * generator produces no candidate (safe no-op).
-   *
-   * TODO: wire to a real cohort-stats query once the intent × conversion read
-   * model is available. Kept as a seam so the integration is testable now.
-   */
-  private async loadCohortStats(merchantId: string): Promise<Parameters<DiscountRuleHypothesisService["generate"]>[0]> {
-    const windowEnd = new Date();
-    const windowStart = new Date(windowEnd);
-    windowStart.setUTCDate(windowStart.getUTCDate() - ruleOptimizerLookbackDays());
-
-    const [intentRecords, sessions] = await Promise.all([
-      this.prisma.customerIntentRecord.findMany({
-        where: {
-          merchantId,
-          consent: { is: { optedIn: true, expiresAt: { gt: windowEnd } } },
-        },
-        orderBy: { generatedAt: "desc" },
-        select: { globalUserId: true, primaryIntent: true, generatedAt: true },
-        take: 10_000,
-      }),
-      this.prisma.checkoutSession.findMany({
-        where: { merchantId, createdAt: { gte: windowStart, lte: windowEnd } },
-        select: {
-          globalUserId: true,
-          createdAt: true,
-          cart: true,
-          completedOrders: { select: { id: true } },
-        },
-        take: 10_000,
-      }),
-    ]);
-
-    const intentsByBuyer = new Map<string, typeof intentRecords>();
-    for (const record of intentRecords) {
-      const records = intentsByBuyer.get(record.globalUserId) ?? [];
-      records.push(record);
-      intentsByBuyer.set(record.globalUserId, records);
-    }
-
-    const eligibleSessions = (sessions as SessionMarginInput[]).flatMap((session) => {
-      const intent = intentsByBuyer.get(session.globalUserId)?.find(
-        (record) => record.generatedAt <= session.createdAt,
-      )?.primaryIntent;
-      if (!intent) return [];
-      const cart = session.cart as CartSnapshot;
-      if (!Array.isArray(cart?.items) || cart.items.length === 0) return [];
-      return [{ ...session, intent, cart }];
-    });
-
-    const variantIds = [...new Set(
-      eligibleSessions.flatMap((session) => (session.cart.items as CartItemSnapshot[])
-        .map((item) => typeof item.variantId === "string" ? item.variantId : null)
-        .filter((variantId): variantId is string => variantId !== null)),
-    )];
-    const catalogCosts = variantIds.length > 0
-      ? await this.prisma.productPrice.findMany({
-          where: {
-            variantId: { in: variantIds },
-            costInCents: { not: null },
-            variant: { product: { merchantId } },
-          },
-          select: { variantId: true, costInCents: true },
-        })
-      : [];
-    const costByVariantId = new Map(catalogCosts.flatMap((price) => price.costInCents === null ? [] : [[price.variantId, price.costInCents / 100] as const]));
-
-    const cohorts = new Map<string, { sampleSize: number; converted: number; revenue: number; cost: number }>();
-    for (const session of eligibleSessions) {
-      const items = session.cart.items as CartItemSnapshot[];
-      let revenueBeforeDiscount = 0;
-      let totalCost = 0;
-      let hasCompleteCost = true;
-
-      for (const item of items) {
-        const unitPrice = finiteNonNegative(item.price);
-        const quantity = finiteNonNegative(item.quantity);
-        const itemCost = finiteNonNegative(item.cost)
-          ?? (typeof item.variantId === "string" ? costByVariantId.get(item.variantId) ?? null : null);
-        if (unitPrice === null || quantity === null || quantity <= 0 || itemCost === null) {
-          hasCompleteCost = false;
-          break;
-        }
-        revenueBeforeDiscount += unitPrice * quantity;
-        totalCost += itemCost * quantity;
-      }
-
-      const discount = finiteNonNegative(session.cart.currentDiscount) ?? 0;
-      const revenue = Math.max(0, revenueBeforeDiscount - discount);
-      if (!hasCompleteCost || revenue <= 0) continue;
-
-      const cohort = cohorts.get(session.intent) ?? { sampleSize: 0, converted: 0, revenue: 0, cost: 0 };
-      cohort.sampleSize += 1;
-      cohort.converted += session.completedOrders.length > 0 ? 1 : 0;
-      cohort.revenue += revenue;
-      cohort.cost += totalCost;
-      cohorts.set(session.intent, cohort);
-    }
-
-    return [...cohorts.entries()].flatMap(([intent, cohort]) => {
-      if (cohort.revenue <= 0 || cohort.cost > cohort.revenue) return [];
-      return [{
-        intent,
-        sampleSize: cohort.sampleSize,
-        conversionRate: cohort.converted / cohort.sampleSize,
-        avgMarginPercent: Number((((cohort.revenue - cohort.cost) / cohort.revenue) * 100).toFixed(4)),
-      }];
-    });
+  private async loadCohortStats(merchantId: string) {
+    return this.prisma.$transaction(tx => loadDiscountCohorts(tx, merchantId, new Date(), ruleOptimizerLookbackDays()),
+      { isolationLevel: "RepeatableRead", timeout: 30_000 });
   }
 }
