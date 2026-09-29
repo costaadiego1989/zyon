@@ -2581,7 +2581,7 @@ model CartRecoveryStrategyPref {
   id         String   @id @default(cuid())
   merchantId String   @unique @map("merchant_id")
   strategies Json     @default("{}")
-  config     Json?    @default("{\"active_strategy\":\"offer_coupon\"}")
+  config     Json?    @default("{\"active_strategy\":\"personalized_cross_sell\"}")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
 
