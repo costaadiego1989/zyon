@@ -13,6 +13,8 @@ export interface MerchantNotificationContact {
   merchantName: string;
   ownerEmail?: string;
   supportEmail?: string;
+  budgetEmail?: string;
+  budgetWhatsapp?: string;
   whatsappPhone?: string;
   whatsappConnected: boolean;
 }

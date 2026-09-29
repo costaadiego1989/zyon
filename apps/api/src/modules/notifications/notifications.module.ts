@@ -30,6 +30,9 @@ import { OrderQuotaNoticeSenderAdapter } from "./infrastructure/adapters/order-q
 import { OrderQuotaNoticeValidityService } from "./application/services/order-quota-notice-validity.service.js";
 import { DeliverOrderQuotaNoticeUseCase } from "./application/use-cases/deliver-order-quota-notice.use-case.js";
 import { OrderQuotaNoticeDeliveryJob } from "./application/services/order-quota-notice-delivery.job.js";
+import { BudgetRequestNotificationJob } from "./application/services/budget-request-notification.job.js";
+import { BudgetRequestNotificationSender } from "./infrastructure/adapters/budget-request-notification.sender.js";
+import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repositories/prisma-budget-request-notification.repository.js";
 
 @Module({
   imports: [PersistenceModule, PaymentModule, WhatsAppTemplatesModule],
@@ -57,6 +60,9 @@ import { OrderQuotaNoticeDeliveryJob } from "./application/services/order-quota-
     { provide: ORDER_QUOTA_NOTICE_VALIDITY, useClass: OrderQuotaNoticeValidityService },
     DeliverOrderQuotaNoticeUseCase,
     OrderQuotaNoticeDeliveryJob,
+    PrismaBudgetRequestNotificationRepository,
+    BudgetRequestNotificationSender,
+    BudgetRequestNotificationJob,
     PlanNoticeJob, PlanNoticeSender, PrismaPlanNoticeRepository,
     { provide: MERCHANT_NOTIFICATION_INBOX_PORT, useClass: PrismaMerchantNotificationInboxRepository },
   ],

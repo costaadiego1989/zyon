@@ -15,6 +15,7 @@ export class ListBudgetRequestsUseCase {
       where: { merchantId },
       orderBy: { createdAt: "desc" },
       take: 50,
+      include: { deliveries: { orderBy: { channel: "asc" } } },
     });
     return requests.map((r) => ({
       id: r.id,
@@ -27,6 +28,14 @@ export class ListBudgetRequestsUseCase {
       note: r.note,
       status: r.status,
       createdAt: r.createdAt.toISOString(),
+      deliveries: r.deliveries.map((delivery) => ({
+        channel: delivery.channel,
+        status: delivery.status,
+        attempts: delivery.attempts,
+        lastError: delivery.lastError,
+        providerMessageId: delivery.providerMessageId,
+        updatedAt: delivery.updatedAt.toISOString(),
+      })),
     }));
   }
 }

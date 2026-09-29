@@ -23,6 +23,7 @@ export interface BudgetRequestDto {
   note: string | null;
   status: string;
   createdAt: string;
+  deliveries?: Array<{ channel: string; status: string; attempts: number; lastError: string | null; providerMessageId: string | null; updatedAt: string }>;
 }
 
 @Injectable()
@@ -62,6 +63,9 @@ export class CreateBudgetRequestUseCase {
         body: "Uma solicitação foi recebida. Confira os itens e dados de contato na aba Orçamento em Configurações da Loja.",
         metadata: { budgetId: created.id, href: "#store-settings" },
       } });
+      await tx.budgetRequestNotificationDelivery.createMany({
+        data: ["email", "whatsapp"].map((channel) => ({ budgetRequestId: created.id, channel })),
+      });
       return created;
     });
 

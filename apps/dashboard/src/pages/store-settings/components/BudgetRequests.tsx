@@ -6,8 +6,11 @@ type Request = {
   id: string; status: string; customerName: string; customerEmail: string;
   customerPhone: string; total: number; note?: string;
   items: Array<{ variantId: string; productName: string; quantity: number }>;
+  deliveries?: Array<{ channel: string; status: string; attempts: number; lastError?: string | null }>;
 };
 const statusLabels: Record<string, string> = { pending: "Pendente", approved: "Aprovado", rejected: "Recusado", responded: "Respondido" };
+const deliveryLabels: Record<string, string> = { pending: "Aguardando envio", processing: "Preparando envio", sending: "Enviando", accepted: "Aceito pelo provedor", delivered: "Entregue", retryable_failed: "Nova tentativa programada", skipped: "Não configurado", failed: "Falhou", unknown: "Confirmação pendente" };
+const channelLabels: Record<string, string> = { email: "E-mail", whatsapp: "WhatsApp" };
 
 export function BudgetRequests() {
   const api = useApi();
@@ -45,6 +48,12 @@ export function BudgetRequests() {
       <p>{request.customerEmail} · {request.customerPhone}</p>
       <ul>{request.items.map((item, index) => <li key={`${item.variantId}-${index}`}>{item.quantity} × {item.productName}</li>)}</ul>
       {request.note && <p>{request.note}</p>}
+      {request.deliveries?.length ? <div aria-label="Status das notificações" style={{ marginTop: 12, paddingTop: 12, borderTop: "1px solid var(--color-border)", fontSize: 12 }}>
+        <strong>Notificações</strong>
+        {request.deliveries.map((delivery) => <p key={delivery.channel} style={{ margin: "5px 0" }}>
+          {channelLabels[delivery.channel] ?? delivery.channel}: {deliveryLabels[delivery.status] ?? delivery.status}{delivery.lastError ? ` (${delivery.lastError})` : ""}
+        </p>)}
+      </div> : null}
       {request.status === "pending" && <div className="button-row">
         <Button variant="primary" disabled={busy !== null} onClick={() => void update(request.id, "approved")}>Aprovar orçamento</Button>
         <Button variant="ghost" disabled={busy !== null} onClick={() => void update(request.id, "rejected")}>Recusar orçamento</Button>

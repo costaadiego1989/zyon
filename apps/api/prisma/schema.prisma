@@ -2107,10 +2107,30 @@ model BudgetRequest {
   updatedAt     DateTime @updatedAt @map("updated_at")
 
   merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  deliveries BudgetRequestNotificationDelivery[]
 
   @@index([merchantId, createdAt])
   @@index([merchantId, status])
   @@map("budget_requests")
+}
+
+model BudgetRequestNotificationDelivery {
+  id String @id @default(cuid())
+  budgetRequestId String @map("budget_request_id")
+  channel String
+  status String @default("pending")
+  attempts Int @default(0)
+  nextAttemptAt DateTime @default(now()) @map("next_attempt_at")
+  leaseUntil DateTime? @map("lease_until")
+  providerMessageId String? @map("provider_message_id")
+  lastError String? @map("last_error")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  budgetRequest BudgetRequest @relation(fields: [budgetRequestId], references: [id], onDelete: Cascade)
+
+  @@unique([budgetRequestId, channel], map: "budget_request_notification_deliveries_channel")
+  @@index([status, nextAttemptAt, leaseUntil], map: "budget_request_notification_deliveries_queue")
+  @@map("budget_request_notification_deliveries")
 }
 
 // ─── A/B Testing: Prompt Experiments (ab-testing-prompts spec) ────────────────

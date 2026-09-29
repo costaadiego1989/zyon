@@ -16,15 +16,17 @@ function fixture() {
   let merchant: any = { id: "merchant", name: "Loja", budgetModeEnabled: false, storeSettings: { social: { instagram: "https://example.test/store" } }, users: [] };
   const budgets: any[] = [];
   const notifications: any[] = [];
+  const deliveries: any[] = [];
   const prisma: any = {
     merchant: { findUnique: async ({ where }: any) => where.id === merchant.id ? merchant : null, update: async ({ data }: any) => (merchant = { ...merchant, ...data }) },
     merchantRule: { findUnique: async () => null },
     budgetRequest: { create: async ({ data }: any) => { const row = { ...data, id: "budget-1", createdAt: new Date() }; budgets.push(row); return row; } },
     merchantNotification: { create: async ({ data }: any) => { notifications.push(data); return data; } },
+    budgetRequestNotificationDelivery: { createMany: async ({ data }: any) => { deliveries.push(...data); return { count: data.length }; } },
     $transaction: async (run: any) => run(prisma),
   };
   const repo = new PrismaMerchantRepository(prisma);
-  return { prisma, repo, budgets, notifications, settings: new UpdateMerchantThemeUseCase(repo) };
+  return { prisma, repo, budgets, notifications, deliveries, settings: new UpdateMerchantThemeUseCase(repo) };
 }
 
 test("budget settings survive reload, preserve other settings, and feed the public widget", async () => {
@@ -71,6 +73,7 @@ test("quote submission uses the authorized server cart and persists buyer contac
   assert.deepEqual(result.items, [{ variantId: "variant", productName: "Produto", quantity: 2, price: 125 }]);
   assert.equal(f.notifications[0].merchantId, "merchant");
   assert.equal(f.notifications[0].metadata.budgetId, result.id);
+  assert.deepEqual(f.deliveries.map((delivery) => delivery.channel).sort(), ["email", "whatsapp"]);
   assert.equal(cleared, true);
 });
 
