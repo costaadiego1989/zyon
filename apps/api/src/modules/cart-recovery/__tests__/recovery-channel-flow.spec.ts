@@ -95,6 +95,7 @@ for (const strategy of strategies) for (const scenario of scenarios) {
     }, { send: async () => { bubble++; return { status: "accepted" }; } }, {
       send: async (request) => {
         assert.equal(request.to, "buyer@example.invalid");
+        assert.equal(request.merchantId, session.merchantId);
         assert.match(request.html, /Test shop/);
         assert.match(request.html, /Retomar minha compra/);
         assert.ok(request.html.includes(`href="${recoveryLink.replace(/&/g, "&amp;")}"`));

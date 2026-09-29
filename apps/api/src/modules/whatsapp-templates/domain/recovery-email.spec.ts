@@ -2,15 +2,17 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderRecoveryEmail } from "./recovery-email.js";
 import { prepareRecoveryWhatsApp, RECOVERY_TEMPLATE_DEFAULTS, renderRecoveryText } from "./recovery-template-content.js";
+import { MERCHANT_EMAIL_FOOTER_SLOT, MERCHANT_EMAIL_HEADER_SLOT } from "../../../shared/email/merchant-email-branding.js";
 
 test("recovery email renders merchant identity, escaped copy and a single primary CTA", () => {
   const html = renderRecoveryEmail('Olá <Ana>!\n\nhttps://shop.example/cart?a=1&b=2\n\nEquipe <Loja>', 'Casa & Aurora', 'https://shop.example/cart?a=1&b=2');
-  assert.match(html, /Casa &amp; Aurora/);
   assert.match(html, /Olá &lt;Ana&gt;/);
   assert.match(html, /Equipe &lt;Loja&gt;/);
   assert.equal(html.split('Retomar minha compra').length - 1, 1);
   assert.match(html, /href="https:\/\/shop.example\/cart\?a=1&amp;b=2"/);
   assert.match(html, /max-width:600px/);
+  assert.match(html, new RegExp(MERCHANT_EMAIL_HEADER_SLOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
+  assert.match(html, new RegExp(MERCHANT_EMAIL_FOOTER_SLOT.replace(/[.*+?^${}()|[\]\\]/g, "\\$&")));
   assert.doesNotMatch(html, /<Ana>|<Loja>/);
 });
 

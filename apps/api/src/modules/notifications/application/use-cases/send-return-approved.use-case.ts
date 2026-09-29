@@ -15,6 +15,7 @@ export class SendReturnApprovedUseCase {
 
     await this.emailSender.send({
       to: event.buyerEmail,
+      merchantId: event.merchantId,
       subject: `Sua Devolução Foi Aprovada`,
       html,
       requireDelivery: true,

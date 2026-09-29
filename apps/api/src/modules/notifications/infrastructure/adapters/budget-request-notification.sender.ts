@@ -25,7 +25,7 @@ export class BudgetRequestNotificationSender {
     return { status: "skipped", reason: "unsupported_channel" };
   }
 
-  private prepareEmail(request: MerchantBudgetNotification, recipient?: string): PreparedBudgetRequestDelivery {
+  private prepareEmail(request: MerchantBudgetNotification & { merchantId: string }, recipient?: string): PreparedBudgetRequestDelivery {
     if (!recipient?.trim()) return { status: "skipped", reason: "merchant_budget_email_unavailable" };
     const content = renderMerchantBudgetEmail(request);
     return {
@@ -34,6 +34,7 @@ export class BudgetRequestNotificationSender {
           const sent = await this.email.send({
             to: recipient,
             ...content,
+            merchantId: request.merchantId,
             requireDelivery: true,
             idempotencyKey: `${request.id}:budget-email`,
           });

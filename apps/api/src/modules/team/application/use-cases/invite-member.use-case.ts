@@ -73,7 +73,7 @@ export class InviteMemberUseCase {
     });
 
     const dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5175";
-    await this.sendWelcomeEmail(email, input.name || input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
+    await this.sendWelcomeEmail(input.merchant_id, email, input.name || input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
 
     return {
       invite_id: invite.id,
@@ -83,11 +83,12 @@ export class InviteMemberUseCase {
     };
   }
 
-  private async sendWelcomeEmail(email: string, name: string, merchantName: string, password: string, role: string, dashboardUrl: string) {
+  private async sendWelcomeEmail(merchantId: string, email: string, name: string, merchantName: string, password: string, role: string, dashboardUrl: string) {
     const roleLabel = role === "ADMIN" ? "Administrador" : "Agente de Suporte";
     try {
       await this.emailSender.send({
         to: email,
+        merchantId,
         subject: `🔐 Bem-vindo(a) à ${merchantName}, ${name} — defina sua senha`,
         html: `
 <!DOCTYPE html>

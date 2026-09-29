@@ -140,6 +140,7 @@ export class SendWhatsAppMessageUseCase {
       try {
         result = await this.email.send({
           to: input.fallbackEmail,
+          merchantId: input.merchantId,
           subject: input.emailSubject || "Mensagem da loja",
           html: input.type === "cart_recovery"
             ? renderRecoveryEmail(input.freeformText, String(input.variables?.storeName ?? "Sua loja"), input.variables?.link == null ? undefined : String(input.variables.link))

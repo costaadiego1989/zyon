@@ -1,6 +1,9 @@
 import { EmailProviderRejection } from "../../domain/ports/email-provider-rejection.js";
-import { Logger } from "@nestjs/common";
+import { Inject, Logger, Optional } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import type { EmailSenderPort, SendEmailInput, SendEmailOutput } from "../../domain/ports/email-sender.port.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { applyMerchantEmailBranding, resolveMerchantEmailBranding } from "../../../../shared/email/merchant-email-branding.js";
 
 const logger = new Logger("ResendEmailAdapter");
 
@@ -27,6 +30,10 @@ export class ResendEmailAdapter implements EmailSenderPort {
   private readonly fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@zyon.com.br";
   private readonly resendApiUrl = "https://api.resend.com/emails";
 
+  constructor(
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+  ) {}
+
   async send(input: SendEmailInput): Promise<SendEmailOutput> {
     // Fallback: console log if no API key (dev mode)
     if (!this.apiKey) {
@@ -44,7 +51,7 @@ export class ResendEmailAdapter implements EmailSenderPort {
       from: input.from || this.fromEmail,
       to: input.to,
       subject: input.subject,
-      html: input.html,
+      html: await this.applyMerchantBranding(input),
     };
 
     try {
@@ -83,6 +90,23 @@ export class ResendEmailAdapter implements EmailSenderPort {
     } catch (err) {
       logger.error(`Failed to send email to ${input.to}:`, err);
       throw err;
+    }
+  }
+
+  private async applyMerchantBranding(input: SendEmailInput): Promise<string> {
+    if (!input.merchantId || !this.prisma) return input.html;
+    try {
+      const merchant = await this.prisma.merchant.findUnique({
+        where: { id: input.merchantId },
+        select: { name: true, theme: true, storeSettings: true },
+      });
+      return merchant
+        ? applyMerchantEmailBranding(input.html, resolveMerchantEmailBranding(merchant))
+        : input.html;
+    } catch {
+      // A branding lookup must never prevent a transactionally valid email.
+      logger.warn("Merchant email branding unavailable; sending unbranded message.");
+      return input.html;
     }
   }
 }

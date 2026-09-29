@@ -22,6 +22,7 @@ export class SendOrderDeliveredUseCase {
       const html = renderOrderDeliveredTemplate(event);
       await this.emailSender.send({
         to: event.buyerEmail,
+        merchantId: event.merchantId,
         subject: `✅ Seu pedido foi entregue!`,
         html,
         requireDelivery: true,

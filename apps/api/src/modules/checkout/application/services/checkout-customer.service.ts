@@ -265,6 +265,7 @@ export class CheckoutCustomerService {
     try {
       const result = await this.emailSender?.send({
         to: email,
+        merchantId: input.session.merchantId,
         from: process.env.RESEND_NOREPLY_EMAIL || process.env.RESEND_FROM_EMAIL,
         subject: `${input.code} é seu código de confirmação`,
         html: this.otpEmailHtml(input.code, input.merchantName),

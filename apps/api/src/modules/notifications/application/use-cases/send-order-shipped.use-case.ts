@@ -22,6 +22,7 @@ export class SendOrderShippedUseCase {
       const html = renderOrderShippedTemplate(event);
       await this.emailSender.send({
         to: event.buyerEmail,
+        merchantId: event.merchantId,
         subject: `📦 Seu pedido está a caminho!`,
         html,
         requireDelivery: true,

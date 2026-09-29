@@ -38,7 +38,7 @@ export class OrderQuotaNoticeSenderAdapter implements OrderQuotaNoticeSender {
     const template = renderOrderQuotaNoticeEmail(notice, merchant.name);
     return {
       send: async () => {
-        const sent = await this.email.send({ to: recipient.email, ...template, requireDelivery: true });
+        const sent = await this.email.send({ to: recipient.email, ...template, merchantId: notice.merchantId, requireDelivery: true });
         return sent.status === "skipped"
           ? skipped("email_provider_unavailable")
           : { status: "accepted", providerMessageId: sent.messageId };

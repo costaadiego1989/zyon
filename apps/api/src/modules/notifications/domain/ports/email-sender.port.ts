@@ -4,6 +4,8 @@ export interface SendEmailInput {
   to: string;
   subject: string;
   html: string;
+  /** Resolves logo, company registration and social links for merchant-owned email. */
+  merchantId?: string;
   from?: string;
   /** Require provider acceptance; never report the development logging fallback as delivery. */
   requireDelivery?: boolean;

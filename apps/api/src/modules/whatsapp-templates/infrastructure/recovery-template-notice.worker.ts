@@ -72,6 +72,7 @@ export class RecoveryTemplateNoticeWorker implements OnModuleInit, OnModuleDestr
       } else {
         const result = await this.sender.send({
           to: owner.email, subject: notice.title.replace(/[\r\n]/g, " "), requireDelivery: true,
+          merchantId: notice.merchantId,
           html: `<h1>${escapeHtml(notice.title)}</h1><p>${escapeHtml(notice.body ?? "O estado do template foi atualizado.")}</p><p>Confira o estado no painel de templates da sua conta.</p>`,
         });
         if ((result.status === "sent" || result.status === "queued") && typeof result.messageId === "string" && result.messageId.trim()) {

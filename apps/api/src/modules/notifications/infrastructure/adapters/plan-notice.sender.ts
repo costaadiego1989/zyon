@@ -44,7 +44,7 @@ export class PlanNoticeSender {
       const content = renderPlanNoticeEmail(notice, merchant.name);
       return { send: async () => {
         try {
-          const result = await this.email.send({ to: recipient, ...content, requireDelivery: true, idempotencyKey: notice.id + ":email" });
+          const result = await this.email.send({ to: recipient, ...content, merchantId: notice.merchantId, requireDelivery: true, idempotencyKey: notice.id + ":email" });
           if (result.status === "skipped") return { status: "retryable_failed", reason: "email_provider_unavailable" };
           if (!result.messageId?.trim()) return { status: "unknown", reason: "email_acceptance_unknown" };
           return { status: "accepted", providerMessageId: result.messageId };

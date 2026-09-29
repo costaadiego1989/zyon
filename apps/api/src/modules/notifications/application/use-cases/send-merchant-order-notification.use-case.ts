@@ -50,6 +50,7 @@ export class SendMerchantOrderNotificationUseCase {
         channel: "email",
         send: () => this.emailSender.send({
           to: toEmail,
+          merchantId: event.merchantId,
           subject: `${merchantName} - novo pedido #${event.orderNumber}`,
           html: renderMerchantOrderEmail({ ...event, merchantName }),
           requireDelivery: true,

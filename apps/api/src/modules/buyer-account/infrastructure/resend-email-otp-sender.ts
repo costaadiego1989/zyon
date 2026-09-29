@@ -2,6 +2,7 @@ import { ServiceUnavailableException } from "@nestjs/common";
 import type { EmailOtpContext, EmailOtpSender } from "../domain/ports/email-otp.port.js";
 import { postOtpMessage, type OtpHttpDeliveryOptions } from "./otp-http-delivery.js";
 import { buildEmailOtpFrom, buildEmailOtpMessage } from "./email-otp-template.js";
+import { applyMerchantEmailBranding } from "../../../shared/email/merchant-email-branding.js";
 
 export class ResendEmailOtpSender implements EmailOtpSender {
   constructor(
@@ -16,12 +17,16 @@ export class ResendEmailOtpSender implements EmailOtpSender {
     let from: string;
     try { from = buildEmailOtpFrom(fromEmail, context); }
     catch { throw new ServiceUnavailableException("otp_email_unavailable"); }
+    const message = buildEmailOtpMessage(code, context);
     await postOtpMessage("email", "https://api.resend.com/emails", {
       headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
       body: JSON.stringify({
         from,
         to: email,
-        ...buildEmailOtpMessage(code, context),
+        ...message,
+        html: context?.merchantBranding
+          ? applyMerchantEmailBranding(message.html, context.merchantBranding)
+          : message.html,
       }),
     }, this.http);
   }
