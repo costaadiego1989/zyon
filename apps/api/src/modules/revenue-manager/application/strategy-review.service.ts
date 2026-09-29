@@ -16,6 +16,7 @@ import { assertStrategyExperimentReview, strategyExperimentReview } from "../dom
 import { assertCurrentMeasurementPolicy, assertStoredMeasurementPlanning } from "../infrastructure/strategy-measurement-planning.js";
 import { strategyActivationBlockers } from "../infrastructure/strategy-activation-readiness.js";
 import { executionClock, registerApprovedExecution } from "../infrastructure/strategy-execution-ledger.js";
+import { assertStoredDiscountStudy } from "../infrastructure/strategy-discount-study.js";
 
 export type StrategyReviewCommand = { version: number; proposal_hash: string; request_key: string; feedback?: string };
 type ReviewKind = "approve" | "reject" | "revision";
@@ -175,6 +176,8 @@ export class StrategyReviewService {
       }
       const currentRules = await this.context.getRules(work.merchantId);
       if (!currentRules || digest(currentRules) !== digest(proposal.rules)) throw new Error("STRATEGY_POLICY_CHANGED");
+      await this.prisma.$transaction(tx => assertStoredDiscountStudy(tx, work.merchantId,
+        action.proposal.strategy.runId, proposal.observation.id, currentRules, proposal.discountStudy));
       const checkoutBaseline = await this.context.getCheckoutBaseline?.(work.merchantId);
       const baseline = checkoutBaseline ? checkoutBaselineReference(checkoutBaseline)
         : this.context.getCheckoutBaseline ? undefined : await this.context.getCurrentPrompt(work.merchantId);
@@ -192,7 +195,7 @@ export class StrategyReviewService {
           max_running_experiments: 1, merchant_rules: currentRules } });
       if (generated.template.variant_a.system_prompt !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
       const experimentReview = planning ? strategyExperimentReview(action.strategyId, action.version + 1, generated, planning) : undefined;
-      const next = strategyProposal(generated, proposal.observation, currentRules, checkoutBaseline, experimentReview);
+      const next = strategyProposal(generated, proposal.observation, currentRules, checkoutBaseline, experimentReview, proposal.discountStudy);
       await this.eligible(work.merchantId);
       if (await this.context.getCurrentPrompt(work.merchantId) !== baseline) throw new Error("STRATEGY_BASELINE_CHANGED");
       await this.prisma.$transaction(async tx => {
@@ -209,6 +212,8 @@ export class StrategyReviewService {
         }
         await this.unchangedRules(tx, work.merchantId, proposal);
         if (planning) await assertStoredMeasurementPlanning(tx, work.merchantId, action.proposal.strategy.runId, planning);
+        await assertStoredDiscountStudy(tx, work.merchantId, action.proposal.strategy.runId,
+          proposal.observation.id, currentRules, proposal.discountStudy);
         const version = action.version + 1;
         await tx.revenueStrategyVersion.create({ data: { strategyId: strategy.id, merchantId: work.merchantId, version,
           proposalHash: digest(next), proposal: json(next), expiresAt: base.expiresAt } });

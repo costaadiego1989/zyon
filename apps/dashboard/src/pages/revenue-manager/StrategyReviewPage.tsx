@@ -3,6 +3,7 @@ import { ArrowLeft, RefreshCw } from "lucide-react";
 import type { StrategyProposal } from "../../api/endpoints/strategy-review.js";
 import { StrategyReviewModal } from "./StrategyReviewModal.js";
 import { StrategyMetricsPanel } from "./StrategyMetricsPanel.js";
+import { StrategyDiscountStudy } from "./StrategyDiscountStudy.js";
 import { useStrategyReview } from "./useStrategyReview.js";
 import { canReviewVersion, formatReviewDate as date, formatReviewNumber as number, REVISION_STATUSES, STRATEGY_STATUSES, versionExpired } from "./strategy-review-model.js";
 import "./strategy-review.css";
@@ -103,6 +104,7 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
             <div><dt>Teto de desconto configurado</dt><dd>{number(proposal.rules.maxDiscountPercent)}%</dd></div></dl>
           <p>Esta proposta altera a comunicação. Não cria cupom, desconto ou frete grátis. Os limites acima são os registrados nesta versão; não autorizam uma oferta nem comprovam sua margem.</p>
         </section>
+        <StrategyDiscountStudy study={proposal.discountStudy} />
         <MeasurementDetails proposal={proposal} />
         <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}:${vm.review.status}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />
       </article>
@@ -128,6 +130,7 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
           <h3>Iniciar o teste da versão {version.version}?</h3>
           <p>A abordagem de comunicação será testada por {proposal.experimentReview?.plan.durationDays} dias. Metade dos participantes mantém a comunicação atual. A IA acompanha as métricas; o resultado pode ser inconclusivo.</p>
           <p>A aprovação vale para esta versão. Uma nova proposta precisa de outra aprovação.</p>
+          {proposal.discountStudy?.status === "candidate_available" && <p>A simulação de desconto não será ativada por esta aprovação.</p>}
           <div className="strategy-review-actions"><button type="button" className="zyn-btn zyn-btn--ghost" onClick={() => setForm(null)}>Cancelar</button>
             <button type="submit" className="zyn-btn zyn-btn--primary">Aprovar e iniciar teste</button></div>
         </form>}

@@ -27,6 +27,8 @@ import { ExperimentMeasurementService } from "../../experiments/application/expe
 import { DiscountRuleHypothesisService } from "../domain/services/discount-rule-hypothesis.service.js";
 import { loadDiscountCohorts } from "../infrastructure/discount-cohort.reader.js";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
+import { prepareDiscountStudy } from "../infrastructure/strategy-discount-study.js";
+import type { StrategyDiscountStudy } from "../domain/strategy-discount-study.js";
 
 // Destructive setup is strictly restricted to this dedicated local fixture DB.
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -189,10 +191,11 @@ async function configureMeasurement(f: Awaited<ReturnType<typeof fixture>>, sess
   })) });
 }
 
-async function measuredProposal() {
+async function measuredProposal(withDiscountStudy = false) {
   const f = await fixture("store", { publish: false });
   await configureRealBaseline();
   await configureMeasurement(f);
+  if (withDiscountStudy) await seedWeeklyDiscountHistory(f);
   const output = await realGeneration().execute({ merchant_id: "store", observation_id: f.observation.id,
     analysis_context: { runId: f.run.id, leaseToken: 1 } });
   const s = new StrategyReviewService(prisma, context, { generate: async request => recipeResponse(request) }, billing as never);
@@ -201,8 +204,8 @@ async function measuredProposal() {
   return { f, s, read, review, id: output.hypothesis_id, input: { ...f.input, proposal_hash: read.versions[0].proposalHash } };
 }
 
-async function approvableProposal() {
-  const f = await measuredProposal();
+async function approvableProposal(withDiscountStudy = false) {
+  const f = await measuredProposal(withDiscountStudy);
   Object.assign(process.env, { REVENUE_STRATEGY_APPROVAL_ENABLED: "true", REVENUE_STRATEGY_EXECUTION_ENABLED: "true",
     REVENUE_STRATEGY_EXECUTION_MERCHANT_IDS: "store", REVENUE_STRATEGY_MAIN_CHAT_ENABLED: "true",
     REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED: "true", REVENUE_STRATEGY_CHAT_PUBLICATION_ENABLED: "true",
@@ -357,6 +360,173 @@ async function fixture(merchantId = "store", options: { expired?: boolean; publi
   return { merchantId, run, hypothesis, observation, repo, version, id: hypothesis.id,
     input: { version: 1, proposal_hash: version?.proposalHash ?? "", request_key: "request-1", feedback: "Prefiro uma explicação mais curta." } };
 }
+
+async function seedWeeklyDiscountHistory(f: Awaited<ReturnType<typeof fixture>>) {
+  Object.assign(process.env, { REVENUE_DISCOUNT_STUDY_ENABLED: "true", REVENUE_DISCOUNT_STUDY_MERCHANT_IDS: "store" });
+  const product = await prisma.product.create({ data: { merchantId: f.merchantId, name: "Produto simulado" } });
+  const variant = await prisma.productVariant.create({ data: { productId: product.id, sku: `weekly-${f.run.id}` } });
+  await prisma.productPrice.create({ data: { variantId: variant.id, basePriceInCents: 10000, costInCents: 4000, currency: "BRL" } });
+  const createdAt = new Date(f.run.asOf!.getTime() - 8 * 86_400_000);
+  for (let i = 0; i < 30; i++) {
+    const id = `weekly-${f.run.id}-${i}`;
+    await prisma.buyerIntentMemoryConsent.create({ data: { merchantId: f.merchantId, globalUserId: id,
+      optedIn: true, expiresAt: new Date(Date.now() + 30 * 86_400_000) } });
+    await prisma.customerIntentRecord.create({ data: { merchantId: f.merchantId, globalUserId: id,
+      primaryIntent: "price_sensitive", urgency: "low", budgetTier: "standard", categoryFocus: [], painPoints: [],
+      conversionLikelihoodPct: 5, behavioralSignalsJson: {}, generatedAt: new Date(createdAt.getTime() - 1000) } });
+    await prisma.checkoutSession.create({ data: { id, merchantId: f.merchantId, sessionId: id, globalUserId: id,
+      conversationId: id, cohort: "treatment", createdAt, updatedAt: createdAt,
+      cart: { currency: "BRL", total: 999, items: [{ variantId: variant.id, price: 999, cost: 0, quantity: 1 }] } } });
+  }
+  return variant.id;
+}
+
+test("weekly discount study is opt-in per merchant and captures only once across concurrent workers", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  const input = { runId: f.run.id, leaseToken: 1 };
+  assert.equal(await prepareDiscountStudy(prisma, "store", input), undefined);
+  const variantId = await seedWeeklyDiscountHistory(f);
+  process.env.REVENUE_DISCOUNT_STUDY_MERCHANT_IDS = "*";
+  assert.equal(await prepareDiscountStudy(prisma, "store", input), undefined);
+  process.env.REVENUE_DISCOUNT_STUDY_MERCHANT_IDS = "other";
+  assert.equal(await prepareDiscountStudy(prisma, "store", input), undefined);
+  process.env.REVENUE_DISCOUNT_STUDY_MERCHANT_IDS = "store";
+  const results = await Promise.allSettled(Array.from({ length: 6 }, () => prepareDiscountStudy(prisma, "store", input)));
+  const studies = results.map(result => { assert.equal(result.status, "fulfilled"); return result.value; });
+  for (const study of studies) assert.deepEqual(study, studies[0]);
+  const study = studies[0]!;
+  assert.equal(study.status, "candidate_available");
+  assert.equal(study.candidate?.simulation.sampleSize, 30);
+  assert.equal(study.candidate?.percent, 5);
+  assert.equal(JSON.stringify(study).includes(variantId), false);
+  await prisma.productPrice.updateMany({ where: { variantId }, data: { costInCents: 9999 } });
+  process.env.REVENUE_DISCOUNT_STUDY_ENABLED = "false";
+  assert.deepEqual(await prepareDiscountStudy(prisma, "store", input), study);
+  assert.equal(await prisma.revenueAiReservation.count(), 0);
+  assert.equal(await prisma.coupon.count(), 0);
+  assert.equal(await prisma.revenueManagerHypothesis.count(), 0);
+});
+
+test("weekly discount study freezes no-candidate outcome until a different weekly cycle", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  Object.assign(process.env, { REVENUE_DISCOUNT_STUDY_ENABLED: "true", REVENUE_DISCOUNT_STUDY_MERCHANT_IDS: "store" });
+  const input = { runId: f.run.id, leaseToken: 1 };
+  const empty = await prepareDiscountStudy(prisma, "store", input);
+  assert.equal(empty?.status, "no_safe_candidate");
+  await seedWeeklyDiscountHistory(f);
+  assert.deepEqual(await prepareDiscountStudy(prisma, "store", input), empty);
+  const next = await prisma.revenueAnalysisRun.create({ data: { merchantId: "store", cycle: 2, status: "running",
+    leaseToken: 1, leaseUntil: f.run.leaseUntil, asOf: f.run.asOf, observationId: f.observation.id } });
+  assert.equal((await prepareDiscountStudy(prisma, "store", { runId: next.id, leaseToken: 1 }))?.status, "candidate_available");
+});
+
+test("weekly discount study refuses a foreign store, lost lease and changed policy before model dispatch", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureRealBaseline(); await seedWeeklyDiscountHistory(f);
+  const input = { runId: f.run.id, leaseToken: 1 };
+  await assert.rejects(prepareDiscountStudy(prisma, "foreign", input), /analysis_lease_lost/);
+  await assert.rejects(prepareDiscountStudy(prisma, "store", { ...input, leaseToken: 2 }), /analysis_lease_lost/);
+  assert.equal((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).discountStudyJson, null);
+  await prepareDiscountStudy(prisma, "store", input);
+  await prisma.merchantRule.update({ where: { merchantId: "store" }, data: { minimumMarginPercent: 40 } });
+  let calls = 0;
+  await assert.rejects(realGeneration(async request => { calls++; return recipeResponse(request); }).execute({
+    merchant_id: "store", observation_id: f.observation.id, analysis_context: input,
+  }), /STRATEGY_INVALID_DISCOUNT_STUDY/);
+  assert.equal(calls, 0);
+  await prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { leaseUntil: new Date(0) } });
+  await assert.rejects(prepareDiscountStudy(prisma, "store", input), /analysis_lease_lost/);
+});
+
+test("weekly discount study cannot be rewritten, detached or deleted in PostgreSQL", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false }); await seedWeeklyDiscountHistory(f);
+  await prepareDiscountStudy(prisma, "store", { runId: f.run.id, leaseToken: 1 });
+  await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { discountStudyJson: {} } }), /DISCOUNT_STUDY_IMMUTABLE/);
+  await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { observationId: "changed" } }), /DISCOUNT_STUDY_IMMUTABLE/);
+  await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { asOf: new Date(0) } }), /DISCOUNT_STUDY_IMMUTABLE/);
+  await assert.rejects(prisma.revenueAnalysisRun.delete({ where: { id: f.run.id } }), /DISCOUNT_STUDY_IMMUTABLE/);
+  await prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { leaseToken: 2 } });
+});
+
+test("weekly discount study survives a failed model attempt without resampling the current catalog", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false }); await configureRealBaseline();
+  const variantId = await seedWeeklyDiscountHistory(f);
+  let calls = 0;
+  const generate = realGeneration(async request => { if (++calls === 1) throw new Error("fixture model unavailable"); return recipeResponse(request); });
+  const input = { merchant_id: "store", observation_id: f.observation.id, analysis_context: { runId: f.run.id, leaseToken: 1 } };
+  await assert.rejects(generate.execute(input), /fixture model unavailable/);
+  const saved = (await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).discountStudyJson;
+  assert.equal((saved as any).status, "candidate_available");
+  assert.equal(await prisma.merchantNotification.count(), 0);
+  await prisma.productPrice.updateMany({ where: { variantId }, data: { costInCents: null } });
+  const output = await generate.execute(input);
+  const version = await prisma.revenueStrategyVersion.findFirstOrThrow({ where: { strategyId: output.hypothesis_id } });
+  assert.deepEqual((version.proposal as any).discountStudy, saved);
+  assert.equal(calls, 2); assert.equal(await prisma.merchantNotification.count(), 1);
+});
+
+test("weekly discount study must match the saved artifact for atomic proposal publication", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false }); await seedWeeklyDiscountHistory(f);
+  const input = { runId: f.run.id, leaseToken: 1 };
+  const study = (await prepareDiscountStudy(prisma, "store", input))!;
+  await assert.rejects(f.repo.save(f.hypothesis, input), /DISCOUNT_STUDY_REQUIRED/);
+  const forged = structuredClone(study); forged.capturedAt = new Date(Date.now() + 1000).toISOString();
+  await assert.rejects(f.repo.save(f.hypothesis, { ...input, discountStudy: forged }), /DISCOUNT_STUDY_CHANGED/);
+  assert.equal(await prisma.revenueManagerHypothesis.count(), 0);
+  assert.equal(await prisma.merchantNotification.count(), 0);
+  await f.repo.save(f.hypothesis, { ...input, discountStudy: study });
+  assert.equal(await prisma.revenueStrategyVersion.count(), 1);
+  assert.equal(await prisma.merchantNotification.count(), 1);
+});
+
+test("weekly discount study reaches review and survives a revision without entering LLM prompts", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false }); await configureRealBaseline();
+  const variantId = await seedWeeklyDiscountHistory(f);
+  let calls = 0;
+  const generate = async (request: HypothesisGenerationRequest) => {
+    calls++;
+    assert.equal(JSON.stringify(request).includes("weekly-discount-study"), false);
+    assert.equal(JSON.stringify(request).includes(variantId), false);
+    return recipeResponse(request);
+  };
+  const output = await realGeneration(generate).execute({ merchant_id: "store", observation_id: f.observation.id,
+    analysis_context: { runId: f.run.id, leaseToken: 1 } });
+  const s = new StrategyReviewService(prisma, context, { generate }, billing as never);
+  const read = await s.read("store", output.hypothesis_id);
+  const study = (read.versions[0].proposal as any).discountStudy as StrategyDiscountStudy;
+  assert.equal(study.status, "candidate_available");
+  await prisma.productPrice.updateMany({ where: { variantId }, data: { basePriceInCents: 99999, costInCents: null } });
+  process.env.REVENUE_DISCOUNT_STUDY_ENABLED = "false";
+  const receipt = await s.decide("store", "owner", output.hypothesis_id, "revision", {
+    ...f.input, proposal_hash: read.versions[0].proposalHash,
+  }) as any;
+  await s.process(receipt.action_id);
+  const next = await s.read("store", output.hypothesis_id);
+  assert.equal(next.currentVersion, 2); assert.equal(calls, 2);
+  assert.deepEqual((next.versions[0].proposal as any).discountStudy, study);
+  assert.deepEqual((next.versions[1].proposal as any).discountStudy, study);
+  assert.equal(next.versions[0].expiresAt.toISOString(), read.versions[0].expiresAt.toISOString());
+  assert.equal(await prisma.coupon.count(), 0);
+  await assert.rejects(s.read("foreign", output.hypothesis_id), /STRATEGY_NOT_FOUND/);
+});
+
+test("weekly discount study approval starts communication only and never creates a discount or budget reservation", { skip: !enabled }, async () => {
+  const f = await approvableProposal(true);
+  const study = (f.read.versions[0].proposal as any).discountStudy;
+  assert.equal(study.status, "candidate_available");
+  assert.equal(study.commercialBudget, "not_reserved");
+  const settings = await prisma.checkoutSetting.findUniqueOrThrow({ where: { merchantId: "store" } });
+  const receipt = await f.s.decide("store", "owner", f.id, "approve", f.input) as any;
+  assert.equal(receipt.status, "active");
+  const execution = await prisma.strategyExecution.findUniqueOrThrow({ where: { id: receipt.execution_id } });
+  assert.equal(JSON.stringify(execution.contract).includes("weekly-discount-study"), false);
+  assert.equal(await prisma.promptVariant.count({ where: { appliedRuleId: { not: null } } }), 0);
+  assert.equal(await prisma.coupon.count(), 0);
+  assert.equal(await prisma.couponRedemption.count(), 0);
+  assert.equal(await prisma.revenueAiReservation.count(), 0);
+  assert.deepEqual((await prisma.checkoutSetting.findUniqueOrThrow({ where: { merchantId: "store" } })).advancedRules, settings.advancedRules);
+  assert.deepEqual(await f.s.decide("store", "owner", f.id, "approve", f.input), receipt);
+});
 
 test("discovery summaries show the latest immutable proposal without crossing stores or exposing its context", { skip: !enabled }, async () => {
   const f = await fixture("store");

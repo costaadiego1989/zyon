@@ -5,6 +5,7 @@ import { validateHypothesisResponse, validateHypothesisSafety } from "./services
 import { assertCheckoutChatBaseline, checkoutBaselineReference, checkoutContractHash,
   type CheckoutChatBaseline } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import { assertStrategyExperimentReview, type StrategyExperimentReview } from "./strategy-measurement.js";
+import { assertDiscountStudy, type StrategyDiscountStudy } from "./strategy-discount-study.js";
 
 export type StrategyProposal = {
   definition: "checkout-strategy-review-v1";
@@ -15,13 +16,14 @@ export type StrategyProposal = {
   baselineStatus: "awaiting_checkout_contract" | "primary_chat_contract_captured";
   checkoutBaseline?: CheckoutChatBaseline;
   experimentReview?: StrategyExperimentReview;
+  discountStudy?: StrategyDiscountStudy;
   execution: "unavailable";
   expectedLiftStatus: "model_estimate_not_measured";
 };
 
 export function strategyProposal(recommendation: HypothesisGenerationResponse,
   observation: ObservationSnapshot, rules: MerchantRules, checkoutBaseline?: CheckoutChatBaseline,
-  experimentReview?: StrategyExperimentReview): StrategyProposal {
+  experimentReview?: StrategyExperimentReview, discountStudy?: StrategyDiscountStudy): StrategyProposal {
   validateHypothesisResponse(recommendation);
   const { variant_a: control, variant_b: treatment } = recommendation.template;
   if (!control.is_control || treatment.is_control || control.weight !== 50 || treatment.weight !== 50
@@ -42,9 +44,12 @@ export function strategyProposal(recommendation: HypothesisGenerationResponse,
     assertStrategyExperimentReview(experimentReview, experimentReview.strategyId, experimentReview.version,
       recommendation, observation.merchant_id, experimentReview.planning.runId);
   }
+  if (discountStudy) assertDiscountStudy(discountStudy, observation.merchant_id,
+    experimentReview?.planning.runId ?? discountStudy.runId, observation.id, rules);
   const value: StrategyProposal = { definition: "checkout-strategy-review-v1", recommendation, observation, rules,
     baselineStatus: checkoutBaseline ? "primary_chat_contract_captured" : "awaiting_checkout_contract",
     ...(checkoutBaseline ? { checkoutBaseline } : {}), ...(experimentReview ? { experimentReview } : {}),
+    ...(discountStudy ? { discountStudy } : {}),
     execution: "unavailable", expectedLiftStatus: "model_estimate_not_measured" };
   if (Buffer.byteLength(JSON.stringify(value), "utf8") > 200_000) throw new Error("STRATEGY_CONTEXT_TOO_LARGE");
   return structuredClone(value);

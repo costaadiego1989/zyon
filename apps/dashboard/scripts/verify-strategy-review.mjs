@@ -20,6 +20,12 @@ function version(n) {
           variant_a: { name: "Atual", system_prompt: "checkout-chat-baseline-v1:fixture", weight: 50, is_control: true },
           variant_b: { name: "Comunicação", system_prompt: "Pergunte qual etapa precisa de explicação e use apenas dados verificados.", weight: 50, is_control: false } } },
       rules: { maxDiscountPercent: 10, minimumMarginPercent: 38, allowFreeShipping: false, maxShippingSubsidy: 0 },
+      discountStudy: { definition: "weekly-discount-study-v1", asOf: stamp, capturedAt: stamp, lookbackDays: 28,
+        approvalScope: "communication_only", commercialBudget: "not_reserved", status: "candidate_available",
+        candidate: { intent: "price_sensitive", percent: 10, simulation: { sampleSize: 30,
+          observedConversionRate: .1, minimumProjectedMarginPercent: 46, minCartTotalCents: 10000,
+          maxCartTotalCents: 20000, maxDiscountCents: 2000, replayDiscountTotalCents: 60000,
+          paymentFeeAssumptionPercent: 4, conversionWindowHours: 168 } } },
       observation: { observation_window_start: stamp, observation_window_end: stamp, funnel: { total_sessions: 1000, conversion_rate: .1 } },
       experimentReview: { definition: "checkout-strategy-experiment-review-v1", registration: "proposal_only_not_activated", capacity: "below_planned_sample",
         planning: { capturedAt: stamp, population: { definition: "checkout-first-session-per-buyer-v1" } },
@@ -142,6 +148,35 @@ try {
     await page.getByText(/tráfego estimado está abaixo/).waitFor();
     assert.equal(posts.length, 0, "Reading never submits a decision");
     assert.equal(await page.getByText(/checkout-chat-baseline-v1:/).count(), 0);
+    const discountStudy = page.getByRole("region", { name: "Simulação de desconto", exact: true });
+    await discountStudy.getByText("46%", { exact: true }).waitFor();
+    await discountStudy.getByText("A medir", { exact: true }).waitFor();
+    await discountStudy.getByText(/Aprovar esta estratégia inicia somente o teste de comunicação/).waitFor();
+    await discountStudy.getByText("Como a simulação foi calculada", { exact: true }).click();
+    await discountStudy.getByText(/não é uma previsão de gasto nem um orçamento aprovado/).waitFor();
+    await discountStudy.getByText(/não representa lucro líquido/).waitFor();
+    await noOverflow(width);
+    if (out) await discountStudy.screenshot({ path: `${out}/weekly-discount-study-${width}.png` });
+    await discountStudy.getByText("Como a simulação foi calculada", { exact: true }).click();
+    if (out) await discountStudy.screenshot({ path: `${out}/weekly-discount-summary-${width}.png` });
+    const savedStudy = structuredClone(review.versions[0].proposal.discountStudy);
+    delete review.versions[0].proposal.discountStudy;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByRole("heading", { name: firstTitle, exact: true }).waitFor();
+    assert.equal(await page.getByRole("heading", { name: "Simulação de desconto", exact: true }).count(), 0);
+    review.versions[0].proposal.discountStudy = { ...savedStudy, status: "no_safe_candidate" };
+    delete review.versions[0].proposal.discountStudy.candidate;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByText(/não permitiram sugerir um desconto neste ciclo/).waitFor();
+    assert.equal(await page.getByText("Desconto simulado", { exact: true }).count(), 0);
+    review.versions[0].proposal.discountStudy = { ...savedStudy, definition: "future-discount-study" };
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.getByText(/Atualize o dashboard para consultar este formato de simulação/).waitFor();
+    assert.equal(await page.getByText("Desconto simulado", { exact: true }).count(), 0);
+    review.versions[0].proposal.discountStudy = savedStudy;
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await discountStudy.getByText("46%", { exact: true }).waitFor();
+    assert.equal(posts.length, 0, "Reading a study or an empty result never approves a strategy");
     await noOverflow(width);
     if (out) await page.screenshot({ path: `${out}/strategy-${width}.png`, fullPage: true });
     await requestAlternative();
@@ -299,6 +334,7 @@ try {
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.getByRole("button", { name: "Aprovar estratégia", exact: true }).click();
     await page.getByRole("heading", { name: "Iniciar o teste da versão 1?", exact: true }).waitFor();
+    await page.getByText("A simulação de desconto não será ativada por esta aprovação.", { exact: true }).waitFor();
     const beforeApproval = posts.length;
     await noOverflow(width);
     if (out) await page.screenshot({ path: `${out}/strategy-approval-${width}.png`, fullPage: true });

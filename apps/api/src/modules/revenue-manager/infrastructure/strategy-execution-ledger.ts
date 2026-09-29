@@ -14,6 +14,7 @@ import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout
 import type { CheckoutSession as CheckoutSnapshot } from "@zyon/shared-types";
 import { StrategyAiBudget } from "./strategy-ai-budget.js";
 import { MAIN_CHAT_PUBLICATION_POLICY } from "../../checkout/domain/services/checkout-chat-navigation.js";
+import { assertStoredDiscountStudy } from "./strategy-discount-study.js";
 
 type TurnInput = { merchantId: string; sessionId: string; requestKey: string; inputHash: string;
   route: "primary_llm" | "deterministic" | "fallback"; userMessage?: string } & (
@@ -84,6 +85,8 @@ export async function registerApprovedExecution(tx: Tx, merchantId: string, appr
     || receipt.action_id !== approval.id) throw new Error("STRATEGY_APPROVAL_CONFLICT");
   const contract = executionContract({ merchantId, strategyId: approval.strategyId, version: approval.version,
     runId: version.strategy.runId, proposalHash: version.proposalHash, proposal: version.proposal as unknown as StrategyProposal });
+  const proposal = version.proposal as unknown as StrategyProposal;
+  await assertStoredDiscountStudy(tx, merchantId, version.strategy.runId, proposal.observation.id, proposal.rules, proposal.discountStudy);
   const previous = await tx.strategyExecution.findUnique({ where: { approvalActionId: approvalId } });
   if (previous) {
     if (previous.merchantId !== merchantId || previous.contractHash !== digest(contract)) throw new Error("STRATEGY_EXECUTION_CONFLICT");

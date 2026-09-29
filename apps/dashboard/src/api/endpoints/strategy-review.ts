@@ -15,6 +15,17 @@ export interface StrategyProposal {
   checkoutBaseline?: { contextExit?: string; suppressionRecovery?: string };
   execution: "unavailable";
   expectedLiftStatus: "model_estimate_not_measured";
+  discountStudy?: {
+    definition: "weekly-discount-study-v1";
+    asOf: string; capturedAt: string; lookbackDays: 28;
+    approvalScope: "communication_only"; commercialBudget: "not_reserved";
+    status: "candidate_available" | "no_safe_candidate";
+    candidate?: { intent: string; percent: number; simulation: {
+      sampleSize: number; observedConversionRate: number; minimumProjectedMarginPercent: number;
+      minCartTotalCents: number; maxCartTotalCents: number; maxDiscountCents: number;
+      replayDiscountTotalCents: number; paymentFeeAssumptionPercent: number; conversionWindowHours: number;
+    } };
+  };
   experimentReview?: {
     definition: "checkout-strategy-experiment-review-v1";
     registration: "proposal_only_not_activated";

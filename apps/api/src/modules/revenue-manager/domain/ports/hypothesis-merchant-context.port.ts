@@ -1,6 +1,7 @@
 import type { MerchantRules } from "@zyon/shared-types";
 import type { CheckoutChatBaseline } from "../../../checkout/domain/services/checkout-chat-baseline.js";
 import type { StrategyMeasurementPlanning } from "../strategy-measurement.js";
+import type { StrategyDiscountStudy } from "../strategy-discount-study.js";
 
 export const HYPOTHESIS_MERCHANT_CONTEXT_PORT = Symbol("HYPOTHESIS_MERCHANT_CONTEXT_PORT");
 
@@ -10,4 +11,5 @@ export interface HypothesisMerchantContextPort {
   getCurrentPrompt(merchantId: string): Promise<string | undefined>;
   getCheckoutBaseline?(merchantId: string): Promise<CheckoutChatBaseline | undefined>;
   getMeasurementPlanning?(merchantId: string, context: { runId: string; leaseToken: number }): Promise<StrategyMeasurementPlanning | undefined>;
+  getDiscountStudy?(merchantId: string, context: { runId: string; leaseToken: number }): Promise<StrategyDiscountStudy | undefined>;
 }

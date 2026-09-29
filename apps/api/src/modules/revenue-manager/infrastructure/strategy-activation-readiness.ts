@@ -7,6 +7,7 @@ import { chatPaymentRecoveryEnabled } from "../../checkout/domain/services/chat-
 import { checkoutContractHash } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import { readCheckoutBaseline } from "./checkout-baseline.reader.js";
 import { assertStoredMeasurementPlanning } from "./strategy-measurement-planning.js";
+import { assertStoredDiscountStudy } from "./strategy-discount-study.js";
 
 /** Read-only readiness, shared by the dashboard and the locked approval command.
  * It never reserves budget or calls a provider. Dispatch still revalidates both. */
@@ -26,6 +27,8 @@ export async function strategyActivationBlockers(tx: Prisma.TransactionClient, s
   let contract;
   try { contract = executionContract({ merchantId, strategyId: strategy.id, version: version.version,
     runId: strategy.runId, proposalHash: version.proposalHash, proposal }); }
+  catch { return [...blockers, "proposal_requires_new_analysis"]; }
+  try { await assertStoredDiscountStudy(tx, merchantId, strategy.runId, proposal.observation.id, proposal.rules, proposal.discountStudy); }
   catch { return [...blockers, "proposal_requires_new_analysis"]; }
 
   const flags = ["REVENUE_STRATEGY_MAIN_CHAT_ENABLED", "REVENUE_STRATEGY_CHAT_DISPATCH_ENABLED",
