@@ -55,6 +55,8 @@ services:
       CORS_ALLOWED_ORIGINS: ${CORS_ALLOWED_ORIGINS}
       OPENAI_API_KEY: ${OPENAI_API_KEY:-}
       OPENAI_MODEL: ${OPENAI_MODEL:-gpt-4o-mini}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      OPENROUTER_BASE_URL: ${OPENROUTER_BASE_URL:-}
       E2E_SEED_ENABLED: ${E2E_SEED_ENABLED:-false}
       WEBHOOK_DISPATCHER_ENABLED: ${WEBHOOK_DISPATCHER_ENABLED:-false}
       PUBLIC_API_URL: ${PUBLIC_API_URL}
@@ -76,11 +78,13 @@ services:
       dockerfile: apps/dashboard/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        VITE_STOREFRONT_URL: ${VITE_STOREFRONT_URL}
+        VITE_WIDGET_V2_URL: ${VITE_WIDGET_V2_URL}
     container_name: aacp-dashboard
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     ports:
-      - "5175:80"
+      - "5175:8080"
     depends_on:
       - api
     networks:
@@ -90,14 +94,15 @@ services:
     profiles: ["deploy"]
     build:
       context: .
-      dockerfile: apps/widget/Dockerfile
+      dockerfile: apps/widget_v2/Dockerfile
       args:
         VITE_API_BASE_URL: ${VITE_API_BASE_URL}
+        WIDGET_FRAME_ANCESTORS: ${WIDGET_FRAME_ANCESTORS}
     container_name: aacp-widget
     environment:
       VITE_API_BASE_URL: ${VITE_API_BASE_URL}
     ports:
-      - "5176:80"
+      - "5176:8080"
     depends_on:
       - api
     networks:
