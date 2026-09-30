@@ -64,6 +64,16 @@ describe("TenantGuard", () => {
     }
   });
 
+  it("allows an account-scoped command target that is authorized by its use case", () => {
+    assert.deepEqual(
+      validateTenantRequest({
+        user: merchantPrincipal,
+        params: { targetMerchantId: "mrc_store_2" },
+      }),
+      { merchantId: "mrc_1", userId: "usr_1", role: "owner" },
+    );
+  });
+
   it("rejects malformed merchant principals", () => {
     for (const principal of [
       { merchantId: "", userId: "usr_1", role: "owner" },

@@ -65,13 +65,17 @@ export class MerchantController {
     });
   }
 
-  @Post("stores/:merchantId/activate")
+  // This is an account-scoped command, not a request scoped to the current
+  // tenant. The target membership is verified by MerchantStoreService before a
+  // new session is issued. Keep the parameter distinct from `merchantId` so
+  // the global tenant guard does not mistake the target for a forged tenant.
+  @Post("stores/:targetMerchantId/activate")
   async activateMerchantStore(
     @Req() request: { user?: AuthenticatedPrincipal },
-    @Param("merchantId") merchantId: string,
+    @Param("targetMerchantId") targetMerchantId: string,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
   ) {
-    const auth = await this.activateStore.execute(authenticatedPrincipal(request), merchantId);
+    const auth = await this.activateStore.execute(authenticatedPrincipal(request), targetMerchantId);
     response.setHeader("Set-Cookie", this.cookies.create(auth));
     return auth;
   }
