@@ -5,6 +5,15 @@ export type ManagedMerchantStore = {
   name: string;
   slug?: string;
   role: MerchantStoreRole;
+  storeCategory?: string;
+  isBillingAccount?: boolean;
+};
+
+export type CreateMerchantStoreProfile = {
+  cnpj: string;
+  email: string;
+  phone: string;
+  storeCategory: string;
 };
 
 export type MerchantStoreMembership = {
@@ -26,6 +35,7 @@ export interface MerchantStoreRepository {
     actorUserId: string;
     name: string;
     slugBase: string;
+    profile: CreateMerchantStoreProfile;
   }): Promise<CreateMerchantStoreResult>;
 }
 

@@ -1,11 +1,13 @@
-import { ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, ConflictException, ForbiddenException, Inject, Injectable, NotFoundException } from "@nestjs/common";
 import { BillingPlanMeteringService } from "../../payment/infrastructure/billing/billing-plan-guard.js";
 import {
   MERCHANT_STORE_REPOSITORY,
+  type CreateMerchantStoreProfile,
   type ManagedMerchantStore,
   type MerchantStoreRepository,
   type MerchantStoreRole,
 } from "../domain/ports/merchant-store.repository.port.js";
+import { isValidStoreCategory } from "../domain/services/store-category.js";
 
 export type MerchantStoreActor = {
   userId: string;
@@ -24,7 +26,14 @@ export class MerchantStoreService {
     return this.repository.listStores(await this.accountFor(actor.merchantId), actor.userId);
   }
 
-  async create(input: { actor: MerchantStoreActor; name: string }): Promise<ManagedMerchantStore> {
+  async create(input: {
+    actor: MerchantStoreActor;
+    name: string;
+    cnpj: string;
+    email: string;
+    phone: string;
+    storeCategory: string;
+  }): Promise<ManagedMerchantStore> {
     if (input.actor.role !== "owner") {
       throw new ForbiddenException({ code: "multi_store_owner_required" });
     }
@@ -34,11 +43,13 @@ export class MerchantStoreService {
     }
 
     const name = normalizeStoreName(input.name);
+    const profile = normalizeStoreProfile(input);
     const result = await this.repository.createStore({
       accountMerchantId,
       actorUserId: input.actor.userId,
       name,
       slugBase: slugFromStoreName(name),
+      profile,
     });
     if (result.status === "created") return result.store;
     if (result.status === "capacity_reached") {
@@ -71,8 +82,38 @@ function normalizeStoreName(value: string): string {
   return name;
 }
 
+function normalizeStoreProfile(input: { cnpj: string; email: string; phone: string; storeCategory: string }): CreateMerchantStoreProfile {
+  const cnpj = input.cnpj.replace(/\D/g, "");
+  if (!isValidCnpj(cnpj)) throw new BadRequestException({ code: "merchant_store_cnpj_invalid" });
+
+  const email = input.email.trim().toLowerCase();
+  if (email.length > 254 || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)) {
+    throw new BadRequestException({ code: "merchant_store_email_invalid" });
+  }
+
+  const phone = input.phone.replace(/\D/g, "");
+  if (phone.length < 10 || phone.length > 15) throw new BadRequestException({ code: "merchant_store_phone_invalid" });
+
+  const storeCategory = input.storeCategory.trim();
+  if (!isValidStoreCategory(storeCategory)) {
+    throw new BadRequestException({ code: "merchant_store_category_invalid" });
+  }
+  return { cnpj, email, phone, storeCategory };
+}
+
 function slugFromStoreName(value: string): string {
   const slug = value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   if (slug.length < 3 || slug.length > 80) throw new ConflictException({ code: "merchant_store_slug_invalid" });
   return slug;
+}
+
+function isValidCnpj(value: string): boolean {
+  if (!/^\d{14}$/.test(value) || /^(\d)\1{13}$/.test(value)) return false;
+  const digit = (slice: string, weights: number[]) => {
+    const sum = slice.split("").reduce((total, item, index) => total + Number(item) * weights[index]!, 0);
+    const rest = sum % 11;
+    return rest < 2 ? 0 : 11 - rest;
+  };
+  return digit(value.slice(0, 12), [5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]) === Number(value[12])
+    && digit(value.slice(0, 13), [6, 5, 4, 3, 2, 9, 8, 7, 6, 5, 4, 3, 2]) === Number(value[13]);
 }

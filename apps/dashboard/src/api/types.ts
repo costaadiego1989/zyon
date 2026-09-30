@@ -37,6 +37,7 @@ export type MerchantProfile = {
   id: string;
   name: string;
   slug?: string;
+  storeCategory?: string;
   plan?: "CHECKOUT_ONLY" | "STORE_ONLY" | "BOTH" | "API";
   role?: MerchantRole;
   user_id: string;
@@ -47,6 +48,8 @@ export type ManagedMerchantStore = {
   name: string;
   slug?: string;
   role: "owner" | "admin" | "staff";
+  storeCategory?: string;
+  isBillingAccount?: boolean;
 };
 
 export type NegotiationEvaluateBridgeResponse = Record<string, unknown> & {

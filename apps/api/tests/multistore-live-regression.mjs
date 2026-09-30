@@ -36,7 +36,7 @@ const rootId = `multistore-${run}`;
 const authRepo = new PrismaAuthRepository(db);
 const rootAccount = await authRepo.createMerchantWithOwner({ merchantId: rootId, merchantName: "Scale Regression Root", storeSlug: rootId,
   email, passwordHash: await new PasswordHasher().hash(password) });
-await db.merchant.update({ where: { id: rootId }, data: { storeSettings: {
+await db.merchant.update({ where: { id: rootId }, data: { storeCategory: "electronics", storeSettings: {
   registration_pending: false, owner_name: "Scale Regression Owner", owner_phone: "11999998888",
 } } });
 await db.merchantBillingSubscription.update({ where: { merchantId: rootId }, data: { planKey: "scale", status: "active" } });
@@ -55,6 +55,12 @@ if (process.env.MULTISTORE_LEGACY_WIRING === "1") {
 }
 await app.listen(3019, "127.0.0.1");
 const base = "http://127.0.0.1:3019/v1";
+const storeProfile = {
+  cnpj: "11.444.777/0001-61",
+  email: "contato@regressao.example",
+  phone: "(11) 99999-9999",
+  storeCategory: "electronics",
+};
 let cookie = "";
 async function request(path, body, expected = 200, method = body === undefined ? "GET" : "POST") {
   const response = await fetch(base + path, {
@@ -71,10 +77,15 @@ async function request(path, body, expected = 200, method = body === undefined ?
 try {
   await request("/auth/login", { email, password }, 201);
   assert.equal((await request("/merchants/me")).id, rootId);
-  const created = await request("/merchants/me/stores", { name: "Regressão Nova Loja" }, 201);
+  const created = await request("/merchants/me/stores", { name: "Regressão Nova Loja", ...storeProfile }, 201);
   assert.match(created.slug, /^regressao-nova-loja(?:-\d+)?$/);
   assert.notEqual(created.id, rootId);
-  assert.ok((await request("/merchants/me/stores")).data.some(store => store.id === created.id), "new membership must survive a separate request");
+  assert.equal(created.storeCategory, storeProfile.storeCategory);
+  const managedStores = (await request("/merchants/me/stores")).data;
+  assert.ok(managedStores.some(store => store.id === created.id), "new membership must survive a separate request");
+  assert.deepEqual(managedStores.find(store => store.id === rootId), {
+    id: rootId, name: "Scale Regression Root", slug: rootId, role: "owner", storeCategory: "electronics", isBillingAccount: true,
+  });
   const activated = await request(`/merchants/me/stores/${created.id}/activate`, {}, 201);
   assert.equal(activated.merchant_id, created.id);
   assert.equal((await request("/merchants/me")).id, created.id, "new cookie must authenticate on a fresh request");
@@ -92,11 +103,15 @@ try {
   assert.equal(persistedAccountProfile.phone, "11999997777");
   const [accountSettings, childSettings] = await Promise.all([
     db.merchant.findUnique({ where: { id: rootId }, select: { storeSettings: true } }),
-    db.merchant.findUnique({ where: { id: created.id }, select: { storeSettings: true } }),
+    db.merchant.findUnique({ where: { id: created.id }, select: { storeSettings: true, storeCategory: true } }),
   ]);
   assert.equal(accountSettings.storeSettings.owner_name, "Scale Regression Owner Updated");
   assert.equal(accountSettings.storeSettings.owner_phone, "11999997777");
   assert.equal((childSettings.storeSettings ?? {}).owner_name, undefined, "updating the account must not populate child-store settings");
+  assert.equal(childSettings.storeCategory, storeProfile.storeCategory);
+  assert.deepEqual((childSettings.storeSettings ?? {}).company, {
+    razaoSocial: "Regressão Nova Loja", cnpj: "11444777000161", email: "contato@regressao.example", phone: "11999999999",
+  });
   assert.equal((await request("/merchants/me")).name, "Regressão Nova Loja");
   assert.equal((await request("/billing/subscription")).plan, "scale");
   assert.equal(await db.merchantBillingSubscription.count({ where: { merchantId: created.id } }), 0);
@@ -115,7 +130,7 @@ try {
   await db.merchantTeamMember.create({ data: { merchantId: outsider.id, userId: activeUser.id, role: "OWNER" } });
   await request(`/merchants/me/stores/${outsider.id}/activate`, {}, 403);
   assert.equal((await request("/merchants/me/stores")).data.length, 2);
-  const child2 = await request("/merchants/me/stores", { name: "Filial da Nova Loja" }, 201);
+  const child2 = await request("/merchants/me/stores", { name: "Filial da Nova Loja", ...storeProfile }, 201);
   assert.equal((await db.merchant.findUnique({ where: { id: child2.id } })).billingAccountMerchantId, rootId);
   await request(`/merchants/me/stores/${rootId}/activate`, {}, 201);
   assert.equal((await request("/merchants/me")).id, rootId);
@@ -123,7 +138,7 @@ try {
     assert.equal(await db[delegate].count({ where: { merchantId: created.id } }), 0, `${delegate} must not be inherited`);
   }
   assert.equal((await db.merchantUser.findUnique({ where: { email } })).merchantId, rootId);
-  console.log(JSON.stringify({ result: "PASS", checks: ["official login", "name-only creation", "persistent membership", "activation cookie", "profile after reload", "fresh onboarding", "list from child", "deny other account", "create from child with Scale", "return to root", "integration isolation"], rootId, email }));
+  console.log(JSON.stringify({ result: "PASS", checks: ["official login", "commercial profile creation", "parent category", "persistent membership", "activation cookie", "profile after reload", "fresh onboarding", "list from child", "deny other account", "create from child with Scale", "return to root", "integration isolation"], rootId, email }));
   if (process.argv.includes("--serve")) {
     console.log("LOCAL_BROWSER_FIXTURE_READY http://localhost:3019");
     await new Promise(() => {});

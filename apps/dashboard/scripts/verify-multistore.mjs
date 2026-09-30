@@ -29,16 +29,25 @@ try {
   assert.equal((await trigger.textContent()).trim(), root.name);
   await trigger.click();
   await page.getByRole("button", { name: "Criar nova loja", exact: true }).click();
-  assert.equal(await page.getByLabel("URL da loja", { exact: true }).count(), 0);
+  const dialog = page.getByRole("dialog", { name: "Criar nova loja" });
+  await dialog.waitFor();
+  assert.equal(await dialog.getByLabel("URL da loja", { exact: true }).count(), 0);
   const name = `Sandbox Validação ${Date.now()}`;
-  await page.getByLabel("Nome da loja", { exact: true }).fill(name);
+  await dialog.getByLabel("Nome da loja", { exact: true }).fill(name);
+  await dialog.getByLabel("CNPJ", { exact: true }).fill("11.444.777/0001-61");
+  await dialog.getByLabel("E-mail comercial", { exact: true }).fill("contato@sandbox-validation.example");
+  await dialog.getByLabel("Celular", { exact: true }).fill("(11) 99999-9999");
+  assert.match(await dialog.getByRole("button", { name: "Tipo da loja" }).innerText(), /Eletrônicos & Tecnologia/);
   const creation = page.waitForResponse(response => response.url().endsWith("/merchants/me/stores") && response.request().method() === "POST");
   let documents = 0;
   page.on("request", request => { if (request.isNavigationRequest() && request.frame() === page.mainFrame()) documents++; });
-  await page.getByRole("button", { name: "Criar e configurar", exact: true }).click();
+  await dialog.getByRole("button", { name: "Criar e abrir primeiros passos", exact: true }).click();
   const createdResponse = await creation;
   assert.equal(createdResponse.status(), 201);
   const created = await createdResponse.json();
+  assert.deepEqual(JSON.parse(createdResponse.request().postData() ?? "{}"), {
+    name, cnpj: "11.444.777/0001-61", email: "contato@sandbox-validation.example", phone: "(11) 99999-9999", storeCategory: "electronics",
+  });
   await page.waitForFunction(expected => document.querySelector(".merchant-store-switcher > button")?.textContent?.trim() === expected, name, { timeout: 30000 });
   assert.ok(documents > 0, "activation must reload the document, not only change hash");
   assert.equal(new URL(page.url()).hash, "#onboarding");
@@ -46,6 +55,11 @@ try {
   assert.match(await page.locator('.onb-rail-step[aria-current="step"]').innerText(), /Etapa 01/);
   const current = await (await context.request.get(`${api}/v1/merchants/me`)).json();
   assert.equal((current.data ?? current).id, created.id);
+  assert.equal((current.data ?? current).storeCategory, "electronics");
+  const settings = await (await context.request.get(`${api}/v1/merchants/me/store-settings`)).json();
+  assert.deepEqual(settings.company, {
+    razaoSocial: name, cnpj: "11444777000161", email: "contato@sandbox-validation.example", phone: "11999999999",
+  });
   const state = await (await context.request.get(`${api}/v1/onboarding`)).json();
   assert.equal(state.merchant_id, created.id);
   assert.equal(state.steps.find(step => step.id === "checkout_config").status, "pending");
@@ -65,7 +79,7 @@ try {
   assert.equal(await page.getByText("Dados pessoais indisponíveis", { exact: true }).count(), 0);
   assert.deepEqual(failures, []);
   console.log(JSON.stringify({ result: "PASS", dashboard, storeId: created.id, name, slug: created.slug,
-    checks: ["name-only UI", "real creation", "full document reload", "new store header", "first onboarding step", "persist after reload", "switch root and back", "account profile after switch"] }));
+    checks: ["commercial profile modal", "parent category prefill", "real creation", "stored commercial profile", "full document reload", "new store header", "first onboarding step", "persist after reload", "switch root and back", "account profile after switch"] }));
 } catch (error) {
   console.log(JSON.stringify({ pageErrors: failures, pageText: (await page.locator("body").innerText()).slice(0, 1500) }));
   throw error;
