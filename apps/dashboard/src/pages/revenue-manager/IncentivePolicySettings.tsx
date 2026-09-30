@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { DashboardHttpError } from "../../api/http/error.js";
 import { createIdempotencyKey } from "../../api/http/idempotency.js";
@@ -17,12 +17,13 @@ const cents = (value: string) => {
   return match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : NaN;
 };
 const summary = (p: IncentivePolicy) => p.enabled
-  ? `${money(p.limitCents)} por estratégia · até ${money(p.maxDiscountCents)} por desconto · ${p.maxRedemptions.toLocaleString("pt-BR")} usos`
-  : "Novas reservas de incentivos desativadas";
+  ? `${money(p.limitCents)} por teste · até ${money(p.maxDiscountCents)} por pedido · ${p.maxRedemptions.toLocaleString("pt-BR")} usos`
+  : "Novos descontos desativados";
 
 /** Parent keys this component by authenticated merchant, dropping stale drafts and replies on store switches. */
 export function IncentivePolicySettings({ merchantId }: { merchantId: string }) {
   const api = useApi();
+  const helpId = useId();
   const [policy, setPolicy] = useState<IncentivePolicy | null>(null);
   const [draft, setDraft] = useState<Draft>({ enabled: false, total: "", discount: "", uses: "" });
   const [busy, setBusy] = useState(true);
@@ -64,7 +65,7 @@ export function IncentivePolicySettings({ merchantId }: { merchantId: string }) 
       maxRedemptions: empty ? 0 : /^\d+$/.test(draft.uses) ? Number(draft.uses) : NaN,
       expectedVersion: policy.version, requestKey: createIdempotencyKey() };
     if (!validIncentivePolicy({ ...command, merchantId, version: policy.version + 1, policyHash: policy.policyHash }, merchantId)) {
-      setError("Preencha valores positivos, com até duas casas decimais. O desconto deve caber no teto da estratégia e o limite de usos é 1.000.000."); return;
+      setError("Preencha valores positivos, com até duas casas decimais. O desconto por pedido não pode ultrapassar o total por teste. Informe no máximo 1.000.000 de usos."); return;
     }
     locked.current = true; setBusy(true); setError(""); setNotice("");
     pendingRef.current = command; setPending(command);
@@ -105,25 +106,33 @@ export function IncentivePolicySettings({ merchantId }: { merchantId: string }) 
     && (draft.uses.trim() ? /^\d+$/.test(draft.uses) ? Number(draft.uses) : NaN : 0) === policy.maxRedemptions;
 
   return <details className="incentive-policy">
-    <summary><span><strong>Orçamento para incentivos</strong><span className="incentive-policy-subtitle">
+    <summary><span><strong>Limites de desconto</strong><span className="incentive-policy-subtitle">
       {policy ? summary(policy) : busy ? "Carregando limites…" : "Limites indisponíveis"}
     </span></span><span className="incentive-policy-open"><span className="incentive-policy-expand">Configurar</span><span className="incentive-policy-collapse">Fechar</span></span></summary>
     <div className="incentive-policy-content">
-      <p>Cada teste ainda precisa da sua aprovação. Os descontos também respeitam as margens e regras comerciais da loja.</p>
+      <p>Defina quanto sua loja pode conceder em descontos nos testes sugeridos pela IA.
+        A IA recomenda a estratégia e você aprova antes de ela começar. Cada desconto também precisa respeitar as margens e regras comerciais da loja.</p>
+      <p className="incentive-policy-help">Este orçamento representa descontos nas vendas. Não é uma cobrança da Zyon nem o custo de uso da IA.</p>
       {error && <p role="alert" className="incentive-policy-error">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {!policy ? <button type="button" className="zyn-btn zyn-btn--secondary" disabled={busy} onClick={() => void load()}>
         {busy ? "Carregando…" : "Tentar novamente"}</button> : <form onSubmit={event => { event.preventDefault(); void save(); }}>
         <fieldset disabled={busy || Boolean(pending)}>
           <label className="incentive-policy-enable"><input type="checkbox" checked={draft.enabled} onChange={e => edit({ enabled: e.target.checked })} />
-            Permitir orçamento para novos incentivos</label>
+            Permitir descontos nos testes que eu aprovar</label>
           <div className="incentive-policy-fields">
-            <label>Teto por estratégia (R$)<input type="text" inputMode="decimal" value={draft.total} onChange={e => edit({ total: e.target.value })} placeholder="Ex.: 300,00" maxLength={15} /></label>
-            <label>Máximo por desconto (R$)<input type="text" inputMode="decimal" value={draft.discount} onChange={e => edit({ discount: e.target.value })} placeholder="Ex.: 10,00" maxLength={15} /></label>
-            <label>Máximo de usos por estratégia<input type="text" inputMode="numeric" value={draft.uses} onChange={e => edit({ uses: e.target.value })} placeholder="Ex.: 30" maxLength={7} /></label>
+            <div><label>Total de descontos por teste (R$)<input type="text" inputMode="decimal" value={draft.total} onChange={e => edit({ total: e.target.value })} placeholder="Ex.: 300,00" maxLength={15} aria-describedby={`${helpId}-total`} /></label>
+              <p id={`${helpId}-total`} className="incentive-policy-field-help">Soma máxima dos descontos de um único teste aprovado.</p></div>
+            <div><label>Desconto máximo por pedido (R$)<input type="text" inputMode="decimal" value={draft.discount} onChange={e => edit({ discount: e.target.value })} placeholder="Ex.: 10,00" maxLength={15} aria-describedby={`${helpId}-discount`} /></label>
+              <p id={`${helpId}-discount`} className="incentive-policy-field-help">Maior desconto que o teste pode oferecer em uma compra.</p></div>
+            <div><label>Máximo de usos por teste<input type="text" inputMode="numeric" value={draft.uses} onChange={e => edit({ uses: e.target.value })} placeholder="Ex.: 30" maxLength={7} aria-describedby={`${helpId}-uses`} /></label>
+              <p id={`${helpId}-uses`} className="incentive-policy-field-help">Quantas vezes o desconto pode ser utilizado no teste.</p></div>
           </div>
         </fieldset>
-        <p className="incentive-policy-help">Alterar ou desativar estes limites interrompe novas reservas nos orçamentos anteriores. Valores já reservados continuam registrados até a conclusão.</p>
+        <p className="incentive-policy-example"><strong>Exemplo:</strong> R$ 300 por teste, com até R$ 10 por pedido e 30 usos,
+          permite até 30 descontos de R$ 10. Novos descontos são bloqueados quando o valor disponível ou a quantidade de usos se esgota.</p>
+        <p className="incentive-policy-help">Salvar estes limites não inicia um teste. Ao alterar ou desativar, os testes com os limites anteriores deixam de oferecer novos descontos.
+          Valores separados para compras em andamento continuam no controle do orçamento até serem confirmados ou liberados.</p>
         {conflict ? <div className="incentive-policy-conflict"><p><strong>Limites atuais:</strong> {summary(policy)}</p>
           <div className="incentive-policy-actions">
             <button type="button" className="zyn-btn zyn-btn--secondary" onClick={() => { setDraft(draftOf(policy)); setConflict(false); setError(""); }}>Usar limites atuais</button>

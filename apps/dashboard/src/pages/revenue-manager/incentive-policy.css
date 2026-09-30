@@ -10,14 +10,17 @@
 .incentive-policy-content p { max-width: 72ch; margin: 0 0 16px; }
 .incentive-policy fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
 .incentive-policy-enable { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-bottom: 16px; cursor: pointer; }
-.incentive-policy-enable input { width: 18px; height: 18px; accent-color: var(--color-brand); }
+.incentive-policy-enable input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--color-brand); }
 .incentive-policy-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; max-width: 840px; }
 .incentive-policy-fields label { display: flex; flex-direction: column; gap: 6px; font-size: 13px; }
+.incentive-policy-fields > div { min-width: 0; }
+.incentive-policy .incentive-policy-field-help { color: var(--color-text-muted); font-size: 13px; line-height: 1.5; margin: 8px 0 0; }
+.incentive-policy .incentive-policy-example { margin-top: 20px; }
 .incentive-policy-fields input { box-sizing: border-box; width: 100%; min-height: 44px; border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--surface-1); color: var(--color-text); padding: 10px 12px; font: inherit; font-size: 16px; }
 .incentive-policy .incentive-policy-help { color: var(--color-text-muted); font-size: 13px; margin: 16px 0 20px; }
 .incentive-policy .incentive-policy-error { color: var(--color-error); }
 .incentive-policy-actions { display: flex; flex-wrap: wrap; gap: 12px; }
-.incentive-policy button { min-height: 44px; }
+.incentive-policy .incentive-policy-content button { min-height: 44px; }
 .incentive-policy :is(summary, input, button):focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
 .incentive-policy fieldset:disabled { opacity: .65; }
 @media (max-width: 650px) { .incentive-policy-fields { grid-template-columns: 1fr; gap: 16px; } .incentive-policy summary { gap: 12px; } }

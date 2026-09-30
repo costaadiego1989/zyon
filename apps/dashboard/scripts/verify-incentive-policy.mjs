@@ -38,8 +38,9 @@ try {
         } else body = foreignReply ? { ...policy, merchantId: "foreign-store" } : policy;
       }
       else if (path.endsWith("/merchants/me")) body = { id: "merchant-fixture", name: "Loja", user_id: "owner", role: "OWNER", plan: "BOTH" };
+      else if (path.endsWith("/merchants/me/stores")) body = { data: [{ id: "merchant-fixture", name: "Loja", slug: "fixture" }] };
       else if (path.endsWith("/onboarding")) body = { completed: true, steps: [] };
-      else if (path.endsWith("/billing/subscription")) body = { plan: "scale", planKey: "scale", status: "active", effectivePlan: "scale", features: { revenueManager: true } };
+      else if (path.endsWith("/billing/subscription")) body = { plan: "scale", planKey: "scale", status: "active", effectivePlan: "scale", features: { revenueManager: true }, currentPeriodEnd: "2099-01-01T00:00:00Z" };
       else if (path.endsWith("/rules")) body = { autonomousEngineEnabled: true };
       else if (path.endsWith("/notifications")) body = { items: [] };
       else if (path.endsWith("/analysis-status")) body = { mode: "weekly", enabled: true, queue_available: true,
@@ -50,12 +51,12 @@ try {
     });
     await page.goto(`${base}/#revenue-manager`, { waitUntil: "domcontentloaded" });
     const panel = page.locator("details.incentive-policy");
-    await panel.getByText("Novas reservas de incentivos desativadas", { exact: true }).waitFor();
+    await panel.getByText("Novos descontos desativados", { exact: true }).waitFor();
     await panel.locator("summary").click();
-    const total = panel.getByLabel("Teto por estratégia (R$)", { exact: true });
-    const discount = panel.getByLabel("Máximo por desconto (R$)", { exact: true });
-    const uses = panel.getByLabel("Máximo de usos por estratégia", { exact: true });
-    const toggle = panel.getByLabel("Permitir orçamento para novos incentivos", { exact: true });
+    const total = panel.getByLabel("Total de descontos por teste (R$)", { exact: true });
+    const discount = panel.getByLabel("Desconto máximo por pedido (R$)", { exact: true });
+    const uses = panel.getByLabel("Máximo de usos por teste", { exact: true });
+    const toggle = panel.getByLabel("Permitir descontos nos testes que eu aprovar", { exact: true });
     const save = panel.getByRole("button", { name: "Salvar limites", exact: true });
     assert.equal(await total.inputValue(), ""); assert.equal(await toggle.isChecked(), false);
     assert.ok(await save.isDisabled()); assert.equal(saves.length, 0);
@@ -89,10 +90,11 @@ try {
     await panel.getByRole("status").filter({ hasText: "Limites salvos" }).waitFor();
     assert.equal(policy.enabled, false); assert.equal(policy.limitCents, 50000);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
-    for (const el of await panel.locator("button, input[type=text], summary").all()) {
-      assert.ok((await el.boundingBox()).height >= 44);
-    }
     if (out) await panel.screenshot({ path: `${out}/incentive-policy-${width}.png` });
+    for (const el of await panel.locator("button, input[type=text], summary").all()) {
+      const box = await el.boundingBox();
+      assert.ok(box.height >= 44, `Touch target below 44px: ${await el.evaluate(node => node.outerHTML)} (${box.height}px)`);
+    }
 
     foreignReply = true; await page.reload({ waitUntil: "domcontentloaded" });
     await panel.getByText("Limites indisponíveis", { exact: true }).waitFor();
