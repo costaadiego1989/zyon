@@ -58,9 +58,14 @@ try {
   await trigger.click();
   await page.getByRole("dialog", { name: "Trocar loja" }).getByRole("button", { name }).click();
   await page.waitForFunction(expected => document.querySelector(".merchant-store-switcher > button")?.textContent?.trim() === expected, name);
+  const accountProfile = page.waitForResponse(response => response.url().endsWith("/auth/me") && response.request().method() === "GET");
+  await page.evaluate(() => { window.location.hash = "account-settings"; });
+  assert.equal((await accountProfile).status(), 200, "account profile must remain available after switching stores");
+  await page.getByLabel("Nome completo", { exact: true }).waitFor({ timeout: 30000 });
+  assert.equal(await page.getByText("Dados pessoais indisponíveis", { exact: true }).count(), 0);
   assert.deepEqual(failures, []);
   console.log(JSON.stringify({ result: "PASS", dashboard, storeId: created.id, name, slug: created.slug,
-    checks: ["name-only UI", "real creation", "full document reload", "new store header", "first onboarding step", "persist after reload", "switch root and back"] }));
+    checks: ["name-only UI", "real creation", "full document reload", "new store header", "first onboarding step", "persist after reload", "switch root and back", "account profile after switch"] }));
 } catch (error) {
   console.log(JSON.stringify({ pageErrors: failures, pageText: (await page.locator("body").innerText()).slice(0, 1500) }));
   throw error;

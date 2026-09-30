@@ -34,9 +34,11 @@ const email = `multistore-${run}@example.invalid`;
 const password = "Local-multistore-regression-Only!42";
 const rootId = `multistore-${run}`;
 const authRepo = new PrismaAuthRepository(db);
-await authRepo.createMerchantWithOwner({ merchantId: rootId, merchantName: "Scale Regression Root", storeSlug: rootId,
+const rootAccount = await authRepo.createMerchantWithOwner({ merchantId: rootId, merchantName: "Scale Regression Root", storeSlug: rootId,
   email, passwordHash: await new PasswordHasher().hash(password) });
-await db.merchant.update({ where: { id: rootId }, data: { storeSettings: { registration_pending: false } } });
+await db.merchant.update({ where: { id: rootId }, data: { storeSettings: {
+  registration_pending: false, owner_name: "Scale Regression Owner", owner_phone: "11999998888",
+} } });
 await db.merchantBillingSubscription.update({ where: { merchantId: rootId }, data: { planKey: "scale", status: "active" } });
 await db.merchantOnboardingState.create({ data: { merchantId: rootId, steps: Object.fromEntries(
   ["account", "checkout_config", "whatsapp", "ai_engine"].map(id => [id, { status: "completed" }])) } });
@@ -54,9 +56,9 @@ if (process.env.MULTISTORE_LEGACY_WIRING === "1") {
 await app.listen(3019, "127.0.0.1");
 const base = "http://127.0.0.1:3019/v1";
 let cookie = "";
-async function request(path, body, expected = 200) {
+async function request(path, body, expected = 200, method = body === undefined ? "GET" : "POST") {
   const response = await fetch(base + path, {
-    method: body === undefined ? "GET" : "POST",
+    method,
     headers: { "Content-Type": "application/json", ...(cookie ? { Cookie: cookie } : {}), "Idempotency-Key": randomUUID() },
     ...(body === undefined ? {} : { body: JSON.stringify(body) }),
   });
@@ -76,6 +78,25 @@ try {
   const activated = await request(`/merchants/me/stores/${created.id}/activate`, {}, 201);
   assert.equal(activated.merchant_id, created.id);
   assert.equal((await request("/merchants/me")).id, created.id, "new cookie must authenticate on a fresh request");
+  const accountProfile = await request("/auth/me");
+  assert.equal(accountProfile.user_id, rootAccount.user.id, "account profile belongs to the authenticated user, not a child-store owner record");
+  assert.equal(accountProfile.merchant_id, created.id, "account profile retains the active store context");
+  assert.equal(accountProfile.name, "Scale Regression Owner", "account profile inherits existing root account details");
+  assert.equal(accountProfile.phone, "11999998888");
+  const updatedAccountProfile = await request("/auth/me", {
+    name: "Scale Regression Owner Updated", phone: "11999997777",
+  }, 200, "PUT");
+  assert.deepEqual(updatedAccountProfile, { name: "Scale Regression Owner Updated", phone: "11999997777" });
+  const persistedAccountProfile = await request("/auth/me");
+  assert.equal(persistedAccountProfile.name, "Scale Regression Owner Updated");
+  assert.equal(persistedAccountProfile.phone, "11999997777");
+  const [accountSettings, childSettings] = await Promise.all([
+    db.merchant.findUnique({ where: { id: rootId }, select: { storeSettings: true } }),
+    db.merchant.findUnique({ where: { id: created.id }, select: { storeSettings: true } }),
+  ]);
+  assert.equal(accountSettings.storeSettings.owner_name, "Scale Regression Owner Updated");
+  assert.equal(accountSettings.storeSettings.owner_phone, "11999997777");
+  assert.equal((childSettings.storeSettings ?? {}).owner_name, undefined, "updating the account must not populate child-store settings");
   assert.equal((await request("/merchants/me")).name, "Regressão Nova Loja");
   assert.equal((await request("/billing/subscription")).plan, "scale");
   assert.equal(await db.merchantBillingSubscription.count({ where: { merchantId: created.id } }), 0);

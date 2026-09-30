@@ -3,7 +3,7 @@ import { AUTH_REPOSITORY, type AuthRepository } from "../domain/ports/auth-repos
 
 /**
  * Loads the account settings profile (name, email, phone) for the
- * authenticated merchant owner.
+ * authenticated account user in the currently selected store.
  */
 @Injectable()
 export class GetMeUseCase {
@@ -11,8 +11,8 @@ export class GetMeUseCase {
     @Inject(AUTH_REPOSITORY) private readonly repo: AuthRepository,
   ) {}
 
-  async execute(merchantId: string) {
-    const profile = await this.repo.getOwnerProfile(merchantId);
+  async execute(input: { userId: string; merchantId: string }) {
+    const profile = await this.repo.getOwnerProfile(input.userId, input.merchantId);
     if (!profile) throw new NotFoundException("owner_profile_not_found");
     return {
       user_id: profile.userId,

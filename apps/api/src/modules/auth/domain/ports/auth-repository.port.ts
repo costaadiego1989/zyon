@@ -54,8 +54,9 @@ export interface AuthRepository {
   isSlugTaken(slug: string): Promise<boolean>;
   setStoreSettings(merchantId: string, settings: Record<string, unknown>): Promise<void>;
 
-  // Owner profile (account settings)
-  getOwnerProfile(merchantId: string): Promise<OwnerProfile | undefined>;
+  // Account profile is always resolved from the authenticated user. The
+  // merchant is the active store used to authorize that account access.
+  getOwnerProfile(userId: string, merchantId: string): Promise<OwnerProfile | undefined>;
   updateOwnerProfile(
     userId: string,
     merchantId: string,

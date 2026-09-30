@@ -8,6 +8,7 @@ import { assertStrongPassword } from "../domain/validators.js";
 import { InvalidCredentialsError } from "../domain/errors.js";
 
 export interface ChangePasswordInput {
+  userId: string;
   merchantId: string;
   currentPassword: string;
   newPassword: string;
@@ -28,7 +29,7 @@ export class ChangePasswordUseCase {
     if (!input.currentPassword) throw new BadRequestException("current_password_required");
     assertStrongPassword(input.newPassword);
 
-    const profile = await this.repo.getOwnerProfile(input.merchantId);
+    const profile = await this.repo.getOwnerProfile(input.userId, input.merchantId);
     if (!profile) throw new NotFoundException("owner_profile_not_found");
 
     const user = await this.repo.findUserByEmail(profile.email);

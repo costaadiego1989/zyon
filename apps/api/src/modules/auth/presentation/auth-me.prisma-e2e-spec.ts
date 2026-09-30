@@ -78,6 +78,9 @@ test(
       });
       merchantId = registered.merchant_id;
       assert.ok(merchantId, "registered merchant id");
+      const authenticatedRequest = { user: {
+        userId: registered.user_id, merchantId, email: merchantEmail, role: "owner" as const,
+      } };
 
       // ── Seed owner profile (name + phone) directly ──
       await prisma.merchant.update({
@@ -95,27 +98,27 @@ test(
       assert.ok(logged.access_token, "login returned token");
 
       // ── GET /auth/me ──
-      const me1 = await (authController as any).getMeRoute(merchantId);
+      const me1 = await (authController as any).getMeRoute(authenticatedRequest);
       assert.equal(me1.email, merchantEmail);
       assert.equal(me1.name, "Me Test");
       assert.equal(me1.phone, "11999998888");
 
       // ── PUT /auth/me (name + phone, no email change) ──
-      const updated = await (authController as any).updateMeRoute(merchantId, {
+      const updated = await (authController as any).updateMeRoute(authenticatedRequest, {
         name: "Owner Atualizado",
         phone: "11999998888",
       });
       assert.equal(updated.name, "Owner Atualizado");
       assert.equal(updated.phone, "11999998888");
 
-      const me2 = await (authController as any).getMeRoute(merchantId);
+      const me2 = await (authController as any).getMeRoute(authenticatedRequest);
       assert.equal(me2.name, "Owner Atualizado");
       assert.equal(me2.phone, "11999998888");
 
       // ── PUT /auth/me/password (wrong current) ──
       await assert.rejects(
         () =>
-          (authController as any).changePasswordRoute(merchantId, {
+          (authController as any).changePasswordRoute(authenticatedRequest, {
             current_password: "wrong-password",
             new_password: "new-pw-12345",
           }),
@@ -123,7 +126,7 @@ test(
       );
 
       // ── PUT /auth/me/password (correct) ──
-      const pwResult = await (authController as any).changePasswordRoute(merchantId, {
+      const pwResult = await (authController as any).changePasswordRoute(authenticatedRequest, {
         current_password: "current-pw-123",
         new_password: "new-pw-12345",
       });
@@ -134,7 +137,7 @@ test(
       assert.ok(relogin.access_token);
 
       // ── Email change: request OTP ──
-      const request = await (authController as any).requestEmailChangeRoute(merchantId, {
+      const request = await (authController as any).requestEmailChangeRoute(authenticatedRequest, {
         new_email: newEmail,
       });
       assert.equal(request.sent, true);
@@ -148,7 +151,7 @@ test(
       // ── Email change: confirm wrong code → 401 ──
       await assert.rejects(
         () =>
-          (authController as any).confirmEmailChangeRoute(merchantId, {
+          (authController as any).confirmEmailChangeRoute(authenticatedRequest, {
             new_email: newEmail,
             code: "000000",
           }),
@@ -156,14 +159,15 @@ test(
       );
 
       // ── Email change: confirm correct code → 200 ──
-      const confirm = await (authController as any).confirmEmailChangeRoute(merchantId, {
+      const confirm = await (authController as any).confirmEmailChangeRoute(authenticatedRequest, {
         new_email: newEmail,
         code,
       });
       assert.equal(confirm.email, newEmail);
 
       // ── Verify email was actually changed in DB ──
-      const me3 = await (authController as any).getMeRoute(merchantId);
+      authenticatedRequest.user.email = newEmail;
+      const me3 = await (authController as any).getMeRoute(authenticatedRequest);
       assert.equal(me3.email, newEmail);
 
       // ── Verify notification was sent to OLD email ──

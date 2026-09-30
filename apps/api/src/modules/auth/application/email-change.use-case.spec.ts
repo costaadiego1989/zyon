@@ -46,10 +46,19 @@ async function seedMerchant(repo: InMemoryAuthRepository, email = "owner@x.com")
   return user;
 }
 
+async function asOwner(
+  repo: InMemoryAuthRepository,
+  useCase: { execute(input: any): Promise<any> },
+  input: any,
+) {
+  const user = await repo.findUserByEmail("owner@x.com");
+  return useCase.execute({ ...input, userId: user?.id ?? "missing_user" });
+}
+
 test("RequestEmailChangeUseCase: rejects invalid email", async () => {
-  const { request } = makeSut();
+  const { repo, request } = makeSut();
   await assert.rejects(
-    () => request.execute({ merchantId: "merch_1", newEmail: "not-an-email" }),
+    () => asOwner(repo, request, { merchantId: "merch_1", newEmail: "not-an-email" }),
     InvalidEmailError,
   );
 });
@@ -58,7 +67,7 @@ test("RequestEmailChangeUseCase: rejects when new email equals current", async (
   const { repo, request } = makeSut();
   await seedMerchant(repo);
   await assert.rejects(
-    () => request.execute({ merchantId: "merch_1", newEmail: "owner@x.com" }),
+    () => asOwner(repo, request, { merchantId: "merch_1", newEmail: "owner@x.com" }),
     BadRequestException,
   );
 });
@@ -73,7 +82,7 @@ test("RequestEmailChangeUseCase: rejects when new email already taken", async ()
     passwordHash: "h",
   });
   await assert.rejects(
-    () => request.execute({ merchantId: "merch_1", newEmail: "other@y.com" }),
+    () => asOwner(repo, request, { merchantId: "merch_1", newEmail: "other@y.com" }),
     BadRequestException,
   );
 });
@@ -81,16 +90,15 @@ test("RequestEmailChangeUseCase: rejects when new email already taken", async ()
 test("RequestEmailChangeUseCase: sends OTP email and stores hash", async () => {
   const { repo, emailSender, otpStore, request } = makeSut();
   await seedMerchant(repo);
-  const result = await request.execute({ merchantId: "merch_1", newEmail: "new@x.com" });
+  const result: any = await asOwner(repo, request, { merchantId: "merch_1", newEmail: "new@x.com" });
   assert.equal(result.sent, true);
   assert.match(result.delivered_to, /\*\*\*/);
   assert.equal(emailSender.sent.length, 1);
   assert.equal(emailSender.sent[0]!.to, "new@x.com");
   assert.match(emailSender.sent[0]!.html, />\d{6}</);
 
-  const record = await otpStore.findActive(
-    (await repo.getOwnerProfile("merch_1"))!.userId,
-  );
+  const owner = await repo.findUserByEmail("owner@x.com");
+  const record = await otpStore.findActive((await repo.getOwnerProfile(owner!.id, "merch_1"))!.userId);
   assert.ok(record);
   assert.equal(record.newEmail, "new@x.com");
   assert.match(record.codeHash, /^[0-9a-f]{64}$/); // sha256 hex
@@ -100,18 +108,18 @@ test("RequestEmailChangeUseCase: rate-limits after 3 requests in 15min", async (
   const { repo, request } = makeSut();
   await seedMerchant(repo);
   for (let i = 0; i < 3; i++) {
-    await request.execute({ merchantId: "merch_1", newEmail: `new${i}@x.com` });
+    await asOwner(repo, request, { merchantId: "merch_1", newEmail: `new${i}@x.com` });
   }
   await assert.rejects(
-    () => request.execute({ merchantId: "merch_1", newEmail: "new3@x.com" }),
+    () => asOwner(repo, request, { merchantId: "merch_1", newEmail: "new3@x.com" }),
     EmailChangeRequestThrottledError,
   );
 });
 
 test("RequestEmailChangeUseCase: rejects when profile missing", async () => {
-  const { request } = makeSut();
+  const { repo, request } = makeSut();
   await assert.rejects(
-    () => request.execute({ merchantId: "ghost", newEmail: "new@x.com" }),
+    () => asOwner(repo, request, { merchantId: "ghost", newEmail: "new@x.com" }),
     NotFoundException,
   );
 });
@@ -120,7 +128,7 @@ test("ConfirmEmailChangeUseCase: rejects when no active OTP", async () => {
   const { repo, confirm } = makeSut();
   await seedMerchant(repo);
   await assert.rejects(
-    () => confirm.execute({ merchantId: "merch_1", newEmail: "new@x.com", code: "123456" }),
+    () => asOwner(repo, confirm, { merchantId: "merch_1", newEmail: "new@x.com", code: "123456" }),
     OtpExpiredError,
   );
 });
@@ -128,13 +136,13 @@ test("ConfirmEmailChangeUseCase: rejects when no active OTP", async () => {
 test("ConfirmEmailChangeUseCase: rejects when code is wrong (increments attempts)", async () => {
   const { repo, otpStore, request, confirm } = makeSut();
   await seedMerchant(repo);
-  await request.execute({ merchantId: "merch_1", newEmail: "new@x.com" });
+  await asOwner(repo, request, { merchantId: "merch_1", newEmail: "new@x.com" });
 
   await assert.rejects(
-    () => confirm.execute({ merchantId: "merch_1", newEmail: "new@x.com", code: "000000" }),
+    () => asOwner(repo, confirm, { merchantId: "merch_1", newEmail: "new@x.com", code: "000000" }),
     OtpInvalidError,
   );
-  const userId = (await repo.getOwnerProfile("merch_1"))!.userId;
+  const userId = (await repo.getOwnerProfile((await repo.findUserByEmail("owner@x.com"))!.id, "merch_1"))!.userId;
   const record = await otpStore.findActive(userId);
   assert.equal(record?.attempts, 1);
 });
@@ -142,17 +150,17 @@ test("ConfirmEmailChangeUseCase: rejects when code is wrong (increments attempts
 test("ConfirmEmailChangeUseCase: locks after maxAttempts wrong codes", async () => {
   const { repo, request, confirm } = makeSut();
   await seedMerchant(repo);
-  await request.execute({ merchantId: "merch_1", newEmail: "new@x.com" });
+  await asOwner(repo, request, { merchantId: "merch_1", newEmail: "new@x.com" });
 
   for (let i = 0; i < 4; i++) {
     try {
-      await confirm.execute({ merchantId: "merch_1", newEmail: "new@x.com", code: "000000" });
+      await asOwner(repo, confirm, { merchantId: "merch_1", newEmail: "new@x.com", code: "000000" });
     } catch { /* expected */ }
   }
 
   // 5th attempt is the one that triggers the lock.
   await assert.rejects(
-    () => confirm.execute({ merchantId: "merch_1", newEmail: "new@x.com", code: "000000" }),
+    () => asOwner(repo, confirm, { merchantId: "merch_1", newEmail: "new@x.com", code: "000000" }),
     OtpLockedError,
   );
 });
@@ -168,7 +176,7 @@ test("ConfirmEmailChangeUseCase: rejects when newEmail taken by another user (ra
   });
 
   // Manually inject an OTP record to bypass the "email already taken" check at request time.
-  const userId = (await repo.getOwnerProfile("merch_1"))!.userId;
+  const userId = (await repo.getOwnerProfile((await repo.findUserByEmail("owner@x.com"))!.id, "merch_1"))!.userId;
   const { createHash } = await import("node:crypto");
   await otpStore.save({
     userId,
@@ -180,7 +188,7 @@ test("ConfirmEmailChangeUseCase: rejects when newEmail taken by another user (ra
 
   const confirm = new ConfirmEmailChangeUseCase(repo, otpStore, emailSender, rateLimiter);
   await assert.rejects(
-    () => confirm.execute({ merchantId: "merch_1", newEmail: "new@x.com", code: "111111" }),
+    () => asOwner(repo, confirm, { merchantId: "merch_1", newEmail: "new@x.com", code: "111111" }),
     EmailAlreadyRegisteredError,
   );
 });
@@ -188,12 +196,12 @@ test("ConfirmEmailChangeUseCase: rejects when newEmail taken by another user (ra
 test("ConfirmEmailChangeUseCase: rejects when newEmail doesn't match OTP", async () => {
   const { repo, request, confirm } = makeSut();
   await seedMerchant(repo);
-  await request.execute({ merchantId: "merch_1", newEmail: "new@x.com" });
+  await asOwner(repo, request, { merchantId: "merch_1", newEmail: "new@x.com" });
 
   // Code is wrong → OtpInvalidError thrown before the email_mismatch check
   // (which is intentional — do not leak whether the email was the right one).
   await assert.rejects(
-    () => confirm.execute({ merchantId: "merch_1", newEmail: "different@x.com", code: "000000" }),
+    () => asOwner(repo, confirm, { merchantId: "merch_1", newEmail: "different@x.com", code: "000000" }),
     OtpInvalidError,
   );
 });

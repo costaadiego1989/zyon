@@ -2,6 +2,7 @@ import { BadRequestException, Inject, Injectable, NotFoundException } from "@nes
 import { AUTH_REPOSITORY, type AuthRepository } from "../domain/ports/auth-repository.port.js";
 
 export interface UpdateMeInput {
+  userId: string;
   merchantId: string;
   name: string;
   phone?: string;
@@ -25,7 +26,7 @@ export class UpdateMeUseCase {
     const phone = (input.phone ?? "").trim();
     if (phone.length > 20) throw new BadRequestException("phone_too_long");
 
-    const profile = await this.repo.getOwnerProfile(input.merchantId);
+    const profile = await this.repo.getOwnerProfile(input.userId, input.merchantId);
     if (!profile) throw new NotFoundException("owner_profile_not_found");
 
     await this.repo.updateOwnerProfile(profile.userId, input.merchantId, {
