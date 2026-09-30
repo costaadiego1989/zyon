@@ -9,6 +9,8 @@ import type {
 } from "../domain/ports/merchant-store.repository.port.js";
 
 const MAX_STORES_PER_SCALE_ACCOUNT = 5;
+const MAX_SLUG_ALLOCATION_ATTEMPTS = 10_000;
+const MAX_SLUG_LENGTH = 80;
 
 export class PrismaMerchantStoreRepository implements MerchantStoreRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -53,8 +55,8 @@ export class PrismaMerchantStoreRepository implements MerchantStoreRepository {
     return stores.map((store) => ({ id: store.id, name: store.name, slug: store.storeSlug ?? undefined, role: roles.get(store.id) ?? "staff" }));
   }
 
-  async createStore(input: { accountMerchantId: string; actorUserId: string; name: string; slug: string }): Promise<CreateMerchantStoreResult> {
-    for (let attempt = 0; attempt < 3; attempt += 1) {
+  async createStore(input: { accountMerchantId: string; actorUserId: string; name: string; slugBase: string }): Promise<CreateMerchantStoreResult> {
+    for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
         return await this.prisma.$transaction(async (transaction) => {
           await transaction.$queryRaw`SELECT id FROM merchants WHERE id = ${input.accountMerchantId} FOR UPDATE`;
@@ -63,8 +65,7 @@ export class PrismaMerchantStoreRepository implements MerchantStoreRepository {
           });
           if (count >= MAX_STORES_PER_SCALE_ACCOUNT) return { status: "capacity_reached" };
 
-          const existingSlug = await transaction.merchant.findUnique({ where: { storeSlug: input.slug }, select: { id: true } });
-          if (existingSlug) return { status: "slug_taken" };
+          const slug = await this.allocateSlug(transaction, input.slugBase);
 
           // Deliberately create only a new merchant identity and membership.
           // Payment connections, WhatsApp credentials, commerce, domains, theme,
@@ -73,7 +74,7 @@ export class PrismaMerchantStoreRepository implements MerchantStoreRepository {
             data: {
               id: randomUUID(),
               name: input.name,
-              storeSlug: input.slug,
+              storeSlug: slug,
               billingAccountMerchantId: input.accountMerchantId,
               plan: "BOTH",
               storeSettings: { created_from_multi_store: true },
@@ -84,11 +85,22 @@ export class PrismaMerchantStoreRepository implements MerchantStoreRepository {
           return { status: "created", store: { id: store.id, name: store.name, slug: store.storeSlug ?? undefined, role: "owner" } };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       } catch (error) {
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") return { status: "slug_taken" };
-        if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2034" && attempt < 2) continue;
+        // Another Scale account can claim the public slug between the lookup
+        // and insert. Retrying reserves the next suffix rather than failing.
+        if (error instanceof Prisma.PrismaClientKnownRequestError && ["P2002", "P2034"].includes(error.code) && attempt < 4) continue;
         throw error;
       }
     }
     throw new Error("merchant_store_create_retry_exhausted");
+  }
+
+  private async allocateSlug(transaction: Prisma.TransactionClient, base: string): Promise<string> {
+    for (let ordinal = 1; ordinal <= MAX_SLUG_ALLOCATION_ATTEMPTS; ordinal += 1) {
+      const suffix = ordinal === 1 ? "" : `-${ordinal}`;
+      const candidate = `${base.slice(0, MAX_SLUG_LENGTH - suffix.length)}${suffix}`;
+      const existing = await transaction.merchant.findUnique({ where: { storeSlug: candidate }, select: { id: true } });
+      if (!existing) return candidate;
+    }
+    throw new Error("merchant_store_slug_allocation_exhausted");
   }
 }

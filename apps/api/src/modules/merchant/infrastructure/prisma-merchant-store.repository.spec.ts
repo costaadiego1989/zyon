@@ -21,7 +21,7 @@ test("creating a managed store persists no payment, WhatsApp, catalog, or integr
   } as never;
   const repository = new PrismaMerchantStoreRepository(prisma);
 
-  const result = await repository.createStore({ accountMerchantId: "account_store", actorUserId: "user_1", name: "Nova loja", slug: "nova-loja" });
+  const result = await repository.createStore({ accountMerchantId: "account_store", actorUserId: "user_1", name: "Nova loja", slugBase: "nova-loja" });
 
   assert.equal(result.status, "created");
   assert.deepEqual(Object.keys(createdMerchants[0]!).sort(), ["billingAccountMerchantId", "id", "name", "plan", "storeSettings", "storeSlug"]);
@@ -29,4 +29,28 @@ test("creating a managed store persists no payment, WhatsApp, catalog, or integr
     assert.equal(forbiddenRelation in createdMerchants[0]!, false, `${forbiddenRelation} must not be copied`);
   }
   assert.deepEqual(memberships, [{ merchantId: "store_2", userId: "user_1", role: "OWNER" }]);
+});
+
+test("creating a managed store reserves the next URL suffix when the name slug is in use", async () => {
+  const createdMerchants: Array<Record<string, unknown>> = [];
+  const prisma = {
+    $transaction: async (callback: (transaction: unknown) => Promise<unknown>) => callback({
+      $queryRaw: async () => undefined,
+      merchant: {
+        count: async () => 1,
+        findUnique: async ({ where }: { where: { storeSlug: string } }) => where.storeSlug === "cenebelo" ? { id: "existing_store" } : null,
+        create: async ({ data }: { data: Record<string, unknown> }) => {
+          createdMerchants.push(data);
+          return { id: "store_2", name: data.name, storeSlug: data.storeSlug };
+        },
+      },
+      merchantTeamMember: { create: async () => undefined },
+    }),
+  } as never;
+  const repository = new PrismaMerchantStoreRepository(prisma);
+
+  const result = await repository.createStore({ accountMerchantId: "account_store", actorUserId: "user_1", name: "Cenebelo", slugBase: "cenebelo" });
+
+  assert.equal(result.status, "created");
+  assert.equal(createdMerchants[0]?.storeSlug, "cenebelo-2");
 });

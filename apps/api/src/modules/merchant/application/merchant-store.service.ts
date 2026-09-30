@@ -24,7 +24,7 @@ export class MerchantStoreService {
     return this.repository.listStores(await this.accountFor(actor.merchantId), actor.userId);
   }
 
-  async create(input: { actor: MerchantStoreActor; name: string; slug: string }): Promise<ManagedMerchantStore> {
+  async create(input: { actor: MerchantStoreActor; name: string }): Promise<ManagedMerchantStore> {
     if (input.actor.role !== "owner") {
       throw new ForbiddenException({ code: "multi_store_owner_required" });
     }
@@ -33,17 +33,18 @@ export class MerchantStoreService {
       throw new ForbiddenException({ code: "multi_store_requires_scale", required_plan: "scale" });
     }
 
+    const name = normalizeStoreName(input.name);
     const result = await this.repository.createStore({
       accountMerchantId,
       actorUserId: input.actor.userId,
-      name: normalizeStoreName(input.name),
-      slug: normalizeStoreSlug(input.slug),
+      name,
+      slugBase: slugFromStoreName(name),
     });
     if (result.status === "created") return result.store;
     if (result.status === "capacity_reached") {
       throw new ForbiddenException({ code: "multi_store_limit_reached", limit: 5, required_plan: "scale" });
     }
-    throw new ConflictException({ code: "merchant_store_slug_taken" });
+    throw new Error("merchant_store_create_unexpected_result");
   }
 
   async activate(actor: MerchantStoreActor, targetMerchantId: string): Promise<{ merchantId: string; role: MerchantStoreRole }> {
@@ -69,8 +70,8 @@ function normalizeStoreName(value: string): string {
   return name;
 }
 
-function normalizeStoreSlug(value: string): string {
-  const slug = value.trim().toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
+function slugFromStoreName(value: string): string {
+  const slug = value.toLowerCase().normalize("NFD").replace(/[\u0300-\u036f]/g, "").replace(/[^a-z0-9]+/g, "-").replace(/^-+|-+$/g, "");
   if (slug.length < 3 || slug.length > 80) throw new ConflictException({ code: "merchant_store_slug_invalid" });
   return slug;
 }

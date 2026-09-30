@@ -18,29 +18,28 @@ function billing(plan: "starter" | "growth" | "scale") {
   return { getEffectivePlan: async () => plan } as never;
 }
 
-test("only Scale owners can create an isolated additional store", async () => {
+test("only Scale owners can create an isolated additional store with a name-derived slug", async () => {
   const created: unknown[] = [];
   const service = new MerchantStoreService(repository({
     createStore: async (input) => {
       created.push(input);
-      return { status: "created", store: { id: "store_2", name: input.name, slug: input.slug, role: "owner" } };
+      return { status: "created", store: { id: "store_2", name: input.name, slug: input.slugBase, role: "owner" } };
     },
   }), billing("scale"));
 
   const store = await service.create({
     actor: { userId: "user_1", merchantId: "account_store", role: "owner" },
     name: "  Nova loja  ",
-    slug: " Nova Loja ",
   });
 
   assert.deepEqual(store, { id: "store_2", name: "Nova loja", slug: "nova-loja", role: "owner" });
-  assert.deepEqual(created, [{ accountMerchantId: "account_store", actorUserId: "user_1", name: "Nova loja", slug: "nova-loja" }]);
+  assert.deepEqual(created, [{ accountMerchantId: "account_store", actorUserId: "user_1", name: "Nova loja", slugBase: "nova-loja" }]);
 });
 
 test("Growth cannot create a second store", async () => {
   const service = new MerchantStoreService(repository(), billing("growth"));
   await assert.rejects(
-    () => service.create({ actor: { userId: "user_1", merchantId: "account_store", role: "owner" }, name: "Nova", slug: "nova" }),
+    () => service.create({ actor: { userId: "user_1", merchantId: "account_store", role: "owner" }, name: "Nova" }),
     (error: unknown) => error instanceof ForbiddenException && (error.getResponse() as { code: string }).code === "multi_store_requires_scale",
   );
 });

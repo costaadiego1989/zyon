@@ -10,7 +10,6 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
   const [open, setOpen] = useState(false);
   const [creating, setCreating] = useState(false);
   const [name, setName] = useState("");
-  const [slug, setSlug] = useState("");
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const popoverId = useId();
@@ -55,7 +54,7 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
 
   if (stores.length <= 1 && !canCreate) return null;
 
-  async function activate(merchantId: string) {
+  async function activate(merchantId: string, destination?: "onboarding") {
     if (merchantId === currentStoreId) {
       setOpen(false);
       return;
@@ -64,6 +63,7 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
     setError(null);
     try {
       await api.activateMerchantStore(merchantId);
+      if (destination) window.location.hash = destination;
       window.location.reload();
     } catch {
       setError("Não foi possível trocar de loja. Tente novamente.");
@@ -76,11 +76,10 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
     setBusy(true);
     setError(null);
     try {
-      const store = await api.createMerchantStore({ name, slug });
-      setStores((current) => [...current, store]);
-      await activate(store.id);
+      const store = await api.createMerchantStore({ name });
+      await activate(store.id, "onboarding");
     } catch {
-      setError("Não foi possível criar a loja. Verifique o nome e a URL.");
+      setError("Não foi possível criar a loja. Verifique o nome e tente novamente.");
     } finally {
       setBusy(false);
     }
@@ -110,13 +109,12 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
               <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>{store.slug ? `/${store.slug}` : "Configuração pendente"}</span>
             </button>
           ))}
-          {canCreate && !creating && <button type="button" onClick={() => setCreating(true)} disabled={busy} style={{ width: "100%", display: "flex", alignItems: "center", gap: 7, marginTop: 6, padding: "9px 10px", border: "1px dashed var(--color-border)", borderRadius: 8, background: "transparent", color: "var(--color-brand)", font: "500 12.5px var(--font-sans)", cursor: "pointer" }}><Plus size={14} /> Criar nova loja</button>}
+          {canCreate && !creating && <button type="button" onClick={() => { setError(null); setCreating(true); }} disabled={busy} style={{ width: "100%", display: "flex", alignItems: "center", gap: 7, marginTop: 6, padding: "9px 10px", border: "1px dashed var(--color-border)", borderRadius: 8, background: "transparent", color: "var(--color-brand)", font: "500 12.5px var(--font-sans)", cursor: "pointer" }}><Plus size={14} /> Criar nova loja</button>}
           {creating && (
             <form onSubmit={(event) => { event.preventDefault(); void create(); }} style={{ display: "grid", gap: 8, marginTop: 8, padding: 8, borderTop: "1px solid var(--color-border)" }}>
               <label style={{ display: "grid", gap: 4, font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Nome da loja<input value={name} onChange={(event) => setName(event.target.value)} minLength={2} maxLength={80} required autoFocus /></label>
-              <label style={{ display: "grid", gap: 4, font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>URL da loja<input value={slug} onChange={(event) => setSlug(event.target.value)} minLength={3} maxLength={80} required placeholder="minha-nova-loja" /></label>
-              <p style={{ margin: 0, font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>A nova loja começa sem catálogo, pagamentos, WhatsApp, templates, integrações ou canais configurados.</p>
-              <div style={{ display: "flex", gap: 8 }}><button type="submit" disabled={busy} style={{ flex: 1 }}>Criar e configurar</button><button type="button" disabled={busy} onClick={() => setCreating(false)}>Cancelar</button></div>
+              <p style={{ margin: 0, font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>O endereço é gerado automaticamente a partir do nome. A nova loja começa sem catálogo, pagamentos, WhatsApp, templates, integrações ou canais configurados.</p>
+              <div style={{ display: "flex", gap: 8 }}><button type="submit" disabled={busy} style={{ flex: 1 }}>Criar e configurar</button><button type="button" disabled={busy} onClick={() => { setCreating(false); setName(""); setError(null); }}>Cancelar</button></div>
             </form>
           )}
           {error && <p role="alert" aria-live="polite" style={{ margin: "8px", color: "var(--color-error)", font: "12px var(--font-sans)" }}>{error}</p>}

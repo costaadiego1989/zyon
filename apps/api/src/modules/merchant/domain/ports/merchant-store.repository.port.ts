@@ -15,8 +15,7 @@ export type MerchantStoreMembership = {
 
 export type CreateMerchantStoreResult =
   | { status: "created"; store: ManagedMerchantStore }
-  | { status: "capacity_reached" }
-  | { status: "slug_taken" };
+  | { status: "capacity_reached" };
 
 export interface MerchantStoreRepository {
   resolveBillingAccountMerchantId(merchantId: string): Promise<string | undefined>;
@@ -26,7 +25,7 @@ export interface MerchantStoreRepository {
     accountMerchantId: string;
     actorUserId: string;
     name: string;
-    slug: string;
+    slugBase: string;
   }): Promise<CreateMerchantStoreResult>;
 }
 
