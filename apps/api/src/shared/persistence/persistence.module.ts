@@ -6,7 +6,8 @@ import { TenantModule } from "../tenant/tenant.module.js";
 import { PrismaClient } from "@prisma/client";
 
 export const PRISMA_CLIENT = Symbol("PRISMA_CLIENT");
-// Privileged marketplace repositories enforce host/seller and partner boundaries themselves.
+// Privileged account/auth/marketplace repositories enforce membership, billing
+// account and host/seller boundaries themselves. Ordinary store data stays scoped.
 // Reuse the lifecycle-managed pool without implicitly replacing a seller with the caller.
 export const PRISMA_CROSS_MERCHANT_CLIENT = Symbol("PRISMA_CROSS_MERCHANT_CLIENT");
 

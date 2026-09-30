@@ -1,7 +1,7 @@
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { AuthModule } from "../auth/auth.module.js";
-import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT } from "../../shared/persistence/persistence.module.js";
 import {
   GetMerchantProfileUseCase,
   GetMerchantRulesUseCase,
@@ -44,7 +44,9 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     {
       provide: MERCHANT_STORE_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaMerchantStoreRepository(prisma),
-      inject: [PRISMA_CLIENT],
+      // Membership + billing-account checks authorize this account-level operation.
+      // The active-store client would rewrite the requested membership to the caller.
+      inject: [PRISMA_CROSS_MERCHANT_CLIENT],
     }
   ],
   exports: [MERCHANT_REPOSITORY, MERCHANT_RULES_REPOSITORY, GetMerchantThemeUseCase]

@@ -60,3 +60,11 @@ test("a member can activate only a store in the same billing account", async () 
     (error: unknown) => error instanceof ForbiddenException && (error.getResponse() as { code: string }).code === "merchant_store_access_denied",
   );
 });
+
+test("activation rejects a repository result silently scoped to the previous store", async () => {
+  const service = new MerchantStoreService(repository(), billing("scale"));
+  await assert.rejects(
+    () => service.activate({ userId: "user_1", merchantId: "account_store", role: "owner" }, "store_2"),
+    (error: unknown) => error instanceof ForbiddenException && (error.getResponse() as { code: string }).code === "merchant_store_access_denied",
+  );
+});

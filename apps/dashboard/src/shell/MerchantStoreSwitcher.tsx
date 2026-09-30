@@ -18,11 +18,11 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
 
   useEffect(() => {
     let active = true;
-    void Promise.all([api.listMerchantStores(), api.getBillingSubscription()])
+    void Promise.all([api.listMerchantStores(), api.getBillingSubscription().catch(() => null)])
       .then(([available, subscription]) => {
         if (!active) return;
         setStores(available);
-        setCanCreate(subscription.plan === "scale");
+        setCanCreate(subscription?.plan === "scale");
       })
       .catch(() => {
         if (!active) return;
@@ -65,11 +65,12 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
       const session = await api.activateMerchantStore(merchantId);
       if (session.merchant_id !== merchantId) throw new Error("merchant_store_activation_mismatch");
 
-      // Navigate once after the API has issued the new session. Changing the
-      // hash first can render the previous store's onboarding before reload.
+      // replace/assign with only a new hash is a same-document navigation.
+      // Set the destination silently, then re-bootstrap all store-scoped state.
       const nextLocation = new URL(window.location.href);
       nextLocation.hash = destination ?? "";
-      window.location.replace(nextLocation.toString());
+      window.history.replaceState(null, "", nextLocation.toString());
+      window.location.reload();
       return true;
     } catch {
       setError("Não foi possível trocar de loja. Tente novamente.");
@@ -87,6 +88,8 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
       const store = await api.createMerchantStore({ name });
       createdStore = store;
       setStores((previous) => previous.some((current) => current.id === store.id) ? previous : [...previous, store]);
+      setCreating(false);
+      setName("");
       if (!(await activate(store.id, "onboarding"))) {
         setError("A loja foi criada, mas não foi possível abri-la. Atualize a página e selecione-a na lista.");
       }

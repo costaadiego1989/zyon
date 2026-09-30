@@ -7,7 +7,7 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
-import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
 import { RefundPaymentService } from "./application/services/refund-payment.service.js";
 import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-payment.use-case.js";
@@ -301,9 +301,9 @@ import {
     },
     {
       provide: PAYMENT_PLATFORM_REPOSITORY,
-      useFactory: (prisma: PrismaClient) =>
-        new PrismaPaymentPlatformRepository(prisma),
-      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: PrismaClient, billingPrisma: PrismaClient) =>
+        new PrismaPaymentPlatformRepository(prisma, billingPrisma),
+      inject: [PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT],
     },
     {
       provide: STRIPE_PLATFORM_PORT,

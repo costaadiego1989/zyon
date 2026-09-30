@@ -1,7 +1,7 @@
 import { Module, Global, OnModuleInit, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { Redis } from "ioredis";
-import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { PRISMA_CROSS_MERCHANT_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { REDIS_CLIENT_TOKEN } from "../../shared/cache/redis.module.js";
 import { MessagingChannelsModule } from "../notifications/messaging-channels.module.js";
 import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
@@ -78,7 +78,9 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     {
       provide: AUTH_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaAuthRepository(prisma),
-      inject: [PRISMA_CLIENT]
+      // User identity spans stores. The repository validates user, membership,
+      // role, authVersion and session ownership explicitly, including on switch.
+      inject: [PRISMA_CROSS_MERCHANT_CLIENT]
     },
     {
       provide: EMAIL_CHANGE_OTP_STORE,

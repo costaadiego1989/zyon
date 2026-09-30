@@ -49,8 +49,9 @@ export class MerchantStoreService {
 
   async activate(actor: MerchantStoreActor, targetMerchantId: string): Promise<{ merchantId: string; role: MerchantStoreRole }> {
     const accountMerchantId = await this.accountFor(actor.merchantId);
-    const target = await this.repository.findMembership(actor.userId, targetMerchantId.trim());
-    if (!target || target.billingAccountMerchantId !== accountMerchantId) {
+    const requestedMerchantId = targetMerchantId.trim();
+    const target = await this.repository.findMembership(actor.userId, requestedMerchantId);
+    if (!target || target.merchantId !== requestedMerchantId || target.billingAccountMerchantId !== accountMerchantId) {
       throw new ForbiddenException({ code: "merchant_store_access_denied" });
     }
     return { merchantId: target.merchantId, role: target.role };

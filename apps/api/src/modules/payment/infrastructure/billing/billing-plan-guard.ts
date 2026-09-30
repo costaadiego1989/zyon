@@ -9,7 +9,7 @@ import {
 import { Reflector } from "@nestjs/core";
 import type { PrismaClient } from "@prisma/client";
 import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
-import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import {
   BILLING_PLANS,
   effectiveBillingPlan,
@@ -50,7 +50,10 @@ export function RequirePlanFeature(
 
 @Injectable()
 export class BillingPlanMeteringService {
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Inject(PRISMA_CROSS_MERCHANT_CLIENT) private readonly billingPrisma: PrismaClient = prisma,
+  ) {}
 
   /** Platform subscription is owned by the Scale billing account; commercial
    * connections and operational usage remain scoped to the active store. */
@@ -65,7 +68,8 @@ export class BillingPlanMeteringService {
 
   async getSubscription(merchantId: string): Promise<BillingSubscriptionSnapshot | undefined> {
     const billingMerchantId = await this.resolveBillingAccountMerchantId(merchantId);
-    const row = await this.prisma.merchantBillingSubscription.findUnique({
+    // Only the resolved account's platform subscription crosses store scope.
+    const row = await this.billingPrisma.merchantBillingSubscription.findUnique({
       where: { merchantId: billingMerchantId },
     });
     if (!row) return undefined;
