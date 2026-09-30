@@ -24,7 +24,8 @@ async function silentRefresh(apiBaseUrl: string, fetchImpl: typeof fetch): Promi
     try {
       const res = await fetchImpl(mergeUrl(apiBaseUrl, "/auth/refresh"), {
         method: "POST",
-        credentials: "include"
+        credentials: "include",
+        cache: "no-store"
       });
       return res.ok;
     } catch {
@@ -65,7 +66,10 @@ export async function dashboardFetch(
       ...rest,
       headers,
       body: finalBody,
-      credentials: "include"
+      credentials: "include",
+      // Tenant-scoped dashboard reads must never render data from the
+      // previously active store after a successful store activation.
+      cache: "no-store"
     });
 
   let res: Response;

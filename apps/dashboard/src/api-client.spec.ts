@@ -23,12 +23,12 @@ describe("dashboardFetch", () => {
     vi.unstubAllGlobals();
   });
 
-  it("usar sempre credentials include", async () => {
+  it("usar sempre credentials include e sem cache", async () => {
     const spy = vi.mocked(fetch);
     await dashboardFetch("http://localhost:3001/", "/merchants/me", { method: "GET" });
     expect(spy).toHaveBeenCalledWith(
       "http://localhost:3001/v1/merchants/me",
-      expect.objectContaining({ credentials: "include" })
+      expect.objectContaining({ credentials: "include", cache: "no-store" })
     );
   });
 

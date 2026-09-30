@@ -54,19 +54,26 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
 
   if (stores.length <= 1 && !canCreate) return null;
 
-  async function activate(merchantId: string, destination?: "onboarding") {
+  async function activate(merchantId: string, destination?: "onboarding"): Promise<boolean> {
     if (merchantId === currentStoreId) {
       setOpen(false);
-      return;
+      return true;
     }
     setBusy(true);
     setError(null);
     try {
-      await api.activateMerchantStore(merchantId);
-      if (destination) window.location.hash = destination;
-      window.location.reload();
+      const session = await api.activateMerchantStore(merchantId);
+      if (session.merchant_id !== merchantId) throw new Error("merchant_store_activation_mismatch");
+
+      // Navigate once after the API has issued the new session. Changing the
+      // hash first can render the previous store's onboarding before reload.
+      const nextLocation = new URL(window.location.href);
+      nextLocation.hash = destination ?? "";
+      window.location.replace(nextLocation.toString());
+      return true;
     } catch {
       setError("Não foi possível trocar de loja. Tente novamente.");
+      return false;
     } finally {
       setBusy(false);
     }
@@ -75,11 +82,18 @@ export function MerchantStoreSwitcher({ currentStoreId, currentStoreName }: { cu
   async function create() {
     setBusy(true);
     setError(null);
+    let createdStore: ManagedMerchantStore | undefined;
     try {
       const store = await api.createMerchantStore({ name });
-      await activate(store.id, "onboarding");
+      createdStore = store;
+      setStores((previous) => previous.some((current) => current.id === store.id) ? previous : [...previous, store]);
+      if (!(await activate(store.id, "onboarding"))) {
+        setError("A loja foi criada, mas não foi possível abri-la. Atualize a página e selecione-a na lista.");
+      }
     } catch {
-      setError("Não foi possível criar a loja. Verifique o nome e tente novamente.");
+      setError(createdStore
+        ? "A loja foi criada, mas não foi possível abri-la. Atualize a página e selecione-a na lista."
+        : "Não foi possível criar a loja. Verifique o nome e tente novamente.");
     } finally {
       setBusy(false);
     }
