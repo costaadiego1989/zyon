@@ -81,7 +81,14 @@ export class PrismaMerchantStoreRepository implements MerchantStoreRepository {
             },
             select: { id: true, name: true, storeSlug: true },
           });
-          await transaction.merchantTeamMember.create({ data: { merchantId: store.id, userId: input.actorUserId, role: "OWNER" } });
+          // Some installations provision the owner membership when the merchant
+          // identity is created. Treat that as the same intended outcome instead
+          // of failing the whole store creation on the unique membership key.
+          await transaction.merchantTeamMember.upsert({
+            where: { merchantId_userId: { merchantId: store.id, userId: input.actorUserId } },
+            create: { merchantId: store.id, userId: input.actorUserId, role: "OWNER" },
+            update: { role: "OWNER" },
+          });
           return { status: "created", store: { id: store.id, name: store.name, slug: store.storeSlug ?? undefined, role: "owner" } };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       } catch (error) {

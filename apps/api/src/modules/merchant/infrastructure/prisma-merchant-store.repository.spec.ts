@@ -16,7 +16,11 @@ test("creating a managed store persists no payment, WhatsApp, catalog, or integr
           return { id: "store_2", name: data.name, storeSlug: data.storeSlug };
         },
       },
-      merchantTeamMember: { create: async ({ data }: { data: Record<string, unknown> }) => { memberships.push(data); } },
+      merchantTeamMember: {
+        upsert: async ({ where, create, update }: { where: Record<string, unknown>; create: Record<string, unknown>; update: Record<string, unknown> }) => {
+          memberships.push({ where, create, update });
+        },
+      },
     }),
   } as never;
   const repository = new PrismaMerchantStoreRepository(prisma);
@@ -28,7 +32,11 @@ test("creating a managed store persists no payment, WhatsApp, catalog, or integr
   for (const forbiddenRelation of ["paymentConnections", "stripeConnectAccountId", "whatsappChannelConfig", "commerceConnection", "billingSubscription", "theme", "catalog", "integrations"]) {
     assert.equal(forbiddenRelation in createdMerchants[0]!, false, `${forbiddenRelation} must not be copied`);
   }
-  assert.deepEqual(memberships, [{ merchantId: "store_2", userId: "user_1", role: "OWNER" }]);
+  assert.deepEqual(memberships, [{
+    where: { merchantId_userId: { merchantId: "store_2", userId: "user_1" } },
+    create: { merchantId: "store_2", userId: "user_1", role: "OWNER" },
+    update: { role: "OWNER" },
+  }]);
 });
 
 test("creating a managed store reserves the next URL suffix when the name slug is in use", async () => {
@@ -44,7 +52,7 @@ test("creating a managed store reserves the next URL suffix when the name slug i
           return { id: "store_2", name: data.name, storeSlug: data.storeSlug };
         },
       },
-      merchantTeamMember: { create: async () => undefined },
+      merchantTeamMember: { upsert: async () => undefined },
     }),
   } as never;
   const repository = new PrismaMerchantStoreRepository(prisma);
