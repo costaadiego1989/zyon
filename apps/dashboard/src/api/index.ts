@@ -5,6 +5,7 @@
  */
 
 import { authEndpoints } from "./endpoints/auth.js";
+import { createSessionFetch } from "./http/session-fetch.js";
 import { merchantEndpoints } from "./endpoints/merchants.js";
 import { checkoutSettingsEndpoints } from "./endpoints/checkout-settings.js";
 import { supportEndpoints } from "./endpoints/support.js";
@@ -63,7 +64,7 @@ export function createDashboardApi(options: {
   fetchImpl?: typeof fetch;
 }) {
   const base = options.baseUrl.trimEnd().replace(/\/+$/, "");
-  const f = options.fetchImpl ?? globalThis.fetch;
+  const f = createSessionFetch(base, options.fetchImpl ?? globalThis.fetch);
 
   return {
     ...authEndpoints(base, f),

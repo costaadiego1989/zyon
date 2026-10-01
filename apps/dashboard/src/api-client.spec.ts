@@ -147,12 +147,9 @@ describe("createDashboardApi", () => {
   it("register and logout call merchant auth routes with cookies", async () => {
     const spy = vi.fn(
       async (url: RequestInfo | URL): Promise<Response> =>
-        ({
-          ok: true,
-          status: String(url).endsWith("/auth/logout") ? 204 : 200,
-          text: async () =>
+        new Response(
             String(url).endsWith("/auth/logout")
-              ? ""
+              ? null
               : JSON.stringify({
                   merchant_id: "mrc_1",
                   user_id: "usr_1",
@@ -160,8 +157,9 @@ describe("createDashboardApi", () => {
                   access_token: "jwt",
                   token_type: "Bearer",
                   expires_in: 3600
-                })
-        }) as Response
+                }),
+          { status: String(url).endsWith("/auth/logout") ? 204 : 200 }
+        )
     );
     const api = createDashboardApi({
       baseUrl: "http://localhost:9999/",
