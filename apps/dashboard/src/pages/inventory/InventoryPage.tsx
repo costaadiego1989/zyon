@@ -17,6 +17,7 @@ import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useInventoryPage } from "./useInventoryPage.js";
 import { DashboardHttpError } from "../../api/http/error.js";
 import { SaveFeedbackBanner } from "../../components/save-feedback-banner.js";
+import { erpSyncErrorMessage } from "./erp-oauth-result.js";
 
 export interface InventoryPageProps {
   apiBaseUrl: string;
@@ -793,6 +794,9 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
       )}
 
       {/* Actions */}
+      {connection?.lastErrorCode && <p className="form-field-error" role="alert" style={{ margin: 0 }}>
+        {erpSyncErrorMessage(connection.lastErrorCode)}
+      </p>}
       <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
         {status === "disconnected" || status === "error" ? (
           <>

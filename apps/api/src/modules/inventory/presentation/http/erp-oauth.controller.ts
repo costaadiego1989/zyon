@@ -1,12 +1,13 @@
-import { Controller, Get, Param, Query, Req, Res, Inject, Logger, UseGuards } from "@nestjs/common";
+import { Controller, Get, Param, Query, Req, Res, Inject, Logger, UseGuards, ServiceUnavailableException } from "@nestjs/common";
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import type { PrismaClient } from "@prisma/client";
-import { createHmac, randomBytes } from "node:crypto";
+import { createHmac, randomBytes, timingSafeEqual } from "node:crypto";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
 import { fetchBlingCompanyId } from "../../infrastructure/adapters/bling-company-identity.js";
-import { isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
+import { createMarketplaceAdapter, isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
+import { exchangeMarketplaceToken, marketplaceContext } from "../../infrastructure/adapters/marketplace-oauth.js";
 import { TriggerMarketplaceSyncUseCase } from "../../application/use-cases/trigger-marketplace-sync.use-case.js";
 import { TriggerErpSyncUseCase } from "../../application/use-cases/trigger-erp-sync.use-case.js";
 
@@ -34,7 +35,8 @@ function authorizationErrorCode(providerError: string): string {
     case "forbidden":
     case "unauthorized_error":
     case "insufficient_scope": return "erp_permission_denied";
-    case "access_denied": return "erp_denied";
+    case "access_denied":
+    case "auth_denied": return "erp_denied";
     case "app_inativo": return "erp_app_inactive";
     default: return "erp_authorization_failed";
   }
@@ -50,12 +52,13 @@ export class ErpOAuthController {
     private readonly erpSync: TriggerErpSyncUseCase,
   ) {}
 
-  private async triggerInitialSync(merchantId: string, provider: string, accessToken: string, connectionId: string) {
+  private async triggerInitialSync(merchantId: string, provider: string, connectionId: string) {
     try {
-      const result = await this.marketplaceSync.execute({ merchantId, provider, accessToken, connectionId });
-      this.logger.log("marketplace.initial_sync.complete", { merchantId, provider, imported: result.productsImported });
+      await this.marketplaceSync.execute({ merchantId, provider, connectionId });
+      this.logger.log("marketplace.initial_sync.queued", { merchantId, provider });
     } catch (err) {
-      this.logger.error("marketplace.initial_sync.failed", { merchantId, provider, error: err instanceof Error ? err.message : String(err) });
+      this.logger.error("marketplace.initial_sync.enqueue_failed", { merchantId, provider, code: callbackErrorCode(err) });
+      throw new Error("erp_initial_sync_failed");
     }
   }
 
@@ -69,6 +72,12 @@ export class ErpOAuthController {
   async authorize(@Req() request: any, @Param("provider") provider: string) {
     const merchantId = currentUser(request).merchantId;
     const provider_lower = provider.toLowerCase();
+    if (isMarketplaceProvider(provider_lower)) {
+      const required = provider_lower === "mercadolivre" ? ["MERCADOLIVRE_APP_ID", "MERCADOLIVRE_CLIENT_SECRET", "MERCADOLIVRE_REDIRECT_URI"]
+        : provider_lower === "shopee" ? ["SHOPEE_PARTNER_ID", "SHOPEE_PARTNER_KEY", "SHOPEE_REDIRECT_URI"]
+        : ["TIKTOKSHOP_SERVICE_ID", "TIKTOKSHOP_APP_KEY", "TIKTOKSHOP_APP_SECRET", "TIKTOKSHOP_REDIRECT_URI"];
+      if (required.some(key => !env(key).trim())) throw new ServiceUnavailableException({ code: "erp_provider_not_configured", message: "erp_provider_not_configured" });
+    }
     const state = this.signState(provider_lower, merchantId);
 
     if (provider_lower === "bling") {
@@ -99,26 +108,22 @@ export class ErpOAuthController {
 
     if (provider_lower === "shopee") {
       const partnerId = env("SHOPEE_PARTNER_ID");
-      const partnerKey = env("SHOPEE_PARTNER_KEY");
       const redirectUri = env("SHOPEE_REDIRECT_URI");
-      const timestamp = Math.floor(Date.now() / 1000);
-      const baseString = `${partnerId}/api/v2/shop/auth_partner${timestamp}`;
-      const sign = createHmac("sha256", partnerKey).update(baseString).digest("hex");
       const params = new URLSearchParams({
         partner_id: partnerId,
-        redirect: redirectUri,
-        sign,
-        timestamp: String(timestamp),
+        auth_type: "seller",
+        response_type: "code",
+        redirect_uri: redirectUri,
         state,
       });
       return {
-        url: `https://partner.shopeemobile.com/api/v2/shop/auth_partner?${params.toString()}`,
+        url: `${env("SHOPEE_SANDBOX") === "true" ? "https://open.sandbox.test-stable.shopee.com.br" : "https://open.shopee.com.br"}/auth?${params.toString()}`,
       };
     }
 
     if (provider_lower === "tiktokshop") {
       const params = new URLSearchParams({
-        app_key: env("TIKTOKSHOP_APP_KEY"),
+        service_id: env("TIKTOKSHOP_SERVICE_ID"),
         state,
       });
       return {
@@ -141,6 +146,7 @@ export class ErpOAuthController {
     @Res() res: any,
     @Query("shop_id") shopId?: string,
     @Query("error") providerError?: string,
+    @Query("main_account_id") mainAccountId?: string,
   ) {
     if (!state) {
       res.redirect(302, dashboardRedirect({ error: "erp_denied" }));
@@ -162,7 +168,7 @@ export class ErpOAuthController {
       res.redirect(302, dashboardRedirect({ error, erp_provider: provider }));
       return;
     }
-    if (!code) {
+    if (!code || code === "null") {
       res.redirect(302, dashboardRedirect({ error: "erp_denied", erp_provider: provider }));
       return;
     }
@@ -173,6 +179,8 @@ export class ErpOAuthController {
       let clientId = "";
       let clientSecret = "";
       let redirectUri = "";
+      let marketplaceConfig: Record<string, string> | undefined;
+      let marketplaceExpiresAt: Date | undefined;
 
       if (provider === "bling") {
         tokenEndpoint = "https://api.bling.com.br/Api/v3/oauth/token";
@@ -197,93 +205,28 @@ export class ErpOAuthController {
         });
 
         if (!tokenRes.ok) {
-          const err = await tokenRes.text();
-          this.logger.error("bling.token_exchange_failed", { status: tokenRes.status, error: err });
+          this.logger.error("bling.token_exchange_failed", { status: tokenRes.status });
           res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
           return;
         }
         tokenData = await tokenRes.json();
-      } else if (provider === "mercadolivre") {
-        // Mercado Livre: JSON body, no Basic auth
-        const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
-          method: "POST",
-          headers: { "Content-Type": "application/json", Accept: "application/json" },
-          body: JSON.stringify({
-            grant_type: "authorization_code",
-            client_id: env("MERCADOLIVRE_APP_ID"),
-            client_secret: env("MERCADOLIVRE_CLIENT_SECRET"),
-            code,
-            redirect_uri: env("MERCADOLIVRE_REDIRECT_URI"),
-          }),
-        });
-        if (!tokenRes.ok) {
-          const err = await tokenRes.text();
-          this.logger.error("mercadolivre.token_exchange_failed", { status: tokenRes.status, error: err });
-          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
-          return;
-        }
-        tokenData = await tokenRes.json();
-      } else if (provider === "shopee") {
-        // Shopee: HMAC-signed token request
-        const partnerId = env("SHOPEE_PARTNER_ID");
-        const partnerKey = env("SHOPEE_PARTNER_KEY");
-        const timestamp = Math.floor(Date.now() / 1000);
-        const path = "/api/v2/auth/token/get";
-        const baseString = `${partnerId}${path}${timestamp}`;
-        const sign = createHmac("sha256", partnerKey).update(baseString).digest("hex");
-
-        const tokenRes = await fetch(`https://partner.shopeemobile.com${path}?partner_id=${partnerId}&timestamp=${timestamp}&sign=${sign}`, {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            code,
-            shop_id: shopId ? Number(shopId) : undefined,
-            partner_id: Number(partnerId),
-          }),
-        });
-        if (!tokenRes.ok) {
-          const err = await tokenRes.text();
-          this.logger.error("shopee.token_exchange_failed", { status: tokenRes.status, error: err });
-          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
-          return;
-        }
-        const raw: any = await tokenRes.json();
-        // Shopee may return tokens flat or nested under `data`
-        tokenData = {
-          access_token: raw.access_token ?? raw.data?.access_token,
-          refresh_token: raw.refresh_token ?? raw.data?.refresh_token,
-          expires_in: raw.expire_in ?? raw.data?.expire_in ?? 14400,
+      } else if (isMarketplaceProvider(provider)) {
+        const exchanged = await exchangeMarketplaceToken(provider, code, shopId, mainAccountId);
+        const identity = await createMarketplaceAdapter(provider, exchanged.context)!.getSellerInfo(exchanged.accessToken);
+        marketplaceConfig = { ...exchanged.context, sellerId: identity.sellerId, sellerName: identity.name,
+          ...(provider !== "mercadolivre" ? { shopId: identity.sellerId } : {}), ...(identity.shopCipher ? { shopCipher: identity.shopCipher } : {}),
         };
-      } else if (provider === "tiktokshop") {
-        // TikTok Shop: standard POST with app_key/app_secret
-        const tokenRes = await fetch("https://auth.tiktok-shops.com/api/v2/token/get", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            app_key: env("TIKTOKSHOP_APP_KEY"),
-            app_secret: env("TIKTOKSHOP_APP_SECRET"),
-            auth_code: code,
-            grant_type: "authorized_code",
-          }),
-        });
-        if (!tokenRes.ok) {
-          const err = await tokenRes.text();
-          this.logger.error("tiktokshop.token_exchange_failed", { status: tokenRes.status, error: err });
-          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
-          return;
-        }
-        const raw: any = await tokenRes.json();
-        tokenData = {
-          access_token: raw.data?.access_token,
-          refresh_token: raw.data?.refresh_token,
-          expires_in: raw.data?.access_token_expire_in ?? 7200,
-        };
+        marketplaceExpiresAt = exchanged.expiresAt;
+        tokenData = { access_token: exchanged.accessToken, refresh_token: exchanged.refreshToken };
+      } else {
+        throw new Error("erp_provider_not_supported");
       }
 
       // Encrypt and store in ErpConnection
+      if (typeof tokenData?.access_token !== "string" || !tokenData.access_token) throw new Error("erp_token_failed");
       const accessTokenCipher = encryptErpSecret(tokenData.access_token);
       const refreshTokenCipher = tokenData.refresh_token ? encryptErpSecret(tokenData.refresh_token) : null;
-      const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
+      const expiresAt = marketplaceExpiresAt ?? new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
 
       const blingCompanyId = provider === "bling" ? await fetchBlingCompanyId(tokenData.access_token) : null;
       if (provider === "bling") {
@@ -294,7 +237,30 @@ export class ErpOAuthController {
           throw new Error("bling_company_already_connected");
         }
       }
-      const connection = await this.prisma.erpConnection.upsert({
+      const connectionData = {
+        status: "connected", directionMode: "bidirectional", accessTokenCipher, refreshTokenCipher, tokenExpiresAt: expiresAt, lastErrorCode: null,
+        ...(marketplaceConfig ? { config: marketplaceConfig } : blingCompanyId ? { config: { blingCompanyId } } : {}),
+      };
+      const connection = marketplaceConfig ? await this.prisma.$transaction(async (tx) => {
+        // Account/connection locks prevent simultaneous OAuth callbacks from
+        // moving another tenant's route or attaching existing mappings elsewhere.
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${merchantId}:${provider}`}))::text`;
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtext(${`${provider}:${marketplaceConfig!.sellerId}`}))::text`;
+        const route = await tx.erpWebhookRoute.findUnique({ where: { provider_externalAccountId: { provider, externalAccountId: marketplaceConfig!.sellerId } } });
+        if (route && route.merchantId !== merchantId) throw new Error("erp_marketplace_account_already_connected");
+        const existing = await tx.erpConnection.findUnique({ where: { merchantId_provider: { merchantId, provider } } });
+        if (existing) {
+          const priorSeller = marketplaceContext(existing.config).sellerId;
+          // Never reuse old product mappings for a different external account.
+          if (priorSeller !== marketplaceConfig!.sellerId && await tx.erpProductMapping.count({ where: { connectionId: existing.id } })) throw new Error("erp_marketplace_account_change_requires_unlink");
+        }
+        const stored = await tx.erpConnection.upsert({ where: { merchantId_provider: { merchantId, provider } }, update: connectionData, create: { merchantId, provider, ...connectionData } });
+        await tx.erpWebhookRoute.deleteMany({ where: { connectionId: stored.id, externalAccountId: { not: marketplaceConfig!.sellerId } } });
+        await tx.erpWebhookRoute.upsert({ where: { provider_externalAccountId: { provider, externalAccountId: marketplaceConfig!.sellerId } },
+          update: { merchantId, connectionId: stored.id }, create: { provider, externalAccountId: marketplaceConfig!.sellerId, merchantId, connectionId: stored.id },
+        });
+        return stored;
+      }) : await this.prisma.erpConnection.upsert({
         where: { merchantId_provider: { merchantId, provider } },
         update: {
           status: "connected",
@@ -330,39 +296,44 @@ export class ErpOAuthController {
         });
       }
 
-      // Fire-and-forget: import products into inventory (marketplaces only)
+      // Await durable enqueue, not an unreliable background import.
       if (isMarketplaceProvider(provider)) {
-        void this.triggerInitialSync(merchantId, provider, tokenData.access_token, connection.id);
+        await this.triggerInitialSync(merchantId, provider, connection.id);
       } else if (provider === "bling") {
         await this.erpSync.execute(merchantId, connection.id);
       }
 
-      res.redirect(302, dashboardRedirect({ erp_connected: provider }));
+      res.redirect(302, dashboardRedirect({ erp_connected: provider, erp_merchant: merchantId }));
     } catch (err) {
       const code = callbackErrorCode(err);
       this.logger.error("erp.callback.error", { provider, merchantId, code });
-      res.redirect(302, dashboardRedirect({ error: "erp_callback_error" }));
+      const publicCodes = new Set(["erp_token_failed", "erp_provider_not_configured", "erp_shop_selection_required", "erp_marketplace_account_already_connected", "erp_marketplace_account_change_requires_unlink", "erp_marketplace_seller_required", "erp_initial_sync_failed"]);
+      res.redirect(302, dashboardRedirect({ error: publicCodes.has(code) ? code : "erp_callback_error", erp_provider: provider }));
     }
   }
 
   private get stateSecret(): string {
-    return process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET || "dev-fallback-secret";
+    const secret = process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET;
+    if (!secret && process.env.NODE_ENV === "production") throw new Error("erp_state_secret_missing");
+    return secret || "dev-fallback-secret";
   }
 
   private signState(provider: string, merchantId: string): string {
     const nonce = randomBytes(16).toString("hex");
-    const payload = `${provider}:${merchantId}:${nonce}`;
-    const signature = createHmac("sha256", this.stateSecret).update(payload).digest("hex").slice(0, 16);
+    const payload = `${provider}:${merchantId}:${Date.now()}:${nonce}`;
+    const signature = createHmac("sha256", this.stateSecret).update(payload).digest("hex");
     return `${payload}:${signature}`;
   }
 
   private verifyState(state: string): { provider: string | null; merchantId: string | null } {
     const parts = state.split(":");
-    if (parts.length !== 4) return { provider: null, merchantId: null };
+    if (parts.length !== 5) return { provider: null, merchantId: null };
 
-    const [provider, merchantId, nonce, signature] = parts;
-    const expected = createHmac("sha256", this.stateSecret).update(`${provider}:${merchantId}:${nonce}`).digest("hex").slice(0, 16);
-    if (signature !== expected) return { provider: null, merchantId: null };
+    const [provider, merchantId, issuedAt, nonce, signature] = parts;
+    const age = Date.now() - Number(issuedAt);
+    if (!merchantId || !nonce || !Number.isFinite(age) || age < 0 || age > 30 * 60_000 || !/^[a-f0-9]{64}$/.test(signature)) return { provider: null, merchantId: null };
+    const expected = createHmac("sha256", this.stateSecret).update(`${provider}:${merchantId}:${issuedAt}:${nonce}`).digest("hex");
+    if (!timingSafeEqual(Buffer.from(signature, "hex"), Buffer.from(expected, "hex"))) return { provider: null, merchantId: null };
 
     return { provider, merchantId };
   }

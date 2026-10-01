@@ -181,14 +181,15 @@ test("snapshot waits for a pending sale without exhausting its own retry limit",
   const jobWrites: any[] = [];
   const connection = { id: "connection_a", merchantId: "merchant_a", provider: "omie", directionMode: "bidirectional" };
   const prisma = {
+    $queryRaw: async () => [],
     erpConnection: { findFirst: async () => connection, update: async () => ({}) },
     erpSyncJob: {
       updateMany: async () => ({ count: 1 }),
-      findUnique: async () => ({ id: "full_a", connectionId: connection.id, merchantId: connection.merchantId, kind: "full", attempts: 5 }),
-      findFirst: async () => ({ id: "sale_a" }),
+      findUnique: async () => ({ id: "full_a", status: "queued", connectionId: connection.id, merchantId: connection.merchantId, kind: "full", attempts: 5 }),
+      findFirst: async ({ where }: any) => where.status === "running" ? null : ({ id: "sale_a" }),
       update: async (input: any) => { jobWrites.push(input.data); },
     },
-    $transaction: async (ops: any[]) => Promise.all(ops),
+    $transaction: async (ops: any) => typeof ops === "function" ? ops(prisma) : Promise.all(ops),
   };
   await (new ErpSyncService(prisma as never) as any).process("full_a");
   assert.equal(jobWrites[0].status, "queued");

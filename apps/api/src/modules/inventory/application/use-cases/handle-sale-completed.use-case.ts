@@ -23,7 +23,7 @@ export class HandleSaleCompletedUseCase {
     const sale = await this.stockHandler.handle(event);
     let marketplacePushed = false;
     if (!sale.idempotent) {
-      await this.marketplacePush.pushAfterSale(sale.event);
+      await this.marketplacePush.pushAfterSale(sale);
       marketplacePushed = true;
     }
     return {

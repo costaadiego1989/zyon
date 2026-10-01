@@ -1,7 +1,28 @@
 import { describe, it, expect } from "vitest";
-import { erpOAuthResult } from "./erp-oauth-result.js";
+import { erpOAuthHttpError, erpOAuthResult, erpSyncErrorMessage } from "./erp-oauth-result.js";
 
 describe("ERP OAuth return", () => {
+  it("shows actionable sync failures and never exposes internal provider text", () => {
+    expect(erpSyncErrorMessage("erp_marketplace_duplicate_product_or_sku")).toContain("SKUs repetidos");
+    expect(erpSyncErrorMessage("private-provider-secret")).not.toContain("private-provider-secret");
+    expect(erpSyncErrorMessage("erp_multi_location_requires_mapping")).toContain("locais de estoque");
+  });
+  it("explains missing app configuration without rendering raw errors", () => {
+    expect(erpOAuthHttpError("shopee", JSON.stringify({ code: "erp_provider_not_configured", detail: "secret" }))).toContain("ainda não foi configurada neste ambiente");
+    expect(erpOAuthHttpError("tiktokshop", "private-token")).not.toContain("private-token");
+  });
+
+  it("does not claim the selected store was connected when OAuth started in another store", () => {
+    const params = new URLSearchParams("erp_connected=mercadolivre&erp_merchant=child");
+    expect(erpOAuthResult(params, "parent")?.kind).toBe("error");
+    expect(erpOAuthResult(params, "parent")?.message).toContain("Selecione essa loja");
+    expect(erpOAuthResult(params, "child")?.kind).toBe("success");
+  });
+
+  it("distinguishes external account ownership and multi-shop authorization", () => {
+    expect(erpOAuthResult(new URLSearchParams("error=erp_marketplace_account_already_connected&erp_provider=shopee"))?.message).toContain("outra loja");
+    expect(erpOAuthResult(new URLSearchParams("error=erp_shop_selection_required&erp_provider=tiktokshop"))?.message).toContain("várias lojas");
+  });
   it("explains Bling permissions instead of a generic retry", () => {
     const result = erpOAuthResult(new URLSearchParams("error=erp_permission_denied&erp_provider=bling"));
     expect(result?.kind).toBe("error");

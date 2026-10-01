@@ -4,8 +4,10 @@ import { createHash } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { AppliedInventorySale } from "../../domain/events/sale-completed.event.js";
 import { decryptErpSecret, encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
+import { createMarketplaceAdapter, isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
+import { marketplaceContext, refreshMarketplaceToken } from "../../infrastructure/adapters/marketplace-oauth.js";
 
-type SupportedErp = "omie" | "bling" | "tiny";
+type SupportedErp = "omie" | "bling" | "tiny" | "mercadolivre" | "shopee" | "tiktokshop";
 type SyncKind = "full" | "sale";
 
 type RemoteSnapshot = {
@@ -20,7 +22,7 @@ type RemoteSnapshot = {
 
 type SaleJobPayload = { receiptId: string };
 
-const SUPPORTED = new Set<SupportedErp>(["omie", "bling", "tiny"]);
+const SUPPORTED = new Set<SupportedErp>(["omie", "bling", "tiny", "mercadolivre", "shopee", "tiktokshop"]);
 const RETRY_LIMIT = 6;
 const JOB_LEASE_MS = 15 * 60_000;
 const JOB_LEASE_HEARTBEAT_MS = 2 * 60_000;
@@ -159,6 +161,7 @@ export class ErpSyncService {
         const jobs = await this.prisma.erpSyncJob.findMany({
           where: {
             status: "queued",
+            connection: { syncJobs: { none: { status: "running" } } },
             OR: [{ nextAttemptAt: null }, { nextAttemptAt: { lte: now } }],
           },
           orderBy: { createdAt: "asc" },
@@ -197,9 +200,18 @@ export class ErpSyncService {
 
   private async process(jobId: string): Promise<void> {
     const claimedAt = new Date();
-    const claimed = await this.prisma.erpSyncJob.updateMany({
-      where: { id: jobId, status: "queued" },
-      data: { status: "running", startedAt: claimedAt, lockedUntil: new Date(claimedAt.getTime() + JOB_LEASE_MS) },
+    const claimed = await this.prisma.$transaction(async (tx) => {
+      const pending = await tx.erpSyncJob.findUnique({ where: { id: jobId } });
+      if (!pending || pending.status !== "queued") return { count: 0 };
+      // Jobs have individual leases, but absolute stock writes must also be
+      // serial per external account across API replicas, not merely per job.
+      await tx.$queryRaw`SELECT id FROM erp_connections WHERE id = ${pending.connectionId} FOR UPDATE`;
+      const running = await tx.erpSyncJob.findFirst({ where: { connectionId: pending.connectionId, status: "running" } });
+      if (running) return { count: 0 };
+      return tx.erpSyncJob.updateMany({
+        where: { id: jobId, status: "queued" },
+        data: { status: "running", startedAt: claimedAt, lockedUntil: new Date(claimedAt.getTime() + JOB_LEASE_MS) },
+      });
     });
     if (claimed.count !== 1) return;
 
@@ -288,7 +300,52 @@ export class ErpSyncService {
       case "bling": return this.pullBling(connection);
       case "tiny": return this.pullTiny(connection);
     }
+    if (isMarketplaceProvider(connection.provider)) return this.pullMarketplace(connection);
     throw new Error("erp_provider_not_supported");
+  }
+
+  private async marketplaceToken(connection: ErpConnection): Promise<string> {
+    // Refresh tokens rotate. Serialize refresh across workers and re-read the
+    // latest ciphertext under the connection lock before using a refresh token.
+    return this.prisma.$transaction(async (tx) => {
+      await tx.$queryRaw`SELECT id FROM erp_connections WHERE id = ${connection.id} FOR UPDATE`;
+      const current = await tx.erpConnection.findFirst({ where: { id: connection.id, merchantId: connection.merchantId, status: "connected" } });
+      if (!current?.accessTokenCipher) throw new Error("erp_marketplace_token_missing");
+      if (current.tokenExpiresAt && current.tokenExpiresAt.getTime() > Date.now() + 120_000) return decryptErpSecret(current.accessTokenCipher);
+      if (!current.refreshTokenCipher) throw new Error("erp_marketplace_refresh_token_missing");
+      const refreshed = await refreshMarketplaceToken(current.provider, decryptErpSecret(current.refreshTokenCipher), marketplaceContext(current.config));
+      await tx.erpConnection.update({ where: { id: current.id }, data: {
+        accessTokenCipher: encryptErpSecret(refreshed.accessToken), refreshTokenCipher: encryptErpSecret(refreshed.refreshToken), tokenExpiresAt: refreshed.expiresAt,
+      } });
+      return refreshed.accessToken;
+    }, { timeout: 40_000 });
+  }
+
+  private async pullMarketplace(connection: ErpConnection): Promise<RemoteSnapshot[]> {
+    const context = marketplaceContext(connection.config);
+    if (!context.sellerId || (connection.provider !== "mercadolivre" && !context.shopId)) throw new Error("erp_marketplace_reconnect_required");
+    const adapter = createMarketplaceAdapter(connection.provider, context)!;
+    const token = await this.marketplaceToken(connection);
+    const snapshots: RemoteSnapshot[] = [];
+    const externalIds = new Set<string>();
+    const localSkus = new Set<string>();
+    let cursor: string | undefined;
+    for (let page = 0; page < 10_000; page++) {
+      const result = await adapter.listProducts(token, page, cursor);
+      for (const product of result.products) {
+        const sku = product.sku?.trim() || `${connection.provider}:${product.id}`;
+        if (externalIds.has(product.id) || localSkus.has(sku)) throw new Error("erp_marketplace_duplicate_product_or_sku");
+        externalIds.add(product.id);
+        localSkus.add(sku);
+        snapshots.push({ externalProductId: product.id, externalLocationId: "0", sku,
+          productName: externalId(product.title, "erp_marketplace_product_name_missing"), quantity: product.stock, salePriceCents: product.salePriceCents,
+        });
+      }
+      if (!result.hasMore) return snapshots;
+      if (!result.nextCursor) throw new Error("erp_marketplace_pagination_invalid");
+      cursor = result.nextCursor;
+    }
+    throw new Error("erp_marketplace_pagination_limit");
   }
 
   private async pushSale(connection: ErpConnection, merchantId: string, receiptId: string): Promise<void> {
@@ -297,6 +354,7 @@ export class ErpSyncService {
     const result = receipt.result as unknown as AppliedInventorySale;
     if (!Array.isArray(result?.items)) throw new Error("erp_sale_receipt_invalid");
     let blingStockWriter: { token: string; depositId: number } | null = null;
+    let marketplaceToken: string | null = null;
 
     for (const item of result.items) {
       const mapping = await this.prisma.erpProductMapping.findFirst({
@@ -314,8 +372,19 @@ export class ErpSyncService {
           blingStockWriter = { token, depositId: await this.blingDefaultDepositId(token) };
         }
         await this.pushBlingSnapshot(blingStockWriter.token, mapping.externalProductId, item.remainingQuantity, idempotencyKey, blingStockWriter.depositId);
-      } else {
+      } else if (connection.provider === "tiny") {
         await this.pushTinySnapshot(connection, mapping.externalProductId, item.remainingQuantity, idempotencyKey);
+      } else if (isMarketplaceProvider(connection.provider)) {
+        marketplaceToken ??= await this.marketplaceToken(connection);
+        const adapter = createMarketplaceAdapter(connection.provider, marketplaceContext(connection.config))!;
+        // A retried older receipt must not restore stock sold by a later order.
+        const current = await this.prisma.inventoryItem.findFirst({ where: { id: item.itemId, merchantId, locationId: item.locationId } });
+        if (!current) throw new Error("erp_marketplace_inventory_missing");
+        const available = current.quantity - current.reserved;
+        if (!Number.isSafeInteger(available) || available < 0) throw new Error("erp_marketplace_stock_invalid");
+        if (!await adapter.updateStock(marketplaceToken, mapping.externalProductId, available)) throw new Error("erp_marketplace_stock_write_rejected");
+      } else {
+        throw new Error("erp_provider_not_supported");
       }
     }
   }

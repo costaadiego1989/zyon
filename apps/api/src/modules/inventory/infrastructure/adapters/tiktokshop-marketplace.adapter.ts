@@ -1,126 +1,71 @@
-import { Injectable, Logger } from "@nestjs/common";
-import { createHmac } from "node:crypto";
-import type { MarketplaceProviderPort, MarketplaceProduct } from "../../domain/ports/marketplace-provider.port.js";
+import { Injectable } from "@nestjs/common";
+import type { MarketplaceContext, MarketplacePage, MarketplaceProduct, MarketplaceProviderPort } from "../../domain/ports/marketplace-provider.port.js";
+import { marketplaceId, marketplaceJson, marketplacePrice, marketplaceQuantity, requiredMarketplaceEnv, tiktokSignature } from "./marketplace-api.js";
 
-const API_BASE = "https://open-api.tiktokglobalshop.com";
-
-function env(key: string, fallback = ""): string {
-  return process.env[key] ?? fallback;
-}
-
-/**
- * TikTok Shop marketplace adapter.
- * OAuth 2.0 + HMAC-SHA256 request signing on path + sorted params.
- */
 @Injectable()
 export class TikTokShopMarketplaceAdapter implements MarketplaceProviderPort {
-  private readonly logger = new Logger(TikTokShopMarketplaceAdapter.name);
+  constructor(private readonly context: MarketplaceContext = {}) {}
 
-  async listProducts(accessToken: string, page = 0): Promise<{ products: MarketplaceProduct[]; hasMore: boolean }> {
-    const pageSize = 50;
-    const path = "/api/products/search";
-    const params: Record<string, string> = {
-      app_key: env("TIKTOKSHOP_APP_KEY"),
-      access_token: accessToken,
-      page_number: String(page + 1),
-      page_size: String(pageSize),
-    };
-
-    const url = this.buildSignedUrl(path, params);
-    const res = await fetch(url, { method: "GET" });
-    if (!res.ok) {
-      this.logger.error(`tiktokshop.listProducts failed: ${res.status}`);
-      return { products: [], hasMore: false };
+  async listProducts(accessToken: string, _page = 0, cursor?: string): Promise<MarketplacePage> {
+    const data = await this.request(accessToken, "/product/202309/products/search", {
+      shop_cipher: this.shopCipher(), page_size: "50", ...(cursor ? { page_token: cursor } : {}),
+    }, { status: "ACTIVATE" });
+    if (!Array.isArray(data.products)) throw new Error("erp_tiktokshop_response_invalid");
+    const products: MarketplaceProduct[] = [];
+    for (const item of data.products) {
+      if (!Array.isArray(item.skus) || !item.skus.length) throw new Error("erp_tiktokshop_skus_missing");
+      for (const sku of item.skus) {
+        if (!Array.isArray(sku.inventory) || !sku.inventory.length) throw new Error("erp_marketplace_stock_missing");
+        if (sku.inventory.length !== 1) throw new Error("erp_multi_location_requires_mapping");
+        const inventory = sku.inventory[0];
+        products.push({
+          id: `${marketplaceId(item.id)}:${marketplaceId(sku.id)}:${marketplaceId(inventory.warehouse_id)}`,
+          title: String(item.title ?? ""), sku: sku.seller_sku || undefined,
+          stock: marketplaceQuantity(inventory.quantity),
+          salePriceCents: marketplacePrice(sku.price?.sale_price ?? sku.price?.tax_exclusive_price, sku.price?.currency),
+        });
+      }
     }
-
-    const data: any = await res.json();
-    const items: any[] = data.data?.products ?? [];
-    const total = data.data?.total ?? 0;
-    const hasMore = (page + 1) * pageSize < total;
-
-    const products: MarketplaceProduct[] = items.map((item) => ({
-      id: String(item.id),
-      title: item.name ?? "",
-      sku: item.skus?.[0]?.seller_sku ?? undefined,
-      stock: item.skus?.[0]?.stock_infos?.[0]?.available_stock ?? 0,
-    }));
-
-    return { products, hasMore };
+    const nextCursor = data.next_page_token || undefined;
+    if (nextCursor && (!data.products.length || nextCursor === cursor)) throw new Error("erp_tiktokshop_pagination_invalid");
+    return { products, hasMore: Boolean(nextCursor), nextCursor };
   }
 
   async updateStock(accessToken: string, itemId: string, quantity: number): Promise<boolean> {
-    const path = "/api/products/stocks";
-    const params: Record<string, string> = {
-      app_key: env("TIKTOKSHOP_APP_KEY"),
-      access_token: accessToken,
-    };
-
-    const body = JSON.stringify({
-      product_id: itemId,
-      skus: [{ id: itemId, stock_infos: [{ available_stock: quantity }] }],
+    const parts = itemId.split(":");
+    if (parts.length !== 3) throw new Error("erp_tiktokshop_mapping_invalid");
+    const [productId, skuId, warehouseId] = parts.map(marketplaceId);
+    const data = await this.request(accessToken, `/product/202309/products/${productId}/inventory/update`, { shop_cipher: this.shopCipher() }, {
+      skus: [{ id: skuId, inventory: [{ warehouse_id: warehouseId, quantity: marketplaceQuantity(quantity) }] }],
     });
-
-    const url = this.buildSignedUrl(path, params);
-    const res = await fetch(url, {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body,
-    });
-
-    if (!res.ok) {
-      this.logger.error(`tiktokshop.updateStock failed: item=${itemId} status=${res.status}`);
-      return false;
-    }
-    const result: any = await res.json();
-    if (result.code !== 0) {
-      this.logger.error(`tiktokshop.updateStock error: code=${result.code} msg=${result.message}`);
-      return false;
-    }
+    if (data.errors?.length) throw new Error("erp_tiktokshop_stock_write_rejected");
     return true;
   }
 
-  async getSellerInfo(accessToken: string): Promise<{ sellerId: string; name: string }> {
-    const path = "/api/shop/get_authorized_shop";
-    const params: Record<string, string> = {
-      app_key: env("TIKTOKSHOP_APP_KEY"),
-      access_token: accessToken,
-    };
-
-    const url = this.buildSignedUrl(path, params);
-    const res = await fetch(url);
-    if (!res.ok) {
-      throw new Error(`tiktokshop.getSellerInfo failed: ${res.status}`);
-    }
-    const data: any = await res.json();
-    const shops: any[] = data.data?.shops ?? [];
-    const shop = shops[0];
-    return {
-      sellerId: String(shop?.id ?? ""),
-      name: shop?.name ?? "",
-    };
+  async getSellerInfo(accessToken: string): Promise<{ sellerId: string; name: string; shopCipher: string }> {
+    const data = await this.request(accessToken, "/authorization/202309/shops");
+    if (!Array.isArray(data.shops) || !data.shops.length) throw new Error("erp_tiktokshop_shop_missing");
+    const shop = this.context.shopId ? data.shops.find((candidate: any) => String(candidate.id) === this.context.shopId) : data.shops.length === 1 ? data.shops[0] : undefined;
+    if (!shop) throw new Error(this.context.shopId ? "erp_marketplace_account_mismatch" : "erp_shop_selection_required");
+    if (!shop.cipher) throw new Error("erp_tiktokshop_shop_cipher_missing");
+    return { sellerId: marketplaceId(shop.id), name: String(shop.name ?? shop.id), shopCipher: String(shop.cipher) };
   }
 
-  // --- HMAC Signing ---
-
-  private buildSignedUrl(path: string, params: Record<string, string>): string {
-    const appSecret = env("TIKTOKSHOP_APP_SECRET");
-    const timestamp = Math.floor(Date.now() / 1000);
-    params["timestamp"] = String(timestamp);
-
-    const sign = this.computeSign(path, params, appSecret);
-    params["sign"] = sign;
-
-    const qs = new URLSearchParams(params).toString();
-    return `${API_BASE}${path}?${qs}`;
+  private shopCipher(): string {
+    if (!this.context.shopCipher) throw new Error("erp_tiktokshop_shop_cipher_missing");
+    return this.context.shopCipher;
   }
 
-  private computeSign(path: string, params: Record<string, string>, appSecret: string): string {
-    // TikTok sign: HMAC-SHA256(app_secret, path + sorted key=value pairs)
-    const sortedKeys = Object.keys(params)
-      .filter((k) => k !== "sign" && k !== "access_token")
-      .sort();
-    const paramString = sortedKeys.map((k) => `${k}${params[k]}`).join("");
-    const baseString = `${path}${paramString}`;
-    return createHmac("sha256", appSecret).update(baseString).digest("hex");
+  private async request(token: string, path: string, extra: Record<string, string> = {}, payload?: unknown): Promise<any> {
+    const secret = requiredMarketplaceEnv("TIKTOKSHOP_APP_SECRET");
+    const body = payload === undefined ? "" : JSON.stringify(payload);
+    const params = { ...extra, app_key: requiredMarketplaceEnv("TIKTOKSHOP_APP_KEY"), timestamp: String(Math.floor(Date.now() / 1000)) };
+    const query = new URLSearchParams({ ...params, sign: tiktokSignature(path, params, secret, body) });
+    const data = await marketplaceJson("tiktokshop", `https://open-api.tiktokglobalshop.com${path}?${query}`, {
+      method: payload === undefined ? "GET" : "POST",
+      headers: { "x-tts-access-token": token, "Content-Type": "application/json" }, ...(body ? { body } : {}),
+    });
+    if (!data.data || typeof data.data !== "object") throw new Error("erp_tiktokshop_response_invalid");
+    return data.data;
   }
 }

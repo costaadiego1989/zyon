@@ -4,7 +4,7 @@ import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import { DashboardHttpError } from "../../api/http/error.js";
-import { erpOAuthResult } from "./erp-oauth-result.js";
+import { erpOAuthHttpError, erpOAuthResult } from "./erp-oauth-result.js";
 
 export function useInventoryPage(options: {
   me: MerchantProfile | null;
@@ -64,13 +64,14 @@ export function useInventoryPage(options: {
 
     // Detect OAuth callback from ERP providers
     const params = new URLSearchParams(window.location.search);
-    const result = erpOAuthResult(params);
+    if (!options.me) return;
+    const result = erpOAuthResult(params, options.me.id);
     if (result) {
       setTab("erp");
       setErpAuthorizationError(result.kind === "error" ? result.message : null);
       if (result.kind === "success") showToast("success", result.message);
       // Keep the explicit #inventory deep link after consuming callback params.
-      for (const key of ["erp_connected", "erp_provider", "error", "error_description", "error_uri"]) params.delete(key);
+      for (const key of ["erp_connected", "erp_provider", "erp_merchant", "error", "error_description", "error_uri"]) params.delete(key);
       const query = params.size ? `?${params.toString()}` : "";
       window.history.replaceState({}, document.title, `${window.location.pathname}${query}${window.location.hash}`);
     }
@@ -113,6 +114,7 @@ export function useInventoryPage(options: {
 
   const connectErp = useCallback(async (provider: string, credentials?: Record<string, string>) => {
     if (!options.me) return false;
+    setErpAuthorizationError(null);
     try {
       if (provider === "omie" || provider === "tiny") {
         const conn = await api.connectErp(options.me.id, provider, credentials);
@@ -120,7 +122,7 @@ export function useInventoryPage(options: {
         showToast("success", `${provider === "omie" ? "Omie" : "Tiny"} conectado; sincronização inicial agendada`);
         return true;
       } else {
-        // Bling OAuth flow.
+        // ERP and marketplace seller authorization.
         const data = await (api as any).getErpOAuthUrl(options.me.id, provider);
         if (data?.url) {
           // OAuth needs a full-page authorization step. Returning to the same
@@ -134,7 +136,9 @@ export function useInventoryPage(options: {
     } catch (err) {
       // Credential forms keep a persistent inline error beside the entered fields.
       if ((provider === "omie" || provider === "tiny") && err instanceof DashboardHttpError) return err;
-      if (provider !== "omie" && provider !== "tiny") showToast("error", `Não foi possível conectar ${provider}. Tente novamente.`);
+      if (provider !== "omie" && provider !== "tiny") {
+        setErpAuthorizationError(erpOAuthHttpError(provider, err instanceof DashboardHttpError ? err.responseBody : undefined));
+      }
       return false;
     }
   }, [api, options.me, loadData]);
