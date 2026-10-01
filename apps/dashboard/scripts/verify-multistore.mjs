@@ -81,6 +81,28 @@ try {
   assert.equal((await accountProfile).status(), 200, "account profile must remain available after switching stores");
   await page.getByLabel("Nome completo", { exact: true }).waitFor({ timeout: 30000 });
   assert.equal(await page.getByText("Dados pessoais indisponíveis", { exact: true }).count(), 0);
+  // Simulate the exact refusal observed from Bling, through the real signed
+  // callback and dashboard. No provider credentials or token exchange.
+  const beforeErp = await (await context.request.get(`${api}/v1/dashboard/inventory/erp-connections`)).json();
+  const authorization = await context.request.get(`${api}/v1/inventory/erp/oauth/bling/authorize`);
+  assert.equal(authorization.status(), 200);
+  const providerUrl = new URL((await authorization.json()).url);
+  const callback = new URL(`${api}/v1/inventory/erp/oauth/callback`);
+  callback.search = new URLSearchParams({ state: providerUrl.searchParams.get("state"), error: "FORBIDDEN" }).toString();
+  const rejection = await context.request.get(callback.toString(), { maxRedirects: 0 });
+  assert.equal(rejection.status(), 302);
+  const returnUrl = new URL(rejection.headers().location);
+  assert.equal(returnUrl.origin, new URL(dashboard).origin);
+  assert.equal(returnUrl.searchParams.get("error"), "erp_permission_denied");
+  await page.goto(returnUrl.toString(), { waitUntil: "domcontentloaded" });
+  await page.getByRole("tab", { name: "Conectores ERP" }).waitFor();
+  assert.equal(await page.getByRole("tab", { name: "Conectores ERP" }).getAttribute("aria-selected"), "true");
+  await page.getByRole("alert").filter({ hasText: "Bling recusou a autorização" }).waitFor();
+  assert.equal((await trigger.textContent()).trim(), name, "Bling refusal must keep the selected child store");
+  assert.equal(new URL(page.url()).hash, "#inventory");
+  assert.equal(new URL(page.url()).searchParams.has("error"), false);
+  assert.deepEqual(await (await context.request.get(`${api}/v1/dashboard/inventory/erp-connections`)).json(), beforeErp);
+  console.log(JSON.stringify({ result: "PASS", checks: ["Bling FORBIDDEN callback", "persistent permission guidance", "ERP tab restored", "child-store session preserved", "ERP connections unchanged"] }));
   assert.deepEqual(failures, []);
   console.log(JSON.stringify({ result: "PASS", dashboard, storeId: created.id, name, slug: created.slug,
     checks: ["commercial profile modal", "parent category prefill", "real creation", "stored commercial profile", "full document reload", "new store header", "first onboarding step", "persist after reload", "switch root and back", "account profile after switch"] }));

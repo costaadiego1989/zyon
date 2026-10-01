@@ -4,6 +4,7 @@ import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import { DashboardHttpError } from "../../api/http/error.js";
+import { erpOAuthResult } from "./erp-oauth-result.js";
 
 export function useInventoryPage(options: {
   me: MerchantProfile | null;
@@ -18,6 +19,7 @@ export function useInventoryPage(options: {
   const [crmConnections, setCrmConnections] = useState<any[]>([]);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [erpAuthorizationError, setErpAuthorizationError] = useState<string | null>(null);
 
   // Pagination state
   const [itemPage, setItemPage] = useState(1);
@@ -58,21 +60,19 @@ export function useInventoryPage(options: {
   }, [api, options.me]);
 
   useEffect(() => {
-    loadData();
+    void loadData();
 
     // Detect OAuth callback from ERP providers
     const params = new URLSearchParams(window.location.search);
-    const erpConnected = params.get("erp_connected");
-    const erpError = params.get("error");
-    if (erpConnected || erpError) {
-      if (erpConnected) {
-        showToast("success", `${erpConnected} conectado com sucesso`);
-        void loadData(); // Reload to fetch updated connections
-      } else {
-        showToast("error", "Não foi possível concluir a conexão com o ERP. Tente novamente.");
-      }
+    const result = erpOAuthResult(params);
+    if (result) {
+      setTab("erp");
+      setErpAuthorizationError(result.kind === "error" ? result.message : null);
+      if (result.kind === "success") showToast("success", result.message);
       // Keep the explicit #inventory deep link after consuming callback params.
-      window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.hash}`);
+      for (const key of ["erp_connected", "erp_provider", "error", "error_description", "error_uri"]) params.delete(key);
+      const query = params.size ? `?${params.toString()}` : "";
+      window.history.replaceState({}, document.title, `${window.location.pathname}${query}${window.location.hash}`);
     }
   }, [loadData]);
 
@@ -215,6 +215,8 @@ export function useInventoryPage(options: {
     crmConnections,
     loading,
     error,
+    erpAuthorizationError,
+    dismissErpAuthorizationError: () => setErpAuthorizationError(null),
     loadData,
     // Pagination
     itemPage,
