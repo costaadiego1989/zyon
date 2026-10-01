@@ -72,6 +72,10 @@ try {
   await trigger.click();
   await page.getByRole("dialog", { name: "Trocar loja" }).getByRole("button", { name }).click();
   await page.waitForFunction(expected => document.querySelector(".merchant-store-switcher > button")?.textContent?.trim() === expected, name);
+  const dashboardReads = await Promise.all(Array.from({ length: 61 }, () => context.request.get(`${api}/v1/merchants/me`)));
+  assert.ok(dashboardReads.every(response => response.status() === 200), "normal authenticated reads must not exhaust the post-switch tenant quota");
+  const erpConnections = await context.request.get(`${api}/v1/dashboard/inventory/erp-connections`);
+  assert.equal(erpConnections.status(), 200, "ERP screen must remain available after post-switch dashboard reads");
   const accountProfile = page.waitForResponse(response => response.url().endsWith("/auth/me") && response.request().method() === "GET");
   await page.evaluate(() => { window.location.hash = "account-settings"; });
   assert.equal((await accountProfile).status(), 200, "account profile must remain available after switching stores");

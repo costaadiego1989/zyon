@@ -3,6 +3,7 @@ import type { MerchantProfile } from "../../api-client.js";
 import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
+import { DashboardHttpError } from "../../api/http/error.js";
 
 export function useInventoryPage(options: {
   me: MerchantProfile | null;
@@ -132,6 +133,7 @@ export function useInventoryPage(options: {
       }
     } catch (err) {
       // Credential forms keep a persistent inline error beside the entered fields.
+      if ((provider === "omie" || provider === "tiny") && err instanceof DashboardHttpError) return err;
       if (provider !== "omie" && provider !== "tiny") showToast("error", `Não foi possível conectar ${provider}. Tente novamente.`);
       return false;
     }

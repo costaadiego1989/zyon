@@ -15,6 +15,7 @@ import { SectionHeader } from "../../components/SectionHeader.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useInventoryPage } from "./useInventoryPage.js";
+import { DashboardHttpError } from "../../api/http/error.js";
 
 export interface InventoryPageProps {
   apiBaseUrl: string;
@@ -688,7 +689,7 @@ interface ErpProviderCardProps {
   name: string;
   description: string;
   connection?: ErpConnectionDTO;
-  onConnect: (credentials?: Record<string, string>) => void | Promise<boolean | void>;
+  onConnect: (credentials?: Record<string, string>) => void | Promise<boolean | DashboardHttpError | void>;
   onDisconnect: (id: string) => void;
   onSync: (id: string) => void;
 }
@@ -718,6 +719,18 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
     setOmieLoading(true);
     try {
       const connected = await onConnect(provider === "omie" ? { appKey: omieAppKey, appSecret: omieAppSecret } : { apiToken: tinyApiToken });
+      if (connected instanceof DashboardHttpError && connected.status === 429) {
+        const wait = connected.retryAfterSeconds;
+        const retry = wait
+          ? ` Aguarde ${wait >= 60 ? `${Math.ceil(wait / 60)} minuto(s)` : `${wait} segundos`} antes de tentar novamente.`
+          : " Aguarde alguns instantes antes de tentar novamente.";
+        setCredentialError(`Muitas tentativas em sequência.${retry}`);
+        return;
+      }
+      if (connected instanceof DashboardHttpError) {
+        setCredentialError("Não foi possível conectar. Confira as credenciais e tente novamente.");
+        return;
+      }
       if (connected === false) { setCredentialError("Não foi possível conectar. Confira as credenciais e tente novamente."); return; }
       setShowCredentialModal(false);
       setOmieAppKey("");

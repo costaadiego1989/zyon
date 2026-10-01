@@ -70,8 +70,26 @@ test("route quotas cannot be bypassed by changing resource IDs", async () => {
   await assert.rejects(guard.canActivate(context({ path: "/items/2" }, Limited.prototype.resource).value), status(429));
 });
 
+test("dashboard-scale tenant quota leaves a narrow independent budget for ERP mutations", async () => {
+  class ErpMutations { @RateLimit(10) connect() {} }
+  const { guard } = setup(600, 600);
+  const headers = { authorization: "Bearer valid:store-after-switch" };
+
+  for (let index = 0; index < 61; index++) {
+    await guard.canActivate(context({ ip: `192.0.2.${index + 1}`, headers }).value);
+  }
+  for (let index = 0; index < 10; index++) {
+    await guard.canActivate(context({ ip: `198.51.100.${index + 1}`, headers }, ErpMutations.prototype.connect).value);
+  }
+  await assert.rejects(
+    guard.canActivate(context({ ip: "198.51.100.20", headers }, ErpMutations.prototype.connect).value),
+    status(429),
+  );
+});
+
 test("production requires Redis and invalid numeric quota config is rejected", () => {
   assert.throws(() => new DistributedRateLimitStore({ production: true, ipMax: 1, tenantMax: 1, windowMs: 1 }), /requires_redis/);
+  assert.equal(resolveQuotaOptions({}).tenantMax, 600);
   assert.throws(() => resolveQuotaOptions({ RATE_LIMIT_MAX: "0" }), /invalid_rate_limit_configuration/);
   assert.throws(() => RateLimit(-1), /invalid_route_rate_limit/);
 });
