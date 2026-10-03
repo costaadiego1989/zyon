@@ -286,6 +286,9 @@ export async function resolveDeterministicShortcut(
   deps: DeterministicShortcutDeps,
   input: StorefrontConversationInput,
 ): Promise<StorefrontConversationOutput | null> {
+  // An attachment needs catalog matching and buyer confirmation from the agent,
+  // even when the accompanying text would normally trigger a shortcut.
+  if (input.attachmentContext) return null;
   const normalizedMsg = input.userMessage.trim().toLowerCase();
   return (
     (await resolveAddToCartShortcut(deps, input)) ??
