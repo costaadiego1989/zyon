@@ -195,6 +195,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       userMessage: input.userMessage,
       cartId: input.cartId,
       history: input.history,
+      attachmentContext: input.attachmentContext,
       merchantName: input.merchantName,
       storeCategory: input.storeCategory,
       storeSettings: input.storeSettings,

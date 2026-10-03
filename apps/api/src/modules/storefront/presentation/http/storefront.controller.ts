@@ -7,6 +7,8 @@ import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-owne
 import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
 import { StartStoreConversationUseCase } from "../../application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
+import { StorefrontAttachmentInterpreter, type StorefrontConversationAttachment } from "../../application/services/storefront-attachment-interpreter.service.js";
+import { RequestTimeout } from "../../../../shared/http/request-timeout.interceptor.js";
 import { GenerateNudgeUseCase } from "../../application/use-cases/generate-nudge.use-case.js";
 import { GetConversationHistoryUseCase } from "../../application/use-cases/get-conversation-history.use-case.js";
 import { GetStoreConfigUseCase } from "../../application/use-cases/get-store-config.use-case.js";
@@ -42,6 +44,7 @@ export interface SendMessageRequest {
   user_message: string;
   cart_id?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
+  attachment?: StorefrontConversationAttachment;
 }
 
 @Controller("storefront")
@@ -49,6 +52,7 @@ export class StorefrontController {
   constructor(
     private readonly startStoreConversation: StartStoreConversationUseCase,
     private readonly sendStoreMessage: SendStoreMessageUseCase,
+    private readonly attachmentInterpreter: StorefrontAttachmentInterpreter,
     private readonly generateNudge: GenerateNudgeUseCase,
     private readonly getConversationHistory: GetConversationHistoryUseCase,
     private readonly getStoreConfig: GetStoreConfigUseCase,
@@ -158,6 +162,7 @@ export class StorefrontController {
   }
 
   @Post("conversations/:conversationId/messages")
+  @RequestTimeout(60_000)
   async sendMessage(
     @Param("conversationId") conversationId: string,
     @Body() body: SendMessageRequest & { merchant_id?: string },
@@ -183,6 +188,7 @@ export class StorefrontController {
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
+    const attachmentContext = await this.attachmentInterpreter.interpret(body.attachment);
     const globalUserId = this.buyerId(request, claims.merchantId);
     const oneBuyClick = this.oneBuyClick
       ? await this.oneBuyClick.get({
@@ -196,6 +202,7 @@ export class StorefrontController {
       user_message: body.user_message,
       cart_id: claims.resourceId,
       history: body.history,
+      attachment_context: attachmentContext,
       global_user_id: globalUserId,
       one_buy_click: oneBuyClick,
     });
