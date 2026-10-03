@@ -32,6 +32,7 @@ import { AddMarketplaceItemToCartStorefrontUseCase } from "./application/use-cas
 import { GetPublicStoreResourcesUseCase } from "./application/use-cases/get-public-store-resources.use-case.js";
 import { TrackStorefrontEventUseCase } from "./application/use-cases/track-storefront-event.use-case.js";
 import { GetStorefrontLiveSessionsUseCase } from "./application/use-cases/get-storefront-live-sessions.use-case.js";
+import { StorefrontAttachmentInterpreter } from "./application/services/storefront-attachment-interpreter.service.js";
 import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "./infrastructure/adapters/storefront-conversation.adapter.js";
 import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
@@ -119,6 +120,7 @@ import { StorefrontRealtimeVoiceController } from "./presentation/http/storefron
     BudgetTrackerService,
     AIGatewayService,
     OneBuyClickSessionService,
+    StorefrontAttachmentInterpreter,
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
     GenerateNudgeUseCase,
