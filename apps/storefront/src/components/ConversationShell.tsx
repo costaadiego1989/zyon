@@ -8,6 +8,7 @@ import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
+import { ATTACHMENT_WELCOME_NOTICE } from "@/lib/services/conversation.service";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import BlockRenderer from "./blocks/BlockRenderer";
 import RichProductDetailsPanel from "./blocks/RichProductDetailsPanel";
@@ -938,6 +939,7 @@ export default function ConversationShell({
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--aacp-fg)", lineHeight: 1.3, letterSpacing: "-0.3px", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>Olá! Sou {agent} 👋</div>
                   <div style={{ fontSize: "13px", color: "var(--aacp-muted)", marginTop: "8px", lineHeight: 1.5, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)", whiteSpace: "pre-line" }}>
                     {agentGreeting || "A partir de agora serei sua assistente de vendas e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra. Vamos começar!"}
+                    {"\n\n"}{ATTACHMENT_WELCOME_NOTICE}
                   </div>
                   <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", marginTop: "14px" }}>
                     Selecione uma opção abaixo ou digite algo
