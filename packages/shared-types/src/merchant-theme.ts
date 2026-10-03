@@ -61,6 +61,21 @@ export interface MerchantThemeAppearance {
   successColor?: string; warningColor?: string; fontFamily?: string; fontDisplay?: string;
 }
 
+function luminance(color: string): number | null {
+  const match = color.trim().match(/^#([\da-f]{3}|[\da-f]{6})$/i);
+  if (!match) return null;
+  const hex = match[1].length === 3 ? [...match[1]].map((part) => part + part).join("") : match[1];
+  const channels = [0, 2, 4].map((offset) => {
+    const value = Number.parseInt(hex.slice(offset, offset + 2), 16) / 255;
+    return value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4;
+  });
+  return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
+}
+
+function contrast(foreground: number, background: number): number {
+  return (Math.max(foreground, background) + 0.05) / (Math.min(foreground, background) + 0.05);
+}
+
 export function merchantThemeTokens(theme: MerchantThemeAppearance, requestedMode = theme.mode ?? "light"): Record<string, string> {
   const mode = requestedMode === "grey" ? "grey" : requestedMode === "dark" ? "dark" : "light";
   const tokens: Record<string, string> = { ...NEUMORPHIC_THEME[mode === "light" ? "light" : "dark"] };
@@ -70,6 +85,7 @@ export function merchantThemeTokens(theme: MerchantThemeAppearance, requestedMod
     "--aacp-panel-bg": "#2d312f", "--aacp-shell-bg": "#242726", "--aacp-header-bg": "#2d312f",
     "--aacp-inset-bg": "#292d2b", "--aacp-sheet": "#2d312f", "--aacp-surface-elevated": "#3b413d",
   });
+  const defaults = { ...tokens };
   // Defaults are light colors. Do not carry those defaults into a dark palette.
   // Explicit custom colors remain authoritative in the merchant's chosen mode.
   const fields = [
@@ -86,6 +102,26 @@ export function merchantThemeTokens(theme: MerchantThemeAppearance, requestedMod
     const value = theme[field];
     if (value && (mode === "light" || value.toLowerCase() !== defaultValue) && (requestedMode === (theme.mode ?? "light"))) {
       for (const name of names) tokens[name] = value;
+    }
+  }
+  // Legacy themes can contain dark canvas/text colors alongside white cards,
+  // even with no mode set. Resolve every neutral surface in the requested mode
+  // before checking text, so SSR, hydration and toggling use one readable palette.
+  const surfaces = [
+    "--aacp-bg", "--aacp-shell-bg", "--aacp-panel-bg", "--aacp-surface",
+    "--aacp-card", "--aacp-header-bg", "--aacp-sheet", "--aacp-surface-elevated",
+    "--aacp-surface-2", "--aacp-surface-3", "--aacp-inset-bg", "--aacp-chip",
+  ];
+  for (const name of surfaces) {
+    const lightness = luminance(tokens[name]);
+    if (lightness !== null && (lightness > 0.179) !== (mode === "light")) tokens[name] = defaults[name];
+  }
+  const backgrounds = surfaces.map((name) => luminance(tokens[name])).filter((value): value is number => value !== null);
+  for (const name of ["--aacp-fg", "--aacp-muted", "--aacp-faint"]) {
+    const lightness = luminance(tokens[name]);
+    if (lightness !== null && backgrounds.some((background) => contrast(lightness, background) < 4.5)) {
+      tokens[name] = [defaults[name], defaults["--aacp-fg"], mode === "light" ? "#000000" : "#ffffff"]
+        .find((color) => backgrounds.every((background) => contrast(luminance(color)!, background) >= 4.5))!;
     }
   }
   if (theme.accentColor) tokens["--aacp-accent"] = theme.accentColor;
