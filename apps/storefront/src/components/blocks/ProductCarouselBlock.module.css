@@ -1,11 +1,11 @@
 .carousel { min-width: 0; width: 100%; font-family: var(--aacp-font); color: var(--aacp-fg); }
 .navigation { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 10px; font-size: 13px; color: var(--aacp-muted); }
-.slider { position: relative; min-width: 0; }
+.slider { position: relative; min-width: 0; padding-inline: 28px; }
 .arrow { position: absolute; top: 50%; transform: translateY(-50%); z-index: 1; display: grid; place-items: center; width: 44px; height: 44px; padding: 0; border: 1px solid var(--aacp-line); border-radius: 50%; background: var(--aacp-card); color: var(--aacp-fg); cursor: pointer; }
 .arrow svg { width: 20px; height: 20px; }
 .arrow:disabled { color: var(--aacp-muted); cursor: default; }
-.previous { left: 6px; }
-.next { right: 6px; }
+.previous { left: 0; }
+.next { right: 0; }
 .track { display: flex; align-items: stretch; gap: 16px; overflow-x: auto; padding: 2px 2px 12px; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; -ms-overflow-style: none; -webkit-overflow-scrolling: touch; }
 .track::-webkit-scrollbar { display: none; width: 0; height: 0; }
 .card { display: flex; flex-direction: column; flex: 0 0 min(264px, 82%); min-width: 0; overflow: hidden; scroll-snap-align: start; border: 1px solid var(--aacp-line); border-radius: 14px; background: var(--aacp-surface); transition: border-color 180ms ease; }
