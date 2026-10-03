@@ -4,6 +4,7 @@ import assert from "node:assert/strict";
 import { StorefrontController } from "./storefront.controller.js";
 import { StorefrontAttachmentInterpreter } from "../../application/services/storefront-attachment-interpreter.service.js";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
+import { resolveDeterministicShortcut, type DeterministicShortcutDeps } from "../../infrastructure/shortcuts/deterministic-shortcuts.service.js";
 
 function fixture() {
   const capabilities = new RealtimeCapabilityService("attachment-test-secret-32-characters");
@@ -18,6 +19,16 @@ function fixture() {
   const request = { headers: { authorization: `Bearer ${access.token}`, origin: "https://store.example" } };
   return { controller, calls, request };
 }
+
+test("a short catalog command with an attachment reaches the matching agent", async () => {
+  let catalogCalls = 0;
+  const deps = { productRepo: { search: async () => { catalogCalls++; return { products: [] }; } } } as unknown as DeterministicShortcutDeps;
+  const input = { merchantId: "merchant_a", sessionId: "cart_a", storeCategory: "beauty", history: [], userMessage: "Ver produtos" };
+  assert.equal(await resolveDeterministicShortcut(deps, { ...input, attachmentContext: "Creme reparador,2" }), null);
+  assert.equal(catalogCalls, 0);
+  await resolveDeterministicShortcut(deps, input);
+  assert.equal(catalogCalls, 1);
+});
 
 test("a scoped attachment turn passes quantities to the agent without persisting file bytes", async () => {
   const { controller, calls, request } = fixture();
