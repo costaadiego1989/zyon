@@ -1,4 +1,4 @@
-import type { CommerceTurnResult, Message, CrossSellInterstitialData, ProductCrossSellPlacement } from "@/lib/viewmodels/useConversationViewModel/types";
+import type { CommerceTurnResult, Message, CrossSellInterstitialData, ProductCrossSellPlacement, ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 import { narrateStorefrontBlock, trackFunnelEvent } from "@/lib/services/conversation.service";
 import { checkoutApi } from "@/lib/api/api-client";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -6,6 +6,7 @@ import { ConversationSessionExpiredError } from "@/lib/conversation-access";
 
 export interface SendMessageParams {
   trimmed: string;
+  attachment?: ConversationAttachment;
   conversationId: string | null;
   setConversationId: (id: string) => void;
   clearCart: () => void;
@@ -32,6 +33,7 @@ export interface SendMessageParams {
 export async function handleSendMessage(params: SendMessageParams): Promise<CommerceTurnResult | null> {
   const {
     trimmed,
+    attachment,
     conversationId,
     merchantId,
     history,
@@ -47,10 +49,15 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
     noteActivity,
   } = params;
 
-  if (!trimmed) return null;
+  if (!trimmed && !attachment) return null;
   if (merchantId) noteActivity(merchantId);
 
-  const userMsg: Message = { id: `u-${Date.now()}`, role: "user", text: trimmed };
+  const userMsg: Message = {
+    id: `u-${Date.now()}`,
+    role: "user",
+    text: trimmed,
+    attachment: attachment ? { kind: attachment.kind, name: attachment.name } : undefined,
+  };
   setMessages((prev) => [...prev, userMsg]);
   setInput("");
   setIsLoading(true);
@@ -72,6 +79,7 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
         cartId: cartId || undefined,
         history: newHistory,
         variantId: variantId || undefined,
+        attachment,
         token: getValidBuyer()?.token,
       };
       let data;

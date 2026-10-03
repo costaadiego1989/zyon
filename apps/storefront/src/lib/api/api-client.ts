@@ -20,6 +20,7 @@
 
 import { conversationFetch, rememberConversationAccess } from "../conversation-access";
 import { apiCall } from "@/lib/services/http";
+import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 export interface Product {
@@ -143,6 +144,7 @@ export const checkoutApi = {
     cartId?: string;
     history?: any[];
     variantId?: string;
+    attachment?: ConversationAttachment;
   }): Promise<any> {
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
       method: "POST",
@@ -153,6 +155,7 @@ export const checkoutApi = {
         cart_id: checkoutId,
         history: options?.history,
         variant_id: options?.variantId || undefined,
+        attachment: options?.attachment,
       }),
     }, checkoutId);
   },

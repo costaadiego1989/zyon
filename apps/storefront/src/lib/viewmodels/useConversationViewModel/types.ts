@@ -3,9 +3,16 @@ export type Message = {
   id: string;
   role: "user" | "agent";
   text?: string;
+  attachment?: ConversationAttachmentPreview;
   blocks?: any[];
   ephemeral?: boolean;
 };
+
+export type ConversationAttachment =
+  | { kind: "image"; name: string; mimeType: "image/jpeg" | "image/png" | "image/webp"; dataBase64: string }
+  | { kind: "shopping_list"; name: string; mimeType: "text/plain" | "text/csv"; text: string };
+
+export type ConversationAttachmentPreview = Pick<ConversationAttachment, "kind" | "name">;
 
 export type Channel = "chat" | "voice";
 export type Theme = "dark" | "light";
@@ -77,7 +84,7 @@ export interface ConversationViewModelActions {
   toggleTheme: () => void;
   /** Resolves a signed conversation before a client-only capability is requested. */
   ensureConversation: () => Promise<string | null>;
-  sendMessage: (text: string) => Promise<CommerceTurnResult | null>;
+  sendMessage: (text: string, attachment?: ConversationAttachment) => Promise<CommerceTurnResult | null>;
   handleQuickReply: (option: string) => void;
   appendAgentMessage: (message: Pick<Message, "text" | "blocks">) => void;
   handleUpdateQuantity: (variantId: string, quantity: number) => void;
