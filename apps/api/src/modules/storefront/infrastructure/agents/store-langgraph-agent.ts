@@ -331,9 +331,9 @@ export class StorefrontLangGraphAgent {
         this.logger.warn("agent.fallback_provider.retry");
         try {
           const fbMessages: OpenRouterChatMessage[] = [
-            { role: "system" as any, content: input.systemPrompt || this.baseSystemPrompt || buildStoreSystemPrompt({ merchantName: input.merchantName, storeCategory: input.storeCategory, storeSettings: input.storeSettings, agentIdentity: input.agentIdentity, merchantPolicy: input.merchantPolicy, advancedRules: input.advancedRules, buyerContext: input.buyerContext, knowledgeContext: input.knowledgeContext }) },
-            ...input.history.map((h) => ({ role: h.role as any, content: h.content })),
-            { role: "user" as any, content: input.userMessage }
+            { role: "system" as any, content: systemContent },
+            ...recentHistory.map((h) => ({ role: h.role as any, content: h.content })),
+            { role: "user" as any, content: currentUserMessage }
           ];
           const openRouterTools = this.tools.map((t) => ({
             type: "function" as const,

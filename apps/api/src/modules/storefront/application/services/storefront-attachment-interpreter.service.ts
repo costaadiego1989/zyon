@@ -59,8 +59,9 @@ export class StorefrontAttachmentInterpreter {
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
         body: JSON.stringify({
           model: provider.model,
+          ...(provider.kind === "deepseek" ? { thinking: { type: "disabled" } } : {}),
           temperature: 0,
-          max_tokens: 350,
+          max_tokens: 700,
           messages: [
             {
               role: "system",
@@ -95,10 +96,11 @@ export class StorefrontAttachmentInterpreter {
   }
 }
 
-function resolveVisionProvider(): { apiKey: string; baseUrl: string; model: string } | null {
+function resolveVisionProvider(): { kind: "deepseek" | "openai"; apiKey: string; baseUrl: string; model: string } | null {
   const deepSeekApiKey = process.env.DEEPSEEK_API_KEY?.trim();
   if (deepSeekApiKey) {
     return {
+      kind: "deepseek",
       apiKey: deepSeekApiKey,
       baseUrl: (process.env.DEEPSEEK_BASE_URL?.trim() || "https://api.deepseek.com/v1").replace(/\/+$/, ""),
       model: process.env.DEEPSEEK_VISION_MODEL?.trim() || "deepseek-flash",
@@ -107,6 +109,7 @@ function resolveVisionProvider(): { apiKey: string; baseUrl: string; model: stri
   const openAIApiKey = process.env.OPENAI_API_KEY?.trim();
   if (!openAIApiKey) return null;
   return {
+    kind: "openai",
     apiKey: openAIApiKey,
     baseUrl: (process.env.OPENAI_BASE_URL?.trim() || "https://api.openai.com/v1").replace(/\/+$/, ""),
     model: process.env.OPENAI_VISION_MODEL?.trim() || "gpt-4o-mini",
