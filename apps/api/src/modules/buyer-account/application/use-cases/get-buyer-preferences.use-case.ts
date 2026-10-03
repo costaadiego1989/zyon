@@ -12,6 +12,7 @@ export interface BuyerPreferencesDto {
   one_buy_click_enabled: boolean;
   shipping_preference: "fastest" | "cheapest";
   payment_preference: "pix" | "card";
+  purchase_preferences_configured: boolean;
 }
 
 const DEFAULTS: BuyerPreferencesDto = {
@@ -24,6 +25,7 @@ const DEFAULTS: BuyerPreferencesDto = {
   one_buy_click_enabled: false,
   shipping_preference: "cheapest",
   payment_preference: "pix",
+  purchase_preferences_configured: false,
 };
 
 @Injectable()
@@ -47,6 +49,7 @@ export class GetBuyerPreferencesUseCase {
       one_buy_click_enabled: row.oneBuyClickEnabled === true,
       shipping_preference: row.shippingPreference === "cheapest" ? "cheapest" : "fastest",
       payment_preference: row.paymentPreference === "card" ? "card" : "pix",
+      purchase_preferences_configured: row.purchasePreferencesConfigured === true,
     };
   }
 }

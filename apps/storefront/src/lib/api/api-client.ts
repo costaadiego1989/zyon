@@ -19,6 +19,7 @@
  */
 
 import { conversationFetch, rememberConversationAccess } from "../conversation-access";
+import { apiCall } from "@/lib/services/http";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 export interface Product {
@@ -161,6 +162,7 @@ export const checkoutApi = {
     status: string;
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
+    preferencesConfigured: boolean;
   }> {
     return safeFetch(
       `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/one-buy-click`,
@@ -174,6 +176,7 @@ export const checkoutApi = {
     status: string;
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
+    preferencesConfigured: boolean;
   }> {
     return safeFetch(
       `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/one-buy-click`,
@@ -184,6 +187,21 @@ export const checkoutApi = {
       },
       conversationId,
     );
+  },
+
+  async saveQuickPurchasePreferences(input: {
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  }): Promise<void> {
+    await apiCall("/buyer/me/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({
+        one_buy_click_enabled: true,
+        shipping_preference: input.shippingPreference,
+        payment_preference: input.paymentPreference,
+        purchase_preferences_configured: true,
+      }),
+    });
   },
 };
 export const cartApi = {

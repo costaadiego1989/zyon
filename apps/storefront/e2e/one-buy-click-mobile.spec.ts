@@ -6,7 +6,12 @@ const storyCover = (color: string, label: string) => `data:image/svg+xml,${encod
 test("Compra rápida stays compact in the mobile header with Stories", async ({ page }, testInfo) => {
   let enabled = false;
 
-  await page.route("**/storefront/conversations", async (route) => {
+  await page.addInitScript(() => {
+    const payload = btoa(JSON.stringify({ sub: "buyer-mobile", exp: Math.floor(Date.now() / 1000) + 3_600 }));
+    localStorage.setItem("zyon_buyer_token", `header.${payload}.signature`);
+  });
+
+  await page.route("**/api/storefront-conversations", async (route) => {
     await route.fulfill({ json: { conversation_id: "one-buy-mobile", conversation_token: token(), experiment: null } });
   });
   await page.route("**/one-buy-click", async (route) => {
@@ -17,6 +22,7 @@ test("Compra rápida stays compact in the mobile header with Stories", async ({ 
         status: enabled ? "idle" : "paused",
         shippingPreference: "fastest",
         paymentPreference: "pix",
+        preferencesConfigured: true,
       },
     });
   });
@@ -37,11 +43,13 @@ test("Compra rápida stays compact in the mobile header with Stories", async ({ 
   });
 
   await page.setViewportSize({ width: 375, height: 667 });
-  await page.goto("/store/demo");
+  await page.goto("/store/demo", { waitUntil: "domcontentloaded" });
 
-  const chatEntry = page.getByRole("button", { name: /Por chat/i });
-  await expect(chatEntry).toBeVisible();
-  await chatEntry.click();
+  // A store without voice starts chat after hydration; a voice-enabled store
+  // retains this entry point. Invoke it without racing React's mode transition.
+  await page.getByRole("button", { name: /Por chat/i })
+    .evaluate((button: HTMLButtonElement) => button.click())
+    .catch(() => {});
 
   const mobileHeaderToggle = page.locator('[data-one-buy-click-toggle="mobile-header"]');
   const headerToggle = page.locator('[data-one-buy-click-toggle="header"]');
@@ -97,4 +105,65 @@ test("Compra rápida stays compact in the mobile header with Stories", async ({ 
   await expect(headerToggle).toBeVisible();
   await expect(mobileHeaderToggle).toBeHidden();
   await expect(headerToggle).toHaveAttribute("aria-checked", "true");
+});
+
+test("Compra rápida asks visitors to authenticate and first-time buyers to choose their defaults", async ({ page }) => {
+  let preferencesConfigured = false;
+  let enabled = false;
+  let savedPreferences: Record<string, unknown> | null = null;
+  await page.route("**/api/storefront-conversations", async (route) => {
+    await route.fulfill({ json: { conversation_id: "one-buy-preferences", conversation_token: token(), experiment: null } });
+  });
+  await page.route("**/one-buy-click", async (route) => {
+    if (route.request().method() === "PATCH") enabled = true;
+    await route.fulfill({ json: {
+      enabled,
+      status: enabled ? "idle" : "paused",
+      shippingPreference: "cheapest",
+      paymentPreference: "pix",
+      preferencesConfigured,
+    } });
+  });
+  await page.route("**/buyer/me/preferences", async (route) => {
+    savedPreferences = JSON.parse(route.request().postData() ?? "{}");
+    preferencesConfigured = true;
+    await route.fulfill({ json: {
+      one_buy_click_enabled: true,
+      shipping_preference: "fastest",
+      payment_preference: "card",
+      purchase_preferences_configured: true,
+    } });
+  });
+
+  await page.goto("/store/demo", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: /Por chat/i })
+    .evaluate((button: HTMLButtonElement) => button.click())
+    .catch(() => {});
+  const headerToggle = page.locator('[data-one-buy-click-toggle="header"]');
+  await expect(headerToggle).toBeVisible();
+  await headerToggle.click();
+  await expect(page.getByRole("heading", { name: /confirme sua identidade/i })).toBeVisible();
+
+  await page.addInitScript(() => {
+    const payload = btoa(JSON.stringify({ sub: "buyer-first-time", exp: Math.floor(Date.now() / 1000) + 3_600 }));
+    localStorage.setItem("zyon_buyer_token", `header.${payload}.signature`);
+  });
+  await page.goto("/store/demo", { waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: /Por chat/i })
+    .evaluate((button: HTMLButtonElement) => button.click())
+    .catch(() => {});
+  const loggedBuyerToggle = page.locator('[data-one-buy-click-toggle="header"]');
+  await expect(loggedBuyerToggle).toBeEnabled();
+  await loggedBuyerToggle.click();
+  await expect(page.locator("[data-quick-purchase-preferences-dialog]")).toBeVisible();
+  await page.locator('[data-quick-purchase-choice="shipping-fastest"]').click();
+  await page.locator('[data-quick-purchase-choice="payment-card"]').click();
+  await page.getByRole("button", { name: /Salvar e ativar/i }).click();
+  expect(savedPreferences).toEqual({
+    one_buy_click_enabled: true,
+    shipping_preference: "fastest",
+    payment_preference: "card",
+    purchase_preferences_configured: true,
+  });
+  await expect(page.locator('[data-one-buy-click-toggle="header"]')).toHaveAttribute("aria-checked", "true");
 });

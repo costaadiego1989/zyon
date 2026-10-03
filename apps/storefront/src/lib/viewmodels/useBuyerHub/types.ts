@@ -80,6 +80,7 @@ export interface BuyerPreferences {
   one_buy_click_enabled: boolean;
   shipping_preference: "fastest" | "cheapest";
   payment_preference: "pix" | "card";
+  purchase_preferences_configured: boolean;
 }
 
 export interface BuyerLoyalty {
