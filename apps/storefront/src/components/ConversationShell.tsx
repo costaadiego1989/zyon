@@ -8,6 +8,7 @@ import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
+import { ATTACHMENT_WELCOME_NOTICE } from "@/lib/services/conversation.service";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import BlockRenderer from "./blocks/BlockRenderer";
 import RichProductDetailsPanel from "./blocks/RichProductDetailsPanel";
@@ -30,6 +31,8 @@ import { checkoutApi } from "@/lib/api/api-client";
 import { useRealtimeProductNarration, type ProductNarrationProgress } from "@/lib/voice/use-realtime-product-narration";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
 import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
+import { AttachmentPicker } from "./conversation/AttachmentPicker";
+import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 
 type Channel = "chat" | "voice";
 type OneBuyClickState = {
@@ -290,6 +293,8 @@ export default function ConversationShell({
   const presentedProductVariantRef = useRef<string | undefined>(undefined);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
+  const [pendingAttachment, setPendingAttachment] = useState<ConversationAttachment | null>(null);
+  const [readingAttachment, setReadingAttachment] = useState(false);
   const navigation = useStorefrontNavigation(initialSearch || (initialRichProductId ? `?show=content&product=${encodeURIComponent(initialRichProductId)}` : ""));
   const checkoutOpen = navigation.view.checkout;
   const setCheckoutOpen = navigation.setCheckout;
@@ -692,10 +697,19 @@ export default function ConversationShell({
   }, []);
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading || readingAttachment) return;
+    const attachment = pendingAttachment;
+    const text = input.trim() || (attachment
+      ? "Analise este anexo, encontre produtos iguais ou semelhantes disponíveis e me pergunte antes de adicionar qualquer item ao carrinho."
+      : "");
+    if (!text) return;
     const selectedVariantId = oneBuyClickEnabled.current
-      ? resolvePresentedVariantId(messages, input)
+      ? resolvePresentedVariantId(messages, text)
       : undefined;
-    void sendMessage(attachPresentedVariantId(input, selectedVariantId));
+    void sendMessage(attachPresentedVariantId(text, selectedVariantId), attachment ?? undefined).then((result) => {
+      // Keep the selected file available for another attempt when the request fails.
+      if (result) setPendingAttachment(null);
+    });
     scrollToBottom();
     setTimeout(() => inputRef.current?.focus(), 100);
   };
@@ -905,6 +919,7 @@ export default function ConversationShell({
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--aacp-fg)", lineHeight: 1.3, letterSpacing: "-0.3px", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>Olá! Sou {agent} 👋</div>
                   <div style={{ fontSize: "13px", color: "var(--aacp-muted)", marginTop: "8px", lineHeight: 1.5, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)", whiteSpace: "pre-line" }}>
                     {agentGreeting || "A partir de agora serei sua assistente de vendas e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra. Vamos começar!"}
+                    {"\n\n"}{ATTACHMENT_WELCOME_NOTICE}
                   </div>
                   <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", marginTop: "14px" }}>
                     Selecione uma opção abaixo ou digite algo
@@ -979,6 +994,7 @@ export default function ConversationShell({
               } else {
                 return (
                   <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: "6px", maxWidth: "min(76%, 480px)", alignSelf: "flex-end", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+                    {m.attachment && <div data-neu="message" data-speaker="buyer" style={{ padding: "7px 10px", borderRadius: "12px", background: "var(--aacp-card)", color: "var(--aacp-fg)", fontSize: "12px", overflowWrap: "anywhere" }}>{m.attachment.kind === "image" ? "Imagem: " : "Lista: "}{m.attachment.name}</div>}
                     {m.text && <div data-neu="message" data-speaker="buyer" style={{ padding: "11px 14px", borderRadius: "18px", fontSize: "13.5px", lineHeight: 1.5, fontWeight: 500, whiteSpace: "pre-wrap", background: "var(--aacp-accent)", color: "#fff", boxShadow: "var(--aacp-neu-message)", wordWrap: "break-word" }}>{renderBuyerMessage(m.text)}</div>}
                   </div>
                 );
@@ -1009,10 +1025,11 @@ export default function ConversationShell({
           {/* Composer / Voice indicator */}
           <div style={{ padding: "9px 14px 14px", flex: "none" }}>
             {channel === "voice" ? <RealtimeVoiceComposer voice={realtimeVoice} /> : (
-              <form data-neu="inset" data-aacp-composer-frame onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}>
+              <form data-neu="inset" data-aacp-composer-frame onSubmit={handleSubmit} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}>
                 <PerimeterBorder radius="14px" variant="input" />
+                <AttachmentPicker attachment={pendingAttachment} onChange={setPendingAttachment} onReadingChange={setReadingAttachment} disabled={isLoading} />
                 <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "Aguarde..." : "Escreva sua mensagem…"} aria-label="Mensagem" disabled={isLoading} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--aacp-fg)", fontSize: "13px", padding: 0, fontFamily: "inherit" }} />
-                <button data-neu="send" type="submit" disabled={!input.trim() || isLoading} aria-label="Enviar mensagem" style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: !input.trim() || isLoading ? "not-allowed" : "pointer", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
+                <button data-neu="send" type="submit" disabled={(!input.trim() && !pendingAttachment) || isLoading || readingAttachment} aria-label="Enviar mensagem" style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: ((!input.trim() && !pendingAttachment) || isLoading || readingAttachment) ? "not-allowed" : "pointer", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </button>
               </form>

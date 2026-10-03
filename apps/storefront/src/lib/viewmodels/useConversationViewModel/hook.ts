@@ -38,6 +38,7 @@ import type {
   Theme,
   Mode,
   CrossSellInterstitialData,
+  ConversationAttachment,
   ProductCrossSellPlacement,
   CommerceTurnResult,
 } from "./types";
@@ -150,15 +151,16 @@ export function useConversationViewModel(
   }, [initConversation]);
 
   const sendMessage = useCallback(
-    async (text: string): Promise<CommerceTurnResult | null> => {
+    async (text: string, attachment?: ConversationAttachment): Promise<CommerceTurnResult | null> => {
       const trimmed = text.trim();
-      if (!trimmed || sendingRef.current) return null;
+      if ((!trimmed && !attachment) || sendingRef.current) return null;
       sendingRef.current = true;
       try {
         await initConversation();
         const variantId = experimentVM.getTrackingVariantId() || undefined;
         return await handleSendMessage({
           trimmed,
+          attachment,
           conversationId: conversationIdRef.current,
           setConversationId,
           clearCart,
