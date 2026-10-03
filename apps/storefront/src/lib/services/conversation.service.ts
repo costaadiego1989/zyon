@@ -60,6 +60,7 @@ export function saveConversationState(merchantId: string, stateKey: (mid: string
 }
 
 const DEFAULT_QUICK_REPLIES = ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
+export const ATTACHMENT_WELCOME_NOTICE = "Também entendo imagens e listas de compras. Envie uma foto para encontrar produtos semelhantes ou uma lista para eu ajudar a montar seu pedido.";
 
 export function buildWelcomeMessage(params: {
   agent: string;
@@ -76,7 +77,7 @@ export function buildWelcomeMessage(params: {
   return {
     id: "welcome",
     role: "agent",
-    text: greeting,
+    text: `${greeting}\n\n${ATTACHMENT_WELCOME_NOTICE}`,
     blocks: [{ type: "quick_replies", data: { options: replies } }],
   };
 }
