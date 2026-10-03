@@ -88,7 +88,8 @@ async function proxy(request: Request, context: RouteContext): Promise<NextRespo
       headers,
       body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
       cache: "no-store",
-      signal: AbortSignal.timeout(10000),
+      // Image interpretation and catalog matching share this conversation turn.
+      signal: AbortSignal.timeout(path[0] === "conversations" && path[2] === "messages" ? 60000 : 10000),
     });
     const responseHeaders = new Headers({ "Cache-Control": "no-store" });
     const responseContentType = response.headers.get("content-type");
