@@ -8,6 +8,7 @@ import { UpdateBudgetRequestStatusUseCase } from "../../application/use-cases/up
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import { RateLimitStore } from "../../../../shared/rate-limit/rate-limit.store.js";
 import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
+import { StorefrontAttachmentInterpreter } from "../../application/services/storefront-attachment-interpreter.service.js";
 
 test("budget and funnel admin handlers enforce AuthGuard even when legacy routes are enabled", async (t) => {
   const previous = process.env.ENABLE_LEGACY_ROUTES;
@@ -59,6 +60,7 @@ test("HTTP conversation aliases reject missing/foreign capability before reading
   const spy = { execute: async (...input: unknown[]) => calls.push(input) };
   const controller = Object.assign(Object.create(StorefrontController.prototype), {
     sendStoreMessage: spy,
+    attachmentInterpreter: new StorefrontAttachmentInterpreter(),
     getConversationHistory: spy,
     trackStorefrontEvent: { execute: async () => calls.push("tracking") },
     capabilities,
@@ -77,7 +79,7 @@ test("HTTP conversation aliases reject missing/foreign capability before reading
   await controller.getHistory("conv_a", request);
   await controller.trackEvent("conv_a", { event: "hello", merchant_id: "merchant_a" }, request);
   assert.deepEqual(calls, [
-    [{ merchant_id: "merchant_a", conversation_id: "conv_a", user_message: "hello", cart_id: "conv_a", history: undefined, global_user_id: undefined, one_buy_click: undefined }],
+    [{ merchant_id: "merchant_a", conversation_id: "conv_a", user_message: "hello", cart_id: "conv_a", history: undefined, attachment_context: undefined, global_user_id: undefined, one_buy_click: undefined }],
     [{ merchant_id: "merchant_a", conversation_id: "conv_a" }], "tracking",
   ]);
 });
@@ -88,6 +90,7 @@ test("HTTP messages enforce ten requests per minute with the conversation capabi
   const controller = Object.assign(Object.create(StorefrontController.prototype), {
     capabilities,
     sendStoreMessage: { execute: async (input: unknown) => calls.push(input) },
+    attachmentInterpreter: new StorefrontAttachmentInterpreter(),
     conversationRateLimiter: new StorefrontConversationRateLimitService(new RateLimitStore()),
   }) as StorefrontController;
   const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a" });
