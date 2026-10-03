@@ -330,6 +330,7 @@ import "./modules/storefront/application/services/one-buy-click-session.service.
 import "./modules/storefront/presentation/http/storefront-product-content.controller.spec.js";
 import "./modules/storefront/application/services/storefront-attachment-interpreter.service.spec.js";
 import "./modules/storefront/presentation/http/storefront-attachments.spec.js";
+import "./modules/storefront/infrastructure/agents/store-langgraph-attachments.spec.js";
 import "./shared/openai/openai-realtime-voice.service.spec.js";
 import "./modules/checkout/__tests__/checkout-customer-correction.spec.js";
 import "./modules/embed/presentation/http/embed-realtime-voice.spec.js";

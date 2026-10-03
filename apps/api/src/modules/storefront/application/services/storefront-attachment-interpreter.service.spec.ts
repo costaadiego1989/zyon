@@ -22,8 +22,9 @@ test("uses DeepSeek Flash for an image and returns only its textual reference", 
   process.env.DEEPSEEK_VISION_MODEL = "deepseek-flash";
   globalThis.fetch = (async (_url: RequestInfo | URL, init?: RequestInit) => {
     const request = new Request(_url, init);
-    const body = await request.json() as { model?: string };
+    const body = await request.json() as { model?: string; thinking?: { type?: string } };
     assert.equal(body.model, "deepseek-flash");
+    assert.equal(body.thinking?.type, "disabled");
     return Response.json({ choices: [{ message: { content: "- Shampoo Acme, 400 ml" } }] });
   }) as typeof fetch;
 
