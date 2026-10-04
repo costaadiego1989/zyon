@@ -24,8 +24,11 @@ jobs:
         with: { version: '9.15.0' }
       - uses: actions/setup-node@v4
         with: { node-version: '${{ env.NODE_VERSION }}', cache: 'pnpm' }
-      - run: pnpm install --frozen-lockfile
       - run: pnpm release:homolog:preflight
+      # pnpm installs workspace tooling tracked in this legacy repository.
+      # Check the checked-out source before install so generated local files do
+      # not make the release gate reject an otherwise clean commit.
+      - run: pnpm install --frozen-lockfile
       - run: pnpm verify:voice-release
       - run: pnpm --filter @zyon/api prisma:generate
       - run: pnpm --filter @zyon/api typecheck

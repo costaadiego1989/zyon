@@ -323,6 +323,9 @@ import "./shared/config/platform-fee.config.spec.js";
 import "./modules/payment/infrastructure/routing-payment.adapter.spec.js";
 
 import "./modules/storefront/infrastructure/tool-handlers/commerce-rules-flow.spec.js";
+import "./modules/storefront/infrastructure/tool-handlers/one-buy-click-cart-flow.spec.js";
+import "./modules/storefront/infrastructure/one-buy-click/one-buy-click-checkout-preparation.spec.js";
+import "./modules/storefront/application/services/one-buy-click-session.service.spec.js";
 
 import "./modules/storefront/presentation/http/storefront-product-content.controller.spec.js";
 import "./modules/storefront/application/services/storefront-attachment-interpreter.service.spec.js";

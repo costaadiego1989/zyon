@@ -28,6 +28,7 @@ test("anonymous OneBuyClick sessions start paused with guest-safe defaults", asy
     status: "paused",
     shippingPreference: "cheapest",
     paymentPreference: "pix",
+    preferencesConfigured: false,
   });
 });
 
@@ -36,6 +37,7 @@ test("the prepared checkout action is idempotent for the same cart and renews fo
     oneBuyClickEnabled: true,
     shippingPreference: "cheapest",
     paymentPreference: "card",
+    purchasePreferencesConfigured: true,
   }) as never);
   const input = { merchantId: "merchant", conversationId: "conversation", globalUserId: "buyer" };
 
@@ -48,6 +50,39 @@ test("the prepared checkout action is idempotent for the same cart and renews fo
   assert.equal(first.status, "ready_for_payment");
   assert.equal(first.shippingPreference, "cheapest");
   assert.equal(first.paymentPreference, "card");
+  assert.equal(first.preferencesConfigured, true);
   assert.equal(repeated.preparedActionId, first.preparedActionId);
   assert.notEqual(changed.preparedActionId, first.preparedActionId);
+});
+
+test("a session created before login is rehydrated with authenticated purchase preferences", async () => {
+  const service = new OneBuyClickSessionService(createPrisma({
+    oneBuyClickEnabled: true,
+    shippingPreference: "fastest",
+    paymentPreference: "pix",
+    purchasePreferencesConfigured: true,
+  }) as never);
+
+  const anonymous = await service.get({ merchantId: "merchant", conversationId: "conversation" });
+  const authenticated = await service.get({ merchantId: "merchant", conversationId: "conversation", globalUserId: "buyer" });
+
+  assert.equal(anonymous.enabled, false);
+  assert.equal(authenticated.enabled, true);
+  assert.equal(authenticated.preferencesConfigured, true);
+  assert.equal(authenticated.shippingPreference, "fastest");
+});
+
+test("a buyer cannot prepare a fast checkout before preferences are explicitly configured", async () => {
+  const service = new OneBuyClickSessionService(createPrisma({
+    oneBuyClickEnabled: true,
+    shippingPreference: "cheapest",
+    paymentPreference: "pix",
+    purchasePreferencesConfigured: false,
+  }) as never);
+  const input = { merchantId: "merchant", conversationId: "conversation", globalUserId: "buyer" };
+
+  const state = await service.prepareCheckout({ ...input, cartFingerprint: "cart-a" });
+
+  assert.equal(state.enabled, false);
+  assert.equal(state.preparedActionId, undefined);
 });

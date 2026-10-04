@@ -46,6 +46,22 @@ export interface ShippingOption {
   cost: number;
 }
 
+export function chooseQuickPurchaseShipping(
+  options: ShippingOption[],
+  preference: "fastest" | "cheapest",
+): ShippingOption | undefined {
+  const valid = options.filter((option) => option?.key && option?.label && Number.isFinite(option.cost) && option.cost >= 0);
+  if (valid.length === 0) return undefined;
+  const deliveryDays = (option: ShippingOption) => {
+    const match = option.tag.match(/\d+/);
+    return match ? Number(match[0]) : Number.POSITIVE_INFINITY;
+  };
+  return [...valid].sort((left, right) => {
+    if (preference === "cheapest") return left.cost - right.cost || deliveryDays(left) - deliveryDays(right);
+    return deliveryDays(left) - deliveryDays(right) || left.cost - right.cost;
+  })[0];
+}
+
 export interface PaymentMethod {
   key: string;
   label: string;
@@ -258,11 +274,13 @@ interface CheckoutState {
 
   voiceEnabled: boolean;
   oneBuyClickPreferences: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } | null;
+  quickPurchaseStarted: boolean;
   leadRegistered: boolean;
   pendingPayment: PendingPayment | null;
 
   init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" }; initialChannel?: "chat" | "voice" }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
+  startQuickPurchase: () => Promise<void>;
   completeFormField: (field: string) => void;
   sendMessage: (text: string) => Promise<void>;
   /**
@@ -500,6 +518,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   showBranding: false,
   voiceEnabled: false,
   oneBuyClickPreferences: null,
+  quickPurchaseStarted: false,
   leadRegistered: false,
   pendingPayment: null,
 
@@ -508,7 +527,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       get().stopPolling();
       set({ api, status: "loading", chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
-        pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false });
+        pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false });
 
       const response = await api.start();
       if (get().api !== api) return;
@@ -594,6 +613,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         const voiceAvailable = (exp?.rules as { voiceEnabled?: boolean } | undefined)?.voiceEnabled === true;
         get().selectChannel(initialChannel === "voice" && voiceAvailable ? "voice" : "chat");
       }
+      if (oneBuyClickPreferences) void get().startQuickPurchase();
 
       try {
         const settingsRes = await fetch(
@@ -631,15 +651,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       ? `Vi que você tem ${cart.items.length} ${cart.items.length === 1 ? 'item' : 'itens'} no carrinho. Vamos finalizar sua compra?`
       : `Olá, estou aqui para te ajudar a encontrar o produto ideal.`;
 
-    const messages: Message[] = [
-      {
-        id: "welcome",
-        role: "agent",
-        text: welcomeText,
-        quickReplies: ["Vamos prosseguir", "Quero voltar"],
-        timestamp: Date.now(),
-      },
-    ];
+    const messages: Message[] = get().oneBuyClickPreferences
+      ? []
+      : [{
+          id: "welcome",
+          role: "agent",
+          text: welcomeText,
+          quickReplies: ["Vamos prosseguir", "Quero voltar"],
+          timestamp: Date.now(),
+        }];
 
     if (_pendingCrossSellBlock) {
       messages.push({
@@ -657,6 +677,58 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       messages: get().api?.chatState?.turns.length ? recoveredMessages(get().api!.chatState!) : messages,
       _pendingCrossSellBlock: null,
     });
+  },
+
+  startQuickPurchase: async () => {
+    const { api, cart, buyer, oneBuyClickPreferences, quickPurchaseStarted } = get();
+    if (!api || !oneBuyClickPreferences || quickPurchaseStarted || get().cartUpdating || get().paymentCreating) return;
+    set({ quickPurchaseStarted: true });
+
+    if (cart.items.length === 0) {
+      set((state) => ({
+        messages: [...state.messages, {
+          id: `quick_purchase_empty_${Date.now()}`,
+          role: "agent",
+          text: "Seu carrinho está vazio. Escolha um produto para usar a compra rápida.",
+          timestamp: Date.now(),
+        }],
+      }));
+      return;
+    }
+
+    const hasCompleteAddress = Boolean(buyer.address?.zip && buyer.address.street && buyer.address.number && buyer.address.city && buyer.address.state);
+    if (!hasCompleteAddress) {
+      await get().sendMessage("Vamos prosseguir");
+      return;
+    }
+
+    set((state) => ({
+      messages: [...state.messages, {
+        id: `quick_purchase_start_${Date.now()}`,
+        role: "agent",
+        text: `Aplicando sua preferência de frete ${oneBuyClickPreferences.shippingPreference === "cheapest" ? "mais econômico" : "mais rápido"} e pagamento por ${oneBuyClickPreferences.paymentPreference === "pix" ? "Pix" : "cartão"}.`,
+        timestamp: Date.now(),
+      }],
+    }));
+
+    if (!cart.shipping) {
+      let option: ShippingOption | undefined;
+      try {
+        option = chooseQuickPurchaseShipping(
+          await api.fetchShippingQuote(buyer.address?.zip),
+          oneBuyClickPreferences.shippingPreference,
+        );
+      } catch {
+        option = undefined;
+      }
+      const shippingSelected = option ? await get().selectShipping(option) : false;
+      if (!shippingSelected) {
+        await get().sendMessage("Vamos prosseguir");
+        return;
+      }
+    }
+
+    await get().pay(oneBuyClickPreferences.paymentPreference === "pix" ? "pix" : "credito");
   },
 
   completeFormField: (field) => {

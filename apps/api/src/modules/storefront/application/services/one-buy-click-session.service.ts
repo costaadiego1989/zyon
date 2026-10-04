@@ -12,6 +12,7 @@ export interface OneBuyClickState {
   status: OneBuyClickStatus;
   shippingPreference: OneBuyClickShippingPreference;
   paymentPreference: OneBuyClickPaymentPreference;
+  preferencesConfigured: boolean;
   preparedActionId?: string;
 }
 
@@ -34,6 +35,7 @@ const DEFAULT_PREFERENCES = {
   oneBuyClickEnabled: false,
   shippingPreference: "cheapest",
   paymentPreference: "pix",
+  preferencesConfigured: false,
 } as const;
 
 @Injectable()
@@ -44,22 +46,35 @@ export class OneBuyClickSessionService {
     const row = await this.sessionStore().findUnique({
       where: { merchantId_conversationId: this.sessionKey(input) },
     });
-    if (row && row.expiresAt > new Date()) return this.toState(row);
+    if (row && row.expiresAt > new Date() && this.sameBuyerScope(row.globalUserId, input.globalUserId)) return this.toState(row);
 
     return this.initialize(input);
   }
 
   async configure(input: ConfigureInput): Promise<OneBuyClickState> {
     const current = await this.get(input);
-    const nextStatus: OneBuyClickStatus = input.enabled
+    const preference = input.globalUserId ? await this.preferenceFor(input.globalUserId) : { ...DEFAULT_PREFERENCES };
+    const canEnable = Boolean(input.globalUserId) && preference.preferencesConfigured;
+    const enabled = input.enabled && canEnable;
+    const nextStatus: OneBuyClickStatus = enabled
       ? current.status === "paused" ? "idle" : current.status
       : "paused";
     const row = await this.sessionStore().upsert({
       where: { merchantId_conversationId: this.sessionKey(input) },
-      create: this.createInput(input, { ...current, enabled: input.enabled, status: nextStatus }),
-      update: {
-        enabled: input.enabled,
+      create: this.createInput(input, {
+        ...current,
+        enabled,
         status: nextStatus,
+        shippingPreference: preference.shippingPreference,
+        paymentPreference: preference.paymentPreference,
+        preferencesConfigured: preference.preferencesConfigured,
+      }),
+      update: {
+        enabled,
+        status: nextStatus,
+        shippingPreference: preference.shippingPreference,
+        paymentPreference: preference.paymentPreference,
+        preferencesConfigured: preference.preferencesConfigured,
         ...(input.globalUserId ? { globalUserId: input.globalUserId } : {}),
         expiresAt: this.expiration(),
       },
@@ -69,7 +84,7 @@ export class OneBuyClickSessionService {
 
   async prepareCheckout(input: PrepareCheckoutInput): Promise<OneBuyClickState> {
     const current = await this.get(input);
-    if (!current.enabled) return current;
+    if (!current.enabled || !current.preferencesConfigured || !input.globalUserId) return current;
 
     const sameCart = await this.hasPreparedCart(input, current);
     if (sameCart) return current;
@@ -97,10 +112,12 @@ export class OneBuyClickSessionService {
     const preference = await this.preferenceFor(input.globalUserId);
     const state: OneBuyClickState = {
       enabled: preference.oneBuyClickEnabled,
-      status: preference.oneBuyClickEnabled ? "idle" : "paused",
+      status: preference.oneBuyClickEnabled && preference.preferencesConfigured ? "idle" : "paused",
       shippingPreference: preference.shippingPreference,
       paymentPreference: preference.paymentPreference,
+      preferencesConfigured: preference.preferencesConfigured,
     };
+    state.enabled = state.enabled && state.preferencesConfigured;
     const row = await this.sessionStore().upsert({
       where: { merchantId_conversationId: this.sessionKey(input) },
       create: this.createInput(input, state),
@@ -110,6 +127,7 @@ export class OneBuyClickSessionService {
         status: state.status,
         shippingPreference: state.shippingPreference,
         paymentPreference: state.paymentPreference,
+        preferencesConfigured: state.preferencesConfigured,
         cartFingerprint: null,
         preparedActionId: null,
         preparedAt: null,
@@ -132,17 +150,19 @@ export class OneBuyClickSessionService {
     oneBuyClickEnabled: boolean;
     shippingPreference: OneBuyClickShippingPreference;
     paymentPreference: OneBuyClickPaymentPreference;
+    preferencesConfigured: boolean;
   }> {
     if (!globalUserId) return { ...DEFAULT_PREFERENCES };
     const row = await (this.prisma as any).buyerPreference.findUnique({
       where: { globalUserId },
-      select: { oneBuyClickEnabled: true, shippingPreference: true, paymentPreference: true },
+      select: { oneBuyClickEnabled: true, shippingPreference: true, paymentPreference: true, purchasePreferencesConfigured: true },
     });
     if (!row) return { ...DEFAULT_PREFERENCES };
     return {
       oneBuyClickEnabled: row.oneBuyClickEnabled === true,
       shippingPreference: this.shippingPreference(row.shippingPreference),
       paymentPreference: this.paymentPreference(row.paymentPreference),
+      preferencesConfigured: row.purchasePreferencesConfigured === true,
     };
   }
 
@@ -155,6 +175,7 @@ export class OneBuyClickSessionService {
       status: state.status,
       shippingPreference: state.shippingPreference,
       paymentPreference: state.paymentPreference,
+      preferencesConfigured: state.preferencesConfigured,
       ...(cartFingerprint ? { cartFingerprint, preparedActionId: state.preparedActionId, preparedAt: new Date() } : {}),
       expiresAt: this.expiration(),
     };
@@ -178,6 +199,7 @@ export class OneBuyClickSessionService {
       status: this.status(row.status),
       shippingPreference: this.shippingPreference(row.shippingPreference),
       paymentPreference: this.paymentPreference(row.paymentPreference),
+      preferencesConfigured: row.preferencesConfigured === true,
       ...(typeof row.preparedActionId === "string" ? { preparedActionId: row.preparedActionId } : {}),
     };
   }
@@ -193,5 +215,10 @@ export class OneBuyClickSessionService {
 
   private paymentPreference(value: unknown): OneBuyClickPaymentPreference {
     return value === "card" ? "card" : "pix";
+  }
+
+  private sameBuyerScope(rowGlobalUserId: unknown, inputGlobalUserId: string | undefined): boolean {
+    const stored = typeof rowGlobalUserId === "string" && rowGlobalUserId ? rowGlobalUserId : undefined;
+    return stored === inputGlobalUserId;
   }
 }

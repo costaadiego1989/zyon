@@ -32,6 +32,7 @@ import { checkoutApi } from "@/lib/api/api-client";
 import { useRealtimeProductNarration, type ProductNarrationProgress } from "@/lib/voice/use-realtime-product-narration";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
 import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
+import QuickPurchasePreferencesDialog, { type QuickPurchasePreferences } from "./QuickPurchasePreferencesDialog";
 import { AttachmentPicker } from "./conversation/AttachmentPicker";
 import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 
@@ -41,6 +42,7 @@ type OneBuyClickState = {
   status: string;
   shippingPreference: "fastest" | "cheapest";
   paymentPreference: "pix" | "card";
+  preferencesConfigured: boolean;
 };
 
 type StoreSocialSettings = {
@@ -356,41 +358,34 @@ export default function ConversationShell({
   });
 
   // Every checkout entry point must honor the same buyer preference and auth gate.
-  function beginCheckout() {
+  async function beginCheckout() {
       if (budgetModeEnabled) {
         setShowBuyerAuth(false);
         navigation.setCart(true);
         return { agentMessage: "Abri o carrinho para você enviar sua solicitação de orçamento." };
       }
       const buyer = getValidBuyer();
-      // A visitor can ask to finish immediately after a reload, before the
-      // asynchronous one-buy-click state has returned. The locally persisted
-      // choice is the same preference the state loader applies to the current
-      // conversation, so honor it here instead of showing a redundant login
-      // modal. InlineCheckout handles registration itself.
-      let quickCheckoutEnabled = oneBuyClickEnabled.current;
-      if (!buyer && merchantId) {
-        try {
-          const savedPreference = localStorage.getItem(`zyon-one-buy-click:${merchantId}`);
-          if (savedPreference === "true") quickCheckoutEnabled = true;
-          if (savedPreference === "false") quickCheckoutEnabled = false;
-        } catch {
-          // Storage is optional; the server-backed state above remains valid.
-        }
+      if (!buyer) {
+        setBuyerAuthIntent("checkout");
+        setShowBuyerAuth(true);
+        return { agentMessage: "Para finalizar com segurança, confirme seu e-mail. Depois seguiremos para o checkout." };
       }
-      if (quickCheckoutEnabled) {
+      let quickPurchase = oneBuyClick;
+      try {
+        quickPurchase = await reloadOneBuyClick();
+      } catch {
+        // A standard authenticated checkout remains available if the optional
+        // preference lookup is temporarily unavailable.
+      }
+      if (quickPurchase?.enabled && quickPurchase.preferencesConfigured) {
         setCheckoutUserId(buyer?.globalUserId ?? "");
         setCheckoutCartRef(cart.cartId ?? undefined);
-        setCheckoutPreferences(oneBuyClick?.enabled ? {
-          shippingPreference: oneBuyClick.shippingPreference,
-          paymentPreference: oneBuyClick.paymentPreference,
-        } : undefined);
+        setCheckoutPreferences({
+          shippingPreference: quickPurchase.shippingPreference,
+          paymentPreference: quickPurchase.paymentPreference,
+        });
         setCheckoutOpen(true);
-        return { agentMessage: "Abri seu checkout rapido. Voce pode entrar ou concluir o cadastro diretamente na finalizacao." };
-      }
-      if (!buyer) {
-        setShowBuyerAuth(true);
-        return { agentMessage: "Para finalizar com segurança, abri o login. Depois da confirmação, seguiremos para o checkout." };
+        return { agentMessage: "Aplicando suas preferências de compra rápida no checkout." };
       }
       setCheckoutUserId(buyer.globalUserId);
       setCheckoutCartRef(cart.cartId ?? undefined);
@@ -402,6 +397,8 @@ export default function ConversationShell({
   const [checkoutPreferences, setCheckoutPreferences] = useState<Pick<OneBuyClickState, "shippingPreference" | "paymentPreference"> | undefined>(undefined);
   const [oneBuyClick, setOneBuyClick] = useState<OneBuyClickState | null>(null);
   const [oneBuyClickPending, setOneBuyClickPending] = useState(false);
+  const [quickPurchasePreferencesOpen, setQuickPurchasePreferencesOpen] = useState(false);
+  const [buyerAuthIntent, setBuyerAuthIntent] = useState<"checkout" | "enable_quick_purchase" | null>(null);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
@@ -468,49 +465,61 @@ export default function ConversationShell({
     selectChannel("voice");
     realtimeVoice.start();
   };
+  const reloadOneBuyClick = useCallback(async (): Promise<OneBuyClickState | null> => {
+    if (!conversationId || budgetModeEnabled) return null;
+    const buyer = getValidBuyer();
+    const state = await checkoutApi.getOneBuyClick(conversationId, buyer?.token);
+    setOneBuyClick(state);
+    return state;
+  }, [budgetModeEnabled, conversationId]);
   useEffect(() => {
     if (!conversationId || budgetModeEnabled) return;
     let active = true;
-    const buyer = getValidBuyer();
-    const preferenceKey = merchantId ? `zyon-one-buy-click:${merchantId}` : null;
-    void checkoutApi.getOneBuyClick(conversationId, buyer?.token).then(async (state) => {
-      if (!active) return;
-      let visitorChoice: boolean | null = null;
-      if (!buyer && preferenceKey) {
-        try {
-          const saved = localStorage.getItem(preferenceKey);
-          visitorChoice = saved === "true" ? true : saved === "false" ? false : null;
-        } catch {}
-      }
-      if (visitorChoice !== null && visitorChoice !== state.enabled) {
-        const configured = await checkoutApi.configureOneBuyClick(conversationId, visitorChoice, buyer?.token);
-        if (active) setOneBuyClick(configured);
-        return;
-      }
-      if (active) setOneBuyClick(state);
+    void reloadOneBuyClick().then((state) => {
+      if (active && state) setOneBuyClick(state);
     }).catch(() => {
       if (active) setOneBuyClick(null);
     });
     return () => { active = false; };
-  }, [conversationId, merchantId, budgetModeEnabled]);
+  }, [budgetModeEnabled, conversationId, reloadOneBuyClick]);
   useEffect(() => {
     oneBuyClickEnabled.current = oneBuyClick?.enabled === true;
   }, [oneBuyClick]);
   const toggleOneBuyClick = async () => {
     if (!conversationId || !oneBuyClick || oneBuyClickPending) return;
+    const buyer = getValidBuyer();
+    if (!buyer) {
+      setBuyerAuthIntent("enable_quick_purchase");
+      setShowBuyerAuth(true);
+      return;
+    }
     const nextEnabled = !oneBuyClick.enabled;
+    if (nextEnabled && !oneBuyClick.preferencesConfigured) {
+      setQuickPurchasePreferencesOpen(true);
+      return;
+    }
     oneBuyClickEnabled.current = nextEnabled;
     setOneBuyClickPending(true);
     try {
-      const buyer = getValidBuyer();
       const next = await checkoutApi.configureOneBuyClick(conversationId, nextEnabled, buyer?.token);
       setOneBuyClick(next);
-      if (!buyer && merchantId) {
-        try { localStorage.setItem(`zyon-one-buy-click:${merchantId}`, String(next.enabled)); } catch {}
-      }
     } finally {
       setOneBuyClickPending(false);
     }
+  };
+  const saveQuickPurchasePreferences = async (preferences: QuickPurchasePreferences) => {
+    const buyer = getValidBuyer();
+    if (!buyer || !conversationId) {
+      setQuickPurchasePreferencesOpen(false);
+      setBuyerAuthIntent("enable_quick_purchase");
+      setShowBuyerAuth(true);
+      return;
+    }
+    await checkoutApi.saveQuickPurchasePreferences(preferences);
+    const state = await checkoutApi.configureOneBuyClick(conversationId, true, buyer.token);
+    setOneBuyClick(state);
+    oneBuyClickEnabled.current = state.enabled;
+    setQuickPurchasePreferencesOpen(false);
   };
   useEffect(() => {
     if (budgetModeEnabled && preparedCheckout) {
@@ -526,6 +535,17 @@ export default function ConversationShell({
     }
     openedPreparedActions.current.add(preparedCheckout.actionId);
     const buyer = getValidBuyer();
+    if (!buyer) {
+      setBuyerAuthIntent("enable_quick_purchase");
+      setShowBuyerAuth(true);
+      clearPreparedCheckout();
+      return;
+    }
+    if (!oneBuyClick.preferencesConfigured) {
+      setQuickPurchasePreferencesOpen(true);
+      clearPreparedCheckout();
+      return;
+    }
     setCheckoutUserId(buyer?.globalUserId ?? "");
     setCheckoutCartRef(preparedCheckout.cartId);
     setCheckoutPreferences({
@@ -1132,6 +1152,15 @@ export default function ConversationShell({
       />
       {/* Buyer Hub Panel */}
       <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} onToggleTheme={toggleTheme} />
+      <QuickPurchasePreferencesDialog
+        open={quickPurchasePreferencesOpen}
+        initialValue={oneBuyClick ? {
+          shippingPreference: oneBuyClick.shippingPreference,
+          paymentPreference: oneBuyClick.paymentPreference,
+        } : undefined}
+        onSave={saveQuickPurchasePreferences}
+        onCancel={() => setQuickPurchasePreferencesOpen(false)}
+      />
       {/* Buyer Auth Gate */}
       {showBuyerAuth && !budgetModeEnabled && (
         <BuyerAuthGate
@@ -1139,6 +1168,8 @@ export default function ConversationShell({
           merchantName={storeName}
           onComplete={async (globalUserId) => {
             setShowBuyerAuth(false);
+            const intent = buyerAuthIntent;
+            setBuyerAuthIntent(null);
             if (merchantId && conversationId) {
               const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
               conversationFetch(conversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/events`, {
@@ -1147,12 +1178,28 @@ export default function ConversationShell({
                 body: JSON.stringify({ merchant_id: merchantId, event: "login_completed", metadata: { timestamp: new Date().toISOString() } }),
               }).catch(() => {});
             }
+            if (intent === "enable_quick_purchase") {
+              const state = await reloadOneBuyClick().catch(() => null);
+              if (!state?.preferencesConfigured) {
+                setQuickPurchasePreferencesOpen(true);
+                return;
+              }
+              if (conversationId) {
+                const buyer = getValidBuyer();
+                if (buyer) {
+                  const enabled = await checkoutApi.configureOneBuyClick(conversationId, true, buyer.token);
+                  setOneBuyClick(enabled);
+                  oneBuyClickEnabled.current = enabled.enabled;
+                }
+              }
+              return;
+            }
             setCheckoutUserId(globalUserId);
             setCheckoutCartRef(cart.cartId ?? undefined);
             setCheckoutPreferences(undefined);
             setCheckoutOpen(true);
           }}
-          onCancel={() => setShowBuyerAuth(false)}
+          onCancel={() => { setShowBuyerAuth(false); setBuyerAuthIntent(null); }}
         />
       )}
       {/* Inline Checkout Panel — replaces redirect to widget app */}

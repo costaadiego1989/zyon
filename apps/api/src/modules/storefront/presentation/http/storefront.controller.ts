@@ -229,11 +229,13 @@ export class StorefrontController {
   ) {
     if (typeof body.enabled !== "boolean") throw new BadRequestException("one_buy_click_enabled_must_be_boolean");
     const claims = this.conversationAccess(request, conversationId);
+    const globalUserId = this.buyerId(request, claims.merchantId);
+    if (body.enabled && !globalUserId) throw new UnauthorizedException("one_buy_click_auth_required");
     return this.requireOneBuyClick().configure({
       merchantId: claims.merchantId,
       conversationId: claims.resourceId,
       enabled: body.enabled,
-      globalUserId: this.buyerId(request, claims.merchantId),
+      globalUserId,
     });
   }
 
