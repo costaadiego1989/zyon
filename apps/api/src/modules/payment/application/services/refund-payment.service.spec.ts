@@ -33,6 +33,18 @@ function serviceFor(
 }
 
 describe("RefundPaymentService provider settlement", () => {
+  for (const amountCents of [0, -1, NaN, 1.5, 1251]) {
+    it(`rejects invalid explicit amount ${amountCents} without a provider request`, async () => {
+      const { service, providerInputs } = serviceFor("succeeded");
+      const result = await service.refundOrderPayment({ merchantId: "merchant", externalOrderId: "order", amountCents });
+      assert.equal(result.refunded, false); assert.equal(result.reason, "invalid_refund_amount"); assert.equal(providerInputs.length, 0);
+    });
+  }
+  it("never refunds the captured total when a partial item cannot be priced", async () => {
+    const { service, providerInputs } = serviceFor("succeeded", { order: { lineItems: [{ variantId: "a", quantity: 1, unitPriceCents: 500 }, { variantId: "b", quantity: 1, unitPriceCents: 750 }] } });
+    const result = await service.refundOrderPayment({ merchantId: "merchant", externalOrderId: "order", returnedItems: [{ variantId: "missing", quantity: 1 }] });
+    assert.equal(result.refunded, false); assert.equal(result.reason, "refund_item_price_unavailable"); assert.equal(providerInputs.length, 0);
+  });
   it("treats only a succeeded provider response as a completed refund", async () => {
     const result = await serviceFor("succeeded").service.refundOrderPayment({ merchantId: "merchant", externalOrderId: "order" });
     assert.equal(result.refunded, true);
@@ -73,6 +85,8 @@ describe("RefundPaymentService provider settlement", () => {
       provider: "asaas",
       providerAccountFingerprint: "frozen-account",
       settlementMode: "delayed_merchant_payout",
+      stripeConnectAccountId: undefined,
+      stripeChargeMode: undefined,
       reason: undefined,
       idempotencyKey: undefined,
     });
@@ -134,6 +148,8 @@ describe("RefundPaymentService provider settlement", () => {
       refundReference: "return:return_1",
       provider: undefined,
       providerAccountFingerprint: undefined,
+      stripeConnectAccountId: undefined,
+      stripeChargeMode: undefined,
       settlementMode: undefined,
     });
   });

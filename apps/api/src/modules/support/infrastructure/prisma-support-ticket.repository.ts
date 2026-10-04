@@ -118,6 +118,7 @@ export class PrismaSupportTicketRepository implements SupportTicketRepository {
         "resolved_at"
       FROM "support_tickets"
       WHERE "merchant_id" = ${merchantId}
+      AND "merged_into_id" IS NULL
       ${statusClause}
       ${cursorClause}
       ORDER BY "created_at" DESC, "id" DESC

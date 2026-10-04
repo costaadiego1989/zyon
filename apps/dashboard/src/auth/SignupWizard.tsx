@@ -117,9 +117,7 @@ export function SignupWizard(props: SignupWizardProps) {
         agentName: "Assistente Zyon",
       });
       if (props.onSaveCompanyData) {
-        const storeSlug = business.name.trim().toLowerCase().replace(/[^a-z0-9\s-]/g, "").replace(/\s+/g, "-").replace(/-+/g, "-");
         await props.onSaveCompanyData({
-          slug: storeSlug,
           oauth_registration_pending: isOAuth,
           owner_name: person.name.trim(),
           company: {

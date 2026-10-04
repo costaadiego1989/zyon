@@ -7,6 +7,7 @@ export type ReturnStatus =
   | "INSPECTED_FAIL"
   | "REFUND_PROCESSING"
   | "REFUND_COMPLETED"
+  | "EXCHANGE_COMPLETED"
   | "REJECTED"
   | "CANCELLED";
 

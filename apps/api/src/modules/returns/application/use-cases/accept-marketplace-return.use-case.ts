@@ -1,4 +1,4 @@
-import { Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
 import { RETURN_REPOSITORY_PORT } from "../../domain/ports/return-repository.port.js";
 import type { ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { RegisterMarketplaceReturnUseCase } from "../../../marketplace/application/use-cases/register-marketplace-return.use-case.js";
@@ -45,6 +45,7 @@ export class AcceptMarketplaceReturnUseCase {
   ): Promise<AcceptMarketplaceReturnOutput> {
     const ret = await this.returnRepo.findById(input.merchantId, input.returnId);
     if (!ret) throw new NotFoundException("return_not_found");
+    if (!["REQUESTED", "INSPECTED_PASS", "REFUND_PROCESSING"].includes(ret.status)) throw new BadRequestException("invalid_status_for_refund_approval");
 
     // Accept the return: money is going back to the buyer.
     await this.returnRepo.updateStatus(ret.id, "REFUND_PROCESSING");

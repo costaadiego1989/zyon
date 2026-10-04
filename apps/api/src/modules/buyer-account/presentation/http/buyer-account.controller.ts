@@ -248,6 +248,7 @@ export class BuyerAccountController {
         id: r.id,
         order_id: r.orderId,
         merchant_name: r.merchantName,
+        merchant_id: r.merchantId,
         tracking_code: r.trackingCode ?? null,
         tracking_status: r.trackingStatus ?? null,
         tracking_url: r.trackingUrl ?? null,

@@ -1,261 +1,85 @@
 "use client";
+import { useEffect, useRef, useState } from "react";
+import { eligibleReturnOrders, openReturnCase, returnDraftApi, supportChanged, type ReturnDraft, type SupportOrder, type SupportCaseSummary } from "@/lib/services/support-case.service";
+import { SupportPhotoPicker } from "./SupportPhotoPicker";
+import styles from "./SupportFlow.module.css";
 
-import { useEffect, useMemo, useState } from "react";
-import { fetchBuyerOrders, submitReturnRequest, type BuyerOrderOption } from "@/lib/services/support.service";
-
-interface ReturnRequestFormProps {
-  orderId?: string;
-  merchantId: string;
-  onSuccess: () => void;
-  onCancel: () => void;
-}
-
-const REASONS = [
-  { value: "DEFECTIVE", label: "Produto com defeito" },
-  { value: "WRONG_ITEM", label: "Recebi item errado" },
-  { value: "NOT_AS_DESCRIBED", label: "Diferente do anúncio" },
-  { value: "CHANGED_MIND", label: "Mudei de ideia" },
-  { value: "DAMAGED_IN_TRANSIT", label: "Danificado no transporte" },
-  { value: "OTHER", label: "Outro motivo" },
-];
-
-export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSuccess, onCancel }: ReturnRequestFormProps) {
-  const [reason, setReason] = useState("");
-  const [title, setTitle] = useState("");
-  const [description, setDescription] = useState("");
+const reasons = [{ value: "DEFECTIVE", label: "Produto com defeito" }, { value: "WRONG_ITEM", label: "Recebi um item errado" }, { value: "NOT_AS_DESCRIBED", label: "Diferente do anúncio" }, { value: "CHANGED_MIND", label: "Mudei de ideia" }, { value: "DAMAGED_IN_TRANSIT", label: "Danificado no transporte" }, { value: "OTHER", label: "Outro motivo" }];
+const money = (cents: number, currency = "BRL") => new Intl.NumberFormat("pt-BR", { style: "currency", currency }).format(cents / 100);
+export function ReturnRequestForm({ orderId: initialOrderId, merchantId, onSuccess, onCancel, cases = [] }: { orderId?: string; merchantId: string; onSuccess: (ticketId: string) => void; onCancel: () => void; cases?: SupportCaseSummary[] }) {
+  const [orders, setOrders] = useState<SupportOrder[]>([]);
+  const [draft, setDraft] = useState<ReturnDraft>({ orderId: initialOrderId ?? "", step: 0, kind: "refund", reason: "", notes: "", requestKey: "", items: {} });
   const [images, setImages] = useState<string[]>([]);
-  const [loading, setLoading] = useState(false);
-  const [error, setError] = useState("");
-
-  const [orders, setOrders] = useState<BuyerOrderOption[]>([]);
-  const [ordersLoading, setOrdersLoading] = useState(false);
-  const [selectedOrderId, setSelectedOrderId] = useState(initialOrderId ?? "");
-  const [orderSearch, setOrderSearch] = useState("");
-
+  const [loading, setLoading] = useState(true);
+  const [sending, setSending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [saved, setSaved] = useState(false);
+  const completed = useRef(false);
+  const generation = useRef(0);
+  const order = orders.find(item => item.orderId === draft.orderId);
+  const active = cases.find(item => item.active && item.returnId && item.orderId === draft.orderId);
+  const selected = order?.items.filter(item => (draft.items[item.variantId] ?? 0) > 0) ?? [];
   useEffect(() => {
-    let active = true;
-    setOrdersLoading(true);
-    fetchBuyerOrders(merchantId)
-      .then((list) => {
-        if (!active) return;
-        setOrders(list);
-        if (!initialOrderId && list.length === 1) setSelectedOrderId(list[0].order_id);
-      })
-      .finally(() => {
-        if (active) setOrdersLoading(false);
-      });
-    return () => {
-      active = false;
-    };
+    const current = ++generation.current;
+    setLoading(true); setError(null); completed.current = false;
+    void Promise.all([eligibleReturnOrders(merchantId), returnDraftApi.get(merchantId).catch(() => ({ data: null }))]).then(([data, stored]) => {
+      if (current !== generation.current) return;
+      setOrders(data.items);
+      const value = stored.data;
+      if (value && typeof value.orderId === "string" && typeof value.notes === "string" && typeof value.reason === "string" && ["refund", "exchange"].includes(value.kind) && Number.isInteger(value.step) && value.step >= 0 && value.step <= 6 && value.items && typeof value.items === "object" && typeof value.requestKey === "string" && (!initialOrderId || initialOrderId === value.orderId)) {
+        const found = data.items.find(item => item.orderId === value.orderId);
+        const validItems: Record<string, number> = {};
+        found?.items.forEach(item => { const quantity = value.items[item.variantId]; if (Number.isInteger(quantity) && quantity > 0 && quantity <= item.eligibleQuantity) validItems[item.variantId] = quantity; });
+        setDraft({ ...value, items: validItems, step: found ? value.step : 0 });
+      } else setDraft({ orderId: initialOrderId ?? "", step: data.items.some(item => item.orderId === initialOrderId) ? 1 : 0, kind: "refund", reason: "", notes: "", requestKey: crypto.randomUUID(), items: {} });
+    }).catch(e => { if (current === generation.current) setError(e instanceof Error ? e.message : "Não foi possível consultar seus pedidos."); }).finally(() => { if (current === generation.current) setLoading(false); });
+    return () => { generation.current++; };
   }, [merchantId, initialOrderId]);
-
-  const filteredOrders = useMemo(() => {
-    const q = orderSearch.trim().toLowerCase();
-    if (!q) return orders;
-    return orders.filter(
-      (o) => o.order_id.toLowerCase().includes(q) || o.merchant_name.toLowerCase().includes(q),
-    );
-  }, [orders, orderSearch]);
-
-  const handleImageUpload = (e: React.ChangeEvent<HTMLInputElement>) => {
-    const files = e.target.files;
-    if (!files) return;
-    const newImages: string[] = [];
-    for (let i = 0; i < Math.min(files.length, 3 - images.length); i++) {
-      const reader = new FileReader();
-      reader.onload = (ev) => {
-        if (ev.target?.result) {
-          newImages.push(ev.target.result as string);
-          if (newImages.length === Math.min(files.length, 3 - images.length)) {
-            setImages((prev) => [...prev, ...newImages]);
-          }
-        }
-      };
-      reader.readAsDataURL(files[i]);
-    }
-  };
-
-  const handleSubmit = async () => {
-    if (!reason || !title.trim()) {
-      setError("Preencha o motivo e o título");
-      return;
-    }
-    setLoading(true);
-    setError("");
+  useEffect(() => {
+    if (loading || completed.current || !draft.requestKey || !draft.orderId) return;
+    setSaved(false);
+    const timer = window.setTimeout(() => { void returnDraftApi.save(merchantId, draft).then(() => { if (!completed.current) setSaved(true); }).catch(() => setSaved(false)); }, 600);
+    return () => window.clearTimeout(timer);
+  }, [draft, loading, merchantId]);
+  function edit(values: Partial<ReturnDraft>) { setError(null); setDraft(previous => ({ ...previous, ...values })); }
+  function next() {
+    if (!order) { setError("Selecione um pedido da lista."); return; }
+    if (draft.step === 2 && !selected.length) { setError("Escolha ao menos um item e sua quantidade."); return; }
+    if (draft.step === 3 && !draft.reason) { setError("Escolha o motivo da solicitação."); return; }
+    if (draft.step === 4 && !draft.notes.trim()) { setError("Conte o que aconteceu para a loja poder analisar."); return; }
+    edit({ step: Math.min(6, draft.step + 1) });
+  }
+  async function submit() {
+    if (sending || !order || !selected.length) return;
+    setSending(true); setError(null);
     try {
-      await submitReturnRequest({
-        orderId: selectedOrderId.trim() || undefined,
-        merchantId,
-        reason,
-        title: title.trim(),
-        description: description.trim(),
-        items: [{ variantId: "all", quantity: 1, reason }],
-        images,
-      });
-      onSuccess();
-    } catch (err) {
-      setError(err instanceof Error ? err.message : "Erro inesperado");
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14, padding: "16px 0" }}>
-      <h3 style={{ font: "600 15px var(--aacp-font, system-ui)", color: "var(--aacp-fg, #f5f5f7)", margin: 0 }}>
-        Solicitar devolução
-      </h3>
-      <p style={{ font: "12px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", margin: 0, lineHeight: 1.5 }}>
-        Prazo de 14 dias após a compra
-      </p>
-
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label style={{ font: "500 11px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Pedido
-        </label>
-        {ordersLoading ? (
-          <span style={{ font: "12px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)" }}>Carregando seus pedidos...</span>
-        ) : orders.length === 0 ? (
-          <span style={{ font: "12px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)" }}>
-            Nenhum pedido encontrado nesta loja. Você pode seguir sem vincular.
-          </span>
-        ) : (
-          <>
-            {orders.length > 5 && (
-              <input data-neu="field"
-                value={orderSearch}
-                onChange={(e) => setOrderSearch(e.target.value)}
-                placeholder="Buscar por número do pedido..."
-                style={{ padding: "8px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)", marginBottom: 6 }}
-              />
-            )}
-            <select data-neu="field"
-              value={selectedOrderId}
-              onChange={(e) => setSelectedOrderId(e.target.value)}
-              style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)" }}
-            >
-              <option value="">Sem pedido vinculado</option>
-              {filteredOrders.map((o) => (
-                <option key={o.id} value={o.order_id}>
-                  {o.order_id}{o.created_at ? ` · ${new Date(o.created_at).toLocaleDateString("pt-BR")}` : ""}
-                </option>
-              ))}
-            </select>
-          </>
-        )}
-      </div>
-
-      {/* Motivo */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label style={{ font: "500 11px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Motivo *
-        </label>
-        <select data-neu="field"
-          value={reason}
-          onChange={(e) => setReason(e.target.value)}
-          style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)" }}
-        >
-          <option value="">Selecione...</option>
-          {REASONS.map((r) => <option key={r.value} value={r.value}>{r.label}</option>)}
-        </select>
-      </div>
-
-      {/* Título */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label style={{ font: "500 11px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Título *
-        </label>
-        <input data-neu="field"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="Ex: Produto chegou com defeito na tela"
-          style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)" }}
-        />
-      </div>
-
-      {/* Descrição */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 4 }}>
-        <label style={{ font: "500 11px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Descrição
-        </label>
-        <textarea data-neu="field"
-          value={description}
-          onChange={(e) => setDescription(e.target.value)}
-          rows={3}
-          placeholder="Descreva o problema em detalhes..."
-          style={{ padding: "9px 12px", borderRadius: 8, border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))", background: "var(--aacp-surface, #1a1a1a)", color: "var(--aacp-fg, #f5f5f7)", font: "13px var(--aacp-font, system-ui)", resize: "vertical" }}
-        />
-      </div>
-
-      {/* Imagens */}
-      <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
-        <label style={{ font: "500 11px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)", textTransform: "uppercase", letterSpacing: "0.04em" }}>
-          Fotos (até 3)
-        </label>
-        <input
-          type="file"
-          accept="image/*"
-          multiple
-          onChange={handleImageUpload}
-          disabled={images.length >= 3}
-          style={{ font: "12px var(--aacp-font, system-ui)", color: "var(--aacp-muted, #8b8b95)" }}
-        />
-        {images.length > 0 && (
-          <div style={{ display: "flex", gap: 8 }}>
-            {images.map((img, i) => (
-              <div key={i} style={{ position: "relative" }}>
-                <img src={img} alt="" style={{ width: 56, height: 56, borderRadius: 8, objectFit: "cover", border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))" }} />
-                <button data-neu="control"
-                  type="button"
-                  onClick={() => setImages((prev) => prev.filter((_, idx) => idx !== i))}
-                  style={{ position: "absolute", top: -4, right: -4, width: 18, height: 18, borderRadius: "50%", background: "#e11d48", color: "#fff", border: "none", font: "10px sans-serif", cursor: "pointer", display: "grid", placeItems: "center" }}
-                >
-                  ×
-                </button>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {error && <p style={{ font: "12px var(--aacp-font, system-ui)", color: "#e11d48", margin: 0 }}>{error}</p>}
-
-      {/* Actions */}
-      <div style={{ display: "flex", gap: 8, marginTop: 4 }}>
-        <button data-neu="primary"
-          type="button"
-          onClick={handleSubmit}
-          disabled={loading}
-          style={{
-            flex: 1,
-            padding: "10px 16px",
-            borderRadius: 10,
-            border: "none",
-            background: "var(--aacp-accent, #0f766e)",
-            color: "#fff",
-            font: "600 13px var(--aacp-font, system-ui)",
-            cursor: loading ? "wait" : "pointer",
-            opacity: loading ? 0.6 : 1,
-          }}
-        >
-          {loading ? "Enviando..." : "Solicitar devolução"}
-        </button>
-        <button data-neu="control"
-          type="button"
-          onClick={onCancel}
-          style={{
-            padding: "10px 16px",
-            borderRadius: 10,
-            border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))",
-            background: "transparent",
-            color: "var(--aacp-muted, #8b8b95)",
-            font: "500 13px var(--aacp-font, system-ui)",
-            cursor: "pointer",
-          }}
-        >
-          Cancelar
-        </button>
-      </div>
-    </div>
-  );
+      const result = await openReturnCase({ merchantId, orderId: order.orderId, kind: draft.kind, reason: draft.reason, notes: draft.notes.trim(), requestKey: draft.requestKey, items: selected.map(item => ({ variantId: item.variantId, quantity: draft.items[item.variantId] })), images });
+      completed.current = true;
+      await returnDraftApi.clear(merchantId).catch(() => undefined);
+      supportChanged(); onSuccess(result.ticketId);
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível enviar. Seus dados continuam aqui para tentar novamente."); }
+    finally { setSending(false); }
+  }
+  if (loading) return <p className={styles.muted} role="status">Consultando seus pedidos e o rascunho…</p>;
+  if (!orders.length) return <div className={styles.stack}><p className={styles.question}>{error ? "Não foi possível consultar seus pedidos" : "Nenhum pedido encontrado nesta loja"}</p><p className={error ? styles.error : styles.muted} role={error ? "alert" : undefined}>{error ?? "Entre com a conta usada na compra. Seus pedidos pagos aparecerão aqui para escolher os itens."}</p><button className={styles.button} onClick={onCancel}>Voltar ao atendimento</button></div>;
+  return <div className={styles.stack}>
+    <span className={styles.muted}>Troca ou devolução · etapa {draft.step + 1} de 7</span>
+    {draft.step > 0 && order && <div className={`${styles.bubble} ${styles.answer}`}>Pedido {order.orderId}<span className={styles.time}>{money(order.totalCents, order.currency)} · {order.completedAt ? new Date(order.completedAt).toLocaleDateString("pt-BR") : "Data não informada"}</span></div>}
+    {active ? <><p className={styles.question}>Este pedido já tem uma solicitação em andamento.</p><p className={styles.muted}>Continue na conversa existente. Uma nova solicitação ficará disponível após a resolução.</p><button className={`${styles.button} ${styles.primary}`} onClick={() => onSuccess(active.ticketId)}>Acompanhar conversa</button><button className={styles.button} onClick={() => edit({ step: 0, orderId: "", items: {} })}>Escolher outro pedido</button></> : <>
+    {draft.step === 0 && <><h3 className={styles.question}>Sobre qual pedido vamos conversar?</h3>{orders.map(item => <button className={styles.choice} key={item.orderId} disabled={!item.items.some(line => line.eligibleQuantity > 0) && !cases.some(value => value.orderId === item.orderId && value.active)} onClick={() => { setImages([]); edit({ orderId: item.orderId, step: 1, items: {}, requestKey: crypto.randomUUID() }); }}><strong>Pedido {item.orderId}</strong><span className={styles.muted}>{item.items.map(line => `${line.quantity} × ${line.name}`).join(" · ")}</span><span>{money(item.totalCents, item.currency)}{!item.items.some(line => line.eligibleQuantity > 0) ? " · Itens já resolvidos" : ""}</span></button>)}</>}
+    {draft.step > 1 && <div className={`${styles.bubble} ${styles.answer}`}>{draft.kind === "refund" ? "Quero devolver e pedir reembolso." : "Quero trocar itens."}</div>}
+    {draft.step === 1 && <><h3 className={styles.question}>Você quer trocar ou devolver?</h3><button className={styles.choice} data-selected={draft.kind === "refund"} onClick={() => edit({ kind: "refund", step: 2 })}><strong>Devolver e pedir reembolso</strong><span className={styles.muted}>A loja analisa os itens e informa os próximos passos.</span></button><button className={styles.choice} data-selected={draft.kind === "exchange"} onClick={() => edit({ kind: "exchange", step: 2 })}><strong>Trocar itens</strong><span className={styles.muted}>Conte quais itens precisam ser trocados.</span></button></>}
+    {draft.step > 2 && <div className={`${styles.bubble} ${styles.answer}`}>{selected.map(item => `${draft.items[item.variantId]} × ${item.name}`).join("\n")}</div>}
+    {draft.step === 2 && <><h3 className={styles.question}>Quais itens e quantidades?</h3><p className={styles.muted}>Escolha apenas os itens envolvidos nesta solicitação.</p>{order?.items.map(item => <div className={styles.item} key={item.variantId}><input id={`return-item-${item.variantId}`} type="checkbox" checked={(draft.items[item.variantId] ?? 0) > 0} disabled={item.eligibleQuantity < 1} onChange={event => edit({ items: { ...draft.items, [item.variantId]: event.target.checked ? 1 : 0 } })} /><label htmlFor={`return-item-${item.variantId}`}><strong>{item.name}</strong><span className={styles.label}>{money(item.unitPriceCents, order.currency)} · {item.eligibleQuantity} disponível(is)</span></label>{(draft.items[item.variantId] ?? 0) > 0 && <input className={`${styles.input} ${styles.quantity}`} type="number" min={1} max={item.eligibleQuantity} aria-label={`Quantidade de ${item.name}`} value={draft.items[item.variantId]} onChange={event => { const quantity = Number(event.target.value); if (Number.isInteger(quantity) && quantity >= 1 && quantity <= item.eligibleQuantity) edit({ items: { ...draft.items, [item.variantId]: quantity } }); }} />}</div>)}</>}
+    {draft.step > 3 && <div className={`${styles.bubble} ${styles.answer}`}>{reasons.find(reason => reason.value === draft.reason)?.label}</div>}
+    {draft.step === 3 && <><h3 className={styles.question}>O que motivou a solicitação?</h3>{reasons.map(reason => <button className={styles.choice} key={reason.value} data-selected={draft.reason === reason.value} onClick={() => edit({ reason: reason.value, step: 4 })}>{reason.label}</button>)}</>}
+    {draft.step === 4 && <><h3 className={styles.question}>Me conte o que aconteceu.</h3><label className={styles.label} htmlFor="return-notes">Sua descrição será enviada à loja.</label><textarea id="return-notes" className={styles.textarea} rows={5} maxLength={3500} placeholder="O que aconteceu com os itens? O que você espera da troca ou devolução?" value={draft.notes} onChange={event => edit({ notes: event.target.value })} /></>}
+    {draft.step > 4 && <div className={`${styles.bubble} ${styles.answer}`}>{draft.notes}</div>}
+    {draft.step === 5 && <><h3 className={styles.question}>Quer mostrar alguma foto?</h3><p className={styles.muted}>Você pode incluir fotos dos itens, da embalagem ou do problema. Esta etapa é opcional. As fotos só serão enviadas ao confirmar.</p><SupportPhotoPicker images={images} onChange={setImages} /></>}
+    {draft.step === 6 && <><h3 className={styles.question}>Está tudo certo para enviar à loja?</h3><dl className={styles.review}><dt>Solicitação</dt><dd>{draft.kind === "refund" ? "Devolução com reembolso" : "Troca"}</dd><dt>Itens</dt><dd>{selected.map(item => <div key={item.variantId}>{draft.items[item.variantId]} × {item.name}</div>)}</dd><dt>Motivo</dt><dd>{reasons.find(reason => reason.value === draft.reason)?.label}</dd><dt>Fotos</dt><dd>{images.length ? `${images.length} anexada(s)` : "Nenhuma foto"}</dd></dl><p className={styles.muted}>A loja receberá os dados do pedido, os itens escolhidos e sua descrição nesta conversa. O reembolso depende da análise e da confirmação do pagamento.</p>{images.length > 0 && <SupportPhotoPicker images={images} onChange={setImages} disabled={sending} />}<button className={`${styles.button} ${styles.primary}`} disabled={sending} onClick={() => void submit()}>{sending ? "Enviando solicitação…" : "Enviar solicitação à loja"}</button></>}
+    {error && <p className={styles.error} role="alert">{error}</p>}
+    <div className={styles.row}>{draft.step > 0 && <button className={styles.button} disabled={sending} onClick={() => edit({ step: draft.step - 1 })}>Voltar</button>}{[2, 4, 5].includes(draft.step) && <button className={`${styles.button} ${styles.primary}`} onClick={next}> {draft.step === 5 && !images.length ? "Continuar sem fotos" : "Continuar"}</button>}</div>
+    <p className={styles.muted}>{saved ? "Rascunho salvo na sua conta. As fotos precisam ser anexadas novamente se você sair." : "A solicitação será enviada apenas após sua confirmação."}</p>
+    </>}
+  </div>;
 }

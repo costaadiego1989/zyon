@@ -13,6 +13,7 @@ import { InMemorySupportTicketRepository } from "../../infrastructure/in-memory-
 import type { ChatCompletionPort } from "../../domain/ports/chat-completion.port.js";
 import { SupportController } from "./support.controller.js";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
+import { supportPrismaFixture } from "../../application/support-prisma.fixture.js";
 
 class NullChatAdapter implements ChatCompletionPort {
   async complete(): Promise<string | null> { return null; }
@@ -37,7 +38,7 @@ test("SupportController opens handoff ticket and lets merchant update status", a
     new GetSupportSettingsUseCase(settings),
     new UpdateSupportSettingsUseCase(settings),
     new ListSupportTicketsUseCase(tickets),
-    new UpdateSupportTicketStatusUseCase(tickets),
+    new UpdateSupportTicketStatusUseCase(tickets, supportPrismaFixture(tickets).prisma),
     new CreateSupportTicketUseCase(tickets, publisher),
     capabilities,
   );

@@ -799,6 +799,7 @@ export type RevenueManagerDomainEventType =
   | "revenue_manager.lesson.recorded";
 
 export type DomainEventType =
+  | "support.case.changed"
   | CheckoutDomainEventType
   | CrossSellDomainEventType
   | CouponsDomainEventType
@@ -812,6 +813,7 @@ export type DomainEventType =
   | RevenueManagerDomainEventType;
 
 export type DomainEventProducer =
+  | "support"
   | "checkout"
   | "cross-sell"
   | "coupons"
@@ -1200,6 +1202,7 @@ export interface SupportSettingsPatch {
   faqItems: SupportFaqItem[];
 }
 
+export * from "./support-case.js";
 export type SupportTicketStatus = "open" | "in_progress" | "resolved" | "closed";
 
 export interface SupportTicket {
@@ -1234,6 +1237,8 @@ export interface SupportReturnItem {
 
 export type SupportMessageMetadata =
   | { kind: "text" }
+  | { kind: "photos"; imageUrls: string[] }
+  | { kind: "case_update"; event: string; returnId?: string }
   | {
       kind: "return_request";
       returnId: string;
@@ -1253,7 +1258,7 @@ export type SupportMessageMetadata =
 export interface SupportTicketMessage {
   id: string;
   ticketId: string;
-  senderType: "buyer" | "merchant";
+  senderType: "buyer" | "merchant" | "system";
   content: string;
   metadata?: SupportMessageMetadata | null;
   createdAt: string;

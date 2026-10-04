@@ -1,4 +1,4 @@
-import { REDACTED_LOG_PATHS } from "./shared/logger/log-redaction.js";
+import { REDACTED_LOG_PATHS, redactRequestUrl } from "./shared/logger/log-redaction.js";
 import { Module } from "@nestjs/common";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
@@ -66,6 +66,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
       pinoHttp: {
         autoLogging: true,
         quietReqLogger: true,
+        serializers: { req: redactRequestUrl },
         redact: { paths: REDACTED_LOG_PATHS, censor: "[redacted]" },
         customProps: (req: import("http").IncomingMessage) => ({
           correlationId:

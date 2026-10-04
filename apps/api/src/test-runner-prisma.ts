@@ -16,3 +16,4 @@ import "./modules/buyer-account/presentation/http/buyer-account.e2e-spec.js";
 import "./modules/checkout/presentation/http/checkout.intervention-ledger.prisma-e2e-spec.js";
 import "./modules/checkout/presentation/http/checkout.cross-tenant-fuzz.prisma-e2e-spec.js";
 import "./shared/persistence/cross-tenant-fuzz.prisma-e2e-spec.js";
+import "./modules/returns/application/return-case.prisma.spec.js";

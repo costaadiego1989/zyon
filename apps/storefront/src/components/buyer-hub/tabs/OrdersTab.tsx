@@ -14,6 +14,7 @@ import type { IconType } from "react-icons";
 import type { BuyerPurchase } from "@/lib/viewmodels/useBuyerHub";
 
 export interface OrdersTabProps {
+  merchantId?: string;
   purchases: BuyerPurchase[];
   hasMore: boolean;
   loadingMore: boolean;
@@ -85,12 +86,13 @@ function trackingPillTone(status: string | null | undefined): { bg: string; fg: 
 }
 
 interface PurchaseCardProps {
+  merchantId?: string;
   purchase: BuyerPurchase;
   expanded: boolean;
   onToggle: () => void;
 }
 
-function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
+function PurchaseCard({ purchase, expanded, onToggle, merchantId }: PurchaseCardProps) {
   const itemsCountLabel =
     purchase.items_count === 1 ? "1 item" : `${purchase.items_count} itens`;
   const tone = trackingPillTone(purchase.tracking_status);
@@ -314,6 +316,8 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
             </div>
           )}
 
+          <button data-neu="control" type="button" onClick={() => window.dispatchEvent(new CustomEvent("zyon:open-support", { detail: { orderId: purchase.order_id, merchantId, view: "return" } }))} style={{ minHeight: 44, padding: "10px 14px", borderRadius: 10, border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", color: "var(--aacp-fg)", cursor: "pointer", font: "inherit" }}>Trocar ou devolver itens</button>
+
           {purchase.tracking_code && (
             <div
               style={{
@@ -336,7 +340,7 @@ function PurchaseCard({ purchase, expanded, onToggle }: PurchaseCardProps) {
   );
 }
 
-export function OrdersTab({ purchases, hasMore, loadingMore, onLoadMore }: OrdersTabProps) {
+export function OrdersTab({ purchases, hasMore, loadingMore, onLoadMore, merchantId }: OrdersTabProps) {
   const [expandedIds, setExpandedIds] = useState<Set<string>>(new Set());
 
   const toggle = (id: string) => {
@@ -408,6 +412,7 @@ export function OrdersTab({ purchases, hasMore, loadingMore, onLoadMore }: Order
         {purchases.map((purchase) => (
           <li key={purchase.id}>
             <PurchaseCard
+              merchantId={purchase.merchant_id ?? merchantId}
               purchase={purchase}
               expanded={expandedIds.has(purchase.id)}
               onToggle={() => toggle(purchase.id)}

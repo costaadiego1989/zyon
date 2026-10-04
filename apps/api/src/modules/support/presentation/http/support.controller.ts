@@ -348,6 +348,7 @@ export class SupportController {
       tenantId(request),
       ticketId,
       body.status,
+      (currentTenantPrincipal(request as any) as { userId?: string }).userId,
     );
   }
 }

@@ -1,10 +1,15 @@
 "use client";
 
-import { useState, useCallback, useId, useEffect } from "react";
+import { useState, useCallback, useId } from "react";
 import { FiMessageSquare, FiThumbsUp, FiThumbsDown, FiChevronRight } from "react-icons/fi";
 import type { BuyerConversation, ConversationMessage } from "@/lib/viewmodels/useBuyerHub";
 
+import { caseLabel, type SupportCaseSummary } from '@/lib/services/support-case.service';
+
 export interface ConversationsTabProps {
+  supportCases?: SupportCaseSummary[];
+  supportLoading?: boolean;
+  supportError?: string | null;
   conversations: BuyerConversation[];
   loading: boolean;
   onRate: (conversationId: string, messageId: string, rating: "up" | "down") => Promise<void>;
@@ -55,46 +60,6 @@ function isAssistant(role: ConversationMessage["role"]): boolean {
   return role === "assistant" || role === "agent";
 }
 
-const SUPPORT_MESSAGES_KEY = "zyon_support_messages";
-const SUPPORT_TICKET_KEY = "zyon_support_ticket";
-
-interface SupportState {
-  hasMessages: boolean;
-  messageCount: number;
-  closed: boolean;
-}
-
-function readSupportState(): SupportState | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(SUPPORT_MESSAGES_KEY);
-    if (!raw) return null;
-    let messageCount = 0;
-    try {
-      const parsed = JSON.parse(raw);
-      messageCount = Array.isArray(parsed) ? parsed.length : 0;
-    } catch {
-      messageCount = 0;
-    }
-    if (messageCount === 0) return null;
-
-    let closed = false;
-    const ticketRaw = window.sessionStorage.getItem(SUPPORT_TICKET_KEY);
-    if (ticketRaw) {
-      try {
-        const ticket = JSON.parse(ticketRaw);
-        const status = String(ticket?.status ?? "").toLowerCase();
-        closed = status === "closed" || status === "resolved" || status === "fechado";
-      } catch {
-        closed = false;
-      }
-    }
-    return { hasMessages: true, messageCount, closed };
-  } catch {
-    return null;
-  }
-}
-
 function RoleBadge({ role }: { role: ConversationMessage["role"] }) {
   const isUser = role === "user";
   const isAsst = isAssistant(role);
@@ -126,6 +91,7 @@ function MessageBubble({
   msg,
   conversationId,
   onRate,
+
 }: {
   msg: ConversationMessage;
   conversationId: string;
@@ -277,6 +243,7 @@ function MessageBubble({
 function ConversationCard({
   conv,
   onRate,
+
 }: {
   conv: BuyerConversation;
   onRate: ConversationsTabProps["onRate"];
@@ -419,91 +386,13 @@ function ConversationCard({
   );
 }
 
-function SupportTicketCard({ support }: { support: SupportState }) {
-  const reopen = useCallback(() => {
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(new CustomEvent("zyon:open-support"));
-  }, []);
-
-  const closed = support.closed;
-
-  return (
-    <li
-      aria-label={closed ? "Suporte — Fechado" : "Suporte ativo"}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "12px 14px",
-        borderRadius: 12,
-        border: "1px solid var(--aacp-line)",
-        background: closed ? "var(--aacp-surface-3)" : "var(--aacp-card)",
-        opacity: closed ? 0.7 : 1,
-      }}
-    >
-      <div
-        aria-hidden="true"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          background: closed ? "var(--aacp-surface-2)" : "color-mix(in srgb, var(--aacp-accent) 14%, transparent)",
-          color: closed ? "var(--aacp-muted)" : "var(--aacp-accent-text, var(--aacp-accent))",
-          flexShrink: 0,
-        }}
-      >
-        <FiMessageSquare size={18} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--aacp-fg)" }}>
-          {closed ? "Suporte — Fechado" : "Suporte ativo"}
-        </div>
-        <div style={{ fontSize: 12, color: "var(--aacp-muted)", marginTop: 2 }}>
-          {support.messageCount} {support.messageCount === 1 ? "mensagem" : "mensagens"}
-        </div>
-      </div>
-      {!closed && (
-        <button data-neu="primary"
-          type="button"
-          onClick={reopen}
-          aria-label="Reabrir suporte"
-          style={{
-            padding: "8px 14px",
-            borderRadius: 8,
-            border: "1px solid var(--aacp-accent)",
-            background: "var(--aacp-accent)",
-            color: "var(--aacp-panel-bg)",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-        >
-          Reabrir
-        </button>
-      )}
-    </li>
-  );
-}
-
 export default function ConversationsTab({
   conversations,
   loading,
   onRate,
+  supportCases = [], supportLoading = false, supportError,
 }: ConversationsTabProps) {
-  const [support, setSupport] = useState<SupportState | null>(null);
-
-  useEffect(() => {
-    setSupport(readSupportState());
-    const onStorage = () => setSupport(readSupportState());
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  if (loading) {
+  if (loading || supportLoading) {
     return (
       <div
         role="status"
@@ -523,7 +412,7 @@ export default function ConversationsTab({
 
   const hasConversations = Boolean(conversations && conversations.length > 0);
 
-  if (!hasConversations && !support) {
+  if (!hasConversations && supportCases.length === 0 && !supportError) {
     return (
       <div
         role="status"
@@ -581,7 +470,8 @@ export default function ConversationsTab({
           gap: 12,
         }}
       >
-        {support && <SupportTicketCard support={support} />}
+        {supportError && <li role="alert" style={{ color: "var(--aacp-fg)", padding: 14 }}>{supportError}</li>}
+        {supportCases.map(item => <li key={item.ticketId}><button data-neu="card" type="button" onClick={() => window.dispatchEvent(new CustomEvent("zyon:open-support", { detail: { ticketId: item.ticketId, merchantId: item.merchantId } }))} style={{ width: "100%", minHeight: 72, display: "flex", flexDirection: "column", gap: 6, padding: 16, border: "1px solid var(--aacp-line)", borderRadius: 12, background: "var(--aacp-card)", color: "var(--aacp-fg)", font: "inherit", cursor: "pointer", textAlign: "left" }}><strong>{item.kind === "refund" ? "Devolução" : item.kind === "exchange" ? "Troca" : "Atendimento"}{item.orderId ? ` · Pedido ${item.orderId}` : ""}</strong><span style={{ color: "var(--aacp-muted)", fontSize: 13 }}>{caseLabel(item)}{item.unreadCount > 0 ? ` · ${item.unreadCount} nova(s) mensagem(ns)` : ""}</span><span style={{ fontSize: 13 }}>{truncate(item.lastMessage?.content ?? "Abrir conversa", 120)}</span><span style={{ fontSize: 12, color: "var(--aacp-accent)" }}>Acompanhar conversa →</span></button></li>)}
         {conversations.map((c) => (
           <ConversationCard key={c.id} conv={c} onRate={onRate} />
         ))}

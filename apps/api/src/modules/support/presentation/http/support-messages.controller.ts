@@ -1,4 +1,4 @@
-import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
+import { RequireTenantAccess } from "../../../integrations/presentation/http/tenant-access.decorator.js";
 import {
   Body,
   Controller,
@@ -21,7 +21,7 @@ import { GetTicketMarketplaceOriginUseCase } from "../../application/get-ticket-
 @ApiTags("Support")
 @UseGuards(TenantCredentialGuard, TenantAccessGuard)
 @Controller("support/tickets")
-@RequireTenantRoles("owner", "admin", "staff")
+@RequireTenantAccess({ serviceScopes: ["support:read"], humanRoles: ["owner", "admin", "staff"] })
 export class SupportMessagesController {
   constructor(
     private readonly sendMessage: SendTicketMessageUseCase,
@@ -49,10 +49,11 @@ export class SupportMessagesController {
   }
 
   @Post(":id/messages")
+  @RequireTenantAccess({ serviceScopes: ["support:write"], humanRoles: ["owner", "admin", "staff"] })
   async send(
     @Req() request: unknown,
     @Param("id") ticketId: string,
-    @Body() body: { content: string },
+    @Body() body: { content: string; clientMessageId?: string },
   ) {
     const principal = currentTenantPrincipal(
       request as Parameters<typeof currentTenantPrincipal>[0],
@@ -62,10 +63,12 @@ export class SupportMessagesController {
       merchantId: principal.tenantId,
       senderType: "merchant",
       content: body.content,
+      clientMessageId: body.clientMessageId,
     });
   }
 
   @Post(":id/transfer")
+  @RequireTenantAccess({ humanOnly: true, humanRoles: ["owner", "admin", "staff"] })
   async transfer(
     @Req() request: unknown,
     @Param("id") ticketId: string,
