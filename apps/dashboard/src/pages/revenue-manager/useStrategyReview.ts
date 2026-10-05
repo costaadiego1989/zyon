@@ -5,6 +5,7 @@ import { DashboardHttpError } from "../../api/http/error.js";
 import type { StrategyReview, StrategyReviewCommand, StrategyVersion } from "../../api/endpoints/strategy-review.js";
 import { canReviewVersion, decisionMayHaveSucceeded, reviewErrorCode, reviewErrorMessage, versionExpired } from "./strategy-review-model.js";
 import { strategyChanged, STRATEGY_CHANGED_EVENT } from "./strategy-review.js";
+import { strategyActionMode } from "./incentive-recommendation-model.js";
 
 type PendingDecision = { kind: "approve" | "reject" | "revision"; input: StrategyReviewCommand };
 
@@ -98,8 +99,10 @@ export function useStrategyReview(id: string, merchantId: string) {
   };
   const decide = async (kind: PendingDecision["kind"], version: StrategyVersion, feedback: string) => {
     if (!review || pending || readError || !canReviewVersion(review, version) || locked.current) return;
-    if (kind === "revision" && (!review.revision_available || versionExpired(review, version) || !feedback.trim())) return;
-    if (kind === "approve" && (!review.approval_available || !review.activation_available || versionExpired(review, version))) return;
+    const actionMode = strategyActionMode(version.proposal);
+    if (actionMode === "unsupported") return;
+    if (kind === "revision" && (!review.revision_available || versionExpired(review, version) || actionMode === "legacy" && !feedback.trim())) return;
+    if (kind === "approve" && (actionMode === "commercial" || !review.approval_available || !review.activation_available || versionExpired(review, version))) return;
     await send({ kind, input: { version: version.version, proposal_hash: version.proposalHash,
       request_key: createIdempotencyKey(), ...(feedback.trim() ? { feedback: feedback.trim() } : {}) } });
   };

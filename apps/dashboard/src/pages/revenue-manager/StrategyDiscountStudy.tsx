@@ -3,9 +3,10 @@ import { formatReviewDate as date, formatReviewNumber as number } from "./strate
 
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export function StrategyDiscountStudy({ study }: { study: StrategyProposal["discountStudy"] }) {
+export function StrategyDiscountStudy({ study, selectedCandidateKey }: { study: StrategyProposal["discountStudy"];
+  selectedCandidateKey?: NonNullable<StrategyProposal["incentiveRecommendation"]>["selectedCandidateKey"] }) {
   if (!study) return null;
-  if (!["weekly-discount-study-v1", "weekly-discount-study-v2"].includes(study.definition) || study.approvalScope !== "communication_only"
+  if (!["weekly-discount-study-v1", "weekly-discount-study-v2", "weekly-discount-study-v3"].includes(study.definition) || study.approvalScope !== "communication_only"
     || study.commercialBudget !== "not_reserved") return <section className="strategy-detail-section">
     <h2>Simulação de desconto</h2><p>Atualize o dashboard para consultar este formato de simulação.</p></section>;
   if (study.status === "no_safe_candidate") return <section className="strategy-detail-section">
@@ -14,11 +15,14 @@ export function StrategyDiscountStudy({ study }: { study: StrategyProposal["disc
   const candidate = study.candidate;
   if (!candidate) return null;
   const s = candidate.simulation;
-  const modern = study.definition === "weekly-discount-study-v2", commercial = modern ? study.commercialCandidate : undefined;
+  const modern = study.definition !== "weekly-discount-study-v1";
+  const commercial = study.definition === "weekly-discount-study-v3"
+    ? study.commercialCandidates?.find(option => option.key === selectedCandidateKey) : modern ? study.commercialCandidate : undefined;
   const shipping = commercial?.kind === "capped_shipping_discount";
-  if (modern && (!commercial || !["capped_percentage_discount", "capped_fixed_discount", "capped_shipping_discount"].includes(commercial.kind)
+  const progressive = commercial?.kind === "capped_progressive_discount";
+  if (modern && (!commercial || !["capped_percentage_discount", "capped_fixed_discount", "capped_shipping_discount", "capped_progressive_discount"].includes(commercial.kind)
     || !commercial.evidence || commercial.evidence.sampleSize !== s.sampleSize
-    || commercial.evidence.basis !== (shipping ? "observed_shipping_burden" : commercial.kind === "capped_fixed_discount" ? "similar_cart_values" : "percentage_discount_replay")
+    || commercial.evidence.basis !== (shipping ? "observed_shipping_burden" : commercial.kind === "capped_fixed_discount" ? "similar_cart_values" : progressive ? "progressive_safe_replay" : "percentage_discount_replay")
     || shipping && ([commercial.evidence.minShippingCents, commercial.evidence.maxShippingCents].some(n => !Number.isSafeInteger(n) || n! <= 0)
       || commercial.evidence.minShippingCents! > commercial.evidence.maxShippingCents!))) {
     return <section className="strategy-detail-section"><h2>Base da análise comercial</h2>
@@ -27,11 +31,14 @@ export function StrategyDiscountStudy({ study }: { study: StrategyProposal["disc
   const percentage = !modern || commercial?.kind === "capped_percentage_discount";
   return <section className="strategy-detail-section" aria-labelledby="strategy-discount-study-title">
     <h2 id="strategy-discount-study-title">{modern ? "Base da análise comercial" : "Simulação de desconto"}</h2>
-    <p>Esta simulação não gera cobrança adicional nem aplica descontos nas vendas. O benefício depende da aprovação específica dos valores da proposta.</p>
+    <p>Os valores usados nas análises e nos testes internos servem para simulação e não geram cobrança.
+      A simulação não aplica descontos nas vendas. O benefício depende da aprovação específica dos valores da proposta.</p>
     {shipping && <p>O histórico mostrou fretes relevantes em relação ao valor dos produtos. Isso motivou avaliar um desconto no frete;
       ainda não há resultado medido desse benefício.</p>}
     {commercial?.kind === "capped_fixed_discount" && <p>Os carrinhos avaliados tinham valores semelhantes.
       Isso permitiu sugerir um desconto de valor fixo, que ainda precisa ser testado.</p>}
+    {progressive && <p>Os carrinhos avaliados comportavam as duas etapas dentro das margens usadas na análise.
+      Isso permite propor o teste; ainda não comprova que aumentar o desconto melhora as vendas.</p>}
     <dl className="strategy-measurement-facts">
       {percentage && <div><dt>Desconto simulado</dt><dd>{number(candidate.percent)}%, até {money(s.maxDiscountCents)} por carrinho</dd></div>}
       {shipping && <div><dt>Fretes observados no histórico</dt><dd>{money(commercial.evidence.minShippingCents!)} a {money(commercial.evidence.maxShippingCents!)}</dd></div>}

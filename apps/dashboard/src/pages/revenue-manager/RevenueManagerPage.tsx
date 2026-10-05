@@ -90,9 +90,9 @@ export function RevenueManagerPage(_props: RevenueManagerPageProps) {
       <PageHeader title="Otimização com IA" description="Receba sugestões e simule estratégias sem cobrança adicional. Você revisa e aprova antes de aplicar." />
 
       <SetupGuide title="Como usar as sugestões de melhoria" steps={[
-        { title: "Confira a proposta", description: "A IA analisa os dados da loja e apresenta simulações sem cobrança adicional. Os valores ajudam a avaliar a proposta; não são um pagamento à Zyon." },
-        { title: "Revise antes de aplicar", description: "Abra a revisão para conferir as ações disponíveis. Os limites comerciais da loja continuam valendo." },
-        { title: "Acompanhe o resultado", description: "Confira a execução e a amostra antes de avaliar o resultado. Estimativas não garantem aumento de vendas." },
+        { title: "Receba a estratégia pronta", description: "A IA analisa os dados disponíveis e prepara a proposta com benefício, público, duração e limites sugeridos. A análise não gera cobrança adicional." },
+        { title: "Decida antes de aplicar", description: "Confira o desconto por pedido e o total máximo do teste. Você pode aprovar, recusar ou pedir outra sugestão. Descontos aprovados reduzem o valor recebido nas vendas." },
+        { title: "Acompanhe o resultado", description: "Após sua aprovação, a IA opera o teste dentro das condições apresentadas. Confira conversão, descontos utilizados e tamanho da amostra. Estimativas não garantem aumento de vendas." },
       ]} />
 
       <WeeklyAnalysisStatus status={vm.analysisStatus} error={vm.analysisStatusError} />
@@ -151,6 +151,7 @@ export function RevenueManagerPage(_props: RevenueManagerPageProps) {
           {vm.errors.hypotheses ? <EmptyState title="Sugestões indisponíveis" description={vm.errors.hypotheses} action={<Button variant="outline" onClick={vm.refresh}>Tentar novamente</Button>} /> : <ul className="revenue-manager-proposals">
             {hypSlice.map((h) => {
               const review = h.strategy_review;
+              const resultNotEstimated = review?.expected_lift_status === "not_estimated";
               const risk = RISK_COLORS[h.risk_level] ?? RISK_COLORS.medium;
               const state = review?.status ?? h.status;
               const expired = review && Date.parse(review.expires_at) <= Date.now() && state === "pending_review";
@@ -167,10 +168,10 @@ export function RevenueManagerPage(_props: RevenueManagerPageProps) {
                     </div>
                   </div>
                   <div className="revenue-manager-proposal-impact">
-                    <span>{!review && h.template?.hypothesis_type === "discount_rule" ? "Efeito na conversão" : "Impacto estimado"}</span>
-                    <strong className={h.expected_lift_percent < 0 ? "is-negative" : undefined}>{!review && h.template?.hypothesis_type === "discount_rule" ? "A medir"
+                    <span>{resultNotEstimated ? "Resultado" : !review && h.template?.hypothesis_type === "discount_rule" ? "Efeito na conversão" : "Impacto estimado"}</span>
+                    <strong className={!resultNotEstimated && h.expected_lift_percent < 0 ? "is-negative" : undefined}>{resultNotEstimated || !review && h.template?.hypothesis_type === "discount_rule" ? "A medir"
                       : `${(review?.expected_lift_percent ?? h.expected_lift_percent) > 0 ? "+" : ""}${(review?.expected_lift_percent ?? h.expected_lift_percent).toLocaleString("pt-BR", { minimumFractionDigits: 1, maximumFractionDigits: 1 })}%`}</strong>
-                    <small>A validar em teste{review ? ` · Versão ${review.version}` : ""}</small>
+                    <small>{resultNotEstimated ? "Será medido no teste" : "A validar em teste"}{review ? ` · Versão ${review.version}` : ""}</small>
                   </div>
                   <div className="revenue-manager-proposal-actions">
                     <span className="revenue-manager-proposal-status" style={{ background: status.bg, color: status.color }}>{status.label}</span>

@@ -8,7 +8,7 @@ import { StrategyIncentiveMetrics } from "./StrategyIncentiveMetrics.js";
 import { StrategyDiscountStudy } from "./StrategyDiscountStudy.js";
 import { StrategyIncentiveRecommendation } from "./StrategyIncentiveRecommendation.js";
 import { useStrategyReview } from "./useStrategyReview.js";
-import { incentiveBenefitLabel, validIncentiveTest } from "./incentive-recommendation-model.js";
+import { incentiveBenefitLabel, strategyActionMode, validIncentiveTest } from "./incentive-recommendation-model.js";
 import { canReviewVersion, formatReviewDate as date, formatReviewNumber as number, REVISION_STATUSES, STRATEGY_STATUSES, versionExpired } from "./strategy-review-model.js";
 import "./strategy-review.css";
 
@@ -58,12 +58,15 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
   const version = vm.review?.versions.find(v => v.version === vm.selectedVersion);
   const proposal = version?.proposal;
   const incentive = proposal?.incentiveRecommendation;
+  const actionMode = proposal ? strategyActionMode(proposal) : "unsupported";
+  const communicationVisible = actionMode === "legacy" || actionMode === "communication";
+  const commercialVisible = actionMode === "legacy" || actionMode === "commercial";
   const benefitLabel = incentive && validIncentiveTest(incentive) ? incentiveBenefitLabel(incentive.test) : undefined;
   const current = vm.review && version && vm.review.currentVersion === version.version;
   const expired = !!(vm.review && version && versionExpired(vm.review, version));
-  const canDecide = !!(vm.review && version && canReviewVersion(vm.review, version) && !vm.busy && !vm.readError && !vm.pending);
+  const canDecide = !!(actionMode !== "unsupported" && vm.review && version && canReviewVersion(vm.review, version) && !vm.busy && !vm.readError && !vm.pending);
   const revisionAvailable = canDecide && !expired && vm.review?.revision_available;
-  const approvalAvailable = canDecide && !expired && vm.review?.approval_available && vm.review.activation_available;
+  const approvalAvailable = communicationVisible && canDecide && !expired && vm.review?.approval_available && vm.review.activation_available;
   return <div className="page-container strategy-page">
     <button type="button" className="zyn-btn zyn-btn--ghost strategy-back" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" /> Voltar às sugestões</button>
     <PageHeader title="Revisar estratégia" titleRef={title} description="Confira a proposta da IA e decida o próximo passo." />
@@ -89,15 +92,21 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
       <article className="strategy-review strategy-review-document" aria-label={`Proposta da estratégia, versão ${version.version}`}>
         <section className="strategy-detail-section"><h2>{proposal.recommendation.hypothesis_text}</h2>
           <p>{proposal.recommendation.reasoning}</p>
-          <p className="strategy-review-note">Impacto estimado pela IA: {number(proposal.recommendation.expected_lift_percent)}%. Ainda não medido; não é uma garantia de resultado.</p>
+          <p className="strategy-review-note">{proposal.orchestration ? "O resultado será medido no teste. Não há previsão de aumento nas vendas."
+            : `Impacto estimado pela IA: ${number(proposal.recommendation.expected_lift_percent)}%. Ainda não medido; não é uma garantia de resultado.`}</p>
         </section>
-        <section className="strategy-detail-section"><h2>O que a IA propõe</h2>
+        {actionMode === "unsupported" && <p className="strategy-review-warning" role="status">Atualize o dashboard para consultar e revisar este formato de estratégia. Nenhuma aprovação está disponível nesta tela.</p>}
+        {proposal.orchestration && actionMode !== "unsupported" && <section className="strategy-detail-section"><h2>Por que a IA escolheu esta estratégia</h2>
+          <p>{proposal.orchestration.rationale}</p>
+          {actionMode === "commercial" && <p>O teste compara o benefício proposto com o checkout sem esse benefício. Cada ciclo executa uma estratégia por vez.</p>}
+        </section>}
+        {communicationVisible && <section className="strategy-detail-section"><h2>O que a IA propõe</h2>
           <p>{proposal.recommendation.template.description}</p>
           <div className="strategy-communication"><h3>Abordagem sugerida</h3><p className="strategy-review-copy">{proposal.recommendation.template.variant_b.system_prompt}</p></div>
           <h3>Comparação com a comunicação atual</h3><p>{proposal.baselineStatus === "primary_chat_contract_captured"
             ? "A proposta preserva uma versão da comunicação atual para comparação e acrescenta a abordagem sugerida à conversa principal."
             : "Esta versão ainda precisa de uma referência verificável da comunicação atual antes de iniciar um teste."}</p>
-        </section>
+        </section>}
         <details className="strategy-review-details"><summary>Dados que embasaram a sugestão</summary><div className="strategy-review-details-body">
           <p>Período: {date(proposal.observation.observation_window_start)} a {date(proposal.observation.observation_window_end)}.</p>
           <p>{number(proposal.observation.data_quality?.mature_sessions ?? proposal.observation.funnel.total_sessions)} sessões avaliadas. Conversão observada: {proposal.observation.funnel.conversion_rate == null ? "indisponível" : `${number(proposal.observation.funnel.conversion_rate * 100)}%`}.</p>
@@ -107,21 +116,22 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
         <section className="strategy-detail-section"><h2>Limites comerciais considerados</h2>
           <dl className="strategy-measurement-facts"><div><dt>Margem mínima configurada</dt><dd>{number(proposal.rules.minimumMarginPercent)}%</dd></div>
             <div><dt>Teto de desconto configurado</dt><dd>{number(proposal.rules.maxDiscountPercent)}%</dd></div></dl>
-          <p>A aprovação da comunicação altera somente a conversa do checkout. Quando a análise inclui uma sugestão de desconto, cupom ou frete,
-            esse benefício tem valores e aprovação próprios na seção abaixo. Os limites comerciais não são alterados pela IA.</p>
+          <p>{actionMode === "commercial" ? "A proposta respeita as margens e regras comerciais da loja. Sua aprovação vale somente para o benefício, os valores e as condições apresentados abaixo."
+            : "A aprovação da comunicação altera somente a conversa do checkout. Quando a análise inclui uma sugestão de desconto, cupom ou frete, esse benefício tem valores e aprovação próprios na seção abaixo. Os limites comerciais não são alterados pela IA."}</p>
         </section>
-        <StrategyDiscountStudy study={proposal.discountStudy} />
-        <StrategyIncentiveRecommendation key={`incentive:${merchantId}:${strategyId}:${version.version}`} recommendation={proposal.incentiveRecommendation}
+        {commercialVisible && <StrategyDiscountStudy study={proposal.discountStudy} selectedCandidateKey={incentive?.selectedCandidateKey} />}
+        {commercialVisible && <StrategyIncentiveRecommendation key={`incentive:${merchantId}:${strategyId}:${version.version}`} recommendation={proposal.incentiveRecommendation}
           policyCurrent={version.incentivePolicyCurrent} decisionContext={{ strategyId, version: version.version, proposalHash: version.proposalHash,
-            current: !!current, alternativeAvailable: vm.review.incentive_alternative_available === true,
-            refreshToken: vm.review, disabled: vm.busy || !!vm.pending || !!vm.readError }} />
-        <MeasurementDetails proposal={proposal} />
-        {proposal.incentiveRecommendation?.status === "recommended" && <StrategyIncentiveMetrics
+            current: !!current, alternativeAvailable: actionMode === "commercial" ? !!revisionAvailable : vm.review.incentive_alternative_available === true,
+            ...(actionMode === "commercial" ? { revisionScope: "strategy", expectedRecommendationHash: proposal.orchestration!.selectedAction } : {}),
+            refreshToken: vm.review, disabled: vm.busy || !!vm.pending || !!vm.readError }} />}
+        {communicationVisible && <MeasurementDetails proposal={proposal} />}
+        {commercialVisible && proposal.incentiveRecommendation?.status === "recommended" && <StrategyIncentiveMetrics
           key={`incentive-metrics:${merchantId}:${strategyId}:${version.version}`} strategyId={strategyId} version={version.version}
           proposalHash={version.proposalHash} refreshToken={vm.review} benefitLabel={benefitLabel} />}
-        <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}:${vm.review.status}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />
+        {communicationVisible && <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}:${vm.review.status}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />}
       </article>
-      <section className="strategy-decision" aria-labelledby="strategy-decision-title">
+      {communicationVisible && <section className="strategy-decision" aria-labelledby="strategy-decision-title">
         <h2 id="strategy-decision-title">Sua decisão</h2>
         {vm.review.activation_blockers.includes("incentive_already_funded") && <p>Este desconto já tem um teste registrado. Consulte os resultados ou cancele o desconto na seção acima.</p>}
         {vm.review.status === "pending_review" && !vm.review.approval_available && <div className="strategy-activation-note" id="strategy-activation-note"><strong>Aprovação indisponível no momento</strong>
@@ -149,19 +159,19 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
             <button type="submit" className="zyn-btn zyn-btn--primary">Aprovar e iniciar teste</button></div>
         </form>}
         {form && form !== "approve" && canDecide && (form === "reject" || revisionAvailable) && <form className="strategy-feedback" onSubmit={event => { event.preventDefault(); void vm.decide(form, version, feedback); }}>
-          <label htmlFor="strategy-feedback">{form === "revision" ? "O que a IA deve considerar na alternativa?" : "Motivo da recusa (opcional)"}</label>
+          <label htmlFor="strategy-feedback">{form === "revision" ? `O que a IA deve considerar na alternativa?${actionMode === "communication" ? " (opcional)" : ""}` : "Motivo da recusa (opcional)"}</label>
           <p id="strategy-feedback-help">{form === "revision" ? "Descreva o objetivo ou a preferência. A IA prepara uma nova proposta para você revisar, mantendo os limites da loja. Evite dados pessoais de compradores." : "A recusa encerra esta proposta e não altera as regras ativas da loja."}</p>
           <textarea id="strategy-feedback" aria-describedby="strategy-feedback-help" maxLength={2000} rows={4} value={feedback}
-            required={form === "revision"} onChange={event => setFeedback(event.target.value)} />
+            required={form === "revision" && actionMode === "legacy"} onChange={event => setFeedback(event.target.value)} />
           <span className="strategy-review-note">{feedback.length}/2.000 caracteres</span>
           <div className="strategy-review-actions"><button type="button" className="zyn-btn zyn-btn--ghost" onClick={() => setForm(null)}>Cancelar</button>
-            <button type="submit" className="zyn-btn zyn-btn--primary" disabled={form === "revision" && !feedback.trim()}>{form === "revision" ? "Enviar pedido de alternativa" : "Confirmar recusa"}</button></div>
+            <button type="submit" className="zyn-btn zyn-btn--primary" disabled={form === "revision" && actionMode === "legacy" && !feedback.trim()}>{form === "revision" ? "Enviar pedido de alternativa" : "Confirmar recusa"}</button></div>
         </form>}
         {vm.busy && <p role="status">Enviando decisão…</p>}
         {vm.actionError && <div role="alert" className="strategy-review-error"><p>{vm.actionError}</p>
           {vm.pending && <button type="button" className="zyn-btn zyn-btn--secondary" disabled={vm.busy} onClick={() => void vm.retry()}>Confirmar envio</button>}</div>}
         {vm.message && <p role="status" className="strategy-review-success">{vm.message}</p>}
-      </section>
+      </section>}
       <section className="strategy-history" aria-labelledby="strategy-history-title"><h2 id="strategy-history-title">Histórico de propostas e decisões</h2>
         <ol>{vm.review.versions.map(v => <li key={`version-${v.version}`}><strong>Versão {v.version} criada</strong><span>{date(v.createdAt)}</span>
           <p>{v.proposal.recommendation.hypothesis_text}</p><button type="button" className="zyn-btn zyn-btn--ghost" disabled={vm.busy || !!vm.pending || version.version === v.version} onClick={() => { vm.selectVersion(v.version); setForm(null); title.current?.focus(); }}>Consultar versão {v.version}</button></li>)}</ol>

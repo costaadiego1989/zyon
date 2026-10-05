@@ -407,7 +407,7 @@ try {
     }
     review.versions[0].proposal.incentiveRecommendation = { ...savedIncentive, status: "not_recommended", reason: "financial_policy_disabled", test: undefined };
     await page.reload({ waitUntil: "domcontentloaded" });
-    await page.getByText(/Os limites financeiros estavam desativados nesta análise/).waitFor();
+    await page.getByText(/Esta análise foi concluída com novos testes de desconto desativados/).waitFor();
     review.versions[0].proposal.incentiveRecommendation.reason = "no_safe_candidate";
     await page.reload({ waitUntil: "domcontentloaded" });
     await page.getByRole("heading", { name: firstTitle, exact: true }).waitFor();

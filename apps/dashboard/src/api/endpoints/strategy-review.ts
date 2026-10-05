@@ -14,9 +14,14 @@ export interface StrategyProposal {
   baselineStatus: "awaiting_checkout_contract" | "primary_chat_contract_captured";
   checkoutBaseline?: { contextExit?: string; suppressionRecovery?: string };
   execution: "unavailable";
-  expectedLiftStatus: "model_estimate_not_measured";
+  expectedLiftStatus: "not_estimated" | "model_estimate_not_measured";
+  orchestration?: { definition: "revenue-strategy-orchestration-v1"; tool: "submit_revenue_strategy";
+    catalogHash: string; selectedAction: string; rationale: string };
   incentiveRecommendation?: {
-    definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2" | "weekly-incentive-recommendation-v3";
+    definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2" | "weekly-incentive-recommendation-v3" | "weekly-incentive-recommendation-v4";
+    selectedCandidateKey?: "percentage" | "fixed" | "shipping" | "progressive";
+    policyProposal?: { definition: "incentive-policy-proposal-v1"; previousPolicyVersion: number;
+      previousPolicyHash: string; basis: "observed_safe_offer_and_required_sample" };
     planning?: {
       definition: "incentive-fixed-horizon-planning-v1";
       baseline: { buyers: number; conversions: number; complete: boolean; windowStart: string; windowEnd: string };
@@ -28,11 +33,13 @@ export interface StrategyProposal {
       blockers: string[];
     };
     approval: "separate_incentive_review_required"; execution: "unavailable"; budgetStatus: "not_reserved";
-    financialPolicy: { version: number; policyHash: string };
+    financialPolicy: { version: number; policyHash: string; enabled?: boolean; limitCents?: number; maxDiscountCents?: number; maxRedemptions?: number };
     status: "recommended" | "not_recommended";
     reason?: "no_safe_candidate" | "financial_policy_disabled";
     test?: {
-      kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount"; currency: "BRL";
+      kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount" | "capped_progressive_discount"; currency: "BRL";
+      stages?: [{ index: 0; trigger: "enrollment"; discountPercent: number; maxDiscountCents: number },
+        { index: 1; trigger: "checkout_payment_ready"; discountPercent: number; maxDiscountCents: number }];
       fixedDiscountCents?: number; shippingDiscountCents?: number;
       delivery?: { mode: "automatic" } | { mode: "coupon_code"; code: string };
       audience: { intent: string; consent: "required"; identity: "first_eligible_session_per_buyer";
@@ -45,7 +52,12 @@ export interface StrategyProposal {
     };
   };
   discountStudy?: {
-    definition: "weekly-discount-study-v1" | "weekly-discount-study-v2";
+    definition: "weekly-discount-study-v1" | "weekly-discount-study-v2" | "weekly-discount-study-v3";
+    commercialCandidates?: Array<{ key: "percentage" | "fixed" | "shipping" | "progressive";
+      kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount" | "capped_progressive_discount";
+      maxDiscountCents: number; delivery: "automatic" | "coupon_code";
+      evidence: { basis: "percentage_discount_replay" | "similar_cart_values" | "observed_shipping_burden" | "progressive_safe_replay";
+        sampleSize: number; minShippingCents?: number; maxShippingCents?: number; maxShippingCostCents?: number } }>;
     commercialCandidate?: null | {
       kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount";
       maxDiscountCents: number; delivery: "automatic" | "coupon_code";

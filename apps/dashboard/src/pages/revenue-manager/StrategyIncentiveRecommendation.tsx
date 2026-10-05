@@ -13,23 +13,26 @@ export function StrategyIncentiveRecommendation({ recommendation: r, policyCurre
   if (!r) return null;
   const fallback = <section className="strategy-detail-section"><h2>Teste de desconto sugerido</h2>
     <p>Atualize o dashboard para consultar este formato de sugestão.</p></section>;
-  if (!["weekly-incentive-recommendation-v1", "weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3"].includes(r.definition) || r.execution !== "unavailable"
+  if (!["weekly-incentive-recommendation-v1", "weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3", "weekly-incentive-recommendation-v4"].includes(r.definition) || r.execution !== "unavailable"
     || r.approval !== "separate_incentive_review_required" || r.budgetStatus !== "not_reserved") return fallback;
   if (r.status === "not_recommended") {
     if (r.reason === "no_safe_candidate") return null; // Explained by the companion simulation.
     if (r.reason !== "financial_policy_disabled") return fallback;
     return <section className="strategy-detail-section"><h2>Teste de desconto sugerido</h2>
-      <p>Os limites financeiros estavam desativados nesta análise. Quando estiverem habilitados nas configurações,
-        o motor poderá sugerir um teste na próxima análise semanal.</p></section>;
+      <p>Esta análise foi concluída com novos testes de desconto desativados.
+        As próximas sugestões respeitarão a preferência atual da loja.</p></section>;
   }
   if (!validIncentiveTest(r)) return fallback;
   const t = r.test, benefitLabel = incentiveBenefitLabel(t);
-  const modern = r.definition === "weekly-incentive-recommendation-v3";
+  const modern = r.definition === "weekly-incentive-recommendation-v3" || r.definition === "weekly-incentive-recommendation-v4";
   return <section className="strategy-detail-section" aria-labelledby="strategy-incentive-title">
     <h2 id="strategy-incentive-title">Teste de {benefitLabel} sugerido</h2>
     <p>O motor preparou os valores abaixo a partir da simulação e dos limites da loja.</p>
-    <p>A análise e a simulação não geram cobrança extra de IA para a loja. Após sua aprovação,
-      o benefício usado pelo comprador é um desconto real da loja, limitado aos valores desta proposta.</p>
+    <p>Os valores usados nas análises e nos testes internos servem para simulação e não geram cobrança.</p>
+    <p>Após sua aprovação, o benefício usado pelo comprador é um desconto real da loja e reduz o valor que ela recebe,
+      sempre dentro dos limites desta proposta. Esse desconto não é uma cobrança da Zyon.</p>
+    {r.policyProposal && <p>A IA calculou estes limites a partir da oferta segura e da amostra necessária para medir o teste.
+      Você não precisa preencher os valores: revise a exposição máxima abaixo e decida se quer autorizar esta estratégia.</p>}
     {policyCurrent === false && <p className="strategy-review-warning" role="status">Os limites financeiros mudaram após esta análise.
       Esta sugestão conserva os valores anteriores; a próxima análise semanal considerará os novos limites.</p>}
     <dl className="strategy-measurement-facts">
@@ -43,6 +46,15 @@ export function StrategyIncentiveRecommendation({ recommendation: r, policyCurre
       <div><dt>Público sugerido</dt><dd>{t.audience.intent === "price_sensitive" ? "Compradores com sensibilidade ao preço" : "Compradores com o perfil de intenção da simulação"}, com consentimento</dd></div>
       <div><dt>Faixa de carrinho</dt><dd>{money(t.audience.minCartTotalCents)} a {money(t.audience.maxCartTotalCents)}</dd></div>
     </dl>
+    {t.kind === "capped_progressive_discount" && <div className="strategy-metrics-table-wrap">
+      <table className="strategy-metrics-table"><caption>Etapas propostas para o desconto</caption>
+        <thead><tr><th scope="col">Quando pode ser aplicado</th><th scope="col">Desconto</th><th scope="col">Máximo por pedido</th></tr></thead>
+        <tbody>{t.stages!.map(stage => <tr key={stage.index}><th scope="row">{stage.trigger === "enrollment" ? "Ao entrar no teste" : "Ao preparar o pagamento"}</th>
+          <td>{number(stage.discountPercent)}%</td><td>{money(stage.maxDiscountCents)}</td></tr>)}</tbody></table>
+      <p>A segunda etapa substitui a primeira; os descontos não se somam. O benefício só aumenta se o pedido continuar elegível e dentro das margens.
+        Se o total mudar, o comprador precisa revisá-lo antes de confirmar o pagamento.</p>
+      <p>O teto total já considera o desconto máximo da segunda etapa. Somente o valor efetivamente utilizado consome esse limite.</p>
+    </div>}
     {t.kind === "capped_shipping_discount" && <p>O benefício reduz somente o frete cobrado, até o valor indicado.
       A modalidade de entrega, as regras de subsídio e a margem da loja precisam permitir o desconto. Isso não libera frete grátis para toda a loja.</p>}
     {t.kind === "capped_fixed_discount" && <p>O valor fixo só é aplicado quando o pedido comporta o desconto completo, respeitando o teto percentual e a margem da loja.</p>}
@@ -50,7 +62,9 @@ export function StrategyIncentiveRecommendation({ recommendation: r, policyCurre
       Compartilhar o código não libera o cupom para outros compradores.</p>}
     {r.definition !== "weekly-incentive-recommendation-v1" && <StrategyIncentivePlanning planning={r.planning}
       maxDiscountCents={t.maxDiscountCents} maxRedemptions={t.maxRedemptions} />}
-    {decisionContext ? <StrategyIncentiveDecision context={decisionContext} benefitLabel={benefitLabel} approvalDisplayValid={r.definition !== "weekly-incentive-recommendation-v1"
+    {decisionContext ? <StrategyIncentiveDecision context={decisionContext} benefitLabel={benefitLabel}
+      approvalSummary={`Você autoriza até ${money(t.limitCents)} em descontos, no máximo ${money(t.maxDiscountCents)} por pedido e ${number(t.maxRedemptions)} usos, durante ${t.durationDays} dias. ${t.kind === "capped_progressive_discount" ? "Esse teto já inclui as duas etapas apresentadas, sem somar os descontos." : incentiveOfferText(t) + "."}`}
+      approvalDisplayValid={r.definition !== "weekly-incentive-recommendation-v1"
       && policyCurrent !== false && validIncentivePlanning(r.planning, t.maxDiscountCents, t.maxRedemptions) && r.planning.status === "estimated_feasible"} /> : <p>Este teste de desconto ainda não está disponível para aprovação.
       Aprovar a comunicação abaixo não autoriza o desconto.</p>}
     <details className="strategy-review-details"><summary>Regras e métricas do teste sugerido</summary>

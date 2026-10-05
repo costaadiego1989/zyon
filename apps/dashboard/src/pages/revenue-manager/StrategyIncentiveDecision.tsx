@@ -7,12 +7,13 @@ import { strategyChanged } from "./strategy-review.js";
 import type { IncentiveBenefitLabel } from "./incentive-recommendation-model.js";
 
 type Pending = { kind: IncentiveDecision | "alternative"; input: IncentiveAlternativeCommand };
-export type IncentiveDecisionContext = { strategyId: string; version: number; proposalHash: string; current: boolean; alternativeAvailable?: boolean; refreshToken: unknown; disabled: boolean };
+export type IncentiveDecisionContext = { strategyId: string; version: number; proposalHash: string; current: boolean;
+  alternativeAvailable?: boolean; revisionScope?: "strategy"; expectedRecommendationHash?: string; refreshToken: unknown; disabled: boolean };
 
 /** Keyed by merchant/strategy/version by the parent. A lost reply retries the
  * same command, and the current projection always wins over a historical receipt. */
-export function StrategyIncentiveDecision({ context: c, approvalDisplayValid, benefitLabel = "desconto" }: {
-  context: IncentiveDecisionContext; approvalDisplayValid: boolean; benefitLabel?: IncentiveBenefitLabel;
+export function StrategyIncentiveDecision({ context: c, approvalDisplayValid, benefitLabel = "desconto", approvalSummary }: {
+  context: IncentiveDecisionContext; approvalDisplayValid: boolean; benefitLabel?: IncentiveBenefitLabel; approvalSummary?: string;
 }) {
   const statuses: Record<string, string> = { approved_awaiting_activation: `Proposta de ${benefitLabel} aprovada. O teste ainda não foi iniciado.`,
     rejected: `Proposta de ${benefitLabel} recusada.`, withdrawn: `A aprovação do ${benefitLabel} foi cancelada.`,
@@ -39,8 +40,10 @@ export function StrategyIncentiveDecision({ context: c, approvalDisplayValid, be
         || value.decision.version !== value.version || value.decision.proposal_hash !== value.proposal_hash))
       || typeof value.approval_available !== "boolean" || typeof value.rejection_available !== "boolean"
       || typeof value.withdrawal_available !== "boolean") throw new Error("Invalid incentive review");
+    if (c.expectedRecommendationHash && value.version === c.version && value.proposal_hash === c.proposalHash
+      && value.recommendation_hash !== c.expectedRecommendationHash) throw new Error("Incentive selection changed");
     return value;
-  }, [api, c.strategyId]);
+  }, [api, c.strategyId, c.version, c.proposalHash, c.expectedRecommendationHash]);
   const load = useCallback(async () => {
     if (locked.current) return;
     locked.current = true; setBusy(true);
@@ -68,10 +71,11 @@ export function StrategyIncentiveDecision({ context: c, approvalDisplayValid, be
     const active = () => alive.current && seq === generation.current;
     try {
       if (command.kind === "alternative") {
-        const receipt = await api.requestIncentiveAlternative(c.strategyId, command.input);
+        const receipt = c.revisionScope === "strategy" ? await api.decideStrategy(c.strategyId, "revision", command.input)
+          : await api.requestIncentiveAlternative(c.strategyId, command.input);
         if (receipt.strategy_id !== c.strategyId || receipt.version !== command.input.version
           || receipt.proposal_hash !== command.input.proposal_hash || receipt.status !== "revision_requested"
-          || receipt.revision_scope !== "incentive" || !receipt.action_id) throw new Error("Invalid alternative receipt");
+          || (c.revisionScope !== "strategy" && (!("revision_scope" in receipt) || receipt.revision_scope !== "incentive")) || !receipt.action_id) throw new Error("Invalid alternative receipt");
       } else {
       const receipt = await api.decideIncentive(c.strategyId, command.kind, command.input);
       if (receipt.strategy_id !== c.strategyId || receipt.version !== command.input.version
@@ -83,7 +87,9 @@ export function StrategyIncentiveDecision({ context: c, approvalDisplayValid, be
       if (!active()) return;
       setPending(null); setConfirm(null);
       if (command.kind === "alternative") {
-        setAlternative(false); setFeedback(""); setNotice(`Pedido recebido. A IA preparará outra sugestão de ${benefitLabel}, que precisará da sua aprovação.`);
+        setAlternative(false); setFeedback(""); setNotice(c.revisionScope === "strategy"
+          ? "Pedido recebido. A IA avaliará outra estratégia dentro das condições da loja. A nova proposta precisará da sua aprovação."
+          : `Pedido recebido. A IA preparará outra sugestão de ${benefitLabel}, que precisará da sua aprovação.`);
       }
       strategyChanged(c.strategyId);
     } catch (error) {
@@ -116,7 +122,8 @@ export function StrategyIncentiveDecision({ context: c, approvalDisplayValid, be
   const alternativeAvailable = current && c.alternativeAvailable === true && !!review.recommendation_hash;
   return <div className="strategy-incentive-decision" role="group" aria-label={`Decisão sobre o ${benefitLabel}`}>
     <h3>Sua decisão sobre o {benefitLabel}</h3>
-    <p>Aprovar a comunicação abaixo não autoriza o {benefitLabel}.</p>
+    {c.revisionScope === "strategy" ? <p>Esta aprovação autoriza somente o benefício e os limites apresentados nesta estratégia.</p>
+      : <p>Aprovar a comunicação abaixo não autoriza o {benefitLabel}.</p>}
     {(executionText || state && statuses[state]) && <p role="status"><strong>{executionText || statuses[state!]}</strong></p>}
     {decision && <p>Decisão registrada em {date(decision.reviewed_at)}.</p>}
     {current && !decision && !approvalAvailable && !readError && <p>Este teste de {benefitLabel} ainda não está disponível para aprovação.</p>}
@@ -136,16 +143,19 @@ export function StrategyIncentiveDecision({ context: c, approvalDisplayValid, be
       {(["approve", "reject", "withdraw"] as const).filter(kind => available(kind)).map(kind => <button key={kind} type="button"
         className={`zyn-btn ${kind === "approve" ? "zyn-btn--primary" : "zyn-btn--secondary"}`} disabled={disabled} onClick={() => { setAlternative(false); setConfirm(kind); }}>{kind === "approve" && startsTest ? `Aprovar e iniciar teste de ${benefitLabel}` : verbs[kind]}</button>)}
       {alternativeAvailable && <button type="button" className="zyn-btn zyn-btn--secondary" disabled={disabled}
-        onClick={() => { setConfirm(null); setAlternative(true); }}>Pedir outra sugestão de {benefitLabel}</button>}
+        onClick={() => { setConfirm(null); setAlternative(true); }}>{c.revisionScope === "strategy" ? "Pedir outra estratégia" : `Pedir outra sugestão de ${benefitLabel}`}</button>}
       {readError && <button type="button" className="zyn-btn zyn-btn--secondary" disabled={busy} onClick={() => void load()}>Atualizar decisão do {benefitLabel}</button>}
       {pending && <button type="button" className="zyn-btn zyn-btn--secondary" disabled={busy} onClick={() => void send(pending)}>Confirmar decisão do {benefitLabel}</button>}
     </div>
     {confirm && available(confirm) && !disabled && <div className="strategy-feedback">
       <h3>{confirm === "approve" ? startsTest ? "Iniciar o teste com estes valores?" : "Registrar a aprovação destes valores?" : confirm === "reject" ? `Recusar esta sugestão de ${benefitLabel}?` : `Cancelar esta aprovação de ${benefitLabel}?`}</h3>
+      {confirm === "approve" && approvalSummary && <p><strong>{approvalSummary}</strong></p>}
+      {confirm === "approve" && <p>Se a estratégia aprovada conceder um desconto em uma venda, ele reduz o valor recebido pela loja. Isso não é uma cobrança da Zyon.</p>}
       <p>{confirm === "approve" ? startsTest
         ? "O orçamento e o desconto ficam limitados à sugestão desta versão. O motor confere as condições a cada compra. Você pode interromper novas ofertas a qualquer momento."
         : "A decisão vale apenas para esta versão e perde validade se as condições mudarem. Nenhum teste será iniciado agora."
-        : confirm === "reject" ? `Esta sugestão de ${benefitLabel} será recusada. A decisão sobre a comunicação continua separada.`
+        : confirm === "reject" ? c.revisionScope === "strategy" ? "Esta proposta será recusada e não iniciará um teste."
+          : `Esta sugestão de ${benefitLabel} será recusada. A decisão sobre a comunicação continua separada.`
         : "Novas reservas serão bloqueadas. Valores já reservados continuarão registrados até sua conclusão."}</p>
       <div className="strategy-review-actions"><button type="button" className="zyn-btn zyn-btn--ghost" onClick={() => setConfirm(null)}>Voltar à proposta</button>
         <button type="button" className="zyn-btn zyn-btn--primary" onClick={() => decide(confirm)}>{confirm === "approve" ? startsTest ? `Confirmar início do teste de ${benefitLabel}` : `Registrar aprovação do ${benefitLabel}` : confirm === "reject" ? `Confirmar recusa do ${benefitLabel}` : `Confirmar cancelamento do ${benefitLabel}`}</button></div>
@@ -157,7 +167,8 @@ export function StrategyIncentiveDecision({ context: c, approvalDisplayValid, be
     }}>
       <label htmlFor="incentive-alternative-feedback">O que você gostaria que a IA considerasse? (opcional)</label>
       <textarea id="incentive-alternative-feedback" maxLength={2000} value={feedback} disabled={disabled} onChange={event => setFeedback(event.target.value)} />
-      <p>A IA prepara uma opção com desconto e orçamento menores, dentro dos limites da loja. A nova sugestão só pode ser aplicada depois da sua aprovação.</p>
+      <p>{c.revisionScope === "strategy" ? "A IA reavalia as opções disponíveis e pode sugerir outro benefício ou uma estratégia de comunicação. Você não precisa definir os valores. A nova proposta exige sua aprovação."
+        : "A IA prepara uma opção com desconto e orçamento menores, dentro dos limites da loja. A nova sugestão só pode ser aplicada depois da sua aprovação."}</p>
       <div className="strategy-review-actions"><button type="button" className="zyn-btn zyn-btn--ghost" disabled={disabled} onClick={() => setAlternative(false)}>Voltar à proposta</button>
         <button type="submit" className="zyn-btn zyn-btn--primary" disabled={disabled}>Solicitar nova sugestão</button></div>
     </form>}
