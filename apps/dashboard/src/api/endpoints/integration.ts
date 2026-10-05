@@ -36,6 +36,12 @@ export function integrationEndpoints(base: string, f: typeof fetch) {
       const API_TO_UI_TYPE: Record<string, string> = { shipping_free: "free_shipping" };
       return (raw ?? []).map((c: any) => {
         const apiType = c.discount_type ?? c.discountType ?? c.type ?? "percent";
+        const strategyIncentiveExecutionId = typeof c.strategy_incentive_execution_id === "string" && c.strategy_incentive_execution_id
+          ? c.strategy_incentive_execution_id : null;
+        const strategyIncentiveState = strategyIncentiveExecutionId
+          ? ["active", "scheduled", "capacity_reached", "ended", "closed", "paused", "unavailable"].includes(c.strategy_incentive_state)
+            ? c.strategy_incentive_state : "unavailable"
+          : null;
         return {
           id: c.id,
           code: c.code,
@@ -46,7 +52,11 @@ export function integrationEndpoints(base: string, f: typeof fetch) {
           usedCount: c.usages_count ?? c.usedCount ?? 0,
           startsAt: c.starts_at ?? c.startsAt ?? undefined,
           expiresAt: c.ends_at ?? c.expiresAt ?? undefined,
-          isActive: c.status === "active" || c.is_active === true || c.isActive === true,
+          status: c.status,
+          isActive: strategyIncentiveExecutionId ? strategyIncentiveState === "active" && c.status === "active"
+            : c.status === "active" || c.is_active === true || c.isActive === true,
+          strategyIncentiveExecutionId,
+          strategyIncentiveState,
           // keep legacy aliases so any other consumer still works
           type: API_TO_UI_TYPE[apiType] ?? apiType,
           value: c.discount_value ?? c.discountValue ?? c.value ?? 0,

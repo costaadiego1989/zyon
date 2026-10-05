@@ -8,6 +8,7 @@ import { StrategyIncentiveMetrics } from "./StrategyIncentiveMetrics.js";
 import { StrategyDiscountStudy } from "./StrategyDiscountStudy.js";
 import { StrategyIncentiveRecommendation } from "./StrategyIncentiveRecommendation.js";
 import { useStrategyReview } from "./useStrategyReview.js";
+import { incentiveBenefitLabel, validIncentiveTest } from "./incentive-recommendation-model.js";
 import { canReviewVersion, formatReviewDate as date, formatReviewNumber as number, REVISION_STATUSES, STRATEGY_STATUSES, versionExpired } from "./strategy-review-model.js";
 import "./strategy-review.css";
 
@@ -56,6 +57,8 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
   useEffect(() => { title.current?.focus(); }, []);
   const version = vm.review?.versions.find(v => v.version === vm.selectedVersion);
   const proposal = version?.proposal;
+  const incentive = proposal?.incentiveRecommendation;
+  const benefitLabel = incentive && validIncentiveTest(incentive) ? incentiveBenefitLabel(incentive.test) : undefined;
   const current = vm.review && version && vm.review.currentVersion === version.version;
   const expired = !!(vm.review && version && versionExpired(vm.review, version));
   const canDecide = !!(vm.review && version && canReviewVersion(vm.review, version) && !vm.busy && !vm.readError && !vm.pending);
@@ -104,7 +107,8 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
         <section className="strategy-detail-section"><h2>Limites comerciais considerados</h2>
           <dl className="strategy-measurement-facts"><div><dt>Margem mínima configurada</dt><dd>{number(proposal.rules.minimumMarginPercent)}%</dd></div>
             <div><dt>Teto de desconto configurado</dt><dd>{number(proposal.rules.maxDiscountPercent)}%</dd></div></dl>
-          <p>Esta proposta altera a comunicação. Não cria cupom, desconto ou frete grátis. Os limites acima são os registrados nesta versão; não autorizam uma oferta nem comprovam sua margem.</p>
+          <p>A aprovação da comunicação altera somente a conversa do checkout. Quando a análise inclui uma sugestão de desconto, cupom ou frete,
+            esse benefício tem valores e aprovação próprios na seção abaixo. Os limites comerciais não são alterados pela IA.</p>
         </section>
         <StrategyDiscountStudy study={proposal.discountStudy} />
         <StrategyIncentiveRecommendation key={`incentive:${merchantId}:${strategyId}:${version.version}`} recommendation={proposal.incentiveRecommendation}
@@ -114,7 +118,7 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
         <MeasurementDetails proposal={proposal} />
         {proposal.incentiveRecommendation?.status === "recommended" && <StrategyIncentiveMetrics
           key={`incentive-metrics:${merchantId}:${strategyId}:${version.version}`} strategyId={strategyId} version={version.version}
-          proposalHash={version.proposalHash} refreshToken={vm.review} />}
+          proposalHash={version.proposalHash} refreshToken={vm.review} benefitLabel={benefitLabel} />}
         <StrategyMetricsPanel key={`${merchantId}:${strategyId}:${version.version}:${vm.review.status}`} strategyId={strategyId} version={version.version} proposalHash={version.proposalHash} />
       </article>
       <section className="strategy-decision" aria-labelledby="strategy-decision-title">

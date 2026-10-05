@@ -11,6 +11,7 @@ import { showToast } from "../../components/Toast.js";
 import { StatCard } from "../overview/components/StatCard.js";
 import { CouponForm } from "./CouponForm.js";
 import { useCouponsPage } from "./useCouponsPage.js";
+import { couponMatchesStatusFilter, couponStatus, couponStatusLabels, type CouponStatusFilter } from "./coupon-status.js";
 import type { MerchantProfile } from "../../api-client.js";
 import "./coupons.css";
 export interface CouponsPageProps { apiBaseUrl: string; me: MerchantProfile | null; }
@@ -30,28 +31,15 @@ function formatDate(iso?: string): string {
   return Number.isNaN(date.getTime()) ? "Data inválida" : date.toLocaleDateString("pt-BR", { day: "2-digit", month: "2-digit", year: "numeric" });
 }
 
-function isExpiredCalendarDate(value?: string): boolean {
-  if (!value) return false;
-  const calendarDate = /^(\d{4})-(\d{2})-(\d{2})/.exec(value);
-  if (!calendarDate) return new Date(value) < new Date();
-  const [year, month, day] = calendarDate.slice(1).map(Number);
-  const expiryDay = new Date(year, month - 1, day);
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
-  return expiryDay < today;
-}
 export function CouponsPage(_props: CouponsPageProps) {
   const vm = useCouponsPage();
   const [page, setPage] = useState(1);
-  const [statusFilter, setStatusFilter] = useState<"all" | "active" | "expired" | "paused">("all");
+  const [statusFilter, setStatusFilter] = useState<CouponStatusFilter>("all");
   const [searchQuery, setSearchQuery] = useState("");
   const [deleteTarget, setDeleteTarget] = useState<{ id: string; code: string } | null>(null);
   const PAGE_SIZE = 10;
   const filteredCoupons = useMemo(() => {
-    let list = vm.coupons;
-    if (statusFilter === "active") list = list.filter((c) => c.isActive);
-    else if (statusFilter === "expired") list = list.filter((c) => isExpiredCalendarDate(c.expiresAt));
-    else if (statusFilter === "paused") list = list.filter((c) => !c.isActive);
+    let list = vm.coupons.filter(coupon => couponMatchesStatusFilter(coupon, statusFilter));
     if (searchQuery.trim()) {
       const q = searchQuery.toLowerCase();
       list = list.filter((c) => c.code.toLowerCase().includes(q));
@@ -79,24 +67,27 @@ export function CouponsPage(_props: CouponsPageProps) {
       {!vm.loading && vm.coupons.length > 0 && (
         <div style={{ display: "grid", gridTemplateColumns: "repeat(4, 1fr)", gap: 12, marginBottom: 20 }}>
           <StatCard label="Total de cupons" value={vm.coupons.length} icon={<Tag size={16} />} />
-          <StatCard label="Ativos" value={vm.coupons.filter(c => c.isActive).length} icon={<Play size={16} />} accent="var(--color-success)" />
+          <StatCard label="Ativos" value={vm.coupons.filter(c => couponStatus(c) === "active").length} icon={<Play size={16} />} accent="var(--color-success)" />
           <StatCard label="Total resgates" value={vm.coupons.reduce((sum, c) => sum + (c.usedCount || 0), 0)} icon={<TrendingUp size={16} />} />
           <StatCard label="Taxa de uso" value={`${vm.coupons.length > 0 ? Math.round((vm.coupons.filter(c => c.usedCount > 0).length / vm.coupons.length) * 100) : 0}%`} icon={<Percent size={16} />} accent="var(--color-warning)" />
         </div>
       )}
 
     <DataPanel title="Lista de cupons" page={currentPage} pageSize={PAGE_SIZE} total={vm.loading || vm.loadError ? 0 : filteredCoupons.length} onPageChange={setPage}>
-      <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "active", label: "Ativos" }, { key: "paused", label: "Pausados" }, { key: "expired", label: "Expirados" }]} activeTab={statusFilter} onTabChange={key => { setStatusFilter(key as typeof statusFilter); setPage(1); }} search={searchQuery} onSearchChange={value => { setSearchQuery(value); setPage(1); }} searchPlaceholder="Buscar código do cupom" />
+      <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "active", label: "Ativos" }, { key: "paused", label: "Sem novas ofertas" }, { key: "expired", label: "Encerrados" }]} activeTab={statusFilter} onTabChange={key => { setStatusFilter(key as typeof statusFilter); setPage(1); }} search={searchQuery} onSearchChange={value => { setSearchQuery(value); setPage(1); }} searchPlaceholder="Buscar código do cupom" />
       {vm.loading ? <p className="coupons-state" role="status">Carregando cupons…</p> : vm.loadError ? <EmptyState icon={Tag} title="Não foi possível carregar os cupons" description={vm.loadError} action={<Button variant="outline" onClick={() => void vm.reload()}>Tentar novamente</Button>} /> : filteredCoupons.length === 0 ? <EmptyState icon={Tag} title={hasFilters ? "Nenhum cupom encontrado" : "Crie seu primeiro cupom"} description={hasFilters ? "Tente outro código ou limpe os filtros para ver os cupons da loja." : "Ofereça um benefício aos clientes e compartilhe o código nas suas campanhas."} action={<Button variant={hasFilters ? "outline" : "primary"} onClick={hasFilters ? clearFilters : vm.openForm}>{hasFilters ? "Limpar filtros" : "Criar cupom"}</Button>} /> : <div className="coupons-list">
         {paginatedCoupons.map(coupon => <article key={coupon.id} className="coupon-row" aria-label={"Cupom " + coupon.code}>
-          <div className="coupon-row__heading"><div className="coupon-row__identity"><h2>{coupon.code}</h2><span className="coupon-row__status" data-active={coupon.isActive}>{coupon.isActive ? "Ativo" : "Pausado"}</span></div>
+          <div className="coupon-row__heading"><div className="coupon-row__identity"><h2>{coupon.code}</h2><span className="coupon-row__status" data-active={couponStatus(coupon) === "active"}>{couponStatusLabels[couponStatus(coupon)]}</span></div>
             <div className="coupon-row__actions">
-              <Button variant="outline" size="sm" disabled={!!vm.mutatingId} loading={vm.mutatingId === coupon.id} onClick={() => void vm.handleToggleActive(coupon.id, coupon.isActive)} aria-label={(coupon.isActive ? "Pausar cupom " : "Ativar cupom ") + coupon.code}>{coupon.isActive ? <Pause size={14} /> : <Play size={14} />}{coupon.isActive ? "Pausar" : "Ativar"}</Button>
+              {coupon.strategyIncentiveExecutionId ? <a className="zyn-btn zyn-btn--outline zyn-btn--sm" href="#revenue-manager">Ver estratégias da IA</a>
+                : <Button variant="outline" size="sm" disabled={!!vm.mutatingId} loading={vm.mutatingId === coupon.id} onClick={() => void vm.handleToggleActive(coupon.id, coupon.isActive)} aria-label={(coupon.isActive ? "Pausar cupom " : "Ativar cupom ") + coupon.code}>{coupon.isActive ? <Pause size={14} /> : <Play size={14} />}{coupon.isActive ? "Pausar" : "Ativar"}</Button>}
               <Button variant="ghost" size="sm" onClick={() => void copyCode(coupon.code)} aria-label={"Copiar código " + coupon.code}><Copy size={14} /> Copiar</Button>
-              <Button variant="ghost" size="sm" disabled={!!vm.mutatingId} onClick={() => { vm.clearDeleteError(); setDeleteTarget({ id: coupon.id, code: coupon.code }); }} aria-label={"Arquivar cupom " + coupon.code}><Trash2 size={14} /> Arquivar</Button>
+              {!coupon.strategyIncentiveExecutionId && <Button variant="ghost" size="sm" disabled={!!vm.mutatingId} onClick={() => { vm.clearDeleteError(); setDeleteTarget({ id: coupon.id, code: coupon.code }); }} aria-label={"Arquivar cupom " + coupon.code}><Trash2 size={14} /> Arquivar</Button>}
             </div>
           </div>
-          <dl className="coupon-row__details"><div><dt>Benefício</dt><dd>{formatDiscount(coupon.discountType, coupon.discountValue)}</dd></div><div><dt>Resgates</dt><dd>{coupon.usedCount ?? 0}{coupon.maxUses ? " de " + coupon.maxUses : " · sem limite"}</dd></div><div><dt>Validade</dt><dd>{coupon.startsAt ? "De " + formatDate(coupon.startsAt) : "Sem início definido"}<br />{coupon.expiresAt ? "Até " + formatDate(coupon.expiresAt) : "Sem data final"}</dd></div></dl>
+          {coupon.strategyIncentiveExecutionId && <p className="coupon-row__management">Gerenciado pela estratégia de IA. Aplicado automaticamente apenas aos compradores elegíveis do teste.
+            O código não libera o benefício para outros compradores. Consulte os limites, os resultados ou interrompa o teste em Otimização com IA.</p>}
+          <dl className="coupon-row__details"><div><dt>Benefício</dt><dd>{formatDiscount(coupon.discountType, coupon.discountValue)}</dd></div><div><dt>Resgates</dt><dd>{coupon.strategyIncentiveExecutionId ? "Consulte os resultados da estratégia" : <>{coupon.usedCount ?? 0}{coupon.maxUses ? " de " + coupon.maxUses : " · sem limite"}</>}</dd></div><div><dt>Validade</dt><dd>{coupon.startsAt ? "De " + formatDate(coupon.startsAt) : "Sem início definido"}<br />{coupon.expiresAt ? "Até " + formatDate(coupon.expiresAt) : "Sem data final"}</dd></div></dl>
         </article>)}
       </div>}
     </DataPanel>

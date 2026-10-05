@@ -1,10 +1,14 @@
 import { useCallback, useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
+import { DashboardHttpError } from "../../api/http/error.js";
 export interface Coupon {
   id: string; code: string; discountType: "percent" | "fixed" | "free_shipping"; discountValue: number;
   minCartValue?: number; maxUses?: number; usedCount: number; startsAt?: string; expiresAt?: string;
   productId?: string; categoryId?: string; isActive: boolean; createdAt: string;
+  strategyIncentiveExecutionId?: string | null;
+  status?: string;
+  strategyIncentiveState?: "active" | "scheduled" | "capacity_reached" | "ended" | "closed" | "paused" | "unavailable" | null;
 }
 export interface CreateCouponForm {
   code: string; discountType: Coupon["discountType"]; discountValue: string;
@@ -18,6 +22,14 @@ function todayDate(): string {
   return `${year}-${month}-${day}`;
 }
 const defaultForm = (): CreateCouponForm => ({ code: "", discountType: "percent", discountValue: "10", minCartValue: "", maxUses: "", startsAt: todayDate(), expiresAt: "" });
+const managedMessage = "Este cupom é gerenciado pela estratégia de IA. Consulte ou interrompa o teste em Otimização com IA.";
+function isManagedCouponError(error: unknown) {
+  if (!(error instanceof DashboardHttpError)) return false;
+  try {
+    const body = JSON.parse(error.responseBody);
+    return body.code === "COUPON_MANAGED_BY_STRATEGY" || body.message === "COUPON_MANAGED_BY_STRATEGY";
+  } catch { return false; }
+}
 export function useCouponsPage() {
   const api = useApi();
   const [coupons, setCoupons] = useState<Coupon[]>([]);
@@ -83,22 +95,24 @@ export function useCouponsPage() {
   }
   async function handleDelete(id: string): Promise<boolean> {
     if (mutatingId) return false;
+    if (coupons.some(coupon => coupon.id === id && coupon.strategyIncentiveExecutionId)) { setDeleteError(managedMessage); return false; }
     setMutatingId(id); setDeleteError(null);
     try {
       await api.deleteCoupon(id);
       setCoupons(previous => previous.filter(coupon => coupon.id !== id));
       showToast("success", "Cupom arquivado"); return true;
-    } catch { setDeleteError("Não foi possível arquivar o cupom. Tente novamente."); return false; }
+    } catch (error) { setDeleteError(isManagedCouponError(error) ? managedMessage : "Não foi possível arquivar o cupom. Tente novamente."); return false; }
     finally { setMutatingId(null); }
   }
   async function handleToggleActive(id: string, currentlyActive: boolean) {
     if (mutatingId) return;
+    if (coupons.some(coupon => coupon.id === id && coupon.strategyIncentiveExecutionId)) { showToast("error", managedMessage); return; }
     setMutatingId(id);
     try {
       await api.toggleCoupon(id, !currentlyActive);
       setCoupons(previous => previous.map(coupon => coupon.id === id ? { ...coupon, isActive: !currentlyActive } : coupon));
       showToast("success", currentlyActive ? "Cupom pausado" : "Cupom ativado");
-    } catch { showToast("error", "Não foi possível alterar o status do cupom. Tente novamente."); }
+    } catch (error) { showToast("error", isManagedCouponError(error) ? managedMessage : "Não foi possível alterar o status do cupom. Tente novamente."); }
     finally { setMutatingId(null); }
   }
   return { coupons, loading, loadError, reload: loadCoupons, creating, showForm, form, fieldErrors, validationAttempt, formError, patch, generateCode,
