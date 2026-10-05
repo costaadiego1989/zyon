@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
+import { RealtimeVoiceInput, RealtimeVoiceResponses, VOICE_MICROPHONE_CONSTRAINTS, type VoiceInputEvent } from "@zyon/shared-types";
 
 export type RealtimeVoiceTurnResult = { agentMessage: string; cart?: { itemCount: number; total: number } };
 type ClientSecret = { value: string; expires_at?: number };
@@ -7,11 +8,14 @@ type Options = {
   createSession: () => Promise<ClientSecret>;
   onCommerceTurn: (buyerMessage: string, action: "commerce" | "add_item_to_cart") => Promise<RealtimeVoiceTurnResult>;
   onBeginCheckout: () => Promise<RealtimeVoiceTurnResult>;
+  getContext?: () => Promise<{ instructions: string }>;
+  contextKey?: string;
+  ready?: boolean;
 };
 export type RealtimeVoiceCheckoutState = { connecting: boolean; connected: boolean; listening: boolean; speaking: boolean; unsupported: boolean; hint: string; start: () => void; stop: () => void; toggle: () => void };
-type EventPayload = { type?: string; item?: { type?: string; name?: string; call_id?: string; arguments?: string }; delta?: string };
+type EventPayload = VoiceInputEvent & { item?: { type?: string; name?: string; call_id?: string; arguments?: string }; delta?: string };
 
-export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTurn, onBeginCheckout }: Options): RealtimeVoiceCheckoutState {
+export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTurn, onBeginCheckout, getContext, contextKey, ready = true }: Options): RealtimeVoiceCheckoutState {
   const [connecting, setConnecting] = useState(false);
   const [connected, setConnected] = useState(false);
   const [listening, setListening] = useState(false);
@@ -25,10 +29,17 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
   const handled = useRef(new Set<string>());
   const starting = useRef(false);
   const connectionAttempt = useRef(0);
+  const inputTurns = useRef(new RealtimeVoiceInput());
+  const responses = useRef<RealtimeVoiceResponses | null>(null);
+  const contextRef = useRef(getContext);
+  const contextQueue = useRef<Promise<void>>(Promise.resolve());
+  const readyRef = useRef(ready);
+  const lastContextKey = useRef<string | undefined>(undefined);
   const sessionRef = useRef(createSession);
   const commerceRef = useRef(onCommerceTurn);
   const checkoutRef = useRef(onBeginCheckout);
   sessionRef.current = createSession; commerceRef.current = onCommerceTurn; checkoutRef.current = onBeginCheckout;
+  contextRef.current = getContext; readyRef.current = ready;
 
   const stop = useCallback(() => {
     connectionAttempt.current += 1;
@@ -45,12 +56,41 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
       audio.remove();
     }
     audioRef.current = null; handled.current.clear();
+    inputTurns.current = new RealtimeVoiceInput(); responses.current = null; contextQueue.current = Promise.resolve();
+    lastContextKey.current = undefined;
     setConnecting(false); setConnected(false); setListening(false); setSpeaking(false);
     setHint(enabled ? "Voz pausada. Toque para retomar." : "Ative a voz para começar.");
   }, [enabled]);
 
+  const refreshContext = useCallback(() => {
+    const channel = channelRef.current;
+    const task = contextQueue.current.catch(() => {}).then(async () => {
+      if (!contextRef.current || channel !== channelRef.current || channel?.readyState !== "open") return;
+      const context = await contextRef.current();
+      if (channel !== channelRef.current || channel.readyState !== "open") return;
+      channel.send(JSON.stringify({ type: "session.update", session: { type: "realtime", instructions: context.instructions } }));
+    });
+    contextQueue.current = task;
+    return task;
+  }, []);
+
   const onEvent = useCallback(async (event: EventPayload) => {
     const sourceChannel = channelRef.current;
+    responses.current?.receive(event.type);
+    const decision = inputTurns.current.receive(event);
+    if (decision) {
+      if (decision.kind !== "speech") {
+        sourceChannel?.send(JSON.stringify({ type: "conversation.item.delete", item_id: decision.itemId }));
+        setListening(false);
+        setHint(decision.kind === "failed" ? "Não entendi esse trecho. Pode repetir ou digitar." : "Pode falar quando quiser.");
+        return;
+      }
+      try { await refreshContext(); }
+      catch { stop(); setHint("Não consegui atualizar sua compra por voz. Continue pelo chat ou tente retomar."); return; }
+      if (channelRef.current !== sourceChannel) return;
+      responses.current?.request(true);
+      return;
+    }
     if (event.type === "input_audio_buffer.speech_started") { setListening(true); setSpeaking(false); setHint("Estou ouvindo..."); return; }
     if (event.type === "input_audio_buffer.speech_stopped") { setListening(false); setHint("Entendendo seu pedido..."); return; }
     if (event.type === "response.output_audio_transcript.delta" && event.delta) { setSpeaking(true); setHint("Estou respondendo..."); return; }
@@ -83,18 +123,21 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     }
     const channel = channelRef.current;
     if (channel !== sourceChannel || channel?.readyState !== "open") return;
+    try { await refreshContext(); }
+    catch { stop(); setHint("Sua compra foi atualizada no chat. Toque para retomar a voz."); return; }
+    if (channelRef.current !== sourceChannel || channel.readyState !== "open") return;
     channel.send(JSON.stringify({ type: "conversation.item.create", item: { type: "function_call_output", call_id: callId, output: JSON.stringify(output) } }));
-    channel.send(JSON.stringify({ type: "response.create" }));
-  }, []);
+    responses.current?.request();
+  }, [refreshContext, stop]);
 
   const start = useCallback(() => {
-    if (!enabled || starting.current || peerRef.current) return;
+    if (!enabled || !readyRef.current || starting.current || peerRef.current) return;
     const attempt = ++connectionAttempt.current;
     void (async () => {
       if (!window.RTCPeerConnection || !navigator.mediaDevices?.getUserMedia) { setUnsupported(true); setHint("Este navegador não suporta a compra por voz. Use o chat para continuar."); return; }
       starting.current = true; setConnecting(true); setHint("Conectando sua voz com segurança...");
       try {
-        const stream = await navigator.mediaDevices.getUserMedia({ audio: true });
+        const stream = await navigator.mediaDevices.getUserMedia(VOICE_MICROPHONE_CONSTRAINTS);
         if (attempt !== connectionAttempt.current) { stream.getTracks().forEach(track => track.stop()); return; }
         streamRef.current = stream;
         const secret = await sessionRef.current();
@@ -115,8 +158,19 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
         };
         stream.getTracks().forEach((track) => peer.addTrack(track, stream));
         const channel = peer.createDataChannel("oai-events"); channelRef.current = channel;
+        responses.current = new RealtimeVoiceResponses(event => {
+          if (channelRef.current === channel && channel.readyState === "open") channel.send(JSON.stringify(event));
+        });
         channel.addEventListener("message", (message) => { if (attempt !== connectionAttempt.current) return; try { void onEvent(JSON.parse(message.data) as EventPayload); } catch { /* ignore */ } });
-        channel.addEventListener("open", () => { if (attempt !== connectionAttempt.current) return; setConnected(true); setConnecting(false); setHint("Conectada. Vou começar seu resumo."); channel.send(JSON.stringify({ type: "response.create" })); });
+        channel.addEventListener("open", () => {
+          void (async () => {
+            if (attempt !== connectionAttempt.current) return;
+            try { await refreshContext(); }
+            catch { if (attempt === connectionAttempt.current) { stop(); setHint("Não consegui atualizar a etapa do pedido. Tente retomar a voz."); } return; }
+            if (attempt !== connectionAttempt.current) return;
+            setConnected(true); setConnecting(false); setHint("Conectada. Vou continuar seu pedido."); responses.current?.request();
+          })();
+        });
         channel.addEventListener("close", () => { if (peerRef.current === peer) stop(); });
         peer.addEventListener("connectionstatechange", () => { if (["failed", "closed", "disconnected"].includes(peer.connectionState) && peerRef.current === peer) stop(); });
         const offer = await peer.createOffer();
@@ -138,7 +192,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
         stop(); setHint(voiceErrorHint(error));
       } finally { if (attempt === connectionAttempt.current) { starting.current = false; setConnecting(false); } }
     })();
-  }, [enabled, onEvent, stop]);
+  }, [enabled, onEvent, refreshContext, stop]);
   const resumeAudio = useCallback(() => {
     const audio = audioRef.current;
     if (!audio?.srcObject || !audio.paused) return false;
@@ -156,6 +210,12 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     start();
   }, [connecting, resumeAudio, start, stop]);
   useEffect(() => { if (!enabled) stop(); }, [enabled, stop]);
+  useEffect(() => {
+    if (!connected || !ready) return;
+    if (lastContextKey.current !== undefined && lastContextKey.current !== contextKey) responses.current?.interrupt();
+    lastContextKey.current = contextKey;
+    void refreshContext().catch(() => { stop(); setHint("Não consegui atualizar a etapa do pedido. Tente retomar a voz."); });
+  }, [connected, contextKey, ready, refreshContext, stop]);
   useEffect(() => () => stop(), [stop]);
   return { connecting, connected, listening, speaking, unsupported, hint, start, stop, toggle };
 }

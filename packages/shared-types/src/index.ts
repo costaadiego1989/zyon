@@ -1488,3 +1488,4 @@ export * from "./billing-offers.js";
 export { NEUMORPHIC_THEME, merchantThemeTokens, type MerchantThemeAppearance } from "./merchant-theme.js";
 
 export { checkoutEditIntent, type CheckoutEditSection } from "./checkout-edit-intent.js";
+export { VOICE_MICROPHONE_CONSTRAINTS, RealtimeVoiceInput, RealtimeVoiceResponses, type VoiceInputEvent } from "./realtime-voice-input.js";

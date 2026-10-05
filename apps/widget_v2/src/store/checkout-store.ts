@@ -277,6 +277,7 @@ interface CheckoutState {
   voiceEnabled: boolean;
   oneBuyClickPreferences: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } | null;
   quickPurchaseStarted: boolean;
+  quickPurchaseApplying: boolean;
   leadRegistered: boolean;
   pendingPayment: PendingPayment | null;
 
@@ -527,6 +528,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   voiceEnabled: false,
   oneBuyClickPreferences: null,
   quickPurchaseStarted: false,
+  quickPurchaseApplying: false,
   leadRegistered: false,
   pendingPayment: null,
 
@@ -535,7 +537,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       get().stopPolling();
       set({ api, status: "loading", chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
-        pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false });
+        pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false, quickPurchaseApplying: false });
 
       const response = await api.start();
       if (get().api !== api) return;
@@ -690,53 +692,56 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   startQuickPurchase: async () => {
     const { api, cart, buyer, oneBuyClickPreferences, quickPurchaseStarted } = get();
     if (!api || !oneBuyClickPreferences || quickPurchaseStarted || get().cartUpdating || get().paymentCreating) return;
-    set({ quickPurchaseStarted: true });
-
-    if (cart.items.length === 0) {
-      set((state) => ({
-        messages: [...state.messages, {
-          id: `quick_purchase_empty_${Date.now()}`,
-          role: "agent",
-          text: "Seu carrinho está vazio. Escolha um produto para usar a compra rápida.",
-          timestamp: Date.now(),
-        }],
-      }));
-      return;
-    }
-
-    const hasCompleteAddress = Boolean(buyer.address?.zip && buyer.address.street && buyer.address.number && buyer.address.city && buyer.address.state);
-    if (!hasCompleteAddress) {
-      await get().sendMessage("Vamos prosseguir");
-      return;
-    }
-
-    set((state) => ({
-      messages: [...state.messages, {
-        id: `quick_purchase_start_${Date.now()}`,
-        role: "agent",
-        text: `Aplicando sua preferência de frete ${oneBuyClickPreferences.shippingPreference === "cheapest" ? "mais econômico" : "mais rápido"} e pagamento por ${oneBuyClickPreferences.paymentPreference === "pix" ? "Pix" : "cartão"}.`,
-        timestamp: Date.now(),
-      }],
-    }));
-
-    if (!cart.shipping) {
-      let option: ShippingOption | undefined;
-      try {
-        option = chooseQuickPurchaseShipping(
-          await api.fetchShippingQuote(buyer.address?.zip),
-          oneBuyClickPreferences.shippingPreference,
-        );
-      } catch {
-        option = undefined;
+    set({ quickPurchaseStarted: true, quickPurchaseApplying: true });
+    try {
+      if (cart.items.length === 0) {
+        set((state) => ({
+          messages: [...state.messages, {
+            id: `quick_purchase_empty_${Date.now()}`,
+            role: "agent",
+            text: "Seu carrinho está vazio. Escolha um produto para usar a compra rápida.",
+            timestamp: Date.now(),
+          }],
+        }));
+        return;
       }
-      const shippingSelected = option ? await get().selectShipping(option) : false;
-      if (!shippingSelected) {
+
+      const hasCompleteAddress = Boolean(buyer.address?.zip && buyer.address.street && buyer.address.number && buyer.address.city && buyer.address.state);
+      if (!hasCompleteAddress) {
         await get().sendMessage("Vamos prosseguir");
         return;
       }
-    }
 
-    await get().pay(oneBuyClickPreferences.paymentPreference === "pix" ? "pix" : "credito");
+      set((state) => ({
+        messages: [...state.messages, {
+          id: `quick_purchase_start_${Date.now()}`,
+          role: "agent",
+          text: `Aplicando sua preferência de frete ${oneBuyClickPreferences.shippingPreference === "cheapest" ? "mais econômico" : "mais rápido"} e pagamento por ${oneBuyClickPreferences.paymentPreference === "pix" ? "Pix" : "cartão"}.`,
+          timestamp: Date.now(),
+        }],
+      }));
+
+      if (!cart.shipping) {
+        let option: ShippingOption | undefined;
+        try {
+          option = chooseQuickPurchaseShipping(
+            await api.fetchShippingQuote(buyer.address?.zip),
+            oneBuyClickPreferences.shippingPreference,
+          );
+        } catch {
+          option = undefined;
+        }
+        const shippingSelected = option ? await get().selectShipping(option) : false;
+        if (!shippingSelected) {
+          await get().sendMessage("Vamos prosseguir");
+          return;
+        }
+      }
+
+      await get().pay(oneBuyClickPreferences.paymentPreference === "pix" ? "pix" : "credito");
+    } finally {
+      set({ quickPurchaseApplying: false });
+    }
   },
 
   completeFormField: (field) => {

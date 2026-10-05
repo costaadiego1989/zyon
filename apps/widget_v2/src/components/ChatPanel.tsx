@@ -40,6 +40,9 @@ export function ChatPanel() {
   const pay = useCheckoutStore((s) => s.pay);
   const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
+  const quickPurchaseApplying = useCheckoutStore((s) => s.quickPurchaseApplying);
+  const quickPurchaseStarted = useCheckoutStore((s) => s.quickPurchaseStarted);
+  const oneBuyClickPreferences = useCheckoutStore((s) => s.oneBuyClickPreferences);
   const cart = useCheckoutStore((s) => s.cart);
   const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
   const continueVoiceCheckout = useCheckoutStore((s) => s.continueVoiceCheckout);
@@ -51,6 +54,8 @@ export function ChatPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const wasRecovering = useRef(false);
   const voiceAutoStartedRef = useRef(false);
+  const voiceReady = !isTyping && !paymentCreating && !quickPurchaseApplying && (!oneBuyClickPreferences || quickPurchaseStarted);
+  const voiceContextKey = `${paymentIntent?.intent_id ?? ""}:${cart.status}:${cart.shipping?.key ?? ""}:${cart.totalToPay ?? cart.total}:${messages.at(-1)?.id ?? ""}`;
 
   useEffect(() => {
     if (wasRecovering.current && !chatRecovery) inputRef.current?.focus();
@@ -59,6 +64,12 @@ export function ChatPanel() {
 
   const voice = useRealtimeVoiceCheckout({
     enabled: channel === "voice" && !chatRecovery,
+    ready: voiceReady,
+    contextKey: voiceContextKey,
+    getContext: async () => {
+      if (!api) throw new Error("checkout_session_missing");
+      return api.realtimeVoiceContext();
+    },
     createSession: async () => {
       if (!api) throw new Error("checkout_session_missing");
       return api.createRealtimeVoiceSession();
@@ -93,10 +104,10 @@ export function ChatPanel() {
       return;
     }
     if (chatRecovery) { voiceAutoStartedRef.current = true; return; }
-    if (voiceAutoStartedRef.current) return;
+    if (voiceAutoStartedRef.current || !voiceReady) return;
     voiceAutoStartedRef.current = true;
     voice.start();
-  }, [channel, chatRecovery, voice.start]);
+  }, [channel, chatRecovery, voiceReady, voice.start]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });

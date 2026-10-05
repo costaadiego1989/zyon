@@ -501,6 +501,18 @@ export class CheckoutSession {
     return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
   }
 
+  async realtimeVoiceContext(): Promise<{ instructions: string }> {
+    this.assertSession();
+    if (this.requiresChatRecovery) throw new ChatRecoveryRequired();
+    const res = await fetch(`${this.embedBaseUrl}/embed/realtime/context`, {
+      method: "POST", headers: this.headers(), body: JSON.stringify({ session_id: this.sessionId }),
+    });
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_realtime_context", res);
+    const data = await res.json() as { instructions?: unknown };
+    if (typeof data.instructions !== "string" || !data.instructions.trim()) throw new Error("invalid_realtime_context");
+    return { instructions: data.instructions };
+  }
+
   async updateCartItemQty(sku: string, quantity: number, variant?: string): Promise<StartResponse> {
     return this.updateCart([{ sku, quantity, variant }]);
   }
