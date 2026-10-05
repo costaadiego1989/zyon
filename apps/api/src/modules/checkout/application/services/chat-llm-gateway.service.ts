@@ -1,4 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
+import { providerRequestOptions } from "../../../../shared/llm/provider-request-options.js";
 import { assertCheckoutChatBaseline, checkoutContractHash, type CheckoutChatBaseline } from "../../domain/services/checkout-chat-baseline.js";
 import { checkoutChatProviders, CHECKOUT_CHAT_SAMPLING } from "../../infrastructure/adapters/checkout-chat-provider.js";
 import { checkoutChatTools, buildCheckoutChatPrompt, buildBuyerIntentContext,
@@ -47,7 +48,8 @@ export class ChatLlmGatewayService {
       const response = await fetch(route.url, {
         method: "POST", redirect: "error",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${route.key}` },
-        body: JSON.stringify({ model: route.model, messages, tools: baseline.tools, ...baseline.sampling }),
+        body: JSON.stringify({ model: route.model, messages, tools: baseline.tools, ...baseline.sampling,
+          ...providerRequestOptions(route.url, route.model) }),
         signal: controller.signal,
       });
       if (!response.ok) {
@@ -95,7 +97,7 @@ export class ChatLlmGatewayService {
       const res = await fetch(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
-        body: JSON.stringify({ model, messages, tools, ...CHECKOUT_CHAT_SAMPLING }),
+        body: JSON.stringify({ model, messages, tools, ...CHECKOUT_CHAT_SAMPLING, ...providerRequestOptions(url, model) }),
         signal: controller.signal,
       });
       clearTimeout(timer);

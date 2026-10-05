@@ -48,6 +48,32 @@ test("configuration, tenant and captured program drift never sends a request", a
   assert.equal(requests.length, 0);
 });
 
+test("current DeepSeek route supports pinned and regular tool turns without reasoning history", async () => {
+  process.env.CHECKOUT_LLM_PROVIDER = "openrouter";
+  process.env.OPENROUTER_BASE_URL = "https://api.deepseek.com/v1";
+  process.env.OPENROUTER_MODEL = "legacy-other-module";
+  process.env.CHECKOUT_LLM_MODEL = "deepseek-flash";
+  const captured = baseline(), gateway = new ChatLlmGatewayService();
+  const tool = { id: "call_fixture", type: "function", function: { name: captured.tools[0].function.name, arguments: "{}" } };
+  const usage = { prompt_tokens: 120, completion_tokens: 10, total_tokens: 130 };
+  answer = async () => Response.json({ model: "deepseek-flash", id: "fixture-event", usage,
+    choices: [{ finish_reason: "tool_calls", message: { role: "assistant", content: null, tool_calls: [tool] } }] });
+  const result = await gateway.callPinned("store", captured, [{ role: "user", content: "Ajuda" }]);
+  assert.equal(result.outcome, "provider_completed");
+  assert.deepEqual(result.usage, usage);
+  assert.deepEqual((await gateway.call([], captured.tools))?.toolCalls, [tool]);
+  assert.equal(requests.length, 2);
+  for (const request of requests) {
+    const body = JSON.parse(String(request.init.body));
+    assert.deepEqual(body.thinking, { type: "disabled" });
+    assert.equal(body.model, captured.provider.model);
+    assert.deepEqual(body.tools, captured.tools);
+  }
+  process.env.CHECKOUT_LLM_MODEL = "deepseek-v4-pro";
+  assert.equal((await gateway.callPinned("store", captured, [])).outcome, "provider_not_dispatched");
+  assert.equal(requests.length, 2);
+});
+
 test("pinned token evidence is preserved for usable and unusable content without inventing counts", async () => {
   const gateway = new ChatLlmGatewayService(), captured = baseline();
   const usage = { prompt_tokens: 120, completion_tokens: 30, total_tokens: 150 };

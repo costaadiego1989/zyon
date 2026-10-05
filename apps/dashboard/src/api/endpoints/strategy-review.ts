@@ -16,7 +16,7 @@ export interface StrategyProposal {
   execution: "unavailable";
   expectedLiftStatus: "model_estimate_not_measured";
   incentiveRecommendation?: {
-    definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2";
+    definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2" | "weekly-incentive-recommendation-v3";
     planning?: {
       definition: "incentive-fixed-horizon-planning-v1";
       baseline: { buyers: number; conversions: number; complete: boolean; windowStart: string; windowEnd: string };
@@ -32,7 +32,9 @@ export interface StrategyProposal {
     status: "recommended" | "not_recommended";
     reason?: "no_safe_candidate" | "financial_policy_disabled";
     test?: {
-      kind: "capped_percentage_discount"; currency: "BRL";
+      kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount"; currency: "BRL";
+      fixedDiscountCents?: number; shippingDiscountCents?: number;
+      delivery?: { mode: "automatic" } | { mode: "coupon_code"; code: string };
       audience: { intent: string; consent: "required"; identity: "first_eligible_session_per_buyer";
         holdout: "excluded"; minCartTotalCents: number; maxCartTotalCents: number };
       discountPercent: number; maxDiscountCents: number; limitCents: number; maxRedemptions: number;
@@ -43,7 +45,13 @@ export interface StrategyProposal {
     };
   };
   discountStudy?: {
-    definition: "weekly-discount-study-v1";
+    definition: "weekly-discount-study-v1" | "weekly-discount-study-v2";
+    commercialCandidate?: null | {
+      kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount";
+      maxDiscountCents: number; delivery: "automatic" | "coupon_code";
+      evidence: { basis: "percentage_discount_replay" | "similar_cart_values" | "observed_shipping_burden";
+        sampleSize: number; minShippingCents?: number; maxShippingCents?: number; maxShippingCostCents?: number };
+    };
     asOf: string; capturedAt: string; lookbackDays: 28;
     approvalScope: "communication_only"; commercialBudget: "not_reserved";
     status: "candidate_available" | "no_safe_candidate";

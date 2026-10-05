@@ -1321,6 +1321,8 @@ model LoginAttemptCounter {
 model Coupon {
   id                       String    @id
   merchantId               String    @map("merchant_id")
+  strategyIncentiveExecutionId String? @unique @map("strategy_incentive_execution_id")
+  strategyIncentiveExecution StrategyIncentiveExecution? @relation(fields: [strategyIncentiveExecutionId, merchantId], references: [id, merchantId], onDelete: Restrict)
   code                     String
   discountType             String    @map("discount_type")
   discountValue            Decimal   @map("discount_value") @db.Decimal(12, 4)
@@ -4033,6 +4035,7 @@ model StrategyIncentiveExecution {
   startedAt DateTime @map("started_at")
   endsAt DateTime @map("ends_at")
   createdAt DateTime @default(now()) @map("created_at")
+  coupons Coupon[]
   @@unique([strategyId, merchantId])
   @@unique([id, merchantId])
   @@index([merchantId, endsAt])

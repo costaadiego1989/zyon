@@ -98,6 +98,14 @@ const BASE_INPUT = {
   merchantRules: PERMISSIVE_RULES,
 };
 
+it("a strategy coupon cannot bypass audience, assignment and budget through the ordinary coupon path", async () => {
+  const { couponRepo, outbox, useCase } = makeSetup();
+  const normal = CouponEntity.create(makeCouponInput());
+  await couponRepo.save(CouponEntity.rehydrate({ ...normal.snapshot(), strategy_incentive_execution_id: "execution-1" }));
+  await assert.rejects(useCase.execute(BASE_INPUT), /COUPON_STRATEGY_CHECKOUT_REQUIRED/);
+  assert.equal(outbox.listOutbox("mrc_1").length, 0);
+});
+
 it("shipping coupon enforces known costs and subsidy limits before reserving usage", async () => {
   for (const scenario of ["missing_cost", "excess_subsidy", "margin_floor"] as const) {
     const { couponRepo, outbox, useCase } = makeSetup();

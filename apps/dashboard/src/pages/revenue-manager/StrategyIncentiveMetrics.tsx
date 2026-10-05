@@ -2,14 +2,15 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import type { IncentiveMetrics } from "../../api/endpoints/incentive-metrics.js";
 import { formatReviewDate as date, formatReviewNumber as number } from "./strategy-review-model.js";
+import type { IncentiveBenefitLabel } from "./incentive-recommendation-model.js";
 
 const states: Record<string, string> = { collecting: "Coletando resultados", awaiting_maturity: "Aguardando as últimas compras",
   positive: "Melhora de conversão observada", negative: "Queda de conversão observada", inconclusive: "Sem conclusão de melhora",
   invalid: "Teste interrompido ou dados insuficientes para uma conclusão válida", not_started: "Teste ainda não iniciado" };
 const money = (value: number) => (value / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 
-export function StrategyIncentiveMetrics({ strategyId, version, proposalHash, refreshToken }: {
-  strategyId: string; version: number; proposalHash: string; refreshToken: unknown;
+export function StrategyIncentiveMetrics({ strategyId, version, proposalHash, refreshToken, benefitLabel = "desconto" }: {
+  strategyId: string; version: number; proposalHash: string; refreshToken: unknown; benefitLabel?: IncentiveBenefitLabel;
 }) {
   const api = useApi(), generation = useRef(0), lock = useRef(false);
   const [data, setData] = useState<IncentiveMetrics | null>(null), [error, setError] = useState(false), [busy, setBusy] = useState(false);
@@ -31,15 +32,15 @@ export function StrategyIncentiveMetrics({ strategyId, version, proposalHash, re
   const result = data?.measurement;
   if (data && !data.execution && !error) return null;
   return <section className="strategy-detail-section strategy-metrics" aria-labelledby="incentive-results-title">
-    <h2 id="incentive-results-title">Resultados do teste de desconto</h2>
-    {error && <p role="alert" className="strategy-review-error">Não foi possível atualizar os resultados do desconto.{data ? " Os últimos dados disponíveis foram preservados." : ""}</p>}
-    {!data && !error && <p role="status">Carregando os resultados do desconto…</p>}
+    <h2 id="incentive-results-title">Resultados do teste de {benefitLabel}</h2>
+    {error && <p role="alert" className="strategy-review-error">Não foi possível atualizar os resultados do {benefitLabel}.{data ? " Os últimos dados disponíveis foram preservados." : ""}</p>}
+    {!data && !error && <p role="status">Carregando os resultados do {benefitLabel}…</p>}
     {result && <>
       <h3>{states[result.state] ?? "Resultado indisponível"}</h3>
-      <p>Dados de {date(result.collectedAt)}. Cada comprador permanece no grupo original, mesmo sem usar o desconto ou concluir a compra.</p>
+      <p>Dados de {date(result.collectedAt)}. Cada comprador permanece no grupo original, mesmo sem usar o {benefitLabel} ou concluir a compra.</p>
       <div className="strategy-metrics-table-wrap"><table className="strategy-metrics-table">
-        <caption>Checkout atual e checkout com desconto sugerido</caption>
-        <thead><tr><th scope="col">Indicador</th><th scope="col">Sem desconto do teste</th><th scope="col">Com desconto do teste</th></tr></thead>
+        <caption>Checkout atual e checkout com {benefitLabel} sugerido</caption>
+        <thead><tr><th scope="col">Indicador</th><th scope="col">Sem {benefitLabel} do teste</th><th scope="col">Com {benefitLabel} do teste</th></tr></thead>
         <tbody>{([
           ["Compradores participantes", number(result.control.assigned), number(result.treatment.assigned)],
           ["Janela de compra encerrada", number(result.control.mature), number(result.treatment.mature)],
@@ -59,6 +60,6 @@ export function StrategyIncentiveMetrics({ strategyId, version, proposalHash, re
       {result.interval && <p>Diferença de conversão: {number(result.interval.effectBps / 100)} pontos percentuais. Intervalo de confiança de 95%: {number(result.interval.lowerBps / 100)} a {number(result.interval.upperBps / 100)} pontos.</p>}
       <p className="strategy-review-note">Receita observada e descontos confirmados não comprovam lucro ou receita incremental. A margem é conferida antes de aplicar o benefício. O resultado não ativa outra estratégia automaticamente.</p>
     </>}
-    {(error || data?.execution) && <button type="button" className="zyn-btn zyn-btn--ghost" disabled={busy} onClick={() => void refresh()}>{busy ? "Atualizando resultados…" : "Atualizar resultados do desconto"}</button>}
+    {(error || data?.execution) && <button type="button" className="zyn-btn zyn-btn--ghost" disabled={busy} onClick={() => void refresh()}>{busy ? "Atualizando resultados…" : `Atualizar resultados do ${benefitLabel}`}</button>}
   </section>;
 }

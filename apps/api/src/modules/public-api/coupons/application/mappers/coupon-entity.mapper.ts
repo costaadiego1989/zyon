@@ -4,6 +4,8 @@ export class CouponEntityMapper {
       id: coupon.id,
       code: coupon.code,
       merchant_id: coupon.merchant_id,
+      managed_by_strategy: Boolean(coupon.strategy_incentive_execution_id),
+      strategy_incentive_state: coupon.strategy_incentive_state ?? null,
       discount_type: coupon.discount_type,
       discount_value: coupon.discount_value,
       min_cart_total: coupon.min_cart_total,

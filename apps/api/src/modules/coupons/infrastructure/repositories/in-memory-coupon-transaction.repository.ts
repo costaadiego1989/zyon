@@ -15,6 +15,7 @@ export class InMemoryCouponTransactionRepository implements CouponTransactionRep
 
   async reserve(input: Parameters<CouponTransactionRepository["reserve"]>[0]): Promise<CouponReservationResult> {
     return this.exclusive(async () => {
+      if (input.coupon.strategy_incentive_execution_id) throw new Error("COUPON_STRATEGY_CHECKOUT_REQUIRED");
       const existing = (await this.redemptions.findBySession(input.redemption.session_id, input.redemption.merchant_id))
         .find((redemption) => redemption.coupon_id === input.redemption.coupon_id);
       if (existing && existing.status !== "cancelled") {

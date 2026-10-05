@@ -1,6 +1,6 @@
 import test, { before, beforeEach, after } from "node:test";
 import assert from "node:assert/strict";
-import { applyEligibleIncentive, incentiveAssignmentArm, invalidateIncentiveCheckout, recordIncentivePayment } from "./incentive-execution-ledger.js";
+import { applyEligibleIncentive, applyIncentiveCoupon, incentiveAssignmentArm, invalidateIncentiveCheckout, recordIncentivePayment } from "./incentive-execution-ledger.js";
 import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
 import { PrismaPaymentRepository } from "../../payment/infrastructure/prisma-payment.repository.js";
 import { PaymentIntentEntity } from "../../payment/domain/payment-intent.entity.js";
@@ -9,13 +9,14 @@ import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout
 import { IncentiveMetricsService } from "../application/incentive-metrics.service.js";
 import { CreatePaymentIntentUseCase } from "../../payment/application/create-payment-intent.use-case.js";
 import { FakePaymentProvider } from "../../payment/infrastructure/fake-payment-provider.js";
+import { ApplyCouponUseCase } from "../../coupons/application/use-cases/apply-coupon.use-case.js";
 import { ConflictException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
-import { discountStudy } from "../domain/strategy-discount-study.js";
+import { commercialDiscountStudy, discountStudy } from "../domain/strategy-discount-study.js";
 import { incentiveBudgetTerms, recommendedIncentiveBudgetTerms } from "../domain/incentive-budget.js";
-import { incentiveRecommendation, plannedIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
+import { conservativeIncentiveAlternative, incentiveRecommendation, plannedCommercialIncentiveRecommendation, plannedIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 import { IncentivePolicyService } from "../application/incentive-policy.service.js";
 import { IncentiveReviewService } from "../application/incentive-review.service.js";
 import { ObservationEntity } from "../domain/entities/observation.entity.js";
@@ -41,6 +42,7 @@ beforeEach(async () => {
   process.env = { ...env, REVENUE_WEEKLY_ENABLED: "true", REVENUE_WEEKLY_MERCHANT_IDS: "*",
     REVENUE_INCENTIVE_BUDGET_ENABLED: "true", REVENUE_INCENTIVE_BUDGET_MERCHANT_IDS: "store,other",
     REVENUE_INCENTIVE_REVIEW_ENABLED: "true", REVENUE_INCENTIVE_REVIEW_MERCHANT_IDS: "store,other",
+    REVENUE_COMMERCIAL_MODES_ENABLED: "true", REVENUE_COMMERCIAL_MODES_MERCHANT_IDS: "store,other",
     REVENUE_INCENTIVE_EXECUTION_ENABLED: "true", REVENUE_INCENTIVE_EXECUTION_MERCHANT_IDS: "store,other", REVENUE_DISCOUNT_STUDY_ENABLED: "false", REVENUE_STRATEGY_MEASUREMENT_ENABLED: "false" };
   await prisma.$executeRawUnsafe(`TRUNCATE revenue_strategies, revenue_analysis_runs, revenue_analysis_schedules,
     revenue_manager_hypotheses, revenue_manager_observations, merchant_notifications, merchant_rules, checkout_settings,
@@ -48,16 +50,18 @@ beforeEach(async () => {
 });
 
 const defaultCaps = { limitCents: 500000, maxDiscountCents: 500, maxRedemptions: 1000 };
-async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned" | "legacy" | "missing" | "blocked" = "planned", reviewed = true, ageMs = 0) {
+type CommercialMode = "fixed" | "percentage" | "shipping";
+async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned" | "legacy" | "missing" | "blocked" = "planned", reviewed = true, ageMs = 0, commercial?: CommercialMode) {
   const now = new Date();
   const asOf = new Date(now.getTime() - ageMs);
   await prisma.merchant.create({ data: { id: merchantId, name: "Fixture" } });
   const policy = await new IncentivePolicyService(prisma).save(merchantId, "owner", {
     expectedVersion: 0, requestKey: "policy-first", enabled: true, ...caps });
   const rules = merchantRulesSnapshot(await prisma.merchantRule.create({ data: { merchantId,
-    maxDiscountPercent: 5, minimumMarginPercent: 30, allowFreeShipping: false, allowShippingDiscount: false,
+    maxDiscountPercent: 5, minimumMarginPercent: 30, allowFreeShipping: false, allowShippingDiscount: commercial === "shipping",
     allowBonusItem: false, allowStackDiscountAndFreeShipping: false, couponBoxEnabled: true, autonomousEngineEnabled: true,
-    freeShippingMinCartValue: 200, maxShippingSubsidy: 0, maxPartialShippingDiscount: 0, offerExpirationMinutes: 15,
+    freeShippingMinCartValue: 200, maxShippingSubsidy: commercial === "shipping" ? 5 : 0,
+    maxPartialShippingDiscount: commercial === "shipping" ? 5 : 0, offerExpirationMinutes: 15,
     blockedRegions: [], brandVoice: "consultative" } }));
   const observation = ObservationEntity.create({ merchant_id: merchantId,
     observation_window_start: new Date(asOf.getTime() - 28 * 86400000), observation_window_end: asOf,
@@ -71,11 +75,13 @@ async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned"
   const run = await prisma.revenueAnalysisRun.create({ data: { merchantId, cycle: 1, status: "running", leaseToken: 1,
     leaseUntil: new Date(now.getTime() + 600000), observationId: observation.id, asOf } });
   await prisma.revenueAnalysisSchedule.create({ data: { merchantId, group: 0, nextDueAt: now, currentRunId: run.id } });
-  const study = discountStudy({ merchantId, runId: run.id, observationId: observation.id, rules,
+  const study = (commercial ? commercialDiscountStudy : discountStudy)({ merchantId, runId: run.id, observationId: observation.id, rules,
     asOf: asOf.toISOString(), capturedAt: now.toISOString(), cohorts: [{ intent: "price_sensitive", sampleSize: 10000, conversionRate: .001,
-      carts: Array.from({ length: 10000 }, () => ({ total: 100, currency: "BRL", items: [{ sku: "sku", name: "Produto", price: 100, cost: 40, quantity: 1 }] })) }] });
+      carts: Array.from({ length: 10000 }, (_, i) => { const price = commercial === "percentage" && i % 2 ? 200 : 100;
+        return { total: price, currency: "BRL", items: [{ sku: "sku", name: "Produto", price, cost: 40, quantity: 1 }] }; }),
+      ...(commercial === "shipping" ? { shipping: Array.from({ length: 10000 }, () => ({ customerPrice: 10, realCost: 10 })) } : {}) }] });
   const recommendation = mode === "missing" ? undefined : mode === "legacy" ? incentiveRecommendation(study, rules, policy)
-    : plannedIncentiveRecommendation(study, rules, policy, { buyers: mode === "blocked" ? 1000 : 10000,
+    : (commercial ? plannedCommercialIncentiveRecommendation : plannedIncentiveRecommendation)(study, rules, policy, { buyers: mode === "blocked" ? 1000 : 10000,
       conversions: mode === "blocked" ? 100 : 10, complete: true,
       windowStart: new Date(asOf.getTime() - 35 * 86400000).toISOString(), windowEnd: new Date(asOf.getTime() - 7 * 86400000).toISOString() });
   await prisma.revenueAnalysisRun.update({ where: { id: run.id }, data: { discountStudyJson: study,
@@ -98,8 +104,8 @@ async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned"
   return { merchantId, input, terms, version, run, hypothesis, source, reviewCommand, review };
 }
 
-async function ready() {
-  const f = await fixture();
+async function ready(commercial?: CommercialMode) {
+  const f = await fixture("store", defaultCaps, "planned", true, 0, commercial);
   const execution = await prisma.strategyIncentiveExecution.findFirstOrThrow({ where: { merchantId: f.merchantId } });
   await new Promise(resolve => setTimeout(resolve, Math.max(0, execution.startedAt.getTime() - Date.now() + 10)));
   await prisma.product.create({ data: { id: "product", merchantId: f.merchantId, name: "Produto",
@@ -134,6 +140,36 @@ function payment(session: Awaited<ReturnType<typeof admit>>) {
       cartFingerprint: paymentCartFingerprint(session), itemsSubtotalCents: 10000, shippingCents: 1000,
       discountCents, platformFeeCents: 0, totalCents } });
 }
+
+spec("checkout coupon entry preserves treatment assignment and rejects control, holdout and unassigned buyers", async () => {
+  const f = await ready("fixed");
+  const coupon = await prisma.coupon.findUniqueOrThrow({ where: { strategyIncentiveExecutionId: f.execution.id } });
+  const treatment = await admit(await buyer(f, "treatment"));
+  const control = await admit(await buyer(f, "control"));
+  const holdout = await admit(await buyer(f, "treatment", { cohort: "holdout" }));
+  const unassigned = toCheckoutSession(await buyer(f, "treatment"));
+  const useCase = new ApplyCouponUseCase(undefined as never, undefined as never,
+    { authorizeDiscount() { throw new Error("ordinary_coupon_authority_must_not_run"); } }, prisma);
+  const enter = (session: typeof treatment) => useCase.executeForCheckout({ merchant_id: session.merchantId,
+    session_id: session.sessionId, code: coupon.code.toLowerCase(), expectedVersion: session.persistenceVersion });
+  const first = await enter(treatment);
+  const repeated = await enter(first.session);
+  assert.equal(first.result.redemption_id, treatment.cart.commercialNudge?.ruleId);
+  assert.equal(repeated.result.redemption_id, first.result.redemption_id);
+  assert.equal(first.result.discount_applied, 5);
+  assert.equal(repeated.session.persistenceVersion, treatment.persistenceVersion);
+  for (const excluded of [control, holdout, unassigned]) {
+    await assert.rejects(enter(excluded), /COUPON_STRATEGY_NOT_ELIGIBLE/);
+  }
+  assert.equal(await prisma.strategyIncentiveAssignment.count(), 2);
+  assert.equal(await prisma.strategyIncentiveReservation.count(), 1);
+  assert.equal(await prisma.couponRedemption.count(), 0);
+  assert.equal(await prisma.checkoutEvent.count({ where: { sessionId: treatment.sessionId, eventName: "coupon_applied" } }), 1);
+  assert.equal((await prisma.strategyIncentiveBudget.findUniqueOrThrow({ where: { id: f.execution.budgetId } })).reservedCents, 500);
+  process.env.REVENUE_COMMERCIAL_MODES_ENABLED = "false";
+  await assert.rejects(enter(treatment), /COUPON_STRATEGY_NOT_ELIGIBLE/);
+  assert.equal(await prisma.strategyIncentiveReservation.count(), 1);
+});
 
 spec("approval atomically activates exact seven-day terms and admission applies only treatment", async () => {
   const f = await ready();
@@ -313,4 +349,110 @@ spec("a later external benefit cannot consume experimental funding or be removed
   assert.equal(retained.cart.currentDiscount, 5); assert.equal(retained.cart.commercialNudge?.couponCode, "OTHER");
   assert.equal((await prisma.strategyIncentiveReservation.findFirstOrThrow()).status, "reserved");
   assert.equal(await prisma.paymentIntent.count(), 0);
+});
+
+for (const mode of ["fixed", "percentage", "shipping"] as const) spec(`v3 ${mode}: specific approval, A/B admission, payment settlement, metrics and withdrawal share one authority`, async () => {
+  const f = await ready(mode);
+  const expected = `capped_${mode}_discount`;
+  assert.equal((f.execution.recommendation as any).test.kind, expected);
+  const treatment = await admit(await buyer(f, "treatment"));
+  const control = await admit(await buyer(f, "control"));
+  await admit(await buyer(f, "treatment", { cohort: "holdout" }));
+  assert.equal(treatment.cart.currentDiscount, 5);
+  assert.equal(control.cart.currentDiscount ?? 0, 0);
+  assert.equal(await prisma.strategyIncentiveAssignment.count(), 2);
+  assert.equal(await prisma.strategyIncentiveReservation.count(), 1);
+  assert.equal(await prisma.coupon.count(), mode === "fixed" ? 1 : 0);
+  if (mode === "fixed") assert.match(treatment.cart.commercialNudge?.couponCode ?? "", /^ZYON[A-F0-9]{20}$/);
+  if (mode === "shipping") {
+    assert.equal(treatment.shipping?.customerPrice, 10);
+    assert.match(treatment.cart.commercialNudge?.title ?? "", /frete/);
+  }
+  const intent = payment(treatment), repository = new PrismaPaymentRepository(prisma);
+  await repository.saveIntent({ intent });
+  intent.markApproved({ providerPaymentId: `provider-${mode}`, approvedAmountCents: 10500 });
+  await repository.saveIntent({ intent });
+  const metrics = await new IncentiveMetricsService(prisma).read("store", f.hypothesis.id, 1);
+  assert.equal(metrics.measurement?.budget.spentCents, 500);
+  assert.equal(metrics.measurement?.treatment.assigned, 1);
+  assert.equal(metrics.measurement?.control.assigned, 1);
+  assert.equal(metrics.measurement?.treatment.redemptions, 1);
+  if (mode === "fixed") assert.equal((await prisma.coupon.findFirstOrThrow()).usagesCount, 1);
+  await reviews.decide("store", "owner", f.hypothesis.id, "withdraw", { ...f.reviewCommand, request_key: `withdraw-${mode}` });
+  await admit(await buyer(f, "treatment"));
+  assert.equal(await prisma.strategyIncentiveAssignment.count(), 2);
+  if (mode === "fixed") assert.equal((await prisma.coupon.findFirstOrThrow()).status, "expired");
+  intent.markRefunded("buyer request"); await repository.saveIntent({ intent });
+  assert.equal((await prisma.strategyIncentiveBudget.findFirstOrThrow()).spentCents, 500);
+});
+
+spec("v3 freight revalidates selected quote, cost and shipping permission before payment", async () => {
+  const f = await ready("shipping");
+  const treatment = await admit(await buyer(f, "treatment"));
+  await prisma.checkoutSession.update({ where: { merchantId_sessionId: { merchantId: "store", sessionId: treatment.sessionId } },
+    data: { shipping: { customerPrice: 10, realCost: 40 } } });
+  const changed = (await new PrismaCheckoutRepository(prisma).getSession("store", treatment.sessionId))!;
+  await assert.rejects(new PrismaPaymentRepository(prisma).saveIntent({ intent: payment(changed) }), /AUTHORITY_CHANGED/);
+  assert.equal(await prisma.paymentIntent.count(), 0);
+  await admit(await buyer(f, "treatment", { shipping: { customerPrice: 3, realCost: 3 } }));
+  await admit(await buyer(f, "treatment", { shipping: { customerPrice: 10 } }));
+  assert.equal(await prisma.strategyIncentiveAssignment.count(), 1);
+  process.env.REVENUE_COMMERCIAL_MODES_ENABLED = "false";
+  await admit(await buyer(f, "treatment"));
+  assert.equal(await prisma.strategyIncentiveAssignment.count(), 1);
+});
+
+spec("SQL denies public redemption, changed code, foreign owner, removed binding and forged coupon capacity", async () => {
+  const f = await ready("fixed"), coupon = await prisma.coupon.findFirstOrThrow();
+  const row = await buyer(f, "treatment");
+  await assert.rejects(prisma.couponRedemption.create({ data: { id: randomUUID(), merchantId: "store", couponId: coupon.id,
+    sessionId: row.sessionId, buyerGlobalUserId: row.globalUserId, discountApplied: 5, source: "manual" } }), /incentive assignment and budget/);
+  for (const data of [{ code: "PUBLIC" }, { strategyIncentiveExecutionId: null }, { maxUsages: 1000000 },
+    { merchantId: "other" }, { discountValue: 50 }, { usagesCount: 2 }]) {
+    await assert.rejects(prisma.coupon.update({ where: { id: coupon.id }, data }), /strategy coupon/);
+  }
+  await assert.rejects(prisma.coupon.delete({ where: { id: coupon.id } }), /immutable/);
+  assert.equal(await tx(t => applyIncentiveCoupon(t, row, { executionId: f.execution.id, code: coupon.code })), null);
+  assert.equal(await prisma.strategyIncentiveReservation.count(), 0);
+  assert.equal(await prisma.couponRedemption.count(), 0);
+});
+
+for (const mode of ["fixed", "shipping", "percentage"] as const) spec(`SQL verifies v3 ${mode} conservative alternatives and rejects forged terms`, async () => {
+  const f = await fixture("store", defaultCaps, "planned", false, 0, mode), primary = f.source.recommendation!;
+  for (let sequence = 1; sequence <= 3; sequence++) {
+    const alternative = conservativeIncentiveAlternative(primary, sequence)!;
+    const [result] = await prisma.$queryRaw<Array<{ matches: boolean; valid: boolean }>>`
+      SELECT incentive_recommendation_matches_frozen(${JSON.stringify(alternative)}::jsonb, ${JSON.stringify(primary)}::jsonb) AS matches,
+        valid_strategy_commercial_terms(${JSON.stringify(alternative)}::jsonb, ${JSON.stringify(f.source.study)}::jsonb) AS valid`;
+    assert.equal(result.matches, true); assert.equal(result.valid, true);
+    const forged = structuredClone(alternative) as any;
+    forged.test.kind = "capped_unknown_discount";
+    const [invalid] = await prisma.$queryRaw<Array<{ valid: boolean }>>`SELECT
+      valid_strategy_commercial_terms(${JSON.stringify(forged)}::jsonb, ${JSON.stringify(f.source.study)}::jsonb) AS valid`;
+    assert.equal(invalid.valid, false);
+  }
+});
+
+spec("SQL commercial validation rejects missing documents, missing economics and null evidence", async () => {
+  const f = await fixture("store", defaultCaps, "planned", false, 0, "fixed");
+  for (const [recommendation, study] of [[null, f.source.study], [{}, f.source.study], [f.source.recommendation, null],
+    [f.source.recommendation, {}]]) {
+    const [row] = await prisma.$queryRaw<Array<{ valid: boolean }>>`SELECT
+      valid_strategy_commercial_terms(${JSON.stringify(recommendation)}::jsonb, ${JSON.stringify(study)}::jsonb) AS valid`;
+    assert.equal(row.valid, false);
+  }
+  for (const mutate of [
+    (r: any, _s: any) => delete r.test.discountPercent,
+    (r: any, _s: any) => r.test.discountPercent = null,
+    (r: any, _s: any) => r.test.discountPercent = -1,
+    (r: any, _s: any) => r.test.maxDiscountCents = 0,
+    (_r: any, s: any) => delete s.commercialCandidate.maxDiscountCents,
+    (_r: any, s: any) => s.commercialCandidate.evidence = null,
+    (_r: any, s: any) => delete s.commercialCandidate.evidence.basis,
+  ]) {
+    const r = structuredClone(f.source.recommendation), s = structuredClone(f.source.study); mutate(r, s);
+    const [row] = await prisma.$queryRaw<Array<{ valid: boolean }>>`SELECT
+      valid_strategy_commercial_terms(${JSON.stringify(r)}::jsonb, ${JSON.stringify(s)}::jsonb) AS valid`;
+    assert.equal(row.valid, false);
+  }
 });

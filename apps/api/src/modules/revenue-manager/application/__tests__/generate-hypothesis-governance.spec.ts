@@ -14,12 +14,16 @@ import { AnalysisDeferred } from "../../domain/weekly-analysis-policy.js";
 test("weekly generator reserves each fallback, preserves uncertain usage and reuses a cached response", async () => {
   const originalFetch = globalThis.fetch;
   const env = { ...process.env };
-  Object.assign(process.env, { OPENAI_API_KEY: "fixture", DEEPSEEK_API_KEY: "fixture", OPENAI_BASE_URL: "https://openai.example/v1", DEEPSEEK_BASE_URL: "https://deepseek.example/v1" });
+  Object.assign(process.env, { OPENAI_API_KEY: "fixture", DEEPSEEK_API_KEY: "fixture", OPENAI_BASE_URL: "https://openai.example/v1",
+    DEEPSEEK_BASE_URL: "https://api.deepseek.com/v1", DEEPSEEK_MODEL: "legacy-other-module", REVENUE_DEEPSEEK_MODEL: "deepseek-flash" });
   const order: string[] = [];
   let cached: unknown = null;
   const budget = {
     cached: async () => cached,
-    reserve: async ({ provider }: { provider: string }) => { order.push(`reserve:${provider}`); return { id: provider, maxOutputTokens: 500 }; },
+    reserve: async ({ provider, model }: { provider: string; model: string }) => {
+      if (provider === "deepseek") assert.equal(model, "deepseek-flash");
+      order.push(`reserve:${provider}`); return { id: provider, maxOutputTokens: 500 };
+    },
     settle: async (r: { id: string }, usage: unknown) => { order.push(`settle:${r.id}:${usage ? "known" : "unknown"}`); },
     cache: async (_c: unknown, _m: unknown, response: unknown) => { cached = response; },
   };
@@ -29,6 +33,8 @@ test("weekly generator reserves each fallback, preserves uncertain usage and reu
     const body = JSON.parse(String(options?.body));
     if (provider === "openai") { assert.equal(body.max_completion_tokens, 500); throw new Error("uncertain timeout"); }
     assert.equal(body.max_tokens, 500);
+    assert.equal(body.model, "deepseek-flash");
+    assert.deepEqual(body.thinking, { type: "disabled" });
     return new Response(JSON.stringify({ id: "call", usage: { prompt_tokens: 100, completion_tokens: 80 },
       choices: [{ message: { content: JSON.stringify(proposal("Explain available checkout options without making new offers")) } }] }));
   };

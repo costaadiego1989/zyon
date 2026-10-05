@@ -111,7 +111,7 @@ try {
       }
       else if (path.includes(`/strategies/${review.id}/incentive`)) {
         const current = review.versions[0], rec = current.proposal.incentiveRecommendation;
-        const ready = incentiveEnabled && current.incentivePolicyCurrent !== false && rec?.definition === "weekly-incentive-recommendation-v2" && rec.planning?.status === "estimated_feasible";
+        const ready = incentiveEnabled && current.incentivePolicyCurrent !== false && ["weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3"].includes(rec?.definition) && rec.planning?.status === "estimated_feasible";
         if (req.method() === "GET") {
           if (incentiveReadFailed) { status = 503; body = { message: "Unavailable" }; }
           else body = { strategy_id: review.id, version: current.version, proposal_hash: current.proposalHash, recommendation_hash: "d".repeat(64),
@@ -333,7 +333,49 @@ try {
     await incentive.getByLabel("O que você gostaria que a IA considerasse? (opcional)").fill("Prefiro um desconto menor");
     await incentive.getByRole("button", { name: "Solicitar nova sugestão", exact: true }).click();
     await incentive.getByText(/Pedido recebido. A IA preparará outra sugestão/).waitFor();
-    incentiveDecision = null; incentiveEnabled = false; incentiveAlternative = false; review.incentive_alternative_available = false;
+    incentiveDecision = null; incentiveAlternative = false; review.incentive_alternative_available = false;
+    const feasibleIncentive = structuredClone(review.versions[0].proposal.incentiveRecommendation);
+    for (const [kind, delivery, label] of [
+      ["capped_fixed_discount", { mode: "automatic" }, "desconto"],
+      ["capped_shipping_discount", { mode: "automatic" }, "desconto no frete"],
+      ["capped_fixed_discount", { mode: "coupon_code", code: "ZYON0123456789ABCDEF0123" }, "cupom"],
+    ]) {
+      const next = { ...structuredClone(feasibleIncentive), definition: "weekly-incentive-recommendation-v3" };
+      Object.assign(next.test, { kind, delivery }, kind === "capped_fixed_discount"
+        ? { fixedDiscountCents: next.test.maxDiscountCents } : { shippingDiscountCents: next.test.maxDiscountCents });
+      incentiveDecision = null; incentiveExecution = true;
+      await refreshIncentive(next);
+      const commercial = page.getByRole("region", { name: `Teste de ${label} sugerido`, exact: true });
+      await commercial.getByText(/é um desconto real da loja/).waitFor();
+      if (kind === "capped_shipping_discount") await commercial.getByText(/Até R\$\s*10,00 de desconto no frete/).waitFor();
+      else await commercial.getByText(/R\$\s*10,00 de desconto por compra/).waitFor();
+      if (delivery.mode === "coupon_code") {
+        await commercial.getByText(delivery.code, { exact: true }).waitFor();
+        await commercial.getByText(/Compartilhar o código não libera o cupom/).waitFor();
+      }
+      assert.equal(await commercial.locator("input, select, textarea").count(), 0);
+      const before = incentivePosts.length;
+      await commercial.getByRole("button", { name: `Aprovar e iniciar teste de ${label}`, exact: true }).click();
+      assert.equal(incentivePosts.length, before, "Opening confirmation does not approve a benefit");
+      await commercial.getByRole("button", { name: `Confirmar início do teste de ${label}`, exact: true }).click();
+      await commercial.getByText(`Teste de ${label} em andamento.`, { exact: true }).waitFor();
+      await page.getByRole("region", { name: `Resultados do teste de ${label}`, exact: true }).getByRole("table").waitFor();
+      assert.equal(incentivePosts.length, before + 1);
+      await noOverflow(`${kind}/${delivery.mode} ${width}`);
+      if (out) {
+        await page.setViewportSize({ width, height: 2400 });
+        await commercial.screenshot({ path: `${out}/commercial-${kind}-${delivery.mode}-${width}.png` });
+        await page.setViewportSize({ width, height: 900 });
+      }
+      incentiveDecision = null;
+      // Even if the API says approval is ready, unrecognized financial terms
+      // cannot produce an approval control in this client.
+      await refreshIncentive({ ...next, test: { ...next.test, delivery: { mode: "public_unlimited" } } });
+      await page.getByText("Atualize o dashboard para consultar este formato de sugestão.", { exact: true }).waitFor();
+      assert.equal(await page.getByRole("button", { name: `Aprovar e iniciar teste de ${label}`, exact: true }).count(), 0);
+      assert.equal(incentivePosts.length, before + 1);
+    }
+    incentiveDecision = null; incentiveEnabled = false; incentiveExecution = false;
     for (const [reason, text] of [["insufficient_baseline", /menos de 100 compradores/], ["incomplete_history", /histórico excedeu o limite/],
       ["unusable_conversion_rate", /taxa de conversão deste público/]]) {
       const complete = reason !== "incomplete_history", buyers = complete ? 30 : 0;
@@ -382,7 +424,7 @@ try {
     const discountStudy = page.getByRole("region", { name: "Simulação de desconto", exact: true });
     await discountStudy.getByText("46%", { exact: true }).waitFor();
     await discountStudy.getByText("A medir", { exact: true }).waitFor();
-    await discountStudy.getByText(/Aprovar esta estratégia inicia somente o teste de comunicação/).waitFor();
+    await discountStudy.getByText(/O benefício depende da aprovação específica dos valores da proposta/).waitFor();
     await discountStudy.getByText("Como a simulação foi calculada", { exact: true }).click();
     await discountStudy.getByText(/não é uma previsão de gasto nem um orçamento aprovado/).waitFor();
     await discountStudy.getByText(/não representa lucro líquido/).waitFor();

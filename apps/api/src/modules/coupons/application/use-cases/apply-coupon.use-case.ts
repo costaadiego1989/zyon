@@ -14,6 +14,8 @@ import { PrismaCheckoutRepository } from "../../../checkout/infrastructure/prism
 import { PrismaCouponRepository } from "../../infrastructure/repositories/prisma-coupon.repository.js";
 import { PrismaCouponTransactionRepository } from "../../infrastructure/repositories/prisma-coupon-transaction.repository.js";
 import { checkoutWithCoupon } from "../services/checkout-coupon.js";
+import { applyIncentiveCoupon } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
+import { toCheckoutSession } from "../../../checkout/infrastructure/prisma/checkout-session.mapper.js";
 
 export type ApplyCouponInput = {
   merchant_id: string;
@@ -71,9 +73,7 @@ export class ApplyCouponUseCase {
     if (!session.cart.items.length || await tx.completedOrder.findFirst({
       where: { merchantId: input.merchant_id, sessionId: input.session_id }, select: { id: true },
     }) || await tx.paymentIntent.findFirst({ where: { merchantId: input.merchant_id,
-      sessionId: input.session_id, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })
-      || await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: {
-        merchantId: input.merchant_id, sessionId: input.session_id } }, select: { id: true } })) {
+      sessionId: input.session_id, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) {
       throw new ConflictException("CHECKOUT_COUPON_SESSION_NOT_MUTABLE");
     }
     const code = input.code.toUpperCase().trim();
@@ -83,6 +83,35 @@ export class ApplyCouponUseCase {
     if (!coupon) throw new NotFoundException("COUPON_NOT_FOUND");
     const region = session.customer?.address?.state?.trim().toUpperCase();
     const snap = coupon.snapshot();
+    if (snap.strategy_incentive_execution_id) {
+      const validity = validateCoupon(snap, session.cart, region);
+      if (validity.valid === false) throw new BadRequestException(validity.reason);
+      const persisted = await tx.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: {
+        merchantId: input.merchant_id, sessionId: input.session_id } } });
+      const granted = await applyIncentiveCoupon(tx, persisted, {
+        executionId: snap.strategy_incentive_execution_id, code,
+      });
+      if (!granted) throw new BadRequestException("COUPON_STRATEGY_NOT_ELIGIBLE");
+      const next = toCheckoutSession(granted);
+      if (!next.cart.commercialNudge?.ruleId || next.cart.commercialNudge.couponCode !== code
+        || !(next.cart.currentDiscount && next.cart.currentDiscount > 0)) {
+        throw new ConflictException("COUPON_STRATEGY_GRANT_INVALID");
+      }
+      // The incentive reservation is the single financial authority. Creating
+      // an ordinary CouponRedemption would duplicate grants and usage limits.
+      const rules = await sessions.getRules(input.merchant_id);
+      if (!await tx.checkoutEvent.findFirst({ where: { merchantId: input.merchant_id,
+        sessionId: input.session_id, eventName: "coupon_applied" }, select: { id: true } })) {
+        await tx.checkoutEvent.create({ data: { merchantId: input.merchant_id,
+          sessionId: input.session_id, eventName: "coupon_applied", occurredAt: new Date() } });
+      }
+      return { result: { redemption_id: next.cart.commercialNudge.ruleId,
+        discount_applied: next.cart.currentDiscount, shipping_discount_applied: 0, coupon: snap }, session: next, rules };
+    }
+    if (await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: {
+      merchantId: input.merchant_id, sessionId: input.session_id } }, select: { id: true } })) {
+      throw new ConflictException("CHECKOUT_COUPON_SESSION_NOT_MUTABLE");
+    }
     if (!region && (snap.allowed_regions.length || snap.blocked_regions.length)) {
       throw new BadRequestException("COUPON_BUYER_REGION_REQUIRED");
     }
@@ -116,6 +145,9 @@ export class ApplyCouponUseCase {
     if (!coupon) throw new NotFoundException("COUPON_NOT_FOUND");
 
     const snap = coupon.snapshot();
+    if (snap.strategy_incentive_execution_id) {
+      throw new ConflictException("COUPON_STRATEGY_CHECKOUT_REQUIRED");
+    }
     const validity = validateCoupon(snap, input.cart, input.buyer_region);
     if (validity.valid === false) throw new BadRequestException(validity.reason);
 
