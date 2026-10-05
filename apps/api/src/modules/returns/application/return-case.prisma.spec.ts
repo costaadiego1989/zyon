@@ -93,10 +93,12 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
   await assert.rejects(() => cases.approveRefund(merchantId, ticketId, 2900), /refund_preview_changed/);
   await Promise.all(Array.from({ length: 5 }, () => cases.approveRefund(merchantId, ticketId, 1000))); assert.equal(posts, 1);
   detail = await cases.detail(merchantId, ticketId); assert.equal(detail.active, true); assert.equal(detail.refund?.status, "PENDING");
+  assert.equal(await db.returnNoticeDelivery.count({ where: { returnId, type: "return_approved" } }), 2);
   await assert.rejects(() => cases.action(merchantId, ticketId, "operator_qa", { action: "reject", notes: "Conflito" }), /case_cannot_change_during_refund/);
   settled = true; await cases.approveRefund(merchantId, ticketId, 1000); detail = await cases.detail(merchantId, ticketId);
   assert.equal(detail.active, false); assert.equal(detail.refund?.status, "COMPLETED"); assert.equal(detail.status, "resolved"); assert.equal(posts, 1);
   await assert.rejects(() => cases.sendPhotos(merchantId, ticketId, buyerId, "Outra mensagem", [], randomUUID()), /ticket_resolved/);
+  assert.equal(await db.returnNoticeDelivery.count({ where: { returnId, type: "return_refunded" } }), 2);
   const remaining = await orders.load(merchantId, orderId, buyerId); assert.equal(remaining.items.find(item => item.variantId === "variant_a")?.eligibleQuantity, 1);
   const next = await cases.open({ ...input, requestKey: randomUUID(), items: [{ variantId: "variant_a", quantity: 1 }, { variantId: "variant_b", quantity: 1 }] });
   assert.notEqual(next.ticketId, ticketId); assert.equal((await orders.preview(merchantId, next.returnId)).amountCents, 1900);
@@ -104,8 +106,14 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
   await db.supportTicket.update({ where: { id: next.ticketId }, data: { status: "closed" } });
   assert.equal((await cases.open({ ...input, requestKey: randomUUID() })).ticketId, next.ticketId);
   assert.equal((await cases.detail(merchantId, next.ticketId)).status, "in_progress");
+  await assert.rejects(() => cases.action(merchantId, next.ticketId, "operator_qa", { action: "reject", notes: "   " }), /resolution_notes_required/);
   await cases.action(merchantId, next.ticketId, "operator_qa", { action: "reject", notes: "Cliente optou por uma troca do item B após análise na conversa." });
   assert.equal((await cases.detail(merchantId, next.ticketId)).active, false);
+  const rejectionNotices = await db.returnNoticeDelivery.findMany({ where: { returnId: next.returnId, type: "return_rejected" } });
+  assert.equal(rejectionNotices.length, 2);
+  assert.deepEqual(new Set(rejectionNotices.map(row => row.channel)), new Set(["email", "whatsapp"]));
+  assert.ok(rejectionNotices.every(row => (row.payload as any).explanation.includes("Cliente optou")));
+  assert.ok(rejectionNotices.every(row => (row.payload as any).items.length === 2));
   const exchange = await cases.open({ ...input, kind: "exchange", requestKey: randomUUID(), items: [{ variantId: "variant_b", quantity: 1 }] });
   await assert.rejects(() => cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "complete_exchange", notes: "Ainda em análise", replacementOrderId: "replacement_qa", trackingCode: "tracking_qa" }), /replacement_and_delivery_required/);
   await cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "authorize_return", notes: "Entregue o item na loja; entraremos em contato ao receber." });

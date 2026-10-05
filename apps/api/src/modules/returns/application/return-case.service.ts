@@ -7,6 +7,8 @@ import { RealtimeCapabilityService } from "../../../shared/auth/realtime-capabil
 import { appendSupportEvent, lockSupportResource, persistSupportMessage } from "../../support/application/support-persistence.js";
 import { ReturnOrderService, RETURN_REASON_LABELS, RESOLVED_RETURN_STATUSES, validateReturnItems } from "./return-order.service.js";
 import { ReturnAttachmentService } from "./return-attachment.service.js";
+import { enqueueReturnNotice } from "../../notifications/application/return-notice-persistence.js";
+import type { ReturnNoticeType } from "../../notifications/domain/return-notice.js";
 import { ProcessRefundUseCase } from "./use-cases/process-refund.use-case.js";
 import { AcceptMarketplaceReturnUseCase } from "./use-cases/accept-marketplace-return.use-case.js";
 
@@ -181,6 +183,8 @@ export class ReturnCaseService {
     const last = rows[99];
     return { ...await this.summary(ticket), order, reason: ret?.reason, reasonLabel: ret ? RETURN_REASON_LABELS[ret.reason] : undefined, notes: ret?.notes,
       selectedItems: ret?.items.map(it => ({ variantId: it.variantId, quantity: it.quantity, name: order?.items.find(line => line.variantId === it.variantId || line.sku === it.variantId)?.name ?? (it.variantId === "all" ? "Pedido completo (solicitação anterior)" : it.variantId) })) ?? [],
+      notifications: await this.prisma.returnNoticeDelivery.findMany({ where: { merchantId, ticketId: ticket.id }, orderBy: { createdAt: "asc" },
+        select: { id: true, type: true, channel: true, status: true, lastError: true } }),
       imageUrls, messages, nextCursor: rows.length > 100 && last ? Buffer.from(JSON.stringify({ createdAt: last.createdAt.toISOString(), id: last.id })).toString("base64url") : null,
       refund: ret?.refund ? { status: ret.refund.status, amountInCents: ret.refund.amountInCents, providerRefundId: ret.refund.providerRefundId } : null, resolution: ret?.resolution as SupportCaseDetail["resolution"] };
   }
@@ -238,7 +242,7 @@ export class ReturnCaseService {
       await lockSupportResource(tx, `support:${ticketId}`);
       const ticket = await tx.supportTicket.findFirst({ where: { id: ticketId, merchantId, returnId: { not: null } } });
       if (!ticket?.returnId) throw new NotFoundException("return_not_found");
-      const ret = await tx.return.findFirstOrThrow({ where: { id: ticket.returnId, merchantId }, include: { refund: true } });
+      const ret = await tx.return.findFirstOrThrow({ where: { id: ticket.returnId, merchantId }, include: { refund: true, items: true } });
       if (RESOLVED_RETURN_STATUSES.includes(ret.status) || ret.refund) throw new ConflictException("case_cannot_change_during_refund");
       let status: string; let event: string; let content: string;
       let resolution: Prisma.InputJsonObject = { ...(ret.resolution as Prisma.InputJsonObject ?? {}), instructions: notes };
@@ -273,7 +277,9 @@ export class ReturnCaseService {
       } else throw new ConflictException("invalid_case_transition");
       const terminal = RESOLVED_RETURN_STATUSES.includes(status);
       await tx.return.update({ where: { id: ret.id }, data: { status: status as any, resolution } });
-      await persistSupportMessage(tx, { merchantId, ticketId, senderType: "system", content, metadata: { kind: "case_update", event, returnId: ret.id } });
+      const message = await persistSupportMessage(tx, { merchantId, ticketId, senderType: "system", content, metadata: { kind: "case_update", event, returnId: ret.id } });
+      const noticeType: ReturnNoticeType | undefined = ({ return_authorized: "return_authorized", inspection_pass: "return_approved", rejected: "return_rejected", exchange_completed: "exchange_completed" } as Record<string, ReturnNoticeType>)[event];
+      if (noticeType) await enqueueReturnNotice(tx, { merchantId, ticketId, messageId: message.id, type: noticeType, explanation: event === "exchange_completed" ? content : notes, ret });
       await tx.supportTicket.update({ where: { id: ticketId }, data: { status: terminal ? "resolved" : "in_progress", assignedTo: operatorId, resolvedAt: terminal ? new Date() : null } });
     });
     return this.detail(merchantId, ticketId);

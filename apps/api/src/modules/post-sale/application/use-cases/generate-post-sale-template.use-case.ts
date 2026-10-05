@@ -40,7 +40,7 @@ export class GeneratePostSaleTemplateUseCase {
     const defaults = salesDefaults(type);
     let body = defaults[input.channel].body;
     try {
-      const generated = await this.copywriter.generateWithAi(this.buildFreeformPrompt(type, input.storeName, input.tone || "profissional"));
+      const generated = type.startsWith("return_") || type === "exchange_completed" ? body : await this.copywriter.generateWithAi(this.buildFreeformPrompt(type, input.storeName, input.tone || "profissional"));
       const edit = validateSalesEdit(type, { email: { ...defaults.email, ...(input.channel === "email" ? { body: generated } : {}) },
         whatsapp: { body: input.channel === "whatsapp" ? generated : defaults.whatsapp.body, revision: 1 } });
       body = edit[input.channel].body;

@@ -48,6 +48,7 @@ export interface SupportCaseDetail extends SupportCaseSummary {
   imageUrls: string[];
   messages: SupportCaseMessage[];
   nextCursor?: string | null;
+  notifications?: Array<{ id: string; type: string; channel: string; status: string; lastError: string | null }>;
   refund?: { status: string; amountInCents: number; providerRefundId?: string | null } | null;
   resolution?: { instructions?: string; replacementOrderId?: string; trackingCode?: string; [key: string]: unknown } | null;
 }

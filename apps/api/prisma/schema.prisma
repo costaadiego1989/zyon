@@ -1899,6 +1899,7 @@ model Return {
   label      ReturnLabel?
   inspection ReturnInspection?
   refund     ReturnRefund?
+  notices    ReturnNoticeDelivery[]
 
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
@@ -1984,6 +1985,33 @@ model ReturnRefund {
 
   @@index([status, createdAt])
   @@map("return_refunds")
+}
+
+// A decision and both channel deliveries are committed atomically. Provider
+// acceptance is recorded separately from delivery; ambiguous sends are not retried.
+model ReturnNoticeDelivery {
+  id                String   @id @default(cuid())
+  merchantId        String   @map("merchant_id")
+  returnId          String   @map("return_id")
+  ticketId          String   @map("ticket_id")
+  messageId         String   @map("message_id")
+  type              String
+  channel           String
+  payload           Json
+  status            String   @default("pending")
+  attempts          Int      @default(0)
+  nextAttemptAt     DateTime @default(now()) @map("next_attempt_at")
+  leaseUntil        DateTime? @map("lease_until")
+  providerMessageId String?  @map("provider_message_id")
+  lastError         String?  @map("last_error")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  return            Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@unique([returnId, type, channel], map: "return_notice_deliveries_once")
+  @@index([status, nextAttemptAt, leaseUntil], map: "return_notice_deliveries_queue")
+  @@index([merchantId, ticketId])
+  @@map("return_notice_deliveries")
 }
 
 // ─── Store Analytics ──────────────────────────────────────────────────────────

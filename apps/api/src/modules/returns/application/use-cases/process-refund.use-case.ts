@@ -5,6 +5,7 @@ import { RefundPaymentService } from "../../../payment/application/services/refu
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { ReturnOrderService } from "../return-order.service.js";
+import { enqueueReturnNotice } from "../../../notifications/application/return-notice-persistence.js";
 import { lockSupportResource, persistSupportMessage } from "../../../support/application/support-persistence.js";
 
 @Injectable()
@@ -61,7 +62,7 @@ export class ProcessRefundUseCase {
       await lockSupportResource(tx, `refund-order:${merchantId}:${ret.orderId}`);
       const ticket = await tx.supportTicket.findFirst({ where: { merchantId, returnId, mergedIntoId: null }, select: { id: true } });
       if (ticket) await lockSupportResource(tx, `support:${ticket.id}`);
-      const latest = await tx.return.findFirst({ where: { id: returnId, merchantId }, include: { refund: true } });
+      const latest = await tx.return.findFirst({ where: { id: returnId, merchantId }, include: { refund: true, items: true } });
       if (!latest || latest.refund) return false;
       if (!["INSPECTED_PASS", "REFUND_PROCESSING"].includes(latest.status) && !(latest.status === "REQUESTED" && expectedAmountCents !== undefined)) throw new BadRequestException("invalid_status_for_refund");
       const preview = await this.orderService!.preview(merchantId, returnId, tx);
@@ -70,6 +71,15 @@ export class ProcessRefundUseCase {
       amountCents = preview.amountCents;
       await tx.returnRefund.create({ data: { returnId, paymentIntentId: preview.paymentIntentId, amountInCents: amountCents, status: "PENDING" } });
       await tx.return.update({ where: { id: returnId }, data: { status: "REFUND_PROCESSING" } });
+      if (ticket) {
+        const explanation = latest.status === "REQUESTED"
+          ? "A loja aprovou sua solicitação e dispensou o envio físico dos itens selecionados. O reembolso será solicitado ao meio de pagamento original; a confirmação será informada nesta conversa."
+          : "A loja aprovou o reembolso dos itens selecionados. O pedido será enviado ao meio de pagamento original; a confirmação será informada nesta conversa.";
+        const message = await persistSupportMessage(tx, { merchantId, ticketId: ticket.id, senderType: "system",
+          clientMessageId: `refund_approval_${returnId}`, content: explanation,
+          metadata: { kind: "case_update", event: "refund_approved", returnId } });
+        await enqueueReturnNotice(tx, { merchantId, ticketId: ticket.id, messageId: message.id, type: "return_approved", explanation, ret: latest });
+      }
       return true;
     }) : await this.returnRepo.beginRefund({
       returnId,
@@ -135,18 +145,19 @@ export class ProcessRefundUseCase {
       const ticket = await tx.supportTicket.findFirst({ where: { merchantId, returnId, mergedIntoId: null } });
       if (!ticket) return;
       await lockSupportResource(tx, `support:${ticket.id}`);
-      const ret = await tx.return.findFirst({ where: { id: returnId, merchantId }, include: { refund: true } });
+      const ret = await tx.return.findFirst({ where: { id: returnId, merchantId }, include: { refund: true, items: true } });
       if (!ret?.refund) return;
       const clientMessageId = `refund_${returnId}_${ret.refund.status}`;
       const existing = await tx.supportTicketMessage.findFirst({ where: { ticketId: ticket.id, senderType: "system", clientMessageId } });
       if (existing) return;
       const completed = ret.status === "REFUND_COMPLETED" && ret.refund.status === "COMPLETED";
       const value = new Intl.NumberFormat("pt-BR", { style: "currency", currency: (ret.orderSnapshot as any)?.currency ?? "BRL" }).format(ret.refund.amountInCents / 100);
-      await persistSupportMessage(tx, { merchantId, ticketId: ticket.id, senderType: "system", clientMessageId,
+      const message = await persistSupportMessage(tx, { merchantId, ticketId: ticket.id, senderType: "system", clientMessageId,
         content: completed ? `Reembolso de ${value} confirmado pelo provedor de pagamento. A solicitação foi concluída; o prazo para aparecer na sua conta depende do meio de pagamento.`
           : ret.refund.status === "FAILED" ? "O reembolso apresentou uma falha. A loja acompanhará o pagamento e informará a próxima etapa nesta conversa."
             : `Reembolso de ${value} solicitado. Estamos aguardando a confirmação do provedor de pagamento.`,
         metadata: { kind: "case_update", event: completed ? "refund_completed" : "refund_pending", returnId } });
+      if (completed) await enqueueReturnNotice(tx, { merchantId, ticketId: ticket.id, messageId: message.id, type: "return_refunded", explanation: message.content, ret });
       if (completed) await tx.supportTicket.update({ where: { id: ticket.id }, data: { status: "resolved", resolvedAt: new Date() } });
     });
   }

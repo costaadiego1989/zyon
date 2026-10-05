@@ -26,3 +26,8 @@
 .support-case .support-msg time { color: var(--color-text-muted); font-size: 11px; display: block; margin-top: 8px; }
 .support-case .support-chat__status { flex-wrap: wrap; }
 @media(max-width: 800px) { .support-case { grid-template-columns: 1fr; gap: 20px; } .support-case__context { padding: 20px 0 0; border-left: 0; border-top: 1px solid var(--color-border); } .support-case .support-chat__messages { max-height: 48dvh; } }
+
+.support-case__notices { padding: 0 0 14px; margin: 0 0 18px; border-bottom: 1px solid var(--color-border); }
+.support-case__notices h4 { margin: 0 0 10px; }
+.support-case__notices > p { display: flex; flex-direction: column; gap: 4px; font-size: 12px; line-height: 1.5; margin: 0 0 12px; }
+.support-case__notices > p > span:last-child { color: var(--color-text-muted); }

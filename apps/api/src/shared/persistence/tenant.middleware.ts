@@ -141,6 +141,7 @@ export const TENANT_SCOPED_MODELS = [
   "StorefrontCart",
   "StorefrontWishlistItem",
   "SupportAttachment",
+  "ReturnNoticeDelivery",
   "Story",
   "StoryCategory",
   "StrategyAssignment",

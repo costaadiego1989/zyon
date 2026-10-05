@@ -43,7 +43,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
     setError(null);
     if (target?.ticketId) { setTicketId(target.ticketId); setView("chat"); }
     else if (target?.view === "return" || target?.orderId) setView("return");
-  }, [open, target]);
+  }, [open, target, identity]);
   useEffect(() => {
     if (!open) return;
     const previous = document.activeElement as HTMLElement | null;

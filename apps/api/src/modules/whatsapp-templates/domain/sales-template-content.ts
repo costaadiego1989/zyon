@@ -12,9 +12,10 @@ export function salesDefaults(type: string) {
   const def = buildCatalog()[salesTemplateType(type)];
   return { email: { subject: `{{storeName}} | ${def.label}`, body: def.freeformBody }, whatsapp: { body: def.freeformBody } };
 }
-const samples: Record<string, string> = { merchantName: "Loja Exemplo", planName: "Growth", expiresAt: "21/09/2026, 10:00", dashboardLink: "https://app.zyon-payments.com.br/#billing-plans", buyerName: "Ana", storeName: "Loja Exemplo", productName: "Camiseta", orderId: "PED-123", trackingCode: "BR123456789", otpCode: "123456", couponBlock: "Cupom VOLTE10: 10% de desconto", coupon: "VOLTE10", discount: "10%", link: "https://loja.exemplo/pedido" };
+const samples: Record<string, string> = { decisionReason: "A loja confirmou a análise e informará a próxima etapa na conversa.", merchantName: "Loja Exemplo", planName: "Growth", expiresAt: "21/09/2026, 10:00", dashboardLink: "https://app.zyon-payments.com.br/#billing-plans", buyerName: "Ana", storeName: "Loja Exemplo", productName: "Camiseta", orderId: "PED-123", trackingCode: "BR123456789", otpCode: "123456", couponBlock: "Cupom VOLTE10: 10% de desconto", coupon: "VOLTE10", discount: "10%", link: "https://loja.exemplo/pedido" };
 export function prepareSalesWhatsApp(type: string, body: string) {
   salesTemplateType(type);
+  if ((type.startsWith("return_") || type === "exchange_completed") && /\{\{(?:couponBlock|coupon|discount)\}\}/.test(body)) throw new BadRequestException("transactional_template_required");
   if (type === "cart_recovery") return { ...prepareRecoveryWhatsApp(body), category: "MARKETING" };
   const positions = new Map<string, number>();
   const variableMap: Record<string, string> = {};
@@ -41,6 +42,11 @@ export function validateSalesEdit(type: string, value: unknown): RecoveryTemplat
     prepareSalesWhatsApp(type, value);
     return value.trim();
   };
+  if (type.startsWith("return_") || type === "exchange_completed") {
+    for (const variable of ["orderId", "productName", "decisionReason", "link"]) {
+      if (!input.whatsapp?.body?.includes(`{{${variable}}}`)) throw new BadRequestException("return_template_variables_required");
+    }
+  }
   const subject = text(input.email?.subject, 150);
   if (/[\r\n]/.test(subject)) throw new BadRequestException("invalid_email_subject");
   if (!Number.isSafeInteger(input.whatsapp?.revision) || input.whatsapp.revision < 1) throw new BadRequestException("invalid_template_revision");

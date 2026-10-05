@@ -91,13 +91,14 @@ export function TemplateEditor(props: { me: MerchantProfile | null; initialType?
           <details className="message-variables" id={`${id}-variables`}>
             <summary>Como personalizar nomes e links</summary>
             <p>Use <code>{"{{buyerName}}"}</code> para o comprador, <code>{"{{storeName}}"}</code> para a loja e <code>{"{{link}}"}</code> para o link.</p>
+            {(type.startsWith("return_") || type === "exchange_completed") && <p>Use <code>{"{{decisionReason}}"}</code> para a explicação do atendente e as instruções da decisão. Mantenha também o pedido, os itens e o link da conversa.</p>}
             {type !== "cart_recovery" && <p>Também disponíveis: <code>{"{{productName}}"}</code>, <code>{"{{orderId}}"}</code>, <code>{"{{trackingCode}}"}</code> e <code>{"{{couponBlock}}"}</code>.</p>}
           </details>
-          <div className="message-ai-tools">
+          {!(type.startsWith("return_") || type === "exchange_completed") && <div className="message-ai-tools">
             <FormSelect label="Tom da sugestão com IA" value={tone} disabled={dirty} onChange={setTone} options={[{ value: "profissional", label: "Profissional" }, { value: "amigavel", label: "Amigável" }, { value: "descontraido", label: "Descontraído" }, { value: "promocional", label: "Promocional" }, { value: "luxo", label: "Sofisticado" }]} />
             <Button variant="outline" disabled={dirty || conflict} loading={!!tpl.generatingKey} onClick={() => { void generate(); }}><Sparkles size={16} /> Gerar sugestão com IA</Button>
             <p>A sugestão substitui o texto do editor. Revise antes de salvar.</p>
-          </div>
+          </div>}
           {channel === "whatsapp" && !!stored.metaApprovedVersions?.length && <details className="message-variables">
             <summary>Restaurar uma versão aprovada</summary>
             <p>A versão precisa continuar aprovada na conta Meta conectada.</p>

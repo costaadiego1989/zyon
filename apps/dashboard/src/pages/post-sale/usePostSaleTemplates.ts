@@ -21,6 +21,11 @@ export const TEMPLATE_TYPES: Array<{ type: string; label: string; hasCoupon: boo
   { type: "cart_recovery", label: "Recuperação de carrinho", hasCoupon: true },
   { type: "order_confirmation", label: "Confirmação do pedido", hasCoupon: false },
   { type: "order_shipped", label: "Pedido enviado", hasCoupon: false },
+  { type: "return_authorized", label: "Envio para análise autorizado", hasCoupon: false },
+  { type: "return_approved", label: "Troca ou devolução aprovada", hasCoupon: false },
+  { type: "return_rejected", label: "Troca ou devolução não aprovada", hasCoupon: false },
+  { type: "return_refunded", label: "Reembolso confirmado", hasCoupon: false },
+  { type: "exchange_completed", label: "Troca concluída", hasCoupon: false },
   { type: "order_delivered", label: "Pedido entregue", hasCoupon: false },
 ];
 
