@@ -80,8 +80,27 @@ export class ReturnCaseService {
     return { id: row.id, merchantId, buyerMessage: row.buyerMessage, status: row.status as SupportTicket["status"], source: row.source as SupportTicket["source"], sessionId: row.sessionId ?? undefined, returnId: row.returnId ?? undefined, createdAt: row.createdAt.toISOString(), updatedAt: row.updatedAt.toISOString() };
   }
   private async ensureTicketInTransaction(tx: Prisma.TransactionClient, ret: { id: string; merchantId: string; buyerId: string; orderId: string; reason: string; notes: string | null; status: string; kind: string }, existing: boolean): Promise<ReturnRequestResult> {
-    const previous = await tx.supportTicket.findFirst({ where: { merchantId: ret.merchantId, returnId: ret.id, mergedIntoId: null }, orderBy: { createdAt: "asc" } });
+    const previous = await tx.supportTicket.findFirst({ where: { merchantId: ret.merchantId, returnId: ret.id, mergedIntoId: null }, orderBy: { createdAt: "asc" } })
+      ?? await tx.supportTicket.findFirst({ where: { merchantId: ret.merchantId, source: "return_request", sessionId: ret.id,
+        returnId: null, mergedIntoId: null, OR: [{ buyerId: null }, { buyerId: ret.buyerId }] }, orderBy: { createdAt: "asc" } });
     if (previous) {
+      if (previous.buyerId && previous.buyerId !== ret.buyerId) throw new ConflictException("return_ticket_buyer_mismatch");
+      await tx.supportTicket.updateMany({ where: { merchantId: ret.merchantId, source: "return_request", sessionId: ret.id,
+        returnId: null, mergedIntoId: null, id: { not: previous.id }, OR: [{ buyerId: null }, { buyerId: ret.buyerId }] },
+        data: { buyerId: ret.buyerId, mergedIntoId: previous.id } });
+      if (!previous.buyerId || previous.returnId !== ret.id) {
+        await tx.supportTicket.update({ where: { id: previous.id }, data: { buyerId: ret.buyerId, returnId: ret.id } });
+        const aliases = await tx.supportTicket.findMany({ where: { merchantId: ret.merchantId, mergedIntoId: previous.id,
+          OR: [{ buyerId: null }, { buyerId: ret.buyerId }] }, select: { id: true } });
+        const opening = await tx.supportTicketMessage.findFirst({ where: { ticketId: { in: [previous.id, ...aliases.map(alias => alias.id)] }, senderType: "buyer", content: previous.buyerMessage } });
+        if (!opening && previous.buyerMessage.trim()) await persistSupportMessage(tx, { merchantId: ret.merchantId, ticketId: previous.id,
+          senderType: "buyer", content: previous.buyerMessage, clientMessageId: `legacy-opening:${ret.id}` });
+        const recoveryKey = `legacy-recovery:${ret.id}`;
+        if (!await tx.supportTicketMessage.findFirst({ where: { ticketId: previous.id, senderType: "system", clientMessageId: recoveryKey } }))
+          await persistSupportMessage(tx, { merchantId: ret.merchantId, ticketId: previous.id, senderType: "system",
+            content: "Sua solicitação foi recuperada. Acompanhe o histórico e responda à loja nesta conversa.",
+            clientMessageId: recoveryKey, metadata: { kind: "case_update", event: "recovered", returnId: ret.id } });
+      }
       if (!RESOLVED_RETURN_STATUSES.includes(ret.status) && ["closed", "resolved"].includes(previous.status)) {
         await tx.supportTicket.update({ where: { id: previous.id }, data: { status: "in_progress", resolvedAt: null } });
         await persistSupportMessage(tx, { merchantId: ret.merchantId, ticketId: previous.id, senderType: "system", content: "Sua solicitação ainda está em andamento. Esta conversa foi recuperada para acompanhar a resolução.", metadata: { kind: "case_update", event: "recovered" } });
@@ -90,8 +109,10 @@ export class ReturnCaseService {
     }
     const ticketId = `sup_${randomUUID()}`;
     const items = await tx.returnItem.findMany({ where: { returnId: ret.id } });
-    const order = await this.orders.load(ret.merchantId, ret.orderId, ret.buyerId, tx, ret.id);
-    const selected = items.map(it => ({ variantId: it.variantId, quantity: it.quantity, name: order.items.find(line => line.variantId === it.variantId)?.name ?? it.variantId }));
+    const order = existing
+      ? await this.orders.load(ret.merchantId, ret.orderId, ret.buyerId, tx, ret.id).catch(error => { if (error instanceof NotFoundException) return null; throw error; })
+      : await this.orders.load(ret.merchantId, ret.orderId, ret.buyerId, tx, ret.id);
+    const selected = items.map(it => ({ variantId: it.variantId, quantity: it.quantity, name: order?.items.find(line => line.variantId === it.variantId)?.name ?? it.variantId }));
     const summary = `${ret.kind === "exchange" ? "Troca" : "Devolução"} — ${RETURN_REASON_LABELS[ret.reason]}\nPedido ${ret.orderId}\n${selected.map(it => `${it.quantity} × ${it.name}`).join("\n")}${ret.notes ? `\n\n${ret.notes}` : ""}`;
     const now = new Date();
     await tx.supportTicket.create({ data: { id: ticketId, merchantId: ret.merchantId, buyerId: ret.buyerId, returnId: ret.id,
@@ -99,6 +120,9 @@ export class ReturnCaseService {
     await persistSupportMessage(tx, { ticketId, merchantId: ret.merchantId, senderType: "buyer", content: summary,
       metadata: { kind: "return_request", returnId: ret.id, reason: ret.reason, reasonLabel: RETURN_REASON_LABELS[ret.reason]!, orderRef: ret.orderId, items: selected, imageUrls: [] } });
     await persistSupportMessage(tx, { ticketId, merchantId: ret.merchantId, senderType: "system", content: "Solicitação enviada à loja. Acompanhe e responda nesta conversa; avisaremos quando houver novidades.", metadata: { kind: "case_update", event: "created", returnId: ret.id } });
+    await tx.supportTicket.updateMany({ where: { merchantId: ret.merchantId, source: "return_request", sessionId: ret.id,
+      returnId: null, mergedIntoId: null, id: { not: ticketId }, OR: [{ buyerId: null }, { buyerId: ret.buyerId }] },
+      data: { buyerId: ret.buyerId, mergedIntoId: ticketId } });
     await appendSupportEvent(tx, ret.merchantId, ticketId, "created");
     return { returnId: ret.id, ticketId, status: ret.status, existing };
   }
@@ -122,14 +146,38 @@ export class ReturnCaseService {
   }
 
   async buyerTicket(buyerId: string, ticketId: string, merchantId?: string) {
-    const candidate = await this.prisma.supportTicket.findFirst({ where: { id: ticketId, buyerId, ...(merchantId ? { merchantId } : {}) } });
+    let candidate = await this.prisma.supportTicket.findFirst({ where: { id: ticketId, ...(merchantId ? { merchantId } : {}),
+      OR: [{ buyerId }, { buyerId: null, source: "return_request" }] } });
     if (!candidate) throw new NotFoundException("ticket_not_found");
+    if (!candidate.buyerId) {
+      const returnId = candidate.returnId ?? candidate.sessionId;
+      const ownedReturn = returnId ? await this.prisma.return.findFirst({ where: { id: returnId, merchantId: candidate.merchantId, buyerId } }) : null;
+      if (!ownedReturn) throw new NotFoundException("ticket_not_found");
+      const recovered = await this.ensureTicket(ownedReturn.id, true);
+      candidate = await this.prisma.supportTicket.findFirst({ where: { id: recovered.ticketId, merchantId: candidate.merchantId, buyerId } });
+      if (!candidate) throw new NotFoundException("ticket_not_found");
+    }
     const ticket = candidate.mergedIntoId ? await this.prisma.supportTicket.findFirst({ where: { id: candidate.mergedIntoId, buyerId, merchantId: candidate.merchantId } }) : candidate;
     if (!ticket) throw new NotFoundException("ticket_not_found");
     return ticket;
   }
 
   async list(buyerId: string, merchantId?: string) {
+    // Previous API versions can write old tickets after a one-time migration has run.
+    // Recover only returns proven to belong to this buyer and the requested store.
+    const orphaned = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT r."id" FROM "returns" r WHERE r."buyer_id" = ${buyerId}
+      ${merchantId ? Prisma.sql`AND r."merchant_id" = ${merchantId}` : Prisma.empty}
+      AND (NOT EXISTS (SELECT 1 FROM "support_tickets" t WHERE t."return_id" = r."id"
+        AND t."merchant_id" = r."merchant_id" AND t."buyer_id" = r."buyer_id" AND t."merged_into_id" IS NULL)
+        OR EXISTS (SELECT 1 FROM "support_tickets" old WHERE old."session_id" = r."id"
+          AND old."merchant_id" = r."merchant_id" AND old."source" = 'return_request'
+          AND old."return_id" IS NULL AND old."merged_into_id" IS NULL AND old."buyer_id" IS NULL))
+      ORDER BY r."created_at" DESC LIMIT 100`);
+    for (const ret of orphaned) {
+      try { await this.ensureTicket(ret.id, true); }
+      catch (error) { if (!(error instanceof ConflictException)) throw error; }
+    }
     const tickets = await this.prisma.supportTicket.findMany({ where: { buyerId, mergedIntoId: null, ...(merchantId ? { merchantId } : {}) }, orderBy: [{ updatedAt: "desc" }, { id: "desc" }], take: 100 });
     const items = await Promise.all(tickets.map(ticket => this.summary(ticket)));
     return { items, unreadCount: items.reduce((sum, it) => sum + it.unreadCount, 0) };
