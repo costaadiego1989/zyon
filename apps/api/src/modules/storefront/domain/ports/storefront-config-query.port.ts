@@ -10,6 +10,8 @@ export interface StorefrontConfigMerchant {
 }
 
 export interface StorefrontConfigSnapshot {
+  publishedPolicies?: Record<string, string>;
+  policiesAvailable?: boolean;
   merchant: StorefrontConfigMerchant;
   subscriptionStatus?: string;
   checkoutMode?: string;

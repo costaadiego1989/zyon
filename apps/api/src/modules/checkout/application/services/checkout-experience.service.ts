@@ -24,6 +24,7 @@ export interface ExperienceInputs {
 }
 
 export interface ExperienceDeps {
+  policies?: MerchantRules["policies"];
   merchantName?: string;
   theme?: MerchantTheme;
   agent?: AgentContext;
@@ -261,7 +262,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       showBranding: deps.showBranding ?? false,
       voiceEnabled: deps.voiceEnabled ?? false,
     },
-    policies: deps.rules?.policies,
+    policies: deps.policies ?? deps.rules?.policies,
     items,
     totals: {
       currency: input.cart.currency,

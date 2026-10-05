@@ -4,13 +4,13 @@ import { wrapHandler } from "../types.js";
 export const GET_STORE_POLICIES: ToolDefinition = {
   name: "get_store_policies",
   description:
-    "Get store policies: returns, exchanges, shipping, or warranty. Returns policy text. Use when buyer asks about return windows, exchange rules, shipping terms, or warranty coverage.",
+    "Read the current published store policies: privacy, terms, returns, exchanges, shipping, warranty, payment or general. May return text, an external document URL, or configured=false. Never invent missing conditions or infer document contents from a URL.",
   parameters: {
     type: "object",
     properties: {
       policyType: {
         type: "string",
-        enum: ["returns", "exchanges", "shipping", "warranty", "all"],
+        enum: ["privacy", "terms", "returns", "exchanges", "shipping", "warranty", "payment", "general", "all"],
         description:
           "Type of policy to retrieve. Use 'all' to get every policy in one call. Default: 'all'."
       }

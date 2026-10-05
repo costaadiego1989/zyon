@@ -340,7 +340,7 @@ export default async function StorePage({
           data-original-width + inline max-width on this shell before React
           hydrates. That mutation is outside our control. */}
       <div className="storefront-shell" suppressHydrationWarning>
-        <StorefrontConsent key={config?.merchantId ?? slug} storeKey={config?.merchantId ?? slug} merchantId={config?.merchantId} storeName={name} gtmId={privateCheckout ? undefined : gtmId} fbPixelId={privateCheckout ? undefined : fbPixelId} tiktokPixelId={privateCheckout ? undefined : tiktokPixelId}>
+        <StorefrontConsent key={config?.merchantId ?? slug} storeKey={config?.merchantId ?? slug} merchantId={config?.merchantId} storeName={name} storeSlug={config ? slug : undefined} gtmId={privateCheckout ? undefined : gtmId} fbPixelId={privateCheckout ? undefined : fbPixelId} tiktokPixelId={privateCheckout ? undefined : tiktokPixelId}>
         <WidgetConfigProvider merchantId={config?.merchantId}>
           <CartProvider merchantId={config?.merchantId}>
             <ConversationShell

@@ -3,12 +3,12 @@ import { IsOptional, IsString, MaxLength } from "class-validator";
 export class UpdateMerchantPolicyDto {
   @IsOptional()
   @IsString()
-  @MaxLength(5000)
+  @MaxLength(10000)
   returns?: string;
 
   @IsOptional()
   @IsString()
-  @MaxLength(5000)
+  @MaxLength(10000)
   shipping?: string;
 
   @IsOptional()

@@ -204,7 +204,7 @@ export function SignupWizard(props: SignupWizardProps) {
 
       {step === 3 && (
         <p className="auth-terms">
-          Ao criar a conta você concorda com os <a href="https://www.zyon-payments.com.br/termos" target="_blank" rel="noreferrer">Termos de Uso</a> e a <a href="https://www.zyon-payments.com.br/privacidade" target="_blank" rel="noreferrer">Política de Privacidade</a> do Zyon.
+          Ao criar a conta, você aceita os <a href="https://www.zyon-payments.com.br/termos" target="_blank" rel="noreferrer">Termos de Uso</a>. O tratamento dos seus dados é explicado na <a href="https://www.zyon-payments.com.br/privacidade" target="_blank" rel="noreferrer">Política de Privacidade</a> da Zyon.
         </p>
       )}
 
