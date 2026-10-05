@@ -23,6 +23,7 @@ import { PrismaPaymentRepository } from "../../payment/infrastructure/prisma-pay
 import { PaymentIntentEntity } from "../../payment/domain/payment-intent.entity.js";
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout-session.mapper.js";
+import { insertStrategyVersion } from "./strategy-version.writer.js";
 
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
 const enabled = url.hostname === "127.0.0.1" && url.port === "5557" && url.pathname === "/revenue_strategy_0924";
@@ -47,7 +48,7 @@ beforeEach(async () => {
     buyer_intent_memory_consents, customer_intent_records, payment_intents CASCADE`);
 });
 
-async function fixture(realHistory = false, selected: "fixed" | "communication_only" = "fixed") {
+async function fixture(realHistory = false, selected: "fixed" | "communication_only" = "fixed", conversionRate = .1) {
   const merchantId = "store", now = new Date(), historical = new Date(now.getTime() - 14 * 86400000);
   await prisma.merchant.create({ data: { id: merchantId, name: "Automatic policy test" } });
   const rules = merchantRulesSnapshot(await prisma.merchantRule.create({ data: { merchantId,
@@ -95,14 +96,17 @@ async function fixture(realHistory = false, selected: "fixed" | "communication_o
     study = await prepareDiscountStudy(prisma, merchantId, { runId: run.id, leaseToken: 1 });
   } else {
     study = plannerDiscountStudy({ merchantId, runId: run.id, observationId: observation.id, rules,
-      asOf: now.toISOString(), capturedAt: now.toISOString(), cohorts: [{ intent: "price_sensitive", sampleSize: 30, conversionRate: .1,
+      asOf: now.toISOString(), capturedAt: now.toISOString(), cohorts: [{ intent: "price_sensitive", sampleSize: 30, conversionRate,
         carts: Array.from({ length: 30 }, () => cart), shipping: Array.from({ length: 30 }, () => shipping) }] });
     const initial = incentivePolicySnapshot(merchantId, 0, { enabled: false, limitCents: 0, maxDiscountCents: 0, maxRedemptions: 0 });
     const options = revenueIncentiveOptions(study, rules, { snapshot: initial, mode: "automatic" }, () => ({ buyers: 10000,
       conversions: 10, complete: true, windowStart: new Date(now.getTime() - 35 * 86400000).toISOString(),
       windowEnd: new Date(now.getTime() - 7 * 86400000).toISOString() }));
-    await prisma.revenueAnalysisRun.update({ where: { id: run.id }, data: { discountStudyJson: study,
-      incentiveOptionsJson: options as unknown as Prisma.InputJsonValue } });
+    // Match the production capture path: exact JSON text, not Prisma's JSON
+    // number transport, so later publications must preserve this evidence.
+    await prisma.$executeRaw`UPDATE revenue_analysis_runs
+      SET discount_study_json=${JSON.stringify(study)}::jsonb, incentive_options_json=${JSON.stringify(options)}::jsonb
+      WHERE id=${run.id} AND merchant_id=${merchantId}`;
   }
   assert.ok(study);
   const catalog = (await readFrozenIncentiveOptions(prisma, merchantId, { runId: run.id, leaseToken: 1 }))!;
@@ -167,7 +171,11 @@ spec("rejection creates no policy, coupon or financial authorization", async () 
 });
 
 spec("a reviewed revision may select another exact catalog option while the run preserves its initial choice", async () => {
-  const f = await fixture();
+  // This exact double was changed by Prisma JSON serialization in the real
+  // sandbox: 0.00015384615384615385 became 0.0001538461538461539.
+  const f = await fixture(false, "fixed", 1 / 6500);
+  assert.equal((f.version.proposal as any).discountStudy.candidate.simulation.observedConversionRate, 1 / 6500);
+  assert.equal(f.version.proposalHash, digest(f.version.proposal));
   const revised = f.catalog.options.find(option => option.recommendation.selectedCandidateKey === "shipping")!;
   assert.notEqual(revised.id, f.option.id);
   const service = new StrategyReviewService(prisma, {
@@ -188,6 +196,8 @@ spec("a reviewed revision may select another exact catalog option while the run 
     strategyId: f.hypothesis.id, merchantId: "store", version: 2,
   } } });
   assert.deepEqual((version.proposal as any).incentiveRecommendation, revised.recommendation);
+  assert.equal((version.proposal as any).discountStudy.candidate.simulation.observedConversionRate, 1 / 6500);
+  assert.equal(version.proposalHash, digest(version.proposal));
   assert.equal((version.proposal as any).orchestration.selectedAction, revised.id);
   assert.deepEqual((await prisma.revenueAnalysisRun.findUniqueOrThrow({ where: { id: f.run.id } })).incentiveRecommendationJson, f.option.recommendation);
   assert.equal(await prisma.merchantIncentivePolicy.count(), 0);
@@ -200,6 +210,20 @@ spec("a reviewed revision may select another exact catalog option while the run 
   assert.equal(policy.policyHash, revised.recommendation.financialPolicy.policyHash);
   assert.equal(await prisma.merchantIncentivePolicy.count(), 1);
   assert.equal((await prisma.strategyIncentiveReview.findFirstOrThrow()).version, 2);
+});
+
+spec("exact JSON version writer retains catalog and merchant constraints for the sandbox regression double", async () => {
+  const f = await fixture(false, "fixed", 1 / 6500);
+  const proposal = structuredClone(f.version.proposal) as any;
+  const forged = structuredClone(proposal);
+  forged.incentiveRecommendation.test.limitCents++;
+  await assert.rejects(prisma.$transaction(tx => insertStrategyVersion(tx, { strategyId: f.hypothesis.id,
+    merchantId: "store", version: 2, proposal: forged, proposalHash: digest(forged), expiresAt: f.version.expiresAt })), /CATALOG_SELECTION/);
+  await assert.rejects(prisma.$transaction(tx => insertStrategyVersion(tx, { strategyId: f.hypothesis.id,
+    merchantId: "foreign", version: 2, proposal, proposalHash: digest(proposal), expiresAt: f.version.expiresAt })), /foreign key/i);
+  assert.equal(await prisma.revenueStrategyVersion.count({ where: { strategyId: f.hypothesis.id } }), 1);
+  assert.equal(await prisma.merchantIncentivePolicy.count(), 0);
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
 });
 
 spec("manual cap added after proposal invalidates pending automatic exposure instead of being raised", async () => {

@@ -23,6 +23,7 @@ import type { RevenueIncentiveOptions } from "../domain/revenue-incentive-option
 import { selectedIncentive } from "../domain/strategy-orchestration.js";
 import { assertStoredStrategyOrchestration } from "../infrastructure/strategy-orchestration.reader.js";
 import { incentivePolicySupportsRecommendation } from "../infrastructure/incentive-policy-approval.js";
+import { insertStrategyVersion } from "../infrastructure/strategy-version.writer.js";
 
 export type StrategyReviewCommand = { version: number; proposal_hash: string; request_key: string; feedback?: string };
 export type IncentiveAlternativeCommand = StrategyReviewCommand & { recommendation_hash: string };
@@ -299,8 +300,8 @@ export class StrategyReviewService {
             proposal.observation.id, currentRules, proposal.discountStudy, incentiveAlternative);
         }
         const version = action.version + 1;
-        await tx.revenueStrategyVersion.create({ data: { strategyId: strategy.id, merchantId: work.merchantId, version,
-          proposalHash: digest(next), proposal: json(next), expiresAt: base.expiresAt } });
+        await insertStrategyVersion(tx, { strategyId: strategy.id, merchantId: work.merchantId, version,
+          proposalHash: digest(next), proposal: next, expiresAt: base.expiresAt });
         await tx.revenueStrategy.update({ where: { id: strategy.id }, data: { currentVersion: version, status: "pending_review" } });
         await tx.revenueStrategyRevision.update({ where: { id }, data: { status: "completed", reason: null, leaseUntil: null, completedAt: new Date() } });
         await this.notice(tx, work.merchantId, strategy.id, id, "revision_ready", version);

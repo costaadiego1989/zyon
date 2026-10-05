@@ -68,7 +68,11 @@ export class WeeklyAnalysisService {
       if (schedule.nextDueAt > now || !isNight(now, schedule.timezone)) return;
       if (schedule.currentRunId) {
         const current = await tx.revenueAnalysisRun.findUniqueOrThrow({ where: { id: schedule.currentRunId } });
-        if (current.status !== "completed") return;
+        if (current.status !== "completed" && current.status !== "failed") return;
+        // Older failed runs may still have an overdue schedule. Preserve their
+        // evidence and the weekly cadence instead of blocking the store forever
+        // or starting another paid cycle immediately after an exhausted retry.
+        if (current.status === "failed" && now.getTime() < (current.asOf ?? current.createdAt).getTime() + WEEK_MS) return;
       }
       const cycle = schedule.cycle + 1;
       const run = await tx.revenueAnalysisRun.create({ data: { merchantId, cycle, createdAt: now, retryAt: now } });
@@ -117,6 +121,7 @@ export class WeeklyAnalysisService {
       if (!isNight(now, schedule.timezone)) return null;
       if (run.attempts >= MAX_RUN_ATTEMPTS) {
         await tx.revenueAnalysisRun.update({ where: { id }, data: { status: "failed", reason: "attempt_limit", leaseUntil: null } });
+        await this.scheduleAfterFailure(tx, run, now);
         await this.notice(tx, { ...run, reason: "attempt_limit" }, "failed", now);
         return null;
       }
@@ -175,7 +180,10 @@ export class WeeklyAnalysisService {
           status: deferred ? "deferred_budget" : run.attempts >= MAX_RUN_ATTEMPTS ? "failed" : "retry_wait",
           reason, leaseUntil: null, retryAt: new Date(this.clock().getTime() + (deferred ? 3_600_000 : 15 * 60_000)),
           ...(deferred ? { attempts: { decrement: 1 } } : {}) } });
-        if (changed.count) await this.notice(tx, { ...run, reason }, deferred ? "deferred_budget" : "failed", this.clock());
+        if (changed.count) {
+          if (!deferred && run.attempts >= MAX_RUN_ATTEMPTS) await this.scheduleAfterFailure(tx, run, this.clock());
+          await this.notice(tx, { ...run, reason }, deferred ? "deferred_budget" : "failed", this.clock());
+        }
       });
     }
   }
@@ -194,6 +202,11 @@ export class WeeklyAnalysisService {
 
   private fence(run: RevenueAnalysisRun) {
     return { id: run.id, merchantId: run.merchantId, status: "running", leaseToken: run.leaseToken, leaseUntil: { gt: this.clock() } };
+  }
+  private async scheduleAfterFailure(tx: Prisma.TransactionClient, run: RevenueAnalysisRun, now: Date) {
+    const schedule = await tx.revenueAnalysisSchedule.findUniqueOrThrow({ where: { merchantId: run.merchantId } });
+    await tx.revenueAnalysisSchedule.updateMany({ where: { merchantId: run.merchantId, currentRunId: run.id },
+      data: { nextDueAt: nextNight(new Date(now.getTime() + WEEK_MS), schedule.timezone) } });
   }
   private async checkpoint(run: RevenueAnalysisRun, data: Prisma.RevenueAnalysisRunUpdateManyMutationInput) {
     const changed = await this.prisma.revenueAnalysisRun.updateMany({ where: this.fence(run), data });

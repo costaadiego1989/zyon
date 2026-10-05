@@ -14,6 +14,7 @@ import type { StrategyDiscountStudy } from "../domain/strategy-discount-study.js
 import type { StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 import type { RevenueIncentiveOptions } from "../domain/revenue-incentive-options.js";
 import { selectedIncentive, type StrategyOrchestration } from "../domain/strategy-orchestration.js";
+import { insertStrategyVersion } from "./strategy-version.writer.js";
 
 /** Called inside the existing fenced hypothesis transaction: proposal, source and
  * notification either commit together or none of them do. No legacy backfill. */
@@ -66,8 +67,9 @@ export async function publishInitialStrategy(tx: Prisma.TransactionClient, snap:
   await assertStoredDiscountStudy(tx, snap.merchant_id, runId, snap.observation_id, merchantRulesSnapshot(rules), discountStudy, incentive);
   const proposal = strategyProposal(recommendation, observation, merchantRulesSnapshot(rules), baseline, experimentReview, discountStudy, incentive, orchestration);
   const expiresAt = new Date((run.asOf ?? row.createdAt).getTime() + WEEK_MS);
-  await tx.revenueStrategy.create({ data: { id: snap.id, merchantId: snap.merchant_id, runId,
-    versions: { create: { version: 1, proposalHash: digest(proposal), proposal: proposal as unknown as Prisma.InputJsonValue, expiresAt } } } });
+  await tx.revenueStrategy.create({ data: { id: snap.id, merchantId: snap.merchant_id, runId } });
+  await insertStrategyVersion(tx, { strategyId: snap.id, merchantId: snap.merchant_id, version: 1,
+    proposalHash: digest(proposal), proposal, expiresAt });
   await tx.merchantNotification.upsert({ where: { id: `strategy:${snap.id}` },
     update: {}, create: { id: `strategy:${snap.id}`, merchantId: snap.merchant_id, type: "ai_strategy_suggestion",
       title: "Nova estratégia para revisar", body: orchestration ? snap.hypothesis_text : incentive?.status === "recommended"
