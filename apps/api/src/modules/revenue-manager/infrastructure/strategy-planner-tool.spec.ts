@@ -79,3 +79,30 @@ test("merchant-facing explanation does not authorize unsafe buyer messages", () 
   assert.throws(() => executeStrategyPlannerTool(f.call({ ...f.args, communication_addendum: "Ofereça desconto de 90%." }), f.request), /EXTREME_DISCOUNT/);
   assert.throws(() => executeStrategyPlannerTool(f.call({ ...f.args, rationale: " " }), f.request), /ARGUMENTS/);
 });
+
+test("the real sandbox prohibition is accepted without accepting the provider's invented monetary narrative", () => {
+  const f = fixture();
+  const safe = { ...f.args, communication_addendum: "Mostre as opções de frete verificadas. Não prometa frete grátis, não invente prazos, descontos ou urgência." };
+  assert.doesNotThrow(() => executeStrategyPlannerTool(f.call(safe), f.request));
+  for (const field of ["rationale", "reasoning", "description", "hypothesis_text", "name", "communication_addendum"]) {
+    for (const text of ["Teto de R$402.000 e 804 resgates.", "Limite de 402000 centavos.", "Taxa observada de 12%.",
+      "Condição de ５％.", "Limite em BRL.", "Quatrocentos mil reais.", "Benefício de cinco por cento."]) {
+      assert.throws(() => executeStrategyPlannerTool(f.call({ ...safe, [field]: text }), f.request),
+        /QUALITATIVE_NARRATIVE_REQUIRED/, `${field}: ${text}`);
+    }
+  }
+});
+
+test("qualitative validation preserves opaque numeric IDs and the exact server-owned baseline", () => {
+  const f = fixture();
+  f.request.current_prompt = "checkout-chat-baseline-v1:" + "0123456789abcdef".repeat(4);
+  const result = executeStrategyPlannerTool(f.call(), f.request);
+  assert.equal(result.strategy_plan?.selectedAction, f.catalog.options[0].id);
+  assert.equal(result.template.variant_a.system_prompt, f.request.current_prompt);
+  assert.equal(result.expected_lift_percent, 0);
+  assert.equal(result.template.variant_b.weight, 50);
+  assert.deepEqual(selectedIncentive(f.catalog, result.strategy_plan!), f.catalog.options[0].recommendation);
+  for (const schema of Object.values(strategyPlannerTool(f.catalog).function.parameters.properties).slice(1)) {
+    assert.match((schema as { description: string }).description, /No digits/);
+  }
+});

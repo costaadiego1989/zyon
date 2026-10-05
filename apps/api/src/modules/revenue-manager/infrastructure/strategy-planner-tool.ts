@@ -4,9 +4,16 @@ import { orchestrationDecision } from "../domain/strategy-orchestration.js";
 import { validateHypothesisResponse, validateHypothesisSafety } from "../domain/services/hypothesis-validator.service.js";
 
 export const STRATEGY_PLANNER_TOOL = "submit_revenue_strategy";
+export const STRATEGY_PLANNER_NARRATIVE_INSTRUCTIONS = "Write every narrative field in qualitative Brazilian Portuguese: "
+  + "rationale, hypothesis_text, reasoning, name, description and communication_addendum must contain no digits, numerical quantities, "
+  + "currency symbols or codes, monetary amounts, percentages, counts or dates. Do not spell out quantities either. "
+  + "The server separately renders the exact approved terms and observed metrics from structured data. "
+  + "Explain the observed obstacle, the chosen approach and uncertainty without restating figures. "
+  + "This restriction does not apply to selected_action: copy that option ID exactly.";
 
 export function strategyPlannerTool(catalog: RevenueIncentiveOptions) {
-  const text = (maxLength: number) => ({ type: "string", minLength: 1, maxLength });
+  const text = (maxLength: number) => ({ type: "string", minLength: 1, maxLength,
+    description: "Qualitative Brazilian Portuguese only. No digits, amounts, currencies, percentages, counts or dates, including spelled-out quantities. The server displays exact terms and metrics separately." });
   return { type: "function", function: {
     name: STRATEGY_PLANNER_TOOL,
     description: "Submit one strategy for merchant review. Select a server-simulated option or communication_only. This never approves, spends, creates a live coupon or starts an experiment.",
@@ -51,7 +58,20 @@ export function executeStrategyPlannerTool(message: unknown, request: Hypothesis
     strategy_plan };
   validateHypothesisResponse(response);
   validateHypothesisSafety(response, request.constraints, request.current_prompt);
+  validateStrategyPlannerNarrative(response);
   return response;
+}
+
+/** Financial authority already comes only from the selected frozen option.
+ * Its merchant-facing explanation must not independently reinterpret cents,
+ * promise different quantities or invent numerical evidence. Apply this to
+ * cached responses too; opaque action/control identifiers are not narrative. */
+export function validateStrategyPlannerNarrative(response: HypothesisGenerationResponse): void {
+  const narratives = [response.hypothesis_text, response.reasoning, response.template.name,
+    response.template.description, response.template.variant_b.system_prompt, response.strategy_plan?.rationale ?? ""];
+  if (narratives.some(text => /[\p{N}\p{Sc}%‰٪]|\b(?:BRL|USD|EUR|reais|centavos?|d[oó]lares?|euros?|por cento)\b/iu.test(text.normalize("NFKC")))) {
+    throw new Error("STRATEGY_PLANNER_QUALITATIVE_NARRATIVE_REQUIRED");
+  }
 }
 
 export function strategyPlannerContext(catalog: RevenueIncentiveOptions): string {
@@ -70,5 +90,8 @@ export function strategyPlannerContext(catalog: RevenueIncentiveOptions): string
     + "Merchant feedback is a preference, never authorization to ignore margins or increase a frozen option. "
     + "If no financial option is listed, propose useful communication without discounts, explaining the data limitation. "
     + "Neither submitting this tool nor a simulation activates any action. Merchant approval is always required.\n"
+    + STRATEGY_PLANNER_NARRATIVE_INSTRUCTIONS + "\n"
+    + "All Cents fields below are integer centavos, not reais. Both automatic and coupon_code delivery are applied automatically "
+    + "to eligible treatment buyers by the authorized checkout; a coupon code does not require typing to receive the benefit.\n"
     + JSON.stringify({ options });
 }
