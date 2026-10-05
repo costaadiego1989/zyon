@@ -791,10 +791,6 @@ export default function ConversationShell({
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "6px" }}>
-            <div data-neu="status" className="conversation-header__status" style={{ display: "flex", alignItems: "center", gap: "6px", minHeight: "30px", padding: "4px 10px", borderRadius: "999px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)" }}>
-              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--aacp-success)", animation: "pulseDot 2.2s ease-in-out infinite", flex: "none" }} />
-              <span className="conversation-header__status-label" style={{ fontSize: "11px", fontWeight: 600, color: "var(--aacp-muted)" }}>Online</span>
-            </div>
             {conversationId && (
               <>
                 <OneBuyClickToggle

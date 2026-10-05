@@ -1,0 +1,178 @@
+{
+  "privacidade": {
+    "title": "Política de Privacidade",
+    "description": "Quais dados a Zyon trata, por que são necessários e como exercer seus direitos.",
+    "sections": [
+      {
+        "title": "Responsáveis e contato",
+        "paragraphs": [
+          "A Zyon é uma plataforma de comércio digital e atendimento com inteligência artificial, operada pela Athom Technologies. Esta política abrange o site da plataforma, dashboard, lojas, checkout, conta do comprador e integrações disponíveis.",
+          "O lojista identificado na oferta é responsável pelos dados usados na venda, entrega e atendimento e pelas suas regras comerciais. A Zyon pode atuar como operadora em nome da loja e como controladora das operações próprias de conta, segurança e gestão da plataforma, conforme a finalidade.",
+          "Para exercer direitos sobre dados tratados pela Zyon, escreva para costaadiego1989@gmail.com. Para informações sobre a compra ou uso de dados pela loja, utilize também os canais do lojista identificados no storefront."
+        ]
+      },
+      {
+        "title": "Dados que utilizamos",
+        "paragraphs": [
+          "Cadastro e acesso: nome, e-mail, telefone, identificação de empresa e equipe, identificadores de conta e registros de autenticação. Compras: itens, carrinho, pedidos, endereço, informações fiscais quando necessárias e referências e estados de pagamento.",
+          "Atendimento: mensagens, anexos, preferências informadas, avaliações e mídias enviadas nos recursos utilizados. Integrações: identificadores de contas conectadas, permissões e credenciais necessárias aos serviços autorizados pelo lojista.",
+          "Operação e segurança: IP, informações do navegador, registros de sessão e eventos necessários para operar o serviço e prevenir abuso. A coleta varia conforme os recursos utilizados; informar um contato para concluir a compra não autoriza campanhas automaticamente."
+        ]
+      },
+      {
+        "title": "Finalidades e bases do tratamento",
+        "paragraphs": [
+          "Tratamos dados para autenticar contas, disponibilizar lojas, catálogos e carrinhos, processar pedidos, integrar pagamentos e entregas, prestar atendimento e proteger a plataforma. Conforme a finalidade, usamos execução de contrato e procedimentos solicitados pelo usuário, obrigação legal, exercício regular de direitos, interesses legítimos avaliados ou consentimento específico.",
+          "Confirmações de pedido, pagamento, envio e entrega têm finalidade operacional. Recusar marketing e cookies facultativos não impede a compra nem esses avisos necessários. A disponibilidade de cada canal depende dos dados fornecidos e das regras dos provedores; a recusa não é contornada por outro canal promocional.",
+          "Ofertas, novidades, recuperação de carrinho e campanhas de relacionamento dependem das permissões aplicáveis. Na tela de consentimento do storefront, e-mail e WhatsApp são escolhidos separadamente, sem marcação automática e sem condicionar a compra ao aceite."
+        ]
+      },
+      {
+        "title": "Inteligência artificial e personalização",
+        "paragraphs": [
+          "Mensagens, anexos e informações necessárias ao atendimento podem ser processados por serviços de inteligência artificial para responder perguntas e apresentar produtos conforme o catálogo e as regras da loja. Evite enviar dados sensíveis ou de terceiros que não sejam necessários ao atendimento.",
+          "A conta do comprador pode reunir compras de diferentes lojas. Recursos de memória de preferências e personalização dependem das permissões e configurações próprias e não são ativados pelo aceite de cookies ou campanhas. Os controles de dados da conta permitem consultar e remover a personalização disponível.",
+          "Você pode solicitar explicações sobre o tratamento e revisão de decisões baseadas exclusivamente em processamento automatizado que afetem seus interesses, nos termos da LGPD."
+        ]
+      },
+      {
+        "title": "Armazenamento e registro das escolhas",
+        "paragraphs": [
+          "Cookies, localStorage e sessionStorage mantêm recursos como autenticação, carrinho, tema e continuidade de navegação. A escolha de cookies e contato fica vinculada à loja neste navegador, com versão da política, data, opções escolhidas e, quando houver conta, identificador de vinculação e estado de sincronização.",
+          "Ao entrar na conta, uma escolha de contato pendente é vinculada ao comprador autenticado e enviada ao servidor. O registro de autorização ou revogação é separado por loja, canal e finalidade, com versão, origem e datas. O armazenamento local não substitui a autorização no servidor para enviar campanhas.",
+          "O aviso aparece na primeira visita sem uma escolha válida. Você pode reabrir os controles em Cookies e contato. Limpar dados do navegador, trocar de navegador ou uma mudança relevante de versão pode fazer o aviso reaparecer. Se o navegador bloquear o armazenamento persistente, tentamos guardar a escolha apenas na aba; se isso também falhar, ela vale somente naquela visita.",
+          "A Política de Cookies descreve os recursos necessários e opcionais. Ferramentas opcionais de medição e publicidade do storefront só são carregadas depois da autorização correspondente."
+        ]
+      },
+      {
+        "title": "Compartilhamento e transferências",
+        "paragraphs": [
+          "Podemos compartilhar os dados necessários com a loja da compra e com prestadores de hospedagem, armazenamento, comunicação, inteligência artificial, pagamento e logística, além de sistemas autorizados pelo lojista. Também pode haver compartilhamento para cumprir obrigações legais ou determinações de autoridades.",
+          "WhatsApp pode envolver Meta e o provedor conectado pela loja, inclusive Twilio quando configurado. O envio depende da conexão, das permissões exigidas e da aprovação de modelos de mensagem quando aplicável. Desconectar uma integração não elimina automaticamente contas ou registros mantidos pelos terceiros.",
+          "Alguns prestadores podem processar dados fora do Brasil. Transferências devem observar as garantias e mecanismos aplicáveis. Você pode solicitar informações sobre os prestadores e o tratamento utilizado no seu caso."
+        ]
+      },
+      {
+        "title": "Conservação, proteção e direitos",
+        "paragraphs": [
+          "Aplicamos controles de acesso, autenticação e medidas técnicas compatíveis com a natureza dos dados. Conservamos informações pelo período necessário à finalidade, prestação do serviço, obrigações legais e exercício regular de direitos. O prazo pode variar entre conta, pedidos, registros de segurança e autorizações. A eliminação ou anonimização é avaliada ao encerrar essas finalidades.",
+          "Você pode pedir confirmação, acesso, correção, informações sobre compartilhamento, portabilidade quando cabível, anonimização, bloqueio ou eliminação nas hipóteses legais e revogação do consentimento. Solicitações podem ser feitas sem cobrança; podemos confirmar sua identidade de forma proporcional antes de liberar informações.",
+          "Revogar marketing em Cookies e contato atualiza a permissão no servidor quando você está autenticado. Se houver falha, a interface avisa e permite tentar novamente; você também pode pedir a revogação ao contato de privacidade ou à loja. Revogar não apaga automaticamente pedidos ou registros que devam ser preservados por outra base legal.",
+          "Esta versão é de 5 de outubro de 2026. Mudanças relevantes de finalidade serão informadas e, quando necessário, dependerão de uma nova escolha."
+        ]
+      }
+    ]
+  },
+  "cookies": {
+    "title": "Política de Cookies",
+    "description": "Como usamos cookies e armazenamento do navegador e como controlar as opções facultativas.",
+    "sections": [
+      {
+        "title": "Cookies e armazenamento do navegador",
+        "paragraphs": [
+          "Cookies são pequenos registros enviados pelo site e mantidos pelo navegador. localStorage guarda informações na origem do site até serem removidas, e sessionStorage mantém dados ligados à aba ou sessão. Todos podem participar do funcionamento da loja, mas têm finalidades diferentes.",
+          "Esta política descreve o storefront e o checkout Zyon. O site institucional e o dashboard podem usar recursos necessários próprios de sessão e navegação. Políticas específicas da loja complementam estes documentos sem retirar seus direitos."
+        ]
+      },
+      {
+        "title": "Recursos necessários",
+        "paragraphs": [
+          "Sessão, autenticação, segurança, carrinho e continuidade do checkout usam armazenamento necessário ao serviço solicitado. Preferências de tema e a decisão de consentimento também são guardadas para lembrar sua escolha. Eles não são uma autorização para marketing.",
+          "Exemplos do navegador: zyon_buyer_token e zyon_buyer_session para acesso, zyon-theme para o tema, identificadores de conversa e carrinho e zyon-storefront-consent seguido do identificador da loja para as escolhas de privacidade.",
+          "Registros locais não possuem todos o mesmo prazo: dados em localStorage permanecem até remoção ou substituição; sessionStorage é ligado à sessão da aba; credenciais possuem validade própria e cookies podem ser de sessão ou ter expiração definida pelo serviço. Bloquear recursos necessários pode impedir acesso, carrinho ou conclusão da compra."
+        ]
+      },
+      {
+        "title": "Medição e publicidade opcionais",
+        "paragraphs": [
+          "Quando o lojista configura Google Tag Manager, Meta Pixel ou TikTok Pixel, o storefront apresenta a opção Cookies de medição e publicidade. Ela começa desmarcada. Os scripts só carregam após o aceite dessa opção; a recusa mantém essas ferramentas bloqueadas.",
+          "Esses serviços podem tratar identificadores de navegador, páginas visitadas e eventos de navegação e compra para medição e publicidade, conforme a configuração da loja. Google Tag Manager pode carregar outras tags definidas pelo lojista, que deve limitar sua configuração à finalidade informada e manter as informações sobre seus fornecedores atualizadas.",
+          "Ao retirar a autorização, a loja é recarregada para interromper scripts opcionais que já tenham sido executados. Dados anteriormente enviados e cookies que terceiros já tenham criado não são automaticamente eliminados por esse recarregamento; para removê-los, utilize também os controles de dados do navegador ou solicite orientação ao responsável."
+        ]
+      },
+      {
+        "title": "Como a sua escolha é salva",
+        "paragraphs": [
+          "Na primeira visita sem escolha válida, o storefront mostra um painel de privacidade que sobe da parte inferior da tela. Ele permanece aberto até uma escolha explícita. Aceitar seleção salva apenas as opções marcadas. Não aceito mantém as opções facultativas desativadas. Continuar navegando não é tratado como consentimento.",
+          "A decisão é salva por loja e navegador com versão e data para não repetir o aviso a cada carregamento. Ela pode ser revisada a qualquer momento em Cookies e contato. Ao reabrir o painel, confirme a seleção ou recuse as opções para concluir.",
+          "Limpar o armazenamento, trocar de navegador ou uma alteração relevante de política pode exigir uma nova escolha. Se localStorage estiver bloqueado, usamos sessionStorage quando disponível; se ambos estiverem indisponíveis, a escolha permanece somente na visita atual."
+        ]
+      },
+      {
+        "title": "Contato por e-mail e WhatsApp é uma escolha separada",
+        "paragraphs": [
+          "Na mesma tela você pode autorizar ofertas, novidades e lembretes de carrinho por e-mail e WhatsApp separadamente. Essa permissão não decorre do aceite de cookies e é registrada no servidor somente após vinculação à conta autenticada.",
+          "Avisos operacionais necessários ao pedido seguem outro fluxo. Recusar comunicações promocionais não bloqueia a compra nem transforma avisos operacionais em publicidade. O WhatsApp continua sujeito às permissões e regras próprias do provedor."
+        ]
+      },
+      {
+        "title": "Serviços externos e dúvidas",
+        "paragraphs": [
+          "Fontes, imagens, vídeos de produto e serviços de pagamento podem fazer o navegador se comunicar com fornecedores externos quando utilizados. Os recursos essenciais de conteúdo e pagamento não autorizam campanhas. Serviços opcionais de publicidade são controlados pela escolha descrita acima.",
+          "Para dúvidas ou exercício de direitos sobre o tratamento da Zyon, escreva para costaadiego1989@gmail.com. Para tags e campanhas configuradas pelo lojista, utilize também o atendimento da loja. Consulte a Política de Privacidade para dados, compartilhamento e direitos.",
+          "Esta versão é de 5 de outubro de 2026."
+        ]
+      }
+    ]
+  },
+  "termos": {
+    "title": "Termos de Uso",
+    "description": "Condições de utilização da plataforma Zyon por lojistas, equipes e compradores.",
+    "sections": [
+      {
+        "title": "A plataforma e as condições da oferta",
+        "paragraphs": [
+          "A Zyon, operada pela Athom Technologies, oferece lojas digitais, catálogo, atendimento com inteligência artificial, checkout, conta do comprador e integrações. Dúvidas sobre a plataforma podem ser enviadas para costaadiego1989@gmail.com.",
+          "As condições específicas informadas antes da confirmação de uma assinatura ou compra complementam estes termos. O consentimento a marketing e cookies opcionais é independente das condições de uso e nunca é exigido para comprar. Direitos obrigatórios previstos na legislação brasileira permanecem preservados."
+        ]
+      },
+      {
+        "title": "Cadastro e segurança",
+        "paragraphs": [
+          "Forneça informações corretas e mantenha seus dados atualizados. Quem cadastra ou conecta uma loja deve ter autorização para representá-la e utilizar os produtos, conteúdos e serviços integrados.",
+          "Proteja senhas, códigos de acesso e permissões da equipe. Não compartilhe credenciais e informe ao suporte suspeitas de acesso indevido. A conta do comprador pode reunir recursos e histórico de diferentes lojas; cada loja deve respeitar seu próprio escopo de acesso e contato."
+        ]
+      },
+      {
+        "title": "Compra e responsabilidades comerciais",
+        "paragraphs": [
+          "A loja deve informar identificação do fornecedor, CPF ou CNPJ quando aplicável, endereço físico e eletrônico e meios de contato, características do produto ou serviço, preço total com despesas adicionais, disponibilidade, condições de pagamento, entrega, atendimento, trocas e devoluções.",
+          "O lojista responde pelo catálogo, preços, estoque, execução dos serviços, entrega, conteúdo digital, documentos fiscais e atendimento comercial. O comprador deve conferir itens, valores e condições antes de confirmar. A transação deve ser confirmada no checkout; uma resposta da IA ou autorização de contato não efetua cobrança.",
+          "Na contratação fora do estabelecimento, é assegurado o direito de arrependimento nas hipóteses do art. 49 do Código de Defesa do Consumidor, em regra por sete dias da assinatura ou do recebimento do produto ou serviço. A loja deve oferecer um meio eficaz de solicitação e observar os efeitos e restituições previstos em lei. Regras da loja não afastam garantias legais.",
+          "Em ofertas de outras lojas, as informações de vendedor, itens, frete, pagamento e devolução devem ser conferidas antes da confirmação. O suporte da Zyon atende questões de funcionamento da plataforma, sem afastar responsabilidades legais aplicáveis ao caso."
+        ]
+      },
+      {
+        "title": "Inteligência artificial e compra rápida",
+        "paragraphs": [
+          "A IA auxilia no atendimento, na apresentação de produtos e nas condições permitidas pela loja. Respostas podem conter imprecisões; o lojista deve manter as fontes de referência corretas e acompanhar suas automações. Valores e condições confirmados no checkout orientam a compra.",
+          "Compra rápida e recursos de agente seguem as configurações autorizadas pelo comprador e os limites disponíveis. Habilitar um recurso não autoriza campanhas, acesso irrestrito a dados ou cobranças fora das permissões concedidas. A plataforma não garante vendas ou faturamento."
+        ]
+      },
+      {
+        "title": "Assinaturas e integrações",
+        "paragraphs": [
+          "Recursos, limites, preços, taxas, periodicidade e condições de cancelamento são apresentados na oferta e no fluxo de contratação. Confira essas informações antes de confirmar. Dúvidas sobre cobrança ou encerramento devem ser dirigidas ao suporte.",
+          "Pagamentos, mensagens, logística e outros serviços dependem dos provedores conectados, das configurações e das condições próprias desses serviços. WhatsApp pode envolver Meta e o provedor configurado, inclusive Twilio quando utilizado; contas e modelos de mensagem podem exigir análise e aprovação.",
+          "Autorização de campanha deve existir por loja e canal. Recusar e-mail, WhatsApp ou cookies opcionais não é falha na compra. Atualizações operacionais do pedido seguem finalidade própria, e seu envio continua sujeito aos dados disponíveis e às regras do provedor."
+        ]
+      },
+      {
+        "title": "Conteúdo e uso permitido",
+        "paragraphs": [
+          "Envie e publique apenas conteúdos que tenha direito de utilizar. Textos, imagens, vídeos e avaliações podem ser tratados e exibidos na medida necessária ao recurso usado; avaliações podem passar por moderação. Essa autorização funcional não permite usos incompatíveis com a finalidade informada.",
+          "São proibidos fraude, mensagens não autorizadas, atividades ilícitas, violação de direitos e tentativas de comprometer contas ou sistemas. Conteúdos e acessos podem ser restringidos conforme a gravidade e as obrigações aplicáveis. A marca, o software e os materiais próprios mantêm seus respectivos direitos de titularidade."
+        ]
+      },
+      {
+        "title": "Dados, encerramento e alterações",
+        "paragraphs": [
+          "O tratamento de dados consta da Política de Privacidade e da Política de Cookies. Preferências opcionais podem ser alteradas em Cookies e contato. Revogação de consentimento, cancelamento de assinatura, encerramento da conta e exclusão de dados são ações distintas.",
+          "Encerrar uma conta não cancela automaticamente pedidos, obrigações pendentes ou contas de terceiros. A eliminação de dados observa obrigações legais, exercício de direitos e os períodos necessários às finalidades informadas.",
+          "Manutenções, atualizações e indisponibilidades de terceiros podem afetar o serviço. Incidentes são analisados conforme as circunstâncias e a legislação; estes termos não excluem responsabilidades obrigatórias. Mudanças relevantes serão comunicadas pelos canais aplicáveis. Aplicam-se as leis brasileiras e as regras de proteção ao consumidor quando cabíveis.",
+          "Esta versão é de 5 de outubro de 2026."
+        ]
+      }
+    ]
+  }
+}

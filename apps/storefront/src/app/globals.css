@@ -425,10 +425,10 @@ input, textarea {
   }
 
   #storefront-chat .conversation-header > img {
-    width: 34px !important;
-    height: 34px !important;
-    max-width: 34px !important;
-    max-height: 34px !important;
+    width: 44px !important;
+    height: 44px !important;
+    max-width: 44px !important;
+    max-height: 44px !important;
   }
 
   #storefront-chat .one-buy-click-toggle--header,
