@@ -49,6 +49,8 @@ flowchart TD
 
 O ciclo termina como `recommendations`, `keep_current` ou `insufficient_data`. O processamento usa `queued`, `running`, `retry_wait`, `deferred_budget`, `completed` e `failed`. A notificação `analysis:<runId>` é atualizada conforme o estado, evitando criar uma notificação nova a cada poll.
 
+A permissão da loja (`autonomousEngineEnabled`) e a disponibilidade de geração da plataforma são controles distintos. `analysis-status.generation_enabled` informa o segundo: uma loja pode permitir sugestões enquanto a geração está pausada pela Zyon. O dashboard exibe a pausa no resumo, sem prometer uma proposta na fila. Atualizações de agendamento, espera ou falta de dados explicam que não há uma nova proposta para aprovar. Repetir o mesmo estado e motivo preserva a leitura da notificação; uma mudança de resultado, motivo ou proposta volta a sinalizá-la como não lida.
+
 O job diário legado permanece no repositório para lojas não migradas. A existência de uma agenda semanal impede a loja de voltar ao caminho diário mesmo após desligar a flag semanal. Não apagar agendas como forma de rollback.
 
 Fontes: [política de agenda](../../apps/api/src/modules/revenue-manager/domain/weekly-analysis-policy.ts), [serviço semanal](../../apps/api/src/modules/revenue-manager/infrastructure/weekly-analysis.service.ts), [job semanal](../../apps/api/src/modules/revenue-manager/infrastructure/jobs/weekly-analysis.job.ts).

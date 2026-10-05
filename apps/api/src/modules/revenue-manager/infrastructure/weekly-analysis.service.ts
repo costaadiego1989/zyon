@@ -117,7 +117,7 @@ export class WeeklyAnalysisService {
       if (!isNight(now, schedule.timezone)) return null;
       if (run.attempts >= MAX_RUN_ATTEMPTS) {
         await tx.revenueAnalysisRun.update({ where: { id }, data: { status: "failed", reason: "attempt_limit", leaseUntil: null } });
-        await this.notice(tx, run, "failed", now);
+        await this.notice(tx, { ...run, reason: "attempt_limit" }, "failed", now);
         return null;
       }
       const day = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate()));
@@ -125,7 +125,7 @@ export class WeeklyAnalysisService {
       if (!run.startedAt && count >= dailyLimit) {
         await tx.revenueAnalysisRun.update({ where: { id }, data: { status: "deferred_budget", reason: "daily_analysis_limit",
           retryAt: nextNight(new Date(now.getTime() + 6 * 3_600_000), schedule.timezone) } });
-        await this.notice(tx, run, "deferred_budget", now);
+        await this.notice(tx, { ...run, reason: "daily_analysis_limit" }, "deferred_budget", now);
         return null;
       }
       return tx.revenueAnalysisRun.update({ where: { id }, data: { status: "running", reason: null,
@@ -175,7 +175,7 @@ export class WeeklyAnalysisService {
           status: deferred ? "deferred_budget" : run.attempts >= MAX_RUN_ATTEMPTS ? "failed" : "retry_wait",
           reason, leaseUntil: null, retryAt: new Date(this.clock().getTime() + (deferred ? 3_600_000 : 15 * 60_000)),
           ...(deferred ? { attempts: { decrement: 1 } } : {}) } });
-        if (changed.count) await this.notice(tx, run, deferred ? "deferred_budget" : "failed", this.clock());
+        if (changed.count) await this.notice(tx, { ...run, reason }, deferred ? "deferred_budget" : "failed", this.clock());
       });
     }
   }
@@ -216,9 +216,27 @@ export class WeeklyAnalysisService {
     const titles: Record<string, string> = { queued: "Análise semanal agendada", recommendations: "Análise concluída: estratégia para revisar",
       insufficient_data: "Análise concluída: aguardando mais dados", keep_current: "Análise concluída: manter a estratégia atual",
       deferred_budget: "Análise semanal aguardando disponibilidade", failed: "Análise semanal precisa de atenção" };
-    const data = { title: titles[state] ?? "Análise semanal atualizada", body: "Veja o resultado e os próximos passos no Revenue Manager.",
-      metadata: { analysisRunId: run.id, state, ...(run.hypothesisId ? { hypothesisId: run.hypothesisId } : {}) } };
-    await tx.merchantNotification.upsert({ where: { id: `analysis:${run.id}` }, update: { ...data, read: false },
+    const paused = state === "deferred_budget" && run.reason === "generation_disabled";
+    const bodies: Record<string, string> = {
+      queued: "Sua análise entrou na fila. Ainda não há uma nova proposta desta análise para aprovar.",
+      recommendations: "Uma nova proposta está disponível em Otimização com IA. Revise os detalhes antes de aprovar.",
+      insufficient_data: "A análise terminou sem uma nova proposta. Precisamos de mais dados para recomendar uma mudança.",
+      keep_current: "A análise terminou sem uma nova proposta. Acompanhe o teste atual ou revise as sugestões já disponíveis.",
+      deferred_budget: "A análise aguarda disponibilidade. Ainda não há uma nova proposta desta análise para aprovar.",
+      failed: "Não foi possível concluir a análise. Nenhuma nova proposta foi criada por esta tentativa.",
+    };
+    const reason = state === "deferred_budget" || state === "failed" ? run.reason : null;
+    const data = { title: paused ? "Geração de sugestões pausada" : titles[state] ?? "Análise semanal atualizada",
+      body: paused ? "A geração está temporariamente pausada pela Zyon. Esta análise ainda não tem uma proposta para aprovar."
+        : bodies[state] ?? "Acompanhe o estado da análise em Otimização com IA.",
+      metadata: { analysisRunId: run.id, state, reason, ...(run.hypothesisId ? { hypothesisId: run.hypothesisId } : {}) } };
+    const previous = await tx.merchantNotification.findUnique({ where: { id: `analysis:${run.id}` }, select: { metadata: true } });
+    const metadata = previous?.metadata as Record<string, unknown> | null;
+    // Repeated retries are not new information. Keep a read notice read until
+    // the outcome, blocking reason or proposal changes (the run is locked).
+    const changed = !previous || metadata?.state !== state || (metadata?.reason ?? null) !== reason
+      || (metadata?.hypothesisId ?? null) !== (run.hypothesisId ?? null);
+    await tx.merchantNotification.upsert({ where: { id: `analysis:${run.id}` }, update: { ...data, ...(changed ? { read: false } : {}) },
       create: { ...data, id: `analysis:${run.id}`, merchantId: run.merchantId, type: "ai_analysis_update", createdAt: now } });
   }
 
@@ -228,6 +246,7 @@ export class WeeklyAnalysisService {
       where: { id: schedule.currentRunId, merchantId }, select: { id: true, status: true, result: true, reason: true,
         createdAt: true, startedAt: true, completedAt: true, observationId: true, hypothesisId: true, retryAt: true } }) : null;
     return { mode: schedule ? "weekly" : "legacy", enabled: weeklyAnalysisEnabled() && weeklyMerchantAllowed(merchantId),
+      generation_enabled: weeklyGenerationEnabled(),
       queue_available: !!process.env.REDIS_URL && process.env.REDIS_ENABLED !== "false",
       next_eligible_at: schedule?.nextDueAt.toISOString() ?? null, last_successful_at: schedule?.lastSuccessfulAt?.toISOString() ?? null,
       overdue: !!schedule && schedule.nextDueAt < now && run?.status !== "completed", run };

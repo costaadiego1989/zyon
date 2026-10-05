@@ -114,11 +114,11 @@ export function RevenueManagerPage(_props: RevenueManagerPageProps) {
         />
         <label htmlFor="autonomous-engine-toggle" style={{ cursor: "pointer", flex: 1 }}>
           <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>
-            Geração de sugestões {vm.engineEnabled ? "ativada" : "desativada"}
+            Permitir sugestões para esta loja
           </div>
           <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2 }}>
             {vm.engineEnabled
-              ? "A geração de novas sugestões está habilitada. Revise as condições antes de aprovar uma proposta."
+              ? "Sua loja permite sugestões da IA. A disponibilidade da geração aparece no status da análise. Cada proposta precisa da sua aprovação."
               : "A IA não gera novas sugestões. Regras já ativas continuam valendo; você ainda pode criar regras manualmente."}
           </div>
         </label>

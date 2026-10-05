@@ -8,6 +8,7 @@ const PREFIX = "/revenue-manager";
 export interface AnalysisStatus {
   mode: "weekly" | "legacy";
   enabled: boolean;
+  generation_enabled?: boolean;
   queue_available: boolean;
   next_eligible_at: string | null;
   last_successful_at: string | null;
