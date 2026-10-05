@@ -9,6 +9,7 @@ import { StrategyDiscountStudy } from "./StrategyDiscountStudy.js";
 import { StrategyIncentiveRecommendation } from "./StrategyIncentiveRecommendation.js";
 import { useStrategyReview } from "./useStrategyReview.js";
 import { incentiveBenefitLabel, strategyActionMode, validIncentiveTest } from "./incentive-recommendation-model.js";
+import type { IncentiveStatusProjection } from "./incentive-review-status.js";
 import { canReviewVersion, formatReviewDate as date, formatReviewNumber as number, REVISION_STATUSES, STRATEGY_STATUSES, versionExpired } from "./strategy-review-model.js";
 import "./strategy-review.css";
 
@@ -53,6 +54,7 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
   const vm = useStrategyReview(strategyId, merchantId);
   const [feedback, setFeedback] = useState("");
   const [form, setForm] = useState<"approve" | "revision" | "reject" | null>(null);
+  const [incentiveStatus, setIncentiveStatus] = useState<IncentiveStatusProjection | null>(null);
   const title = useRef<HTMLHeadingElement>(null);
   useEffect(() => { title.current?.focus(); }, []);
   const version = vm.review?.versions.find(v => v.version === vm.selectedVersion);
@@ -67,6 +69,11 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
   const canDecide = !!(actionMode !== "unsupported" && vm.review && version && canReviewVersion(vm.review, version) && !vm.busy && !vm.readError && !vm.pending);
   const revisionAvailable = canDecide && !expired && vm.review?.revision_available;
   const approvalAvailable = communicationVisible && canDecide && !expired && vm.review?.approval_available && vm.review.activation_available;
+  const incentiveStatusMatches = incentiveStatus?.strategyId === strategyId && incentiveStatus?.version === version?.version
+    && incentiveStatus?.proposalHash === version?.proposalHash && incentiveStatus?.recommendationHash === proposal?.orchestration?.selectedAction;
+  const statusLabel = actionMode !== "commercial" ? STRATEGY_STATUSES[vm.review?.status ?? ""] ?? "Estado indisponível"
+    : vm.readError ? "Decisão indisponível" : current && vm.review?.status === "revision_pending" ? "Preparando alternativa"
+      : incentiveStatusMatches ? incentiveStatus!.label : "Carregando decisão…";
   return <div className="page-container strategy-page">
     <button type="button" className="zyn-btn zyn-btn--ghost strategy-back" onClick={onBack}><ArrowLeft size={16} aria-hidden="true" /> Voltar às sugestões</button>
     <PageHeader title="Revisar estratégia" titleRef={title} description="Confira a proposta da IA e decida o próximo passo." />
@@ -83,7 +90,7 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
             {vm.review.versions.map(v => <option key={v.version} value={v.version}>Versão {v.version}{v.version === vm.review!.currentVersion ? " (atual)" : " (histórico)"}</option>)}
           </select>
         </label>
-        <div><strong>{STRATEGY_STATUSES[vm.review.status] ?? "Estado indisponível"}</strong><span>Validade: {date(version.expiresAt)}</span></div>
+        <div><strong>{statusLabel}</strong><span>Validade: {date(version.expiresAt)}</span></div>
         <button type="button" className="zyn-btn zyn-btn--ghost" disabled={vm.busy} onClick={() => void vm.refresh()}><RefreshCw size={16} aria-hidden="true" /> Atualizar</button>
       </div>
       {!current && <div className="strategy-review-warning" role="status">Você está vendo uma versão anterior. A versão {vm.review.currentVersion} está disponível.
@@ -123,7 +130,8 @@ export function StrategyReviewPage({ strategyId, merchantId, onBack }: { strateg
         {commercialVisible && <StrategyIncentiveRecommendation key={`incentive:${merchantId}:${strategyId}:${version.version}`} recommendation={proposal.incentiveRecommendation}
           policyCurrent={version.incentivePolicyCurrent} decisionContext={{ strategyId, version: version.version, proposalHash: version.proposalHash,
             current: !!current, alternativeAvailable: actionMode === "commercial" ? !!revisionAvailable : vm.review.incentive_alternative_available === true,
-            ...(actionMode === "commercial" ? { revisionScope: "strategy", expectedRecommendationHash: proposal.orchestration!.selectedAction } : {}),
+            ...(actionMode === "commercial" ? { revisionScope: "strategy", expectedRecommendationHash: proposal.orchestration!.selectedAction,
+              onStatusChange: setIncentiveStatus } : {}),
             refreshToken: vm.review, disabled: vm.busy || !!vm.pending || !!vm.readError }} />}
         {communicationVisible && <MeasurementDetails proposal={proposal} />}
         {commercialVisible && proposal.incentiveRecommendation?.status === "recommended" && <StrategyIncentiveMetrics

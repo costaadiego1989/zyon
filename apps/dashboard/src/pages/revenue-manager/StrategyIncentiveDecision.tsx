@@ -5,10 +5,12 @@ import type { IncentiveDecision, IncentiveReview, IncentiveAlternativeCommand } 
 import { decisionMayHaveSucceeded, formatReviewDate as date } from "./strategy-review-model.js";
 import { strategyChanged } from "./strategy-review.js";
 import type { IncentiveBenefitLabel } from "./incentive-recommendation-model.js";
+import { incentiveReviewStatusLabel, type IncentiveStatusProjection } from "./incentive-review-status.js";
 
 type Pending = { kind: IncentiveDecision | "alternative"; input: IncentiveAlternativeCommand };
 export type IncentiveDecisionContext = { strategyId: string; version: number; proposalHash: string; current: boolean;
-  alternativeAvailable?: boolean; revisionScope?: "strategy"; expectedRecommendationHash?: string; refreshToken: unknown; disabled: boolean };
+  alternativeAvailable?: boolean; revisionScope?: "strategy"; expectedRecommendationHash?: string; refreshToken: unknown; disabled: boolean;
+  onStatusChange?: (projection: IncentiveStatusProjection) => void };
 
 /** Keyed by merchant/strategy/version by the parent. A lost reply retries the
  * same command, and the current projection always wins over a historical receipt. */
@@ -58,6 +60,13 @@ export function StrategyIncentiveDecision({ context: c, approvalDisplayValid, be
   const historical = review?.history.find(row => row.version === c.version && row.proposal_hash === c.proposalHash);
   const decision = current ? review.decision : historical;
   const state = current ? review.status : historical?.status;
+  const displayStatus = readError ? "Decisão indisponível" : pending ? "Confirmando decisão…"
+    : !review ? "Carregando decisão…" : !current && historical?.recommendation_hash !== c.expectedRecommendationHash ? "Decisão indisponível"
+      : incentiveReviewStatusLabel(state, current ? review.execution_status : "unavailable", !current);
+  useEffect(() => {
+    c.onStatusChange?.({ strategyId: c.strategyId, version: c.version, proposalHash: c.proposalHash,
+      recommendationHash: c.expectedRecommendationHash, label: displayStatus });
+  }, [c.onStatusChange, c.strategyId, c.version, c.proposalHash, c.expectedRecommendationHash, displayStatus]);
   const disabled = busy || c.disabled || !!readError || !!pending;
   const approvalAvailable = approvalDisplayValid && current && review.approval_available && typeof review.recommendation_hash === "string"
     && /^[a-f0-9]{64}$/.test(review.recommendation_hash);
