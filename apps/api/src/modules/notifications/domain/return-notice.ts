@@ -14,4 +14,3 @@ export interface ReturnNoticeClaim {
   type: ReturnNoticeType; channel: string; payload: ReturnNoticePayload;
   attempts: number; leaseUntil: Date; createdAt: Date;
 }
-

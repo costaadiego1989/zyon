@@ -102,7 +102,7 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
                 <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Motivo</th>
                 <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Status</th>
                 <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
-                <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Ação</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Ação</th>
               </tr>
             </thead>
             <tbody>
@@ -120,7 +120,7 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
                     <td style={{ padding: "12px 20px", font: "12px var(--font-mono)", color: "var(--color-text-faint)" }}>
                       {new Date(r.createdAt).toLocaleDateString("pt-BR")}
                     </td>
-                    <td style={{ padding: "12px 20px", textAlign: "right" }}>
+                    <td style={{ padding: "12px 20px", textAlign: "left" }}>
                       {actionButton}
                     </td>
                   </tr>
@@ -133,4 +133,3 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
     </div>
   );
 }
-

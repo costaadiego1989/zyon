@@ -1,4 +1,4 @@
-.panel { position: fixed; inset: auto 20px 80px auto; z-index: 9999; width: 540px; height: min(760px, calc(100dvh - 116px)); max-width: calc(100vw - 32px); display: flex; flex-direction: column; border-radius: 20px; background: var(--aacp-panel-bg, #edf0ee); color: var(--aacp-fg, #24352c); border: 1px solid var(--aacp-line, #cfd9d3); box-shadow: 0 18px 60px #0003; overflow: hidden; }
+.panel { position: fixed; inset: auto 20px 80px auto; z-index: 9999; width: 540px; height: min(760px, calc(100dvh - 116px)); max-width: calc(100vw - 32px); display: flex; flex-direction: column; border-radius: 20px; background: var(--aacp-panel-bg, #edf0ee); color: var(--aacp-fg, #24352c); border: 1px solid var(--aacp-line, #cfd9d3); box-shadow: 0 18px 60px #0003; overflow: hidden; text-align: left; }
 .backdrop { position: fixed; inset: 0; z-index: 9998; background: #0006; }
 .header { display: flex; align-items: center; gap: 10px; padding: 14px 18px; border-bottom: 1px solid var(--aacp-line); flex-shrink: 0; }
 .headerTitle { flex: 1; min-width: 0; }
@@ -9,6 +9,7 @@
 .row { display: flex; gap: 10px; align-items: center; flex-wrap: wrap; }
 .button, .choice, .icon { font: inherit; color: var(--aacp-fg); background: var(--aacp-card, #fff); border: 1px solid var(--aacp-line); cursor: pointer; min-height: 44px; padding: 10px 16px; border-radius: 12px; }
 .button:disabled, .choice:disabled, .icon:disabled { opacity: .55; cursor: default; }
+.button { text-align: left; }
 .button:focus-visible, .choice:focus-visible, .icon:focus-visible, .input:focus-visible, .textarea:focus-visible { outline: 2px solid var(--aacp-accent); outline-offset: 3px; }
 .primary { background: var(--aacp-accent, #25703c); color: var(--aacp-on-accent, #fff); border-color: transparent; font-weight: 600; }
 .icon { padding: 0; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
@@ -29,7 +30,7 @@
 .photo img, .evidence img { width: 88px; height: 88px; border-radius: 10px; object-fit: cover; border: 1px solid var(--aacp-line); }
 .photo button { position: absolute; top: -8px; right: -8px; width: 32px; height: 32px; min-height: 32px; border-radius: 50%; }
 .label { display: block; font-size: 12px; font-weight: 600; color: var(--aacp-muted); margin-bottom: 5px; }
-.system { text-align: center; color: var(--aacp-muted); font-size: 13px; line-height: 1.6; padding: 10px; white-space: pre-wrap; }
+.system { text-align: left; color: var(--aacp-muted); font-size: 13px; line-height: 1.6; padding: 10px; white-space: pre-wrap; }
 .time { display: block; margin-top: 7px; font-size: 11px; color: var(--aacp-muted); }
 .composer { border-top: 1px solid var(--aacp-line); padding: 14px 18px; flex: none; }
 .composer .textarea { min-height: 64px; max-height: 130px; }
