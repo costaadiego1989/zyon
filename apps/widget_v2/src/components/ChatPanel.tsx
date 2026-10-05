@@ -310,8 +310,8 @@ export function ChatPanel() {
         @keyframes dot-pulse { 0%,80%,100% { opacity: .3; } 40% { opacity: 1; } }
         @keyframes bounce { from { transform: translateY(0); } to { transform: translateY(-8px); } }
         @keyframes checkout-payment-pulse { 0%, 100% { opacity: .45; transform: scale(.82); } 50% { opacity: 1; transform: scale(1); } }
-        .checkout-chat__payment-block { width: 100%; }
-        .checkout-payment-panel { box-sizing: border-box; width: 100%; padding: 18px; border: 1px solid var(--bd); border-radius: 18px; background: var(--card); color: var(--tx); }
+        .checkout-chat__payment-block { width: 100%; min-width: 0; }
+        .checkout-payment-panel { box-sizing: border-box; width: 100%; min-width: 0; padding: 18px; border: 1px solid var(--bd); border-radius: 18px; background: var(--card); color: var(--tx); }
         .checkout-payment-panel__header { display: flex; align-items: center; gap: 11px; }
         .checkout-payment-panel__mark { width: 36px; height: 36px; flex: none; display: grid; place-items: center; border: 1px solid color-mix(in srgb, var(--aacp-accent, #0f766e) 34%, var(--bd)); border-radius: 12px; color: var(--aacp-accent-text, var(--aacp-accent, #0f766e)); background: color-mix(in srgb, var(--aacp-accent, #0f766e) 8%, var(--chip)); }
         .checkout-payment-panel__eyebrow { margin: 0 0 2px; color: var(--mut); font-family: 'Space Mono', monospace; font-size: 9px; font-weight: 700; letter-spacing: .08em; text-transform: uppercase; }
@@ -320,7 +320,7 @@ export function ChatPanel() {
         .checkout-payment-panel__total { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; margin-top: 15px; padding: 12px 0; border-top: 1px solid var(--bd); border-bottom: 1px solid var(--bd); }
         .checkout-payment-panel__total span { color: var(--mut); font-size: 12px; }
         .checkout-payment-panel__total strong { color: var(--tx); font-size: 18px; letter-spacing: -.45px; white-space: nowrap; }
-        .checkout-payment-panel__body { display: grid; gap: 12px; margin-top: 14px; }
+        .checkout-payment-panel__body { display: grid; grid-template-columns: minmax(0, 1fr); min-width: 0; gap: 12px; margin-top: 14px; }
         .checkout-payment-panel__action { box-sizing: border-box; width: 100%; min-height: 44px; display: inline-flex; align-items: center; justify-content: center; gap: 8px; padding: 11px 14px; border: 1px solid color-mix(in srgb, var(--aacp-accent, #0f766e) 46%, var(--bd)); border-radius: 13px; background: color-mix(in srgb, var(--aacp-accent, #0f766e) 13%, var(--chip)); color: var(--aacp-accent-text, var(--aacp-accent, #0f766e)); font: inherit; font-size: 13px; font-weight: 750; line-height: 1.2; text-align: center; text-decoration: none; cursor: pointer; transition: background 160ms ease, border-color 160ms ease, transform 160ms ease; }
         .checkout-payment-panel__action:hover:not(:disabled) { border-color: var(--aacp-accent, #0f766e); background: color-mix(in srgb, var(--aacp-accent, #0f766e) 19%, var(--chip)); transform: translateY(-1px); }
         .checkout-payment-panel__action:active:not(:disabled) { transform: translateY(0); }
@@ -329,10 +329,10 @@ export function ChatPanel() {
         .checkout-payment-panel__status { display: flex; align-items: center; gap: 8px; margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--bd); color: var(--mut); font-size: 11px; line-height: 1.35; }
         .checkout-payment-panel__status span { width: 7px; height: 7px; flex: none; border-radius: 50%; background: var(--aacp-accent, #0f766e); animation: checkout-payment-pulse 1.8s ease-in-out infinite; }
         .checkout-payment-panel__qr { display: flex; justify-content: center; padding: 4px 0; }
-        .checkout-payment-panel__qr img { display: block; width: min(180px, 100%); aspect-ratio: 1; object-fit: contain; padding: 8px; border: 1px solid var(--bd); border-radius: 14px; background: var(--chip); }
-        .checkout-payment-panel__code { display: flex; align-items: center; gap: 8px; }
-        .checkout-payment-panel__code code { min-width: 0; flex: 1; overflow: hidden; padding: 11px 12px; border: 1px solid var(--bd); border-radius: 12px; background: var(--chip); color: var(--tx); font-family: 'Space Mono', monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
-        .checkout-payment-panel__code button { width: auto; min-height: 40px; flex: none; padding: 9px 12px; font-size: 11px; }
+        .checkout-payment-panel__qr img { box-sizing: border-box; display: block; width: min(180px, 100%); aspect-ratio: 1; object-fit: contain; padding: 8px; border: 1px solid var(--bd); border-radius: 14px; background: var(--chip); }
+        .checkout-payment-panel__code { display: flex; box-sizing: border-box; width: 100%; min-width: 0; align-items: center; gap: 8px; }
+        .checkout-payment-panel__code code { box-sizing: border-box; display: block; min-width: 0; max-width: 100%; flex: 1; overflow: hidden; padding: 11px 12px; border: 1px solid var(--bd); border-radius: 12px; background: var(--chip); color: var(--tx); font-family: 'Space Mono', monospace; font-size: 10px; text-overflow: ellipsis; white-space: nowrap; }
+        .checkout-payment-panel__code button { box-sizing: border-box; max-width: 100%; width: auto; min-height: 40px; flex: none; padding: 9px 12px; font-size: 11px; }
         .checkout-payment-panel__stripe-form { display: grid; gap: 12px; }
         .checkout-payment-panel__card-field { padding: 13px 12px; border: 1px solid var(--bd); border-radius: 12px; background: var(--chip); }
         .checkout-payment-panel__error { margin: 0; padding: 10px 12px; border: 1px solid color-mix(in srgb, #b84040 42%, var(--bd)); border-radius: 12px; background: color-mix(in srgb, #b84040 9%, var(--card)); color: var(--tx); font-size: 11.5px; line-height: 1.4; }

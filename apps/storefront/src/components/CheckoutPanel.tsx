@@ -17,7 +17,6 @@ interface CheckoutPanelProps {
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
   };
-  initialChannel?: "chat" | "voice";
   theme?: "dark" | "light";
   onClose: () => void;
 }
@@ -52,7 +51,6 @@ function CheckoutPanelContent({
   initialEmbedToken,
   recovered = false,
   oneBuyClickPreferences,
-  initialChannel,
   theme,
   onClose,
 }: CheckoutPanelProps) {
@@ -153,7 +151,7 @@ function CheckoutPanelContent({
           globalUserId={globalUserId}
           buyerAccessToken={getValidBuyer()?.token}
           oneBuyClickPreferences={oneBuyClickPreferences}
-          initialChannel={initialChannel}
+          initialChannel="chat"
           theme={effectiveTheme}
           onClose={onClose}
         />

@@ -409,9 +409,6 @@ export default function ConversationShell({
   useEffect(() => {
     if (cartDrawerForceOpen) { navigation.setCart(true); setCartDrawerForceOpen(false); }
   }, [cartDrawerForceOpen, navigation.setCart, setCartDrawerForceOpen]);
-  const checkoutInitialChannel = voiceCheckoutEnabled && channel === "voice"
-    ? "voice"
-    : "chat";
   const openedInitialRichProduct = useRef(false);
   const openedProductMessages = useRef(new Set<string>());
   const promptedProductClose = useRef(new Set<string>());
@@ -1213,7 +1210,6 @@ export default function ConversationShell({
           globalUserId={checkoutUserId}
           cartRef={checkoutCartRef ?? cart.cartId ?? undefined}
           oneBuyClickPreferences={checkoutPreferences}
-          initialChannel={checkoutInitialChannel}
           theme={theme}
           onClose={() => setCheckoutOpen(false)}
         />
