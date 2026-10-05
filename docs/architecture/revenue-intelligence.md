@@ -322,6 +322,12 @@ Principais rotas internas do dashboard, sob autenticação e isolamento do merch
 | `POST /revenue-manager/strategies/:id/incentive/approve`, `/reject`, `/withdraw`, `/alternatives` | Decisão financeira específica e alternativa conservadora. |
 | `GET /revenue-manager/strategies/:id/incentive/metrics?version=...` | Resultado do incentivo por versão. |
 
+### Histórico de conversas do comprador
+
+A API do hub restringe a listagem, leitura e avaliação ao comprador autenticado e, quando informado, ao merchant solicitado. O nome da loja e o estado da conversa vêm de leituras em lote de carrinhos, checkouts e pedidos pertencentes ao contexto consultado. Pedido concluído prevalece; carrinho válido indica `in_progress`, carrinho vencido indica `expired`, e ausência de evidência operacional indica `history`, sem inventar um estado ativo.
+
+A storefront usa um título derivado da primeira mensagem do comprador, com nome da loja como alternativa, e apresenta os estados **Em andamento**, **Finalizada** e **Histórico**. Todas as conversas permitem ver mensagens. **Continuar conversa** aparece somente na conversa atual em andamento: a ação revalida comprador, merchant, estado e capability da sessão antes de fechar o hub e voltar ao chat existente. Histórico não cria tokens, muda de sessão ou retoma um checkout antigo. Leituras assíncronas são descartadas quando comprador ou loja mudam.
+
 ## 13. Publicação, verificação e rollback
 
 Alterações seguem **sandbox publicado → validação real → produção**, para a revisão e o escopo efetivamente testados. O [registro de sandbox de 05/10](../product/revenue-intelligence-sandbox-2026-10-05.md) documenta o PASS do candidato integrado `cb50ba9`: geração e revisão reais em `61ae5669`, aprovação em `5eff7d12`, proveniência dos arquivos do planejador confirmada no integrado e checkout repetido em `d6517882`, além do dashboard corrigido em 1440 e 390 pixels. Não houve nova chamada paga para repetir código de geração inalterado nem pagamentos no ensaio. As fixtures foram encerradas com histórico preservado.

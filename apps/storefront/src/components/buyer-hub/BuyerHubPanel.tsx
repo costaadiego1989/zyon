@@ -9,6 +9,7 @@ import ProfileTab from "./tabs/ProfileTab";
 import { OrdersTab } from "./tabs/OrdersTab";
 import { TrackingTab } from "./tabs/TrackingTab";
 import ConversationsTab from "./tabs/ConversationsTab";
+import type { BuyerConversation } from "@/lib/viewmodels/useBuyerHub/types";
 import PreferencesTab from "./tabs/PreferencesTab";
 import LoyaltyTab from "./tabs/LoyaltyTab";
 import { SettingsTab } from "./tabs/SettingsTab";
@@ -23,6 +24,8 @@ export interface BuyerHubPanelProps {
   onClose: () => void;
   merchantId?: string;
   onToggleTheme?: () => void;
+  currentSessionId?: string | null;
+  onResumeConversation?: (conversation: BuyerConversation) => Promise<void>;
 }
 
 
@@ -438,9 +441,9 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
 }
 
 
-export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: BuyerHubPanelProps) {
+export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme, currentSessionId, onResumeConversation }: BuyerHubPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
-  const vm = useBuyerHub();
+  const vm = useBuyerHub(isOpen, merchantId);
   const [authVersion, setAuthVersion] = useState(0);
   const [registrationOtp, setRegistrationOtp] = useState<{ email: string; otp: string } | null>(null);
 
@@ -732,6 +735,11 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                 <ConversationsTab
                   conversations={vm.conversations.data ?? []}
                   loading={vm.conversations.loading}
+                  error={vm.conversations.error}
+                  merchantId={merchantId}
+                  currentSessionId={currentSessionId}
+                  onRetry={() => { void vm.loadConversations(); }}
+                  onResume={onResumeConversation}
                   onRate={vm.rateMessage}
                 />
               )}
@@ -751,6 +759,8 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
                   summary={vm.summary.data ?? null}
                   discountRules={vm.discountRules.data}
                   benefits={vm.benefits.data ?? null}
+                  benefitsError={vm.benefits.error}
+                  onRetryBenefits={() => { void vm.loadBenefits(); }}
                   loading={vm.loyalty.loading || vm.discountRules.loading || vm.benefits.loading}
                 />
               )}

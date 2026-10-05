@@ -145,6 +145,14 @@ export function useConversationViewModel(
     saveChannelPreference(next === "voice" ? "chat" : next);
   }, [channel]);
 
+  const returnToCurrentConversation = useCallback(() => {
+    // Resume the existing thread; selectChannel starts a fresh welcome message.
+    setMode("chat");
+    setChannel("chat");
+    setBuyerHubOpen(false);
+    saveChannelPreference("chat");
+  }, []);
+
   const ensureConversation = useCallback(async (): Promise<string | null> => {
     await initConversation();
     return conversationIdRef.current;
@@ -337,6 +345,7 @@ export function useConversationViewModel(
     dismissProductCrossSell,
     clearPreparedCheckout,
     selectChannel,
+    returnToCurrentConversation,
     toggleChannel,
     toggleTheme,
     ensureConversation,

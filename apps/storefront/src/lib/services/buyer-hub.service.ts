@@ -87,18 +87,25 @@ export function fetchSummary(): Promise<BuyerSummary> {
   return apiCall<BuyerSummary>("/buyer/me/summary");
 }
 
-export async function fetchConversations(): Promise<BuyerConversation[]> {
-  const res = await apiCall<{ items: BuyerConversation[] }>("/buyer/me/conversations");
+export async function fetchConversations(merchantId?: string): Promise<BuyerConversation[]> {
+  const query = merchantId ? `?merchant_id=${encodeURIComponent(merchantId)}` : "";
+  const res = await apiCall<{ items: BuyerConversation[] }>(`/buyer/me/conversations${query}`, { cache: "no-store" });
   return res.items;
+}
+
+export function fetchConversation(id: string, merchantId: string): Promise<BuyerConversation> {
+  return apiCall<BuyerConversation>(`/buyer/me/conversations/${encodeURIComponent(id)}?merchant_id=${encodeURIComponent(merchantId)}`, { cache: "no-store" });
 }
 
 export function rateMessage(
   conversationId: string,
   messageId: string,
   rating: "up" | "down",
+  merchantId?: string,
 ): Promise<{ success: boolean }> {
+  const query = merchantId ? `?merchant_id=${encodeURIComponent(merchantId)}` : "";
   return apiCall<{ success: boolean }>(
-    `/buyer/me/conversations/${encodeURIComponent(conversationId)}/rate`,
+    `/buyer/me/conversations/${encodeURIComponent(conversationId)}/rate${query}`,
     { method: "POST", body: JSON.stringify({ message_id: messageId, rating }) },
   );
 }
@@ -120,8 +127,9 @@ export function fetchLoyalty(): Promise<BuyerLoyalty> {
   return apiCall<BuyerLoyalty>("/buyer/me/loyalty");
 }
 
-export function fetchBenefits(): Promise<BuyerBenefits> {
-  return apiCall<BuyerBenefits>("/buyer/me/benefits");
+export function fetchBenefits(merchantId?: string): Promise<BuyerBenefits> {
+  const query = merchantId ? `?merchant_id=${encodeURIComponent(merchantId)}` : "";
+  return apiCall<BuyerBenefits>(`/buyer/me/benefits${query}`, { cache: "no-store" });
 }
 
 export async function fetchDiscountRules(merchantSlug: string): Promise<DiscountRule[]> {

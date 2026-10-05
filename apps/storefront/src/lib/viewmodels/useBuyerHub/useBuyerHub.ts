@@ -1,26 +1,30 @@
 "use client";
 
-import { useCallback, useEffect } from "react";
+import { useCallback, useEffect, useRef } from "react";
 import { getValidBuyer, clearBuyerSession } from "@/lib/buyer-auth";
 import * as buyerHub from "@/lib/services/buyer-hub.service";
 import { runFetch, useBuyerHubState } from "./state";
 import type { BuyerAddress, BuyerPreferences, BuyerProfile, UseBuyerHub } from "./types";
 
-export function useBuyerHub(): UseBuyerHub {
+export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
   const s = useBuyerHubState();
+  const currentMerchant = useRef(merchantId);
+  currentMerchant.current = merchantId;
+  const benefitsMerchant = useRef(merchantId);
+  const benefitsRequest = useRef(0);
+  const conversationsMerchant = useRef(merchantId);
+  const conversationsRequest = useRef(0);
 
   useEffect(() => {
     const buyer = getValidBuyer();
     s.setAuth(buyer);
-    if (!buyer) return;
-
-    void runFetch(s.setProfile, buyerHub.fetchProfile);
+    if (buyer) void runFetch(s.setProfile, buyerHub.fetchProfile);
 
     const onStorage = (e: StorageEvent) => {
       if (e.key === "zyon_buyer_token" || e.key === "zyon_buyer_session") {
         const next = getValidBuyer();
         s.setAuth(next);
-        if (!next) s.resetSections();
+        s.resetSections();
       }
     };
     window.addEventListener("storage", onStorage);
@@ -119,12 +123,25 @@ export function useBuyerHub(): UseBuyerHub {
   }, []);
 
   const loadConversations = useCallback(async () => {
-    await runFetch(s.setConversations, buyerHub.fetchConversations);
-  }, []);
+    const request = ++conversationsRequest.current;
+    const buyerToken = getValidBuyer()?.token;
+    conversationsMerchant.current = merchantId;
+    if (!buyerToken) { s.setConversations({ data: null, loading: false, error: null }); return; }
+    s.setConversations({ data: null, loading: true, error: null });
+    const isCurrent = () => request === conversationsRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId;
+    try {
+      const data = await buyerHub.fetchConversations(merchantId);
+      if (isCurrent()) s.setConversations({ data: merchantId ? data.filter((item) => item.merchant_id === merchantId) : data, loading: false, error: null });
+    } catch {
+      if (isCurrent()) s.setConversations({ data: null, loading: false, error: "Não foi possível carregar suas conversas. Tente novamente." });
+    }
+  }, [merchantId]);
 
   const rateMessage = useCallback(
     async (conversationId: string, messageId: string, rating: "up" | "down") => {
-      await buyerHub.rateMessage(conversationId, messageId, rating);
+      const buyerToken = getValidBuyer()?.token;
+      await buyerHub.rateMessage(conversationId, messageId, rating, merchantId);
+      if (getValidBuyer()?.token !== buyerToken || currentMerchant.current !== merchantId) return;
       s.setConversations((prev) => ({
         ...prev,
         data: prev.data
@@ -139,7 +156,7 @@ export function useBuyerHub(): UseBuyerHub {
           : prev.data,
       }));
     },
-    [],
+    [merchantId],
   );
 
   const loadPreferences = useCallback(async () => {
@@ -161,8 +178,18 @@ export function useBuyerHub(): UseBuyerHub {
     await runFetch(s.setLoyalty, buyerHub.fetchLoyalty);
   }, []);
   const loadBenefits = useCallback(async () => {
-    await runFetch(s.setBenefits, buyerHub.fetchBenefits);
-  }, []);
+    const request = ++benefitsRequest.current;
+    const buyerToken = getValidBuyer()?.token;
+    if (!buyerToken) { s.setBenefits({ data: null, loading: false, error: null }); return; }
+    benefitsMerchant.current = merchantId;
+    s.setBenefits({ data: null, loading: true, error: null });
+    try {
+      const data = await buyerHub.fetchBenefits(merchantId);
+      if (request === benefitsRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId) s.setBenefits({ data, loading: false, error: null });
+    } catch {
+      if (request === benefitsRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId) s.setBenefits({ data: null, loading: false, error: "Não foi possível atualizar seus benefícios. Tente novamente." });
+    }
+  }, [merchantId]);
   const loadDiscountRules = useCallback(async (merchantSlug: string) => {
     await runFetch(s.setDiscountRules, () => buyerHub.fetchDiscountRules(merchantSlug));
   }, []);
@@ -194,7 +221,7 @@ export function useBuyerHub(): UseBuyerHub {
   }, []);
 
   useEffect(() => {
-    if (!s.auth) return;
+    if (!s.auth || !isOpen) return;
     switch (s.activeTab) {
       case "profile":
         if (!s.profile.data && !s.profile.loading) void loadProfile();
@@ -208,7 +235,7 @@ export function useBuyerHub(): UseBuyerHub {
         if (!s.tracking.data && !s.tracking.loading) void loadTracking();
         break;
       case "conversations":
-        if (!s.conversations.data && !s.conversations.loading) void loadConversations();
+        void loadConversations();
         break;
       case "preferences":
         if (!s.preferences.data && !s.preferences.loading) void runFetch(s.setPreferences, buyerHub.fetchPreferences);
@@ -216,7 +243,7 @@ export function useBuyerHub(): UseBuyerHub {
         break;
       case "loyalty":
         if (!s.loyalty.data && !s.loyalty.loading) void runFetch(s.setLoyalty, buyerHub.fetchLoyalty);
-        if (!s.benefits.data && !s.benefits.loading) void loadBenefits();
+        void loadBenefits();
         if (!s.summary.data && !s.summary.loading) void runFetch(s.setSummary, buyerHub.fetchSummary);
         break;
       case "settings":
@@ -224,7 +251,7 @@ export function useBuyerHub(): UseBuyerHub {
         if (!s.reviews.data && !s.reviews.loading) void loadReviews();
         break;
     }
-  }, [s.activeTab, s.auth]);
+  }, [s.activeTab, s.auth, isOpen, merchantId]);
 
   const refresh = useCallback(async () => {
     if (!s.auth) return;
@@ -255,7 +282,7 @@ export function useBuyerHub(): UseBuyerHub {
         await loadReviews();
         break;
     }
-  }, [s.auth, s.activeTab]);
+  }, [s.auth, s.activeTab, loadConversations]);
 
   const signOut = useCallback(() => {
     clearBuyerSession();
@@ -284,7 +311,7 @@ export function useBuyerHub(): UseBuyerHub {
     summary: s.summary,
     tracking: s.tracking,
     loadTracking,
-    conversations: s.conversations,
+    conversations: conversationsMerchant.current === merchantId ? s.conversations : { data: null, loading: false, error: null },
     loadConversations,
     rateMessage,
     preferences: s.preferences,
@@ -292,7 +319,7 @@ export function useBuyerHub(): UseBuyerHub {
     updatePreferences,
     loyalty: s.loyalty,
     loadLoyalty,
-    benefits: s.benefits,
+    benefits: benefitsMerchant.current === merchantId ? s.benefits : { data: null, loading: false, error: null },
     loadBenefits,
     discountRules: s.discountRules,
     loadDiscountRules,

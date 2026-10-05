@@ -9,6 +9,7 @@ import { useCart } from "@/lib/cart-store";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
 import { ATTACHMENT_WELCOME_NOTICE } from "@/lib/services/conversation.service";
+import { validateCurrentBuyerConversation } from "@/lib/services/resume-buyer-conversation.service";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import BlockRenderer from "./blocks/BlockRenderer";
 import RichProductDetailsPanel from "./blocks/RichProductDetailsPanel";
@@ -1142,7 +1143,14 @@ export default function ConversationShell({
         }}
       />
       {/* Buyer Hub Panel */}
-      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} onToggleTheme={toggleTheme} />
+      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} onToggleTheme={toggleTheme}
+        currentSessionId={conversationId}
+        onResumeConversation={async (conversation) => {
+          if (!merchantId || !conversationId) throw new Error("conversation_not_available");
+          await validateCurrentBuyerConversation(conversation, merchantId, conversationId);
+          vm.returnToCurrentConversation();
+          setTimeout(() => inputRef.current?.focus(), 0);
+        }} />
       <QuickPurchasePreferencesDialog
         open={quickPurchasePreferencesOpen}
         initialValue={oneBuyClick ? {

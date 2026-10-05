@@ -55,7 +55,7 @@ export interface BuyerPurchase {
 
 export interface ConversationMessage {
   id: string;
-  role: "user" | "agent" | "assistant" | "system";
+  role: "user" | "buyer" | "agent" | "assistant" | "system";
   content: string;
   created_at: string;
   rating?: "up" | "down" | null;
@@ -66,6 +66,8 @@ export interface BuyerConversation {
   session_id: string;
   merchant_id: string;
   started_at: string;
+  merchant_name?: string | null;
+  status?: "in_progress" | "completed" | "expired" | "history";
   last_message_at: string;
   messages: ConversationMessage[];
 }
@@ -154,6 +156,25 @@ export interface BuyerBenefits {
   available: AvailableBenefit[];
   earned: EarnedBenefit[];
   progress: BenefitProgress[];
+  offers?: BuyerPersonalizedOffer[];
+}
+
+/** A benefit already assigned and applied to this buyer's checkout by the API. */
+export interface BuyerPersonalizedOffer {
+  id: string;
+  kind: "percentage" | "fixed" | "shipping" | "progressive";
+  name: string;
+  description: string;
+  currency: "BRL";
+  amountCents: number;
+  maxDiscountCents: number;
+  discountPercent: number;
+  deliveryMode: "automatic" | "coupon_code";
+  couponCode?: string;
+  sessionId: string;
+  expiresAt: string;
+  condition: string;
+  status: "applied";
 }
 
 export interface PurchasePage {

@@ -79,6 +79,7 @@ export interface ProductCrossSellPlacement {
 }
 
 export interface ConversationViewModelActions {
+  returnToCurrentConversation: () => void;
   selectChannel: (ch: Channel) => void;
   toggleChannel: () => void;
   toggleTheme: () => void;

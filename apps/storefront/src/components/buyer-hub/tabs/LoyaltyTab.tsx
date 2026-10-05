@@ -1,6 +1,8 @@
 "use client";
 
 import type { BuyerLoyalty, BuyerSummary, DiscountRule, BuyerBenefits } from "@/lib/viewmodels/useBuyerHub";
+import PersonalizedOffers from "../PersonalizedOffers";
+import { currentPersonalizedOffers } from "@/lib/personalized-offers";
 
 
 export interface LoyaltyTabProps {
@@ -9,6 +11,8 @@ export interface LoyaltyTabProps {
   discountRules: DiscountRule[] | null;
   benefits: BuyerBenefits | null;
   loading: boolean;
+  benefitsError?: string | null;
+  onRetryBenefits?: () => void;
 }
 
 
@@ -377,16 +381,16 @@ function EmptyState() {
 }
 
 
-export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, loading }: LoyaltyTabProps) {
+export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, loading, benefitsError, onRetryBenefits }: LoyaltyTabProps) {
   if (loading) return <LoadingSkeleton />;
 
   const hasBenefits =
     Boolean(benefits) &&
     ((benefits?.available?.length ?? 0) > 0 ||
       (benefits?.earned?.length ?? 0) > 0 ||
-      (benefits?.progress?.length ?? 0) > 0);
+      (benefits?.progress?.length ?? 0) > 0 || currentPersonalizedOffers(benefits?.offers).length > 0);
 
-  if (!loyalty && !summary && !hasBenefits) return <EmptyState />;
+  if (!loyalty && !summary && !hasBenefits && !benefitsError) return <EmptyState />;
 
   const num = (v: unknown): number => (Number.isFinite(v as number) ? (v as number) : 0);
 
@@ -409,7 +413,12 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
         paddingBottom: "16px",
       }}
     >
-      {}
+      <PersonalizedOffers offers={benefits?.offers} />
+      {benefitsError && <div role="status" style={{ color: "var(--aacp-muted)", fontSize: "13px", lineHeight: 1.5 }}>
+        <p style={{ margin: "0 0 8px" }}>{benefitsError}</p>
+        {onRetryBenefits && <button type="button" data-neu="control" onClick={onRetryBenefits}
+          style={{ minHeight: "44px", padding: "8px 14px", color: "var(--aacp-fg)", cursor: "pointer" }}>Atualizar benefícios</button>}
+      </div>}
       <div
         style={{
           display: "flex",
@@ -540,7 +549,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
               letterSpacing: "0.5px",
             }}
           >
-            Descontos disponíveis
+            Cupons da loja
           </span>
         </div>
         {discountRules && discountRules.length > 0 ? (
@@ -634,7 +643,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
                 maxWidth: "280px",
               }}
             >
-              Nenhum cupom disponível no momento. Ofertas personalizadas aparecerão aqui durante o checkout.
+              Nenhum cupom de uso geral disponível no momento.
             </div>
           </div>
         )}
