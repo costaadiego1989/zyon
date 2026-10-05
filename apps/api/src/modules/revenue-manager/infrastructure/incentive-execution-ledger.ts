@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import type { CheckoutSession, Prisma } from "@prisma/client";
+import type { CheckoutSession, Prisma, StrategyIncentiveAssignment } from "@prisma/client";
 import type { Cart, ShippingQuote } from "@zyon/shared-types";
 import { moneyCents } from "@zyon/rules-engine";
 import { assessExecutableIncentive } from "../domain/executable-incentive.js";
@@ -22,6 +22,12 @@ import { assertPaymentAmount, paymentReviewFingerprint } from "../../payment/dom
 type Tx = Prisma.TransactionClient;
 const json = (value: unknown) => value as Prisma.InputJsonValue;
 const clock = async (tx: Tx) => (await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`)[0].now;
+const commercialRecommendation = (recommendation: StrategyIncentiveRecommendation) =>
+  ["weekly-incentive-recommendation-v3", "weekly-incentive-recommendation-v4"].includes(recommendation.definition);
+const progressiveRecommendation = (recommendation: StrategyIncentiveRecommendation) =>
+  recommendation.definition === "weekly-incentive-recommendation-v4" && recommendation.status === "recommended"
+    && recommendation.test.kind === "capped_progressive_discount";
+export const STRATEGY_INCENTIVE_STAGE_EVENT = "strategy_incentive_stage";
 export const incentiveExecutionEnabled = (merchantId: string) => process.env.REVENUE_INCENTIVE_EXECUTION_ENABLED === "true"
   && (process.env.REVENUE_INCENTIVE_EXECUTION_MERCHANT_IDS ?? "").split(",").map(s => s.trim()).includes(merchantId);
 
@@ -56,7 +62,7 @@ export async function activateApprovedIncentive(tx: Tx, merchantId: string, stra
     strategyId, merchantId, version: strategy.currentVersion } } });
   const proposal = version.proposal as unknown as StrategyProposal;
   if (!proposal.discountStudy || !proposal.incentiveRecommendation) throw new Error("INCENTIVE_STUDY_REQUIRED");
-  if (proposal.incentiveRecommendation.definition === "weekly-incentive-recommendation-v3"
+  if (commercialRecommendation(proposal.incentiveRecommendation)
     && !commercialModesEnabled(merchantId)) throw new Error("INCENTIVE_COMMERCIAL_MODES_DISABLED");
   const review = await tx.strategyIncentiveReview.findFirstOrThrow({ where: { strategyId, merchantId,
     version: version.version, kind: "approve" } });
@@ -88,7 +94,7 @@ export function incentiveCartHash(cart: Cart): string {
 
 /** v3 also pins carrier economics; a shipping change must be reviewed again. */
 function assignmentCartHash(cart: Cart, recommendation: StrategyIncentiveRecommendation, shipping?: ShippingQuote) {
-  return recommendation.definition === "weekly-incentive-recommendation-v3"
+  return commercialRecommendation(recommendation)
     ? digest({ cart: incentiveCartHash(cart), shipping: shipping ?? null }) : incentiveCartHash(cart);
 }
 
@@ -154,7 +160,7 @@ export async function applyEligibleIncentive(tx: Tx, session: CheckoutSession): 
     || await tx.couponRedemption.count({ where: { merchantId, sessionId: session.sessionId, status: "applied" } })) return session;
   const recommendation = execution.recommendation as unknown as StrategyIncentiveRecommendation;
   if (digest(recommendation) !== execution.recommendationHash || recommendation.status !== "recommended") throw new Error("INCENTIVE_EXECUTION_CORRUPT");
-  const commercial = recommendation.definition === "weekly-incentive-recommendation-v3";
+  const commercial = commercialRecommendation(recommendation);
   if (commercial && !commercialModesEnabled(merchantId)) return session;
   if (recommendation.test.delivery?.mode === "coupon_code") {
     const coupon = await tx.coupon.findUnique({ where: { strategyIncentiveExecutionId: execution.id } });
@@ -177,20 +183,97 @@ export async function applyEligibleIncentive(tx: Tx, session: CheckoutSession): 
   const id = randomUUID();
   const reservation = arm === "treatment" ? await reserveIncentiveBudget(tx, { merchantId, budgetId: budget.id,
     sessionId: session.sessionId, buyerId: session.globalUserId, requestKey: `assignment:${id}`, amountCents: assessment.amountCents }) : null;
-  await tx.strategyIncentiveAssignment.create({ data: { id, merchantId, executionId: execution.id, sessionId: session.sessionId,
+  const assignment = await tx.strategyIncentiveAssignment.create({ data: { id, merchantId, executionId: execution.id, sessionId: session.sessionId,
     buyerId: session.globalUserId, arm, assignedAt: now, cartHash: assignmentCartHash(cart, recommendation, shipping),
     amountCents: arm === "treatment" ? assessment.amountCents : 0, costCents: assessment.costCents, reservationId: reservation?.id } });
+  let amountCents = assessment.amountCents;
+  if (progressiveRecommendation(recommendation)) {
+    const initial = assessExecutableIncentive(cart, rules, recommendation, shipping, 0);
+    if (!initial) throw new Error("INCENTIVE_PROGRESSIVE_STAGE_INVALID");
+    amountCents = initial.amountCents;
+    await recordProgressiveGrant(tx, assignment, 0, arm === "control" ? 0 : amountCents, now);
+  }
   if (arm === "control") return session;
+  return tx.checkoutSession.update({ where: { id: session.id }, data: {
+    cart: json(cartWithIncentive(cart, id, amountCents, recommendation, progressiveRecommendation(recommendation) ? 0 : undefined)), updatedAt: now } });
+}
+
+function cartWithIncentive(cart: Cart, assignmentId: string, amountCents: number, recommendation: StrategyIncentiveRecommendation, stage?: 0 | 1): Cart {
+  if (recommendation.status !== "recommended") throw new Error("INCENTIVE_EXECUTION_CORRUPT");
   const couponCode = recommendation.test.delivery?.mode === "coupon_code" ? recommendation.test.delivery.code : undefined;
   const shippingDiscount = recommendation.test.kind === "capped_shipping_discount";
-  const discounted = { ...cart, currentDiscount: assessment.amountCents / 100, commercialNudge: {
-    kind: "coupon", ruleId: id, ...(couponCode ? { couponCode } : {}),
-    title: shippingDiscount ? "Desconto no frete aplicado" : couponCode ? "Cupom personalizado aplicado" : "Desconto aplicado",
-    message: shippingDiscount ? "O desconto no frete foi abatido uma vez do total deste pedido."
+  return { ...cart, currentDiscount: amountCents / 100, commercialNudge: {
+    kind: "coupon", ruleId: assignmentId, ...(couponCode ? { couponCode } : {}),
+    title: stage !== undefined ? "Desconto progressivo aplicado" : shippingDiscount ? "Desconto no frete aplicado" : couponCode ? "Cupom personalizado aplicado" : "Desconto aplicado",
+    message: stage !== undefined ? `Etapa ${stage + 1} de 2: o desconto foi aplicado ao total deste pedido.` : shippingDiscount ? "O desconto no frete foi abatido uma vez do total deste pedido."
       : "Um desconto foi aplicado a este pedido.",
-    badge: `−${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(assessment.amountCents / 100)}` } };
-  return tx.checkoutSession.update({ where: { id: session.id }, data: { cart: json(discounted),
-    updatedAt: now } });
+    badge: `−${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amountCents / 100)}` } };
+}
+
+async function recordProgressiveGrant(tx: Tx, assignment: StrategyIncentiveAssignment, stageIndex: 0 | 1, amountCents: number, now: Date, method?: string) {
+  const trigger = stageIndex === 0 ? "enrollment" : "checkout_payment_ready";
+  const event = await tx.checkoutEvent.create({ data: { merchantId: assignment.merchantId, sessionId: assignment.sessionId,
+    eventName: STRATEGY_INCENTIVE_STAGE_EVENT, occurredAt: now,
+    metadata: { source: "revenue_engine", assignmentId: assignment.id, stageIndex, trigger, ...(method ? { method } : {}) } } });
+  return tx.strategyIncentiveStageGrant.create({ data: { id: randomUUID(), merchantId: assignment.merchantId,
+    assignmentId: assignment.id, stageIndex, trigger, amountCents, eventId: event.id, createdAt: now } });
+}
+
+async function grantedIncentive(tx: Tx, assignment: StrategyIncentiveAssignment) {
+  const stage = await tx.strategyIncentiveStageGrant.findFirst({ where: { merchantId: assignment.merchantId,
+    assignmentId: assignment.id }, orderBy: { stageIndex: "desc" } });
+  return { amountCents: stage?.amountCents ?? assignment.amountCents, stageIndex: stage?.stageIndex };
+}
+
+/** Internal payment preparation only. Client telemetry cannot advance stages.
+ * Reservation/assignment stay immutable; each additional grant is append-only.
+ * No increase is allowed once any provider attempt exists. */
+export async function prepareProgressiveIncentivePayment(tx: Tx, merchantId: string, sessionId: string, method: string): Promise<CheckoutSession | null> {
+  await lockCheckoutBaselineRows(tx, merchantId);
+  await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
+  const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
+  if (!session || !incentiveExecutionEnabled(merchantId) || !commercialModesEnabled(merchantId)
+    || !["pix", "card", "boleto", "crypto"].includes(method)) return session;
+  const assignment = await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
+  if (!assignment) return session;
+  const execution = await tx.strategyIncentiveExecution.findUniqueOrThrow({ where: { id: assignment.executionId } });
+  const recommendation = execution.recommendation as unknown as StrategyIncentiveRecommendation;
+  if (!progressiveRecommendation(recommendation) || recommendation.status !== "recommended") return session;
+  if (digest(recommendation) !== execution.recommendationHash) throw new Error("INCENTIVE_EXECUTION_CORRUPT");
+  const granted = await grantedIncentive(tx, assignment);
+  if (granted.stageIndex !== 0) return session;
+  const now = await clock(tx), checkout = toCheckoutSession(session);
+  const budget = await tx.strategyIncentiveBudget.findUniqueOrThrow({ where: { id: execution.budgetId } });
+  if (budget.closedAt || now < execution.startedAt || now >= execution.endsAt || !checkout.shipping
+    || assignment.buyerId !== session.globalUserId || session.cohort !== "treatment" || session.promptVariantId
+    || assignmentCartHash(checkout.cart, recommendation, checkout.shipping) !== assignment.cartHash
+    || await tx.paymentIntent.count({ where: { merchantId, sessionId } })
+    || await tx.completedOrder.count({ where: { merchantId, sessionId } })
+    || await tx.acceptedOffer.count({ where: { merchantId, sessionId } })
+    || await tx.couponRedemption.count({ where: { merchantId, sessionId, status: "applied" } })
+    || !await eligibleIntent(tx, merchantId, assignment.buyerId, recommendation.test.audience.intent, now)) return session;
+  if (assignment.arm === "treatment") {
+    const reservation = await tx.strategyIncentiveReservation.findUniqueOrThrow({ where: { id: assignment.reservationId! } });
+    if (reservation.status !== "reserved" || reservation.amountCents !== assignment.amountCents
+      || moneyCents(checkout.cart.currentDiscount) !== granted.amountCents || checkout.cart.commercialNudge?.ruleId !== assignment.id) return session;
+  } else if ((checkout.cart.currentDiscount ?? 0) !== 0 || checkout.cart.commercialNudge) return session;
+  const rules = merchantRulesSnapshot(await tx.merchantRule.findUniqueOrThrow({ where: { merchantId } }));
+  const version = await tx.revenueStrategyVersion.findUniqueOrThrow({ where: { strategyId_merchantId_version: {
+    strategyId: execution.strategyId, merchantId, version: execution.version } }, include: { strategy: true } });
+  const proposal = version.proposal as unknown as StrategyProposal;
+  if (version.strategy.currentVersion !== execution.version || digest(rules) !== digest(proposal.rules)
+    || digest(await readIncentivePolicy(tx, merchantId)) !== digest(recommendation.financialPolicy)) return session;
+  await assertStoredDiscountStudy(tx, merchantId, version.strategy.runId, proposal.observation.id, rules, proposal.discountStudy, recommendation);
+  const current = await authoritativeCart(tx, session);
+  if (!current) return session;
+  const { commercialNudge: _nudge, ...base } = current;
+  const cart = { ...base, currentDiscount: 0 };
+  const assessment = assessExecutableIncentive(cart, rules, recommendation, checkout.shipping, 1);
+  if (!assessment || (assignment.arm === "treatment" && assessment.amountCents !== assignment.amountCents)) return session;
+  await recordProgressiveGrant(tx, assignment, 1, assignment.arm === "treatment" ? assessment.amountCents : 0, now, method);
+  if (assignment.arm === "control") return session;
+  return tx.checkoutSession.update({ where: { id: session.id }, data: {
+    cart: json(cartWithIncentive(cart, assignment.id, assessment.amountCents, recommendation, 1)), updatedAt: now } });
 }
 
 /** A strategy code identifies the approved execution. Both arms are enrolled
@@ -201,7 +284,7 @@ export async function applyIncentiveCoupon(tx: Tx, session: CheckoutSession,
   if (!execution || !incentiveExecutionEnabled(session.merchantId) || !commercialModesEnabled(session.merchantId)) return null;
   const recommendation = execution.recommendation as unknown as StrategyIncentiveRecommendation;
   const now = await clock(tx);
-  if (recommendation.definition !== "weekly-incentive-recommendation-v3" || recommendation.status !== "recommended"
+  if (!commercialRecommendation(recommendation) || recommendation.status !== "recommended"
     || digest(recommendation) !== execution.recommendationHash || recommendation.test.delivery?.mode !== "coupon_code"
     || recommendation.test.delivery.code !== input.code || now < execution.startedAt || now >= execution.endsAt) return null;
   const budget = await tx.strategyIncentiveBudget.findUniqueOrThrow({ where: { id: execution.budgetId } });
@@ -255,7 +338,8 @@ export async function reviseIncentiveForPaymentReview(tx: Tx, merchantId: string
   if (reservation.status === "released" && reservation.evidenceKey?.startsWith("checkout-review:")) return toCheckoutSession(session);
   if (reservation.status !== "reserved") return undefined;
   const checkout = toCheckoutSession(session);
-  if (moneyCents(checkout.cart.currentDiscount ?? 0) !== assignment.amountCents
+  const granted = await grantedIncentive(tx, assignment);
+  if (moneyCents(checkout.cart.currentDiscount ?? 0) !== granted.amountCents
     || checkout.cart.commercialNudge?.ruleId !== assignment.id
     || await tx.couponRedemption.count({ where: { merchantId, sessionId, status: "applied" } })
     || await tx.acceptedOffer.count({ where: { merchantId, sessionId } })) return undefined;
@@ -296,12 +380,13 @@ export async function validateIncentivePayment(tx: Tx, snapshot: PaymentIntentSn
   const execution = await tx.strategyIncentiveExecution.findUniqueOrThrow({ where: { id: assignment.executionId } });
   const budget = await tx.strategyIncentiveBudget.findUniqueOrThrow({ where: { id: execution.budgetId } });
   const recommendation = execution.recommendation as unknown as StrategyIncentiveRecommendation;
+  const granted = await grantedIncentive(tx, assignment);
   const now = await clock(tx);
   if (!incentiveExecutionEnabled(merchantId) || budget.closedAt || now >= execution.endsAt || reservation.status !== "reserved"
-    || (recommendation.definition === "weekly-incentive-recommendation-v3" && !commercialModesEnabled(merchantId))
+    || (commercialRecommendation(recommendation) && !commercialModesEnabled(merchantId))
     || recommendation.status !== "recommended" || digest(recommendation) !== execution.recommendationHash
     || session.globalUserId !== assignment.buyerId || session.cohort !== "treatment"
-    || assignmentCartHash(checkout.cart, recommendation, checkout.shipping) !== assignment.cartHash || breakdown.discountCents !== assignment.amountCents
+    || assignmentCartHash(checkout.cart, recommendation, checkout.shipping) !== assignment.cartHash || breakdown.discountCents !== granted.amountCents
     || checkout.cart.commercialNudge?.ruleId !== assignment.id
     || await tx.couponRedemption.count({ where: { merchantId, sessionId, status: "applied" } })
     || await tx.acceptedOffer.count({ where: { merchantId, sessionId } })
@@ -312,8 +397,12 @@ export async function validateIncentivePayment(tx: Tx, snapshot: PaymentIntentSn
   const current = await authoritativeCart(tx, session);
   if (!current || digest(await readIncentivePolicy(tx, merchantId)) !== digest(recommendation.financialPolicy)) throw new Error("INCENTIVE_PAYMENT_POLICY_CHANGED");
   const { commercialNudge: _nudge, ...base } = current;
-  const assessment = assessExecutableIncentive({ ...base, currentDiscount: 0 }, rules, recommendation, checkout.shipping);
-  if (!assessment || assessment.amountCents !== assignment.amountCents) throw new Error("INCENTIVE_PAYMENT_MARGIN_CHANGED");
+  if (progressiveRecommendation(recommendation) && granted.stageIndex !== 0 && granted.stageIndex !== 1) throw new Error("INCENTIVE_PAYMENT_AUTHORITY_CHANGED");
+  const assessment = assessExecutableIncentive({ ...base, currentDiscount: 0 }, rules, recommendation, checkout.shipping,
+    granted.stageIndex === 0 ? 0 : 1);
+  if (!assessment || assessment.amountCents !== granted.amountCents) throw new Error("INCENTIVE_PAYMENT_MARGIN_CHANGED");
+  if (progressiveRecommendation(recommendation) && granted.stageIndex === 1
+    && breakdown.confirmedCartFingerprint !== paymentReviewFingerprint(breakdown)) throw new Error("INCENTIVE_PROGRESSIVE_REVIEW_REQUIRED");
 }
 
 /** Same transaction as the durable provider status. Flags/expiry/withdrawal
@@ -325,6 +414,7 @@ export async function recordIncentivePayment(tx: Tx, snapshot: PaymentIntentSnap
   if (!assignment) return;
   await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchantId} FOR UPDATE`;
   const discountCents = snapshot.amountBreakdown?.discountCents ?? 0;
+  const granted = await grantedIncentive(tx, assignment);
   await tx.strategyIncentivePaymentEvidence.createMany({ data: [{ id: randomUUID(), merchantId, assignmentId: assignment.id,
     paymentId: snapshot.id, paymentVersion: (snapshot.version ?? 0) + 1, status: snapshot.status,
     amountCents: snapshot.approvedAmountCents ?? snapshot.amountCents, discountCents, occurredAt: await clock(tx) }], skipDuplicates: true });
@@ -332,9 +422,9 @@ export async function recordIncentivePayment(tx: Tx, snapshot: PaymentIntentSnap
   const reservation = await tx.strategyIncentiveReservation.findUniqueOrThrow({ where: { id: assignment.reservationId } });
   if (reservation.status !== "reserved") return;
   if (["approved", "refunded"].includes(snapshot.status)) {
-    if (!snapshot.providerPaymentId || snapshot.currency !== "BRL" || discountCents !== assignment.amountCents
+    if (!snapshot.providerPaymentId || snapshot.currency !== "BRL" || discountCents !== granted.amountCents
       || snapshot.approvedAmountCents !== snapshot.amountCents) throw new Error("INCENTIVE_PAYMENT_EVIDENCE_INVALID");
-    await resolveIncentiveBudget(tx, { merchantId, reservationId: reservation.id, status: "spent", spentCents: assignment.amountCents,
+    await resolveIncentiveBudget(tx, { merchantId, reservationId: reservation.id, status: "spent", spentCents: granted.amountCents,
       evidenceKey: `payment:${snapshot.id}` });
   }
 }

@@ -14,7 +14,7 @@ try {
     const errors = [], saves = [], receipts = new Map();
     page.on("pageerror", error => errors.push(error.message));
     let policy = { merchantId: "merchant-fixture", version: 0, policyHash: "a".repeat(64),
-      enabled: false, limitCents: 0, maxDiscountCents: 0, maxRedemptions: 0 };
+      mode: "automatic", enabled: false, limitCents: 0, maxDiscountCents: 0, maxRedemptions: 0 };
     let loseReply = false, conflictNext = false, foreignReply = false;
     await page.route("**/*", async route => {
       const req = route.request(), url = new URL(req.url()), path = url.pathname;
@@ -30,8 +30,9 @@ try {
             conflictNext = false; policy = { ...policy, version: policy.version + 1, limitCents: 45000 };
             status = 409; body = { message: "INCENTIVE_POLICY_VERSION_CONFLICT" };
           } else {
-            policy = { ...policy, version: policy.version + 1, enabled: command.enabled, limitCents: command.limitCents,
-              maxDiscountCents: command.maxDiscountCents, maxRedemptions: command.maxRedemptions };
+            policy = { ...policy, mode: command.mode, version: policy.version + 1, ...(command.mode === "automatic"
+              ? { enabled: false, limitCents: 0, maxDiscountCents: 0, maxRedemptions: 0 }
+              : { enabled: command.enabled, limitCents: command.limitCents, maxDiscountCents: command.maxDiscountCents, maxRedemptions: command.maxRedemptions }) };
             body = { ...policy }; receipts.set(command.requestKey, body);
             if (loseReply) { loseReply = false; return route.abort("failed"); }
           }
@@ -51,19 +52,23 @@ try {
     });
     await page.goto(`${base}/#revenue-manager`, { waitUntil: "domcontentloaded" });
     const panel = page.locator("details.incentive-policy");
-    await panel.getByText("Novos descontos desativados", { exact: true }).waitFor();
+    await panel.getByText("A IA sugere os limites em cada proposta para sua aprovação", { exact: true }).waitFor();
     await panel.locator("summary").click();
     const total = panel.getByLabel("Total de descontos por teste (R$)", { exact: true });
     const discount = panel.getByLabel("Desconto máximo por pedido (R$)", { exact: true });
     const uses = panel.getByLabel("Máximo de usos por teste", { exact: true });
-    const toggle = panel.getByLabel("Permitir descontos nos testes que eu aprovar", { exact: true });
-    const save = panel.getByRole("button", { name: "Salvar limites", exact: true });
-    assert.equal(await total.inputValue(), ""); assert.equal(await toggle.isChecked(), false);
+    const automatic = panel.getByRole("radio", { name: "IA sugere os limites", exact: true });
+    const manual = panel.getByRole("radio", { name: "Definir limites adicionais", exact: true });
+    const disabled = panel.getByRole("radio", { name: "Não oferecer descontos em novos testes", exact: true });
+    const save = panel.getByRole("button", { name: "Salvar preferência", exact: true });
+    assert.equal(await total.count(), 0); assert.equal(await automatic.isChecked(), true);
     assert.ok(await save.isDisabled()); assert.equal(saves.length, 0);
-    await toggle.check(); await total.fill("300,001"); await discount.fill("10,00"); await uses.fill("30");
+    await panel.getByText(/Você não precisa preencher valores/).waitFor();
+    if (out) await panel.screenshot({ path: `${out}/incentive-policy-automatic-${width}.png` });
+    await manual.check(); await total.fill("300,001"); await discount.fill("10,00"); await uses.fill("30");
     await save.click(); await panel.getByRole("alert").waitFor(); assert.equal(saves.length, 0);
     await total.fill("300,00"); await save.click();
-    await panel.getByRole("status").filter({ hasText: "Limites salvos" }).waitFor();
+    await panel.getByRole("status").filter({ hasText: "Preferência salva" }).waitFor();
     assert.equal(saves.length, 1); assert.equal(saves[0].limitCents, 30000); assert.equal(saves[0].maxDiscountCents, 1000);
     assert.ok(await save.isDisabled());
     assert.match(await panel.innerText(), /Nenhum teste foi iniciado/);
@@ -72,9 +77,9 @@ try {
     // command and reuse the same key; don't silently issue another permission.
     await total.fill("400,00"); loseReply = true; await save.click();
     await panel.getByRole("button", { name: "Confirmar salvamento", exact: true }).waitFor();
-    assert.ok(await total.isDisabled()); assert.ok(await toggle.isDisabled());
+    assert.ok(await total.isDisabled()); assert.ok(await manual.isDisabled());
     await panel.getByRole("button", { name: "Confirmar salvamento", exact: true }).click();
-    await panel.getByRole("status").filter({ hasText: "Limites salvos" }).waitFor();
+    await panel.getByRole("status").filter({ hasText: "Preferência salva" }).waitFor();
     assert.equal(saves.length, 3); assert.deepEqual(saves[1], saves[2]); assert.equal(policy.version, 2);
 
     // Another tab saved first. Keep the draft without overwriting that change.
@@ -84,10 +89,10 @@ try {
     assert.match(await panel.locator(".incentive-policy-conflict").innerText(), /450,00/);
     assert.equal(await save.count(), 0);
     await panel.getByRole("button", { name: "Manter meus valores", exact: true }).click(); await save.click();
-    await panel.getByRole("status").filter({ hasText: "Limites salvos" }).waitFor();
+    await panel.getByRole("status").filter({ hasText: "Preferência salva" }).waitFor();
     assert.equal(saves.at(-1).expectedVersion, 3); assert.equal(policy.version, 4);
-    await toggle.uncheck(); await save.click();
-    await panel.getByRole("status").filter({ hasText: "Limites salvos" }).waitFor();
+    await disabled.check(); await save.click();
+    await panel.getByRole("status").filter({ hasText: "Preferência salva" }).waitFor();
     assert.equal(policy.enabled, false); assert.equal(policy.limitCents, 50000);
     assert.equal(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1), false);
     if (out) await panel.screenshot({ path: `${out}/incentive-policy-${width}.png` });
@@ -101,9 +106,16 @@ try {
     await panel.locator("summary").click();
     assert.equal(await total.count(), 0); await panel.getByRole("button", { name: "Tentar novamente", exact: true }).waitFor();
     foreignReply = false; await panel.getByRole("button", { name: "Tentar novamente", exact: true }).click();
-    await total.waitFor(); assert.equal(await total.inputValue(), "500,00");
+    await disabled.waitFor(); assert.equal(await disabled.isChecked(), true);
+    await manual.check(); await total.waitFor(); assert.equal(await total.inputValue(), "500,00");
+    await automatic.check(); assert.equal(await total.count(), 0);
+    await save.click();
+    await panel.getByRole("status").filter({ hasText: "Preferência salva" }).waitFor();
+    assert.deepEqual(Object.keys(saves.at(-1)).sort(), ["expectedVersion", "mode", "requestKey"]);
+    assert.equal(policy.mode, "automatic"); assert.equal(policy.enabled, false); assert.equal(policy.limitCents, 0);
+    assert.equal(await total.count(), 0); assert.ok(await save.isDisabled());
     assert.deepEqual(errors, []);
-    console.log(`PASS ${width}px: default off, integer cents, save, lost-response retry, conflict, disable, tenant validation, recovery and accessibility (controlled API)`);
+    console.log(`PASS ${width}px: automatic proposal limits without a form, optional manual limits, integer cents, lost-response retry, conflict, disable, explicit automatic reset, tenant validation and accessibility (controlled API)`);
     await page.close();
   }
 } finally { await browser.close(); }

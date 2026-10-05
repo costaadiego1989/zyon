@@ -569,13 +569,17 @@ export class CreatePaymentIntentUseCase {
     });
     try { await this.payments.saveIntentWithSettlementPlan({ intent, settlementPlan }); }
     catch (error) {
-      if (error instanceof Error && /^INCENTIVE_PAYMENT_(AUTHORITY_CHANGED|POLICY_CHANGED|MARGIN_CHANGED|CART_CHANGED|REVIEW_REQUIRED)$/.test(error.message)) {
-        const revised = await this.checkout.reviseIncentiveForPaymentReview?.(merchantId, sessionId);
+      if (error instanceof Error && (/^INCENTIVE_PAYMENT_(AUTHORITY_CHANGED|POLICY_CHANGED|MARGIN_CHANGED|CART_CHANGED|REVIEW_REQUIRED)$/.test(error.message)
+        || error.message === "INCENTIVE_PROGRESSIVE_REVIEW_REQUIRED")) {
+        const progressed = error.message === "INCENTIVE_PROGRESSIVE_REVIEW_REQUIRED";
+        const revised = progressed ? await this.checkout.getSession(merchantId, sessionId)
+          : await this.checkout.reviseIncentiveForPaymentReview?.(merchantId, sessionId);
         if (revised) {
           const subtotal = Math.round(revised.cart.total * 100), discount = Math.round((revised.cart.currentDiscount ?? 0) * 100);
           const shipping = Math.round((revised.shipping?.customerPrice ?? 0) * 100), orderTotal = subtotal - discount + shipping;
           throw new ConflictException({ code: "checkout_review_required",
-          message: "O desconto deixou de estar disponível. Confira o novo total e confirme o pedido novamente antes de pagar.",
+          message: progressed ? "Seu desconto aumentou. Confira o novo total e confirme o pedido novamente antes de pagar."
+            : "O desconto deixou de estar disponível. Confira o novo total e confirme o pedido novamente antes de pagar.",
           review: { cart: revised.cart, shipping: revised.shipping, currency: revised.cart.currency,
             order_total_cents: orderTotal, service_fee_cents: buyerServiceFeeCents, total_to_pay_cents: orderTotal + buyerServiceFeeCents,
             confirmation_fingerprint: paymentReviewFingerprint({ version: 1, currency: revised.cart.currency,

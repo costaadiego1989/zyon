@@ -9,7 +9,8 @@ import { incentiveKey } from "../domain/incentive-budget.js";
 import type { StrategyProposal } from "../domain/strategy-proposal.js";
 import { lockCheckoutBaselineRows } from "../infrastructure/checkout-baseline.reader.js";
 import { merchantRulesSnapshot } from "../infrastructure/hypothesis-merchant-context.adapter.js";
-import { readIncentivePolicy } from "../infrastructure/incentive-policy.reader.js";
+import { incentivePolicySupportsRecommendation, materializeApprovedIncentivePolicy } from "../infrastructure/incentive-policy-approval.js";
+import { assertStoredStrategyOrchestration } from "../infrastructure/strategy-orchestration.reader.js";
 import { incentiveReviewReceipt } from "../infrastructure/incentive-review.reader.js";
 import { assertStoredDiscountStudy, commercialModesEnabled } from "../infrastructure/strategy-discount-study.js";
 import { closeIncentiveBudget, readIncentiveBudget } from "../infrastructure/incentive-budget-ledger.js";
@@ -44,13 +45,12 @@ export class IncentiveReviewService {
     if (!eligible) reasons.push("plan_required");
     if (strategy.currentVersion !== version.version || !["pending_review", "activation_pending", "active"].includes(strategy.status)) reasons.push("proposal_unavailable");
     if (version.expiresAt <= now) reasons.push("proposal_expired");
-    if (!recommendation || !["weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3"].includes(recommendation.definition)
+    if (!recommendation || !["weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3", "weekly-incentive-recommendation-v4"].includes(recommendation.definition)
       || recommendation.status !== "recommended") reasons.push("planned_recommendation_required");
     if (recommendation?.planning?.status !== "estimated_feasible") reasons.push("measurement_blocked");
-    if (recommendation?.definition === "weekly-incentive-recommendation-v3"
+    if (recommendation && ["weekly-incentive-recommendation-v3", "weekly-incentive-recommendation-v4"].includes(recommendation.definition)
       && !commercialModesEnabled(strategy.merchantId)) reasons.push("commercial_modes_disabled");
-    const policy = await readIncentivePolicy(tx, strategy.merchantId);
-    if (!policy.enabled || !recommendation || digest(policy) !== digest(recommendation.financialPolicy)) reasons.push("financial_policy_changed");
+    if (!await incentivePolicySupportsRecommendation(tx, strategy.merchantId, recommendation)) reasons.push("financial_policy_changed");
     if (!await tx.revenueAnalysisSchedule.findUnique({ where: { merchantId: strategy.merchantId } })) reasons.push("weekly_enrollment_required");
     const run = await tx.revenueAnalysisRun.findFirst({ where: { id: strategy.runId, merchantId: strategy.merchantId } });
     if (run?.status !== "completed") reasons.push("analysis_not_completed");
@@ -58,7 +58,8 @@ export class IncentiveReviewService {
     if (!row || !row.autonomousEngineEnabled || digest(merchantRulesSnapshot(row)) !== digest(proposal.rules)) reasons.push("merchant_rules_changed");
     else {
       try { await assertStoredDiscountStudy(tx, strategy.merchantId, strategy.runId, proposal.observation.id,
-        merchantRulesSnapshot(row), proposal.discountStudy, recommendation); }
+        merchantRulesSnapshot(row), proposal.discountStudy, recommendation);
+        await assertStoredStrategyOrchestration(tx, strategy.merchantId, strategy.runId, proposal); }
       catch (error) {
         // Only known document validation failures become readiness blockers.
         // Infrastructure errors must not look like a valid negative decision.
@@ -135,7 +136,10 @@ export class IncentiveReviewService {
         }
         if (blockers.length) throw new ConflictException({ code: "INCENTIVE_REVIEW_PREREQUISITES_REQUIRED", blockers });
       }
-      const row = await tx.strategyIncentiveReview.create({ data: { id: randomUUID(), merchantId, strategyId: id,
+      const reviewId = randomUUID();
+      if (kind === "approve") await materializeApprovedIncentivePolicy(tx, { merchantId, recommendation,
+        asOf: source.proposal.discountStudy!.asOf, actorId, reviewId });
+      const row = await tx.strategyIncentiveReview.create({ data: { id: reviewId, merchantId, strategyId: id,
         version: input.version, sequence: kind === "withdraw" ? 2 : 1, kind, proposalHash: input.proposal_hash,
         recommendationHash: input.recommendation_hash, policyVersion: recommendation.financialPolicy.version,
         policyHash: recommendation.financialPolicy.policyHash, actorId, requestKey: input.request_key, requestHash,

@@ -13,6 +13,17 @@ import { PaymentIntentEntity, type PaymentIntentStatus } from "../../payment/dom
 import { paymentCartFingerprint } from "../domain/services/payment-cart-fingerprint.js";
 import { CheckoutSettingsEntity } from "../../checkout-settings/domain/entities/checkout-settings.entity.js";
 
+test("browser telemetry cannot fabricate an experimental progressive grant event", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  repository.saveSession(checkoutSession());
+  let recorded = false;
+  repository.recordEvent = () => { recorded = true; };
+  const useCase = new TrackCheckoutEventUseCase(repository, repository);
+  await assert.rejects(useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1",
+    event: "strategy_incentive_stage" as never, metadata: { source: "revenue_engine", stageIndex: 1 } }), /checkout_event_server_only/);
+  assert.equal(recorded, false);
+});
+
 for (const status of ["pending", "requires_action", "approved", "refunded", "failed", "cancelled"] as PaymentIntentStatus[]) {
   test(`automatic discounts preserve a committed ${status} payment quote`, async () => {
     const repository = new InMemoryCheckoutRepository();

@@ -56,7 +56,7 @@ export interface HypothesisTemplate {
 }
 
 export interface Hypothesis {
-  strategy_review?: { version: number; status: string; title: string; expires_at: string; expected_lift_percent: number };
+  strategy_review?: { version: number; status: string; title: string; expires_at: string; expected_lift_percent: number; expected_lift_status?: "not_estimated" };
   id: string;
   hypothesis_text: string;
   reasoning: string;
@@ -169,7 +169,10 @@ export function revenueManagerEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, `${PREFIX}/incentive-policy`, { method: "GET", cache: "no-store" }, f);
     },
     saveIncentivePolicy(command: IncentivePolicyCommand): Promise<IncentivePolicy> {
-      return dashboardJson(base, `${PREFIX}/incentive-policy`, { method: "PUT", jsonBody: command,
+      const identity = { mode: command.mode, expectedVersion: command.expectedVersion, requestKey: command.requestKey };
+      return dashboardJson(base, `${PREFIX}/incentive-policy`, { method: "PUT", jsonBody: command.mode === "automatic" ? identity
+        : { ...identity, enabled: command.enabled, limitCents: command.limitCents,
+          maxDiscountCents: command.maxDiscountCents, maxRedemptions: command.maxRedemptions },
         headers: { "Idempotency-Key": command.requestKey } }, f);
     },
     getStrategyMetrics(id: string, version: number): Promise<import("./strategy-metrics.js").StrategyMetrics> {

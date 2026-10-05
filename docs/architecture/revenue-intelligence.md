@@ -1,6 +1,6 @@
 # Revenue Intelligence: arquitetura e operação
 
-Referência do código em 29/09/2026. Abrange Revenue Manager, experimentos de comunicação, incentivos, integração com checkout, Revenue Lift e aprendizado entre lojas.
+Referência do código atualizada em 05/10/2026. Abrange Revenue Manager, experimentos de comunicação, incentivos, integração com checkout, Revenue Lift e aprendizado entre lojas.
 
 Este documento descreve a implementação. A revisão implantada, as flags efetivas e a verificação pública de produção devem ser registradas na seção de publicação abaixo. Um teste local, uma migration aplicada ou um build concluído não comprovam sozinhos o funcionamento em produção.
 
@@ -10,7 +10,7 @@ O motor transforma dados medidos da loja em uma proposta que o merchant consegue
 
 O fluxo também produz resultados válidos sem uma proposta nova: aguardar mais dados, manter um teste em andamento ou esperar disponibilidade do orçamento. Não há obrigação de gerar uma estratégia por loja toda semana, nem promessa de aumento de vendas.
 
-As regras comerciais continuam sendo a autoridade sobre preço, desconto, margem e entrega. O motor não altera essas regras por inferência da LLM. Uma recomendação de comunicação e um teste de incentivo têm decisões e registros separados.
+As regras comerciais continuam sendo a autoridade sobre preço, desconto, margem e entrega. O motor não altera essas regras por inferência da LLM. O planejador escolhe um tipo de teste por proposta, com uma decisão correspondente no painel: comunicação ou incentivo. Cada caminho conserva seu registro e validação de aprovação. Um teste comercial usa a conversa existente para explicar o benefício confirmado; não executa simultaneamente um segundo experimento de comunicação.
 
 ```mermaid
 flowchart TD
@@ -18,7 +18,8 @@ flowchart TD
     B -->|Dados insuficientes| C[Notificação: aguardar dados]
     B -->|Teste ativo ou decisão pendente| D[Manter estratégia atual]
     B -->|Elegível| E[Congelar contexto e planejar medição]
-    E --> F[Reservar cota e gerar recomendação]
+    E --> E1[Simular opções e sugerir limites viáveis]
+    E1 --> F[Reservar cota e escolher proposta via ferramenta]
     F --> G[Notificação e revisão no dashboard]
     G -->|Recusar| H[Registrar decisão]
     G -->|Pedir alternativa| I[Nova versão no mesmo ciclo e orçamento]
@@ -61,7 +62,7 @@ Fontes: [política de agenda](../../apps/api/src/modules/revenue-manager/domain/
 
 Uma observação precisa de pelo menos 30 sessões maduras, eventos de checkout, registro de início do checkout e ausência de mistura de moedas nos pedidos observados. Isso permite analisar o funil, mas **não significa que a amostra já sustente um teste A/B**. O planejamento do experimento aplica requisitos adicionais de baseline, tráfego, tamanho de amostra e duração.
 
-Antes de chamar a LLM, o servidor captura os artefatos aplicáveis: observação, regras comerciais, contrato do checkout, planejamento de medição, estudo de desconto, política financeira e aprendizado agregado. Os artefatos têm identidade, versão ou hash; revisões reutilizam o contexto congelado do ciclo. A estimativa de lift da LLM permanece identificada como estimativa não medida.
+Antes de chamar a LLM, o servidor captura os artefatos aplicáveis: observação, regras comerciais, contrato do checkout, planejamento de medição, estudo de desconto, política financeira e aprendizado agregado. Os artefatos têm identidade, versão ou hash; revisões reutilizam o contexto congelado do ciclo. O planejador apresenta o resultado como **a medir**, sem inventar uma previsão percentual. Estimativas de lift nas propostas legadas continuam identificadas como estimativas não medidas.
 
 Se o checkout, o modelo, as regras ou outro componente relevante do contrato mudou, a aprovação não reaproveita silenciosamente uma proposta antiga. Os bloqueios de ativação indicam a necessidade de nova análise ou de completar a configuração.
 
@@ -123,7 +124,15 @@ Este caminho implementa comunicação no checkout. A proposta não dispara autom
 
 O estudo semanal simula candidatos de desconto sobre dados históricos e custos configurados. A política financeira do merchant define habilitação, orçamento máximo, desconto máximo por comprador e quantidade máxima de usos. O servidor escolhe termos compatíveis com essa política e com a margem mínima; o estudo não reserva dinheiro nem demonstra causalidade.
 
+Com `REVENUE_STRATEGY_PLANNER_ENABLED` e a loja permitida nas modalidades comerciais, o estudo `weekly-discount-study-v3` congela múltiplos candidatos. `revenue_analysis_runs.incentive_options_json` contém somente recomendações v4 com custo, margem, tráfego e amostra considerados viáveis. A ferramenta `submit_revenue_strategy` recebe os dados agregados e escolhe um ID desse catálogo, ou `communication_only`, junto com a justificativa. Ela não aceita valores financeiros livres, comandos de aprovação ou criação de cupom. A chamada continua usando a reserva de tokens, o teto do ciclo e o cache ligados ao contexto exato; não existe uma chamada adicional da LLM por cálculo ou validação de margem.
+
+As preferências financeiras têm três modos: `automatic`, `manual` e `disabled`. Lojas sem política usam sugestões automáticas; uma configuração manual existente nunca é substituída por inferência. No automático, o orçamento sugerido cobre o maior desconto seguro multiplicado pela amostra necessária do grupo de tratamento, desde que o tráfego observado permita essa amostra. Os termos carregam `policyProposal` com versão/hash da política anterior. Só a aprovação comercial cria uma política durável `origin=automatic`, vinculada ao recibo humano por uma chave estrangeira e uma validação diferida no banco, na mesma transação de orçamento e execução. Uma proposta recusada não habilita verba. Manual mantém os tetos explícitos; disabled exclui opções financeiras.
+
+A proposta contém `orchestration`, com ferramenta, hash do catálogo, opção e justificativa. API e banco exigem que o benefício exibido seja exatamente a opção escolhida. Pedir alternativa usa o mesmo catálogo congelado, consome a cota de revisão e publica uma nova versão, sem reaproveitar uma aprovação anterior. Cada proposta apresenta um único caminho de aprovação; versões antigas conservam seus contratos. O planejador não fabrica percentual de ganho previsto, e o painel informa que o resultado será medido.
+
 Os incentivos incluem **desconto percentual com teto em reais, desconto de valor fixo, cupom personalizado e desconto no frete**, limitados a um público elegível. Têm teste de sete dias, alocação 50/50 e no máximo um benefício por comprador. Usam consentimento de memória de intenção válido, primeira sessão elegível do comprador e exclusão do holdout; não acumulam com outro cupom ou incentivo.
+
+O formato v4 acrescenta `capped_progressive_discount`: uma etapa inicial na admissão elegível e uma etapa maior quando o backend prepara o pagamento. Percentuais e tetos de ambas ficam explícitos antes da aprovação. A atribuição do comprador e a reserva pelo desconto máximo permanecem únicas; concessões de etapa são registradas em `strategy_incentive_stage_grants`. Eventos enviados pelo browser não autorizam a progressão. O pagamento revalida o desconto concedido e liquida somente o valor efetivo, sem somar os dois patamares. Mudança do total exige confirmação atualizada do comprador. Nenhuma etapa reescreve as regras globais da loja.
 
 O formato `weekly-incentive-recommendation-v3` conserva os termos aprovados e a evidência comercial do estudo `weekly-discount-study-v2`. O motor escolhe valor fixo quando o público sensível a preço tem carrinhos semelhantes; escolhe frete somente com cotações e custos conhecidos que sustentem a simulação. Os limites de frete, região, gratuidade e margem continuam sob a autoridade de `shipping-engine` e `rules-engine`. A cotação original da transportadora fica preservada; o benefício de frete é identificado e abatido uma única vez do total do pedido. Os formatos antigos v1/v2 permanecem legíveis e verificáveis.
 
@@ -228,6 +237,7 @@ A referência de nomes e comentários é [apps/api/.env.example](../../apps/api/
 | Decisão comercial | `REVENUE_INCENTIVE_REVIEW_ENABLED`, `REVENUE_INCENTIVE_REVIEW_MERCHANT_IDS`. |
 | Aplicação comercial | `REVENUE_INCENTIVE_EXECUTION_ENABLED`, `REVENUE_INCENTIVE_EXECUTION_MERCHANT_IDS`; exige gates de orçamento/revisão e aprovação específica. |
 | Modalidades comerciais | `REVENUE_COMMERCIAL_MODES_ENABLED`, `REVENUE_COMMERCIAL_MODES_MERCHANT_IDS`; habilita novas propostas v3 de valor fixo, cupom e frete. Exige as migrations de vínculo/autoridade comercial e todos os gates financeiros anteriores. |
+| Planejador com ferramentas | `REVENUE_STRATEGY_PLANNER_ENABLED`; exige também as modalidades comerciais e sua lista de lojas. Novos ciclos capturam estudo v3, catálogo imutável e recomendações v4, incluindo limites sugeridos e desconto progressivo. Não converte ciclos ou aprovações antigos. |
 | Aprendizado privado | `REVENUE_SHARED_LEARNING_ENABLED`, `REVENUE_SHARED_LEARNING_MERCHANT_IDS`, `REVENUE_SHARED_LEARNING_MIN_MERCHANTS` (padrão e mínimo 5). Sem adesão por wildcard. |
 
 Orçamento de IA obrigatório: `REVENUE_AI_BUDGET_CURRENCY`, `REVENUE_AI_DAILY_LIMIT_MICROS`, `REVENUE_AI_MONTHLY_LIMIT_MICROS`, `REVENUE_AI_CYCLE_LIMIT_MICROS`, `REVENUE_AI_MAX_INPUT_TOKENS`, `REVENUE_AI_MAX_OUTPUT_TOKENS`, `REVENUE_AI_MAX_CALLS_PER_CYCLE`, `REVENUE_AI_REVISION_RESERVE_PERCENT`, `REVENUE_AI_PROVIDER_RPM`, `REVENUE_AI_PROVIDER_TPM`, `REVENUE_AI_PROVIDER_CONCURRENCY`. O chat experimental também exige `REVENUE_STRATEGY_AI_EXECUTION_LIMIT_MICROS` e `REVENUE_STRATEGY_AI_SESSION_MAX_CALLS`.
@@ -315,7 +325,9 @@ Para interromper novas ações, desligar primeiro a geração/novas aprovações
 
 Preservar agendas, propostas, versões, atribuições, recibos e snapshots. Não reabrir o caminho legado apagando agenda semanal; não remover schema aditivo para reverter um deploy; não liberar reserva desconhecida por timeout. Voltar a uma imagem antiga exige verificar compatibilidade com registros e sessões já criados. Após o rollback, confirmar que nenhum novo teste/benefício entra e que pagamentos/recibos existentes continuam reconciliando.
 
-### Registro de publicação
+### Registro histórico de publicação em 29/09
+
+O estado atual de ativação e as modalidades comerciais v3 estão no [registro de 05/10/2026](../product/revenue-intelligence-activation-2026-10-05.md). A tabela abaixo preserva a situação da publicação anterior.
 
 | Evidência | Estado desta documentação |
 | --- | --- |

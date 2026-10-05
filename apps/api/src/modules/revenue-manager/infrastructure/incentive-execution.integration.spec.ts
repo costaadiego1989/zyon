@@ -14,7 +14,10 @@ import { ConflictException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { PrismaClient, Prisma } from "@prisma/client";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
-import { commercialDiscountStudy, discountStudy } from "../domain/strategy-discount-study.js";
+import { commercialDiscountStudy, discountStudy, plannerDiscountStudy } from "../domain/strategy-discount-study.js";
+import { revenueIncentiveOptions } from "../domain/revenue-incentive-options.js";
+import { orchestrationDecision } from "../domain/strategy-orchestration.js";
+import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
 import { incentiveBudgetTerms, recommendedIncentiveBudgetTerms } from "../domain/incentive-budget.js";
 import { conservativeIncentiveAlternative, incentiveRecommendation, plannedCommercialIncentiveRecommendation, plannedIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 import { IncentivePolicyService } from "../application/incentive-policy.service.js";
@@ -29,7 +32,7 @@ import { registerReviewedIncentiveBudget, reserveIncentiveBudget, resolveIncenti
 
 // Shared disposable review database: never run concurrently with its other suites.
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
-const enabled = url.hostname === "127.0.0.1" && url.port === "5557" && url.pathname === "/revenue_strategy_0924";
+const enabled = url.hostname === "127.0.0.1" && url.port === "5557" && ["/revenue_strategy_0924", "/revenue_progressive_1005"].includes(url.pathname);
 const prisma = new PrismaClient({ datasources: { db: { url: url.toString() } }, transactionOptions: { maxWait: 10000, timeout: 30000 } });
 const env = { ...process.env };
 const reviews = new IncentiveReviewService(prisma, { getEffectivePlan: async () => "scale" } as never);
@@ -50,7 +53,7 @@ beforeEach(async () => {
 });
 
 const defaultCaps = { limitCents: 500000, maxDiscountCents: 500, maxRedemptions: 1000 };
-type CommercialMode = "fixed" | "percentage" | "shipping";
+type CommercialMode = "fixed" | "percentage" | "shipping" | "progressive";
 async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned" | "legacy" | "missing" | "blocked" = "planned", reviewed = true, ageMs = 0, commercial?: CommercialMode) {
   const now = new Date();
   const asOf = new Date(now.getTime() - ageMs);
@@ -75,24 +78,30 @@ async function fixture(merchantId = "store", caps = defaultCaps, mode: "planned"
   const run = await prisma.revenueAnalysisRun.create({ data: { merchantId, cycle: 1, status: "running", leaseToken: 1,
     leaseUntil: new Date(now.getTime() + 600000), observationId: observation.id, asOf } });
   await prisma.revenueAnalysisSchedule.create({ data: { merchantId, group: 0, nextDueAt: now, currentRunId: run.id } });
-  const study = (commercial ? commercialDiscountStudy : discountStudy)({ merchantId, runId: run.id, observationId: observation.id, rules,
+  const study = (commercial === "progressive" ? plannerDiscountStudy : commercial ? commercialDiscountStudy : discountStudy)({ merchantId, runId: run.id, observationId: observation.id, rules,
     asOf: asOf.toISOString(), capturedAt: now.toISOString(), cohorts: [{ intent: "price_sensitive", sampleSize: 10000, conversionRate: .001,
       carts: Array.from({ length: 10000 }, (_, i) => { const price = commercial === "percentage" && i % 2 ? 200 : 100;
         return { total: price, currency: "BRL", items: [{ sku: "sku", name: "Produto", price, cost: 40, quantity: 1 }] }; }),
       ...(commercial === "shipping" ? { shipping: Array.from({ length: 10000 }, () => ({ customerPrice: 10, realCost: 10 })) } : {}) }] });
-  const recommendation = mode === "missing" ? undefined : mode === "legacy" ? incentiveRecommendation(study, rules, policy)
+  const baseline = { buyers: 10000, conversions: 10, complete: true,
+    windowStart: new Date(asOf.getTime() - 35 * 86400000).toISOString(), windowEnd: new Date(asOf.getTime() - 7 * 86400000).toISOString() };
+  const catalog = commercial === "progressive" ? revenueIncentiveOptions(study, rules, { snapshot: policy, mode: "manual" }, () => baseline) : undefined;
+  const selected = catalog?.options.find(option => option.recommendation.selectedCandidateKey === "progressive");
+  const orchestration = catalog && selected ? orchestrationDecision(catalog, selected.id, "Comparar dois patamares aprovados de desconto no checkout.") : undefined;
+  const recommendation = selected?.recommendation ?? (mode === "missing" ? undefined : mode === "legacy" ? incentiveRecommendation(study, rules, policy)
     : (commercial ? plannedCommercialIncentiveRecommendation : plannedIncentiveRecommendation)(study, rules, policy, { buyers: mode === "blocked" ? 1000 : 10000,
       conversions: mode === "blocked" ? 100 : 10, complete: true,
-      windowStart: new Date(asOf.getTime() - 35 * 86400000).toISOString(), windowEnd: new Date(asOf.getTime() - 7 * 86400000).toISOString() });
+      windowStart: new Date(asOf.getTime() - 35 * 86400000).toISOString(), windowEnd: new Date(asOf.getTime() - 7 * 86400000).toISOString() }));
   await prisma.revenueAnalysisRun.update({ where: { id: run.id }, data: { discountStudyJson: study,
-    ...(recommendation ? { incentiveRecommendationJson: recommendation as unknown as Prisma.InputJsonValue } : {}) } });
+    ...(catalog ? { incentiveOptionsJson: catalog as unknown as Prisma.InputJsonValue } : {}),
+    ...(!catalog && recommendation ? { incentiveRecommendationJson: recommendation as unknown as Prisma.InputJsonValue } : {}) } });
   const hypothesis = HypothesisEntity.create({ merchant_id: merchantId, observation_id: observation.id,
     hypothesis_text: "Testar uma explicaÃ§Ã£o das etapas", reasoning: "Comparar as sessÃµes observadas", expected_lift_percent: 1,
     template: { name: "ExplicaÃ§Ã£o", description: "Explicar as prÃ³ximas etapas",
       variant_a: { name: "Controle", system_prompt: "Explique os dados verificados.", weight: 50, is_control: true },
       variant_b: { name: "Teste", system_prompt: "Pergunte qual etapa precisa de explicaÃ§Ã£o.", weight: 50, is_control: false } },
     risk_level: "low", approval_strategy: "manual" });
-  await new PrismaHypothesisRepository(prisma).save(hypothesis, { runId: run.id, leaseToken: 1, discountStudy: study });
+  await new PrismaHypothesisRepository(prisma).save(hypothesis, { runId: run.id, leaseToken: 1, discountStudy: study, ...(orchestration ? { orchestration } : {}) });
   const version = await prisma.revenueStrategyVersion.findFirstOrThrow({ where: { strategyId: hypothesis.id } });
   await prisma.revenueAnalysisRun.update({ where: { id: run.id }, data: { status: "completed" } });
   const source = { merchantId, strategyId: hypothesis.id, version: 1, proposalHash: version.proposalHash, study, rules, policy, recommendation };
@@ -169,6 +178,132 @@ spec("checkout coupon entry preserves treatment assignment and rejects control, 
   process.env.REVENUE_COMMERCIAL_MODES_ENABLED = "false";
   await assert.rejects(enter(treatment), /COUPON_STRATEGY_NOT_ELIGIBLE/);
   assert.equal(await prisma.strategyIncentiveReservation.count(), 1);
+});
+
+spec("progressive enrollment reserves the maximum and trusted preparation advances both assigned arms once", async () => {
+  const f = await ready("progressive"), checkout = new PrismaCheckoutRepository(prisma);
+  const treatment = await admit(await buyer(f, "treatment"));
+  const control = await admit(await buyer(f, "control"));
+  const holdout = await admit(await buyer(f, "treatment", { cohort: "holdout" }));
+  assert.equal(treatment.cart.currentDiscount, 2.5);
+  assert.equal(control.cart.currentDiscount ?? 0, 0);
+  assert.equal(holdout.cart.currentDiscount ?? 0, 0);
+  assert.equal((await prisma.strategyIncentiveBudget.findFirstOrThrow()).reservedCents, 500);
+  const [first, repeated] = await Promise.all([
+    checkout.prepareProgressiveIncentivePayment("store", treatment.sessionId, "pix"),
+    checkout.prepareProgressiveIncentivePayment("store", treatment.sessionId, "pix"),
+  ]);
+  assert.equal(first?.cart.currentDiscount, 5); assert.equal(repeated?.cart.currentDiscount, 5);
+  await checkout.prepareProgressiveIncentivePayment("store", control.sessionId, "card");
+  await checkout.prepareProgressiveIncentivePayment("store", holdout.sessionId, "pix");
+  const grants = await prisma.strategyIncentiveStageGrant.findMany({ orderBy: [{ assignmentId: "asc" }, { stageIndex: "asc" }] });
+  assert.equal(grants.length, 4);
+  assert.deepEqual(grants.map(g => g.amountCents).sort((a, b) => a - b), [0, 0, 250, 500]);
+  assert.equal(await prisma.strategyIncentiveAssignment.count(), 2);
+  assert.equal(await prisma.strategyIncentiveReservation.count(), 1);
+  assert.equal(await prisma.checkoutEvent.count({ where: { eventName: "strategy_incentive_stage" } }), 4);
+  assert.equal((await prisma.strategyIncentiveBudget.findFirstOrThrow()).reservedCents, 500);
+  await assert.rejects(prisma.strategyIncentiveStageGrant.updateMany({ data: { amountCents: 0 } }), /immutable/);
+  await assert.rejects(prisma.checkoutEvent.update({ where: { id: grants[0].eventId }, data: { metadata: {} } }), /immutable/);
+});
+
+for (const method of ["pix", "card"] as const) spec(`progressive ${method} payment requires a new confirmation, retains the grant and never dispatches an unconfirmed charge`, async () => {
+  const f = await ready("progressive"), session = await admit(await buyer(f, "treatment", {
+    customer: { asaasCustomerId: "test-customer", email: "buyer@example.test" },
+  }));
+  const checkout = new PrismaCheckoutRepository(prisma), payments = new PrismaPaymentRepository(prisma);
+  const benefits = new CheckoutBenefitsService(checkout, { getRules: async () => f.source.rules } as never,
+    { getContext: async () => undefined, getInterventionConfig: async () => ({ advancedRules: [] }) } as never,
+    payments, undefined as never);
+  let providerCalls = 0;
+  const provider = new FakePaymentProvider(), create = provider.createPayment.bind(provider);
+  provider.createPayment = async input => { providerCalls++; return create(input); };
+  const useCase = new CreatePaymentIntentUseCase(checkout, { getProfile: async () => ({ id: "store", name: "Store",
+    storeSettings: { paymentRouting: { card: "asaas", pix: "asaas" } } }) } as never,
+    payments, provider, undefined, undefined, undefined,
+    { getConnection: async (_merchant: string, gateway: string) => gateway === "asaas" ? { status: "active" } : undefined } as never,
+    undefined, undefined, undefined, undefined, benefits);
+  const command = { merchant_id: "store", session_id: session.sessionId, idempotency_key: "progressive-review", method };
+  let review: { confirmation_fingerprint: string; order_total_cents: number; total_to_pay_cents: number } | undefined;
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await assert.rejects(useCase.execute(command), error => {
+      assert.ok(error instanceof ConflictException);
+      const result = error.getResponse() as { code: string; review: typeof review };
+      assert.equal(result.code, "checkout_review_required"); review = result.review; return true;
+    });
+  }
+  assert.ok(review); assert.equal(review.order_total_cents, 10500);
+  assert.equal(providerCalls, 0); assert.equal(await prisma.paymentIntent.count(), 0);
+  assert.equal((await checkout.getSession("store", session.sessionId))?.cart.currentDiscount, 5);
+  assert.equal((await prisma.strategyIncentiveReservation.findFirstOrThrow()).status, "reserved");
+  const accepted = await useCase.execute({ ...command, confirmed_cart_fingerprint: review.confirmation_fingerprint });
+  assert.equal(accepted.amountCents, review.total_to_pay_cents); assert.equal(providerCalls, 1);
+  const intent = (await payments.getByIdempotency("store", session.sessionId, command.idempotency_key))!;
+  intent.markApproved({ providerPaymentId: accepted.providerPaymentId!, approvedAmountCents: accepted.amountCents });
+  await payments.saveIntent({ intent });
+  const budget = await prisma.strategyIncentiveBudget.findFirstOrThrow();
+  assert.equal(budget.reservedCents, 0); assert.equal(budget.spentCents, 500); assert.equal(budget.spentCount, 1);
+});
+
+spec("progressive settlement spends only the granted first stage and releases its unused reserved ceiling", async () => {
+  const f = await ready("progressive"), session = await admit(await buyer(f, "treatment"));
+  const intent = payment(session), repository = new PrismaPaymentRepository(prisma);
+  await repository.saveIntent({ intent });
+  // An existing provider attempt cannot be repriced by later preparation.
+  const current = await new PrismaCheckoutRepository(prisma).prepareProgressiveIncentivePayment("store", session.sessionId, "pix");
+  assert.equal(current?.cart.currentDiscount, 2.5);
+  intent.markApproved({ providerPaymentId: "provider-first-stage", approvedAmountCents: intent.snapshot().amountCents });
+  await repository.saveIntent({ intent });
+  const budget = await prisma.strategyIncentiveBudget.findFirstOrThrow();
+  assert.equal(budget.reservedCents, 0); assert.equal(budget.spentCents, 250); assert.equal(budget.spentCount, 1);
+  assert.equal(await prisma.strategyIncentiveStageGrant.count(), 1);
+  const metrics = await new IncentiveMetricsService(prisma).read("store", f.hypothesis.id, 1);
+  assert.equal(metrics.measurement?.treatment.assigned, 1);
+  assert.equal(metrics.measurement?.budget.spentCents, 250);
+  intent.markRefunded("buyer request"); await repository.saveIntent({ intent });
+  assert.equal((await prisma.strategyIncentiveBudget.findFirstOrThrow()).spentCents, 250);
+});
+
+spec("progressive stage SQL rejects invented amounts and admission rechecks current consent and margin", async () => {
+  const f = await ready("progressive"), session = await admit(await buyer(f, "treatment"));
+  const assignment = await prisma.strategyIncentiveAssignment.findFirstOrThrow();
+  await assert.rejects(tx(async client => {
+    const now = new Date();
+    const event = await client.checkoutEvent.create({ data: { merchantId: "store", sessionId: session.sessionId,
+      eventName: "strategy_incentive_stage", occurredAt: now,
+      metadata: { source: "revenue_engine", assignmentId: assignment.id, stageIndex: 1, trigger: "checkout_payment_ready", method: "pix" } } });
+    await client.strategyIncentiveStageGrant.create({ data: { id: randomUUID(), merchantId: "store", assignmentId: assignment.id,
+      stageIndex: 1, trigger: "checkout_payment_ready", eventId: event.id, amountCents: 501, createdAt: now } });
+  }), /reserved approved terms/);
+  const checkout = new PrismaCheckoutRepository(prisma);
+  await prisma.productPrice.update({ where: { variantId: "variant" }, data: { costInCents: 9900 } });
+  assert.equal((await checkout.prepareProgressiveIncentivePayment("store", session.sessionId, "pix"))?.cart.currentDiscount, 2.5);
+  await prisma.productPrice.update({ where: { variantId: "variant" }, data: { costInCents: 4000 } });
+  await prisma.buyerIntentMemoryConsent.update({ where: { merchantId_globalUserId: { merchantId: "store", globalUserId: assignment.buyerId } }, data: { optedIn: false } });
+  assert.equal((await checkout.prepareProgressiveIncentivePayment("store", session.sessionId, "pix"))?.cart.currentDiscount, 2.5);
+  assert.equal(await prisma.strategyIncentiveStageGrant.count(), 1);
+  const forged = structuredClone(f.source.recommendation!);
+  if (forged.status !== "recommended") throw new Error("fixture");
+  forged.test.stages![0].maxDiscountCents++;
+  const [sql] = await prisma.$queryRaw<Array<{ valid: boolean }>>`SELECT valid_strategy_commercial_terms(${JSON.stringify(forged)}::jsonb, ${JSON.stringify(f.source.study)}::jsonb) AS valid`;
+  assert.equal(sql.valid, false);
+});
+
+spec("progressive cart changes release the maximum without erasing grants or enrolling again", async () => {
+  const f = await ready("progressive"), assigned = await admit(await buyer(f, "treatment"));
+  const checkout = new PrismaCheckoutRepository(prisma);
+  const session = (await checkout.getSession("store", assigned.sessionId))!;
+  const next = structuredClone(session);
+  next.cart.total = 200; next.cart.items[0].quantity = 2;
+  const changed = await checkout.commitCommercialMutation({ expected: session, next });
+  assert.equal(changed.cart.currentDiscount, 0); assert.equal(changed.cart.commercialNudge, undefined);
+  assert.equal((await prisma.strategyIncentiveReservation.findFirstOrThrow()).status, "released");
+  assert.equal((await prisma.strategyIncentiveBudget.findFirstOrThrow()).reservedCents, 0);
+  assert.equal(await prisma.strategyIncentiveStageGrant.count(), 1);
+  const prepared = await checkout.prepareProgressiveIncentivePayment("store", session.sessionId, "pix");
+  assert.equal(prepared?.cart.currentDiscount, 0);
+  assert.equal(await prisma.strategyIncentiveAssignment.count(), 1);
+  assert.equal(await prisma.strategyIncentiveStageGrant.count(), 1);
 });
 
 spec("approval atomically activates exact seven-day terms and admission applies only treatment", async () => {

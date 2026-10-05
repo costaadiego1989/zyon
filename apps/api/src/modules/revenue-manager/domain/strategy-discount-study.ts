@@ -2,12 +2,13 @@ import type { MerchantRules } from "@zyon/shared-types";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { moneyCents } from "@zyon/rules-engine";
 import { DiscountRuleHypothesisService, type CohortStats, type DiscountSimulation } from "./services/discount-rule-hypothesis.service.js";
-import { assertCommercialCandidate, commercialCandidate, type CommercialCandidate } from "./strategy-commercial-candidate.js";
+import { assertCommercialCandidate, assertCommercialCandidates, commercialCandidate, commercialCandidates, type CommercialCandidate, type CommercialCatalogCandidate } from "./strategy-commercial-candidate.js";
 
 /** An aggregate study, never an executable rule, coupon or spending authority. */
 export type StrategyDiscountStudy = {
-  definition: "weekly-discount-study-v1" | "weekly-discount-study-v2";
+  definition: "weekly-discount-study-v1" | "weekly-discount-study-v2" | "weekly-discount-study-v3";
   commercialCandidate?: CommercialCandidate | null;
+  commercialCandidates?: CommercialCatalogCandidate[];
   merchantId: string;
   runId: string;
   observationId: string;
@@ -44,6 +45,12 @@ export function discountStudy(input: { merchantId: string; runId: string; observ
 
 export function assertDiscountStudy(study: StrategyDiscountStudy, merchantId: string, runId: string,
   observationId: string, rules: MerchantRules): void {
+  if (study?.definition === "weekly-discount-study-v3") {
+    const { commercialCandidates: candidates, ...base } = study;
+    assertDiscountStudy({ ...base, definition: "weekly-discount-study-v1" }, merchantId, runId, observationId, rules);
+    assertCommercialCandidates(candidates as CommercialCatalogCandidate[], study, rules);
+    return;
+  }
   if (study?.definition === "weekly-discount-study-v2") {
     const { commercialCandidate: commercial, ...base } = study;
     assertDiscountStudy({ ...base, definition: "weekly-discount-study-v1" }, merchantId, runId, observationId, rules);
@@ -96,4 +103,12 @@ export function commercialDiscountStudy(input: Parameters<typeof discountStudy>[
     commercialCandidate: commercialCandidate(base, input.cohorts, input.rules) };
   assertDiscountStudy(result, input.merchantId, input.runId, input.observationId, input.rules);
   return result;
+}
+
+export function plannerDiscountStudy(input: Parameters<typeof discountStudy>[0]): StrategyDiscountStudy {
+  const base = discountStudy(input);
+  const study: StrategyDiscountStudy = { ...base, definition: "weekly-discount-study-v3",
+    commercialCandidates: commercialCandidates(base, input.cohorts, input.rules) };
+  assertDiscountStudy(study, input.merchantId, input.runId, input.observationId, input.rules);
+  return study;
 }

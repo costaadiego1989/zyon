@@ -19,11 +19,14 @@ export type StrategyExecutionContract = {
 export function executionContract(input: { merchantId: string; strategyId: string; version: number;
   runId: string; proposalHash: string; proposal: StrategyProposal }): StrategyExecutionContract {
   const p = input.proposal;
+  if (p.orchestration && p.orchestration.selectedAction !== "communication_only") {
+    throw new Error("STRATEGY_EXECUTION_COMMERCIAL_REVIEW_REQUIRED");
+  }
   if (!p.checkoutBaseline || !p.experimentReview || digest(p) !== input.proposalHash
     || p.observation.merchant_id !== input.merchantId
     || p.experimentReview.strategyId !== input.strategyId || p.experimentReview.version !== input.version
     || p.experimentReview.planning.runId !== input.runId
-    || digest(p) !== digest(strategyProposal(p.recommendation, p.observation, p.rules, p.checkoutBaseline, p.experimentReview, p.discountStudy, p.incentiveRecommendation))) {
+    || digest(p) !== digest(strategyProposal(p.recommendation, p.observation, p.rules, p.checkoutBaseline, p.experimentReview, p.discountStudy, p.incentiveRecommendation, p.orchestration))) {
     throw new Error("STRATEGY_EXECUTION_INVALID_PROPOSAL");
   }
   return structuredClone({ definition: "checkout-strategy-execution-v1", merchantId: input.merchantId,

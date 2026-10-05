@@ -3,11 +3,19 @@ import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { assertDiscountStudy, type StrategyDiscountStudy } from "./strategy-discount-study.js";
 import { incentivePolicySnapshot, type IncentivePolicySnapshot } from "./incentive-policy.js";
 import { incentiveMeasurementPlanning, type IncentiveMeasurementPlanning, type IncentivePlanningBaseline } from "./incentive-measurement.js";
+import { assertProposedIncentivePolicy, type IncentivePolicyProposal } from "./incentive-policy-proposal.js";
+import type { CommercialCandidateKey } from "./strategy-commercial-candidate.js";
+
+export type ProgressiveIncentiveStage = {
+  index: 0 | 1; trigger: "enrollment" | "checkout_payment_ready"; discountPercent: number; maxDiscountCents: number;
+};
 
 /** Automatically planned terms for a SEPARATE incentive test. Neither this
  * document nor approval of its companion communication strategy permits spend. */
 export type StrategyIncentiveRecommendation = {
-  definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2" | "weekly-incentive-recommendation-v3";
+  definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2" | "weekly-incentive-recommendation-v3" | "weekly-incentive-recommendation-v4";
+  selectedCandidateKey?: CommercialCandidateKey;
+  policyProposal?: IncentivePolicyProposal;
   planning?: IncentiveMeasurementPlanning;
   alternative?: { definition: "incentive-conservative-alternative-v1"; sequence: number; sourceRecommendationHash: string };
   merchantId: string; runId: string; observationId: string; studyHash: string;
@@ -18,7 +26,8 @@ export type StrategyIncentiveRecommendation = {
 } & ({ status: "not_recommended"; reason: "no_safe_candidate" | "financial_policy_disabled"; test?: never } | {
   status: "recommended";
   test: {
-    kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount";
+    kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount" | "capped_progressive_discount";
+    stages?: [ProgressiveIncentiveStage, ProgressiveIncentiveStage];
     fixedDiscountCents?: number;
     shippingDiscountCents?: number;
     delivery?: { mode: "automatic" } | { mode: "coupon_code"; code: string };
@@ -70,7 +79,10 @@ export function incentiveRecommendation(study: StrategyDiscountStudy, rules: Mer
 export function assertIncentiveRecommendation(value: StrategyIncentiveRecommendation,
   study: StrategyDiscountStudy, rules: MerchantRules) {
   if (!value || !study) throw new Error("STRATEGY_INVALID_INCENTIVE_RECOMMENDATION");
-  const primary = value.definition === "weekly-incentive-recommendation-v3"
+  const primary = value.definition === "weekly-incentive-recommendation-v4"
+    ? plannedSelectedIncentiveRecommendation(study, rules, value.financialPolicy, value.planning?.baseline,
+      value.selectedCandidateKey!, value.policyProposal)
+    : value.definition === "weekly-incentive-recommendation-v3"
     ? plannedCommercialIncentiveRecommendation(study, rules, value.financialPolicy, value.planning?.baseline)
     : value.definition === "weekly-incentive-recommendation-v2"
     ? plannedIncentiveRecommendation(study, rules, value.financialPolicy, value.planning?.baseline)
@@ -88,7 +100,7 @@ export function assertIncentiveRecommendation(value: StrategyIncentiveRecommenda
 export function conservativeIncentiveAlternative(primary: StrategyIncentiveRecommendation,
   sequence: number): StrategyIncentiveRecommendation | null {
   if (!Number.isSafeInteger(sequence) || sequence < 1 || sequence > 3 || primary.alternative
-    || !["weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3"].includes(primary.definition)
+    || !["weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3", "weekly-incentive-recommendation-v4"].includes(primary.definition)
     || primary.status !== "recommended" || !primary.planning) return null;
   const factor = sequence + 1;
   const discountBps = Math.floor(Math.round(primary.test.discountPercent * 100) / factor);
@@ -102,6 +114,11 @@ export function conservativeIncentiveAlternative(primary: StrategyIncentiveRecom
   result.test.maxDiscountCents = maxDiscountCents;
   if (result.test.kind === "capped_fixed_discount") result.test.fixedDiscountCents = maxDiscountCents;
   if (result.test.kind === "capped_shipping_discount") result.test.shippingDiscountCents = maxDiscountCents;
+  if (result.test.kind === "capped_progressive_discount") {
+    const stages = progressiveIncentiveStages(discountBps / 100, maxDiscountCents);
+    if (!stages || BigInt(result.test.audience.minCartTotalCents) * BigInt(Math.round(stages[0].discountPercent * 100)) / 10000n < 1n) return null;
+    result.test.stages = stages;
+  }
   if (result.test.delivery?.mode === "coupon_code") result.test.delivery.code = incentiveCouponCode(primary, sequence);
   result.test.limitCents = maxDiscountCents * result.test.maxRedemptions;
   result.planning = incentiveMeasurementPlanning(primary.planning.baseline, {
@@ -113,6 +130,54 @@ export function conservativeIncentiveAlternative(primary: StrategyIncentiveRecom
 
 function incentiveCouponCode(value: Pick<StrategyIncentiveRecommendation, "merchantId" | "runId" | "studyHash">, sequence = 0) {
   return `ZYON${digest(["weekly-incentive-coupon-v1", value.merchantId, value.runId, value.studyHash, sequence]).slice(0, 20).toUpperCase()}`;
+}
+
+export function progressiveIncentiveStages(discountPercent: number, maxDiscountCents: number): [ProgressiveIncentiveStage, ProgressiveIncentiveStage] | null {
+  const bps = Math.round(discountPercent * 100);
+  if (!Number.isSafeInteger(bps) || bps < 2 || bps > 10000 || !Number.isSafeInteger(maxDiscountCents) || maxDiscountCents < 2) return null;
+  return [{ index: 0, trigger: "enrollment", discountPercent: Math.floor(bps / 2) / 100, maxDiscountCents: Math.floor(maxDiscountCents / 2) },
+    { index: 1, trigger: "checkout_payment_ready", discountPercent, maxDiscountCents }];
+}
+
+/** Select a frozen, server-derived candidate. Amounts are reconstructed rather
+ * than accepted from the LLM, feedback text or merchant request body. */
+export function selectedIncentiveRecommendation(study: StrategyDiscountStudy, rules: MerchantRules,
+  policy: IncentivePolicySnapshot, candidateKey: CommercialCandidateKey, policyProposal?: IncentivePolicyProposal): StrategyIncentiveRecommendation {
+  if (study.definition !== "weekly-discount-study-v3") throw new Error("STRATEGY_COMMERCIAL_CATALOG_REQUIRED");
+  const c = study.commercialCandidates?.find(candidate => candidate.key === candidateKey);
+  if (!c) throw new Error("STRATEGY_COMMERCIAL_CANDIDATE_UNAVAILABLE");
+  const result = incentiveRecommendation(study, rules, policy);
+  const metadata = { definition: "weekly-incentive-recommendation-v4" as const, selectedCandidateKey: candidateKey,
+    ...(policyProposal ? { policyProposal: structuredClone(policyProposal) } : {}) };
+  if (result.status !== "recommended") return { ...result, ...metadata };
+  if (policyProposal && policy.maxDiscountCents !== c.maxDiscountCents) throw new Error("STRATEGY_INVALID_PROPOSED_INCENTIVE_POLICY");
+  const maxDiscountCents = Math.min(result.test.maxDiscountCents, c.maxDiscountCents);
+  const maxRedemptions = Math.min(policy.maxRedemptions, Math.floor(policy.limitCents / maxDiscountCents));
+  const stages = c.kind === "capped_progressive_discount" ? progressiveIncentiveStages(result.test.discountPercent, maxDiscountCents) : null;
+  if (c.kind === "capped_progressive_discount" && (!stages
+    || BigInt(result.test.audience.minCartTotalCents) * BigInt(Math.round(stages[0].discountPercent * 100)) / 10000n < 1n)) {
+    const { test: _test, ...base } = result;
+    return { ...base, ...metadata, status: "not_recommended", reason: "no_safe_candidate" };
+  }
+  return { ...result, ...metadata, test: { ...result.test, kind: c.kind, maxDiscountCents, maxRedemptions,
+    limitCents: maxDiscountCents * maxRedemptions,
+    ...(c.kind === "capped_fixed_discount" ? { fixedDiscountCents: maxDiscountCents } : {}),
+    ...(c.kind === "capped_shipping_discount" ? { shippingDiscountCents: maxDiscountCents } : {}),
+    ...(stages ? { stages } : {}),
+    delivery: c.delivery === "coupon_code" ? { mode: "coupon_code", code: incentiveCouponCode(result) } : { mode: "automatic" } } };
+}
+
+export function plannedSelectedIncentiveRecommendation(study: StrategyDiscountStudy, rules: MerchantRules,
+  policy: IncentivePolicySnapshot, baseline: IncentivePlanningBaseline | undefined, candidateKey: CommercialCandidateKey,
+  policyProposal?: IncentivePolicyProposal): StrategyIncentiveRecommendation {
+  const result = selectedIncentiveRecommendation(study, rules, policy, candidateKey, policyProposal);
+  if (result.status !== "recommended") return result;
+  if (!baseline) throw new Error("STRATEGY_INCENTIVE_PLANNING_REQUIRED");
+  if (policyProposal) assertProposedIncentivePolicy(policy, policyProposal, baseline, study.asOf);
+  const planning = incentiveMeasurementPlanning(baseline, { asOf: study.asOf,
+    maxDiscountCents: result.test.maxDiscountCents, maxRedemptions: result.test.maxRedemptions });
+  return { ...result, planning, test: { ...result.test,
+    measurement: { ...result.test.measurement, samplePlanning: "included_in_recommendation" } } };
 }
 
 /** Terms are chosen by the engine from a frozen study and merchant limits.

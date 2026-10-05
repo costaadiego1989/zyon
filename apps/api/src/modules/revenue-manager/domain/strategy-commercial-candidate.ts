@@ -5,17 +5,72 @@ import type { CohortStats } from "./services/discount-rule-hypothesis.service.js
 import type { StrategyDiscountStudy } from "./strategy-discount-study.js";
 
 export type CommercialCandidate = {
-  kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount";
+  kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount" | "capped_progressive_discount";
   maxDiscountCents: number;
   delivery: "automatic" | "coupon_code";
   evidence: {
-    basis: "percentage_discount_replay" | "similar_cart_values" | "observed_shipping_burden";
+    basis: "percentage_discount_replay" | "similar_cart_values" | "observed_shipping_burden" | "progressive_safe_replay";
     sampleSize: number;
     minShippingCents?: number;
     maxShippingCents?: number;
     maxShippingCostCents?: number;
   };
 };
+
+export type CommercialCandidateKey = "percentage" | "fixed" | "shipping" | "progressive";
+export type CommercialCatalogCandidate = CommercialCandidate & { key: CommercialCandidateKey };
+
+/** The LLM may select one of these frozen options; it never supplies amounts.
+ * Progressive steps reuse the safe percentage replay, with a smaller first
+ * grant and the full approved limit only at server-side payment preparation. */
+export function commercialCandidates(study: StrategyDiscountStudy, cohorts: CohortStats[], rules: MerchantRules): CommercialCatalogCandidate[] {
+  if (study.status !== "candidate_available") return [];
+  const sample = study.candidate.simulation;
+  const chosen = commercialCandidate(study, cohorts, rules);
+  if (!chosen) return [];
+  const result: CommercialCatalogCandidate[] = [{ key: "percentage", kind: "capped_percentage_discount",
+    maxDiscountCents: sample.maxDiscountCents, delivery: "automatic",
+    evidence: { basis: "percentage_discount_replay", sampleSize: sample.sampleSize } }];
+  const fixedCeiling = Number(BigInt(sample.minCartTotalCents) * BigInt(Math.round(study.candidate.percent * 100)) / 10000n);
+  if (study.candidate.intent === "price_sensitive" && fixedCeiling > 0
+    && BigInt(sample.maxCartTotalCents) * 100n <= BigInt(sample.minCartTotalCents) * 110n) {
+    result.push({ key: "fixed", kind: "capped_fixed_discount", maxDiscountCents: fixedCeiling,
+      delivery: rules.couponBoxEnabled ? "coupon_code" : "automatic",
+      evidence: { basis: "similar_cart_values", sampleSize: sample.sampleSize } });
+  }
+  if (chosen.kind === "capped_shipping_discount") result.push({ ...chosen, key: "shipping" });
+  const firstBps = Math.floor(Math.round(study.candidate.percent * 100) / 2);
+  if (sample.maxDiscountCents >= 2 && firstBps > 0
+    && BigInt(sample.minCartTotalCents) * BigInt(firstBps) / 10000n >= 1n) {
+    result.push({ key: "progressive", kind: "capped_progressive_discount", maxDiscountCents: sample.maxDiscountCents,
+      delivery: "automatic", evidence: { basis: "progressive_safe_replay", sampleSize: sample.sampleSize } });
+  }
+  return result;
+}
+
+export function assertCommercialCandidates(values: CommercialCatalogCandidate[], study: StrategyDiscountStudy, rules: MerchantRules) {
+  const invalid = () => { throw new Error("STRATEGY_INVALID_DISCOUNT_STUDY"); };
+  if (!Array.isArray(values) || values.length > 4) return invalid();
+  if (study.status !== "candidate_available") { if (values.length) invalid(); return; }
+  if (!values.length || values[0].key !== "percentage") return invalid();
+  const keys: CommercialCandidateKey[] = ["percentage", "fixed", "shipping", "progressive"];
+  let previous = -1;
+  for (const value of values) {
+    const position = keys.indexOf(value.key);
+    if (position <= previous || value.kind !== `capped_${value.key}_discount`) return invalid();
+    previous = position;
+    const { key: _key, ...candidate } = value;
+    if (value.key !== "progressive") { assertCommercialCandidate(candidate, study, rules); continue; }
+    const sample = study.candidate.simulation;
+    const firstBps = Math.floor(Math.round(study.candidate.percent * 100) / 2);
+    if (candidate.delivery !== "automatic" || candidate.maxDiscountCents !== sample.maxDiscountCents
+      || candidate.maxDiscountCents < 2 || firstBps <= 0
+      || BigInt(sample.minCartTotalCents) * BigInt(firstBps) / 10000n < 1n
+      || candidate.evidence.basis !== "progressive_safe_replay" || candidate.evidence.sampleSize !== sample.sampleSize
+      || Object.keys(candidate).sort().join() !== ["delivery", "evidence", "kind", "maxDiscountCents"].join()
+      || Object.keys(candidate.evidence).sort().join() !== ["basis", "sampleSize"].join()) return invalid();
+  }
+}
 
 /** A deterministic choice from the same mature cohort, never a prediction of
  * uplift. Missing quote/cost information cannot become a shipping strategy. */

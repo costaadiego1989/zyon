@@ -77,13 +77,15 @@ export class GenerateHypothesisUseCase {
     if (strategyMeasurementEnabled() && (!checkoutBaseline || !measurementPlanning)) {
       throw new Error("HYPOTHESIS_MEASUREMENT_CONTEXT_REQUIRED");
     }
-    // Server-owned simulation is attached to review, never inserted into a
-    // communication prompt or handed to the LLM as an authorization to offer.
+    // Server-owned simulation prepares reviewable options. Selecting an option
+    // with the planner tool never authorizes an offer to a buyer.
     const discountStudy = input.analysis_context
       ? await this.merchantContext.getDiscountStudy?.(input.merchant_id, input.analysis_context) : undefined;
     if (input.analysis_context && discountStudyEnabled(input.merchant_id) && !discountStudy) {
       throw new Error("HYPOTHESIS_DISCOUNT_STUDY_REQUIRED");
     }
+    const incentiveOptions = input.analysis_context
+      ? await this.merchantContext.getIncentiveOptions?.(input.merchant_id, input.analysis_context) : undefined;
 
     // Legacy lessons do not carry a preregistered plan or complete assignment
     // population. Keep them out of weekly planning until evidence is versioned.
@@ -105,6 +107,7 @@ export class GenerateHypothesisUseCase {
       current_prompt: currentPrompt,
       checkout_baseline: checkoutBaseline,
       measurement_planning: measurementPlanning,
+      incentive_options: incentiveOptions,
       constraints,
     });
 
@@ -144,7 +147,8 @@ export class GenerateHypothesisUseCase {
 
     // Save
     if (input.analysis_context) hypothesis = HypothesisEntity.rehydrate({ ...hypothesis.snapshot(), id: `analysis-${input.analysis_context.runId}` });
-    await this.hypothesisRepo.save(hypothesis, input.analysis_context ? { ...input.analysis_context, checkoutBaseline, measurementPlanning, discountStudy } : undefined);
+    await this.hypothesisRepo.save(hypothesis, input.analysis_context ? { ...input.analysis_context, checkoutBaseline, measurementPlanning, discountStudy,
+      ...(generationResponse.strategy_plan ? { orchestration: generationResponse.strategy_plan } : {}) } : undefined);
 
     this.logger.log(
       `Generated hypothesis for merchant ${input.merchant_id}: ` +

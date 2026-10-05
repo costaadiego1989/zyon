@@ -4,7 +4,7 @@ import type { HypothesisMerchantContextPort } from "../domain/ports/hypothesis-m
 import { readCheckoutBaseline } from "./checkout-baseline.reader.js";
 import { checkoutBaselineReference } from "../../checkout/domain/services/checkout-chat-baseline.js";
 import { prepareStrategyMeasurement } from "./strategy-measurement-planning.js";
-import { prepareDiscountStudy } from "./strategy-discount-study.js";
+import { prepareDiscountStudy, readFrozenIncentiveOptions } from "./strategy-discount-study.js";
 
 /** Unlike MerchantRulesRepository.getRules, this ACL never creates permissive defaults. */
 export class PrismaHypothesisMerchantContext implements HypothesisMerchantContextPort {
@@ -32,6 +32,10 @@ export class PrismaHypothesisMerchantContext implements HypothesisMerchantContex
 
   getDiscountStudy(merchantId: string, context: { runId: string; leaseToken: number }) {
     return prepareDiscountStudy(this.prisma, merchantId, context);
+  }
+
+  getIncentiveOptions(merchantId: string, context: { runId: string; leaseToken: number }) {
+    return readFrozenIncentiveOptions(this.prisma, merchantId, context);
   }
 }
 

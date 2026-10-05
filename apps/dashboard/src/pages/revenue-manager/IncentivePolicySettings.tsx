@@ -2,12 +2,12 @@ import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { DashboardHttpError } from "../../api/http/error.js";
 import { createIdempotencyKey } from "../../api/http/idempotency.js";
-import { validIncentivePolicy, type IncentivePolicy, type IncentivePolicyCommand } from "../../api/endpoints/incentive-policy.js";
+import { incentivePolicyMode, validIncentivePolicy, type IncentivePolicy, type IncentivePolicyCommand, type IncentivePolicyMode } from "../../api/endpoints/incentive-policy.js";
 import "./incentive-policy.css";
 
-type Draft = { enabled: boolean; total: string; discount: string; uses: string };
+type Draft = { mode: IncentivePolicyMode; total: string; discount: string; uses: string };
 const money = (n: number) => (n / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const draftOf = (p: IncentivePolicy): Draft => ({ enabled: p.enabled,
+const draftOf = (p: IncentivePolicy): Draft => ({ mode: incentivePolicyMode(p),
   total: p.limitCents ? (p.limitCents / 100).toFixed(2).replace(".", ",") : "",
   discount: p.maxDiscountCents ? (p.maxDiscountCents / 100).toFixed(2).replace(".", ",") : "",
   uses: p.maxRedemptions ? String(p.maxRedemptions) : "" });
@@ -16,16 +16,16 @@ const cents = (value: string) => {
   const match = /^(\d+)(?:[,.](\d{1,2}))?$/.exec(value.trim());
   return match ? Number(match[1]) * 100 + Number((match[2] ?? "").padEnd(2, "0")) : NaN;
 };
-const summary = (p: IncentivePolicy) => p.enabled
-  ? `${money(p.limitCents)} por teste · até ${money(p.maxDiscountCents)} por pedido · ${p.maxRedemptions.toLocaleString("pt-BR")} usos`
-  : "Novos descontos desativados";
+const summary = (p: IncentivePolicy) => incentivePolicyMode(p) === "automatic" ? "A IA sugere os limites em cada proposta para sua aprovação"
+  : incentivePolicyMode(p) === "manual" ? `${money(p.limitCents)} por teste · até ${money(p.maxDiscountCents)} por pedido · ${p.maxRedemptions.toLocaleString("pt-BR")} usos`
+  : "Novos testes com desconto desativados";
 
 /** Parent keys this component by authenticated merchant, dropping stale drafts and replies on store switches. */
 export function IncentivePolicySettings({ merchantId }: { merchantId: string }) {
   const api = useApi();
   const helpId = useId();
   const [policy, setPolicy] = useState<IncentivePolicy | null>(null);
-  const [draft, setDraft] = useState<Draft>({ enabled: false, total: "", discount: "", uses: "" });
+  const [draft, setDraft] = useState<Draft>({ mode: "automatic", total: "", discount: "", uses: "" });
   const [busy, setBusy] = useState(true);
   const [error, setError] = useState("");
   const [notice, setNotice] = useState("");
@@ -59,12 +59,16 @@ export function IncentivePolicySettings({ merchantId }: { merchantId: string }) 
 
   const save = async () => {
     if (locked.current || !policy || conflict) return;
-    const empty = !draft.enabled && !draft.total.trim() && !draft.discount.trim() && !draft.uses.trim();
-    const command = pendingRef.current ?? { enabled: draft.enabled,
-      limitCents: empty ? 0 : cents(draft.total), maxDiscountCents: empty ? 0 : cents(draft.discount),
-      maxRedemptions: empty ? 0 : /^\d+$/.test(draft.uses) ? Number(draft.uses) : NaN,
-      expectedVersion: policy.version, requestKey: createIdempotencyKey() };
-    if (!validIncentivePolicy({ ...command, merchantId, version: policy.version + 1, policyHash: policy.policyHash }, merchantId)) {
+    const command: IncentivePolicyCommand = pendingRef.current ?? (draft.mode === "automatic"
+      ? { mode: "automatic", expectedVersion: policy.version, requestKey: createIdempotencyKey() }
+      : draft.mode === "disabled" ? { mode: "disabled", enabled: false, limitCents: policy.limitCents,
+        maxDiscountCents: policy.maxDiscountCents, maxRedemptions: policy.maxRedemptions,
+        expectedVersion: policy.version, requestKey: createIdempotencyKey() }
+      : { mode: draft.mode, enabled: draft.mode === "manual",
+      limitCents: cents(draft.total), maxDiscountCents: cents(draft.discount),
+      maxRedemptions: /^\d+$/.test(draft.uses) ? Number(draft.uses) : NaN,
+      expectedVersion: policy.version, requestKey: createIdempotencyKey() });
+    if (command.mode !== "automatic" && !validIncentivePolicy({ ...command, merchantId, version: policy.version + 1, policyHash: policy.policyHash }, merchantId)) {
       setError("Preencha valores positivos, com até duas casas decimais. O desconto por pedido não pode ultrapassar o total por teste. Informe no máximo 1.000.000 de usos."); return;
     }
     locked.current = true; setBusy(true); setError(""); setNotice("");
@@ -73,14 +77,16 @@ export function IncentivePolicySettings({ merchantId }: { merchantId: string }) 
     const active = () => alive.current && seq === sequence.current;
     try {
       const receipt = accept(await api.saveIncentivePolicy(command));
-      if (receipt.version !== command.expectedVersion + 1 || receipt.enabled !== command.enabled || receipt.limitCents !== command.limitCents
-        || receipt.maxDiscountCents !== command.maxDiscountCents || receipt.maxRedemptions !== command.maxRedemptions) throw new Error("Invalid receipt");
+      const expected = command.mode === "automatic" ? { enabled: false, limitCents: 0, maxDiscountCents: 0, maxRedemptions: 0 } : command;
+      if (receipt.version !== command.expectedVersion + 1 || incentivePolicyMode(receipt) !== command.mode
+        || receipt.enabled !== expected.enabled || receipt.limitCents !== expected.limitCents
+        || receipt.maxDiscountCents !== expected.maxDiscountCents || receipt.maxRedemptions !== expected.maxRedemptions) throw new Error("Invalid receipt");
       // A retry may return an older receipt. Always fetch the current policy.
       const current = accept(await api.getIncentivePolicy());
       if (current.version < receipt.version) throw new Error("Stale settings response");
       if (!active()) return;
       setPolicy(current); setDraft(draftOf(current)); pendingRef.current = null; setPending(null);
-      setNotice(current.version === receipt.version ? "Limites salvos. Nenhum teste foi iniciado."
+      setNotice(current.version === receipt.version ? "Preferência salva. Nenhum teste foi iniciado."
         : "Sua alteração foi salva. Os limites abaixo já incluem uma alteração posterior.");
     } catch (cause) {
       if (!active()) return;
@@ -100,46 +106,53 @@ export function IncentivePolicySettings({ merchantId }: { merchantId: string }) 
     } finally { if (active()) { locked.current = false; setBusy(false); } }
   };
   const edit = (patch: Partial<Draft>) => { setDraft(d => ({ ...d, ...patch })); setError(""); setNotice(""); };
-  const unchanged = policy && draft.enabled === policy.enabled
-    && (draft.total.trim() ? cents(draft.total) : 0) === policy.limitCents
+  const unchanged = policy && draft.mode === incentivePolicyMode(policy)
+    && (draft.mode !== "manual" || (draft.total.trim() ? cents(draft.total) : 0) === policy.limitCents
     && (draft.discount.trim() ? cents(draft.discount) : 0) === policy.maxDiscountCents
-    && (draft.uses.trim() ? /^\d+$/.test(draft.uses) ? Number(draft.uses) : NaN : 0) === policy.maxRedemptions;
+    && (draft.uses.trim() ? /^\d+$/.test(draft.uses) ? Number(draft.uses) : NaN : 0) === policy.maxRedemptions);
 
   return <details className="incentive-policy">
-    <summary><span><strong>Limites de desconto</strong><span className="incentive-policy-subtitle">
+    <summary><span><strong>Limites adicionais (opcional)</strong><span className="incentive-policy-subtitle">
       {policy ? summary(policy) : busy ? "Carregando limites…" : "Limites indisponíveis"}
     </span></span><span className="incentive-policy-open"><span className="incentive-policy-expand">Configurar</span><span className="incentive-policy-collapse">Fechar</span></span></summary>
     <div className="incentive-policy-content">
-      <p><strong>Simular e receber sugestões não gera cobrança adicional.</strong> Os valores abaixo orientam as propostas de desconto da IA.
-        Preenchê-los não gera cobrança, não aplica descontos e não libera uma análise pausada pela plataforma.</p>
-      <p className="incentive-policy-help">Estes limites são opcionais para receber sugestões e necessários para autorizar testes com descontos.
-        Se você aprovar um desses testes, eles limitarão os descontos reais nas vendas, sempre respeitando as margens e regras comerciais da loja.</p>
+      <p>A IA apresenta uma estratégia pronta, incluindo os limites de desconto que você poderá aprovar, recusar ou pedir para revisar.
+        Você não precisa preencher valores para receber uma proposta.</p>
+      <p className="incentive-policy-help"><strong>Os valores usados nas análises e nos testes internos servem para simulação e não geram cobrança.</strong> Depois da aprovação,
+        os descontos utilizados em vendas são reais e reduzem o valor recebido pela loja; não são cobranças da Zyon. Margens e regras comerciais continuam obrigatórias.</p>
       {error && <p role="alert" className="incentive-policy-error">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {!policy ? <button type="button" className="zyn-btn zyn-btn--secondary" disabled={busy} onClick={() => void load()}>
         {busy ? "Carregando…" : "Tentar novamente"}</button> : <form onSubmit={event => { event.preventDefault(); void save(); }}>
         <fieldset disabled={busy || Boolean(pending)}>
-          <label className="incentive-policy-enable"><input type="checkbox" checked={draft.enabled} onChange={e => edit({ enabled: e.target.checked })} />
-            Permitir descontos nos testes que eu aprovar</label>
-          <div className="incentive-policy-fields">
+          <legend>Como definir os limites dos próximos testes</legend>
+          <div className="incentive-policy-modes">
+            <label className="incentive-policy-enable"><input type="radio" name={`${helpId}-mode`} value="automatic" checked={draft.mode === "automatic"} onChange={() => edit({ mode: "automatic" })} />IA sugere os limites</label>
+            <label className="incentive-policy-enable"><input type="radio" name={`${helpId}-mode`} value="manual" checked={draft.mode === "manual"} onChange={() => edit({ mode: "manual" })} />Definir limites adicionais</label>
+            <label className="incentive-policy-enable"><input type="radio" name={`${helpId}-mode`} value="disabled" checked={draft.mode === "disabled"} onChange={() => edit({ mode: "disabled" })} />Não oferecer descontos em novos testes</label>
+          </div>
+          {draft.mode === "automatic" && <p>A IA apresenta os limites em cada proposta. Eles só entram em vigor após sua aprovação.
+            A disponibilidade de uma proposta depende dos dados da loja e das condições para medir o teste.</p>}
+          {draft.mode === "disabled" && <p>A IA poderá continuar sugerindo melhorias de comunicação. Novos testes com desconto, cupom ou subsídio de frete ficam desativados.</p>}
+          {draft.mode === "manual" && <><p>Use estes campos apenas se quiser impor tetos adicionais às propostas da IA.</p><div className="incentive-policy-fields">
             <div><label>Total de descontos por teste (R$)<input type="text" inputMode="decimal" value={draft.total} onChange={e => edit({ total: e.target.value })} placeholder="Ex.: 300,00" maxLength={15} aria-describedby={`${helpId}-total`} /></label>
               <p id={`${helpId}-total`} className="incentive-policy-field-help">Soma máxima dos descontos de um único teste aprovado.</p></div>
             <div><label>Desconto máximo por pedido (R$)<input type="text" inputMode="decimal" value={draft.discount} onChange={e => edit({ discount: e.target.value })} placeholder="Ex.: 10,00" maxLength={15} aria-describedby={`${helpId}-discount`} /></label>
               <p id={`${helpId}-discount`} className="incentive-policy-field-help">Maior desconto que o teste pode oferecer em uma compra.</p></div>
             <div><label>Máximo de usos por teste<input type="text" inputMode="numeric" value={draft.uses} onChange={e => edit({ uses: e.target.value })} placeholder="Ex.: 30" maxLength={7} aria-describedby={`${helpId}-uses`} /></label>
               <p id={`${helpId}-uses`} className="incentive-policy-field-help">Quantas vezes o desconto pode ser utilizado no teste.</p></div>
-          </div>
+          </div></>}
         </fieldset>
-        <p className="incentive-policy-example"><strong>Exemplo:</strong> R$ 300 por teste, com até R$ 10 por pedido e 30 usos,
-          permite até 30 descontos de R$ 10. Novos descontos são bloqueados quando o valor disponível ou a quantidade de usos se esgota.</p>
-        <p className="incentive-policy-help">Salvar estes limites não inicia um teste. Ao alterar ou desativar, os testes com os limites anteriores deixam de oferecer novos descontos.
+        {draft.mode === "manual" && <p className="incentive-policy-example"><strong>Exemplo:</strong> R$ 300 por teste, com até R$ 10 por pedido e 30 usos,
+          permite até 30 descontos de R$ 10. Novos descontos são bloqueados quando o valor disponível ou a quantidade de usos se esgota.</p>}
+        <p className="incentive-policy-help">Salvar esta preferência não inicia um teste. Ao alterar ou desativar, os testes com os limites anteriores deixam de oferecer novos descontos.
           Valores separados para compras em andamento continuam no controle do orçamento até serem confirmados ou liberados.</p>
         {conflict ? <div className="incentive-policy-conflict"><p><strong>Limites atuais:</strong> {summary(policy)}</p>
           <div className="incentive-policy-actions">
             <button type="button" className="zyn-btn zyn-btn--secondary" onClick={() => { setDraft(draftOf(policy)); setConflict(false); setError(""); }}>Usar limites atuais</button>
             <button type="button" className="zyn-btn zyn-btn--secondary" onClick={() => { setConflict(false); setError(""); }}>Manter meus valores</button>
           </div></div> : <button type="submit" className="zyn-btn zyn-btn--primary" disabled={busy || (!pending && Boolean(unchanged))}>
-            {busy ? "Salvando…" : pending ? "Confirmar salvamento" : "Salvar limites"}</button>}
+            {busy ? "Salvando…" : pending ? "Confirmar salvamento" : "Salvar preferência"}</button>}
       </form>}
     </div>
   </details>;

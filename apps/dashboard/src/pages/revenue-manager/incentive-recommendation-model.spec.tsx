@@ -4,7 +4,7 @@ import { describe, expect, it } from "vitest";
 import type { StrategyProposal } from "../../api/endpoints/strategy-review.js";
 import { StrategyIncentiveRecommendation } from "./StrategyIncentiveRecommendation.js";
 import { StrategyDiscountStudy } from "./StrategyDiscountStudy.js";
-import { incentiveBenefitLabel, incentiveOfferText, validIncentiveTest } from "./incentive-recommendation-model.js";
+import { incentiveBenefitLabel, incentiveOfferText, strategyActionMode, validIncentiveTest } from "./incentive-recommendation-model.js";
 
 type Recommendation = NonNullable<StrategyProposal["incentiveRecommendation"]>;
 const recommendation = (): Recommendation => ({
@@ -24,8 +24,55 @@ const recommendation = (): Recommendation => ({
     measurement: { result: "not_measured", samplePlanning: "included_in_recommendation", conversionWindowHours: 168 } },
 });
 const render = (r: Recommendation) => renderToStaticMarkup(<StrategyIncentiveRecommendation recommendation={r} policyCurrent />);
+const progressive = (): Recommendation => {
+  const r = recommendation(); r.definition = "weekly-incentive-recommendation-v4"; r.selectedCandidateKey = "progressive";
+  r.test!.kind = "capped_progressive_discount";
+  r.test!.stages = [{ index: 0, trigger: "enrollment", discountPercent: 5, maxDiscountCents: 500 },
+    { index: 1, trigger: "checkout_payment_ready", discountPercent: 10, maxDiscountCents: 1000 }];
+  return r;
+};
 
 describe("commercial recommendation display boundary", () => {
+  it("shows the complete progressive exposure before a merchant can approve", () => {
+    const r = progressive();
+    r.financialPolicy = { version: 1, policyHash: "b".repeat(64), enabled: true, limitCents: r.test!.limitCents,
+      maxDiscountCents: r.test!.maxDiscountCents, maxRedemptions: r.test!.maxRedemptions };
+    r.policyProposal = { definition: "incentive-policy-proposal-v1", previousPolicyVersion: 0,
+      previousPolicyHash: "a".repeat(64), basis: "observed_safe_offer_and_required_sample" };
+    expect(validIncentiveTest(r)).toBe(true);
+    const html = render(r);
+    expect(html).toContain("Ao entrar no teste"); expect(html).toContain("Ao preparar o pagamento");
+    expect(html).toContain("<td>5%</td>"); expect(html).toContain("<td>10%</td>");
+    expect(html).toContain("os descontos não se somam"); expect(html).toContain("O teto total já considera");
+    expect(html).toContain("Você não precisa preencher os valores");
+    expect(html).toContain("reduz o valor que ela recebe");
+  });
+  it.each([
+    ["missing stages", (r: Recommendation) => { delete r.test!.stages; }],
+    ["wrong trigger", (r: Recommendation) => { r.test!.stages![1].trigger = "after_payment" as never; }],
+    ["larger first stage", (r: Recommendation) => { r.test!.stages![0].maxDiscountCents = 501; }],
+    ["smaller final stage", (r: Recommendation) => { r.test!.stages![1].discountPercent = 9; }],
+    ["coupon progressive delivery", (r: Recommendation) => { r.test!.delivery = { mode: "coupon_code", code: "ZYON" + "A".repeat(20) }; }],
+    ["mismatched candidate", (r: Recommendation) => { r.selectedCandidateKey = "fixed"; }],
+    ["unreviewable automatic limits", (r: Recommendation) => { r.policyProposal = { definition: "incentive-policy-proposal-v1", previousPolicyVersion: 0,
+      previousPolicyHash: "a".repeat(64), basis: "observed_safe_offer_and_required_sample" }; }],
+  ])("blocks progressive approval terms with %s", (_label, mutate) => {
+    const r = progressive(); mutate(r); expect(validIncentiveTest(r)).toBe(false);
+    expect(render(r)).not.toContain("Orçamento máximo sugerido");
+  });
+  it("selects one review flow and refuses contradictory or unknown orchestration", () => {
+    const orchestration = { definition: "revenue-strategy-orchestration-v1", tool: "submit_revenue_strategy",
+      catalogHash: "c".repeat(64), selectedAction: "d".repeat(64), rationale: "Comparar o benefício dentro das margens." } as const;
+    const proposal = { orchestration, incentiveRecommendation: progressive() } as StrategyProposal;
+    expect(strategyActionMode(proposal)).toBe("commercial");
+    expect(strategyActionMode({ ...proposal, orchestration: undefined })).toBe("legacy");
+    expect(strategyActionMode({ ...proposal, orchestration: { ...orchestration, selectedAction: "communication_only" } })).toBe("unsupported");
+    expect(strategyActionMode({ ...proposal, incentiveRecommendation: undefined,
+      orchestration: { ...orchestration, selectedAction: "communication_only" } })).toBe("communication");
+    expect(strategyActionMode({ ...proposal, orchestration: { ...orchestration, definition: "future" as never } })).toBe("unsupported");
+    proposal.incentiveRecommendation!.test!.stages![0].maxDiscountCents = 2000;
+    expect(strategyActionMode(proposal)).toBe("unsupported");
+  });
   it("does not present a product discount replay as evidence of a shipping benefit", () => {
     const study: NonNullable<StrategyProposal["discountStudy"]> = {
       definition: "weekly-discount-study-v2", asOf: "2026-09-29T00:00:00Z", capturedAt: "2026-09-29T00:00:00Z",
@@ -67,7 +114,7 @@ describe("commercial recommendation display boundary", () => {
       expect(validIncentiveTest(r)).toBe(true);
       const html = render(r);
       expect(html).toContain("é um desconto real da loja");
-      expect(html).toContain("não geram cobrança extra de IA");
+      expect(html).toContain("Os valores usados nas análises e nos testes internos servem para simulação e não geram cobrança.");
       expect(html).toContain("7 dias após aprovação específica");
       expect(incentiveBenefitLabel(t)).toBe(coupon ? "cupom" : kind === "capped_shipping_discount" ? "desconto no frete" : "desconto");
       if (kind === "capped_fixed_discount") expect(html).toMatch(/R\$\s*10,00 de desconto por compra/);

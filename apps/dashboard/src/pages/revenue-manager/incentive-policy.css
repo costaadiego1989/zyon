@@ -9,6 +9,9 @@
 .incentive-policy-content { padding: 0 4px 20px; font-size: 14px; line-height: 1.6; }
 .incentive-policy-content p { max-width: 72ch; margin: 0 0 16px; }
 .incentive-policy fieldset { border: 0; padding: 0; margin: 0; min-width: 0; }
+.incentive-policy legend { font-weight: 600; padding: 0; margin-bottom: 12px; }
+.incentive-policy-modes { display: flex; flex-direction: column; align-items: flex-start; margin-bottom: 16px; }
+.incentive-policy-modes .incentive-policy-enable { margin-bottom: 4px; }
 .incentive-policy-enable { display: flex; align-items: center; gap: 10px; min-height: 44px; margin-bottom: 16px; cursor: pointer; }
 .incentive-policy-enable input { width: 18px; height: 18px; flex-shrink: 0; accent-color: var(--color-brand); }
 .incentive-policy-fields { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 20px; max-width: 840px; }
