@@ -6,23 +6,30 @@ function isIdentifier(value: string | undefined): value is string {
   return Boolean(value && /^[A-Za-z0-9_-]{1,200}$/.test(value));
 }
 
-function publicRequestOrigin(request: Request): string {
+function publicRequestOrigin(request: Request): string | null {
   const internalOrigin = new URL(request.url).origin;
   const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
   const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
   const browserOrigin = request.headers.get("origin");
 
   // Railway terminates TLS at the edge and forwards requests over its internal
-  // network. Only accept that public origin when it exactly matches the browser
-  // Origin, so a forwarded header never expands the cross-origin trust boundary.
-  if (
-    request.headers.get("x-railway-edge") &&
-    forwardedHost &&
-    /^[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(forwardedHost) &&
-    forwardedProtocol === "https"
-  ) {
+  // network. Writes still require an exact Origin match. Same-origin reads may
+  // omit Origin; Fetch Metadata must confirm their browser origin instead.
+  if (request.headers.get("x-railway-edge")) {
+    if (!forwardedHost || !/^[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(forwardedHost) || forwardedProtocol !== "https") return null;
     const publicOrigin = `https://${forwardedHost}`;
+    try {
+      new URL(publicOrigin);
+    } catch {
+      return null;
+    }
     if (browserOrigin === publicOrigin) return publicOrigin;
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      browserOrigin === null &&
+      request.headers.get("sec-fetch-site") === "same-origin"
+    ) return publicOrigin;
+    return null;
   }
 
   return internalOrigin;
@@ -43,10 +50,13 @@ function isAllowedPath(path: string[]): boolean {
 }
 
 function requestHasVerifiedStorefrontOrigin(request: Request, origin: string): boolean {
+  if (request.headers.get("sec-fetch-site") === "cross-site") return false;
   if (request.method !== "GET" && request.method !== "HEAD") {
     return request.headers.get("origin") === origin;
   }
-  return request.headers.get("sec-fetch-site") === "same-origin";
+  const browserOrigin = request.headers.get("origin");
+  return request.headers.get("sec-fetch-site") === "same-origin" &&
+    (browserOrigin === null || browserOrigin === origin);
 }
 
 async function proxy(request: Request, context: RouteContext): Promise<NextResponse> {
@@ -54,7 +64,7 @@ async function proxy(request: Request, context: RouteContext): Promise<NextRespo
   if (!isAllowedPath(path)) return NextResponse.json({ error: "route_not_allowed" }, { status: 404 });
 
   const origin = publicRequestOrigin(request);
-  if (!requestHasVerifiedStorefrontOrigin(request, origin)) {
+  if (!origin || !requestHasVerifiedStorefrontOrigin(request, origin)) {
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
   }
 
