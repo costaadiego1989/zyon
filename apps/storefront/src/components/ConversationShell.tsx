@@ -1140,7 +1140,7 @@ export default function ConversationShell({
         }}
       />
       {/* Buyer Hub Panel */}
-      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} onToggleTheme={toggleTheme}
+      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} merchantSlug={merchantSlug} onToggleTheme={toggleTheme}
         currentSessionId={conversationId}
         onResumeConversation={async (conversation) => {
           if (!merchantId || !conversationId) throw new Error("conversation_not_available");

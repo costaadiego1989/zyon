@@ -1,9 +1,17 @@
-"use client";
+﻿"use client";
 
 import type { BuyerLoyalty, BuyerSummary, DiscountRule, BuyerBenefits } from "@/lib/viewmodels/useBuyerHub";
 import PersonalizedOffers from "../PersonalizedOffers";
-import { currentPersonalizedOffers } from "@/lib/personalized-offers";
+import CouponCopy from "../CouponCopy";
+import styles from "../LoyaltyBenefits.module.css";
 
+export interface LoyaltyCartSnapshot {
+  subtotalCents: number | null;
+  itemCount?: number | null;
+  nextNudge?: { kind: string; gap?: number; message: string; reachable: boolean; ruleId?: string };
+  freeShipping?: boolean;
+  activeRules?: Array<{ ruleId?: string; message: string }>;
+}
 
 export interface LoyaltyTabProps {
   loyalty: BuyerLoyalty | null;
@@ -13,938 +21,172 @@ export interface LoyaltyTabProps {
   loading: boolean;
   benefitsError?: string | null;
   onRetryBenefits?: () => void;
+  couponsError?: string | null;
+  onRetryCoupons?: () => void;
+  /** Only a current, tenant-scoped cart response may supply numeric progress. */
+  cartSnapshot?: LoyaltyCartSnapshot;
 }
 
+const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const amount = (reais: number) => currency.format(reais);
+const validNumber = (value: unknown): value is number => typeof value === "number" && Number.isFinite(value) && value >= 0;
+const validCount = (value: unknown): value is number => validNumber(value) && Number.isSafeInteger(value);
 
-const currencyFmt = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
-
-function fmtBRL(value: number | null | undefined): string {
-  return currencyFmt.format(Number.isFinite(value as number) ? (value as number) : 0);
+function minimumState(targetReais: number, snapshot?: LoyaltyCartSnapshot) {
+  if (!validNumber(targetReais) || targetReais <= 0 || !validCount(snapshot?.subtotalCents)) return null;
+  const targetCents = Math.round(targetReais * 100);
+  return { current: snapshot.subtotalCents / 100, target: targetCents / 100, remaining: Math.max(0, targetCents - snapshot.subtotalCents) / 100 };
 }
 
-
-function IconShoppingBag() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M6 2L3 6v14a2 2 0 002 2h14a2 2 0 002-2V6l-3-4z" />
-      <line x1="3" y1="6" x2="21" y2="6" />
-      <path d="M16 10a4 4 0 01-8 0" />
-    </svg>
-  );
-}
-
-function IconDollarSign() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <line x1="12" y1="1" x2="12" y2="23" />
-      <path d="M17 5H9.5a3.5 3.5 0 000 7h5a3.5 3.5 0 010 7H6" />
-    </svg>
-  );
-}
-
-function IconTrendingUp() {
-  return (
-    <svg
-      width="18"
-      height="18"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <polyline points="23 6 13.5 15.5 8.5 10.5 1 18" />
-      <polyline points="17 6 23 6 23 12" />
-    </svg>
-  );
-}
-
-function IconTag() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M20.59 13.41l-7.17 7.17a2 2 0 01-2.83 0L2 12V2h10l8.59 8.59a2 2 0 010 2.82z" />
-      <line x1="7" y1="7" x2="7.01" y2="7" />
-    </svg>
-  );
-}
-
-function IconHeart() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <path d="M20.84 4.61a5.5 5.5 0 00-7.78 0L12 5.67l-1.06-1.06a5.5 5.5 0 00-7.78 7.78l1.06 1.06L12 21.23l7.78-7.78 1.06-1.06a5.5 5.5 0 000-7.78z" />
-    </svg>
-  );
-}
-
-function IconPercent() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <line x1="19" y1="5" x2="5" y2="19" />
-      <circle cx="6.5" cy="6.5" r="2.5" />
-      <circle cx="17.5" cy="17.5" r="2.5" />
-    </svg>
-  );
-}
-
-function IconPackage() {
-  return (
-    <svg
-      width="40"
-      height="40"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="1.5"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <line x1="16.5" y1="9.4" x2="7.5" y2="4.21" />
-      <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 002 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-      <line x1="12" y1="22.08" x2="12" y2="12" />
-    </svg>
-  );
-}
-
-function IconGift() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <polyline points="20 12 20 22 4 22 4 12" />
-      <rect x="2" y="7" width="20" height="5" />
-      <line x1="12" y1="22" x2="12" y2="7" />
-      <path d="M12 7H7.5a2.5 2.5 0 010-5C11 2 12 7 12 7z" />
-      <path d="M12 7h4.5a2.5 2.5 0 000-5C13 2 12 7 12 7z" />
-    </svg>
-  );
-}
-
-function IconAward() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <circle cx="12" cy="8" r="7" />
-      <polyline points="8.21 13.89 7 23 12 20 17 23 15.79 13.88" />
-    </svg>
-  );
-}
-
-function IconTarget() {
-  return (
-    <svg
-      width="16"
-      height="16"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      aria-hidden="true"
-      focusable="false"
-    >
-      <circle cx="12" cy="12" r="10" />
-      <circle cx="12" cy="12" r="6" />
-      <circle cx="12" cy="12" r="2" />
-    </svg>
-  );
-}
-
-
-interface KpiCardProps {
-  icon: React.ReactNode;
-  label: string;
-  value: string;
-}
-
-function KpiCard({ icon, label, value }: KpiCardProps) {
-  return (
-    <div data-neu="surface"
-      style={{
-        flex: "1 1 0%",
-        minWidth: "100px",
-        display: "flex",
-        flexDirection: "column",
-        gap: "8px",
-        padding: "14px",
-        borderRadius: "10px",
-        background: "var(--aacp-card)",
-        border: "1px solid var(--aacp-line)",
-      }}
-      role="group"
-      aria-label={label}
-    >
-      <div
-        style={{
-          display: "flex",
-          alignItems: "center",
-          gap: "8px",
-          color: "var(--aacp-muted)",
-        }}
-      >
-        {icon}
-        <span
-          style={{
-            fontSize: "11px",
-            fontWeight: 600,
-            textTransform: "uppercase",
-            letterSpacing: "0.3px",
-          }}
-        >
-          {label}
-        </span>
-      </div>
-      <div
-        style={{
-          fontSize: "18px",
-          fontWeight: 700,
-          color: "var(--aacp-fg)",
-          lineHeight: 1.2,
-        }}
-      >
-        {value}
-      </div>
+function ProgressMeter({ current, target, unit, label }: { current: number; target: number; unit: "money" | "items"; label: string }) {
+  if (!validNumber(current) || !validNumber(target) || target <= 0) return null;
+  const ratio = Math.min(1, current / target);
+  const format = (value: number) => unit === "money" ? amount(value) : `${value} ${value === 1 ? "item" : "itens"}`;
+  return <>
+    <div className={styles.progress} role="progressbar" aria-label={label} aria-valuemin={0} aria-valuemax={target}
+      aria-valuenow={Math.min(current, target)} aria-valuetext={`${format(current)} de ${format(target)}`}>
+      <span style={{ transform: `scaleX(${ratio})` }} />
     </div>
-  );
+    <div className={styles.progressCaption}><span>{format(current)} no carrinho</span><span>Meta: {format(target)}</span></div>
+  </>;
 }
 
-
-function Chip({ label }: { label: string }) {
-  return (
-    <span
-      style={{
-        display: "inline-flex",
-        alignItems: "center",
-        padding: "6px 10px",
-        borderRadius: "6px",
-        background: "color-mix(in srgb, var(--aacp-accent) 12%, transparent)",
-        color: "var(--aacp-accent-text, var(--aacp-accent))",
-        fontSize: "12px",
-        fontWeight: 600,
-        whiteSpace: "nowrap",
-      }}
-    >
-      {label}
-    </span>
-  );
+function couponTitle(rule: DiscountRule): string {
+  const value = Number(rule.discount_value);
+  switch (rule.discount_type) {
+    case "percent": return `${value}% de desconto`;
+    case "fixed": return `${amount(value)} de desconto`;
+    case "shipping_free": return "Frete grátis";
+    case "shipping_percent": return `${value}% de desconto no frete`;
+    case "shipping_fixed": return `${amount(value)} de desconto no frete`;
+  }
 }
 
+function conditionText(condition: string) {
+  if (condition === "sempre") return "Confira a aplicação no checkout.";
+  // Older API versions exposed raw rule expressions. They are not buyer copy.
+  if (/\b(?:cart_total|cart_item_count|shipping_cost|payment_method|buyer_type|coupon_applied|skus_in_cart|categories_in_cart)\b/.test(condition)) {
+    return "Confira as condições desta oferta no checkout.";
+  }
+  return condition;
+}
 
-function LoadingSkeleton() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "16px",
-        paddingBottom: "16px",
-      }}
-      aria-busy="true"
-      aria-label="Carregando dados de fidelidade"
-    >
-      <div style={{ display: "flex", gap: "10px" }}>
-        {[1, 2, 3].map((i) => (
-          <div data-neu="surface"
-            key={i}
-            style={{
-              flex: "1 1 0%",
-              height: "80px",
-              borderRadius: "10px",
-              background: "var(--aacp-surface-2)",
-              animation: "pulse 1.5s ease-in-out infinite",
-            }}
-          />
-        ))}
-      </div>
-      <div data-neu="surface" style={{ height: "60px", borderRadius: "8px", background: "var(--aacp-surface-2)" }} />
-      <div data-neu="surface" style={{ height: "60px", borderRadius: "8px", background: "var(--aacp-surface-2)" }} />
-      <style>{`@keyframes pulse { 0%, 100% { opacity: 0.6; } 50% { opacity: 0.3; } }`}</style>
+export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, loading, benefitsError, onRetryBenefits, couponsError, onRetryCoupons, cartSnapshot }: LoyaltyTabProps) {
+  if (loading) return <div className={styles.loading} role="status" aria-busy="true" aria-label="Carregando seus benefícios">
+    <span className={styles.note}>Atualizando seus benefícios…</span>
+    {[0, 1, 2].map((item) => <div key={item} className={styles.skeleton} aria-hidden="true" />)}
+  </div>;
+
+  const coupons = (discountRules ?? []).filter((rule) => rule.code?.trim() &&
+    ["percent", "fixed", "shipping_free", "shipping_percent", "shipping_fixed"].includes(rule.discount_type) &&
+    validNumber(Number(rule.discount_value)) &&
+    (rule.max_usages == null || rule.usages_count < rule.max_usages));
+  const next = cartSnapshot?.nextNudge;
+  const nudge = next && typeof next.message === "string" && next.message.trim() ? next : undefined;
+  const subtotal = validCount(cartSnapshot?.subtotalCents) ? cartSnapshot.subtotalCents / 100 : null;
+  const itemCount = validCount(cartSnapshot?.itemCount) ? cartSnapshot.itemCount : null;
+  const nudgeProgress = nudge?.reachable && validNumber(nudge.gap) && nudge.gap > 0
+    ? nudge.kind === "cart_total" && subtotal !== null
+      ? { current: subtotal, target: subtotal + nudge.gap, unit: "money" as const }
+      : nudge.kind === "cart_item_count" && itemCount !== null && validCount(nudge.gap)
+        ? { current: itemCount, target: itemCount + nudge.gap, unit: "items" as const } : null
+    : null;
+  const shippingThresholds = (benefits?.progress ?? []).filter((item) => validNumber(item.target) && item.target > 0);
+  const earned = (benefits?.earned ?? []).filter((item) => item.description?.trim() && (!item.expiresAt || Date.parse(item.expiresAt) > Date.now()));
+  const active = cartSnapshot?.activeRules?.filter((rule) => typeof rule.message === "string" && rule.message.trim()) ?? [];
+  const ordersCount = validCount(summary?.orders_count) ? summary.orders_count : validCount(loyalty?.total_orders) ? loyalty.total_orders : 0;
+  const totalSpent = validNumber(summary?.total_spent) ? summary.total_spent : validNumber(loyalty?.total_spent_cents) ? loyalty.total_spent_cents / 100 : 0;
+
+  return <div className={styles.root}>
+    <header className={styles.intro}>
+      <h2>Seus benefícios</h2>
+      <p>Confira os descontos desta compra e as condições para aproveitar outras ofertas.</p>
+    </header>
+
+    <PersonalizedOffers offers={benefits?.offers} />
+
+    {benefitsError && <div className={styles.error} role="status">
+      <p className={styles.note}>{benefitsError}</p>
+      {onRetryBenefits && <button type="button" className={styles.action} data-neu="control" onClick={onRetryBenefits}>Atualizar benefícios</button>}
+    </div>}
+
+    {(cartSnapshot?.freeShipping || active.length > 0) && <section className={styles.section} aria-label="Aplicado ao seu carrinho">
+      <h3>Aplicado ao seu carrinho</h3>
+      <ul className={styles.list}>
+        {cartSnapshot?.freeShipping && <li className={styles.row}><h4 className={styles.title}>Frete grátis</h4><p className={styles.note}>Confira o endereço, a opção de entrega e o total antes de pagar.</p></li>}
+        {active.filter((rule) => !cartSnapshot?.freeShipping || rule.message !== "Frete grátis aplicado").map((rule, index) => <li key={rule.ruleId ?? index} className={styles.row}><p className={styles.title}>{rule.message}</p></li>)}
+      </ul>
+    </section>}
+
+    {(nudge || (!cartSnapshot?.freeShipping && shippingThresholds.length > 0)) && <section className={styles.section} aria-label="Como aproveitar mais benefícios">
+      <h3>Como aproveitar mais benefícios</h3>
+      {nudge ? <div className={styles.requirement}>
+        <p className={styles.title}>{nudge.message}</p>
+        {nudgeProgress && <ProgressMeter {...nudgeProgress} label="Progresso da condição do carrinho" />}
+        <p className={styles.note} style={{ marginTop: 10 }}>O benefício será confirmado no checkout, conforme as condições do pedido.</p>
+      </div> : shippingThresholds.map((progress, index) => {
+        const state = minimumState(progress.target, cartSnapshot);
+        return <div className={styles.requirement} key={`${progress.target}-${index}`}>
+          <h4 className={styles.title}>Frete grátis</h4>
+          <p className={styles.note}>Pedidos a partir de {amount(progress.target)}, sujeitos às condições de entrega.</p>
+          {state && <>
+            <p className={styles.met}>{state.remaining > 0 ? `Faltam ${amount(state.remaining)} para atingir o valor mínimo.` : "Valor mínimo atingido. Confirme o frete no checkout."}</p>
+            <ProgressMeter current={state.current} target={state.target} unit="money" label="Valor mínimo para frete grátis" />
+          </>}
+        </div>;
+      })}
+    </section>}
+
+    <section className={styles.section} aria-label="Cupons da loja">
+      <h3>Cupons da loja</h3>
+      {couponsError ? <div className={styles.error} role="status">
+        <p className={styles.note}>Não foi possível carregar os cupons.</p>
+        {onRetryCoupons && <button type="button" className={styles.action} data-neu="control" onClick={onRetryCoupons}>Tentar novamente</button>}
+      </div> : coupons.length ? <ul className={styles.list} aria-label="Cupons de desconto disponíveis">{coupons.map((rule) => {
+        const minimum = validNumber(rule.min_cart_total) && rule.min_cart_total > 0 ? rule.min_cart_total : null;
+        const state = minimum !== null ? minimumState(minimum, cartSnapshot) : null;
+        return <li className={styles.row} key={rule.id}>
+          <h4 className={styles.title}>{couponTitle(rule)}</h4>
+          {minimum !== null && <p className={styles.note}>Pedido mínimo de {amount(minimum)} em produtos.</p>}
+          {state && <>
+            <p className={styles.met}>{state.remaining > 0 ? `Faltam ${amount(state.remaining)} para o valor mínimo deste cupom.` : "Valor mínimo atingido. Valide o cupom no checkout."}</p>
+            {state.remaining > 0 && <ProgressMeter current={state.current} target={state.target} unit="money" label={`Valor mínimo do cupom ${rule.code}`} />}
+          </>}
+          <CouponCopy code={rule.code} />
+          <p className={styles.note} style={{ marginTop: 8 }}>Use o código no checkout. A aplicação depende das condições do pedido.</p>
+        </li>;
+      })}</ul> : <div className={styles.empty}><p>Nenhum cupom de uso geral disponível no momento.</p></div>}
+    </section>
+
+    {(benefits?.available?.length ?? 0) > 0 && <section className={styles.section} aria-label="Outras condições da loja">
+      <h3>Outras condições da loja</h3>
+      <ul className={styles.list} aria-label="Descontos disponíveis para você">{benefits!.available.map((benefit, index) => <li className={styles.row} key={benefit.ruleId || index}>
+        <h4 className={styles.title}>{benefit.description}</h4>
+        {validNumber(benefit.maxReais) && <p className={styles.note}>Desconto limitado a {amount(benefit.maxReais)}.</p>}
+        <dl className={styles.terms}><dt>Condição de uso</dt><dd>{conditionText(benefit.condition)}</dd></dl>
+      </li>)}</ul>
+    </section>}
+
+    {earned.length > 0 && <section className={styles.section} aria-label="Benefícios conquistados">
+      <h3>Benefícios conquistados</h3>
+      <ul className={styles.list} aria-label="Benefícios conquistados">{earned.map((benefit, index) => <li className={styles.row} key={`${benefit.description}-${index}`}>
+        <h4 className={styles.title}>{benefit.description}</h4>
+        <p className={styles.note}>Confira as condições de uso no checkout.</p>
+        {benefit.expiresAt && <span className={styles.expiry}>Válido até <time dateTime={benefit.expiresAt}>{new Date(benefit.expiresAt).toLocaleDateString("pt-BR")}</time>.</span>}
+      </li>)}</ul>
+    </section>}
+
+    <div role="group" aria-label="Indicadores de fidelidade">
+      <details className={styles.history}>
+        <summary>Seu histórico de compras</summary>
+        {loyalty || summary ? <>
+          <dl className={styles.ledger}>
+            <div><dt>Pedidos realizados</dt><dd>{ordersCount}</dd></div>
+            <div><dt>Total em compras</dt><dd>{amount(totalSpent)}</dd></div>
+          </dl>
+          {ordersCount === 0 && <p className={styles.note}>Você ainda não tem compras registradas.</p>}
+        </> : <p className={styles.note}>Seu histórico de compras não está disponível no momento.</p>}
+      </details>
     </div>
-  );
-}
-
-
-function EmptyState() {
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        alignItems: "center",
-        justifyContent: "center",
-        textAlign: "center",
-        padding: "48px 24px",
-        gap: "16px",
-        color: "var(--aacp-muted)",
-      }}
-      role="status"
-      aria-label="Nenhum dado de fidelidade disponível"
-    >
-      <IconPackage />
-      <div>
-        <div
-          style={{
-            fontSize: "14px",
-            fontWeight: 600,
-            color: "var(--aacp-fg)",
-            marginBottom: "6px",
-          }}
-        >
-          Nenhum dado de fidelidade
-        </div>
-        <div style={{ fontSize: "12px", color: "var(--aacp-muted)", lineHeight: 1.5, maxWidth: "260px" }}>
-          Faça compras para desbloquear seu perfil de fidelidade com categorias favoritas, marcas preferidas e mais.
-        </div>
-      </div>
-    </div>
-  );
-}
-
-
-export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, loading, benefitsError, onRetryBenefits }: LoyaltyTabProps) {
-  if (loading) return <LoadingSkeleton />;
-
-  const hasBenefits =
-    Boolean(benefits) &&
-    ((benefits?.available?.length ?? 0) > 0 ||
-      (benefits?.earned?.length ?? 0) > 0 ||
-      (benefits?.progress?.length ?? 0) > 0 || currentPersonalizedOffers(benefits?.offers).length > 0);
-
-  if (!loyalty && !summary && !hasBenefits && !benefitsError) return <EmptyState />;
-
-  const num = (v: unknown): number => (Number.isFinite(v as number) ? (v as number) : 0);
-
-  const ordersCount = num(summary?.orders_count) || num(loyalty?.total_orders) || 0;
-  const totalSpent =
-    Number.isFinite(summary?.total_spent as number)
-      ? num(summary?.total_spent)
-      : num(loyalty?.total_spent_cents) / 100;
-  const averageTicket =
-    Number.isFinite(summary?.average_ticket as number)
-      ? num(summary?.average_ticket)
-      : num(loyalty?.avg_order_value_cents) / 100;
-
-  return (
-    <div
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: "24px",
-        paddingBottom: "16px",
-      }}
-    >
-      <PersonalizedOffers offers={benefits?.offers} />
-      {benefitsError && <div role="status" style={{ color: "var(--aacp-muted)", fontSize: "13px", lineHeight: 1.5 }}>
-        <p style={{ margin: "0 0 8px" }}>{benefitsError}</p>
-        {onRetryBenefits && <button type="button" data-neu="control" onClick={onRetryBenefits}
-          style={{ minHeight: "44px", padding: "8px 14px", color: "var(--aacp-fg)", cursor: "pointer" }}>Atualizar benefícios</button>}
-      </div>}
-      <div
-        style={{
-          display: "flex",
-          gap: "10px",
-          flexWrap: "wrap",
-        }}
-        role="group"
-        aria-label="Indicadores de fidelidade"
-      >
-        <KpiCard
-          icon={<IconShoppingBag />}
-          label="Pedidos"
-          value={String(ordersCount)}
-        />
-        <KpiCard
-          icon={<IconDollarSign />}
-          label="Total gasto"
-          value={fmtBRL(totalSpent)}
-        />
-        <KpiCard
-          icon={<IconTrendingUp />}
-          label="Ticket médio"
-          value={fmtBRL(averageTicket)}
-        />
-      </div>
-
-      {}
-      {loyalty?.top_categories && loyalty.top_categories.length > 0 && (
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              marginBottom: "10px",
-              color: "var(--aacp-muted)",
-            }}
-          >
-            <IconTag />
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              Categorias favoritas
-            </span>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "6px",
-            }}
-            role="list"
-            aria-label="Categorias favoritas"
-          >
-            {loyalty.top_categories.map((cat) => (
-              <div key={cat} role="listitem">
-                <Chip label={cat} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {}
-      {loyalty?.preferred_brands && loyalty.preferred_brands.length > 0 && (
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              marginBottom: "10px",
-              color: "var(--aacp-muted)",
-            }}
-          >
-            <IconHeart />
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              Marcas preferidas
-            </span>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexWrap: "wrap",
-              gap: "6px",
-            }}
-            role="list"
-            aria-label="Marcas preferidas"
-          >
-            {loyalty.preferred_brands.map((brand) => (
-              <div key={brand} role="listitem">
-                <Chip label={brand} />
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {}
-      <div>
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "8px",
-            marginBottom: "10px",
-            color: "var(--aacp-muted)",
-          }}
-        >
-          <IconPercent />
-          <span
-            style={{
-              fontSize: "11px",
-              fontWeight: 600,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-            }}
-          >
-            Cupons da loja
-          </span>
-        </div>
-        {discountRules && discountRules.length > 0 ? (
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-            role="list"
-            aria-label="Cupons de desconto disponíveis"
-          >
-            {discountRules.map((rule) => (
-              <div data-neu="surface"
-                key={rule.id}
-                role="listitem"
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--aacp-line)",
-                  background: "var(--aacp-surface-2)",
-                  display: "flex",
-                  gap: "10px",
-                  alignItems: "flex-start",
-                }}
-              >
-                <div style={{ marginTop: "2px", color: "var(--aacp-accent-text, var(--aacp-accent))", flexShrink: 0 }}>
-                  <IconTag />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "var(--aacp-fg)",
-                      marginBottom: "4px",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {rule.code}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "var(--aacp-muted)",
-                      lineHeight: 1.4,
-                    }}
-                  >
-                    {rule.discount_type === "percent" && `${Number(rule.discount_value)}% de desconto`}
-                    {rule.discount_type === "fixed" && `${fmtBRL(rule.discount_value)} de desconto`}
-                    {rule.discount_type === "shipping_free" && "Frete grátis"}
-                    {rule.discount_type === "shipping_percent" && `${Number(rule.discount_value)}% de desconto no frete`}
-                    {rule.discount_type === "shipping_fixed" && `${fmtBRL(rule.discount_value)} de desconto no frete`}
-                    {rule.min_cart_total && (
-                      <>
-                        <br />
-                        Mínimo: {fmtBRL(rule.min_cart_total)}
-                      </>
-                    )}
-                    {rule.max_usages && rule.usages_count < rule.max_usages && (
-                      <>
-                        <br />
-                        Disponível: {rule.max_usages - rule.usages_count} de {rule.max_usages}
-                      </>
-                    )}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        ) : (
-          <div data-neu="surface"
-            style={{
-              padding: "16px 14px",
-              borderRadius: "10px",
-              border: "2px dashed var(--aacp-line)",
-              background: "color-mix(in srgb, var(--aacp-surface-2) 50%, transparent)",
-              display: "flex",
-              flexDirection: "column",
-              alignItems: "center",
-              gap: "10px",
-              textAlign: "center",
-            }}
-          >
-            <IconTag />
-            <div
-              style={{
-                fontSize: "12px",
-                color: "var(--aacp-muted)",
-                lineHeight: 1.5,
-                maxWidth: "280px",
-              }}
-            >
-              Nenhum cupom de uso geral disponível no momento.
-            </div>
-          </div>
-        )}
-      </div>
-
-      {}
-      {benefits && benefits.available.length > 0 && (
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              marginBottom: "10px",
-              color: "var(--aacp-muted)",
-            }}
-          >
-            <IconGift />
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              Descontos disponíveis para você
-            </span>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-            role="list"
-            aria-label="Descontos disponíveis para você"
-          >
-            {benefits.available.map((benefit) => (
-              <div data-neu="surface"
-                key={benefit.id}
-                role="listitem"
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--aacp-line)",
-                  background: "var(--aacp-surface-2)",
-                  display: "flex",
-                  gap: "10px",
-                  alignItems: "flex-start",
-                }}
-              >
-                <div style={{ marginTop: "2px", color: "var(--aacp-accent-text, var(--aacp-accent))", flexShrink: 0 }}>
-                  <IconGift />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "var(--aacp-fg)",
-                      marginBottom: "4px",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {benefit.name}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "var(--aacp-muted)",
-                      lineHeight: 1.4,
-                      marginBottom: "4px",
-                    }}
-                  >
-                    {benefit.description}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--aacp-muted)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Condição: {benefit.condition}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {}
-      {benefits && benefits.earned.length > 0 && (
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              marginBottom: "10px",
-              color: "var(--aacp-muted)",
-            }}
-          >
-            <IconAward />
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              Benefícios conquistados
-            </span>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-            role="list"
-            aria-label="Benefícios conquistados"
-          >
-            {benefits.earned.map((benefit) => (
-              <div data-neu="surface"
-                key={benefit.id}
-                role="listitem"
-                style={{
-                  padding: "12px 14px",
-                  borderRadius: "8px",
-                  border: "1px solid var(--aacp-line)",
-                  background: "var(--aacp-surface-2)",
-                  display: "flex",
-                  gap: "10px",
-                  alignItems: "flex-start",
-                }}
-              >
-                <div style={{ marginTop: "2px", color: "var(--aacp-accent-text, var(--aacp-accent))", flexShrink: 0 }}>
-                  <IconAward />
-                </div>
-                <div style={{ flex: 1, minWidth: 0 }}>
-                  <div
-                    style={{
-                      fontSize: "13px",
-                      fontWeight: 600,
-                      color: "var(--aacp-fg)",
-                      marginBottom: "4px",
-                      wordBreak: "break-word",
-                    }}
-                  >
-                    {benefit.name}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "12px",
-                      color: "var(--aacp-muted)",
-                      lineHeight: 1.4,
-                      marginBottom: "4px",
-                    }}
-                  >
-                    {benefit.description}
-                  </div>
-                  <div
-                    style={{
-                      fontSize: "11px",
-                      color: "var(--aacp-muted)",
-                      fontWeight: 500,
-                    }}
-                  >
-                    Origem: {benefit.origin}
-                  </div>
-                </div>
-              </div>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {}
-      {benefits && benefits.progress.length > 0 && (
-        <div>
-          <div
-            style={{
-              display: "flex",
-              alignItems: "center",
-              gap: "8px",
-              marginBottom: "10px",
-              color: "var(--aacp-muted)",
-            }}
-          >
-            <IconTarget />
-            <span
-              style={{
-                fontSize: "11px",
-                fontWeight: 600,
-                textTransform: "uppercase",
-                letterSpacing: "0.5px",
-              }}
-            >
-              Progresso
-            </span>
-          </div>
-          <div
-            style={{
-              display: "flex",
-              flexDirection: "column",
-              gap: "8px",
-            }}
-            role="list"
-            aria-label="Progresso de benefícios"
-          >
-            {benefits.progress.map((progress) => {
-              const remaining = Math.max(0, progress.target_value - progress.current_value);
-              const percentage = progress.target_value > 0 ? (progress.current_value / progress.target_value) * 100 : 0;
-              return (
-                <div data-neu="surface"
-                  key={progress.id}
-                  role="listitem"
-                  style={{
-                    padding: "12px 14px",
-                    borderRadius: "8px",
-                    border: "1px solid var(--aacp-line)",
-                    background: "var(--aacp-surface-2)",
-                    display: "flex",
-                    gap: "10px",
-                    flexDirection: "column",
-                  }}
-                >
-                  <div style={{ display: "flex", gap: "10px", alignItems: "flex-start" }}>
-                    <div style={{ marginTop: "2px", color: "var(--aacp-accent-text, var(--aacp-accent))", flexShrink: 0 }}>
-                      <IconTarget />
-                    </div>
-                    <div style={{ flex: 1, minWidth: 0 }}>
-                      <div
-                        style={{
-                          fontSize: "13px",
-                          fontWeight: 600,
-                          color: "var(--aacp-fg)",
-                          marginBottom: "4px",
-                          wordBreak: "break-word",
-                        }}
-                      >
-                        {progress.name}
-                      </div>
-                      <div
-                        style={{
-                          fontSize: "12px",
-                          color: "var(--aacp-muted)",
-                          lineHeight: 1.4,
-                        }}
-                      >
-                        {progress.description}
-                      </div>
-                    </div>
-                  </div>
-                  <div style={{ display: "flex", flexDirection: "column", gap: "6px", paddingLeft: "24px" }}>
-                    <div
-                      style={{
-                        width: "100%",
-                        height: "6px",
-                        borderRadius: "3px",
-                        background: "var(--aacp-line)",
-                        overflow: "hidden",
-                      }}
-                      role="progressbar"
-                      aria-valuenow={Math.round(Math.min(100, percentage))}
-                      aria-valuemin={0}
-                      aria-valuemax={100}
-                    >
-                      <div
-                        style={{
-                          height: "100%",
-                          width: "100%",
-                          background: "var(--aacp-accent)",
-                          transformOrigin: "left center",
-                          transform: `scaleX(${Math.min(1, percentage / 100)})`,
-                          transition: "transform 0.3s ease",
-                        }}
-                      />
-                    </div>
-                    <div
-                      style={{
-                        fontSize: "11px",
-                        color: "var(--aacp-muted)",
-                        fontWeight: 500,
-                      }}
-                    >
-                      {remaining > 0
-                        ? `Faltam ${fmtBRL(remaining)} para ${progress.name.toLowerCase()}`
-                        : "Objetivo atingido!"}
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
-          </div>
-        </div>
-      )}
-    </div>
-  );
+  </div>;
 }

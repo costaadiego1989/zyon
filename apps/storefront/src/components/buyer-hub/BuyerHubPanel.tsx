@@ -5,6 +5,7 @@ import BuyerRegistrationForm from "../BuyerRegistrationForm";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useBuyerHub, type TabType } from "@/lib/viewmodels/useBuyerHub";
 import { getValidBuyer } from "@/lib/buyer-auth";
+import { useCart } from "@/lib/cart-store";
 import ProfileTab from "./tabs/ProfileTab";
 import { OrdersTab } from "./tabs/OrdersTab";
 import { TrackingTab } from "./tabs/TrackingTab";
@@ -23,6 +24,7 @@ export interface BuyerHubPanelProps {
   isOpen: boolean;
   onClose: () => void;
   merchantId?: string;
+  merchantSlug?: string;
   onToggleTheme?: () => void;
   currentSessionId?: string | null;
   onResumeConversation?: (conversation: BuyerConversation) => Promise<void>;
@@ -441,9 +443,22 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
 }
 
 
-export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme, currentSessionId, onResumeConversation }: BuyerHubPanelProps) {
+export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onToggleTheme, currentSessionId, onResumeConversation }: BuyerHubPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const vm = useBuyerHub(isOpen, merchantId);
+  const cartView = useCart();
+  const currentCart = merchantId && cartView.snapshotMerchantId === merchantId && !cartView.error && !cartView.updating
+    ? cartView.cart : null;
+  const itemAmounts = currentCart?.items.map((item) => Math.round(item.subtotal * 100));
+  const subtotalCents = itemAmounts?.every((amount) => Number.isSafeInteger(amount) && amount >= 0)
+    ? itemAmounts.reduce((sum, amount) => sum + amount, 0) : null;
+  const cartSnapshot = currentCart ? {
+    subtotalCents: Number.isSafeInteger(subtotalCents) ? subtotalCents : null,
+    itemCount: currentCart.itemCount,
+    nextNudge: currentCart.nextNudge,
+    freeShipping: currentCart.freeShipping,
+    activeRules: currentCart.activeRules,
+  } : undefined;
   const [authVersion, setAuthVersion] = useState(0);
   const [registrationOtp, setRegistrationOtp] = useState<{ email: string; otp: string } | null>(null);
 
@@ -468,11 +483,11 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme, curr
   }, []);
 
   useEffect(() => {
-    if (vm.activeTab === "loyalty" && merchantId && !vm.discountRules.data && !vm.discountRules.loading) {
-      void vm.loadDiscountRules(merchantId);
+    if (isOpen && vm.activeTab === "loyalty" && merchantSlug && !vm.discountRules.data && !vm.discountRules.loading) {
+      void vm.loadDiscountRules(merchantSlug);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [vm.activeTab, merchantId]);
+  }, [isOpen, vm.activeTab, merchantSlug]);
 
   if (!isOpen) return null;
 
@@ -758,7 +773,10 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme, curr
                   loyalty={vm.loyalty.data}
                   summary={vm.summary.data ?? null}
                   discountRules={vm.discountRules.data}
+                  couponsError={vm.discountRules.error}
+                  onRetryCoupons={merchantSlug ? () => { void vm.loadDiscountRules(merchantSlug); } : undefined}
                   benefits={vm.benefits.data ?? null}
+                  cartSnapshot={cartSnapshot}
                   benefitsError={vm.benefits.error}
                   onRetryBenefits={() => { void vm.loadBenefits(); }}
                   loading={vm.loyalty.loading || vm.discountRules.loading || vm.benefits.loading}

@@ -131,26 +131,25 @@ export interface BuyerIntentProfile {
 }
 
 export interface AvailableBenefit {
-  id: string;
-  name: string;
+  ruleId: string;
   description: string;
+  discountPercent?: number;
+  maxReais?: number;
   condition: string;
 }
 
 export interface EarnedBenefit {
-  id: string;
-  name: string;
   description: string;
+  value: number;
   origin: string;
+  expiresAt?: string;
 }
 
 export interface BenefitProgress {
-  id: string;
-  name: string;
   description: string;
-  current_value: number;
-  target_value: number;
-  remaining_value?: number;
+  current: number;
+  target: number;
+  remaining: number;
 }
 
 export interface BuyerBenefits {

@@ -1,6 +1,7 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 import { currentPersonalizedOffers } from "../src/lib/personalized-offers";
 import type { BuyerPersonalizedOffer } from "../src/lib/viewmodels/useBuyerHub/types";
+import type { LoyaltyCartSnapshot } from "../src/components/buyer-hub/tabs/LoyaltyTab";
 
 // Local component/HTTP fixtures. These tests do not claim real enrollment or payment proof.
 const expiry = "2099-10-06T12:30:00.000Z";
@@ -8,18 +9,52 @@ const offer: BuyerPersonalizedOffer = { id: "assigned-only", kind: "percentage",
   currency: "BRL", amountCents: 500, maxDiscountCents: 1200, discountPercent: 5, deliveryMode: "automatic",
   sessionId: "checkout-current", expiresAt: expiry, condition: "Sujeito às condições desta compra.", status: "applied" };
 const benefits = (offers?: BuyerPersonalizedOffer[]) => ({ available: [], earned: [], progress: [], ...(offers ? { offers } : {}) });
-async function seed(page: Page) {
-  await page.addInitScript(() => {
-    const token = "e30." + btoa(JSON.stringify({ sub: "qa-buyer", exp: 4102444800 })) + ".local-fixture";
+async function seed(page: Page, theme: "light" | "dark" = "light") {
+  await page.addInitScript((selectedTheme) => {
+    const token = "e30." + btoa(JSON.stringify({ sub: "qa-buyer", email: "qa-buyer@example.invalid", exp: 4102444800 })) + ".local-fixture";
     localStorage.setItem("zyon_buyer_token", token);
-    localStorage.setItem("zyon-theme", "light");
-  });
+    localStorage.setItem("zyon-theme", selectedTheme);
+  }, theme);
   await page.route("**/api/buyer/**", (route) => route.fulfill({ json: route.request().url().endsWith("/loyalty")
     ? { total_orders: 0, total_spent_cents: 0, avg_order_value_cents: 0, top_categories: [], preferred_brands: [] }
     : route.request().url().endsWith("/summary") ? { orders_count: 0, total_spent: 0, average_ticket: 0, currency: "BRL" }
     : { global_user_id: "qa-buyer", display_name: "Conta de teste", items: [] } }));
 }
 async function open(page: Page) { await page.goto("/"); await page.getByRole("button", { name: "Fidelidade", exact: true }).click(); }
+
+test("real buyer hub reads general coupons by public slug and personalized benefits by merchant ID", async ({ page }) => {
+  await seed(page);
+  const couponRequests: string[] = [], benefitScopes: string[] = [];
+  await page.route("**/api/storefront/*/coupons", (route) => {
+    const path = new URL(route.request().url()).pathname;
+    couponRequests.push(path);
+    return path === "/api/storefront/athom-teste/coupons"
+      ? route.fulfill({ json: { items: [{ id: "public-coupon", code: "BEMVINDO", discount_type: "percent", discount_value: 5, usages_count: 0 }] } })
+      : route.fulfill({ status: 404, json: { message: "store_not_found" } });
+  });
+  await page.route("**/buyer/me/benefits**", (route) => {
+    benefitScopes.push(new URL(route.request().url()).searchParams.get("merchant_id") ?? "");
+    return route.fulfill({ json: benefits([offer]) });
+  });
+  await page.goto("/?hub=1");
+  await page.getByRole("tab", { name: "Fidelidade", exact: true }).click();
+  const panel = page.getByRole("tabpanel", { name: "Fidelidade", exact: true });
+  await expect(panel.getByText("BEMVINDO", { exact: true })).toBeVisible();
+  await expect(panel.getByText("R$ 5,00 aplicados nesta compra")).toBeVisible();
+  expect(couponRequests).toEqual(["/api/storefront/athom-teste/coupons"]);
+  expect(benefitScopes).toEqual(["qa-store"]);
+});
+
+test("missing public slug never falls back to a merchant ID in the coupon URL", async ({ page }) => {
+  await seed(page);
+  const couponRequests: string[] = [];
+  await page.route("**/api/storefront/*/coupons", (route) => { couponRequests.push(route.request().url()); return route.fulfill({ status: 404, json: {} }); });
+  await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: benefits() }));
+  await page.goto("/?hub=1&missingSlug=1");
+  await page.getByRole("tab", { name: "Fidelidade", exact: true }).click();
+  await expect(page.getByText("Nenhum cupom de uso geral disponível no momento.")).toBeVisible();
+  expect(couponRequests).toEqual([]);
+});
 
 test("excludes absent, expired, invalid and other-session offers without calculating new entitlements", () => {
   expect(currentPersonalizedOffers(undefined)).toEqual([]);
@@ -52,7 +87,10 @@ for (const width of [390, 1440]) test(`shows exact applied discount, caps, expir
   await expect(section).toContainText("5% nos produtos, limitado a R$ 12,00.");
   await expect(section).toContainText("R$ 3,50 aplicados nesta compra");
   await expect(section).toContainText("2,5% nos produtos, limitado a R$ 6,00.");
-  await expect(section).toContainText("Cupom aplicado automaticamente: ZYON612FFE43FD5D41A682E3");
+  await expect(section.getByText("Cupom aplicado automaticamente:")).toBeVisible();
+  await expect(section.getByText("ZYON612FFE43FD5D41A682E3", { exact: true })).toBeVisible();
+  await section.locator("summary").first().click();
+  await expect(section.getByText(offer.condition).first()).toBeVisible();
   await expect(section.locator("time").first()).toHaveAttribute("datetime", expiry);
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
   expect(reads).toBe(1); expect(writes).toEqual([]);
@@ -129,4 +167,127 @@ test("changing stores scopes the read and discards the previous store's pending 
   await page.waitForLoadState("networkidle");
   await expect(page.getByRole("group", { name: "Indicadores de fidelidade" })).toBeVisible();
   await expect(page.getByRole("region", { name: /Oferta para este pedido|Ofertas para seus pedidos/ })).toHaveCount(0);
+});
+
+const shippingProgress = { description: "Faltam R$200.00 para frete grátis", current: 0, target: 200, remaining: 200 };
+const publicCoupon = { id: "public-welcome", code: "BEMVINDO", discount_type: "percent", discount_value: 10,
+  min_cart_total: 200, max_usages: null, usages_count: 0 };
+
+async function cartFixture(page: Page, cart?: LoyaltyCartSnapshot) {
+  await page.addInitScript(({ snapshot, coupon }) => {
+    (window as any).__loyaltyCartSnapshot = snapshot;
+    (window as any).__loyaltyCoupons = [coupon];
+  }, { snapshot: cart, coupon: publicCoupon });
+}
+
+test("without a verified cart the API's default zero never becomes a buyer's missing amount", async ({ page }) => {
+  await seed(page); await cartFixture(page);
+  await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: { ...benefits(), progress: [shippingProgress] } }));
+  await open(page);
+  await expect(page.getByText("Pedidos a partir de R$ 200,00, sujeitos às condições de entrega.")).toBeVisible();
+  await expect(page.getByText("Pedido mínimo de R$ 200,00 em produtos.")).toBeVisible();
+  await expect(page.getByText(/Faltam/)).toHaveCount(0);
+  await expect(page.getByRole("progressbar")).toHaveCount(0);
+  await expect(page.getByText(/Cliente Ouro|Diamante|pontos/)).toHaveCount(0);
+});
+
+test("verified subtotal displays the exact remaining condition and copying does not apply a coupon", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await seed(page); await cartFixture(page, { subtotalCents: 15999, itemCount: 1 });
+  await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: { ...benefits(), progress: [shippingProgress] } }));
+  const writes: string[] = [];
+  page.on("request", (request) => { if (request.method() !== "GET" && request.url().includes("/api/")) writes.push(request.url()); });
+  await open(page);
+  await expect(page.getByText("Faltam R$ 40,01 para o valor mínimo deste cupom.")).toBeVisible();
+  const progress = page.getByRole("progressbar", { name: "Valor mínimo do cupom BEMVINDO" });
+  await expect(progress).toHaveAttribute("aria-valuenow", "159.99");
+  await expect(progress).toHaveAttribute("aria-valuemax", "200");
+  await page.getByRole("button", { name: "Copiar cupom BEMVINDO" }).click();
+  await expect(page.getByText("Código copiado.")).toBeVisible();
+  expect(await page.evaluate(() => navigator.clipboard.readText())).toBe("BEMVINDO");
+  await expect(page.getByRole("region", { name: "Aplicado ao seu carrinho" })).toHaveCount(0);
+  expect(writes).toEqual([]);
+});
+
+test("reaching the minimum does not claim that free shipping or a coupon is applied", async ({ page }) => {
+  await seed(page); await cartFixture(page, { subtotalCents: 25000, itemCount: 2 });
+  await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: { ...benefits(), progress: [shippingProgress] } }));
+  await open(page);
+  await expect(page.getByText("Valor mínimo atingido. Valide o cupom no checkout.")).toBeVisible();
+  await expect(page.getByText("Valor mínimo atingido. Confirme o frete no checkout.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Aplicado ao seu carrinho" })).toHaveCount(0);
+  await expect(page.getByText(/aplicados nesta compra|Frete grátis aplicado/)).toHaveCount(0);
+});
+
+test("item conditions keep their quantity unit and compound conditions never invent numeric progress", async ({ page }) => {
+  await seed(page); await cartFixture(page, { subtotalCents: null, itemCount: 1,
+    nextNudge: { kind: "cart_item_count", gap: 2, message: "Adicione mais 2 itens para 10% de desconto", reachable: true } });
+  await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: benefits() }));
+  await open(page);
+  const section = page.getByRole("region", { name: "Como aproveitar mais benefícios" });
+  await expect(section.getByText("Adicione mais 2 itens para 10% de desconto")).toBeVisible();
+  await expect(section.getByRole("progressbar")).toHaveAttribute("aria-valuetext", "1 item de 3 itens");
+  await expect(section).not.toContainText("R$");
+  await page.addInitScript(() => { (window as any).__loyaltyCartSnapshot = { subtotalCents: 12000, itemCount: 1,
+    nextNudge: { kind: "conditional", gap: 80, message: "Condição para 10% de desconto: pagamento no Pix e 3 itens no carrinho.", reachable: false } }; });
+  await open(page);
+  await expect(section).toContainText("pagamento no Pix e 3 itens no carrinho");
+  await expect(section.getByRole("progressbar")).toHaveCount(0);
+});
+
+for (const theme of ["light", "dark"] as const) for (const width of [390, 1440]) {
+  test(`mature loyalty panel uses real theme tokens at ${width}px ${theme}`, async ({ page }, info) => {
+    await page.setViewportSize({ width, height: 900 }); await seed(page, theme);
+    await page.route("**/api/storefront/*/coupons", (route) => route.fulfill({ json: { items: [publicCoupon] } }));
+    await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: {
+      ...benefits([{ ...offer, kind: "fixed", maxDiscountCents: 500, deliveryMode: "coupon_code", couponCode: "ZYON612FFE43FD5D41A682E3" }]),
+      progress: [shippingProgress],
+    } }));
+    await page.goto("/?hub=1");
+    await page.getByRole("tab", { name: "Fidelidade", exact: true }).click();
+    const panel = page.getByRole("tabpanel", { name: "Fidelidade", exact: true });
+    await expect(panel.getByText("R$ 5,00 aplicados nesta compra")).toBeVisible();
+    await expect(panel.getByRole("button", { name: "Copiar cupom BEMVINDO" })).toBeVisible();
+    await expect(panel.getByText(/Faltam/)).toHaveCount(0);
+    await expect(panel.getByText("Pedidos realizados")).not.toBeVisible();
+    await expect(panel.getByRole("progressbar")).toHaveCount(0);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    const overflow = await panel.evaluate((element) => element.scrollWidth > element.clientWidth);
+    expect(overflow).toBe(false);
+    await page.screenshot({ path: info.outputPath(`loyalty-${theme}-${width}.png`), fullPage: true });
+    await panel.getByText("Seu histórico de compras", { exact: true }).click();
+    await expect(panel.getByText("Você ainda não tem compras registradas.")).toBeVisible();
+    await page.screenshot({ path: info.outputPath(`loyalty-${theme}-${width}-history.png`), fullPage: true });
+  });
+}
+
+test("a public coupon failure is distinct from empty and retries without hiding applied offers", async ({ page }) => {
+  await seed(page); let reads = 0;
+  await page.route("**/api/storefront/*/coupons", (route) => ++reads === 1
+    ? route.fulfill({ status: 503, json: {} }) : route.fulfill({ json: { items: [publicCoupon] } }));
+  await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: benefits([offer]) }));
+  await page.goto("/?hub=1");
+  await page.getByRole("tab", { name: "Fidelidade", exact: true }).click();
+  await expect(page.getByText("Não foi possível carregar os cupons.")).toBeVisible();
+  await expect(page.getByText("Nenhum cupom de uso geral disponível no momento.")).toHaveCount(0);
+  await expect(page.getByText("R$ 5,00 aplicados nesta compra")).toBeVisible();
+  await page.getByRole("button", { name: "Tentar novamente", exact: true }).click();
+  await expect(page.getByText("BEMVINDO", { exact: true })).toBeVisible();
+  expect(reads).toBe(2);
+});
+
+test("real available and earned DTOs show conditions without invented tiers, currency or expired rewards", async ({ page }) => {
+  await seed(page);
+  await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: {
+    available: [{ ruleId: "real-rule", description: "Desconto de 10% disponível", maxReais: 20, condition: "Pagamento no Pix" }],
+    earned: [{ description: "Condição da última compra", value: 7, origin: "merchant_rule" },
+      { description: "Benefício vencido", value: 5, origin: "merchant_rule", expiresAt: "2020-01-01T00:00:00Z" }],
+    progress: [shippingProgress],
+  } }));
+  await open(page);
+  await expect(page.getByText("Desconto de 10% disponível")).toBeVisible();
+  await expect(page.getByText("Desconto limitado a R$ 20,00.")).toBeVisible();
+  await expect(page.getByText("Pagamento no Pix")).toBeVisible();
+  await expect(page.getByText("Condição da última compra")).toBeVisible();
+  await expect(page.getByText(/Benefício vencido|NaN|R\$ 7,00|Cliente Ouro|Diamante|merchant_rule/)).toHaveCount(0);
 });

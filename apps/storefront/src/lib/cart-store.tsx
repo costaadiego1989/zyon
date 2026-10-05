@@ -44,6 +44,8 @@ export interface CartState {
 
 interface CartContextValue {
   cart: CartState;
+  /** Set only after a server cart response for this tenant has been received. */
+  snapshotMerchantId: string | null;
   updating: boolean;
   error: string | null;
   updateFromBlocks: (blocks: any[]) => void;
@@ -81,6 +83,7 @@ function saveCartId(cartId: string, merchantId: string): void {
 
 const CartContext = createContext<CartContextValue>({
   cart: EMPTY_CART,
+  snapshotMerchantId: null,
   updating: false,
   error: null,
   updateFromBlocks: () => {},
@@ -94,20 +97,26 @@ export function useCart(): CartContextValue {
 
 export function CartProvider({ children, merchantId }: { children: ReactNode; merchantId?: string }) {
   const [cart, setCart] = useState<CartState>(EMPTY_CART);
+  const [snapshotMerchantId, setSnapshotMerchantId] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const updatingRef = useRef(false);
+  const snapshotVersionRef = useRef(0);
 
   useEffect(() => {
+    const snapshotVersion = ++snapshotVersionRef.current;
+    setSnapshotMerchantId(null);
     if (!merchantId) return;
     const savedId = getSavedCartId(merchantId);
     if (!savedId) return;
+    let cancelled = false;
 
     setCart((prev) => prev.cartId === savedId ? prev : { ...EMPTY_CART, cartId: savedId });
 
     cartApi.get(savedId, merchantId)
       .then((data) => {
-        if (!data || !Array.isArray(data.items)) return;
+        if (cancelled || snapshotVersionRef.current !== snapshotVersion || !data || !Array.isArray(data.items)) return;
+        setError(null);
         const baseTotal = data.total;
         let discountedTotal = baseTotal;
         let activeOffer: ActiveOffer | undefined;
@@ -149,8 +158,10 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
           activeOffer,
           discountedTotal,
         });
+        setSnapshotMerchantId(merchantId);
       })
-      .catch(() => { setError("Não foi possível carregar o carrinho. Tente novamente em instantes."); });
+      .catch(() => { if (!cancelled && snapshotVersionRef.current === snapshotVersion) setError("Não foi possível carregar o carrinho. Tente novamente em instantes."); });
+    return () => { cancelled = true; };
   }, [merchantId]);
 
   const updateFromBlocks = useCallback((blocks: any[]) => {
@@ -158,7 +169,9 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
       (b: any) => b.type === "cart_summary" && Array.isArray(b.data?.items)
     );
     if (!cartBlock) return;
+    snapshotVersionRef.current += 1;
     setError(null);
+    setSnapshotMerchantId(merchantId ?? null);
 
     const { items, itemCount, total, discount, cartId, couponCode, authorizedOffer, shippingTotal, freeShipping, nextNudge, activeRules } = cartBlock.data;
 
@@ -220,7 +233,9 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
   }, [merchantId]);
 
   const clearCart = useCallback(() => {
+    snapshotVersionRef.current += 1;
     setCart(EMPTY_CART);
+    setSnapshotMerchantId(null);
     setError(null);
     if (!merchantId) return;
     try {
@@ -254,7 +269,8 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
   }, [cart.cartId, merchantId, updateFromBlocks]);
 
   return (
-    <CartContext.Provider value={{ cart, updating, error, updateFromBlocks, updateItemQuantity, clearCart }}>
+    <CartContext.Provider value={{ cart, snapshotMerchantId: snapshotMerchantId === merchantId ? snapshotMerchantId : null,
+      updating, error, updateFromBlocks, updateItemQuantity, clearCart }}>
       {children}
     </CartContext.Provider>
   );

@@ -3,6 +3,8 @@
 import { useEffect, useState } from "react";
 import type { BuyerPersonalizedOffer } from "@/lib/viewmodels/useBuyerHub/types";
 import { currentPersonalizedOffers } from "@/lib/personalized-offers";
+import CouponCopy from "./CouponCopy";
+import styles from "./LoyaltyBenefits.module.css";
 
 const money = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
 const percent = (value: number) => new Intl.NumberFormat("pt-BR", { maximumFractionDigits: 2 }).format(value);
@@ -20,31 +22,34 @@ export default function PersonalizedOffers({ offers, sessionId }: { offers?: Buy
   if (!current.length) return null;
   const heading = current.length === 1 ? "Oferta para este pedido" : "Ofertas para seus pedidos";
 
-  return <section aria-label={heading} style={{ minWidth: 0 }}>
-    <h3 style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 600, color: "var(--aacp-fg)" }}>{heading}</h3>
-    <p style={{ margin: "0 0 12px", fontSize: "12px", lineHeight: 1.5, color: "var(--aacp-muted)" }}>
-      Cada desconto vale somente na compra em que foi aplicado. Confira o total no checkout antes de pagar.
+  return <section aria-label={heading} className={styles.section}>
+    <h3>{heading}</h3>
+    <p className={styles.note}>
+      Válidas somente na compra indicada. Confira o total no checkout antes de pagar.
     </p>
-    <ul style={{ listStyle: "none", padding: 0, margin: 0 }}>
-      {current.map((offer) => <li key={offer.id} style={{ padding: "14px 0", borderTop: "1px solid var(--aacp-line)", overflowWrap: "anywhere" }}>
-        <h4 style={{ margin: "0 0 6px", fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)" }}>{titles[offer.kind]}</h4>
-        <p style={{ margin: "0 0 6px", fontSize: "15px", fontWeight: 600, color: "var(--aacp-accent-text, var(--aacp-fg))", fontVariantNumeric: "tabular-nums" }}>
+    <ul className={styles.list}>
+      {current.map((offer) => <li key={offer.id} className={styles.row}>
+        <h4 className={styles.title}>{titles[offer.kind]}</h4>
+        <p className={styles.amount}>
           {money(offer.amountCents)} aplicados nesta compra
         </p>
-        <p style={{ margin: "0 0 6px", fontSize: "12px", lineHeight: 1.5, color: "var(--aacp-muted)" }}>
+        <p className={styles.description}>
           {offer.kind === "percentage" || offer.kind === "progressive"
             ? `${percent(offer.discountPercent)}% nos produtos, limitado a ${money(offer.maxDiscountCents)}.`
             : `Limite de ${money(offer.maxDiscountCents)}, sem ultrapassar ${percent(offer.discountPercent)}% do valor dos produtos.`}
           {offer.kind === "shipping" ? " O abatimento não ultrapassa o frete cobrado." : ""}
         </p>
-        {offer.deliveryMode === "coupon_code" && <p style={{ margin: "0 0 6px", fontSize: "12px", lineHeight: 1.5, color: "var(--aacp-fg)" }}>
-          Cupom aplicado automaticamente: <strong style={{ fontVariantNumeric: "tabular-nums" }}>{offer.couponCode}</strong>
-          <span style={{ display: "block", color: "var(--aacp-muted)" }}>Válido somente para você nesta compra.</span>
-        </p>}
-        <p style={{ margin: "0 0 6px", fontSize: "12px", lineHeight: 1.5, color: "var(--aacp-muted)" }}>{offer.condition}</p>
-        <p style={{ margin: 0, fontSize: "12px", lineHeight: 1.5, color: "var(--aacp-muted)" }}>
-          Válido até <time dateTime={offer.expiresAt}>{new Date(offer.expiresAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</time>.
-        </p>
+        {offer.deliveryMode === "coupon_code" && <>
+          <CouponCopy code={offer.couponCode!} applied />
+        </>}
+        <details className={styles.disclosure}>
+          <summary>Condições e validade</summary>
+          <dl className={styles.terms}><dt>Condição de uso</dt><dd>{offer.condition}</dd></dl>
+          {offer.deliveryMode === "coupon_code" && <p className={styles.note}>Válido somente para você nesta compra. Não é necessário aplicar novamente.</p>}
+          <p className={styles.expiry}>
+            Válido até <time dateTime={offer.expiresAt}>{new Date(offer.expiresAt).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" })}</time>.
+          </p>
+        </details>
       </li>)}
     </ul>
   </section>;
