@@ -66,6 +66,7 @@ export class CartPromoResolutionService {
           return {
             ...item,
             price: resolved.unitPriceCents / 100,
+            ...(resolved.unitPriceCents < basePriceCents ? { originalPrice: basePriceCents / 100 } : {}),
           };
         })
       );

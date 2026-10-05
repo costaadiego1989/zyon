@@ -213,6 +213,7 @@ export interface CartState {
   totalToPay?: number;
   shipping?: { key: string; label: string; cost: number };
   discount: number;
+  benefits?: Experience["applied_benefits"];
   status: CartStatus;
 }
 
@@ -1329,7 +1330,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       set({
         paymentIntent: intent,
         pendingPriceReview: null,
-        cart: { ...get().cart, status: "ready_to_pay" },
+        cart: { ...get().cart, ...(intent.experience ? cartFromExperience(intent.experience) : {}), totalToPay: intent.amount_cents! / 100, status: "ready_to_pay" },
+        ...(intent.experience ? { activeDiscount: activeDiscountFromNudge(intent.experience.commercial_nudge) } : {}),
       });
 
       const isCard = method === "credito" || method === "debito";
@@ -1415,7 +1417,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       set({
         paymentIntent: intent,
         pendingPriceReview: null,
-        cart: { ...get().cart, status: "ready_to_pay" },
+        cart: { ...get().cart, ...(intent.experience ? cartFromExperience(intent.experience) : {}), totalToPay: intent.amount_cents! / 100, status: "ready_to_pay" },
+        ...(intent.experience ? { activeDiscount: activeDiscountFromNudge(intent.experience.commercial_nudge) } : {}),
       });
 
       const paymentMsg: Message = {

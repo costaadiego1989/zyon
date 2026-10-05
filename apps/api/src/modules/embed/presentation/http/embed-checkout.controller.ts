@@ -46,6 +46,8 @@ import { UpdateEmbedCustomerUseCase } from "../../application/update-embed-custo
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 import { ResolveEmbedBuyerService } from "../../application/resolve-embed-buyer.service.js";
 import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
+import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
+import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -350,7 +352,7 @@ export class EmbedCheckoutController {
       ? forwarded.split(",")[0]?.trim()
       : Array.isArray(forwarded) ? forwarded[0]?.trim() : undefined;
 
-    return this.createPaymentIntent.execute({
+    const intent = await this.createPaymentIntent.execute({
       merchant_id: embed.merchantId,
       session_id: body.session_id.trim(),
       idempotency_key: body.idempotency_key.trim(),
@@ -365,6 +367,16 @@ export class EmbedCheckoutController {
       credit_card: body.credit_card,
       remote_ip: remoteIp
     });
+    const session = await this.embedGuards.loadSession(embed.merchantId, body.session_id.trim());
+    const breakdown = intent.amountBreakdown;
+    // Render the same finalized financial snapshot that the provider charged.
+    if (!session || !breakdown || breakdown.cartFingerprint !== paymentCartFingerprint(session)) return intent;
+    const experience = buildExperienceFromSession(session, { serviceFee: breakdown.platformFeeCents / 100 });
+    return { ...intent, experience: {
+      items: experience.items, shipping: experience.shipping,
+      commercial_nudge: experience.commercial_nudge, applied_benefits: experience.applied_benefits,
+      totals: experience.totals,
+    } };
   }
 
   @Post("payment/intents/:intentId/crypto/confirm")

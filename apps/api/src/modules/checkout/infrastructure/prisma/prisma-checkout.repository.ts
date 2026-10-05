@@ -178,6 +178,33 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     working.cart = toCheckoutSession(saved).cart;
   }
 
+  async saveBenefitsIfMutable(session: CheckoutSession, expected: CheckoutSession, authorizedRules: MerchantRules): Promise<CheckoutSession> {
+    const work = async (tx: Prisma.TransactionClient) => {
+      const { merchantId, sessionId } = expected;
+      // Payment admission takes this same merchant lock before validating the quote.
+      await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchantId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id = ${merchantId} FOR UPDATE`;
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
+      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      const current = await repo.getSession(merchantId, sessionId);
+      if (!current) throw new ConflictException("CHECKOUT_SESSION_NOT_FOUND");
+      const scope = { merchantId, sessionId };
+      if (await tx.paymentIntent.findFirst({ where: { ...scope, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })
+        || await tx.completedOrder.findFirst({ where: scope, select: { id: true } })
+        || await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } })) {
+        return current;
+      }
+      const currentRules = await repo.getRules(merchantId);
+      if (Object.entries(currentRules).some(([key, value]) =>
+        JSON.stringify(value) !== JSON.stringify(authorizedRules[key as keyof MerchantRules]))) {
+        throw new ConflictException("CHECKOUT_BENEFITS_RULES_CHANGED");
+      }
+      await repo.saveSessionIfUnchanged(session, expected);
+      return session;
+    };
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
+  }
+
   async createSessionIfAbsent(session: CheckoutSession): Promise<{ session: CheckoutSession; created: boolean }> {
     if (strategyExecutionEnabled(session.merchantId) || incentiveExecutionEnabled(session.merchantId)) {
       const create = async (tx: Prisma.TransactionClient) => {

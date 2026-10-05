@@ -67,6 +67,9 @@ function CartProduct({ item, controlsDisabled, onQuantityChange, onRemove, forma
       <div className="checkout-cart__product-copy">
         <strong className="checkout-cart__product-name">{item.name}</strong>
         {variantLabel?.trim() && <span className="checkout-cart__product-variant">{variantLabel}</span>}
+        {typeof item.originalPrice === "number" && item.originalPrice > unitPrice && (
+          <span className="checkout-cart__product-promotion"><s>{formatPrice(item.originalPrice)}</s> · Economize {formatPrice(item.originalPrice - unitPrice)} por unidade</span>
+        )}
         <span className="checkout-cart__product-price">{formatPrice(unitPrice)} por unidade</span>
       </div>
       <div className="checkout-cart__product-actions">
@@ -181,6 +184,11 @@ export function SmartCart() {
             </div>
           )}
           {cart.discount > 0 && <SummaryLine label="Desconto" value={`−${formatPrice(cart.discount)}`} emphasis="discount" />}
+          {cart.benefits?.length ? (
+            <ul className="checkout-cart__benefits" aria-label="Benefícios aplicados">
+              {cart.benefits.map((benefit, index) => <li key={`${benefit.kind}-${index}`}>{benefit.label} · economia de {formatPrice(benefit.amount)}</li>)}
+            </ul>
+          ) : null}
           {cart.serviceFee > 0 && (
             <div data-testid="buyer-service-fee" className="checkout-cart__service-fee">
               <SummaryLine label={serviceFeeCopy.label} value={formatPrice(cart.serviceFee)} />
@@ -213,6 +221,8 @@ export function SmartCart() {
         .checkout-cart__product-copy { min-width: 0; }
         .checkout-cart__product-name { display: -webkit-box; overflow: hidden; color: var(--tx); font-size: 13.5px; font-weight: 700; line-height: 1.28; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
         .checkout-cart__product-price { display: block; margin-top: 3px; color: var(--mut); font-size: 10.5px; line-height: 1.35; }
+        .checkout-cart__product-promotion { display: block; margin-top: 5px; color: var(--aacp-accent-text, var(--aacp-accent)); font-size: 11px; line-height: 1.4; }
+        .checkout-cart__benefits { margin: 2px 0 8px; padding: 0; list-style: none; color: var(--aacp-accent-text, var(--aacp-accent)); font-size: 11px; line-height: 1.5; }
         .checkout-cart__product-variant { display: block; margin-top: 4px; color: var(--mut); font-size: 12px; line-height: 1.4; overflow-wrap: anywhere; }
         .checkout-cart__product-actions { grid-column: 2; display: flex; align-items: center; justify-content: space-between; gap: 12px; min-width: 0; }
         .checkout-cart__remove { padding: 4px 0; border: 0; background: transparent; color: var(--aacp-accent-text, var(--aacp-accent, #0f766e)); font: inherit; font-size: 11px; font-weight: 700; text-decoration: underline; cursor: pointer; }

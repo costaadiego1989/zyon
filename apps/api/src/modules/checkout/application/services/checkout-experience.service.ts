@@ -273,6 +273,11 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       total
     },
     commercial_nudge: publicCommercialNudge(input.cart.commercialNudge),
+    applied_benefits: input.cart.appliedBenefits?.filter(benefit =>
+      (benefit.kind === "discount" || benefit.kind === "shipping") && typeof benefit.label === "string"
+      && Number.isFinite(benefit.amount) && benefit.amount > 0
+      && (benefit.kind === "discount" ? discount > 0 : input.shipping != null)
+    ).map(benefit => ({ kind: benefit.kind, label: benefit.label.slice(0, 160), amount: roundMoney(benefit.amount) })),
     shipping: input.shipping,
     shippingOptions: undefined,
     suggestedProducts: deps.suggestedProducts?.length ? deps.suggestedProducts : undefined,
@@ -374,6 +379,8 @@ function toItemSnapshot(item: Cart["items"][number]): CheckoutItemSnapshot {
     name: item.name,
     quantity: item.quantity,
     unit_price: roundMoney(item.price),
+    ...(typeof item.originalPrice === "number" && Number.isFinite(item.originalPrice) && item.originalPrice > item.price
+      ? { original_unit_price: roundMoney(item.originalPrice) } : {}),
     line_total: roundMoney(item.price * item.quantity),
     image_url: item.imageUrl,
     product_url: item.productUrl,

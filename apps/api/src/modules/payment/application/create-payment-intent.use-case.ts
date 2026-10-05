@@ -41,6 +41,7 @@ import { OrderQuotaService } from "./services/order-quota.service.js";
 import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
 import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
 import { resolveCheckoutPaymentCapabilities } from "../domain/checkout-payment-routing.js";
+import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -269,6 +270,7 @@ export class CreatePaymentIntentUseCase {
     private readonly buyerAccount?: BuyerAccountRepository,
     @Optional() private readonly billingMetering?: BillingPlanMeteringService,
     private readonly orderQuota?: OrderQuotaService,
+    @Optional() private readonly benefits?: CheckoutBenefitsService,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
@@ -292,6 +294,12 @@ export class CreatePaymentIntentUseCase {
     await this.orderQuota?.assertCanAcceptNewSales(merchantId);
 
     const method: PaymentMethod = body.method ?? "pix";
+    // Interactive and quick-purchase intents share this server guard.
+    // Explicitly accepted offers and price-review confirmations keep their quote.
+    if (this.benefits && !body.accepted_offer_id && !body.confirmed_cart_fingerprint) {
+      session = await this.benefits.prepare(merchantId, sessionId, method);
+      assertCheckoutReadyForPayment(session);
+    }
 
     const acceptedOfferId = await this.validateAcceptedOffer(body, merchantId, sessionId);
     const commerceOrderId = await this.ensurePendingCommerceOrder(merchantId, sessionId, session);

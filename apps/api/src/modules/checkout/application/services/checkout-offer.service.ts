@@ -93,7 +93,7 @@ export class CheckoutOfferService {
    *    promises. Value/cap/margin STILL go through the rules-engine downstream.
    * Returns the advancedRules list to use, and the appliedRuleId that was forced.
    */
-  private async shapeAdvancedRulesForExperiment(
+  async shapeAdvancedRulesForExperiment(
     merchantId: string,
     sessionId: string,
     promptVariantId: string | null | undefined,

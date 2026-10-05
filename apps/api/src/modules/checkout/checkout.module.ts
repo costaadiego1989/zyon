@@ -45,6 +45,8 @@ import { BuyerResolutionService } from "./application/services/buyer-resolution.
 import { BuyerContextService } from "./application/services/buyer-context.service.js";
 import { CheckoutBootstrapService } from "./application/services/checkout-bootstrap.service.js";
 import { CartPromoResolutionService } from "./application/services/cart-promo-resolution.service.js";
+import { CheckoutBenefitsService } from "./application/services/checkout-benefits.service.js";
+import { CouponsExecutionModule } from "../coupons/coupons-execution.module.js";
 import { InterventionRuleTextBuilder } from "./application/services/intervention-rule-text.builder.js";
 import { ChatContextService } from "./application/services/chat-context.service.js";
 import { ChatResponseBuilder } from "./application/services/chat-response.builder.js";
@@ -100,6 +102,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
 
 @Module({
   imports: [
+    CouponsExecutionModule,
     CommerceModule,
     AgentRulesModule,
     CheckoutSettingsModule,
@@ -124,6 +127,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
       inject: [PRISMA_CLIENT]
     },
     CheckoutCartAuthorityService,
+    CheckoutBenefitsService,
     StartCheckoutUseCase,
     TrackCheckoutEventUseCase,
     GetCheckoutSessionUseCase,
@@ -226,6 +230,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
     PaymentApprovedHandler
   ],
   exports: [
+    CheckoutBenefitsService,
     CHECKOUT_REPOSITORY,
     CHECKOUT_SESSION_REPOSITORY,
     Symbol.for("CheckoutExperienceConfig"),

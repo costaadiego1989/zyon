@@ -1,4 +1,4 @@
-import type { ChatTurn, CheckoutEventName, CheckoutSession, PaymentMethod } from "@zyon/shared-types";
+import type { ChatTurn, CheckoutEventName, CheckoutSession, MerchantRules, PaymentMethod } from "@zyon/shared-types";
 
 export const CHECKOUT_SESSION_REPOSITORY = Symbol("CHECKOUT_SESSION_REPOSITORY");
 
@@ -42,6 +42,9 @@ export interface CheckoutSessionRepository {
   saveSession(session: CheckoutSession): MaybePromise<void>;
   /** Persist a prepared snapshot only while its original state is still current. */
   saveSessionIfUnchanged?(session: CheckoutSession, expected: CheckoutSession): MaybePromise<void>;
+  /** Authoritative pre-payment benefits. Must serialize with payment admission
+   * and leave committed payments / assigned experiment snapshots unchanged. */
+  saveBenefitsIfMutable?(session: CheckoutSession, expected: CheckoutSession, authorizedRules: MerchantRules): Promise<CheckoutSession>;
   getSession(merchantId: string, sessionId: string): MaybePromise<CheckoutSession | undefined>;
   findSessionsByEmail(merchantId: string, email: string): MaybePromise<CheckoutSession[]>;
   appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): MaybePromise<CheckoutSession>;

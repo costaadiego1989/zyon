@@ -38,6 +38,8 @@ export interface CartItem {
   variantLabel?: string;
   name: string;
   price: number;
+  /** Server-resolved catalog price before an inline product promotion, in BRL. */
+  originalPrice?: number;
   cost?: number;
   quantity: number;
   weightGrams?: number;
@@ -79,11 +81,19 @@ export interface Cart {
   currentDiscount?: number;
   /** Server-authored context for a promotion already applied to this session. */
   commercialNudge?: CheckoutCommercialNudge;
+  /** Display only; amounts are already reflected in prices/discount/shipping. */
+  appliedBenefits?: CheckoutAppliedBenefit[];
   source?: "storefront" | "checkout" | "platform_api" | "manual";
   commerceCartRef?: string;
 }
 
 export type CheckoutCommercialNudgeKind = "coupon" | "progressive_discount" | "advanced_rule";
+
+export interface CheckoutAppliedBenefit {
+  kind: "discount" | "shipping";
+  label: string;
+  amount: number;
+}
 
 /**
  * Presentation metadata for a commercial benefit that the server already
@@ -397,6 +407,7 @@ export interface CheckoutItemSnapshot {
   name: string;
   quantity: number;
   unit_price: number;
+  original_unit_price?: number;
   line_total: number;
   image_url?: string;
   product_url?: string;
@@ -462,6 +473,7 @@ export interface CheckoutExperienceSnapshot {
   totals: CheckoutTotalsSnapshot;
   /** A benefit already authorized for this checkout session, if any. */
   commercial_nudge?: CheckoutCommercialNudge;
+  applied_benefits?: CheckoutAppliedBenefit[];
   shipping?: ShippingQuote;
   shippingOptions?: ShippingQuote[];
   suggestedProducts?: SuggestedProduct[];

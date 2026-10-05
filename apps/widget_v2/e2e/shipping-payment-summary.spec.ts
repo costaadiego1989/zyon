@@ -1,4 +1,5 @@
 import { expect, test, type Page } from "@playwright/test";
+import { selectChatChannel } from "./fixtures/cross-sell-mocks.js";
 
 const experience = {
   brand: { name: "Athom Technologies", mode: "dark" },
@@ -13,7 +14,7 @@ async function openCheckout(page: Page) {
   await page.route("**/checkout-settings/widget-config**", (route) => route.fulfill({ json: { enabledTriggers: [], advancedRules: [] } }));
   await page.route("**/embed/track", (route) => route.fulfill({ json: {} }));
   await page.goto("/?embed=1&embedToken=tok_shipping&merchantId=mrc_shipping&cartRef=cart_shipping&apiBaseUrl=http://127.0.0.1:5174");
-  await page.getByRole("button", { name: /por chat/i }).click();
+  await selectChatChannel(page);
 }
 
 test("frete confirmado entra no resumo e no total do pedido", async ({ page }) => {

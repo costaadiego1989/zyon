@@ -38,6 +38,7 @@ import "./modules/commerce/presentation/http/vtex-webhook.controller.spec.js";
 import "./modules/payment/domain/payment-intent.entity.spec.js";
 import "./modules/payment/infrastructure/in-memory-payment.repository.spec.js";
 import "./modules/payment/application/create-payment-intent.use-case.spec.js";
+import "./modules/checkout/__tests__/checkout-benefits.spec.js";
 import "./modules/payment/application/confirm-stripe-payment.use-case.spec.js";
 import "./modules/payment/application/confirm-crypto-payment.use-case.spec.js";
 import "./modules/payment/application/reconcile-payment-intents.use-case.spec.js";

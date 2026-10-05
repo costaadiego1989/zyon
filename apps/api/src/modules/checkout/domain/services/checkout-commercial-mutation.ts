@@ -41,6 +41,7 @@ export function prepareCommercialMutation(input: CheckoutCommercialMutation) {
   if (invalidated) {
     next.cart.currentDiscount = 0;
     delete next.cart.commercialNudge;
+    delete next.cart.appliedBenefits;
     // A retained discounted quote cannot become the new undiscounted price.
     if (input.cancel || cartChanged || addressChanged || buyerChanged) {
       delete next.shipping;

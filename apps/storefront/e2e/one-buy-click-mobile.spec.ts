@@ -107,7 +107,9 @@ test("Compra rápida stays compact in the mobile header with Stories", async ({ 
   await expect(headerToggle).toHaveAttribute("aria-checked", "true");
 });
 
-test("Compra rápida asks visitors to authenticate and first-time buyers to choose their defaults", async ({ page }) => {
+for (const theme of ["light", "dark"]) {
+test(`Compra rápida asks visitors to authenticate and choose readable defaults in ${theme}`, async ({ page }, testInfo) => {
+  await page.addInitScript(theme => localStorage.setItem("zyon-theme", theme), theme);
   let preferencesConfigured = false;
   let enabled = false;
   let savedPreferences: Record<string, unknown> | null = null;
@@ -155,7 +157,28 @@ test("Compra rápida asks visitors to authenticate and first-time buyers to choo
   const loggedBuyerToggle = page.locator('[data-one-buy-click-toggle="header"]');
   await expect(loggedBuyerToggle).toBeEnabled();
   await loggedBuyerToggle.click();
-  await expect(page.locator("[data-quick-purchase-preferences-dialog]")).toBeVisible();
+  const dialog = page.locator("[data-quick-purchase-preferences-dialog]");
+  await expect(dialog).toBeVisible();
+  await expect(dialog).not.toContainText(/\\u00/i);
+  await expect(dialog.getByRole("button", { name: /Mais econômico/ })).toBeVisible();
+  await expect(dialog.getByRole("button", { name: /Cartão/ })).toBeVisible();
+  for (const width of [320, 390, 1280]) {
+    await page.setViewportSize({ width, height: width === 320 ? 568 : 800 });
+    const geometry = await dialog.evaluate(element => {
+      const rect = element.getBoundingClientRect();
+      return { left: rect.left, right: rect.right, top: rect.top, bottom: rect.bottom,
+        viewport: innerWidth, height: innerHeight, overflowing: element.scrollWidth > element.clientWidth };
+    });
+    expect(geometry.left).toBeGreaterThanOrEqual(0);
+    expect(geometry.right).toBeLessThanOrEqual(geometry.viewport);
+    expect(geometry.top).toBeGreaterThanOrEqual(0);
+    expect(geometry.bottom).toBeLessThanOrEqual(geometry.height);
+    expect(geometry.overflowing).toBe(false);
+    await dialog.screenshot({ path: testInfo.outputPath(`preferences-${theme}-${width}.png`) });
+  }
+  await dialog.getByRole("button", { name: /Salvar e ativar/ }).focus();
+  await page.keyboard.press("Tab");
+  await expect(dialog.getByRole("button", { name: /Mais econômico/ })).toBeFocused();
   await page.locator('[data-quick-purchase-choice="shipping-fastest"]').click();
   await page.locator('[data-quick-purchase-choice="payment-card"]').click();
   await page.getByRole("button", { name: /Salvar e ativar/i }).click();
@@ -167,3 +190,4 @@ test("Compra rápida asks visitors to authenticate and first-time buyers to choo
   });
   await expect(page.locator('[data-one-buy-click-toggle="header"]')).toHaveAttribute("aria-checked", "true");
 });
+}
