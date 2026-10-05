@@ -16,7 +16,7 @@ export function StrategyDiscountStudy({ study }: { study: StrategyProposal["disc
   const s = candidate.simulation;
   return <section className="strategy-detail-section" aria-labelledby="strategy-discount-study-title">
     <h2 id="strategy-discount-study-title">Simulação de desconto</h2>
-    <p>Um cenário para avaliar em um próximo teste. Aprovar esta estratégia inicia somente o teste de comunicação.</p>
+    <p>Esta simulação não gera cobrança adicional nem aplica descontos nas vendas. Aprovar esta estratégia inicia somente o teste de comunicação.</p>
     <dl className="strategy-measurement-facts">
       <div><dt>Desconto simulado</dt><dd>{number(candidate.percent)}%, até {money(s.maxDiscountCents)} por carrinho</dd></div>
       <div><dt>Faixa de carrinho avaliada</dt><dd>{money(s.minCartTotalCents)} a {money(s.maxCartTotalCents)}</dd></div>

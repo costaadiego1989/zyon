@@ -8,10 +8,10 @@ const results: Record<string, string> = {
   keep_current: "Vamos manter a estratégia atual enquanto o teste coleta resultados ou uma sugestão aguarda sua decisão.",
 };
 const reasons: Record<string, string> = {
-  budget_exhausted: "A análise aguarda a renovação do orçamento disponível.",
+  budget_exhausted: "A análise aguarda disponibilidade da IA na Zyon. Não é necessário comprar créditos ou alterar seus limites de desconto.",
   daily_analysis_limit: "A análise entrou na fila da próxima janela disponível.",
   provider_capacity: "A análise aguarda disponibilidade do serviço de IA.",
-  generation_disabled: "A geração de novas sugestões está temporariamente pausada pela Zyon. Sua preferência de receber sugestões continua salva.",
+  generation_disabled: "A geração de novas sugestões está temporariamente pausada pela Zyon. A retomada é feita pela plataforma e não depende de preencher limites de desconto.",
   merchant_ineligible: "Verifique se o motor está ativado e se o recurso está disponível no seu plano.",
 };
 const format = (date: string) => new Date(date).toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
