@@ -4,6 +4,13 @@ import { apiCall, API_BASE } from "./http";
 export type { SupportCaseDetail, SupportCaseSummary, SupportOrder, ReturnRequestResult };
 export const SUPPORT_CHANGED_EVENT = "zyon:support-changed";
 export function supportChanged() { window.dispatchEvent(new Event(SUPPORT_CHANGED_EVENT)); }
+export function rememberSupportTicket(ticketId: string) {
+  if (!/^[A-Za-z0-9_-]{8,120}$/.test(ticketId)) return;
+  const url = new URL(window.location.href);
+  if (url.searchParams.get("supportTicket") === ticketId) return;
+  url.searchParams.set("supportTicket", ticketId);
+  window.history.replaceState(window.history.state, "", url);
+}
 export function evidenceUrl(path: string) { return path.startsWith("/support/") ? `${API_BASE}${path}` : path; }
 export function caseLabel(item: SupportCaseSummary) {
   const statuses: Record<string,string> = { REQUESTED: "Aguardando a loja", LABEL_GENERATED: "Envio autorizado", SHIPPED: "Itens em trânsito", RECEIVED: "Itens recebidos", INSPECTED_PASS: "Análise aprovada", INSPECTED_FAIL: "Em análise", REFUND_PROCESSING: "Reembolso em processamento", REFUND_COMPLETED: "Reembolso concluído", EXCHANGE_COMPLETED: "Troca concluída", REJECTED: "Solicitação não aprovada", CANCELLED: "Solicitação cancelada" };

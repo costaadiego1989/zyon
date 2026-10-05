@@ -16,6 +16,7 @@ import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
 import SupportPanel, { type SupportTarget } from "./SupportPanel";
 import { useSupportInbox } from "@/lib/hooks/useSupportInbox";
+import { rememberSupportTicket } from "@/lib/services/support-case.service";
 import StoriesRow from "./StoriesRow";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
 import CheckoutPanel from "./CheckoutPanel";
@@ -595,7 +596,11 @@ export default function ConversationShell({
     return () => controller.abort();
   }, [messages, merchantSlug]);
   useEffect(() => {
-    const onOpenSupport = (event: Event) => { setSupportTarget((event as CustomEvent<SupportTarget>).detail ?? {}); setBuyerHubOpen(false); setSupportOpen(true); };
+    const onOpenSupport = (event: Event) => {
+      const target = (event as CustomEvent<SupportTarget>).detail ?? {};
+      if (target.ticketId) rememberSupportTicket(target.ticketId);
+      setSupportTarget(target); setBuyerHubOpen(false); setSupportOpen(true);
+    };
     const onOpenBuyerHub = () => { setSupportOpen(false); setBuyerHubOpen(true); };
     const ticketId = new URLSearchParams(window.location.search).get("supportTicket");
     if (ticketId && /^[A-Za-z0-9_-]{8,120}$/.test(ticketId)) {

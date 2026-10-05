@@ -5,7 +5,7 @@ import { getValidBuyer } from "@/lib/buyer-auth";
 import { useSupportInbox } from "@/lib/hooks/useSupportInbox";
 import { apiCall, API_BASE } from "@/lib/services/http";
 import { fetchPublicFaq, type FaqItem } from "@/lib/services/support.service";
-import { caseLabel, evidenceUrl, getSupportCase, openGenericCase, readSupportCase, sendCaseMessage, supportChanged, type SupportCaseDetail } from "@/lib/services/support-case.service";
+import { caseLabel, evidenceUrl, getSupportCase, openGenericCase, readSupportCase, rememberSupportTicket, sendCaseMessage, supportChanged, type SupportCaseDetail } from "@/lib/services/support-case.service";
 import { ReturnRequestForm } from "./ReturnRequestForm";
 import { SupportPhotoPicker } from "./SupportPhotoPicker";
 import styles from "./SupportFlow.module.css";
@@ -62,7 +62,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
   const refresh = useCallback(async () => {
     if (!ticketId || !getValidBuyer()) return;
     const current = ++request.current;
-    try { const data = await getSupportCase(ticketId); if (current === request.current) { setDetail(data); if (data.ticketId !== ticketId) setTicketId(data.ticketId); } }
+    try { const data = await getSupportCase(ticketId); if (current === request.current) { setDetail(data); rememberSupportTicket(data.ticketId); if (data.ticketId !== ticketId) setTicketId(data.ticketId); } }
     catch (e) { if (current === request.current) setError(e instanceof Error ? e.message : "Não foi possível carregar a conversa."); }
     finally { if (current === request.current) setLoading(false); }
   }, [ticketId]);
