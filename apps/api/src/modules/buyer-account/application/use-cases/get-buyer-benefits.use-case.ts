@@ -2,6 +2,7 @@ import { Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { readBuyerIncentiveBenefits, type BuyerIncentiveBenefit } from "../../../revenue-manager/infrastructure/buyer-incentive-benefits.reader.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "../../buyer-account.tokens.js";
+import { conditionNotice } from "../../../storefront/domain/services/advanced-rule-notices.js";
 import {
   BUYER_EARNED_BENEFIT_REPOSITORY,
   type BuyerEarnedBenefitRepositoryPort,
@@ -215,10 +216,8 @@ function describeAction(type: string, percent?: number): string {
 }
 
 function describeConditions(rule: AdvancedRule): string {
-  if (!rule.conditions || rule.conditions.length === 0) return "sempre";
-  return rule.conditions
-    .map((c) => `${c.field} ${c.operator} ${String(c.value)}`)
-    .join(" e ");
+  if (!rule.conditions || rule.conditions.length === 0) return "Conforme os limites comerciais da loja.";
+  return rule.conditions.map(conditionNotice).join(" e ");
 }
 
 function round2(n: number): number {

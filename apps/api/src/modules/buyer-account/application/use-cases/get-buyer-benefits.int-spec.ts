@@ -109,6 +109,8 @@ test("get-buyer-benefits: available lists qualifying value rule via wouldMatch",
   assert.equal(res.available[0].ruleId, "rule-1");
   assert.equal(res.available[0].discountPercent, 15);
   assert.equal(res.available[0].maxReais, 16);
+  assert.match(res.available[0].condition, /valor dos produtos no carrinho a partir de R\$/);
+  assert.doesNotMatch(res.available[0].condition, /cart_total|\bgte\b/);
 });
 
 test("get-buyer-benefits: available excludes rule the cart does not qualify for", async () => {
