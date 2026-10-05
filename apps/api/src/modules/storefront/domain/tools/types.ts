@@ -88,7 +88,7 @@ export interface StoreToolHandlers {
   removeFromWishlist: (args: { productId: string }) => Promise<unknown>;
   trackOrder: (args: { orderId: string }) => Promise<unknown>;
   getStorePolicies: (args: {
-    policyType?: "returns" | "exchanges" | "shipping" | "warranty" | "all";
+    policyType?: "privacy" | "terms" | "returns" | "exchanges" | "shipping" | "warranty" | "payment" | "general" | "all";
   }) => Promise<unknown>;
   getBuyerProfile: () => Promise<unknown>;
   getDailyDeals: (args: { limit?: number }) => Promise<unknown>;

@@ -45,6 +45,8 @@ strong { font-weight: 700; }
 .note { color: var(--muted); font-size: 14px; }
 .site-footer { display: flex; justify-content: space-between; align-items: center; flex-wrap: wrap; gap: 12px 24px; width: min(100% - 48px, 800px); margin: 0 auto; padding: 24px 0 40px; border-top: 1px solid var(--line); color: var(--muted); font-size: 13px; }
 .site-footer a { display: inline-flex; align-items: center; min-height: 44px; }
+.legal-operator { flex-basis: 100%; line-height: 1.7; overflow-wrap: anywhere; }
+.legal-operator p { margin-bottom: 8px; }
 @media (max-width: 400px) { .site-header { padding-inline: 20px; } main, .site-footer { width: calc(100% - 40px); } .document-nav { gap: 0 16px; } .contact-button { width: 100%; padding-inline: 14px; gap: 10px; } }
 @media (prefers-reduced-motion: reduce) { html { scroll-behavior: auto; } }
 @media print { body { background: white; color: black; } .site-header, .document-nav, .skip-link, .contact-button { display: none; } main { width: 100%; padding: 0; } h1 { font-size: 28px; } h2 { break-after: avoid; } p, li { orphans: 3; widows: 3; } .site-footer { width: 100%; } }

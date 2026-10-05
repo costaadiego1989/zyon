@@ -15,6 +15,7 @@ import {
   type CheckoutCrossSellRecommenderPort
 } from "../../domain/ports/cross-sell-recommender.port.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { checkoutPolicyLinks } from "../../../../shared/legal/store-policies.js";
 import { BuyerResolutionService } from "../services/buyer-resolution.service.js";
 import { BuyerContextService } from "../services/buyer-context.service.js";
 import { CheckoutBootstrapService } from "../services/checkout-bootstrap.service.js";
@@ -134,6 +135,7 @@ export class StartCheckoutUseCase {
         agent,
         couponBoxEnabled: merchantRules?.couponBoxEnabled,
         rules: merchantRules,
+        policies: checkoutPolicyLinks(merchant?.storeSettings, merchantRules?.policies, process.env.PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || "https://storefront.zyon-payments.com.br"),
         showBranding,
         voiceEnabled,
         serviceFee: this.experienceConfig.platformFeeBrl,

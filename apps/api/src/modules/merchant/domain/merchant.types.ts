@@ -49,6 +49,7 @@ export interface MerchantStoreSettings {
     terms?: string;
     shipping?: string;
   };
+  checkoutPolicyLinks?: MerchantRules["policies"];
   styles?: {
     logoUrl?: string;
     faviconUrl?: string;

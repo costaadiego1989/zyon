@@ -9,8 +9,8 @@ import styles from "./StorefrontConsent.module.css";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 
-export function StorefrontConsent({ storeKey, merchantId, storeName, gtmId, fbPixelId, tiktokPixelId, children }: {
-  storeKey: string; merchantId?: string; storeName: string; gtmId?: string; fbPixelId?: string; tiktokPixelId?: string; children: ReactNode;
+export function StorefrontConsent({ storeKey, merchantId, storeName, storeSlug, gtmId, fbPixelId, tiktokPixelId, children }: {
+  storeKey: string; merchantId?: string; storeName: string; storeSlug?: string; gtmId?: string; fbPixelId?: string; tiktokPixelId?: string; children: ReactNode;
 }) {
   const [choice, setChoice] = useState<StorefrontConsent | null>(null);
   const choiceRef = useRef<StorefrontConsent | null>(null);
@@ -156,6 +156,7 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, gtmId, fbPi
     {children}
     <nav className={styles.footer} aria-label="Privacidade e consentimento">
       <button type="button" onClick={edit}>Cookies e contato</button>
+      {storeSlug && <a href={`/store/${encodeURIComponent(storeSlug)}/politicas`} target="_blank" rel="noopener noreferrer">Políticas da loja</a>}
       <a href="/politicas/privacidade" target="_blank" rel="noopener noreferrer">Privacidade</a>
       <a href="/politicas/termos" target="_blank" rel="noopener noreferrer">Termos</a>
     </nav>

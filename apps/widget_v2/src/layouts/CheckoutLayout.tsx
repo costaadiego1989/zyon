@@ -9,6 +9,7 @@ import { DiscountBanner } from "@/components/DiscountBanner";
 import { PulseAgentOrb } from "@/components/PulseAgentOrb";
 import SupportPanel from "@/components/SupportPanel";
 import { ShimmerBorder } from "@/components/ShimmerBorder";
+import { CheckoutPolicies } from "@/components/CheckoutPolicies";
 
 interface CheckoutLayoutProps {
   forcedTheme?: "dark" | "light";
@@ -521,6 +522,7 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
       {/* Support uses the header control; its panel remains available throughout checkout. */}
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
 
+      <CheckoutPolicies />
       {/* Whitelabel badge — free-plan merchants only. Accent background per brand. */}
       {showBranding && (
         <div

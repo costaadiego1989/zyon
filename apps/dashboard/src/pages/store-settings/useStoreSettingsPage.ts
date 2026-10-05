@@ -236,6 +236,9 @@ export function useStoreSettingsPage() {
           fontDisplay: state.styles.fontDisplay,
           fontFamily: state.styles.fontFamily,
         } as any);
+      } else if (state.activeTab === "policies") {
+        // Empty strings explicitly remove a saved policy; omitted keys retain it.
+        await api.putStoreSettings({ policies: { ...state.policies } });
       } else {
         // Save store settings
         const payload = {
@@ -257,7 +260,6 @@ export function useStoreSettingsPage() {
             },
           },
           businessHours: state.businessHours,
-          policies: Object.fromEntries(Object.entries(state.policies).filter(([, v]) => v)),
           ...(state.logoUrl && { logoUrl: state.logoUrl }),
         };
         await api.putStoreSettings(payload);
@@ -282,11 +284,18 @@ export function useStoreSettingsPage() {
     setState((p) => ({ ...p, generatingPolicy: type, saveError: null, saveResult: null }));
     try {
       const companyData = {
+        storeName: state.company.storeName,
+        cnpj: state.company.cnpj,
         razaoSocial: state.company.razaoSocial,
         email: state.company.email,
         phone: state.company.phone,
         city: state.company.city,
         state: state.company.state,
+        street: state.company.street,
+        number: state.company.number,
+        complement: state.company.complement,
+        neighborhood: state.company.neighborhood,
+        zip: state.company.zip,
       };
       const result = await api.generatePolicy(type, companyData);
       setState((p) => ({

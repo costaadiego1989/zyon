@@ -272,6 +272,7 @@ interface CheckoutState {
   _pendingCrossSellBlock: ChatBlock | null;
 
   showBranding: boolean;
+  policies: Experience["policies"];
 
   voiceEnabled: boolean;
   oneBuyClickPreferences: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" } | null;
@@ -517,6 +518,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   maxDiscountPercent: 10,
   _pendingCrossSellBlock: null,
   showBranding: false,
+  policies: {},
   voiceEnabled: false,
   oneBuyClickPreferences: null,
   quickPurchaseStarted: false,
@@ -527,7 +529,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       get().stopPolling();
-      set({ api, status: "loading", chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
+      set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
         pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false });
 
       const response = await api.start();
@@ -599,6 +601,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         error: null,
         _pendingCrossSellBlock: crossSellBlockFromSuggestions(exp?.suggestedProducts),
         showBranding: exp?.rules?.showBranding ?? false,
+        policies: exp?.policies ?? {},
         voiceEnabled: (exp?.rules as { voiceEnabled?: boolean } | undefined)?.voiceEnabled ?? false,
         oneBuyClickPreferences: oneBuyClickPreferences ?? null,
         leadRegistered: hasCompleteLead(buyer),

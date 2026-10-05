@@ -135,6 +135,7 @@ export interface CommercialNudge {
 }
 
 export interface Experience {
+  policies?: { privacyUrl?: string; termsUrl?: string; refundUrl?: string; shippingUrl?: string };
   items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; original_unit_price?: number; image_url?: string; variant?: string; variant_label?: string }>;
   totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
   shipping?: {

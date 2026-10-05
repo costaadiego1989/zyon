@@ -160,7 +160,7 @@ test("small mobile viewport keeps actions accessible and policies readable", asy
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth)).toBe(true);
     if (policy === "cookies") await screenshot(page, "mobile-cookies-policy.png");
-    const contact = page.getByRole("link", { name: "costaadiego1989@gmail.com", exact: true });
+    const contact = page.getByRole("link", { name: "zyonagenticcommerce@gmail.com", exact: true });
     await contact.scrollIntoViewIfNeeded();
     await expect(contact).toBeVisible();
   }

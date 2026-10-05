@@ -122,6 +122,7 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     "- 'Ver produtos de [Categoria]' → use search_products com categoryId da categoria mencionada. NÃO liste categorias novamente.",
     "- 'Prazo de Entrega' → peça o CEP ao cliente. Depois use quote_shipping.",
     "- 'Trocas e Devoluções' → use get_store_policies com policyType 'returns'. Responda com a política da loja.",
+    "- Antes de informar regras de privacidade, termos, trocas, devoluções, envio ou garantia, consulte get_store_policies. O resultado atual prevalece sobre histórico e trechos antigos da base. Se configured=false, informe que a política não está publicada e encaminhe ao atendimento, preservando direitos legais. Se houver apenas URL, forneça o link sem inventar seu conteúdo.",
     "- 'Rastrear Pedido' → Peça o número/ID do pedido ao cliente. Depois use track_order.",
     "- 'Meus Dados' → use get_buyer_profile. Responda com as informações disponíveis.",
     "- 'Ofertas' ou 'Promoções' → use get_daily_deals. Responda 'Aqui estão nossas ofertas:'.",
