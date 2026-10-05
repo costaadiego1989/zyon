@@ -48,14 +48,27 @@ export class PrismaMerchantStoreRepository implements MerchantStoreRepository {
         id: { in: memberships.map((membership) => membership.merchantId) },
         OR: [{ id: accountMerchantId }, { billingAccountMerchantId: accountMerchantId }],
       },
-      select: { id: true, name: true, storeSlug: true },
+      select: { id: true, name: true, storeSlug: true, storeCategory: true },
       orderBy: { createdAt: "asc" },
     });
     const roles = new Map(memberships.map((membership) => [membership.merchantId, membership.role.toLowerCase() as MerchantStoreRole]));
-    return stores.map((store) => ({ id: store.id, name: store.name, slug: store.storeSlug ?? undefined, role: roles.get(store.id) ?? "staff" }));
+    return stores.map((store) => ({
+      id: store.id,
+      name: store.name,
+      slug: store.storeSlug ?? undefined,
+      role: roles.get(store.id) ?? "staff",
+      storeCategory: store.storeCategory ?? undefined,
+      isBillingAccount: store.id === accountMerchantId,
+    }));
   }
 
-  async createStore(input: { accountMerchantId: string; actorUserId: string; name: string; slugBase: string }): Promise<CreateMerchantStoreResult> {
+  async createStore(input: {
+    accountMerchantId: string;
+    actorUserId: string;
+    name: string;
+    slugBase: string;
+    profile: { cnpj: string; email: string; phone: string; storeCategory: string };
+  }): Promise<CreateMerchantStoreResult> {
     for (let attempt = 0; attempt < 5; attempt += 1) {
       try {
         return await this.prisma.$transaction(async (transaction) => {
@@ -77,7 +90,16 @@ export class PrismaMerchantStoreRepository implements MerchantStoreRepository {
               storeSlug: slug,
               billingAccountMerchantId: input.accountMerchantId,
               plan: "BOTH",
-              storeSettings: { created_from_multi_store: true },
+              storeCategory: input.profile.storeCategory,
+              storeSettings: {
+                created_from_multi_store: true,
+                company: {
+                  razaoSocial: input.name,
+                  cnpj: input.profile.cnpj,
+                  email: input.profile.email,
+                  phone: input.profile.phone,
+                },
+              },
             },
             select: { id: true, name: true, storeSlug: true },
           });
@@ -88,7 +110,16 @@ export class PrismaMerchantStoreRepository implements MerchantStoreRepository {
             create: { merchantId: store.id, userId: input.actorUserId, role: "OWNER" },
             update: { role: "OWNER" },
           });
-          return { status: "created", store: { id: store.id, name: store.name, slug: store.storeSlug ?? undefined, role: "owner" } };
+          return {
+            status: "created",
+            store: {
+              id: store.id,
+              name: store.name,
+              slug: store.storeSlug ?? undefined,
+              role: "owner",
+              storeCategory: input.profile.storeCategory,
+            },
+          };
         }, { isolationLevel: Prisma.TransactionIsolationLevel.Serializable });
       } catch (error) {
         // Another Scale account can claim the public slug between the lookup

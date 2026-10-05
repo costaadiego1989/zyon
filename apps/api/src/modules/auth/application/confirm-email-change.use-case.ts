@@ -19,6 +19,7 @@ import { Prisma } from "@prisma/client";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../notifications/domain/ports/email-sender.port.js";
 
 export interface ConfirmEmailChangeInput {
+  userId: string;
   merchantId: string;
   newEmail: string;
   code: string;
@@ -36,7 +37,7 @@ export class ConfirmEmailChangeUseCase {
   ) {}
 
   async execute(input: ConfirmEmailChangeInput): Promise<{ email: string }> {
-    const profile = await this.repo.getOwnerProfile(input.merchantId);
+    const profile = await this.repo.getOwnerProfile(input.userId, input.merchantId);
     if (!profile) throw new NotFoundException("owner_profile_not_found");
 
     const record = await this.otpStore.findActive(profile.userId);

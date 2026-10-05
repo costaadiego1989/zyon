@@ -26,6 +26,7 @@ import { ConnectTinyUseCase } from "../../application/use-cases/connect-tiny.use
 import { DisconnectErpUseCase } from "../../application/use-cases/disconnect-erp.use-case.js";
 import { TriggerErpSyncUseCase } from "../../application/use-cases/trigger-erp-sync.use-case.js";
 import { GetProductDetailBySkuUseCase } from "../../application/use-cases/get-product-detail-by-sku.use-case.js";
+import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
 
 @ApiTags("Dashboard / Inventory")
 @Controller("dashboard/inventory")
@@ -230,6 +231,7 @@ export class InventoryDashboardController {
   }
 
   @Post("erp-connections/:provider/connect")
+  @RateLimit(10)
   @ApiOperation({ summary: "Connect an ERP provider (Omie via API keys; Bling/Tiny use OAuth)" })
   @ApiOkResponse({ description: "ERP connected" })
   async connectErpProvider(
@@ -259,6 +261,7 @@ export class InventoryDashboardController {
   }
 
   @Post("erp-connections/:id/disconnect")
+  @RateLimit(10)
   @ApiOperation({ summary: "Disconnect an ERP connection" })
   @ApiOkResponse({ description: "ERP connection disconnected" })
   async disconnectErpConnection(
@@ -270,6 +273,7 @@ export class InventoryDashboardController {
   }
 
   @Post("erp-connections/:id/sync")
+  @RateLimit(10)
   @ApiOperation({ summary: "Trigger ERP sync" })
   @ApiOkResponse({ description: "Sync triggered" })
   async triggerErpSync(

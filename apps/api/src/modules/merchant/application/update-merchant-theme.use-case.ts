@@ -6,6 +6,7 @@ import {
 } from "../domain/ports/merchant-repository.port.js";
 import { validateMerchantTheme } from "../domain/services/merchant-theme.validators.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
+import { isValidStoreCategory } from "../domain/services/store-category.js";
 
 const VALID_STORE_CATEGORIES = [
   // Varejo físico
@@ -50,7 +51,7 @@ export class UpdateMerchantThemeUseCase {
   }
 
   async executeCategory(merchantId: string, storeCategory: string): Promise<{ storeCategory: string }> {
-    if (!VALID_STORE_CATEGORIES.includes(storeCategory)) {
+    if (!VALID_STORE_CATEGORIES.includes(storeCategory) && !isValidStoreCategory(storeCategory)) {
       throw new Error(`Invalid store category: ${storeCategory}`);
     }
     await this.repo.updateStoreCategory(merchantId, storeCategory);

@@ -85,7 +85,7 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
         .then((response) => response.data);
     },
 
-    createMerchantStore(input: { name: string }): Promise<ManagedMerchantStore> {
+    createMerchantStore(input: { name: string; cnpj: string; email: string; phone: string; storeCategory: string }): Promise<ManagedMerchantStore> {
       return dashboardJson(base, "/merchants/me/stores", { method: "POST", jsonBody: input }, f);
     },
 

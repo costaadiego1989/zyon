@@ -1,9 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SupportTicket, SupportTicketStatus } from "@zyon/shared-types";
-import { DashboardHttpError } from "../../../api-client.js";
 import { showToast } from "../../../components/Toast.js";
 import { reportError } from "../../../hooks/useErrorReporter.js";
-
 type DashboardApi = ReturnType<typeof import("../../../api-client.js").createDashboardApi>;
 
 export function useSupportTickets(api: DashboardApi) {
@@ -16,62 +14,46 @@ export function useSupportTickets(api: DashboardApi) {
   const [loadError, setLoadError] = useState<string | null>(null);
   const [actionError, setActionError] = useState<string | null>(null);
   const updating = useRef(false);
-
-  useEffect(() => {
-    void load();
-  }, [ticketStatusFilter]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function load() {
-    setLoading(true);
-    setLoadError(null);
+  const generation = useRef(0);
+  const openRef = useRef(openTicketId); openRef.current = openTicketId;
+  const reload = useCallback(async () => {
+    const current = ++generation.current;
     try {
-      const t = await api.getSupportTickets(ticketStatusFilter === "all" ? undefined : ticketStatusFilter);
-      setTickets(Array.isArray(t) ? t : []);
+      const rows = await api.getSupportTickets(ticketStatusFilter === "all" ? undefined : ticketStatusFilter);
+      const selected = openRef.current;
+      if (selected && !rows.some(row => row.id === selected)) {
+        const recovered = await api.getSupportTicket(selected); rows.unshift(recovered);
+        if (current === generation.current && recovered.id !== selected) { openRef.current = recovered.id; setOpenTicketId(recovered.id); }
+      }
+      if (current === generation.current) { setTickets(rows); setLoadError(null); }
     } catch (e) {
-      const text = e instanceof DashboardHttpError
-        ? e.responseBody.slice(0, 160)
-        : e instanceof Error ? e.message : String(e);
-      setLoadError("Não foi possível carregar os chamados. Tente novamente.");
+      if (current === generation.current) setLoadError("Não foi possível atualizar os chamados. Tente novamente.");
       reportError({ source: "useSupportTickets.load", error: e });
-    } finally {
-      setLoading(false);
-    }
-  }
-
+    } finally { if (current === generation.current) setLoading(false); }
+  }, [api, ticketStatusFilter]);
+  useEffect(() => {
+    const followLink = () => {
+      const id = new URLSearchParams(window.location.hash.split("?")[1]).get("ticket");
+      if (id) { openRef.current = id; setOpenTicketId(id); }
+      void reload();
+    };
+    followLink();
+    const update = () => { if (!document.hidden) void reload(); };
+    const timer = window.setInterval(update, 5000);
+    window.addEventListener("focus", update); window.addEventListener("hashchange", followLink);
+    return () => { generation.current++; window.clearInterval(timer); window.removeEventListener("focus", update); window.removeEventListener("hashchange", followLink); };
+  }, [reload]);
   const updateTicketStatus = useCallback(async (ticketId: string, status: SupportTicketStatus) => {
     if (updating.current) return;
-    updating.current = true;
-    setTicketBusy(ticketId);
-    setActionError(null);
+    updating.current = true; setTicketBusy(ticketId); setActionError(null);
     try {
       const updated = await api.patchSupportTicketStatus(ticketId, status);
-      setTickets((prev) => prev.map((ticket) => (ticket.id === ticketId ? updated : ticket)));
+      setTickets(previous => previous.map(ticket => ticket.id === ticketId ? updated : ticket));
       showToast("success", "Chamado atualizado");
     } catch (e) {
-      const text = e instanceof DashboardHttpError
-        ? e.responseBody.slice(0, 160)
-        : e instanceof Error ? e.message : String(e);
-      setActionError("Não foi possível atualizar o chamado. A etapa anterior foi mantida.");
+      setActionError("Não foi possível atualizar a etapa. Trocas e devoluções precisam ser resolvidas na conversa antes de encerrar o chamado.");
       reportError({ source: "useSupportTickets.updateStatus", error: e });
-    } finally {
-      updating.current = false;
-      setTicketBusy(null);
-    }
+    } finally { updating.current = false; setTicketBusy(null); }
   }, [api]);
-
-  return {
-    tickets,
-    loading,
-    ticketStatusFilter,
-    setTicketStatusFilter,
-    openTicketId,
-    setOpenTicketId,
-    ticketPage,
-    setTicketPage,
-    updateTicketStatus,
-    ticketBusy,
-    loadError,
-    actionError,
-    reload: load,
-  };
+  return { tickets, loading, ticketStatusFilter, setTicketStatusFilter, openTicketId, setOpenTicketId, ticketPage, setTicketPage, updateTicketStatus, ticketBusy, loadError, actionError, reload };
 }

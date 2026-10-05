@@ -26,7 +26,7 @@ export class LoginBuyerUseCase {
     // C2 fix: reject phone-only accounts (passwordHash === null)
     if (!account || account.passwordHash === null) throw new UnauthorizedException("invalid_credentials");
     const valid = await this.hasher.verify(input.password, account.passwordHash);
-    if (!valid) throw new UnauthorizedException("invalid_credentials");
+    if (!valid.valid) throw new UnauthorizedException("invalid_credentials");
     return toBuyerAuthResponse(account, this.jwt);
   }
 }

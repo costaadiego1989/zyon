@@ -11,6 +11,7 @@ import {
   UpsertWebhookEndpointUseCase,
 } from "../../integrations/application/integrations.use-cases.js";
 import { InMemoryIntegrationsRepository } from "../../integrations/infrastructure/in-memory-integrations.repository.js";
+import { supportPrismaFixture } from "./support-prisma.fixture.js";
 
 test("support ticket list is tenant-scoped and can filter by status", async () => {
   const repository = new InMemorySupportTicketRepository();
@@ -28,7 +29,7 @@ test("support ticket list is tenant-scoped and can filter by status", async () =
       buyerMessage: "Outro tenant"
     }).snapshot()
   );
-  const update = new UpdateSupportTicketStatusUseCase(repository);
+  const update = new UpdateSupportTicketStatusUseCase(repository, supportPrismaFixture(repository).prisma);
   await update.execute("mrc_1", first.id, "in_progress");
 
   const list = new ListSupportTicketsUseCase(repository);
@@ -43,7 +44,7 @@ test("support ticket list is tenant-scoped and can filter by status", async () =
 
 test("support ticket status update rejects invalid status and missing tickets", async () => {
   const repository = new InMemorySupportTicketRepository();
-  const update = new UpdateSupportTicketStatusUseCase(repository);
+  const update = new UpdateSupportTicketStatusUseCase(repository, supportPrismaFixture(repository).prisma);
 
   await assert.rejects(() => update.execute("mrc_1", "sup_missing", "waiting"), /support_ticket_invalid_status/);
   await assert.rejects(() => update.execute("mrc_1", "sup_missing", "resolved"), /support_ticket_not_found/);

@@ -336,35 +336,48 @@ export class PrismaAuthRepository implements AuthRepository {
     });
   }
 
-  async getOwnerProfile(merchantId: string) {
-    const owner = await this.prisma.merchantUser.findFirst({
-      where: { merchantId, role: { in: ["owner", "admin"] } },
-      orderBy: { createdAt: "asc" },
-    });
-    if (!owner) return undefined;
+  async getOwnerProfile(userId: string, merchantId: string) {
+    const [user, membership, activeStore] = await Promise.all([
+      this.prisma.merchantUser.findUnique({ where: { id: userId } }),
+      this.prisma.merchantTeamMember.findUnique({
+        where: { merchantId_userId: { merchantId, userId } },
+        select: { role: true },
+      }),
+      this.prisma.merchant.findUnique({
+        where: { id: merchantId },
+        select: { billingAccountMerchantId: true },
+      }),
+    ]);
+    if (!user || user.disabledAt || !membership || !["OWNER", "ADMIN"].includes(membership.role)) return undefined;
 
-    const merchant = await this.prisma.merchant.findUnique({
-      where: { id: merchantId },
-      select: { storeSettings: true },
-    });
-    const settings = (merchant?.storeSettings as Record<string, unknown>) ?? {};
+    // Name and phone predate the account model and live in store settings.
+    // Resolve them at the Scale account root so switching stores never makes
+    // the authenticated account disappear or overwrite child-store settings.
+    const accountMerchantId = activeStore?.billingAccountMerchantId ?? merchantId;
+    const accountStore = accountMerchantId === merchantId
+      ? await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } })
+      : await this.prisma.merchant.findUnique({ where: { id: accountMerchantId }, select: { storeSettings: true } });
+    const settings = (accountStore?.storeSettings as Record<string, unknown>) ?? {};
 
     return {
-      userId: owner.id,
+      userId: user.id,
       merchantId,
-      email: owner.email,
+      email: user.email,
       ownerName: (settings["owner_name"] as string) ?? "",
       ownerPhone: (settings["owner_phone"] as string) ?? "",
-      role: owner.role as "owner" | "admin",
+      role: membership.role.toLowerCase() as "owner" | "admin",
     };
   }
 
   async updateOwnerProfile(
-    _userId: string,
+    userId: string,
     merchantId: string,
     profile: { ownerName: string; ownerPhone: string },
   ): Promise<void> {
-    await this.setStoreSettings(merchantId, {
+    const accountProfile = await this.getOwnerProfile(userId, merchantId);
+    if (!accountProfile) return;
+    const accountMerchantId = await this.billingAccountMerchantId(merchantId);
+    await this.setStoreSettings(accountMerchantId, {
       owner_name: profile.ownerName,
       owner_phone: profile.ownerPhone,
     });

@@ -1,4 +1,5 @@
 "use client";
+import { useSupportInbox } from "@/lib/hooks/useSupportInbox";
 
 import { BuyerBiometricAccess } from "../BuyerBiometricAccess";
 import BuyerRegistrationForm from "../BuyerRegistrationForm";
@@ -440,6 +441,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
 export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: BuyerHubPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const vm = useBuyerHub();
+  const supportInbox = useSupportInbox(undefined, isOpen);
   const [authVersion, setAuthVersion] = useState(0);
   const [registrationOtp, setRegistrationOtp] = useState<{ email: string; otp: string } | null>(null);
 
@@ -716,6 +718,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
               )}
               {vm.activeTab === "orders" && (
                 <OrdersTab
+                  merchantId={merchantId}
                   purchases={vm.purchases.data ?? []}
                   hasMore={vm.purchasesHasMore}
                   loadingMore={vm.purchases.loading}
@@ -729,6 +732,9 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, onToggleTheme }: Bu
               )}
               {vm.activeTab === "conversations" && (
                 <ConversationsTab
+                  supportCases={supportInbox.items}
+                  supportLoading={supportInbox.loading}
+                  supportError={supportInbox.error}
                   conversations={vm.conversations.data ?? []}
                   loading={vm.conversations.loading}
                   onRate={vm.rateMessage}

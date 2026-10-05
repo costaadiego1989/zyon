@@ -5,10 +5,13 @@ import { MERCHANT_EMAIL_FOOTER_SLOT, MERCHANT_EMAIL_HEADER_SLOT } from "../../..
 
 const originalFetch = globalThis.fetch;
 const originalKey = process.env.RESEND_API_KEY;
+const originalRecipients = process.env.NOTIFICATION_EMAIL_ALLOWED_RECIPIENTS;
 afterEach(() => {
   globalThis.fetch = originalFetch;
   if (originalKey === undefined) delete process.env.RESEND_API_KEY;
   else process.env.RESEND_API_KEY = originalKey;
+  if (originalRecipients === undefined) delete process.env.NOTIFICATION_EMAIL_ALLOWED_RECIPIENTS;
+  else process.env.NOTIFICATION_EMAIL_ALLOWED_RECIPIENTS = originalRecipients;
 });
 const input = { to: "owner@example.test", subject: "Estado do template", html: "<p>Aprovado</p>", requireDelivery: true };
 
@@ -85,4 +88,22 @@ test("strict email propagates timeout without retrying provider", async () => {
   globalThis.fetch = async () => { calls++; throw new DOMException("timeout", "TimeoutError"); };
   await assert.rejects(new ResendEmailAdapter().send(input), /timeout/);
   assert.equal(calls, 1);
+});
+
+
+test("configured test recipient scope blocks other contacts before reaching the provider", async () => {
+  process.env.RESEND_API_KEY = "fake-test-key";
+  process.env.NOTIFICATION_EMAIL_ALLOWED_RECIPIENTS = " permitted@example.test ";
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return new Response(JSON.stringify({ id: "approved-test-contact" }), { status: 200 }); };
+  assert.deepEqual(await new ResendEmailAdapter().send(input), { status: "skipped", messageId: "" });
+  assert.equal(calls, 0);
+  assert.deepEqual(await new ResendEmailAdapter().send({ ...input, to: "PERMITTED@example.test" }), { status: "sent", messageId: "approved-test-contact" });
+  assert.equal(calls, 1);
+});
+test("an explicitly empty test recipient list prevents external delivery", async () => {
+  process.env.RESEND_API_KEY = "fake-test-key";
+  process.env.NOTIFICATION_EMAIL_ALLOWED_RECIPIENTS = " ";
+  globalThis.fetch = async () => { throw new Error("unexpected provider call"); };
+  assert.deepEqual(await new ResendEmailAdapter().send(input), { status: "skipped", messageId: "" });
 });

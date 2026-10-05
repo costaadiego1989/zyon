@@ -24,56 +24,17 @@ export function useReturnExchangesPage(merchantId: string) {
 
   useEffect(() => { void load(); }, [load]);
 
-  const generateLabel = useCallback(async (returnId: string) => {
+  const openConversation = useCallback(async (returnId: string) => {
+    if (acting) return;
     setActing(returnId);
     try {
-      await api.generateReturnLabel(merchantId, returnId);
-      setReturns((prev) => prev.map((r) => r.id === returnId ? { ...r, status: "LABEL_GENERATED" as ReturnStatus } : r));
-      showToast("success", "Etiqueta de devolução gerada");
+      const result = await api.getReturnSupportCase(returnId);
+      window.location.hash = `support?ticket=${encodeURIComponent(result.ticketId)}`;
     } catch (e) {
-      reportError({ source: "returns.generateLabel", error: e });
-      showToast("error", "Erro ao gerar etiqueta");
+      reportError({ source: "returns.openConversation", error: e });
+      showToast("error", "Não foi possível abrir a conversa. Tente novamente.");
     } finally { setActing(null); }
-  }, [api, merchantId]);
-
-  const markReceived = useCallback(async (returnId: string) => {
-    setActing(returnId);
-    try {
-      await api.markReturnReceived(merchantId, returnId);
-      setReturns((prev) => prev.map((r) => r.id === returnId ? { ...r, status: "RECEIVED" as ReturnStatus } : r));
-      showToast("success", "Produto marcado como recebido");
-    } catch (e) {
-      reportError({ source: "returns.markReceived", error: e });
-      showToast("error", "Erro ao marcar recebido");
-    } finally { setActing(null); }
-  }, [api, merchantId]);
-
-  const processRefund = useCallback(async (returnId: string) => {
-    setActing(returnId);
-    try {
-      const result = await api.processRefund(merchantId, returnId);
-      setReturns((prev) => prev.map((r) => r.id === returnId ? { ...r, status: result.status, refund: result.refund } : r));
-      showToast("success", "Reembolso em processamento");
-    } catch (e) {
-      reportError({ source: "returns.processRefund", error: e });
-      showToast("error", "Erro ao processar reembolso");
-    } finally { setActing(null); }
-  }, [api, merchantId]);
-
-  // Accept a return: refund the buyer and, for cross-store items, cancel the
-  // seller repasse (marketplace settlement → return_cancelled). Mixed orders
-  // only cancel the returned cross-store items, handled server-side by variant.
-  const acceptReturn = useCallback(async (returnId: string) => {
-    setActing(returnId);
-    try {
-      await api.acceptReturn(merchantId, returnId);
-      setReturns((prev) => prev.map((r) => r.id === returnId ? { ...r, status: "REFUND_PROCESSING" as ReturnStatus } : r));
-      showToast("success", "Devolução aceita — reembolso em processamento");
-    } catch (e) {
-      reportError({ source: "returns.acceptReturn", error: e });
-      showToast("error", "Erro ao aceitar devolução");
-    } finally { setActing(null); }
-  }, [api, merchantId]);
+  }, [api, acting]);
 
   const stats = {
     total: returns.length,
@@ -82,5 +43,5 @@ export function useReturnExchangesPage(merchantId: string) {
     refunded: returns.filter((r) => r.status === "REFUND_COMPLETED").length,
   };
 
-  return { returns, loading, acting, stats, generateLabel, markReceived, processRefund, acceptReturn, refresh: load };
+  return { returns, loading, acting, stats, openConversation, refresh: load };
 }

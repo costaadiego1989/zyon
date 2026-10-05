@@ -105,13 +105,14 @@ export class RefundPaymentService {
     let itemsCents = 0;
     let priced = 0;
     for (const it of returnedItems) {
+      if (!Number.isSafeInteger(it.quantity) || it.quantity < 1) return null;
       const unit = priceByVariant.get(it.variantId);
       if (unit != null) {
         itemsCents += unit * it.quantity;
         priced += 1;
       }
     }
-    if (priced === 0) return null;
+    if (priced !== returnedItems.length) return null;
 
     // Proportional shipping: returnedQty / totalOrderedQty × shipping. Full
     // shipping when every ordered unit is being returned.
@@ -186,7 +187,7 @@ export class RefundPaymentService {
     // service fee present in the captured amount.
     const captured = snap.approvedAmountCents ?? snap.amountCents;
     let requested: number;
-    if (input.amountCents && input.amountCents > 0) {
+    if (input.amountCents !== undefined) {
       requested = input.amountCents;
     } else if (input.returnedItems && input.returnedItems.length > 0) {
       if (this.isFullOrderReturn(order, input.returnedItems)) {
@@ -198,13 +199,15 @@ export class RefundPaymentService {
           input.merchantId,
           input.returnedItems,
         );
-        requested = partial ?? captured; // fall back to full when items can't be priced
+        if (partial === null) return { refunded: false, amountCents: 0, paymentIntentId: snap.id, reason: "refund_item_price_unavailable" };
+        requested = partial;
       }
     } else {
       requested = captured;
     }
     // Never refund more than what was captured.
-    const amountCents = Math.min(requested, captured);
+    if (!Number.isSafeInteger(requested) || requested <= 0 || requested > captured) return { refunded: false, amountCents: 0, paymentIntentId: snap.id, reason: "invalid_refund_amount" };
+    const amountCents = requested;
     if (amountCents <= 0) {
       return { refunded: false, amountCents: 0, reason: "refund_amount_invalid" };
     }

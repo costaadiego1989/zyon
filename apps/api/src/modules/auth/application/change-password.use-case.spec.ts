@@ -27,7 +27,7 @@ async function seedMerchant(repo: InMemoryAuthRepository) {
 test("ChangePasswordUseCase: rejects when missing current password", async () => {
   const { sut } = makeSut();
   await assert.rejects(
-    () => sut.execute({ merchantId: "merch_1", currentPassword: "", newPassword: "newPass123" }),
+    () => sut.execute({ userId: "missing_user", merchantId: "merch_1", currentPassword: "", newPassword: "newPass123" }),
     BadRequestException,
   );
 });
@@ -35,7 +35,7 @@ test("ChangePasswordUseCase: rejects when missing current password", async () =>
 test("ChangePasswordUseCase: rejects weak new password (<8 chars)", async () => {
   const { sut } = makeSut();
   await assert.rejects(
-    () => sut.execute({ merchantId: "merch_1", currentPassword: "currentPass1", newPassword: "short" }),
+    () => sut.execute({ userId: "missing_user", merchantId: "merch_1", currentPassword: "currentPass1", newPassword: "short" }),
     WeakPasswordError,
   );
 });
@@ -43,16 +43,16 @@ test("ChangePasswordUseCase: rejects weak new password (<8 chars)", async () => 
 test("ChangePasswordUseCase: throws NotFound when profile missing", async () => {
   const { sut } = makeSut();
   await assert.rejects(
-    () => sut.execute({ merchantId: "ghost", currentPassword: "x", newPassword: "newPass123" }),
+    () => sut.execute({ userId: "missing_user", merchantId: "ghost", currentPassword: "x", newPassword: "newPass123" }),
     NotFoundException,
   );
 });
 
 test("ChangePasswordUseCase: rejects when current password is wrong", async () => {
   const { repo, sut } = makeSut();
-  await seedMerchant(repo);
+  const user = await seedMerchant(repo);
   await assert.rejects(
-    () => sut.execute({ merchantId: "merch_1", currentPassword: "wrongPassword", newPassword: "newPass123" }),
+    () => sut.execute({ userId: user.id, merchantId: "merch_1", currentPassword: "wrongPassword", newPassword: "newPass123" }),
     InvalidCredentialsError,
   );
 });
@@ -62,6 +62,7 @@ test("ChangePasswordUseCase: accepts correct current password and updates hash",
   const user = await seedMerchant(repo);
 
   const result = await sut.execute({
+    userId: user.id,
     merchantId: "merch_1",
     currentPassword: "currentPass1",
     newPassword: "newSecure123",
@@ -84,7 +85,7 @@ test("ChangePasswordUseCase: rejects when user has no password (OAuth-only)", as
   }
 
   await assert.rejects(
-    () => sut.execute({ merchantId: "merch_1", currentPassword: "anything8c", newPassword: "newPass123" }),
+    () => sut.execute({ userId: user!.id, merchantId: "merch_1", currentPassword: "anything8c", newPassword: "newPass123" }),
     InvalidCredentialsError,
   );
 });

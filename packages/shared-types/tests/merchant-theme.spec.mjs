@@ -9,6 +9,7 @@ const legacyAthom = {
   borderRadius: 8, density: "comfortable",
 };
 const luminance = (hex) => {
+  if (hex.length === 4) hex = `#${[...hex.slice(1)].map(part => part + part).join("")}`;
   const channels = hex.slice(1).match(/../g).map((part) => parseInt(part, 16) / 255)
     .map((value) => value <= 0.04045 ? value / 12.92 : ((value + 0.055) / 1.055) ** 2.4);
   return channels[0] * 0.2126 + channels[1] * 0.7152 + channels[2] * 0.0722;
@@ -53,4 +54,12 @@ test("readable merchant customization is preserved in its configured mode", () =
 
 test("low-contrast custom text and muted labels fall back to readable ink", () => {
   assertReadable(merchantThemeTokens({ mode: "light", textColor: "#eeeeee", mutedTextColor: "#cccccc" }), "light");
+});
+
+test("primary actions keep readable text across merchant accent colors", () => {
+  for (const accentColor of ["#268235", "#ffff00", "#fff", "#000", "#777777"]) {
+    const tokens = merchantThemeTokens({ accentColor });
+    const bg = luminance(accentColor), fg = luminance(tokens["--aacp-on-accent"]);
+    assert.ok((Math.max(bg, fg) + 0.05) / (Math.min(bg, fg) + 0.05) >= 4.5);
+  }
 });

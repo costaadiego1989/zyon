@@ -163,14 +163,9 @@ export class InMemoryAuthRepository implements AuthRepository {
     }
   }
 
-  async getOwnerProfile(merchantId: string): Promise<OwnerProfile | undefined> {
-    let owner: AuthUser | undefined;
-    for (const u of this.users.values()) {
-      if (u.merchantId === merchantId && (u.role === "owner" || u.role === "admin")) {
-        if (!owner || owner.id > u.id) owner = u; // oldest
-      }
-    }
-    if (!owner) return undefined;
+  async getOwnerProfile(userId: string, merchantId: string): Promise<OwnerProfile | undefined> {
+    const owner = [...this.users.values()].find((user) => user.id === userId);
+    if (!owner || owner.merchantId !== merchantId || (owner.role !== "owner" && owner.role !== "admin")) return undefined;
 
     const profile = this.ownerProfiles.get(merchantId) ?? { ownerName: "", ownerPhone: "" };
     return {

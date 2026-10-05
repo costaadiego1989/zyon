@@ -4,6 +4,18 @@ export const API_BASE =
   process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
 const API_ERROR_MESSAGES: Record<string, string> = {
+  select_order: "Escolha o pedido para continuar.",
+  select_order_items: "Escolha ao menos um item do pedido.",
+  invalid_return_quantity: "Confira a quantidade escolhida para cada item.",
+  item_not_in_order: "Um item não pertence a este pedido. Atualize a seleção.",
+  buyer_order_not_found: "Não encontramos esse pedido na sua conta.",
+  photo_too_large: "Cada foto pode ter até 2 MB.",
+  photos_total_too_large: "As fotos juntas podem ter até 3,3 MB. Envie as outras na conversa após abrir a solicitação.",
+  invalid_photo_type: "Envie fotos JPG, PNG ou WebP.",
+  invalid_photo_content: "Não foi possível ler essa foto. Escolha outro arquivo.",
+  photo_upload_unavailable: "O envio de fotos está indisponível. Seus dados foram preservados; tente novamente.",
+  ticket_resolved: "Este atendimento já foi concluído. O histórico continua disponível.",
+  order_items_unavailable: "A loja precisa conferir os itens deste pedido antes da devolução. Entre em contato pelo suporte.",
   email_already_in_use: "Este e-mail já está em uso por outra conta.",
   email_already_registered: "Este e-mail já está cadastrado.",
   cpf_invalid: "CPF inválido. Verifique os dígitos.",

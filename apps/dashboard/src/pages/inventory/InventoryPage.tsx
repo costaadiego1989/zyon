@@ -15,6 +15,8 @@ import { SectionHeader } from "../../components/SectionHeader.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useInventoryPage } from "./useInventoryPage.js";
+import { DashboardHttpError } from "../../api/http/error.js";
+import { SaveFeedbackBanner } from "../../components/save-feedback-banner.js";
 
 export interface InventoryPageProps {
   apiBaseUrl: string;
@@ -80,7 +82,7 @@ const PAGE_SIZE = 10;
 
 export function InventoryPage(props: InventoryPageProps) {
   const vm = useInventoryPage({ me: props.me });
-  const [tab, setTab] = useState<InventoryTab>(props.notificationTarget ? "alerts" : "overview");
+  const { tab, setTab } = vm;
   React.useEffect(() => { if (props.notificationTarget) setTab("alerts"); }, [props.notificationTarget]);
   const [itemPage, setItemPage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
@@ -419,6 +421,11 @@ export function InventoryPage(props: InventoryPageProps) {
       {/* Tab: Conectores ERP */}
       {tab === "erp" && (
         <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
+          <SaveFeedbackBanner
+            result={vm.erpAuthorizationError ? "error" : null}
+            errorMessage={vm.erpAuthorizationError ?? undefined}
+            onDismiss={vm.dismissErpAuthorizationError}
+          />
           
 <SetupGuide title="Como conectar e conferir seu estoque" defaultOpen={vm.erpConnections.length === 0} steps={[
             { title: "Escolha seu sistema de gestão", description: "Use a conta da empresa que contém os produtos e os depósitos da loja." },
@@ -688,7 +695,7 @@ interface ErpProviderCardProps {
   name: string;
   description: string;
   connection?: ErpConnectionDTO;
-  onConnect: (credentials?: Record<string, string>) => void | Promise<boolean | void>;
+  onConnect: (credentials?: Record<string, string>) => void | Promise<boolean | DashboardHttpError | void>;
   onDisconnect: (id: string) => void;
   onSync: (id: string) => void;
 }
@@ -718,6 +725,18 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
     setOmieLoading(true);
     try {
       const connected = await onConnect(provider === "omie" ? { appKey: omieAppKey, appSecret: omieAppSecret } : { apiToken: tinyApiToken });
+      if (connected instanceof DashboardHttpError && connected.status === 429) {
+        const wait = connected.retryAfterSeconds;
+        const retry = wait
+          ? ` Aguarde ${wait >= 60 ? `${Math.ceil(wait / 60)} minuto(s)` : `${wait} segundos`} antes de tentar novamente.`
+          : " Aguarde alguns instantes antes de tentar novamente.";
+        setCredentialError(`Muitas tentativas em sequência.${retry}`);
+        return;
+      }
+      if (connected instanceof DashboardHttpError) {
+        setCredentialError("Não foi possível conectar. Confira as credenciais e tente novamente.");
+        return;
+      }
       if (connected === false) { setCredentialError("Não foi possível conectar. Confira as credenciais e tente novamente."); return; }
       setShowCredentialModal(false);
       setOmieAppKey("");

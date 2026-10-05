@@ -265,8 +265,9 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     let active = true;
     void (async () => {
       try {
-        const [theme] = await Promise.all([
+        const [theme, profile] = await Promise.all([
           api.getMerchantTheme(),
+          api.merchantProfile(),
           api.getMerchantRules(),
           api.getCheckoutSettings(),
         ]);
@@ -280,7 +281,7 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
           headerTitle: theme.headerTitle ?? "",
           agentName: theme.agentName ?? "",
           originZip: "",
-          storeCategory: "",
+          storeCategory: profile.storeCategory ?? "",
         });
       } catch (err) {
         reportError({ source: "onboarding.bootstrapDrafts", error: err, severity: "warning" });

@@ -37,7 +37,7 @@ test("submits product feedback through the authenticated merchant endpoint", asy
   }]);
 });
 
-test("creates a managed store with the name only so the API owns its URL", async () => {
+test("creates a managed store with its required commercial profile while the API owns its URL", async () => {
   const requests: Array<{ url: string; method?: string; body?: string | null }> = [];
   const api = merchantEndpoints(
     "https://api.example.test/",
@@ -51,10 +51,16 @@ test("creates a managed store with the name only so the API owns its URL", async
     }) as typeof fetch,
   );
 
-  await expect(api.createMerchantStore({ name: "Cenebelo" })).resolves.toMatchObject({ slug: "cenebelo" });
+  await expect(api.createMerchantStore({
+    name: "Cenebelo",
+    cnpj: "11.444.777/0001-61",
+    email: "contato@cenebelo.example",
+    phone: "(11) 99999-9999",
+    storeCategory: "electronics",
+  })).resolves.toMatchObject({ slug: "cenebelo" });
   expect(requests).toEqual([{
     url: "https://api.example.test/v1/merchants/me/stores",
     method: "POST",
-    body: '{"name":"Cenebelo"}',
+    body: '{"name":"Cenebelo","cnpj":"11.444.777/0001-61","email":"contato@cenebelo.example","phone":"(11) 99999-9999","storeCategory":"electronics"}',
   }]);
 });

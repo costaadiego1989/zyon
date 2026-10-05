@@ -18,7 +18,7 @@ export interface BuyerPreferencesDto {
 const DEFAULTS: BuyerPreferencesDto = {
   email_opt_in: true,
   sms_opt_in: true,
-  whatsapp_opt_in: true,
+  whatsapp_opt_in: false,
   push_notifications_enabled: false,
   m2m_negotiation_enabled: false,
   language: "pt-BR",

@@ -57,11 +57,15 @@ export class MerchantController {
   @Idempotent()
   async createStore(
     @Req() request: { user?: AuthenticatedPrincipal },
-    @Body() body: { name?: string },
+    @Body() body: { name?: string; cnpj?: string; email?: string; phone?: string; storeCategory?: string },
   ) {
     return this.stores.create({
       actor: authenticatedMerchantActor(request),
       name: body.name ?? "",
+      cnpj: body.cnpj ?? "",
+      email: body.email ?? "",
+      phone: body.phone ?? "",
+      storeCategory: body.storeCategory ?? "",
     });
   }
 

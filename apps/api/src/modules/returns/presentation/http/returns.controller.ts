@@ -14,11 +14,13 @@ import { CancelReturnUseCase } from "../../application/use-cases/cancel-return.u
 import { AcceptMarketplaceReturnUseCase } from "../../application/use-cases/accept-marketplace-return.use-case.js";
 import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { ReturnStatus, ItemCondition } from "../../domain/entities/return.entity.js";
+import { ReturnCaseService } from "../../application/return-case.service.js";
 
 @UseGuards(AuthGuard, MerchantOwnershipGuard, RequirePlanGuard)
 @Controller("merchants")
 export class ReturnsController {
   constructor(
+    private readonly cases: ReturnCaseService,
     private readonly requestReturn: RequestReturnUseCase,
     private readonly generateLabel: GenerateReturnLabelUseCase,
     private readonly markReceived: MarkReturnReceivedUseCase,
@@ -43,7 +45,7 @@ export class ReturnsController {
       items: Array<{ variantId: string; quantity: number; reason?: string }>;
     },
   ) {
-    return this.requestReturn.execute({
+    return this.cases.open({
       merchantId,
       orderId: body.orderId,
       buyerId: body.buyerId,
@@ -85,14 +87,15 @@ export class ReturnsController {
 
   @Post(":mid/returns/:rid/receive")
   @RequirePlan("STORE_ONLY", "BOTH")
-  async receive(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
-    return this.markReceived.execute(merchantId, returnId);
+  async receive(@Req() req: any, @Param("mid") merchantId: string, @Param("rid") returnId: string, @Body() body: { notes?: string }) {
+    const result = await this.cases.forReturn(merchantId, returnId);
+    return this.cases.action(merchantId, result.ticketId, currentUser(req).userId, { action: "received", notes: body?.notes });
   }
 
   @Post(":mid/returns/:rid/accept")
   @RequirePlan("STORE_ONLY", "BOTH")
   async accept(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
-    return this.acceptMarketplaceReturn.execute({ merchantId, returnId });
+    return this.cases.forReturn(merchantId, returnId);
   }
 
   @Post(":mid/returns/:rid/inspect")
@@ -103,16 +106,20 @@ export class ReturnsController {
     @Param("rid") returnId: string,
     @Body() body: { itemCondition: ItemCondition; verdict: string; notes?: string },
   ) {
-    return this.inspectReturn.execute(merchantId, returnId, {
-      ...body,
-      inspectedBy: currentUser(request).userId,
+    const result = await this.cases.forReturn(merchantId, returnId);
+    if (!["PASS", "FAIL"].includes(body.verdict)) throw new BadRequestException("invalid_inspection_verdict");
+    return this.cases.action(merchantId, result.ticketId, currentUser(request).userId, {
+      action: body.verdict === "PASS" ? "inspection_pass" : "reject", notes: body.notes, itemCondition: body.itemCondition,
     });
   }
 
   @Post(":mid/returns/:rid/refund")
   @RequirePlan("STORE_ONLY", "BOTH")
-  async refund(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
-    return this.processRefund.execute(merchantId, returnId);
+  async refund(@Req() req: any, @Param("mid") merchantId: string, @Param("rid") returnId: string, @Body() body: { expectedAmountCents?: number }) {
+    if (!["owner", "admin"].includes(currentUser(req).role)) throw new BadRequestException("refund_operator_not_allowed");
+    if (!Number.isSafeInteger(body?.expectedAmountCents)) throw new BadRequestException("refund_preview_confirmation_required");
+    const result = await this.cases.forReturn(merchantId, returnId);
+    return this.cases.approveRefund(merchantId, result.ticketId, body.expectedAmountCents!);
   }
 
   @Post(":mid/returns/:rid/restock")
@@ -123,7 +130,8 @@ export class ReturnsController {
 
   @Put(":mid/returns/:rid/cancel")
   @RequirePlan("STORE_ONLY", "BOTH")
-  async cancel(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
-    return this.cancelReturn.execute(merchantId, returnId);
+  async cancel(@Req() req: any, @Param("mid") merchantId: string, @Param("rid") returnId: string, @Body() body: { notes?: string }) {
+    const result = await this.cases.forReturn(merchantId, returnId);
+    return this.cases.action(merchantId, result.ticketId, currentUser(req).userId, { action: "cancel", notes: body?.notes });
   }
 }

@@ -13,6 +13,7 @@ import { assertValidEmail, normalizeEmail } from "../domain/validators.js";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../notifications/domain/ports/email-sender.port.js";
 
 export interface RequestEmailChangeInput {
+  userId: string;
   merchantId: string;
   newEmail: string;
 }
@@ -35,7 +36,7 @@ export class RequestEmailChangeUseCase {
     const newEmail = normalizeEmail(input.newEmail ?? "");
     assertValidEmail(newEmail);
 
-    const profile = await this.repo.getOwnerProfile(input.merchantId);
+    const profile = await this.repo.getOwnerProfile(input.userId, input.merchantId);
     if (!profile) throw new NotFoundException("owner_profile_not_found");
 
     if (normalizeEmail(profile.email) === newEmail) {

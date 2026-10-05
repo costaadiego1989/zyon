@@ -88,6 +88,9 @@ export function resolveQuotaOptions(env: NodeJS.ProcessEnv = process.env): Quota
   return {
     redisUrl: env.REDIS_URL?.trim() || undefined, production: env.NODE_ENV === "production",
     ipMax: positive("RATE_LIMIT_MAX", 600), windowMs: positive("RATE_LIMIT_WINDOW_MS", 60_000),
-    tenantMax: positive("RATE_LIMIT_TENANT_MAX", 60),
+    // A dashboard load fans out authorized reads, particularly immediately
+    // after switching stores. Sensitive mutations use their own @RateLimit
+    // budget so normal navigation cannot exhaust that protection.
+    tenantMax: positive("RATE_LIMIT_TENANT_MAX", 600),
   };
 }

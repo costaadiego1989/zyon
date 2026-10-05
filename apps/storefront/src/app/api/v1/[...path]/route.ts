@@ -6,8 +6,9 @@ const API_KEY = process.env.AACP_SERVICE_API_KEY || "";
 
 const ALLOWED_PREFIXES = ["storefront/", "buyer/", "embed/", "checkout-settings/widget-config"];
 
-function isPathAllowed(pathSegments: string[]): boolean {
+function isPathAllowed(pathSegments: string[], method = "GET"): boolean {
   const path = pathSegments.join("/");
+  if (path.startsWith("support/")) return method === "GET" && /^support\/attachments\/att_[A-Za-z0-9_-]+$/.test(path);
   return ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
@@ -25,7 +26,7 @@ export async function POST(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!isPathAllowed(path, "POST")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "POST");
 }
 
@@ -34,7 +35,7 @@ export async function PATCH(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!isPathAllowed(path, "PATCH")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "PATCH");
 }
 
@@ -43,7 +44,7 @@ export async function PUT(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!isPathAllowed(path, "PUT")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "PUT");
 }
 
@@ -52,7 +53,7 @@ export async function DELETE(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!isPathAllowed(path, "DELETE")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "DELETE");
 }
 
@@ -62,19 +63,20 @@ async function proxyRequest(
   method: string,
 ) {
   const path = pathSegments.join("/");
+  const privatePhoto = path.startsWith("support/attachments/");
   const searchParams = request.nextUrl.searchParams.toString();
   const url = `${API_BASE_URL}/v1/${path}${searchParams ? `?${searchParams}` : ""}`;
 
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
-    Accept: "application/json",
+    Accept: privatePhoto ? "image/jpeg,image/png,image/webp" : "application/json",
   };
 
   // Buyer-facing routes must preserve the buyer JWT. The service credential is
   // only a fallback for public routes that do not carry an end-user session.
   const authorization = request.headers.get("Authorization");
   if (authorization) headers.Authorization = authorization;
-  else if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
+  else if (API_KEY && !privatePhoto) headers.Authorization = `Bearer ${API_KEY}`;
 
   const origin = request.headers.get("Origin");
   if (origin) headers.Origin = origin;
@@ -104,14 +106,15 @@ async function proxyRequest(
       body,
     });
 
-    const responseBody = await response.text();
+    const responseBody = privatePhoto ? await response.arrayBuffer() : await response.text();
 
     return new NextResponse(responseBody, {
       status: response.status,
       headers: {
         "Content-Type": response.headers.get("Content-Type") || "application/json",
-        "Cache-Control": "no-store",
+        "Cache-Control": privatePhoto ? "private, no-store" : "no-store",
         "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
         ...(response.headers.get("X-RateLimit-Limit") && {
           "X-RateLimit-Limit": response.headers.get("X-RateLimit-Limit")!,
         }),

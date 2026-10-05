@@ -29,6 +29,17 @@ function callbackErrorCode(error: unknown): string {
   return /^[a-z0-9_:-]{1,160}$/i.test(message) ? message : "erp_callback_error";
 }
 
+function authorizationErrorCode(providerError: string): string {
+  switch (providerError.toLowerCase()) {
+    case "forbidden":
+    case "unauthorized_error":
+    case "insufficient_scope": return "erp_permission_denied";
+    case "access_denied": return "erp_denied";
+    case "app_inativo": return "erp_app_inactive";
+    default: return "erp_authorization_failed";
+  }
+}
+
 @ApiTags("Inventory - ERP OAuth")
 @Controller("inventory/erp/oauth")
 export class ErpOAuthController {
@@ -128,17 +139,31 @@ export class ErpOAuthController {
     @Query("code") code: string,
     @Query("state") state: string,
     @Res() res: any,
-    @Query("shop_id") shopId?: string
+    @Query("shop_id") shopId?: string,
+    @Query("error") providerError?: string,
   ) {
-    if (!code || !state) {
+    if (!state) {
       res.redirect(302, dashboardRedirect({ error: "erp_denied" }));
       return;
     }
 
     const { provider, merchantId } = this.verifyState(state);
     if (!provider || !merchantId) {
-      this.logger.warn("erp.callback.invalid_state", { state });
+      this.logger.warn("erp.callback.invalid_state");
       res.redirect(302, dashboardRedirect({ error: "erp_csrf" }));
+      return;
+    }
+
+    // Providers can reject authorization before issuing a code. Preserve a
+    // safe, actionable reason, but only after verifying which flow returned.
+    if (typeof providerError === "string" && providerError) {
+      const error = authorizationErrorCode(providerError);
+      this.logger.warn("erp.authorization.rejected", { provider, merchantId, code: error });
+      res.redirect(302, dashboardRedirect({ error, erp_provider: provider }));
+      return;
+    }
+    if (!code) {
+      res.redirect(302, dashboardRedirect({ error: "erp_denied", erp_provider: provider }));
       return;
     }
 

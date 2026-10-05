@@ -1,496 +1,146 @@
 "use client";
-
-import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
-
-
+import { useCallback, useEffect, useRef, useState } from "react";
+import type { Socket } from "socket.io-client";
+import { getValidBuyer } from "@/lib/buyer-auth";
+import { useSupportInbox } from "@/lib/hooks/useSupportInbox";
+import { apiCall, API_BASE } from "@/lib/services/http";
+import { fetchPublicFaq, type FaqItem } from "@/lib/services/support.service";
+import { caseLabel, evidenceUrl, getSupportCase, openGenericCase, readSupportCase, rememberSupportTicket, sendCaseMessage, supportChanged, type SupportCaseDetail } from "@/lib/services/support-case.service";
 import { ReturnRequestForm } from "./ReturnRequestForm";
-import { useSupportPanel } from "@/lib/viewmodels/useSupportPanel";
+import { SupportPhotoPicker } from "./SupportPhotoPicker";
+import styles from "./SupportFlow.module.css";
 
-interface SupportPanelProps {
-  open: boolean;
-  onClose: () => void;
-  merchantId?: string;
-  agentName?: string;
-}
-
-export default function SupportPanel({ open, onClose, merchantId, agentName }: SupportPanelProps) {
-  const agent = agentName || "Assistente";
-  const {
-    messages,
-    input,
-    setInput,
-    isLoading,
-    view,
-    setView,
-    returnDone,
-    setReturnDone,
-    faqItems,
-    threadRef,
-    inputRef,
-    handleSubmit,
-    handleFaqClick,
-    resetToWelcome,
-  } = useSupportPanel({ open, merchantId, agentName });
-
-  const showBack = view !== "welcome" || messages.length > 0;
-
-  return (
-    <>
-      <style>{`
-        @keyframes panelSlideUp { from { transform: translateY(100px); opacity: 0; } to { transform: translateY(0); opacity: 1; } }
-        @keyframes backdropFade { from { opacity: 0; } to { opacity: 1; } }
-        @media (max-width: 480px) {
-          #support-panel { width: calc(100vw - 32px) !important; }
-        }
-      `}</style>
-
-      {/* Backdrop */}
-      {open && (
-        <div
-          onClick={onClose}
-          style={{
-            position: "fixed",
-            inset: 0,
-            zIndex: 9998,
-            background: "rgba(0,0,0,0.3)",
-            animation: "backdropFade 0.3s ease",
-          }}
-        />
-      )}
-
-      {/* Panel Container */}
-      <div data-neu="overlay"
-        id="support-panel"
-        style={{
-          position: "fixed",
-          bottom: open ? "80px" : "-480px",
-          right: "16px",
-          zIndex: 9999,
-          width: "340px",
-          maxWidth: "calc(100vw - 32px)",
-          height: "480px",
-          borderRadius: "16px",
-          background: "var(--aacp-panel-bg, var(--aacp-bg, #edf0ee))",
-          border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
-          boxShadow: "0 8px 32px rgba(0,0,0,0.4)",
-          display: "flex",
-          flexDirection: "column",
-          overflow: "hidden",
-          animation: open ? "panelSlideUp 0.3s cubic-bezier(0.25, 1, 0.5, 1)" : "none",
-          transition: "bottom 0.3s cubic-bezier(0.25, 1, 0.5, 1)",
-        }}
-      >
-        {/* Header */}
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "space-between",
-            padding: "12px 14px",
-            borderBottom: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
-            flex: "none",
-            gap: "12px",
-          }}
-        >
-          <div style={{ display: "flex", alignItems: "center", gap: "8px", flex: 1 }}>
-            <div
-              style={{
-                width: "28px",
-                height: "28px",
-                borderRadius: "8px",
-                background: "var(--aacp-accent, #0f766e)",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flex: "none",
-              }}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" />
-              </svg>
-            </div>
-            <div style={{ minWidth: 0 }}>
-              <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg, #f5f5f7)" }}>
-                Central de Ajuda
-              </div>
-              <div style={{ fontSize: "11px", color: "var(--aacp-muted, #8b8b95)", display: "flex", alignItems: "center", gap: "4px" }}>
-                <span style={{ width: "4px", height: "4px", borderRadius: "50%", background: "var(--aacp-success, #34d399)" }} />
-                {agent} · Suporte
-              </div>
-            </div>
-          </div>
-
-          {/* Back to menu — only when in a chat/return view so the buyer isn't stuck */}
-          {showBack && (
-            <button data-neu="control"
-              type="button"
-              onClick={resetToWelcome}
-              aria-label="Voltar ao menu"
-              style={{
-                background: "none",
-                border: "none",
-                padding: "4px 8px",
-                cursor: "pointer",
-                color: "var(--aacp-muted, #8b8b95)",
-                display: "flex",
-                alignItems: "center",
-                gap: "4px",
-                flex: "none",
-                fontSize: "11px",
-                fontFamily: "inherit",
-                transition: "color 0.15s ease",
-              }}
-              onMouseEnter={(e) => (e.currentTarget.style.color = "var(--aacp-fg)")}
-              onMouseLeave={(e) => (e.currentTarget.style.color = "var(--aacp-muted)")}
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M19 12H5M12 19l-7-7 7-7" />
-              </svg>
-              Voltar
-            </button>
-          )}
-
-          {/* Close button */}
-          <button data-neu="icon"
-            type="button"
-            onClick={onClose}
-            aria-label="Fechar suporte"
-            style={{
-              background: "none",
-              border: "none",
-              padding: "4px",
-              cursor: "pointer",
-              color: "var(--aacp-muted, #8b8b95)",
-              display: "flex",
-              alignItems: "center",
-              justifyContent: "center",
-              flex: "none",
-              transition: "color 0.15s ease",
-            }}
-            onMouseEnter={(e) => e.currentTarget.style.color = "var(--aacp-fg)"}
-            onMouseLeave={(e) => e.currentTarget.style.color = "var(--aacp-muted)"}
-          >
-            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round">
-              <line x1="18" y1="6" x2="6" y2="18" /><line x1="6" y1="6" x2="18" y2="18" />
-            </svg>
-          </button>
-        </div>
-
-        {/* Thread / Body */}
-        <div
-          ref={threadRef}
-          style={{
-            flex: 1,
-            overflowY: "auto",
-            padding: "14px",
-            display: "flex",
-            flexDirection: "column",
-            gap: "10px",
-            minHeight: 0,
-          }}
-        >
-          {view === "return" ? (
-            returnDone ? (
-              <div style={{ display: "flex", flexDirection: "column", gap: 12, alignItems: "center", textAlign: "center", flex: 1, justifyContent: "center" }}>
-                <div style={{ fontSize: 32 }}>✅</div>
-                <div style={{ fontSize: 14, fontWeight: 600, color: "var(--aacp-fg, #f5f5f7)" }}>Solicitação enviada</div>
-                <div style={{ fontSize: 12, color: "var(--aacp-muted, #8b8b95)", lineHeight: 1.5 }}>
-                  Recebemos sua solicitação de troca/devolução. A loja vai analisar e te retornar.
-                </div>
-                <button data-neu="control"
-                  type="button"
-                  onClick={() => { setReturnDone(false); setView("welcome"); }}
-                  style={{ marginTop: 4, padding: "8px 16px", borderRadius: 10, border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", background: "transparent", color: "var(--aacp-fg, #f5f5f7)", font: "500 13px inherit", cursor: "pointer" }}
-                >
-                  Voltar
-                </button>
-              </div>
-            ) : (
-              <ReturnRequestForm
-                merchantId={merchantId ?? ""}
-                onSuccess={() => setReturnDone(true)}
-                onCancel={() => setView("welcome")}
-              />
-            )
-          ) : view === "welcome" && messages.length === 0 ? (
-            <div
-              style={{
-                display: "flex",
-                flexDirection: "column",
-                gap: "12px",
-                alignItems: "center",
-                textAlign: "center",
-                flex: 1,
-                justifyContent: "center",
-              }}
-            >
-              <div style={{ fontSize: "32px" }}>👋</div>
-              <div>
-                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--aacp-fg, #f5f5f7)", marginBottom: "4px" }}>
-                  Oi! Sou o assistente de suporte.
-                </div>
-                <div style={{ fontSize: "12px", color: "var(--aacp-muted, #8b8b95)", lineHeight: 1.5 }}>
-                  Posso ajudar com dúvidas sobre entrega, pagamento, trocas e muito mais. Como posso te ajudar?
-                </div>
-              </div>
-
-              {/* Fixed action: Troca e Devolução */}
-              <button data-neu="primary"
-                type="button"
-                onClick={() => { setReturnDone(false); setView("return"); }}
-                style={{
-                  width: "100%",
-                  background: "var(--aacp-accent, #0f766e)",
-                  border: "none",
-                  borderRadius: "10px",
-                  padding: "12px",
-                  color: "#fff",
-                  fontSize: "13px",
-                  fontWeight: 600,
-                  cursor: "pointer",
-                  display: "flex",
-                  alignItems: "center",
-                  gap: "8px",
-                  fontFamily: "inherit",
-                }}
-              >
-                <span>📦</span>
-                <span style={{ flex: 1, textAlign: "left" }}>Troca e Devolução</span>
-                <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                  <polyline points="9 18 15 12 9 6" />
-                </svg>
-              </button>
-
-              {/* FAQ buttons */}
-              <div style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
-                {faqItems.map((item) => (
-                  <button data-neu="control"
-                    key={item.question}
-                    onClick={() => handleFaqClick(item.question)}
-                    disabled={isLoading}
-                    style={{
-                      background: "var(--aacp-card, rgba(255,255,255,0.05))",
-                      border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
-                      borderRadius: "10px",
-                      padding: "10px 12px",
-                      color: "var(--aacp-fg, #f5f5f7)",
-                      fontSize: "12px",
-                      cursor: isLoading ? "not-allowed" : "pointer",
-                      opacity: isLoading ? 0.5 : 1,
-                      display: "flex",
-                      alignItems: "center",
-                      gap: "8px",
-                      fontFamily: "inherit",
-                      transition: "all 0.15s ease",
-                    }}
-                    onMouseEnter={(e) => {
-                      if (!isLoading) {
-                        e.currentTarget.style.background = "var(--aacp-surface-2, rgba(255,255,255,0.08))";
-                        e.currentTarget.style.borderColor = "var(--aacp-accent, #0f766e)";
-                      }
-                    }}
-                    onMouseLeave={(e) => {
-                      e.currentTarget.style.background = "var(--aacp-card, rgba(255,255,255,0.05))";
-                      e.currentTarget.style.borderColor = "var(--aacp-line, rgba(255,255,255,0.1))";
-                    }}
-                  >
-                    <span>{item.icon || "❓"}</span>
-                    <span style={{ flex: 1, textAlign: "left" }}>{item.question}</span>
-                    <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                      <polyline points="9 18 15 12 9 6" />
-                    </svg>
-                  </button>
-                ))}
-              </div>
-
-              <div style={{ fontSize: "10px", color: "var(--aacp-muted, #8b8b95)", marginTop: "8px", display: "flex", alignItems: "center", gap: "4px" }}>
-                <svg width="10" height="10" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5">
-                  <polyline points="20 6 9 17 4 12" />
-                </svg>
-                Respostas verificadas
-              </div>
-            </div>
-          ) : (
-            <>
-              {messages.map((msg) => (
-                <div
-                  key={msg.id}
-                  style={{
-                    display: "flex",
-                    flexDirection: msg.role === "user" ? "row-reverse" : "row",
-                    alignItems: "flex-end",
-                    gap: "6px",
-                    animation: "bubble-in 0.2s ease both",
-                  }}
-                >
-                  {(msg.role === "agent" || msg.role === "merchant") && (
-                    <div
-                      style={{
-                        width: "22px",
-                        height: "22px",
-                        borderRadius: "50%",
-                        background: msg.role === "merchant" ? "#2563eb" : "var(--aacp-accent, #0f766e)",
-                        display: "flex",
-                        alignItems: "center",
-                        justifyContent: "center",
-                        flex: "none",
-                        fontSize: "10px",
-                      }}
-                    >
-                      {msg.role === "merchant" ? "👤" : "💬"}
-                    </div>
-                  )}
-                  <div style={{ display: "flex", flexDirection: "column", maxWidth: "calc(100% - 32px)" }}>
-                    {msg.role === "merchant" && (
-                      <span style={{ fontSize: "9px", fontWeight: 600, color: "#60a5fa", marginBottom: 2, textTransform: "uppercase", letterSpacing: "0.04em" }}>{msg.agentName || "Atendente"}</span>
-                    )}
-                    <div data-neu="message" data-speaker={msg.role === "user" ? "buyer" : "agent"}
-                      style={{
-                        padding: "8px 12px",
-                        borderRadius: "18px",
-                        background: msg.role === "user"
-                          ? "var(--aacp-accent, #0f766e)"
-                          : msg.role === "merchant"
-                            ? "rgba(37, 99, 235, 0.15)"
-                            : "var(--aacp-card, rgba(255,255,255,0.05))",
-                        color: msg.role === "user" ? "#fff" : "var(--aacp-fg, #f5f5f7)",
-                        fontSize: "12px",
-                        lineHeight: 1.4,
-                        wordWrap: "break-word",
-                        border: msg.role === "user" ? "none" : msg.role === "merchant" ? "1px solid rgba(37,99,235,0.3)" : "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
-                      }}
-                    >
-                      {msg.text}
-                    </div>
-                  </div>
-                </div>
-              ))}
-
-              {isLoading && (
-                <div style={{ display: "flex", gap: "6px", alignItems: "flex-end" }}>
-                  <div
-                    style={{
-                      width: "22px",
-                      height: "22px",
-                      borderRadius: "50%",
-                      background: "var(--aacp-accent, #0f766e)",
-                      display: "flex",
-                      alignItems: "center",
-                      justifyContent: "center",
-                      flex: "none",
-                      fontSize: "10px",
-                    }}
-                  >
-                    💬
-                  </div>
-                  <div data-neu="message"
-                    style={{
-                      padding: "8px 12px",
-                      borderRadius: "18px",
-                      background: "var(--aacp-card, rgba(255,255,255,0.05))",
-                      border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
-                      display: "flex",
-                      gap: "3px",
-                      alignItems: "center",
-                    }}
-                  >
-                    <span
-                      style={{
-                        width: "3px",
-                        height: "3px",
-                        borderRadius: "50%",
-                        background: "var(--aacp-muted, #8b8b95)",
-                        animation: "dot-pulse 1.2s infinite",
-                        animationDelay: "0s",
-                      }}
-                    />
-                    <span
-                      style={{
-                        width: "3px",
-                        height: "3px",
-                        borderRadius: "50%",
-                        background: "var(--aacp-muted, #8b8b95)",
-                        animation: "dot-pulse 1.2s infinite",
-                        animationDelay: "0.2s",
-                      }}
-                    />
-                    <span
-                      style={{
-                        width: "3px",
-                        height: "3px",
-                        borderRadius: "50%",
-                        background: "var(--aacp-muted, #8b8b95)",
-                        animation: "dot-pulse 1.2s infinite",
-                        animationDelay: "0.4s",
-                      }}
-                    />
-                  </div>
-                </div>
-              )}
-            </>
-          )}
-        </div>
-
-        {/* Composer */}
-        <div
-          style={{
-            padding: "10px 14px",
-            borderTop: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
-            flex: "none",
-          }}
-        >
-          <form onSubmit={handleSubmit} style={{ display: "flex", gap: "6px", alignItems: "center" }}>
-            <div className="aacp-composer-field" data-aacp-composer-frame style={{ borderRadius: "8px" }}>
-            <PerimeterBorder radius="8px" variant="input" />
-            <input data-neu="field"
-              ref={inputRef}
-              type="text"
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={isLoading ? "Aguarde..." : "Digite sua mensagem…"}
-              disabled={isLoading}
-              style={{
-                flex: 1,
-                minWidth: 0,
-                background: "var(--aacp-card, rgba(255,255,255,0.05))",
-                border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
-                borderRadius: "8px",
-                padding: "8px 10px",
-                color: "var(--aacp-fg, #f5f5f7)",
-                fontSize: "12px",
-                outline: "none",
-                transition: "border-color 0.15s ease",
-              }}
-              onFocus={(e) => e.currentTarget.style.borderColor = "var(--aacp-accent)"}
-              onBlur={(e) => e.currentTarget.style.borderColor = "var(--aacp-line)"}
-            />
-            </div>
-            <button data-neu="send"
-              type="submit"
-              disabled={!input.trim() || isLoading}
-              style={{
-                width: "32px",
-                height: "32px",
-                borderRadius: "8px",
-                border: "none",
-                background: "var(--aacp-accent, #0f766e)",
-                color: "#fff",
-                cursor: !input.trim() || isLoading ? "not-allowed" : "pointer",
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "center",
-                flex: "none",
-                transition: "opacity 0.15s ease",
-              }}
-              aria-label="Enviar mensagem"
-            >
-              <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M5 12h14M13 6l6 6-6 6" />
-              </svg>
-            </button>
-          </form>
-        </div>
-      </div>
-    </>
-  );
+export interface SupportTarget { ticketId?: string; orderId?: string; view?: "return"; merchantId?: string; }
+export default function SupportPanel({ open, onClose, merchantId, agentName, target }: { open: boolean; onClose: () => void; merchantId?: string; agentName?: string; target?: SupportTarget }) {
+  const [view, setView] = useState<"welcome" | "return" | "chat" | "faq">("welcome");
+  const [ticketId, setTicketId] = useState<string>();
+  const [detail, setDetail] = useState<SupportCaseDetail | null>(null);
+  const [faq, setFaq] = useState<FaqItem[]>([]);
+  const [answer, setAnswer] = useState<FaqItem | null>(null);
+  const [input, setInput] = useState("");
+  const [images, setImages] = useState<string[]>([]);
+  const [loading, setLoading] = useState(false);
+  const [sending, setSending] = useState(false);
+  const [readingImages, setReadingImages] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const request = useRef(0);
+  const messageKey = useRef<string>();
+  const lastRead = useRef<string>();
+  const bottom = useRef<HTMLDivElement>(null);
+  const conversation = useRef<HTMLElement>(null);
+  const nearBottom = useRef(true);
+  const [newMessages, setNewMessages] = useState(false);
+  const panel = useRef<HTMLDivElement>(null);
+  const closeRef = useRef(onClose); closeRef.current = onClose;
+  const scope = target?.merchantId ?? merchantId;
+  const inbox = useSupportInbox(scope, open);
+  const buyer = getValidBuyer();
+  const identity = buyer?.globalUserId;
+  useEffect(() => { if (merchantId) void fetchPublicFaq(merchantId).then(setFaq); }, [merchantId]);
+  useEffect(() => { setTicketId(undefined); setDetail(null); setInput(""); setImages([]); setView("welcome"); messageKey.current = undefined; }, [identity, merchantId]);
+  useEffect(() => {
+    if (!open) return;
+    setError(null);
+    if (target?.ticketId) { setTicketId(target.ticketId); setView("chat"); }
+    else if (target?.view === "return" || target?.orderId) setView("return");
+  }, [open, target, identity]);
+  useEffect(() => {
+    if (!open) return;
+    const previous = document.activeElement as HTMLElement | null;
+    panel.current?.focus();
+    const keydown = (event: KeyboardEvent) => {
+      if (event.key === "Escape") closeRef.current();
+      if (event.key !== "Tab") return;
+      const targets = Array.from(panel.current?.querySelectorAll<HTMLElement>('button:not(:disabled), a[href], input:not(:disabled):not([hidden]), textarea:not(:disabled), [tabindex="0"]') ?? []).filter(element => element.getClientRects().length > 0);
+      const first = targets[0], last = targets[targets.length - 1];
+      if (event.shiftKey && (document.activeElement === first || document.activeElement === panel.current)) { event.preventDefault(); last?.focus(); }
+      else if (!event.shiftKey && document.activeElement === last) { event.preventDefault(); first?.focus(); }
+    };
+    window.addEventListener("keydown", keydown);
+    return () => { window.removeEventListener("keydown", keydown); previous?.focus(); };
+  }, [open]);
+  const refresh = useCallback(async () => {
+    if (!ticketId || !getValidBuyer()) return;
+    const current = ++request.current;
+    try { const data = await getSupportCase(ticketId); if (current === request.current) { setDetail(data); rememberSupportTicket(data.ticketId); if (data.ticketId !== ticketId) setTicketId(data.ticketId); } }
+    catch (e) { if (current === request.current) setError(e instanceof Error ? e.message : "Não foi possível carregar a conversa."); }
+    finally { if (current === request.current) setLoading(false); }
+  }, [ticketId]);
+  useEffect(() => {
+    if (!open || view !== "chat" || !ticketId || !identity) return;
+    setDetail(null); setLoading(true); lastRead.current = undefined; nearBottom.current = true; setNewMessages(false);
+    void refresh();
+    const update = () => { if (!document.hidden) void refresh(); };
+    const interval = window.setInterval(update, 5000);
+    window.addEventListener("focus", update);
+    let socket: Socket | undefined, renewal: ReturnType<typeof setTimeout> | undefined, cancelled = false;
+    async function connect() {
+      try {
+        const access = await apiCall<{ token: string; expiresAt: number }>(`/buyer/support/tickets/${encodeURIComponent(ticketId!)}/realtime`, { method: "POST" });
+        const { io } = await import("socket.io-client");
+        if (cancelled) return;
+        socket?.disconnect();
+        const socketOrigin = process.env.NEXT_PUBLIC_API_WEBSOCKET_ORIGIN || (API_BASE.startsWith("/") ? "https://api.zyon-payments.com.br" : new URL(API_BASE).origin);
+        socket = io(`${socketOrigin}/support`, { auth: { ticketToken: access.token }, transports: ["websocket", "polling"] });
+        socket.on("authenticated", () => { socket?.emit("join_ticket", { ticketId }); update(); });
+        socket.on("new_message", update); socket.on("case_updated", update); socket.on("ticket_closed", update);
+        renewal = setTimeout(() => { void connect(); }, Math.max(1000, access.expiresAt * 1000 - Date.now() - 60000));
+      } catch { /* The persisted conversation continues to synchronize over HTTP. */ }
+    }
+    void connect();
+    return () => { cancelled = true; request.current++; socket?.disconnect(); clearTimeout(renewal); window.clearInterval(interval); window.removeEventListener("focus", update); };
+  }, [open, view, ticketId, identity, refresh]);
+  const lastMessage = detail?.messages.at(-1)?.id;
+  useEffect(() => {
+    if (!open || view !== "chat" || !detail || !lastMessage) return;
+    const marker = bottom.current, root = conversation.current;
+    if (!marker || !root) return;
+    if (nearBottom.current) marker.scrollIntoView({ block: "nearest", behavior: "instant" });
+    else setNewMessages(true);
+    const acknowledge = () => {
+      const rect = marker.getBoundingClientRect(), bounds = root.getBoundingClientRect();
+      // Fractional layout coordinates can place the 1 px marker a fraction of
+      // a pixel past the viewport after scrollIntoView reaches the bottom.
+      if (document.hidden || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1 || lastRead.current === lastMessage) return;
+      setNewMessages(false);
+      void readSupportCase(detail.ticketId, lastMessage).then(() => { lastRead.current = lastMessage; supportChanged(); }).catch(() => undefined);
+    };
+    const observer = new IntersectionObserver(entries => { if (entries[0]?.isIntersecting) acknowledge(); }, { root, threshold: 0 });
+    observer.observe(marker); window.addEventListener("focus", acknowledge);
+    return () => { observer.disconnect(); window.removeEventListener("focus", acknowledge); };
+  }, [open, view, lastMessage, detail?.ticketId]);
+  function showCase(id: string) { if (sending) return; setTicketId(id); setView("chat"); setInput(""); setImages([]); messageKey.current = undefined; }
+  function login() { onClose(); window.dispatchEvent(new Event("zyon:open-buyer-hub")); }
+  async function send() {
+    if (sending || readingImages || !scope || (!input.trim() && !images.length) || !buyer) return;
+    const text = input.trim();
+    const id = messageKey.current ?? crypto.randomUUID(); messageKey.current = id;
+    setSending(true); setError(null);
+    try {
+      if (view === "chat" && ticketId) await sendCaseMessage(ticketId, text, images, id);
+      else {
+        const existing = inbox.items.find(item => item.kind === "support" && item.active && item.merchantId === scope);
+        const result = existing ? { ticketId: existing.ticketId } : await openGenericCase(scope, text || "Enviei fotos para a análise da loja.", id);
+        if (existing) await sendCaseMessage(result.ticketId, text, images, id);
+        else if (images.length) await sendCaseMessage(result.ticketId, "Fotos da solicitação", images, `${id}_photos`);
+        setTicketId(result.ticketId); setView("chat");
+      }
+      setInput(""); setImages([]); messageKey.current = undefined; supportChanged(); await refresh();
+    } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível enviar. Tente novamente."); }
+    finally { setSending(false); }
+  }
+  if (!open) return null;
+  return <><div className={styles.backdrop} onClick={onClose} aria-hidden="true" /><div data-neu="overlay" id="support-panel" className={styles.panel} ref={panel} role="dialog" aria-modal="true" aria-labelledby="support-title" tabIndex={-1}>
+    <header className={styles.header}>{view !== "welcome" && <button className={styles.icon} disabled={sending} onClick={() => setView("welcome")} aria-label="Voltar ao menu de suporte">←</button>}<div className={styles.headerTitle}><strong id="support-title">{view === "chat" ? "Conversa com a loja" : "Como podemos ajudar?"}</strong><span className={styles.muted}>{view === "return" ? "Troca e devolução" : `${agentName || "Assistente"} · Central de ajuda`}</span></div><button className={styles.icon} disabled={sending} onClick={onClose} aria-label="Fechar suporte">×</button></header>
+    {view === "chat" && detail && <div className={styles.context}><div className={styles.row}><span className={styles.badge}>{caseLabel(detail)}</span><span>Chamado #{detail.ticketId.slice(-6).toUpperCase()}</span></div>{detail.orderId && <details><summary style={{ paddingTop: 8, cursor: "pointer" }}>Pedido {detail.orderId}</summary><p>{detail.selectedItems.map(item => `${item.quantity} × ${item.name}`).join(" · ")}</p><p className={styles.muted}>{detail.reasonLabel}</p>{detail.order?.trackingCode && <p>Rastreio: {detail.order.trackingCode}</p>}</details>}</div>}
+    <main className={styles.body} ref={conversation} onScroll={event => { const el = event.currentTarget; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }}><div className={styles.stack}>
+      {view === "return" && (buyer && scope ? <ReturnRequestForm merchantId={scope} orderId={target?.orderId} cases={inbox.items} onSuccess={showCase} onCancel={() => setView("welcome")} /> : <><p className={styles.question}>Entre para escolher o pedido e os itens.</p><p className={styles.muted}>Sua conta mantém a solicitação e as respostas da loja disponíveis quando você voltar.</p><button className={`${styles.button} ${styles.primary}`} onClick={login}>Entrar na minha conta</button></>)}
+      {view === "welcome" && <><p className={styles.question}>Vamos resolver juntos.</p><p className={styles.muted}>Escolha um assunto ou escreva para a loja. Seus atendimentos e respostas ficam disponíveis na sua conta.</p>{inbox.loading && buyer && <p role="status" className={styles.muted}>Consultando seus atendimentos…</p>}{inbox.error && <p className={styles.error} role="alert">{inbox.error}</p>}{inbox.items.filter(item => item.active).map(item => <button key={item.ticketId} className={`${styles.choice} ${styles.caseButton}`} onClick={() => showCase(item.ticketId)}><strong>{item.kind === "refund" ? "Devolução em andamento" : item.kind === "exchange" ? "Troca em andamento" : "Atendimento em andamento"}</strong><span className={styles.muted}>{item.orderId ? `Pedido ${item.orderId}` : "Conversa com a loja"}</span><span className={styles.badge}>{item.unreadCount ? `${item.unreadCount} nova(s) mensagem(ns)` : caseLabel(item)}</span></button>)}<button className={`${styles.button} ${styles.primary}`} onClick={() => setView("return")}>Trocar ou devolver itens</button>{faq.filter(item => !/atendente|humano/i.test(item.question)).map(item => <button key={item.question} className={styles.choice} onClick={() => { setAnswer(item); setView("faq"); }}>{item.question}</button>)}{inbox.items.some(item => !item.active) && <><strong>Atendimentos concluídos</strong>{inbox.items.filter(item => !item.active).map(item => <button className={styles.choice} key={item.ticketId} onClick={() => showCase(item.ticketId)}><strong>{item.orderId ? `Pedido ${item.orderId}` : `Chamado #${item.ticketId.slice(-6)}`}</strong><span className={styles.muted}>{caseLabel(item)}</span></button>)}</>}</>}
+      {view === "faq" && answer && <><div className={`${styles.bubble} ${styles.answer}`}>{answer.question}</div><div className={styles.bubble}>{answer.answer}</div><p className={styles.muted}>Ainda precisa de ajuda? Escreva abaixo para conversar com a loja.</p></>}
+      {view === "chat" && <>{loading && <p className={styles.muted} role="status">Carregando a conversa…</p>}{detail?.messages.map(message => message.senderType === "system" ? <div className={styles.system} key={message.id}>{message.content}<time className={styles.time}>{new Date(message.createdAt).toLocaleString("pt-BR")}</time></div> : <div key={message.id} className={`${styles.bubble} ${message.senderType === "buyer" ? styles.answer : ""}`}><span className={styles.label}>{message.senderType === "buyer" ? "Você" : "Atendente da loja"}</span>{message.content}{Array.isArray(message.metadata?.imageUrls) && <div className={styles.photos}>{message.metadata.imageUrls.map((url, index) => <a className={styles.evidence} key={url} href={evidenceUrl(url)} target="_blank" rel="noreferrer"><img src={evidenceUrl(url)} alt={`Foto enviada ${index + 1}`} loading="lazy" /></a>)}</div>}<time className={styles.time}>{new Date(message.createdAt).toLocaleString("pt-BR")}</time></div>)}<div ref={bottom} style={{ minHeight: 1 }} /></>}
+      {error && <div className={styles.error} role="alert">{error}{view === "chat" && <button className={styles.button} onClick={() => void refresh()}>Atualizar conversa</button>}</div>}
+    </div></main>
+    {view === "chat" && newMessages && <button className={styles.button} onClick={() => bottom.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}>Ver novas mensagens</button>}
+    {view !== "return" && <div className={styles.composer}>{view === "chat" && detail && !detail.active ? <p className={styles.muted}>Este atendimento foi concluído. O histórico continua disponível na sua conta.</p> : !buyer ? <button className={styles.button} onClick={login}>Entrar para conversar com a loja</button> : <form className={styles.stack} onSubmit={event => { event.preventDefault(); void send(); }}><label className={styles.label} htmlFor="support-message">{view === "chat" ? "Sua mensagem à loja" : "Fale com a loja"}</label><textarea id="support-message" className={styles.textarea} rows={2} maxLength={4000} value={input} disabled={sending} onChange={event => { setInput(event.target.value); messageKey.current = undefined; }} placeholder="Escreva sua mensagem…" /><SupportPhotoPicker compact onReadingChange={setReadingImages} images={images} onChange={value => { setImages(value); messageKey.current = undefined; }} disabled={sending} /><button className={`${styles.button} ${styles.primary}`} type="submit" disabled={sending || readingImages || !scope || (!input.trim() && !images.length) || (view === "chat" && (!detail || loading))}>{sending ? "Enviando…" : "Enviar mensagem"}</button></form>}</div>}
+  </div></>;
 }

@@ -2,6 +2,8 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { PrismaMerchantStoreRepository } from "./prisma-merchant-store.repository.js";
 
+const storeProfile = { cnpj: "11444777000161", email: "contato@nova-loja.example", phone: "11999999999", storeCategory: "electronics" };
+
 test("creating a managed store persists no payment, WhatsApp, catalog, or integration configuration", async () => {
   const createdMerchants: Array<Record<string, unknown>> = [];
   const memberships: Array<Record<string, unknown>> = [];
@@ -25,10 +27,15 @@ test("creating a managed store persists no payment, WhatsApp, catalog, or integr
   } as never;
   const repository = new PrismaMerchantStoreRepository(prisma);
 
-  const result = await repository.createStore({ accountMerchantId: "account_store", actorUserId: "user_1", name: "Nova loja", slugBase: "nova-loja" });
+  const result = await repository.createStore({ accountMerchantId: "account_store", actorUserId: "user_1", name: "Nova loja", slugBase: "nova-loja", profile: storeProfile });
 
   assert.equal(result.status, "created");
-  assert.deepEqual(Object.keys(createdMerchants[0]!).sort(), ["billingAccountMerchantId", "id", "name", "plan", "storeSettings", "storeSlug"]);
+  assert.deepEqual(Object.keys(createdMerchants[0]!).sort(), ["billingAccountMerchantId", "id", "name", "plan", "storeCategory", "storeSettings", "storeSlug"]);
+  assert.equal(createdMerchants[0]?.storeCategory, "electronics");
+  assert.deepEqual(createdMerchants[0]?.storeSettings, {
+    created_from_multi_store: true,
+    company: { razaoSocial: "Nova loja", cnpj: "11444777000161", email: "contato@nova-loja.example", phone: "11999999999" },
+  });
   for (const forbiddenRelation of ["paymentConnections", "stripeConnectAccountId", "whatsappChannelConfig", "commerceConnection", "billingSubscription", "theme", "catalog", "integrations"]) {
     assert.equal(forbiddenRelation in createdMerchants[0]!, false, `${forbiddenRelation} must not be copied`);
   }
@@ -57,7 +64,7 @@ test("creating a managed store reserves the next URL suffix when the name slug i
   } as never;
   const repository = new PrismaMerchantStoreRepository(prisma);
 
-  const result = await repository.createStore({ accountMerchantId: "account_store", actorUserId: "user_1", name: "Cenebelo", slugBase: "cenebelo" });
+  const result = await repository.createStore({ accountMerchantId: "account_store", actorUserId: "user_1", name: "Cenebelo", slugBase: "cenebelo", profile: storeProfile });
 
   assert.equal(result.status, "created");
   assert.equal(createdMerchants[0]?.storeSlug, "cenebelo-2");

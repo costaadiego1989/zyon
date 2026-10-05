@@ -6,7 +6,7 @@ import { DataPanel } from "../../components/DataPanel.js";
 import { PageLoader } from "../../components/PageLoader.js";
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { useReturnExchangesPage } from "./useReturnExchangesPage.js";
-import type { ReturnStatus } from "../../api/endpoints/returns.js";
+import { Button } from "../../components/Button.js";
 
 export interface ReturnExchangesPageProps {
   apiBaseUrl: string;
@@ -23,6 +23,7 @@ const STATUS_MAP: Record<string, { label: string; bg: string; color: string }> =
   INSPECTED_PASS: { label: "Aprovado", bg: "var(--color-success-bg)", color: "var(--color-success)" },
   INSPECTED_FAIL: { label: "Reprovado", bg: "var(--color-error-bg)", color: "var(--color-error)" },
   REFUND_PROCESSING: { label: "Reembolsando", bg: "var(--color-warning-bg)", color: "var(--color-warning)" },
+  EXCHANGE_COMPLETED: { label: "Troca concluída", bg: "var(--color-success-bg)", color: "var(--color-success)" },
   REFUND_COMPLETED: { label: "Reembolsado", bg: "var(--color-success-bg)", color: "var(--color-success)" },
   REJECTED: { label: "Rejeitado", bg: "var(--color-error-bg)", color: "var(--color-error)" },
   CANCELLED: { label: "Cancelado", bg: "var(--surface-2)", color: "var(--color-text-faint)" },
@@ -63,7 +64,7 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
           <span className="eyebrow">Loja</span>
           <h1>Trocas e Devoluções</h1>
           <p className="page-lead">
-            Gerencie solicitações de devolução e troca. Você é notificado via WhatsApp quando um comprador solicita uma devolução.
+            Acompanhe cada solicitação na conversa com o cliente, com pedido, itens, fotos e decisões no mesmo lugar.
           </p>
         </div>
       </header>
@@ -101,13 +102,13 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
                 <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Motivo</th>
                 <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Status</th>
                 <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
-                <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Ação</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Ação</th>
               </tr>
             </thead>
             <tbody>
               {slice.map((r, i) => {
                 const st = STATUS_MAP[r.status] ?? STATUS_MAP.REQUESTED;
-                const actionButton = getAction(r, vm);
+                const actionButton = <Button variant="outline" size="sm" disabled={vm.acting === r.id} onClick={() => void vm.openConversation(r.id)}>Abrir conversa</Button>;
                 return (
                   <tr key={r.id} style={{ borderBottom: i < slice.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
                     <td style={{ padding: "12px 20px", font: "12px var(--font-mono)", color: "var(--color-text)" }}>{r.orderId.slice(0, 12)}</td>
@@ -119,7 +120,7 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
                     <td style={{ padding: "12px 20px", font: "12px var(--font-mono)", color: "var(--color-text-faint)" }}>
                       {new Date(r.createdAt).toLocaleDateString("pt-BR")}
                     </td>
-                    <td style={{ padding: "12px 20px", textAlign: "right" }}>
+                    <td style={{ padding: "12px 20px", textAlign: "left" }}>
                       {actionButton}
                     </td>
                   </tr>
@@ -131,37 +132,4 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
       </DataPanel>
     </div>
   );
-}
-
-function getAction(ret: { id: string; status: ReturnStatus; refund?: { status: string } }, vm: any) {
-  const status = ret.status;
-  const returnId = ret.id;
-  const btnStyle: React.CSSProperties = { fontSize: 11, padding: "4px 12px", border: "1px solid var(--color-border)", borderRadius: "var(--radius-sm)", background: "var(--surface-2)", color: "var(--color-text-muted)", cursor: "pointer" };
-  const disabled = vm.acting === returnId;
-
-  switch (status) {
-    case "REQUESTED":
-      return (
-        <span style={{ display: "inline-flex", gap: 6 }}>
-          <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.acceptReturn(returnId)} disabled={disabled}>Aceitar devolução</button>
-          <button type="button" style={btnStyle} onClick={() => vm.generateLabel(returnId)} disabled={disabled}>Gerar etiqueta</button>
-        </span>
-      );
-    case "SHIPPED":
-      return <button type="button" style={btnStyle} onClick={() => vm.markReceived(returnId)} disabled={disabled}>Marcar recebido</button>;
-    case "RECEIVED":
-      return <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>Inspeção necessária</span>;
-    case "INSPECTED_PASS":
-      return <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.processRefund(returnId)} disabled={disabled}>Reembolsar</button>;
-    case "REFUND_PROCESSING":
-      if (ret.refund?.status === "PENDING") {
-        return <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>Em processamento</span>;
-      }
-      if (ret.refund?.status === "FAILED") {
-        return <button type="button" style={btnStyle} onClick={() => vm.processRefund(returnId)} disabled={disabled}>Reconciliar novamente</button>;
-      }
-      return <button type="button" className="zyn-btn zyn-btn--primary" style={{ fontSize: 11, padding: "4px 12px" }} onClick={() => vm.processRefund(returnId)} disabled={disabled}>Emitir reembolso</button>;
-    default:
-      return <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)" }}>—</span>;
-  }
 }

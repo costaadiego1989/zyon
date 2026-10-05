@@ -18,8 +18,7 @@ import { ChangePasswordUseCase } from "../application/change-password.use-case.j
 import { RequestEmailChangeUseCase } from "../application/request-email-change.use-case.js";
 import { ConfirmEmailChangeUseCase } from "../application/confirm-email-change.use-case.js";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
-import { AuthGuard } from "./auth.guard.js";
-import { CurrentTenant } from "../../../shared/tenant/current-tenant.decorator.js";
+import { AuthGuard, currentUser } from "./auth.guard.js";
 import {
   EmailAlreadyRegisteredError,
   EmailChangeRequestThrottledError,
@@ -388,8 +387,9 @@ export class AuthController {
   })
   @ApiResponse({ status: 200, description: "Owner profile" })
   @ApiResponse({ status: 401, description: "Not authenticated" })
-  getMeRoute(@CurrentTenant() merchantId: string) {
-    return this.getMe.execute(merchantId);
+  getMeRoute(@Req() request: Parameters<typeof currentUser>[0]) {
+    const principal = currentUser(request);
+    return this.getMe.execute({ userId: principal.userId, merchantId: principal.merchantId });
   }
 
   @UseGuards(AuthGuard)
@@ -413,11 +413,13 @@ export class AuthController {
   @ApiResponse({ status: 400, description: "Validation error" })
   @ApiResponse({ status: 401, description: "Not authenticated" })
   async updateMeRoute(
-    @CurrentTenant() merchantId: string,
+    @Req() request: Parameters<typeof currentUser>[0],
     @Body() body: { name?: string; phone?: string },
   ) {
+    const principal = currentUser(request);
     return this.updateMe.execute({
-      merchantId,
+      userId: principal.userId,
+      merchantId: principal.merchantId,
       name: body.name ?? "",
       phone: body.phone,
     });
@@ -444,12 +446,14 @@ export class AuthController {
   @ApiResponse({ status: 400, description: "Validation error" })
   @ApiResponse({ status: 401, description: "Current password is invalid" })
   async changePasswordRoute(
-    @CurrentTenant() merchantId: string,
+    @Req() request: Parameters<typeof currentUser>[0],
     @Body() body: { current_password?: string; new_password?: string },
   ) {
     try {
+      const principal = currentUser(request);
       return await this.changePassword.execute({
-        merchantId,
+        userId: principal.userId,
+        merchantId: principal.merchantId,
         currentPassword: body.current_password ?? "",
         newPassword: body.new_password ?? "",
       });
@@ -482,12 +486,14 @@ export class AuthController {
   @ApiResponse({ status: 401, description: "Not authenticated" })
   @ApiResponse({ status: 429, description: "Too many requests" })
   async requestEmailChangeRoute(
-    @CurrentTenant() merchantId: string,
+    @Req() request: Parameters<typeof currentUser>[0],
     @Body() body: { new_email?: string },
   ) {
     try {
+      const principal = currentUser(request);
       return await this.requestEmailChange.execute({
-        merchantId,
+        userId: principal.userId,
+        merchantId: principal.merchantId,
         newEmail: body.new_email ?? "",
       });
     } catch (err) {
@@ -526,12 +532,14 @@ export class AuthController {
   @ApiResponse({ status: 400, description: "Email mismatch or already taken" })
   @ApiResponse({ status: 401, description: "OTP invalid, expired, or locked" })
   async confirmEmailChangeRoute(
-    @CurrentTenant() merchantId: string,
+    @Req() request: Parameters<typeof currentUser>[0],
     @Body() body: { new_email?: string; code?: string },
   ) {
     try {
+      const principal = currentUser(request);
       return await this.confirmEmailChange.execute({
-        merchantId,
+        userId: principal.userId,
+        merchantId: principal.merchantId,
         newEmail: body.new_email ?? "",
         code: body.code ?? "",
       });
