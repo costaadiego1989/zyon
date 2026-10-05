@@ -1,0 +1,26 @@
+{
+    "providerConfigurationAccepted":  true,
+    "actualProviderAudio":  true,
+    "syntheticPortugueseSpeech":  true,
+    "physicalMicrophoneTested":  false,
+    "model":  "gpt-realtime-2.1-mini",
+    "paymentGreeting":  "Seu pagamento já está disponível na tela. Conclua por lá quando quiser. Se precisar, pode pedir para alterar frete, forma de pagamento, endereço ou usar um cupom.",
+    "noiseCausedResponse":  false,
+    "noiseTurns":  0,
+    "recognizedSpeech":  [
+                             {
+                                 "kind":  "speech",
+                                 "itemId":  "item_EVlUV91iSqGxL1aREGYpI",
+                                 "transcript":  "Quero trocar a forma de pagamento para cartão."
+                             }
+                         ],
+    "tool":  {
+                 "name":  "handoff_to_commerce_agent",
+                 "buyerMessage":  "Quero trocar a forma de pagamento para cartão."
+             },
+    "realCommerceInvoked":  false,
+    "realPaymentSubmitted":  false,
+    "errors":  [
+
+               ]
+}
