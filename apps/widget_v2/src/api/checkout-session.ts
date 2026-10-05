@@ -1,4 +1,5 @@
 import { CheckoutApiError } from "./checkout-api-error";
+import type { CheckoutEditSection } from "@zyon/shared-types";
 import { ChatRecoveryRequired, PendingChatReference, chatReceipt, chatDisplayReference, parseChatState, type ChatState, type ChatDisplayReference } from "./chat-protocol";
 
 /**
@@ -404,6 +405,20 @@ export class CheckoutSession {
       if (this.protectedChat) { if (!this.pendingMessageId) this.setPending(messageId); throw new ChatRecoveryRequired(); }
       throw error;
     } finally { this.chatInFlight = false; }
+  }
+
+  async reopenCheckout(section: CheckoutEditSection): Promise<Experience> {
+    this.assertSession();
+    if (this.pendingMessageId || this.chatInFlight) throw new ChatRecoveryRequired();
+    const response = await fetch(`${this.embedBaseUrl}/embed/checkout/edit`, { method: "POST", headers: this.headers(),
+      body: JSON.stringify({ session_id: this.sessionId, section }) });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("embed_checkout_edit", response);
+    const result = await response.json() as { experience: Experience; revision?: number };
+    this.experience = result.experience;
+    this.paymentRevision = Math.max(this.paymentRevision + 1, result.revision ?? 0);
+    this.paymentRecoveryPending = false;
+    if (this.chatState) this.chatState = { ...this.chatState, payment_intent_id: undefined };
+    return this.experience;
   }
 
   private setPending(messageId: string | undefined) {

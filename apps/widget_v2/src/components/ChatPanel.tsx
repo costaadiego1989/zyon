@@ -39,6 +39,7 @@ export function ChatPanel() {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const pay = useCheckoutStore((s) => s.pay);
   const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
+  const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
   const cart = useCheckoutStore((s) => s.cart);
   const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
   const continueVoiceCheckout = useCheckoutStore((s) => s.continueVoiceCheckout);
@@ -110,7 +111,7 @@ export function ChatPanel() {
 
   const handlePaymentChoice = (text: string): boolean => {
     // Server-owned stages must retain the durable chat request and recovery flow.
-    if (lastAgentMsg?.checkoutStage) return false;
+    if (lastAgentMsg?.checkoutStage || paymentIntent) return false;
     const method = paymentMethodForQuickReply(text);
     if (!method || !isPaymentChoiceStage || !isEnabledPaymentQuickReply(text, merchantPaymentConfig)) return false;
     void pay(method);
@@ -178,6 +179,18 @@ export function ChatPanel() {
             </div>
           </div>
         ))}
+
+        {!chatRecovery && paymentIntent && !["approved", "refunded"].includes(paymentIntent.status) && (
+          <nav aria-label="Alterar pedido" style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingLeft: 36 }}>
+            {["Alterar pagamento", "Alterar frete", "Alterar endereço", "Usar cupom"].map(label => (
+              <button key={label} data-neu="control" type="button" disabled={isTyping || paymentCreating}
+                onClick={() => handleQuickReply(label)} style={{ minHeight: 44, padding: "8px 12px", borderRadius: 14,
+                  border: "1px solid var(--bd)", background: "var(--chip)", color: "var(--tx)", fontSize: 12, cursor: "pointer" }}>
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {!chatRecovery && activeQuickReplies.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", paddingLeft: "36px" }}>

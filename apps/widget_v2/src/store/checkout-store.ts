@@ -1,4 +1,5 @@
 import { create } from "zustand";
+import { checkoutEditIntent } from "@zyon/shared-types";
 import type { ChatState } from "@/api/chat-protocol";
 import {
   CheckoutSession,
@@ -420,6 +421,12 @@ function deriveBlocksFromStage(
 ): ChatBlock[] | undefined {
   if (!stage) return undefined;
 
+  // An explicit address correction overrides the complete address from the
+  // previous order. Ask for the new CEP instead of confirming the old address.
+  if (missingFields?.[0] === "CEP") {
+    return [{ type: "form_field", data: { field: "cep", label: "CEP de entrega", placeholder: "00000-000" } }];
+  }
+
   if (stage === "shipping" || stage === "delivery") {
     // Shipping includes CEP, confirmation, number, complement and freight.
     // Never derive another CEP field just because the address is incomplete.
@@ -742,7 +749,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   sendMessage: async (text) => {
-    if (get().isTyping || get().chatRecovery || get().api?.requiresChatRecovery || get().paymentSubmitting || get().paymentCreating) return;
+    const editSection = checkoutEditIntent(text);
+    if (get().status === "completed" || get().isTyping || get().chatRecovery || (get().api?.requiresChatRecovery && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
     const lastPaymentMessage = [...get().messages].reverse().find(message => message.role === "agent");
     if (text.trim().toLowerCase() === "tentar novamente" && lastPaymentMessage?.paymentRetry) {
       const retry = lastPaymentMessage.paymentRetry;
@@ -754,8 +762,28 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
-    const { api, messages } = get();
+    const { api } = get();
     if (!api || get().cartUpdating) return;
+
+    const latest = [...get().messages].reverse().find(message => message.role === "agent");
+    if (editSection && (get().paymentIntent || latest?.checkoutStage === "payment_pending"
+      || (editSection !== "coupon" && (get().cart.shipping || latest?.checkoutStage === "payment")))) {
+      set({ isTyping: true });
+      try {
+        const experience = await api.reopenCheckout(editSection);
+        get().stopPolling();
+        set(state => ({ paymentIntent: null, pendingPriceReview: null, pendingPayment: null, activeDiscount: null,
+          cart: { ...cartFromExperience(experience), status: experience.shipping ? "shipping_calculated" : "awaiting" },
+          messages: state.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block =>
+            !["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "crypto_payment", "checkout_price_review", "payment_methods", "shipping_options", "coupon_input"].includes(block.type)) })),
+          isTyping: false }));
+      } catch {
+        set(state => ({ isTyping: false, messages: [...state.messages, { id: `edit_error_${Date.now()}`, role: "agent",
+          text: "Ainda não foi possível liberar a alteração. Preciso confirmar que o pagamento anterior foi cancelado. Tente novamente em instantes.", timestamp: Date.now() }] }));
+        return;
+      }
+    }
+    const { messages } = get();
 
     const userMsg: Message = {
       id: `user_${Date.now()}`,
@@ -916,18 +944,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         buyer: updatedBuyer,
         leadRegistered: hasCompleteLead(updatedBuyer),
         isTyping: false,
-        cart: experienceShipping
-          ? {
-              ...s.cart,
-              shipping: experienceShipping,
-              totalToPay: checkoutTotalWithServiceFee({
-                subtotal: s.cart.total,
-                shipping: experienceShipping.cost,
-                discount: s.cart.discount,
-                serviceFee: s.cart.serviceFee,
-              }),
-            }
-          : s.cart,
+        cart: res.experience?.items && res.experience.totals ? { ...s.cart, ...cartFromExperience(res.experience),
+          shipping: experienceShipping, status: res.stage === "payment" ? "shipping_calculated" : res.stage === "shipping" ? "awaiting" : s.cart.status } : s.cart,
+        ...(res.experience?.items && res.experience.totals ? { activeDiscount: activeDiscountFromNudge(res.experience.commercial_nudge) } : {}),
       }));
 
       // The signed checkout service is authoritative for its stage. Keep the
