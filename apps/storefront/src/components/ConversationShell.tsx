@@ -1148,6 +1148,8 @@ export default function ConversationShell({
         onResumeConversation={async (conversation) => {
           if (!merchantId || !conversationId) throw new Error("conversation_not_available");
           await validateCurrentBuyerConversation(conversation, merchantId, conversationId);
+          realtimeVoice.stop();
+          narrationVoice.stop();
           vm.returnToCurrentConversation();
           setTimeout(() => inputRef.current?.focus(), 0);
         }} />
