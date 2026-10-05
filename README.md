@@ -31,7 +31,7 @@ Cada estratégia tem métricas de execução, conversão e cobertura de custos. 
 
 Consulte a [arquitetura do Revenue Intelligence](docs/architecture/revenue-intelligence.md) para fluxos, módulos, tabelas, configurações, limites de medição, observabilidade e rollback. Os recursos dependem das flags e da elegibilidade da loja; a existência do código não confirma sua ativação em produção.
 
-**Operação em 05/10/2026:** geração semanal habilitada somente para a Athom; o experimento antigo foi encerrado por autorização do proprietário. A loja continua sujeita aos critérios de dados e à aprovação de cada estratégia. Veja o [registro de ativação](docs/product/revenue-intelligence-activation-2026-10-05.md) para distinguir configuração publicada, validação local e execução comercial real. O [registro de 29/09](docs/product/revenue-intelligence-production-2026-09-29.md) permanece como histórico.
+**Operação em 05/10/2026:** geração semanal, revisão e operação de comunicação/cupons/descontos/frete habilitadas somente para a Athom; API e dashboard publicados e verificados. O experimento antigo foi encerrado por autorização do proprietário. A loja continua sujeita aos critérios de dados, orçamento e aprovação de cada estratégia; nenhum novo teste comercial foi iniciado na publicação. Veja o [registro de ativação](docs/product/revenue-intelligence-activation-2026-10-05.md) para distinguir configuração publicada, validação local e execução comercial real. O [registro de 29/09](docs/product/revenue-intelligence-production-2026-09-29.md) permanece como histórico.
 
 ## Estrutura
 

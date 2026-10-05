@@ -315,7 +315,9 @@ Para interromper novas ações, desligar primeiro a geração/novas aprovações
 
 Preservar agendas, propostas, versões, atribuições, recibos e snapshots. Não reabrir o caminho legado apagando agenda semanal; não remover schema aditivo para reverter um deploy; não liberar reserva desconhecida por timeout. Voltar a uma imagem antiga exige verificar compatibilidade com registros e sessões já criados. Após o rollback, confirmar que nenhum novo teste/benefício entra e que pagamentos/recibos existentes continuam reconciliando.
 
-### Registro de publicação
+### Registro histórico de publicação em 29/09
+
+O estado atual de ativação e as modalidades comerciais v3 estão no [registro de 05/10/2026](../product/revenue-intelligence-activation-2026-10-05.md). A tabela abaixo preserva a situação da publicação anterior.
 
 | Evidência | Estado desta documentação |
 | --- | --- |

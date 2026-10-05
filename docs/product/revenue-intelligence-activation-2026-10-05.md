@@ -46,7 +46,7 @@ Foram cadastradas tarifas versionadas para `deepseek-flash`, nas rotas `openrout
 - Provedor real: três chamadas sintéticas ao DeepSeek validaram resposta com modelo fixado, chamada de ferramenta e continuação da ferramenta. Não envolveram comprador, pedido ou pagamento real.
 - Widget público: artefato publicado contém protocolo de mensagem durável e rotas de recuperação. Essa inspeção não comprova uma compra real.
 
-A promoção das novas modalidades deve ser registrada abaixo ao concluir. Nenhum resultado local comprova aumento de receita ou execução comercial em produção.
+Nenhum resultado local comprova aumento de receita ou execução comercial em produção. A verificação da promoção consta abaixo.
 
 ## Produção verificada antes da promoção das modalidades v3
 
@@ -55,6 +55,26 @@ API `07a0889e-ff7a-43d7-87cc-f5d5809abfff`, revisão `50d05f89a412204335fe5daa5b
 O experimento legado “Control vs Improved” foi encerrado pelo caso de uso da aplicação em 05/10 às 16:18:48 UTC, por autorização explícita. Histórico e variantes foram preservados, sem declarar vencedor. A leitura de 17:02 UTC confirmou zero estratégias e zero execuções de incentivo na Athom; nenhuma aprovação foi feita pelo operador.
 
 A próxima janela normal é 06/10, das 03h às 06h, America/Sao_Paulo. O ciclo anterior mantém seu retrato imutável, enquanto o status atual informa geração retomada. A execução ainda pode terminar como dados insuficientes.
+
+## Promoção verificada às 17:25 UTC
+
+Código publicado em `master`, revisão `c1615425bbf743fd3dc4ce0877fcaf3a2c0159b4`:
+
+| Superfície | Evidência |
+| --- | --- |
+| API Railway | Deployment `4c96d55d-9f62-4610-96e5-58fdcae0c6fb`, SUCCESS, healthcheck `/ready` aprovado; processo em execução confirmou a revisão. |
+| Dashboard Vercel | Deployment `dpl_3PtSAt8m4nHDcDZg2wnWfNwq1YLb`, Ready, alias `app.zyon-payments.com.br`, HTTP 200. Log de build confirma `c161542`. |
+| Banco | As três migrations `20261005190000_strategy_commercial_coupons`, `20261005191000_strategy_commercial_authority` e `20261005192000_strategy_commercial_validation` estão aplicadas. |
+| Configuração comercial | Geração, revisão, aprovação, execução, estudo de descontos, orçamento, incentivos e modalidades v3 habilitados para a lista explícita contendo somente Athom. Os leitores de estudo/modalidades negam uma loja fora da lista. |
+| Checkout | Modelo `deepseek-flash`, baseline capturado e pronto, revisão de comportamento `c161542`; chat durável, publicação e recuperação habilitados para Athom. Nenhum modelo global de outros adaptadores foi trocado. |
+| Agenda | Geração semanal ativa, loja elegível, um worker, fila disponível e poll a cada 15 minutos. Histórico de erro antigo preservado. |
+| Aprovação comercial | Zero experimentos ativos, zero estratégias e zero execuções de incentivo. Publicar e habilitar as flags não substituiu a aprovação do merchant. |
+
+O máximo de entrada foi ajustado para 32.768, preservando 4.096 tokens de saída, três chamadas por ciclo, duas alternativas e 20% do orçamento diário reservado para revisão. A reserva máxima do gerador primário cabe nessa parcela. Execuções compartilham os tetos globais e têm limite adicional de USD 0,05 por execução e oito chamadas por sessão. Os tetos diário e mensal da plataforma não aumentaram.
+
+Aprendizado agregado está habilitado na lista piloto, mas exige cinco lojas independentes. Como há somente Athom na lista, nenhum aprendizado entre lojas pode ser produzido. A política financeira da loja permaneceu versão 1 e nenhuma estratégia foi aprovada durante a verificação.
+
+Evidências operacionais sem credenciais: `.audit/commercial-live-proof.log` e `.audit/commercial-weekly-live.log`. Os bancos e Redis descartáveis usados nos testes foram encerrados e removidos; nenhum serviço da Cura Viva foi alterado.
 
 ## Evolução de experiência discutida com o proprietário
 
