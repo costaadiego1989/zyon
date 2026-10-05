@@ -2,6 +2,7 @@ import { digest } from "../../experiments/domain/services/measurement-plan.js";
 
 export type IncentivePolicyLimits = { enabled: boolean; limitCents: number; maxDiscountCents: number; maxRedemptions: number };
 export type IncentivePolicySnapshot = IncentivePolicyLimits & { merchantId: string; version: number; policyHash: string };
+export type IncentivePolicyMode = "automatic" | "manual" | "disabled";
 
 export function assertIncentivePolicyLimits(value: IncentivePolicyLimits): void {
   if (!value || typeof value.enabled !== "boolean"

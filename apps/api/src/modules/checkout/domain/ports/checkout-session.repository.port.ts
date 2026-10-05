@@ -29,6 +29,9 @@ export interface CheckoutCommercialMutation {
 }
 
 export interface CheckoutSessionRepository {
+  /** Server payment preparation advances only an already assigned, approved
+   * progressive strategy. Browser telemetry cannot authorize a stage. */
+  prepareProgressiveIncentivePayment?(merchantId: string, sessionId: string, method: string): Promise<CheckoutSession | undefined>;
   /** Releases only an unused experimental benefit. Caller must return the revised
    * amount for buyer confirmation, never continue charging in the same request. */
   reviseIncentiveForPaymentReview?(merchantId: string, sessionId: string): Promise<CheckoutSession | undefined>;

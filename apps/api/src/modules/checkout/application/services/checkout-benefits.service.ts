@@ -29,6 +29,7 @@ export class CheckoutBenefitsService {
       this.settings.getInterventionConfig(merchantId), this.sessions.getSessionEvents(merchantId, sessionId),
     ]);
     if (!rules) return session;
+    session = await this.sessions.prepareProgressiveIncentivePayment?.(merchantId, sessionId, method) ?? session;
     // Selecting a method is a real stage; record it BEFORE any provider intent.
     if (!history.includes("payment_method_selected")) {
       await this.sessions.recordEvent(merchantId, sessionId, "payment_method_selected", { method, source: "payment_preparation" });

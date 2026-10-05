@@ -3,6 +3,8 @@ import type { StrategyLessonSnapshot } from "../entities/strategy-lesson.entity.
 import type { MerchantRules } from "@zyon/shared-types";
 import type { CheckoutChatBaseline } from "../../../checkout/domain/services/checkout-chat-baseline.js";
 import type { StrategyMeasurementPlanning } from "../strategy-measurement.js";
+import type { RevenueIncentiveOptions } from "../revenue-incentive-options.js";
+import type { StrategyOrchestration } from "../strategy-orchestration.js";
 
 export const HYPOTHESIS_GENERATOR_PORT = Symbol("HYPOTHESIS_GENERATOR_PORT");
 
@@ -19,6 +21,7 @@ export interface HypothesisGenerationRequest {
   /** Server-owned primary chat recipe; current_prompt is its opaque control reference. */
   checkout_baseline?: CheckoutChatBaseline;
   measurement_planning?: StrategyMeasurementPlanning;
+  incentive_options?: RevenueIncentiveOptions;
   constraints: {
     max_discount_percent: number;
     allow_free_shipping: boolean;
@@ -28,6 +31,7 @@ export interface HypothesisGenerationRequest {
 }
 
 export interface HypothesisGenerationResponse {
+  strategy_plan?: StrategyOrchestration;
   hypothesis_text: string;
   reasoning: string;
   expected_lift_percent: number;

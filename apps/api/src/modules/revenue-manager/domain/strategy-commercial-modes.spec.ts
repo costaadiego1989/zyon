@@ -1,8 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { DEFAULT_MERCHANT_RULES, type Cart, type ShippingQuote } from "@zyon/shared-types";
-import { commercialDiscountStudy, assertDiscountStudy } from "./strategy-discount-study.js";
-import { assertIncentiveRecommendation, plannedCommercialIncentiveRecommendation, conservativeIncentiveAlternative } from "./strategy-incentive-recommendation.js";
+import { commercialDiscountStudy, assertDiscountStudy, plannerDiscountStudy } from "./strategy-discount-study.js";
+import { assertIncentiveRecommendation, plannedCommercialIncentiveRecommendation, plannedSelectedIncentiveRecommendation,
+  conservativeIncentiveAlternative, progressiveIncentiveStages } from "./strategy-incentive-recommendation.js";
 import { incentivePolicySnapshot } from "./incentive-policy.js";
 import { assessExecutableIncentive } from "./executable-incentive.js";
 
@@ -12,6 +13,37 @@ const rules = { ...DEFAULT_MERCHANT_RULES, autonomousEngineEnabled: true, coupon
 const cart = (total = 100, cost = 40): Cart => ({ total, currency: "BRL", items: [{ sku: "sku", name: "Produto", price: total, cost, quantity: 1 }] });
 const policy = incentivePolicySnapshot("store", 1, { enabled: true, limitCents: 500000, maxDiscountCents: 500, maxRedemptions: 1000 });
 const baseline = { buyers: 10000, conversions: 10, complete: true, windowStart: "2026-08-31T00:00:00.000Z", windowEnd: "2026-09-28T00:00:00.000Z" };
+
+test("v4 progressive stages are executable frozen targets, with conservative integer rounding and no stacking", () => {
+  const study = plannerDiscountStudy({ merchantId: "store", runId: "run", observationId: "obs", rules,
+    asOf: "2026-10-05T00:00:00.000Z", capturedAt: "2026-10-05T01:00:00.000Z",
+    cohorts: [{ intent: "price_sensitive", sampleSize: 30, conversionRate: .1, carts: Array.from({ length: 30 }, () => cart()) }] });
+  const r = plannedSelectedIncentiveRecommendation(study, rules, policy, baseline, "progressive");
+  assertIncentiveRecommendation(r, study, rules);
+  assert.equal(assessExecutableIncentive(cart(), rules, r, { customerPrice: 10, realCost: 10 }, 0)?.amountCents, 250);
+  assert.equal(assessExecutableIncentive(cart(), rules, r, { customerPrice: 10, realCost: 10 }, 1)?.amountCents, 500);
+  assert.equal(assessExecutableIncentive({ ...cart(), currentDiscount: 2.5 }, rules, r, { customerPrice: 10, realCost: 10 }, 1), null);
+  assert.equal(assessExecutableIncentive(cart(), rules, r, { customerPrice: 0, realCost: 10 }, 1), null);
+  assert.deepEqual(progressiveIncentiveStages(5.01, 501), [
+    { index: 0, trigger: "enrollment", discountPercent: 2.5, maxDiscountCents: 250 },
+    { index: 1, trigger: "checkout_payment_ready", discountPercent: 5.01, maxDiscountCents: 501 },
+  ]);
+  assert.equal(progressiveIncentiveStages(.01, 100), null);
+  assert.equal(progressiveIncentiveStages(5, 1), null);
+  for (const alter of [
+    (v: any) => v.test.stages[0].maxDiscountCents++,
+    (v: any) => v.test.stages[1].trigger = "checkout_abandoned",
+    (v: any) => v.test.stages.push(v.test.stages[1]),
+    (v: any) => v.test.delivery = { mode: "coupon_code", code: "ZYON" + "F".repeat(20) },
+  ]) {
+    const forged = structuredClone(r); alter(forged);
+    assert.throws(() => assertIncentiveRecommendation(forged, study, rules));
+    assert.equal(assessExecutableIncentive(cart(), rules, forged, { customerPrice: 10, realCost: 10 }, 1), null);
+  }
+  const reduced = conservativeIncentiveAlternative(r, 1)!;
+  assertIncentiveRecommendation(reduced, study, rules);
+  assert.equal(assessExecutableIncentive(cart(), rules, reduced, { customerPrice: 10, realCost: 10 }, 0)?.amountCents, 125);
+});
 function terms(kind: "fixed" | "percentage" | "shipping", quote: ShippingQuote | undefined = { customerPrice: 20, realCost: 20 }) {
   const study = commercialDiscountStudy({ merchantId: "store", runId: "run", observationId: "obs", rules,
     asOf: "2026-10-05T00:00:00.000Z", capturedAt: "2026-10-05T01:00:00.000Z",

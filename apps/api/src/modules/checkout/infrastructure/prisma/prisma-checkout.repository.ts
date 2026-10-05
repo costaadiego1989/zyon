@@ -33,7 +33,7 @@ import { chatMessageTextHash } from "../../application/services/chat-message-ide
 import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
 import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
 import { chatPaymentRecoveryEnabled } from "../../application/services/chat-payment-recovery.js";
-import { applyEligibleIncentive, incentiveExecutionEnabled, invalidateIncentiveCheckout, reviseIncentiveForPaymentReview } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
+import { applyEligibleIncentive, incentiveExecutionEnabled, invalidateIncentiveCheckout, prepareProgressiveIncentivePayment, reviseIncentiveForPaymentReview } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -53,6 +53,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async reviseIncentiveForPaymentReview(merchantId: string, sessionId: string): Promise<CheckoutSession | undefined> {
     const work = (tx: Prisma.TransactionClient) => reviseIncentiveForPaymentReview(tx, merchantId, sessionId);
     return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
+  }
+
+  async prepareProgressiveIncentivePayment(merchantId: string, sessionId: string, method: string): Promise<CheckoutSession | undefined> {
+    const work = (tx: Prisma.TransactionClient) => prepareProgressiveIncentivePayment(tx, merchantId, sessionId, method);
+    const row = await (this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work));
+    return row ? toCheckoutSession(row) : undefined;
   }
 
   async getRules(merchantId: string): Promise<MerchantRules> {

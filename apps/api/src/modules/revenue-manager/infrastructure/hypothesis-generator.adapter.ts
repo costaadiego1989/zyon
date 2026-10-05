@@ -12,6 +12,8 @@ import { assertCheckoutChatBaseline, checkoutBaselineReference, checkoutContract
 import { assertMeasurementPlanning } from "../domain/strategy-measurement.js";
 import { SharedStrategyLearningService } from "./shared-strategy-learning.service.js";
 import { sharedLearningPrompt, type SharedStrategyLearning } from "../domain/shared-strategy-learning.js";
+import { executeStrategyPlannerTool, strategyPlannerContext, strategyPlannerTool, STRATEGY_PLANNER_TOOL } from "./strategy-planner-tool.js";
+import { selectedIncentive } from "../domain/strategy-orchestration.js";
 
 const DEFAULT_HYPOTHESIS_LLM_TIMEOUT_MS = 20_000;
 const MAX_HYPOTHESIS_LLM_TIMEOUT_MS = 25_000;
@@ -68,6 +70,9 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
     @Optional() private readonly sharedLearning?: SharedStrategyLearningService) {}
 
   async generate(request: HypothesisGenerationRequest): Promise<HypothesisGenerationResponse> {
+    if (request.incentive_options && (!request.checkout_baseline || !request.analysis_context
+      || request.incentive_options.merchantId !== request.merchant_id
+      || request.incentive_options.runId !== request.analysis_context.runId)) throw new Error("STRATEGY_INVALID_PLANNER_CONTEXT");
     if (request.measurement_planning) {
       if (!request.checkout_baseline || !request.analysis_context) throw new Error("HYPOTHESIS_MEASUREMENT_CONTEXT_REQUIRED");
       assertMeasurementPlanning(request.measurement_planning, request.merchant_id, request.analysis_context.runId);
@@ -86,6 +91,7 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
     const contextHash = request.checkout_baseline ? checkoutContractHash({ baseline: request.checkout_baseline,
       observation: request.observation, constraints: request.constraints, revision: request.revision ?? null,
       ...(request.measurement_planning ? { measurement: request.measurement_planning } : {}),
+      ...(request.incentive_options ? { incentiveOptions: request.incentive_options } : {}),
       ...(sharedLearning ? { sharedLearning } : {}) }) : undefined;
     const providers = configuredHypothesisProviders();
     if (request.analysis_context) {
@@ -111,13 +117,16 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
     }
 
     try {
-      const systemPrompt = this.buildSystemPrompt(request.constraints);
+      const systemPrompt = this.buildSystemPrompt(request.constraints, !!request.incentive_options);
       const userPrompt = this.buildUserPrompt(request, sharedLearning);
+      const messages = [{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }];
+      const tools = request.incentive_options ? [strategyPlannerTool(request.incentive_options)] : undefined;
+      const tool_choice = tools ? { type: "function", function: { name: STRATEGY_PLANNER_TOOL } } : undefined;
 
       for (const provider of providers) {
         const reservation = request.analysis_context ? await this.budget!.reserve({
           merchantId: request.merchant_id, context: request.analysis_context, provider: provider.name, model: provider.model,
-          inputBytes: Buffer.byteLength(JSON.stringify([{ role: "system", content: systemPrompt }, { role: "user", content: userPrompt }]), "utf8"),
+          inputBytes: Buffer.byteLength(JSON.stringify(tools ? { messages, tools, tool_choice } : messages), "utf8"),
         }) : undefined;
         try {
           const response = await fetch(`${provider.baseUrl}/chat/completions`, {
@@ -129,10 +138,8 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
             signal: AbortSignal.timeout(hypothesisLlmTimeoutMs()),
             body: JSON.stringify({
               model: provider.model,
-              messages: [
-                { role: "system", content: systemPrompt },
-                { role: "user", content: userPrompt },
-              ],
+              messages,
+              ...(tools ? { tools, tool_choice, parallel_tool_calls: false } : {}),
               temperature: 0.7,
               ...providerRequestOptions(provider.baseUrl, provider.model),
               ...(provider.name === "openai"
@@ -145,11 +152,13 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
             throw new Error(`LLM API error: ${response.status}`);
           }
 
-          const data = (await response.json()) as { id?: string; usage?: TokenUsage; choices: Array<{ message: { content: string } }> };
+          const data = (await response.json()) as { id?: string; usage?: TokenUsage; choices: Array<{ finish_reason?: string; message: { content: string } }> };
           if (reservation) await this.budget!.settle(reservation, data.usage, data.id);
           const content = data.choices[0]?.message.content;
-          if (!content) throw new Error("Empty response from LLM");
-          const parsed = this.parseHypothesisResponse(content, request);
+          if (tools && data.choices[0]?.finish_reason !== "tool_calls") throw new Error("STRATEGY_INVALID_PLANNER_COMPLETION");
+          if (!tools && !content) throw new Error("Empty response from LLM");
+          const parsed = tools ? this.validateResponse(executeStrategyPlannerTool(data.choices[0]?.message, request), request)
+            : this.parseHypothesisResponse(content, request);
           if (request.analysis_context) await this.budget!.cache(request.analysis_context, request.merchant_id,
             request.checkout_baseline ? { definition: "checkout-hypothesis-cache-v1", baselineReference: request.current_prompt,
               contextHash: contextHash!, response: parsed } : parsed);
@@ -169,8 +178,8 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
     return this.validateResponse(this.generateFallbackHypothesis(request), request);
   }
 
-  private buildSystemPrompt(constraints: HypothesisGenerationRequest["constraints"]): string {
-    return `You are a conversion optimization expert generating A/B test hypotheses for e-commerce checkouts.
+  private buildSystemPrompt(constraints: HypothesisGenerationRequest["constraints"], planner = false): string {
+    const instructions = `You are a conversion optimization expert generating A/B test hypotheses for e-commerce checkouts.
 
 Your task: Analyze checkout metrics and generate a testable hypothesis to improve conversion rate.
 
@@ -181,9 +190,12 @@ Constraints:
 - These limits are not authorization to offer a benefit. Commercial proposals require merchant approval and runtime rules-engine authorization.
 - Preserve variant_a.system_prompt exactly as the supplied CURRENT BASELINE; never invent control behavior.
 - Never invent a discount, shipping benefit, security property, delivery deadline or urgency.
-- Focus on checkout experience (not storefront)
+- Focus on checkout experience (not storefront)`;
 
-Output MUST be valid JSON in this format:
+    if (planner) return instructions + "\nSelect one server-simulated strategy with the required submit_revenue_strategy function. "
+      + "Use only the offered arguments and option IDs. Do not output a free-text JSON object, invent a forecast or call an operational tool. "
+      + "This prepares a draft for the store owner, not a message or offer to a buyer. The supplied context includes the verified options.";
+    return instructions + `\nOutput MUST be valid JSON in this format:
 {
   "hypothesis_text": "string (1-2 sentences describing the test idea)",
   "reasoning": "string (why this should work based on the metrics)",
@@ -265,6 +277,7 @@ Output MUST be valid JSON in this format:
       }
     }
     prompt += `\nGenerate a NEW hypothesis that targets the top abandonment reason and fits within constraints.`;
+    if (request.incentive_options) prompt += strategyPlannerContext(request.incentive_options);
 
     return prompt;
   }
@@ -284,6 +297,10 @@ Output MUST be valid JSON in this format:
 
   private validateResponse(response: unknown, request: HypothesisGenerationRequest): HypothesisGenerationResponse {
     validateHypothesisResponse(response);
+    if (request.incentive_options) {
+      if (!response.strategy_plan) throw new Error("STRATEGY_PLANNER_DECISION_REQUIRED");
+      selectedIncentive(request.incentive_options, response.strategy_plan);
+    } else if (response.strategy_plan) throw new Error("STRATEGY_INVALID_PLANNER_CONTEXT");
     if (!response.template.variant_a.is_control || response.template.variant_b.is_control) {
       throw new Error("HYPOTHESIS_INVALID_JSON: variant_a must preserve the current control");
     }

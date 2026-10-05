@@ -3517,6 +3517,7 @@ model RevenueAnalysisRun {
   measurementPlanningJson Json? @map("measurement_planning_json")
   discountStudyJson Json? @map("discount_study_json")
   incentiveRecommendationJson Json? @map("incentive_recommendation_json")
+  incentiveOptionsJson Json? @map("incentive_options_json")
   sharedLearningJson Json? @map("shared_learning_json")
   createdAt DateTime @default(now()) @map("created_at")
   startedAt DateTime? @map("started_at")
@@ -3714,6 +3715,8 @@ model MerchantIncentivePolicyHead {
 }
 
 model MerchantIncentivePolicy {
+  origin String @default("manual")
+  approvedReviewId String? @unique @map("approved_review_id")
   merchantId String @map("merchant_id")
   version Int
   enabled Boolean
@@ -4008,4 +4011,19 @@ model StrategyIncentivePaymentEvidence {
   @@unique([paymentId, paymentVersion])
   @@index([assignmentId, merchantId, occurredAt])
   @@map("strategy_incentive_payment_evidence")
+}
+
+model StrategyIncentiveStageGrant {
+  id String @id
+  merchantId String @map("merchant_id")
+  assignmentId String @map("assignment_id")
+  stageIndex Int @map("stage_index")
+  trigger String
+  eventId String @unique @map("event_id")
+  amountCents Int @map("amount_cents")
+  createdAt DateTime @map("created_at")
+  @@unique([assignmentId, stageIndex])
+  @@unique([id, merchantId])
+  @@index([merchantId, assignmentId, stageIndex])
+  @@map("strategy_incentive_stage_grants")
 }

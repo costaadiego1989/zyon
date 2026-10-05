@@ -7,7 +7,7 @@ import type { StrategyIncentiveRecommendation } from "../../revenue-manager/doma
  * the ordinary coupon redemption path. All grants use the incentive ledger. */
 export function strategyIncentiveCouponTerms(execution: StrategyIncentiveExecution) {
   const recommendation = execution.recommendation as unknown as StrategyIncentiveRecommendation;
-  if (recommendation.status !== "recommended" || recommendation.definition !== "weekly-incentive-recommendation-v3") return null;
+  if (recommendation.status !== "recommended" || !["weekly-incentive-recommendation-v3", "weekly-incentive-recommendation-v4"].includes(recommendation.definition)) return null;
   if (digest(recommendation) !== execution.recommendationHash) throw new Error("INCENTIVE_EXECUTION_CORRUPT");
   const { test } = recommendation;
   const delivery = test.delivery;

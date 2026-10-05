@@ -2,9 +2,10 @@ import type { HypothesisEntity } from "../entities/hypothesis.entity.js";
 import type { CheckoutChatBaseline } from "../../../checkout/domain/services/checkout-chat-baseline.js";
 import type { StrategyMeasurementPlanning } from "../strategy-measurement.js";
 import type { StrategyDiscountStudy } from "../strategy-discount-study.js";
+import type { StrategyOrchestration } from "../strategy-orchestration.js";
 
 export type HypothesisAnalysisContext = { runId: string; leaseToken: number; checkoutBaseline?: CheckoutChatBaseline;
-  measurementPlanning?: StrategyMeasurementPlanning; discountStudy?: StrategyDiscountStudy };
+  measurementPlanning?: StrategyMeasurementPlanning; discountStudy?: StrategyDiscountStudy; orchestration?: StrategyOrchestration };
 
 export const HYPOTHESIS_REPOSITORY_PORT = Symbol("HYPOTHESIS_REPOSITORY_PORT");
 

@@ -7,6 +7,7 @@ import { assertCheckoutChatBaseline, checkoutBaselineReference, checkoutContract
 import { assertStrategyExperimentReview, type StrategyExperimentReview } from "./strategy-measurement.js";
 import { assertDiscountStudy, type StrategyDiscountStudy } from "./strategy-discount-study.js";
 import { assertIncentiveRecommendation, type StrategyIncentiveRecommendation } from "./strategy-incentive-recommendation.js";
+import { assertOrchestrationShape, type StrategyOrchestration } from "./strategy-orchestration.js";
 
 export type StrategyProposal = {
   definition: "checkout-strategy-review-v1";
@@ -19,14 +20,15 @@ export type StrategyProposal = {
   experimentReview?: StrategyExperimentReview;
   discountStudy?: StrategyDiscountStudy;
   incentiveRecommendation?: StrategyIncentiveRecommendation;
+  orchestration?: StrategyOrchestration;
   execution: "unavailable";
-  expectedLiftStatus: "model_estimate_not_measured";
+  expectedLiftStatus: "model_estimate_not_measured" | "not_estimated";
 };
 
 export function strategyProposal(recommendation: HypothesisGenerationResponse,
   observation: ObservationSnapshot, rules: MerchantRules, checkoutBaseline?: CheckoutChatBaseline,
   experimentReview?: StrategyExperimentReview, discountStudy?: StrategyDiscountStudy,
-  incentiveRecommendation?: StrategyIncentiveRecommendation): StrategyProposal {
+  incentiveRecommendation?: StrategyIncentiveRecommendation, orchestration?: StrategyOrchestration): StrategyProposal {
   validateHypothesisResponse(recommendation);
   const { variant_a: control, variant_b: treatment } = recommendation.template;
   if (!control.is_control || treatment.is_control || control.weight !== 50 || treatment.weight !== 50
@@ -53,12 +55,14 @@ export function strategyProposal(recommendation: HypothesisGenerationResponse,
     if (!discountStudy) throw new Error("STRATEGY_INCENTIVE_STUDY_REQUIRED");
     assertIncentiveRecommendation(incentiveRecommendation, discountStudy, rules);
   }
+  if (orchestration) assertOrchestrationShape(orchestration, incentiveRecommendation);
   const value: StrategyProposal = { definition: "checkout-strategy-review-v1", recommendation, observation, rules,
     baselineStatus: checkoutBaseline ? "primary_chat_contract_captured" : "awaiting_checkout_contract",
     ...(checkoutBaseline ? { checkoutBaseline } : {}), ...(experimentReview ? { experimentReview } : {}),
     ...(discountStudy ? { discountStudy } : {}),
     ...(incentiveRecommendation ? { incentiveRecommendation } : {}),
-    execution: "unavailable", expectedLiftStatus: "model_estimate_not_measured" };
+    ...(orchestration ? { orchestration } : {}),
+    execution: "unavailable", expectedLiftStatus: orchestration ? "not_estimated" : "model_estimate_not_measured" };
   if (Buffer.byteLength(JSON.stringify(value), "utf8") > 200_000) throw new Error("STRATEGY_CONTEXT_TOO_LARGE");
   return structuredClone(value);
 }

@@ -21,14 +21,24 @@ export async function loadDiscountHistory(tx: Prisma.TransactionClient, merchant
   const sessions = await tx.checkoutSession.findMany({
     where: { merchantId, createdAt: { gte: start, lt: end }, globalUserId: { not: "" } },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: LIMIT + 1,
-    select: { globalUserId: true, createdAt: true, cart: true, cohort: true, shipping: true,
-      completedOrders: { where: { merchantId, status: "approved", currency: "BRL" }, select: { completedAt: true } } },
+    select: { sessionId: true, globalUserId: true, createdAt: true, cart: true, cohort: true, shipping: true },
   });
   // A truncated sample must not silently be presented as the full cohort.
   if (sessions.length > LIMIT) return { complete: false, buyers: [] };
   const firstByBuyer = new Map<string, typeof sessions[number]>();
   for (const session of sessions) if (session.globalUserId?.trim() && !firstByBuyer.has(session.globalUserId)) firstByBuyer.set(session.globalUserId, session);
   if (!firstByBuyer.size) return { complete: true, buyers: [] };
+  // Loading the composite relation per session makes Prisma emit thousands of
+  // OR predicates at the maximum sample size. A scoped IN query preserves the
+  // same conversion window without exceeding PostgreSQL's expression stack.
+  const completed = await tx.completedOrder.findMany({ where: { merchantId, status: "approved", currency: "BRL",
+    sessionId: { in: [...firstByBuyer.values()].map(session => session.sessionId) }, completedAt: { gte: start, lt: asOf } },
+    select: { sessionId: true, completedAt: true } });
+  const completedBySession = new Map<string, Date[]>();
+  for (const order of completed) {
+    const dates = completedBySession.get(order.sessionId) ?? [];
+    dates.push(order.completedAt); completedBySession.set(order.sessionId, dates);
+  }
   const intentRecords = await tx.customerIntentRecord.findMany({
     where: { merchantId, globalUserId: { in: [...firstByBuyer.keys()] }, generatedAt: { lt: end },
       consent: { is: { optedIn: true, expiresAt: { gt: asOf } } } },
@@ -79,8 +89,8 @@ export async function loadDiscountHistory(tx: Prisma.TransactionClient, merchant
       ? { customerPrice: quote.customerPrice as number, realCost: quote.realCost as number,
         ...(typeof quote.region === "string" ? { region: quote.region } : {}) } : undefined;
     buyers.push({ intent: entry.intent, cart, shipping, cohort: entry.session.cohort,
-      converted: entry.session.completedOrders.some(order => order.completedAt >= entry.session.createdAt
-        && order.completedAt.getTime() < entry.session.createdAt.getTime() + WINDOW_MS) });
+      converted: (completedBySession.get(entry.session.sessionId) ?? []).some(completedAt => completedAt >= entry.session.createdAt
+        && completedAt.getTime() < entry.session.createdAt.getTime() + WINDOW_MS) });
   }
   return { complete: true, buyers };
 }

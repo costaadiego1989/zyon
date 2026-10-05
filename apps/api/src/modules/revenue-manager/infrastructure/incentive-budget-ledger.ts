@@ -8,6 +8,7 @@ import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js"
 import { assertStoredDiscountStudy } from "./strategy-discount-study.js";
 import { readIncentivePolicy } from "./incentive-policy.reader.js";
 import { approvedIncentiveReview } from "./incentive-review.reader.js";
+import { assertStoredStrategyOrchestration } from "./strategy-orchestration.reader.js";
 
 type Tx = Prisma.TransactionClient;
 const json = (value: unknown) => value as Prisma.InputJsonValue;
@@ -32,6 +33,7 @@ async function currentFundingSource(tx: Tx, terms: IncentiveBudgetTerms) {
   const policy = await readIncentivePolicy(tx, terms.merchantId);
   if (!policy.enabled || terms.policyVersion !== policy.version || terms.policyHash !== policy.policyHash) fail("POLICY_CHANGED");
   await assertStoredDiscountStudy(tx, terms.merchantId, version.strategy.runId, proposal.observation.id, rules, proposal.discountStudy, proposal.incentiveRecommendation);
+  await assertStoredStrategyOrchestration(tx, terms.merchantId, version.strategy.runId, proposal);
   const run = await tx.revenueAnalysisRun.findFirst({ where: { id: version.strategy.runId, merchantId: terms.merchantId } });
   if (run?.status !== "completed") fail("ANALYSIS_NOT_COMPLETED");
   assertRecommendedIncentiveBudgetTerms(terms, { merchantId: terms.merchantId, strategyId: terms.strategyId,

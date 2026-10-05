@@ -12,11 +12,14 @@ import { assertStoredMeasurementPlanning, strategyMeasurementEnabled } from "./s
 import { assertStoredDiscountStudy, discountStudyEnabled } from "./strategy-discount-study.js";
 import type { StrategyDiscountStudy } from "../domain/strategy-discount-study.js";
 import type { StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
+import type { RevenueIncentiveOptions } from "../domain/revenue-incentive-options.js";
+import { selectedIncentive, type StrategyOrchestration } from "../domain/strategy-orchestration.js";
 
 /** Called inside the existing fenced hypothesis transaction: proposal, source and
  * notification either commit together or none of them do. No legacy backfill. */
 export async function publishInitialStrategy(tx: Prisma.TransactionClient, snap: HypothesisSnapshot, runId: string,
-  baseline?: CheckoutChatBaseline, measurementPlanning?: StrategyMeasurementPlanning, discountStudy?: StrategyDiscountStudy) {
+  baseline?: CheckoutChatBaseline, measurementPlanning?: StrategyMeasurementPlanning, discountStudy?: StrategyDiscountStudy,
+  orchestration?: StrategyOrchestration) {
   const prior = await tx.revenueStrategy.findFirst({ where: { id: snap.id, merchantId: snap.merchant_id } });
   if (prior) return;
   if (snap.status !== "pending_review" || snap.hypothesis_type === "discount_rule" || snap.discount_rule_json) {
@@ -49,15 +52,25 @@ export async function publishInitialStrategy(tx: Prisma.TransactionClient, snap:
     expected_lift_percent: snap.expected_lift_percent, template: snap.template };
   const experimentReview = measurementPlanning ? strategyExperimentReview(snap.id, 1, recommendation, measurementPlanning) : undefined;
   if (discountStudyEnabled(snap.merchant_id) && !discountStudy) throw new Error("STRATEGY_DISCOUNT_STUDY_REQUIRED");
-  const incentive = (run.incentiveRecommendationJson ?? undefined) as unknown as StrategyIncentiveRecommendation | undefined;
+  const catalog = (run.incentiveOptionsJson ?? undefined) as unknown as RevenueIncentiveOptions | undefined;
+  if (!!catalog !== !!orchestration) throw new Error("STRATEGY_PLANNER_DECISION_REQUIRED");
+  const incentive = catalog && orchestration ? selectedIncentive(catalog, orchestration)
+    : (run.incentiveRecommendationJson ?? undefined) as unknown as StrategyIncentiveRecommendation | undefined;
+  if (catalog && incentive) {
+    if (run.incentiveRecommendationJson && digest(run.incentiveRecommendationJson) !== digest(incentive)) {
+      throw new Error("STRATEGY_INCENTIVE_RECOMMENDATION_CHANGED");
+    }
+    await tx.revenueAnalysisRun.update({ where: { id: runId },
+      data: { incentiveRecommendationJson: incentive as unknown as Prisma.InputJsonValue } });
+  }
   await assertStoredDiscountStudy(tx, snap.merchant_id, runId, snap.observation_id, merchantRulesSnapshot(rules), discountStudy, incentive);
-  const proposal = strategyProposal(recommendation, observation, merchantRulesSnapshot(rules), baseline, experimentReview, discountStudy, incentive);
+  const proposal = strategyProposal(recommendation, observation, merchantRulesSnapshot(rules), baseline, experimentReview, discountStudy, incentive, orchestration);
   const expiresAt = new Date((run.asOf ?? row.createdAt).getTime() + WEEK_MS);
   await tx.revenueStrategy.create({ data: { id: snap.id, merchantId: snap.merchant_id, runId,
     versions: { create: { version: 1, proposalHash: digest(proposal), proposal: proposal as unknown as Prisma.InputJsonValue, expiresAt } } } });
   await tx.merchantNotification.upsert({ where: { id: `strategy:${snap.id}` },
     update: {}, create: { id: `strategy:${snap.id}`, merchantId: snap.merchant_id, type: "ai_strategy_suggestion",
-      title: "Nova estratégia para revisar", body: incentive?.status === "recommended"
+      title: "Nova estratégia para revisar", body: orchestration ? snap.hypothesis_text : incentive?.status === "recommended"
         ? `${snap.hypothesis_text} Há também uma sugestão de teste de desconto com os limites da loja.` : snap.hypothesis_text,
       metadata: { hypothesisId: snap.id, strategyId: snap.id, version: 1, proposalHash: digest(proposal) } } });
 }

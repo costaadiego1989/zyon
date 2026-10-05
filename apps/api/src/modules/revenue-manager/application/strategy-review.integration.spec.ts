@@ -31,6 +31,7 @@ import { assertStoredDiscountStudy, prepareDiscountStudy } from "../infrastructu
 import type { StrategyDiscountStudy } from "../domain/strategy-discount-study.js";
 import { IncentivePolicyService } from "./incentive-policy.service.js";
 import { incentiveRecommendation, plannedIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
+import { executeStrategyPlannerTool } from "../infrastructure/strategy-planner-tool.js";
 
 // Destructive setup is strictly restricted to this dedicated local fixture DB.
 const url = new URL(process.env.REVENUE_STRATEGY_TEST_DATABASE_URL ?? "postgresql://invalid/disabled");
@@ -170,7 +171,8 @@ beforeEach(async () => {
   process.env = { ...env };
   await prisma.$executeRawUnsafe(`TRUNCATE revenue_strategies, revenue_strategy_versions, revenue_strategy_actions, revenue_strategy_revisions,
     revenue_analysis_runs, revenue_analysis_schedules, revenue_ai_reservations, ai_usage_events, ai_price_versions,
-    revenue_manager_hypotheses, revenue_manager_observations, merchant_notifications, merchant_rules, checkout_settings, merchants CASCADE`);
+    revenue_manager_hypotheses, revenue_manager_observations, merchant_notifications, merchant_rules, checkout_settings,
+    customer_intent_records, merchants CASCADE`);
   await prisma.$executeRawUnsafe(`TRUNCATE checkout_sessions, completed_orders, prompt_experiments CASCADE`);
   Object.assign(process.env, { REVENUE_WEEKLY_ENABLED: "true", REVENUE_WEEKLY_MERCHANT_IDS: "*", REVENUE_STRATEGY_REVISIONS_ENABLED: "true",
     REVENUE_AI_MAX_REVISIONS_PER_CYCLE: "3", REVENUE_AI_MAX_INPUT_TOKENS: "20000", REVENUE_AI_MAX_OUTPUT_TOKENS: "1000",
@@ -205,6 +207,48 @@ async function measuredProposal(withDiscountStudy = false) {
   const review = (read.versions[0].proposal as any).experimentReview as StrategyExperimentReview;
   return { f, s, read, review, id: output.hypothesis_id, input: { ...f.input, proposal_hash: read.versions[0].proposalHash } };
 }
+
+test("orchestrated weekly proposal and merchant revision use frozen options without creating commercial authority", { skip: !enabled }, async () => {
+  const f = await fixture("store", { publish: false });
+  await configureRealBaseline(); await configureMeasurement(f);
+  Object.assign(process.env, { REVENUE_STRATEGY_PLANNER_ENABLED: "true", REVENUE_DISCOUNT_STUDY_ENABLED: "true",
+    REVENUE_DISCOUNT_STUDY_MERCHANT_IDS: "store", REVENUE_COMMERCIAL_MODES_ENABLED: "true", REVENUE_COMMERCIAL_MODES_MERCHANT_IDS: "store" });
+  const requests: HypothesisGenerationRequest[] = [];
+  const generate = async (request: HypothesisGenerationRequest) => {
+    requests.push(structuredClone(request));
+    assert.ok(request.incentive_options);
+    assert.equal(request.incentive_options.merchantId, "store");
+    assert.equal(request.incentive_options.options.length, 0);
+    return executeStrategyPlannerTool({ tool_calls: [{ id: "call", type: "function", function: {
+      name: "submit_revenue_strategy", arguments: JSON.stringify({ selected_action: "communication_only",
+        rationale: request.revision ? "Uma explicação mais curta atende à preferência informada." : "O histórico não oferece uma opção financeira viável.",
+        hypothesis_text: "Explicar a etapa atual", reasoning: "Há abandono observado antes da conclusão.", name: "Ajuda contextual",
+        description: "Um teste de comunicação com aprovação prévia.", communication_addendum: "Pergunte qual informação falta e use os dados confirmados do checkout." }),
+    } }] }, request);
+  };
+  const result = await realGeneration(generate).execute({ merchant_id: "store", observation_id: f.observation.id,
+    analysis_context: { runId: f.run.id, leaseToken: 1 } });
+  await prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { status: "completed", hypothesisId: result.hypothesis_id } });
+  const reviewer = new StrategyReviewService(prisma, context, { generate }, billing as never);
+  const first = await reviewer.read("store", result.hypothesis_id);
+  const proposal = first.versions[0].proposal as any;
+  assert.equal(proposal.orchestration.selectedAction, "communication_only");
+  assert.equal(proposal.expectedLiftStatus, "not_estimated");
+  assert.equal(proposal.incentiveRecommendation, undefined);
+  assert.equal(await prisma.merchantIncentivePolicy.count(), 0);
+  assert.equal(await prisma.strategyIncentiveReview.count(), 0);
+  assert.equal(await prisma.strategyIncentiveExecution.count(), 0);
+  const revision = await reviewer.decide("store", "owner", result.hypothesis_id, "revision", {
+    version: 1, proposal_hash: first.versions[0].proposalHash, request_key: "planner-revision", feedback: "Explique de forma mais curta." });
+  await reviewer.process(revision.action_id);
+  const after = await reviewer.read("store", result.hypothesis_id);
+  assert.equal(after.currentVersion, 2); assert.equal(after.status, "pending_review");
+  assert.deepEqual(requests[0].incentive_options, requests[1].incentive_options);
+  assert.equal((after.versions[0].proposal as any).orchestration.rationale, "Uma explicação mais curta atende à preferência informada.");
+  assert.equal(await prisma.strategyIncentiveBudget.count(), 0);
+  assert.equal(await prisma.promptExperiment.count(), 0);
+  await assert.rejects(prisma.revenueAnalysisRun.update({ where: { id: f.run.id }, data: { incentiveOptionsJson: {} } }), /IMMUTABLE/);
+});
 
 async function approvableProposal(withDiscountStudy = false) {
   const f = await measuredProposal(withDiscountStudy);

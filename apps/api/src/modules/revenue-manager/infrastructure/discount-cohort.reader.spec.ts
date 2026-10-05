@@ -7,7 +7,8 @@ import { commercialIncentiveRecommendation, incentiveRecommendation } from "../d
 import { incentivePolicySnapshot } from "../domain/incentive-policy.js";
 
 const now = new Date("2026-09-29T00:00:00Z"), createdAt = new Date("2026-09-20T00:00:00Z");
-const session = (buyer = "buyer") => ({ globalUserId: buyer, createdAt,
+let sessionSequence = 0;
+const session = (buyer = "buyer") => ({ sessionId: `session-${++sessionSequence}`, globalUserId: buyer, createdAt,
   cart: { currency: "BRL", total: 999, items: [{ variantId: "variant", price: 999, cost: 0, quantity: 1 }] },
   completedOrders: [] as { completedAt: Date }[] });
 const intent = (buyer = "buyer") => ({ globalUserId: buyer, primaryIntent: "price_sensitive", generatedAt: new Date("2026-09-19T00:00:00Z") });
@@ -16,8 +17,13 @@ function db(sessions = [session()], intents = [intent()], prices: any[] = [price
   return { checkoutSession: { findMany: async (args: any) => {
     assert.deepEqual(args.where.createdAt, { gte: new Date("2026-08-23T00:00:00Z"), lt: new Date("2026-09-22T00:00:00Z") });
     assert.equal(args.where.merchantId, "store");
-    assert.deepEqual(args.select.completedOrders.where, { merchantId: "store", status: "approved", currency: "BRL" });
+    assert.equal(args.select.completedOrders, undefined);
     return sessions;
+  } }, completedOrder: { findMany: async (args: any) => {
+    assert.equal(args.where.merchantId, "store"); assert.equal(args.where.status, "approved"); assert.equal(args.where.currency, "BRL");
+    assert.deepEqual(args.where.completedAt, { gte: new Date("2026-08-23T00:00:00Z"), lt: now });
+    return sessions.filter(s => args.where.sessionId.in.includes(s.sessionId))
+      .flatMap(s => s.completedOrders.map(order => ({ sessionId: s.sessionId, completedAt: order.completedAt })));
   } }, customerIntentRecord: { findMany: async (args: any) => {
     assert.equal(args.where.merchantId, "store");
     assert.deepEqual(args.where.consent.is, { optedIn: true, expiresAt: { gt: now } }); return intents;
@@ -86,7 +92,7 @@ test("incentive baseline counts eligible non-buyers, excludes holdout/unknown co
   const sessions = Array.from({ length: 5 }, (_, i) => ({ ...session(`buyer-${i}`), cohort: i < 3 ? "treatment" : i === 3 ? "holdout" : null }));
   sessions[0].completedOrders = [{ completedAt: createdAt }, { completedAt: createdAt }];
   sessions[3].completedOrders = [{ completedAt: createdAt }];
-  const repeat = { ...sessions[1], completedOrders: [{ completedAt: createdAt }] };
+  const repeat = { ...sessions[1], sessionId: "repeat-session", completedOrders: [{ completedAt: createdAt }] };
   const history = await loadDiscountHistory(db([...sessions, repeat], sessions.map(s => intent(s.globalUserId))), "store", now, 30);
   const b = incentivePlanningBaseline(history, now, recommendation(), rules)!;
   assert.deepEqual(b, { buyers: 3, conversions: 1, complete: true,

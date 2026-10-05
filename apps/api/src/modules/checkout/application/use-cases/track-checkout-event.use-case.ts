@@ -42,7 +42,7 @@ export class TrackCheckoutEventUseCase {
     }
     // Completion is recorded by CompleteOrderUseCase after approved-payment validation.
     // Browser telemetry must never authorize conversion or reset abandonment state.
-    if (input.event === "order_completed") {
+    if (input.event === "order_completed" || String(input.event) === "strategy_incentive_stage") {
       throw new BadRequestException("checkout_event_server_only");
     }
     await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event, input.metadata);
