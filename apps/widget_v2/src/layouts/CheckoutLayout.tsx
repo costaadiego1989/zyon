@@ -9,7 +9,6 @@ import { DiscountBanner } from "@/components/DiscountBanner";
 import { PulseAgentOrb } from "@/components/PulseAgentOrb";
 import SupportPanel from "@/components/SupportPanel";
 import { ShimmerBorder } from "@/components/ShimmerBorder";
-import { CampaignContactPreferences } from "@/components/CampaignContactPreferences";
 
 interface CheckoutLayoutProps {
   forcedTheme?: "dark" | "light";
@@ -43,11 +42,8 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
   const dismissDiscount = useCheckoutStore((s) => s.dismissDiscount);
   const resetSession = useCheckoutStore((s) => s.resetSession);
   const showBranding = useCheckoutStore((s) => s.showBranding);
-  const leadRegistered = useCheckoutStore((s) => s.leadRegistered);
-  const api = useCheckoutStore((s) => s.api);
-  const sessionId = useCheckoutStore((s) => s.sessionId);
 
-  // Follow the actual composer when consent details, voice controls or the
+  // Follow the actual composer when voice controls or the
   // viewport change height. Fixed estimates let the FAB cover the send action.
   useEffect(() => {
     const column = chatColumnRef.current;
@@ -236,7 +232,6 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
             {storeName}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10.5px", color: "var(--mut)", marginTop: "1px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--dot)", animation: "pulseDot 2.2s ease-in-out infinite", flex: "none" }} />
             {agentName} · Checkout
           </div>
         </div>
@@ -401,7 +396,6 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
 
                 {/* ChatPanel is the MAIN UI */}
                 <ChatPanel />
-                {leadRegistered && <CampaignContactPreferences api={api} sessionId={sessionId} merchantName={storeName} />}
               </div>
 
               {/* SmartCart sidebar - desktop only */}

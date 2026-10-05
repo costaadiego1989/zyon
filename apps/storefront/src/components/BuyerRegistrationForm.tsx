@@ -243,6 +243,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
               throw new Error("Registro falhou: servidor não retornou identificação do usuário");
             }
             localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token, email: respEmail }));
+            window.dispatchEvent(new StorageEvent("storage", { key: "zyon_buyer_token" }));
           } else if (res.status === 404) {
             if (process.env.NODE_ENV === 'development') {
               console.warn("[BuyerRegistrationForm] register endpoint not found (404), using mock token for dev");

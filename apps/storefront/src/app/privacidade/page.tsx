@@ -94,6 +94,7 @@ export default function PrivacidadePage() {
         >
           Seus Dados de Personalização
         </h1>
+        <a href="/politicas/privacidade" style={{ color: "inherit", display: "inline-flex", minHeight: 44, alignItems: "center" }}>Ler a Política de Privacidade completa</a>
         <p
           style={{
             fontSize: 14,

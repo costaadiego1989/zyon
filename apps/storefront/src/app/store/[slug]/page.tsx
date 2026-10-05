@@ -5,8 +5,7 @@ import ConversationShell from "@/components/ConversationShell";
 import { WidgetConfigProvider } from "@/components/WidgetConfigProvider";
 import { CartProvider } from "@/lib/cart-store";
 import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema, ProductSchema } from "@/components/StructuredData";
-import { GoogleTagManager } from "@/components/GoogleTagManager";
-import { FacebookPixel, TiktokPixel } from "@/components/PixelTrackers";
+import { StorefrontConsent } from "@/components/StorefrontConsent";
 import { getDemoMerchant } from "@/lib/demo-merchant";
 import { fetchStoreConfig, fetchStoreStories } from "@/lib/api/server-client";
 import { fetchProductContent } from "@/lib/api/product-content";
@@ -336,14 +335,12 @@ export default async function StorePage({
           { name, url: pageUrl },
         ]}
       />
-      {!privateCheckout && gtmId && <GoogleTagManager gtmId={gtmId} />}
-      {!privateCheckout && fbPixelId && <FacebookPixel pixelId={fbPixelId} />}
-      {!privateCheckout && tiktokPixelId && <TiktokPixel pixelId={tiktokPixelId} />}
       {["demo", "athom-technologies"].includes(slug) && config?.merchantId ? <DemoEmbedBridge /> : null}
       {/* suppressHydrationWarning: zoom/reader browser extensions inject
           data-original-width + inline max-width on this shell before React
           hydrates. That mutation is outside our control. */}
       <div className="storefront-shell" suppressHydrationWarning>
+        <StorefrontConsent key={config?.merchantId ?? slug} storeKey={config?.merchantId ?? slug} merchantId={config?.merchantId} storeName={name} gtmId={privateCheckout ? undefined : gtmId} fbPixelId={privateCheckout ? undefined : fbPixelId} tiktokPixelId={privateCheckout ? undefined : tiktokPixelId}>
         <WidgetConfigProvider merchantId={config?.merchantId}>
           <CartProvider merchantId={config?.merchantId}>
             <ConversationShell
@@ -370,6 +367,7 @@ export default async function StorePage({
             />
           </CartProvider>
         </WidgetConfigProvider>
+        </StorefrontConsent>
       </div>
     </>
   );

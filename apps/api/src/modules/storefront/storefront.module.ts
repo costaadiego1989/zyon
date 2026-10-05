@@ -56,6 +56,8 @@ import { StorefrontConversationRateLimitService } from "./application/services/s
 import { OneBuyClickSessionService } from "./application/services/one-buy-click-session.service.js";
 import { OpenAIRealtimeVoiceService } from "../../shared/openai/openai-realtime-voice.service.js";
 import { StorefrontRealtimeVoiceController } from "./presentation/http/storefront-realtime-voice.controller.js";
+import { CampaignConsentModule } from "../campaign-consent/campaign-consent.module.js";
+import { StorefrontConsentController } from "./presentation/http/storefront-consent.controller.js";
 @Module({
   imports: [
     PersistenceModule,
@@ -71,8 +73,9 @@ import { StorefrontRealtimeVoiceController } from "./presentation/http/storefron
     KnowledgeBaseModule,
     StoriesModule,
     BuyerAccountModule,
+    CampaignConsentModule,
   ],
-  controllers: [StorefrontController, StorefrontRealtimeVoiceController, StorefrontProductContentController, StorefrontProductSubmissionController],
+  controllers: [StorefrontController, StorefrontRealtimeVoiceController, StorefrontProductContentController, StorefrontProductSubmissionController, StorefrontConsentController],
   providers: [
     { provide: RateLimitStore, useClass: RedisRateLimitStore },
     StorefrontConversationRateLimitService,

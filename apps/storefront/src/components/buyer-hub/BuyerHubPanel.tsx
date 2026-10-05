@@ -194,6 +194,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
       try {
         localStorage.setItem("zyon_buyer_token", accessToken);
         localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token: accessToken, email: verifiedEmail }));
+        window.dispatchEvent(new StorageEvent("storage", { key: "zyon_buyer_token" }));
       } catch {}
       onAuthSuccess();
     } catch {
