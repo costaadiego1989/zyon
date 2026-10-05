@@ -15,8 +15,8 @@ export function CheckoutPolicies() {
     ["Termos da loja", safeUrl(policies?.termsUrl)],
     ["Trocas e devoluções", safeUrl(policies?.refundUrl)],
     ["Envio e frete", safeUrl(policies?.shippingUrl)],
-    ["Documentos da Zyon", "https://www.zyon-payments.com.br/privacidade"],
   ].filter((entry): entry is [string, string] => Boolean(entry[1]));
+  if (links.length === 0) return null;
   return <nav aria-label="Políticas do checkout" style={{ display: "flex", flexWrap: "wrap", justifyContent: "center", columnGap: 16, padding: "0 12px", flex: "none", borderTop: "1px solid var(--aacp-line)", background: "var(--aacp-surface)", fontSize: 12 }}>
     {links.map(([label, href]) => <a key={label} href={href} target="_blank" rel="noopener noreferrer" style={{ display: "inline-flex", alignItems: "center", minHeight: 44, color: "var(--aacp-fg)", textDecoration: "underline", textUnderlineOffset: 3 }}>{label}</a>)}
   </nav>;
