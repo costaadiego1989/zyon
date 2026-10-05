@@ -1,4 +1,4 @@
-import { Body, Controller, Delete, Get, Param, Post, Req, UseGuards } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, ForbiddenException, Get, Header, Param, Post, Query, Req, UseGuards } from "@nestjs/common";
 import { ListBuyerConversationsUseCase } from "../../application/use-cases/buyer-conversation.use-cases.js";
 import { GetBuyerConversationUseCase } from "../../application/use-cases/buyer-conversation.use-cases.js";
 import { RateBuyerConversationMessageUseCase } from "../../application/use-cases/buyer-conversation.use-cases.js";
@@ -13,6 +13,8 @@ function conversationToDto(c: BuyerConversation) {
     id: c.id,
     session_id: c.sessionId,
     merchant_id: c.merchantId,
+    merchant_name: c.merchantName ?? null,
+    status: c.status ?? "history",
     started_at: c.startedAt.toISOString(),
     last_message_at: c.lastMessageAt.toISOString(),
     messages: c.messages.map((m) => ({
@@ -38,29 +40,41 @@ export class BuyerHubController {
   ) {}
 
   @Get("benefits")
-  async getBenefits(@Req() req: { user?: unknown }) {
+  @Header("Cache-Control", "private, no-store")
+  async getBenefits(@Req() req: { user?: unknown }, @Query("merchant_id") merchantQuery?: unknown) {
     const buyer = currentBuyer(req);
+    if (merchantQuery !== undefined && (typeof merchantQuery !== "string" || !merchantQuery.trim() || merchantQuery.length > 200)) {
+      throw new BadRequestException("invalid_merchant_id");
+    }
+    const requestedMerchant = typeof merchantQuery === "string" ? merchantQuery.trim() : undefined;
+    if (buyer.merchantId && requestedMerchant && buyer.merchantId !== requestedMerchant) {
+      throw new ForbiddenException("buyer_merchant_mismatch");
+    }
     return this.getBenefitsUC.execute({
       globalUserId: buyer.globalUserId,
-      merchantId: buyer.merchantId,
+      merchantId: buyer.merchantId ?? requestedMerchant,
     });
   }
 
   @Get("conversations")
-  async listConversations(@Req() req: { user?: unknown }) {
+  @Header("Cache-Control", "private, no-store")
+  async listConversations(@Req() req: { user?: unknown }, @Query("merchant_id") merchantQuery?: unknown) {
     const buyer = currentBuyer(req);
-    const list = await this.listConversationsUC.execute({ globalUserId: buyer.globalUserId });
+    const merchantId = conversationMerchantScope(buyer.merchantId, merchantQuery);
+    const list = await this.listConversationsUC.execute({ globalUserId: buyer.globalUserId, merchantId });
     return {
       items: list.map(conversationToDto),
     };
   }
 
   @Get("conversations/:id")
-  async getConversation(@Req() req: { user?: unknown }, @Param("id") id: string) {
+  @Header("Cache-Control", "private, no-store")
+  async getConversation(@Req() req: { user?: unknown }, @Param("id") id: string, @Query("merchant_id") merchantQuery?: unknown) {
     const buyer = currentBuyer(req);
     const c = await this.getConversationUC.execute({
       globalUserId: buyer.globalUserId,
       id,
+      merchantId: conversationMerchantScope(buyer.merchantId, merchantQuery),
     });
     return conversationToDto(c);
   }
@@ -69,7 +83,8 @@ export class BuyerHubController {
   async rateConversationMessage(
     @Req() req: { user?: unknown },
     @Param("id") id: string,
-    @Body() body: { message_id: string; rating: "up" | "down" }
+    @Body() body: { message_id: string; rating: "up" | "down" },
+    @Query("merchant_id") merchantQuery?: unknown,
   ) {
     const buyer = currentBuyer(req);
     await this.rateMessage.execute({
@@ -77,6 +92,7 @@ export class BuyerHubController {
       conversationId: id,
       messageId: body.message_id,
       rating: body.rating,
+      merchantId: conversationMerchantScope(buyer.merchantId, merchantQuery),
     });
     return { success: true };
   }
@@ -96,4 +112,11 @@ export class BuyerHubController {
       anonymized_purchases: result.anonymizedPurchases,
     };
   }
+}
+
+function conversationMerchantScope(tokenMerchant: string | undefined, query: unknown): string | undefined {
+  if (query !== undefined && (typeof query !== "string" || !query.trim() || query.length > 200)) throw new BadRequestException("invalid_merchant_id");
+  const requested = typeof query === "string" ? query.trim() : undefined;
+  if (tokenMerchant && requested && tokenMerchant !== requested) throw new ForbiddenException("buyer_merchant_mismatch");
+  return tokenMerchant ?? requested;
 }

@@ -18,6 +18,7 @@ import { commercialDiscountStudy, discountStudy, plannerDiscountStudy } from "..
 import { revenueIncentiveOptions } from "../domain/revenue-incentive-options.js";
 import { orchestrationDecision } from "../domain/strategy-orchestration.js";
 import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
+import { readBuyerIncentiveBenefits } from "./buyer-incentive-benefits.reader.js";
 import { incentiveBudgetTerms, recommendedIncentiveBudgetTerms } from "../domain/incentive-budget.js";
 import { conservativeIncentiveAlternative, incentiveRecommendation, plannedCommercialIncentiveRecommendation, plannedIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 import { IncentivePolicyService } from "../application/incentive-policy.service.js";
@@ -148,6 +149,58 @@ function payment(session: Awaited<ReturnType<typeof admit>>) {
     currency: "BRL", method: "pix", amountCents: totalCents, amountBreakdown: { version: 1, currency: "BRL",
       cartFingerprint: paymentCartFingerprint(session), itemsSubtotalCents: 10000, shippingCents: 1000,
       discountCents, platformFeeCents: 0, totalCents } });
+}
+
+async function benefitReadSnapshot() {
+  return Promise.all([
+    prisma.strategyIncentiveAssignment.findMany({ orderBy: { id: "asc" } }),
+    prisma.strategyIncentiveReservation.findMany({ orderBy: { id: "asc" } }),
+    prisma.strategyIncentiveBudget.findMany({ orderBy: { id: "asc" } }),
+    prisma.checkoutSession.findMany({ orderBy: { id: "asc" } }),
+    prisma.strategyIncentiveStageGrant.findMany({ orderBy: { id: "asc" } }),
+    prisma.couponRedemption.findMany({ orderBy: { id: "asc" } }),
+    prisma.checkoutEvent.findMany({ orderBy: { id: "asc" } }),
+  ]);
+}
+
+spec("buyer benefit read exposes only admitted treatment in an approved pending_review strategy without writes", async () => {
+  const f = await ready("fixed");
+  const treatment = await admit(await buyer(f, "treatment"));
+  const control = await admit(await buyer(f, "control"));
+  const holdout = await admit(await buyer(f, "treatment", { cohort: "holdout" }));
+  const unassigned = await buyer(f, "treatment");
+  assert.equal((await prisma.revenueStrategy.findUniqueOrThrow({ where: { id: f.hypothesis.id } })).status, "pending_review");
+  const before = await benefitReadSnapshot();
+  const offers = await readBuyerIncentiveBenefits(prisma, "store", treatment.globalUserId);
+  assert.equal(offers.length, 1);
+  assert.equal(offers[0].amountCents, 500); assert.equal(offers[0].maxDiscountCents, 500);
+  assert.equal(offers[0].sessionId, treatment.sessionId); assert.equal(offers[0].status, "applied");
+  assert.equal(offers[0].couponCode, (await prisma.coupon.findFirstOrThrow()).code);
+  assert.deepEqual(await readBuyerIncentiveBenefits(prisma, "store", treatment.globalUserId), offers);
+  for (const excluded of [control, holdout, unassigned]) {
+    assert.deepEqual(await readBuyerIncentiveBenefits(prisma, "store", excluded.globalUserId), []);
+  }
+  assert.deepEqual(await readBuyerIncentiveBenefits(prisma, "other", treatment.globalUserId), []);
+  assert.deepEqual(await benefitReadSnapshot(), before);
+});
+
+for (const reason of ["consent revoked", "consent expired", "budget closed", "approval withdrawn"] as const) {
+  spec(`buyer benefit read omits ${reason} from real persisted authority without changing checkout`, async () => {
+    const f = await ready("fixed");
+    const treatment = await admit(await buyer(f, "treatment"));
+    assert.equal((await readBuyerIncentiveBenefits(prisma, "store", treatment.globalUserId)).length, 1);
+    if (reason.startsWith("consent")) {
+      await prisma.buyerIntentMemoryConsent.update({ where: { merchantId_globalUserId: { merchantId: "store", globalUserId: treatment.globalUserId } },
+        data: reason === "consent revoked" ? { optedIn: false } : { expiresAt: new Date(Date.now() - 1000) } });
+    } else if (reason === "budget closed") {
+      await tx(client => closeIncentiveBudget(client, { merchantId: "store", budgetId: f.execution.budgetId, actorId: "owner", reason: "Stop test" }));
+    } else {
+      await reviews.decide("store", "owner", f.hypothesis.id, "withdraw", { ...f.reviewCommand, request_key: "buyer-benefit-withdraw" });
+    }
+    const before = await benefitReadSnapshot();
+    assert.deepEqual(await readBuyerIncentiveBenefits(prisma, "store", treatment.globalUserId), []);
+    assert.deepEqual(await benefitReadSnapshot(), before);
+  });
 }
 
 spec("checkout coupon entry preserves treatment assignment and rejects control, holdout and unassigned buyers", async () => {

@@ -4,6 +4,16 @@ Referência do código atualizada em 05/10/2026. Abrange Revenue Manager, experi
 
 Este documento descreve a implementação. A revisão implantada, as flags efetivas e a verificação pública de produção devem ser registradas na seção de publicação abaixo. Um teste local, uma migration aplicada ou um build concluído não comprovam sozinhos o funcionamento em produção.
 
+### Exibição dos benefícios no checkout e no hub
+
+O checkout apresenta o valor realmente concedido pela autoridade financeira. Um percentual e um teto são condições combinadas: 40% com teto de R$15 gera R$8 em produtos de R$20, desde que o percentual e a margem sejam permitidos pela loja. A Athom mantém seu limite de 10%; o exemplo não altera sua configuração. Descontos fixos não são descritos como uma oferta percentual. Etapas progressivas mostram somente a etapa já concedida, com seu valor e teto atuais.
+
+`GET /v1/buyer/me/benefits?merchant_id=...` requer autenticação do comprador. Um token vinculado à loja não pode selecionar outra loja; um login global pode selecionar explicitamente uma loja, mas o servidor exige consentimento, sessão e concessão pertencentes a esse comprador e tenant. Sem tenant explícito, nenhuma oferta personalizada é inferida. A resposta usa `Cache-Control: private, no-store`.
+
+`readBuyerIncentiveBenefits` usa uma transação PostgreSQL somente leitura e uma visão consistente dos registros existentes. Não admite compradores em experimentos, não altera carrinhos e não cria reservas. Confere execução vigente, aprovação e versão congeladas, política, orçamento, reserva, grupo de tratamento, consentimento, catálogo e custos atuais, condições de frete e ausência de pagamento ou outro benefício. Falta de validade produz uma lista vazia; falha de infraestrutura é um erro de leitura. A exibição nunca substitui a revalidação do checkout e pagamento.
+
+O hub separa “Cupons da loja” de “Oferta para este pedido”, esta última exibida apenas quando há concessão válida. Reabrir o hub atualiza os benefícios; expiração remove a oferta, e respostas antigas são descartadas ao trocar comprador ou loja. Não há promessa de benefício futuro no estado vazio. O cupom de uma estratégia não é incluído nos cupons públicos, em `list_promotions` ou no contexto de geração de nudges gerais. A listagem administrativa do merchant continua apresentando esses cupons. O nudge comercial é exibido no checkout; o carrinho anterior à criação dessa sessão não recebe uma oferta inferida.
+
 ## 1. Objetivo e experiência do merchant
 
 O motor transforma dados medidos da loja em uma proposta que o merchant consegue entender e decidir. A IA apresenta o motivo, a mudança sugerida, o público, os limites e a forma de medir. O merchant aprova, recusa ou pede outra proposta; ele não precisa escrever prompts nem configurar um experimento técnico.

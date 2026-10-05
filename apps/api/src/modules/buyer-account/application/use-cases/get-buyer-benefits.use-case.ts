@@ -1,5 +1,6 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { readBuyerIncentiveBenefits, type BuyerIncentiveBenefit } from "../../../revenue-manager/infrastructure/buyer-incentive-benefits.reader.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "../../buyer-account.tokens.js";
 import {
   BUYER_EARNED_BENEFIT_REPOSITORY,
@@ -55,6 +56,7 @@ export interface BuyerBenefitsResult {
   available: AvailableBenefitDto[];
   earned: EarnedBenefitDto[];
   progress: ProgressBenefitDto[];
+  offers?: BuyerIncentiveBenefit[];
 }
 
 const VALUE_ACTIONS = new Set(["offer_discount", "offer_free_shipping", "offer_coupon"]);
@@ -90,13 +92,16 @@ export class GetBuyerBenefitsUseCase {
     // Tenant boundary (INV-06): scope everything to the consented merchant.
     const merchantId: string = input.merchantId ?? consent.merchantId;
 
-    const [earned, available, progress] = await Promise.all([
+    const [earned, available, progress, offers] = await Promise.all([
       this.buildEarned(merchantId, globalUserId),
       this.buildAvailable(merchantId, input.cart),
       this.buildProgress(merchantId, input.cart),
+      // Personalized offers require an authenticated buyer and an explicitly
+      // selected tenant with consent. A lookup must not choose another store.
+      input.merchantId ? readBuyerIncentiveBenefits(this.prisma, input.merchantId, globalUserId) : Promise.resolve([]),
     ]);
 
-    return { available, earned, progress };
+    return { available, earned, progress, ...(offers.length ? { offers } : {}) };
   }
 
   private async buildEarned(

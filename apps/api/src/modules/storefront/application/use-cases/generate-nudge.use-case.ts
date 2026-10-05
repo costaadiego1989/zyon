@@ -66,6 +66,7 @@ export class GenerateNudgeUseCase {
         const coupons = await this.coupons.findAllByMerchant(merchantId);
         for (const c of coupons) {
           const s = c.snapshot();
+          if (s.strategy_incentive_execution_id != null) continue;
           if (s.status !== "active") continue;
           if (s.starts_at && new Date(s.starts_at).getTime() > now) continue;
           if (s.ends_at && new Date(s.ends_at).getTime() < now) continue;

@@ -640,6 +640,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
           const rows = await deps.couponRepo.findAllByMerchant(ctx.merchantId);
           coupons = rows
             .map((c) => c.snapshot())
+            // Personalized experiment codes are disclosed only by the eligible-benefits reader.
+            .filter((s) => s.strategy_incentive_execution_id == null)
             .filter((s) => s.status === "active")
             .filter((s) => !s.starts_at || new Date(s.starts_at).getTime() <= now)
             .filter((s) => !s.ends_at || new Date(s.ends_at).getTime() > now)

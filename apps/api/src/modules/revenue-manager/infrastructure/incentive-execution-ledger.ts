@@ -3,6 +3,7 @@ import type { CheckoutSession, Prisma, StrategyIncentiveAssignment } from "@pris
 import type { Cart, ShippingQuote } from "@zyon/shared-types";
 import { moneyCents } from "@zyon/rules-engine";
 import { assessExecutableIncentive } from "../domain/executable-incentive.js";
+import { incentiveBenefitDisplay } from "../domain/incentive-benefit-display.js";
 export { assessExecutableIncentive } from "../domain/executable-incentive.js";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import type { StrategyProposal } from "../domain/strategy-proposal.js";
@@ -100,7 +101,7 @@ function assignmentCartHash(cart: Cart, recommendation: StrategyIncentiveRecomme
 
 /** Locked, current catalog is the only price/cost authority. Unknown/customized
  * baskets and subsidized shipping are ineligible for this first runtime. */
-async function authoritativeCart(tx: Tx, session: CheckoutSession): Promise<Cart | null> {
+async function authoritativeCart(tx: Tx, session: CheckoutSession, lockPrices = true): Promise<Cart | null> {
   const snapshot = toCheckoutSession(session), cart = snapshot.cart;
   if (!cart || cart.currency !== "BRL" || !Array.isArray(cart.items) || !cart.items.length || cart.items.length > 100
     || snapshot.crossStoreItems?.length || (cart as Cart & { crossStoreItems?: unknown[] }).crossStoreItems?.length
@@ -110,7 +111,7 @@ async function authoritativeCart(tx: Tx, session: CheckoutSession): Promise<Cart
     || (item.selected_options !== undefined && (!Array.isArray(item.selected_options) || item.selected_options.length)))) return null;
   const ids = cart.items.map(item => item.variantId!);
   // Price/variant/product writers cannot invalidate costs between assessment and commit.
-  await tx.$queryRaw`SELECT p.id FROM product_prices p JOIN product_variants v ON v.id = p.variant_id
+  if (lockPrices) await tx.$queryRaw`SELECT p.id FROM product_prices p JOIN product_variants v ON v.id = p.variant_id
     JOIN products product ON product.id = v.product_id WHERE product.merchant_id = ${session.merchantId}
     AND v.id = ANY(${ids}) AND p.currency = 'BRL' FOR SHARE OF p, v, product`;
   const prices = await tx.productPrice.findMany({ where: { variantId: { in: ids }, currency: "BRL",
@@ -125,6 +126,12 @@ async function authoritativeCart(tx: Tx, session: CheckoutSession): Promise<Cart
     items.push({ ...item, cost: price.costInCents! / 100 });
   }
   return Number.isSafeInteger(total) && moneyCents(cart.total) === total ? { ...cart, items } : null;
+}
+
+/** Presentation reads use a consistent database snapshot, without admitting a
+ * buyer or granting financial authority. Payment paths retain the price locks. */
+export function readAuthoritativeIncentiveCart(tx: Tx, session: CheckoutSession): Promise<Cart | null> {
+  return authoritativeCart(tx, session, false);
 }
 
 async function eligibleIntent(tx: Tx, merchantId: string, buyerId: string, intent: string, now: Date) {
@@ -201,12 +208,10 @@ export async function applyEligibleIncentive(tx: Tx, session: CheckoutSession): 
 function cartWithIncentive(cart: Cart, assignmentId: string, amountCents: number, recommendation: StrategyIncentiveRecommendation, stage?: 0 | 1): Cart {
   if (recommendation.status !== "recommended") throw new Error("INCENTIVE_EXECUTION_CORRUPT");
   const couponCode = recommendation.test.delivery?.mode === "coupon_code" ? recommendation.test.delivery.code : undefined;
-  const shippingDiscount = recommendation.test.kind === "capped_shipping_discount";
+  const display = incentiveBenefitDisplay(recommendation, amountCents, stage);
   return { ...cart, currentDiscount: amountCents / 100, commercialNudge: {
-    kind: "coupon", ruleId: assignmentId, ...(couponCode ? { couponCode } : {}),
-    title: stage !== undefined ? "Desconto progressivo aplicado" : shippingDiscount ? "Desconto no frete aplicado" : couponCode ? "Cupom personalizado aplicado" : "Desconto aplicado",
-    message: stage !== undefined ? `Etapa ${stage + 1} de 2: o desconto foi aplicado ao total deste pedido.` : shippingDiscount ? "O desconto no frete foi abatido uma vez do total deste pedido."
-      : "Um desconto foi aplicado a este pedido.",
+    kind: stage !== undefined ? "progressive_discount" : "coupon", ruleId: assignmentId, ...(couponCode ? { couponCode } : {}),
+    ...display,
     badge: `−${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(amountCents / 100)}` } };
 }
 
