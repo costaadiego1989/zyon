@@ -21,9 +21,9 @@ As modalidades v3 preservam o histórico v1/v2 e exigem uma flag e uma lista exp
 
 ## Valores da Athom
 
-Em 05/10, o proprietário autorizou escolher valores para sua loja de testes. Foi salva uma política auditada, versão 1, com R$ 300 por teste, R$ 10 por compra e 30 usos. Permanecem desconto máximo de 10% e margem mínima de 38%.
+Em 05/10, o proprietário autorizou escolher valores para sua loja de testes. Inicialmente foi salva uma política auditada, versão 1, com R$ 300 por teste, R$ 10 por compra e 30 usos. Às 18:27 UTC, atendendo ao fluxo de limites sugeridos pela IA, a Athom passou ao modo automático, versão 2. O histórico da versão 1 foi preservado. Permanecem desconto máximo de 10% e margem mínima de 38%.
 
-Esses valores não são uma recomendação estatística calculada para a loja. O limite de 30 usos é inferior ao mínimo de 100 compradores por braço do experimento financeiro; portanto, essa configuração não é suficiente para autorizar o A/B financeiro. O histórico observado também está abaixo do pré-requisito de medição: 40 compradores elegíveis maduros, ante o mínimo de 100. O motor deve explicar a inviabilidade, sem aumentar os limites ou fabricar dados para iniciar um teste.
+Os valores da versão 1 não eram uma recomendação estatística calculada para a loja. O limite de 30 usos era inferior ao mínimo de 100 compradores por braço do experimento financeiro. No modo automático, o motor calcula a exposição de cada proposta com base na amostra necessária; a preferência não libera verba por si só. O histórico observado continua abaixo do pré-requisito de medição: 40 compradores elegíveis maduros, ante o mínimo de 100. O motor deve explicar a inviabilidade, sem fabricar dados para iniciar um teste.
 
 Salvar a política não cobra valores e não aprova uma promoção. Os valores usados nas análises e nos testes internos servem para simulação e não geram cobrança ao merchant. Descontos efetivamente aprovados e utilizados em vendas reduzem o valor recebido pela loja, sem representar uma cobrança da Zyon. O orçamento de tokens da plataforma é separado desses valores.
 
@@ -76,7 +76,7 @@ Aprendizado agregado está habilitado na lista piloto, mas exige cinco lojas ind
 
 Evidências operacionais sem credenciais: `.audit/commercial-live-proof.log` e `.audit/commercial-weekly-live.log`. Os bancos e Redis descartáveis usados nos testes foram encerrados e removidos; nenhum serviço da Cura Viva foi alterado.
 
-## Planejador e limites sugeridos — implementação em validação
+## Planejador e limites sugeridos — publicado
 
 O novo fluxo elimina o preenchimento obrigatório dos três limites financeiros para lojas que usam o modo automático. Antes da chamada à LLM, o backend simula opções com os dados maduros da loja, os custos conhecidos, a margem mínima e o desconto máximo configurados. Calcula benefício, público, prazo, quantidade e exposição máxima; exclui as opções que não sustentam a amostra necessária durante a semana. A ferramenta `submit_revenue_strategy` escolhe uma dessas opções ou uma estratégia de comunicação sem desconto. Não aceita valores livres nem aprova ações.
 
@@ -86,7 +86,7 @@ Somente a aprovação dos termos exatos materializa a política financeira propo
 
 O catálogo inclui a opção de desconto progressivo em duas etapas: entrada no teste e preparação do pagamento. O limite máximo fica reservado desde a entrada, mas somente o desconto efetivamente concedido pode ser contabilizado na venda. A progressão é comandada pelo backend; uma alteração no total exige nova confirmação do comprador antes do pagamento. Não reescreve regras globais nem acumula os valores das etapas.
 
-Esta evolução concluiu a validação local. As evidências de produção nas seções anteriores referem-se às modalidades v3 e não comprovam a publicação do novo planejador. A nova flag `REVENUE_STRATEGY_PLANNER_ENABLED` depende também da lista explícita de lojas das modalidades comerciais. A Athom continua sujeita aos requisitos de dados e medição; habilitar o planejador não fabrica histórico nem autoriza uma promoção.
+Esta evolução concluiu a validação local e foi publicada; a confirmação do novo planejador está na seção de produção abaixo. A flag `REVENUE_STRATEGY_PLANNER_ENABLED` depende também da lista explícita de lojas das modalidades comerciais. A Athom continua sujeita aos requisitos de dados e medição; habilitar o planejador não fabrica histórico nem autoriza uma promoção.
 
 ### Evidência do planejador
 
@@ -99,6 +99,25 @@ Esta evolução concluiu a validação local. As evidências de produção nas s
 - Revisão: os 72 testes de integração da suíte completa passaram em PostgreSQL e Redis descartáveis, sem skips. Incluem a nova geração/revisão por ferramenta, contratos legados, notificação, condições de aprovação, orçamento de IA, recuperação pela fila e bloqueios contra mudanças concorrentes.
 
 Os compradores, pedidos, provedor de pagamento e respostas de IA dessas integrações são controlados para teste. Nenhuma aprovação, cupom ou cobrança de comprador foi criada em produção por essa validação. Ela comprova as proteções do fluxo local, sem comprovar aumento de receita.
+
+### Produção do planejador verificada às 18:27 UTC
+
+Código publicado em `master`, revisão `40a85a21a9eb8585c8e7b041a1fe7562479a56dc`, incluindo a implementação da API em `cdf528c` e do dashboard em `85ed863`.
+
+| Superfície | Evidência |
+| --- | --- |
+| API Railway | Deployment `28873412-f731-48b6-b3e3-bf7a7ee5eca4`, SUCCESS. Processo confirmou a revisão e `/ready` respondeu HTTP 200, banco conectado. |
+| Banco | As migrações `20261005200000_strategy_planner_policy`, `20261005210000_progressive_incentives` e `20261005210100_progressive_payment_method` estão aplicadas. Checksums correspondem aos arquivos versionados com finais de linha LF. |
+| Dashboard Vercel | Deployment `dpl_ncqWArQtwxHTaX9Y9g4SjnqyFARW`, Ready, alias `app.zyon-payments.com.br`. Página HTTP 200 e artefatos publicados confirmam a explicação de simulação sem cobrança, o modo “IA sugere os limites” e o novo contrato de proposta. |
+| Planejador | Habilitado para Athom; chamada ao leitor em produção confirmou `true` para a piloto e `false` para uma loja fora da lista. Geração semanal, revisão e execução permanecem habilitadas no escopo piloto. |
+| Política da Athom | Alterada pelo serviço da aplicação para versão 2, modo `automatic`. O snapshot financeiro tem `enabled=false` e valores zero, pois ainda não existe aprovação: isso não pausa a análise nem o cálculo de limites propostos. A autorização financeira só nasce na aprovação dos termos exatos. |
+| Checkout | Baseline pronto, modelo `deepseek-flash`, revisão de comportamento `cdf528c03358b6aca41eff161c103ad8e96cdcd1`. |
+| Aprovações e operação | Zero experimentos ativos, estratégias, revisões aprovadas, execuções de incentivo e concessões progressivas na Athom. A publicação e a mudança de preferência não criaram promoção nem cobrança. |
+| Custo de IA | Tetos de USD 0,05 por dia e USD 1 por mês, três chamadas por ciclo, preservados. Esses limites são da plataforma. |
+
+A agenda ainda conserva o ciclo atrasado de 03/10 e seu motivo histórico; a geração atual está habilitada e a próxima janela normal é 06/10, das 03h às 06h, America/Sao_Paulo. Não foi forçada uma análise fora da janela nem criado histórico de vendas para simular elegibilidade em produção. Sem dados suficientes, o ciclo pode retornar sem recomendação financeira.
+
+Evidências sem credenciais: `.audit/planner-live-proof.log`, `.audit/planner-athom-automatic.log` e `.audit/planner-public-proof.log`. Esta verificação comprova publicação, configuração e estado persistido. O fluxo de compra com o novo benefício foi validado no ambiente controlado descrito acima; não houve compra real nem medição de aumento de receita em produção durante esta entrega.
 
 ## Rollback
 
