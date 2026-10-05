@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { selectChatChannel } from "./fixtures/cross-sell-mocks.js";
 
 /**
  * Validates the checkout cart is mobile-first: on a narrow viewport the cart
@@ -32,10 +33,7 @@ async function setupMocks(page: Page) {
 
 async function enterChat(page: Page) {
   await page.goto(`${WIDGET_URL}/?embed=1&embedToken=t&merchantId=m&cartRef=c&apiBaseUrl=${WIDGET_URL}`, { waitUntil: "domcontentloaded", timeout: 30000 });
-  const chatBtn = page.locator("button", { hasText: "Por chat" });
-  await chatBtn.waitFor({ state: "visible", timeout: 15000 });
-  await chatBtn.click();
-  await page.locator("text=/carrinho|Olá|produto ideal/i").first().waitFor({ state: "visible", timeout: 10000 });
+  await selectChatChannel(page);
 }
 
 test("mobile: cart sidebar hidden, cart FAB clears the chat input and support stays in the header", async ({ page }) => {
