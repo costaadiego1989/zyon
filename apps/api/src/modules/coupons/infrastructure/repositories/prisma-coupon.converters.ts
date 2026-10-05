@@ -21,6 +21,7 @@ export function toCouponEntity(row: CouponRow): CouponEntity {
   const snap: CouponSnapshot = {
     id: row.id,
     merchant_id: row.merchantId,
+    strategy_incentive_execution_id: row.strategyIncentiveExecutionId ?? null,
     code: row.code,
     discount_type: row.discountType as CouponDiscountType,
     discount_value: toNumber(row.discountValue),

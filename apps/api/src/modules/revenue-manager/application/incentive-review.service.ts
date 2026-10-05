@@ -11,7 +11,7 @@ import { lockCheckoutBaselineRows } from "../infrastructure/checkout-baseline.re
 import { merchantRulesSnapshot } from "../infrastructure/hypothesis-merchant-context.adapter.js";
 import { readIncentivePolicy } from "../infrastructure/incentive-policy.reader.js";
 import { incentiveReviewReceipt } from "../infrastructure/incentive-review.reader.js";
-import { assertStoredDiscountStudy } from "../infrastructure/strategy-discount-study.js";
+import { assertStoredDiscountStudy, commercialModesEnabled } from "../infrastructure/strategy-discount-study.js";
 import { closeIncentiveBudget, readIncentiveBudget } from "../infrastructure/incentive-budget-ledger.js";
 import { activateApprovedIncentive, incentiveActivationBlockers, incentiveExecutionEnabled } from "../infrastructure/incentive-execution-ledger.js";
 
@@ -44,8 +44,11 @@ export class IncentiveReviewService {
     if (!eligible) reasons.push("plan_required");
     if (strategy.currentVersion !== version.version || !["pending_review", "activation_pending", "active"].includes(strategy.status)) reasons.push("proposal_unavailable");
     if (version.expiresAt <= now) reasons.push("proposal_expired");
-    if (!recommendation || recommendation.definition !== "weekly-incentive-recommendation-v2" || recommendation.status !== "recommended") reasons.push("planned_recommendation_required");
+    if (!recommendation || !["weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3"].includes(recommendation.definition)
+      || recommendation.status !== "recommended") reasons.push("planned_recommendation_required");
     if (recommendation?.planning?.status !== "estimated_feasible") reasons.push("measurement_blocked");
+    if (recommendation?.definition === "weekly-incentive-recommendation-v3"
+      && !commercialModesEnabled(strategy.merchantId)) reasons.push("commercial_modes_disabled");
     const policy = await readIncentivePolicy(tx, strategy.merchantId);
     if (!policy.enabled || !recommendation || digest(policy) !== digest(recommendation.financialPolicy)) reasons.push("financial_policy_changed");
     if (!await tx.revenueAnalysisSchedule.findUnique({ where: { merchantId: strategy.merchantId } })) reasons.push("weekly_enrollment_required");

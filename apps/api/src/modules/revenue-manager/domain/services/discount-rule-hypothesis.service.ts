@@ -1,5 +1,5 @@
 import { createHash } from "node:crypto";
-import type { AdvancedRule, Cart, MerchantRules } from "@zyon/shared-types";
+import type { AdvancedRule, Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
 import { assessIncentiveMargin, evaluateDiscountOffer, meetsMarginFloor, moneyCents } from "@zyon/rules-engine";
 
 export interface CohortStats {
@@ -8,6 +8,8 @@ export interface CohortStats {
   conversionRate: number;
   /** One mature observation per buyer, priced with the merchant's current catalog. */
   carts: Cart[];
+  /** Aligned with carts; missing carrier costs must remain unavailable. */
+  shipping?: Array<ShippingQuote | undefined>;
 }
 
 export interface DiscountSimulation {

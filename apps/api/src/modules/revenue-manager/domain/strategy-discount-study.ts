@@ -2,10 +2,12 @@ import type { MerchantRules } from "@zyon/shared-types";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { moneyCents } from "@zyon/rules-engine";
 import { DiscountRuleHypothesisService, type CohortStats, type DiscountSimulation } from "./services/discount-rule-hypothesis.service.js";
+import { assertCommercialCandidate, commercialCandidate, type CommercialCandidate } from "./strategy-commercial-candidate.js";
 
 /** An aggregate study, never an executable rule, coupon or spending authority. */
 export type StrategyDiscountStudy = {
-  definition: "weekly-discount-study-v1";
+  definition: "weekly-discount-study-v1" | "weekly-discount-study-v2";
+  commercialCandidate?: CommercialCandidate | null;
   merchantId: string;
   runId: string;
   observationId: string;
@@ -42,6 +44,13 @@ export function discountStudy(input: { merchantId: string; runId: string; observ
 
 export function assertDiscountStudy(study: StrategyDiscountStudy, merchantId: string, runId: string,
   observationId: string, rules: MerchantRules): void {
+  if (study?.definition === "weekly-discount-study-v2") {
+    const { commercialCandidate: commercial, ...base } = study;
+    assertDiscountStudy({ ...base, definition: "weekly-discount-study-v1" }, merchantId, runId, observationId, rules);
+    if (commercial === undefined) throw new Error("STRATEGY_INVALID_DISCOUNT_STUDY");
+    assertCommercialCandidate(commercial, study, rules);
+    return;
+  }
   const invalid = () => { throw new Error("STRATEGY_INVALID_DISCOUNT_STUDY"); };
   const iso = (value: string) => typeof value === "string" && Number.isFinite(Date.parse(value))
     && new Date(value).toISOString() === value;
@@ -78,4 +87,13 @@ export function assertDiscountStudy(study: StrategyDiscountStudy, merchantId: st
         "minCartTotalCents", "maxCartTotalCents", "maxDiscountCents", "replayDiscountTotalCents", "expectedLiftStatus"].sort().join()) invalid();
   } else if (study.status !== "no_safe_candidate") invalid();
   if (Object.keys(study).sort().join() !== keys.sort().join()) invalid();
+}
+
+/** v1 stays reproducible. New commercial cycles freeze one evidence-led mode. */
+export function commercialDiscountStudy(input: Parameters<typeof discountStudy>[0]): StrategyDiscountStudy {
+  const base = discountStudy(input);
+  const result: StrategyDiscountStudy = { ...base, definition: "weekly-discount-study-v2",
+    commercialCandidate: commercialCandidate(base, input.cohorts, input.rules) };
+  assertDiscountStudy(result, input.merchantId, input.runId, input.observationId, input.rules);
+  return result;
 }

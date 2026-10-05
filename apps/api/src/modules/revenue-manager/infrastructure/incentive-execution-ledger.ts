@@ -1,7 +1,9 @@
 import { randomUUID } from "node:crypto";
 import type { CheckoutSession, Prisma } from "@prisma/client";
-import type { Cart, MerchantRules } from "@zyon/shared-types";
-import { assessIncentiveMargin, evaluateDiscountOffer, moneyCents } from "@zyon/rules-engine";
+import type { Cart, ShippingQuote } from "@zyon/shared-types";
+import { moneyCents } from "@zyon/rules-engine";
+import { assessExecutableIncentive } from "../domain/executable-incentive.js";
+export { assessExecutableIncentive } from "../domain/executable-incentive.js";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import type { StrategyProposal } from "../domain/strategy-proposal.js";
 import type { StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
@@ -10,7 +12,8 @@ import { lockCheckoutBaselineRows } from "./checkout-baseline.reader.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
 import { readIncentivePolicy } from "./incentive-policy.reader.js";
 import { registerReviewedIncentiveBudget, reserveIncentiveBudget, resolveIncentiveBudget } from "./incentive-budget-ledger.js";
-import { assertStoredDiscountStudy } from "./strategy-discount-study.js";
+import { assertStoredDiscountStudy, commercialModesEnabled } from "./strategy-discount-study.js";
+import { publishStrategyIncentiveCoupon } from "../../coupons/infrastructure/strategy-incentive-coupon.js";
 import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout-session.mapper.js";
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import type { PaymentIntentSnapshot } from "../../payment/domain/payment-intent.entity.js";
@@ -53,6 +56,8 @@ export async function activateApprovedIncentive(tx: Tx, merchantId: string, stra
     strategyId, merchantId, version: strategy.currentVersion } } });
   const proposal = version.proposal as unknown as StrategyProposal;
   if (!proposal.discountStudy || !proposal.incentiveRecommendation) throw new Error("INCENTIVE_STUDY_REQUIRED");
+  if (proposal.incentiveRecommendation.definition === "weekly-incentive-recommendation-v3"
+    && !commercialModesEnabled(merchantId)) throw new Error("INCENTIVE_COMMERCIAL_MODES_DISABLED");
   const review = await tx.strategyIncentiveReview.findFirstOrThrow({ where: { strategyId, merchantId,
     version: version.version, kind: "approve" } });
   const rules = merchantRulesSnapshot(await tx.merchantRule.findUniqueOrThrow({ where: { merchantId } }));
@@ -63,10 +68,12 @@ export async function activateApprovedIncentive(tx: Tx, merchantId: string, stra
     new Date(now.getTime() + 5_000).toISOString());
   const budget = await registerReviewedIncentiveBudget(tx, { merchantId, terms, termsHash: digest(terms),
     actorId: review.actorId, requestKey: `incentive-execution:${review.id}` });
-  return tx.strategyIncentiveExecution.create({ data: { id: randomUUID(), merchantId, strategyId,
+  const execution = await tx.strategyIncentiveExecution.create({ data: { id: randomUUID(), merchantId, strategyId,
     version: version.version, reviewId: review.id, budgetId: budget.id,
     recommendation: json(proposal.incentiveRecommendation), recommendationHash: digest(proposal.incentiveRecommendation),
     startedAt: budget.startsAt, endsAt: budget.endsAt, createdAt: now } });
+  await publishStrategyIncentiveCoupon(tx, execution);
+  return execution;
 }
 
 export function incentiveAssignmentArm(executionId: string, buyerId: string): "control" | "treatment" {
@@ -79,19 +86,10 @@ export function incentiveCartHash(cart: Cart): string {
     sku: item.sku, price: item.price, quantity: item.quantity, selected_options: item.selected_options ?? [] })) });
 }
 
-export function assessExecutableIncentive(cart: Cart, rules: MerchantRules, recommendation: StrategyIncentiveRecommendation) {
-  if (recommendation.status !== "recommended" || cart.currency !== "BRL" || !Array.isArray(cart.items) || !cart.items.length
-    || cart.items.length > 100 || cart.commercialNudge || (cart.currentDiscount ?? 0) !== 0) return null;
-  const total = moneyCents(cart.total), test = recommendation.test;
-  if (total === null || total < test.audience.minCartTotalCents || total > test.audience.maxCartTotalCents
-    || rules.autonomousEngineEnabled !== true || test.discountPercent > rules.maxDiscountPercent
-    || rules.minimumMarginPercent !== test.minimumMarginPercent) return null;
-  const offer = evaluateDiscountOffer(cart, rules, test.discountPercent, test.maxDiscountCents / 100);
-  if (!offer.approved) return null;
-  const amountCents = Math.min(test.maxDiscountCents, Math.floor(Number((total * test.discountPercent / 100).toFixed(6))));
-  const margin = assessIncentiveMargin(cart, { totalDiscount: amountCents / 100 });
-  return margin.status === "estimated" && margin.productCostCents !== null && amountCents > 0
-    ? { amountCents, costCents: margin.productCostCents } : null;
+/** v3 also pins carrier economics; a shipping change must be reviewed again. */
+function assignmentCartHash(cart: Cart, recommendation: StrategyIncentiveRecommendation, shipping?: ShippingQuote) {
+  return recommendation.definition === "weekly-incentive-recommendation-v3"
+    ? digest({ cart: incentiveCartHash(cart), shipping: shipping ?? null }) : incentiveCartHash(cart);
 }
 
 /** Locked, current catalog is the only price/cost authority. Unknown/customized
@@ -156,6 +154,12 @@ export async function applyEligibleIncentive(tx: Tx, session: CheckoutSession): 
     || await tx.couponRedemption.count({ where: { merchantId, sessionId: session.sessionId, status: "applied" } })) return session;
   const recommendation = execution.recommendation as unknown as StrategyIncentiveRecommendation;
   if (digest(recommendation) !== execution.recommendationHash || recommendation.status !== "recommended") throw new Error("INCENTIVE_EXECUTION_CORRUPT");
+  const commercial = recommendation.definition === "weekly-incentive-recommendation-v3";
+  if (commercial && !commercialModesEnabled(merchantId)) return session;
+  if (recommendation.test.delivery?.mode === "coupon_code") {
+    const coupon = await tx.coupon.findUnique({ where: { strategyIncentiveExecutionId: execution.id } });
+    if (!coupon || coupon.merchantId !== merchantId || coupon.code !== recommendation.test.delivery.code || coupon.status !== "active") return session;
+  }
   if (!await eligibleIntent(tx, merchantId, session.globalUserId, recommendation.test.audience.intent, now)) return session;
   await lockCheckoutBaselineRows(tx, merchantId);
   const rules = merchantRulesSnapshot(await tx.merchantRule.findUniqueOrThrow({ where: { merchantId } }));
@@ -165,22 +169,62 @@ export async function applyEligibleIncentive(tx: Tx, session: CheckoutSession): 
   if (version.strategy.currentVersion !== execution.version || digest(rules) !== digest(proposal.rules)
     || digest(await readIncentivePolicy(tx, merchantId)) !== digest(recommendation.financialPolicy)) return session;
   await assertStoredDiscountStudy(tx, merchantId, version.strategy.runId, proposal.observation.id, rules, proposal.discountStudy, recommendation);
+  const shipping = toCheckoutSession(session).shipping;
   const cart = await authoritativeCart(tx, session);
-  const assessment = cart && assessExecutableIncentive(cart, rules, recommendation);
+  const assessment = cart && assessExecutableIncentive(cart, rules, recommendation, shipping);
   if (!cart || !assessment) return session;
   const arm = incentiveAssignmentArm(execution.id, session.globalUserId);
   const id = randomUUID();
   const reservation = arm === "treatment" ? await reserveIncentiveBudget(tx, { merchantId, budgetId: budget.id,
     sessionId: session.sessionId, buyerId: session.globalUserId, requestKey: `assignment:${id}`, amountCents: assessment.amountCents }) : null;
   await tx.strategyIncentiveAssignment.create({ data: { id, merchantId, executionId: execution.id, sessionId: session.sessionId,
-    buyerId: session.globalUserId, arm, assignedAt: now, cartHash: incentiveCartHash(cart),
+    buyerId: session.globalUserId, arm, assignedAt: now, cartHash: assignmentCartHash(cart, recommendation, shipping),
     amountCents: arm === "treatment" ? assessment.amountCents : 0, costCents: assessment.costCents, reservationId: reservation?.id } });
   if (arm === "control") return session;
+  const couponCode = recommendation.test.delivery?.mode === "coupon_code" ? recommendation.test.delivery.code : undefined;
+  const shippingDiscount = recommendation.test.kind === "capped_shipping_discount";
   const discounted = { ...cart, currentDiscount: assessment.amountCents / 100, commercialNudge: {
-    kind: "coupon", ruleId: id, title: "Desconto aplicado", message: "Um desconto foi aplicado a este pedido.",
+    kind: "coupon", ruleId: id, ...(couponCode ? { couponCode } : {}),
+    title: shippingDiscount ? "Desconto no frete aplicado" : couponCode ? "Cupom personalizado aplicado" : "Desconto aplicado",
+    message: shippingDiscount ? "O desconto no frete foi abatido uma vez do total deste pedido."
+      : "Um desconto foi aplicado a este pedido.",
     badge: `−${new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(assessment.amountCents / 100)}` } };
   return tx.checkoutSession.update({ where: { id: session.id }, data: { cart: json(discounted),
     updatedAt: now } });
+}
+
+/** A strategy code identifies the approved execution. Both arms are enrolled
+ * through ordinary checkout persistence, independently of entering the code. */
+export async function applyIncentiveCoupon(tx: Tx, session: CheckoutSession,
+  input: { executionId: string; code: string }): Promise<CheckoutSession | null> {
+  const execution = await tx.strategyIncentiveExecution.findFirst({ where: { id: input.executionId, merchantId: session.merchantId } });
+  if (!execution || !incentiveExecutionEnabled(session.merchantId) || !commercialModesEnabled(session.merchantId)) return null;
+  const recommendation = execution.recommendation as unknown as StrategyIncentiveRecommendation;
+  const now = await clock(tx);
+  if (recommendation.definition !== "weekly-incentive-recommendation-v3" || recommendation.status !== "recommended"
+    || digest(recommendation) !== execution.recommendationHash || recommendation.test.delivery?.mode !== "coupon_code"
+    || recommendation.test.delivery.code !== input.code || now < execution.startedAt || now >= execution.endsAt) return null;
+  const budget = await tx.strategyIncentiveBudget.findUniqueOrThrow({ where: { id: execution.budgetId } });
+  if (budget.closedAt) return null;
+  // Never assign only after a buyer elects to enter a coupon; that would bias
+  // the A/B denominator. An unassigned session waits for normal persistence.
+  const assignment = await tx.strategyIncentiveAssignment.findUnique({ where: {
+    merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } } });
+  if (!assignment || assignment.executionId !== execution.id || assignment.arm !== "treatment"
+    || assignment.buyerId !== session.globalUserId || session.cohort !== "treatment" || !assignment.reservationId) return null;
+  const reservation = await tx.strategyIncentiveReservation.findUniqueOrThrow({ where: { id: assignment.reservationId } });
+  const checkout = toCheckoutSession(session);
+  if (reservation.status !== "reserved" || checkout.cart.commercialNudge?.ruleId !== assignment.id
+    || checkout.cart.commercialNudge?.couponCode !== input.code || moneyCents(checkout.cart.currentDiscount) !== assignment.amountCents
+    || assignmentCartHash(checkout.cart, recommendation, checkout.shipping) !== assignment.cartHash) return null;
+  const rules = merchantRulesSnapshot(await tx.merchantRule.findUniqueOrThrow({ where: { merchantId: session.merchantId } }));
+  if (digest(await readIncentivePolicy(tx, session.merchantId)) !== digest(recommendation.financialPolicy)
+    || !await eligibleIntent(tx, session.merchantId, assignment.buyerId, recommendation.test.audience.intent, now)) return null;
+  const current = await authoritativeCart(tx, session);
+  if (!current) return null;
+  const { commercialNudge: _nudge, ...base } = current;
+  const assessment = assessExecutableIncentive({ ...base, currentDiscount: 0 }, rules, recommendation, checkout.shipping);
+  return assessment?.amountCents === assignment.amountCents ? session : null;
 }
 
 /** A changed cart/buyer cannot carry the old benefit to another sale. Pending
@@ -254,9 +298,10 @@ export async function validateIncentivePayment(tx: Tx, snapshot: PaymentIntentSn
   const recommendation = execution.recommendation as unknown as StrategyIncentiveRecommendation;
   const now = await clock(tx);
   if (!incentiveExecutionEnabled(merchantId) || budget.closedAt || now >= execution.endsAt || reservation.status !== "reserved"
+    || (recommendation.definition === "weekly-incentive-recommendation-v3" && !commercialModesEnabled(merchantId))
     || recommendation.status !== "recommended" || digest(recommendation) !== execution.recommendationHash
     || session.globalUserId !== assignment.buyerId || session.cohort !== "treatment"
-    || incentiveCartHash(checkout.cart) !== assignment.cartHash || breakdown.discountCents !== assignment.amountCents
+    || assignmentCartHash(checkout.cart, recommendation, checkout.shipping) !== assignment.cartHash || breakdown.discountCents !== assignment.amountCents
     || checkout.cart.commercialNudge?.ruleId !== assignment.id
     || await tx.couponRedemption.count({ where: { merchantId, sessionId, status: "applied" } })
     || await tx.acceptedOffer.count({ where: { merchantId, sessionId } })
@@ -267,7 +312,7 @@ export async function validateIncentivePayment(tx: Tx, snapshot: PaymentIntentSn
   const current = await authoritativeCart(tx, session);
   if (!current || digest(await readIncentivePolicy(tx, merchantId)) !== digest(recommendation.financialPolicy)) throw new Error("INCENTIVE_PAYMENT_POLICY_CHANGED");
   const { commercialNudge: _nudge, ...base } = current;
-  const assessment = assessExecutableIncentive({ ...base, currentDiscount: 0 }, rules, recommendation);
+  const assessment = assessExecutableIncentive({ ...base, currentDiscount: 0 }, rules, recommendation, checkout.shipping);
   if (!assessment || assessment.amountCents !== assignment.amountCents) throw new Error("INCENTIVE_PAYMENT_MARGIN_CHANGED");
 }
 

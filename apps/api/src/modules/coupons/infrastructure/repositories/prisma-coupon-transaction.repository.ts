@@ -11,6 +11,7 @@ import { appendOutboxInTransaction } from "../../../../shared/messaging/infrastr
 type LockedCouponLimits = {
   maxUsages: number | null;
   maxPerBuyer: number | null;
+  strategyIncentiveExecutionId: string | null;
 };
 
 @Injectable()
@@ -24,13 +25,17 @@ export class PrismaCouponTransactionRepository implements CouponTransactionRepos
   async reserve(input: Parameters<CouponTransactionRepository["reserve"]>[0]): Promise<CouponReservationResult> {
     return this.transaction(async (tx) => {
       const locked = await tx.$queryRaw<LockedCouponLimits[]>`
-        SELECT "max_usages" AS "maxUsages", "max_per_buyer" AS "maxPerBuyer"
+        SELECT "max_usages" AS "maxUsages", "max_per_buyer" AS "maxPerBuyer",
+          "strategy_incentive_execution_id" AS "strategyIncentiveExecutionId"
         FROM "coupons"
         WHERE "id" = ${input.coupon.id} AND "merchant_id" = ${input.coupon.merchant_id}
         FOR UPDATE
       `;
       const limits = locked[0];
       if (!limits) return { status: "coupon_missing" };
+      if (limits.strategyIncentiveExecutionId || input.coupon.strategy_incentive_execution_id) {
+        throw new Error("COUPON_STRATEGY_CHECKOUT_REQUIRED");
+      }
 
       const existing = await tx.couponRedemption.findUnique({
         where: {

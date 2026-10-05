@@ -2,16 +2,19 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import type { MerchantRules } from "@zyon/shared-types";
 import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { AnalysisDeferred } from "../domain/weekly-analysis-policy.js";
-import { assertDiscountStudy, discountStudy, type StrategyDiscountStudy } from "../domain/strategy-discount-study.js";
+import { assertDiscountStudy, commercialDiscountStudy, discountStudy, type StrategyDiscountStudy } from "../domain/strategy-discount-study.js";
 import { discountCohorts, incentivePlanningBaseline, loadDiscountHistory } from "./discount-cohort.reader.js";
 import { merchantRulesSnapshot } from "./hypothesis-merchant-context.adapter.js";
 import { readIncentivePolicy } from "./incentive-policy.reader.js";
-import { assertIncentiveRecommendation, incentiveRecommendation, incentiveRecommendationMatchesFrozen, plannedIncentiveRecommendation, type StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
+import { assertIncentiveRecommendation, commercialIncentiveRecommendation, incentiveRecommendation, incentiveRecommendationMatchesFrozen, plannedCommercialIncentiveRecommendation, plannedIncentiveRecommendation, type StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 
 export function discountStudyEnabled(merchantId: string) {
   return process.env.REVENUE_DISCOUNT_STUDY_ENABLED === "true"
     && (process.env.REVENUE_DISCOUNT_STUDY_MERCHANT_IDS ?? "").split(",").map(s => s.trim()).includes(merchantId);
 }
+
+export const commercialModesEnabled = (merchantId: string) => process.env.REVENUE_COMMERCIAL_MODES_ENABLED === "true"
+  && (process.env.REVENUE_COMMERCIAL_MODES_MERCHANT_IDS ?? "").split(",").map(s => s.trim()).includes(merchantId);
 
 /** Before LLM dispatch. Retries and revisions reuse even an empty study; never
  * rerun cohorts because new sales, prices or intent classifications arrived. */
@@ -37,11 +40,12 @@ export async function prepareDiscountStudy(prisma: PrismaClient, merchantId: str
         }
         const history = await loadDiscountHistory(tx, merchantId, run.asOf, 28);
         const cohorts = discountCohorts(history);
-        const study = discountStudy({ merchantId, runId: run.id, observationId: run.observationId,
+        const commercial = commercialModesEnabled(merchantId);
+        const study = (commercial ? commercialDiscountStudy : discountStudy)({ merchantId, runId: run.id, observationId: run.observationId,
           asOf: run.asOf.toISOString(), capturedAt: now.toISOString(), rules, cohorts });
         const policy = await readIncentivePolicy(tx, merchantId);
-        const terms = incentiveRecommendation(study, rules, policy);
-        const recommendation = plannedIncentiveRecommendation(study, rules, policy,
+        const terms = (commercial ? commercialIncentiveRecommendation : incentiveRecommendation)(study, rules, policy);
+        const recommendation = (commercial ? plannedCommercialIncentiveRecommendation : plannedIncentiveRecommendation)(study, rules, policy,
           incentivePlanningBaseline(history, run.asOf, terms, rules));
         const changed = await tx.$executeRaw`UPDATE revenue_analysis_runs SET discount_study_json = ${JSON.stringify(study)}::jsonb,
           incentive_recommendation_json = ${JSON.stringify(recommendation)}::jsonb

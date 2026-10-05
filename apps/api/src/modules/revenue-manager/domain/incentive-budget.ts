@@ -83,7 +83,7 @@ type RecommendedFundingSource = Parameters<typeof assertIncentiveBudgetTerms>[1]
  * This is still accounting only, not checkout activation or offer authority. */
 export function recommendedIncentiveBudgetTerms(source: RecommendedFundingSource, startsAt: string): IncentiveBudgetTerms {
   const recommendation = source.recommendation;
-  if (!recommendation || recommendation.definition !== "weekly-incentive-recommendation-v2"
+  if (!recommendation || !["weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3"].includes(recommendation.definition)
     || recommendation.status !== "recommended") throw new Error("INCENTIVE_PLANNED_RECOMMENDATION_REQUIRED");
   assertIncentiveRecommendation(recommendation, source.study, source.rules);
   if (digest(recommendation.financialPolicy) !== digest(source.policy)) throw new Error("INCENTIVE_POLICY_CHANGED");

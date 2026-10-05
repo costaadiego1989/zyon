@@ -1,9 +1,9 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { incentivePlanningBaseline, loadDiscountCohorts, loadDiscountHistory } from "./discount-cohort.reader.js";
+import { discountCohorts, incentivePlanningBaseline, loadDiscountCohorts, loadDiscountHistory } from "./discount-cohort.reader.js";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
-import { discountStudy } from "../domain/strategy-discount-study.js";
-import { incentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
+import { commercialDiscountStudy, discountStudy } from "../domain/strategy-discount-study.js";
+import { commercialIncentiveRecommendation, incentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
 import { incentivePolicySnapshot } from "../domain/incentive-policy.js";
 
 const now = new Date("2026-09-29T00:00:00Z"), createdAt = new Date("2026-09-20T00:00:00Z");
@@ -108,4 +108,42 @@ test("incentive planning refuses partial histories and distinguishes them from a
   const b = incentivePlanningBaseline(h, now, recommendation(), rules)!;
   assert.equal(b.complete, false); assert.equal(b.buyers, 0);
   assert.equal(incentivePlanningBaseline({ complete: true, buyers: [] }, now, recommendation(), rules)!.complete, true);
+});
+
+test("commercial reader carries recorded carrier costs into mode selection and the same A/B planning population", async () => {
+  const shippingRules = { ...rules, allowShippingDiscount: true, maxPartialShippingDiscount: 5, maxShippingSubsidy: 5 };
+  const sessions = Array.from({ length: 30 }, (_, i) => ({ ...session(`buyer-${i}`), cohort: i === 0 ? "holdout" : "treatment",
+    shipping: { customerPrice: 20, realCost: 20, region: "SP", destinationZip: "private-address", carrier: "private-carrier" } }));
+  sessions[1].completedOrders = [{ completedAt: createdAt }];
+  const history = await loadDiscountHistory(db(sessions, sessions.map(s => intent(s.globalUserId))), "store", now, 30);
+  const study = commercialDiscountStudy({ merchantId: "store", runId: "run", observationId: "obs", rules: shippingRules,
+    asOf: now.toISOString(), capturedAt: now.toISOString(), cohorts: discountCohorts(history) });
+  const recommendation = commercialIncentiveRecommendation(study, shippingRules,
+    incentivePolicySnapshot("store", 1, { enabled: true, limitCents: 10000, maxDiscountCents: 400, maxRedemptions: 25 }));
+  assert.ok(recommendation.status === "recommended" && recommendation.test.kind === "capped_shipping_discount");
+  assert.deepEqual(study.commercialCandidate?.evidence, { basis: "observed_shipping_burden", sampleSize: 30,
+    minShippingCents: 2000, maxShippingCents: 2000, maxShippingCostCents: 2000 });
+  const baseline = incentivePlanningBaseline(history, now, recommendation, shippingRules)!;
+  assert.equal(baseline.buyers, 29); assert.equal(baseline.conversions, 1);
+  assert.equal(JSON.stringify(history).includes("private-address"), false);
+  assert.equal(JSON.stringify(study).includes('"buyer-0"'), false);
+});
+
+test("commercial reader does not infer absent freight costs and planning excludes existing freight subsidies", async () => {
+  const sessions = [{ ...session("missing"), cohort: "treatment", shipping: { customerPrice: 20 } },
+    { ...session("subsidized"), cohort: "treatment", shipping: { customerPrice: 0, realCost: 10 } },
+    { ...session("known"), cohort: "treatment", shipping: { customerPrice: 20, realCost: 20 } }];
+  const history = await loadDiscountHistory(db(sessions, sessions.map(s => intent(s.globalUserId))), "store", now, 30);
+  assert.equal(history.buyers[0].shipping, undefined);
+  assert.deepEqual(history.buyers[1].shipping, { customerPrice: 0, realCost: 10 });
+  const cohorts = [{ intent: "price_sensitive", sampleSize: 30, conversionRate: .1,
+    carts: Array.from({ length: 30 }, () => history.buyers[0].cart) }];
+  const study = commercialDiscountStudy({ merchantId: "store", runId: "run", observationId: "obs", rules,
+    asOf: now.toISOString(), capturedAt: now.toISOString(), cohorts });
+  const recommendation = commercialIncentiveRecommendation(study, rules,
+    incentivePolicySnapshot("store", 1, { enabled: true, limitCents: 10000, maxDiscountCents: 400, maxRedemptions: 25 }));
+  const baseline = incentivePlanningBaseline(history, now, recommendation, rules)!;
+  // Product discounts may be evaluated without a shipping quote, but a known
+  // existing subsidy must never be counted as eligible for another incentive.
+  assert.equal(baseline.buyers, 2);
 });

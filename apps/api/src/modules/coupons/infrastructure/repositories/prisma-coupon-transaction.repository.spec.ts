@@ -24,6 +24,17 @@ function coupon() {
 }
 
 describe("PrismaCouponTransactionRepository", () => {
+  it("the locked database marker blocks an ordinary reservation even if its caller omits the strategy link", async () => {
+    const entity = coupon();
+    const tx = { async $queryRaw() { return [{ maxUsages: 10, maxPerBuyer: 1, strategyIncentiveExecutionId: "execution-1" }]; } };
+    const repository = new PrismaCouponTransactionRepository(tx as never, true);
+    await assert.rejects(repository.reserve({ coupon: entity.snapshot(),
+      redemption: CouponRedemptionEntity.create({ coupon_id: entity.id, merchant_id: "mrc_1", session_id: "session-1",
+        buyer_global_user_id: "buyer-1", discount_applied: 10, source: "manual" }),
+      event: createCouponEventEnvelope({ eventType: "coupon.applied", merchantId: "mrc_1", payload: {} }),
+    }), /COUPON_STRATEGY_CHECKOUT_REQUIRED/);
+  });
+
   it("reactivates a cancelled session reservation instead of creating a duplicate", async () => {
     const saved: Array<{ where: unknown; data: unknown }> = [];
     const outboxEvents: unknown[] = [];

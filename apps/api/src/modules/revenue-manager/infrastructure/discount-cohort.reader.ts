@@ -1,6 +1,7 @@
 import type { Prisma } from "@prisma/client";
-import type { Cart, MerchantRules } from "@zyon/shared-types";
-import { assessIncentiveMargin, evaluateDiscountOffer, moneyCents } from "@zyon/rules-engine";
+import type { Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
+import { assessIncentiveMargin, moneyCents } from "@zyon/rules-engine";
+import { assessExecutableIncentive } from "../domain/executable-incentive.js";
 import type { CohortStats } from "../domain/services/discount-rule-hypothesis.service.js";
 import type { IncentivePlanningBaseline } from "../domain/incentive-measurement.js";
 import type { StrategyIncentiveRecommendation } from "../domain/strategy-incentive-recommendation.js";
@@ -10,7 +11,7 @@ const LIMIT = 10_000;
 const record = (value: unknown): Record<string, any> | null =>
   value && typeof value === "object" && !Array.isArray(value) ? value as Record<string, any> : null;
 
-type DiscountHistory = { complete: boolean; buyers: Array<{ intent: string; cart: Cart; converted: boolean; cohort: string | null }> };
+type DiscountHistory = { complete: boolean; buyers: Array<{ intent: string; cart: Cart; shipping?: ShippingQuote; converted: boolean; cohort: string | null }> };
 
 /** Read under a repeatable-read transaction. Personal identifiers never leave this reader. */
 export async function loadDiscountHistory(tx: Prisma.TransactionClient, merchantId: string, asOf: Date,
@@ -20,7 +21,7 @@ export async function loadDiscountHistory(tx: Prisma.TransactionClient, merchant
   const sessions = await tx.checkoutSession.findMany({
     where: { merchantId, createdAt: { gte: start, lt: end }, globalUserId: { not: "" } },
     orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: LIMIT + 1,
-    select: { globalUserId: true, createdAt: true, cart: true, cohort: true,
+    select: { globalUserId: true, createdAt: true, cart: true, cohort: true, shipping: true,
       completedOrders: { where: { merchantId, status: "approved", currency: "BRL" }, select: { completedAt: true } } },
   });
   // A truncated sample must not silently be presented as the full cohort.
@@ -73,7 +74,11 @@ export async function loadDiscountHistory(tx: Prisma.TransactionClient, merchant
     if (items.length !== entry.items.length || !Number.isSafeInteger(totalCents)) continue;
     const cart: Cart = { currency: "BRL", total: totalCents / 100, items };
     if (moneyCents(cart.total) === null || assessIncentiveMargin(cart, { totalDiscount: 0 }).status !== "estimated") continue;
-    buyers.push({ intent: entry.intent, cart, cohort: entry.session.cohort,
+    const quote = record(entry.session.shipping);
+    const shipping = quote && moneyCents(quote.customerPrice) !== null && moneyCents(quote.realCost) !== null
+      ? { customerPrice: quote.customerPrice as number, realCost: quote.realCost as number,
+        ...(typeof quote.region === "string" ? { region: quote.region } : {}) } : undefined;
+    buyers.push({ intent: entry.intent, cart, shipping, cohort: entry.session.cohort,
       converted: entry.session.completedOrders.some(order => order.completedAt >= entry.session.createdAt
         && order.completedAt.getTime() < entry.session.createdAt.getTime() + WINDOW_MS) });
   }
@@ -81,15 +86,16 @@ export async function loadDiscountHistory(tx: Prisma.TransactionClient, merchant
 }
 
 export function discountCohorts(history: DiscountHistory): CohortStats[] {
-  const groups = new Map<string, { carts: Cart[]; converted: number }>();
+  const groups = new Map<string, { carts: Cart[]; shipping: Array<ShippingQuote | undefined>; converted: number }>();
   for (const buyer of history.buyers) {
-    const group = groups.get(buyer.intent) ?? { carts: [], converted: 0 };
+    const group = groups.get(buyer.intent) ?? { carts: [], shipping: [], converted: 0 };
     group.carts.push(buyer.cart);
+    group.shipping.push(buyer.shipping);
     if (buyer.converted) group.converted++;
     groups.set(buyer.intent, group);
   }
   return [...groups].map(([intent, group]) => ({ intent, carts: group.carts, sampleSize: group.carts.length,
-    conversionRate: group.converted / group.carts.length }));
+    shipping: group.shipping, conversionRate: group.converted / group.carts.length }));
 }
 
 export async function loadDiscountCohorts(tx: Prisma.TransactionClient, merchantId: string, asOf: Date,
@@ -107,7 +113,7 @@ export function incentivePlanningBaseline(history: DiscountHistory, asOf: Date,
     const cents = moneyCents(buyer.cart.total);
     return buyer.cohort === "treatment" && buyer.intent === t.audience.intent && cents !== null
       && cents >= t.audience.minCartTotalCents && cents <= t.audience.maxCartTotalCents
-      && evaluateDiscountOffer(buyer.cart, rules, t.discountPercent, t.maxDiscountCents / 100).approved;
+      && !!assessExecutableIncentive(buyer.cart, rules, recommendation, buyer.shipping);
   }) : [];
   const windowEnd = new Date(asOf.getTime() - WINDOW_MS);
   return { buyers: buyers.length, conversions: buyers.filter(b => b.converted).length, complete: history.complete,

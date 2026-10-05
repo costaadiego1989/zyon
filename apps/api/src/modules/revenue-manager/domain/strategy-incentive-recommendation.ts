@@ -7,7 +7,7 @@ import { incentiveMeasurementPlanning, type IncentiveMeasurementPlanning, type I
 /** Automatically planned terms for a SEPARATE incentive test. Neither this
  * document nor approval of its companion communication strategy permits spend. */
 export type StrategyIncentiveRecommendation = {
-  definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2";
+  definition: "weekly-incentive-recommendation-v1" | "weekly-incentive-recommendation-v2" | "weekly-incentive-recommendation-v3";
   planning?: IncentiveMeasurementPlanning;
   alternative?: { definition: "incentive-conservative-alternative-v1"; sequence: number; sourceRecommendationHash: string };
   merchantId: string; runId: string; observationId: string; studyHash: string;
@@ -18,7 +18,10 @@ export type StrategyIncentiveRecommendation = {
 } & ({ status: "not_recommended"; reason: "no_safe_candidate" | "financial_policy_disabled"; test?: never } | {
   status: "recommended";
   test: {
-    kind: "capped_percentage_discount";
+    kind: "capped_percentage_discount" | "capped_fixed_discount" | "capped_shipping_discount";
+    fixedDiscountCents?: number;
+    shippingDiscountCents?: number;
+    delivery?: { mode: "automatic" } | { mode: "coupon_code"; code: string };
     currency: "BRL";
     audience: { intent: string; consent: "required"; identity: "first_eligible_session_per_buyer";
       holdout: "excluded"; minCartTotalCents: number; maxCartTotalCents: number };
@@ -67,7 +70,9 @@ export function incentiveRecommendation(study: StrategyDiscountStudy, rules: Mer
 export function assertIncentiveRecommendation(value: StrategyIncentiveRecommendation,
   study: StrategyDiscountStudy, rules: MerchantRules) {
   if (!value || !study) throw new Error("STRATEGY_INVALID_INCENTIVE_RECOMMENDATION");
-  const primary = value.definition === "weekly-incentive-recommendation-v2"
+  const primary = value.definition === "weekly-incentive-recommendation-v3"
+    ? plannedCommercialIncentiveRecommendation(study, rules, value.financialPolicy, value.planning?.baseline)
+    : value.definition === "weekly-incentive-recommendation-v2"
     ? plannedIncentiveRecommendation(study, rules, value.financialPolicy, value.planning?.baseline)
     : incentiveRecommendation(study, rules, value.financialPolicy);
   const expected = value.alternative ? conservativeIncentiveAlternative(primary, value.alternative.sequence) : primary;
@@ -83,7 +88,8 @@ export function assertIncentiveRecommendation(value: StrategyIncentiveRecommenda
 export function conservativeIncentiveAlternative(primary: StrategyIncentiveRecommendation,
   sequence: number): StrategyIncentiveRecommendation | null {
   if (!Number.isSafeInteger(sequence) || sequence < 1 || sequence > 3 || primary.alternative
-    || primary.definition !== "weekly-incentive-recommendation-v2" || primary.status !== "recommended" || !primary.planning) return null;
+    || !["weekly-incentive-recommendation-v2", "weekly-incentive-recommendation-v3"].includes(primary.definition)
+    || primary.status !== "recommended" || !primary.planning) return null;
   const factor = sequence + 1;
   const discountBps = Math.floor(Math.round(primary.test.discountPercent * 100) / factor);
   const maxDiscountCents = Math.min(Math.floor(primary.test.maxDiscountCents / factor),
@@ -94,12 +100,48 @@ export function conservativeIncentiveAlternative(primary: StrategyIncentiveRecom
   result.alternative = { definition: "incentive-conservative-alternative-v1", sequence, sourceRecommendationHash: digest(primary) };
   result.test.discountPercent = discountBps / 100;
   result.test.maxDiscountCents = maxDiscountCents;
+  if (result.test.kind === "capped_fixed_discount") result.test.fixedDiscountCents = maxDiscountCents;
+  if (result.test.kind === "capped_shipping_discount") result.test.shippingDiscountCents = maxDiscountCents;
+  if (result.test.delivery?.mode === "coupon_code") result.test.delivery.code = incentiveCouponCode(primary, sequence);
   result.test.limitCents = maxDiscountCents * result.test.maxRedemptions;
   result.planning = incentiveMeasurementPlanning(primary.planning.baseline, {
     asOf: new Date(Date.parse(primary.planning.baseline.windowEnd) + 7 * 86400000).toISOString(),
     maxDiscountCents, maxRedemptions: result.test.maxRedemptions,
   });
   return result;
+}
+
+function incentiveCouponCode(value: Pick<StrategyIncentiveRecommendation, "merchantId" | "runId" | "studyHash">, sequence = 0) {
+  return `ZYON${digest(["weekly-incentive-coupon-v1", value.merchantId, value.runId, value.studyHash, sequence]).slice(0, 20).toUpperCase()}`;
+}
+
+/** Terms are chosen by the engine from a frozen study and merchant limits.
+ * There is no endpoint accepting an arbitrary mode, amount or coupon code. */
+export function commercialIncentiveRecommendation(study: StrategyDiscountStudy, rules: MerchantRules,
+  policy: IncentivePolicySnapshot): StrategyIncentiveRecommendation {
+  if (study.definition !== "weekly-discount-study-v2") throw new Error("STRATEGY_COMMERCIAL_STUDY_REQUIRED");
+  const result = incentiveRecommendation(study, rules, policy);
+  if (result.status !== "recommended") return { ...result, definition: "weekly-incentive-recommendation-v3" };
+  const c = study.commercialCandidate;
+  if (!c) throw new Error("STRATEGY_COMMERCIAL_STUDY_REQUIRED");
+  const maxDiscountCents = Math.min(result.test.maxDiscountCents, c.maxDiscountCents);
+  const maxRedemptions = Math.min(policy.maxRedemptions, Math.floor(policy.limitCents / maxDiscountCents));
+  return { ...result, definition: "weekly-incentive-recommendation-v3", test: { ...result.test,
+    kind: c.kind, maxDiscountCents, maxRedemptions, limitCents: maxDiscountCents * maxRedemptions,
+    ...(c.kind === "capped_fixed_discount" ? { fixedDiscountCents: maxDiscountCents } : {}),
+    ...(c.kind === "capped_shipping_discount" ? { shippingDiscountCents: maxDiscountCents } : {}),
+    delivery: c.delivery === "coupon_code" ? { mode: "coupon_code", code: incentiveCouponCode(result) } : { mode: "automatic" } } };
+}
+
+export function plannedCommercialIncentiveRecommendation(study: StrategyDiscountStudy, rules: MerchantRules,
+  policy: IncentivePolicySnapshot, baseline?: IncentivePlanningBaseline): StrategyIncentiveRecommendation {
+  const result = commercialIncentiveRecommendation(study, rules, policy);
+  if (result.status !== "recommended") return result;
+  if (!baseline) throw new Error("STRATEGY_INCENTIVE_PLANNING_REQUIRED");
+  const planning = incentiveMeasurementPlanning(baseline, { asOf: study.asOf,
+    maxDiscountCents: result.test.maxDiscountCents, maxRedemptions: result.test.maxRedemptions });
+  return { ...result, planning, test: { ...result.test,
+    measurement: { ...result.test.measurement, samplePlanning: "included_in_recommendation" } } };
 }
 
 /** Authenticate an alternative against the immutable cycle artifact, including

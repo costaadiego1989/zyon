@@ -175,6 +175,12 @@ export class CouponResponse {
   @ApiProperty({ example: 'mch_xyz789', description: 'Owner merchant ID' })
   merchant_id!: string;
 
+  @ApiProperty({ example: false, description: 'Approved AI strategy manages this coupon; eligibility and budget are checked in checkout, and its terms cannot be edited here.' })
+  managed_by_strategy!: boolean;
+
+  @ApiPropertyOptional({ enum: ['active', 'scheduled', 'capacity_reached', 'ended', 'closed', 'paused', 'unavailable'], description: 'Current admission state of the approved strategy coupon, evaluated when listing coupons.' })
+  strategy_incentive_state?: string | null;
+
   @ApiProperty({
     enum: ['percent', 'fixed', 'shipping_free', 'shipping_percent', 'shipping_fixed'],
     example: 'percent',
