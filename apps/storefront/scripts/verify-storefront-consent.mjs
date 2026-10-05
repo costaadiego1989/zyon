@@ -120,7 +120,7 @@ try {
       assert.equal(invalid.status(), 400);
       check('real login, refusal replay, email grant, server readback after reload, revocation and invalid input rejection');
     }
-    if (mode === 'checkout') {
+    if (mode === 'checkout' || (mode === 'server' && process.env.CONSENT_CHECKOUT === '1')) {
       assert.equal(phase, 'sandbox', 'Cart validation is limited to sandbox');
       await page.getByRole('button', { name: /^Ver produtos$/i }).first().click();
       const add = page.getByRole('button', { name: 'Adicionar ao carrinho', exact: true }).first();
