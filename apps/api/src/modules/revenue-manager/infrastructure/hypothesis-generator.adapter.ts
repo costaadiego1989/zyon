@@ -12,7 +12,8 @@ import { assertCheckoutChatBaseline, checkoutBaselineReference, checkoutContract
 import { assertMeasurementPlanning } from "../domain/strategy-measurement.js";
 import { SharedStrategyLearningService } from "./shared-strategy-learning.service.js";
 import { sharedLearningPrompt, type SharedStrategyLearning } from "../domain/shared-strategy-learning.js";
-import { executeStrategyPlannerTool, strategyPlannerContext, strategyPlannerTool, STRATEGY_PLANNER_TOOL } from "./strategy-planner-tool.js";
+import { executeStrategyPlannerTool, strategyPlannerContext, strategyPlannerTool, validateStrategyPlannerNarrative,
+  STRATEGY_PLANNER_TOOL, STRATEGY_PLANNER_NARRATIVE_INSTRUCTIONS } from "./strategy-planner-tool.js";
 import { selectedIncentive } from "../domain/strategy-orchestration.js";
 
 const DEFAULT_HYPOTHESIS_LLM_TIMEOUT_MS = 20_000;
@@ -194,7 +195,8 @@ Constraints:
 
     if (planner) return instructions + "\nSelect one server-simulated strategy with the required submit_revenue_strategy function. "
       + "Use only the offered arguments and option IDs. Do not output a free-text JSON object, invent a forecast or call an operational tool. "
-      + "This prepares a draft for the store owner, not a message or offer to a buyer. The supplied context includes the verified options.";
+      + "This prepares a draft for the store owner, not a message or offer to a buyer. The supplied context includes the verified options. "
+      + STRATEGY_PLANNER_NARRATIVE_INSTRUCTIONS;
     return instructions + `\nOutput MUST be valid JSON in this format:
 {
   "hypothesis_text": "string (1-2 sentences describing the test idea)",
@@ -308,6 +310,7 @@ Constraints:
     if (request.checkout_baseline && (response.template.variant_b.system_prompt.includes("checkout-chat-baseline-v1:")
       || response.template.variant_b.system_prompt.length > 4000)) throw new Error("HYPOTHESIS_INVALID_COMMUNICATION_ADDENDUM");
     validateHypothesisSafety(response, request.constraints, request.current_prompt);
+    if (request.incentive_options) validateStrategyPlannerNarrative(response);
     return response;
   }
 

@@ -114,7 +114,7 @@ export function validateHypothesisSafety(response: HypothesisGenerationResponse,
 
     // Check for free shipping without authorization
     if (!constraints.allow_free_shipping) {
-      if (/free (?:shipping|delivery)|frete gratis|frete gratuito|entrega gratis|cover (?:the )?shipping costs/.test(lowerPrompt)) {
+      if (mentionsUnauthorizedFreeShipping(lowerPrompt)) {
         throw new Error("HYPOTHESIS_UNAUTHORIZED_FREE_SHIPPING: Free shipping not authorized by merchant");
       }
     }
@@ -132,6 +132,16 @@ export function validateHypothesisSafety(response: HypothesisGenerationResponse,
       }
     }
   }
+}
+
+/** Recognize only complete, explicit prohibitions, not general sentiment.
+ * A conditional, contrast, quote or a second affirmative mention still fails.
+ * Keep the original text for every other guard; this cannot exempt a whole
+ * instruction merely because it also contains a safety reminder. */
+function mentionsUnauthorizedFreeShipping(normalized: string): boolean {
+  const explicitProhibition = /(^|[.!?;\n])[\t ]*(?:(?:nao|nunca)[\t ]+(?:prometa|ofereca|anuncie|conceda|aplique)[\t ]+(?:frete gratis|frete gratuito|entrega gratis)|(?:do not|never)[\t ]+(?:promise|offer|advertise|grant)[\t ]+free (?:shipping|delivery))(?=[\t ]*(?:[.!?;\n]|$|,[\t ]*(?:nao|nunca|do not|never)\b))/g;
+  const unprohibitedText = normalized.replace(explicitProhibition, "");
+  return /free (?:shipping|delivery)|frete gratis|frete gratuito|entrega gratis|cover (?:the )?shipping costs/.test(unprohibitedText);
 }
 
 /** Strip only an exact trusted baseline; the remaining challenger instructions are new. */

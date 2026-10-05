@@ -50,6 +50,8 @@ flowchart TD
 
 O ciclo termina como `recommendations`, `keep_current` ou `insufficient_data`. O processamento usa `queued`, `running`, `retry_wait`, `deferred_budget`, `completed` e `failed`. A notificação `analysis:<runId>` é atualizada conforme o estado, evitando criar uma notificação nova a cada poll.
 
+Uma falha terminal preserva o ciclo como `failed`, suas tentativas, custos e histórico, e agenda a próxima análise para a semana seguinte. O ciclo falhado não é reaberto nem tem seus contadores zerados. A loja pode iniciar outro ciclo quando voltar a ser elegível; falhas antigas com agenda atrasada também respeitam o intervalo semanal, evitando tanto bloqueio permanente quanto repetição imediata a cada poll.
+
 A permissão da loja (`autonomousEngineEnabled`) e a disponibilidade de geração da plataforma são controles distintos. `analysis-status.generation_enabled` informa o segundo: uma loja pode permitir sugestões enquanto a geração está pausada pela Zyon. O dashboard exibe a pausa no resumo, sem prometer uma proposta na fila. Atualizações de agendamento, espera ou falta de dados explicam que não há uma nova proposta para aprovar. Repetir o mesmo estado e motivo preserva a leitura da notificação; uma mudança de resultado, motivo ou proposta volta a sinalizá-la como não lida.
 
 O job diário legado permanece no repositório para lojas não migradas. A existência de uma agenda semanal impede a loja de voltar ao caminho diário mesmo após desligar a flag semanal. Não apagar agendas como forma de rollback.
@@ -63,6 +65,8 @@ Fontes: [política de agenda](../../apps/api/src/modules/revenue-manager/domain/
 Uma observação precisa de pelo menos 30 sessões maduras, eventos de checkout, registro de início do checkout e ausência de mistura de moedas nos pedidos observados. Isso permite analisar o funil, mas **não significa que a amostra já sustente um teste A/B**. O planejamento do experimento aplica requisitos adicionais de baseline, tráfego, tamanho de amostra e duração.
 
 Antes de chamar a LLM, o servidor captura os artefatos aplicáveis: observação, regras comerciais, contrato do checkout, planejamento de medição, estudo de desconto, política financeira e aprendizado agregado. Os artefatos têm identidade, versão ou hash; revisões reutilizam o contexto congelado do ciclo. O planejador apresenta o resultado como **a medir**, sem inventar uma previsão percentual. Estimativas de lift nas propostas legadas continuam identificadas como estimativas não medidas.
+
+Os seis campos narrativos do planejador exigem texto qualitativo, sem números, valores monetários ou percentuais. A mesma validação se aplica ao reaproveitamento de respostas em cache. Desconto, orçamento, quantidade e demais valores exatos vêm dos dados estruturados calculados pelo servidor, sem depender da interpretação textual da LLM. Uma proibição explícita e restrita, como “Não prometa frete grátis”, é aceita; promessas afirmativas ou condicionais de concessão continuam bloqueadas pela validação comercial.
 
 Se o checkout, o modelo, as regras ou outro componente relevante do contrato mudou, a aprovação não reaproveita silenciosamente uma proposta antiga. Os bloqueios de ativação indicam a necessidade de nova análise ou de completar a configuração.
 
@@ -99,6 +103,8 @@ Fontes: [orçamento de geração](../../apps/api/src/modules/revenue-manager/inf
 O dashboard apresenta o ciclo e a proposta em Revenue Manager. Notificações abrem os detalhes da estratégia. O merchant vê a versão, o objetivo, a mudança de comunicação, a medição planejada e os bloqueios que impedem a ativação.
 
 As decisões usam merchant autenticado, versão, hash da proposta e chave idempotente. O backend revalida tudo sob lock; abrir duas abas ou repetir uma requisição não deve ativar duas vezes. Uma proposta expirada ou uma versão anterior não pode ser aprovada no lugar da atual.
+
+A proposta inicial e as versões de revisão são gravadas com `JSON.stringify` enviado como parâmetro textual e convertido por `::jsonb` no PostgreSQL. Isso preserva a representação numérica usada no hash dos artefatos congelados, evitando arredondamentos pelo transporte JSON do ORM. A gravação permanece na transação da aplicação, com os mesmos hashes, constraints e triggers SQL; não contorna a validação do catálogo. O contrato está em [strategy-version.writer.ts](../../apps/api/src/modules/revenue-manager/infrastructure/strategy-version.writer.ts).
 
 Pedir uma alternativa enfileira uma revisão no mesmo ciclo, com os mesmos limites e dados congelados. O feedback orienta a redação e a hipótese; não autoriza a LLM a mudar preço, público ou orçamento. A nova proposta volta para revisão humana. Não há promoção automática de vencedor nem aplicação permanente por ter obtido um resultado positivo.
 
@@ -307,6 +313,10 @@ Principais rotas internas do dashboard, sob autenticação e isolamento do merch
 | `GET /revenue-manager/strategies/:id/incentive/metrics?version=...` | Resultado do incentivo por versão. |
 
 ## 13. Publicação, verificação e rollback
+
+Alterações seguem **sandbox publicado → validação real → produção**, para a revisão e o escopo efetivamente testados. O [registro de sandbox de 05/10](../product/revenue-intelligence-sandbox-2026-10-05.md) documenta o PASS do candidato integrado `cb50ba9`: geração e revisão reais em `61ae5669`, aprovação em `5eff7d12`, proveniência dos arquivos do planejador confirmada no integrado e checkout repetido em `d6517882`, além do dashboard corrigido em 1440 e 390 pixels. Não houve nova chamada paga para repetir código de geração inalterado nem pagamentos no ensaio. As fixtures foram encerradas com histórico preservado.
+
+Após esse PASS, a publicação em produção foi confirmada: API `e65d0a01` em `SUCCESS` às 21:10:33.656, 16 fontes com hashes exatos e nove verificações de compilados, `/ready` HTTP 200; dashboard `dpl_BzDLwUtrDk888CyTmixJU1dFKybe` em `READY`, com artefatos estáticos e configuração conferidos. A revisão `cb50ba948cd1fb5c838bd05489371c8fdf34ccf1` preserva a política automática, desconto máximo de 10% e margem mínima de 38% da Athom. A inspeção de produção foi somente leitura, sem gerar propostas, aprovar estratégias ou executar checkout; não substitui a evidência comercial de sandbox nem demonstra ganho financeiro.
 
 Antes de ativar o recurso, aplicar as migrations revisadas pelo caminho usado pelo deploy da API: **`apps/api/prisma/deploy-migrations`**. O repositório também mantém `prisma/migrations`; ter a mudança somente nessa segunda árvore não publica o schema. As migrations preservam dados e histórico; não usar reset do banco como correção.
 

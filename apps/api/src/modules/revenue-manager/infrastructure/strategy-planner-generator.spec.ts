@@ -40,6 +40,8 @@ test("planner gateway budgets the tool schema, accepts a tool decision, and reus
     assert.equal(body.parallel_tool_calls, false);
     assert.equal(bytes, Buffer.byteLength(JSON.stringify({ messages: body.messages, tools: body.tools, tool_choice: body.tool_choice }), "utf8"));
     assert.deepEqual(body.tools[0].function.parameters.properties.selected_action.enum, ["communication_only"]);
+    assert.match(body.messages[0].content, /qualitative Brazilian Portuguese/);
+    assert.match(body.messages[1].content, /server separately renders the exact approved terms/);
     return new Response(JSON.stringify({ id: "provider-receipt", usage: { prompt_tokens: 400, completion_tokens: 160 },
       choices: [{ finish_reason: "tool_calls", message: { content: null, tool_calls: [{ id: "call-one", type: "function", function: {
         name: "submit_revenue_strategy", arguments: JSON.stringify({ selected_action: "communication_only",
@@ -55,6 +57,12 @@ test("planner gateway budgets the tool schema, accepts a tool decision, and reus
     assert.equal(first.template.variant_a.system_prompt, request.current_prompt);
     assert.deepEqual(await generator.generate(request), first);
     assert.equal(calls, 1); assert.equal(settled, 1);
+    const validCache = cached;
+    cached = structuredClone(cached);
+    (cached as { response: { reasoning: string } }).response.reasoning = "O teto é R$402.000.";
+    await assert.rejects(generator.generate(request), /QUALITATIVE_NARRATIVE_REQUIRED/);
+    assert.equal(calls, 1); assert.equal(settled, 1);
+    cached = validCache;
     await assert.rejects(generator.generate({ ...request, incentive_options: { ...request.incentive_options!, studyHash: "changed" } }), /BASELINE_CHANGED/);
     assert.equal(calls, 1);
     await assert.rejects(generator.generate({ ...request, incentive_options: { ...request.incentive_options!, merchantId: "other" } }), /PLANNER_CONTEXT/);

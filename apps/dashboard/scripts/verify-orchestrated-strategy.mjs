@@ -113,15 +113,21 @@ try {
     if (out) { await page.setViewportSize({ width, height: 2600 }); await section.screenshot({ path: `${out}/orchestrated-progressive-${width}.png` }); await page.setViewportSize({ width, height: 1000 }); }
     await section.getByRole("button", { name: "Confirmar início do teste de desconto progressivo", exact: true }).click();
     await section.getByText("Teste de desconto progressivo em andamento.", { exact: true }).waitFor();
+    await page.locator(".strategy-version-bar").getByText("Em teste", { exact: true }).waitFor();
     assert.equal(mutations.length, 1);
+    decision = { ...decision, kind: "reject", status: "rejected" };
+    await page.reload({ waitUntil: "domcontentloaded" });
+    await page.locator(".strategy-version-bar").getByText("Recusada", { exact: true }).waitFor();
     decision = null; review = initialReview(); await page.reload({ waitUntil: "domcontentloaded" });
     await section.getByRole("button", { name: "Pedir outra estratégia", exact: true }).click();
     await section.getByRole("button", { name: "Solicitar nova sugestão", exact: true }).click();
     await section.getByText(/A IA avaliará outra estratégia/).waitFor();
+    await page.locator(".strategy-version-bar").getByText("Preparando alternativa", { exact: true }).waitFor();
     assert.equal(mutations.length, 2); assert.ok(mutations[1].path.endsWith("/revisions"));
     assert.equal(mutations.some(m => m.path.includes("/incentive/alternatives")), false);
     review = initialReview(); mismatch = true; await page.reload({ waitUntil: "domcontentloaded" });
     await section.getByText(/Não foi possível conferir a decisão/).waitFor();
+    await page.locator(".strategy-version-bar").getByText("Decisão indisponível", { exact: true }).waitFor();
     assert.equal(await approve.count(), 0);
     mismatch = false; review.versions[0].proposal.orchestration.definition = "future-format";
     await page.reload({ waitUntil: "domcontentloaded" });
