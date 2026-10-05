@@ -22,6 +22,7 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, gtmId, fbPi
   const buyerRef = useRef<ValidBuyer | null>(null);
   const [savedChannels, setSavedChannels] = useState<ContactChannel[]>([]);
   const savedChannelsBuyerRef = useRef<string | null>(null);
+  const reviewingSavedChoiceRef = useRef(false);
   const [syncing, setSyncing] = useState(false);
   const [notice, setNotice] = useState<string | null>(null);
   const [retry, setRetry] = useState(0);
@@ -35,6 +36,7 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, gtmId, fbPi
     setOptionalCookies(saved?.optionalCookies ?? false);
     setChannels([]);
     setSavedChannels([]);
+    reviewingSavedChoiceRef.current = false;
     setOpen(!saved);
     setReady(true);
     document.documentElement.dataset.consentStore = storeKey;
@@ -97,7 +99,9 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, gtmId, fbPi
         if (payload.success !== true || !Array.isArray(payload.channels)) throw Error("consent_load_failed");
         if (!controller.signal.aborted && buyerRef.current?.token === token) {
           savedChannelsBuyerRef.current = buyer.globalUserId;
-          setSavedChannels(payload.channels.filter((channel: unknown): channel is ContactChannel => channel === "email" || channel === "whatsapp"));
+          const authorizedChannels = payload.channels.filter((channel: unknown): channel is ContactChannel => channel === "email" || channel === "whatsapp");
+          setSavedChannels(authorizedChannels);
+          if (reviewingSavedChoiceRef.current) setChannels(authorizedChannels);
         }
       } catch {
         if (!controller.signal.aborted) setNotice("Não foi possível confirmar suas preferências de contato no servidor. Tente novamente.");
@@ -116,6 +120,7 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, gtmId, fbPi
   }, [open, ready]);
 
   const edit = () => {
+    reviewingSavedChoiceRef.current = true;
     const current = choiceRef.current;
     setOptionalCookies(current?.optionalCookies ?? false);
     setChannels(current && (!current.buyerId || current.buyerId === buyer?.globalUserId) && current.pendingContactSync
@@ -124,6 +129,7 @@ export function StorefrontConsent({ storeKey, merchantId, storeName, gtmId, fbPi
   };
 
   const save = (accepted: boolean) => {
+    reviewingSavedChoiceRef.current = false;
     const previous = choiceRef.current;
     const next: StorefrontConsent = {
       version: STOREFRONT_CONSENT_VERSION, optionalCookies: accepted && hasTrackers && optionalCookies,

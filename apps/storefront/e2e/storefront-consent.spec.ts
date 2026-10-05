@@ -8,13 +8,13 @@ const screenshotDirectory = path.resolve("../../.audit/storefront-consent-202610
 const buyerToken = (id: string) => `fixture.${Buffer.from(JSON.stringify({ sub: id, exp: Math.floor(Date.now() / 1000) + 3600 })).toString("base64")}.fixture`;
 
 async function setup(page: Page, options: { theme?: "light" | "dark"; buyer?: string; failSave?: boolean } = {}) {
-  const state = { trackers: [] as string[], writes: [] as any[], granted: [] as string[], failSave: options.failSave ?? false };
+  const state = { trackers: [] as string[], writes: [] as any[], granted: [] as string[], failSave: options.failSave ?? false, readDelay: 0 };
   const accountChannels = new Map<string, string[]>();
   await page.route(/googletagmanager\.com|connect\.facebook\.net|analytics\.tiktok\.com|facebook\.com\/tr/, (route) => {
     state.trackers.push(route.request().url());
     return route.fulfill({ contentType: "application/javascript", body: "/* local tracker fixture */" });
   });
-  await page.route("**/storefront/stores/*/contact-consent", (route) => {
+  await page.route("**/storefront/stores/*/contact-consent", async (route) => {
     const authorization = route.request().headers().authorization;
     if (route.request().method() === "PUT") {
       state.writes.push({ ...route.request().postDataJSON(), authorization: route.request().headers().authorization });
@@ -22,6 +22,7 @@ async function setup(page: Page, options: { theme?: "light" | "dark"; buyer?: st
       state.granted = route.request().postDataJSON().channels;
       accountChannels.set(authorization, state.granted);
     }
+    if (route.request().method() === "GET" && state.readDelay) await new Promise((resolve) => setTimeout(resolve, state.readDelay));
     return route.fulfill({ json: { success: true, channels: accountChannels.get(authorization) ?? [] } });
   });
   await page.addInitScript(({ theme, token }) => {
@@ -165,6 +166,18 @@ test("small mobile viewport keeps actions accessible and policies readable", asy
   }
 });
 
+test("review opened during server loading reflects the saved channels after reload", async ({ page }) => {
+  const state = await setup(page, { buyer: "buyer-1" });
+  await page.getByRole("checkbox", { name: "E-mail", exact: true }).check();
+  await page.getByRole("button", { name: "Aceitar seleção", exact: true }).click();
+  await expect.poll(async () => (await readChoice(page)).pendingContactSync).toBe(false);
+  state.readDelay = 500;
+  await page.reload({ waitUntil: "domcontentloaded" });
+  await page.getByRole("button", { name: "Cookies e contato", exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "E-mail", exact: true })).toBeChecked();
+  await expect(page.getByRole("checkbox", { name: "WhatsApp", exact: true })).not.toBeChecked();
+});
+
 test("checkout has no contact-consent block below its input", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await setup(page, { buyer: "buyer-1" });
@@ -174,7 +187,9 @@ test("checkout has no contact-consent block below its input", async ({ page }) =
   await message.press("Enter");
   await page.getByRole("button", { name: "Finalizar compra", exact: true }).first().click();
   await expect(page.getByRole("button", { name: "Voltar para o site", exact: true })).toBeVisible();
-  await page.getByRole("button", { name: /Por chat/ }).click();
+  const channel = page.getByRole("button", { name: /Por chat/ });
+  await expect(channel.or(page.getByPlaceholder("Escreva sua mensagem..."))).toBeVisible();
+  if (await channel.isVisible()) await channel.click();
   await expect(page.getByPlaceholder("Escreva sua mensagem...")).toBeVisible();
   await expect(page.getByText("Preferências de contato desta loja", { exact: true })).toHaveCount(0);
   await screenshot(page, "mobile-checkout.png");
