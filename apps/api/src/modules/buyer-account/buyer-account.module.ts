@@ -46,6 +46,7 @@ import { BuyerHubController } from "./presentation/http/buyer-hub.controller.js"
 import { BuyerWebAuthnController } from "./presentation/http/buyer-webauthn.controller.js";
 import { BuyerPreferencesController } from "./presentation/http/buyer-preferences.controller.js";
 import { BuyerIntentController } from "./presentation/http/buyer-intent.controller.js";
+import { BuyerPrivacyController } from "./presentation/http/buyer-privacy.controller.js";
 import { BuyerReviewsController } from "./presentation/http/buyer-reviews.controller.js";
 import { BuyerAddressesController } from "./presentation/http/buyer-addresses.controller.js";
 import {
@@ -77,7 +78,7 @@ import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-weba
 
 @Module({
   imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule],
-  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerReviewsController, BuyerAddressesController],
+  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerPrivacyController, BuyerReviewsController, BuyerAddressesController],
   providers: [
     RegisterBuyerUseCase,
     RegisterBuyerWithRateLimitUseCase,

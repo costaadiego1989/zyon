@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react";
 import { intentMemoryApi } from "@/lib/api/api-client";
+import { getValidBuyer, type ValidBuyer } from "@/lib/buyer-auth";
 
 const AUTH_STORAGE_KEY = "aacp_buyer_auth_session";
 
@@ -13,15 +14,17 @@ type AuthSession = {
   phone: string;
 };
 
-function safeReadSession(): AuthSession | null {
+function safeReadSession(): ValidBuyer | null {
   if (typeof window === "undefined") return null;
+  const current = getValidBuyer();
+  if (current) return current;
   try {
     const raw = localStorage.getItem(AUTH_STORAGE_KEY);
     if (!raw) return null;
     const s = JSON.parse(raw) as AuthSession;
     if (!s.global_user_id || !s.access_token) return null;
     if (s.expires_at && Date.now() >= s.expires_at) return null;
-    return s;
+    return { globalUserId: s.global_user_id, token: s.access_token, email: s.email };
   } catch {
     return null;
   }
@@ -29,6 +32,7 @@ function safeReadSession(): AuthSession | null {
 
 type ConsentData = {
   has_consent: boolean;
+  has_data?: boolean;
   consented_at?: string;
   primary_intent?: string;
   category_focus?: string[];
@@ -36,7 +40,8 @@ type ConsentData = {
 };
 
 export default function PrivacidadePage() {
-  const [session, setSession] = useState<AuthSession | null>(null);
+  const [session, setSession] = useState<ValidBuyer | null>(null);
+  const [error, setError] = useState<string | null>(null);
   const [consent, setConsent] = useState<ConsentData | null>(null);
   const [loading, setLoading] = useState(true);
   const [deleting, setDeleting] = useState(false);
@@ -50,12 +55,12 @@ export default function PrivacidadePage() {
       return;
     }
     intentMemoryApi
-      .getConsent(s.access_token)
+      .getConsent(s.token)
       .then((data) => {
         setConsent(data ?? { has_consent: false });
       })
       .catch(() => {
-        setConsent({ has_consent: false });
+        setError("Não foi possível consultar seus dados. Tente novamente ou fale com o contato de privacidade.");
       })
       .finally(() => setLoading(false));
   }, []);
@@ -63,11 +68,14 @@ export default function PrivacidadePage() {
   async function handleDelete() {
     if (!session) return;
     setDeleting(true);
-    const success = await intentMemoryApi.deleteConsent(session.access_token);
+    setError(null);
+    const success = await intentMemoryApi.deleteConsent(session.token);
     setDeleting(false);
     if (success) {
       setDeleted(true);
       setConsent({ has_consent: false });
+    } else {
+      setError("Não foi possível confirmar a remoção. Seus dados continuam disponíveis; tente novamente.");
     }
   }
 
@@ -103,9 +111,10 @@ export default function PrivacidadePage() {
             lineHeight: 1.6,
           }}
         >
-          Transparência sobre como seus dados de intenção de compra são utilizados (LGPD).
+          Consulte e remova a memória de intenção de compra. Essa ação não apaga pedidos, sua conta ou outras preferências.
         </p>
 
+        {error && <p role="alert" style={{ color: "#f87171", marginBottom: 20 }}>{error} <button type="button" onClick={() => window.location.reload()}>Tentar novamente</button></p>}
         {loading ? (
           <div style={{ fontSize: 14, color: "var(--color-fg-soft, #a1a1aa)" }}>
             Carregando...
@@ -123,7 +132,7 @@ export default function PrivacidadePage() {
               Para visualizar ou gerenciar seus dados de personalização, faça login na sua conta.
             </p>
             <a
-              href="/store/demo"
+              href="https://www.zyon-payments.com.br"
               style={{
                 display: "inline-block",
                 padding: "10px 20px",
@@ -135,7 +144,7 @@ export default function PrivacidadePage() {
                 textDecoration: "none",
               }}
             >
-              Fazer login
+              Voltar à Zyon
             </a>
           </div>
         ) : deleted ? (
@@ -151,10 +160,10 @@ export default function PrivacidadePage() {
               Dados apagados com sucesso.
             </p>
             <p style={{ fontSize: 13, color: "var(--color-fg-soft, #a1a1aa)", marginTop: 8 }}>
-              Seus dados de personalização foram removidos. A personalização pode ser reativada no checkout.
+              A memória de intenção de compra e sua autorização foram removidas. Pedidos e outras preferências permanecem na conta.
             </p>
           </div>
-        ) : consent?.has_consent ? (
+        ) : consent?.has_consent || consent?.has_data ? (
           <div
             style={{
               padding: "24px",
@@ -260,10 +269,10 @@ export default function PrivacidadePage() {
                 opacity: deleting ? 0.6 : 1,
               }}
             >
-              {deleting ? "Apagando..." : "Apagar meus dados"}
+              {deleting ? "Removendo..." : "Remover memória de intenção"}
             </button>
           </div>
-        ) : (
+        ) : error ? null : (
           <div
             style={{
               padding: "24px",
@@ -276,7 +285,7 @@ export default function PrivacidadePage() {
               Nenhum dado de personalização coletado.
             </p>
             <p style={{ fontSize: 13, color: "var(--color-fg-soft, #a1a1aa)" }}>
-              Para ativar a personalização, aceite no checkout.
+              A memória de intenção depende de autorização própria; aceitar cookies ou campanhas não a ativa.
             </p>
           </div>
         )}

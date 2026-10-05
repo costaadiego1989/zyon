@@ -230,6 +230,29 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
     return { state, approvedAmountCents };
   }
 
+  async cancelPayment(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }> {
+    const url = `${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`;
+    const headers = { accept: "application/json", access_token: this.apiKey };
+    const read = async () => {
+      const response = await this.fetchImpl(url, { headers, redirect: "error", signal: AbortSignal.timeout(15_000) });
+      if (!response.ok) return undefined;
+      return response.json() as Promise<{ deleted?: boolean; status?: string }>;
+    };
+    const payment = await read();
+    if (!payment || !["PENDING", "OVERDUE"].includes(payment.status ?? "")) return { state: "blocked" };
+    if (payment.deleted === true) return { state: "cancelled" };
+    const response = await this.fetchImpl(url, { method: "DELETE", headers, redirect: "error", signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) return { state: "unknown" };
+    const result = await response.json() as { deleted?: boolean };
+    if (result.deleted !== true) return { state: "unknown" };
+    // Asaas can delete a paid charge without refunding it. Confirm that the
+    // removed charge is still unpaid before admitting a replacement payment.
+    const removed = await read();
+    if (!removed) return { state: "unknown" };
+    if (!["PENDING", "OVERDUE"].includes(removed.status ?? "")) return { state: "blocked" };
+    return { state: removed.deleted === true ? "cancelled" : "unknown" };
+  }
+
   async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
     const base = this.normalizedBaseUrl;
     const res = await this.fetchImpl(

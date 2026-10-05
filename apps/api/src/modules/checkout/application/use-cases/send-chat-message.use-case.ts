@@ -41,6 +41,7 @@ import { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.
 import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
 import { chatPaymentSelection } from "../../domain/services/chat-payment-selection.js";
 import { checkoutNavigationContext, CHECKOUT_CHAT_NAVIGATION_MESSAGE } from "../../domain/services/checkout-chat-navigation.js";
+import { checkoutEditIntent } from "@zyon/shared-types";
 
 function structuredCloneDeep<T>(obj: T): T {
   if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
@@ -115,6 +116,7 @@ export class SendChatMessageUseCase {
         if (correction.patch && !correction.blocked && correction.field === "zip") {
           working = await this.shippingService.processShippingState(working, "");
         }
+        if (!correction.blocked) await this.customerService.saveDeliveryAddress(working);
         const resolvedState = { ...working, chatHistory: [] };
         const stage = deriveChatStage(resolvedState);
         const missingFields = missingFieldsForStage(resolvedState, stage);
@@ -160,6 +162,7 @@ export class SendChatMessageUseCase {
     }
 
     working = await this.shippingService.processShippingState(working, input.user_message);
+    await this.customerService.saveDeliveryAddress(working);
 
     // Verified account recognition/correction can change participation identity
     // in this very turn. PostgreSQL permanently stops that assignment; check
@@ -209,10 +212,14 @@ export class SendChatMessageUseCase {
     // Address confirmation only verifies the location. Number, complement and
     // shipping selection still belong to the same deterministic checkout flow.
     const selectedPaymentMethod = chatPaymentSelection(input.user_message, stage);
+    const reviewingPayment = checkoutEditIntent(input.user_message) === "payment" && stage === "payment";
+    const reviewingCoupon = checkoutEditIntent(input.user_message) === "coupon" && stage === "payment";
     const forceDeterministic = stage === "data_collection"
       || (stage === "shipping" && missingFields.length > 0)
       || (previousStage === "shipping" && stage === "payment")
       || !!selectedPaymentMethod
+      || reviewingPayment
+      || reviewingCoupon
       || stage === "payment_pending" || stage === "completed";
 
     if (!isHoldout && !forceDeterministic) {
@@ -266,8 +273,16 @@ export class SendChatMessageUseCase {
 
     if (stage === "payment_pending") {
       reply = { message: "Acompanhe a confirmação do pagamento no checkout.", objection: "unknown" };
-    } else if (selectedPaymentMethod) {
-      reply = { message: "Confira os dados e continue com o pagamento no checkout.", objection: "unknown" };
+    } else if (selectedPaymentMethod || reviewingPayment) {
+      reply = { message: "Escolha a forma de pagamento para este pedido.", objection: "unknown",
+        blocks: [{ type: "payment_methods", data: { methods: checkoutNavigationContext(working, !!context.rules.cryptoPayments?.enabled).paymentMethods } }] };
+    } else if (reviewingCoupon) {
+      reply = context.rules.couponBoxEnabled
+        ? { message: advancedCouponCode
+          ? `Encontrei o cupom ${advancedCouponCode}. Insira-o para validar o desconto neste pedido.`
+          : "Informe o cupom para validar o desconto neste pedido.", objection: "unknown",
+          blocks: [{ type: "coupon_input", data: { methods: checkoutNavigationContext(working, !!context.rules.cryptoPayments?.enabled).paymentMethods } }] }
+        : { message: "Esta loja não está aceitando cupons no checkout.", objection: "unknown" };
     } else if (advancedCouponCode) {
       reply = {
         message: `Encontrei o cupom ${advancedCouponCode} para este carrinho. Insira-o no campo de cupom para validar a condição.`,

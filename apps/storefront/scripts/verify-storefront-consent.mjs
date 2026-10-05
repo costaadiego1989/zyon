@@ -145,7 +145,7 @@ try {
       await page.goto(`${origin}/politicas/${policy}`, { waitUntil: 'domcontentloaded' });
       await page.getByRole('heading', { level: 1 }).waitFor();
       assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), true);
-      const footer = page.getByRole('link', { name: 'costaadiego1989@gmail.com', exact: true });
+      const footer = page.getByRole('link', { name: 'zyonagenticcommerce@gmail.com', exact: true });
       await footer.scrollIntoViewIfNeeded();
       assert.equal(await footer.isVisible(), true);
       await screenshot(`mobile-policy-${policy}.png`);

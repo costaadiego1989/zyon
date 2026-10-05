@@ -58,6 +58,7 @@ test("voice can reveal visual payment methods without creating a payment", async
     contentType: "application/json",
     body: JSON.stringify({ value: "ephemeral_voice_test_secret" }),
   }));
+  await page.route("**/embed/realtime/context", route => route.fulfill({ json: { instructions: "Continue a etapa atual do checkout." } }));
   await page.route("https://api.openai.com/v1/realtime/calls", (route) => {
     const cors = {
       "access-control-allow-origin": "*",

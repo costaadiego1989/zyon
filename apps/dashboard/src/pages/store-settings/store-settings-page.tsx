@@ -197,7 +197,14 @@ function CompanyTab({ company, businessHours, cepLoading, onCompanyChange, onHou
 
 function PoliciesTab({ policies, onChange, onGenerate, generatingPolicy }: { policies: PoliciesForm; onChange: (p: PoliciesForm) => void; onGenerate: (type: keyof PoliciesForm) => void; generatingPolicy: string | null }) {
   const fields: Array<{ key: keyof PoliciesForm; label: string }> = [{ key: "privacy", label: "Política de privacidade" }, { key: "returns", label: "Trocas e devoluções" }, { key: "terms", label: "Termos de uso" }, { key: "shipping", label: "Envio e frete" }];
-  return <div className="store-policy-list"><p className="admin-help">Explique as condições da loja em linguagem simples. A IA cria um rascunho; revise os dados e salve para aplicar o texto.</p>{fields.map(({key,label}) => <section key={key}><FormTextarea label={label} value={policies[key]} onChange={v => onChange({ ...policies, [key]: v })} placeholder="Informe o texto ou o endereço da política" rows={6} /><div className="admin-actions"><Button aria-label={`Gerar rascunho de ${label.toLowerCase()}`} variant="outline" disabled={generatingPolicy !== null} loading={generatingPolicy === key} onClick={() => onGenerate(key)}><Sparkles size={16} /> Gerar rascunho</Button></div></section>)}</div>;
+  return <div className="store-policy-list">
+    <div className="store-policy-help">
+    <p className="admin-help">Estas são as políticas da sua loja. Depois de salvar, elas ficam disponíveis aos compradores e à IA. Deixe o campo vazio e salve para remover uma política. Trocas e envio também atualizam os mesmos campos da base de conhecimento.</p>
+    <p className="admin-help">A IA prepara um rascunho. Confira razão social, CNPJ, endereço, contato e condições comerciais antes de publicar; o texto gerado precisa de revisão.</p>
+    <p className="admin-help">Os documentos da plataforma complementam as políticas da loja: <a href="https://www.zyon-payments.com.br/privacidade" target="_blank" rel="noreferrer">Privacidade da Zyon</a> · <a href="https://www.zyon-payments.com.br/termos" target="_blank" rel="noreferrer">Termos da Zyon</a> · <a href="https://www.zyon-payments.com.br/cookies" target="_blank" rel="noreferrer">Cookies</a>.</p>
+    </div>
+    {fields.map(({key,label}) => <section key={key}><FormTextarea label={label} value={policies[key]} onChange={v => onChange({ ...policies, [key]: v })} placeholder="Informe o texto ou o endereço da política" rows={6} /><div className="admin-actions"><Button aria-label={`Gerar rascunho de ${label.toLowerCase()}`} variant="outline" disabled={generatingPolicy !== null} loading={generatingPolicy === key} onClick={() => onGenerate(key)}><Sparkles size={16} /> Gerar rascunho</Button></div></section>)}
+  </div>;
 }
 
 function SocialTab({ social, onChange }: { social: SocialForm; onChange: (s: SocialForm) => void }) {

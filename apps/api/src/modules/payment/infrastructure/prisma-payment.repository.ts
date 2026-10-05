@@ -170,6 +170,11 @@ function snapshotFromRecord(row: {
 export class PrismaPaymentRepository implements PaymentRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
+  async listForSession(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]> {
+    const rows = await this.prisma.paymentIntent.findMany({ where: { merchantId, sessionId }, orderBy: { createdAt: "desc" } });
+    return rows.map(row => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
+  }
+
   async hasCommittedPaymentForSession(merchantId: string, sessionId: string): Promise<boolean> {
     const row = await this.prisma.paymentIntent.findFirst({
       where: { merchantId, sessionId, status: { notIn: ["failed", "cancelled"] } },
@@ -209,6 +214,10 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const current = await tx.paymentIntent.findUnique({ where: { id: snapshot.id } });
     if (!current) {
       if ((snapshot.version ?? 0) !== 0) throw new PaymentIntentConflictError();
+      if (await tx.paymentIntent.findFirst({ where: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId,
+        status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) {
+        throw new PaymentIntentConflictError();
+      }
       await validateIncentivePayment(tx, snapshot);
       try { await tx.paymentIntent.create({ data: args.create }); }
       catch (error) {

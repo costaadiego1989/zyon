@@ -10,6 +10,10 @@
 .store-settings-page .store-hour-row:last-child { border-bottom: 0; }
 .store-settings-page .store-hour-row label { font-size: 14px; cursor: pointer; }
 .store-settings-page .store-policy-list { display: grid; gap: 32px; }
+.store-settings-page .store-policy-help { display: grid; gap: 12px; }
+.store-settings-page .store-policy-help .admin-help { margin: 0; }
+.store-settings-page .store-policy-help a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; }
+.store-settings-page .store-policy-help a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .store-settings-page .store-policy-list section + section { border-top: 1px solid var(--color-border); padding-top: 32px; }
 .store-settings-page .store-policy-list textarea { min-height: 160px; }
 .store-settings-page .store-policy-list .admin-actions { margin-top: 12px; }

@@ -246,7 +246,7 @@ export const intentMemoryApi = {
   async getConsent(buyerToken: string): Promise<any> {
     return safeFetch(`${API_BASE}/buyer/consent/intent-memory`, {
       headers: { Authorization: `Bearer ${buyerToken}` },
-    }).catch(() => null);
+    });
   },
   async deleteConsent(buyerToken: string): Promise<boolean> {
     try {

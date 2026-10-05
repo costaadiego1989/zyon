@@ -55,6 +55,13 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     });
   }
 
+  async listForSession(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]> {
+    return Array.from(this.byIntentId.values()).filter(entity => {
+      const row = entity.snapshot();
+      return row.merchantId === merchantId && row.sessionId === sessionId;
+    }).map(entity => PaymentIntentEntity.rehydrate(entity.snapshot()));
+  }
+
   async saveIntentWithOutbox(input: SavePaymentIntentInput, event: DomainEventEnvelope): Promise<void> {
     await this.saveIntent(input);
     if (this.outbox) {
@@ -79,6 +86,11 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     const snap = input.intent.snapshot();
     const ik = keyIdempotency(snap.merchantId, snap.sessionId, snap.idempotencyKey);
     const current = this.byIdempotency.get(ik)?.snapshot();
+    if (!current && Array.from(this.byIntentId.values()).some(intent => {
+      const row = intent.snapshot();
+      return row.merchantId === snap.merchantId && row.sessionId === snap.sessionId
+        && !["failed", "cancelled"].includes(row.status);
+    })) throw new PaymentIntentConflictError();
     if (current) {
       if (current.id !== snap.id || (current.version ?? 0) !== (snap.version ?? 0)) throw new PaymentIntentConflictError();
       assertSamePaymentIdentity(current, snap);

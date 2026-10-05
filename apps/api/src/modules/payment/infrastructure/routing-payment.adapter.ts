@@ -157,6 +157,14 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     throw new Error("payment_provider_not_configured");
   }
 
+  async cancelPayment(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }> {
+    if (!input.provider) return { state: "unknown" };
+    const { adapter } = await this.creationRoute({ merchantId: input.merchantId, provider: input.provider,
+      method: "", settlementMode: input.settlementMode });
+    this.assertAccount(adapter, input.providerAccountFingerprint);
+    return adapter.cancelPayment ? adapter.cancelPayment(input) : { state: "unknown" };
+  }
+
   async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
     if (input.provider) {
       const { adapter } = await this.creationRoute({

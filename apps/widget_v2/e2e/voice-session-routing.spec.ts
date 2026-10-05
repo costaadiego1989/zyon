@@ -6,7 +6,8 @@ test("voice uses the same signed embed proxy as chat, with direct API fallback f
     paths.push(new URL(route.request().url()).pathname);
     return route.fulfill({ json: route.request().url().endsWith('/start')
       ? { session_id: 'chk_proxy', experience: {} }
-      : route.request().url().endsWith('/session') ? { value: 'test_ephemeral' } : { message: 'OK' } });
+      : route.request().url().endsWith('/session') ? { value: 'test_ephemeral' }
+      : route.request().url().endsWith('/context') ? { instructions: 'Current checkout stage' } : { message: 'OK' } });
   });
   await page.goto('/');
   await page.evaluate(async () => {
@@ -17,10 +18,11 @@ test("voice uses the same signed embed proxy as chat, with direct API fallback f
       await session.start();
       await session.chat('Quero finalizar');
       await session.createRealtimeVoiceSession();
+      await session.realtimeVoiceContext();
     }
   });
   expect(paths).toEqual([
-    '/api/embed/start', '/api/embed/chat', '/api/embed/realtime/session',
-    '/direct/embed/start', '/direct/embed/chat', '/direct/embed/realtime/session',
+    '/api/embed/start', '/api/embed/chat', '/api/embed/realtime/session', '/api/embed/realtime/context',
+    '/direct/embed/start', '/direct/embed/chat', '/direct/embed/realtime/session', '/direct/embed/realtime/context',
   ]);
 });

@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useMemo, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { paymentMethodsForConfig, useCheckoutStore } from "@/store/checkout-store";
 import { confirmCryptoPayment } from "@/api/payment";
@@ -849,6 +849,7 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const advanced = useRef(false);
 
   const methods = data?.methods as Array<{ key: string; label: string; sub?: string }> | undefined;
 
@@ -856,18 +857,17 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
   const atMaxDiscount = currentDiscountPercent >= maxDiscountPercent - 0.01;
 
   useEffect(() => {
-    if (atMaxDiscount && !done) {
-      setDone(true);
-      proceedToPayment(methods);
-    }
+    if (atMaxDiscount) advance();
   }, [atMaxDiscount]);
 
   if (atMaxDiscount || done) return null;
 
-  const advance = () => {
+  function advance() {
+    if (advanced.current) return;
+    advanced.current = true;
     setDone(true);
     proceedToPayment(methods);
-  };
+  }
 
   const handleApply = async () => {
     if (!code.trim() || loading) return;

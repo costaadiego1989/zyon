@@ -9,6 +9,7 @@ import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.m
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { ListBuyerAddressesUseCase } from "../buyer-account/application/use-cases/list-buyer-addresses.use-case.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { RevenueLiftModule } from "../revenue-lift/revenue-lift.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
@@ -39,6 +40,7 @@ import { UpdateCrossStoreCartUseCase } from "./application/use-cases/update-cros
 import { GetFunnelUseCase } from "./application/use-cases/get-funnel.use-case.js";
 import { GetFunnelSessionsUseCase } from "./application/use-cases/get-funnel-sessions.use-case.js";
 import { CheckoutCustomerService } from "./application/services/checkout-customer.service.js";
+import { CheckoutSavedAddressService } from "./application/services/checkout-saved-address.service.js";
 import { CheckoutShippingService } from "./application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "./application/services/checkout-offer.service.js";
 import { BuyerResolutionService } from "./application/services/buyer-resolution.service.js";
@@ -121,6 +123,8 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
   ],
   controllers: [CheckoutController],
   providers: [
+    ListBuyerAddressesUseCase,
+    CheckoutSavedAddressService,
     {
       provide: PAYMENT_APPROVAL_READER,
       useFactory: (prisma: PrismaClient) => new PrismaPaymentApprovalReader(prisma),

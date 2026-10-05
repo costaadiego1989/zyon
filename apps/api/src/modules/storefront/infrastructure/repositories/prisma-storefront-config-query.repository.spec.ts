@@ -18,6 +18,7 @@ test("resolves a verified custom domain before a store slug", async () => {
     checkoutSetting: { findUnique: async () => ({ mode: "manual_only" }) },
     agentRule: { findFirst: async () => ({ identity: {}, checkoutSettings: {} }) },
     merchantRule: { findUnique: async () => ({ quickReplies: { welcome: ["Olá"] } }) },
+    merchantPolicy: { findUnique: async () => null },
     storyCategory: { findMany: async () => [{ id: "story_a" }] },
   } as never);
 
@@ -47,3 +48,24 @@ test("does not resolve a verified custom domain after its Growth entitlement end
 
   assert.equal(await repository.findPublicConfig("loja.exemplo.com"), null);
 });
+
+for (const unavailable of [false, true]) {
+  test(`public policy lookup ${unavailable ? "reports a database failure without hiding the store" : "uses current settings and suppresses removed legacy text"}`, async () => {
+    const repository = new PrismaStorefrontConfigQueryRepository({
+      merchant: { findUnique: async () => ({ id: "merchant_a", name: "Loja", storeSettings: { policies: { shipping: "", returns: "Texto vigente" }, checkoutPolicyLinks: { privacyUrl: "https://supplier.example/privacy" } } }) },
+      merchantBillingSubscription: { findUnique: async () => null },
+      agentRule: { findFirst: async () => null },
+      merchantRule: { findUnique: async () => null },
+      checkoutSetting: { findUnique: async () => null },
+      storyCategory: { findMany: async () => [] },
+      merchantPolicy: { findUnique: async () => { if (unavailable) throw new Error("database unavailable"); return { returns: "Texto antigo", shipping: "Prazo antigo", warranty: "Garantia publicada" }; } },
+    } as never);
+    const config = await repository.findPublicConfig("loja");
+    assert.equal(config?.merchant.id, "merchant_a");
+    assert.equal(config?.policiesAvailable, !unavailable);
+    assert.equal(config?.publishedPolicies?.returns, "Texto vigente");
+    assert.equal(config?.publishedPolicies?.shipping, undefined);
+    assert.equal(config?.publishedPolicies?.privacy, "https://supplier.example/privacy");
+    assert.equal(config?.publishedPolicies?.warranty, unavailable ? undefined : "Garantia publicada");
+  });
+}

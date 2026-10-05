@@ -63,6 +63,14 @@ export class UpdateMerchantThemeUseCase {
 
   async updateStoreSettings(merchantId: string, settings: Record<string, unknown>) {
     if (!settings || typeof settings !== "object" || Array.isArray(settings)) throw new BadRequestException("invalid_store_settings");
+    if (settings.policies !== undefined) {
+      const policies = settings.policies as Record<string, unknown>;
+      if (!policies || typeof policies !== "object" || Array.isArray(policies)) throw new BadRequestException("invalid_store_policies");
+      for (const [field, value] of Object.entries(policies)) {
+        if (!["privacy", "returns", "terms", "shipping"].includes(field) || typeof value !== "string" || value.length > 10000) throw new BadRequestException("invalid_store_policy");
+      }
+      settings = { ...settings, policies: Object.fromEntries(Object.entries(policies).map(([key, value]) => [key, (value as string).trim()])) };
+    }
     if (settings.budget !== undefined) {
       const budget = settings.budget as Record<string, unknown>;
       if (!budget || typeof budget !== "object" || Array.isArray(budget) || typeof budget.enabled !== "boolean") {

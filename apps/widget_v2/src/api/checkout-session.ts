@@ -1,4 +1,5 @@
 import { CheckoutApiError } from "./checkout-api-error";
+import type { CheckoutEditSection } from "@zyon/shared-types";
 import { ChatRecoveryRequired, PendingChatReference, chatReceipt, chatDisplayReference, parseChatState, type ChatState, type ChatDisplayReference } from "./chat-protocol";
 
 /**
@@ -135,6 +136,7 @@ export interface CommercialNudge {
 }
 
 export interface Experience {
+  policies?: { privacyUrl?: string; termsUrl?: string; refundUrl?: string; shippingUrl?: string };
   items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; original_unit_price?: number; image_url?: string; variant?: string; variant_label?: string }>;
   totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
   shipping?: {
@@ -406,6 +408,20 @@ export class CheckoutSession {
     } finally { this.chatInFlight = false; }
   }
 
+  async reopenCheckout(section: CheckoutEditSection): Promise<Experience> {
+    this.assertSession();
+    if (this.pendingMessageId || this.chatInFlight) throw new ChatRecoveryRequired();
+    const response = await fetch(`${this.embedBaseUrl}/embed/checkout/edit`, { method: "POST", headers: this.headers(),
+      body: JSON.stringify({ session_id: this.sessionId, section }) });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("embed_checkout_edit", response);
+    const result = await response.json() as { experience: Experience; revision?: number };
+    this.experience = result.experience;
+    this.paymentRevision = Math.max(this.paymentRevision + 1, result.revision ?? 0);
+    this.paymentRecoveryPending = false;
+    if (this.chatState) this.chatState = { ...this.chatState, payment_intent_id: undefined };
+    return this.experience;
+  }
+
   private setPending(messageId: string | undefined) {
     this.pendingMessageId = messageId;
     this.pendingReference?.write(messageId);
@@ -484,6 +500,18 @@ export class CheckoutSession {
     const data = await res.json() as { value?: unknown; expires_at?: unknown };
     if (typeof data.value !== "string") throw new Error("invalid_realtime_voice_session");
     return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+  }
+
+  async realtimeVoiceContext(): Promise<{ instructions: string }> {
+    this.assertSession();
+    if (this.requiresChatRecovery) throw new ChatRecoveryRequired();
+    const res = await fetch(`${this.embedBaseUrl}/embed/realtime/context`, {
+      method: "POST", headers: this.headers(), body: JSON.stringify({ session_id: this.sessionId }),
+    });
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_realtime_context", res);
+    const data = await res.json() as { instructions?: unknown };
+    if (typeof data.instructions !== "string" || !data.instructions.trim()) throw new Error("invalid_realtime_context");
+    return { instructions: data.instructions };
   }
 
   async updateCartItemQty(sku: string, quantity: number, variant?: string): Promise<StartResponse> {

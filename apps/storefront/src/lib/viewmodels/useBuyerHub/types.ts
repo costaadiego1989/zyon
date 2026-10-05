@@ -10,6 +10,7 @@ export interface BuyerProfile {
 }
 
 export interface BuyerAddress {
+  label?: string | null;
   id: string;
   zip: string;
   street: string;

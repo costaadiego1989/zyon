@@ -6,6 +6,7 @@ import {
 import type { BuyerAddressRepository } from "../domain/ports/buyer-address.port.js";
 
 type AddressRow = {
+  label?: string | null;
   id: string;
   globalUserId: string;
   zip: string;
@@ -39,6 +40,7 @@ export class PrismaBuyerAddressRepository implements BuyerAddressRepository {
 
   async save(address: BuyerAddress): Promise<void> {
     const data = {
+      label: address.label ?? null,
       globalUserId: address.globalUserId,
       zip: address.zip,
       street: address.street,
@@ -89,6 +91,7 @@ export class PrismaBuyerAddressRepository implements BuyerAddressRepository {
 
 function toDomain(row: AddressRow): BuyerAddress {
   const props: BuyerAddressProps = {
+    label: row.label ?? undefined,
     id: row.id,
     globalUserId: row.globalUserId,
     zip: row.zip,

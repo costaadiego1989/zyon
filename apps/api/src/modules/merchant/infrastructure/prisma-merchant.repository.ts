@@ -97,7 +97,7 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     }
 
     const requestedSlug = typeof merged.slug === "string" ? merged.slug.trim().toLowerCase() : undefined;
-    await this.prisma.merchant.update({
+    const update = {
       where: { id: merchantId },
       data: {
         ...(settings.budget ? {
@@ -108,7 +108,20 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
         storeSettings: merged as unknown as object,
         ...(requestedSlug ? { storeSlug: requestedSlug } : {}),
       }
-    });
+    };
+    if (settings.policies) {
+      await this.prisma.$transaction(async (tx) => {
+        await tx.merchant.update(update);
+        const commercial = Object.fromEntries(["returns", "shipping"].filter(field => Object.hasOwn(settings.policies!, field)).map(field => [field, (settings.policies as Record<string, string>)[field] || null]));
+        if (Object.keys(commercial).length) await tx.merchantPolicy.upsert({
+          where: { merchantId }, create: { merchantId, ...commercial }, update: commercial,
+        });
+        // Never leave a retrieval chunk containing superseded promises.
+        await tx.knowledgeChunk.deleteMany({ where: { merchantId, sourceType: "policy", sourceId: { in: Object.keys(settings.policies!) } } });
+      });
+    } else {
+      await this.prisma.merchant.update(update);
+    }
     return this.getStoreSettings(merchantId);
   }
 
@@ -118,19 +131,27 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
       create: toCreate(merchantId, DEFAULT_RULES),
       update: {}
     });
-    return toRules(row);
+    const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+    return { ...toRules(row), policies: (merchant?.storeSettings as MerchantStoreSettings | null)?.checkoutPolicyLinks };
   }
 
   async updateRules(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
-    const current = await this.getRules(merchantId).catch(() => DEFAULT_RULES);
+    const current = await this.getRules(merchantId);
     const defined = (obj: Record<string, unknown>) => Object.fromEntries(Object.entries(obj).filter(([, v]) => v !== undefined));
     const next = { ...DEFAULT_RULES, ...defined(current as unknown as Record<string, unknown>), ...defined(rules as unknown as Record<string, unknown>) } as MerchantRules;
-    const row = await this.prisma.merchantRule.upsert({
-      where: { merchantId },
-      create: toCreate(merchantId, next),
-      update: toUpdate(next)
-    });
-    return toRules(row);
+    const update = { where: { merchantId }, create: toCreate(merchantId, next), update: toUpdate(next) };
+    if (rules.policies !== undefined) {
+      next.policies = { ...current.policies, ...rules.policies };
+      const row = await this.prisma.$transaction(async (tx) => {
+        const merchant = await tx.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+        await tx.merchant.update({ where: { id: merchantId }, data: {
+          storeSettings: { ...((merchant?.storeSettings as MerchantStoreSettings | null) ?? {}), checkoutPolicyLinks: next.policies } as unknown as Prisma.InputJsonValue,
+        } });
+        return tx.merchantRule.upsert(update);
+      });
+      return { ...toRules(row), policies: next.policies };
+    }
+    return { ...toRules(await this.prisma.merchantRule.upsert(update)), policies: current.policies };
   }
 
   async updateMelhorEnvioEnabled(merchantId: string, enabled: boolean): Promise<void> {

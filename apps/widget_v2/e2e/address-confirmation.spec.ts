@@ -1,4 +1,5 @@
 import { expect, test } from "@playwright/test";
+import { selectChatChannel } from "./fixtures/cross-sell-mocks.js";
 
 for (const structuredConfirmation of [false, true]) {
   test(`confirmed CEP advances to address details and payment (structured=${structuredConfirmation})`, async ({ page }) => {
@@ -39,7 +40,7 @@ for (const structuredConfirmation of [false, true]) {
       await route.fulfill({ json: response });
     });
     await page.goto("/?embed=1&embedToken=tok_test&merchantId=mrc_test&cartRef=cart_test&apiBaseUrl=http://127.0.0.1:5174");
-    await page.getByRole("button", { name: /chat/i }).click();
+    await selectChatChannel(page);
     await page.getByRole("button", { name: "Vamos prosseguir", exact: true }).click();
     await page.getByRole("button", { name: "Sim", exact: true }).last().click();
     await expect(page.getByRole("textbox", { name: "Número do endereço", exact: true })).toBeVisible();

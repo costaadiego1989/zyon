@@ -39,6 +39,10 @@ export function ChatPanel() {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const pay = useCheckoutStore((s) => s.pay);
   const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
+  const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
+  const quickPurchaseApplying = useCheckoutStore((s) => s.quickPurchaseApplying);
+  const quickPurchaseStarted = useCheckoutStore((s) => s.quickPurchaseStarted);
+  const oneBuyClickPreferences = useCheckoutStore((s) => s.oneBuyClickPreferences);
   const cart = useCheckoutStore((s) => s.cart);
   const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
   const continueVoiceCheckout = useCheckoutStore((s) => s.continueVoiceCheckout);
@@ -50,6 +54,8 @@ export function ChatPanel() {
   const inputRef = useRef<HTMLInputElement>(null);
   const wasRecovering = useRef(false);
   const voiceAutoStartedRef = useRef(false);
+  const voiceReady = !isTyping && !paymentCreating && !quickPurchaseApplying && (!oneBuyClickPreferences || quickPurchaseStarted);
+  const voiceContextKey = `${paymentIntent?.intent_id ?? ""}:${cart.status}:${cart.shipping?.key ?? ""}:${cart.totalToPay ?? cart.total}:${messages.at(-1)?.id ?? ""}`;
 
   useEffect(() => {
     if (wasRecovering.current && !chatRecovery) inputRef.current?.focus();
@@ -58,6 +64,12 @@ export function ChatPanel() {
 
   const voice = useRealtimeVoiceCheckout({
     enabled: channel === "voice" && !chatRecovery,
+    ready: voiceReady,
+    contextKey: voiceContextKey,
+    getContext: async () => {
+      if (!api) throw new Error("checkout_session_missing");
+      return api.realtimeVoiceContext();
+    },
     createSession: async () => {
       if (!api) throw new Error("checkout_session_missing");
       return api.createRealtimeVoiceSession();
@@ -92,10 +104,10 @@ export function ChatPanel() {
       return;
     }
     if (chatRecovery) { voiceAutoStartedRef.current = true; return; }
-    if (voiceAutoStartedRef.current) return;
+    if (voiceAutoStartedRef.current || !voiceReady) return;
     voiceAutoStartedRef.current = true;
     voice.start();
-  }, [channel, chatRecovery, voice.start]);
+  }, [channel, chatRecovery, voiceReady, voice.start]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -110,7 +122,7 @@ export function ChatPanel() {
 
   const handlePaymentChoice = (text: string): boolean => {
     // Server-owned stages must retain the durable chat request and recovery flow.
-    if (lastAgentMsg?.checkoutStage) return false;
+    if (lastAgentMsg?.checkoutStage || paymentIntent) return false;
     const method = paymentMethodForQuickReply(text);
     if (!method || !isPaymentChoiceStage || !isEnabledPaymentQuickReply(text, merchantPaymentConfig)) return false;
     void pay(method);
@@ -178,6 +190,18 @@ export function ChatPanel() {
             </div>
           </div>
         ))}
+
+        {!chatRecovery && paymentIntent && !["approved", "refunded"].includes(paymentIntent.status) && (
+          <nav aria-label="Alterar pedido" style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingLeft: 36 }}>
+            {["Alterar pagamento", "Alterar frete", "Alterar endereço", "Usar cupom"].map(label => (
+              <button key={label} data-neu="control" type="button" disabled={isTyping || paymentCreating}
+                onClick={() => handleQuickReply(label)} style={{ minHeight: 44, padding: "8px 12px", borderRadius: 14,
+                  border: "1px solid var(--bd)", background: "var(--chip)", color: "var(--tx)", fontSize: 12, cursor: "pointer" }}>
+                {label}
+              </button>
+            ))}
+          </nav>
+        )}
 
         {!chatRecovery && activeQuickReplies.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", paddingLeft: "36px" }}>

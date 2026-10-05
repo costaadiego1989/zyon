@@ -63,7 +63,7 @@ test("CEP confirmation keeps number, complement and shipping in the checkout flo
 
   const payment = await send("Quero PAC");
   assert.equal(payment.stage, "payment");
-  assert.match(payment.message, /pagar/);
+  assert.match(payment.message, /pagar|pagamento/);
   assert.equal(llmCalls(), 0);
   assert.equal(repository.getSession("mrc_1", "chk_1")?.paymentMethod, undefined);
 });

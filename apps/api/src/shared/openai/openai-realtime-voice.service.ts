@@ -92,7 +92,12 @@ export class OpenAIRealtimeVoiceService {
       instructions: buildVoiceInstructions(input),
       max_output_tokens: realtimeMaxOutputTokens(),
       audio: {
-        input: { turn_detection: { type: "server_vad", create_response: true, interrupt_response: true, silence_duration_ms: 650 } },
+        input: {
+          noise_reduction: { type: "near_field" },
+          transcription: { model: "gpt-4o-mini-transcribe", language: "pt" },
+          // VAD segments audio; only a recognised utterance may start a reply.
+          turn_detection: { type: "server_vad", threshold: 0.72, prefix_padding_ms: 350, silence_duration_ms: 900, create_response: false, interrupt_response: false },
+        },
         output: { voice: process.env.OPENAI_REALTIME_VOICE?.trim() || "marin" },
       },
       tools: [{
@@ -177,7 +182,7 @@ function buildProductNarrationInstructions(summary: string): string {
   ].join("\n");
 }
 
-function buildVoiceInstructions(input: OpenAIRealtimeVoiceSessionInput): string {
+export function buildVoiceInstructions(input: OpenAIRealtimeVoiceSessionInput): string {
   const store = input.storeName?.trim() || "a loja";
   const agent = input.agentName?.trim() || "assistente de compras";
   const greeting = input.surface === "checkout"
@@ -188,10 +193,13 @@ function buildVoiceInstructions(input: OpenAIRealtimeVoiceSessionInput): string 
     `Na primeira resposta, diga somente esta saudação e espere: ${greeting}`,
     ...(input.surface === "checkout" ? [
       "Você já está no checkout. Não se apresente novamente, não diga seu nome nem repita a saudação da loja. Retome somente a etapa pendente.",
+      `ETAPA ATUAL, confirmada pelo servidor: ${greeting}. Esta etapa prevalece sobre perguntas antigas do histórico. Não peça frete, endereço ou pagamento que já estejam definidos.`,
+      "Se o pagamento já está exibido, explique apenas como concluir na tela. O comprador pode pedir para alterar frete, forma de pagamento, endereço ou cupom: encaminhe a fala para handoff_to_commerce_agent. Não repita begin_checkout para um pagamento já aberto.",
       "Pedir e-mail ou enviar código não confirma identidade. Nunca diga acesso ou e-mail confirmado enquanto o resultado da ferramenta ainda pedir código de verificação.",
       "Se um dado foi entendido errado ou o comprador quiser alterar e-mail, celular, nome, CPF ou endereço, chame correct_customer_details antes de responder, mesmo quando estiver aguardando um código. Preserve a grafia e os números; se houver dúvida, peça para soletrar ou digitar. Nunca complete um e-mail por suposição.",
     ] : []),
     "Prefira até duas frases e 60 palavras por resposta. Inclua os dados necessários para concluir a etapa com clareza. Não repita informações, ofereça extras nem faça perguntas além da próxima escolha necessária.",
+    "Silêncio, respiração, tosse, ruídos ou fala incompreensível não são pedidos. Não responda nem use ferramentas nesses casos. Nunca complete palavras ou números que não foram entendidos.",
     "Para perguntas comerciais sobre produto, preço, estoque, cupom, carrinho, frete, prazo, pedido, comparação ou lista de desejos, chame handoff_to_commerce_agent. Nunca invente dados.",
     "REGRA OBRIGATÓRIA: quando a pessoa pedir explicitamente para comprar, adicionar, levar ou colocar um produto no carrinho, chame add_item_to_cart uma vez antes de responder. Preserve a frase em buyer_message e use a quantidade informada. Para 'quero comprar este produto', 'leva esse' ou equivalente, use add_item_to_cart; o servidor valida variante e estoque.",
     "REGRA OBRIGATÓRIA: quando a pessoa disser finalizar pedido ou compra, pagar, ir ao checkout ou concluir, chame begin_checkout antes de responder. A ferramenta abre login quando necessário ou o checkout do comprador autenticado. Nunca cobre, colete cartão ou confirme pagamento por voz.",

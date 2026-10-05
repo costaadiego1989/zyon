@@ -20,6 +20,7 @@ import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/
 import { WHATSAPP_TEMPLATE_REPOSITORY, type WhatsAppTemplateRepositoryPort } from "../../../whatsapp-templates/domain/ports/whatsapp-template-repository.port.js";
 import { WHATSAPP_TEMPLATE_SENDER, type WhatsAppTemplateSenderPort } from "../../../whatsapp-templates/domain/ports/whatsapp-template-sender.port.js";
 import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
+import { CheckoutSavedAddressService } from "./checkout-saved-address.service.js";
 
 // Re-export for backwards compatibility
 export { OtpValidationError } from "./otp.service.js";
@@ -44,6 +45,7 @@ export class CheckoutCustomerService {
     @Optional() @Inject(EMAIL_SENDER_PORT) private readonly emailSender?: EmailSenderPort,
     @Optional() @Inject(WHATSAPP_TEMPLATE_REPOSITORY) private readonly templates?: WhatsAppTemplateRepositoryPort,
     @Optional() @Inject(WHATSAPP_TEMPLATE_SENDER) private readonly whatsappTemplates?: WhatsAppTemplateSenderPort,
+    @Optional() private readonly savedAddresses?: CheckoutSavedAddressService,
   ) {}
 
   async processCustomerInput(
@@ -103,6 +105,15 @@ export class CheckoutCustomerService {
 
   async correctCustomerInput(session: CheckoutSession, text: string, lastAgentTurn?: string, merchantName?: string): Promise<(CustomerCorrection & { session: CheckoutSession; message?: string; needsInput?: boolean; blocked?: boolean }) | null> {
     session = structuredClone(session);
+    const savedAddress = await this.savedAddresses?.resolve(session, text);
+    if (savedAddress?.message) {
+      const working = await commitCheckoutMutation(this.repository, { expected: session, next: savedAddress.session });
+      return { field: "zip", question: "", session: working, message: savedAddress.message };
+    }
+    if (savedAddress) {
+      session = await commitCheckoutMutation(this.repository, { expected: session, next: savedAddress.session });
+      text = "Alterar endereço";
+    }
     const correction = customerCorrection(session, text, lastAgentTurn);
     if (!correction) return null;
     if (correction.cancelled) return { ...correction, session };
@@ -129,6 +140,10 @@ export class CheckoutCustomerService {
     }
     working = await commitCheckoutMutation(this.repository, { expected: session, next: working });
     return { ...correction, session: working };
+  }
+
+  async saveDeliveryAddress(session: CheckoutSession): Promise<void> {
+    await this.savedAddresses?.saveComplete(session);
   }
 
   private buildCustomerPatch(
