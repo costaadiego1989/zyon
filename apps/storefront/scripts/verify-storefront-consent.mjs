@@ -11,7 +11,7 @@ const slug = process.env.CONSENT_STORE_SLUG ?? 'demo';
 const directory = path.resolve(process.env.CONSENT_EVIDENCE_DIR ?? `../../.audit/storefront-consent-20261005/${phase}`);
 await mkdir(directory, { recursive: true });
 const browser = await chromium.launch({ headless: true });
-const result = { phase, mode, storefront: origin, storeSlug: slug, checks: [], pageErrors: [], failedApiRequests: [], consentFailures: [] };
+const result = { phase, mode, storefront: origin, storeSlug: slug, checks: [], pageErrors: [], failedApiRequests: [], consentFailures: [], checkoutFailures: [] };
 const check = (name) => result.checks.push(name);
 try {
   const context = await browser.newContext({ viewport: { width: 390, height: 844 } });
@@ -21,6 +21,7 @@ try {
   page.on('response', (response) => {
     if (response.status() >= 500 && new URL(response.url()).origin === origin) result.failedApiRequests.push({ path: new URL(response.url()).pathname, status: response.status() });
     if (response.status() >= 400 && response.url().endsWith('/contact-consent')) result.consentFailures.push({ status: response.status(), method: response.request().method() });
+    if (response.status() >= 400 && new URL(response.url()).pathname.includes('checkout')) result.checkoutFailures.push({ path: new URL(response.url()).pathname, status: response.status() });
   });
   const configResponse = await page.request.get(`${origin}/api/v1/storefront/${slug}/config`);
   assert.equal(configResponse.status(), 200, 'Real storefront config must load');
