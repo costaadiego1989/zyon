@@ -17,17 +17,21 @@ Autonomia significa operação assistida por IA dentro de limites definidos pelo
 
 ## Motor de inteligência comercial
 
-O Revenue Manager analisa os dados de cada loja elegível em ciclos semanais, distribuídos pela madrugada e sujeitos a limites diários de processamento e custo de IA. A análise pode recomendar um teste de comunicação ou um incentivo com desconto limitado, manter a estratégia atual ou aguardar mais dados. O dashboard notifica o merchant, que revisa os detalhes, aprova, recusa ou pede uma alternativa; uma nova versão exige nova aprovação.
+O Revenue Manager analisa os dados de cada loja elegível uma vez por semana, distribuindo as análises pela madrugada e respeitando limites diários de processamento e consumo de IA. O motor pode recomendar comunicação, desconto percentual, valor fixo, cupom personalizado ou desconto no frete; também pode manter a estratégia atual ou aguardar mais dados. O dashboard notifica o merchant, que revisa os detalhes, aprova, recusa ou pede uma alternativa; uma nova versão exige nova aprovação.
 
 O limite diário de IA é uma proteção para o consumo variável das APIs LLM, não uma cobrança fixa por loja ou por dia. Gerar recomendações e respostas pode consumir tokens; coletar métricas, verificar margens e aplicar regras são operações determinísticas, sem uma chamada à LLM por medição. O gasto efetivo depende do uso e da tarifa configurada, e o teto não obriga gastar o valor reservado.
 
 As condições comerciais são calculadas pelo servidor e verificadas pelas regras de margem, pelo orçamento e pelo estado atual do checkout. Aprovar uma comunicação não autoriza um desconto: o incentivo tem aprovação específica. Se um benefício expirar antes do pagamento, o comprador vê o novo total e precisa confirmar novamente.
 
+Depois da aprovação comercial, o motor cria e aplica o benefício aos compradores elegíveis, controla prazo, limite por compra e quantidade de usos, registra reservas e pagamentos e apresenta as métricas. Cupons criados pela estratégia ficam vinculados a esses controles. O merchant não precisa cadastrar o cupom nem ajustar o motor para cada comprador. A IA não aumenta os tetos nem substitui as regras de margem e frete da loja.
+
+Análises e simulações não geram cobrança adicional ao merchant. Preencher os limites não cobra valores nem inicia uma promoção; depois da aprovação, esses limites protegem descontos reais concedidos nas vendas. Sem autorização financeira, a loja ainda pode receber sugestões de comunicação.
+
 Cada estratégia tem métricas de execução, conversão e cobertura de custos. O Revenue Lift complementa essa leitura com a comparação entre grupos, sem tratar ausência de dados como ganho zero ou aumento de receita como lucro comprovado. O aprendizado entre lojas usa somente evidência madura e agregada de pelo menos cinco lojas independentes e compatíveis; com apenas uma loja, não há transferência de aprendizado.
 
 Consulte a [arquitetura do Revenue Intelligence](docs/architecture/revenue-intelligence.md) para fluxos, módulos, tabelas, configurações, limites de medição, observabilidade e rollback. Os recursos dependem das flags e da elegibilidade da loja; a existência do código não confirma sua ativação em produção.
 
-**Produção em 29/09/2026:** código publicado nas quatro superfícies; agenda semanal e monitor ligados somente para a Athom. A geração paga e a execução de novas estratégias permanecem desligadas até configurar os limites e ativar os controles correspondentes. Veja o [registro da publicação](docs/product/revenue-intelligence-production-2026-09-29.md), com revisão, migrações, validações e limites da evidência.
+**Operação em 05/10/2026:** geração semanal habilitada somente para a Athom; o experimento antigo foi encerrado por autorização do proprietário. A loja continua sujeita aos critérios de dados e à aprovação de cada estratégia. Veja o [registro de ativação](docs/product/revenue-intelligence-activation-2026-10-05.md) para distinguir configuração publicada, validação local e execução comercial real. O [registro de 29/09](docs/product/revenue-intelligence-production-2026-09-29.md) permanece como histórico.
 
 ## Estrutura
 
