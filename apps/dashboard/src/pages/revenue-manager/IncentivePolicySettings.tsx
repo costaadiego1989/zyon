@@ -110,9 +110,10 @@ export function IncentivePolicySettings({ merchantId }: { merchantId: string }) 
       {policy ? summary(policy) : busy ? "Carregando limites…" : "Limites indisponíveis"}
     </span></span><span className="incentive-policy-open"><span className="incentive-policy-expand">Configurar</span><span className="incentive-policy-collapse">Fechar</span></span></summary>
     <div className="incentive-policy-content">
-      <p>Defina quanto sua loja pode conceder em descontos nos testes sugeridos pela IA.
-        A IA recomenda a estratégia e você aprova antes de ela começar. Cada desconto também precisa respeitar as margens e regras comerciais da loja.</p>
-      <p className="incentive-policy-help">Este orçamento representa descontos nas vendas. Não é uma cobrança da Zyon nem o custo de uso da IA.</p>
+      <p><strong>Simular e receber sugestões não gera cobrança adicional.</strong> Os valores abaixo orientam as propostas de desconto da IA.
+        Preenchê-los não gera cobrança, não aplica descontos e não libera uma análise pausada pela plataforma.</p>
+      <p className="incentive-policy-help">Estes limites são opcionais para receber sugestões e necessários para autorizar testes com descontos.
+        Se você aprovar um desses testes, eles limitarão os descontos reais nas vendas, sempre respeitando as margens e regras comerciais da loja.</p>
       {error && <p role="alert" className="incentive-policy-error">{error}</p>}
       {notice && <p role="status">{notice}</p>}
       {!policy ? <button type="button" className="zyn-btn zyn-btn--secondary" disabled={busy} onClick={() => void load()}>

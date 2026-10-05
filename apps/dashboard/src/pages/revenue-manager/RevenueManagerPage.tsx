@@ -87,10 +87,10 @@ export function RevenueManagerPage(_props: RevenueManagerPageProps) {
 
   return (
     <div className="page-container revenue-manager-page">
-      <PageHeader title="Otimização com IA" description="Revise sugestões para sua loja e acompanhe os dados que fundamentam cada decisão." />
+      <PageHeader title="Otimização com IA" description="Receba sugestões e simule estratégias sem cobrança adicional. Você revisa e aprova antes de aplicar." />
 
       <SetupGuide title="Como usar as sugestões de melhoria" steps={[
-        { title: "Confira a proposta", description: "Leia a sugestão, as condições e a estimativa de impacto para sua loja." },
+        { title: "Confira a proposta", description: "A IA analisa os dados da loja e apresenta simulações sem cobrança adicional. Os valores ajudam a avaliar a proposta; não são um pagamento à Zyon." },
         { title: "Revise antes de aplicar", description: "Abra a revisão para conferir as ações disponíveis. Os limites comerciais da loja continuam valendo." },
         { title: "Acompanhe o resultado", description: "Confira a execução e a amostra antes de avaliar o resultado. Estimativas não garantem aumento de vendas." },
       ]} />

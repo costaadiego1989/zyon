@@ -229,6 +229,8 @@ Orçamento de IA obrigatório: `REVENUE_AI_BUDGET_CURRENCY`, `REVENUE_AI_DAILY_L
 
 Os orçamentos comerciais usam **centavos de BRL**; os orçamentos de IA usam **micros na moeda da tarifa**. Não converter um para o outro sem uma política cambial explícita.
 
+Para o lojista, análises, sugestões e simulações não geram cobrança adicional. Os limites de consumo do provedor de IA são controles operacionais internos da Zyon, configurados pela plataforma; não são créditos que o merchant precisa comprar ou preencher no dashboard. Os limites de desconto da loja orientam as propostas comerciais, são opcionais para receber sugestões e não destravam uma análise pausada pela plataforma. Salvar esses limites não cobra valores nem inicia um teste. Quando o merchant aprova especificamente um teste de desconto, os limites passam a restringir descontos reais nas vendas; por isso não devem ser descritos como valores apenas fictícios após a aprovação.
+
 ## 11. Impacto no sistema e comportamento sem dados
 
 O desenho acrescenta jobs BullMQ, registros de auditoria, agregações SQL e verificações transacionais nos pontos de execução. Não exige outro serviço de treinamento ou chamadas de IA para cada coleta de métrica. A análise cara é semanal e limitada globalmente; revisões e chat experimental continuam sujeitos a cotas próprias.
