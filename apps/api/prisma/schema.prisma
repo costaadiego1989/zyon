@@ -1144,6 +1144,7 @@ model BuyerAccount {
 /// use-case layer.
 model BuyerAddress {
   id           String   @id @default(cuid())
+  label        String?
   globalUserId String   @map("global_user_id")
   zip          String
   street       String

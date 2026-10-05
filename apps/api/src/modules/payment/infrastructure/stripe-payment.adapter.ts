@@ -124,6 +124,17 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     };
   }
 
+  async cancelPayment(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }> {
+    const stripe = this.requireStripe();
+    const options = this.connectedAccountOptions(input);
+    const payment = await stripe.paymentIntents.retrieve(input.providerPaymentId, undefined, options);
+    if (payment.status === "canceled") return { state: "cancelled" };
+    if (!["requires_payment_method", "requires_confirmation", "requires_action"].includes(payment.status)) return { state: "blocked" };
+    const cancelled = await stripe.paymentIntents.cancel(input.providerPaymentId, { cancellation_reason: "requested_by_customer" },
+      { ...options, idempotencyKey: `buyer-edit:${input.providerPaymentId}` });
+    return { state: cancelled.status === "canceled" ? "cancelled" : "unknown" };
+  }
+
   async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
     const refund = await this.requireStripe().refunds.retrieve(
       input.providerRefundId,

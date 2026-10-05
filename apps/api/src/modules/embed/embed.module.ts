@@ -34,6 +34,7 @@ import { ProtocolWebhookPublisher } from "./infrastructure/protocol-webhook-publ
 import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-expiry-reaper.js";
 import { OpenAIRealtimeVoiceService } from "../../shared/openai/openai-realtime-voice.service.js";
 import { EmbedRealtimeVoiceController } from "./presentation/http/embed-realtime-voice.controller.js";
+import { ReopenEmbedCheckoutUseCase } from "./application/reopen-embed-checkout.use-case.js";
 
 @Module({
   imports: [
@@ -68,6 +69,7 @@ import { EmbedRealtimeVoiceController } from "./presentation/http/embed-realtime
     AgentCheckoutStateService,
     IssueEmbedSessionUseCase,
     UpdateEmbedCustomerUseCase,
+    ReopenEmbedCheckoutUseCase,
     StartProtocolSessionUseCase,
     TransitionProtocolStateUseCase,
     GetProtocolStateUseCase,

@@ -234,6 +234,22 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
     };
   }
 
+  async cancelPayment(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }> {
+    // Hosted preferences have no atomic cancel operation. Keep them blocked.
+    if (!/^\d+$/.test(input.providerPaymentId)) return { state: "blocked" };
+    const url = `${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`;
+    const headers = { Authorization: `Bearer ${this.accessToken}`, accept: "application/json", "Content-Type": "application/json" };
+    const current = await this.fetchImpl(url, { headers, redirect: "error", signal: AbortSignal.timeout(15_000) });
+    if (!current.ok) return { state: "unknown" };
+    const payment = await current.json() as { status?: string };
+    if (payment.status === "cancelled") return { state: "cancelled" };
+    if (payment.status !== "pending") return { state: "blocked" };
+    const response = await this.fetchImpl(url, { method: "PUT", headers, body: JSON.stringify({ status: "cancelled" }),
+      redirect: "error", signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) return { state: "unknown" };
+    return { state: (await response.json() as { status?: string }).status === "cancelled" ? "cancelled" : "unknown" };
+  }
+
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
     input = await this.preparePayment(input);
     const base = this.apiBaseUrl.replace(/\/+$/, "");

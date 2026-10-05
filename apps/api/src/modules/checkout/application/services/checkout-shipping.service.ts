@@ -270,6 +270,14 @@ export class CheckoutShippingService {
     }
 
     const normalized = normalize(text);
+    if (/\b(mais barato|mais barata|mais economico|mais economica)\b/.test(normalized)) {
+      return [...options].sort((a, b) => a.customerPrice - b.customerPrice
+        || (a.deliveryDays ?? Infinity) - (b.deliveryDays ?? Infinity))[0] ?? null;
+    }
+    if (/\b(mais rapido|mais rapida)\b/.test(normalized)) {
+      return [...options].filter(quote => Number.isFinite(quote.deliveryDays)).sort((a, b) => a.deliveryDays! - b.deliveryDays!
+        || a.customerPrice - b.customerPrice)[0] ?? null;
+    }
     if (/(?<!\d)\b(1|primeir[ao]|pac|economi[ac]|barat[ao])\b(?!\d)/.test(normalized)) {
       return this.findOption(options, /pac|econom/i) ?? options[0] ?? null;
     }

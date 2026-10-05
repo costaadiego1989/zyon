@@ -48,6 +48,7 @@ import { ResolveEmbedBuyerService } from "../../application/resolve-embed-buyer.
 import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
 import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
+import { ReopenEmbedCheckoutUseCase } from "../../application/reopen-embed-checkout.use-case.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -112,9 +113,23 @@ export class EmbedCheckoutController {
     private readonly updateEmbedCustomer: UpdateEmbedCustomerUseCase,
     @Optional() private readonly resolveBuyer?: ResolveEmbedBuyerService,
     @Optional() private readonly reconcileChat?: ReconcileChatMessageUseCase,
+    @Optional() private readonly reopenCheckout?: ReopenEmbedCheckoutUseCase,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
+
+  @Post("checkout/edit")
+  @RequireEmbedScope("payment:intents:create")
+  async editCheckout(@Req() request: EmbedHttpRequest,
+    @Body() body: { session_id: string; section: import("@zyon/shared-types").CheckoutEditSection }) {
+    if (typeof body.session_id !== "string" || !["payment", "shipping", "address", "coupon"].includes(body.section)) {
+      throw new BadRequestException("checkout_edit_invalid");
+    }
+    const embed = request.embedClaims!;
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    if (!this.reopenCheckout) throw new ServiceUnavailableException("checkout_edit_unavailable");
+    return this.reopenCheckout.execute(embed.merchantId, body.session_id, body.section);
+  }
 
   @Post("start")
   @RequireEmbedScope("checkout:start")

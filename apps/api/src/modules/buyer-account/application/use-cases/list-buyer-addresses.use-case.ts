@@ -91,6 +91,7 @@ export class AddBuyerAddressUseCase {
   constructor(@Inject(BUYER_ADDRESS_REPOSITORY) private readonly repo: BuyerAddressRepository) {}
 
   async execute(input: {
+    label?: string;
     globalUserId: string;
     id: string;
     zip: string;
@@ -125,6 +126,7 @@ export class UpdateBuyerAddressUseCase {
   constructor(@Inject(BUYER_ADDRESS_REPOSITORY) private readonly repo: BuyerAddressRepository) {}
 
   async execute(input: {
+    label?: string;
     globalUserId: string;
     id: string;
     zip?: string;

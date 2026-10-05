@@ -34,6 +34,7 @@ import { deriveChatStage } from "../../domain/services/customer-extraction.servi
 import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
 import { chatPaymentRecoveryEnabled } from "../../application/services/chat-payment-recovery.js";
 import { applyEligibleIncentive, incentiveExecutionEnabled, invalidateIncentiveCheckout, prepareProgressiveIncentivePayment, reviseIncentiveForPaymentReview } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
+import { reopenCheckout } from "../../domain/services/reopen-checkout.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
@@ -134,6 +135,10 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const { merchantId, sessionId } = input.expected;
       await lockExecutionMerchant(tx, merchantId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
+      if (mutation.invalidated && await tx.paymentIntent.findFirst({ where: { merchantId, sessionId,
+        status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) {
+        throw new ConflictException("CHECKOUT_PAYMENT_REQUIRES_REOPEN");
+      }
       if (mutation.invalidated) await invalidateIncentiveCheckout(tx, merchantId, sessionId);
       if (await tx.completedOrder.findFirst({ where: { merchantId, sessionId }, select: { id: true } })
         || await tx.checkoutEvent.findFirst({ where: { merchantId, sessionId, eventName: "checkout_abandoned",
@@ -182,6 +187,37 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     const saved = this.inTransaction ? await write(this.prisma) : await (this.prisma as PrismaClient).$transaction(write);
     working.persistenceVersion = saved.version;
     working.cart = toCheckoutSession(saved).cart;
+  }
+
+  async assertBuyerEditAllowed(merchantId: string, sessionId: string): Promise<void> {
+    const scope = { merchantId, sessionId };
+    if (!await this.getSession(merchantId, sessionId)) throw new ConflictException("CHECKOUT_SESSION_NOT_FOUND");
+    if (await this.prisma.completedOrder.findFirst({ where: scope, select: { id: true } })
+      || await this.prisma.checkoutChatRequest.findFirst({ where: { ...scope, status: { in: ["processing", "unknown"] } }, select: { id: true } })
+      || await this.prisma.checkoutEvent.findFirst({ where: { ...scope, eventName: "checkout_abandoned", metadata: { path: ["reason"], equals: "buyer_initiated" } }, select: { id: true } })) {
+      throw new ConflictException("checkout_payment_not_editable");
+    }
+  }
+
+  async reopenForBuyerEdit(merchantId: string, sessionId: string, section: import("@zyon/shared-types").CheckoutEditSection): Promise<CheckoutSession> {
+    const work = async (tx: Prisma.TransactionClient) => {
+      await lockExecutionMerchant(tx, merchantId);
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
+      const scope = { merchantId, sessionId };
+      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      await repo.assertBuyerEditAllowed(merchantId, sessionId);
+      if (await tx.paymentIntent.findFirst({ where: { ...scope, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) {
+        throw new ConflictException("checkout_payment_not_editable");
+      }
+      const current = await repo.getSession(merchantId, sessionId);
+      if (!current) throw new ConflictException("CHECKOUT_SESSION_NOT_FOUND");
+      const next = reopenCheckout(current, section);
+      await invalidateIncentiveCheckout(tx, merchantId, sessionId);
+      await tx.couponRedemption.updateMany({ where: { ...scope, status: "applied" }, data: { status: "cancelled" } });
+      await repo.saveSessionIfUnchanged(next, current);
+      return (await repo.getSession(merchantId, sessionId))!;
+    };
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
   }
 
   async saveBenefitsIfMutable(session: CheckoutSession, expected: CheckoutSession, authorizedRules: MerchantRules): Promise<CheckoutSession> {

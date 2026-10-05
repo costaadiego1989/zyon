@@ -29,6 +29,9 @@ export interface CheckoutCommercialMutation {
 }
 
 export interface CheckoutSessionRepository {
+  assertBuyerEditAllowed?(merchantId: string, sessionId: string): Promise<void>;
+  /** Buyer editing requires resolved payments, no active chat, and an open order. */
+  reopenForBuyerEdit?(merchantId: string, sessionId: string, section: import("@zyon/shared-types").CheckoutEditSection): Promise<CheckoutSession>;
   /** Server payment preparation advances only an already assigned, approved
    * progressive strategy. Browser telemetry cannot authorize a stage. */
   prepareProgressiveIncentivePayment?(merchantId: string, sessionId: string, method: string): Promise<CheckoutSession | undefined>;

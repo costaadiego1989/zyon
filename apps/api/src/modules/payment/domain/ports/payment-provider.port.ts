@@ -180,6 +180,8 @@ export type FetchRefundStatusOutput = {
 };
 
 export interface PaymentProviderPort {
+  /** Only confirms an unpaid charge is no longer payable. Unknown stays blocked. */
+  cancelPayment?(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }>;
   creationAccountFingerprint?(): string;
   /** Freeze the route/account before reserving a new financial operation. */
   preparePayment?(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput>;

@@ -120,6 +120,7 @@ export interface CustomerAddress {
 }
 
 export interface CustomerHints {
+  deliveryAddressLabel?: string;
   externalCustomerId?: string;
   asaasCustomerId?: string;
   email?: string;
@@ -1485,3 +1486,5 @@ export * from "./billing-plans.js";
 export * from "./billing-offers.js";
 
 export { NEUMORPHIC_THEME, merchantThemeTokens, type MerchantThemeAppearance } from "./merchant-theme.js";
+
+export { checkoutEditIntent, type CheckoutEditSection } from "./checkout-edit-intent.js";
