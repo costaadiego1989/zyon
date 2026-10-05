@@ -25,7 +25,7 @@ Em 05/10, o proprietário autorizou escolher valores para sua loja de testes. Fo
 
 Esses valores não são uma recomendação estatística calculada para a loja. O limite de 30 usos é inferior ao mínimo de 100 compradores por braço do experimento financeiro; portanto, essa configuração não é suficiente para autorizar o A/B financeiro. O histórico observado também está abaixo do pré-requisito de medição: 40 compradores elegíveis maduros, ante o mínimo de 100. O motor deve explicar a inviabilidade, sem aumentar os limites ou fabricar dados para iniciar um teste.
 
-Salvar a política não cobra valores e não aprova uma promoção. Análises e simulações não têm cobrança adicional ao merchant; descontos efetivamente aprovados e utilizados reduzem o valor recebido nas vendas. O orçamento de tokens da plataforma é separado desses valores.
+Salvar a política não cobra valores e não aprova uma promoção. Os valores usados nas análises e nos testes internos servem para simulação e não geram cobrança ao merchant. Descontos efetivamente aprovados e utilizados em vendas reduzem o valor recebido pela loja, sem representar uma cobrança da Zyon. O orçamento de tokens da plataforma é separado desses valores.
 
 ## Provedores e custo da plataforma
 
@@ -76,11 +76,29 @@ Aprendizado agregado está habilitado na lista piloto, mas exige cinco lojas ind
 
 Evidências operacionais sem credenciais: `.audit/commercial-live-proof.log` e `.audit/commercial-weekly-live.log`. Os bancos e Redis descartáveis usados nos testes foram encerrados e removidos; nenhum serviço da Cura Viva foi alterado.
 
-## Evolução de experiência discutida com o proprietário
+## Planejador e limites sugeridos — implementação em validação
 
-Em 05/10, foi recomendada a substituição do preenchimento obrigatório de limites por valores sugeridos pelo motor dentro da própria proposta. Esse fluxo ainda não está implementado nesta entrega: hoje a política financeira continua explícita e versionada.
+O novo fluxo elimina o preenchimento obrigatório dos três limites financeiros para lojas que usam o modo automático. Antes da chamada à LLM, o backend simula opções com os dados maduros da loja, os custos conhecidos, a margem mínima e o desconto máximo configurados. Calcula benefício, público, prazo, quantidade e exposição máxima; exclui as opções que não sustentam a amostra necessária durante a semana. A ferramenta `submit_revenue_strategy` escolhe uma dessas opções ou uma estratégia de comunicação sem desconto. Não aceita valores livres nem aprova ações.
 
-O desenho recomendado é: motor calcula benefício, público, prazo, quantidade e exposição máxima com os dados disponíveis; merchant revisa a proposta pronta e aprova ou pede alternativa; operação permanece automática dentro dos termos aprovados. Configuração manual fica como opção avançada. Aumentar exposição de uma estratégia já aprovada exige nova autorização. Sem dados ou custos suficientes, propor comunicação sem desconto ou aguardar evidência, sem apresentar números arbitrários como recomendação personalizada.
+O merchant recebe uma proposta completa e uma aprovação correspondente ao tipo de teste. Pode recusar ou pedir uma alternativa; a resposta gera outra versão para revisão, sem reaproveitar a autorização anterior. Uma proposta comercial testa o benefício mantendo a conversa atual do checkout. Uma proposta de comunicação testa a mudança de conversa sem criar benefício financeiro. Gerar a sugestão não cria cupom ativo, orçamento autorizado ou experimento.
+
+Somente a aprovação dos termos exatos materializa a política financeira proposta e a execução, na mesma transação. A configuração manual continua disponível como opção avançada, e o modo desativado impede novos benefícios financeiros. Políticas manuais existentes são preservadas. Aumentar a exposição de uma estratégia aprovada exige nova autorização. Simulações não têm cobrança adicional ao merchant; descontos aprovados e utilizados reduzem o valor recebido nas vendas.
+
+O catálogo inclui a opção de desconto progressivo em duas etapas: entrada no teste e preparação do pagamento. O limite máximo fica reservado desde a entrada, mas somente o desconto efetivamente concedido pode ser contabilizado na venda. A progressão é comandada pelo backend; uma alteração no total exige nova confirmação do comprador antes do pagamento. Não reescreve regras globais nem acumula os valores das etapas.
+
+Esta evolução concluiu a validação local. As evidências de produção nas seções anteriores referem-se às modalidades v3 e não comprovam a publicação do novo planejador. A nova flag `REVENUE_STRATEGY_PLANNER_ENABLED` depende também da lista explícita de lojas das modalidades comerciais. A Athom continua sujeita aos requisitos de dados e medição; habilitar o planejador não fabrica histórico nem autoriza uma promoção.
+
+### Evidência do planejador
+
+- Seis testes de ferramenta/gateway passaram: seleção pelo identificador da opção, contexto exato de cache, reserva incluindo o schema da ferramenta, rejeição de valores livres, adulteração e outra loja.
+- 56 testes de governança, validação e estudo de desconto passaram.
+- 37 testes de política automática e leitura histórica passaram, incluindo sete integrações PostgreSQL. O fluxo com dez mil compradores de teste e dez conversões percorreu captura real, escolha da ferramenta, publicação sem autorização financeira, aprovação, cupom e pagamento. A revisão trocou desconto fixo por frete preservando a seleção original no ciclo. A leitura histórica foi corrigida para não exceder a pilha do PostgreSQL nesse volume.
+- 27 integrações PostgreSQL de execução passaram, incluindo seis cenários progressivos: Pix e cartão exigem nova confirmação antes da cobrança, concorrência não duplica concessões, o grupo de controle não recebe benefício, pagamento e estorno preservam o histórico, mudanças no carrinho liberam a reserva sem reinscrever o comprador. Foram também executados 82 testes unitários distintos de checkout e modalidades comerciais.
+- Dashboard: 48 testes direcionados, typecheck, build e navegador com dados controlados em 1440 e 390 passaram. Após a revisão textual sobre testes internos sem cobrança, os 30 testes afetados e o build passaram novamente.
+- API: build completo e typecheck passaram. As 73 migrações foram aplicadas no PostgreSQL descartável, incluindo `20261005200000_strategy_planner_policy`, `20261005210000_progressive_incentives` e `20261005210100_progressive_payment_method`.
+- Revisão: os 72 testes de integração da suíte completa passaram em PostgreSQL e Redis descartáveis, sem skips. Incluem a nova geração/revisão por ferramenta, contratos legados, notificação, condições de aprovação, orçamento de IA, recuperação pela fila e bloqueios contra mudanças concorrentes.
+
+Os compradores, pedidos, provedor de pagamento e respostas de IA dessas integrações são controlados para teste. Nenhuma aprovação, cupom ou cobrança de comprador foi criada em produção por essa validação. Ela comprova as proteções do fluxo local, sem comprovar aumento de receita.
 
 ## Rollback
 
