@@ -1,4 +1,5 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
+import { providerRequestOptions } from "../../../shared/llm/provider-request-options.js";
 import { RevenueAiBudgetService, type TokenUsage } from "./revenue-ai-budget.service.js";
 import { AnalysisDeferred } from "../domain/weekly-analysis-policy.js";
 import type {
@@ -44,7 +45,7 @@ function configuredHypothesisProviders(): HypothesisAiProvider[] {
     providers.push({
       name: "deepseek",
       apiKey: deepSeekApiKey,
-      model: process.env.DEEPSEEK_MODEL || "deepseek-chat",
+      model: process.env.REVENUE_DEEPSEEK_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat",
       baseUrl: (process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1").replace(/\/+$/, ""),
     });
   }
@@ -133,6 +134,7 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
                 { role: "user", content: userPrompt },
               ],
               temperature: 0.7,
+              ...providerRequestOptions(provider.baseUrl, provider.model),
               ...(provider.name === "openai"
                 ? { max_completion_tokens: reservation?.maxOutputTokens ?? 1000 }
                 : { max_tokens: reservation?.maxOutputTokens ?? 1000 }),
