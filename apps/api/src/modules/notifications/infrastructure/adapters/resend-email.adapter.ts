@@ -35,6 +35,12 @@ export class ResendEmailAdapter implements EmailSenderPort {
   ) {}
 
   async send(input: SendEmailInput): Promise<SendEmailOutput> {
+    // A sandbox can use the configured provider while dispatching only to approved test contacts.
+    const allowed = process.env.NOTIFICATION_EMAIL_ALLOWED_RECIPIENTS;
+    if (allowed !== undefined) {
+      const recipients = allowed.split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+      if (!recipients.includes(input.to.trim().toLowerCase())) return { messageId: "", status: "skipped" };
+    }
     // Fallback: console log if no API key (dev mode)
     if (!this.apiKey) {
       if (input.requireDelivery) return { messageId: "", status: "skipped" };
