@@ -104,6 +104,7 @@ export interface CartItem {
   sku: string;
   name: string;
   price: number;
+  originalPrice?: number;
   price_cents?: number;
   quantity: number;
   imageUrl?: string;
@@ -134,7 +135,7 @@ export interface CommercialNudge {
 }
 
 export interface Experience {
-  items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; image_url?: string; variant?: string; variant_label?: string }>;
+  items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; original_unit_price?: number; image_url?: string; variant?: string; variant_label?: string }>;
   totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
   shipping?: {
     carrier?: string;
@@ -165,6 +166,7 @@ export interface Experience {
   cryptoPayments?: CryptoPaymentsConfig;
   suggestedProducts?: SuggestedProduct[];
   commercial_nudge?: CommercialNudge;
+  applied_benefits?: Array<{ kind: "discount" | "shipping"; label: string; amount: number }>;
   rules?: { showBranding?: boolean; [key: string]: unknown };
 }
 
@@ -180,11 +182,11 @@ export interface CrossSellAcceptResponse {
   agent_turn?: { role: "agent" | "buyer"; text: string; occurredAt?: string };
 }
 
-export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number; shipping?: { key: string; label: string; cost: number } } {
+export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number; shipping?: { key: string; label: string; cost: number }; benefits?: Experience["applied_benefits"] } {
   if (!experience?.items || !experience.totals) throw new Error("checkout_cart_snapshot_missing");
   const shipping = checkoutShippingFromExperience(experience.shipping);
   return {
-    items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, imageUrl: item.image_url, variant: item.variant, variantLabel: item.variant_label })),
+    items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, originalPrice: item.original_unit_price, imageUrl: item.image_url, variant: item.variant, variantLabel: item.variant_label })),
     total: experience.totals.subtotal,
     discount: experience.totals.discount,
     serviceFee: typeof experience.totals.service_fee === "number" && Number.isFinite(experience.totals.service_fee) && experience.totals.service_fee >= 0
@@ -194,6 +196,7 @@ export function cartFromExperience(experience: Experience | undefined): { items:
       ? experience.totals.total_to_pay
       : undefined,
     shipping,
+    benefits: experience.applied_benefits,
   };
 }
 
@@ -234,6 +237,7 @@ export interface ChatResponse {
 }
 
 export interface PaymentIntent {
+  experience?: Experience;
   intent_id: string;
   method: string;
   status: string;
@@ -634,6 +638,7 @@ export class CheckoutSession {
       status: string;
       method: string;
       amountCents: number;
+      experience?: Experience;
       buyerFacing?: {
         qrCodeCopyPaste?: string;
         encodedQrImage?: string;
@@ -676,7 +681,12 @@ export class CheckoutSession {
     const pixQrUrl = raw.buyerFacing?.encodedQrImage
       ? `data:image/png;base64,${raw.buyerFacing.encodedQrImage}`
       : undefined;
+    if (raw.experience) {
+      cartFromExperience(raw.experience);
+      this.experience = { ...this.experience, ...raw.experience };
+    }
     return {
+      experience: raw.experience,
       intent_id: raw.id,
       method: method ?? (raw.method === "card" ? "credito" : raw.method as PaymentIntent["method"]),
       status: raw.status,

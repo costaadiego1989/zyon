@@ -8,6 +8,10 @@ export function checkoutWithCoupon(session: CheckoutSession, result: {
   return {
     ...session,
     cart: { ...session.cart, currentDiscount: result.discount_applied,
+      appliedBenefits: [
+        ...(result.discount_applied > 0 ? [{ kind: "discount" as const, label: `Cupom ${result.coupon.code ?? "aplicado"}`, amount: result.discount_applied }] : []),
+        ...(shippingDiscount > 0 ? [{ kind: "shipping" as const, label: "Desconto no frete", amount: shippingDiscount }] : []),
+      ],
       commercialNudge: couponNudge(result.coupon, result.discount_applied, shippingDiscount, session.cart.total) },
     shipping: session.shipping && shippingDiscount > 0
       ? { ...session.shipping, customerPrice: Math.max(0, session.shipping.customerPrice - shippingDiscount) }

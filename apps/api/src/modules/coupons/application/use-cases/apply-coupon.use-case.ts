@@ -70,7 +70,12 @@ export class ApplyCouponUseCase {
     }
     if (!session.cart.items.length || await tx.completedOrder.findFirst({
       where: { merchantId: input.merchant_id, sessionId: input.session_id }, select: { id: true },
-    })) throw new ConflictException("CHECKOUT_COUPON_SESSION_NOT_MUTABLE");
+    }) || await tx.paymentIntent.findFirst({ where: { merchantId: input.merchant_id,
+      sessionId: input.session_id, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })
+      || await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: {
+        merchantId: input.merchant_id, sessionId: input.session_id } }, select: { id: true } })) {
+      throw new ConflictException("CHECKOUT_COUPON_SESSION_NOT_MUTABLE");
+    }
     const code = input.code.toUpperCase().trim();
     await tx.$queryRaw`SELECT id FROM coupons WHERE merchant_id = ${input.merchant_id} AND code = ${code} FOR UPDATE`;
     const coupons = new PrismaCouponRepository(tx);

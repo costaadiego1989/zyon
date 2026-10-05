@@ -52,7 +52,7 @@ test("embed payment intents: merchant_id só do embed token após sessão válid
       total: 250,
       items: [{ sku: "sku", name: "N", price: 250, quantity: 1 }]
     },
-    customer: { fullName: "Embed Buyer", email: "embed-buyer@example.test", cpf: "12345678901", asaasCustomerId: "untrusted-browser-id" },
+    customer: { fullName: "Embed Buyer", email: "embed-buyer@example.test", phone: "11999999999", cpf: "12345678901", asaasCustomerId: "untrusted-browser-id" },
     shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
   });
 
@@ -73,4 +73,8 @@ test("embed payment intents: merchant_id só do embed token após sessão válid
   assert.equal(snap.sessionId, started.session_id);
   assert.equal(snap.amountCents, 25099);
   assert.ok(snap.buyerFacing?.invoiceUrl);
+  assert.ok("experience" in snap);
+  assert.equal(snap.experience.totals.total_to_pay, snap.amountCents / 100);
+  assert.equal(snap.experience.totals.service_fee, .99);
+  assert.equal(snap.experience.shipping?.customerPrice, 0);
 });

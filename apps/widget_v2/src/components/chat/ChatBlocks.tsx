@@ -318,7 +318,7 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         </div>
       )}
       {safeInvoiceUrl(data.invoice_url) ? (
-        <a data-neu="control" href={safeInvoiceUrl(data.invoice_url)!} target="_blank" rel="noopener noreferrer">
+          <a className="checkout-payment-panel__action" data-neu="control" href={safeInvoiceUrl(data.invoice_url)!} target="_blank" rel="noopener noreferrer">
           Abrir página do Pix
         </a>
       ) : null}
