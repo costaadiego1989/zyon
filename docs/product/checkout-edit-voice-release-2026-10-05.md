@@ -1,5 +1,15 @@
 # Checkout editável e compra rápida por voz — 05/10/2026
 
+## Ajuste posterior: voz no storefront e Pix responsivo
+
+A decisão posterior do produto mantém a experiência de voz no storefront e abre o checkout da loja por chat. A preferência de voz do storefront continua preservada; o canal de entrada do checkout não depende dela. Os detalhes de voz abaixo descrevem a release anterior.
+
+O painel Pix passa a conter o código, o QR e os controles em telas estreitas, sem cortar o container. O botão de copiar conserva o código completo. A ação **Abrir página do Pix** permanece disponível quando o provedor retorna uma URL HTTPS. O rodapé exibe apenas as políticas configuradas pela loja; “Documentos da Zyon” foi removido.
+
+Validação local: typecheck do widget, builds de widget/storefront e 19 testes Playwright de edição e layout aprovados. Uma verificação adicional no navegador cobriu 320, 360, 390, 430, 768, 1024 e 1280 px: limites do painel, QR, cópia integral, abertura do link Pix em outra aba e políticas da loja. APIs e pagamento foram simulados; nenhum pagamento real foi submetido.
+
+## Release anterior
+
 Publicado na Railway e na Vercel com código `120c9630b279a2d43b3ea7a5da6d473797510210`. A validação final de disponibilidade ocorreu em 05/10/2026 às 22:55 UTC. A release preserva as alterações legais e de privacidade de `6f654cde6f3e38bce63a6cbd81ea6272e28641df`.
 
 ## Comportamento entregue
