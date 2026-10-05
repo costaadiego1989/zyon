@@ -21,10 +21,10 @@ export function useSupportChat(api: DashboardApi, ticketId: string) {
     const interval = window.setInterval(refresh, 5000); window.addEventListener("focus", refresh);
     return () => { request.current++; window.clearInterval(interval); window.removeEventListener("focus", refresh); };
   }, [reload]);
-  const lastMessageId = detail?.messages.at(-1)?.id;
-  useEffect(() => {
-    if (!lastMessageId || document.hidden || lastRead.current === lastMessageId) return;
-    void api.markSupportCaseRead(ticketId, lastMessageId).then(() => { lastRead.current = lastMessageId; }).catch(() => undefined);
-  }, [api, ticketId, lastMessageId]);
-  return { detail, messages: detail?.messages ?? [], loading, error, reload };
+  const markVisibleRead = useCallback(async (lastMessageId: string) => {
+    if (document.hidden || lastRead.current === lastMessageId) return;
+    try { await api.markSupportCaseRead(ticketId, lastMessageId); lastRead.current = lastMessageId; }
+    catch { /* Keep unread until the persisted acknowledgement succeeds. */ }
+  }, [api, ticketId]);
+  return { detail, messages: detail?.messages ?? [], loading, error, reload, markVisibleRead };
 }

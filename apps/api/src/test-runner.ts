@@ -147,6 +147,8 @@ import "./modules/buyer-purchase-history/application/buyer-purchase-history.use-
 import "./modules/buyer-purchase-history/infrastructure/prisma-buyer-purchase-history.repository.int-spec.js";
 import "./modules/buyer-purchase-history/presentation/http/buyer-purchase-history.controller.spec.js";
 import "./modules/buyer-account/application/use-cases/login-buyer-from-session.use-case.spec.js";
+import "./modules/buyer-account/application/use-cases/login-buyer.use-case.spec.js";
+import "./shared/logger/log-redaction.spec.js";
 import "./modules/buyer-account/application/use-cases/get-buyer-purchases.use-case.spec.js";
 import "./modules/checkout/__tests__/update-order-tracking.use-case.spec.js";
 import "./modules/checkout/application/use-cases/update-cart.use-case.spec.js";

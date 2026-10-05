@@ -1,9 +1,24 @@
 import { describe, expect, it } from "vitest";
 import { createDashboardApi } from "../index.js";
-import { createSessionFetch } from "./session-fetch.js";
+import { createSessionFetch, getSessionAccessToken } from "./session-fetch.js";
 import { dashboardFetch } from "./client.js";
 
 describe("session authentication without cookies", () => {
+  it("replaces the support and socket session after switching the active store", async () => {
+    const seen: (string | null)[] = [];
+    const impl = (async (input, init) => {
+      seen.push(new Headers(init?.headers).get("Authorization"));
+      return Response.json({ access_token: String(input).endsWith("/activate") ? "store-two" : "store-one" });
+    }) as typeof fetch;
+    const f = createSessionFetch("https://api.test/v1", impl);
+    await f("https://api.test/v1/auth/login");
+    await f("https://api.test/v1/merchants/me/stores/store_two/activate", { method: "POST" });
+    await dashboardFetch("https://api.test/v1", "/support/tickets", {}, impl);
+    expect(getSessionAccessToken("https://api.test/v1", impl)).toBe("store-two");
+    expect(seen).toEqual([null, "Bearer store-one", "Bearer store-two"]);
+    await f("https://api.test/v1/auth/logout", { method: "POST" });
+    expect(getSessionAccessToken("https://api.test", impl)).toBeUndefined();
+  });
   it("authenticates the owner and store writes immediately after registration", async () => {
     const calls: string[] = [];
     const api = createDashboardApi({ baseUrl: "https://api.test", fetchImpl: (async (input, init) => {

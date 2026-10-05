@@ -62,6 +62,7 @@ export class SupportMessagesController {
       ticketId,
       merchantId: principal.tenantId,
       senderType: "merchant",
+      ...(principal.kind === "human" ? { operatorId: principal.userId } : {}),
       content: body.content,
       clientMessageId: body.clientMessageId,
     });

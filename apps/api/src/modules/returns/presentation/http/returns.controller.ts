@@ -87,8 +87,9 @@ export class ReturnsController {
 
   @Post(":mid/returns/:rid/receive")
   @RequirePlan("STORE_ONLY", "BOTH")
-  async receive(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
-    return this.markReceived.execute(merchantId, returnId);
+  async receive(@Req() req: any, @Param("mid") merchantId: string, @Param("rid") returnId: string, @Body() body: { notes?: string }) {
+    const result = await this.cases.forReturn(merchantId, returnId);
+    return this.cases.action(merchantId, result.ticketId, currentUser(req).userId, { action: "received", notes: body?.notes });
   }
 
   @Post(":mid/returns/:rid/accept")
@@ -105,9 +106,10 @@ export class ReturnsController {
     @Param("rid") returnId: string,
     @Body() body: { itemCondition: ItemCondition; verdict: string; notes?: string },
   ) {
-    return this.inspectReturn.execute(merchantId, returnId, {
-      ...body,
-      inspectedBy: currentUser(request).userId,
+    const result = await this.cases.forReturn(merchantId, returnId);
+    if (!["PASS", "FAIL"].includes(body.verdict)) throw new BadRequestException("invalid_inspection_verdict");
+    return this.cases.action(merchantId, result.ticketId, currentUser(request).userId, {
+      action: body.verdict === "PASS" ? "inspection_pass" : "reject", notes: body.notes, itemCondition: body.itemCondition,
     });
   }
 
@@ -128,7 +130,8 @@ export class ReturnsController {
 
   @Put(":mid/returns/:rid/cancel")
   @RequirePlan("STORE_ONLY", "BOTH")
-  async cancel(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
-    return this.cancelReturn.execute(merchantId, returnId);
+  async cancel(@Req() req: any, @Param("mid") merchantId: string, @Param("rid") returnId: string, @Body() body: { notes?: string }) {
+    const result = await this.cases.forReturn(merchantId, returnId);
+    return this.cases.action(merchantId, result.ticketId, currentUser(req).userId, { action: "cancel", notes: body?.notes });
   }
 }

@@ -62,6 +62,7 @@ export class SupportAttachmentController {
     response.setHeader("Cache-Control", "private, no-store");
     response.setHeader("X-Content-Type-Options", "nosniff");
     response.setHeader("Referrer-Policy", "no-referrer");
+    response.setHeader("Cross-Origin-Resource-Policy", "cross-origin");
     response.send(photo.buffer);
   }
 }

@@ -10,7 +10,7 @@
 .button, .choice, .icon { font: inherit; color: var(--aacp-fg); background: var(--aacp-card, #fff); border: 1px solid var(--aacp-line); cursor: pointer; min-height: 44px; padding: 10px 16px; border-radius: 12px; }
 .button:disabled, .choice:disabled, .icon:disabled { opacity: .55; cursor: default; }
 .button:focus-visible, .choice:focus-visible, .icon:focus-visible, .input:focus-visible, .textarea:focus-visible { outline: 2px solid var(--aacp-accent); outline-offset: 3px; }
-.primary { background: var(--aacp-accent, #25703c); color: var(--aacp-accent-text, #fff); border-color: transparent; font-weight: 600; }
+.primary { background: var(--aacp-accent, #25703c); color: var(--aacp-on-accent, #fff); border-color: transparent; font-weight: 600; }
 .icon { padding: 0; width: 44px; height: 44px; display: inline-flex; align-items: center; justify-content: center; flex: none; }
 .choice { display: flex; flex-direction: column; align-items: flex-start; gap: 5px; text-align: left; width: 100%; padding: 14px 16px; overflow-wrap: anywhere; }
 .choice[data-selected="true"] { border-color: var(--aacp-accent); background: color-mix(in srgb, var(--aacp-accent) 9%, var(--aacp-card, #fff)); }

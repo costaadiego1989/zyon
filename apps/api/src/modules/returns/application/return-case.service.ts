@@ -167,7 +167,7 @@ export class ReturnCaseService {
       catch { throw new BadRequestException("invalid_message_cursor"); }
     }
     const rows = await this.prisma.supportTicketMessage.findMany({ where: { ticketId: { in: [ticket.id, ...aliases.map(a => a.id)] }, ...(after ? { OR: [{ createdAt: { gt: after.createdAt } }, { createdAt: after.createdAt, id: { gt: after.id } }] } : {}) }, orderBy: [{ createdAt: "asc" }, { id: "asc" }], take: 101 });
-    const attachments = await this.prisma.supportAttachment.findMany({ where: { ticketId: { in: [ticket.id, ...aliases.map(a => a.id)] }, merchantId } });
+    const attachments = await this.prisma.supportAttachment.findMany({ where: { ticketId: { in: [ticket.id, ...aliases.map(a => a.id)] }, merchantId }, select: { id: true } });
     const legacyPhotos = (ret?.imageUrls ?? []).filter(url => /^https:\/\//.test(url));
     const imageUrls = [...this.photos.urls(attachments.map(a => a.id), merchantId), ...legacyPhotos];
     const urls = new Map(attachments.map((a, i) => [a.id, imageUrls[i]]));
@@ -263,6 +263,8 @@ export class ReturnCaseService {
         await tx.returnInspection.upsert({ where: { returnId: ret.id }, create: { returnId: ret.id, inspectedBy: operatorId, itemCondition: input.itemCondition as any, verdict: "PASS", notes }, update: {} });
       } else if (input.action === "reject" && ["REQUESTED", "RECEIVED", "INSPECTED_FAIL"].includes(ret.status)) {
         status = "REJECTED"; event = "rejected"; content = "A loja não aprovou a solicitação.\n" + notes;
+      } else if (input.action === "cancel") {
+        status = "CANCELLED"; event = "cancelled"; content = "A solicitação foi cancelada.\n" + notes;
       } else if (input.action === "complete_exchange" && ret.kind === "exchange" && ["REQUESTED", "INSPECTED_PASS"].includes(ret.status)) {
         if (!input.replacementOrderId?.trim() || !input.trackingCode?.trim() || input.deliveryConfirmed !== true) throw new BadRequestException("replacement_and_delivery_required");
         // Resolve only after the operator records the replacement and confirmed delivery.

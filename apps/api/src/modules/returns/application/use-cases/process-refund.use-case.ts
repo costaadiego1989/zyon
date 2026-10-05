@@ -132,10 +132,11 @@ export class ProcessRefundUseCase {
   private async syncCase(merchantId: string, returnId: string) {
     if (!this.prisma) return;
     await this.prisma.$transaction(async tx => {
-      const ret = await tx.return.findFirst({ where: { id: returnId, merchantId }, include: { refund: true } });
       const ticket = await tx.supportTicket.findFirst({ where: { merchantId, returnId, mergedIntoId: null } });
-      if (!ret?.refund || !ticket) return;
+      if (!ticket) return;
       await lockSupportResource(tx, `support:${ticket.id}`);
+      const ret = await tx.return.findFirst({ where: { id: returnId, merchantId }, include: { refund: true } });
+      if (!ret?.refund) return;
       const clientMessageId = `refund_${returnId}_${ret.refund.status}`;
       const existing = await tx.supportTicketMessage.findFirst({ where: { ticketId: ticket.id, senderType: "system", clientMessageId } });
       if (existing) return;

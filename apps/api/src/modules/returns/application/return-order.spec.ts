@@ -4,7 +4,7 @@ import { calculateReturnAmount, normalizeOrderItems, validateReturnItems } from 
 import { validateReturnPhoto } from "./return-attachment.service.js";
 import type { SupportOrder } from "@zyon/shared-types";
 
-const order: SupportOrder = { merchantId: "merchant", orderId: "order", completedAt: null, currency: "BRL", totalCents: 2900, shippingCents: 300, paymentStatus: "approved", items: normalizeOrderItems([{ variantId: "a", name: "Item A", unitPriceCents: 1000, quantity: 2 }, { variantId: "b", name: "Item B", unitPriceCents: 1000, quantity: 1 }]) };
+const order: SupportOrder = { merchantId: "merchant", orderId: "order", completedAt: "2026-10-03T00:00:00.000Z", currency: "BRL", totalCents: 2900, shippingCents: 300, paymentStatus: "approved", items: normalizeOrderItems([{ variantId: "a", name: "Item A", unitPriceCents: 1000, quantity: 2 }, { variantId: "b", name: "Item B", unitPriceCents: 1000, quantity: 1 }]) };
 test("historical major amounts normalize to cents; invalid lines never disappear into a full refund", () => {
   assert.equal(normalizeOrderItems([{ sku: "a", title: "A", unit_price: 10.99, quantity: 2 }])[0]?.unitPriceCents, 1099);
   assert.throws(() => normalizeOrderItems([{ variantId: "a", quantity: 1, unitPriceCents: 1000 }, { variantId: "b", quantity: 1 }]), /order_items_unavailable/);

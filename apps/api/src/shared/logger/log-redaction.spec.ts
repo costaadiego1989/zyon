@@ -1,7 +1,7 @@
 import { test } from "node:test";
 import assert from "node:assert/strict";
 import pino from "pino";
-import { REDACTED_LOG_PATHS } from "./log-redaction.js";
+import { REDACTED_LOG_PATHS, redactRequestUrl } from "./log-redaction.js";
 
 test("HTTP logging redacts webhook credentials, reset tokens and OTP while preserving diagnostic status", () => {
   let output = "";
@@ -17,4 +17,12 @@ test("HTTP logging redacts webhook credentials, reset tokens and OTP while prese
   assert.equal(event.req.body.code, "[redacted]");
   assert.equal(event.req.body.buyer_access_token, "[redacted]");
   assert.equal(event.res.headers["set-cookie"], "[redacted]");
+});
+
+test("private evidence capabilities are removed from log copies without changing the routed URL", () => {
+  const request = { url: "/v1/support/photos/photo?access_token=secret&other=ok&token=second&buyer_access_token=third", method: "GET" };
+  const result = redactRequestUrl(request);
+  assert.equal(result.url, "/v1/support/photos/photo?access_token=[redacted]&other=ok&token=[redacted]&buyer_access_token=[redacted]");
+  assert.ok(request.url.includes("secret"));
+  assert.equal(result.method, "GET");
 });

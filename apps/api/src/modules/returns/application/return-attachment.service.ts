@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Logger, NotFoundException, ServiceUnavailableException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Logger, NotFoundException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { createCipheriv, createDecipheriv, createHmac, randomBytes, randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
@@ -22,6 +22,7 @@ export function validateReturnPhoto(dataUri: unknown) {
 @Injectable()
 export class ReturnAttachmentService {
   private readonly logger = new Logger(ReturnAttachmentService.name);
+  private readonly imageAccess = new Map<string, { url: string; expiresAt: number }>();
   private readonly key = createHmac("sha256", requireSecret("AACP_PII_ENC_KEY", "local-private-return-evidence-key")).update("support-photos-v1").digest();
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient, private readonly s3: S3UploadService,
     private readonly capabilities: RealtimeCapabilityService) {}
@@ -31,30 +32,41 @@ export class ReturnAttachmentService {
     // Total remains below the existing 5 MB JSON request limit after base64.
     if (images.reduce((sum, image) => sum + (typeof image === "string" ? image.length : 0), 0) > 4_500_000) throw new BadRequestException("photos_total_too_large");
     const validated = images.map(validateReturnPhoto);
-    if (validated.length && !this.s3.isConfigured()) throw new ServiceUnavailableException("photo_upload_unavailable");
+    const useObjectStorage = this.s3.isConfigured();
     const prepared = [];
     try { for (const photo of validated) {
       const id = `att_${randomUUID()}`;
-      const storageKey = `private-support/${merchantId}/${id}.enc`;
+      const objectKey = `private-support/${merchantId}/${id}.enc`;
       const iv = randomBytes(12);
       const cipher = createCipheriv("aes-256-gcm", this.key, iv);
       const encrypted = Buffer.concat([cipher.update(photo.buffer), cipher.final()]);
-      await this.s3.uploadPrivate(Buffer.concat([iv, cipher.getAuthTag(), encrypted]), storageKey);
-      prepared.push({ id, merchantId, uploadedBy, storageKey, contentType: photo.contentType });
+      const payload = Buffer.concat([iv, cipher.getAuthTag(), encrypted]);
+      // The same bounded, encrypted evidence can be committed atomically in
+      // PostgreSQL when private object storage is not configured.
+      if (useObjectStorage) await this.s3.uploadPrivate(payload, objectKey);
+      prepared.push({ id, merchantId, uploadedBy, storageKey: useObjectStorage ? objectKey : `database:${objectKey}`,
+        contentType: photo.contentType, encryptedPayload: useObjectStorage ? null : new Uint8Array(payload) });
     } } catch (error) { await this.discardUnlinked(prepared); throw error; }
     return prepared;
   }
   async discardUnlinked(photos: Array<{ id: string; merchantId: string; storageKey: string }>) {
     for (const photo of photos) {
+      if (photo.storageKey.startsWith("database:")) continue;
       try {
-        if (!await this.prisma.supportAttachment.findFirst({ where: { id: photo.id, merchantId: photo.merchantId } })) await this.s3.deletePrivate(photo.storageKey);
+        if (!await this.prisma.supportAttachment.findFirst({ where: { id: photo.id, merchantId: photo.merchantId }, select: { id: true } })) await this.s3.deletePrivate(photo.storageKey);
       } catch { this.logger.warn("Unlinked support photo cleanup will need retry"); }
     }
   }
   urls(ids: string[], merchantId: string) {
     return ids.map(id => {
-      const { token } = this.capabilities.issue({ purpose: "support-attachment", merchantId, resourceId: id });
-      return `/support/attachments/${id}?access_token=${encodeURIComponent(token)}`;
+      const key = `${merchantId}:${id}`;
+      const previous = this.imageAccess.get(key);
+      if (previous && previous.expiresAt > Math.floor(Date.now() / 1000) + 60) return previous.url;
+      const { token, expiresAt } = this.capabilities.issue({ purpose: "support-attachment", merchantId, resourceId: id });
+      const url = `/support/attachments/${id}?access_token=${encodeURIComponent(token)}`;
+      if (this.imageAccess.size >= 2000) this.imageAccess.delete(this.imageAccess.keys().next().value!);
+      this.imageAccess.set(key, { url, expiresAt });
+      return url;
     });
   }
   async read(id: string, token: string) {
@@ -63,7 +75,7 @@ export class ReturnAttachmentService {
     catch { throw new NotFoundException("attachment_not_found"); }
     const photo = await this.prisma.supportAttachment.findFirst({ where: { id, merchantId } });
     if (!photo) throw new NotFoundException("attachment_not_found");
-    const bytes = await this.s3.readPrivate(photo.storageKey);
+    const bytes = photo.encryptedPayload ? Buffer.from(photo.encryptedPayload) : await this.s3.readPrivate(photo.storageKey);
     const decipher = createDecipheriv("aes-256-gcm", this.key, bytes.subarray(0,12));
     decipher.setAuthTag(bytes.subarray(12,28));
     return { contentType: photo.contentType, buffer: Buffer.concat([decipher.update(bytes.subarray(28)), decipher.final()]) };

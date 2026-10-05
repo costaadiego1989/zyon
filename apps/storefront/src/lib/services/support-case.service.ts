@@ -7,6 +7,7 @@ export function supportChanged() { window.dispatchEvent(new Event(SUPPORT_CHANGE
 export function evidenceUrl(path: string) { return path.startsWith("/support/") ? `${API_BASE}${path}` : path; }
 export function caseLabel(item: SupportCaseSummary) {
   const statuses: Record<string,string> = { REQUESTED: "Aguardando a loja", LABEL_GENERATED: "Envio autorizado", SHIPPED: "Itens em trânsito", RECEIVED: "Itens recebidos", INSPECTED_PASS: "Análise aprovada", INSPECTED_FAIL: "Em análise", REFUND_PROCESSING: "Reembolso em processamento", REFUND_COMPLETED: "Reembolso concluído", EXCHANGE_COMPLETED: "Troca concluída", REJECTED: "Solicitação não aprovada", CANCELLED: "Solicitação cancelada" };
+  if (item.returnStatus === "REQUESTED" && item.status === "in_progress") return "Em análise pela loja";
   return item.returnStatus ? statuses[item.returnStatus] ?? "Em atendimento" : item.active ? item.status === "open" ? "Aguardando a loja" : "Em atendimento" : "Atendimento concluído";
 }
 export function listSupportCases(merchantId?: string) {

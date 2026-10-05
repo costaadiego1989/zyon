@@ -43,6 +43,6 @@ export const REDACTED_LOG_PATHS = [
 ];
 
 // pino supplies a serialized copy. Never change the URL used by the router.
-export function redactRequestUrl(req: { url?: string; [key: string]: unknown }) {
+export function redactRequestUrl<T extends { url?: string; [key: string]: unknown }>(req: T) {
   return { ...req, url: req.url?.replace(/([?&](?:access_token|token|buyer_access_token)=)[^&#]*/gi, "$1[redacted]") };
 }

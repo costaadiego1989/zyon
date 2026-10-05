@@ -21,11 +21,15 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
   const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
+  const [readingImages, setReadingImages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
   const messageKey = useRef<string>();
   const lastRead = useRef<string>();
   const bottom = useRef<HTMLDivElement>(null);
+  const conversation = useRef<HTMLElement>(null);
+  const nearBottom = useRef(true);
+  const [newMessages, setNewMessages] = useState(false);
   const panel = useRef<HTMLDivElement>(null);
   const closeRef = useRef(onClose); closeRef.current = onClose;
   const scope = target?.merchantId ?? merchantId;
@@ -64,7 +68,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
   }, [ticketId]);
   useEffect(() => {
     if (!open || view !== "chat" || !ticketId || !identity) return;
-    setDetail(null); setLoading(true); lastRead.current = undefined;
+    setDetail(null); setLoading(true); lastRead.current = undefined; nearBottom.current = true; setNewMessages(false);
     void refresh();
     const update = () => { if (!document.hidden) void refresh(); };
     const interval = window.setInterval(update, 5000);
@@ -76,7 +80,8 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
         const { io } = await import("socket.io-client");
         if (cancelled) return;
         socket?.disconnect();
-        socket = io(`${new URL(API_BASE).origin}/support`, { auth: { ticketToken: access.token }, transports: ["websocket", "polling"] });
+        const socketOrigin = process.env.NEXT_PUBLIC_API_WEBSOCKET_ORIGIN || (API_BASE.startsWith("/") ? "https://api.zyon-payments.com.br" : new URL(API_BASE).origin);
+        socket = io(`${socketOrigin}/support`, { auth: { ticketToken: access.token }, transports: ["websocket", "polling"] });
         socket.on("authenticated", () => { socket?.emit("join_ticket", { ticketId }); update(); });
         socket.on("new_message", update); socket.on("case_updated", update); socket.on("ticket_closed", update);
         renewal = setTimeout(() => { void connect(); }, Math.max(1000, access.expiresAt * 1000 - Date.now() - 60000));
@@ -88,15 +93,24 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
   const lastMessage = detail?.messages.at(-1)?.id;
   useEffect(() => {
     if (!open || view !== "chat" || !detail || !lastMessage) return;
-    bottom.current?.scrollIntoView({ block: "nearest", behavior: "instant" });
-    if (document.hidden || lastRead.current === lastMessage) return;
-    const id = detail.ticketId;
-    void readSupportCase(id, lastMessage).then(() => { lastRead.current = lastMessage; supportChanged(); }).catch(() => undefined);
+    const marker = bottom.current, root = conversation.current;
+    if (!marker || !root) return;
+    if (nearBottom.current) marker.scrollIntoView({ block: "nearest", behavior: "instant" });
+    else setNewMessages(true);
+    const acknowledge = () => {
+      const rect = marker.getBoundingClientRect(), bounds = root.getBoundingClientRect();
+      if (document.hidden || rect.top < bounds.top || rect.bottom > bounds.bottom || lastRead.current === lastMessage) return;
+      setNewMessages(false);
+      void readSupportCase(detail.ticketId, lastMessage).then(() => { lastRead.current = lastMessage; supportChanged(); }).catch(() => undefined);
+    };
+    const observer = new IntersectionObserver(entries => { if (entries[0]?.isIntersecting) acknowledge(); }, { root, threshold: 1 });
+    observer.observe(marker); window.addEventListener("focus", acknowledge);
+    return () => { observer.disconnect(); window.removeEventListener("focus", acknowledge); };
   }, [open, view, lastMessage, detail?.ticketId]);
   function showCase(id: string) { if (sending) return; setTicketId(id); setView("chat"); setInput(""); setImages([]); messageKey.current = undefined; }
   function login() { onClose(); window.dispatchEvent(new Event("zyon:open-buyer-hub")); }
   async function send() {
-    if (sending || !scope || (!input.trim() && !images.length) || !buyer) return;
+    if (sending || readingImages || !scope || (!input.trim() && !images.length) || !buyer) return;
     const text = input.trim();
     const id = messageKey.current ?? crypto.randomUUID(); messageKey.current = id;
     setSending(true); setError(null);
@@ -117,13 +131,14 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
   return <><div className={styles.backdrop} onClick={onClose} aria-hidden="true" /><div data-neu="overlay" id="support-panel" className={styles.panel} ref={panel} role="dialog" aria-modal="true" aria-labelledby="support-title" tabIndex={-1}>
     <header className={styles.header}>{view !== "welcome" && <button className={styles.icon} disabled={sending} onClick={() => setView("welcome")} aria-label="Voltar ao menu de suporte">←</button>}<div className={styles.headerTitle}><strong id="support-title">{view === "chat" ? "Conversa com a loja" : "Como podemos ajudar?"}</strong><span className={styles.muted}>{view === "return" ? "Troca e devolução" : `${agentName || "Assistente"} · Central de ajuda`}</span></div><button className={styles.icon} disabled={sending} onClick={onClose} aria-label="Fechar suporte">×</button></header>
     {view === "chat" && detail && <div className={styles.context}><div className={styles.row}><span className={styles.badge}>{caseLabel(detail)}</span><span>Chamado #{detail.ticketId.slice(-6).toUpperCase()}</span></div>{detail.orderId && <details><summary style={{ paddingTop: 8, cursor: "pointer" }}>Pedido {detail.orderId}</summary><p>{detail.selectedItems.map(item => `${item.quantity} × ${item.name}`).join(" · ")}</p><p className={styles.muted}>{detail.reasonLabel}</p>{detail.order?.trackingCode && <p>Rastreio: {detail.order.trackingCode}</p>}</details>}</div>}
-    <main className={styles.body}><div className={styles.stack}>
+    <main className={styles.body} ref={conversation} onScroll={event => { const el = event.currentTarget; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }}><div className={styles.stack}>
       {view === "return" && (buyer && scope ? <ReturnRequestForm merchantId={scope} orderId={target?.orderId} cases={inbox.items} onSuccess={showCase} onCancel={() => setView("welcome")} /> : <><p className={styles.question}>Entre para escolher o pedido e os itens.</p><p className={styles.muted}>Sua conta mantém a solicitação e as respostas da loja disponíveis quando você voltar.</p><button className={`${styles.button} ${styles.primary}`} onClick={login}>Entrar na minha conta</button></>)}
       {view === "welcome" && <><p className={styles.question}>Vamos resolver juntos.</p><p className={styles.muted}>Escolha um assunto ou escreva para a loja. Seus atendimentos e respostas ficam disponíveis na sua conta.</p>{inbox.loading && buyer && <p role="status" className={styles.muted}>Consultando seus atendimentos…</p>}{inbox.error && <p className={styles.error} role="alert">{inbox.error}</p>}{inbox.items.filter(item => item.active).map(item => <button key={item.ticketId} className={`${styles.choice} ${styles.caseButton}`} onClick={() => showCase(item.ticketId)}><strong>{item.kind === "refund" ? "Devolução em andamento" : item.kind === "exchange" ? "Troca em andamento" : "Atendimento em andamento"}</strong><span className={styles.muted}>{item.orderId ? `Pedido ${item.orderId}` : "Conversa com a loja"}</span><span className={styles.badge}>{item.unreadCount ? `${item.unreadCount} nova(s) mensagem(ns)` : caseLabel(item)}</span></button>)}<button className={`${styles.button} ${styles.primary}`} onClick={() => setView("return")}>Trocar ou devolver itens</button>{faq.filter(item => !/atendente|humano/i.test(item.question)).map(item => <button key={item.question} className={styles.choice} onClick={() => { setAnswer(item); setView("faq"); }}>{item.question}</button>)}{inbox.items.some(item => !item.active) && <><strong>Atendimentos concluídos</strong>{inbox.items.filter(item => !item.active).map(item => <button className={styles.choice} key={item.ticketId} onClick={() => showCase(item.ticketId)}><strong>{item.orderId ? `Pedido ${item.orderId}` : `Chamado #${item.ticketId.slice(-6)}`}</strong><span className={styles.muted}>{caseLabel(item)}</span></button>)}</>}</>}
       {view === "faq" && answer && <><div className={`${styles.bubble} ${styles.answer}`}>{answer.question}</div><div className={styles.bubble}>{answer.answer}</div><p className={styles.muted}>Ainda precisa de ajuda? Escreva abaixo para conversar com a loja.</p></>}
-      {view === "chat" && <>{loading && <p className={styles.muted} role="status">Carregando a conversa…</p>}{detail?.messages.map(message => message.senderType === "system" ? <div className={styles.system} key={message.id}>{message.content}<time className={styles.time}>{new Date(message.createdAt).toLocaleString("pt-BR")}</time></div> : <div key={message.id} className={`${styles.bubble} ${message.senderType === "buyer" ? styles.answer : ""}`}><span className={styles.label}>{message.senderType === "buyer" ? "Você" : "Atendente da loja"}</span>{message.content}{Array.isArray(message.metadata?.imageUrls) && <div className={styles.photos}>{message.metadata.imageUrls.map((url, index) => <a className={styles.evidence} key={url} href={evidenceUrl(url)} target="_blank" rel="noreferrer"><img src={evidenceUrl(url)} alt={`Foto enviada ${index + 1}`} loading="lazy" /></a>)}</div>}<time className={styles.time}>{new Date(message.createdAt).toLocaleString("pt-BR")}</time></div>)}<div ref={bottom} /></>}
+      {view === "chat" && <>{loading && <p className={styles.muted} role="status">Carregando a conversa…</p>}{detail?.messages.map(message => message.senderType === "system" ? <div className={styles.system} key={message.id}>{message.content}<time className={styles.time}>{new Date(message.createdAt).toLocaleString("pt-BR")}</time></div> : <div key={message.id} className={`${styles.bubble} ${message.senderType === "buyer" ? styles.answer : ""}`}><span className={styles.label}>{message.senderType === "buyer" ? "Você" : "Atendente da loja"}</span>{message.content}{Array.isArray(message.metadata?.imageUrls) && <div className={styles.photos}>{message.metadata.imageUrls.map((url, index) => <a className={styles.evidence} key={url} href={evidenceUrl(url)} target="_blank" rel="noreferrer"><img src={evidenceUrl(url)} alt={`Foto enviada ${index + 1}`} loading="lazy" /></a>)}</div>}<time className={styles.time}>{new Date(message.createdAt).toLocaleString("pt-BR")}</time></div>)}<div ref={bottom} style={{ minHeight: 1 }} /></>}
       {error && <div className={styles.error} role="alert">{error}{view === "chat" && <button className={styles.button} onClick={() => void refresh()}>Atualizar conversa</button>}</div>}
     </div></main>
-    {view !== "return" && <div className={styles.composer}>{view === "chat" && detail && !detail.active ? <p className={styles.muted}>Este atendimento foi concluído. O histórico continua disponível na sua conta.</p> : !buyer ? <button className={styles.button} onClick={login}>Entrar para conversar com a loja</button> : <form className={styles.stack} onSubmit={event => { event.preventDefault(); void send(); }}><label className={styles.label} htmlFor="support-message">{view === "chat" ? "Sua mensagem à loja" : "Fale com a loja"}</label><textarea id="support-message" className={styles.textarea} rows={2} maxLength={4000} value={input} disabled={sending} onChange={event => { setInput(event.target.value); }} placeholder="Escreva sua mensagem…" /><SupportPhotoPicker images={images} onChange={setImages} disabled={sending} /><button className={`${styles.button} ${styles.primary}`} type="submit" disabled={sending || !scope || (!input.trim() && !images.length) || (view === "chat" && (!detail || loading))}>{sending ? "Enviando…" : "Enviar mensagem"}</button></form>}</div>}
+    {view === "chat" && newMessages && <button className={styles.button} onClick={() => bottom.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}>Ver novas mensagens</button>}
+    {view !== "return" && <div className={styles.composer}>{view === "chat" && detail && !detail.active ? <p className={styles.muted}>Este atendimento foi concluído. O histórico continua disponível na sua conta.</p> : !buyer ? <button className={styles.button} onClick={login}>Entrar para conversar com a loja</button> : <form className={styles.stack} onSubmit={event => { event.preventDefault(); void send(); }}><label className={styles.label} htmlFor="support-message">{view === "chat" ? "Sua mensagem à loja" : "Fale com a loja"}</label><textarea id="support-message" className={styles.textarea} rows={2} maxLength={4000} value={input} disabled={sending} onChange={event => { setInput(event.target.value); messageKey.current = undefined; }} placeholder="Escreva sua mensagem…" /><SupportPhotoPicker compact onReadingChange={setReadingImages} images={images} onChange={value => { setImages(value); messageKey.current = undefined; }} disabled={sending} /><button className={`${styles.button} ${styles.primary}`} type="submit" disabled={sending || readingImages || !scope || (!input.trim() && !images.length) || (view === "chat" && (!detail || loading))}>{sending ? "Enviando…" : "Enviar mensagem"}</button></form>}</div>}
   </div></>;
 }

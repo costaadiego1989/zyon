@@ -1915,6 +1915,7 @@ model SupportAttachment {
   uploadedBy  String   @map("uploaded_by")
   storageKey  String   @map("storage_key")
   contentType String   @map("content_type")
+  encryptedPayload Bytes? @map("encrypted_payload")
   createdAt   DateTime @default(now()) @map("created_at")
   @@index([ticketId])
   @@map("support_attachments")

@@ -28,7 +28,7 @@ function friendlyError(error: unknown) {
 }
 export function SupportChatDrawer(props: SupportChatDrawerProps) {
   const { ticketId, api, onClose, onJoin, onLeave, onNewMessage } = props;
-  const { detail, messages, loading, error, reload } = useSupportChat(api, ticketId);
+  const { detail, messages, loading, error, reload, markVisibleRead } = useSupportChat(api, ticketId);
   const [input, setInput] = useState("");
   const [sending, setSending] = useState(false);
   const [actionBusy, setActionBusy] = useState(false);
@@ -47,6 +47,9 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
   const [showTransfer, setShowTransfer] = useState(false);
   const [transferredTo, setTransferredTo] = useState<string | null>(null);
   const bottom = useRef<HTMLDivElement>(null);
+  const conversation = useRef<HTMLDivElement>(null);
+  const nearBottom = useRef(true);
+  const [newMessages, setNewMessages] = useState(false);
   const messageKey = useRef<string>();
   const status = detail?.status ?? props.status;
   const busy = sending || actionBusy || props.busy;
@@ -55,7 +58,21 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
   const reloadRef = useRef(reload); reloadRef.current = reload;
   useEffect(() => { onJoin(ticketId); return () => onLeave(ticketId); }, [ticketId, onJoin, onLeave]);
   useEffect(() => onNewMessage(message => { if (message.ticketId === ticketId) void reloadRef.current(); }), [ticketId, onNewMessage]);
-  useEffect(() => { bottom.current?.scrollIntoView({ block: "nearest" }); }, [messages.at(-1)?.id]);
+  const lastMessage = messages.at(-1)?.id;
+  useEffect(() => { nearBottom.current = true; setNewMessages(false); }, [ticketId]);
+  useEffect(() => {
+    const marker = bottom.current, root = conversation.current;
+    if (!lastMessage || !marker || !root) return;
+    if (nearBottom.current) marker.scrollIntoView({ block: "nearest" }); else setNewMessages(true);
+    const acknowledge = () => {
+      const rect = marker.getBoundingClientRect(), bounds = root.getBoundingClientRect();
+      if (document.hidden || rect.top < bounds.top || rect.bottom > bounds.bottom) return;
+      setNewMessages(false); void markVisibleRead(lastMessage);
+    };
+    const observer = new IntersectionObserver(entries => { if (entries[0]?.isIntersecting) acknowledge(); }, { root, threshold: 1 });
+    observer.observe(marker); window.addEventListener("focus", acknowledge);
+    return () => { observer.disconnect(); window.removeEventListener("focus", acknowledge); };
+  }, [lastMessage, markVisibleRead]);
   useEffect(() => { let cancelled = false; void api.getTicketMarketplaceOrigin(ticketId).then(result => { if (!cancelled) setIsMarketplaceOrigin(result.isMarketplaceOrigin); }).catch(() => undefined); return () => { cancelled = true; }; }, [api, ticketId]);
   function close() { if (busy) return; if (input.trim() || notes.trim()) setConfirmClose(true); else onClose(); }
   async function send() {
@@ -77,17 +94,18 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
     setAction(""); setNotes(""); setTrackingCode(""); setLabelUrl(""); setReplacementOrderId(""); setDeliveryConfirmed(false);
   }, [api, ticketId, action, notes, labelUrl, trackingCode, replacementOrderId, condition, deliveryConfirmed, confirmedItems]);
   const actionLabels: Record<string, string> = { confirm_items: "Confirmar itens com o cliente", authorize_return: "Autorizar envio dos itens", received: "Registrar recebimento", inspection_pass: "Aprovar análise dos itens", reject: "Não aprovar solicitação", complete_exchange: "Registrar troca concluída" };
-  return <Modal isOpen title={`Chamado #${ticketId.slice(-6).toUpperCase()}`} subtitle="Pedido, evidências e decisões acompanham a conversa com o cliente." presentation="center" size="xl" onClose={close} footer={confirmClose ? <div className="support-chat__close"><p>Há uma mensagem ou decisão ainda não enviada.</p><Button variant="outline" onClick={() => setConfirmClose(false)}>Continuar editando</Button><Button variant="danger" onClick={onClose}>Descartar e fechar</Button></div> : <div className="support-chat__footer">{active ? <><FormTextarea label="Sua resposta ao cliente" value={input} onChange={setInput} maxLength={4000} rows={2} disabled={busy} placeholder="Escreva para o cliente…" hint="A mensagem será salva no histórico e ficará disponível no hub do cliente." /><Button variant="primary" disabled={!input.trim() || busy || loading || !detail} onClick={() => void send()}><Send size={16} />{sending ? "Enviando…" : "Enviar resposta"}</Button></> : <p>Atendimento concluído. O histórico permanece disponível para a loja e o cliente.</p>}</div>}>
+  return <Modal isOpen title={`Chamado #${ticketId.slice(-6).toUpperCase()}`} subtitle="Pedido, evidências e decisões acompanham a conversa com o cliente." presentation="center" size="xl" onClose={close} footer={confirmClose ? <div className="support-chat__close"><p>Há uma mensagem ou decisão ainda não enviada.</p><Button variant="outline" onClick={() => setConfirmClose(false)}>Continuar editando</Button><Button variant="danger" onClick={onClose}>Descartar e fechar</Button></div> : <div className="support-chat__footer">{active ? <><FormTextarea label="Sua resposta ao cliente" value={input} onChange={value => { setInput(value); messageKey.current = undefined; }} maxLength={4000} rows={2} disabled={busy} placeholder="Escreva para o cliente…" hint="A mensagem será salva no histórico e ficará disponível no hub do cliente." /><Button variant="primary" disabled={!input.trim() || busy || loading || !detail} onClick={() => void send()}><Send size={16} />{sending ? "Enviando…" : "Enviar resposta"}</Button></> : <p>Atendimento concluído. O histórico permanece disponível para a loja e o cliente.</p>}</div>}>
     <div className="support-case configuration-form">
       <section className="support-case__conversation" aria-label="Conversa com o cliente">
         <div className="support-chat__status"><span className={`badge ${active ? "warn" : "ok"}`}>{returnStatus ? returnLabels[returnStatus] ?? returnStatus : status === "open" ? "Aberto" : active ? "Em atendimento" : "Concluído"}</span><span className="muted">{props.connected ? "Atualizações em tempo real" : "Histórico sincronizado automaticamente"}</span></div>
         {(localError || props.actionError) && <div className="panel-error" role="alert">{localError || props.actionError}</div>}
         {props.statusOptions.length > 0 && <div className="support-chat__actions">{props.statusOptions.filter(option => !detail?.returnId || option.value === "in_progress" || !detail.active).map(option => <Button key={option.value} variant="outline" size="sm" disabled={busy} onClick={() => props.onStatus(option.value)}>{option.value === "in_progress" ? "Iniciar atendimento" : option.value === "resolved" ? "Resolver atendimento" : "Fechar atendimento"}</Button>)}</div>}
         {loading ? <PageLoader /> : error ? <EmptyState icon={MessageSquare} title="Não foi possível atualizar a conversa" description={error} action={<Button variant="outline" onClick={() => void reload()}>Tentar novamente</Button>} /> : null}
-        <div className="support-chat__messages" aria-live="polite">
+        <div className="support-chat__messages" ref={conversation} onScroll={event => { const el = event.currentTarget; nearBottom.current = el.scrollHeight - el.scrollTop - el.clientHeight < 60; }} aria-live="polite">
           {!loading && !messages.length && props.buyerMessage && <div className="support-msg support-msg--buyer"><span className="support-msg-label">Mensagem de abertura do cliente</span><p>{props.buyerMessage}</p></div>}
-          {messages.map(message => <div key={message.id} className={`support-msg support-msg--${message.senderType}`}><span className="support-msg-label">{message.senderType === "buyer" ? "Cliente" : message.senderType === "merchant" ? "Loja" : "Atualização do atendimento"}</span><p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.content}</p>{message.metadata?.imageUrls?.length ? <div className="support-case__photos">{message.metadata.imageUrls.map((url, index) => <a href={url} key={url} target="_blank" rel="noreferrer"><img src={url} alt={`Evidência do cliente ${index + 1}`} loading="lazy" /></a>)}</div> : null}<time>{new Date(message.createdAt).toLocaleString("pt-BR")}</time></div>)}<div ref={bottom} />
+          {messages.map(message => <div key={message.id} className={`support-msg support-msg--${message.senderType}`}><span className="support-msg-label">{message.senderType === "buyer" ? "Cliente" : message.senderType === "merchant" ? "Loja" : "Atualização do atendimento"}</span><p style={{ whiteSpace: "pre-wrap", overflowWrap: "anywhere" }}>{message.content}</p>{message.metadata?.imageUrls?.length ? <div className="support-case__photos">{message.metadata.imageUrls.map((url, index) => <a href={url} key={url} target="_blank" rel="noreferrer"><img src={url} alt={`Evidência do cliente ${index + 1}`} loading="lazy" /></a>)}</div> : null}<time>{new Date(message.createdAt).toLocaleString("pt-BR")}</time></div>)}<div ref={bottom} style={{ minHeight: 1 }} />
         </div>
+        {newMessages && <Button variant="outline" onClick={() => bottom.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}>Ver novas mensagens</Button>}
       </section>
       <aside className="support-case__context" aria-label="Dados do pedido e resolução">
         {detail?.returnId ? <><h3>{detail.kind === "exchange" ? "Troca solicitada" : "Devolução solicitada"}</h3><dl className="support-case__facts"><dt>Pedido</dt><dd>{detail.orderId}</dd><dt>Compra</dt><dd>{detail.order?.completedAt ? new Date(detail.order.completedAt).toLocaleString("pt-BR") : "Data não disponível"}</dd><dt>Total pago</dt><dd>{detail.order ? money(detail.order.totalCents, detail.order.currency) : "A conferir"}</dd><dt>Pagamento</dt><dd>{detail.order?.paymentMethod ?? "Não informado"}</dd><dt>Motivo</dt><dd>{detail.reasonLabel ?? detail.reason}</dd></dl><h4>Itens desta solicitação</h4><ul className="support-case__items">{detail.selectedItems.map(item => <li key={item.variantId}><strong>{item.quantity} × {item.name}</strong><span>{detail.order?.items.find(line => line.variantId === item.variantId) ? money(detail.order.items.find(line => line.variantId === item.variantId)!.unitPriceCents, detail.order.currency) + " / unidade" : "Identificação e preço a conferir"}</span></li>)}</ul><details><summary>Todos os itens do pedido</summary><ul>{detail.order?.items.map(item => <li key={item.variantId}>{item.quantity} × {item.name}</li>)}</ul></details>{detail.notes && <><h4>Relato do cliente</h4><p style={{ whiteSpace: "pre-wrap" }}>{detail.notes}</p></>}{detail.imageUrls.length > 0 && <><h4>Fotos enviadas</h4><div className="support-case__photos">{detail.imageUrls.map((url, index) => <a href={url} key={url} target="_blank" rel="noreferrer"><img src={url} alt={`Foto da solicitação ${index + 1}`} loading="lazy" /></a>)}</div></>}

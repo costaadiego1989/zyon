@@ -125,6 +125,8 @@ export function merchantThemeTokens(theme: MerchantThemeAppearance, requestedMod
     }
   }
   if (theme.accentColor) tokens["--aacp-accent"] = theme.accentColor;
+  const accentLightness = luminance(theme.accentColor ?? "#268235");
+  tokens["--aacp-on-accent"] = accentLightness !== null && contrast(1, accentLightness) < 4.5 ? "#000000" : "#ffffff";
   if (theme.secondaryColor) tokens["--aacp-accent-2"] = theme.secondaryColor;
   if (theme.fontFamily) tokens["--aacp-font"] = theme.fontFamily;
   if (theme.fontDisplay || theme.fontFamily) tokens["--aacp-font-display"] = theme.fontDisplay || theme.fontFamily!;

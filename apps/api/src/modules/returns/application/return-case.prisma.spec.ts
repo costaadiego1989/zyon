@@ -53,6 +53,11 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
   const send = new SendTicketMessageUseCase(db); const key = randomUUID();
   const replies = await Promise.all(Array.from({ length: 5 }, () => send.execute({ merchantId, ticketId, content: "Estou analisando o item A.", senderType: "merchant", clientMessageId: key })));
   assert.equal(new Set(replies.map(item => item.id)).size, 1);
+  const aliasId = `sup_alias_${suffix}`;
+  await db.supportTicket.create({ data: { id: aliasId, merchantId, buyerId, returnId, mergedIntoId: ticketId, buyerMessage: "Chamado antigo duplicado", source: "return_request", status: "closed", createdAt: new Date(), updatedAt: new Date() } });
+  const aliasReply = await send.execute({ merchantId, ticketId: aliasId, content: "Estou analisando o item A.", senderType: "merchant", clientMessageId: key });
+  assert.equal(aliasReply.ticketId, ticketId); assert.equal(aliasReply.id, replies[0]!.id);
+  assert.equal(await db.supportTicketMessage.count({ where: { ticketId: aliasId } }), 0);
   let detail = await cases.detail(merchantId, ticketId); assert.ok(detail.unreadCount >= 2);
   await cases.markRead(merchantId, ticketId, "buyer", detail.messages.at(-1)!.id);
   assert.equal((await cases.detail(merchantId, ticketId)).unreadCount, 0);
@@ -62,6 +67,21 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
   assert.equal((await photos.read(attachmentId, photoUrl.searchParams.get("access_token")!)).contentType, "image/png");
   assert.ok(![...storage.values()][0]!.subarray(0, 8).equals(Buffer.from(png.split(",")[1]!, "base64").subarray(0, 8)));
   await assert.rejects(() => photos.read("different_id", photoUrl.searchParams.get("access_token")!), /attachment_not_found/);
+  const databasePhotos = new ReturnAttachmentService(db, { isConfigured: () => false,
+    uploadPrivate: async () => { throw new Error("Database photos must not call object storage"); },
+    readPrivate: async () => { throw new Error("Database photos must not call object storage"); } } as any, caps);
+  const databaseCases = new ReturnCaseService(db, orders, databasePhotos, refund, {} as any, caps);
+  const photoMessageKey = randomUUID();
+  await Promise.all(Array.from({ length: 3 }, () => databaseCases.sendPhotos(merchantId, ticketId, buyerId, "Foto privada no banco", [png], photoMessageKey)));
+  assert.equal(await db.supportTicketMessage.count({ where: { ticketId, clientMessageId: photoMessageKey } }), 1);
+  const storedPhoto = await db.supportAttachment.findFirstOrThrow({ where: { ticketId, storageKey: { startsWith: "database:" } } });
+  assert.ok(storedPhoto.encryptedPayload);
+  assert.notDeepEqual(Buffer.from(storedPhoto.encryptedPayload!), Buffer.from(png.split(",")[1]!, "base64"));
+  assert.equal(await db.supportAttachment.count({ where: { ticketId, storageKey: { startsWith: "database:" } } }), 1);
+  const databaseUrl = new URL(databasePhotos.urls([storedPhoto.id], merchantId)[0]!, "http://localhost");
+  assert.deepEqual((await databasePhotos.read(storedPhoto.id, databaseUrl.searchParams.get("access_token")!)).buffer, Buffer.from(png.split(",")[1]!, "base64"));
+  const foreignToken = caps.issue({ purpose: "support-attachment", merchantId: "another_merchant", resourceId: storedPhoto.id }).token;
+  await assert.rejects(() => databasePhotos.read(storedPhoto.id, foreignToken), /attachment_not_found/);
   const beforeReply = detail.messages.at(-1)!.id; await send.execute({ merchantId, ticketId, content: "Recebi a foto.", senderType: "merchant", clientMessageId: randomUUID() }); await cases.markRead(merchantId, ticketId, "buyer", beforeReply);
   assert.equal((await cases.detail(merchantId, ticketId)).unreadCount, 1);
   for (let index = 0; index < 105; index++) await cases.sendPhotos(merchantId, ticketId, buyerId, `Mensagem ${index}`, [], randomUUID());
@@ -94,6 +114,12 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
   await cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "complete_exchange", notes: "Cliente confirmou o recebimento da reposição.", replacementOrderId: "replacement_qa", trackingCode: "tracking_qa", deliveryConfirmed: true });
   assert.equal((await cases.detail(merchantId, exchange.ticketId)).returnStatus, "EXCHANGE_COMPLETED");
   assert.equal((await orders.load(merchantId, orderId, buyerId)).items.find(item => item.variantId === "variant_b")!.eligibleQuantity, 0);
+  const cancelled = await cases.open({ ...input, requestKey: randomUUID() });
+  await assert.rejects(() => cases.action(merchantId, cancelled.ticketId, "operator_qa", { action: "cancel" }), /resolution_notes_required/);
+  await cases.action(merchantId, cancelled.ticketId, "operator_qa", { action: "cancel", notes: "Cancelamento confirmado com o cliente na conversa." });
+  const cancelledCase = await cases.detail(merchantId, cancelled.ticketId);
+  assert.equal(cancelledCase.active, false); assert.equal(cancelledCase.status, "resolved");
+  assert.ok(cancelledCase.messages.some(message => message.content.includes("Cancelamento confirmado")));
   const genericKey = randomUUID();
   const generic = await Promise.all(Array.from({ length: 5 }, () => cases.genericOpen(merchantId, buyerId, "Ajuda com minha compra", genericKey)));
   assert.equal(new Set(generic.map(item => item.ticketId)).size, 1);
