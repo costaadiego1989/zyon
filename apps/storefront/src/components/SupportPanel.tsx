@@ -99,11 +99,13 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
     else setNewMessages(true);
     const acknowledge = () => {
       const rect = marker.getBoundingClientRect(), bounds = root.getBoundingClientRect();
-      if (document.hidden || rect.top < bounds.top || rect.bottom > bounds.bottom || lastRead.current === lastMessage) return;
+      // Fractional layout coordinates can place the 1 px marker a fraction of
+      // a pixel past the viewport after scrollIntoView reaches the bottom.
+      if (document.hidden || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1 || lastRead.current === lastMessage) return;
       setNewMessages(false);
       void readSupportCase(detail.ticketId, lastMessage).then(() => { lastRead.current = lastMessage; supportChanged(); }).catch(() => undefined);
     };
-    const observer = new IntersectionObserver(entries => { if (entries[0]?.isIntersecting) acknowledge(); }, { root, threshold: 1 });
+    const observer = new IntersectionObserver(entries => { if (entries[0]?.isIntersecting) acknowledge(); }, { root, threshold: 0 });
     observer.observe(marker); window.addEventListener("focus", acknowledge);
     return () => { observer.disconnect(); window.removeEventListener("focus", acknowledge); };
   }, [open, view, lastMessage, detail?.ticketId]);

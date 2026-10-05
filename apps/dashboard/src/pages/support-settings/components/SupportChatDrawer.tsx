@@ -66,10 +66,10 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
     if (nearBottom.current) marker.scrollIntoView({ block: "nearest" }); else setNewMessages(true);
     const acknowledge = () => {
       const rect = marker.getBoundingClientRect(), bounds = root.getBoundingClientRect();
-      if (document.hidden || rect.top < bounds.top || rect.bottom > bounds.bottom) return;
+      if (document.hidden || rect.top < bounds.top - 1 || rect.bottom > bounds.bottom + 1) return;
       setNewMessages(false); void markVisibleRead(lastMessage);
     };
-    const observer = new IntersectionObserver(entries => { if (entries[0]?.isIntersecting) acknowledge(); }, { root, threshold: 1 });
+    const observer = new IntersectionObserver(entries => { if (entries[0]?.isIntersecting) acknowledge(); }, { root, threshold: 0 });
     observer.observe(marker); window.addEventListener("focus", acknowledge);
     return () => { observer.disconnect(); window.removeEventListener("focus", acknowledge); };
   }, [lastMessage, markVisibleRead]);
