@@ -155,6 +155,7 @@ export const TENANT_SCOPED_MODELS = [
   "StrategyIncentiveReservation",
   "StrategyIncentiveReview",
   "StrategyIncentiveReviewHead",
+  "StrategyIncentiveStageGrant",
   "StrategyTurn",
   "StrategyTurnCompletion",
   "StrategyTurnOutcome",
