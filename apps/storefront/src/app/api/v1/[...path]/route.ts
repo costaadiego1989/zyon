@@ -8,6 +8,7 @@ const ALLOWED_PREFIXES = ["storefront/", "buyer/", "embed/", "checkout-settings/
 
 function isPathAllowed(pathSegments: string[]): boolean {
   const path = pathSegments.join("/");
+  if (path === "support/faq/public" || path === "support/chat/public") return true;
   return ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
@@ -75,6 +76,10 @@ async function proxyRequest(
   const authorization = request.headers.get("Authorization");
   if (authorization) headers.Authorization = authorization;
   else if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
+  for (const name of ["X-AI-User-Token", "X-Buyer-Authorization"]) {
+    const value = request.headers.get(name);
+    if (value) headers[name] = value;
+  }
 
   const origin = request.headers.get("Origin");
   if (origin) headers.Origin = origin;
@@ -112,6 +117,13 @@ async function proxyRequest(
         "Content-Type": response.headers.get("Content-Type") || "application/json",
         "Cache-Control": "no-store",
         "Referrer-Policy": "no-referrer",
+        ...Object.fromEntries(
+          ["X-AI-RateLimit-Limit", "X-AI-RateLimit-Remaining", "X-AI-RateLimit-Reset", "Retry-After"]
+            .flatMap(name => {
+              const value = response.headers.get(name);
+              return value === null ? [] : [[name, value]];
+            }),
+        ),
         ...(response.headers.get("X-RateLimit-Limit") && {
           "X-RateLimit-Limit": response.headers.get("X-RateLimit-Limit")!,
         }),
