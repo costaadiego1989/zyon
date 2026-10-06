@@ -14,6 +14,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { Logger } from "@nestjs/common";
+import { resolveSelectedServiceSlot, ServiceSlotError, type SelectedServiceSlot } from "../../../catalog/domain/services/service-schedule.js";
 import { buildCrossSellSuggestions, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import { CartRulesEngine, buildCartRuleContext, toEngineCart } from "../../domain/services/cart-rules-engine.service.js";
 import { RuleProximityEngine, type RuleNudge, type ActiveRuleBadge } from "../../domain/services/rule-proximity.service.js";
@@ -132,6 +133,7 @@ function toCartLineDto(
     unitPriceCents: number;
     imageUrl?: string;
     selectedOptions?: StorefrontCartSelectedOption[];
+    selectedServiceSlot?: SelectedServiceSlot;
   },
   meta?: ProductPromoMeta,
 ) {
@@ -143,6 +145,7 @@ function toCartLineDto(
     unitPrice: i.unitPriceCents / 100,
     lineTotal: (i.unitPriceCents * i.quantity) / 100,
     imageUrl: i.imageUrl,
+    selectedServiceSlot: i.selectedServiceSlot,
     // Promo badge metadata (present only when an active product promotion applied).
     ...(badge
       ? {
@@ -355,6 +358,14 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       // never dictates price (deterministic offer-math). A missing required
       // group, an unknown item id, or multiple picks in a single-select group is
       // rejected rather than silently priced wrong.
+      let selectedServiceSlot: SelectedServiceSlot | undefined;
+      try {
+        if (resolvedProduct?.type === "service") selectedServiceSlot = resolveSelectedServiceSlot(resolvedProduct.metadata, args.selectedServiceSlotId);
+        else if (args.selectedServiceSlotId) return { error: "service_slot_unknown" };
+      } catch (error) {
+        if (error instanceof ServiceSlotError) return { error: error.code };
+        throw error;
+      }
       let selectedOptions: StorefrontCartSelectedOption[] | undefined;
       const optionGroups = extractOptionGroups(resolvedProduct?.metadata);
       const requestedItemIds = Array.isArray(args.selectedOptionItemIds) ? args.selectedOptionItemIds : [];
@@ -442,6 +453,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         imageUrl,
         quantity: args.quantity,
         selectedOptions,
+        ...(selectedServiceSlot ? { selectedServiceSlot } : {}),
       });
 
       // Cross-store: mirror the federated item into cross_store_line_items with

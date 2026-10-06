@@ -3,6 +3,7 @@ export interface SaleCompletedEvent {
   orderId: string;
   items: Array<{
     sku: string;
+    productType?: "physical" | "digital" | "service" | "food";
     quantity: number;
     variantId?: string;
     locationId?: string;

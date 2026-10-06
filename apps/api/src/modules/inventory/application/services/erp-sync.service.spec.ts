@@ -5,16 +5,42 @@ import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-ciphe
 
 const applied = {
   receiptId: "receipt_a",
-  event: { merchantId: "merchant_a", orderId: "order_a", items: [], totalCents: 0, timestamp: "2026-09-13T00:00:00.000Z" },
+  event: { merchantId: "merchant_a", orderId: "order_a", items: [{ sku: "SKU", quantity: 2, productType: "physical" as const }], totalCents: 0, timestamp: "2026-09-13T00:00:00.000Z" },
   stockDecrementedCount: 1,
   idempotent: false,
   items: [{ sku: "SKU", itemId: "item_a", locationId: "warehouse_a", quantity: 2, remainingQuantity: 7 }],
 };
 
+for (const productType of ["food", "service", "digital"] as const) {
+  test(`${productType} sale never queries ERP connections or creates an ERP job`, async () => {
+    const service = new ErpSyncService({} as never);
+    await service.enqueueSale({ ...applied, event: { ...applied.event, items: [{ sku: "SKU", quantity: 1, productType }] } });
+  });
+  test(`ERP snapshots cannot overwrite ${productType} catalog, price or internal stock`, async () => {
+    const tx = {
+      $queryRaw: async () => [],
+      erpSyncJob: { findFirst: async () => null },
+      inventoryLocation: { findMany: async () => [{ id: "internal" }] },
+      erpProductMapping: { findFirst: async () => ({ variantId: "nonphysical" }) },
+      productVariant: { findUnique: async () => ({ id: "nonphysical", product: { type: productType } }) },
+    };
+    const service = new ErpSyncService({ $transaction: async (work: any) => work(tx) } as never);
+    await (service as any).applySnapshot({ id: "erp", merchantId: "merchant_a", directionMode: "bidirectional" }, { externalProductId: "123", externalLocationId: "0", sku: "SKU", quantity: 999, productName: "Changed", salePriceCents: 1 }, new Date());
+  });
+}
+
+test("legacy SKU is eligible only when its current tenant catalog type is physical", async () => {
+  const checks: any[] = [];
+  const service = new ErpSyncService({ productVariant: { findMany: async (input: any) => { checks.push(input); return []; } } } as never);
+  await service.enqueueSale({ ...applied, event: { ...applied.event, items: [{ sku: "SKU", quantity: 1 }] } });
+  assert.equal(checks[0].where.product.merchantId, "merchant_a"); assert.equal(checks[0].where.product.type, "physical");
+});
+
 test("ERP sale work is persisted once per connection before any remote request", async () => {
   const jobs: any[] = [];
   let creates = 0;
   const prisma = {
+    productVariant: { findMany: async () => [{ id: "variant_a", sku: "SKU" }] },
     erpConnection: {
       findMany: async () => [{ id: "connection_a" }],
     },

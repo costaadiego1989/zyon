@@ -1,4 +1,6 @@
-import { BadGatewayException, ConflictException, Inject, Injectable, Logger } from "@nestjs/common";
+import { BadGatewayException, ConflictException, Inject, Injectable, Logger, Optional } from "@nestjs/common";
+import { ServiceSlotHoldsService } from "../../../shared/bookings/service-slot-holds.service.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { randomUUID } from "node:crypto";
 import type { PaymentIntentEntity, PaymentIntentSnapshot } from "../domain/payment-intent.entity.js";
 import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
@@ -14,6 +16,8 @@ export class ResumePaymentCreationService {
   constructor(
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout?: CheckoutSessionRepository,
   ) {}
 
   async execute(intent: PaymentIntentEntity): Promise<PaymentIntentSnapshot> {
@@ -41,6 +45,12 @@ export class ResumePaymentCreationService {
     }
     if (before.providerPaymentId || before.status !== "pending") return before;
     if (!before.creation) throw new ConflictException("payment_creation_manual_review_required");
+    // A new dispatch needs a live lease. Recovery reads never create a charge.
+    if (!before.creation.firstAttemptAt && this.serviceSlots && this.checkout) {
+      const session = await this.checkout.getSession(before.merchantId, before.sessionId);
+      if (!session) throw new ConflictException("checkout_session_not_found");
+      await this.serviceSlots.assertBeforePayment(session);
+    }
     const leaseToken = randomUUID();
     const action = intent.claimCreation(leaseToken, new Date());
     if (!action) return before;

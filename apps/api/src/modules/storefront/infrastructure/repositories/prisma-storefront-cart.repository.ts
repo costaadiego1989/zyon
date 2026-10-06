@@ -1,4 +1,5 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { resolveSelectedServiceSlot, serviceSlotSnapshotMatches } from "../../../catalog/domain/services/service-schedule.js";
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { CartItemNotFoundError } from "../../../catalog/domain/errors.js";
@@ -60,6 +61,12 @@ export class PrismaStorefrontCartRepository implements StorefrontCartPort {
     item: Omit<StorefrontCartItem, "quantity"> & { quantity?: number }
   ): Promise<StorefrontCart> {
     const cart = await this.getOrCreate(merchantId, sessionId);
+    if (item.selectedServiceSlot) {
+      const variant = await this.prisma.productVariant.findFirst({ where: { id: item.variantId, isActive: true, product: { merchantId, type: "service", isActive: true } }, include: { product: true } });
+      let current;
+      try { current = resolveSelectedServiceSlot(variant?.product.metadata, item.selectedServiceSlot.slotId); } catch { throw new BadRequestException("service_slot_unavailable"); }
+      if (!variant || !current || !serviceSlotSnapshotMatches(current, item.selectedServiceSlot) || (item.quantity ?? 1) !== 1) throw new BadRequestException("service_slot_quantity_invalid");
+    }
     // Merge only lines that are the SAME variant AND the same option selection —
     // a pizza "Grande + Bacon" and a "Média" are distinct lines even though they
     // share a variant id. Options are compared by their sorted item ids.
@@ -67,9 +74,10 @@ export class PrismaStorefrontCartRepository implements StorefrontCartPort {
       (opts ?? []).map((o) => o.itemId).sort().join(",");
     const incomingKey = optionKey(item.selectedOptions);
     const existing = cart.items.find(
-      (i) => i.variantId === item.variantId && optionKey(i.selectedOptions) === incomingKey,
+      (i) => i.variantId === item.variantId && optionKey(i.selectedOptions) === incomingKey && i.selectedServiceSlot?.slotId === item.selectedServiceSlot?.slotId,
     );
     if (existing) {
+      if (item.selectedServiceSlot) throw new BadRequestException("service_slot_quantity_invalid");
       existing.quantity += item.quantity ?? 1;
     } else {
       cart.items.push({ ...item, quantity: item.quantity ?? 1 });
@@ -103,6 +111,7 @@ export class PrismaStorefrontCartRepository implements StorefrontCartPort {
     const cart = await this.getOrCreate(merchantId, sessionId);
     const item = cart.items.find((i) => i.variantId === variantId);
     if (!item) throw new CartItemNotFoundError(variantId);
+    if (item.selectedServiceSlot && quantity !== 1) throw new BadRequestException("service_slot_quantity_invalid");
     item.quantity = Math.min(quantity, 99);
     const total = computeTotal(cart.items);
     const row = await this.prisma.storefrontCart.update({

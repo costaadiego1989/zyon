@@ -36,6 +36,7 @@ import {
 import type { MerchantStoreSettings } from "../../../merchant/domain/merchant.types.js";
 import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 import { selectWeightedVariant } from "../../../../shared/experiments/weighted-variant-assignment.js";
+import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../../shared/bookings/service-slot-holds.service.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -56,6 +57,7 @@ export class StartCheckoutUseCase {
     private readonly orderQuota?: OrderQuotaService,
     @Optional() @Inject(PAYMENT_PLATFORM_REPOSITORY) private readonly paymentConnections?: PaymentPlatformRepository,
     @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
   ) { }
 
   async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean }): Promise<StartCheckoutResponse> {
@@ -109,6 +111,8 @@ export class StartCheckoutUseCase {
       refreshCart: trustedContext?.refreshCart,
     });
     session = await this.assignExperimentVariant(input.merchant_id, session);
+    if (sessionSlotRequests(session).length && !this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
+    const serviceSlotHold = await this.serviceSlots?.acquire(session);
 
     // Phase 4: Suggested Products
     const suggestedProducts = await this.resolveSuggestedProducts(input.merchant_id, session);
@@ -125,6 +129,7 @@ export class StartCheckoutUseCase {
     return {
       conversation_id: session.conversationId,
       session_id: session.sessionId,
+      ...(serviceSlotHold ? { service_slot_hold: serviceSlotHold } : {}),
       global_user_id: session.globalUserId,
       agent_enabled: settings?.checkout_settings.mode !== "manual_only",
       initial_mode: settings?.checkout_settings.mode === "proactive" ? "open" : "silent",

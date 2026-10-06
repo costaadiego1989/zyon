@@ -5,6 +5,7 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   Optional
 , Logger} from "@nestjs/common";
 import { createHash } from "node:crypto";
@@ -42,6 +43,7 @@ import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/
 import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
 import { resolveCheckoutPaymentCapabilities } from "../domain/checkout-payment-routing.js";
 import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
+import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../shared/bookings/service-slot-holds.service.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -271,6 +273,7 @@ export class CreatePaymentIntentUseCase {
     @Optional() private readonly billingMetering?: BillingPlanMeteringService,
     private readonly orderQuota?: OrderQuotaService,
     @Optional() private readonly benefits?: CheckoutBenefitsService,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
@@ -286,12 +289,14 @@ export class CreatePaymentIntentUseCase {
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
     if (existing) {
       assertSameRequest(existing.snapshot(), body, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(existing));
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(existing));
     }
 
     // An existing idempotency key is an admission made before a later block.
     // Only a brand-new provider/payment attempt must pass the commercial gate.
     await this.orderQuota?.assertCanAcceptNewSales(merchantId);
+    if (sessionSlotRequests(session).length && !this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
+    await this.serviceSlots?.assertBeforePayment(session);
 
     const method: PaymentMethod = body.method ?? "pix";
     // Interactive and quick-purchase intents share this server guard.
@@ -592,9 +597,9 @@ export class CreatePaymentIntentUseCase {
       const winner = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
       if (!winner) throw new ConflictException("payment_creation_concurrent_change");
       assertSameRequest(winner.snapshot(), { ...body, method }, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(winner));
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(winner));
     }
-    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(intent));
+    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(intent));
   }
 
   private async validateAcceptedOffer(

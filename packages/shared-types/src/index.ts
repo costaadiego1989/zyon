@@ -317,6 +317,7 @@ export interface CrossStoreLineItem {
 }
 
 export interface CheckoutSession {
+  serviceSlotHold?: { expiresAt: string; slots: Array<{ resourceId: string; slotId: string; startsAt: string; endsAt: string }> };
   merchantId: string;
   sessionId: string;
   globalUserId: string;
@@ -552,6 +553,7 @@ export interface CheckoutExperienceSnapshot {
 }
 
 export interface StartCheckoutResponse {
+  service_slot_hold?: CheckoutSession["serviceSlotHold"];
   /** Present only for sessions owned by the durable message protocol. */
   chat_protocol?: "durable_v2";
   conversation_id: string;

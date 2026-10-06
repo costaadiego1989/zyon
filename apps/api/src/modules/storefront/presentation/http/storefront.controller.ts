@@ -349,6 +349,8 @@ export class StorefrontController {
         return {
           variantId: i.variantId,
           productName: i.name,
+          selectedServiceSlot: i.selectedServiceSlot,
+          selectedServiceSlotId: i.selectedServiceSlot?.slotId,
           quantity: i.quantity,
           price: i.unitPriceCents / 100,
           subtotal: (i.unitPriceCents * i.quantity) / 100,

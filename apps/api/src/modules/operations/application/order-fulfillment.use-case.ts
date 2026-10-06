@@ -5,7 +5,8 @@ import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js
 import { fulfillmentPaymentEligible, lockFulfillmentOrder, persistFulfillmentTransition, projectDigitalFulfillment, reserveService } from "../../../shared/persistence/order-fulfillment.js";
 import { hasMarketplaceFulfillmentFunding } from "../../fulfillment/infrastructure/repositories/marketplace-fulfillment-guard.js";
 import { actionsForUnit, readFulfillment } from "../domain/order-fulfillment.js";
-import { publicServiceSchedule, resolveSelectedServiceSlot } from "../../catalog/domain/services/service-schedule.js";
+import { resolveSelectedServiceSlot } from "../../catalog/domain/services/service-schedule.js";
+import { ServiceSlotHoldsService } from "../../../shared/bookings/service-slot-holds.service.js";
 import { applyFulfillmentSeed, fulfillmentSeedManifest, SANDBOX_ENVIRONMENT_ID, SANDBOX_MERCHANT_ID } from "../infrastructure/order-fulfillment-qa-fixtures.js";
 
 @Injectable()
@@ -24,9 +25,8 @@ export class OrderFulfillmentUseCase {
     const unit = readFulfillment(order?.fulfillmentJson)?.units.find(item => item.id === unitId);
     if (!order || unit?.strategy !== "scheduled_service") throw new BadRequestException("service_schedule_required");
     const variant = await this.prisma.productVariant.findFirst({ where: { id: unit.variantId, product: { merchantId } }, include: { product: true } });
-    const schedule = publicServiceSchedule(variant?.product.metadata);
-    const reservations = await this.prisma.serviceReservation.findMany({ where: { merchantId, resourceId: unit.variantId, status: "reserved", NOT: { orderId, unitId }, order: { status: { notIn: ["cancelled", "refunded", "returned", "failed"] } } } });
-    return { slots: (schedule?.slots ?? []).map(slot => ({ ...slot, selectable: slot.selectable && !reservations.some(reservation => reservation.startsAt < new Date(slot.endsAt) && reservation.endsAt > new Date(slot.startsAt)) })) };
+    const schedule = await new ServiceSlotHoldsService(this.prisma).availability(merchantId, unit.variantId, variant?.product.metadata, { orderId, unitId });
+    return { slots: schedule?.slots ?? [] };
   }
   async execute(input: { merchantId: string; orderId: string; unitId: string; action: string; expectedVersion: number; commandId: string; actorId: string; proof?: string; quantity?: number; scheduleSlotId?: string }) {
     if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion < 0 || !/^[A-Za-z0-9_:-]{8,191}$/.test(input.commandId)) throw new BadRequestException("fulfillment_command_invalid");

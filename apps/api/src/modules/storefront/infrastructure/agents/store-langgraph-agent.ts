@@ -23,6 +23,7 @@ import { ContextManager, DEFAULT_CONTEXT_WINDOW, CostTracker } from "@zyon/conve
 import { Logger } from "@nestjs/common";
 import type { ExecutableTool, ToolDefinition } from "../../domain/tools/store-tools.js";
 import { buildStoreTools, buildExecutableStoreTools } from "../../domain/tools/store-tools.js";
+import { createCartTurnPolicy } from "../../domain/tools/cart-turn-policy.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import { classifyIntent, getModelForIntent, type StoreAgentIntent, type ClassifyIntentResult } from "../ai/intent-classifier.js";
@@ -164,13 +165,14 @@ export class StorefrontLangGraphAgent {
     let totalTokens = 0;
     const blocks: ConversationBlock[] = [];
 
-    const executableTools = input.toolHandlers
+    const cartPolicy = createCartTurnPolicy(input.userMessage, input.attachmentContext, input.sessionId);
+    const executableTools = cartPolicy.wrap(input.toolHandlers
       ? buildExecutableStoreTools({
           merchantId: input.merchantId,
           sessionId: input.sessionId,
           handlers: input.toolHandlers
         })
-      : this.executableTools;
+      : this.executableTools);
 
     const defaultSystem = buildStoreSystemPrompt({
       merchantName: input.merchantName,
@@ -396,9 +398,12 @@ export class StorefrontLangGraphAgent {
       }
     }
 
-    const built = buildConversationBlocks({ toolResults, userMessage: input.userMessage, finalContent, merchantId: input.merchantId });
+    const built = buildConversationBlocks({ toolResults: cartPolicy.sanitizeResults(toolResults), userMessage: input.userMessage, finalContent, merchantId: input.merchantId });
     blocks.push(...built.blocks);
     finalContent = built.finalContent;
+    const addOutcome = cartPolicy.addOutcomes[0];
+    if (addOutcome) blocks.push({ type: "cart_add_result", data: { ...addOutcome, cartId: input.sessionId } });
+    if (addOutcome?.status === "unknown") finalContent = "Não consegui confirmar a inclusão. Confira o carrinho antes de tentar novamente.";
 
     const hasProductCard = blocks.some(b => b.type === "product_card");
     const hasShippingOptions = blocks.some(b => b.type === "shipping_options");

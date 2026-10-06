@@ -7,6 +7,7 @@ import type { PrismaClient } from "@prisma/client";
 import { extractOptionGroups } from "../../domain/food-options.js";
 import { loadProductNoticeRules, productRuleNotices } from "../product-rule-notices.js";
 import { productGallery } from "../product-gallery.js";
+import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
 
 import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
@@ -37,15 +38,18 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       });
 
       const noticeRules = await loadProductNoticeRules(deps.prisma, ctx.merchantId);
-      const localProducts = result.products.map((p) => {
+      const localProducts = await Promise.all(result.products.map(async (p) => {
+        const serviceSchedule = p.type === "service" && p.defaultVariant ? await new ServiceSlotHoldsService(deps.prisma).availability(ctx.merchantId, p.defaultVariant.id, p.metadata) : undefined;
         const ruleNotices = productRuleNotices(noticeRules, p.variants.map((v) => v.sku), p.id);
         return {
           id: p.id,
+          type: p.type,
+          serviceSchedule,
           name: p.name,
           description: p.description,
           price: p.defaultVariant?.basePriceInCents ?? 0,
           ...productGallery(p),
-          inStock: p.hasStock,
+          inStock: p.hasStock && (!serviceSchedule || serviceSchedule.slots.some(slot => slot.selectable)),
           rating: p.averageRating,
           reviewCount: p.reviewCount,
           // Full variant shape so the storefront can render a variant selector
@@ -61,7 +65,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
           source: "local" as const,
         };
-      });
+      }));
 
       const federatedSearch = deps.searchFederatedProducts;
       const shouldSearchMarketplace = localProducts.length < 3 && federatedSearch && args.query && args.query !== "*";
@@ -118,6 +122,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     getProductDetails: async (args) => {
       const product = await deps.productRepo.findById(ctx.merchantId, args.productId);
       if (!product) return { error: "product_not_found" };
+      const serviceSchedule = product.type === "service" && product.defaultVariant ? await new ServiceSlotHoldsService(deps.prisma).availability(ctx.merchantId, product.defaultVariant.id, product.metadata) : undefined;
       const noticeRules = await loadProductNoticeRules(deps.prisma, ctx.merchantId);
       const ruleNotices = productRuleNotices(
         noticeRules,
@@ -158,13 +163,14 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           name: product.name,
           description: product.description,
           type: product.type,
+          serviceSchedule,
           ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
           variants: product.variants,
           optionGroups: extractOptionGroups(product.metadata),
           media: product.defaultVariant?.media ?? [],
           ...productGallery(product),
           stock: product.totalStock,
-          inStock: product.hasStock,
+          inStock: product.hasStock && (!serviceSchedule || serviceSchedule.slots.some(slot => slot.selectable)),
           rating: product.averageRating,
           reviewCount: product.reviewCount
         }

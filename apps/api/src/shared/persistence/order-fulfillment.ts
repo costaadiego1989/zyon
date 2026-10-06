@@ -5,6 +5,7 @@ import type { CompletedOrder } from "@prisma/client";
 import { orderTotalCents, type PaymentAmountBreakdown } from "../../modules/payment/domain/payment-amount.js";
 import { initialFulfillment, readFulfillment, summarizeFulfillment, type FulfillmentState } from "../../modules/operations/domain/order-fulfillment.js";
 import type { CompletedOrderLineItem, OrderFulfillmentUnit as Unit } from "@zyon/shared-types";
+import { serviceSlotStore } from "../bookings/redis-service-slots.js";
 
 type Payment = { status: string; amountCents: number; approvedAmountCents: number | null; currency: string; amountBreakdown?: unknown; providerPaymentId?: string | null };
 export function fulfillmentPaymentEligible(order: { orderTotal: unknown; currency: string; externalOrderId: string }, payment?: Payment | null): boolean {
@@ -17,6 +18,7 @@ export async function reserveService(tx: Prisma.TransactionClient, order: Comple
   if (!Number.isFinite(startsAt.getTime()) || !Number.isFinite(endsAt.getTime()) || endsAt <= startsAt) throw new ConflictException("service_schedule_invalid");
   // Capacity one per canonical variant; the same lock protects overlapping slots.
   await tx.$queryRaw(Prisma.sql`SELECT 1 FROM pg_advisory_xact_lock(hashtextextended(${`${order.merchantId}:service:${unit.variantId}`}, 0))`);
+  await serviceSlotStore().assertNoForeignHold(order.merchantId, unit.variantId, order.sessionId, startsAt, endsAt);
   const conflict = await tx.serviceReservation.findFirst({ where: { merchantId: order.merchantId, resourceId: unit.variantId, status: "reserved",
     NOT: { orderId: order.id, unitId: unit.id }, startsAt: { lt: endsAt }, endsAt: { gt: startsAt },
     order: { status: { notIn: ["cancelled", "refunded", "returned", "failed"] } } } });

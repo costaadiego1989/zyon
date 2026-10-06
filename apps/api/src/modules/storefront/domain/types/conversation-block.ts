@@ -1,3 +1,4 @@
+import type { PublicServiceSchedule } from "../../../catalog/domain/services/service-schedule.js";
 export interface ProductCardBlock {
   type: "product_card";
   data: {
@@ -19,6 +20,8 @@ export interface ProductCardBlock {
     stock?: number;
     sku?: string;
     detailed?: boolean;
+    productType?: "physical" | "digital" | "service" | "food";
+    serviceSchedule?: PublicServiceSchedule;
     optionGroups?: Array<{
       id: string;
       name: string;
@@ -66,6 +69,8 @@ export interface CartSummaryBlock {
       price: number;
       subtotal: number;
       imageUrl?: string;
+      selectedOptions?: Array<{ groupName: string; itemName: string; priceModifier: number }>;
+      selectedServiceSlotId?: string;
     }>;
     itemCount: number;
     subtotal: number;
@@ -232,6 +237,7 @@ export interface CouponListBlock {
 }
 
 export type ConversationBlock =
+  | { type: "cart_add_result"; data: { cartId: string; variantId: string; serviceSlotId?: string; status: "succeeded" | "rejected" | "unknown"; code?: string } }
   | ProductCardBlock
   | ProductCarouselBlock
   | ComparisonTableBlock

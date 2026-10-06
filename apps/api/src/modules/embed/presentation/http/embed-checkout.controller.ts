@@ -27,6 +27,7 @@ import type {
 } from "@zyon/shared-types";
 import { ApplyOfferUseCase } from "../../../checkout/application/use-cases/apply-offer.use-case.js";
 import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
+import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/send-chat-message.use-case.js";
 import { ReconcileChatMessageUseCase } from "../../../checkout/application/use-cases/reconcile-chat-message.use-case.js";
@@ -114,9 +115,22 @@ export class EmbedCheckoutController {
     @Optional() private readonly resolveBuyer?: ResolveEmbedBuyerService,
     @Optional() private readonly reconcileChat?: ReconcileChatMessageUseCase,
     @Optional() private readonly reopenCheckout?: ReopenEmbedCheckoutUseCase,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
+
+  @Get("service-slot-hold")
+  @RequireEmbedScope("checkout:start")
+  async serviceSlotHold(@Req() request: EmbedHttpRequest, @Query("session_id") sessionId: string) {
+    if (!sessionId?.trim()) throw new BadRequestException("session_id_required");
+    const embed = request.embedClaims!;
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
+    const session = await this.embedGuards.loadSession(embed.merchantId, sessionId);
+    if (!session) throw new BadRequestException("checkout_session_not_found");
+    if (!this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
+    return this.serviceSlots.state(session);
+  }
 
   @Post("checkout/edit")
   @RequireEmbedScope("payment:intents:create")

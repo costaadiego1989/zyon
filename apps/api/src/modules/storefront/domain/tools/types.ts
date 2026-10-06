@@ -44,6 +44,7 @@ export interface StoreToolHandlers {
      * the authoritative unit price — the client price is never trusted.
      */
     selectedOptionItemIds?: string[];
+    selectedServiceSlotId?: string;
     /**
      * Cross-sell promotion id when the buyer accepted a cross-sell suggestion.
      * The server validates the sku is in the promo's recommended_skus and applies

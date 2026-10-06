@@ -109,7 +109,9 @@ test("mixed-provider cart pushes only the items mapped to this ERP account", asy
   }) as typeof fetch;
   t.after(() => { globalThis.fetch = original; });
   const service = new ErpSyncService({
-    inventorySaleReceipt: { findFirst: async () => ({ orderId: "order_a", result: { items: [
+    productVariant: { findMany: async () => ["BLING-ONLY", "TINY-ONLY", "LOCAL-ONLY"].map(sku => ({ id: sku, sku })) },
+    inventorySaleReceipt: { findFirst: async () => ({ orderId: "order_a", payload: { items: [...["BLING-ONLY", "TINY-ONLY", "LOCAL-ONLY"].map(sku => ({ sku, quantity: 1, productType: "physical" })), { sku: "FOOD-ERP-MAPPED", quantity: 1, productType: "food" }] }, result: { items: [
+      { sku: "FOOD-ERP-MAPPED", itemId: "food", quantity: 1, remainingQuantity: 5 },
       { sku: "BLING-ONLY", itemId: "item_bling", quantity: 1, remainingQuantity: 7 },
       { sku: "TINY-ONLY", itemId: "item_tiny", quantity: 1, remainingQuantity: 10 },
       { sku: "LOCAL-ONLY", itemId: "item_local", quantity: 1, remainingQuantity: 3 },
@@ -117,6 +119,7 @@ test("mixed-provider cart pushes only the items mapped to this ERP account", asy
     erpProductMapping: { findFirst: async ({ where }: any) => {
       assert.equal(where.merchantId, "merchant_a");
       assert.equal(where.connectionId, "tiny_connection");
+      assert.notEqual(where.sku, "FOOD-ERP-MAPPED");
       return where.sku === "TINY-ONLY" ? { externalProductId: "123" } : null;
     } },
   } as never);

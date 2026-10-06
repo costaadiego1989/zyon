@@ -1,5 +1,6 @@
 import { REDACTED_LOG_PATHS } from "./shared/logger/log-redaction.js";
 import { Module } from "@nestjs/common";
+import { ServiceSlotHoldsModule } from "./shared/bookings/service-slot-holds.module.js";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
 import { MetricsInterceptor } from "./shared/observability/metrics.interceptor.js";
@@ -83,6 +84,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     ObservabilityModule,
     HttpModule,
     PersistenceModule,
+    ServiceSlotHoldsModule,
     DataRetentionModule,
     MessagingModule,
     HealthModule,

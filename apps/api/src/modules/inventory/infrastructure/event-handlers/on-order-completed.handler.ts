@@ -20,9 +20,10 @@ export class InventoryOnOrderCompletedHandler implements OnModuleInit {
     const merchantId = event.merchantId;
     if (!payload || !validId(merchantId) || !validId(payload.external_order_id) || !validId(payload.session_id)) throw new Error("inventory_order_event_invalid");
     const orderId = payload.external_order_id;
-    const snapshot = payload.inventory_sale as (Omit<SaleCompletedEvent, "merchantId" | "orderId"> & { version: number }) | undefined;
+    const snapshot = payload.inventory_sale as (Omit<SaleCompletedEvent, "merchantId" | "orderId"> & { version: number; stocked_items_only?: boolean }) | undefined;
     if (snapshot !== undefined) {
       if (snapshot.version !== 1) throw new Error("inventory_sale_snapshot_version_unsupported");
+      if (snapshot.stocked_items_only === true && Array.isArray(snapshot.items) && !snapshot.items.length) return;
       // Tenant/order identity always comes from the domain envelope, never nested data.
       await this.handleSaleCompleted.execute(validateInventorySale({ ...snapshot, merchantId, orderId }));
       return;
@@ -32,10 +33,13 @@ export class InventoryOnOrderCompletedHandler implements OnModuleInit {
     const session = await this.checkoutSessions.getSession(merchantId, payload.session_id);
     if (!session || session.merchantId !== merchantId || session.sessionId !== payload.session_id) throw new Error("inventory_checkout_session_not_found");
     if (typeof payload.order_total !== "number" || !Number.isFinite(payload.order_total) || payload.order_total < 0) throw new Error("inventory_sale_total_invalid");
+    const stocked = session.cart.items.filter(item => !item.productType || item.productType === "physical" || item.productType === "food");
+    if (!stocked.length) return;
     await this.handleSaleCompleted.execute(validateInventorySale({ merchantId, orderId,
-      items: session.cart.items.map(item => ({
+      items: stocked.map(item => ({
         sku: item.sku,
         quantity: item.quantity,
+        ...(item.productType ? { productType: item.productType } : {}),
         ...(item.variantId ? { variantId: item.variantId } : {}),
       })),
       buyerEmail: session.customer?.email, buyerName: session.customer?.fullName, buyerPhone: session.customer?.phone,

@@ -101,6 +101,7 @@ export class PrismaInventorySaleRepository implements InventorySaleRepositoryPor
       await tx.inventorySaleReceipt.create({ data: { id: receiptId, merchantId: event.merchantId, orderId: event.orderId, payloadHash,
         payload: event as unknown as Prisma.InputJsonValue, result: result as unknown as Prisma.InputJsonValue } });
       for (const [kind, eventType] of Object.entries(INVENTORY_SALE_JOBS)) {
+        if (kind === "erp" && !event.items.some(item => !item.productType || item.productType === "physical")) continue;
         await tx.outboxMessage.create({ data: { eventId: randomUUID(), eventType, schemaVersion: 1,
           merchantId: event.merchantId, occurredAt: new Date(event.timestamp), correlationId: receiptId, causationId: event.orderId,
           producer: "inventory", payload: { version: 1, receiptId, kind }, status: "pending" } });

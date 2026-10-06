@@ -178,8 +178,10 @@ export class CompleteOrderUseCase {
             ...(approval ? { payment_intent_id: approval.id, payment_amount_breakdown: approval.amountBreakdown } : {}),
             inventory_sale: {
               version: 1,
-              items: session.cart.items.map((item) => ({
+              stocked_items_only: true,
+              items: session.cart.items.filter(item => !item.productType || ["physical", "food"].includes(item.productType)).map((item) => ({
                 sku: item.sku,
+                productType: item.productType,
                 quantity: item.quantity,
                 ...(item.variantId ? { variantId: item.variantId } : {}),
               })),

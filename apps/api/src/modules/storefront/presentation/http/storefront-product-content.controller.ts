@@ -19,6 +19,7 @@ import {
 } from "../../../catalog/domain/entities/product-content-block.entity.js";
 import { loadProductNoticeRules, productRuleNotices } from "../../infrastructure/product-rule-notices.js";
 import { extractOptionGroups, toBlockOptionGroups } from "../../domain/food-options.js";
+import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
 import { buildPreCartCrossSellPreview, type PublicCrossSellPreview } from "../../application/services/pre-cart-cross-sell-preview.js";
 
 export const SUPPORTED_PRODUCT_CONTENT_LOCALES = ["pt-BR", "en", "es"] as const;
@@ -186,12 +187,15 @@ export class StorefrontProductContentController {
     // Rich-content CTAs carry only a server-selected variant identifier. The
     // conversation/cart path still rechecks price, stock and checkout rules;
     // no amount or discount is trusted from the browser.
+    const schedules = new Map(await Promise.all(product.variants.map(async variant => [variant.id,
+      product.type === "service" ? await new ServiceSlotHoldsService(this.prisma).availability(merchant.id, variant.id, product.metadata) : undefined] as const)));
     const variants = product.variants.map((variant) => {
       const availableQuantity = variant.stock.reduce(
         (available, stock) => available + stock.quantity - stock.reserved,
         0,
       );
-      const isAvailable = Boolean(variant.price) && (product.type !== "physical" || availableQuantity > 0);
+      const schedule = schedules.get(variant.id);
+      const isAvailable = Boolean(variant.price) && (!["physical", "food"].includes(product.type) || availableQuantity > 0) && (!schedule || schedule.slots.some(slot => slot.selectable));
       const attributes = Object.fromEntries(
         Object.entries((variant.attributes ?? {}) as Record<string, unknown>)
           .filter(([key, value]) => key.trim().length > 0 && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
@@ -200,6 +204,7 @@ export class StorefrontProductContentController {
       );
       return {
         id: variant.id,
+        ...(schedule ? { serviceSchedule: schedule } : {}),
         attributes,
         available: isAvailable,
         priceReais: variant.price ? variant.price.basePriceInCents / 100 : null,
@@ -231,6 +236,7 @@ export class StorefrontProductContentController {
       productId: product.id,
       purchase: {
             productName: product.name,
+            ...(schedules.get(purchasableVariant?.id ?? variants[0]?.id ?? "") ? { serviceSchedule: schedules.get(purchasableVariant?.id ?? variants[0]?.id ?? "") } : {}),
             ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
             description: product.description,
             defaultVariantId: purchasableVariant?.id ?? null,

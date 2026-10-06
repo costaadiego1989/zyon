@@ -46,6 +46,7 @@ export class OnCatalogProductSavedHandler implements OnModuleInit {
       });
 
       if (!product || product.merchantId !== merchantId) return;
+      if (["digital", "service"].includes(product.type)) return;
 
       // Ensure default location
       const locations = await this.locationRepo.list(merchantId);
