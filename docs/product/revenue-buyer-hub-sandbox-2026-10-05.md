@@ -120,6 +120,22 @@ A conferência pública ocorreu às 21:24 de 05/10 em São Paulo (00:24 de 06/10
 
 ## Histórico e limites
 
+### Rastreio de entregas físicas
+
+A revisão `b7918599ff01226aadcf15d989a159f0e3fa5a39` corrige a projeção e a apresentação de Rastreio. O GET autenticado de compras mantém `items` completo e acrescenta `has_tracking`/`tracking_items`. Digitais, serviços, retirada, classificação desconhecida, cancelamentos e códigos provisórios ou internos não produzem rastreio. Compras mistas apresentam somente os itens físicos da entrega; status, eventos e links vêm da operação persistida. Também foram corrigidos o cursor do histórico e o descarte de respostas após troca de loja ou comprador. Não há nova migration.
+
+| Verificação de Rastreio | Resultado | Evidência local |
+| --- | --- | --- |
+| API local | 10/10; build Nest concluído | Execuções finais do agente backend nesta sessão |
+| Interface local | 15/15; typecheck e build storefront concluídos; 390/1440 px, claro/escuro | `.audit/tracking-ui-final-20261005.log`, `.audit/tracking-storefront-build.log` |
+| API sandbox `8250f295-426e-47dd-b8fd-849d92a2076d` | SUCCESS; 14 fontes equivalentes por CRLF/LF, 12 verificações de compilados; `/ready` 200, banco conectado | `.audit/hub-source-sandbox-b791859-8250f295.json` |
+| Storefront sandbox `6803f4a3-0dc0-40a1-9d86-60030fa27e13` | SUCCESS; artefatos novos entregues em celular e desktop | `.audit/tracking-hub-sandbox-public-artifacts.json` |
+| Compradores autenticados contra serviços publicados | 12/12 cenários de navegador e 3/3 de isolamento na API; zero erros HTTP/console/página e sem overflow | `.audit/sandbox-revenue-planner-20261005/tracking-browser-2026-10-06T01-14-36-007Z/report.json` |
+
+Os três compradores sintéticos têm, respectivamente, 8/2/1 registros próprios e 3/0/1 entregas rastreáveis. O ensaio verificou código provisório, digital com código aparente, físico sem código, retirada, cancelamento, pedido misto, entrega concluída, histórico, copiar código e links seguros. As 16 capturas pertencem à storefront publicada, sem substituir respostas da API. Os links externos foram inspecionados, sem abrir a transportadora.
+
+A fixture tem 11 históricos, nove envios com transportadora `qa_synthetic` e 14 eventos, somente na loja de teste do sandbox. Não criou checkout, pagamento, mensagem à LLM, evento de domínio ou chamada de transporte. Configurações comerciais, estratégia retirada, cupom pausado e regras de Fidelidade foram preservados. A promoção do código segue a mesma sequência: sandbox autenticado aprovado, envio ao master e verificação da revisão, prontidão da API e artefatos no domínio público. A inspeção pública de produção não equivale a rastrear uma encomenda real ou autenticar o comprador da Athom.
+
 Uma tentativa anterior foi interrompida por substituições concorrentes da API (`64849faf`, `1f63f2e8`) durante a validação. A fixture anterior `504053ee-e2b5-4492-9d46-ab16741999f8` foi retirada e preservada; não foi reaberta. O ensaio novo acima confirmou a interface contra a API integrada estável.
 
 Esta entrega não demonstra pagamento externo, receita incremental, lucro ou vencedor estatístico, nem todas as lojas de produção. O motor e seus termos comerciais continuam descritos na [arquitetura](../architecture/revenue-intelligence.md). Arquivos privados, senhas e tokens ficam apenas em `.audit` ignorado e não integram documentação, commits ou uploads.
