@@ -1,6 +1,6 @@
 import { test, expect, type Page, type Route } from "@playwright/test";
 import { currentPersonalizedOffers } from "../src/lib/personalized-offers";
-import type { BuyerPersonalizedOffer } from "../src/lib/viewmodels/useBuyerHub/types";
+import type { AvailableBenefit, BuyerPersonalizedOffer } from "../src/lib/viewmodels/useBuyerHub/types";
 import type { LoyaltyCartSnapshot } from "../src/components/buyer-hub/tabs/LoyaltyTab";
 
 // Local component/HTTP fixtures. These tests do not claim real enrollment or payment proof.
@@ -290,4 +290,107 @@ test("real available and earned DTOs show conditions without invented tiers, cur
   await expect(page.getByText("Pagamento no Pix")).toBeVisible();
   await expect(page.getByText("Condição da última compra")).toBeVisible();
   await expect(page.getByText(/Benefício vencido|NaN|R\$ 7,00|Cliente Ouro|Diamante|merchant_rule/)).toHaveCount(0);
+});
+
+// Synthetic, local UI fixtures for the published conditions contract. These
+// tests do not enroll buyers, select a winning rule, or prove a sandbox grant.
+const conditionalExamples: AvailableBenefit[] = [
+  { ruleId: "local-progressive-3", description: "Até 3% de desconto nos produtos", discountPercent: 3,
+    maxReais: 10, condition: "valor dos produtos no carrinho a partir de R$ 100,00" },
+  { ruleId: "local-progressive-5", description: "Até 5% de desconto nos produtos", discountPercent: 5,
+    maxReais: 15, condition: "valor dos produtos no carrinho a partir de R$ 180,00" },
+  { ruleId: "local-progressive-10", description: "Até 10% de desconto nos produtos", discountPercent: 10,
+    maxReais: 25, condition: "valor dos produtos no carrinho a partir de R$ 300,00" },
+  { ruleId: "local-advanced-pix", description: "Até 10% de desconto nos produtos", discountPercent: 10,
+    maxReais: 15, condition: "valor dos produtos no carrinho a partir de R$ 150,00 e quantidade total no carrinho a partir de 2 itens e pagamento igual a Pix" },
+];
+const conditionalBenefits = { available: [], earned: [], progress: [], conditions: conditionalExamples, offers: [] };
+
+async function expectConditionalExamples(page: Page) {
+  const section = page.getByRole("region", { name: "Condições das ofertas", exact: true });
+  const rows = section.getByRole("list", { name: "Ofertas condicionais da loja", exact: true }).getByRole("listitem");
+  await expect(rows).toHaveCount(4);
+  const money = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+  for (const [index, example] of conditionalExamples.entries()) {
+    await expect(rows.nth(index).getByRole("heading")).toHaveText(example.description);
+    await expect(rows.nth(index)).toContainText(example.condition);
+    await expect(rows.nth(index)).toContainText(`Desconto limitado a ${money.format(example.maxReais!)}.`);
+  }
+  await expect(section).toContainText("Confira no checkout quais ofertas se aplicam ao seu pedido.");
+  await expect(page.getByRole("region", { name: /^(Oferta para este pedido|Ofertas para seus pedidos|Aplicado ao seu carrinho)$/ })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: /^Copiar cupom/ })).toHaveCount(0);
+  await expect(page.getByText(/aplicados nesta compra|Cupom aplicado automaticamente|oferta desbloqueada|benefício garantido/i)).toHaveCount(0);
+  await expect(section.getByRole("progressbar")).toHaveCount(0);
+  return { section, rows };
+}
+
+for (const subtotalCents of [0, 12000]) {
+  test(`published progressive and advanced conditions do not grant benefits with a ${subtotalCents}-cent cart`, async ({ page }, info) => {
+    info.annotations.push({ type: "scope", description: "Local synthetic UI fixture; server-shaped conditions and nudge, no real checkout or sandbox enrollment." });
+    await seed(page);
+    // The message is an authoritative fixture input, not computed from the four
+    // catalog entries by the UI. Multiple unmet conditions have no numeric bar.
+    const nextNudge = subtotalCents === 0
+      ? { kind: "cart_total", gap: 100, reachable: true,
+        message: "Faltam R$ 100,00 para até 3% de desconto no carrinho (limite de R$ 10,00)" }
+      : { kind: "conditional", reachable: false,
+        message: "Condição para até 10% de desconto no carrinho (limite de R$ 15,00): valor dos produtos no carrinho a partir de R$ 150,00 e quantidade total no carrinho a partir de 2 itens e pagamento igual a Pix." };
+    await page.addInitScript((snapshot) => {
+      (window as any).__loyaltyCartSnapshot = snapshot;
+      (window as any).__loyaltyCoupons = [];
+    }, { subtotalCents, itemCount: subtotalCents === 0 ? 0 : 1, nextNudge, activeRules: [], freeShipping: false });
+    const writes: string[] = [];
+    page.on("request", (request) => { if (request.url().includes("/api/") && request.method() !== "GET") writes.push(request.url()); });
+    await page.route("**/buyer/me/benefits**", (route) => {
+      expect(new URL(route.request().url()).searchParams.get("merchant_id")).toBe("qa-store");
+      expect(route.request().headers().authorization).toMatch(/^Bearer /);
+      return route.fulfill({ json: conditionalBenefits });
+    });
+    await open(page);
+    await expectConditionalExamples(page);
+    const next = page.getByRole("region", { name: "Como aproveitar mais benefícios", exact: true });
+    await expect(next).toContainText(nextNudge.message);
+    if (subtotalCents === 0) {
+      await expect(next.getByRole("progressbar")).toHaveAttribute("aria-valuenow", "0");
+      await expect(next.getByRole("progressbar")).toHaveAttribute("aria-valuemax", "100");
+    } else {
+      await expect(page.getByRole("progressbar")).toHaveCount(0);
+      await expect(page.getByText(/Faltam R\$|Valor mínimo atingido/)).toHaveCount(0);
+    }
+    expect(writes).toEqual([]);
+  });
+}
+
+for (const theme of ["light", "dark"] as const) for (const width of [390, 1440]) {
+  test(`published conditional offers in the full buyer hub at ${width}px ${theme}`, async ({ page }, info) => {
+    info.annotations.push({ type: "scope", description: "Local mocked API with synthetic examples; real BuyerHubPanel component, no sandbox or payment proof." });
+    await page.setViewportSize({ width, height: 900 }); await seed(page, theme);
+    await page.route("**/api/storefront/*/coupons", (route) => route.fulfill({ json: { items: [] } }));
+    await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: conditionalBenefits }));
+    await page.goto("/?hub=1");
+    await page.getByRole("tab", { name: "Fidelidade", exact: true }).click();
+    const { section, rows } = await expectConditionalExamples(page);
+    // This full-panel fixture has no CartProvider response. Catalog conditions
+    // must remain visible without inventing the cart's progress or eligibility.
+    await expect(page.getByRole("progressbar")).toHaveCount(0);
+    await expect(page.getByText(/Faltam|Valor mínimo atingido/)).toHaveCount(0);
+    await section.getByRole("heading", { name: "Condições das ofertas", exact: true }).scrollIntoViewIfNeeded();
+    expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+    expect(await section.evaluate((element) => element.scrollWidth > element.clientWidth)).toBe(false);
+    await page.screenshot({ path: info.outputPath(`conditional-offers-local-${theme}-${width}.png`), fullPage: true });
+    await rows.last().scrollIntoViewIfNeeded();
+    await expect(rows.last().getByText(conditionalExamples[3].condition, { exact: true })).toBeVisible();
+    await page.screenshot({ path: info.outputPath(`conditional-offers-local-${theme}-${width}-advanced.png`), fullPage: true });
+  });
+}
+
+test("an explicitly empty conditions catalog does not fall back to legacy available benefits", async ({ page }) => {
+  await seed(page);
+  await page.route("**/buyer/me/benefits**", (route) => route.fulfill({ json: {
+    ...conditionalBenefits, conditions: [], available: [conditionalExamples[0]],
+  } }));
+  await open(page);
+  await expect(page.getByText("Nenhum cupom de uso geral disponível no momento.")).toBeVisible();
+  await expect(page.getByRole("region", { name: "Condições das ofertas", exact: true })).toHaveCount(0);
+  await expect(page.getByText(conditionalExamples[0].description, { exact: true })).toHaveCount(0);
 });

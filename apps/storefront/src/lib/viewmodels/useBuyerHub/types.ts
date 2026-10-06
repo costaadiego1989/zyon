@@ -154,6 +154,8 @@ export interface BenefitProgress {
 
 export interface BuyerBenefits {
   available: AvailableBenefit[];
+  /** Published conditions, without claiming eligibility or granting a benefit. */
+  conditions?: AvailableBenefit[];
   earned: EarnedBenefit[];
   progress: BenefitProgress[];
   offers?: BuyerPersonalizedOffer[];

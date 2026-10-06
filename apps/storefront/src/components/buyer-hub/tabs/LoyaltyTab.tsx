@@ -93,6 +93,7 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
     : null;
   const shippingThresholds = (benefits?.progress ?? []).filter((item) => validNumber(item.target) && item.target > 0);
   const earned = (benefits?.earned ?? []).filter((item) => item.description?.trim() && (!item.expiresAt || Date.parse(item.expiresAt) > Date.now()));
+  const conditionalOffers = benefits?.conditions ?? benefits?.available ?? [];
   const active = cartSnapshot?.activeRules?.filter((rule) => typeof rule.message === "string" && rule.message.trim()) ?? [];
   const ordersCount = validCount(summary?.orders_count) ? summary.orders_count : validCount(loyalty?.total_orders) ? loyalty.total_orders : 0;
   const totalSpent = validNumber(summary?.total_spent) ? summary.total_spent : validNumber(loyalty?.total_spent_cents) ? loyalty.total_spent_cents / 100 : 0;
@@ -158,9 +159,10 @@ export default function LoyaltyTab({ loyalty, summary, discountRules, benefits, 
       })}</ul> : <div className={styles.empty}><p>Nenhum cupom de uso geral disponível no momento.</p></div>}
     </section>
 
-    {(benefits?.available?.length ?? 0) > 0 && <section className={styles.section} aria-label="Outras condições da loja">
-      <h3>Outras condições da loja</h3>
-      <ul className={styles.list} aria-label="Descontos disponíveis para você">{benefits!.available.map((benefit, index) => <li className={styles.row} key={benefit.ruleId || index}>
+    {conditionalOffers.length > 0 && <section className={styles.section} aria-label="Condições das ofertas">
+      <h3>Condições das ofertas</h3>
+      <p className={styles.note}>Confira no checkout quais ofertas se aplicam ao seu pedido.</p>
+      <ul className={styles.list} aria-label="Ofertas condicionais da loja">{conditionalOffers.map((benefit, index) => <li className={styles.row} key={benefit.ruleId || index}>
         <h4 className={styles.title}>{benefit.description}</h4>
         {validNumber(benefit.maxReais) && <p className={styles.note}>Desconto limitado a {amount(benefit.maxReais)}.</p>}
         <dl className={styles.terms}><dt>Condição de uso</dt><dd>{conditionText(benefit.condition)}</dd></dl>
