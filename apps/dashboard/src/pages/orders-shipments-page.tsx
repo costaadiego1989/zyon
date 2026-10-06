@@ -40,6 +40,7 @@ const PAYMENT_METHOD_LABELS: Record<string, string> = {
   credit_card: "Cartão",
   boleto: "Boleto",
   crypto: "Crypto",
+  qa_fixture: "Pagamento de teste",
 };
 
 const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
@@ -328,7 +329,7 @@ function OrderSidePanel({ vm, merchantId }: { vm: ReturnType<typeof useOrdersShi
   const valueStyle: React.CSSProperties = { font: "13px var(--font-sans)", color: "var(--color-text)" };
 
   return (
-    <Modal isOpen title={"Pedido " + order.external_order_id} subtitle="Itens, cliente, entrega e histórico de atualizações." presentation="center" size="lg" onClose={() => { if (!vm.busy) vm.closeOrderDetails(); }} footer={<Button variant="outline" disabled={vm.busy} onClick={vm.closeOrderDetails}>Fechar</Button>}>
+    <Modal isOpen title={order.payment_method === "qa_fixture" ? "Pedido de demonstração" : "Pedido " + order.external_order_id} subtitle={order.payment_method === "qa_fixture" ? String(customer?.full_name ?? "Itens, atendimento e histórico de atualizações.") : "Itens, cliente, entrega e histórico de atualizações."} presentation="center" size="lg" onClose={() => { if (!vm.busy) vm.closeOrderDetails(); }} footer={<Button variant="outline" disabled={vm.busy} onClick={vm.closeOrderDetails}>Fechar</Button>}>
       <div className="order-detail configuration-form">
         {vm.message && <div className="panel-error" role="alert">{vm.message}</div>}
         {order.payment_method === "qa_fixture" && <p className="order-detail__hint" role="note">Pedido de demonstração. O pagamento e os contatos são de teste. Nenhuma cobrança ou mensagem é enviada por este pedido.</p>}
@@ -385,7 +386,7 @@ function OrderSidePanel({ vm, merchantId }: { vm: ReturnType<typeof useOrdersShi
             </div>
             <div>
               <span style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)" }}>Provedor</span>
-              <div style={valueStyle}>{order.payment_provider ? PAYMENT_PROVIDER_LABELS[order.payment_provider] || order.payment_provider : "—"}</div>
+              <div style={valueStyle}>{order.payment_method === "qa_fixture" ? "Simulado" : order.payment_provider ? PAYMENT_PROVIDER_LABELS[order.payment_provider] || order.payment_provider : "—"}</div>
             </div>
             {order.paid_at && (
               <div style={{ gridColumn: "1 / -1" }}>
@@ -712,7 +713,8 @@ function OrderTimelineSection({
 function TimelineEntry({ event }: { event: OrderTimelineEntry }) {
   const location = typeof event.data?.location === "string" ? event.data.location : null;
   const label = timelineLabel(event);
-  const description = event.description?.trim();
+  const rawDescription = event.description?.trim();
+  const description = event.type === "fulfillment" && rawDescription ? FULFILLMENT_ACTION_LABELS[rawDescription] ?? rawDescription : rawDescription;
   return (
     <li style={{ display: "grid", gridTemplateColumns: "10px minmax(0, 1fr)", gap: 10, padding: "10px 0", borderTop: "1px solid var(--color-border)" }}>
       <span aria-hidden style={{ width: 8, height: 8, borderRadius: "50%", marginTop: 5, background: event.type === "tracking" ? "var(--color-brand)" : "var(--color-text-faint)" }} />
@@ -730,6 +732,7 @@ function TimelineEntry({ event }: { event: OrderTimelineEntry }) {
 
 function timelineLabel(event: OrderTimelineEntry): string {
   const status = event.status?.trim();
+  if (event.type === "fulfillment") return status ? `Atendimento: ${UNIT_LABELS[status] ?? status.replaceAll("_", " ")}` : "Atualização do atendimento";
   const statusLabel = status ? STATUS_LABELS[status] ?? status.replaceAll("_", " ") : undefined;
   if (event.type === "tracking") return statusLabel ? `Rastreio: ${statusLabel}` : "Atualização de rastreio";
   if (event.type === "payment") return statusLabel ? `Pagamento: ${statusLabel}` : "Atualização de pagamento";
@@ -737,3 +740,17 @@ function timelineLabel(event: OrderTimelineEntry): string {
   if (event.type === "order") return statusLabel ? `Pedido: ${statusLabel}` : "Atualização do pedido";
   return statusLabel ?? "Atualização registrada";
 }
+
+const FULFILLMENT_ACTION_LABELS: Record<string, string> = {
+  confirm_schedule: "Agendamento confirmado",
+  start_service: "Atendimento iniciado",
+  complete_service: "Atendimento concluído",
+  reschedule_service: "Atendimento reagendado",
+  no_show: "Ausência registrada",
+  start_preparation: "Preparação iniciada",
+  mark_ready: "Pronto para retirada ou envio",
+  collect: "Retirada registrada",
+  dispatch_local: "Entrega própria iniciada",
+  deliver_local: "Entrega própria registrada",
+  refresh_digital: "Disponibilização digital verificada",
+};

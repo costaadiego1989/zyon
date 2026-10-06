@@ -8,6 +8,7 @@ const STATUS: Record<string, string> = {
   blocked: "Envio bloqueado", uncertain: "Confirmação pendente", revoked: "Acesso indisponível",
 };
 const REASONS: Record<string, string> = {
+  sandbox_fixture_transport_disabled: "Os envios deste pedido de demonstração estão desativados.",
   email_not_configured: "Configure o envio de email e tente novamente.",
   email_provider_rejected: "O provedor recusou o email. Confira o destinatário e a configuração antes de tentar novamente.",
   whatsapp_template_unavailable: "Conecte o WhatsApp e confira a aprovação do modelo de entrega digital antes de tentar novamente.",
