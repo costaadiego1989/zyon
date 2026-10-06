@@ -35,6 +35,8 @@ export function resolveCorsConfig(env: NodeJS.ProcessEnv = process.env): CorsCon
   const allowedHeaders = [
     "Content-Type",
     "Authorization",
+    "X-Buyer-Authorization",
+    "X-AI-User-Token",
     "Idempotency-Key",
     "If-Match",
     "If-None-Match",

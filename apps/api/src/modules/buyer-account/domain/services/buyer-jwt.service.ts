@@ -56,6 +56,10 @@ export class BuyerJwtService {
     const expected = hmacSign(`${header}.${payload}`, this.secret);
     if (!safeEqual(signature, expected)) throw new Error("jwt_invalid_signature");
     const decoded = JSON.parse(Buffer.from(payload, "base64url").toString("utf8")) as BuyerJwtPayload;
+    const decodedHeader = JSON.parse(Buffer.from(header, "base64url").toString("utf8"));
+    if (decodedHeader.alg !== "HS256" || decodedHeader.typ !== "JWT" ||
+      !Number.isSafeInteger(decoded.iat) || !Number.isSafeInteger(decoded.exp) || decoded.iat > nowSeconds || decoded.exp <= decoded.iat ||
+      typeof decoded.sub !== "string" || !/^[A-Za-z0-9_-]{1,200}$/.test(decoded.sub)) throw new Error("jwt_invalid_claims");
     if (decoded.exp <= nowSeconds) throw new Error("jwt_expired");
     if (decoded.aud !== "buyer" || decoded.role !== "buyer") throw new Error("jwt_wrong_audience");
     // H3 fix: include merchantId if present in claims

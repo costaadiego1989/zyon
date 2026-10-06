@@ -2,7 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { requireSecret } from "../config/secret-config.js";
 import { resolveCorsConfig } from "../config/cors-config.js";
 
-export type RealtimePurpose = "storefront-conversation" | "support-ticket";
+export type RealtimePurpose = "storefront-conversation" | "support-ticket" | "ai-voice-turn";
 export interface RealtimeCapability {
   typ: "aacp_realtime_v1";
   purpose: RealtimePurpose;
@@ -12,6 +12,7 @@ export interface RealtimeCapability {
   expiresAt: number;
   nonce: string;
   origin?: string;
+  aiUserId?: string;
 }
 
 const MAX_LIFETIME_SECONDS = 3600;
@@ -29,13 +30,17 @@ export class RealtimeCapabilityService {
     this.secret = secret;
   }
 
-  issue(input: { purpose: RealtimePurpose; merchantId: string; resourceId: string; origin?: string }, now = Math.floor(Date.now() / 1000)) {
+  issue(input: { purpose: RealtimePurpose; merchantId: string; resourceId: string; origin?: string; aiUserId?: string }, now = Math.floor(Date.now() / 1000)) {
     const claims: RealtimeCapability = {
       typ: "aacp_realtime_v1", ...input, issuedAt: now,
       expiresAt: now + MAX_LIFETIME_SECONDS, nonce: randomUUID(),
     };
     this.validate(claims, input.purpose, input.origin, now);
-    const payload = Buffer.from(JSON.stringify(claims)).toString("base64url");
+    // Voice permits travel in Realtime response metadata (512 chars per value).
+    const serialized = claims.purpose === "ai-voice-turn"
+      ? [1, claims.merchantId, claims.resourceId, claims.issuedAt, claims.expiresAt, claims.nonce, claims.origin ?? null, claims.aiUserId]
+      : claims;
+    const payload = Buffer.from(JSON.stringify(serialized)).toString("base64url");
     return { token: `${payload}.${this.signature(payload)}`, expiresAt: claims.expiresAt };
   }
 
@@ -45,11 +50,11 @@ export class RealtimeCapabilityService {
     return claims;
   }
 
-  renewConversation(token: unknown, resourceId: string, origin?: string, now = Math.floor(Date.now() / 1000)) {
+  renewConversation(token: unknown, resourceId: string, origin?: string, now = Math.floor(Date.now() / 1000), aiUserId?: string) {
     const claims = this.readSignedClaims(token);
     this.validate(claims, "storefront-conversation", origin, now, CONVERSATION_RENEWAL_WINDOW_SECONDS);
     if (claims.resourceId !== resourceId) throw new Error("conversation_access_denied");
-    return this.issue({ purpose: claims.purpose, merchantId: claims.merchantId, resourceId: claims.resourceId, origin: claims.origin }, now);
+    return this.issue({ purpose: claims.purpose, merchantId: claims.merchantId, resourceId: claims.resourceId, origin: claims.origin, aiUserId: aiUserId ?? claims.aiUserId }, now);
   }
 
   private readSignedClaims(token: unknown): RealtimeCapability {
@@ -60,7 +65,10 @@ export class RealtimeCapabilityService {
     const expected = Buffer.from(this.signature(payload!));
     const actual = Buffer.from(signature!);
     if (expected.length !== actual.length || !timingSafeEqual(expected, actual)) throw new Error("invalid_realtime_token");
-    const claims = JSON.parse(Buffer.from(payload!, "base64url").toString("utf8")) as RealtimeCapability;
+    const decoded = JSON.parse(Buffer.from(payload!, "base64url").toString("utf8"));
+    const claims: RealtimeCapability = Array.isArray(decoded) && decoded.length === 8 && decoded[0] === 1
+      ? { typ: "aacp_realtime_v1", purpose: "ai-voice-turn", merchantId: decoded[1], resourceId: decoded[2], issuedAt: decoded[3], expiresAt: decoded[4], nonce: decoded[5], origin: decoded[6] ?? undefined, aiUserId: decoded[7] }
+      : decoded;
     return claims;
   }
 
@@ -76,6 +84,7 @@ export class RealtimeCapabilityService {
       claims.expiresAt <= claims.issuedAt || claims.expiresAt - claims.issuedAt > MAX_LIFETIME_SECONDS) {
       throw new Error("invalid_or_expired_realtime_token");
     }
+    if (claims.aiUserId !== undefined && (typeof claims.aiUserId !== "string" || !/^(buyer|visitor):[A-Za-z0-9_-]{1,200}$/.test(claims.aiUserId))) throw new Error("invalid_ai_user_identity");
     if (claims.origin !== undefined && (!isHttpOrigin(claims.origin) || claims.origin !== origin)) {
       throw new Error("realtime_origin_not_allowed");
     }

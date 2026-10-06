@@ -2,6 +2,8 @@ import { NextResponse } from "next/server";
 
 interface ConversationStartBody {
   merchant_id?: unknown;
+  ai_user_token?: unknown;
+  buyer_access_token?: unknown;
 }
 
 function validMerchantId(value: unknown): value is string {
@@ -60,7 +62,7 @@ export async function POST(request: Request) {
         "X-Internal-Service-Token": serviceToken,
         "X-Trusted-Storefront-Origin": origin,
       },
-      body: JSON.stringify({ merchant_id: body.merchant_id.trim() }),
+      body: JSON.stringify({ merchant_id: body.merchant_id.trim(), ai_user_token: body.ai_user_token, buyer_access_token: body.buyer_access_token }),
       cache: "no-store",
       signal: AbortSignal.timeout(10000),
     });

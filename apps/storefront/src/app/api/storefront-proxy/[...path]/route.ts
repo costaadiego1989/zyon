@@ -91,6 +91,8 @@ async function proxy(request: Request, context: RouteContext): Promise<NextRespo
   const buyerAuthorization = request.headers.get("x-buyer-authorization");
   if (contentType) headers.set("Content-Type", contentType);
   if (buyerAuthorization) headers.set("X-Buyer-Authorization", buyerAuthorization);
+  const visitorToken = request.headers.get("x-ai-user-token");
+  if (visitorToken) headers.set("X-AI-User-Token", visitorToken);
 
   try {
     const response = await fetch(`${apiBase}/storefront/${targetPath}${requestUrl.search}`, {
@@ -104,7 +106,7 @@ async function proxy(request: Request, context: RouteContext): Promise<NextRespo
     const responseHeaders = new Headers({ "Cache-Control": "no-store" });
     const responseContentType = response.headers.get("content-type");
     if (responseContentType) responseHeaders.set("Content-Type", responseContentType);
-    for (const name of ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After"]) {
+    for (const name of ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "X-AI-RateLimit-Limit", "X-AI-RateLimit-Remaining", "X-AI-RateLimit-Reset", "Retry-After"]) {
       const value = response.headers.get(name);
       if (value) responseHeaders.set(name, value);
     }

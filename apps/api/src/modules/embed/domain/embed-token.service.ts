@@ -26,6 +26,7 @@ export type EmbedTokenClaims = {
   scopes?: EmbedScope[];
   cartRef?: string;
   storefrontCartRef?: string;
+  aiUserId?: string;
   /** Only issued after signed recovery and buyer ownership validation. */
   recoveredCheckoutSessionId?: string;
 };

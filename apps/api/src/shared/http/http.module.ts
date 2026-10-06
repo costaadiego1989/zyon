@@ -22,6 +22,8 @@ import { NonProductionRouteGuard } from "./non-production-route.guard.js";
 import { ProblemDetailsFilter } from "./problem-details.filter.js";
 import { RateLimitGuard } from "./rate-limit.guard.js";
 import { DistributedRateLimitStore } from "./rate-limit.store.js";
+import { AiUserRateLimitService } from "./ai-user-rate-limit.service.js";
+import { AiUserIdentityService } from "./ai-user-identity.service.js";
 import { WidgetAssetsController } from "./widget-assets.controller.js";
 import { MetricsMiddleware } from "./metrics.middleware.js";
 import { MetricsController } from "./metrics.controller.js";
@@ -37,6 +39,8 @@ import { MetricsController } from "./metrics.controller.js";
     },
     { provide: APP_GUARD, useClass: NonProductionRouteGuard },
     { provide: DistributedRateLimitStore, useFactory: () => new DistributedRateLimitStore() },
+    AiUserRateLimitService,
+    { provide: AiUserIdentityService, useFactory: () => new AiUserIdentityService() },
     { provide: APP_GUARD, useClass: RateLimitGuard },
     EntityTagService,
     {
@@ -48,7 +52,7 @@ import { MetricsController } from "./metrics.controller.js";
     { provide: APP_INTERCEPTOR, useClass: IdempotencyInterceptor },
     { provide: APP_FILTER, useClass: ProblemDetailsFilter },
   ],
-  exports: [HttpClientService, EntityTagService, DistributedRateLimitStore],
+  exports: [HttpClientService, EntityTagService, DistributedRateLimitStore, AiUserRateLimitService, AiUserIdentityService],
 })
 export class HttpModule implements NestModule {
   configure(consumer: MiddlewareConsumer): void {

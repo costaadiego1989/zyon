@@ -13,5 +13,9 @@ export function friendlyAuthError(error: unknown): string {
   if (text.includes("email_already_registered")) return "Este e-mail já está cadastrado.";
   if (text.includes("invalid_credentials")) return "E-mail ou senha inválidos.";
   if (text.includes("login_rate_limited")) return "Muitas tentativas. Tente novamente em alguns minutos.";
+  if (text.includes("captcha_invalid")) return "Conclua uma nova verificação de segurança e tente novamente.";
+  if (text.includes("captcha_unavailable")) return "A verificação de segurança está indisponível. Tente novamente em instantes.";
+  if (text.includes("captcha_invalid")) return "Conclua uma nova verificação de segurança e tente novamente.";
+  if (text.includes("captcha_unavailable")) return "A verificação de segurança está indisponível. Tente novamente em instantes.";
   return text.slice(0, 180) || "Não foi possível autenticar.";
 }

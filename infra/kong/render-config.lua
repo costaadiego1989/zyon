@@ -86,8 +86,8 @@ local config = {
       config = {
         origins = origins, credentials = true, max_age = 3600,
         methods = { "GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "HEAD" },
-        headers = { "Content-Type", "Authorization", "Idempotency-Key", "If-Match", "If-None-Match", "X-Request-Id", "x-aacp-api-key", "x-correlation-id", "x-aacp-embed-token", "x-aacp-event-id", "x-aacp-event-type", "x-aacp-timestamp", "x-aacp-signature" },
-        exposed_headers = { "ETag", "Idempotency-Replayed", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After" },
+        headers = { "Content-Type", "Authorization", "Idempotency-Key", "If-Match", "If-None-Match", "X-Request-Id", "x-aacp-api-key", "x-correlation-id", "x-aacp-embed-token", "x-aacp-event-id", "x-aacp-event-type", "x-aacp-timestamp", "x-aacp-signature", "X-AI-User-Token", "X-Buyer-Authorization" },
+        exposed_headers = { "ETag", "Idempotency-Replayed", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After", "X-AI-RateLimit-Limit", "X-AI-RateLimit-Remaining", "X-AI-RateLimit-Reset" },
       },
     },
     { name = "request-size-limiting", config = { allowed_payload_size = 10 } },

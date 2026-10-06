@@ -1,5 +1,9 @@
-import { BadGatewayException, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { BadGatewayException, Injectable, ServiceUnavailableException, type OnModuleDestroy } from "@nestjs/common";
 import { createHash } from "node:crypto";
+import WebSocket from "ws";
+import { AiUserRateLimitService } from "../http/ai-user-rate-limit.service.js";
+import { RealtimeCapabilityService } from "../auth/realtime-capability.js";
+import { RealtimeVoiceTurnGate } from "./realtime-voice-turn-gate.js";
 
 export type VoiceCartContext = {
   items: Array<{ name: string; quantity: number; unitPrice?: number; variant?: string }>;
@@ -17,12 +21,33 @@ export type OpenAIRealtimeVoiceSessionInput = {
   surface?: "storefront" | "checkout";
   checkoutPrompt?: string;
   cart: VoiceCartContext;
+  aiUserId?: string;
+  origin?: string;
+  resolveAiUserId?: () => Promise<string>;
 };
 export type OpenAIRealtimeProductNarrationInput = {
   merchantId: string;
   conversationId: string;
   summary: string;
+  aiUserId?: string;
+  origin?: string;
 };
+export type OpenAIRealtimeVoiceCallInput = OpenAIRealtimeVoiceSessionInput & {
+  sdp: string;
+};
+
+export type OpenAIRealtimeVoiceCall = {
+  sdp: string;
+  providerCallId?: string;
+};
+
+/** A request may have reached OpenAI even though Zyon did not receive a result. */
+export class OpenAIRealtimeVoiceCallUnknownError extends Error {
+  constructor() {
+    super("voice_provider_call_result_unknown");
+  }
+}
+
 type OpenAIClientSecretResponse = { value?: unknown; expires_at?: unknown };
 
 // Keeps spoken turns concise while allowing a complete tool call when needed.
@@ -31,9 +56,103 @@ const PRODUCT_NARRATION_MAX_OUTPUT_TOKENS = 256;
 const MAX_VOICE_CART_ITEMS = 4;
 const MAX_VOICE_ITEM_TEXT_LENGTH = 72;
 
-/** Permanent OpenAI credentials remain on the server; browsers get only an ephemeral secret. */
+/** WebRTC negotiation and response admission remain under server control. */
 @Injectable()
-export class OpenAIRealtimeVoiceService {
+export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
+  private readonly activeCalls = new Set<() => Promise<void>>();
+  constructor(private readonly userLimiter: AiUserRateLimitService) {}
+
+  async onModuleDestroy(): Promise<void> { await Promise.allSettled([...this.activeCalls].map(close => close())); }
+
+  async createCall(input: OpenAIRealtimeVoiceCallInput, session: Record<string, unknown> = this.sessionConfig(input)): Promise<OpenAIRealtimeVoiceCall> {
+    if (process.env.OPENAI_REALTIME_ENABLED?.trim().toLowerCase() === "false") {
+      throw new ServiceUnavailableException("voice_checkout_disabled");
+    }
+
+    const apiKey = process.env.OPENAI_API_KEY?.trim();
+    if (!apiKey) throw new ServiceUnavailableException("voice_provider_not_configured");
+    if (!input.aiUserId) throw new ServiceUnavailableException("ai_user_identity_required");
+
+    const sdp = input.sdp.trim();
+    if (!sdp) throw new BadGatewayException("voice_provider_invalid_offer");
+
+    let response: Response;
+    try {
+      const form = new FormData();
+      form.set("sdp", sdp);
+      form.set("session", JSON.stringify(session));
+      response = await fetch(`${this.baseUrl()}/realtime/calls`, {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${apiKey}`,
+          "OpenAI-Safety-Identifier": safetyIdentifier(input.merchantId, input.conversationId),
+        },
+        body: form,
+        signal: AbortSignal.timeout(15_000),
+      });
+    } catch {
+      throw new OpenAIRealtimeVoiceCallUnknownError();
+    }
+
+    if (!response.ok) {
+      if (response.status >= 500) throw new OpenAIRealtimeVoiceCallUnknownError();
+      throw new BadGatewayException("voice_provider_session_failed");
+    }
+
+    const answer = (await response.text()).trim();
+    if (!answer) throw new OpenAIRealtimeVoiceCallUnknownError();
+    const providerCallId = response.headers.get("location")?.split("/").filter(Boolean).pop() ?? response.headers.get("x-openai-call-id")?.trim();
+    if (!providerCallId || !/^[A-Za-z0-9_-]+$/.test(providerCallId)) throw new OpenAIRealtimeVoiceCallUnknownError();
+    try { await this.attachTurnGate(providerCallId, apiKey, input); }
+    catch { await this.hangup(providerCallId, apiKey).catch(() => undefined); throw new OpenAIRealtimeVoiceCallUnknownError(); }
+    return { sdp: answer, ...(providerCallId ? { providerCallId } : {}) };
+  }
+
+  protected async attachTurnGate(callId: string, apiKey: string, input: OpenAIRealtimeVoiceSessionInput): Promise<void> {
+    const url = new URL(`${this.baseUrl()}/realtime`);
+    url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
+    url.searchParams.set("call_id", callId);
+    const socket = new WebSocket(url, { headers: { Authorization: `Bearer ${apiKey}` }, handshakeTimeout: 5000, maxPayload: 1024 * 1024 });
+    let closing = false;
+    const close = async () => {
+      if (closing) return;
+      closing = true;
+      this.activeCalls.delete(close);
+      clearTimeout(lifetime);
+      try { await this.hangup(callId, apiKey); }
+      catch { /* The provider outcome remains unknown; never admit more turns. */ }
+      finally { socket.terminate(); }
+    };
+    const lifetime = setTimeout(() => { void close(); }, 30 * 60_000);
+    lifetime.unref();
+    this.activeCalls.add(close);
+    const gate = new RealtimeVoiceTurnGate({ userId: input.aiUserId!, merchantId: input.merchantId, resourceId: input.conversationId, origin: input.origin }, this.userLimiter, new RealtimeCapabilityService(), (event) => {
+      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
+    }, close, input.resolveAiUserId);
+    let events: Promise<void> = Promise.resolve();
+    socket.on("message", (data) => {
+      try { const event = JSON.parse(data.toString()); events = events.then(() => gate.handle(event)).catch(() => close()); }
+      catch { void close(); }
+    });
+    socket.on("close", () => { clearTimeout(lifetime); void close(); });
+    socket.on("error", () => { void close(); });
+    await new Promise<void>((resolve, reject) => {
+      socket.once("open", resolve);
+      socket.once("error", reject);
+      socket.once("close", () => reject(new Error("voice_sideband_closed")));
+    });
+  }
+
+  private async hangup(callId: string, apiKey: string) {
+    const response = await fetch(`${this.baseUrl()}/realtime/calls/${encodeURIComponent(callId)}/hangup`, { method: "POST", headers: { Authorization: `Bearer ${apiKey}` }, signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw new Error("voice_provider_hangup_failed");
+  }
+
+  async createProductNarrationCall(input: OpenAIRealtimeProductNarrationInput & { sdp: string }): Promise<OpenAIRealtimeVoiceCall> {
+    return this.createCall({ ...input, cart: { items: [] } }, this.productNarrationSessionConfig(input));
+  }
+
+
   async createClientSecret(input: OpenAIRealtimeVoiceSessionInput): Promise<{ value: string; expires_at?: number }> {
     return this.createSecret(input.merchantId, input.conversationId, this.sessionConfig(input));
   }
@@ -160,6 +279,7 @@ export class OpenAIRealtimeVoiceService {
       // has a tighter cap than purchase voice while still allowing natural PT-BR.
       max_output_tokens: PRODUCT_NARRATION_MAX_OUTPUT_TOKENS,
       audio: {
+        input: { turn_detection: { type: "server_vad", create_response: false, interrupt_response: false } },
         output: { voice: process.env.OPENAI_REALTIME_VOICE?.trim() || "marin" },
       },
       tools: [],

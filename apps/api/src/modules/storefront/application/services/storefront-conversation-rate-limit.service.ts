@@ -1,24 +1,20 @@
-import { Inject, Injectable } from "@nestjs/common";
-import { RateLimitStore, type RateLimitDecision } from "../../../../shared/rate-limit/rate-limit.store.js";
+import { Inject, Injectable, ServiceUnavailableException } from "@nestjs/common";
+import { DistributedRateLimitStore, type QuotaDecision } from "../../../../shared/http/rate-limit.store.js";
+import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
 
 /**
- * A buyer may make at most ten requests in a minute in the same storefront
- * conversation. The key is based on verified capability claims, so reconnecting
- * or switching between HTTP and WebSocket cannot reset the allowance.
+ * Adapts storefront entry points to the shared user policy. Conversation,
+ * merchant, channel and plan changes never allocate an additional allowance.
  */
 export const STOREFRONT_CONVERSATION_REQUEST_LIMIT = 10;
 export const STOREFRONT_CONVERSATION_RATE_WINDOW_MS = 60_000;
 
 @Injectable()
 export class StorefrontConversationRateLimitService {
-  constructor(@Inject(RateLimitStore) private readonly store: RateLimitStore) {}
+  constructor(@Inject(DistributedRateLimitStore) private readonly store: DistributedRateLimitStore) {}
 
-  consume(merchantId: string, conversationId: string, now = Date.now()): RateLimitDecision {
-    return this.store.hit(
-      `storefront:conversation:${merchantId}:${conversationId}`,
-      STOREFRONT_CONVERSATION_REQUEST_LIMIT,
-      STOREFRONT_CONVERSATION_RATE_WINDOW_MS,
-      now,
-    );
+  async consume(merchantId: string, conversationId: string, userId?: string): Promise<QuotaDecision & { limit: number }> {
+    if (userId) return new AiUserRateLimitService(this.store).consume(userId);
+    throw new ServiceUnavailableException({ code: "ai_user_identity_required" });
   }
 }

@@ -1,4 +1,6 @@
 import { API_BASE } from "./http";
+import { aiVisitorToken, rememberAiVisitorToken } from "../conversation-access";
+import { getValidBuyer } from "../buyer-auth";
 
 export interface FaqItem {
   id?: string;
@@ -127,12 +129,15 @@ export async function sendSupportChat(
   try {
     const res = await fetch(`${API_BASE}/support/chat/public`, {
       method: "POST",
-      headers: { "Content-Type": "application/json" },
+      headers: { "Content-Type": "application/json", ...(aiVisitorToken() ? { "X-AI-User-Token": aiVisitorToken()! } : {}), ...(getValidBuyer()?.token ? { "X-Buyer-Authorization": `Bearer ${getValidBuyer()!.token}` } : {}) },
       body: JSON.stringify(payload),
     });
     if (res.ok) {
-      return (await res.json()) as ChatResponse;
+      const data = await res.json();
+      if (typeof data.ai_user_token === "string") rememberAiVisitorToken(data.ai_user_token);
+      return data as ChatResponse;
     }
+    if (res.status === 429) return { reply: "Você atingiu 10 mensagens por minuto. Aguarde um minuto para continuar." };
   } catch {}
   return {};
 }

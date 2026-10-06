@@ -2,11 +2,12 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-type RealtimeClientSecret = { value: string; expires_at?: number };
+type RealtimeCall = { sdp: string };
 type RealtimeEvent = {
   type?: string;
   delta?: string;
   transcript?: string;
+  item?: { role?: string; content?: Array<{ text?: string }> };
   response?: {
     status?: string;
     output?: Array<{ content?: Array<{ transcript?: string; text?: string }> }>;
@@ -22,7 +23,7 @@ export type ProductNarrationProgress = {
 
 type Options = {
   enabled: boolean;
-  createSession: (summary: string) => Promise<RealtimeClientSecret>;
+  createSession: (summary: string, input: { sdp: string }) => Promise<RealtimeCall>;
   onProgress?: (progress: ProductNarrationProgress) => void;
 };
 
@@ -154,9 +155,6 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
       }
       publish({ status: "connecting", hint: "Preparando o resumo em áudio...", transcript: "" });
       try {
-        const secret = await createSessionRef.current(source);
-        if (attempt !== attemptRef.current) return;
-        if (!secret.value) throw new Error("narration_session_missing");
 
         const peer = new RTCPeerConnection();
         peerRef.current = peer;
@@ -182,6 +180,21 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
           if (attempt !== attemptRef.current) return;
           try {
             const event = JSON.parse(message.data) as RealtimeEvent;
+            if ((event.type === "conversation.item.added" || event.type === "conversation.item.created") && event.item?.role === "assistant") {
+              for (const part of event.item.content ?? []) {
+                if (!part.text) continue;
+                try {
+                  const notice = JSON.parse(part.text) as { zyon_voice_error?: string; retry_after_seconds?: number };
+                  if (!notice.zyon_voice_error) continue;
+                  const retry = Math.max(1, Number(notice.retry_after_seconds) || 60);
+                  release();
+                  publish({ status: "error", hint: notice.zyon_voice_error === "ai_interaction_rate_limited"
+                    ? `Você atingiu o limite de 10 mensagens por minuto. Tente novamente em ${retry} segundos.`
+                    : "O resumo em áudio está indisponível agora. Tente novamente em instantes.", transcript: "" });
+                  return;
+                } catch { /* Ordinary assistant content. */ }
+              }
+            }
             if (event.type === "session.closed") {
               release();
               return;
@@ -213,7 +226,6 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
             type: "conversation.item.create",
             item: { type: "message", role: "user", content: [{ type: "input_text", text: "Reproduza agora o resumo configurado para este produto." }] },
           }));
-          channel.send(JSON.stringify({ type: "response.create" }));
         });
         channel.addEventListener("close", () => {
           if (peerRef.current !== peer) return;
@@ -230,18 +242,10 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
         await peer.setLocalDescription(offer);
         await waitForIceGathering(peer);
         if (attempt !== attemptRef.current) return;
-        const response = await fetch("https://api.openai.com/v1/realtime/calls", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${secret.value}`, "Content-Type": "application/sdp" },
-          body: peer.localDescription?.sdp ?? offer.sdp,
-        });
-        if (!response.ok) {
-          const error = new Error("narration_connection_failed") as VoiceError;
-          error.status = response.status;
-          throw error;
-        }
-        const answer = await response.text();
+        const call = await createSessionRef.current(source, { sdp: peer.localDescription?.sdp ?? offer.sdp ?? "" });
         if (attempt !== attemptRef.current) return;
+        if (!call.sdp) throw new Error("narration_session_missing");
+        const answer = call.sdp;
         await peer.setRemoteDescription({ type: "answer", sdp: answer });
       } catch (error) {
         if (attempt !== attemptRef.current) return;

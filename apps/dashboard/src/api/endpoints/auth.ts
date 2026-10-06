@@ -34,12 +34,12 @@ export function authEndpoints(base: string, f: typeof fetch) {
       return dashboardJson<Record<string, never>>(base, "/auth/logout", { method: "POST" }, f);
     },
 
-    forgotPassword(email: string): Promise<{ ok: true }> {
-      return dashboardJson(base, "/auth/forgot-password", { method: "POST", jsonBody: { email } }, f);
+    forgotPassword(email: string, turnstileToken?: string): Promise<{ ok: true }> {
+      return dashboardJson(base, "/auth/forgot-password", { method: "POST", jsonBody: { email, turnstile_token: turnstileToken } }, f);
     },
 
-    resetPassword(token: string, password: string): Promise<{ ok: true }> {
-      return dashboardJson(base, "/auth/reset-password", { method: "POST", jsonBody: { token, password } }, f);
+    resetPassword(token: string, password: string, turnstileToken?: string): Promise<{ ok: true }> {
+      return dashboardJson(base, "/auth/reset-password", { method: "POST", jsonBody: { token, password, turnstile_token: turnstileToken } }, f);
     },
 
     getMe(): Promise<{ name?: string; merchant_name?: string; email?: string; phone?: string }> {

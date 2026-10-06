@@ -5,6 +5,7 @@ import BuyerRegistrationForm from "../BuyerRegistrationForm";
 import { useState, useCallback, useEffect, useRef } from "react";
 import { useBuyerHub, type TabType } from "@/lib/viewmodels/useBuyerHub";
 import { getValidBuyer } from "@/lib/buyer-auth";
+import { Turnstile } from "@zyon/checkout-ui";
 import { useCart } from "@/lib/cart-store";
 import ProfileTab from "./tabs/ProfileTab";
 import { OrdersTab } from "./tabs/OrdersTab";
@@ -17,6 +18,7 @@ import { SettingsTab } from "./tabs/SettingsTab";
 
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 const AUTH_STORAGE_KEY = "aacp_buyer_auth_session";
 
 
@@ -133,6 +135,8 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
   onAccountNotFound: (credentials: { email: string; otp: string }) => void;
 }) {
   const [email, setEmail] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [emailCode, setEmailCode] = useState("");
   const [codeSent, setCodeSent] = useState(false);
   const [loading, setLoading] = useState(false);
@@ -140,18 +144,18 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
   const [accountNotFound, setAccountNotFound] = useState<{ email: string; otp: string } | null>(null);
 
   async function handleSendCode() {
-    if (!email.includes("@")) return;
+    if (loading || !email.includes("@") || (TURNSTILE_SITE_KEY && !captchaToken)) return;
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/buyer/email/send`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, merchant_id: merchantId }),
+        body: JSON.stringify({ email, merchant_id: merchantId, turnstile_token: captchaToken ?? undefined }),
       });
       if (!res.ok) {
         const payload = await res.json().catch(() => null);
-        setError(payload?.message ?? "Falha ao enviar codigo.");
+        setError(payload?.detail ?? payload?.message ?? "Falha ao enviar codigo.");
         return;
       }
       setCodeSent(true);
@@ -159,18 +163,20 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
       setError("Erro de rede ao enviar codigo.");
     } finally {
       setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaAttempt(value => value + 1);
     }
   }
 
   async function handleVerifyCode() {
-    if (emailCode.length !== 6) return;
+    if (loading || emailCode.length !== 6 || (TURNSTILE_SITE_KEY && !captchaToken)) return;
     setLoading(true);
     setError(null);
     try {
       const res = await fetch(`${API_BASE}/buyer/email/login/verify`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ email, code: emailCode }),
+        body: JSON.stringify({ email, code: emailCode, turnstile_token: captchaToken ?? undefined }),
       });
       const payload = await res.json().catch(() => null);
       if (!res.ok) {
@@ -178,7 +184,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
           setAccountNotFound({ email, otp: emailCode });
           return;
         }
-        setError(payload?.message ?? "Codigo invalido.");
+        setError(payload?.detail ?? payload?.message ?? "Codigo invalido.");
         return;
       }
       const globalUserId = payload.globalUserId ?? payload.global_user_id;
@@ -206,6 +212,8 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
       setError("Erro de rede ao verificar codigo.");
     } finally {
       setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaAttempt(value => value + 1);
     }
   }
 
@@ -378,9 +386,11 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
           <p style={{ fontSize: "13px", color: "#ef4444", textAlign: "center", padding: "6px 0" }} role="alert">{error}</p>
         )}
 
+        {!accountNotFound && <Turnstile siteKey={TURNSTILE_SITE_KEY} action={codeSent ? "buyer_email_login" : "buyer_email_send"} resetKey={captchaAttempt} onChange={setCaptchaToken} />}
+
         <button data-neu="primary"
           type="button"
-          disabled={loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode)}
+          disabled={loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode) || (!accountNotFound && Boolean(TURNSTILE_SITE_KEY) && !captchaToken)}
           onClick={() => {
             if (accountNotFound) {
               onAccountNotFound(accountNotFound);

@@ -1,11 +1,36 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { CheckoutSession } from "../src/api/checkout-session.js";
+import { CheckoutApiError } from "../src/api/checkout-api-error.js";
 import { ChatRecoveryRequired, parseChatState } from "../src/api/chat-protocol.js";
 
 const config = { embedToken: "fixture-token", merchantId: "store", apiBaseUrl: "https://fixture.invalid" };
 const initial = { session_id: "session", conversation_id: "conversation", chat_protocol: "durable_v2", experience: { items: [], totals: { subtotal: 0, total: 0 } } };
 const empty = { protocol: "durable_v2", session_id: "session", conversation_id: "conversation", turns: [] };
+
+for (const [status, code] of [[429, "ai_interaction_rate_limited"], [503, "ai_rate_limit_unavailable"]] as const) {
+  test(`AI admission ${status} permits a later send without chat recovery or automatic replay`, async () => fixture(async f => {
+    let attempts = 0;
+    f.route((url, body) => {
+      if (url.endsWith("/start")) return Response.json(initial);
+      if (url.includes("/chat/state")) return Response.json(empty);
+      assert.ok(url.endsWith("/embed/chat"));
+      if (++attempts === 1) return Response.json({ code, retry_after_seconds: 23 }, { status });
+      return Response.json({ message: "Confirmed", chat_request: { message_id: body.message_id, status: "completed" } });
+    });
+    await f.api.start();
+    await assert.rejects(f.api.chat("First"), (error: unknown) => error instanceof CheckoutApiError
+      && error.status === status && error.code === code && error.retryAfterSeconds === 23);
+    assert.equal(f.api.requiresChatRecovery, false);
+    assert.equal(f.storage.size, 0);
+    assert.equal(attempts, 1);
+    assert.equal((await f.api.chat("After waiting")).message, "Confirmed");
+    const sent = f.calls.filter(call => call.url.endsWith("/embed/chat"));
+    assert.equal(sent.length, 2);
+    assert.notEqual(sent[0].body.message_id, sent[1].body.message_id);
+    assert.equal(f.calls.some(call => call.url.endsWith("/reconcile")), false);
+  }));
+}
 
 test("withheld response is an explicit terminal outcome and never an agent reply", () => {
   const parse = (status: string, outcome = "withheld") => parseChatState({ ...empty,

@@ -305,27 +305,27 @@ export default function ConversationShell({
   const realtimeVoice = useRealtimeVoiceCheckout({
     // This session is reserved for the explicit purchase-voice composer control.
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
-    createSession: async () => {
+    createSession: async (input) => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
-      const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/session`, { method: "POST" });
+      const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/session`, { method: "POST", headers: { "Content-Type": "application/json", ...(getValidBuyer()?.token ? { "X-Buyer-Authorization": `Bearer ${getValidBuyer()!.token}` } : {}) }, body: JSON.stringify(input) });
       if (!response.ok) {
         const error = new Error("realtime_voice_session_failed") as Error & { status?: number };
         error.status = response.status;
         throw error;
       }
-      const data = await response.json() as { value?: unknown; expires_at?: unknown };
-      if (typeof data.value !== "string") throw new Error("invalid_realtime_voice_session");
-      return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+      const data = await response.json() as { sdp?: unknown };
+      if (typeof data.sdp !== "string") throw new Error("invalid_realtime_voice_session");
+      return { sdp: data.sdp };
     },
-    onCommerceTurn: async (buyerMessage, action) => {
+    onCommerceTurn: async (buyerMessage, action, voiceTurnToken) => {
       const selectedVariantId = action === "add_item_to_cart"
         ? presentedProductVariantRef.current ?? resolvePresentedVariantId(messages, buyerMessage)
         : undefined;
       const commerceMessage = action === "add_item_to_cart"
         ? attachPresentedVariantId(`Adicionar ao carrinho: ${buyerMessage}`, selectedVariantId)
         : buyerMessage;
-      const result = await sendMessage(commerceMessage);
+      const result = await sendMessage(commerceMessage, undefined, voiceTurnToken);
       return { agentMessage: result?.agentMessage ?? "Não consegui concluir este pedido agora. Pode repetir?", cart: { itemCount: cart.itemCount, total: cart.total } };
     },
     onBeginCheckout: async () => beginCheckout(),
@@ -339,22 +339,22 @@ export default function ConversationShell({
   const narrationVoice = useRealtimeProductNarration({
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
     onProgress: publishNarrationProgress,
-    createSession: async (summary) => {
+    createSession: async (summary, input) => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
       const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/narration`, {
         method: "POST",
-        headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary }),
+          headers: { "Content-Type": "application/json", ...(getValidBuyer()?.token ? { "X-Buyer-Authorization": `Bearer ${getValidBuyer()!.token}` } : {}) },
+        body: JSON.stringify({ summary, ...input }),
       });
       if (!response.ok) {
         const error = new Error("realtime_narration_session_failed") as Error & { status?: number };
         error.status = response.status;
         throw error;
       }
-      const data = await response.json() as { value?: unknown; expires_at?: unknown };
-      if (typeof data.value !== "string") throw new Error("invalid_realtime_narration_session");
-      return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+      const data = await response.json() as { sdp?: unknown };
+      if (typeof data.sdp !== "string") throw new Error("invalid_realtime_narration_session");
+      return { sdp: data.sdp };
     },
   });
 

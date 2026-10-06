@@ -40,6 +40,7 @@ test("SupportController opens handoff ticket and lets merchant update status", a
     new UpdateSupportTicketStatusUseCase(tickets),
     new CreateSupportTicketUseCase(tickets, publisher),
     capabilities,
+    { assertAllowed: async () => {} } as never,
   );
 
   const chat = await controller.chat(

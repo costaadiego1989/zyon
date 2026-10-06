@@ -30,6 +30,7 @@ export class ProblemDetailsFilter {
     }
 
     response.setHeader("x-correlation-id", correlationId);
+    if (problem.status === 429 && problem.retry_after_seconds) response.setHeader("Retry-After", String(problem.retry_after_seconds));
     response
       .status(problem.status)
       .type("application/problem+json")
@@ -73,6 +74,7 @@ export function toProblemDetails(
       code,
       ...(detail ? { detail } : {}),
       ...(fields ? { fields } : {}),
+      ...(status === 429 && Number.isSafeInteger(response.retry_after_seconds ?? response.retryAfterSeconds) && Number(response.retry_after_seconds ?? response.retryAfterSeconds) > 0 ? { retry_after_seconds: Number(response.retry_after_seconds ?? response.retryAfterSeconds) } : {}),
       ...(chatRequest ? { chat_request: chatRequest } : {}),
       correlation_id: correlationId,
     };

@@ -7,8 +7,26 @@ import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/rep
 import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
 import type { StartCheckoutRequest } from "@zyon/shared-types";
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
+import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
+import { DistributedRateLimitStore } from "../../../../shared/http/rate-limit.store.js";
 
 describe("EmbedCheckoutController", () => {
+  it("anonymous checkouts preserve the visitor bucket; only a verified buyer switches to the account bucket", async () => {
+    const limiter = new AiUserRateLimitService(new DistributedRateLimitStore({ production: false, ipMax: 600, tenantMax: 60, windowMs: 60000 }));
+    let verified = false;
+    const seen: string[] = [];
+    const controller = Object.assign(Object.create(EmbedCheckoutController.prototype), {
+      embedGuards: { assertSessionBelongsToEmbedMerchant: async () => undefined, loadSession: async (_merchant: string, sessionId: string) => ({ globalUserId: verified ? "real_buyer" : `generated_${sessionId}`, customer: { email_verified: verified } }) },
+      sendChat: { execute: async (_body: unknown, authority: { aiUserId: string }) => { await limiter.assertAllowed(authority.aiUserId); seen.push(authority.aiUserId); return {}; } },
+    }) as EmbedCheckoutController;
+    const request = { embedClaims: { merchantId: "m_a", aiUserId: "visitor:visitor_a" } } as never;
+    for (let i = 0; i < 10; i++) await controller.chat(request, { session_id: `checkout_${i}`, user_message: "hello" } as never);
+    await assert.rejects(() => controller.chat(request, { session_id: "new_checkout", user_message: "hello" } as never), (error: any) => error.getStatus() === 429);
+    assert.deepEqual(seen, Array(10).fill("visitor:visitor_a"));
+    verified = true;
+    await controller.chat(request, { session_id: "logged_in_checkout", user_message: "hello" } as never);
+    assert.equal(seen.at(-1), "buyer:real_buyer");
+  });
   it("display telemetry uses the signed session and drops merchant, arm and timestamp selectors", async () => {
     const claims = { typ: "aacp_embed_v1" as const, merchantId: "m1", nonce: "buyer-a", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
     const sessionId = embedCheckoutSessionId(claims), repo = new InMemoryCheckoutRepository();

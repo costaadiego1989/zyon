@@ -69,7 +69,7 @@ test("HTTP conversation aliases reject missing/foreign capability before reading
   await assert.rejects(() => controller.sendMessage("conv_a", { user_message: "hello", merchant_id: "merchant_a" }, {}), /invalid_conversation_token/);
   await assert.rejects(() => controller.getHistory("conv_a", {}), /invalid_conversation_token/);
   await assert.rejects(() => controller.trackEvent("conv_a", { event: "hello", merchant_id: "merchant_a" }, {}), /invalid_conversation_token/);
-  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a" });
+  const access = capabilities.issue({ purpose: "storefront-conversation", aiUserId: "buyer:user_a", merchantId: "merchant_a", resourceId: "conv_a" });
   const request = { headers: { authorization: `Bearer ${access.token}` } };
   await assert.rejects(() => controller.getHistory("conv_b", request), /conversation_access_denied/);
   await assert.rejects(() => controller.sendMessage("conv_a", { user_message: "hello", merchant_id: "merchant_b" }, request), /conversation_access_denied/);
@@ -93,7 +93,7 @@ test("HTTP messages enforce ten requests per minute with the conversation capabi
     attachmentInterpreter: new StorefrontAttachmentInterpreter(),
     conversationRateLimiter: new StorefrontConversationRateLimitService(new RateLimitStore()),
   }) as StorefrontController;
-  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a" });
+  const access = capabilities.issue({ purpose: "storefront-conversation", aiUserId: "buyer:user_a", merchantId: "merchant_a", resourceId: "conv_a" });
   const request = { headers: { authorization: `Bearer ${access.token}` } };
 
   for (let requestCount = 0; requestCount < 10; requestCount++) {
@@ -113,7 +113,7 @@ test("nudge derives its merchant from the conversation capability", async () => 
     capabilities,
     generateNudge: { execute: async (input: unknown) => { calls.push(input); return { message: "ok" }; } },
   }) as StorefrontController;
-  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a" });
+  const access = capabilities.issue({ purpose: "storefront-conversation", aiUserId: "buyer:user_a", merchantId: "merchant_a", resourceId: "conv_a" });
   const request = { headers: { authorization: `Bearer ${access.token}` } };
 
   await assert.rejects(

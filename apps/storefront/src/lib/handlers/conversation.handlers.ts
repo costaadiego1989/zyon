@@ -7,6 +7,7 @@ import { ConversationSessionExpiredError } from "@/lib/conversation-access";
 export interface SendMessageParams {
   trimmed: string;
   attachment?: ConversationAttachment;
+  voiceTurnToken?: string;
   conversationId: string | null;
   setConversationId: (id: string) => void;
   clearCart: () => void;
@@ -80,6 +81,7 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
         history: newHistory,
         variantId: variantId || undefined,
         attachment,
+        voiceTurnToken: params.voiceTurnToken,
         token: getValidBuyer()?.token,
       };
       let data;
@@ -176,8 +178,12 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
     } else {
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: `Entendi, "${trimmed}". Deixa eu verificar para você...` }]);
     }
-  } catch {
-    setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Não consegui concluir sua solicitação agora. Tente novamente em instantes." }]);
+  } catch (error) {
+    const failure = error as { status?: number; body?: { retry_after_seconds?: number } };
+    const text = failure.status === 429
+      ? `Você atingiu 10 mensagens por minuto. Aguarde ${failure.body?.retry_after_seconds ?? 60}s para continuar.`
+      : "Não consegui concluir sua solicitação agora. Tente novamente em instantes.";
+    setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text }]);
   }
   setIsLoading(false);
   return null;

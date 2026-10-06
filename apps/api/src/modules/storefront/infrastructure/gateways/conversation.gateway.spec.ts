@@ -24,7 +24,7 @@ function fixture() {
     new StorefrontConversationRateLimitService(new RateLimitStore()),
   );
   gateway.server = { to: (room: string) => ({ emit: (event: string) => broadcasts.push({ room, event }) }) } as never;
-  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a", origin });
+  const access = capabilities.issue({ purpose: "storefront-conversation", aiUserId: "buyer:user_a", merchantId: "merchant_a", resourceId: "conv_a", origin });
   return { gateway, calls, broadcasts, access };
 }
 
@@ -88,7 +88,7 @@ test("conversation messages reject invalid content and bound the verified conver
 
 test("other-tenant capability never enters the victim tenant room even with the same resource id", async () => {
   const { gateway } = fixture();
-  const foreign = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_b", resourceId: "conv_a", origin });
+  const foreign = capabilities.issue({ purpose: "storefront-conversation", aiUserId: "buyer:user_a", merchantId: "merchant_b", resourceId: "conv_a", origin });
   const client = connection(foreign.token);
   gateway.handleConnection(client as never);
   await gateway.handleJoinConversation(client as never, { conversationId: "conv_a" });

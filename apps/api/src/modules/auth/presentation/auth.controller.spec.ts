@@ -4,6 +4,7 @@ import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
 import { InvalidCredentialsError } from "../domain/errors.js";
 import { AuthController } from "./auth.controller.js";
+import { VerifyCaptchaUseCase } from "../application/verify-captcha.use-case.js";
 
 function makeController(): AuthController {
   return new AuthController(
@@ -21,6 +22,28 @@ test("AuthController.logout clears the auth cookie", () => {
   assert.equal(headers.get("Set-Cookie"), "aacp_access_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
 });
 
+test("forgot and reset password require fresh CAPTCHA before any reset work", async () => {
+  const controller = makeController();
+  const actions: string[] = [];
+  let allowed = false;
+  let recoveryCalls = 0;
+  let resetCalls = 0;
+  Object.assign(controller, {
+    verifyCaptcha: new VerifyCaptchaUseCase({ verify: async input => { actions.push(input.action!); return { success: allowed, reason: "invalid-token" }; } }),
+    requestPasswordReset: { execute: async () => { recoveryCalls++; return { message: "same-for-all-emails" }; } },
+    resetPassword: { execute: async () => { resetCalls++; return { message: "updated" }; } },
+  });
+  await assert.rejects(() => controller.forgotPassword({ email: "buyer@example.test" }), BadRequestException);
+  await assert.rejects(() => controller.resetPasswordAction({ token: "reset-token", password: "password" }), BadRequestException);
+  assert.equal(recoveryCalls + resetCalls, 0);
+  allowed = true;
+  await controller.forgotPassword({ email: "buyer@example.test", turnstile_token: "fresh-a" });
+  await controller.resetPasswordAction({ token: "reset-token", password: "password", turnstile_token: "fresh-b" });
+  assert.equal(recoveryCalls, 1);
+  assert.equal(resetCalls, 1);
+  assert.deepEqual(actions, ["forgot_password", "reset_password", "forgot_password", "reset_password"]);
+});
+
 test("production login and registration require CAPTCHA before normal credential validation", async () => {
   const previous = process.env.NODE_ENV;
   try {
@@ -30,7 +53,7 @@ test("production login and registration require CAPTCHA before normal credential
     let logins = 0;
     let registrations = 0;
     Object.assign(controller, {
-      verifyCaptcha: { execute: async () => ({ allowed, reason: "invalid-token" }) },
+      verifyCaptcha: { assertAllowed: async () => { if (!allowed) throw new BadRequestException("captcha_invalid"); } },
       loginWithRateLimit: { execute: async (_body: unknown, scope: { email: string; ip: string }) => {
         logins++;
         assert.equal(scope.email, "audit@example.test");

@@ -70,15 +70,17 @@ export function ChatPanel() {
       if (!api) throw new Error("checkout_session_missing");
       return api.realtimeVoiceContext();
     },
-    createSession: async () => {
+    createSession: async (input) => {
       if (!api) throw new Error("checkout_session_missing");
-      return api.createRealtimeVoiceSession();
+      return api.createRealtimeVoiceSession(input);
     },
-    onCommerceTurn: async (buyerMessage, action) => {
-      await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage);
+    onCommerceTurn: async (buyerMessage, action, voiceTurnToken) => {
+      const before = useCheckoutStore.getState().messages.length;
+      await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage, voiceTurnToken);
       const current = useCheckoutStore.getState();
       if (current.chatRecovery) throw new Error("checkout_chat_recovery_required");
-      const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
+      const agentReply = current.messages.slice(before).reverse().find((message) => message.role === "agent");
+      if (!agentReply) throw new Error("voice_commerce_response_missing");
       return {
         agentMessage: agentReply ? (messageToSpeech(agentReply) || "Atualizei sua compra. Posso continuar?") : "Atualizei sua compra. Posso continuar?",
         cart: { itemCount: current.cart.items.length, total: current.cart.total },

@@ -69,6 +69,7 @@ test("email/send forwards only email and merchant_id, ignoring arbitrary body me
   const forwarded: unknown[] = [];
   const controller = Object.assign(Object.create(BuyerAccountController.prototype), {
     sendEmailCode: { execute: async (request: unknown) => { forwarded.push(request); return { sent: true }; } },
+    verifyCaptcha: { assertAllowed: async () => undefined },
   }) as BuyerAccountController;
   await controller.handleSendEmailCode({ email: "buyer@example.test", merchant_id: "merchant_1", merchantName: "forged", merchantId: "forged" } as never);
   assert.deepEqual(forwarded, [{ email: "buyer@example.test", merchantId: "merchant_1" }]);

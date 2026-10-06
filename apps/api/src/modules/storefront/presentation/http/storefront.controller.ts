@@ -1,4 +1,6 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
+import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
+import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import { NonProductionRoute, ProductionDisabledRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
@@ -38,10 +40,13 @@ import { StorefrontConversationRateLimitService } from "../../application/servic
 export interface StartConversationRequest {
   merchant_id: string;
   initial_message?: string;
+  ai_user_token?: string;
+  buyer_access_token?: string;
 }
 
 export interface SendMessageRequest {
   user_message: string;
+  voice_turn_token?: string;
   cart_id?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
   attachment?: StorefrontConversationAttachment;
@@ -74,6 +79,8 @@ export class StorefrontController {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
     @Optional() private readonly buyerJwt?: BuyerJwtService,
     @Optional() private readonly oneBuyClick?: OneBuyClickSessionService,
+    @Optional() private readonly aiIdentity?: AiUserIdentityService,
+    @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -151,14 +158,16 @@ export class StorefrontController {
     @Body() body: StartConversationRequest,
     @Req() request: { headers?: { origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[] } },
   ) {
+    const identity = (this.aiIdentity ?? new AiUserIdentityService()).resolve({ visitorToken: body.ai_user_token, buyerToken: body.buyer_access_token, merchantId: body.merchant_id });
     const result = await this.startStoreConversation.execute(body);
     const access = this.capabilities.issue({
       purpose: "storefront-conversation",
       merchantId: result.merchant_id,
       resourceId: result.conversation_id,
       origin: storefrontOrigin(request),
+      aiUserId: identity.userId,
     });
-    return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
+    return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt, ai_user_token: identity.token };
   }
 
   @Post("conversations/:conversationId/messages")
@@ -171,25 +180,23 @@ export class StorefrontController {
   ) {
     const claims = this.conversationAccess(request, conversationId, body.merchant_id);
     if (body.cart_id !== undefined && body.cart_id !== claims.resourceId) throw new ForbiddenException("conversation_cart_mismatch");
-    const rateLimit = this.conversationRateLimiter.consume(claims.merchantId, claims.resourceId);
-    response?.setHeader("X-RateLimit-Limit", String(rateLimit.limit));
-    response?.setHeader("X-RateLimit-Remaining", String(rateLimit.remaining));
-    response?.setHeader("X-RateLimit-Reset", String(Math.ceil(rateLimit.resetAt / 1000)));
-    if (!rateLimit.allowed) {
-      const retryAfterSeconds = Math.max(Math.ceil(rateLimit.retryAfterMs / 1000), 1);
-      response?.setHeader("Retry-After", String(retryAfterSeconds));
-      throw new HttpException(
-        {
-          statusCode: HttpStatus.TOO_MANY_REQUESTS,
-          error: "Too Many Requests",
-          message: "conversation_rate_limit_exceeded",
-          retryAfterSeconds,
-        },
-        HttpStatus.TOO_MANY_REQUESTS,
-      );
+    const globalUserId = this.buyerId(request, claims.merchantId);
+    const userId = globalUserId ? `buyer:${globalUserId}` : claims.aiUserId;
+    if (!userId) throw new UnauthorizedException("ai_user_identity_required");
+    const admittedVoice = await this.aiUserLimiter?.consumeVoicePermit(body.voice_turn_token, { userId, merchantId: claims.merchantId, resourceId: claims.resourceId, origin: request.headers?.origin });
+    if (body.voice_turn_token && !admittedVoice) throw new UnauthorizedException("invalid_voice_turn_token");
+    if (!admittedVoice) {
+      const rateLimit = await this.conversationRateLimiter.consume(claims.merchantId, claims.resourceId, userId);
+      response?.setHeader("X-AI-RateLimit-Limit", String(rateLimit.limit));
+      response?.setHeader("X-AI-RateLimit-Remaining", String(rateLimit.remaining));
+      response?.setHeader("X-AI-RateLimit-Reset", String(Math.ceil(rateLimit.resetAt / 1000)));
+      if (!rateLimit.allowed) {
+        const retryAfterSeconds = Math.max(Math.ceil(rateLimit.retryAfterMs / 1000), 1);
+        response?.setHeader("Retry-After", String(retryAfterSeconds));
+        throw new HttpException({ code: "ai_interaction_rate_limited", scope: "user", retry_after_seconds: retryAfterSeconds }, HttpStatus.TOO_MANY_REQUESTS);
+      }
     }
     const attachmentContext = await this.attachmentInterpreter.interpret(body.attachment);
-    const globalUserId = this.buyerId(request, claims.merchantId);
     const oneBuyClick = this.oneBuyClick
       ? await this.oneBuyClick.get({
           merchantId: claims.merchantId,
@@ -242,11 +249,18 @@ export class StorefrontController {
   @Post("conversations/:conversationId/access")
   renewConversationAccess(
     @Param("conversationId") conversationId: string,
-    @Req() request: { headers?: { authorization?: string; origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[] } },
+    @Req() request: { headers?: { authorization?: string; origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[]; "x-ai-user-token"?: string; "x-buyer-authorization"?: string } },
   ) {
     const token = request.headers?.authorization?.match(/^Bearer (\S+)$/i)?.[1];
     try {
       const access = this.capabilities.renewConversation(token, conversationId, storefrontOrigin(request));
+      const claims = this.capabilities.verify(access.token, "storefront-conversation", storefrontOrigin(request));
+      if (!claims.aiUserId) {
+        const buyerToken = request.headers?.["x-buyer-authorization"]?.match(/^Bearer (\S+)$/i)?.[1];
+        const identity = (this.aiIdentity ?? new AiUserIdentityService()).resolve({ visitorToken: request.headers?.["x-ai-user-token"], buyerToken, merchantId: claims.merchantId });
+        const migrated = this.capabilities.renewConversation(access.token, conversationId, storefrontOrigin(request), Math.floor(Date.now() / 1000), identity.userId);
+        return { conversation_id: conversationId, conversation_token: migrated.token, conversation_token_expires_at: migrated.expiresAt, ai_user_token: identity.token };
+      }
       return { conversation_id: conversationId, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
     } catch {
       throw new UnauthorizedException("invalid_conversation_token");
@@ -259,6 +273,7 @@ export class StorefrontController {
     @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
     const claims = this.conversationAccess(request, body.conversation_id, body.merchant_id);
+    if (this.aiUserLimiter) await this.aiUserLimiter.assertNudgeAllowed(claims.aiUserId!);
     return this.generateNudge.execute({
       merchant_id: claims.merchantId,
       trigger: body.trigger,
@@ -487,7 +502,7 @@ export class StorefrontController {
     note?: string;
   }, @Req() request: { headers?: { authorization?: string; origin?: string } }) {
     const access = this.conversationAccess(request, body.cart_id, body.merchant_id);
-    if (!this.conversationRateLimiter.consume(access.merchantId, body.cart_id).allowed) throw new HttpException("conversation_rate_limit_exceeded", HttpStatus.TOO_MANY_REQUESTS);
+    if (!(await this.conversationRateLimiter.consume(access.merchantId, body.cart_id, access.aiUserId)).allowed) throw new HttpException("conversation_rate_limit_exceeded", HttpStatus.TOO_MANY_REQUESTS);
     const storedCart = await this.cartRepo.getOrCreate(access.merchantId, body.cart_id);
     const { cart } = await this.priceCart(access.merchantId, body.cart_id, storedCart);
     const budget = await this.createBudgetRequest.execute({

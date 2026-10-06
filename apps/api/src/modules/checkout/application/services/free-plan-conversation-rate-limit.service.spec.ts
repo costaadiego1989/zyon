@@ -31,34 +31,34 @@ async function assertConversationIsLimited(
 ): Promise<void> {
   const limiter = service(plan);
   for (let index = 0; index < messagesPerMinute; index++) {
-    await limiter.assertAllowed({ merchantId: "merchant_1", sessionId: "session_1" });
+    await limiter.assertAllowed({ merchantId: "merchant_1", sessionId: "session_1", userId: "buyer:user_1" });
   }
 
   await assert.rejects(
-    () => limiter.assertAllowed({ merchantId: "merchant_1", sessionId: "session_1" }),
+    () => limiter.assertAllowed({ merchantId: "merchant_1", sessionId: "session_1", userId: "buyer:user_1" }),
     (error: unknown) => error instanceof HttpException
       && error.getStatus() === 429
       && (error.getResponse() as { code: string }).code === "ai_interaction_rate_limited"
-      && (error.getResponse() as { scope: string }).scope === "conversation"
+      && (error.getResponse() as { scope: string }).scope === "user"
       && !("plan" in (error.getResponse() as object))
       && !("limit" in (error.getResponse() as object)),
   );
 }
 
-test("Starter limits a conversation to ten messages per minute", async () => {
+test("Starter limits a user to ten messages per minute", async () => {
   await assertConversationIsLimited("starter", 10);
 });
 
-test("Growth and Scale also limit a conversation at their higher throughput", async () => {
-  await assertConversationIsLimited("growth", 30);
-  await assertConversationIsLimited("scale", 60);
+test("Growth and Scale limit a user to ten messages per minute", async () => {
+  await assertConversationIsLimited("growth", 10);
+  await assertConversationIsLimited("scale", 10);
 });
 
-test("A busy conversation never consumes another conversation's allowance", async () => {
+test("A busy user never consumes another user's allowance", async () => {
   const limiter = service("scale");
-  for (let index = 0; index < 60; index++) {
-    await limiter.assertAllowed({ merchantId: "merchant_1", sessionId: "session_1" });
+  for (let index = 0; index < 10; index++) {
+    await limiter.assertAllowed({ merchantId: "merchant_1", sessionId: "session_1", userId: "buyer:user_1" });
   }
 
-  await limiter.assertAllowed({ merchantId: "merchant_1", sessionId: "session_2" });
+  await limiter.assertAllowed({ merchantId: "merchant_1", sessionId: "session_2", userId: "buyer:user_2" });
 });

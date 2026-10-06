@@ -63,8 +63,7 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     RequestEmailChangeUseCase,
     ConfirmEmailChangeUseCase,
     EmailChangeRateLimiter,
-    // Captcha (Cloudflare Turnstile). Adapter self-disables when
-    // TURNSTILE_SECRET_KEY is unset, so this is safe to always wire.
+    // CAPTCHA is mandatory in production; missing configuration rejects auth.
     { provide: CAPTCHA_VERIFIER, useClass: CloudflareTurnstileAdapter },
     // Domain services
     PasswordHasher,
@@ -130,7 +129,8 @@ import { TenantRoleGuard } from "./presentation/tenant-role.guard.js";
     // Export use-cases for controllers in other modules that need them
     LoginUseCase,
     LoginWithRateLimitUseCase,
-    RefreshTokenUseCase
+    RefreshTokenUseCase,
+    VerifyCaptchaUseCase
   ]
 })
 export class AuthModule implements OnModuleInit {

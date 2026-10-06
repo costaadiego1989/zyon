@@ -49,6 +49,7 @@ import { ResolveEmbedBuyerService } from "../../application/resolve-embed-buyer.
 import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
 import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
+import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
 import { ReopenEmbedCheckoutUseCase } from "../../application/reopen-embed-checkout.use-case.js";
 
 export type EmbedHttpRequest = {
@@ -116,6 +117,7 @@ export class EmbedCheckoutController {
     @Optional() private readonly reconcileChat?: ReconcileChatMessageUseCase,
     @Optional() private readonly reopenCheckout?: ReopenEmbedCheckoutUseCase,
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
@@ -206,17 +208,22 @@ export class EmbedCheckoutController {
   @Post("chat")
   @RateLimit(120)
   @RequireEmbedScope("checkout:chat")
-  async chat(@Req() request: EmbedHttpRequest, @Body() body: ChatMessageRequest) {
+  async chat(@Req() request: EmbedHttpRequest, @Body() body: ChatMessageRequest & { voice_turn_token?: string }) {
     const embed = request.embedClaims!;
     if (typeof body.session_id !== "string") {
       throw new BadRequestException("session_id_required");
     }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
-    const { merchant_id: _m, ...rest } = body;
+    const trustedSession = await this.embedGuards.loadSession(embed.merchantId, body.session_id);
+    const userId = trustedSession?.globalUserId && trustedSession.customer?.email_verified
+      ? `buyer:${trustedSession.globalUserId}` : embed.aiUserId ?? `visitor:${embed.nonce}`;
+    const admittedVoice = await this.aiUserLimiter?.consumeVoicePermit(body.voice_turn_token, { userId, merchantId: embed.merchantId, resourceId: body.session_id, origin: typeof request.headers?.origin === "string" ? request.headers.origin : undefined });
+    if (body.voice_turn_token && !admittedVoice) throw new UnauthorizedException("invalid_voice_turn_token");
+    const { merchant_id: _m, voice_turn_token: _voiceProof, ...rest } = body;
     return this.sendChat.execute({
       ...(rest as Omit<ChatMessageRequest, "merchant_id">),
-      merchant_id: embed.merchantId
-    });
+      merchant_id: embed.merchantId,
+    }, { aiUserId: userId, voiceAdmitted: !!admittedVoice });
   }
 
   @Post("chat/reconcile")

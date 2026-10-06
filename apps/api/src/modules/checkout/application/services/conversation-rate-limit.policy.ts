@@ -1,13 +1,13 @@
 /**
- * Product policy for abuse prevention. This is a per-conversation throughput
- * safeguard; it does not meter or cap the merchant's monthly AI usage.
+ * Compatibility policy for callers displaying plan throughput. All plans use
+ * ten messages per user; enforcement lives in AiUserRateLimitService.
  */
 export const CONVERSATION_RATE_LIMIT_WINDOW_MS = 60_000;
 
 const MESSAGES_PER_MINUTE = {
   starter: 10,
-  growth: 30,
-  scale: 60,
+  growth: 10,
+  scale: 10,
 } as const;
 
 export type ConversationRateLimitPlan = keyof typeof MESSAGES_PER_MINUTE;

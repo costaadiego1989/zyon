@@ -1,8 +1,32 @@
+import { getValidBuyer } from "./buyer-auth";
 // Capabilities are scoped to one conversation and kept within this browser tab.
 const access = new Map<string, string>();
 const prefix = "aacp_conversation_access:";
 const renewals = new Map<string, Promise<void>>();
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+
+let visitorCredential: string | undefined;
+
+export function aiVisitorToken(): string | undefined {
+  if (typeof window === "undefined") return undefined;
+  try { visitorCredential = localStorage.getItem("zyon_ai_user_token") ?? visitorCredential; } catch { /* Keep the tab identity when storage is unavailable. */ }
+  if (visitorCredential) {
+    try {
+      const claims = JSON.parse(atob(visitorCredential.split(".")[0]!.replace(/-/g, "+").replace(/_/g, "/")));
+      if (!Number.isFinite(claims.exp) || claims.exp <= Date.now() / 1000) {
+        visitorCredential = undefined;
+        try { localStorage.removeItem("zyon_ai_user_token"); } catch { /* Use memory. */ }
+      }
+    } catch { visitorCredential = undefined; }
+  }
+  return visitorCredential;
+}
+
+export function rememberAiVisitorToken(token: string): void {
+  if (typeof window === "undefined") return;
+  visitorCredential = token;
+  try { localStorage.setItem("zyon_ai_user_token", token); } catch { /* Use memory. */ }
+}
 
 function storefrontProxyUrl(url: string): string {
   if (typeof window === "undefined") return url;
@@ -37,7 +61,7 @@ function storedConversationAccess(conversationId: string): string | undefined {
   return token;
 }
 
-function capabilityClaims(token: string): { origin?: unknown; expiresAt?: unknown } | null {
+function capabilityClaims(token: string): { origin?: unknown; expiresAt?: unknown; aiUserId?: unknown } | null {
   try {
     const payload = token.replace(/^Bearer /, "").split(".")[0];
     return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
@@ -62,7 +86,7 @@ export function conversationAccessMatchesCurrentOrigin(conversationId: string): 
 function expiresSoon(token: string): boolean {
   const claims = capabilityClaims(token);
   const expiresAt = claims?.expiresAt;
-  return typeof expiresAt !== "number" || !Number.isFinite(expiresAt) || expiresAt <= Date.now() / 1000 + 60;
+  return !claims?.aiUserId || typeof expiresAt !== "number" || !Number.isFinite(expiresAt) || expiresAt <= Date.now() / 1000 + 60;
 }
 
 export async function ensureConversationAccess(conversationId: string, force = false): Promise<void> {
@@ -73,7 +97,7 @@ export async function ensureConversationAccess(conversationId: string, force = f
   if (!force && !expiresSoon(authorization)) return;
   const renewal = (async () => {
     const response = await fetch(storefrontProxyUrl(`${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/access`), {
-      method: "POST", headers: { Authorization: authorization },
+      method: "POST", headers: { Authorization: authorization, ...(aiVisitorToken() ? { "X-AI-User-Token": aiVisitorToken()! } : {}), ...(getValidBuyer()?.token ? { "X-Buyer-Authorization": `Bearer ${getValidBuyer()!.token}` } : {}) },
     });
     if (response.status === 401 || response.status === 403) throw new ConversationSessionExpiredError();
     if (!response.ok) throw new Error("conversation_renewal_unavailable");
@@ -81,6 +105,7 @@ export async function ensureConversationAccess(conversationId: string, force = f
     if (data.conversation_id !== conversationId || typeof data.conversation_token !== "string") {
       throw new Error("invalid_conversation_renewal");
     }
+    if (typeof data.ai_user_token === "string") rememberAiVisitorToken(data.ai_user_token);
     rememberConversationAccess(conversationId, data.conversation_token);
   })();
   renewals.set(conversationId, renewal);

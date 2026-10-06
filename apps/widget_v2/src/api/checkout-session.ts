@@ -361,7 +361,7 @@ export class CheckoutSession {
     return cartFromExperience(this.experience);
   }
 
-  async chat(message: string): Promise<ChatResponse> {
+  async chat(message: string, voiceTurnToken?: string): Promise<ChatResponse> {
     this.assertSession();
     if (this.requiresChatRecovery || this.chatInFlight) throw new ChatRecoveryRequired();
     const messageId = crypto.randomUUID();
@@ -374,12 +374,18 @@ export class CheckoutSession {
         body: JSON.stringify({
           session_id: this.sessionId,
           user_message: message,
+          voice_turn_token: voiceTurnToken,
           conversation_id: this.conversationId,
           message_id: messageId,
         }),
       });
       if (!res.ok) {
         const error = await CheckoutApiError.fromResponse("embed_chat", res);
+        if ((error.status === 429 && error.code === "ai_interaction_rate_limited") ||
+          (error.status === 503 && error.code === "ai_rate_limit_unavailable")) {
+          this.setPending(undefined);
+          throw error;
+        }
         if (error.chatRequest) {
           this.protectedChat = true;
           this.setPending(error.chatRequest.message_id);
@@ -403,6 +409,8 @@ export class CheckoutSession {
       }
       return response;
     } catch (error) {
+      if (error instanceof CheckoutApiError &&
+        ["ai_interaction_rate_limited", "ai_rate_limit_unavailable"].includes(error.code ?? "")) throw error;
       if (this.protectedChat) { if (!this.pendingMessageId) this.setPending(messageId); throw new ChatRecoveryRequired(); }
       throw error;
     } finally { this.chatInFlight = false; }
@@ -488,18 +496,22 @@ export class CheckoutSession {
     } finally { this.chatInFlight = false; }
   }
 
-  async createRealtimeVoiceSession(): Promise<{ value: string; expires_at?: number }> {
+  async createRealtimeVoiceSession(input: { sdp: string }): Promise<{ sdp: string }> {
     this.assertSession();
     if (this.requiresChatRecovery) throw new ChatRecoveryRequired();
     const res = await fetch(`${this.embedBaseUrl}/embed/realtime/session`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({ session_id: this.sessionId }),
+      body: JSON.stringify({ session_id: this.sessionId, sdp: input.sdp }),
     });
     if (!res.ok) throw await CheckoutApiError.fromResponse("embed_realtime_voice", res);
-    const data = await res.json() as { value?: unknown; expires_at?: unknown };
-    if (typeof data.value !== "string") throw new Error("invalid_realtime_voice_session");
-    return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+    const data = await res.json() as { sdp?: unknown };
+    if (typeof data.sdp !== "string") throw new Error("invalid_realtime_voice_session");
+    return { sdp: data.sdp };
+  }
+
+  supportHeaders(): Record<string, string> {
+    return { "x-aacp-embed-token": this.token, ...(this.buyerAccessToken ? { "X-Buyer-Authorization": `Bearer ${this.buyerAccessToken}` } : {}) };
   }
 
   async realtimeVoiceContext(): Promise<{ instructions: string }> {

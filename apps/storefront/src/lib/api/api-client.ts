@@ -18,7 +18,8 @@
  * This file is the STOREFRONT's integration layer. Customers use the SDK.
  */
 
-import { conversationFetch, rememberConversationAccess } from "../conversation-access";
+import { aiVisitorToken, conversationFetch, rememberAiVisitorToken, rememberConversationAccess } from "../conversation-access";
+import { getValidBuyer } from "../buyer-auth";
 import { apiCall } from "@/lib/services/http";
 import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 
@@ -121,10 +122,13 @@ export const checkoutApi = {
           merchant_id: data.merchantId,
           customer_id: data.customerId,
           items: data.items,
+          ai_user_token: aiVisitorToken(),
+          buyer_access_token: getValidBuyer()?.token,
         }),
       });
       if (typeof result.conversation_id !== "string" || typeof result.conversation_token !== "string") throw new Error("missing_conversation_access");
       rememberConversationAccess(result.conversation_id, result.conversation_token);
+      if (typeof result.ai_user_token === "string") rememberAiVisitorToken(result.ai_user_token);
       return result;
     })();
     conversationStarts.set(key, start);
@@ -145,6 +149,7 @@ export const checkoutApi = {
     history?: any[];
     variantId?: string;
     attachment?: ConversationAttachment;
+    voiceTurnToken?: string;
   }): Promise<any> {
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
       method: "POST",
@@ -156,6 +161,7 @@ export const checkoutApi = {
         history: options?.history,
         variant_id: options?.variantId || undefined,
         attachment: options?.attachment,
+        voice_turn_token: options?.voiceTurnToken,
       }),
     }, checkoutId);
   },

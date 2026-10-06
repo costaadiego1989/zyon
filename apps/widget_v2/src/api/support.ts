@@ -8,6 +8,7 @@ export interface SupportChatRequest {
   merchantId: string;
   message: string;
   sessionId: string;
+  headers?: Record<string, string>;
 }
 
 export interface SupportChatResponse {
@@ -33,13 +34,14 @@ export async function sendSupportChat(
 ): Promise<SupportChatResponse | null> {
   const res = await fetch(`${apiBaseUrl}/support/chat/public`, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: { "Content-Type": "application/json", ...req.headers },
     body: JSON.stringify({
       merchant_id: req.merchantId,
       message: req.message,
       session_id: req.sessionId,
     }),
   });
+  if (res.status === 429) return { reply: "Você atingiu 10 mensagens por minuto. Aguarde um minuto para continuar.", ticketId: null };
   if (!res.ok) return null;
   const data = await res.json();
   return {

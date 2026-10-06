@@ -85,7 +85,7 @@ export interface ConversationViewModelActions {
   toggleTheme: () => void;
   /** Resolves a signed conversation before a client-only capability is requested. */
   ensureConversation: () => Promise<string | null>;
-  sendMessage: (text: string, attachment?: ConversationAttachment) => Promise<CommerceTurnResult | null>;
+  sendMessage: (text: string, attachment?: ConversationAttachment, voiceTurnToken?: string) => Promise<CommerceTurnResult | null>;
   handleQuickReply: (option: string) => void;
   appendAgentMessage: (message: Pick<Message, "text" | "blocks">) => void;
   handleUpdateQuantity: (variantId: string, quantity: number) => void;

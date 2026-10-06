@@ -32,6 +32,7 @@ import type {
   UpdateCartRequest,
 } from '@zyon/shared-types';
 
+import { AiUserIdentityService } from '../../../../../shared/http/ai-user-identity.service.js';
 import { TenantCredentialGuard } from '../../../../integrations/presentation/http/tenant-credential.guard.js';
 import { TenantAccessGuard } from '../../../../integrations/presentation/http/tenant-access.guard.js';
 import { RequireTenantAccess } from '../../../../integrations/presentation/http/tenant-access.decorator.js';
@@ -203,7 +204,10 @@ export class CheckoutsV1Controller {
       message_id: body.message_id,
     };
 
-    const result = await this.sendMessageUseCase.execute(input);
+    const visitorToken = req.headers?.['x-ai-user-token'];
+    const buyerToken = req.headers?.['x-buyer-authorization']?.match(/^Bearer (\S+)$/i)?.[1];
+    const identity = visitorToken || buyerToken ? new AiUserIdentityService().resolve({ merchantId, visitorToken, buyerToken }) : undefined;
+    const result = await this.sendMessageUseCase.execute(input, identity ? { aiUserId: identity.userId } : undefined);
     return CheckoutEntityMapper.toChatMessageResponse(result, { conversation_id: input.conversation_id, session_id: checkoutId });
   }
 

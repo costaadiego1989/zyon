@@ -10,6 +10,10 @@ import {
   Put,
   Query,
   Req,
+  Optional,
+  ForbiddenException,
+  UnauthorizedException,
+  ServiceUnavailableException,
   UseGuards,
 } from "@nestjs/common";
 import {
@@ -41,8 +45,14 @@ import {
   UpdateSupportTicketDto,
 } from "./support.dto.js";
 import { DEFAULT_SUPPORT_FAQ } from "../../domain/defaults/support-faq.defaults.js";
+import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
+import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
+import { EmbedTokenService } from "../../../embed/domain/embed-token.service.js";
+import { EmbedCheckoutGuardHelper } from "../../../embed/presentation/http/embed-checkout.controller.js";
+import { embedCheckoutSessionId } from "../../../embed/domain/embed-checkout-session.js";
+import { readTrustedStorefrontOrigin } from "../../../embed/presentation/http/embed-auth.guard.js";
 
-type EmbedRequest = { embedClaims?: EmbedTokenClaims; headers?: { origin?: string } };
+type EmbedRequest = { embedClaims?: EmbedTokenClaims; headers?: Record<string, string | undefined> };
 
 @ApiTags("Support")
 @Controller("support")
@@ -55,6 +65,10 @@ export class SupportController {
     private readonly updateTicketStatus: UpdateSupportTicketStatusUseCase,
     private readonly createTicket: CreateSupportTicketUseCase,
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
+    @Optional() private readonly userLimiter?: AiUserRateLimitService,
+    @Optional() private readonly identities?: AiUserIdentityService,
+    @Optional() private readonly embedTokens?: EmbedTokenService,
+    @Optional() private readonly checkoutGuards?: EmbedCheckoutGuardHelper,
   ) {}
 
   /**
@@ -89,11 +103,12 @@ export class SupportController {
   @Post("chat")
   async chat(@Req() request: EmbedRequest, @Body() body: SupportChatDto) {
     const merchantId = request.embedClaims!.merchantId;
+    const identity = await this.admit(request, merchantId);
     const settings = await this.getSettings.execute(merchantId);
     const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
     const result = await this.sendSupportMessage.execute(
       { merchant_id: merchantId, session_id: body.session_id, message: body.message },
-      { faqItems, brandName: request.embedClaims!.merchantId, buyerGlobalUserId: body.buyer_global_user_id },
+      { faqItems, brandName: merchantId, buyerGlobalUserId: identity.userId.startsWith("buyer:") ? identity.userId.slice(6) : undefined },
     );
     if (!result.handoff) return result;
     // execute() creates a NEW ticket; client-provided session_id is never an access credential.
@@ -152,14 +167,37 @@ export class SupportController {
   @ApiOperation({ summary: "Public support chat (storefront, no embed token)" })
   @ApiResponse({ status: 200, description: "AI reply based on merchant FAQ knowledge" })
   @Post("chat/public")
-  async chatPublic(@Body() body: PublicSupportChatDto) {
+  async chatPublic(@Body() body: PublicSupportChatDto, @Req() request: EmbedRequest) {
     const merchantId = body.merchant_id;
+    const identity = await this.admit(request, merchantId);
     const settings = await this.getSettings.execute(merchantId);
     const faqItems = settings.faqItems.length > 0 ? settings.faqItems : DEFAULT_SUPPORT_FAQ;
-    return this.sendSupportMessage.execute(
+    const result = await this.sendSupportMessage.execute(
       { merchant_id: merchantId, session_id: body.session_id, message: body.message },
-      { faqItems, brandName: merchantId, buyerGlobalUserId: body.buyer_global_user_id },
+      { faqItems, brandName: merchantId, buyerGlobalUserId: identity.userId.startsWith("buyer:") ? identity.userId.slice(6) : undefined },
     );
+    return { ...result, ai_user_token: identity.token };
+  }
+
+  private async admit(request: EmbedRequest, merchantId: string) {
+    if (!this.userLimiter) throw new ServiceUnavailableException("ai_rate_limit_unavailable");
+    const headers = request.headers ?? {};
+    let embed = request.embedClaims;
+    if (!embed && headers["x-aacp-embed-token"]) {
+      try { embed = (this.embedTokens ?? new EmbedTokenService()).verify(headers["x-aacp-embed-token"]); }
+      catch { throw new UnauthorizedException("invalid_embed_token"); }
+    }
+    if (embed && (embed.merchantId !== merchantId || embed.allowedOrigin && embed.allowedOrigin !== (readTrustedStorefrontOrigin(headers) ?? headers.origin))) {
+      throw new ForbiddenException("embed_support_access_denied");
+    }
+    const buyerToken = headers["x-buyer-authorization"]?.match(/^Bearer (\S+)$/i)?.[1];
+    const checkout = embed ? await this.checkoutGuards?.loadSession(merchantId, embedCheckoutSessionId(embed)) : undefined;
+    const identity = buyerToken ? (this.identities ?? new AiUserIdentityService()).resolve({ merchantId, buyerToken })
+      : checkout?.globalUserId && checkout.customer?.email_verified ? { userId: `buyer:${checkout.globalUserId}`, token: undefined }
+      : embed ? { userId: embed.aiUserId ?? `visitor:${embed.nonce}`, token: undefined }
+      : (this.identities ?? new AiUserIdentityService()).resolve({ merchantId, visitorToken: headers["x-ai-user-token"] });
+    await this.userLimiter.assertAllowed(identity.userId);
+    return identity;
   }
 
   @ApiBearerAuth("service_api_key")

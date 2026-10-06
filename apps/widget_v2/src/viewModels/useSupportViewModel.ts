@@ -198,6 +198,7 @@ export function useSupportViewModel(): SupportViewModelInterface {
               merchantId,
               message: trimmed,
               sessionId: sessionIdRef.current,
+              headers: api?.supportHeaders(),
             });
 
             if (data) {
@@ -244,7 +245,7 @@ export function useSupportViewModel(): SupportViewModelInterface {
         setLoading(false);
       }
     },
-    [merchantId, apiBaseUrl, getFallbackResponse]
+    [merchantId, apiBaseUrl, api, getFallbackResponse]
   );
 
   const switchToChat = useCallback(() => {

@@ -286,7 +286,7 @@ interface CheckoutState {
   selectChannel: (channel: "chat" | "voice") => void;
   startQuickPurchase: () => Promise<void>;
   completeFormField: (field: string) => void;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, voiceTurnToken?: string) => Promise<void>;
   /**
    * Continues the visual checkout after a Realtime `begin_checkout` tool call.
    * This can reveal the payment-method chooser, but cannot create an intent,
@@ -756,7 +756,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }));
   },
 
-  sendMessage: async (text) => {
+  sendMessage: async (text, voiceTurnToken) => {
     const editSection = checkoutEditIntent(text);
     if (get().status === "completed" || get().isTyping || get().chatRecovery || (get().api?.requiresChatRecovery && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
     const lastPaymentMessage = [...get().messages].reverse().find(message => message.role === "agent");
@@ -870,7 +870,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
 
     try {
-      const res = await api.chat(text);
+      const res = await api.chat(text, voiceTurnToken);
       if (get().api !== api) return;
 
       // Only use this offline fallback when the signed checkout service did
@@ -1011,6 +1011,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
     } catch (err) {
       if (get().api !== api) return;
+      const admissionError = checkoutChatErrorMessage(err);
+      if (admissionError) {
+        set(state => ({ messages: [...state.messages, { id: `error_${Date.now()}`, role: "agent", text: admissionError, timestamp: Date.now() }], isTyping: false }));
+        if (voiceTurnToken) throw err;
+        return;
+      }
+      if (voiceTurnToken) { set({ isTyping: false }); throw err; }
       if (api.usesDurableChat) {
         // Never run legacy shipping/payment fallbacks for an uncertain request.
         set({ isTyping: false, chatRecovery: "blocked" });

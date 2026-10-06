@@ -37,11 +37,11 @@ const config: NextConfig = {
     const devFont = isDev ? " https://fonts.gstatic.com" : "";
     const contentSecurityPolicy = (frameAncestors: string) => [
       "default-src 'self'",
-      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://js.stripe.com",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://js.stripe.com https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
       "img-src 'self' data: https: blob:",
       `connect-src 'self' https: ${websocketApiOrigin}${devConnect} https://api.stripe.com`,
-      "frame-src 'self' https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com",
+      "frame-src 'self' https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://challenges.cloudflare.com",
       "media-src 'self' https: blob:",
       `font-src 'self' data: https:${devFont}`,
       `frame-ancestors ${frameAncestors}`,

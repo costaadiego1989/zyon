@@ -55,6 +55,7 @@ export function SignupWizard(props: SignupWizardProps) {
   const accountCreated = useRef(isOAuth);
   const [step, setStep] = useState<1 | 2 | 3>(1);
   const [localBusy, setLocalBusy] = useState(false);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [error, setError] = useState<string | null>(null);
   const [person, setPerson] = useState<PersonDraft>({ name: props.oauthProfile?.name ?? "", role: "" });
   const [business, setBusiness] = useState<BusinessDraft>({ name: "", segment: "", volume: "", taxId: "" });
@@ -88,12 +89,13 @@ export function SignupWizard(props: SignupWizardProps) {
   }
 
   async function handleSubmit() {
+    if (busy) return;
     setError(null);
     if (!account.email.trim() || (!isOAuth && !account.password)) { setError("Email e senha são obrigatórios."); return; }
     if (!isOAuth && account.password.length < 8) { setError("Mínimo 8 caracteres, com letra e número."); return; }
     if (!isOAuth && account.password !== account.confirmPassword) { setError("As senhas não coincidem."); return; }
     if (!account.phone.trim() || account.phone.replace(/\D/g, "").length < 10) { setError("Informe um celular válido."); return; }
-    if (!isOAuth && import.meta.env.PROD && props.turnstileSiteKey && !props.captchaToken) {
+    if (!isOAuth && !accountCreated.current && props.turnstileSiteKey && !props.captchaToken) {
       setError("Confirme que você não é um robô.");
       return;
     }
@@ -135,6 +137,8 @@ export function SignupWizard(props: SignupWizardProps) {
       setError(friendlyAuthError(err));
     } finally {
       setLocalBusy(false);
+      props.setCaptchaToken(null);
+      setCaptchaAttempt(value => value + 1);
     }
   }
 
@@ -177,9 +181,9 @@ export function SignupWizard(props: SignupWizardProps) {
       {step === 3 && <AccountFields draft={account} onChange={setAccount} oauth={isOAuth} />}
       </div>
 
-      {step === 3 && !isOAuth && props.turnstileSiteKey ? (
+      {step === 3 && !isOAuth && !accountCreated.current && props.turnstileSiteKey ? (
         <div style={{ marginTop: 8 }}>
-          <Turnstile theme="light" siteKey={props.turnstileSiteKey} onChange={props.setCaptchaToken} />
+          <Turnstile action="signup" resetKey={captchaAttempt} theme="light" siteKey={props.turnstileSiteKey} onChange={props.setCaptchaToken} />
         </div>
       ) : null}
 
@@ -194,7 +198,7 @@ export function SignupWizard(props: SignupWizardProps) {
           type="submit"
           disabled={
             busy ||
-            (!isOAuth && import.meta.env.PROD && Boolean(props.turnstileSiteKey) && !props.captchaToken)
+            (!isOAuth && !accountCreated.current && Boolean(props.turnstileSiteKey) && !props.captchaToken)
           }
           className="auth-cta"
         >

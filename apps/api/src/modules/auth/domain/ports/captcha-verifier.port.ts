@@ -21,5 +21,5 @@ export interface CaptchaVerifier {
    * uses it for additional risk signals. The implementation must NOT throw on
    * provider errors; instead it returns { success: false, reason }.
    */
-  verify(input: { token: string; remoteIp?: string }): Promise<CaptchaVerificationResult>;
+  verify(input: { token: string; remoteIp?: string; action?: string }): Promise<CaptchaVerificationResult>;
 }

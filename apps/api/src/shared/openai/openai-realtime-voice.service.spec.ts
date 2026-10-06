@@ -22,7 +22,7 @@ test("realtime voice sessions bound output, instructions and cart context", asyn
     return Response.json({ value: "ephemeral-voice-secret-for-test" });
   }) as typeof fetch;
 
-  const service = new OpenAIRealtimeVoiceService();
+  const service = new OpenAIRealtimeVoiceService({} as never);
   await service.createClientSecret({
     merchantId: "merchant_test",
     conversationId: "conversation_test",

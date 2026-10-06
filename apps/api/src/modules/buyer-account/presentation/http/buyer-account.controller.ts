@@ -14,6 +14,7 @@ import {
   UseGuards,
   Ip,
 } from "@nestjs/common";
+import { VerifyCaptchaUseCase } from "../../../auth/application/verify-captcha.use-case.js";
 import { randomBytes, scrypt } from "node:crypto";
 import { promisify } from "node:util";
 import type { CustomerAddress } from "@zyon/shared-types";
@@ -54,6 +55,7 @@ export class BuyerAccountController {
     private readonly verifyEmailCode: VerifyBuyerEmailCodeUseCase,
     private readonly verifyEmailLogin: VerifyBuyerEmailLoginUseCase,
     private readonly emailVerificationReceipts: EmailVerificationReceiptService,
+    private readonly verifyCaptcha: VerifyCaptchaUseCase,
     @Optional() private readonly registerBuyerWallet?: RegisterBuyerUserUseCase,
   ) {}
 
@@ -74,9 +76,11 @@ export class BuyerAccountController {
       gender?: string;
       merchantId?: string;
       email_verification_token?: string;
+      turnstile_token?: string;
     },
     @Ip() ip: string
   ) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "buyer_signup" });
     const displayName = (body.displayName ?? body.name ?? "").trim();
     const missing: string[] = [];
 
@@ -140,14 +144,17 @@ export class BuyerAccountController {
   }
 
   @Post("login")
-  async login(@Body() body: { email: string; password: string }) {
+  async login(@Body() body: { email: string; password: string; turnstile_token?: string }, @Ip() ip?: string) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "buyer_login" });
     return this.loginBuyer.execute(body);
   }
 
   @Post("login-from-session")
   async loginFromCheckoutSession(
-    @Body() body: { session_id: string; merchant_id: string }
+    @Body() body: { session_id: string; merchant_id: string; turnstile_token?: string },
+    @Ip() ip?: string,
   ) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "buyer_session_login" });
     const result = await this.loginFromSession.execute(body);
     return {
       global_user_id: result.globalUserId,
@@ -311,7 +318,8 @@ export class BuyerAccountController {
   }
 
   @Post("phone/send")
-  async sendCode(@Body() body: { phone: string; merchant_name?: string; buyer_name?: string; fallback_email?: string }) {
+  async sendCode(@Body() body: { phone: string; merchant_name?: string; buyer_name?: string; fallback_email?: string; turnstile_token?: string }, @Ip() ip?: string) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "buyer_phone_send" });
     return this.sendPhoneCode.execute({
       phone: body.phone,
       merchantName: body.merchant_name,
@@ -321,22 +329,26 @@ export class BuyerAccountController {
   }
 
   @Post("phone/verify")
-  async verifyCode(@Body() body: { phone: string; code: string }) {
+  async verifyCode(@Body() body: { phone: string; code: string; turnstile_token?: string }, @Ip() ip?: string) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "buyer_phone_verify" });
     return this.verifyPhoneCode.execute(body);
   }
 
   @Post("email/send")
-  async handleSendEmailCode(@Body() body: { email: string; merchant_id?: string }) {
+  async handleSendEmailCode(@Body() body: { email: string; merchant_id?: string; turnstile_token?: string }, @Ip() ip?: string) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "buyer_email_send" });
     return this.sendEmailCode.execute({ email: body.email, merchantId: body.merchant_id });
   }
 
   @Post("email/verify")
-  async handleVerifyEmailCode(@Body() body: { email: string; code: string }) {
+  async handleVerifyEmailCode(@Body() body: { email: string; code: string; turnstile_token?: string }, @Ip() ip?: string) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "buyer_email_verify" });
     return this.verifyEmailCode.execute(body);
   }
 
   @Post("email/login/verify")
-  async handleVerifyEmailLogin(@Body() body: { email: string; code: string }) {
+  async handleVerifyEmailLogin(@Body() body: { email: string; code: string; turnstile_token?: string }, @Ip() ip?: string) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "buyer_email_login" });
     return this.verifyEmailLogin.execute(body);
   }
 }

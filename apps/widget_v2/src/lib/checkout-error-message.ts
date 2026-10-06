@@ -30,7 +30,7 @@ export function checkoutChatErrorMessage(error: unknown): string | null {
     const wait = error.retryAfterSeconds
       ? ` Aguarde ${error.retryAfterSeconds} segundo${error.retryAfterSeconds === 1 ? "" : "s"} e envie novamente.`
       : " Aguarde um instante e envie novamente.";
-    return `Recebi muitas mensagens nesta conversa.${wait}`;
+    return `Você atingiu o limite de 10 mensagens por minuto.${wait}`;
   }
 
   if (error.code === "ai_rate_limit_unavailable" || error.code === "rate_limit_unavailable") {

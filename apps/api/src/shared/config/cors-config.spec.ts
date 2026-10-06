@@ -28,13 +28,14 @@ describe("resolveCorsConfig", () => {
   it("defaults to localhost origins in development", () => {
     const env = { NODE_ENV: "development" } as NodeJS.ProcessEnv;
     const config = resolveCorsConfig(env);
-    assert.ok(Array.isArray(config.origin));
-    assert.ok((config.origin as string[]).includes("http://localhost:3000"));
+    assert.ok(config.origin instanceof RegExp && config.origin.test("http://localhost:3000"));
   });
 
   it("allows the dashboard dev origin (port 5174) in development", () => {
     const env = { NODE_ENV: "development" } as NodeJS.ProcessEnv;
     const config = resolveCorsConfig(env);
-    assert.ok((config.origin as string[]).includes("http://localhost:5174"));
+    assert.ok(config.origin instanceof RegExp && config.origin.test("http://localhost:5174"));
+    assert.ok(config.allowedHeaders.includes("X-Buyer-Authorization"));
+    assert.ok(config.allowedHeaders.includes("X-AI-User-Token"));
   });
 });
