@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Post, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Headers, HttpCode, HttpStatus, Post, UnauthorizedException } from "@nestjs/common";
 import {
   HandleAsaasWebhookUseCase,
   UnauthorizedWebhookError
@@ -16,6 +16,8 @@ export class AsaasWebhookController {
   ) {}
 
   @Post("webhooks/asaas")
+  // Asaas treats every status other than 200 as a failed delivery, including 201.
+  @HttpCode(HttpStatus.OK)
   async asaasWebhook(
     @Headers("asaas-access-token") asaasAccessToken: string | undefined,
     @Body() body: unknown
