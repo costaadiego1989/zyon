@@ -1,6 +1,9 @@
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import { toNumber } from "../../../shared/persistence/decimal.util.js";
+import { summarizeFulfillment } from "../domain/order-fulfillment.js";
+import { fulfillmentPaymentEligible } from "../../../shared/persistence/order-fulfillment.js";
+import { marketplaceFulfillmentSessions } from "../../fulfillment/infrastructure/repositories/marketplace-fulfillment-guard.js";
 import type {
   CustomerDetail,
   CustomerPurchase,
@@ -57,8 +60,9 @@ export class PrismaOperationsReadRepository
       }
     }
 
+    const fundedSessions = await marketplaceFulfillmentSessions(this.prisma, input.merchantId, sessionIds);
     return rows.map((row) =>
-      toOrderSummary(row, paymentBySession.get(row.sessionId)),
+      toOrderSummary(row, paymentBySession.get(row.sessionId), fundedSessions.has(row.sessionId)),
     );
   }
 
@@ -84,6 +88,7 @@ export class PrismaOperationsReadRepository
     const row = await this.prisma.completedOrder.findFirst({
       where,
       include: {
+        fulfillmentActions: { orderBy: { createdAt: "asc" } },
         session: {
           select: {
             customer: true,
@@ -113,6 +118,9 @@ export class PrismaOperationsReadRepository
     ]);
 
     const timeline: OrderTimelineEntry[] = [
+      ...(row.fulfillmentActions ?? []).map(action => ({ id: action.id, type: "fulfillment", status: action.toStatus,
+        description: action.proof ?? action.action, occurredAt: action.occurredAt.toISOString(),
+        data: { unitId: action.unitId, actorId: action.actorId, origin: action.origin, fromStatus: action.fromStatus, quantity: action.quantity } })),
       ...row.session.events.map((event) => ({
         id: event.id,
         type: "checkout",
@@ -160,8 +168,9 @@ export class PrismaOperationsReadRepository
       [...payments].reverse().find((payment) => isConfirmedPayment(payment.status)) ??
       payments[payments.length - 1];
 
+    const fundedSessions = await marketplaceFulfillmentSessions(this.prisma, where.merchantId, [row.sessionId]);
     return {
-      ...toOrderSummary(row, enrichPayment),
+      ...toOrderSummary(row, enrichPayment, fundedSessions.has(row.sessionId)),
       timeline,
       commerceOrderId: commercePayment?.commerceOrderId ?? undefined,
       paymentStatus: commercePayment?.status,
@@ -334,25 +343,38 @@ function toOrderSummary(
     cancelledAt: Date | null;
     cancellationReason: string | null;
     session: { customer: unknown; cart: unknown };
+    lineItemsJson?: unknown;
+    fulfillmentJson?: unknown;
+    fulfillmentVersion?: number;
   },
   payment?: {
     method: string;
     status: string;
     providerPaymentId: string | null;
     updatedAt: Date;
+    amountCents?: number;
+    approvedAmountCents?: number | null;
+    currency?: string;
+    amountBreakdown?: unknown;
   } | undefined,
+  marketplace = false,
 ): OrderSummary {
   return {
     id: row.id,
     sessionId: row.sessionId,
     externalOrderId: row.externalOrderId,
     status: row.status,
+    fulfillment: summarizeFulfillment(row.fulfillmentJson, row.fulfillmentVersion ?? 0,
+      fulfillmentPaymentEligible(row, payment as Parameters<typeof fulfillmentPaymentEligible>[1]), row.status, marketplace),
     totalMinor: toMinor(row.orderTotal),
     currency: row.currency,
     acceptedOfferId: row.acceptedOfferId ?? undefined,
     trackingCode: row.trackingCode ?? undefined,
     customer: sanitizeCustomer(row.session.customer),
-    cart: normalizeObject(row.session.cart),
+    cart: Array.isArray(row.lineItemsJson) && row.lineItemsJson.length > 0
+      ? { currency: row.currency, items: row.lineItemsJson.map((line: Record<string, unknown>) => ({ sku: line.sku, variantId: line.variantId, name: line.name,
+          quantity: line.quantity, unit_price: line.unitPriceCents, productType: line.productType, selected_options: line.selectedOptions ?? [], schedule: line.schedule })) }
+      : normalizeObject(row.session.cart),
     completedAt: row.completedAt.toISOString(),
     cancelledAt: row.cancelledAt?.toISOString(),
     cancellationReason: row.cancellationReason ?? undefined,

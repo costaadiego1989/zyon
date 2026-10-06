@@ -7,6 +7,7 @@ export interface StorefrontCartSelectedOption {
 }
 
 export interface StorefrontCartItem {
+  selectedServiceSlot?: import("../../../catalog/domain/services/service-schedule.js").SelectedServiceSlot;
   variantId: string;
   productId: string;
   /** Product category captured from the merchant catalog for rule evaluation. */

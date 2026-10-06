@@ -1,3 +1,4 @@
+import { snapshotDigitalPaymentContent } from "../../../shared/persistence/digital-payment-content.js";
 import { Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
@@ -213,6 +214,8 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const args = paymentIntentUpsertArgs(snapshot);
     const current = await tx.paymentIntent.findUnique({ where: { id: snapshot.id } });
     if (!current) {
+      const digitalContent = await snapshotDigitalPaymentContent(tx, snapshot.merchantId, snapshot.sessionId);
+      args.create.digitalContent = digitalContent as unknown as Prisma.InputJsonValue;
       if ((snapshot.version ?? 0) !== 0) throw new PaymentIntentConflictError();
       if (await tx.paymentIntent.findFirst({ where: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId,
         status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) {
@@ -238,6 +241,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const rows = await this.prisma.paymentIntent.findMany({
       where: {
         status: { in: ["pending", "requires_action"] },
+        method: { not: "qa_fixture" },
         updatedAt: { lt: query.olderThan }
       },
       orderBy: { updatedAt: "asc" },
@@ -257,6 +261,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const rows = await this.prisma.paymentIntent.findMany({
       where: {
         status: "approved",
+        method: { not: "qa_fixture" },
         updatedAt: { lt: query.olderThan }
       },
       orderBy: { updatedAt: "asc" },

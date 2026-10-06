@@ -18,9 +18,10 @@ export const WHATSAPP_TEMPLATE_TYPES = [
   "cart_recovery",
   // Transactional order notifications
   "order_confirmation",
+  "order_nonphysical_confirmation",
+  "digital_delivery",
   "order_shipped",
   "order_delivered",
-  // Transactional identity verification for the checkout email fallback.
   "checkout_otp",
 ] as const;
 

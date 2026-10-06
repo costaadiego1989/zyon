@@ -20,3 +20,14 @@
   .orders-toolbar > *, .orders-toolbar .search-input-wrap { width: 100% !important; min-width: 0; }
   .order-detail__actions > .zyn-btn { width: 100%; }
 }
+.order-fulfillments { padding: 24px 0; border-bottom: 1px solid var(--color-border); }
+.order-fulfillments h3 { margin: 0; font: 600 15px var(--font-sans); }
+.order-fulfillments__heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; flex-wrap: wrap; }
+.order-fulfillments__heading > span, .order-fulfillments__meta { color: var(--color-text-muted); font: 12px/1.6 var(--font-sans); }
+.order-fulfillments__item { padding: 20px 0; border-top: 1px solid var(--color-border); }
+.order-fulfillments__item p, .order-fulfillments__options { font: 13px/1.6 var(--font-sans); }
+.order-fulfillments__options { padding-left: 20px; color: var(--color-text-secondary); }
+.order-fulfillments__proof { margin-top: 20px; padding: 20px; background: var(--surface-2); border: 1px solid var(--color-border); border-radius: var(--radius-sm); }
+.order-fulfillments__attention { color: var(--color-warning); }
+.orders-views { display: flex; flex-wrap: wrap; gap: 8px; margin: 20px 0; }
+.order-kanban-card__types { display: flex; flex-wrap: wrap; gap: 8px; font: 11px/1.6 var(--font-sans); color: var(--color-text-secondary); }

@@ -662,6 +662,12 @@ model CompletedOrder {
   @@index([merchantId, completedAt])
   @@index([merchantId, status, completedAt])
   @@map("completed_orders")
+  fulfillmentJson   Json?     @map("fulfillment_json")
+  fulfillmentVersion Int      @default(0) @map("fulfillment_version")
+  fulfilledAt       DateTime? @map("fulfilled_at")
+  digitalEntitlements DigitalEntitlement[]
+  fulfillmentActions OrderFulfillmentAction[]
+  serviceReservations ServiceReservation[]
 }
 
 model MerchantApiKey {
@@ -1016,6 +1022,8 @@ model PaymentIntent {
   @@index([merchantId, commerceOrderId])
   @@index([status, updatedAt])
   @@map("payment_intents")
+  digitalContent      Json?    @map("digital_content")
+  digitalEntitlements DigitalEntitlement[]
 }
 
 // Immutable settlement snapshots. A later provider observation is recorded as
@@ -4027,4 +4035,91 @@ model StrategyIncentiveStageGrant {
   @@unique([id, merchantId])
   @@index([merchantId, assignmentId, stageIndex])
   @@map("strategy_incentive_stage_grants")
+}
+
+
+model OrderFulfillmentAction {
+  id          String   @id
+  merchantId  String   @map("merchant_id")
+  orderId     String   @map("order_id")
+  commandId   String   @map("command_id")
+  fingerprint String
+  unitId      String   @map("unit_id")
+  action      String
+  actorId     String   @map("actor_id")
+  origin      String
+  fromStatus  String   @map("from_status")
+  toStatus    String   @map("to_status")
+  quantity    Int
+  proof       String?
+  occurredAt  DateTime @map("occurred_at")
+  createdAt   DateTime @default(now()) @map("created_at")
+  order CompletedOrder @relation(fields: [orderId, merchantId], references: [id, merchantId], onDelete: Cascade)
+  @@unique([merchantId, commandId])
+  @@index([merchantId, orderId, createdAt])
+  @@map("order_fulfillment_actions")
+}
+
+
+model ServiceReservation {
+  id          String   @id
+  merchantId  String   @map("merchant_id")
+  orderId     String   @map("order_id")
+  unitId      String   @map("unit_id")
+  resourceId  String   @map("resource_id")
+  startsAt    DateTime @map("starts_at")
+  endsAt      DateTime @map("ends_at")
+  status      String   @default("reserved")
+  createdAt   DateTime @default(now()) @map("created_at")
+  order CompletedOrder @relation(fields: [orderId, merchantId], references: [id, merchantId], onDelete: Cascade)
+  @@unique([orderId, unitId])
+  @@index([merchantId, resourceId, status, startsAt])
+  @@map("service_reservations")
+}
+
+
+model DigitalEntitlement {
+  id              String   @id
+  merchantId      String   @map("merchant_id")
+  orderId         String   @map("order_id")
+  paymentIntentId String   @map("payment_intent_id")
+  variantId       String   @map("variant_id")
+  sku             String
+  productName     String   @map("product_name")
+  downloadUrl     String   @map("download_url")
+  status          String   @default("active")
+  expiresAt       DateTime @map("expires_at")
+  downloadCount   Int      @default(0) @map("download_count")
+  lastAccessAt    DateTime? @map("last_access_at")
+  createdAt       DateTime @default(now()) @map("created_at")
+  order           CompletedOrder @relation(fields: [orderId, merchantId], references: [id, merchantId], onDelete: Cascade)
+  payment         PaymentIntent @relation(fields: [paymentIntentId, merchantId], references: [id, merchantId], onDelete: Restrict)
+  deliveries      DigitalDelivery[]
+
+  @@unique([id, merchantId])
+  @@unique([merchantId, orderId, variantId])
+  @@index([merchantId, orderId])
+  @@map("digital_entitlements")
+}
+
+
+model DigitalDelivery {
+  id            String   @id
+  merchantId    String   @map("merchant_id")
+  entitlementId String   @map("entitlement_id")
+  channel       String
+  destination   String
+  buyerName     String?  @map("buyer_name")
+  status        String   @default("pending")
+  providerId    String?  @map("provider_id")
+  reason        String?
+  claimedAt     DateTime? @map("claimed_at")
+  sentAt        DateTime? @map("sent_at")
+  createdAt     DateTime @default(now()) @map("created_at")
+  updatedAt     DateTime @updatedAt @map("updated_at")
+  entitlement   DigitalEntitlement @relation(fields: [entitlementId, merchantId], references: [id, merchantId], onDelete: Cascade)
+
+  @@unique([merchantId, entitlementId, channel])
+  @@index([merchantId, status])
+  @@map("digital_deliveries")
 }

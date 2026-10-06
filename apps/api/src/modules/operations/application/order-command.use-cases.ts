@@ -28,6 +28,7 @@ import {
   type DomainEventBus,
 } from "../../../shared/events/domain-event-bus.port.js";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { hasMarketplaceFulfillmentFunding } from "../../fulfillment/infrastructure/repositories/marketplace-fulfillment-guard.js";
 
 @Injectable()
 export class CancelOrderUseCase {
@@ -41,6 +42,8 @@ export class CancelOrderUseCase {
     @Inject(COMMERCE_ORDER_PORT)
     private readonly commerce: CommerceOrderPort,
     private readonly webhooks: TenantWebhookPublisher,
+    @Inject(PRISMA_CLIENT)
+    private readonly prisma: PrismaClient,
   ) {}
 
   async execute(input: {
@@ -64,6 +67,12 @@ export class CancelOrderUseCase {
     if (!CANCELLABLE_ORDER_STATUSES.has(order.status)) {
       throw new BadRequestException("order_cancellation_not_allowed");
     }
+
+    // A generic commerce cancellation can restock and overwrite delivery. The
+    // marketplace journal owns that decision and races with this legacy path.
+    if (await hasMarketplaceFulfillmentFunding(this.prisma, {
+      merchantId, orderId: order.externalOrderId, sessionId: order.sessionId,
+    })) throw new ConflictException("marketplace_cancellation_journal_required");
 
     // The provider action is irreversible from this service's perspective.
     // Keep the local order retryable until the provider confirms cancellation.
@@ -194,9 +203,16 @@ export class UpdateOrderStatusUseCase {
       };
     }
 
+    if (order.fulfillment?.units.length) throw new ConflictException("use_order_fulfillment_endpoint");
+
     if (!canTransitionOrderStatus(order.status, status)) {
       throw new BadRequestException("order_status_transition_invalid");
     }
+
+    if ((status === "shipped" || status === "delivered" || status === "returned") &&
+        await hasMarketplaceFulfillmentFunding(this.prisma, {
+          merchantId, orderId: order.externalOrderId, sessionId: order.sessionId,
+        })) throw new ConflictException(status === "returned" ? "marketplace_return_workflow_required" : "marketplace_delivery_proof_required");
 
     const updated = await this.orders.updateCompletedOrderStatus({
       merchantId,

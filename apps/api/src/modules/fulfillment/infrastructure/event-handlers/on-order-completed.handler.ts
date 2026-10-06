@@ -23,6 +23,8 @@ export class FulfillmentOnOrderCompletedHandler implements OnModuleInit {
     const payload = event.payload as Record<string, unknown>;
     const order_id = payload["external_order_id"] as string | undefined;
     if (!order_id) return;
+    const snapshot = payload["fulfillment_snapshot"] as { version?: number; lines?: Array<{ productType?: string; fulfillmentStrategy?: string }> } | undefined;
+    if (snapshot?.version === 2 && !snapshot.lines?.some(line => ["physical", "food"].includes(line.productType ?? "") && line.fulfillmentStrategy === "carrier")) return;
 
     // P2 fix: prefer carrier_key from event payload (forward-compatible with
     // checkout emitting the selected carrier in the future). Fall back to

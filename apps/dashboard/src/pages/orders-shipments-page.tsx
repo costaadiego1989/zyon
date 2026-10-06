@@ -20,34 +20,20 @@ import { StatCard, StatCardGroup } from "./overview/components/StatCard.js";
 import type { MerchantProfile, OrderTimelineEntry, TenantOrder, TenantOrderDetail } from "../api-client.js";
 import { useOrdersShipmentsPage } from "./orders-shipments/useOrdersShipmentsPage.js";
 import { Button } from "../components/Button.js";
-import { STATUS_LABELS, computeOrderMetrics, filterOrdersByPeriod, formatMinor, formatDate, formatPhone } from "./orders-shipments/utils.js";
+import { STATUS_LABELS, computeOrderMetrics, filterOrdersByPeriod, formatMinor, formatOrderItemUnitPrice, formatDate, formatPhone } from "./orders-shipments/utils.js";
 import { OrderStatusBadge } from "./orders-shipments/components/OrderStatusBadge.js";
+import { OrderFulfillments } from "./orders-shipments/components/OrderFulfillments.js";
+import { boardColumns, boardEntries, dropAction, entryColumn, TYPE_LABELS, UNIT_LABELS, type BoardEntry, type OrderView } from "./orders-shipments/fulfillment-board.js";
+import { DigitalOrderDelivery } from "./orders-shipments/components/DigitalOrderDelivery.js";
 import { useApi } from "../hooks/useApi.js";
 import { createIdempotencyKey, DashboardHttpError } from "../api/http/index.js";
 import type { PurchaseShippingLabelPayload, PurchasedShippingLabel } from "../api/endpoints/order.js";
 
 export { STATUS_LABELS, computeOrderMetrics, filterOrders, filterOrdersByPeriod } from "./orders-shipments/utils.js";
-
 export type OrderPeriod = "all" | "today" | "7d" | "15d" | "30d";
 export const DEFAULT_ORDER_PERIOD: OrderPeriod = "today";
 
 // ── Kanban Column Definitions ───────────────────────────────────────────────
-
-type KanbanColumnDef = {
-  id: string;
-  label: string;
-  statuses: string[];
-  color: string;
-  acceptsFrom: string[];
-};
-
-const KANBAN_COLUMNS: KanbanColumnDef[] = [
-  { id: "pending", label: "Aguardando", statuses: ["pending", "processing"], color: "var(--color-warning)", acceptsFrom: [] },
-  { id: "paid", label: "Pago", statuses: ["paid", "approved"], color: "var(--color-brand)", acceptsFrom: ["pending", "processing"] },
-  { id: "shipped", label: "Enviado", statuses: ["shipped"], color: "oklch(70% 0.14 250)", acceptsFrom: ["paid", "approved"] },
-  { id: "delivered", label: "Entregue", statuses: ["delivered"], color: "var(--color-success)", acceptsFrom: ["shipped"] },
-  { id: "cancelled", label: "Cancelado", statuses: ["cancelled", "failed", "refunded", "returned"], color: "var(--color-error)", acceptsFrom: [] },
-];
 
 const PAYMENT_METHOD_LABELS: Record<string, string> = {
   pix: "PIX",
@@ -63,21 +49,6 @@ const PAYMENT_PROVIDER_LABELS: Record<string, string> = {
   unknown: "—",
 };
 
-function getColumnForStatus(status: string): string {
-  for (const col of KANBAN_COLUMNS) {
-    if (col.statuses.includes(status)) return col.id;
-  }
-  return "pending";
-}
-
-function canDrop(fromStatus: string, toColumnId: string): boolean {
-  const col = KANBAN_COLUMNS.find((c) => c.id === toColumnId);
-  if (!col) return false;
-  return col.acceptsFrom.includes(fromStatus);
-}
-
-// ── Page Component ──────────────────────────────────────────────────────────
-
 export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   if (!props.me) {
     return (
@@ -89,8 +60,10 @@ export function OrdersShipmentsPage(props: { apiBaseUrl: string; me: MerchantPro
 
 function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   const vm = useOrdersShipmentsPage({ me });
-  const [draggedOrder, setDraggedOrder] = useState<TenantOrder | null>(null);
+  const [draggedOrder, setDraggedOrder] = useState<BoardEntry | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
+  const [view, setView] = useState<OrderView>("all");
+  const columns = boardColumns(view);
   const [period, setPeriod] = useState<OrderPeriod>(DEFAULT_ORDER_PERIOD);
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
@@ -107,11 +80,11 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   }, [filteredOrders, search]);
   const metrics = useMemo(() => computeOrderMetrics(filteredOrders), [filteredOrders]);
 
-  function handleDragStart(e: React.DragEvent, order: TenantOrder) {
+  function handleDragStart(e: React.DragEvent, entry: BoardEntry) {
     if (vm.busy) return;
-    setDraggedOrder(order);
+    setDraggedOrder(entry);
     e.dataTransfer.effectAllowed = "move";
-    e.dataTransfer.setData("text/plain", order.id);
+    e.dataTransfer.setData("text/plain", entry.order.id);
   }
 
   function handleDragEnd() {
@@ -121,7 +94,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
 
   function handleDragOver(e: React.DragEvent, columnId: string) {
     if (!draggedOrder) return;
-    if (!canDrop(draggedOrder.status, columnId)) return;
+    if (!dropAction(draggedOrder, columnId)) return;
     e.preventDefault();
     e.dataTransfer.dropEffect = "move";
     setDropTarget(columnId);
@@ -135,16 +108,18 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
     e.preventDefault();
     setDropTarget(null);
     if (!draggedOrder) return;
-    if (!canDrop(draggedOrder.status, columnId)) return;
+    if (!dropAction(draggedOrder, columnId)) return;
 
-    const targetStatus = columnId === "pending" ? "pending" : columnId;
-    await vm.changeOrderStatus(draggedOrder, targetStatus);
+    const target = dropAction(draggedOrder, columnId);
+    if (!target) return;
+    if (target.action.requiresProof) vm.openOrderDetails(draggedOrder.order.id);
+    else await vm.executeFulfillment(draggedOrder.order, target.unit.id, target.action.action);
     setDraggedOrder(null);
   }
 
   return (
     <div className="page-container orders-page">
-      <PageHeader title="Pedidos e envios" description="Acompanhe cada pedido, registre o rastreamento e atualize a etapa da entrega." actions={<>
+      <PageHeader title="Pedidos e envios" description="Acompanhe os atendimentos de cada pedido, do preparo e agendamento à entrega." actions={<>
 <Button variant="outline" size="sm" disabled={!vm.hasLoaded || visibleOrders.length === 0} onClick={() => vm.exportCsv(visibleOrders)}>
           <Download size={14} /> Exportar CSV
         </Button>
@@ -169,7 +144,8 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         onDate={(field, value) => { setDateRange(range => ({ ...range, [field]: value })); setPeriod("all"); }}
       />
 
-      <div className="orders-toolbar"><p>Abra um pedido para ver os detalhes e alterar a etapa. Você também pode arrastar os cards entre as colunas.</p><SearchInput value={search} onChange={setSearch} placeholder="Buscar pedido, cliente ou rastreio" width={320} /></div>
+      <div className="orders-toolbar"><p>Selecione um tipo para acompanhar cada item. Arraste para uma etapa disponível ou abra o pedido para registrar o atendimento.</p><SearchInput value={search} onChange={setSearch} placeholder="Buscar pedido, cliente ou rastreio" width={320} /></div>
+      <nav className="orders-views" aria-label="Tipo de atendimento">{(["all", "physical", "service", "digital", "food"] as const).map(type => <Button key={type} size="sm" variant={view === type ? "primary" : "outline"} aria-pressed={view === type} onClick={() => setView(type)}>{type === "all" ? "Todos os pedidos" : TYPE_LABELS[type]}</Button>)}</nav>
       {/* Kanban Board */}
       {!vm.hasLoaded && vm.message ? null : !vm.hasLoaded ? (
         <div className="orders-loading">
@@ -179,13 +155,13 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         </div>
       ) : visibleOrders.length === 0 ? (
         <div className="panel">
-        <EmptyState icon={Package} title={vm.orders.length ? "Nenhum pedido com estes filtros" : "Os pedidos da sua loja aparecem aqui"} description={vm.orders.length ? "Altere a busca ou o período para localizar o pedido." : "Após uma venda no checkout, acompanhe o pagamento, o envio e a entrega por este painel."} action={vm.orders.length ? <Button variant="outline" onClick={() => { setSearch(""); setPeriod(DEFAULT_ORDER_PERIOD); setDateRange({ from: "", to: "" }); }}>Limpar filtros</Button> : undefined} />
+          <EmptyState icon={Package} title={vm.orders.length ? "Nenhum pedido com estes filtros" : "Os pedidos da sua loja aparecem aqui"} description={vm.orders.length ? "Altere a busca ou o período para localizar o pedido." : "Após uma venda no checkout, acompanhe o pagamento, o envio e a entrega por este painel."} action={vm.orders.length ? <Button variant="outline" onClick={() => { setSearch(""); setPeriod("all"); setDateRange({ from: "", to: "" }); }}>Limpar filtros</Button> : undefined} />
         </div>
       ) : (
-        <div className="orders-kanban" role="region" aria-label="Pedidos por etapa" tabIndex={0}>
-          {KANBAN_COLUMNS.map((col) => {
-            const colOrders = visibleOrders.filter((o) => col.statuses.includes(o.status));
-            const isValidTarget = draggedOrder ? canDrop(draggedOrder.status, col.id) : false;
+        <div className="orders-kanban" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(230px, 1fr))` }} role="region" aria-label="Pedidos por etapa" tabIndex={0}>
+          {columns.map((col) => {
+            const colOrders = boardEntries(visibleOrders, view).filter(entry => entryColumn(entry) === col.id);
+            const isValidTarget = draggedOrder ? Boolean(dropAction(draggedOrder, col.id)) : false;
             const isHovering = dropTarget === col.id;
 
             return (
@@ -222,14 +198,15 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
                   </div>
                 ) : (
                   <div style={{ display: "flex", flexDirection: "column", gap: 8 }}>
-                    {colOrders.map((order) => (
+                    {colOrders.map((entry) => (
                       <KanbanCard
-                        key={order.id}
-                        order={order}
-                        onDragStart={(e) => handleDragStart(e, order)}
+                        key={`${entry.order.id}:${entry.unit?.id ?? "order"}`}
+                        order={entry.order}
+                        unit={entry.unit}
+                        onDragStart={(e) => handleDragStart(e, entry)}
                         onDragEnd={handleDragEnd}
-                        onClick={() => { if (!vm.busy) vm.openOrderDetails(order.id); }}
-                        isDragging={draggedOrder?.id === order.id}
+                        onClick={() => { if (!vm.busy) vm.openOrderDetails(entry.order.id); }}
+                        isDragging={draggedOrder?.order.id === entry.order.id && draggedOrder?.unit?.id === entry.unit?.id}
                         disabled={vm.busy}
                       />
                     ))}
@@ -242,15 +219,16 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
       )}
 
       {/* Side Panel */}
-      {vm.expandedOrderId && <OrderSidePanel vm={vm} />}
+      {vm.expandedOrderId && <OrderSidePanel vm={vm} merchantId={me.id} />}
     </div>
   );
 }
 
 // ── Kanban Card ─────────────────────────────────────────────────────────────
 
-function KanbanCard({ order, onDragStart, onDragEnd, onClick, isDragging, disabled }: {
+function KanbanCard({ order, unit, onDragStart, onDragEnd, onClick, isDragging, disabled }: {
   order: TenantOrder;
+  unit?: BoardEntry["unit"];
   onDragStart: (e: React.DragEvent) => void;
   onDragEnd: () => void;
   onClick: () => void;
@@ -267,7 +245,7 @@ function KanbanCard({ order, onDragStart, onDragEnd, onClick, isDragging, disabl
       tabIndex={disabled ? -1 : 0}
       aria-label={"Ver pedido " + order.external_order_id + " de " + name}
       onKeyDown={event => { if (!disabled && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onClick(); } }}
-      draggable={!disabled}
+      draggable={!disabled && Boolean((unit ? [unit] : order.fulfillment?.units.length === 1 ? order.fulfillment.units : []).some(item => item.allowedActions.some(action => !["refresh_digital", "reschedule_service"].includes(action.action))))}
       aria-disabled={disabled}
       onDragStart={onDragStart}
       onDragEnd={onDragEnd}
@@ -300,6 +278,8 @@ function KanbanCard({ order, onDragStart, onDragEnd, onClick, isDragging, disabl
         {name}
       </div>
 
+      <div className="order-kanban-card__types">{unit ? <span>{unit.name} · {UNIT_LABELS[unit.status]}</span> : [...new Set(order.fulfillment?.units.map(item => item.productType) ?? [])].map(type => <span key={type}>{TYPE_LABELS[type]}</span>)}</div>
+      {order.fulfillment && <div className="order-kanban-card__types">{unit ? `${unit.completedQuantity} de ${unit.quantity}` : `${order.fulfillment.completedQuantity} de ${order.fulfillment.totalQuantity}`} unidades concluídas{order.fulfillment.units.some(item => item.attention) ? " · Atenção" : ""}</div>}
       <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
         <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
           {formatDate(order.completed_at)}
@@ -316,7 +296,7 @@ function KanbanCard({ order, onDragStart, onDragEnd, onClick, isDragging, disabl
 
 // ── Side Panel ──────────────────────────────────────────────────────────────
 
-function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> }) {
+function OrderSidePanel({ vm, merchantId }: { vm: ReturnType<typeof useOrdersShipmentsPage>; merchantId: string }) {
   const order = vm.orders.find((o) => o.id === vm.expandedOrderId);
   if (!order) return null;
 
@@ -351,6 +331,7 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
     <Modal isOpen title={"Pedido " + order.external_order_id} subtitle="Itens, cliente, entrega e histórico de atualizações." presentation="center" size="lg" onClose={() => { if (!vm.busy) vm.closeOrderDetails(); }} footer={<Button variant="outline" disabled={vm.busy} onClick={vm.closeOrderDetails}>Fechar</Button>}>
       <div className="order-detail configuration-form">
         {vm.message && <div className="panel-error" role="alert">{vm.message}</div>}
+        {order.payment_method === "qa_fixture" && <p className="order-detail__hint" role="note">Pedido de demonstração. O pagamento e os contatos são de teste. Nenhuma cobrança ou mensagem é enviada por este pedido.</p>}
         {/* Status + Total */}
         <div style={{ ...sectionStyle, display: "flex", alignItems: "center", justifyContent: "space-between" }}>
           <div>
@@ -371,12 +352,16 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
               {items.map((item, i) => (
                 <div key={i} style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "8px 12px", borderRadius: 8, background: "var(--surface-3)", border: "1px solid var(--color-border)" }}>
                   <span style={valueStyle}>{item.name ?? item.title ?? "Item"} <span style={{ color: "var(--color-text-muted)" }}>×{item.quantity ?? 1}</span></span>
-                  <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-secondary)" }}>{item.price || item.unit_price ? formatMinor(item.price ?? item.unit_price ?? 0, order.currency) : ""}</span>
+                  <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-secondary)" }}>{formatOrderItemUnitPrice(item, order.currency)}</span>
                 </div>
               ))}
             </div>
           ) : <p style={{ ...valueStyle, color: "var(--color-text-muted)" }}>Nenhum item</p>}
         </div>
+
+        <OrderFulfillments key={order.id} order={detail ?? order} busy={vm.busy} execute={(unitId, action, proof, quantity, slotId) => vm.executeFulfillment(detail ?? order, unitId, action, proof, quantity, slotId)} />
+
+        {(order.fulfillment?.units.some(unit => unit.productType === "digital") || !order.fulfillment?.units.length) && <DigitalOrderDelivery key={`${merchantId}:${order.external_order_id}`} merchantId={merchantId} orderId={order.external_order_id} />}
 
         {/* Customer */}
         <div style={sectionStyle}>
@@ -435,7 +420,7 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
         />
 
         {/* Tracking */}
-        <div style={sectionStyle}>
+        {(order.fulfillment?.units.some(unit => unit.strategy === "carrier") || Boolean(order.tracking_code)) && <div style={sectionStyle}>
           <div style={labelStyle}>Rastreamento</div>
           {order.tracking_code ? (
             <div style={{ padding: "10px 14px", borderRadius: 8, background: "var(--color-success-bg)", border: "1px solid var(--color-success)", marginBottom: 12 }}>
@@ -457,14 +442,7 @@ function OrderSidePanel({ vm }: { vm: ReturnType<typeof useOrdersShipmentsPage> 
           <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 10 }}>
             A etiqueta exige uma cotação confirmada e as dimensões reais dos itens. Este painel não gera etiquetas com dados estimados.
           </p>
-        </div>
-
-        {/* Status — info only, change via drag on board */}
-        <div style={{ ...sectionStyle, borderBottom: "none" }}>
-          <div style={labelStyle}>Atualizar etapa</div>
-          <p className="order-detail__hint">Registre a etapa após conferir o pagamento ou a entrega. Cancelamentos exigem o motivo abaixo.</p>
-          <div className="order-detail__actions">{KANBAN_COLUMNS.filter(column => column.acceptsFrom.includes(order.status)).map(column => <Button key={column.id} variant="outline" disabled={vm.busy} onClick={() => void vm.changeOrderStatus(order, column.id)}>Marcar como {column.label.toLocaleLowerCase("pt-BR")}</Button>)}{!KANBAN_COLUMNS.some(column => column.acceptsFrom.includes(order.status)) && <OrderStatusBadge status={order.status} />}</div>
-        </div>
+        </div>}
 
         <CancelOrderAction order={order} vm={vm} />
 

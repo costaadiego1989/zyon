@@ -1,4 +1,5 @@
 import type { PrismaClient } from "@prisma/client";
+import { linkShipmentFulfillment } from "../../../../shared/persistence/order-shipment-fulfillment.js";
 import {
   ShipmentEntity,
   type ShipmentSnapshot,
@@ -11,7 +12,8 @@ export class PrismaShipmentRepository implements ShipmentRepository {
 
   async save(shipment: ShipmentEntity): Promise<void> {
     const snapshot = shipment.snapshot();
-    await this.prisma.shipment.upsert({
+    await this.prisma.$transaction(async tx => {
+    await tx.shipment.upsert({
       where: { id: snapshot.id },
       create: {
         id: snapshot.id,
@@ -37,6 +39,8 @@ export class PrismaShipmentRepository implements ShipmentRepository {
         estimatedEta: toDate(snapshot.estimated_eta),
         deliveredAt: toDate(snapshot.delivered_at),
       },
+    });
+    await linkShipmentFulfillment(tx, snapshot.merchant_id, snapshot.order_id, snapshot.id);
     });
   }
 

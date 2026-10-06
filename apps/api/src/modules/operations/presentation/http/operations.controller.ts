@@ -1,4 +1,5 @@
 import {
+  BadRequestException,
   Body,
   Controller,
   Get,
@@ -50,6 +51,8 @@ import type {
   PaymentSummary,
 } from "../../domain/ports/operations-read.repository.port.js";
 import { UpdateOrderTrackingDto } from "./order-tracking.dto.js";
+import { OrderFulfillmentUseCase } from "../../application/order-fulfillment.use-case.js";
+import { OrderFulfillmentActionDto } from "./order-fulfillment.dto.js";
 import {
   CancelOrderDto,
   CreateOrderDto,
@@ -70,6 +73,7 @@ export class OrdersController {
     private readonly cancelOrder: CancelOrderUseCase,
     private readonly createOrder: CreateOrderFromPaymentUseCase,
     private readonly updateOrderStatus: UpdateOrderStatusUseCase,
+    private readonly fulfillment: OrderFulfillmentUseCase,
   ) {}
 
   @Get()
@@ -209,6 +213,32 @@ export class OrdersController {
       notifyCustomer: body.notify_customer,
       restock: body.restock,
     });
+  }
+
+  @Post("qa/fulfillment-seed")
+  @RequireTenantAccess({ humanRoles: ["owner"] })
+  seedFulfillment(@Req() request: unknown) {
+    const principal = currentTenantPrincipal(request as Parameters<typeof currentTenantPrincipal>[0]);
+    if (principal.kind !== "human") throw new BadRequestException("qa_seed_human_required");
+    return this.fulfillment.seedSandbox(principal.tenantId);
+  }
+
+  @Get(":orderId/fulfillments/:unitId/service-slots")
+  @RequireTenantAccess({ serviceScopes: ["orders:read"], humanRoles: ["owner", "admin", "staff"] })
+  serviceSlots(@Req() request: unknown, @Param("orderId") orderId: string, @Param("unitId") unitId: string) {
+    const principal = currentTenantPrincipal(request as Parameters<typeof currentTenantPrincipal>[0]);
+    return this.fulfillment.serviceSlots(principal.tenantId, orderId, unitId);
+  }
+
+  @Post(":orderId/fulfillments/:unitId/actions")
+  @Idempotent()
+  @RequireTenantAccess({ serviceScopes: ["orders:write"], humanRoles: ["owner", "admin", "staff"] })
+  async fulfill(@Req() request: unknown, @Param("orderId") orderId: string, @Param("unitId") unitId: string, @Body() body: OrderFulfillmentActionDto) {
+    const principal = currentTenantPrincipal(request as Parameters<typeof currentTenantPrincipal>[0]);
+    await this.fulfillment.execute({ merchantId: principal.tenantId, orderId, unitId, action: body.action,
+      expectedVersion: body.expected_version, commandId: body.command_id, proof: body.proof, quantity: body.quantity, scheduleSlotId: body.schedule_slot_id,
+      actorId: principal.kind === "human" ? principal.userId : principal.credentialId });
+    return toOrderDetailResponse(await this.getOrder.execute(principal.tenantId, orderId));
   }
 
   @Put(":orderId/status")
@@ -535,6 +565,7 @@ function toOrderResponse(order: OrderSummary) {
     session_id: order.sessionId,
     external_order_id: order.externalOrderId,
     status: order.status,
+    fulfillment: order.fulfillment ?? null,
     total: order.totalMinor,
     currency: order.currency,
     accepted_offer_id: order.acceptedOfferId ?? null,
@@ -574,6 +605,8 @@ function toCustomerDetailResponse(customer: CustomerDetail) {
       currency: purchase.currency,
       total: purchase.totalMinor,
       discount: purchase.discountMinor,
+      total_minor: purchase.totalMinor,
+      discount_minor: purchase.discountMinor,
       items: purchase.items,
       completed_at: purchase.completedAt,
     })),

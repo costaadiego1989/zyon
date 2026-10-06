@@ -1,4 +1,5 @@
 import { Module } from "@nestjs/common";
+import { OrderFulfillmentUseCase } from "./application/order-fulfillment.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
@@ -36,6 +37,7 @@ import {
     PaymentsController,
   ],
   providers: [
+    OrderFulfillmentUseCase,
     ListOrdersUseCase,
     GetOrderUseCase,
     ListCustomersUseCase,

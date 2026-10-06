@@ -16,13 +16,14 @@ export class TenantWebhookPublisher {
     eventType: TenantWebhookEventType;
     data: Record<string, unknown>;
     occurredAt?: string;
+    sourceEventId?: string;
   }): Promise<MerchantWebhookDelivery[]> {
     const endpoints = (await this.repo.listWebhookEndpoints(input.merchantId)).filter(
       (endpoint) => endpoint.enabled && endpoint.events.includes(input.eventType)
     );
     const now = new Date().toISOString();
     const envelope: TenantWebhookEnvelope = {
-      event_id: `evt_${randomUUID()}`,
+      event_id: input.sourceEventId ?? `evt_${randomUUID()}`,
       event_type: input.eventType,
       merchant_id: input.merchantId,
       occurred_at: input.occurredAt ?? now,

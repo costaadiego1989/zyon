@@ -31,15 +31,20 @@ export type CheckoutEventName =
   | "message_sent";
 
 export interface CartItem {
+  originalPrice?: number;
+  variantLabel?: string;
+  fulfillmentStrategy?: import("./order-fulfillment.js").FulfillmentStrategy;
+  fulfillmentSchedule?: import("./order-fulfillment.js").FulfillmentSchedule;
+  digitalDeliveryChannels?: string[];
+  /** Product type reconstructed from the merchant catalog by checkout authority. */
+  productType?: "physical" | "digital" | "service" | "food";
+  /** Verified marketplace allocation; never accepted from public cart input. */
+  marketplace?: CrossStoreLineItem;
   sku: string;
   /** Canonical catalog variant, distinct from the option-selection line key. */
   variantId?: string;
-  /** Buyer-facing description; never use the option-selection key as a label. */
-  variantLabel?: string;
   name: string;
   price: number;
-  /** Server-resolved catalog price before an inline product promotion, in BRL. */
-  originalPrice?: number;
   cost?: number;
   quantity: number;
   weightGrams?: number;
@@ -684,6 +689,13 @@ export type CompletedOrderStatus =
   | "returned";
 
 export interface CompletedOrderLineItem {
+  snapshotVersion?: 2;
+  lineId?: string;
+  productType?: import("./order-fulfillment.js").FulfillmentProductType;
+  fulfillmentStrategy?: import("./order-fulfillment.js").FulfillmentStrategy;
+  selectedOptions?: Array<{ group_name: string; item_name: string; price_modifier: number }>;
+  schedule?: import("./order-fulfillment.js").FulfillmentSchedule;
+  requiredChannels?: string[];
   sku: string;
   variantId?: string;
   name?: string;
@@ -1489,3 +1501,5 @@ export { NEUMORPHIC_THEME, merchantThemeTokens, type MerchantThemeAppearance } f
 
 export { checkoutEditIntent, type CheckoutEditSection } from "./checkout-edit-intent.js";
 export { VOICE_MICROPHONE_CONSTRAINTS, RealtimeVoiceInput, RealtimeVoiceResponses, type VoiceInputEvent } from "./realtime-voice-input.js";
+
+export * from "./order-fulfillment.js";

@@ -149,11 +149,21 @@ Você deixou alguns itens no carrinho na {{storeName}}. Ainda dá tempo de concl
 
 Qualquer dúvida, é só chamar. 💬`,
 
+  digital_delivery: `Olá, {{buyerName}}! O pagamento do pedido {{orderId}} foi confirmado.
+
+Seu produto digital {{productName}} está disponível. Acesse pelo link: {{link}}
+
+Guarde este link para baixar seu produto.`,
+
   order_confirmation: `Oi {{buyerName}}! ✅
 
 Recebemos seu pedido {{orderId}} na {{storeName}} e já estamos preparando tudo.
 
 Você será avisado quando ele for enviado. Obrigado pela compra! 💛`,
+
+  order_nonphysical_confirmation: `Olá, {{buyerName}}! O pagamento do pedido {{orderId}} na {{storeName}} foi confirmado.
+
+Consulte as informações da sua compra. O acesso a produtos digitais é enviado em uma mensagem separada. Para serviços, combine o atendimento com a loja.`,
 
   order_shipped: `Boa notícia, {{buyerName}}! 📦
 
@@ -164,11 +174,11 @@ Acompanhe a entrega e qualquer coisa é só falar com a gente. 🚚`,
   order_delivered: `Olá, {{buyerName}}, seu pedido {{orderId}} foi entregue! 🎉
 
 Esperamos que esteja tudo perfeito. Se precisar de qualquer coisa com o {{productName}}, é só responder aqui. 💬`,
-
   checkout_otp: `Seu código de confirmação é {{otpCode}}. Ele expira em 10 minutos.`,
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
+  checkout_otp: false,
   plan_expiry_7d: false, plan_expiry_3d: false, plan_expiry_24h: false, plan_expiry_expired: false,
   follow_up: false,
   review_request: false,
@@ -179,12 +189,14 @@ const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
   reorder: true,
   cart_recovery: true,
   order_confirmation: false,
+  order_nonphysical_confirmation: false,
+  digital_delivery: false,
   order_shipped: false,
   order_delivered: false,
-  checkout_otp: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
+  checkout_otp: "Código de confirmação do checkout",
   plan_expiry_7d: "Plano: vencimento em 7 dias", plan_expiry_3d: "Plano: vencimento em 3 dias",
   plan_expiry_24h: "Plano: vencimento em 24 horas", plan_expiry_expired: "Plano: vencido sem renovação",
   follow_up: "Follow-up de Entrega",
@@ -196,9 +208,10 @@ const LABELS: Record<WhatsAppTemplateType, string> = {
   reorder: "Recompra",
   cart_recovery: "Recuperação de Carrinho",
   order_confirmation: "Confirmação de Pedido",
+  order_nonphysical_confirmation: "Confirmação de Digital e Serviços",
+  digital_delivery: "Entrega de Produto Digital",
   order_shipped: "Pedido Enviado",
   order_delivered: "Pedido Entregue",
-  checkout_otp: "Código de confirmação do checkout",
 };
 
 // Incentives, reactivation and replenishment campaigns are promotional.

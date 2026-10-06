@@ -1,3 +1,4 @@
+import { snapshotOrderLines } from "../../../operations/domain/order-fulfillment.js";
 import { BadRequestException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
 import type { CheckoutSession, CompleteOrderRequest, CompleteOrderResponse } from "@zyon/shared-types";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
@@ -143,13 +144,7 @@ export class CompleteOrderUseCase {
     // Snapshot the cart line items + shipping at completion so returns can
     // compute per-item partial refunds later (the Return only stores variantId
     // + quantity, not prices).
-    const lineItems = (session.cart?.items ?? []).map((it) => ({
-      sku: it.sku,
-      variantId: it.variantId ?? it.sku,
-      name: it.name,
-      unitPriceCents: Math.round((it.price ?? 0) * 100),
-      quantity: it.quantity,
-    }));
+    const lineItems = snapshotOrderLines(session.cart?.items ?? []);
     const shippingCents = session.shipping?.customerPrice != null
       ? Math.round(session.shipping.customerPrice * 100)
       : undefined;
@@ -178,6 +173,8 @@ export class CompleteOrderUseCase {
             accepted_offer_id: input.accepted_offer_id,
             tracking_code: order.trackingCode ?? null,
             confirmation_touchpoints,
+            fulfillment_snapshot: { version: 2, lines: lineItems },
+            carrier_key: session.shipping?.carrier ?? null,
             ...(approval ? { payment_intent_id: approval.id, payment_amount_breakdown: approval.amountBreakdown } : {}),
             inventory_sale: {
               version: 1,

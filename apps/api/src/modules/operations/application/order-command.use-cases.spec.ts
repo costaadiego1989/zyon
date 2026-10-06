@@ -14,7 +14,22 @@ import {
   UpdateOrderStatusUseCase,
 } from "./order-command.use-cases.js";
 
+const ordinaryFundingReader = () => ({ marketplaceFundingPlan: { findFirst: async () => null }, completedOrder: { findMany: async () => [] } } as any);
+
 describe("CancelOrderUseCase", () => {
+  it("refuses marketplace cancellation before the commerce provider, restock or local status can change", async () => {
+    const checkout = completedOrderRepository();
+    const commerce = new FakeCommerceOrderPort();
+    const events: unknown[] = [];
+    const useCase = new CancelOrderUseCase(new StubOperationsRepository(), checkout, commerce,
+      { publish: async (event: unknown) => { events.push(event); return []; } } as any,
+      { marketplaceFundingPlan: { findFirst: async () => ({ paymentIntentId: "funding" }) } } as any);
+    await assert.rejects(useCase.execute({ merchantId: "mrc_a", orderId: "ord_1", reason: "Customer request", restock: true }), /marketplace_cancellation_journal_required/);
+    assert.equal(commerce.cancelled.length, 0);
+    assert.equal(checkout.getCompletedOrder("mrc_a", "session_1", "external_1")?.status, "approved");
+    assert.deepEqual(events, []);
+  });
+
   it("cancels the provider order, persists status and emits a tenant webhook", async () => {
     const checkout = completedOrderRepository();
     const commerce = new FakeCommerceOrderPort();
@@ -29,6 +44,7 @@ describe("CancelOrderUseCase", () => {
           return [];
         },
       } as unknown as TenantWebhookPublisher,
+      ordinaryFundingReader(),
     );
 
     const result = await useCase.execute({
@@ -58,6 +74,7 @@ describe("CancelOrderUseCase", () => {
       checkout,
       commerce,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      ordinaryFundingReader(),
     );
 
     await assert.rejects(
@@ -78,6 +95,7 @@ describe("CancelOrderUseCase", () => {
       completedOrderRepository(),
       commerce,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      ordinaryFundingReader(),
     );
 
     await assert.rejects(
@@ -97,6 +115,7 @@ describe("CancelOrderUseCase", () => {
       checkout,
       commerce,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      ordinaryFundingReader(),
     );
 
     await useCase.execute({
@@ -121,6 +140,7 @@ describe("CancelOrderUseCase", () => {
           return [];
         },
       } as unknown as TenantWebhookPublisher,
+      ordinaryFundingReader(),
     );
 
     await assert.rejects(
@@ -139,6 +159,7 @@ describe("CancelOrderUseCase", () => {
       checkout,
       commerce,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      ordinaryFundingReader(),
     );
     const input = { merchantId: "mrc_a", orderId: "ord_1", reason: "Merchant requested" };
 
@@ -152,6 +173,40 @@ describe("CancelOrderUseCase", () => {
 });
 
 describe("UpdateOrderStatusUseCase", () => {
+  for (const status of ["shipped", "delivered", "returned"]) {
+    it(`requires marketplace proof before a manual ${status} transition or notification`, async () => {
+      const checkout = completedOrderRepository();
+      const effects: string[] = [];
+      const useCase = new UpdateOrderStatusUseCase(
+        new StaticStatusOperationsRepository(status === "shipped" ? "paid" : "shipped"), checkout,
+        { publish: async () => { effects.push("webhook"); return []; } } as any,
+        { publish: async () => { effects.push("event"); } } as any,
+        { marketplaceFundingPlan: { findFirst: async ({ where }: any) => {
+          assert.equal(where.hostMerchantId, "mrc_a");
+          assert.deepEqual(where.payment, { merchantId: "mrc_a" });
+          return { paymentIntentId: "marketplace" };
+        } } } as any,
+      );
+      await assert.rejects(useCase.execute({ merchantId: "mrc_a", orderId: "ord_1", status }), /marketplace_(delivery_proof|return_workflow)_required/);
+      assert.equal(checkout.getCompletedOrder("mrc_a", "session_1", "external_1")?.status, "approved");
+      assert.deepEqual(effects, []);
+    });
+  }
+
+  for (const status of ["delivered", "returned"]) it(`preserves ordinary ${status} updates and their existing notifications`, async () => {
+    const checkout = completedOrderRepository();
+    const effects: string[] = [];
+    const useCase = new UpdateOrderStatusUseCase(
+      new StaticStatusOperationsRepository("shipped"), checkout,
+      { publish: async () => { effects.push("webhook"); return []; } } as any,
+      { publish: async (event: any) => { effects.push(event.eventType); } } as any,
+      { marketplaceFundingPlan: { findFirst: async () => null }, completedOrder: { findMany: async () => [] },
+        checkoutSession: { findUnique: async () => null } } as any,
+    );
+    assert.equal((await useCase.execute({ merchantId: "mrc_a", orderId: "ord_1", status })).status, status);
+    assert.deepEqual(effects, status === "delivered" ? ["webhook", "order.delivered"] : ["webhook"]);
+  });
+
   it("updates order status through an allowed transition and publishes a webhook", async () => {
     const checkout = completedOrderRepository();
     const published: Array<Record<string, unknown>> = [];
@@ -325,7 +380,13 @@ describe("CreateOrderFromPaymentUseCase", () => {
     const readRepository = new PaymentBackedOperationsRepository(checkout);
     const useCase = new CreateOrderFromPaymentUseCase(
       readRepository,
-      new CompleteOrderUseCase(checkout, checkout, checkout),
+      new CompleteOrderUseCase(
+        checkout, checkout, checkout, undefined,
+        undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined, undefined,
+        undefined, undefined
+      ),
     );
 
     const first = await useCase.execute({
@@ -351,7 +412,13 @@ describe("CreateOrderFromPaymentUseCase", () => {
     );
     const useCase = new CreateOrderFromPaymentUseCase(
       readRepository,
-      new CompleteOrderUseCase(checkout, checkout, checkout),
+      new CompleteOrderUseCase(
+        checkout, checkout, checkout, undefined,
+        undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined, undefined,
+        undefined, undefined, undefined, undefined,
+        undefined, undefined
+      ),
     );
 
     await assert.rejects(

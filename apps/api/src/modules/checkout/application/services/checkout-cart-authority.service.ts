@@ -1,3 +1,5 @@
+import { resolveSelectedServiceSlot, serviceSlotSnapshotMatches, serviceSlotLabel } from "../../../catalog/domain/services/service-schedule.js";
+import { fulfillmentStrategy } from "../../../operations/domain/order-fulfillment.js";
 import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { Cart, CartItem, CurrencyCode } from "@zyon/shared-types";
@@ -82,6 +84,12 @@ export class CheckoutCartAuthorityService {
       this.price(line.unitPriceCents);
       const variant = variants.find(candidate => candidate.id === line.variantId && candidate.productId === line.productId);
       if (!variant?.price || variant.sku !== line.sku || variant.product.merchantId !== merchantId) throw new BadRequestException("checkout_product_unavailable");
+      if (variant.product.type === "service") {
+        try {
+          const currentSlot = resolveSelectedServiceSlot(variant.product.metadata, line.selectedServiceSlot?.slotId);
+          if (currentSlot && (!line.selectedServiceSlot || line.quantity !== 1 || !serviceSlotSnapshotMatches(currentSlot, line.selectedServiceSlot))) throw Error();
+        } catch { throw new BadRequestException("checkout_service_slot_changed"); }
+      }
       const itemCurrency = this.currency(variant.price.currency);
       if (currency && currency !== itemCurrency) throw new BadRequestException("checkout_mixed_currency");
       currency = itemCurrency;
@@ -117,6 +125,9 @@ export class CheckoutCartAuthorityService {
       }
       return {
         sku: variant.sku, variantId: variant.id, product_id: variant.productId,
+        productType: variant.product.type as CartItem["productType"],
+        fulfillmentStrategy: fulfillmentStrategy(variant.product.type, variant.product.metadata, !!line.selectedServiceSlot),
+        ...(line.selectedServiceSlot ? { fulfillmentSchedule: line.selectedServiceSlot } : {}),
         variant: JSON.stringify([variant.id, (line.selectedOptions ?? []).map(option => option.itemId).sort()]),
         variantLabel: [
           ...Object.values((variant.attributes ?? {}) as Record<string, unknown>)
@@ -231,6 +242,7 @@ export class CheckoutCartAuthorityService {
       totalCents += priceCents * quantity;
       items.push({
         sku, variantId: variant.id, quantity, name: variant.product.name, price: priceCents / 100,
+        productType: variant.product.type as CartItem["productType"], fulfillmentStrategy: fulfillmentStrategy(variant.product.type, variant.product.metadata),
         cost: variant.price.costInCents == null ? undefined : variant.price.costInCents / 100,
         weightGrams: variant.weightGrams ?? undefined,
         height_cm: variant.heightCm ?? undefined,
