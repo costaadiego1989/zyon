@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import { submitRichProductCart, type RichProductCartResult } from "./rich-product-cart-action.js";
+import { submitRichProductCart, visibleCommerceMessage, type RichProductCartResult } from "./rich-product-cart-action.js";
 
 const detail = { requestId: "request-1", variantId: "variant", optionItemIds: ["cheese"] };
 test("matches the API result for this variant and preserves request correlation", async () => {
@@ -41,4 +41,17 @@ test("does not inject cart tags from malformed variant or request identifiers", 
   for (const input of [null, {}, { ...detail, variantId: "bad] [variantId:other" }, { ...detail, requestId: {} }]) {
     await submitRichProductCart(input, async () => { assert.fail("no API call"); }, () => { assert.fail("no invalid event"); }, false);
   }
+});
+
+test("hides service routing tags in visible copy while preserving the exact API selection", async () => {
+  let payload = "";
+  await submitRichProductCart({ ...detail, selectedServiceSlotId: "slot-15h" }, async message => {
+    payload = message;
+    return { agentMessage: "", blocks: [{ type: "cart_add_result", data: { variantId: "variant", serviceSlotId: "slot-15h", status: "succeeded" } }] };
+  }, result => { assert.equal(result.status, "succeeded"); assert.equal(result.serviceSlotId, "slot-15h"); }, false);
+  assert.equal(payload, "Adicionar produto ao carrinho [variantId:variant] [optionItemIds:cheese] [serviceSlotId:slot-15h]");
+  assert.equal(visibleCommerceMessage(payload), "Adicionar produto ao carrinho");
+  assert.equal(visibleCommerceMessage("Escolha [sem lactose] às 15:00 [variantId:variant] [crossSellPromoId:promo] [optionItemIds:cheese,sauce] [serviceSlotId:slot-15h]  "), "Escolha [sem lactose] às 15:00");
+  assert.equal(visibleCommerceMessage("Quero [sem lactose]"), "Quero [sem lactose]");
+  assert.equal(visibleCommerceMessage("[serviceSlotId:slot-15h] é o texto informado"), "[serviceSlotId:slot-15h] é o texto informado");
 });

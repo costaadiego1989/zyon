@@ -10,6 +10,11 @@ export interface RichProductCartResult {
 
 const validId = (value: unknown): value is string => typeof value === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(value);
 
+/** Hide trailing routing metadata in the conversation without changing the API payload. */
+export function visibleCommerceMessage(text: string): string {
+  return text.replace(/(?:\s+\[(?:(?:variantId|serviceSlotId|crossSellPromoId):[A-Za-z0-9_-]{1,191}|optionItemIds:[A-Za-z0-9_-]{1,191}(?:,[A-Za-z0-9_-]{1,191})*)\])+\s*$/, "");
+}
+
 /** Correlate the actual API turn, never a quantity change from another action. */
 export async function submitRichProductCart(detail: unknown, send: (message: string) => Promise<CommerceTurnResult | null>,
   emit: (result: RichProductCartResult) => void, busy: boolean) {

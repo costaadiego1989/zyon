@@ -28,7 +28,7 @@ import { PulseAgentOrb } from "./conversation/PulseAgentOrb";
 import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
 import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
-import { submitRichProductCart } from "@/lib/rich-product-cart-action";
+import { submitRichProductCart, visibleCommerceMessage } from "@/lib/rich-product-cart-action";
 import { checkoutApi } from "@/lib/api/api-client";
 import { useRealtimeProductNarration, type ProductNarrationProgress } from "@/lib/voice/use-realtime-product-narration";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
@@ -141,7 +141,7 @@ function attachPresentedVariantId(text: string, variantId: string | undefined): 
 
 function renderBuyerMessage(text: string): string {
   // Keep catalog routing metadata in the API/history, outside the visible copy.
-  return text.replace(/(?:\s+\[(?:variantId:[A-Za-z0-9_-]{1,191}|optionItemIds:[A-Za-z0-9_,-]+|crossSellPromoId:[A-Za-z0-9_-]{1,191})\])+$/, "");
+  return visibleCommerceMessage(text);
 }
 
 function OneBuyClickToggle({
