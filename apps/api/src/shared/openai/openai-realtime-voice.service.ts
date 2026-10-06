@@ -73,13 +73,14 @@ export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
     if (!apiKey) throw new ServiceUnavailableException("voice_provider_not_configured");
     if (!input.aiUserId) throw new ServiceUnavailableException("ai_user_identity_required");
 
-    const sdp = input.sdp.trim();
+    const sdp = input.sdp.trim().replace(/\r?\n/g, "\r\n");
     if (!sdp) throw new BadGatewayException("voice_provider_invalid_offer");
 
     let response: Response;
     try {
       const form = new FormData();
-      form.set("sdp", sdp);
+      // The provider SDP parser requires CRLF lines and a final line terminator.
+      form.set("sdp", `${sdp}\r\n`);
       form.set("session", JSON.stringify(session));
       response = await fetch(`${this.baseUrl()}/realtime/calls`, {
         method: "POST",

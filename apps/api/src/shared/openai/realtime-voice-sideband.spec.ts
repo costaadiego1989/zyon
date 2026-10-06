@@ -27,7 +27,7 @@ test("real HTTP/WebSocket sideband admits ten user turns, deduplicates events an
     const form = await new Request(`http://127.0.0.1${request.url}`, {
       method: "POST", headers: { "content-type": request.headers["content-type"]! }, body: Buffer.concat(chunks),
     }).formData();
-    assert.equal(form.get("sdp"), "v=0\r\na=offer");
+    assert.equal(form.get("sdp"), "v=0\r\na=offer\r\n");
     configuration = { session: JSON.parse(form.get("session") as string) };
     response.writeHead(201, { location: "/v1/realtime/calls/local_call" });
     response.end("v=0\r\na=answer");
@@ -57,7 +57,7 @@ test("real HTTP/WebSocket sideband admits ten user turns, deduplicates events an
   const limiter = new AiUserRateLimitService(store);
   const service = new OpenAIRealtimeVoiceService(limiter);
   try {
-    const result = await service.createCall({ merchantId: "merchant_a", conversationId: "conversation_a", aiUserId: "buyer:user_a", cart: { items: [] }, sdp: "v=0\r\na=offer" });
+    const result = await service.createCall({ merchantId: "merchant_a", conversationId: "conversation_a", aiUserId: "buyer:user_a", cart: { items: [] }, sdp: "v=0\na=offer" });
     assert.equal(result.providerCallId, "local_call");
     assert.equal(configuration.session.audio.input.turn_detection.create_response, false);
     for (let i = 0; i < 10; i++) {
