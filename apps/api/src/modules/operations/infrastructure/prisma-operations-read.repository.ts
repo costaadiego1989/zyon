@@ -373,7 +373,7 @@ function toOrderSummary(
     customer: sanitizeCustomer(row.session.customer),
     cart: Array.isArray(row.lineItemsJson) && row.lineItemsJson.length > 0
       ? { currency: row.currency, items: row.lineItemsJson.map((line: Record<string, unknown>) => ({ sku: line.sku, variantId: line.variantId, name: line.name,
-          quantity: line.quantity, unit_price: line.unitPriceCents, productType: line.productType, selected_options: line.selectedOptions ?? [], schedule: line.schedule })) }
+          quantity: line.quantity, unit_price: line.unitPriceCents, unitPriceCents: line.unitPriceCents, productType: line.productType, selected_options: line.selectedOptions ?? [], schedule: line.schedule })) }
       : normalizeObject(row.session.cart),
     completedAt: row.completedAt.toISOString(),
     cancelledAt: row.cancelledAt?.toISOString(),

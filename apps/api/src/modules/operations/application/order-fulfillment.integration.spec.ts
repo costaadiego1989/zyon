@@ -56,6 +56,14 @@ describe("order fulfillment with isolated PostgreSQL", { skip: !databaseUrl }, (
     const result = await applyFulfillmentSeed(prisma, manifest); assert.equal(result.created.length, 0); assert.equal(result.preserved.length, 14);
     assert.equal(await prisma.outboxMessage.count({ where: { merchantId } }), 0);
   });
+  it("preserves explicit minor units when reading immutable order lines", async () => {
+    const repository = new PrismaOperationsReadRepository(prisma);
+    for (const key of ["service-scheduled", "food-pickup", "mixed-food-service"]) {
+      const detail = await repository.getOrder(merchantId, fixture(key).id);
+      const items = (detail!.cart as { items: Array<{ unitPriceCents: number }> }).items;
+      assert.deepEqual(items.map(item => item.unitPriceCents), fixture(key).lines.map(line => line.unitPriceCents));
+    }
+  });
   it("rejects unpaid, cancelled, wrong tenant, unknown snapshot and forged completion", async () => {
     await assert.rejects(act("unpaid", "start_preparation"), /fulfillment_payment_required/);
     await assert.rejects(act("cancelled", "start_service"), /fulfillment_order_cancelled/);
