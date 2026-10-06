@@ -9,6 +9,7 @@ import {
   Optional
 , Logger} from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { requiresPhysicalDelivery } from "../../checkout/domain/services/cart-fulfillment.js";
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
 import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
@@ -133,7 +134,7 @@ function resolveAsaasCustomerForProvider(asaasCustomer: string | undefined): str
 }
 
 function assertCheckoutReadyForPayment(session: CheckoutSession): void {
-  if (session.cart.items.length > 0 && !session.shipping) {
+  if (session.cart.items.length > 0 && requiresPhysicalDelivery(session.cart) && !session.shipping) {
     throw new BadRequestException("shipping_method_required_before_payment");
   }
 }
@@ -310,7 +311,7 @@ export class CreatePaymentIntentUseCase {
     const commerceOrderId = await this.ensurePendingCommerceOrder(merchantId, sessionId, session);
 
     const itemsSubtotalCents = session.cart.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
-    const shippingCents = Math.round((session.shipping?.customerPrice ?? 0) * 100);
+    const shippingCents = requiresPhysicalDelivery(session.cart) ? Math.round((session.shipping?.customerPrice ?? 0) * 100) : 0;
     const discountCents = Math.round((session.cart.currentDiscount ?? 0) * 100);
     const orderAmountCents = itemsSubtotalCents + shippingCents - discountCents;
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
@@ -581,7 +582,7 @@ export class CreatePaymentIntentUseCase {
           : await this.checkout.reviseIncentiveForPaymentReview?.(merchantId, sessionId);
         if (revised) {
           const subtotal = Math.round(revised.cart.total * 100), discount = Math.round((revised.cart.currentDiscount ?? 0) * 100);
-          const shipping = Math.round((revised.shipping?.customerPrice ?? 0) * 100), orderTotal = subtotal - discount + shipping;
+          const shipping = requiresPhysicalDelivery(revised.cart) ? Math.round((revised.shipping?.customerPrice ?? 0) * 100) : 0, orderTotal = subtotal - discount + shipping;
           throw new ConflictException({ code: "checkout_review_required",
           message: progressed ? "Seu desconto aumentou. Confira o novo total e confirme o pedido novamente antes de pagar."
             : "O desconto deixou de estar disponível. Confira o novo total e confirme o pedido novamente antes de pagar.",

@@ -11,6 +11,7 @@ import { MetricsService } from "../../../../shared/observability/metrics.service
 import { CartPromoResolutionService } from "./cart-promo-resolution.service.js";
 import type { TrustedCheckoutBuyer } from "./trusted-checkout-buyer.js";
 import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
+import { requiresPhysicalDelivery } from "../../domain/services/cart-fulfillment.js";
 
 interface BootstrapResult {
   session: CheckoutSession;
@@ -77,6 +78,7 @@ export class CheckoutBootstrapService {
     }
 
     this.metrics?.checkoutStarted.inc({ merchant_id: input.merchant_id });
+    if (cartValidated && !requiresPhysicalDelivery(enrichedInput.cart)) enrichedInput = { ...enrichedInput, shipping: undefined };
 
     const sessionId = enrichedInput.session_id ?? `chk_${crypto.randomUUID()}`;
     this.logger.warn('[CHECKOUT-DBG] session created', { sessionId, globalUserId, cartItems: enrichedInput.cart?.items?.length ?? 0, hasShipping: !!enrichedInput.shipping });
@@ -151,6 +153,8 @@ export class CheckoutBootstrapService {
     if (this.customerService && session.customer?.email?.trim()) {
       session = await this.customerService.hydrateReturningBuyerFromEmailHint(session);
     }
+
+    if (!requiresPhysicalDelivery(session.cart)) session = { ...session, shipping: undefined, shippingOptions: undefined };
 
     const cohort = this.holdoutGroupService
       ? this.holdoutGroupService.assignCohort(session.globalUserId, session.merchantId)

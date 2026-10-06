@@ -1,4 +1,5 @@
 import type { ChatStage, CheckoutSession, CustomerAddress } from "@zyon/shared-types";
+import { requiresPhysicalDelivery } from "./cart-fulfillment.js";
 import { pendingCustomerCorrection, correctionLabels } from "./customer-correction-prompts.js";
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/;
@@ -160,7 +161,7 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
   const c = session.customer ?? {};
   if (!c.fullName || !c.email || !c.email_verified || !c.cpf || !c.phone || !isBrazilianMobilePhone(c.phone)) return "data_collection";
   const addr = c.address ?? {};
-  if (
+  if (requiresPhysicalDelivery(session.cart) && (
     !addr.zip ||
     !addr.street ||
     !(addr.city && addr.state) ||
@@ -168,7 +169,7 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
     !addr.number ||
     addr.complement === undefined ||
     !session.shipping
-  ) {
+  )) {
     return "shipping";
   }
   if (!session.paymentMethod) return "payment";
@@ -213,6 +214,7 @@ export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage
     return missing;
   }
   if (stage === "shipping") {
+    if (!requiresPhysicalDelivery(session.cart)) return [];
     const addr = session.customer?.address ?? {};
     if (!addr.zip) return ["CEP"];
     if (!(addr.street && addr.city && addr.state)) return ["confirmar CEP"];

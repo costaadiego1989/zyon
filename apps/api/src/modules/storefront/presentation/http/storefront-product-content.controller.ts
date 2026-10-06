@@ -236,6 +236,7 @@ export class StorefrontProductContentController {
       productId: product.id,
       purchase: {
             productName: product.name,
+            productType: product.type,
             ...(schedules.get(purchasableVariant?.id ?? variants[0]?.id ?? "") ? { serviceSchedule: schedules.get(purchasableVariant?.id ?? variants[0]?.id ?? "") } : {}),
             ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
             description: product.description,
