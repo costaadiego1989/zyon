@@ -74,6 +74,8 @@ export interface ProductContentPurchaseResponse {
   };
   ruleNotices?: Array<{ ruleId?: string; message: string }>;
   productName: string;
+  productType?: "physical" | "digital" | "service" | "food";
+  serviceSchedule?: import("../service-schedule").PublicServiceSchedule;
   description?: string | null;
   defaultVariantId: string | null;
   /** Public display amount in reais. The cart still recalculates from catalog. */
@@ -94,6 +96,8 @@ export interface ProductContentPurchaseResponse {
     name: string;
     required: boolean;
     selectionType: "single" | "multiple";
+    minSelections?: number;
+    maxSelections?: number;
     items: Array<{ id: string; name: string; priceModifierInCents: number }>;
   }>;
 }

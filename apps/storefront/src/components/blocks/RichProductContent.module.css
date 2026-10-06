@@ -55,14 +55,19 @@
 .variant small { font-size: 10px; }
 .nudge { display: flex; align-items: center; gap: 9px; margin: 20px 0; font-size: 12px; color: var(--product-muted); }
 .nudge svg { flex-shrink: 0; width: 16px; height: 16px; }
-.buyButton { display: flex; align-items: center; justify-content: center; gap: 12px; width: 100%; min-height: 54px; padding: 14px 20px; border: 1px solid var(--product-accent); border-radius: 6px; background: var(--product-accent); color: var(--product-on-accent); box-shadow: 0 8px 20px -14px var(--aacp-accent-shadow); font: inherit; font-size: 14px; font-weight: 600; cursor: pointer; transition: opacity 160ms ease; }
-.buyButton svg { width: 18px; height: 18px; }
+.buyButton { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; min-height: 54px; padding: 14px 20px; border: 1px solid var(--product-line); border-radius: 999px; background: var(--aacp-card, var(--aacp-surface)); color: var(--aacp-accent-text, var(--product-accent)); box-shadow: var(--aacp-neu-primary, var(--aacp-shadow-sm)); font: inherit; font-size: 14px; font-weight: 600; text-align: left; cursor: pointer; transition: background-color 160ms ease-out, box-shadow 160ms ease-out; }
+.buyButton svg { width: 18px; height: 18px; flex-shrink: 0; }
 .buyButton svg:last-child { margin-left: auto; }
-.buyButton:hover { opacity: .85; }
-.buyButton:disabled { opacity: .6; cursor: not-allowed; }
+.buyButton:hover:not(:disabled) { background: color-mix(in oklch, var(--product-accent) 5%, var(--aacp-card, var(--aacp-surface))); }
+.buyButton:disabled { color: var(--product-muted); cursor: not-allowed; }
+.pendingConfirmation { width: 100%; padding: 4px 0 0; }
+.pendingConfirmation p { margin: 0 0 10px; max-width: 65ch; line-height: 1.65; }
+.feedback .pendingConfirmation button { min-height: 44px; padding: 8px 14px; border: 1px solid var(--product-line); border-radius: 999px; background: var(--aacp-card, var(--aacp-surface)); text-decoration: none; }
 .feedback { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; font-size: 12px; color: var(--product-muted); }
-.feedback:not(:empty) { padding-top: 12px; }
-.feedback button { display: inline-flex; gap: 7px; align-items: center; border: 0; background: transparent; color: var(--aacp-fg); font: inherit; font-weight: 600; text-decoration: underline; cursor: pointer; }
+.feedback:not(:empty) { padding-top: 4px; }
+.feedback button { display: inline-flex; gap: 7px; align-items: center; min-height: 44px; padding: 6px 4px; border: 0; background: transparent; color: var(--aacp-fg); font: inherit; font-weight: 600; text-decoration: underline; text-underline-offset: 2px; cursor: pointer; }
+.feedback .confirmationCheck { width: 14px; height: 14px; stroke-width: 1.6; flex-shrink: 0; }
+.feedback button svg { width: 14px; height: 14px; }
 .feedback a { color: inherit; text-decoration: underline; }
 .delivery { display: flex; align-items: flex-start; gap: 12px; margin-top: 24px; padding-top: 20px; border-top: 1px solid var(--product-line); font-size: 12px; color: var(--product-muted); }
 .delivery > svg { width: 19px; height: 19px; flex-shrink: 0; margin-top: 2px; }
@@ -117,7 +122,7 @@
 .foodOptions legend { display: flex; width: 100%; align-items: center; justify-content: space-between; gap: 8px; font-size: 13px; font-weight: 600; margin-bottom: 8px; }
 .foodOptions legend small { font-size: 11px; font-weight: 400; color: var(--product-muted); }
 .foodChoice { display: flex; gap: 10px; align-items: center; min-height: 46px; padding: 8px 0; border-bottom: 1px solid var(--product-line); cursor: pointer; font-size: 13px; }
-.foodChoice input { accent-color: var(--aacp-accent); width: 18px; height: 18px; }
+.foodChoice:has(input:checked) > span { font-weight: 500; }
 .foodChoice strong { margin-left: auto; font-size: 12px; font-weight: 600; }
 .optionError { color: var(--aacp-fg); font-size: 13px; border: 1px solid currentColor; padding: 10px; }
 .embedded { padding: 14px; border: 1px solid var(--product-line); border-radius: var(--aacp-radius-md); background: var(--aacp-surface-2); }
@@ -148,8 +153,6 @@
   .closing { flex-wrap: wrap; gap: 18px; }
   .embedded { padding: 12px; }
   .embedded .mainImage { aspect-ratio: 1.08; }
-  .crossSellHeading { align-items: start; flex-direction: column; gap: 5px; }
-  .crossSellHeading > span { max-width: none; text-align: left; }
 }
 @media (prefers-reduced-motion: reduce) { .product *, .product *::before, .product *::after { animation: none !important; transition: none !important; scroll-behavior: auto !important; } }
 
@@ -175,9 +178,6 @@
 .narrationHeader { display: flex; align-items: flex-start; justify-content: space-between; gap: 12px; }
 .narrationHeader > span { font-weight: 600; }
 .narrationHeader button { display: inline-flex; flex-shrink: 0; align-items: center; gap: 7px; min-height: 44px; border: 0; padding: 4px 8px; background: transparent; color: var(--aacp-fg); font: inherit; cursor: pointer; }
-.narrationHeader button:disabled { cursor: progress; opacity: .78; }
-.narrationHeader button[data-state="connecting"] svg,
-.narrationHeader button[data-state="playing"] svg { animation: narrationPulse 1.1s ease-in-out infinite; }
 .narrationHeader svg { width: 16px; height: 16px; color: var(--aacp-accent-text, var(--aacp-accent)); }
 .narration details { min-width: 0; }
 .narration summary { cursor: pointer; color: var(--aacp-fg); width: fit-content; min-height: 44px; padding: 12px 0; font-weight: 600; }
@@ -205,7 +205,6 @@
   .dockActions .buyButton svg:last-child { display: none; }
 }
 @keyframes galleryPhoto { from { opacity: .5; } to { opacity: 1; } }
-@keyframes narrationPulse { 50% { opacity: .45; transform: scale(.9); } }
 @media (max-width: 600px) {
   .narrationInHeader { padding: 0; }
   .narrationInHeader .narrationHeader { gap: 4px; }
@@ -225,3 +224,8 @@
 
 /* Variant choices are action chips; media thumbnails retain their crop. */
 .variant > span { border-radius: 999px; }
+
+@media (max-width: 700px) {
+  .crossSellHeading { align-items: start; flex-direction: column; gap: 5px; }
+  .crossSellHeading > span { max-width: none; text-align: left; }
+}

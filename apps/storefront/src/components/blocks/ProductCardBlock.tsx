@@ -1,6 +1,6 @@
 "use client";
 
-import { useMemo, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import RuleNotices from "./RuleNotices";
 import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types";
 import { isColorToken } from "@/lib/utils/color";
@@ -9,6 +9,8 @@ import { ProductCardMedia } from "./parts/ProductCardMedia";
 import { ProductCardVariants } from "./parts/ProductCardVariants";
 import { ProductCardOptions } from "./parts/ProductCardOptions";
 import { ProductCardCta } from "./parts/ProductCardCta";
+import { ServiceScheduleSelector } from "./ServiceScheduleSelector";
+import { isSelectableServiceTime } from "../../lib/service-schedule";
 
 type OptionGroup = NonNullable<ProductCardBlockType["data"]["optionGroups"]>[number];
 
@@ -22,6 +24,10 @@ export default function ProductCardBlock({
   onQuickReply?: (option: string) => void;
 }) {
   const { data } = block;
+  const [selectedServiceSlotId, setSelectedServiceSlotId] = useState<string | null>(null);
+  const scheduleSignature = JSON.stringify(data.serviceSchedule);
+  useEffect(() => setSelectedServiceSlotId(null), [data.id, scheduleSignature]);
+  const serviceSelectionSatisfied = !data.serviceSchedule || data.serviceSchedule.slots.some(slot => slot.slotId === selectedServiceSlotId && isSelectableServiceTime(slot));
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
     data.variants && data.variants.length > 0 ? data.variants[0].id : null,
   );
@@ -122,7 +128,8 @@ export default function ProductCardBlock({
       .map((it) => it.name);
     const optionSuffix = optionNames.length > 0 ? ` — ${optionNames.join(", ")}` : "";
     const optionIdTag = chosen.length > 0 ? ` [optionItemIds:${chosen.join(",")}]` : "";
-    return `${verb} ao carrinho ${data.name}${variantSuffix}${optionSuffix}${variantIdTag}${optionIdTag}`;
+    const serviceTag = selectedServiceSlotId ? ` [serviceSlotId:${selectedServiceSlotId}]` : "";
+    return `${verb} ao carrinho ${data.name}${variantSuffix}${optionSuffix}${variantIdTag}${optionIdTag}${serviceTag}`;
   };
 
   return (
@@ -361,6 +368,7 @@ export default function ProductCardBlock({
         )}
 
         <RuleNotices notices={data.ruleNotices} />
+        {data.serviceSchedule ? <ServiceScheduleSelector schedule={data.serviceSchedule} selectedSlotId={selectedServiceSlotId} onChange={setSelectedServiceSlotId} /> : null}
         {optionGroups.length > 0 && (
           <ProductCardOptions
             groups={optionGroups}
@@ -416,9 +424,9 @@ export default function ProductCardBlock({
           selectedVariantId={selectedVariantId}
           buildCtaText={buildCtaText}
           onQuickReply={onQuickReply}
-          addDisabled={!requiredGroupsSatisfied}
+            addDisabled={!requiredGroupsSatisfied || !serviceSelectionSatisfied}
           addDisabledReason={
-            !requiredGroupsSatisfied ? "Escolha as opções obrigatórias" : undefined
+              !serviceSelectionSatisfied ? "Escolha uma data e um horário" : !requiredGroupsSatisfied ? "Escolha as opções obrigatórias" : undefined
           }
         />
       </div>

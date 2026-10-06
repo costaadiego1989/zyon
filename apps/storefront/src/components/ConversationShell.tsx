@@ -28,6 +28,7 @@ import { PulseAgentOrb } from "./conversation/PulseAgentOrb";
 import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
 import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
+import { submitRichProductCart } from "@/lib/rich-product-cart-action";
 import { checkoutApi } from "@/lib/api/api-client";
 import { useRealtimeProductNarration, type ProductNarrationProgress } from "@/lib/voice/use-realtime-product-narration";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
@@ -613,16 +614,9 @@ export default function ConversationShell({
   }, [setBuyerHubOpen]);
   useEffect(() => {
     const onRichProductAdd = (event: Event) => {
-      const detail = (event as CustomEvent<{ variantId?: unknown; optionItemIds?: unknown }>).detail;
-      const variantId = detail?.variantId;
-      // Do not turn arbitrary browser events into chat markup. Catalog ids are
-      // constrained before we hand the command to the existing API-backed path.
-      if (typeof variantId !== "string" || !/^[A-Za-z0-9_-]{1,191}$/.test(variantId)) return;
-      const optionItemIds = Array.isArray(detail?.optionItemIds)
-        ? detail.optionItemIds.filter((id): id is string => typeof id === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(id))
-        : [];
-      const optionTag = optionItemIds.length ? ` [optionItemIds:${optionItemIds.join(",")}]` : "";
-      handleQuickReply(`Adicionar produto ao carrinho [variantId:${variantId}]${optionTag}`);
+      void submitRichProductCart((event as CustomEvent).detail, sendMessage, (result) => {
+        window.dispatchEvent(new CustomEvent("aacp:rich-product-cart-result", { detail: result }));
+      }, isLoading);
     };
     window.addEventListener("aacp:add-rich-product-to-cart", onRichProductAdd);
     const onRichProductCart = () => { navigation.setCart(true); };
@@ -638,7 +632,7 @@ export default function ConversationShell({
       window.removeEventListener("aacp:open-rich-product-cart", onRichProductCart);
       window.removeEventListener("aacp:open-product-content", onOpenRichProduct);
     };
-  }, [handleQuickReply]);
+  }, [sendMessage, isLoading, navigation]);
   useEffect(() => {
     if (checkoutIntent && budgetModeEnabled) {
       setShowBuyerAuth(false);

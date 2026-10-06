@@ -4,7 +4,7 @@ import { useEffect, useRef, useState } from "react";
 import { FiArrowRight, FiCheck, FiChevronLeft, FiChevronRight, FiPackage, FiShoppingBag, FiTruck } from "react-icons/fi";
 import RuleNotices from "./RuleNotices";
 import { ProductCardShare } from "./parts/ProductCardShare";
-import { useCart } from "@/lib/cart-store";
+import { cartAddFeedback, type RichProductCartResult } from "../../lib/rich-product-cart-action";
 import type { ProductContentPurchaseResponse } from "@/lib/api/product-content";
 import ProductContentRenderer, {
   type ProductContentSupplementalFaq,
@@ -13,9 +13,14 @@ import ProductContentRenderer, {
 } from "./ProductContentRenderer";
 import type { ProductContentBlock } from "./ContentBlocks";
 import styles from "./RichProductContent.module.css";
+import choiceStyles from "./ProductChoiceControl.module.css";
 import ProductNarration from "./ProductNarration";
 import { buildProductNarration } from "@/lib/services/product-narration";
 import { useGallerySwipe } from "../useGallerySwipe";
+import { foodSelectionError, foodSelectionLimits, foodSelectionLabel, toggleFoodSelection } from "../../lib/food-selection";
+import { ServiceScheduleSelector } from "./ServiceScheduleSelector";
+import { isSelectableServiceTime } from "../../lib/service-schedule";
+
 import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
 
 type PurchaseTarget = ProductContentPurchaseResponse;
@@ -55,12 +60,16 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   crossSell?: CrossSellInterstitialData | null;
   onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
 }) {
-  const { cart } = useCart();
   const [selectedVariantId, setSelectedVariantId] = useState(purchase?.defaultVariantId ?? purchase?.variants[0]?.id ?? "");
   const [selectedOptionIds, setSelectedOptionIds] = useState<Set<string>>(new Set());
   const [optionError, setOptionError] = useState<string | null>(null);
-  const [status, setStatus] = useState<"idle" | "pending" | "added" | "review">("idle");
-  const pending = useRef<{ variantId: string; previousQuantity: number } | null>(null);
+  const [selectedServiceSlotId, setSelectedServiceSlotId] = useState<string | null>(null);
+  const [serviceError, setServiceError] = useState<string | null>(null);
+  const [status, setStatus] = useState<"idle" | "pending" | "added" | "review" | "rejected">("idle");
+  const [actionError, setActionError] = useState<string | null>(null);
+  const [actionCode, setActionCode] = useState<string | undefined>();
+  const pending = useRef<{ variantId: string; requestId: string; selectedServiceSlotId?: string } | null>(null);
+  const scheduleSignature = JSON.stringify(purchase?.serviceSchedule);
   const selectedVariant = purchase?.variants.find((variant) => variant.id === selectedVariantId) ?? null;
   const images = getImages(purchase, blocks);
   const optionExtraReais = purchase?.optionGroups.flatMap((group) => group.items)
@@ -71,17 +80,30 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   const ratings = testimonials.map((item) => item.rating).filter((value): value is number => typeof value === "number" && value >= 1 && value <= 5);
   const rating = ratings.length ? (ratings.reduce((sum, value) => sum + value, 0) / ratings.length).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : null;
 
-  // Confirm only after the server-backed cart actually grows.
   useEffect(() => {
-    const request = pending.current;
-    if (!request) return;
-    const quantity = cart.items.filter((item) => item.variantId === request.variantId).reduce((sum, item) => sum + item.quantity, 0);
-    if (quantity > request.previousQuantity) {
-      pending.current = null;
-      setStatus("added");
-      onCartAdded?.();
-    }
-  }, [cart.items, onCartAdded]);
+    pending.current = null;
+    setStatus("idle"); setActionError(null); setActionCode(undefined); setOptionError(null);
+    setSelectedOptionIds(new Set());
+    setSelectedServiceSlotId(null); setServiceError(null);
+    setSelectedVariantId(purchase?.defaultVariantId ?? purchase?.variants[0]?.id ?? "");
+  }, [productId, purchase?.defaultVariantId, scheduleSignature]);
+
+  // Only the matching API operation can settle this selection.
+  useEffect(() => {
+    const receive = (event: Event) => {
+      const result = (event as CustomEvent<RichProductCartResult>).detail;
+      const request = pending.current;
+      if (!request || result?.requestId !== request.requestId || result?.variantId !== request.variantId) return;
+      if (result.serviceSlotId !== request.selectedServiceSlotId) return;
+      if (result.status === "succeeded") {
+        pending.current = null; setStatus("added"); onCartAdded?.();
+      } else if (result.status === "rejected") {
+        pending.current = null; setActionError(cartAddFeedback(result.code)); setActionCode(result.code); setStatus("rejected");
+      } else if (result.status === "unknown") setStatus("review");
+    };
+    window.addEventListener("aacp:rich-product-cart-result", receive);
+    return () => window.removeEventListener("aacp:rich-product-cart-result", receive);
+  }, [onCartAdded]);
 
   useEffect(() => {
     if (status !== "pending") return;
@@ -90,37 +112,38 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   }, [status]);
 
   const toggleOption = (group: PurchaseTarget["optionGroups"][number], itemId: string) => {
-    setSelectedOptionIds((previous) => {
-      const next = new Set(previous);
-      if (group.selectionType === "single") {
-        group.items.forEach((item) => next.delete(item.id));
-        next.add(itemId);
-      } else if (next.has(itemId)) next.delete(itemId);
-      else next.add(itemId);
-      return next;
-    });
+    setSelectedOptionIds((previous) => toggleFoodSelection(previous, group, itemId));
     setOptionError(null);
     setStatus("idle");
   };
 
   const addToCart = () => {
-    if (!purchase || !selectedVariant?.available || (pending.current && status !== "review")) return;
-    // An unknown submission can be retried. We never show a success state
-    // before the cart returned by the server has actually changed.
-    if (status === "review") pending.current = null;
-    const missingRequired = purchase.optionGroups.find((group) => group.required && !group.items.some((item) => selectedOptionIds.has(item.id)));
-    if (missingRequired) {
-      setOptionError("Escolha " + missingRequired.name.toLowerCase() + " para continuar.");
+    if (!purchase || !selectedVariant?.available || pending.current) return;
+    if (status === "added" && purchase.serviceSchedule) {
+      setSelectedServiceSlotId(null); setStatus("idle");
+      document.querySelector<HTMLElement>("[data-aacp-service-schedule] input:not(:disabled)")?.focus();
+      return;
+    }
+    if (purchase.serviceSchedule && !purchase.serviceSchedule.slots.some(slot => slot.slotId === selectedServiceSlotId && isSelectableServiceTime(slot))) {
+      setServiceError("Escolha uma data e um horário disponíveis para continuar.");
+      document.querySelector<HTMLElement>("[data-aacp-service-schedule] input:not(:disabled)")?.focus();
+      return;
+    }
+    const selectionError = purchase.optionGroups.map(group => foodSelectionError(group, selectedOptionIds)).find(Boolean);
+    if (selectionError) {
+      setOptionError(selectionError);
       document.getElementById("aacp-rich-product-options")?.querySelector("input")?.focus();
       return;
     }
     pending.current = {
       variantId: selectedVariant.id,
-      previousQuantity: cart.items.filter((item) => item.variantId === selectedVariant.id).reduce((sum, item) => sum + item.quantity, 0),
+      ...(selectedServiceSlotId ? { selectedServiceSlotId } : {}),
+      requestId: window.crypto.randomUUID?.() ?? Array.from(window.crypto.getRandomValues(new Uint32Array(4))).map(value => value.toString(16)).join("-"),
     };
+    setActionError(null); setActionCode(undefined);
     setStatus("pending");
     window.dispatchEvent(new CustomEvent("aacp:add-rich-product-to-cart", {
-      detail: { variantId: selectedVariant.id, optionItemIds: [...selectedOptionIds] },
+      detail: { ...pending.current, optionItemIds: [...selectedOptionIds] },
     }));
   };
 
@@ -133,16 +156,17 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
     }
     window.location.assign(href);
   };
-  const inProgress = status === "pending";
+  const inProgress = status === "pending" || status === "review";
   const purchaseActions = <>
-    <button data-neu="primary" type="button" data-aacp-rich-product-add-to-cart className={styles.buyButton} onClick={addToCart} disabled={!selectedVariant?.available || inProgress} aria-busy={inProgress}>
+    <button data-neu="primary" type="button" data-aacp-rich-product-add-to-cart className={styles.buyButton} onClick={addToCart} disabled={!selectedVariant?.available || inProgress} aria-busy={status === "pending"}>
       {status === "added" ? <FiCheck aria-hidden="true" /> : <FiShoppingBag aria-hidden="true" />}
-      {status === "pending" ? "Adicionando…" : status === "review" ? "Tentar novamente" : status === "added" ? "Adicionar mais um" : selectedVariant?.available ? "Adicionar ao carrinho" : "Produto indisponível"}
+      <span>{status === "pending" ? "Adicionando…" : status === "review" ? "Confirmação pendente" : status === "rejected" ? "Tentar novamente" : status === "added" ? purchase?.serviceSchedule ? "Escolher outro horário" : "Adicionar mais um" : selectedVariant?.available ? "Adicionar ao carrinho" : "Produto indisponível"}</span>
       <FiArrowRight aria-hidden="true" />
     </button>
-    <div className={styles.feedback} aria-live="polite" aria-atomic="true">
-      {status === "added" ? <><FiCheck aria-hidden="true" /><span>Produto adicionado.</span><button data-neu="text" type="button" onClick={openCart}>Ver carrinho <FiArrowRight aria-hidden="true" /></button></> : null}
-      {status === "review" ? <span>A confirmação está demorando. <button data-neu="text" type="button" onClick={openCart}>Confira o carrinho</button> antes de tentar novamente.</span> : null}
+    <div className={styles.feedback} data-aacp-rich-product-confirmation={status === "added" ? true : undefined} aria-live="polite" aria-atomic="true">
+      {status === "added" ? <><FiCheck className={styles.confirmationCheck} aria-hidden="true" /><span>Produto adicionado.</span><button data-neu="text" type="button" data-aacp-rich-product-open-cart onClick={openCart}>Ver carrinho <FiArrowRight aria-hidden="true" /></button></> : null}
+      {status === "review" ? <div className={styles.pendingConfirmation}><p>A inclusão ainda não foi confirmada. Confira o carrinho antes de tentar novamente.</p><button data-neu="control" type="button" onClick={openCart}>Confira o carrinho <FiArrowRight aria-hidden="true" /></button></div> : null}
+      {status === "rejected" ? <span role="alert">{actionError}</span> : null}
     </div>
   </>;
 
@@ -164,7 +188,9 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
             {purchase.description ? <p className={styles.description}>{purchase.description}</p> : null}
             <div className={styles.priceRow}>
               <strong data-aacp-rich-product-price className={styles.price}>{typeof price === "number" ? currency.format(price + optionExtraReais) : "Preço indisponível"}</strong>
-              <span className={styles.stock}>{selectedVariant?.available ? <><FiCheck aria-hidden="true" /> Disponível</> : "Indisponível no momento"}</span>
+              <span className={styles.stock}>{status === "rejected" && ["variant_out_of_stock", "marketplace_insufficient_stock"].includes(actionCode ?? "")
+                ? "Quantidade indisponível" : status === "rejected" && ["product_unavailable", "digital_content_unavailable"].includes(actionCode ?? "")
+                ? "Indisponível no momento" : selectedVariant?.available ? <><FiCheck aria-hidden="true" /> Disponível</> : "Indisponível no momento"}</span>
             </div>
             {purchase.variants.length > 1 || purchase.variants.some((variant) => Object.keys(variant.attributes).length > 0) ? (
               <fieldset className={styles.variants} disabled={inProgress}>
@@ -173,25 +199,21 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
                   {purchase.variants.map((variant, index) => {
                     const label = Object.values(variant.attributes).join(" / ") || (purchase.variants.length > 1 ? "Opção " + (index + 1) : "Padrão");
                     return <label key={variant.id} className={styles.variant} data-unavailable={!variant.available}>
-                      <input type="radio" name="rich-product-variant" value={variant.id} checked={variant.id === selectedVariantId} onChange={() => {
-                        setSelectedVariantId(variant.id);
-                        setStatus("idle");
-                        if (immersive && typeof productId === "string") {
-                          window.dispatchEvent(new CustomEvent("aacp:rich-product-variant-selected", { detail: { productId, variantId: variant.id } }));
-                        }
-                      }} disabled={!variant.available} />
+                      <input type="radio" name="rich-product-variant" value={variant.id} checked={variant.id === selectedVariantId} onChange={() => { setSelectedVariantId(variant.id); setSelectedServiceSlotId(null); setServiceError(null); setStatus("idle"); }} disabled={!variant.available} />
                       <span>{label}{!variant.available ? <small>Esgotado</small> : null}</span>
                     </label>;
                   })}
                 </div>
               </fieldset>
             ) : null}
+            {purchase.serviceSchedule ? <ServiceScheduleSelector schedule={purchase.serviceSchedule} selectedSlotId={selectedServiceSlotId} error={serviceError} disabled={inProgress}
+              onChange={id => { setSelectedServiceSlotId(id); setServiceError(null); setStatus("idle"); }} /> : null}
             {purchase.optionGroups.length ? <FoodOptions groups={purchase.optionGroups} selected={selectedOptionIds} error={optionError} disabled={inProgress} onToggle={toggleOption} /> : null}
             {selectedVariant?.available && selectedVariant.lowStock ? <p data-aacp-rich-product-nudge className={styles.nudge}><FiPackage aria-hidden="true" /><span>Últimas unidades desta versão disponíveis.</span></p> : null}
             <RuleNotices notices={purchase.ruleNotices} />
             {!immersive ? purchaseActions : null}
             {crossSell?.products.length ? <ProductCrossSell data={crossSell} onAdd={onAddCrossSell} /> : null}
-            <div className={styles.delivery}><FiTruck aria-hidden="true" /><div><strong>Entrega calculada para você</strong><p>Consulte o frete e o prazo com seu CEP no checkout.</p></div></div>
+            <div className={styles.delivery}><FiTruck aria-hidden="true" /><div><strong>{purchase.productType === "digital" ? "Acesso digital" : purchase.productType === "service" ? "Condições do serviço" : "Entrega calculada para você"}</strong><p>{purchase.productType === "digital" ? "O acesso é liberado após a confirmação do pagamento." : purchase.productType === "service" ? "Confira com a loja as condições de agendamento e execução." : "Consulte o frete e o prazo com seu CEP no checkout."}</p></div></div>
           </div>
         </section>
       ) : null}
@@ -262,7 +284,10 @@ function FoodOptions({ groups, selected, error, disabled, onToggle }: {
   const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
   return <div id="aacp-rich-product-options" data-aacp-rich-product-options className={styles.foodOptions}>
     <h2>Monte do seu jeito</h2>
-    {groups.map((group) => <fieldset key={group.id} disabled={disabled}><legend>{group.name}<small>{group.required ? "Obrigatório" : "Opcional"}</small></legend>{group.items.map((item) => <label key={item.id} className={styles.foodChoice}><input type={group.selectionType === "single" ? "radio" : "checkbox"} name={"food-" + group.id} checked={selected.has(item.id)} onChange={() => onToggle(group, item.id)} /><span>{item.name}</span>{item.priceModifierInCents !== 0 ? <strong>{item.priceModifierInCents > 0 ? "+ " : ""}{currency.format(item.priceModifierInCents / 100)}</strong> : null}</label>)}</fieldset>)}
+    {groups.map((group) => {
+      const { min, max } = foodSelectionLimits(group), count = group.items.filter(item => selected.has(item.id)).length;
+      return <fieldset key={group.id} disabled={disabled}><legend>{group.name}<small>{min > 0 ? "Obrigatório" : "Opcional"} · {foodSelectionLabel(group)} · {count}/{max}</small></legend>{group.items.map((item) => <label key={item.id} className={styles.foodChoice}><input className={choiceStyles.input} type={group.selectionType === "single" && min > 0 ? "radio" : "checkbox"} name={"food-" + group.id} checked={selected.has(item.id)} disabled={group.selectionType === "multiple" && !selected.has(item.id) && count >= max} onChange={() => onToggle(group, item.id)} /><span>{item.name}</span>{item.priceModifierInCents !== 0 ? <strong>{item.priceModifierInCents > 0 ? "+ " : ""}{currency.format(item.priceModifierInCents / 100)}</strong> : null}</label>)}</fieldset>;
+    })}
     {error ? <p role="alert" className={styles.optionError}>{error}</p> : null}
   </div>;
 }

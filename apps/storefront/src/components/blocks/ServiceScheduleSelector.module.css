@@ -1,0 +1,17 @@
+.schedule { margin: 26px 0; min-width: 0; }
+.schedule h2 { font: 600 17px var(--aacp-font); margin: 0 0 8px; }
+.context, .note { color: var(--aacp-muted); font-size: 12px; overflow-wrap: anywhere; }
+.schedule fieldset { border: 0; padding: 0; margin: 18px 0; min-width: 0; }
+.schedule legend { font-size: 13px; font-weight: 600; padding: 0; margin-bottom: 10px; }
+.dates > div { display: flex; flex-wrap: wrap; gap: 8px; }
+.dates button { min-height: 44px; border: 1px solid var(--aacp-line); border-radius: 8px; background: var(--aacp-surface-2); color: var(--aacp-fg); font: inherit; font-size: 12px; padding: 8px 12px; }
+.dates button[aria-pressed="true"] { border-color: var(--aacp-accent); background: color-mix(in srgb, var(--aacp-accent) 14%, var(--aacp-surface)); }
+.dates button:disabled { opacity: .45; cursor: not-allowed; }
+.times > div { display: grid; grid-template-columns: repeat(auto-fit, minmax(138px, 1fr)); gap: 8px; }
+.times label { display: flex; align-items: center; gap: 9px; min-height: 48px; padding: 10px; border: 1px solid var(--aacp-line); border-radius: 8px; font-size: 13px; cursor: pointer; }
+.times label[data-selected="true"] { border-color: var(--aacp-accent); background: color-mix(in srgb, var(--aacp-accent) 12%, var(--aacp-surface)); }
+.times label[data-unavailable="true"] { opacity: .45; cursor: not-allowed; }
+.times small { display: block; font-size: 11px; }
+.selection { padding: 12px; border-left: 3px solid var(--aacp-accent); font-size: 13px; }
+.error { color: var(--aacp-error, #ef4444); font-size: 13px; }
+.schedule :is(button, input):focus-visible { outline: 2px solid var(--aacp-accent); outline-offset: 3px; }

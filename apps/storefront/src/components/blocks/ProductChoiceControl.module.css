@@ -1,0 +1,21 @@
+.input,
+.indicator { box-sizing: border-box; display: inline-grid; place-content: center; flex-shrink: 0; width: 20px; height: 20px; margin: 0; border: 1.5px solid var(--aacp-neu-control-line, var(--aacp-muted)); border-radius: 6px; background: var(--aacp-card, var(--aacp-surface)); color: var(--aacp-on-accent, oklch(98% .005 150)); box-shadow: var(--aacp-neu-inset); transition: border-color 150ms ease-out, background-color 150ms ease-out, box-shadow 150ms ease-out; }
+.input { appearance: none; -webkit-appearance: none; cursor: pointer; }
+.input[type="radio"],
+.indicator[data-kind="radio"] { border-radius: 50%; }
+.input::before,
+.indicator::before { content: ""; width: 11px; height: 11px; background: currentColor; clip-path: polygon(10% 48%, 37% 75%, 88% 15%, 100% 26%, 38% 100%, 0 59%); transform: scale(0); }
+.input:checked,
+.indicator[data-checked="true"] { border-color: var(--aacp-accent-text, var(--aacp-accent)); background: var(--aacp-accent-text, var(--aacp-accent)); box-shadow: none; }
+.input:checked::before,
+.indicator[data-checked="true"]::before { transform: scale(1); }
+.input[type="radio"]:checked,
+.indicator[data-kind="radio"][data-checked="true"] { background: var(--aacp-card, var(--aacp-surface)); color: var(--aacp-accent-text, var(--aacp-accent)); }
+.input[type="radio"]::before,
+.indicator[data-kind="radio"]::before { width: 10px; height: 10px; clip-path: none; border-radius: 50%; }
+.input:hover:not(:disabled) { border-color: var(--aacp-accent-text, var(--aacp-accent)); }
+.input:focus-visible { outline: 2px solid var(--aacp-accent-text, var(--aacp-accent)); outline-offset: 3px; }
+.input:disabled { opacity: .45; cursor: not-allowed; }
+:disabled > .indicator { opacity: .45; }
+@media (prefers-reduced-motion: reduce) { .input, .indicator { transition: none; } }
+@media (forced-colors: active) { .input { appearance: auto; -webkit-appearance: auto; } .input::before { content: none; } .indicator { border-color: ButtonText; color: HighlightText; } .indicator[data-checked="true"] { background: Highlight; border-color: Highlight; } .indicator[data-kind="radio"][data-checked="true"] { background: Canvas; color: Highlight; } }

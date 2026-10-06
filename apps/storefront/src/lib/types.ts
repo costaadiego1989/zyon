@@ -1,9 +1,13 @@
+import type { PublicServiceSchedule } from "./service-schedule";
+
 export interface ProductCardBlock {
   type: "product_card";
   data: {
     ruleNotices?: Array<{ ruleId?: string; message: string }>;
     id: string;
     name: string;
+    productType?: "physical" | "digital" | "service" | "food";
+    serviceSchedule?: PublicServiceSchedule;
     price: number;
     priceFormatted: string;
     image?: string;
