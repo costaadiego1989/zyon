@@ -1,6 +1,6 @@
 # Buyer Hub: benefícios e conversas, 05/10/2026
 
-**Sandbox aprovado e exemplos disponíveis para revisão visual. Produção desta entrega ainda pendente.** Esta entrega complementa o [registro anterior do motor](revenue-intelligence-sandbox-2026-10-05.md). O pedido mais recente do proprietário foi disponibilizar os exemplos no sandbox para validar a interface. A publicação de produção será confirmada por revisão, fontes em execução, saúde e artefatos da storefront.
+**Código publicado e verificado no sandbox e em produção. Exemplos disponíveis somente no sandbox para revisão visual.** Esta entrega complementa o [registro anterior do motor](revenue-intelligence-sandbox-2026-10-05.md). As regras criadas para validar a interface permanecem na loja sintética; a promoção de código não as copia para a Athom.
 
 ## Comportamento e impacto
 
@@ -104,6 +104,19 @@ O candidato `c0115f128264e7d3d398a18b1c797671b7501dc1` acrescenta `BuyerBenefits
 | Navegador autenticado contra API/storefront publicadas | 6/6; percentuais, tetos e condições reais; zero erros HTTP/console/página | `.audit/sandbox-revenue-planner-20261005/benefits-browser-2026-10-06T00-09-10-834Z/report.json` |
 
 A rodada final ocorreu às 21:09 de 05/10 em São Paulo (00:09 de 06/10 UTC). Os testes locais usam exemplos sintéticos e não substituem o ensaio publicado. O navegador usa login oficial, sem interceptar respostas; abriu sessões/eventos normais e registrou recusa de contatos opcionais, sem mensagens à LLM ou operações financeiras. As capturas de revisão usam altura ampliada para mostrar a lista, preservando o componente real; os cenários responsivos também passaram nas alturas normais. A prévia local em `.audit/loyalty-rule-examples-review.html` contém somente capturas e tabela de exemplos, sem credenciais.
+
+## Publicação de produção
+
+Depois do PASS no sandbox, a revisão `29ebd928d7a6860461d79f8ea427630faf434c57` foi enviada ao `master`. Em relação ao candidato `c0115f1`, essa revisão muda somente documentação; os arquivos de API, storefront e pacotes permanecem idênticos. Não houve upload manual de produção sem proveniência Git nem alteração das configurações comerciais da Athom.
+
+| Verificação em produção | Resultado | Evidência local |
+| --- | --- | --- |
+| Railway API `99e85e2d-76fa-4e83-a74d-51e51a75173e` | SUCCESS, Git `29ebd92`; 12 fontes com hashes exatos, nove verificações de compilados; `/ready` HTTP 200 e banco conectado | `.audit/hub-source-production-29ebd92-99e85e2d.json` |
+| Vercel storefront `dpl_gn1k8YppuGHPbDBLV5JGnECgCAJR` | READY, produção, Git `29ebd92` da branch master | `.audit/vercel-hub-production-29ebd92.json` |
+| Domínios da storefront | Aliases de storefront, zyon-commerce e zyon-storefront.vercel.app confirmados no deployment novo; a propagação inicialmente entregou a versão anterior e depois foi conferida novamente | `.audit/vercel-hub-aliases-before.json` |
+| Athom no domínio público | HTTP 200 em 390/1440 px, sem estouro horizontal; JavaScript real entregue, sem redirecionamento de assets para autenticação; seis textos do novo Hub presentes nos artefatos | `.audit/revenue-hub-production-public-artifacts.json` |
+
+A conferência pública ocorreu às 21:24 de 05/10 em São Paulo (00:24 de 06/10 UTC). A verificação remota da API leu fontes/compilados e prontidão, sem consultar ou alterar dados comerciais. O navegador público não autenticou comprador: verificou a storefront e os artefatos publicados, registrando apenas abertura de sessão/eventos normais. Não houve mensagem à LLM, checkout, aprovação financeira ou pagamento em produção. A evidência autenticada de condições e ofertas é a rodada de sandbox; não se apresenta a conferência pública como teste de descontos reais na Athom. Os quatro exemplos continuam somente no sandbox e não houve seed comercial em produção.
 
 ## Histórico e limites
 
