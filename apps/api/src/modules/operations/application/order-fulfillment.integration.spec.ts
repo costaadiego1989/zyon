@@ -51,6 +51,8 @@ describe("order fulfillment with isolated PostgreSQL", { skip: !databaseUrl }, (
   const stage = async (key: string) => { const order = await row(key); return summarizeFulfillment(order.fulfillmentJson, order.fulfillmentVersion, true, order.status).stage; };
 
   it("rerunning seeds preserves operator changes and emits no delivery jobs", async () => {
+    const session = await prisma.checkoutSession.findFirstOrThrow({ where: { merchantId, sessionId: fixture("service-unscheduled").sessionId } });
+    assert.equal((session.customer as { fullName: string }).fullName, "QA service-unscheduled");
     const result = await applyFulfillmentSeed(prisma, manifest); assert.equal(result.created.length, 0); assert.equal(result.preserved.length, 14);
     assert.equal(await prisma.outboxMessage.count({ where: { merchantId } }), 0);
   });

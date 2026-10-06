@@ -61,7 +61,7 @@ export async function applyFulfillmentSeed(prisma: PrismaClient, manifest: Retur
       }
       await tx.checkoutSession.create({ data: { merchantId: manifest.merchantId, sessionId: fixture.sessionId, globalUserId: id(manifest.namespace, "buyer"), conversationId: fixture.sessionId,
         cart: { qa_seed: manifest.marker, currency: "BRL", total: total / 100, items: fixture.lines.map(line => ({ sku: line.sku, variantId: line.variantId, name: line.name, productType: line.productType, price: line.unitPriceCents / 100, quantity: line.quantity })) },
-        customer: { full_name: `QA ${fixture.key}`, email: "fixture@example.invalid" }, createdAt: now, updatedAt: now } });
+        customer: { fullName: `QA ${fixture.key}`, email: "fixture@example.invalid" }, createdAt: now, updatedAt: now } });
       await tx.paymentIntent.create({ data: { id: fixture.paymentId, merchantId: manifest.merchantId, sessionId: fixture.sessionId, idempotencyKey: fixture.key,
         currency: "BRL", amountCents: total, approvedAmountCents: fixture.payment === "pending" ? null : total, status: fixture.payment ?? "approved", method: "qa_fixture", providerPaymentId: fixture.externalOrderId,
         creation: { qa_seed: manifest.marker, provider: "qa_disabled", synthetic: true }, statusHistory: [{ status: fixture.payment ?? "approved", occurred_at: manifest.generatedAt }] } });
