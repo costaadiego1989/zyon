@@ -14,6 +14,9 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
   const benefitsRequest = useRef(0);
   const conversationsMerchant = useRef(merchantId);
   const conversationsRequest = useRef(0);
+  const trackingMerchant = useRef(merchantId);
+  const trackingBuyer = useRef<string>();
+  const trackingRequest = useRef(0);
 
   useEffect(() => {
     const buyer = getValidBuyer();
@@ -22,13 +25,17 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
 
     const onStorage = (e: StorageEvent) => {
       if (e.key === "zyon_buyer_token" || e.key === "zyon_buyer_session") {
+        trackingRequest.current++;
         const next = getValidBuyer();
         s.setAuth(next);
         s.resetSections();
       }
     };
     window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
+    return () => {
+      trackingRequest.current++;
+      window.removeEventListener("storage", onStorage);
+    };
   }, []);
 
   const loadProfile = useCallback(async () => {
@@ -113,14 +120,20 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
   }, [s.purchasesHasMore, s.purchases.loading, loadPurchases]);
 
   const loadTracking = useCallback(async () => {
-    s.setTracking((prev) => ({ ...prev, loading: true, error: null }));
+    const request = ++trackingRequest.current;
+    const buyerToken = getValidBuyer()?.token;
+    trackingMerchant.current = merchantId;
+    trackingBuyer.current = buyerToken;
+    if (!buyerToken) { s.setTracking({ data: null, loading: false, error: null }); return; }
+    const isCurrent = () => request === trackingRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId;
+    s.setTracking({ data: null, loading: true, error: null });
     try {
-      const filtered = await buyerHub.fetchTracking();
-      s.setTracking({ data: filtered, loading: false, error: null });
-    } catch (err: any) {
-      s.setTracking({ s: false, loading: false, error: err?.message || "Erro ao carregar rastreamento" } as any);
+      const filtered = await buyerHub.fetchTracking(merchantId);
+      if (isCurrent()) s.setTracking({ data: filtered, loading: false, error: null });
+    } catch {
+      if (isCurrent()) s.setTracking({ data: null, loading: false, error: "Não foi possível carregar suas entregas. Tente novamente." });
     }
-  }, []);
+  }, [merchantId]);
 
   const loadConversations = useCallback(async () => {
     const request = ++conversationsRequest.current;
@@ -214,6 +227,7 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
 
   const deleteAccount = useCallback(async () => {
     const data = await buyerHub.deleteAccount();
+    trackingRequest.current++;
     clearBuyerSession();
     s.setAuth(null);
     s.resetSections();
@@ -232,7 +246,7 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
         if (!s.summary.data && !s.summary.loading) void runFetch(s.setSummary, buyerHub.fetchSummary);
         break;
       case "tracking":
-        if (!s.tracking.data && !s.tracking.loading) void loadTracking();
+        void loadTracking();
         break;
       case "conversations":
         void loadConversations();
@@ -282,9 +296,10 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
         await loadReviews();
         break;
     }
-  }, [s.auth, s.activeTab, loadConversations]);
+  }, [s.auth, s.activeTab, loadConversations, loadTracking]);
 
   const signOut = useCallback(() => {
+    trackingRequest.current++;
     clearBuyerSession();
     s.setAuth(null);
     s.resetSections();
@@ -309,7 +324,7 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
     loadPurchases,
     loadMorePurchases,
     summary: s.summary,
-    tracking: s.tracking,
+    tracking: trackingMerchant.current === merchantId && trackingBuyer.current === s.auth?.token ? s.tracking : { data: null, loading: false, error: null },
     loadTracking,
     conversations: conversationsMerchant.current === merchantId ? s.conversations : { data: null, loading: false, error: null },
     loadConversations,

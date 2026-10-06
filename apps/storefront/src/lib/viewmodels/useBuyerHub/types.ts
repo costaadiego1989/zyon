@@ -40,6 +40,10 @@ export interface BuyerPurchase {
   id: string;
   order_id: string;
   merchant_name: string;
+  /** API confirmation of a physical delivery with a valid tracking code. */
+  has_tracking?: boolean;
+  /** Only the physical items covered by this delivery; never use the full order here. */
+  tracking_items?: PurchaseItem[];
   tracking_code?: string | null;
   tracking_status?: string | null;
   tracking_url?: string | null;

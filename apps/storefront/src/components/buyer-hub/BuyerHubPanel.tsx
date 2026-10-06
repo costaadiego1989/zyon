@@ -743,7 +743,10 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
               )}
               {vm.activeTab === "tracking" && (
                 <TrackingTab
-                  purchases={(vm.tracking.data ?? []).filter((p) => Boolean(p.tracking_code))}
+                  purchases={vm.tracking.data ?? []}
+                  loading={vm.tracking.loading}
+                  error={vm.tracking.error}
+                  onRetry={() => { void vm.loadTracking(); }}
                 />
               )}
               {vm.activeTab === "conversations" && (

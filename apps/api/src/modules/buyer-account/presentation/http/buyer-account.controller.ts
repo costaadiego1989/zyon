@@ -3,6 +3,8 @@ import {
   Body,
   Controller,
   Get,
+  Header,
+  ForbiddenException,
   Logger,
   Optional,
   Patch,
@@ -225,16 +227,23 @@ export class BuyerAccountController {
   }
 
   @Get("me/purchases")
+  @Header("Cache-Control", "private, no-store")
   @UseGuards(BuyerJwtAuthGuard)
   async getPurchaseHistory(
     @Req() req: { user?: unknown },
-    @Query("merchant_id") merchantId?: string,
+    @Query("merchant_id") merchantQuery?: unknown,
     @Query("date_from") dateFrom?: string,
     @Query("date_to") dateTo?: string,
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string
   ) {
     const buyer = currentBuyer(req);
+    if (merchantQuery !== undefined && (typeof merchantQuery !== "string" || !merchantQuery.trim() || merchantQuery.length > 200)) {
+      throw new BadRequestException("invalid_merchant_id");
+    }
+    const requested = typeof merchantQuery === "string" ? merchantQuery.trim() : undefined;
+    if (buyer.merchantId && requested && buyer.merchantId !== requested) throw new ForbiddenException("buyer_merchant_mismatch");
+    const merchantId = buyer.merchantId ?? requested;
     const page = await this.getPurchases.execute({
       globalUserId: buyer.globalUserId,
       merchantId,
@@ -249,6 +258,8 @@ export class BuyerAccountController {
         order_id: r.orderId,
         merchant_name: r.merchantName,
         tracking_code: r.trackingCode ?? null,
+        has_tracking: r.hasTracking,
+        tracking_items: purchaseItems(r.trackingItems),
         tracking_status: r.trackingStatus ?? null,
         tracking_url: r.trackingUrl ?? null,
         carrier: r.carrier ?? null,

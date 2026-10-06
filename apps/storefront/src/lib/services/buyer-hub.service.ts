@@ -55,18 +55,23 @@ export function deleteAddress(id: string): Promise<{ success: boolean }> {
   });
 }
 
-export function fetchPurchases(cursor: string, limit = 10): Promise<PurchasePage> {
-  const qs = cursor ? `?limit=${limit}&cursor=${encodeURIComponent(cursor)}` : `?limit=${limit}`;
-  return apiCall<PurchasePage>(`/buyer/me/purchases${qs}`);
+export function fetchPurchases(cursor: string, limit = 10, merchantId?: string): Promise<PurchasePage> {
+  const query = new URLSearchParams({ limit: String(limit) });
+  if (cursor) query.set("cursor", cursor);
+  if (merchantId) query.set("merchant_id", merchantId);
+  return apiCall<PurchasePage>(`/buyer/me/purchases?${query}`, { cache: "no-store" });
 }
 
-export async function fetchTracking(): Promise<BuyerPurchase[]> {
+export async function fetchTracking(merchantId?: string): Promise<BuyerPurchase[]> {
   const purchases: BuyerPurchase[] = [];
   const seenCursors = new Set<string>();
+  const buyerToken = getToken();
   let cursor = "";
 
   do {
-    const page = await fetchPurchases(cursor, 100);
+    if (!buyerToken || getToken() !== buyerToken) throw new Error("Sessão expirada. Faça login novamente.");
+    const page = await fetchPurchases(cursor, 100, merchantId);
+    if (getToken() !== buyerToken) throw new Error("Sessão expirada. Faça login novamente.");
     purchases.push(...page.items);
 
     const nextCursor = page.next_cursor;

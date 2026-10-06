@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional , Logger} from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "../../buyer-account.tokens.js";
 import {
@@ -11,6 +11,7 @@ import type { PurchaseRecord as PurchaseHistoryRecord } from "../../../buyer-pur
 import { ORDER_REPOSITORY, type OrderRepository } from "../../../checkout/domain/ports/order.repository.port.js";
 import { INTEGRATIONS_REPOSITORY, type IntegrationsRepository } from "../../../integrations/domain/ports/integrations.repository.port.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { classifyTrackingItems, realTrackingCode, trackingProjection, type TrackingProductVariant } from "./purchase-tracking.js";
 
 export interface GetBuyerPurchasesRequest {
   globalUserId: string;
@@ -37,6 +38,8 @@ export interface PurchaseRecordDto {
   completedAt: Date;
   paymentMethod?: string | null;
   items: unknown;
+  hasTracking: boolean;
+  trackingItems: unknown[];
 }
 
 export interface PurchaseTrackingEventDto {
@@ -113,6 +116,7 @@ export class GetBuyerPurchasesUseCase {
     const completedOrders = page.length
       ? await this.prisma.completedOrder.findMany({
           where: {
+            session: { globalUserId: input.globalUserId },
             OR: page.map((r) => ({
               merchantId: r.merchantId,
               externalOrderId: r.orderId,
@@ -122,14 +126,17 @@ export class GetBuyerPurchasesUseCase {
             merchantId: true,
             externalOrderId: true,
             trackingCode: true,
+            status: true,
             sessionId: true,
+            lineItemsJson: true,
+            session: { select: { shipping: true, cart: true } },
           },
         })
       : [];
-    const trackingByOrder = new Map(
+    const orderByKey = new Map(
       completedOrders.map((order) => [
         `${order.merchantId}:${order.externalOrderId}`,
-        order.trackingCode,
+        order,
       ])
     );
 
@@ -142,7 +149,7 @@ export class GetBuyerPurchasesUseCase {
     const sessionIds = [...new Set([...sessionByOrder.values()])];
     const paymentIntents = sessionIds.length
       ? await this.prisma.paymentIntent.findMany({
-          where: { sessionId: { in: sessionIds } },
+          where: { OR: completedOrders.filter((order) => order.sessionId).map((order) => ({ merchantId: order.merchantId, sessionId: order.sessionId })) },
           select: { merchantId: true, sessionId: true, method: true, status: true },
         })
       : [];
@@ -164,11 +171,15 @@ export class GetBuyerPurchasesUseCase {
         shipment
       ])
     );
+    const variants = await loadTrackingProducts(this.prisma, page, orderByKey);
 
     const records: PurchaseRecordDto[] = page.map((r) => {
       const key = `${r.merchantId}:${r.orderId}`;
       const shipment = shipmentByOrder.get(key);
-      const trackingCode = shipment?.trackingCode ?? trackingByOrder.get(key) ?? null;
+      const order = orderByKey.get(key);
+      const trackingItems = classifyTrackingItems(r.items, r.merchantId, variants, order?.lineItemsJson,
+        order?.session?.cart, order?.session?.shipping);
+      const tracking = trackingProjection(trackingItems, shipment, order?.trackingCode, order?.status);
       const sessionId = sessionByOrder.get(key);
       const paymentMethod = sessionId ? paymentBySession.get(`${r.merchantId}:${sessionId}`) ?? null : null;
       return {
@@ -176,11 +187,8 @@ export class GetBuyerPurchasesUseCase {
         orderId: r.orderId,
         merchantId: r.merchantId,
         merchantName: merchantMap.get(r.merchantId) ?? r.merchantId,
-        trackingCode,
-        trackingStatus: shipment?.status ?? (trackingCode ? "label_generated" : null),
-        trackingUrl: shipment?.trackingUrl ?? null,
-        carrier: shipment?.carrier ?? null,
-        trackingEvents: (shipment?.trackingEvents ?? []).map((event) => ({
+        ...tracking,
+        trackingEvents: (tracking.hasTracking && realTrackingCode(shipment?.trackingCode) ? shipment?.trackingEvents ?? [] : []).map((event) => ({
           status: event.status,
           description: event.description,
           location: event.location ?? null,
@@ -241,9 +249,11 @@ export class GetBuyerPurchasesUseCase {
   private async toRepositoryRecord(purchase: PurchaseHistoryRecord): Promise<PurchaseRecordDto> {
     const shipment = await this.integrations?.getShipmentByExternalOrderId(purchase.merchantId, purchase.orderId);
     const order = await this.orders?.findCompletedOrderByExternalOrderId(purchase.merchantId, purchase.orderId);
-    const trackingCode = shipment?.trackingCode ?? order?.trackingCode ?? null;
-    const events = shipment?.trackingCode
-      ? await this.integrations?.listTrackingEvents(purchase.merchantId, shipment.trackingCode)
+    const trackingItems = classifyTrackingItems(purchase.items, purchase.merchantId, [], order?.lineItems);
+    const tracking = trackingProjection(trackingItems, shipment, order?.trackingCode, order?.status);
+    const shipmentCode = realTrackingCode(shipment?.trackingCode);
+    const events = tracking.hasTracking && shipmentCode
+      ? await this.integrations?.listTrackingEvents(purchase.merchantId, shipmentCode)
       : [];
 
     return {
@@ -251,10 +261,7 @@ export class GetBuyerPurchasesUseCase {
       orderId: purchase.orderId,
       merchantId: purchase.merchantId,
       merchantName: purchase.merchantId,
-      trackingCode,
-      trackingStatus: shipment?.status ?? (trackingCode ? "label_generated" : null),
-      trackingUrl: shipment?.trackingUrl ?? null,
-      carrier: shipment?.carrier ?? null,
+      ...tracking,
       trackingEvents: (events ?? []).map((event) => ({
         status: event.status,
         description: event.description,
@@ -268,6 +275,22 @@ export class GetBuyerPurchasesUseCase {
       items: purchase.items
     };
   }
+}
+
+async function loadTrackingProducts(prisma: PrismaClient, purchases: Array<{ merchantId: string; orderId: string; items: unknown }>, orders: Map<string, any>): Promise<TrackingProductVariant[]> {
+  const scopes = purchases.flatMap((purchase) => {
+    const order = orders.get(`${purchase.merchantId}:${purchase.orderId}`);
+    const values = [purchase.items, order?.lineItemsJson, order?.session?.cart?.items].flatMap((items) => Array.isArray(items) ? items : []);
+    const ids = values.map((item) => item?.variantId ?? item?.variant_id).filter((id): id is string => typeof id === "string" && !!id);
+    const skus = values.map((item) => item?.sku).filter((sku): sku is string => typeof sku === "string" && !!sku);
+    const products = values.map((item) => item?.productId ?? item?.product_id).filter((id): id is string => typeof id === "string" && !!id);
+    if (!ids.length && !skus.length && !products.length) return [];
+    return [{ product: { merchantId: purchase.merchantId }, OR: [{ id: { in: ids } }, { sku: { in: skus } }, { productId: { in: products } }] }];
+  });
+  if (!scopes.length || !prisma.productVariant) return [];
+  return prisma.productVariant.findMany({ where: { OR: scopes }, select: {
+    id: true, sku: true, productId: true, product: { select: { merchantId: true, type: true } },
+  } });
 }
 
 function isWithinRange(purchase: PurchaseHistoryRecord, input: GetBuyerPurchasesRequest): boolean {
@@ -292,12 +315,15 @@ function encodeCursor(completedAt: Date, id: string): string {
 }
 
 function decodeCursor(cursor: string): { completedAt: Date; id: string } {
+  if (!/^[A-Za-z0-9_-]+$/.test(cursor) || cursor.length > 2048) throw new BadRequestException("invalid_purchase_cursor");
   const decoded = Buffer.from(cursor, "base64url").toString("utf8");
-  const colonIdx = decoded.indexOf(":");
-  return {
-    completedAt: new Date(decoded.slice(0, colonIdx)),
-    id: decoded.slice(colonIdx + 1),
-  };
+  const match = /^(\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}\.\d{3}Z):(.+)$/.exec(decoded);
+  if (!match) throw new BadRequestException("invalid_purchase_cursor");
+  const completedAt = new Date(match[1]);
+  if (!Number.isFinite(completedAt.getTime()) || completedAt.toISOString() !== match[1] || /[\u0000-\u001f\u007f]/.test(match[2])) {
+    throw new BadRequestException("invalid_purchase_cursor");
+  }
+  return { completedAt, id: match[2] };
 }
 
 type PurchaseShipmentRecord = {
