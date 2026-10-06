@@ -1,89 +1,112 @@
 # Buyer Hub: benefícios e conversas, 05/10/2026
 
-**Estado deste registro: código local validado; validação da nova entrega no sandbox ainda pendente.** Este documento não confirma publicação em produção nem substitui o [registro anterior do motor](revenue-intelligence-sandbox-2026-10-05.md). O fluxo desta entrega deve concluir a sequência candidato publicado no sandbox, verificação do código em execução, ensaio real e só então promoção.
+**Sandbox aprovado e exemplos disponíveis para revisão visual. Produção desta entrega ainda pendente.** Esta entrega complementa o [registro anterior do motor](revenue-intelligence-sandbox-2026-10-05.md). O pedido mais recente do proprietário foi disponibilizar os exemplos no sandbox para validar a interface. A publicação de produção será confirmada por revisão, fontes em execução, saúde e artefatos da storefront.
 
-**Verificação parcial em 05/10, 19h12 de São Paulo:** a API integrada `38e92fd8-4743-40ba-ad65-aff46d5aba33` passou na comparação de 18 fontes com normalização exclusiva de CRLF/LF, nove arquivos compilados e `/ready` HTTP 200. A storefront `d4250107-365a-469d-a037-a683faa7dacd` entregou os novos artefatos em 390/1440 pixels, sem estouro horizontal. O checkout oficial aplicou R$ 5 somente no tratamento; controle e holdout ficaram sem benefício. Login oficial e GET de benefícios confirmaram uma oferta no tratamento, zero nos demais, leituras estáveis e isolamento de outra loja. O cupom estava ausente das saídas gerais e públicas nesse código.
+## Comportamento e impacto
 
-**Validação autenticada da interface ainda não aprovada:** às 19h13 de São Paulo, outra sessão restaurou a API anterior por `64849faf-1119-4e90-a115-a06bad45dda2`. Fontes e compilados corresponderam à imagem antiga, sem leitor de benefícios. O navegador então recebeu o comportamento anterior. Outro envio concorrente (`1f63f2e8-b650-42dc-9cd5-ff3ac0fe3d8e`) também entrou na fila. Esses resultados não demonstram uma falha do novo leitor nem permitem promover o candidato: é necessário estabilizar o ambiente e repetir a interface autenticada com a API integrada confirmada. Nenhum envio desta entrega para produção ocorreu nesta etapa.
+O Buyer Hub apresenta o benefício efetivamente aplicado à compra do comprador: valor atual, limite, condições, validade e código quando houver cupom. A consulta autenticada respeita comprador e loja e é somente de leitura. Abrir a conta não matricula em experimento, não reserva orçamento e não concede desconto. Consentimento, audiência, controle, holdout, margem, prazo, retirada e encerramento continuam obrigatórios.
 
-A estratégia sintética `504053ee-e2b5-4492-9d46-ab16741999f8`, execução `1c77cfb5-3973-41db-851c-e7644ff7877f`, foi retirada e a geração da loja de QA pausada pelos endpoints oficiais. O histórico foi preservado. A leitura posterior retornou zero ofertas para os três compradores; como a API já havia sido substituída, esse negativo não é apresentado como prova do novo leitor. Uma retomada deve criar um ciclo sintético novo e exigir nova aprovação, preservando a retirada e o orçamento fechado desta tentativa.
+Cupons de estratégia são excluídos do catálogo público, de `list_promotions` e do contexto usado para intervenções genéricas do chat. O merchant continua consultando esses cupons no painel administrativo. A oferta personalizada aparece no checkout e, depois da aplicação, no Hub correspondente. Esta entrega não projeta um benefício de um checkout no carrinho inicial da storefront.
 
-## Candidato e escopo
+A aba Conversas usa títulos legíveis derivados da primeira mensagem do comprador, com nome da loja como alternativa, linhas compactas e mensagens identificadas como “Você”. Consulta de histórico e avaliações permanecem disponíveis.
 
-| Parte | Revisão |
-| --- | --- |
-| API, leitura de benefícios e metadados de conversas | `80087daf5be47abb8c61d3d5e56acdd5e25cefbb` |
-| Storefront, apresentação de benefícios e navegação de conversas | `7f2bd121e6f4e407ce3a99ef9a07190c368f3be0` |
-
-O Buyer Hub passa a apresentar o incentivo efetivamente aplicado ao comprador na compra correspondente: valor atual, limite, condições, validade e código quando houver cupom. A consulta é autenticada, vinculada à loja selecionada e somente de leitura. Abrir a conta não matricula o comprador em experimento, não reserva orçamento nem concede desconto. A apresentação preserva as regras existentes de consentimento, audiência, controle, holdout, validade e encerramento. Os termos completos do motor permanecem descritos na [arquitetura de Revenue Intelligence](../architecture/revenue-intelligence.md).
-
-Cupons vinculados a estratégias deixam de aparecer nas três saídas genéricas: lista pública de cupons da loja, ferramenta `list_promotions` e ofertas usadas para gerar intervenções genéricas no chat. Cupons comuns continuam nessas saídas quando válidos e com usos restantes; o painel administrativo mantém acesso aos cupons de estratégia.
-
-A aba Conversas troca o identificador técnico da loja por um título derivado da primeira mensagem do comprador, com alternativa legível usando o nome da loja. Linhas compactas exibem loja, data, quantidade de mensagens e estado; o histórico continua expansível e as mensagens do comprador são identificadas como “Você”. As avaliações permanecem disponíveis. A antiga projeção de suporte por chaves globais do navegador foi removida desta aba porque não comprovava comprador, loja ou estado do ticket; o painel de Suporte permanece existente.
-
-| Estado apresentado | Evidência utilizada | Ações |
+| Estado | Evidência | Ações |
 | --- | --- | --- |
-| Em andamento | Carrinho não expirado, ou conversa atual já aberta no contexto local | Ver mensagens; “Continuar conversa” somente para a sessão atual |
-| Finalizada | Pedido encerrado vinculado ao checkout do mesmo comprador e loja, com precedência sobre o carrinho; ou carrinho expirado | Ver mensagens |
-| Histórico | Sem evidência suficiente de atividade ou encerramento | Ver mensagens; se for a sessão atual válida, ela pode ser apresentada como em andamento |
+| Em andamento | Carrinho válido ou sessão atual válida já aberta | Ver mensagens; continuar somente a conversa atual |
+| Finalizada | Pedido encerrado do mesmo comprador/loja, com precedência; ou carrinho expirado | Ver mensagens |
+| Histórico | Sem evidência operacional suficiente | Ver mensagens; a sessão atual válida pode aparecer em andamento |
 
-“Continuar conversa” verifica novamente o registro autenticado, a loja, a sessão atual e o estado. Também exige a credencial existente da conversa vinculada à origem do storefront. O retorno preserva o mesmo atendimento e suas mensagens, sem chamar a inicialização que substituiria o conteúdo por uma saudação. Sessões com compra encerrada ou carrinho expirado não são retomadas. Esta entrega não oferece restauração genérica de outras conversas nem emite uma credencial a partir de um ID de histórico.
+“Continuar conversa” revalida comprador, loja, estado, sessão atual e credencial de conversa vinculada à origem. Fecha o Hub, encerra voz/narração e preserva o chat existente e suas mensagens. Não restaura arbitrariamente outras sessões nem emite credenciais a partir de IDs de histórico. A projeção de suporte baseada apenas em chaves globais do navegador foi removida desta aba; o painel de Suporte continua existente.
 
-As rotas de lista, detalhe e avaliação respeitam comprador e loja. A lista e o detalhe usam `private, no-store`; troca de conta/loja e respostas atrasadas não devem repovoar o histórico anterior. Nenhuma migração nova integra esta entrega.
+Leituras de benefícios e conversas são privadas e não armazenadas em cache. Conta/loja alteradas invalidam respostas atrasadas. Em Railway, o proxy conserva a origem pública HTTPS para GET/HEAD de mesma origem sem cabeçalho Origin; origens conflitantes, metadados inválidos e requisições entre sites são recusados. Autenticação e capability continuam obrigatórias.
 
-## Evidência local conferida
+Não há migração própria desta entrega. O candidato integrado preserva as 74 migrações já presentes no master, incluindo o trabalho concorrente de endereços e checkout, sem modificar as configurações financeiras da Athom.
 
-As contagens abaixo pertencem a execuções diferentes e não devem ser somadas como casos únicos.
+## Evidência local
+
+As execuções se sobrepõem e não representam contagens cumulativas de testes únicos.
 
 | Verificação | Resultado | Registro local |
 | --- | --- | --- |
-| API de conversas, isolamento, estados e regressão do escopo de benefícios | 17/17 passaram | `.audit/conversations-api-tests.log` |
-| Leitor de incentivos, integração PostgreSQL | 5/5 passaram | `.audit/buyer-incentive-reader-integration.log` |
-| Leitor de incentivos e regressões relacionadas | 60/60 passaram | `.audit/buyer-incentive-reader-tests.log` |
-| Filtros de cupom nas saídas genéricas, repetição final | 6/6 passaram | `.audit/strategy-coupon-publicity-final.log` |
-| Conversas em Playwright local, 390 e 1440 pixels | 7/7 passaram | `.audit/conversations-browser.log` |
-| Typecheck do storefront | Saída zero | `.audit/conversations-storefront-tsc.log` |
-| Build do storefront | Concluído, rotas e artefatos gerados | `.audit/revenue-hub-storefront-build.log` |
-| Integração completa de execução e benefícios no PostgreSQL isolado | 32/32 passaram | `.audit/revenue-hub-runtime-integration.log` |
-| Benefícios no Playwright local, 390 e 1440 pixels | 9/9 passaram | Fixture local de ofertas personalizadas |
+| Integração completa de execução/benefícios em PostgreSQL isolado | 32/32 | `.audit/revenue-hub-runtime-integration.log` |
+| Regressão focal da API após integração do master | 79/79 | `.audit/merged-hub-focal-regression.log` |
+| Benefícios no Playwright local, 390/1440 px | 9/9 | `.audit/merged-storefront-ui-857429/benefits-final.log` |
+| Conversas no Playwright local, 390/1440 px | 7/7 | `.audit/merged-storefront-ui-857429/conversations-final.log` |
+| Autenticação/origem no proxy, usando NextResponse real | 11/11 | `.audit/merged-storefront-ui-857429/storefront-proxy-origin.log` |
+| Typecheck e builds API/widget/storefront | Concluídos | `.audit/revenue-hub-merged-*-build.log`, `.audit/revenue-hub-proxy-storefront-build.log` |
+| Novo layout de Fidelidade, condições, ID/slug e temas claro/escuro | 21/21 | `.audit/loyalty-redesign-final-20261005.log` |
+| Condições legíveis na API e isolamento por merchant | 21/21 | `.audit/loyalty-condition-api-tests.log` |
+| Typecheck e builds finais API/widget/storefront | Concluídos | `.audit/loyalty-redesign-final-typecheck.log`, `.audit/revenue-hub-loyalty-*-build.log` |
 
-Os testes de conversas cobrem título legível, papel do comprador, expansão e fechamento do histórico, retorno à conversa atual, bloqueio de compra já encerrada, revalidação de um estado anteriormente ativo, troca de loja, saída da conta, resposta tardia e erro de carregamento com tentativa novamente. A precedência de pedido encerrado sobre carrinho ainda válido foi conferida no teste de repositório. Os testes locais de UI usam uma fixture com respostas controladas; não comprovam a API publicada.
+Os testes locais de interface usam fixtures controladas. A evidência abaixo usa a API e a storefront publicadas, sem interceptar respostas.
 
-Capturas locais da lista:
+## Sandbox publicado e ensaio real
 
-- `apps/storefront/test-results/buyer-conversations-readab-a8d5f-and-current-resume-at-390px/conversations-390.png`.
-- `apps/storefront/test-results/buyer-conversations-readab-7a07e-nd-current-resume-at-1440px/conversations-1440.png`.
+API `cd7c38de-660e-4bdb-b1e6-7e40ee4faf45`, candidata `8b0e9f044d9dee5c9464895b5b55cfc05e323350`: 11 fontes conferidas contra o código comprometido, com normalização exclusiva CRLF/LF; nove arquivos compilados com comportamento esperado; `/ready` HTTP 200 e banco conectado. Storefront `0690a5bf-1eff-4b49-8790-51f534de8547`, candidata `ee2777a8054b751f4eac8d1d092402e98a32e613`, em SUCCESS. Entre essas revisões não houve mudança no backend desta entrega.
 
-## Preparação do sandbox e evidência ainda necessária
+A estratégia sintética `a1b3cfea-04d0-4969-a287-8035f0ec0716`, execução `5a7aea20-ba18-4994-b8f6-9d9ac5c0e115`, foi aprovada pelos endpoints oficiais na loja de QA `sbx-revenue-planner-20261005-reject`. Dados e compradores são sintéticos e não pertencem à Athom.
 
-Na coordenação desta rodada foram informados os deployments de storefront `d4250107-365a-469d-a037-a683faa7dacd` e de API `38e92fd8-4743-40ba-ad65-aff46d5aba33`. Eles são alvos de verificação, não registros de aprovação: readiness e proveniência precisam ser confirmados depois que terminarem. Um envio concorrente anteriormente substituiu o código esperado da API; por isso, o estado `SUCCESS` isolado não comprova a presença desta revisão.
+| Fluxo publicado | Resultado | Evidência local |
+| --- | --- | --- |
+| Checkout oficial de tratamento, controle e holdout | R$ 5 apenas no tratamento; nenhum pagamento; gasto liquidado zero | `.audit/revenue-hub-v2-checkout.log` |
+| Login oficial e GET de benefícios | Uma oferta de 500 centavos no tratamento; zero nos demais e em outra loja; repetição estável; cupom ausente das saídas gerais | `.audit/revenue-hub-v2-benefits.log` |
+| Fidelidade no navegador autenticado | 6/6 combinações comprador/largura; valor, código e condições reais; zero erros HTTP, console ou página | `.audit/sandbox-revenue-planner-20261005/benefits-browser-2026-10-05T23-26-19-010Z/report.json` |
+| Conversas no navegador autenticado | 6/6; estados, mensagens, título e retorno ao chat atual preservado; zero erros HTTP, console ou página | `.audit/sandbox-revenue-planner-20261005/conversations-browser-2026-10-05T23-26-48-606Z/report.json` |
+| Storefront pública | 390/1440 px, sem estouro horizontal, artefatos de ofertas e conversas carregados | `.audit/revenue-hub-sandbox-public-artifacts.json` |
+| Retirada e encerramento da fixture | Execução retirada e geração de QA pausada por API oficial; histórico preservado | `.audit/revenue-hub-v2-withdraw.log`, `.audit/revenue-hub-v2-pause.log` |
+| Leitura após retirada, na API integrada confirmada | Zero ofertas nos três compradores e em outra loja; leituras estáveis | `.audit/revenue-hub-v2-withdrawn-benefits.log` |
 
-A loja sintética utilizada é `sbx-revenue-planner-20261005-reject`. A preparação comunicada pela coordenação registrou aprovação pela API oficial da estratégia `504053ee-e2b5-4492-9d46-ab16741999f8`, execução `1c77cfb5-3973-41db-851c-e7644ff7877f` e criação das contas sintéticas de tratamento, controle e holdout. No momento de preparação deste registro ainda não havia resultado do checkout desta nova execução. Essa aprovação não é uma decisão comercial para a Athom.
+Os navegadores usam login oficial por senha e JWT retornado pelo servidor nas chaves normais da aplicação, sem fabricar tokens. A conversa atual utiliza capability emitida pelo endpoint oficial e histórico sintético restaurado pelo mecanismo existente da storefront. O estado “Finalizada” foi exercitado por carrinho expirado; a precedência de pedido encerrado está coberta localmente. Não houve OTP, mensagem à LLM, comunicação externa, pagamento ou liquidação. A primeira visita pode registrar recusas de contato opcional, abertura de sessão e eventos normais da interface; as consultas de benefícios são somente leitura.
 
-Antes de declarar o ensaio aprovado, registrar:
+## Integração final
 
-1. Deployments saudáveis, código e configuração exatos em execução, API `/ready` e frontend ligado à API sandbox correta.
-2. PATCH/GET pelo checkout normal aplicando benefício somente ao tratamento, com controle e holdout sem concessão. Conferir atribuição, reserva e ausência de duplicação.
-3. Login oficial dos compradores e leitura autenticada de benefícios repetida, sem novas reservas ou concessões causadas pelo GET; verificar isolamento da loja e do comprador.
-4. Navegação real nas abas Fidelidade e Conversas do storefront publicado em 390 e 1440 pixels, com relatórios, screenshots, erros de console/rede e requests produzidos pelo navegador.
-5. Encerramento da estratégia sintética e pausa da fixture pelos endpoints normais, preservando histórico e verificando que a leitura deixa de oferecer o incentivo retirado.
+Após o PASS, o master avançou de `8e6f7d23` para `eb19645c` com ajustes de checkout em chat, contenção do Pix em telas estreitas e links de políticas do merchant. O merge `98198e5b` preservou essas alterações e não alterou a API de benefícios/conversas. A correção do catálogo usa `storeSlug` na consulta pública de cupons, conservando `merchantId` para APIs autenticadas. O ensaio final utilizou uma loja cujo ID e slug são diferentes.
 
-As evidências parciais desta tentativa estão em `.audit/hub-source-sandbox-7f2bd12-38e92fd8.json`, `.audit/revenue-hub-sandbox-public-artifacts.json`, `.audit/revenue-hub-sandbox-checkout.log` e `.audit/revenue-hub-sandbox-benefits.log`. O diagnóstico da substituição está em `.audit/hub-source-sandbox-7f2bd12-64849faf.diagnostic.json`. A tentativa de navegador não passou e permanece separada dessas provas positivas; os artefatos privados de depuração não integram a publicação.
+## Fidelidade e condições: novo layout
 
-### Roteiros locais preparados
+A revisão `bd3c6d24b75efc64d2939fb738dd7588a89a9af5` reorganiza Fidelidade em benefícios aplicados, condições para aproveitar ofertas, cupons da loja e histórico de compras expansível. Substitui os cartões de indicadores com relevo por linhas, divisórias e tipografia dos temas existentes. Não inventa pontos, níveis ou saldo a partir do total comprado. Copiar cupom apresenta confirmação e falha; erro de catálogo apresenta tentativa novamente e não é tratado como ausência de cupons.
 
-Os scripts e os relatórios ficam em `.audit/sandbox-revenue-planner-20261005`, fora do Git. O runner `.audit/run-benefits-sandbox.mjs` transporta scripts e credenciais por pipes SSH e salva o bundle somente em arquivo privado ignorado. Não copiar senha, token, payload privado ou arquivo `.private.json` para este documento.
+Progresso em reais ou itens depende de snapshot de carrinho confirmado para o merchant atual. Uma resposta atrasada, troca de loja, limpeza, erro ou atualização do carrinho invalida essa base. Sem snapshot, a interface informa a condição mínima. Atingir o mínimo não promete aplicação do benefício: elegibilidade, produtos, entrega, pagamento e limites continuam validados no checkout. Condições avançadas são descritas em linguagem legível pela API, sem expor expressões técnicas ao comprador.
 
-- `benefits-fixture.cjs`, `benefits-api.cjs` e `benefits-browser.mjs`: preparação da estratégia sintética, autenticação oficial, autorização e leitura dos benefícios. A aplicação do desconto acontece pelo checkout normal, não por esses leitores.
-- `benefits-conversations-fixture.cjs seed`: utiliza os mesmos compradores sintéticos, obtém uma sessão e credencial pelo endpoint oficial de conversas e prepara três históricos por comprador: atual, expirado e sem estado conhecido. Cria carrinhos sintéticos vazios para os estados atual/expirado. Não envia mensagem à LLM, não altera incentivo e não cria pagamento.
-- `conversations-browser.mjs`: usa login oficial por senha e credencial de conversa emitida pelo servidor, sem interceptar respostas. Restaura o estado local sintético pelo mecanismo existente do storefront, consulta a API de histórico, confere os estados, abre mensagens e retorna ao atendimento atual. Registra seis combinações de comprador/largura e captura o chat após o retorno.
+A API de sandbox `daa945d8-816e-4a57-9e92-ac471bbf6a68`, candidata `4625ba31`, teve 12 fontes e nove verificações de compilados conferidas, com `/ready` HTTP 200 e banco conectado. Seus arquivos de API e pacotes são idênticos aos do candidato `bd3c6d24`. A storefront `fb4c4d73-83e4-42f6-b795-134d8f3746d6`, publicada a partir do arquivo completo de `bd3c6d24`, está em SUCCESS.
 
-O script de Conversas exige que a origem da credencial seja exatamente a origem HTTPS sandbox utilizada no navegador. Um bundle sem a preparação de Conversas é recusado antes do ensaio. O histórico preparado usa mensagens sintéticas; a prova confirma leitura e navegação, não geração dessas mensagens pela LLM. O estado “Finalizada” do roteiro real é exercitado com carrinho expirado. Pedido encerrado e revalidação após encerramento estão cobertos localmente, sem alegar pagamento no sandbox.
+| Ensaio do novo layout no ambiente publicado | Resultado | Evidência local |
+| --- | --- | --- |
+| Fidelidade autenticada, três compradores em 390/1440 px | 6/6, zero erros HTTP/console/página; cupom comum com mínimo R$ 100 e carrinho confirmado R$ 0 apresenta “Faltam R$ 100,00” e progresso 0/100 | `.audit/sandbox-revenue-planner-20261005/benefits-browser-2026-10-05T23-50-37-565Z/report.json` |
+| Conversas autenticadas após integração final | 6/6, estados, mensagens e retorno à sessão atual preservados; zero erros HTTP/console/página | `.audit/sandbox-revenue-planner-20261005/conversations-browser-2026-10-05T23-51-14-200Z/report.json` |
+| Storefront pública final | 390/1440 px, sem estouro horizontal; textos do novo Hub presentes nos artefatos entregues | `.audit/revenue-hub-sandbox-public-artifacts.json` |
+| Encerramento do cupom comum de QA | Cupom pausado, ausente do catálogo, histórico e slug preservados | `.audit/sandbox-revenue-planner-20261005/reject.close-coupon.public.json` |
 
-O navegador aguarda a hidratação e, quando o diálogo de privacidade inicial aparecer, escolhe “Não aceito” somente para essas contas sintéticas. Essa ação pode registrar preferências de contato desativadas pela API normal; não habilita comunicações. O acesso por senha é realizado pelo endpoint oficial e a sessão retornada é instalada nas chaves normais do frontend: isso não comprova entrega ou verificação de OTP pela interface.
+O cupom comum de R$ 1 foi criado somente na loja sintética para conferir o slug e a condição real do carrinho; não houve resgate. A preparação consultou carrinhos pelo endpoint nativo, que renova seu prazo pelo comportamento existente, sem renovar capabilities. A estratégia v2 continuou retirada, seu orçamento encerrado e a geração de QA desativada. O ensaio confirmou ausência de ofertas retiradas nos três compradores. A aplicação financeira positiva de R$ 5 já foi comprovada no ensaio anterior, com o mesmo reader financeiro; a apresentação positiva do novo layout foi verificada nos testes locais. Não foi reaberta uma estratégia para repetir essa evidência. Frete grátis não estava habilitado na loja sintética; suas condições e unidades foram verificadas localmente, sem anunciar oferta de frete no sandbox.
 
-Se os roteiros forem repetidos depois da expiração da credencial/carrinho, devem preservar os registros e falhar explicitamente quando os pré-requisitos deixarem de valer. Não renovar validade de incentivo, reabrir orçamento ou alterar os resultados da fixture para satisfazer uma asserção.
+## Exemplos progressivos e avançados para revisão
 
-## Limites desta validação
+Por solicitação do proprietário, os exemplos ficaram somente no sandbox, na loja sintética com slug `sbx-revenue-planner-20261005-reject-store`. O endpoint oficial `PUT /v1/checkout-settings`, com autenticação do tenant e `If-Match`, acrescentou quatro regras ao array originalmente vazio. A configuração vigente da loja de QA é desconto máximo de 5% e margem mínima de 30%; ambos foram preservados. Esses valores são da loja sintética e não alteram os 10%/38% da Athom.
 
-Não foram demonstrados nesta entrega pagamento externo, liquidação, receita incremental, vencedor estatístico, envio de comunicação ou funcionamento de todas as lojas de produção. Os dados do ensaio são sintéticos; aprovação, checkout, isolamento e leitura precisam ser comprovados nas respectivas APIs reais. Preencher os resultados pendentes acima com as evidências efetivamente obtidas antes de registrar a conclusão do sandbox ou a publicação em produção.
+| Exemplo | Condições em conjunto | Desconto | Teto por pedido |
+| --- | --- | --- | --- |
+| Progressivo: primeira faixa | Produtos a partir de R$ 100 | 1% | R$ 10 |
+| Progressivo: segunda faixa | Produtos a partir de R$ 180 | 3% | R$ 15 |
+| Progressivo: terceira faixa | Produtos a partir de R$ 300 | 5% | R$ 25 |
+| Regra avançada | Produtos a partir de R$ 150, pelo menos dois itens e pagamento por Pix | 5% | R$ 15 |
+
+São faixas por valor implementadas em regras avançadas determinísticas, distintas do incentivo de IA com duas etapas de matrícula/preparação do pagamento. O checkout usa a primeira regra compatível por prioridade: Pix tem prioridade sobre as faixas; entre faixas, o maior patamar tem prioridade. Os descontos não se somam automaticamente. A criação dos exemplos não acionou checkout, LLM, pagamento ou nova aprovação; snapshots confirmaram preservação dos controles financeiros. A estratégia v2 permanece retirada, o motor de QA desligado e o cupom anterior pausado. As quatro regras permanecem habilitadas na loja de teste para revisão.
+
+O candidato `c0115f128264e7d3d398a18b1c797671b7501dc1` acrescenta `BuyerBenefits.conditions`: condições comerciais habilitadas, inclusive as ainda não atingidas, sem declarar elegibilidade ou conceder benefício. A projeção conserva consentimento e isolamento por comprador/loja, compartilha a leitura de regras com `available` e não expõe códigos de cupons. Tetos inválidos excluem a descrição de desconto. O Hub lista os termos em “Condições das ofertas”, separado dos benefícios aplicados. Ausência de snapshot do carrinho não vira um valor faltante inventado.
+
+| Validação final | Resultado | Evidência local |
+| --- | --- | --- |
+| API local: regras não atingidas, valores inválidos e gates | 17/17; build Nest concluído | Execuções focais e build registrados nesta sessão |
+| Interface local com exemplos, 390/1440 px e temas claro/escuro | 28/28; typecheck e build storefront concluídos | `.audit/conditional-offers-ui-20261005.log`, `.audit/revenue-hub-rule-examples-storefront-build.log`; typecheck registrado nesta sessão |
+| API publicada `966f11fb-9040-4379-93cc-ddf6995837f1` | SUCCESS; 12 fontes equivalentes ao commit por CRLF/LF; nove verificações de compilados; `/ready` 200, banco conectado | `.audit/hub-source-sandbox-c0115f1-966f11fb.json` |
+| Storefront publicada `4f25918c-b286-413d-8b99-7a3a2bacfa8d` | SUCCESS; artefatos com os textos de condições, sem estouro horizontal em 390/1440 px | `.audit/revenue-hub-sandbox-public-artifacts.json` |
+| GET oficial dos três compradores | Quatro condições e zero concessões/qualificações em cada conta | `.audit/sandbox-revenue-planner-20261005/reject.rule-examples.benefits.public.json` |
+| Navegador autenticado contra API/storefront publicadas | 6/6; percentuais, tetos e condições reais; zero erros HTTP/console/página | `.audit/sandbox-revenue-planner-20261005/benefits-browser-2026-10-06T00-09-10-834Z/report.json` |
+
+A rodada final ocorreu às 21:09 de 05/10 em São Paulo (00:09 de 06/10 UTC). Os testes locais usam exemplos sintéticos e não substituem o ensaio publicado. O navegador usa login oficial, sem interceptar respostas; abriu sessões/eventos normais e registrou recusa de contatos opcionais, sem mensagens à LLM ou operações financeiras. As capturas de revisão usam altura ampliada para mostrar a lista, preservando o componente real; os cenários responsivos também passaram nas alturas normais. A prévia local em `.audit/loyalty-rule-examples-review.html` contém somente capturas e tabela de exemplos, sem credenciais.
+
+## Histórico e limites
+
+Uma tentativa anterior foi interrompida por substituições concorrentes da API (`64849faf`, `1f63f2e8`) durante a validação. A fixture anterior `504053ee-e2b5-4492-9d46-ab16741999f8` foi retirada e preservada; não foi reaberta. O ensaio novo acima confirmou a interface contra a API integrada estável.
+
+Esta entrega não demonstra pagamento externo, receita incremental, lucro ou vencedor estatístico, nem todas as lojas de produção. O motor e seus termos comerciais continuam descritos na [arquitetura](../architecture/revenue-intelligence.md). Arquivos privados, senhas e tokens ficam apenas em `.audit` ignorado e não integram documentação, commits ou uploads.
