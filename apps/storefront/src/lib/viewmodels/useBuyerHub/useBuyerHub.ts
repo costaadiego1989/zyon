@@ -17,6 +17,9 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
   const trackingMerchant = useRef(merchantId);
   const trackingBuyer = useRef<string>();
   const trackingRequest = useRef(0);
+  const purchasesMerchant = useRef(merchantId);
+  const purchasesBuyer = useRef<string>();
+  const purchasesRequest = useRef(0);
 
   useEffect(() => {
     const buyer = getValidBuyer();
@@ -26,6 +29,7 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
     const onStorage = (e: StorageEvent) => {
       if (e.key === "zyon_buyer_token" || e.key === "zyon_buyer_session") {
         trackingRequest.current++;
+        purchasesRequest.current++;
         const next = getValidBuyer();
         s.setAuth(next);
         s.resetSections();
@@ -34,6 +38,7 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
     window.addEventListener("storage", onStorage);
     return () => {
       trackingRequest.current++;
+      purchasesRequest.current++;
       window.removeEventListener("storage", onStorage);
     };
   }, []);
@@ -95,24 +100,34 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
   }, []);
 
   const loadPurchases = useCallback(async (reset = true) => {
-    if (reset) {
+    const request = ++purchasesRequest.current;
+    const buyerToken = getValidBuyer()?.token;
+    const sameScope = purchasesMerchant.current === merchantId && purchasesBuyer.current === buyerToken;
+    const replace = reset || !sameScope;
+    purchasesMerchant.current = merchantId;
+    purchasesBuyer.current = buyerToken;
+    const isCurrent = () => request === purchasesRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId;
+    if (replace) {
       s.purchasesRef.current = [];
       s.setPurchasesCursor(null);
       s.setPurchasesHasMore(false);
     }
-    s.setPurchases((prev) => ({ ...prev, loading: true, error: null }));
+    if (!buyerToken) { s.setPurchases({ data: null, loading: false, error: null }); return; }
+    s.setPurchases((prev) => ({ data: replace ? null : prev.data, loading: true, error: null }));
     try {
-      const cursor = reset ? "" : s.purchasesCursor ?? "";
-      const data = await buyerHub.fetchPurchases(cursor);
-      const merged = reset ? data.items : [...s.purchasesRef.current, ...data.items];
+      const cursor = replace ? "" : s.purchasesCursor ?? "";
+      const data = await buyerHub.fetchPurchases(cursor, 10, merchantId);
+      if (!isCurrent()) return;
+      if (cursor && data.next_cursor === cursor) throw new Error("Repeated purchase cursor");
+      const merged = [...new Map((replace ? data.items : [...s.purchasesRef.current, ...data.items]).map(item => [item.id, item])).values()];
       s.purchasesRef.current = merged;
       s.setPurchases({ data: merged, loading: false, error: null });
       s.setPurchasesCursor(data.next_cursor);
       s.setPurchasesHasMore(Boolean(data.next_cursor));
-    } catch (err: any) {
-      s.setPurchases((prev) => ({ ...prev, loading: false, error: err?.message || "Erro ao carregar pedidos" }));
+    } catch {
+      if (isCurrent()) s.setPurchases((prev) => ({ ...prev, loading: false, error: "Não foi possível carregar seus pedidos. Tente novamente." }));
     }
-  }, [s.purchasesCursor]);
+  }, [s.purchasesCursor, merchantId]);
 
   const loadMorePurchases = useCallback(async () => {
     if (!s.purchasesHasMore || s.purchases.loading) return;
@@ -228,6 +243,7 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
   const deleteAccount = useCallback(async () => {
     const data = await buyerHub.deleteAccount();
     trackingRequest.current++;
+    purchasesRequest.current++;
     clearBuyerSession();
     s.setAuth(null);
     s.resetSections();
@@ -242,7 +258,7 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
         if (!s.addresses.data && !s.addresses.loading) void loadAddresses();
         break;
       case "orders":
-        if (!s.purchases.data && !s.purchases.loading) void loadPurchases(true);
+        void loadPurchases(true);
         if (!s.summary.data && !s.summary.loading) void runFetch(s.setSummary, buyerHub.fetchSummary);
         break;
       case "tracking":
@@ -296,10 +312,11 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
         await loadReviews();
         break;
     }
-  }, [s.auth, s.activeTab, loadConversations, loadTracking]);
+  }, [s.auth, s.activeTab, loadConversations, loadTracking, loadPurchases]);
 
   const signOut = useCallback(() => {
     trackingRequest.current++;
+    purchasesRequest.current++;
     clearBuyerSession();
     s.setAuth(null);
     s.resetSections();
@@ -318,9 +335,9 @@ export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
     createAddress,
     updateAddress,
     deleteAddress,
-    purchases: s.purchases,
-    purchasesCursor: s.purchasesCursor,
-    purchasesHasMore: s.purchasesHasMore,
+    purchases: purchasesMerchant.current === merchantId && purchasesBuyer.current === s.auth?.token ? s.purchases : { data: null, loading: false, error: null },
+    purchasesCursor: purchasesMerchant.current === merchantId && purchasesBuyer.current === s.auth?.token ? s.purchasesCursor : null,
+    purchasesHasMore: purchasesMerchant.current === merchantId && purchasesBuyer.current === s.auth?.token && s.purchasesHasMore,
     loadPurchases,
     loadMorePurchases,
     summary: s.summary,

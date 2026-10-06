@@ -32,6 +32,7 @@ import { checkoutApi } from "@/lib/api/api-client";
 import { useRealtimeProductNarration, type ProductNarrationProgress } from "@/lib/voice/use-realtime-product-narration";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
 import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
+import { VoiceChannelButton } from "./conversation/VoiceChannelButton";
 import QuickPurchasePreferencesDialog, { type QuickPurchasePreferences } from "./QuickPurchasePreferencesDialog";
 import { AttachmentPicker } from "./conversation/AttachmentPicker";
 import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
@@ -302,7 +303,7 @@ export default function ConversationShell({
   const checkoutOpen = navigation.view.checkout;
   const setCheckoutOpen = navigation.setCheckout;
   const realtimeVoice = useRealtimeVoiceCheckout({
-    // This session is reserved for the explicit purchase-voice header control.
+    // This session is reserved for the explicit purchase-voice composer control.
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
     createSession: async () => {
       const activeConversationId = await ensureConversation();
@@ -450,7 +451,7 @@ export default function ConversationShell({
     if (voiceCheckoutEnabled !== true && channel === "voice") toggleChannel();
   }, [voiceCheckoutEnabled, channel, toggleChannel]);
 
-  const toggleVoiceFromHeader = () => {
+  const toggleVoiceChannel = () => {
     if (channel === "voice") {
       realtimeVoice.stop();
       selectChannel("chat");
@@ -808,13 +809,6 @@ export default function ConversationShell({
               </>
             )}
           </div>
-          {voiceCheckoutEnabled ? <button data-neu="control" type="button" onClick={toggleVoiceFromHeader} aria-label={channel === "voice" ? "Desativar compra por voz" : "Ativar compra por voz"} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
-            {channel === "voice" ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-            )}
-          </button> : null}
           <button data-neu="control" type="button" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo escuro"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--aacp-muted)" strokeWidth="1.8" /><path d="M12 3a9 9 0 0 0 0 18z" fill="var(--aacp-muted)" /></svg>
           </button>
@@ -909,7 +903,7 @@ export default function ConversationShell({
               Eu cuido da sua compra do início ao fim. Acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
             </div>
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: "11px" }}>
-              {voiceCheckoutEnabled ? "Comece pelo chat ou ative a voz no cabeçalho" : "Como você prefere comprar?"}
+              {voiceCheckoutEnabled ? "Comece pelo chat. Para falar, use o microfone ao lado da mensagem." : "Como você prefere comprar?"}
             </div>
             <div style={{ display: "flex", gap: "10px", width: "100%" }}>
               <button data-neu="choice" type="button" onClick={() => { realtimeVoice.stop(); selectChannel("chat"); }} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "var(--aacp-radius, 16px)", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
@@ -1037,7 +1031,9 @@ export default function ConversationShell({
             )}
           </main>
           {/* Composer / Voice indicator */}
-          <div style={{ padding: "9px 14px 14px", flex: "none" }}>
+          <div data-aacp-composer-controls style={{ padding: "9px 14px 14px", flex: "none", display: "flex", alignItems: "center", gap: "9px" }}>
+            {voiceCheckoutEnabled && <VoiceChannelButton active={channel === "voice"} onToggle={toggleVoiceChannel} />}
+            <div style={{ flex: 1, minWidth: 0 }}>
             {channel === "voice" ? <RealtimeVoiceComposer voice={realtimeVoice} /> : (
               <form data-neu="inset" data-aacp-composer-frame onSubmit={handleSubmit} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}>
                 <PerimeterBorder radius="14px" variant="input" />
@@ -1048,6 +1044,7 @@ export default function ConversationShell({
                 </button>
               </form>
             )}
+            </div>
           </div>
         </>
       )}

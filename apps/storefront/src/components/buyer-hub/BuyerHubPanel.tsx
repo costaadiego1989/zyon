@@ -736,6 +736,9 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
               {vm.activeTab === "orders" && (
                 <OrdersTab
                   purchases={vm.purchases.data ?? []}
+                  loading={vm.purchases.loading}
+                  error={vm.purchases.error}
+                  onRetry={() => { void (vm.purchases.data?.length && vm.purchasesHasMore ? vm.loadMorePurchases() : vm.loadPurchases(true)); }}
                   hasMore={vm.purchasesHasMore}
                   loadingMore={vm.purchases.loading}
                   onLoadMore={vm.loadMorePurchases}
