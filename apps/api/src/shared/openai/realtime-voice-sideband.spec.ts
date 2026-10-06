@@ -59,6 +59,7 @@ test("real HTTP/WebSocket sideband admits ten user turns, deduplicates events an
   try {
     const result = await service.createCall({ merchantId: "merchant_a", conversationId: "conversation_a", aiUserId: "buyer:user_a", cart: { items: [] }, sdp: "v=0\na=offer" });
     assert.equal(result.providerCallId, "local_call");
+    assert.equal(result.sdp, "v=0\r\na=answer\r\n");
     assert.equal(configuration.session.audio.input.turn_detection.create_response, false);
     for (let i = 0; i < 10; i++) {
       const item = { id: `user_${i}`, type: "message", role: "user", content: [{ type: i < 6 ? "input_text" : "input_audio" }] };

@@ -100,13 +100,13 @@ export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
       throw new BadGatewayException("voice_provider_session_failed");
     }
 
-    const answer = (await response.text()).trim();
+    const answer = (await response.text()).trim().replace(/\r?\n/g, "\r\n");
     if (!answer) throw new OpenAIRealtimeVoiceCallUnknownError();
     const providerCallId = response.headers.get("location")?.split("/").filter(Boolean).pop() ?? response.headers.get("x-openai-call-id")?.trim();
     if (!providerCallId || !/^[A-Za-z0-9_-]+$/.test(providerCallId)) throw new OpenAIRealtimeVoiceCallUnknownError();
     try { await this.attachTurnGate(providerCallId, apiKey, input); }
     catch { await this.hangup(providerCallId, apiKey).catch(() => undefined); throw new OpenAIRealtimeVoiceCallUnknownError(); }
-    return { sdp: answer, ...(providerCallId ? { providerCallId } : {}) };
+    return { sdp: `${answer}\r\n`, ...(providerCallId ? { providerCallId } : {}) };
   }
 
   protected async attachTurnGate(callId: string, apiKey: string, input: OpenAIRealtimeVoiceSessionInput): Promise<void> {
