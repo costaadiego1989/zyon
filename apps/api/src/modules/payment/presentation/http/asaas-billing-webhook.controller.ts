@@ -1,4 +1,4 @@
-import { Body, Controller, Headers, Post, UnauthorizedException } from "@nestjs/common";
+import { Body, Controller, Headers, HttpCode, HttpStatus, Post, UnauthorizedException } from "@nestjs/common";
 import { HandleAsaasBillingWebhookUseCase } from "../../application/payment-platform/billing/handle-asaas-billing-webhook.use-case.js";
 
 /**
@@ -12,6 +12,8 @@ export class AsaasBillingWebhookController {
   constructor(private readonly handleBilling: HandleAsaasBillingWebhookUseCase) {}
 
   @Post("webhooks/asaas/billing")
+  // A successful POST must acknowledge delivery with 200, not Nest's default 201.
+  @HttpCode(HttpStatus.OK)
   async billingWebhook(
     @Headers("asaas-access-token") token: string | undefined,
     @Body() body: unknown,

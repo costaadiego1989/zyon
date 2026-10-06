@@ -59,6 +59,7 @@ import "./modules/payment/application/asaas-existing-connection.spec.js";
 import "./modules/payment/application/services/refund-payment.service.spec.js";
 import "./modules/payment/infrastructure/evm-crypto-quote.service.spec.js";
 import "./modules/payment/presentation/http/asaas-webhook.controller.spec.js";
+import "./modules/payment/presentation/http/asaas-webhook.http.spec.js";
 import "./modules/returns/application/use-cases/process-refund.use-case.spec.js";
 import "./modules/shipping/application/use-cases/update-delivery-config.use-case.spec.js";
 import "./modules/support/application/send-support-message.use-case.spec.js";
