@@ -6,7 +6,12 @@ export interface SlotRequest { resourceId: string; slotId: string; startsAt: str
 export interface SlotHold { expiresAt: string; slots: SlotRequest[] }
 type StoredHold = { owner: string; fingerprint: string; expiresAt: number; slots: SlotRequest[] };
 const digest = (value: string) => createHash("sha256").update(value).digest("hex");
-export const slotFingerprint = (slots: SlotRequest[]) => digest(JSON.stringify([...slots].sort((a, b) => a.resourceId.localeCompare(b.resourceId) || a.startsAt.localeCompare(b.startsAt))));
+// JSONB may reorder object properties. Compare canonical fields so persisted
+// outbox events still identify the lease acquired before that round trip.
+export const slotFingerprint = (slots: SlotRequest[]) => digest(JSON.stringify(slots
+  .map(({ resourceId, slotId, startsAt, endsAt }) => ({ resourceId, slotId, startsAt, endsAt }))
+  .sort((a, b) => a.resourceId.localeCompare(b.resourceId) || a.startsAt.localeCompare(b.startsAt)
+    || a.endsAt.localeCompare(b.endsAt) || a.slotId.localeCompare(b.slotId))));
 
 // Redis time is authoritative. Inspect every resource before writing any lease.
 const ACQUIRE = `

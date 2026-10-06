@@ -128,6 +128,21 @@ describe("temporary service holds with real Redis and PostgreSQL", { skip: !data
     await callbacks.get("checkout.cart.updated")!({ eventType: "checkout.cart.updated", merchantId, payload: { session_id: a.sessionId, previous_service_slots: requests(a) } });
     assert.equal(await service.get(a), undefined);
   });
+  it("releases a cart lease after the lifecycle event passes through PostgreSQL JSONB", async () => {
+    const callbacks = new Map<string, (event: any) => Promise<void>>();
+    const lifecycle = new ServiceSlotHoldLifecycle({ subscribe: (type: string, handle: any) => callbacks.set(type, handle) } as never, prisma, service);
+    lifecycle.onModuleInit();
+    const a = await session(); await service.acquire(a);
+    const payload = { session_id: a.sessionId, previous_service_slots: requests(a) };
+    const [{ persisted }] = await prisma.$queryRaw<Array<{ persisted: typeof payload }>>`
+      SELECT ${JSON.stringify(payload)}::jsonb AS persisted`;
+    assert.notDeepEqual(Object.keys(persisted.previous_service_slots[0]!), Object.keys(payload.previous_service_slots[0]!));
+    assert.equal(slotFingerprint(persisted.previous_service_slots), slotFingerprint(requests(a)));
+    await prisma.checkoutSession.update({ where: { merchantId_sessionId: { merchantId, sessionId: a.sessionId } }, data: { cart: { ...a.cart, items: [], total: 0 } as any } });
+    await callbacks.get("checkout.cart.updated")!({ eventType: "checkout.cart.updated", merchantId, payload: persisted });
+    assert.equal(await service.get(a), undefined);
+    assert.equal((await service.availability(merchantId, resourceId, metadata))!.slots.find(slot => slot.slotId === "first")!.selectable, true);
+  });
   it("lease deadline never extends past the appointment start", async () => {
     const id = randomUUID(); sessions.push(id);
     const soon = { resourceId, slotId: "near", startsAt: new Date(Date.now() + 200).toISOString(), endsAt: new Date(Date.now() + 60000).toISOString() };
