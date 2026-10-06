@@ -59,6 +59,14 @@ local config = {
         plugins = { rate_limit(positive_number("GATEWAY_AUTH_MINUTE", 30), positive_number("GATEWAY_AUTH_HOUR", 300)) },
       },
       {
+        -- Preserve the presentation-read budget already published in sandbox.
+        name = "api-storefront-presentation",
+        paths = { "~/(?:v1/)?storefront/[^/]+/(?:config|stories)/?$" },
+        methods = { "GET", "HEAD" }, regex_priority = 40,
+        strip_path = false, preserve_host = true,
+        plugins = { rate_limit(positive_number("GATEWAY_STOREFRONT_READ_MINUTE", 600), positive_number("GATEWAY_STOREFRONT_READ_HOUR", 36000)) },
+      },
+      {
         name = "api-public", paths = { "/" }, strip_path = false, preserve_host = true,
         plugins = { rate_limit(positive_number("GATEWAY_RATE_MINUTE", 120), positive_number("GATEWAY_RATE_HOUR", 3600)) },
       },
