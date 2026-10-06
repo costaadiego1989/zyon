@@ -52,7 +52,7 @@ CREATE INDEX "digital_deliveries_merchant_id_status_idx" ON "digital_deliveries"
 CREATE UNIQUE INDEX "digital_deliveries_merchant_id_entitlement_id_channel_key" ON "digital_deliveries"("merchant_id", "entitlement_id", "channel");
 
 -- CreateIndex
-CREATE UNIQUE INDEX "completed_orders_id_merchant_id_key" ON "completed_orders"("id", "merchant_id");
+CREATE UNIQUE INDEX IF NOT EXISTS "completed_orders_id_merchant_id_key" ON "completed_orders"("id", "merchant_id");
 
 -- AddForeignKey
 ALTER TABLE "digital_entitlements" ADD CONSTRAINT "digital_entitlements_order_id_merchant_id_fkey" FOREIGN KEY ("order_id", "merchant_id") REFERENCES "completed_orders"("id", "merchant_id") ON DELETE CASCADE ON UPDATE CASCADE;
