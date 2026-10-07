@@ -37,6 +37,7 @@ import { VoiceChannelButton } from "./conversation/VoiceChannelButton";
 import QuickPurchasePreferencesDialog, { type QuickPurchasePreferences } from "./QuickPurchasePreferencesDialog";
 import { AttachmentPicker } from "./conversation/AttachmentPicker";
 import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
+import { OneBuyClickPresentation } from "../lib/one-buy-click-presentation";
 
 type Channel = "chat" | "voice";
 type OneBuyClickState = {
@@ -168,7 +169,8 @@ function OneBuyClickToggle({
       aria-checked={enabled}
       disabled={!available || pending}
       onClick={onToggle}
-      title="Ativar compra rápida"
+      title={enabled ? "Pausar compra rápida" : "Ativar compra rápida"}
+      aria-label={enabled ? "Pausar compra rápida" : "Ativar compra rápida"}
       style={{
         minHeight: "30px",
         width: undefined,
@@ -401,6 +403,7 @@ export default function ConversationShell({
   const [oneBuyClickPending, setOneBuyClickPending] = useState(false);
   const [quickPurchasePreferencesOpen, setQuickPurchasePreferencesOpen] = useState(false);
   const [buyerAuthIntent, setBuyerAuthIntent] = useState<"checkout" | "enable_quick_purchase" | null>(null);
+  const [oneBuyClickError, setOneBuyClickError] = useState<string | null>(null);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
@@ -495,11 +498,15 @@ export default function ConversationShell({
       setQuickPurchasePreferencesOpen(true);
       return;
     }
-    oneBuyClickEnabled.current = nextEnabled;
     setOneBuyClickPending(true);
+    setOneBuyClickError(null);
     try {
       const next = await checkoutApi.configureOneBuyClick(conversationId, nextEnabled, buyer?.token);
+      oneBuyClickEnabled.current = next.enabled;
       setOneBuyClick(next);
+    } catch {
+      oneBuyClickEnabled.current = oneBuyClick.enabled;
+      setOneBuyClickError("Não foi possível alterar a compra rápida. Sua preferência anterior foi mantida. Tente novamente.");
     } finally {
       setOneBuyClickPending(false);
     }
@@ -747,6 +754,7 @@ export default function ConversationShell({
     handleQuickReply(option);
   };
   return (
+    <OneBuyClickPresentation.Provider value={{ enabled: oneBuyClick?.enabled === true, pending: oneBuyClickPending }}>
     <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "var(--aacp-radius, 19px)", padding: "1px" }}>
       <PerimeterBorder radius="var(--aacp-radius, 19px)" />
       {/* Content */}
@@ -866,6 +874,9 @@ export default function ConversationShell({
             )}
           </nav>
         </header>
+        {oneBuyClickError ? <div style={{ padding: "8px 16px", borderBottom: "1px solid var(--aacp-line)", flexShrink: 0 }}>
+          <p role="alert" style={{ fontSize: 12, margin: 0 }}>{oneBuyClickError}</p>
+        </div> : null}
         {storeMenuOpen && (
           <>
             <button className="store-menu-backdrop" type="button" aria-label="Fechar mais da loja" onClick={() => setStoreMenuOpen(false)} />
@@ -1227,5 +1238,6 @@ export default function ConversationShell({
         });
       }} /> : null}
     </div>
+    </OneBuyClickPresentation.Provider>
   );
 }

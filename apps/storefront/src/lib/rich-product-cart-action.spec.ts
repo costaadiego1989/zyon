@@ -3,6 +3,13 @@ import test from "node:test";
 import { submitRichProductCart, visibleCommerceMessage, type RichProductCartResult } from "./rich-product-cart-action.js";
 
 const detail = { requestId: "request-1", variantId: "variant", optionItemIds: ["cheese"] };
+test("confirmed additions correlate null optional slots and exactly the selected composition", async () => {
+  for (const [optionItemIds, expected] of [[["cheese"], "succeeded"], [["sauce"], "unknown"]] as const) {
+    let event: RichProductCartResult | undefined;
+    await submitRichProductCart(detail, async () => ({ agentMessage: "", blocks: [{ type: "cart_add_result", data: { variantId: "variant", serviceSlotId: null, status: "succeeded", optionItemIds } }] }), result => { event = result; }, false);
+    assert.equal(event?.status, expected);
+  }
+});
 test("matches the API result for this variant and preserves request correlation", async () => {
   const events: RichProductCartResult[] = [], messages: string[] = [];
   await submitRichProductCart(detail, async message => {

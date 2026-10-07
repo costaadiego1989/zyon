@@ -5,6 +5,7 @@ import { PrismaClient } from "@prisma/client";
 import { PrismaCheckoutRepository } from "./prisma-checkout.repository.js";
 import { PrismaPaymentRepository } from "../../../payment/infrastructure/prisma-payment.repository.js";
 import { PaymentIntentEntity } from "../../../payment/domain/payment-intent.entity.js";
+import { CancelPaymentIntentUseCase } from "../../../payment/application/cancel-payment-intent.use-case.js";
 import { CancelCheckoutPaymentUseCase } from "../../../payment/application/cancel-checkout-payment.use-case.js";
 import { ReopenEmbedCheckoutUseCase } from "../../../embed/application/reopen-embed-checkout.use-case.js";
 import { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
@@ -35,7 +36,7 @@ async function seed(total = 300) {
   const session = checkoutSession({ merchantId, sessionId, globalUserId: buyerId,
     cart: { currency: "BRL", total, items: [{ sku: "kit", name: "Kit QA", price: total, cost: total * .4, quantity: 1 }] },
     customer: { email: `${buyerId}@example.test`, email_verified: true, address_verified: true,
-      address: { zip: "01310100", street: "Paulista", number: "100", complement: "", neighborhood: "Bela Vista", city: "São Paulo", state: "SP" } } });
+      address: { zip: "01310100", street: "Paulista", number: "100", complement: "", neighborhood: "Bela Vista", city: "SÃ£o Paulo", state: "SP" } } });
   await sessions.saveSession(session);
   return (await sessions.getSession(merchantId, sessionId))!;
 }
@@ -45,31 +46,34 @@ async function pending(session: Awaited<ReturnType<typeof seed>>, method: "pix" 
     amountCents: 33599, currency: "BRL", idempotencyKey: randomUUID() });
   intent.prepareCreation({ merchantId: session.merchantId, sessionId: session.sessionId, intentId: intent.id, method,
     amountCents: 33599, currency: "BRL", provider: "asaas", providerAccountFingerprint: "qa-frozen-route", settlementMode: "immediate_split" });
+  intent.claimCreation("fixture-create", new Date());
   intent.markRequiresAction({ providerPaymentId: `pay_qa_${intent.id}` });
+  intent.completeCreation("fixture-create");
   await payments.saveIntent({ intent });
   return intent;
 }
 
 function reopening(state: "cancelled" | "unknown", calls: string[]) {
   const provider = { createPayment: async () => { throw new Error("No real payment allowed in QA"); },
-    cancelPayment: async (input: { providerPaymentId: string }) => { calls.push(input.providerPaymentId); return { state }; } };
-  return new ReopenEmbedCheckoutUseCase(sessions, new CancelCheckoutPaymentUseCase(payments, provider), { platformFeeBrl: .99 } as never);
+    readCancellationStatus: async () => ({ state: state === "cancelled" ? "cancelled" as const : "pending" as const }),
+    cancelPendingPayment: async (input: { providerPaymentId: string }) => { calls.push(input.providerPaymentId); return { state }; } };
+  return new ReopenEmbedCheckoutUseCase(sessions, new CancelCheckoutPaymentUseCase(payments, new CancelPaymentIntentUseCase(payments, sessions as never, provider)), { platformFeeBrl: .99 } as never);
 }
 
 integration("confirmed cancellation reopens one persisted checkout; an uncertain cancellation never mutates totals", async () => {
   const session = await seed(); session.paymentMethod = "pix"; session.cart.currentDiscount = 30;
   await sessions.saveSession(session); const old = await pending(session), calls: string[] = [];
-  await assert.rejects(reopening("unknown", calls).execute(session.merchantId, session.sessionId, "payment"), /unconfirmed/);
+  await assert.rejects(reopening("unknown", calls).execute(session.merchantId, session.sessionId, "payment", { globalUserId: session.globalUserId, customer: { email: session.customer!.email!, email_verified: true } }), /unconfirmed/);
   assert.equal((await sessions.getSession(session.merchantId, session.sessionId))?.cart.currentDiscount, 30);
   await assert.rejects(pending(session, "card"));
-  const result = await reopening("cancelled", calls).execute(session.merchantId, session.sessionId, "payment");
+  const result = await reopening("cancelled", calls).execute(session.merchantId, session.sessionId, "payment", { globalUserId: session.globalUserId, customer: { email: session.customer!.email!, email_verified: true } });
   assert.equal((await payments.getIntentById(session.merchantId, old.id))?.snapshot().status, "cancelled");
   assert.equal((await sessions.getSession(session.merchantId, session.sessionId))?.paymentMethod, undefined);
   assert.equal(result.experience.totals.total_to_pay, 335.99);
   assert.ok(result.revision! > 1);
   await pending((await sessions.getSession(session.merchantId, session.sessionId))!, "card");
   assert.equal((await payments.listForSession(session.merchantId, session.sessionId)).length, 2);
-  await assert.rejects(reopening("cancelled", calls).execute("another-merchant", session.sessionId, "payment"));
+  await assert.rejects(reopening("cancelled", calls).execute("another-merchant", session.sessionId, "payment", { globalUserId: session.globalUserId, customer: { email: session.customer!.email!, email_verified: true } }));
 });
 
 integration("merchant locks prevent two simultaneous payment intents after reopening", async () => {
@@ -89,7 +93,7 @@ integration("eligible EDITQA10 coupon updates the authoritative total, cancels i
   assert.equal(first.result.discount_applied, 30);
   assert.equal(buildExperienceFromSession(first.session, { serviceFee: .99 }).totals.total_to_pay, 305.99);
   await assert.rejects(apply(), /ALREADY_APPLIED/);
-  await sessions.reopenForBuyerEdit(session.merchantId, session.sessionId, "payment");
+  await sessions.reopenForBuyerEdit(session.merchantId, session.sessionId, "payment", { globalUserId: session.globalUserId, customer: { email: session.customer!.email!, email_verified: true } });
   assert.equal((await prisma.couponRedemption.findFirstOrThrow({ where: { merchantId: session.merchantId } })).status, "cancelled");
   const again = await apply(); assert.equal(again.result.discount_applied, 30);
   assert.equal(await prisma.couponRedemption.count({ where: { merchantId: session.merchantId } }), 1);
@@ -111,7 +115,7 @@ integration("progressive discount is persisted, capped by merchant rules and nev
   const first = await service.prepare(session.merchantId, session.sessionId, "pix");
   assert.equal(first.cart.currentDiscount, 30); // 15% requested; merchant cap is 10%.
   assert.equal((await service.prepare(session.merchantId, session.sessionId, "pix")).cart.currentDiscount, 30);
-  await sessions.reopenForBuyerEdit(session.merchantId, session.sessionId, "payment");
+  await sessions.reopenForBuyerEdit(session.merchantId, session.sessionId, "payment", { globalUserId: session.globalUserId, customer: { email: session.customer!.email!, email_verified: true } });
   const changed = await service.prepare(session.merchantId, session.sessionId, "card");
   assert.equal(changed.cart.currentDiscount, 30);
   assert.equal(buildExperienceFromSession(changed, { serviceFee: .99 }).totals.total_to_pay, 305.99);

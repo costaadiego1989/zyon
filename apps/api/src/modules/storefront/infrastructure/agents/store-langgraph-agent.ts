@@ -265,6 +265,7 @@ export class StorefrontLangGraphAgent {
               });
             }
           }
+          if (cartPolicy.terminal) break;
           continue; // loop back to LLM with tool results
         }
 
@@ -311,11 +312,13 @@ export class StorefrontLangGraphAgent {
               const result = toolResults[tc.name];
               messages.push({ role: "tool", content: JSON.stringify(result), name: tc.name, tool_call_id: tc.id });
             }
-            const finalResult = await this.provider.chat({ messages, temperature: 0.3, maxTokens: 200, model: this.strongModel });
-            finalContent = finalResult.content;
-            totalPromptTokens += finalResult.usage.promptTokens;
-            totalCompletionTokens += finalResult.usage.completionTokens;
-            totalTokens += finalResult.usage.totalTokens;
+            if (!cartPolicy.terminal) {
+              const finalResult = await this.provider.chat({ messages, temperature: 0.3, maxTokens: 200, model: this.strongModel });
+              finalContent = finalResult.content;
+              totalPromptTokens += finalResult.usage.promptTokens;
+              totalCompletionTokens += finalResult.usage.completionTokens;
+              totalTokens += finalResult.usage.totalTokens;
+            }
           } else {
             finalContent = retryResult.content || finalContent;
           }
@@ -364,6 +367,7 @@ export class StorefrontLangGraphAgent {
                   fbMessages.push({ role: "tool", content: JSON.stringify(toolResult.ok ? toolResult.data : { error: toolResult.error }), name: tc.name, tool_call_id: tc.id });
                 }
               }
+              if (cartPolicy.terminal) break;
               continue;
             }
             fbFinalContent = fbResult.content;
@@ -374,27 +378,9 @@ export class StorefrontLangGraphAgent {
         } catch (fbErr) {
           this.logger.error("agent.fallback_provider.failed", { error: fbErr instanceof Error ? fbErr.message : String(fbErr) });
           finalContent = "";
-          return {
-            message: getErrorFallback(),
-            blocks,
-            cartId: input.cartId,
-            usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
-            toolsUsed,
-            routing: { intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
-            safetyValidation: { safe: true, reason: `both_providers_failed: ${errorMessage}` }
-          };
         }
       } else {
-        finalContent = "";
-        return {
-          message: getErrorFallback(),
-          blocks,
-          cartId: input.cartId,
-          usage: { promptTokens: totalPromptTokens, completionTokens: totalCompletionTokens, totalTokens },
-          toolsUsed,
-          routing: { intent: intentResult.intent, confidence: intentResult.confidence, modelTier, modelUsed },
-          safetyValidation: { safe: true, reason: `llm_error: ${errorMessage}` }
-        };
+        finalContent = getErrorFallback();
       }
     }
 
@@ -402,8 +388,17 @@ export class StorefrontLangGraphAgent {
     blocks.push(...built.blocks);
     finalContent = built.finalContent;
     const addOutcome = cartPolicy.addOutcomes[0];
-    if (addOutcome) blocks.push({ type: "cart_add_result", data: { ...addOutcome, cartId: input.sessionId } });
-    if (addOutcome?.status === "unknown") finalContent = "Não consegui confirmar a inclusão. Confira o carrinho antes de tentar novamente.";
+    if (addOutcome) {
+      // The turn policy owns the final correlation and refusals. The builder's
+      // direct-tool projection must not render a second confirmation.
+      for (let index = blocks.length - 1; index >= 0; index--) {
+        if (blocks[index]?.type === "cart_add_result") blocks.splice(index, 1);
+      }
+      blocks.push({ type: "cart_add_result", data: { ...addOutcome, cartId: input.sessionId } });
+      if (addOutcome.status === "unknown") finalContent = "Não consegui confirmar a inclusão. Confira o carrinho antes de tentar novamente.";
+      else if (addOutcome.status === "succeeded" && (cartPolicy.refused || !finalContent)) finalContent = "Produto adicionado ao carrinho.";
+    }
+    if (cartPolicy.refused && !addOutcome) finalContent = "Para alterar o carrinho, escolha o produto e peça a alteração explicitamente.";
 
     const hasProductCard = blocks.some(b => b.type === "product_card");
     const hasShippingOptions = blocks.some(b => b.type === "shipping_options");

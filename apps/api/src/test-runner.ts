@@ -1,4 +1,10 @@
 import "./modules/auth/domain/services/password-hasher.service.spec.js";
+import "./shared/analytics/business-period.spec.js";
+import "./modules/catalog/application/services/cart-stock-authority.spec.js";
+import "./modules/catalog/application/services/catalog-cart-handlers-stock.spec.js";
+import "./modules/checkout/infrastructure/prisma/prisma-store-overview-calendar.spec.js";
+import "./modules/dashboard/application/finance-filter-regression.spec.js";
+import "./modules/experiments/application/use-cases/production-metrics-regression.spec.js";
 import "./modules/auth/domain/services/jwt.service.spec.js";
 import "./modules/auth/domain/services/auth-cookie.service.spec.js";
 import "./modules/auth/domain/services/login-rate-limiter.service.spec.js";
@@ -328,6 +334,9 @@ import "./modules/storefront/infrastructure/tool-handlers/commerce-rules-flow.sp
 import "./modules/storefront/infrastructure/tool-handlers/one-buy-click-cart-flow.spec.js";
 import "./modules/storefront/infrastructure/one-buy-click/one-buy-click-checkout-preparation.spec.js";
 import "./modules/storefront/application/services/one-buy-click-session.service.spec.js";
+import "./modules/storefront/infrastructure/agents/conversation-block.builder.spec.js";
+import "./modules/storefront/infrastructure/agents/store-langgraph-agent.cart-policy.spec.js";
+import "./modules/storefront/infrastructure/tool-handlers/product.handlers.spec.js";
 
 import "./modules/storefront/presentation/http/storefront-product-content.controller.spec.js";
 import "./modules/storefront/application/services/storefront-attachment-interpreter.service.spec.js";

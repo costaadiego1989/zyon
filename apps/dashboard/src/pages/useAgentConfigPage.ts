@@ -3,6 +3,7 @@ import { useApi } from "../hooks/useApi.js";
 import { showToast } from "../components/Toast.js";
 import type { StageQuickReplies, AgentTone, AgentMode } from "@zyon/shared-types";
 import type { MerchantProfile } from "../api-client.js";
+import { changedFields } from "../lib/config-patch.js";
 
 export interface AgentConfigForm {
   agentName: string;
@@ -100,21 +101,48 @@ export const TONE_PT_TO_EN: Record<string, AgentTone> = {
 // Backend stores quick replies as a stage→replies map ({ welcome: [...], browsing: [...] }).
 // The editor works on DEFAULT_STAGE_QR's ordered/labelled stages. These bridge the two:
 // merge the saved map over the default stages (preserving labels/order), and flatten back.
-function stageConfigFromMap(saved: Record<string, string[]> | undefined): StageQrConfig {
+export function stageConfigFromMap(saved: Record<string, string[]> | undefined): StageQrConfig {
   if (!saved || typeof saved !== "object") return DEFAULT_STAGE_QR;
+  const knownStages = new Set(DEFAULT_STAGE_QR.stages.map(stage => stage.stage));
   return {
-    stages: DEFAULT_STAGE_QR.stages.map((s) =>
+    stages: [...DEFAULT_STAGE_QR.stages.map((s) =>
       Array.isArray(saved[s.stage]) ? { ...s, replies: saved[s.stage] } : s
-    ),
+    ), ...Object.entries(saved).filter(([stage, replies]) =>
+      stage !== "fallback" && !knownStages.has(stage) && Array.isArray(replies)
+    ).map(([stage, replies]) => ({ stage, label: stage, replies }))],
     fallback: Array.isArray(saved.fallback) ? saved.fallback : DEFAULT_STAGE_QR.fallback,
   };
 }
 
-function stageConfigToMap(config: StageQrConfig): Record<string, string[]> {
+export function stageConfigToMap(config: StageQrConfig): Record<string, string[]> {
   const map: Record<string, string[]> = {};
   for (const s of config.stages) map[s.stage] = s.replies;
   map.fallback = config.fallback;
   return map;
+}
+
+export function agentIdentityChanges(form: AgentConfigForm, initial: AgentConfigForm) {
+  const identity = (value: AgentConfigForm) => ({
+    agentName: value.agentName, persona: value.persona, tone: value.tone,
+    language: value.language, greeting: value.greeting, emptyCartGreeting: value.emptyCartGreeting,
+  });
+  return changedFields(identity(form), identity(initial));
+}
+
+export function quickReplyChanges(current: StageQrConfig, initial: StageQrConfig,
+  saved: Record<string, string[]> | undefined): Record<string, string[]> | undefined {
+  const changes = changedFields(stageConfigToMap(current), stageConfigToMap(initial));
+  return Object.keys(changes).length ? { ...saved, ...changes } as Record<string, string[]> : undefined;
+}
+
+export function agentConfigurationChanges(form: AgentConfigForm, initialForm: AgentConfigForm,
+  replies: StageQrConfig, initialReplies: StageQrConfig, savedReplies: Record<string, string[]> | undefined,
+  revision: string | undefined) {
+  const quickReplies = quickReplyChanges(replies, initialReplies, savedReplies);
+  const identity = agentIdentityChanges(form, initialForm);
+  if (!quickReplies && !Object.keys(identity).length && form.agentMode === initialForm.agentMode) return null;
+  // Required values are preserved exactly; identity remains a partial merge.
+  return { revision, mode: form.agentMode, quickReplies: quickReplies ?? savedReplies ?? {}, identity };
 }
 
 export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
@@ -128,12 +156,16 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
   const [loadAttempt, setLoadAttempt] = useState(0);
   const [activeTab, setActiveTab] = useState<"identity" | "quick-replies">("identity");
   const [stageQrConfig, setStageQrConfig] = useState<StageQrConfig>(DEFAULT_STAGE_QR);
+  const [initialForm, setInitialForm] = useState<AgentConfigForm | null>(null);
+  const [initialStageQr, setInitialStageQr] = useState<StageQrConfig>(DEFAULT_STAGE_QR);
+  const [savedQuickReplies, setSavedQuickReplies] = useState<Record<string, string[]> | undefined>();
 
   const errors = useMemo(() => validateAgentConfig(form), [form]);
   const hasErrors = Object.keys(errors).length > 0;
 
   useEffect(() => {
     if (!props.me) {
+      setInitialForm(null);
       setLoadError(null);
       setLoaded(true);
       return;
@@ -161,7 +193,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
             ? rawMode
             : "silent_until_trigger";
 
-        setForm({
+        const nextForm: AgentConfigForm = {
           agentName: String(identity.agentName ?? "Assistente"),
           persona: String(identity.persona ?? ""),
           tone: isValidTone(identity.tone) ? identity.tone : "consultative",
@@ -177,8 +209,14 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
           offerExpirationMinutes: String(rulesUnknown.offerExpirationMinutes ?? 15),
           quickReplies: (rulesUnknown.quickReplies as unknown as StageQuickReplies | undefined) ?? undefined,
           agentMode,
-        });
-        setStageQrConfig(stageConfigFromMap(rulesUnknown.quickReplies as Record<string, string[]> | undefined));
+        };
+        const savedReplies = rulesUnknown.quickReplies as Record<string, string[]> | undefined;
+        const nextReplies = stageConfigFromMap(savedReplies);
+        setForm(nextForm);
+        setInitialForm(nextForm);
+        setStageQrConfig(nextReplies);
+        setInitialStageQr(nextReplies);
+        setSavedQuickReplies(savedReplies);
       } catch {
         if (!cancelled) {
           setLoadError("Não foi possível carregar a configuração atual do agente.");
@@ -198,6 +236,7 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
   }
 
   async function handleSave() {
+    if (!props.me || !initialForm || loading || saving) return;
     if (loadError) {
       showToast("error", "Recarregue a configuração antes de salvar");
       return;
@@ -208,24 +247,20 @@ export function useAgentConfigPage(props: { me: MerchantProfile | null }) {
     }
     setSaving(true);
     try {
-      const saved = await api.putMerchantAgentConfiguration({
-        revision,
-        mode: form.agentMode,
-        quickReplies: stageConfigToMap(stageQrConfig),
-        identity: {
-          agentName: form.agentName,
-          persona: form.persona,
-          tone: form.tone,
-          language: form.language,
-          greeting: form.greeting,
-          emptyCartGreeting: form.emptyCartGreeting,
-        },
-      });
-      setRevision(saved.revision);
+      const payload = agentConfigurationChanges(form, initialForm, stageQrConfig, initialStageQr, savedQuickReplies, revision);
+      if (payload) {
+        // The approved endpoint saves all three authorities atomically and
+        // rejects stale revisions. Keep its required unchanged values exact.
+        const saved = await api.putMerchantAgentConfiguration(payload);
+        setRevision(saved.revision);
+        setSavedQuickReplies(saved.quickReplies);
+        setInitialStageQr(stageQrConfig);
+      }
+      setInitialForm(form);
 
       showToast("success", "Configurações do agente salvas com sucesso");
     } catch (e) {
-      showToast("error", e instanceof Error ? e.message : "Erro ao salvar");
+      showToast("error", "Não foi possível concluir o salvamento. Confira os dados atuais e tente novamente.");
     } finally {
       setSaving(false);
     }

@@ -10,6 +10,7 @@ import { TRIGGER_FIXED_PRIORITIES } from "./constants.js";
 // The visual editor shows a subset. Preserve every server-owned trigger when
 // saving other settings, including an explicit cart-recovery opt-out.
 const PERSISTED_TRIGGERS = Object.keys(TRIGGER_FIXED_PRIORITIES) as CheckoutTriggerName[];
+import { changedFields } from "../../../lib/config-patch.js";
 
 export interface AdvancedRule {
   productId?: string;
@@ -153,7 +154,7 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
     suppressionRules: {
       suppressAfterOfferAccepted: d.suppressAfterOfferAccepted,
       respectBuyerOptOut: d.respectBuyerOptOut,
-      minimumCartValue: d.minimumCartValue > 0 ? d.minimumCartValue : undefined,
+      minimumCartValue: d.minimumCartValue,
     },
     widgetBehavior: {
       openWidgetOnTrigger: d.openWidgetOnTrigger,
@@ -172,4 +173,31 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
 
 export function draftsEqual(a: Draft, b: Draft): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+export function draftChangesToPatch(draft: Draft, saved: CheckoutSettings): CheckoutSettingsPatch {
+  const initial = settingsToDraft(saved);
+  const patch = changedFields(draftToPatch(draft), draftToPatch(initial));
+  // The API replaces this array. Keep every saved rule, including rules that
+  // this version of the editor does not expose, and change only edited rules.
+  delete patch.triggerRules;
+  const changed = PERSISTED_TRIGGERS.filter(trigger =>
+    JSON.stringify(draft.triggers[trigger]) !== JSON.stringify(initial.triggers[trigger]));
+  if (changed.length) {
+    const rules = saved.triggerRules.map(rule => ({ ...rule }));
+    for (const trigger of changed) {
+      const index = rules.findIndex(rule => rule.trigger === trigger);
+      const value = draft.triggers[trigger];
+      const rule = {
+        ...(index >= 0 ? rules[index] : { trigger, priority: TRIGGER_FIXED_PRIORITIES[trigger] }),
+        enabled: value.enabled,
+        message: value.message || undefined,
+        cooldownSeconds: value.cooldownSeconds,
+        couponCode: value.couponCode || undefined,
+      };
+      if (index >= 0) rules[index] = rule; else rules.push(rule);
+    }
+    patch.triggerRules = rules;
+  }
+  return patch;
 }

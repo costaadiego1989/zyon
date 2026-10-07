@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CreatePaymentIntentUseCase } from "./create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../__tests__/payment-stock-reader.fixture.js";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { checkoutSession } from "../../checkout/__tests__/checkout-test-fixtures.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";

@@ -1,4 +1,4 @@
-import { Injectable, Inject , Logger} from "@nestjs/common";
+import { ConflictException, Injectable, Inject , Logger} from "@nestjs/common";
 import { CouponEntity, type CouponDiscountType } from "../../domain/entities/coupon.entity.js";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
@@ -41,7 +41,18 @@ export class CreateCouponUseCase {
       starts_at: input.starts_at,
       ends_at: input.ends_at ?? null
     });
-    await this.repo.save(coupon);
+    if (await this.repo.findByCode(input.merchant_id, coupon.snapshot().code)) {
+      throw new ConflictException("coupon_code_already_exists");
+    }
+    try {
+      await this.repo.save(coupon);
+    } catch (error) {
+      // Preserve a useful conflict even when concurrent creates pass the read.
+      if (error && typeof error === "object" && "code" in error && error.code === "P2002") {
+        throw new ConflictException("coupon_code_already_exists");
+      }
+      throw error;
+    }
     return coupon.snapshot();
   }
 }

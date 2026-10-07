@@ -1,5 +1,5 @@
 import { snapshotDigitalPaymentContent } from "../../../shared/persistence/digital-payment-content.js";
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import type { DomainEventEnvelope } from "@zyon/shared-types";
@@ -210,9 +210,26 @@ export class PrismaPaymentRepository implements PaymentRepository {
   }
 
   private async saveVersion(tx: PrismaTx, snapshot: PaymentIntentSnapshot): Promise<void> {
+    const paymentSessionLock = JSON.stringify(["payment-session", snapshot.merchantId, snapshot.sessionId]);
+    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${paymentSessionLock}, 0))::text`;
     await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snapshot.merchantId} FOR UPDATE`;
     const args = paymentIntentUpsertArgs(snapshot);
     const current = await tx.paymentIntent.findUnique({ where: { id: snapshot.id } });
+    const previousCreation = current?.creation as PaymentIntentSnapshot["creation"];
+    const firstSend = current && previousCreation?.state === "ready" && !previousCreation.firstAttemptAt &&
+      snapshot.creation?.state === "in_flight" && !current.providerPaymentId;
+    if (!current || firstSend || snapshot.creation?.cancellation && !previousCreation?.cancellation) {
+      const active = await tx.paymentIntent.findMany({ where: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId,
+        status: { in: ["pending", "requires_action"] } }, select: { id: true, creation: true, providerPaymentId: true } });
+      if ((!current || firstSend) && active.some(row => ["in_flight", "uncertain"].includes((row.creation as unknown as PaymentIntentSnapshot["creation"])?.cancellation?.state ?? ""))) {
+        throw new ConflictException("payment_cancellation_pending");
+      }
+      if (snapshot.creation?.cancellation && !previousCreation?.cancellation && active.some(row => row.id !== snapshot.id && !row.providerPaymentId &&
+          ["in_flight", "uncertain"].includes((row.creation as unknown as PaymentIntentSnapshot["creation"])?.state ?? ""))) {
+        throw new ConflictException("payment_creation_in_progress");
+      }
+    }
+
     if (!current) {
       const digitalContent = await snapshotDigitalPaymentContent(tx, snapshot.merchantId, snapshot.sessionId);
       args.create.digitalContent = digitalContent as unknown as Prisma.InputJsonValue;

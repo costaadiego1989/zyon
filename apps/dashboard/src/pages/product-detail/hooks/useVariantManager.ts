@@ -78,7 +78,7 @@ export function useVariantManager(initialVariants: ProductVariantDraft[] = [empt
   const toggleVariantsMode = useCallback((enabled: boolean) => {
     setHasVariants(enabled);
     if (!enabled) {
-      setVariants([emptyVariant()]);
+      setVariants(prev => [prev[0] ?? emptyVariant()]);
       setVariantRequired(false);
     }
   }, []);

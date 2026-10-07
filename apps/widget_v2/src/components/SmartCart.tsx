@@ -1,6 +1,7 @@
 import { useCheckoutStore } from "@/store/checkout-store";
 import type { CartItem } from "@/api/checkout-session";
 import { buyerServiceFeeCopy, checkoutLocale, checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
+import { cartStatusCopy } from "@/lib/cart-status-copy";
 
 type CartHandlers = {
   controlsDisabled: boolean;
@@ -121,12 +122,6 @@ export function SmartCart() {
         serviceFee: cart.serviceFee,
       })
     : finalTotal;
-  const statusLabels: Record<string, string> = {
-    awaiting: "Em andamento",
-    shipping_calculated: "Frete definido",
-    ready_to_pay: "Pronto para pagar",
-    paid: "Pago",
-  };
   const formatPrice = (value: number) => new Intl.NumberFormat(locale, { style: "currency", currency: "BRL" }).format(value);
   const handlers: CartHandlers = {
     controlsDisabled,
@@ -144,7 +139,7 @@ export function SmartCart() {
         <div className="checkout-cart__heading">
           <div className="checkout-cart__heading-row">
             <h2>Seu pedido</h2>
-            <span className="checkout-cart__status">{statusLabels[cart.status] ?? "Atualizando"}</span>
+            <span className="checkout-cart__status">{cartStatusCopy(cart.status, Boolean(cart.shipping))}</span>
           </div>
           <p>{itemCount === 1 ? "1 item" : `${itemCount} itens`} · atualizado por {agentName}</p>
         </div>

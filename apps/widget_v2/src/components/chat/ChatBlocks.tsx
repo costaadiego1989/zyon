@@ -236,7 +236,7 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
             fontSize: "13px",
           }}
         >
-          <div style={{ fontWeight: 600 }}>{m.label}</div>
+          <div style={{ fontWeight: 600 }}>Confirmar pagamento com {m.label}</div>
           {preference && meths[0]?.key === m.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "3px" }}>Preferência da compra rápida</div>}
           {m.sub && <div style={{ fontSize: "11px", color: "var(--mut)" }}>{m.sub}</div>}
         </button>

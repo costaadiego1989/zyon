@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AgentContext, AuthorizedOffer, Cart, CartItem } from "@zyon/shared-types";
 import { InMemoryBuyerPurchaseHistoryRepository } from "../../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
 import { RecordCompletedPurchaseUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../../payment/__tests__/payment-stock-reader.fixture.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
 import { PaymentDispatchService } from "../../../payment/application/services/payment-dispatch.service.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";

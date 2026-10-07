@@ -113,6 +113,7 @@ export default function SupportFAB({
             gap: "6px",
             boxShadow: "0 4px 20px rgba(0,0,0,0.3)",
             animation: "tooltipFadeIn 0.3s ease both",
+            pointerEvents: "none",
           }}
         >
           <svg
@@ -148,6 +149,7 @@ export default function SupportFAB({
               padding: "2px",
               cursor: "pointer",
               color: "var(--aacp-muted, #8b8b95)",
+              pointerEvents: "auto",
               display: "flex",
               alignItems: "center",
               justifyContent: "center",

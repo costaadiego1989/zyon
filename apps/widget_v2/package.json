@@ -35,6 +35,7 @@
   },
   "dependencies": {
     "@zyon/shared-types": "workspace:^",
+    "@zyon/checkout-ui": "workspace:*",
     "socket.io-client": "^4.8.0",
     "zustand": "^5.0.0"
   },

@@ -1,4 +1,4 @@
-import { Inject, Injectable, NotFoundException , Logger, Optional} from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException , Logger, Optional} from "@nestjs/common";
 import type { CartItem, ChatTurn, CheckoutExperienceSnapshot } from "@zyon/shared-types";
 import {
   CHECKOUT_SESSION_REPOSITORY,
@@ -16,6 +16,9 @@ import { addOrUpdateCartItem } from "../domain/cart-item-updater.js";
 import { crossSellCartItemToProduct } from "../domain/catalog.mappers.js";
 import { RecordFunnelEventUseCase } from "../../experiments/application/use-cases/record-funnel-event.use-case.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../shared/config/platform-fee.config.js";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
+import { assertCartStock } from "./services/cart-stock-authority.js";
 
 @Injectable()
 export class AddStorefrontItemUseCase {
@@ -27,7 +30,8 @@ export class AddStorefrontItemUseCase {
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
     @Inject(CROSS_SELL_RESOLVER_PORT) private readonly crossSell: CrossSellResolverPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
-    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase
+    @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Pick<PrismaClient, "productVariant">
   ) {}
 
   async execute(input: {
@@ -56,8 +60,10 @@ export class AddStorefrontItemUseCase {
       product = crossSellCartItemToProduct(crossSellItem);
     }
 
-    const quantity = Math.max(1, Math.min(Number(input.quantity ?? 1), 99));
+    const quantity = input.quantity ?? 1;
+    if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) throw new BadRequestException("cart_quantity_invalid");
     const next = addOrUpdateCartItem(session, product, quantity);
+    if (this.prisma) await assertCartStock(this.prisma, input.merchant_id, next.cart.items);
     await this.sessions.saveSession(next);
 
     if (session.promptVariantId && this.recordFunnelEvent) {

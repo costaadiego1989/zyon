@@ -1,0 +1,23 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width, initial-scale=1"><title>Regressões locais da auditoria</title></head>
+<body><div id="root"></div><script type="module">
+import React from "react";
+import { createRoot } from "react-dom/client";
+import "/src/styles.css";
+import { ApiContext } from "/src/hooks/useApi.ts";
+import { createDashboardApi } from "/src/api-client.ts";
+import { AgentConfigPage } from "/src/pages/agent-config-page.tsx";
+import { ThemePage } from "/src/pages/theme-page.tsx";
+import { StoriesPage } from "/src/pages/stories-page.tsx";
+import { CouponsPage } from "/src/pages/coupons/CouponsPage.tsx";
+import { DeliveryPage } from "/src/pages/delivery/DeliveryPage.tsx";
+import { IntegrationsPage } from "/src/pages/integrations-page.tsx";
+import { PaymentConnectionsPage } from "/src/pages/payment-connections/PaymentConnectionsPage.tsx";
+import { CheckoutSettingsPage } from "/src/pages/checkout-settings/CheckoutSettingsPage.tsx";
+const apiBaseUrl=location.origin+"/v1";
+const api=createDashboardApi({baseUrl:apiBaseUrl});
+const me={id:"merchant-test",name:"Athom QA local",role:"OWNER",email:"qa@example.com",plan:"scale"};
+const pages={agent:AgentConfigPage,theme:ThemePage,stories:StoriesPage,coupons:CouponsPage,delivery:DeliveryPage,keys:IntegrationsPage,payments:PaymentConnectionsPage,checkout:CheckoutSettingsPage};
+const Page=pages[new URLSearchParams(location.search).get("page")]??AgentConfigPage;
+createRoot(document.getElementById("root")).render(React.createElement(ApiContext.Provider,{value:api},React.createElement("main",{className:"console-content",style:{padding:16}},React.createElement(Page,{apiBaseUrl,me}))));
+</script></body></html>

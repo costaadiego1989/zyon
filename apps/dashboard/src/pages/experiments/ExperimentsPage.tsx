@@ -44,7 +44,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
           </div>
           <p className="experiments-count" role="status">{vm.experiments.length} {vm.experiments.length === 1 ? "teste encontrado" : "testes encontrados"}</p>
           {vm.experiments.length === 0 ? <EmptyState title="Nenhum teste com estes filtros" description="Busque outro nome ou remova os filtros." action={<Button variant="outline" onClick={() => { vm.setSearchText(''); vm.setFilterStatus('all'); }}>Limpar filtros</Button>} /> :
-            <div className="experiments-items">{vm.experiments.map(exp => <ExperimentCard key={exp.id} experiment={exp} selected={vm.selectedId === exp.id} onSelect={() => vm.setSelectedId(exp.id)} />)}</div>}
+            <div className="experiments-items">{vm.experiments.map(exp => <ExperimentCard key={exp.id} experiment={exp} metrics={vm.selectedResults?.experiment_id === exp.id ? vm.selectedResults.metrics : exp.metrics} selected={vm.selectedId === exp.id} onSelect={() => vm.setSelectedId(exp.id)} />)}</div>}
         </section>
         <section className="experiments-detail" aria-label="Detalhes do teste">
           {vm.selectedExperiment && vm.experiments.some(exp => exp.id === vm.selectedId) ? <ExperimentDetail experiment={vm.selectedExperiment} results={vm.selectedResults} loading={vm.resultsLoading} saving={vm.saving}
@@ -57,7 +57,7 @@ export function ExperimentsPage(props: ExperimentsPageProps) {
     {vm.formMode && <ExperimentForm form={vm.form} errors={vm.errors} loading={vm.saving} saveError={vm.formError}
       onClose={vm.closeForm} onSave={vm.handleCreateExperiment} patch={vm.patch} addVariant={vm.addVariant} removeVariant={vm.removeVariant}
       updateVariant={vm.updateVariant} onGenerateVariants={vm.handleGenerateVariants} generatingVariants={vm.generatingVariants} />}
-    <ConfirmDialog open={vm.archiveConfirmId !== null} title="Arquivar teste?" description="O teste deixará de executar. Você poderá consultá-lo no filtro Arquivados."
+    <ConfirmDialog open={vm.archiveConfirmId !== null} title="Arquivar teste?" description="O teste será movido para Arquivados. Arquivar um rascunho não inicia o teste."
       confirmLabel="Arquivar teste" variant="danger" busy={vm.saving} error={vm.archiveError} onConfirm={vm.confirmArchive} onCancel={vm.cancelArchive} />
   </div>;
 }

@@ -119,7 +119,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     return initialTab ?? "overview";
   };
   const [tab, setTab] = useState<TabKey>(resolveInitialTab);
-  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(() => new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("productId"));
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const appliedOnboardingTabRef = React.useRef(false);
   const notificationMerchant = React.useRef(me.id);
@@ -131,6 +131,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     const navigate = () => {
       setReviewStrategyId(strategyIdFromHash(window.location.hash));
       const hash = window.location.hash.slice(1).split("?")[0];
+      if (hash === "product-detail") setEditingProductId(new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("productId"));
       setTab((hash || initialTab || "overview") as TabKey);
     };
     navigate();
@@ -295,7 +296,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     [visibleSectionIds]
   );
 
-  const activeItem = visibleNavItems.find((item) => item.key === tab) ?? NAV_ITEMS[0]!;
+  const navigationTab = tab === "product-detail" ? "catalog" : tab;
+  const activeItem = visibleNavItems.find((item) => item.key === navigationTab) ?? NAV_ITEMS[0]!;
   const ActiveIcon = activeItem.icon;
   const activeSection = NAV_SECTIONS.find(section => section.id === activeItem.section)?.label ?? activeItem.section;
 
@@ -421,7 +423,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   >
                     {sectionItems.map((item) => {
                       const Icon = item.icon;
-                      const active = tab === item.key;
+                      const active = navigationTab === item.key;
                       const rawCount = item.badgeKey
                         ? item.badgeKey === "cart-recovery"
                           ? navCounts.cartRecovery
@@ -516,7 +518,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
       {/* ── MAIN ── */}
       <main className="dashboard-main" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", position: "relative", padding: 0 }}>
         <div className="console-topbar" style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 32px", borderBottom: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
-          <select className="console-mobile-nav" aria-label="Navegar no dashboard" value={tab} onChange={event => event.target.value === "logout" ? onLogout() : changeTab(event.target.value as TabKey)}>
+          <select className="console-mobile-nav" aria-label="Navegar no dashboard" value={navigationTab} onChange={event => event.target.value === "logout" ? onLogout() : changeTab(event.target.value as TabKey)}>
             {visibleNavItems.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
             <option value="logout">Sair da conta</option>
           </select>
@@ -621,7 +623,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   apiBaseUrl={API_BASE_URL}
                   me={me}
                   onCreate={() => { setEditingProductId(null); changeTab("product-detail"); }}
-                  onEdit={(id) => { setEditingProductId(id); changeTab("product-detail"); }}
+                  onEdit={(id) => { setEditingProductId(id); setTab("product-detail"); window.location.hash = `product-detail?productId=${encodeURIComponent(id)}`; }}
                 />
               </RouteGuard>
             ) : null}
@@ -758,7 +760,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 >
                   <AdvancedLayoutListPage
                     me={me}
-                    onEditProduct={(id) => { setEditingProductId(id); changeTab("product-detail"); }}
+                    onEditProduct={(id) => { setEditingProductId(id); setTab("product-detail"); window.location.hash = `product-detail?productId=${encodeURIComponent(id)}`; }}
                   />
                 </PremiumFeatureGate>
               </RouteGuard>

@@ -43,7 +43,7 @@ export function AgentConfigPage(props: AgentConfigPageProps) {
       ) : vm.loadError ? (
         <div role="alert" style={{ padding: "22px", background: "var(--surface-2)", border: "1px solid var(--color-error)", borderRadius: 12, color: "var(--color-text)" }}>
           <p style={{ margin: 0, font: "600 13px var(--font-sans)" }}>{vm.loadError}</p>
-          <p style={{ margin: "6px 0 14px", font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Nenhuma alteração foi salva.</p>
+          <p style={{ margin: "6px 0 14px", font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Recarregue para conferir a configuração atual antes de editar.</p>
           <Button variant="outline" size="sm" onClick={vm.reload}>Tentar novamente</Button>
         </div>
       ) : (

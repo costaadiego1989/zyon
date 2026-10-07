@@ -35,6 +35,7 @@ export interface InventorySummary {
 }
 
 export interface InventoryRepositoryPort {
+  recordMovementAtomic?(data: { merchantId: string; itemId: string; kind: string; quantity: number; reason?: string; externalRef?: string; source?: string; actorUserId?: string }, delta: number): Promise<InventoryItemRow>;
   list(filter: InventoryListFilter): Promise<{ items: InventoryItemRow[]; total: number }>;
   findById(merchantId: string, id: string): Promise<InventoryItemRow | null>;
   findBySku(merchantId: string, sku: string, locationId: string): Promise<InventoryItemRow | null>;

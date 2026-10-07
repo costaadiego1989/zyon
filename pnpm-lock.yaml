@@ -327,6 +327,9 @@ importers:
       '@types/react':
         specifier: ^18.3.12
         version: 18.3.28
+      '@types/react-dom':
+        specifier: ^18.3.1
+        version: 18.3.7(@types/react@18.3.28)
       typescript:
         specifier: ^5.4.0
         version: 5.9.3
@@ -335,6 +338,9 @@ importers:
 
   apps/widget_v2:
     dependencies:
+      '@zyon/checkout-ui':
+        specifier: workspace:*
+        version: link:../../packages/checkout-ui
       '@zyon/shared-types':
         specifier: workspace:^
         version: link:../../packages/shared-types

@@ -1,3 +1,4 @@
+import { resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
 import { Injectable } from "@nestjs/common";
 import { CheckoutAbandonmentService } from "../../domain/services/checkout-abandonment.service.js";
 import { CheckoutIdentityService } from "../../domain/services/checkout-identity.service.js";
@@ -380,11 +381,6 @@ function average(values: number[]): number {
 }
 
 function resolveOverviewDateRange(period: import("@zyon/shared-types").StorePeriod): { from: Date; to: Date } {
-  const to = new Date();
-  const from = new Date(to);
-  if (period === "today") from.setHours(0, 0, 0, 0);
-  else if (period === "30d") from.setDate(from.getDate() - 30);
-  else if (period === "90d") from.setDate(from.getDate() - 90);
-  else from.setDate(from.getDate() - 7);
+  const { from, to } = resolveBusinessPeriod(period);
   return { from, to };
 }

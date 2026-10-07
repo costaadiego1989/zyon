@@ -14,15 +14,23 @@ export interface AuditFilters {
 
 // ── Pure utils (exported for testability) ──────────────────────────────────
 
-export function actionBadgeCategory(action: string): "destructive" | "constructive" | "update" | "other" {
+export function actionBadgeCategory(action: string, metadata?: Record<string, unknown> | null): "destructive" | "constructive" | "update" | "other" {
+  // Older events retain HTTP actions. Classify only known collection creates;
+  // POST commands such as checkout, preview, start or archive are not creates.
+  if (/^http\.(put|patch)$/i.test(action)) return "update";
+  if (/^http\.post$/i.test(action)) {
+    const path = typeof metadata?.path === "string" ? metadata.path.replace(/\/+$/, "") : "";
+    if (/(?:^|\/)(?:api-keys|experiments|coupons|products|categories|banners|faqs)$/.test(path)) return "constructive";
+    return "other";
+  }
   if (/delete|remove|revoke|disable/i.test(action)) return "destructive";
   if (/create|add|enable|approve/i.test(action)) return "constructive";
   if (/update|edit|change|modify/i.test(action)) return "update";
   return "other";
 }
 
-export function actionBadgeClass(action: string): string {
-  const cat = actionBadgeCategory(action);
+export function actionBadgeClass(action: string, metadata?: Record<string, unknown> | null): string {
+  const cat = actionBadgeCategory(action, metadata);
   switch (cat) {
     case "destructive": return "badge bad";
     case "constructive": return "badge ok";
@@ -57,7 +65,7 @@ function dateRangeToSince(range: AuditFilters["dateRange"]): string | undefined 
 export function filterEvents(events: AuditEvent[], filters: AuditFilters): AuditEvent[] {
   return events.filter(evt => {
     if (filters.actionCategory !== "all") {
-      if (actionBadgeCategory(evt.action) !== filters.actionCategory) return false;
+      if (actionBadgeCategory(evt.action, evt.metadata) !== filters.actionCategory) return false;
     }
     if (filters.actorType !== "all" && evt.actor_type !== filters.actorType) return false;
     return true;

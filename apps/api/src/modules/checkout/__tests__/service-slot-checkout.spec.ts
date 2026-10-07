@@ -6,7 +6,7 @@ import { paymentCartFingerprint } from "../domain/services/payment-cart-fingerpr
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { InMemoryPaymentRepository } from "../../payment/infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../../payment/infrastructure/fake-payment-provider.js";
-import { CreatePaymentIntentUseCase } from "../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../payment/__tests__/payment-stock-reader.fixture.js";
 
 for (const type of ["digital", "service"] as const) test(`${type} advances without delivery and excludes stale freight from payment`, async () => {
   for (const stale of [false, true]) {

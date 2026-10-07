@@ -44,7 +44,7 @@ import { AcpCheckoutUpdateService } from "../../public-api/agentic-protocol/acp-
 import { CheckoutOfferService } from "../../checkout/application/services/checkout-offer.service.js";
 import { BuyerRecognitionService } from "../../checkout/application/services/buyer-recognition.service.js";
 import { OtpService } from "../../checkout/application/services/otp.service.js";
-import { CreatePaymentIntentUseCase } from "../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../payment/__tests__/payment-stock-reader.fixture.js";
 import { PrismaPaymentRepository } from "../../payment/infrastructure/prisma-payment.repository.js";
 import { PrismaPaymentSettlementLedgerRepository } from "../../payment/infrastructure/prisma-payment-settlement-ledger.repository.js";
 import { CompleteOrderUseCase } from "../../checkout/application/use-cases/complete-order.use-case.js";

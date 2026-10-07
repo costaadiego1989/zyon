@@ -1,3 +1,4 @@
+import { CancelPaymentIntentUseCase } from "../../../payment/application/cancel-payment-intent.use-case.js";
 import {
   BadRequestException,
   Body,
@@ -118,6 +119,7 @@ export class EmbedCheckoutController {
     @Optional() private readonly reopenCheckout?: ReopenEmbedCheckoutUseCase,
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
     @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
+    @Inject(CancelPaymentIntentUseCase) private readonly cancelPaymentIntent?: CancelPaymentIntentUseCase,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
@@ -137,14 +139,18 @@ export class EmbedCheckoutController {
   @Post("checkout/edit")
   @RequireEmbedScope("payment:intents:create")
   async editCheckout(@Req() request: EmbedHttpRequest,
-    @Body() body: { session_id: string; section: import("@zyon/shared-types").CheckoutEditSection }) {
-    if (typeof body.session_id !== "string" || !["payment", "shipping", "address", "coupon"].includes(body.section)) {
+    @Body() body: { session_id: string; section: import("@zyon/shared-types").CheckoutEditSection; buyer_access_token?: unknown }) {
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some(key => !["session_id", "section", "buyer_access_token"].includes(key)) ||
+      typeof body.session_id !== "string" || !["payment", "shipping", "address", "coupon"].includes(body.section)) {
       throw new BadRequestException("checkout_edit_invalid");
     }
     const embed = request.embedClaims!;
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    if (!this.resolveBuyer) throw new UnauthorizedException("embed_buyer_authentication_unavailable");
+    const buyer = await this.resolveBuyer.resolve(embed.merchantId, body.buyer_access_token);
+    if (!buyer) throw new UnauthorizedException("embed_buyer_token_invalid");
     if (!this.reopenCheckout) throw new ServiceUnavailableException("checkout_edit_unavailable");
-    return this.reopenCheckout.execute(embed.merchantId, body.session_id, body.section);
+    return this.reopenCheckout.execute(embed.merchantId, body.session_id, body.section, buyer);
   }
 
   @Post("start")
@@ -465,6 +471,24 @@ export class EmbedCheckoutController {
       session_id: body.session_id.trim(),
       intent_id: intentId.trim()
     });
+  }
+
+  @Post("payment/intents/:intentId/cancel")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(10)
+  @RequireEmbedScope("payment:intents:confirm")
+  async cancelPaymentFromEmbed(@Req() request: EmbedHttpRequest, @Param("intentId") intentId: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object" || Array.isArray(body) ||
+        Object.keys(body).some(key => !["session_id", "idempotency_key", "buyer_access_token"].includes(key))) throw new BadRequestException("payment_cancellation_body_invalid");
+    const input = body as { session_id?: unknown; idempotency_key?: unknown; buyer_access_token?: unknown };
+    if (typeof input.session_id !== "string" || typeof input.idempotency_key !== "string" || !input.buyer_access_token) throw new BadRequestException("payment_cancellation_fields_required");
+    const embed = request.embedClaims!;
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, input.session_id);
+    if (!this.resolveBuyer) throw new UnauthorizedException("embed_buyer_authentication_unavailable");
+    const buyer = await this.resolveBuyer.resolve(embed.merchantId, input.buyer_access_token);
+    if (!buyer) throw new UnauthorizedException("embed_buyer_token_invalid");
+    if (!this.cancelPaymentIntent) throw new ServiceUnavailableException("payment_cancellation_unavailable");
+    return this.cancelPaymentIntent.execute({ merchantId: embed.merchantId, sessionId: input.session_id, intentId, idempotencyKey: input.idempotency_key, buyer });
   }
 
   @Get("payment/intents/:intentId/status")

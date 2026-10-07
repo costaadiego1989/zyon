@@ -5,7 +5,9 @@
  */
 import assert from "node:assert/strict";
 import { describe, it } from "node:test";
-import { of } from "rxjs";
+import { of, throwError } from "rxjs";
+import { BadRequestException } from "@nestjs/common";
+import { OptimisticConcurrencyError } from "../../../shared/http/http-contract.errors.js";
 import type { CallHandler, ExecutionContext } from "@nestjs/common";
 import { Reflector } from "@nestjs/core";
 import { AuditMutationInterceptor } from "./audit-mutation.interceptor.js";
@@ -29,6 +31,7 @@ function makeContext(
 ): ExecutionContext {
   const headers: Record<string, string> = { ...responseHeaders };
   const response = {
+    statusCode: 201,
     getHeader: (name: string) => headers[name],
   };
   const request = {
@@ -60,6 +63,27 @@ function makeReflector(): Reflector {
 }
 
 describe("AuditMutationInterceptor", () => {
+  it("records a rejected POST as 400 instead of Express's provisional 201", async () => {
+    const captured: any[] = [];
+    const record = { execute: async (event: unknown) => { captured.push(event); return {}; } } as unknown as RecordAuditEventUseCase;
+    const interceptor = new AuditMutationInterceptor(record, makeReflector());
+    await new Promise<void>(resolve => {
+      interceptor.intercept(makeContext("POST", "/dashboard/experiments/:id/archive", PRINCIPAL), {
+        handle: () => throwError(() => new BadRequestException("INVALID_TRANSITION")),
+      }).subscribe({ error: () => resolve() });
+    });
+    assert.equal(captured[0].outcome, "failed");
+    assert.equal(captured[0].metadata.statusCode, 400);
+  });
+  it("uses the exception filter's 412 for a non-HTTP concurrency error", async () => {
+    const captured: any[] = [];
+    const record = { execute: async (event: unknown) => { captured.push(event); return {}; } } as unknown as RecordAuditEventUseCase;
+    const interceptor = new AuditMutationInterceptor(record, makeReflector());
+    await new Promise<void>(resolve => {
+      interceptor.intercept(makeContext("POST", "/orders/:id/fulfillments", PRINCIPAL), { handle: () => throwError(() => new OptimisticConcurrencyError()) }).subscribe({ error: () => resolve() });
+    });
+    assert.equal(captured[0].metadata.statusCode, 412);
+  });
   it("P3 — skips audit recording when Idempotency-Replayed header is set", async () => {
     let recordCalled = false;
     const record: RecordAuditEventUseCase = {

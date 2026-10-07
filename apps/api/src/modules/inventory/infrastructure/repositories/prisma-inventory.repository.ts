@@ -1,11 +1,43 @@
-import { Injectable } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import { ConflictException, Injectable, NotFoundException } from "@nestjs/common";
+import type { PrismaClient, InventoryMovementKind } from "@prisma/client";
 import { INVENTORY_REPOSITORY, type InventoryRepositoryPort, type InventoryItemRow, type InventoryListFilter, type InventorySummary } from "../../domain/ports/inventory-repository.port.js";
 import { computeStockStatus } from "../../domain/values/stock-status.js";
+import { lockCatalogMerchant } from "../../../../shared/persistence/catalog-stock-ledger.js";
+import { reconcileStockAlert } from "./reconcile-stock-alert.js";
 
 @Injectable()
 export class PrismaInventoryRepository implements InventoryRepositoryPort {
   constructor(private prisma: PrismaClient) {}
+
+  async recordMovementAtomic(data: { merchantId: string; itemId: string; kind: string; quantity: number; reason?: string; externalRef?: string; source?: string; actorUserId?: string }, delta: number): Promise<InventoryItemRow> {
+    return this.prisma.$transaction(async tx => {
+      await lockCatalogMerchant(tx, data.merchantId);
+      const initial = await tx.inventoryItem.findFirst({ where: { id: data.itemId, merchantId: data.merchantId }, select: { sku: true } });
+      if (!initial) throw new NotFoundException("inventory_item_not_found");
+      // Same lock order as catalog writers: merchant, variant, inventory item.
+      await tx.$queryRaw`SELECT v.id FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.sku = ${initial.sku} AND p.merchant_id = ${data.merchantId} ORDER BY v.id FOR UPDATE OF v`;
+      await tx.$queryRaw`SELECT id FROM inventory_items WHERE id = ${data.itemId} AND merchant_id = ${data.merchantId} FOR UPDATE`;
+      const item = await tx.inventoryItem.findFirst({ where: { id: data.itemId, merchantId: data.merchantId }, include: { location: true } });
+      if (!item) throw new NotFoundException("inventory_item_not_found");
+      const quantity = item.quantity + delta;
+      if (!Number.isSafeInteger(quantity) || quantity < item.reserved || quantity < 0 || quantity > 2_147_483_647) throw new ConflictException("stock_quantity_below_reserved");
+      const variants = await tx.productVariant.findMany({ where: { sku: item.sku, product: { merchantId: data.merchantId, deletedAt: null } }, include: { stock: true, product: true } });
+      if (variants.length > 1) throw new ConflictException("stock_sku_ambiguous");
+      const variant = variants[0];
+      if (variant && !["digital", "service"].includes(variant.product.type)) {
+        const locations = await tx.inventoryLocation.findMany({ where: { merchantId: data.merchantId, isActive: true }, select: { id: true, isDefault: true }, take: 2 });
+        if (locations.length !== 1 || !locations[0]?.isDefault || locations[0].id !== item.locationId) throw new ConflictException("stock_location_required");
+        if (variant.stock.length !== 1) throw new ConflictException("stock_warehouse_required");
+        if (quantity < variant.stock[0]!.reserved) throw new ConflictException("stock_quantity_below_reserved");
+        const updated = await tx.productStock.updateMany({ where: { id: variant.stock[0]!.id, variantId: variant.id, reserved: { lte: quantity } }, data: { quantity } });
+        if (updated.count !== 1) throw new ConflictException("stock_quantity_below_reserved");
+      }
+      const updated = await tx.inventoryItem.update({ where: { id: item.id, merchantId: data.merchantId }, data: { quantity }, include: { location: true } });
+      await tx.inventoryMovement.create({ data: { ...data, kind: data.kind as InventoryMovementKind, quantity: data.kind === "ADJUSTMENT" ? delta : data.quantity } });
+      await reconcileStockAlert(tx, data.merchantId, item.id);
+      return { ...updated, locationName: updated.location.name, salePriceCents: updated.salePriceCents ?? null };
+    });
+  }
 
   async list(filter: InventoryListFilter): Promise<{ items: InventoryItemRow[]; total: number }> {
     const skip = ((filter.page ?? 1) - 1) * (filter.pageSize ?? 20);
@@ -15,8 +47,8 @@ export class PrismaInventoryRepository implements InventoryRepositoryPort {
     if (filter.locationId) whereClause.locationId = filter.locationId;
     if (filter.search) {
       whereClause.OR = [
-        { sku: { contains: filter.search, mode: "insensitive" } },
-        { productName: { contains: filter.search, mode: "insensitive" } },
+        { sku: { contains: filter.search.trim(), mode: "insensitive" } },
+        { productName: { contains: filter.search.trim(), mode: "insensitive" } },
       ];
     }
 

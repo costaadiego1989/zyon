@@ -14,6 +14,7 @@ import { Button } from "../components/Button.js";
 import { FormField, FormSelect } from "../components/FormField.js";
 import { reportError } from "../lib/observability/error-reporter.js";
 import { applyThemeMode, normalizeThemeDraft } from "./theme-page/theme-preview-palette.js";
+import { changedFields } from "../lib/config-patch.js";
 
 // ── Exported Constants & Helpers (testable) ──────────────────────────────────
 
@@ -156,7 +157,9 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       }
       setBusy(true); setLoadError(null);
       try {
-        const next = mergeTheme(await api.getMerchantTheme());
+        const [savedTheme, agent] = await Promise.all([api.getMerchantTheme(), api.getAgentRules()]);
+        const identity = agent.identity as { agentName?: string } | undefined;
+        const next = mergeTheme({ ...savedTheme, agentName: identity?.agentName ?? savedTheme.agentName });
         if (!active) return;
         setTheme(next);
         const badges = (next.trustBadges ?? []).join(", ");
@@ -203,12 +206,13 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     saving.current = true; setSaveError(null);
     setBusy(true);
     try {
-      const payload = normalizedTheme();
-      // Upload every image data URI to S3 so the theme stores hosted URLs, not
-      // multi-hundred-KB base64 blobs. All four image fields (logo, favicon,
-      // avatar, background) go through the same uploader — previously only the
-      // logo was uploaded and the other three persisted inline as data URIs,
-      // bloating the theme row and risking validation/size limits.
+      const payload = changedFields(normalizedTheme(), {
+        ...initialTheme,
+        trustBadges: parseBadges(initialBadges),
+      });
+      // Identity belongs to Agente IA, even when resetting the appearance.
+      delete payload.agentName;
+      // Upload only edited image fields; unrelated appearance values stay intact.
       const imageFields = ["logoUrl", "faviconUrl", "agentAvatarUrl", "backgroundImageUrl"] as const;
       for (const field of imageFields) {
         const value = payload[field];
@@ -222,7 +226,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           }
         }
       }
-      const saved = mergeTheme(await api.putMerchantTheme(payload));
+      const saved = mergeTheme({ ...await api.putMerchantTheme(payload), agentName: theme.agentName });
       setTheme(saved);
       const badges = (saved.trustBadges ?? []).join(", ");
       setBadgesText(badges);
@@ -241,7 +245,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
   function reset() {
     setConfirmReset(false); setSaveError(null);
-    const next = mergeTheme();
+    const next = mergeTheme({ agentName: initialTheme.agentName });
     setTheme(next);
     setBadgesText((next.trustBadges ?? []).join(", "));
   }

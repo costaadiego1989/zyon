@@ -1,3 +1,4 @@
+import { businessDateKey, resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
 import type { PrismaClient } from "@prisma/client";
 import type {
   StoreOverview,
@@ -17,7 +18,7 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
   constructor(private readonly prisma: PrismaClient) {}
 
   async storeOverview(merchantId: string, period: StorePeriod): Promise<StoreOverview> {
-    const { from, to } = resolveDateRange(period);
+    const { from, to } = resolveBusinessPeriod(period);
 
     const [orders, allSessions] = await Promise.all([
       this.prisma.completedOrder.findMany({
@@ -122,7 +123,7 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
       const customer = session?.customer as unknown as CustomerHints | null;
       return {
         id: o.externalOrderId,
-        buyer_name: customer?.fullName ?? customer?.email ?? "Unknown",
+        buyer_name: customer?.fullName ?? customer?.email ?? "Não identificado",
         total: toNumber(o.orderTotal),
         status: o.status,
         created_at: o.completedAt.toISOString(),
@@ -145,7 +146,7 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
   }
 
   async timeseries(merchantId: string, period: StorePeriod): Promise<TimeseriesResponse> {
-    const { from, to, days } = resolveDateRange(period);
+    const { from, to, dates } = resolveBusinessPeriod(period);
 
     const [orders, sessions] = await Promise.all([
       this.prisma.completedOrder.findMany({
@@ -158,45 +159,24 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
       }),
     ]);
 
-    if (orders.length === 0 && sessions.length === 0) {
-      const zeroPoints: TimeseriesDataPoint[] = [];
-      const now = new Date();
-      for (let i = 0; i < days; i++) {
-        const d = new Date(now);
-        d.setDate(d.getDate() - (days - 1 - i));
-        zeroPoints.push({ date: toDateKey(d), value: 0 });
-      }
-      return {
-        merchant_id: merchantId,
-        period,
-        revenue_daily: zeroPoints.map((p) => ({ ...p })),
-        orders_daily: zeroPoints.map((p) => ({ ...p })),
-        sessions_daily: zeroPoints.map((p) => ({ ...p })),
-        conversion_daily: zeroPoints.map((p) => ({ ...p })),
-      };
-    }
-
     const revenueDailyMap = new Map<string, number>();
     const ordersDailyMap = new Map<string, number>();
     const sessionsDailyMap = new Map<string, number>();
 
-    for (let i = 0; i < days; i++) {
-      const d = new Date(from);
-      d.setDate(d.getDate() + i);
-      const key = toDateKey(d);
+    for (const key of dates) {
       revenueDailyMap.set(key, 0);
       ordersDailyMap.set(key, 0);
       sessionsDailyMap.set(key, 0);
     }
 
     for (const o of orders) {
-      const key = toDateKey(o.completedAt);
+      const key = businessDateKey(o.completedAt);
       revenueDailyMap.set(key, (revenueDailyMap.get(key) ?? 0) + toNumber(o.orderTotal));
       ordersDailyMap.set(key, (ordersDailyMap.get(key) ?? 0) + 1);
     }
 
     for (const s of sessions) {
-      const key = toDateKey(s.createdAt);
+      const key = businessDateKey(s.createdAt);
       sessionsDailyMap.set(key, (sessionsDailyMap.get(key) ?? 0) + 1);
     }
 
@@ -223,39 +203,4 @@ export class PrismaStoreOverviewRepository implements StoreOverviewReadModel {
       conversion_daily: conversionDailyArr,
     };
   }
-}
-
-function resolveDateRange(period: StorePeriod): { from: Date; to: Date; days: number } {
-  const now = new Date();
-  const to = now;
-  const from = new Date(now);
-
-  let days: number;
-  switch (period) {
-    case "today":
-      from.setHours(0, 0, 0, 0);
-      days = 1;
-      break;
-    case "7d":
-      from.setDate(from.getDate() - 7);
-      days = 7;
-      break;
-    case "30d":
-      from.setDate(from.getDate() - 30);
-      days = 30;
-      break;
-    case "90d":
-      from.setDate(from.getDate() - 90);
-      days = 90;
-      break;
-    default:
-      from.setDate(from.getDate() - 7);
-      days = 7;
-  }
-
-  return { from, to, days };
-}
-
-function toDateKey(date: Date): string {
-  return date.toISOString().slice(0, 10);
 }

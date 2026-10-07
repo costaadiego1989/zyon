@@ -1,6 +1,9 @@
 "use client";
 
-export function StarRating({ value, count }: { value: number; count: number }) {
+export function StarRating({ value, count }: { value?: number; count: number }) {
+  if (!Number.isInteger(count) || count <= 0 || typeof value !== "number" || !Number.isFinite(value) || value < 1 || value > 5) {
+    return <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>{Number.isInteger(count) && count > 0 ? `${count} ${count === 1 ? "avaliação" : "avaliações"} · nota indisponível` : "Ainda sem avaliações"}</span>;
+  }
   const full = Math.floor(value);
   const partial = Math.max(0, Math.min(1, value - full));
   const total = 5;

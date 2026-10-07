@@ -1,6 +1,7 @@
 "use client";
 
 import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types";
+import { useOneBuyClickPresentation } from "@/lib/one-buy-click-presentation";
 
 type Variant = NonNullable<ProductCardBlockType["data"]["variants"]>[number];
 
@@ -22,7 +23,8 @@ export function ProductCardCta({
   addDisabled?: boolean;
   addDisabledReason?: string;
 }) {
-  const blocked = !data.inStock || addDisabled;
+  const oneBuyClick = useOneBuyClickPresentation();
+  const blocked = !data.inStock || addDisabled || oneBuyClick.pending;
   return (
     <div
       style={{

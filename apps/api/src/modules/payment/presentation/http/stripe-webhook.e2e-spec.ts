@@ -4,7 +4,7 @@ import type Stripe from "stripe";
 import { createStartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.fixture.js";
 import { CompleteOrderUseCase } from "../../../checkout/application/use-cases/complete-order.use-case.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
-import { CreatePaymentIntentUseCase } from "../../application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../__tests__/payment-stock-reader.fixture.js";
 import { HandleStripeWebhookUseCase } from "../../application/handle-stripe-webhook.use-case.js";
 import { PaymentDispatchService } from "../../application/services/payment-dispatch.service.js";
 import { InMemoryPaymentRepository } from "../../infrastructure/in-memory-payment.repository.js";

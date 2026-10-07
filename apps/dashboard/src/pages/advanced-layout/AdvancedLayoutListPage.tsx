@@ -158,7 +158,7 @@ export function AdvancedLayoutListPage({ me, onEditProduct }: AdvancedLayoutList
           value={totals.configured}
           accent="var(--color-success)"
         />
-        <StatCard icon={<Layers size={16} />} label="Blocos publicados" value={totals.totalBlocks} />
+        <StatCard icon={<Layers size={16} />} label="Blocos cadastrados" value={totals.totalBlocks} />
       </StatCardGroup>}
 
       {error ? (

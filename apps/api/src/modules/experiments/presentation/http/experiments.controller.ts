@@ -235,7 +235,8 @@ export class ExperimentsController {
         conversions: v.conversions,
         conversion_rate: v.conversion_rate,
         revenue: v.total_revenue,
-        avg_order_value: v.avg_revenue,
+        avg_order_value: v.avg_order_value,
+        revenue_per_session: v.avg_revenue,
         offers_shown: 0,
         offers_accepted: 0,
         offer_acceptance_rate: 0,
@@ -268,6 +269,7 @@ export class ExperimentsController {
       winner_variant_id: snapshot.winner_variant_id,
       created_at: snapshot.created_at,
       updated_at: snapshot.updated_at,
+      metrics: snapshot.metrics,
     };
   }
 }

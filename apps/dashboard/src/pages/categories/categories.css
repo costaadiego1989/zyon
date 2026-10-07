@@ -7,3 +7,4 @@
 .categories-actions { display:flex; gap:8px; align-items:center; justify-content:flex-end; }
 .categories-list { border:1px solid var(--color-border); background:var(--surface-2); border-radius:var(--radius-md); overflow:hidden; }
 .dashboard-ui .categories-list > .filter-toolbar { margin-inline:20px; padding:16px 0; }
+.categories-list .ui-icon-button, .categories-list .category-actions button { min-width:44px; min-height:44px; }

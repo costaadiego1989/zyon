@@ -87,7 +87,14 @@ export function CouponsPage(_props: CouponsPageProps) {
           </div>
           {coupon.strategyIncentiveExecutionId && <p className="coupon-row__management">Gerenciado pela estratégia de IA. Aplicado automaticamente apenas aos compradores elegíveis do teste.
             O código não libera o benefício para outros compradores. Consulte os limites, os resultados ou interrompa o teste em Otimização com IA.</p>}
-          <dl className="coupon-row__details"><div><dt>Benefício</dt><dd>{formatDiscount(coupon.discountType, coupon.discountValue)}</dd></div><div><dt>Resgates</dt><dd>{coupon.strategyIncentiveExecutionId ? "Consulte os resultados da estratégia" : <>{coupon.usedCount ?? 0}{coupon.maxUses ? " de " + coupon.maxUses : " · sem limite"}</>}</dd></div><div><dt>Validade</dt><dd>{coupon.startsAt ? "De " + formatDate(coupon.startsAt) : "Sem início definido"}<br />{coupon.expiresAt ? "Até " + formatDate(coupon.expiresAt) : "Sem data final"}</dd></div></dl>
+          <dl className="coupon-row__details"><div><dt>Benefício</dt><dd>{formatDiscount(coupon.discountType, coupon.discountValue)}</dd></div><div><dt>Resgates</dt><dd>{coupon.strategyIncentiveExecutionId ? "Consulte os resultados da estratégia" : <>{coupon.usedCount ?? 0}{coupon.maxUses ? " de " + coupon.maxUses : " · sem limite"}</>}</dd></div><div><dt>Validade</dt><dd>{coupon.startsAt ? "De " + formatDate(coupon.startsAt) : "Sem início definido"}<br />{coupon.expiresAt ? "Até " + formatDate(coupon.expiresAt) : "Sem data final"}</dd></div>
+            <div><dt>Compra mínima</dt><dd>{coupon.minCartValue ? formatDiscount("fixed", coupon.minCartValue) : "Sem mínimo"}</dd></div>
+            <div><dt>Usos por comprador</dt><dd>{coupon.maxPerBuyer ?? "Sem limite"}</dd></div>
+            {!!coupon.allowedSkus?.length && <div><dt>SKUs elegíveis</dt><dd>{coupon.allowedSkus.join(", ")}</dd></div>}
+            {!!coupon.blockedSkus?.length && <div><dt>SKUs excluídos</dt><dd>{coupon.blockedSkus.join(", ")}</dd></div>}
+            {!!coupon.allowedRegions?.length && <div><dt>Regiões elegíveis</dt><dd>{coupon.allowedRegions.join(", ")}</dd></div>}
+            {!!coupon.blockedRegions?.length && <div><dt>Regiões excluídas</dt><dd>{coupon.blockedRegions.join(", ")}</dd></div>}
+          </dl>
         </article>)}
       </div>}
     </DataPanel>

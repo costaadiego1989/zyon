@@ -14,6 +14,7 @@ export interface VariantMetrics {
   conversions: number;
   conversion_rate: number;
   avg_revenue: number;
+  avg_order_value: number;
   total_revenue: number;
   funnel?: {
     conversations_started: number;
@@ -92,6 +93,7 @@ export class GetExperimentResultsUseCase {
         conversions,
         conversion_rate: sampleSize > 0 ? Math.round((conversions / sampleSize) * 10000) / 100 : 0,
         avg_revenue: sampleSize > 0 ? Math.round((totalRevenue / sampleSize) * 100) / 100 : 0,
+        avg_order_value: conversions > 0 ? Math.round((totalRevenue / conversions) * 100) / 100 : 0,
         total_revenue: Math.round(totalRevenue * 100) / 100,
         funnel: {
           conversations_started: conversationsStarted,

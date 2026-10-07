@@ -1,3 +1,4 @@
+import { CancelPaymentIntentUseCase } from "./application/cancel-payment-intent.use-case.js";
 import { forwardRef, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
@@ -153,6 +154,7 @@ import {
     MerchantMercadoPagoController,
   ],
   providers: [
+    CancelPaymentIntentUseCase,
     CancelCheckoutPaymentUseCase,
     RefundPaymentService,
     CreatePaymentIntentUseCase,
@@ -354,6 +356,7 @@ import {
     },
   ],
   exports: [
+    CancelPaymentIntentUseCase,
     CancelCheckoutPaymentUseCase,
     RefundPaymentService,
     CreatePaymentIntentUseCase,

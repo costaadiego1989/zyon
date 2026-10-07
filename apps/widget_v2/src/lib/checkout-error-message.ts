@@ -41,6 +41,12 @@ export function checkoutChatErrorMessage(error: unknown): string | null {
 }
 
 export function checkoutPaymentErrorMessage(error: unknown): string {
+  if (error instanceof CheckoutApiError && ["cart_insufficient_stock", "variant_out_of_stock", "marketplace_insufficient_stock"].includes(error.code ?? "")) {
+    return "A quantidade de um produto não está mais disponível. Revise o carrinho e reduza a quantidade antes de confirmar o pagamento.";
+  }
+  if (error instanceof CheckoutApiError && ["cart_product_unavailable", "product_unavailable", "digital_content_unavailable"].includes(error.code ?? "")) {
+    return "Um produto do carrinho está indisponível. Remova ou troque esse produto antes de confirmar o pagamento.";
+  }
   if (error instanceof Error && error.message === "pix_payload_unavailable") {
     return "O código Pix ainda não está disponível. Tente novamente para consultar o mesmo pagamento.";
   }
@@ -66,4 +72,19 @@ export function checkoutPaymentErrorMessage(error: unknown): string {
   return error.code && messages[error.code]
     ? messages[error.code]
     : "Não foi possível criar o pagamento. Tente novamente.";
+}
+
+/** Translate known refusal codes; never expose backend details to the buyer. */
+export function checkoutCouponErrorMessage(error: unknown): string {
+  const value = error instanceof Error ? error.message : "";
+  const code = error instanceof CheckoutApiError ? error.code ?? "" : "";
+  const reason = `${code} ${value}`.toLowerCase();
+  if (/coupon_not_found|coupon_invalid|invalid_coupon/.test(reason)) return "Cupom não encontrado. Confira o código e tente novamente.";
+  if (/expired|coupon_expired/.test(reason)) return "Este cupom expirou. Confira os cupons disponíveis na loja.";
+  if (/paused|inactive|archived|disabled/.test(reason)) return "Este cupom está indisponível no momento. Confira outro cupom da loja.";
+  if (/usage_limit|usages_exceeded|max_usages|already_used/.test(reason)) return "O limite de uso deste cupom foi atingido. Confira outro cupom da loja.";
+  if (/minimum|min_cart|min_order/.test(reason)) return "O carrinho ainda não atende ao valor mínimo deste cupom. Confira as condições de uso.";
+  if (/product_cost_missing|discount_rejected|margin|not_eligible|not_applicable/.test(reason)) return "Este cupom não se aplica aos produtos do carrinho. Confira as condições com a loja ou continue sem o cupom.";
+  if ((error instanceof CheckoutApiError && (error.status === 429 || error.status >= 500)) || /network|failed to fetch|timeout|rate_limit/.test(reason)) return "Não foi possível consultar o cupom agora. Tente novamente em instantes.";
+  return "Não foi possível aplicar este cupom. Confira o código e as condições de uso.";
 }

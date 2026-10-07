@@ -191,11 +191,13 @@ export class ExperimentsDashboardController {
         conversions: v.conversions,
         conversion_rate: v.conversion_rate,
         revenue: v.total_revenue,
-        avg_order_value: v.avg_revenue,
+        avg_order_value: v.avg_order_value,
+        revenue_per_session: v.avg_revenue,
       })),
       total_sessions: output.variants.reduce((sum: number, v: any) => sum + v.sample_size, 0),
       total_conversions: output.variants.reduce((sum: number, v: any) => sum + v.conversions, 0),
       total_revenue: output.variants.reduce((sum: number, v: any) => sum + v.total_revenue, 0),
+      winner_variant_id: output.winner_variant_id,
       started_at: output.started_at,
       completed_at: output.completed_at,
     };
@@ -220,6 +222,7 @@ export class ExperimentsDashboardController {
       winner_variant_id: snapshot.winner_variant_id,
       created_at: snapshot.created_at,
       updated_at: snapshot.updated_at,
+      metrics: snapshot.metrics,
     };
   }
 }

@@ -9,9 +9,10 @@ import { StripePaymentAdapter } from "../infrastructure/stripe-payment.adapter.j
 import { ResumePaymentCreationService } from "../application/resume-payment-creation.service.js";
 import { PaymentDispatchService } from "../application/services/payment-dispatch.service.js";
 import { ReconcilePaymentIntentsUseCase } from "../application/reconcile-payment-intents.use-case.js";
-import { CreatePaymentIntentUseCase } from "../application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "./payment-stock-reader.fixture.js";
 import type { CreateProviderPaymentInput, PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
+import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { checkoutSession } from "../../checkout/__tests__/checkout-test-fixtures.js";
 import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { InMemoryDomainEventBus } from "../../../shared/events/in-memory-domain-event-bus.js";
@@ -247,11 +248,21 @@ test("API015: durable approval handler recovers checkout after post-commit crash
 });
 
 test("API013: reconciliation resumes creation without provider ID instead of permanently skipping", async () => {
-  const repo = new InMemoryPaymentRepository(); const intent = prepared(); await repo.saveIntent({ intent });
+  const repo = new InMemoryPaymentRepository(), checkout = new InMemoryCheckoutRepository();
+  const session = checkoutSession({ sessionId: "session_recovery", merchantId: "merchant_recovery",
+    cart: { currency: "BRL", total: 10, currentDiscount: 0, items: [{ sku: "external-sku", name: "Item", price: 10, quantity: 1 }] } });
+  await checkout.saveSession(session);
+  const intent = PaymentIntentEntity.create({ merchantId: session.merchantId, sessionId: session.sessionId,
+    idempotencyKey: "same-key", amountCents: 1099, currency: "BRL", method: "pix",
+    amountBreakdown: { version: 1, itemsSubtotalCents: 1000, discountCents: 0, shippingCents: 0, platformFeeCents: 99,
+      totalCents: 1099, currency: "BRL", cartFingerprint: paymentCartFingerprint(session) } });
+  intent.prepareCreation({ ...prepared().snapshot().creation!.input, intentId: intent.id });
+  await repo.saveIntent({ intent });
   const remote = asaasMock(intent.id);
   const port: CheckoutPaymentPort = { completeAfterApproval: async () => {}, recordPaymentFailure: async () => {}, recordPaymentStatusChanged: async () => {} };
   remote.provider.fetchPaymentStatus = async () => ({ state: "pending" });
-  const result = await new ReconcilePaymentIntentsUseCase(repo, remote.provider, port).execute({ staleAfterMs: 0 });
+  const stock = { productVariant: { findMany: async () => [] } };
+  const result = await new ReconcilePaymentIntentsUseCase(repo, remote.provider, port, undefined, undefined, checkout, stock as never).execute({ staleAfterMs: 0 });
   assert.equal(remote.posts(), 1); assert.equal(result.reconciled[0].outcome, "still_pending");
   assert.equal((await repo.getIntentById("merchant_recovery", intent.id))!.snapshot().providerPaymentId, "pay_unique");
 });

@@ -11,6 +11,7 @@ import { ProductCardOptions } from "./parts/ProductCardOptions";
 import { ProductCardCta } from "./parts/ProductCardCta";
 import { ServiceScheduleSelector } from "./ServiceScheduleSelector";
 import { isSelectableServiceTime } from "../../lib/service-schedule";
+import { selectedProductPresentation } from "../../lib/product-presentation";
 
 type OptionGroup = NonNullable<ProductCardBlockType["data"]["optionGroups"]>[number];
 
@@ -78,6 +79,7 @@ export default function ProductCardBlock({
 
   const selectedVariant =
     variants.find((v) => v.id === selectedVariantId) ?? null;
+  const presentation = selectedProductPresentation(data, selectedVariantId);
 
   const displayedPrice = useMemo(() => {
     if (selectedVariant?.price !== undefined && selectedVariant.price > 0) {
@@ -189,9 +191,7 @@ export default function ProductCardBlock({
           }}
         >
           <div style={{ display: "flex", flexDirection: "column", gap: "8px", minWidth: 0 }}>
-            {data.rating !== undefined && (
-              <StarRating value={data.rating} count={data.reviewCount ?? 0} />
-            )}
+            <StarRating value={data.rating} count={data.reviewCount ?? 0} />
 
             <h3
               style={{
@@ -229,9 +229,9 @@ export default function ProductCardBlock({
               </p>
             )}
 
-            {data.detailed && data.sku && (
+            {data.detailed && presentation.sku && (
               <span style={{ fontSize: "11.5px", color: "var(--aacp-muted)", fontFamily: "var(--aacp-font-mono, monospace)" }}>
-                SKU: {data.sku}
+                SKU: {presentation.sku}
               </span>
             )}
           </div>
@@ -299,7 +299,7 @@ export default function ProductCardBlock({
                 gap: "6px",
                 fontSize: "11.5px",
                 fontWeight: 600,
-                color: data.inStock ? "var(--aacp-success)" : "#ef4444",
+                color: presentation.available ? "var(--aacp-success)" : "#ef4444",
                 whiteSpace: "nowrap",
               }}
               aria-live="polite"
@@ -309,21 +309,17 @@ export default function ProductCardBlock({
                   width: "8px",
                   height: "8px",
                   borderRadius: "50%",
-                  background: data.inStock ? "var(--aacp-success)" : "#ef4444",
-                  boxShadow: data.inStock
+                  background: presentation.available ? "var(--aacp-success)" : "#ef4444",
+                  boxShadow: presentation.available
                     ? "0 0 0 3px color-mix(in srgb, var(--aacp-success) 22%, transparent)"
                     : "0 0 0 3px color-mix(in srgb, #ef4444 22%, transparent)",
                 }}
                 aria-hidden
               />
-              {data.inStock
-                ? data.detailed && data.stock && data.stock < 999
-                  ? `Em estoque · ${data.stock} ${data.stock === 1 ? "un." : "un."}`
-                  : "Em estoque"
-                : "Esgotado"}
+              {presentation.stockLabel}
             </div>
 
-            {data.inStock && (
+            {presentation.available && presentation.requiresShipping && (
               <div
                 style={{
                   display: "inline-flex",
@@ -353,6 +349,9 @@ export default function ProductCardBlock({
                 <span>Frete calculado no checkout</span>
               </div>
             )}
+            {presentation.available && !presentation.requiresShipping ? <p style={{ fontSize: "11.5px", color: "var(--aacp-muted)", margin: 0, lineHeight: 1.5 }}>
+              {data.productType === "digital" ? "Acesso digital após a confirmação do pagamento. Não requer frete." : "Confira as condições de agendamento e execução do serviço. Não requer frete."}
+            </p> : null}
           </div>
         </div>
 
@@ -419,7 +418,7 @@ export default function ProductCardBlock({
         )}
 
         <ProductCardCta
-          data={data}
+          data={{ ...data, inStock: presentation.available }}
           selectedVariant={selectedVariant}
           selectedVariantId={selectedVariantId}
           buildCtaText={buildCtaText}

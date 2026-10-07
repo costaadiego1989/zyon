@@ -1,3 +1,4 @@
+import { assertStandardCancellationInput, exactCancellationAmount, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import type {
@@ -187,6 +188,40 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   }
 
   creationAccountFingerprint(): string { return createHash("sha256").update(`${this.apiBaseUrl}\0${this.apiKey}`).digest("hex"); }
+
+  async readCancellationStatus(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    assertStandardCancellationInput(input, "asaas", this.creationAccountFingerprint());
+    const p = input.payment;
+    if (p.method !== "pix") return { state: "unsupported" };
+    const payment = await this.readCancellationPayment({ merchantId: p.merchantId, providerPaymentId: input.providerPaymentId });
+    if (payment.id !== input.providerPaymentId || payment.externalReference !== p.intentId || payment.customer !== p.asaasCustomerId ||
+        !p.asaasCustomerId || payment.billingType !== "PIX" || !exactCancellationAmount(payment.value, p.amountCents) ||
+        payment.currency !== undefined && payment.currency !== "BRL") throw new Error("payment_cancellation_identity_mismatch");
+    if (payment.subscription != null || payment.installment != null) return { state: "unsupported" };
+    if (["RECEIVED", "CONFIRMED", "RECEIVED_IN_CASH", "REFUNDED", "REFUND_REQUESTED", "REFUND_IN_PROGRESS",
+      "CHARGEBACK_REQUESTED", "CHARGEBACK_DISPUTE", "AWAITING_CHARGEBACK_REVERSAL"].includes(payment.status ?? "")) return { state: "paid" };
+    if (!["PENDING", "OVERDUE"].includes(payment.status ?? "")) return { state: "unavailable" };
+    return { state: payment.deleted === true ? "cancelled" : payment.deleted === false ? "pending" : "unknown" };
+  }
+
+  async cancelPendingPayment(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    const before = await this.readCancellationStatus(input);
+    if (before.state !== "pending") return before;
+    const response = await this.fetchImpl(`${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, {
+      method: "DELETE", headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return { state: "unknown" };
+    const receipt = await response.json() as { id?: string; deleted?: boolean };
+    if (receipt.id !== input.providerPaymentId || receipt.deleted !== true) return { state: "unknown" };
+    // A 404 or acknowledgement alone cannot rule out a payment racing deletion.
+    return this.readCancellationStatus(input);
+  }
+
+  private async readCancellationPayment(input: { providerPaymentId: string; merchantId: string }) {
+    const response = await this.fetchImpl(`${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, { headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000) });
+    if (!response.ok) throw new Error("payment_cancellation_status_unavailable");
+    return response.json() as Promise<{ id?: string; externalReference?: string; customer?: string; billingType?: string; value?: number; currency?: string; subscription?: unknown; installment?: unknown; status?: string; deleted?: boolean }>;
+  }
 
   async recoverPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput | null> {
     const base = this.apiBaseUrl.replace(/\/+$/, "");

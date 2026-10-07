@@ -5,6 +5,8 @@ import type { MerchantRepository } from "../../../merchant/domain/ports/merchant
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import { extractOptionGroups } from "../../domain/food-options.js";
+import { isDigitalContentReady } from "../../../catalog/domain/services/product-type-validation.js";
+import { isServiceOfferAvailable } from "../../../catalog/domain/services/service-schedule.js";
 import { loadProductNoticeRules, productRuleNotices } from "../product-rule-notices.js";
 import { productGallery } from "../product-gallery.js";
 import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
@@ -60,6 +62,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             attributes: v.attributes ?? {},
             basePriceInCents: v.basePriceInCents,
             stockQuantity: v.stockQuantity,
+            stockReserved: v.stockReserved,
           })),
           optionGroups: extractOptionGroups(p.metadata),
           ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
@@ -169,7 +172,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           optionGroups: extractOptionGroups(product.metadata),
           media: product.defaultVariant?.media ?? [],
           ...productGallery(product),
-          stock: product.totalStock,
+          stock: product.type === "digital" || product.type === "service" ? null : product.totalStock,
           inStock: product.hasStock && (!serviceSchedule || serviceSchedule.slots.some(slot => slot.selectable)),
           rating: product.averageRating,
           reviewCount: product.reviewCount
@@ -223,13 +226,21 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     },
 
     getProductAvailability: async (args) => {
+      const variant = await deps.prisma.productVariant.findFirst({ where: {
+        id: args.variantId, isActive: true, product: { merchantId: ctx.merchantId, isActive: true, deletedAt: null },
+      }, select: { product: { select: { type: true, metadata: true } } } });
+      if (!variant) return { error: "product_not_found", inStock: false, quantity: 0 };
+      if (variant.product.type === "digital") return {
+        inStock: isDigitalContentReady(variant.product.metadata), quantity: null,
+        estimatedShipping: "Acesso liberado após confirmação do pagamento",
+      };
+      if (variant.product.type === "service") return {
+        inStock: isServiceOfferAvailable(variant.product.metadata), quantity: null, estimatedShipping: "Conforme as condições do serviço",
+      };
       const stock = await deps.stockRepo.getAvailableStock(args.variantId);
-      const variant = await deps.prisma.productVariant.findUnique({ where: { id: args.variantId }, select: { product: { select: { type: true } } } });
-      const isDigitalOrService = variant?.product?.type === "digital" || variant?.product?.type === "service";
+      const available = Math.max(0, stock.quantity - stock.reserved);
       return {
-        inStock: isDigitalOrService || stock.quantity > 0,
-        quantity: isDigitalOrService ? 999 : stock.quantity,
-        estimatedShipping: isDigitalOrService ? "Entrega imediata" : "3-5 dias úteis"
+        inStock: available > 0, quantity: available, estimatedShipping: "3-5 dias úteis",
       };
     },
 
@@ -338,20 +349,15 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     },
 
     listCategories: async () => {
-      const result = await deps.productRepo.search({
-        merchantId: ctx.merchantId,
-        query: undefined,
-        limit: 1,
-      });
       try {
-        const cats = await (deps.productRepo as any).listCategories?.(ctx.merchantId);
+        const cats = await (deps.productRepo as any).listCategories?.(ctx.merchantId, { publicOnly: true });
         if (cats?.length) {
           return {
             categories: cats.map((c: any) => ({
               id: c.id,
               name: c.name,
               slug: c.slug,
-              productCount: c._count?.products ?? 0,
+              productCount: Number.isInteger(c.productCount) && c.productCount >= 0 ? c.productCount : c._count?.products ?? 0,
             }))
           };
         }

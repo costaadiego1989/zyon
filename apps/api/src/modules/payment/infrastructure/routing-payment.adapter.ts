@@ -1,3 +1,4 @@
+import type { PendingPaymentCancellationInput, PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
 import type {
   CreateProviderPaymentInput,
@@ -47,6 +48,26 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
 
   private assertAccount(adapter: PaymentProviderPort, fingerprint?: string): void {
     if (fingerprint && adapter.creationAccountFingerprint?.() !== fingerprint) throw new Error("payment_provider_account_changed");
+  }
+
+  private async cancellationRoute(input: PendingPaymentCancellationInput): Promise<PaymentProviderPort | null> {
+    const p = input.payment;
+    const scope = p as { marketplaceFunding?: unknown; marketplacePublicAdmission?: unknown };
+    if (!p?.provider || !p.providerAccountFingerprint || scope.marketplaceFunding !== undefined || scope.marketplacePublicAdmission !== undefined) return null;
+    const { adapter } = await this.creationRoute(p);
+    // Unlike legacy reads, cancellation never guesses another account/provider.
+    this.assertAccount(adapter, p.providerAccountFingerprint);
+    return adapter;
+  }
+
+  async readCancellationStatus(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    const adapter = await this.cancellationRoute(input);
+    return adapter?.readCancellationStatus ? adapter.readCancellationStatus(input) : { state: "unsupported" };
+  }
+
+  async cancelPendingPayment(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    const adapter = await this.cancellationRoute(input);
+    return adapter?.cancelPendingPayment ? adapter.cancelPendingPayment(input) : { state: "unsupported" };
   }
 
   private async creationRoute(input: Pick<CreateProviderPaymentInput, "merchantId" | "method" | "provider" | "settlementMode">): Promise<{ name: NonNullable<CreateProviderPaymentInput["provider"]>; adapter: PaymentProviderPort }> {

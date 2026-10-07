@@ -20,7 +20,7 @@ export class ResumePaymentCreationService {
     @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout?: CheckoutSessionRepository,
   ) {}
 
-  async execute(intent: PaymentIntentEntity): Promise<PaymentIntentSnapshot> {
+  async execute(intent: PaymentIntentEntity, beforeCreate?: () => Promise<void>): Promise<PaymentIntentSnapshot> {
     const before = intent.snapshot();
     const rejection = before.creation?.reason;
     if (before.status === "failed" && isPaymentCreationRejectionCode(rejection)) {
@@ -51,6 +51,7 @@ export class ResumePaymentCreationService {
       if (!session) throw new ConflictException("checkout_session_not_found");
       await this.serviceSlots.assertBeforePayment(session);
     }
+    if (before.creation.state === "ready") await beforeCreate?.();
     const leaseToken = randomUUID();
     const action = intent.claimCreation(leaseToken, new Date());
     if (!action) return before;

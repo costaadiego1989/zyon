@@ -9,7 +9,7 @@ import type { ShippingQuoteResult } from "../../domain/entities/shipping-quote.e
 import { ShippingQuoteEntity } from "../../domain/entities/shipping-quote.entity.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../../payment/__tests__/payment-stock-reader.fixture.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 import { FlatRateCarrierAdapter } from "../../infrastructure/adapters/flat-rate.carrier.js";

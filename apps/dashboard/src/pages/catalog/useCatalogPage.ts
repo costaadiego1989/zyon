@@ -80,6 +80,8 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
+  const [totals, setTotals] = useState({ total: 0, inStock: 0, inactive: 0 });
+  const loadGeneration = useRef(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,32 +94,36 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
 
   const load = useCallback(async () => {
     if (!merchantId) return;
+    const generation = ++loadGeneration.current;
     setLoading(true);
     setError(null);
     try {
       const result = await catalog.listProducts(merchantId, {
-        query: search || undefined,
+        query: search.trim() || undefined,
+        status: statusFilter,
         categoryId: categoryFilter || undefined,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       });
+      if (generation !== loadGeneration.current) return;
       setItems(result.products);
       setTotal(result.total);
+      setTotals(result.totals ?? { total: result.total, inStock: 0, inactive: 0 });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (generation !== loadGeneration.current) return;
+      setItems([]);
+      setTotal(0);
+      setTotals({ total: 0, inStock: 0, inactive: 0 });
+      setError(e instanceof Error && /429|rate.limit/i.test(e.message) ? "Muitas consultas em pouco tempo. Aguarde alguns instantes e tente novamente." : "Não foi possível carregar os produtos. Tente novamente.");
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
-  }, [catalog, merchantId, search, categoryFilter, page]);
+  }, [catalog, merchantId, search, categoryFilter, statusFilter, page]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // Reset page on filter change
-  useEffect(() => {
-    setPage(1);
-  }, [search, categoryFilter, statusFilter]);
 
   // Refresh product list when a tracked import finishes. The provider owns the
   // banner + toasts; we just observe completed transitions.
@@ -135,18 +141,7 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
     if (mutated) void load();
   }, [imports, load]);
 
-  const filteredItems = useMemo(() => {
-    if (statusFilter === "all") return items;
-    if (statusFilter === "active") return items.filter((p) => p.isActive);
-    return items.filter((p) => !p.isActive);
-  }, [items, statusFilter]);
-
-  const totals = useMemo(() => {
-    const totalCount = total;
-    const inStock = filteredItems.filter((p) => totalStock(p) > 0).length;
-    const inactive = filteredItems.filter((p) => !p.isActive).length;
-    return { total: totalCount, inStock, inactive };
-  }, [filteredItems, total]);
+  const filteredItems = items;
 
   const confirmDelete = useCallback((product: Product) => {
     setDeleteTarget(product);
@@ -240,11 +235,11 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
     togglingId,
     deleteTarget,
     search,
-    setSearch,
+    setSearch: (value) => { setPage(1); setSearch(value); },
     statusFilter,
-    setStatusFilter,
+    setStatusFilter: (value) => { setPage(1); setStatusFilter(value); },
     categoryFilter,
-    setCategoryFilter,
+    setCategoryFilter: (value) => { setPage(1); setCategoryFilter(value); },
     page,
     setPage,
     pageSize: PAGE_SIZE,

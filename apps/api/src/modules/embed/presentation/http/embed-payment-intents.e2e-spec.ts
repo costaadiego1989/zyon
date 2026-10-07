@@ -10,7 +10,7 @@ import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./embed-check
 import { createStartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../../payment/__tests__/payment-stock-reader.fixture.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 

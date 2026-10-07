@@ -83,6 +83,12 @@ export interface CartSummaryBlock {
   };
 }
 
+/** Admission result for the exact buyer add command; it never authorizes payment. */
+export interface CartAddResultBlock {
+  type: "cart_add_result";
+  data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string };
+}
+
 export interface ShippingOptionsBlock {
   type: "shipping_options";
   data: {
@@ -237,7 +243,7 @@ export interface CouponListBlock {
 }
 
 export type ConversationBlock =
-  | { type: "cart_add_result"; data: { cartId: string; variantId: string; serviceSlotId?: string; status: "succeeded" | "rejected" | "unknown"; code?: string } }
+  | { type: "cart_add_result"; data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string } }
   | ProductCardBlock
   | ProductCarouselBlock
   | ComparisonTableBlock

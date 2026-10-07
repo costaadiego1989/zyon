@@ -14,6 +14,7 @@
  */
 
 import test from "node:test";
+import { InMemoryDomainEventBus } from "../../../shared/events/in-memory-domain-event-bus.js";
 import assert from "node:assert/strict";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import { HandleAsaasWebhookUseCase } from "../application/handle-asaas-webhook.use-case.js";
@@ -178,7 +179,7 @@ test("rapid successive deliveries (concurrent) use atomic gate", async () => {
 
 // ─── TRANSIENT FAILURE RECOVERY ────────────────────────────────────────────
 
-test("transient dispatch failure releases idempotency marker", async () => {
+test("transient completion failure releases webhook marker and recovers through the committed outbox event", async () => {
   const payments = new InMemoryPaymentRepository();
 
   // Mock checkout that fails on first call, succeeds on retry
@@ -198,7 +199,9 @@ test("transient dispatch failure releases idempotency marker", async () => {
   }
 
   const checkout = new FailOnceCheckoutPayment();
-  const dispatch = new PaymentDispatchService(payments, checkout);
+  const eventBus = new InMemoryDomainEventBus();
+  const dispatch = new PaymentDispatchService(payments, checkout, undefined, undefined, eventBus);
+  dispatch.onModuleInit();
   const uc = new HandleAsaasWebhookUseCase(payments, dispatch);
 
   const intent = PaymentIntentEntity.create({
@@ -233,17 +236,29 @@ test("transient dispatch failure releases idempotency marker", async () => {
   }
 
   // Marker should be released (not in processed events)
-  const marker = await payments.recordProcessedProviderEvent({
+  const marker = await payments.hasProcessedProviderEvent({
     provider: "asaas",
     merchantId: "mrc_transient",
     eventId,
   });
-  assert.equal(marker, true, "marker should be released for retry");
+  assert.equal(marker, false, "marker should be released for retry");
 
-  // Retry should succeed
+  // The webhook retry acknowledges approval; the committed outbox owns completion recovery.
   const result = await uc.execute(TEST_ASAAS_TOKEN, payload);
   assert.equal(result.outcome, "processed");
-  assert.equal(callCount, 2, "checkout should be called twice (fail, then success)");
+  assert.equal(callCount, 1, "webhook replay must not duplicate the committed completion event");
+  assert.equal((await payments.getIntentById("mrc_transient", intentId))?.status, "approved");
+  const approvals = payments.capturedEvents.filter(event => event.event_type === "payment.status.changed" &&
+    (event.payload as { status?: string }).status === "approved");
+  assert.equal(approvals.length, 1, "approval has one committed event even after completion failed");
+  await eventBus.publish({ eventId: approvals[0].event_id, eventType: approvals[0].event_type,
+    merchantId: approvals[0].merchant_id, payload: approvals[0].payload });
+  assert.equal(callCount, 2, "outbox delivery completes after the first attempt failed");
+  assert.equal(await payments.hasProcessedProviderEvent({
+    provider: "asaas", merchantId: "mrc_transient", eventId,
+  }), true, "successful retry keeps the event marker");
+  assert.equal((await uc.execute(TEST_ASAAS_TOKEN, payload)).outcome, "duplicate");
+  assert.equal(callCount, 2, "a later replay must not complete the order again");
 });
 
 // ─── MERCHANT BOUNDARY ENFORCEMENT ────────────────────────────────────────

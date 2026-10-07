@@ -22,7 +22,7 @@ export class CheckoutApiError extends Error {
     // but retain that default so callers can recover with useful guidance.
     const code = typeof body.code === "string"
       ? body.code
-      : typeof body.message === "string"
+      : typeof body.message === "string" && /^[a-z][a-z0-9_]{2,80}$/.test(body.message)
         ? body.message
         : undefined;
     return new CheckoutApiError(

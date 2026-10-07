@@ -31,11 +31,13 @@ COPY package.json pnpm-lock.yaml pnpm-workspace.yaml tsconfig.base.json ./
 # Package manifests — only what the widget needs.
 COPY packages/shared-types/package.json packages/shared-types/package.json
 COPY packages/contracts/package.json    packages/contracts/package.json
+COPY packages/checkout-ui/package.json  packages/checkout-ui/package.json
 COPY apps/widget_v2/package.json        apps/widget_v2/package.json
 
 # Full source.
 COPY packages/shared-types/ packages/shared-types/
 COPY packages/contracts/    packages/contracts/
+COPY packages/checkout-ui/   packages/checkout-ui/
 COPY apps/widget_v2/        apps/widget_v2/
 
 RUN --mount=type=cache,id=s/ee157f03-591d-4223-8a39-ba620f552687-/pnpm/store,target=/pnpm/store \

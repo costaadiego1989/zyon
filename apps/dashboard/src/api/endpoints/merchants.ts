@@ -105,7 +105,7 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, "/merchants/me/theme", { method: "GET" }, f);
     },
 
-    putMerchantTheme(theme: MerchantTheme): Promise<MerchantTheme> {
+    putMerchantTheme(theme: Partial<MerchantTheme>): Promise<MerchantTheme> {
       return dashboardJson(base, "/merchants/me/theme", { method: "PUT", jsonBody: theme }, f);
     },
 

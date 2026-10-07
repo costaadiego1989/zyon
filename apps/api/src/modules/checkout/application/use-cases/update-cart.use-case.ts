@@ -9,6 +9,9 @@ import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../..
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
 import { commitCheckoutMutation } from "../services/commit-checkout-mutation.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
+import { assertCartStock } from "../../../catalog/application/services/cart-stock-authority.js";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -32,6 +35,7 @@ export class UpdateCartUseCase {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Partial<Pick<PrismaClient, "couponRedemption" | "productVariant">>
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {
@@ -70,6 +74,7 @@ export class UpdateCartUseCase {
     }
 
     const items = Array.from(bySku.values());
+    if (this.prisma?.productVariant) await assertCartStock(this.prisma as Pick<PrismaClient, "productVariant">, merchantId, items);
     const nextCart: Cart = {
       ...session.cart,
       items,

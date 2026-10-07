@@ -169,13 +169,13 @@ export class FinanceDashboardUseCase {
     const limit = parseBoundedInteger(input.limit, 25, 1, MAX_PAGE_SIZE, "limit");
     const type = parseTransactionType(input.type);
     const method = parseOptionalText(input.method, "method", 80)?.toLowerCase();
-    const query = parseOptionalText(input.q, "q", 160)?.toLowerCase();
+    const query = normalizeSearch(parseOptionalText(input.q, "q", 160) ?? "");
     const movements = await this.loadMovements(merchantId, period);
     const filtered = movements.filter((movement) => {
       if (type && movement.kind !== type) return false;
       if (method && canonicalPaymentMethod(movement.payment_method) !== canonicalPaymentMethod(method)) return false;
       if (query) {
-        const haystack = `${movement.order_reference} ${movement.payment_method ?? ""} ${movement.status}`.toLowerCase();
+        const haystack = movementSearchText(movement);
         if (!haystack.includes(query)) return false;
       }
       return true;
@@ -197,12 +197,12 @@ export class FinanceDashboardUseCase {
     const period = normalizePeriod(input);
     const type = parseTransactionType(input.type);
     const method = parseOptionalText(input.method, "method", 80)?.toLowerCase();
-    const query = parseOptionalText(input.q, "q", 160)?.toLowerCase();
+    const query = normalizeSearch(parseOptionalText(input.q, "q", 160) ?? "");
     const movements = (await this.loadMovements(merchantId, period)).filter((movement) => {
       if (type && movement.kind !== type) return false;
       if (method && canonicalPaymentMethod(movement.payment_method) !== canonicalPaymentMethod(method)) return false;
       if (!query) return true;
-      return `${movement.order_reference} ${movement.payment_method ?? ""} ${movement.status}`.toLowerCase().includes(query);
+      return movementSearchText(movement).includes(query);
     });
 
     const generatedAt = new Date().toISOString();
@@ -556,19 +556,28 @@ function paymentRank(status: string): number {
 }
 
 function canonicalPaymentMethod(method: string | null | undefined): string {
-  const normalized = method?.trim().toLowerCase() ?? "";
-  if (["credit_card", "card", "cartao", "cartão"].includes(normalized)) return "card";
+  const normalized = normalizeSearch(method ?? "");
+  if (["", "nao informado", "unknown"].includes(normalized)) return "unknown";
+  if (["credit_card", "card", "cartao"].includes(normalized)) return "card";
   if (["boleto", "bank_slip"].includes(normalized)) return "boleto";
   return normalized;
 }
 
 function normalizePaymentMethod(method: string | null): string {
   const canonical = canonicalPaymentMethod(method);
-  if (!canonical) return "Não informado";
+  if (canonical === "unknown") return "Não informado";
   if (canonical === "pix") return "PIX";
   if (canonical === "card") return "Cartão";
   if (canonical === "boleto") return "Boleto";
   return method!;
+}
+
+function normalizeSearch(value: string): string {
+  return value.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
+}
+
+function movementSearchText(movement: FinanceTransaction): string {
+  return normalizeSearch(`${movement.order_reference} ${movement.payment_method ?? ""} ${normalizePaymentMethod(movement.payment_method)} ${movement.status}`);
 }
 
 function formatCsvBrl(value: number): string {

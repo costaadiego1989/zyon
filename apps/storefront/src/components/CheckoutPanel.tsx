@@ -6,6 +6,7 @@ import { cartApi } from "@/lib/api/api-client";
 import { conversationFetch } from "@/lib/conversation-access";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import CheckoutErrorBoundary from "./CheckoutErrorBoundary";
+import { useModalFocus } from "@zyon/checkout-ui";
 
 interface CheckoutPanelProps {
   merchantId: string;
@@ -54,6 +55,8 @@ function CheckoutPanelContent({
   theme,
   onClose,
 }: CheckoutPanelProps) {
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(true, dialogRef, onClose);
   // React.lazy caches rejected imports. A fresh mount must be able to retry
   // loading the checkout after a network failure, including after closing it.
   const [InlineCheckout] = useState(createInlineCheckout);
@@ -120,7 +123,7 @@ function CheckoutPanelContent({
 
   if (error) {
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Checkout" tabIndex={-1} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
         <p style={{ color: "var(--aacp-fg, #111827)", marginBottom: 16 }}>{error}</p>
         <button data-neu="control" onClick={onClose} style={{ padding: "10px 20px", background: "var(--aacp-surface, #ffffff)", border: "1px solid var(--aacp-border-color, #e5e7eb)", color: "var(--aacp-fg, #111827)", borderRadius: 8, cursor: "pointer" }}>
           Voltar
@@ -131,7 +134,7 @@ function CheckoutPanelContent({
 
   if (!embedToken) {
     return (
-      <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-fg, #111827)" }}>
+      <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Checkout" tabIndex={-1} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-fg, #111827)" }}>
         Carregando checkout...
       </div>
     );
@@ -140,7 +143,7 @@ function CheckoutPanelContent({
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div ref={dialogRef} role="dialog" aria-modal="true" aria-label="Checkout" tabIndex={-1} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
       <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-fg, #f0f0f0)" }}>Carregando...</div>}>
         <InlineCheckout
           embedToken={embedToken}

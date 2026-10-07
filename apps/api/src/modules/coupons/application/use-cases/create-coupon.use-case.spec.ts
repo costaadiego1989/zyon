@@ -2,6 +2,7 @@ import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { CreateCouponUseCase, type CreateCouponInput } from "./create-coupon.use-case.js";
 import { InMemoryCouponRepository } from "../../infrastructure/repositories/in-memory-coupon.repository.js";
+import { ConflictException } from "@nestjs/common";
 
 function makeInput(overrides: Partial<CreateCouponInput> = {}): CreateCouponInput {
   return {
@@ -15,6 +16,20 @@ function makeInput(overrides: Partial<CreateCouponInput> = {}): CreateCouponInpu
 }
 
 describe("CreateCouponUseCase", () => {
+  it("duplicate code returns conflict without replacing the existing coupon", async () => {
+    const repo = new InMemoryCouponRepository();
+    const useCase = new CreateCouponUseCase(repo);
+    const original = await useCase.execute(makeInput({ code: "SAME" }));
+    await assert.rejects(() => useCase.execute(makeInput({ code: "same", discount_value: 25 })),
+      error => error instanceof ConflictException && error.getStatus() === 409);
+    assert.deepEqual((await repo.findByCode("mrc_1", "SAME"))?.snapshot(), original);
+  });
+  it("a concurrent unique violation also returns conflict", async () => {
+    const repo = new InMemoryCouponRepository();
+    repo.save = async () => { throw Object.assign(new Error("unique conflict"), { code: "P2002" }); };
+    await assert.rejects(() => new CreateCouponUseCase(repo).execute(makeInput()),
+      error => error instanceof ConflictException && error.getStatus() === 409);
+  });
   it("persists a coupon and returns its snapshot", async () => {
     const repo = new InMemoryCouponRepository();
     const useCase = new CreateCouponUseCase(repo);

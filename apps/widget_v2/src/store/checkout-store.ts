@@ -1,3 +1,4 @@
+import { paymentCancellationCommand, paymentCancellationMessage } from "@/lib/payment-cancellation";
 import { create } from "zustand";
 import { checkoutEditIntent } from "@zyon/shared-types";
 import type { ChatState } from "@/api/chat-protocol";
@@ -256,6 +257,8 @@ interface CheckoutState {
   paymentIntent: PaymentIntent | null;
   pendingPriceReview: PendingPriceReview | null;
   paymentSubmitting: boolean;
+  cancelPendingPayment: (method?: "pix") => Promise<void>;
+  paymentCancellationPending: string | null;
   paymentPolling: boolean;
   paymentCreating: boolean;
   cartUpdating: boolean;
@@ -513,6 +516,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   paymentIntent: null,
   pendingPriceReview: null,
   paymentSubmitting: false,
+  paymentCancellationPending: null,
   paymentPolling: false,
   paymentCreating: false,
   cartUpdating: false,
@@ -539,7 +543,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       get().stopPolling();
       set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
-        pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false, quickPurchaseApplying: false });
+        pendingPriceReview: null, paymentCancellationPending: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false, quickPurchaseApplying: false });
 
       const response = await api.start();
       if (get().api !== api) return;
@@ -757,6 +761,11 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   sendMessage: async (text, voiceTurnToken) => {
+    const cancellationCommand = paymentCancellationCommand(text);
+    if (cancellationCommand && !get().isTyping && !get().paymentSubmitting && !get().paymentCreating) {
+      set(state => ({ messages: [...state.messages, { id: `user_${Date.now()}`, role: "user", text, timestamp: Date.now() }] }));
+      await get().cancelPendingPayment(cancellationCommand === "pix" ? "pix" : undefined); return;
+    }
     const editSection = checkoutEditIntent(text);
     if (get().status === "completed" || get().isTyping || get().chatRecovery || (get().api?.requiresChatRecovery && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
     const lastPaymentMessage = [...get().messages].reverse().find(message => message.role === "agent");
@@ -1274,6 +1283,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           cpf: buyer.cpf,
         },
       });
+      if (get().api !== api) return { ok: false, error: "checkout_changed" };
       set((state) => ({
         buyer: { ...state.buyer, ...buyer },
         leadRegistered: true,
@@ -1281,7 +1291,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }));
 
       if (pendingPayment) {
-        await get().pay(pendingPayment.method, pendingPayment.installments);
+        // Saving identity requires a fresh, explicit payment confirmation.
+        get().proceedToPayment();
       }
       return { ok: true };
     } catch {
@@ -1296,9 +1307,55 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     else await get().pay(pending.method, pending.installments, fingerprint);
   },
 
+  cancelPendingPayment: async method => {
+    const state = get(), { api, paymentIntent, sessionId } = state;
+    if (state.paymentSubmitting || state.paymentCreating) return;
+    const addMessage = (text: string) => set(current => ({ isTyping: false, messages: [...current.messages,
+      { id: `cancel_${Date.now()}`, role: "agent", text, timestamp: Date.now() }] }));
+    if (!api || !sessionId || !paymentIntent || method === "pix" && paymentIntent.method !== "pix") {
+      addMessage("Não há um pagamento pendente correspondente para cancelar."); return;
+    }
+    const cancellationScope = state as { shippingMode?: string; paymentObservation?: boolean };
+    if (cancellationScope.shippingMode === "marketplace" || cancellationScope.paymentObservation) {
+      addMessage("O cancelamento deste pagamento não está disponível por aqui."); return;
+    }
+    if (state.status === "completed" || !["pending", "requires_action"].includes(paymentIntent.status)) {
+      addMessage("Este pagamento já saiu do estado pendente e não foi cancelado."); return;
+    }
+    const current = () => get().api === api && get().sessionId === sessionId && get().paymentIntent?.intent_id === paymentIntent.intent_id;
+    set({ isTyping: true, paymentCancellationPending: paymentIntent.intent_id });
+    try {
+      const result = await api.cancelPaymentIntent(paymentIntent.intent_id);
+      if (!current()) return;
+      // Local completion or a websocket approval always wins a late cancel reply.
+      if (get().status === "completed" || get().cart.status === "paid") { set({ isTyping: false, paymentCancellationPending: null }); return; }
+      if (result.cancellation === "cancelled") {
+        get().stopPolling();
+        set(currentState => ({ paymentIntent: null, paymentCancellationPending: null, pendingPayment: null,
+          messages: currentState.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block => block.data?.intent_id !== paymentIntent.intent_id) })) }));
+      } else if (result.cancellation === "pending") {
+        set(currentState => ({ paymentIntent: { ...paymentIntent, pix_code: undefined, pix_qr_url: undefined, invoice_url: undefined, stripe_client_secret: undefined },
+          messages: currentState.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block => block.data?.intent_id !== paymentIntent.intent_id) })) }));
+      } else set({ paymentCancellationPending: null });
+      addMessage(paymentCancellationMessage(result));
+    } catch (error) {
+      if (!current()) return;
+      const code = error instanceof Error ? error.message : "";
+      if (code === "payment_cancellation_auth_required") {
+        set({ paymentCancellationPending: null }); addMessage("Entre na sua conta de comprador para cancelar este pagamento.");
+      } else {
+        // The request may have reached the provider; stop offering stale payment
+        // credentials while recovery reads the same durable operation.
+        set(currentState => ({ paymentIntent: { ...paymentIntent, pix_code: undefined, pix_qr_url: undefined, invoice_url: undefined, stripe_client_secret: undefined },
+          messages: currentState.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block => block.data?.intent_id !== paymentIntent.intent_id) })) }));
+        addMessage("Não foi possível confirmar o cancelamento. Seu carrinho foi mantido; consulte a mesma operação antes de gerar outro pagamento.");
+      }
+    }
+  },
+
   pay: async (method, installments, confirmedCartFingerprint) => {
     const { api, cart, leadRegistered } = get();
-    if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().paymentCancellationPending || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
     const availableMethods = paymentMethodsForConfig(get().merchantPaymentConfig);
@@ -1435,7 +1492,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   selectCryptoChain: async (chain, confirmedCartFingerprint) => {
     const { api, leadRegistered } = get();
-    if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().paymentCancellationPending || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
     if (!leadRegistered) {
@@ -1665,6 +1722,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       paymentIntent: null,
       pendingPriceReview: null,
       paymentSubmitting: false,
+      paymentCancellationPending: null,
       paymentPolling: false,
       paymentCreating: false,
       cartUpdating: false,

@@ -75,10 +75,11 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
   const visibleOrders = useMemo(() => {
     const term = search.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
     return filteredOrders.filter(order => {
+      if (view !== "all" && boardEntries([order], view).length === 0) return false;
       const customer = order.customer as { full_name?: string; email?: string } | null;
       return [order.external_order_id, customer?.full_name, customer?.email, order.tracking_code].some(value => value?.toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "").includes(term));
     });
-  }, [filteredOrders, search]);
+  }, [filteredOrders, search, view]);
   const metrics = useMemo(() => computeOrderMetrics(filteredOrders), [filteredOrders]);
 
   function handleDragStart(e: React.DragEvent, entry: BoardEntry) {
@@ -156,7 +157,7 @@ function OrdersShipmentsView({ me }: { me: MerchantProfile }) {
         </div>
       ) : visibleOrders.length === 0 ? (
         <div className="panel">
-          <EmptyState icon={Package} title={vm.orders.length ? "Nenhum pedido com estes filtros" : "Os pedidos da sua loja aparecem aqui"} description={vm.orders.length ? "Altere a busca ou o período para localizar o pedido." : "Após uma venda no checkout, acompanhe o pagamento, o envio e a entrega por este painel."} action={vm.orders.length ? <Button variant="outline" onClick={() => { setSearch(""); setPeriod("all"); setDateRange({ from: "", to: "" }); }}>Limpar filtros</Button> : undefined} />
+          <EmptyState icon={Package} title={vm.orders.length ? "Nenhum pedido com estes filtros" : "Os pedidos da sua loja aparecem aqui"} description={vm.orders.length ? "Altere a busca, o tipo ou o período para localizar o pedido." : "Após uma venda no checkout, acompanhe o pagamento, o envio e a entrega por este painel."} action={vm.orders.length ? <Button variant="outline" onClick={() => { setSearch(""); setView("all"); setPeriod("all"); setDateRange({ from: "", to: "" }); }}>Limpar filtros</Button> : undefined} />
         </div>
       ) : (
         <div className="orders-kanban" style={{ gridTemplateColumns: `repeat(${columns.length}, minmax(230px, 1fr))` }} role="region" aria-label="Pedidos por etapa" tabIndex={0}>

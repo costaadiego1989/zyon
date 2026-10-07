@@ -1,6 +1,7 @@
 import { BadRequestException } from "@nestjs/common";
+import { addBusinessDays, businessDayStart, resolveBusinessPeriod } from "./business-period.js";
 
-/** Date-only filters and "today" use UTC, independently of the server timezone.
+/** Date-only filters and presets use America/Sao_Paulo, independently of the server timezone.
  * Explicit ISO timestamps retain their instant instead of being rounded to a day.
  */
 export function resolveFunnelRange(
@@ -16,8 +17,7 @@ export function resolveFunnelRange(
         if (!Number.isFinite(day.getTime()) || day.toISOString().slice(0, 10) !== value) {
           throw new BadRequestException("funnel_range_invalid");
         }
-        if (end) day.setUTCHours(23, 59, 59, 999);
-        return day;
+        return end ? new Date(businessDayStart(addBusinessDays(value, 1)).getTime() - 1) : businessDayStart(value);
       }
       const instant = new Date(value);
       if (!/^\d{4}-\d{2}-\d{2}T.*(?:Z|[+-]\d{2}:\d{2})$/.test(value) || !Number.isFinite(instant.getTime())) {
@@ -34,8 +34,6 @@ export function resolveFunnelRange(
     if (from > to) throw new BadRequestException("funnel_range_reversed");
     return { from, to };
   }
-  const from = new Date(now);
-  if (period === "today") from.setUTCHours(0, 0, 0, 0);
-  else from.setUTCDate(from.getUTCDate() - ({ "7d": 7, "30d": 30, "90d": 90 }[period] ?? 7));
-  return { from, to: new Date(now) };
+  const { from, to } = resolveBusinessPeriod(period, now);
+  return { from, to };
 }

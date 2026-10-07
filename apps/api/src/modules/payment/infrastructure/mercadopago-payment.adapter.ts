@@ -1,3 +1,4 @@
+import { assertStandardCancellationInput, exactCancellationAmount, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
@@ -137,6 +138,37 @@ export class MercadoPagoPaymentAdapter implements PaymentProviderPort {
       if (!id) this.accountIdPromise = undefined;
       return id;
     });
+  }
+
+  async readCancellationStatus(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    assertStandardCancellationInput(input, "mercadopago", this.creationAccountFingerprint());
+    const p = input.payment;
+    if (p.method !== "pix" || !/^\d+$/.test(input.providerPaymentId)) return { state: "unsupported" };
+    const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`, {
+      headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json" }, redirect: "error", signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) throw new Error("payment_cancellation_status_unavailable");
+    const payment = await response.json() as { id?: number | string; external_reference?: string; currency_id?: string;
+      transaction_amount?: number; payment_method_id?: string; status?: string; metadata?: { intent_id?: string; merchant_id?: string; session_id?: string } };
+    if (String(payment.id) !== input.providerPaymentId || payment.external_reference !== p.intentId || payment.currency_id !== "BRL" ||
+        payment.payment_method_id !== "pix" || !exactCancellationAmount(payment.transaction_amount, p.amountCents) ||
+        payment.metadata?.intent_id !== p.intentId || payment.metadata.merchant_id !== p.merchantId || payment.metadata.session_id !== p.sessionId) {
+      throw new Error("payment_cancellation_identity_mismatch");
+    }
+    if (["approved", "refunded", "charged_back", "in_mediation", "authorized"].includes(payment.status ?? "")) return { state: "paid" };
+    if (payment.status === "cancelled") return { state: "cancelled" };
+    return { state: ["pending", "in_process"].includes(payment.status ?? "") ? "pending" : "unavailable" };
+  }
+
+  async cancelPendingPayment(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    const before = await this.readCancellationStatus(input);
+    if (before.state !== "pending") return before;
+    const response = await this.fetchImpl(`${this.apiBaseUrl.replace(/\/+$/, "")}/v1/payments/${encodeURIComponent(input.providerPaymentId)}`, {
+      method: "PUT", headers: { Authorization: `Bearer ${this.accessToken}`, accept: "application/json", "content-type": "application/json",
+        "X-Idempotency-Key": input.idempotencyKey }, body: JSON.stringify({ status: "cancelled" }), redirect: "error", signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) return { state: "unknown" };
+    return this.readCancellationStatus(input);
   }
 
   async recoverPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput | null> {

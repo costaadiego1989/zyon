@@ -9,7 +9,7 @@ import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-me
 import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
 import { checkoutSession } from "./checkout-test-fixtures.js";
 import type { Cart } from "@zyon/shared-types";
-import { CreatePaymentIntentUseCase } from "../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../payment/__tests__/payment-stock-reader.fixture.js";
 
 const submittedCart = (): Cart => ({
   currency: "USD", total: 0.01, currentDiscount: 9999,

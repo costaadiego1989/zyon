@@ -1,15 +1,18 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useMemo, useRef, useState } from "react";
 import { useApi } from "../../../hooks/useApi.js";
 import { reportError } from "../../../hooks/useErrorReporter.js";
 import { centsToReais, reaisToCents } from "../../../utils/currency.js";
 import { useProductForm } from "./useProductForm.js";
-import { useVariantManager, emptyVariant, type ProductVariantDraft } from "./useVariantManager.js";
+import { useVariantManager, emptyVariant } from "./useVariantManager.js";
 import { useMediaUploader } from "./useMediaUploader.js";
 import { useProductSeo } from "./useProductSeo.js";
-import { validateVariants, validateSimpleProduct, parseInteger, parseFloatSafe } from "../utils/product-validation.js";
+import { validateVariants, validateSimpleProduct, validateProductMetadata, parseInteger, parseFloatSafe } from "../utils/product-validation.js";
 import type { MerchantProfile } from "../../../api-client.js";
 import type { CreatePromotionPayload, UpsertProductAdvancedRulesPayload } from "../../../api/endpoints/catalog.js";
 import type { AdvancedRule } from "../../checkout-settings/lib/draft.js";
+import { catalogSaveError } from "../utils/catalog-save-error.js";
+import { persistVariantMedia } from "../utils/persist-variant-media.js";
+import { productEditorHash } from "../utils/product-route.js";
 
 export interface UseProductDetailPageOptions {
   me: MerchantProfile | null;
@@ -21,7 +24,6 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
   const { me, productId, onSaved } = options;
   const api = useApi();
   const merchantId = me?.id;
-  const isEditing = !!productId;
 
   // Sub-hooks
   const form = useProductForm();
@@ -39,6 +41,9 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
   const [loaded, setLoaded] = useState(false);
   const [categories, setCategories] = useState<Array<{ id: string; name: string }>>([]);
   const [createdProductId, setCreatedProductId] = useState<string | null>(null);
+  const isEditing = !!(productId || createdProductId);
+  const loadedStocks = useRef(new Map<string, number>());
+  const [conflictingSkus, setConflictingSkus] = useState<string[]>([]);
 
   // Pending promo/rules config (used only in create mode before product is saved)
   const [pendingPromoConfig, setPendingPromoConfig] = useState<CreatePromotionPayload | null>(null);
@@ -66,6 +71,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       try {
         const product = await api.getProduct(merchantId, productId);
         if (!active) return;
+        loadedStocks.current = new Map(product.variants.map(v => [v.id, v.stockQuantity ?? 0]));
         form.loadProduct(product);
         seo.loadSeo(product);
 
@@ -124,8 +130,13 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
     const errors: Record<string, string> = {};
     if (!form.name.trim()) errors["name"] = "Nome obrigatório";
     Object.assign(errors, variantErrors);
+    Object.assign(errors, validateProductMetadata(form.productType, { ...(form.metadata as Record<string, unknown>),
+      ...(form.productType === "food" ? { optionGroups: form.optionGroups } : {}) }));
+    variantManager.variants.forEach((variant, index) => {
+      if (conflictingSkus.includes(variant.sku.trim())) errors[variantManager.hasVariants ? `variant_${index}_sku` : "simple_sku"] = "Este SKU já está cadastrado";
+    });
     return errors;
-  }, [form.name, variantErrors]);
+  }, [form.name, form.productType, form.metadata, form.optionGroups, variantErrors, variantManager.variants, variantManager.hasVariants, conflictingSkus]);
 
   const canSave = Object.keys(formErrors).length === 0 && !saving && loaded && !loading && !loadError;
 
@@ -139,6 +150,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
     }
     setSaving(true);
     setSaveResult(null);
+    setSaveErrorMsg(null);
     try {
       const { variants } = variantManager;
       const { hasVariants } = variantManager;
@@ -162,6 +174,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       }
 
       const payloadVariants = variants.map((v) => ({
+        ...(v.id ? { id: v.id } : {}),
         sku: hasVariants ? v.sku.trim() : skuToUse,
         attributes: v.attributes.reduce(
           (acc, attr) => {
@@ -176,45 +189,28 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
         lengthCm: v.lengthInput.trim() ? parseFloatSafe(v.lengthInput) ?? undefined : undefined,
         widthCm: v.widthInput.trim() ? parseFloatSafe(v.widthInput) ?? undefined : undefined,
         heightCm: v.heightInput.trim() ? parseFloatSafe(v.heightInput) ?? undefined : undefined,
-        stockQuantity: parseInteger(v.stockInput) ?? 0,
+        stockQuantity: isEditing && v.id && parseInteger(v.stockInput) === loadedStocks.current.get(v.id) ? undefined : (v.stockInput.trim() ? parseInteger(v.stockInput) ?? undefined : undefined),
       }));
 
-      let savedProductId = productId;
+      let savedProductId = productId || createdProductId;
+      let savedVariants: Array<{ id: string; sku: string; stockQuantity?: number }>;
 
-      if (isEditing && productId) {
-        await api.updateProduct(merchantId, productId, {
+      if (savedProductId) {
+        const changes = {
           name: form.name.trim(),
-          description: form.description.trim() || undefined,
+          description: form.description.trim(),
           type: form.productType,
           metadata: savedMetadata,
-          categoryId: form.categoryId.trim() || undefined,
+          categoryId: form.categoryId.trim(),
           isActive: form.isActive,
-          seoTitle: seo.seoTitle.trim() || undefined,
-          metaDescription: seo.seoMetaDesc.trim() || undefined,
-          slug: seo.seoSlug.trim() || undefined,
-          ogTitle: seo.seoOgTitle.trim() || undefined,
-          ogDescription: seo.seoOgDesc.trim() || undefined,
-          keywords: seo.seoKeywords.length > 0 ? seo.seoKeywords : undefined,
-        });
-        for (let i = 0; i < payloadVariants.length; i++) {
-          const v = payloadVariants[i];
-          const existing = variants[i];
-          if (existing?.id) {
-            try {
-              await api.updateVariant?.(merchantId, productId, existing.id, {
-                basePriceInCents: v.basePriceInCents,
-                costInCents: v.costInCents ?? null,
-                stockQuantity: v.stockQuantity,
-                weightGrams: v.weightGrams ?? null,
-                lengthCm: v.lengthCm ?? null,
-                widthCm: v.widthCm ?? null,
-                heightCm: v.heightCm ?? null,
-              });
-            } catch (e) {
-              reportError({ source: "ProductDetailPage.updateVariant", error: e });
-            }
-          }
-        }
+          seoTitle: seo.seoTitle.trim(),
+          metaDescription: seo.seoMetaDesc.trim(),
+          slug: seo.seoSlug.trim(),
+          ogTitle: seo.seoOgTitle.trim(),
+          ogDescription: seo.seoOgDesc.trim(),
+          keywords: seo.seoKeywords,
+        };
+        savedVariants = (await api.replaceProductVariants(merchantId, savedProductId, payloadVariants, changes)).variants;
       } else {
         const created = await api.createProduct(merchantId, {
           name: form.name.trim(),
@@ -225,36 +221,24 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
           variants: payloadVariants,
         });
         savedProductId = created.id;
+        savedVariants = created.variants;
         setCreatedProductId(created.id);
+        window.history.replaceState(null, "", `#${productEditorHash(created.id)}`);
       }
 
       // Upload pending images
       if (savedProductId) {
-        for (let i = 0; i < variants.length; i++) {
-          const v = variants[i];
-          const variantId = isEditing ? v.id : (i < payloadVariants.length ? savedProductId : null);
-          if (variantId && v.pendingImages.length > 0) {
-            for (const base64 of v.pendingImages) {
-              try {
-                const result = await api.uploadProductMedia?.(merchantId, variantId, base64);
-                if (result) {
-                  media.addMedia(variantId, { id: result.id, url: result.url });
-                }
-              } catch (e) {
-                reportError({ source: "ProductDetailPage.uploadMedia", error: e });
-              }
-            }
-          }
-        }
-        variantManager.setVariants((prev: ProductVariantDraft[]) =>
-          prev.map((v: ProductVariantDraft) => ({ ...v, pendingImages: [] })),
-        );
+        for (const v of savedVariants) loadedStocks.current.set(v.id, v.stockQuantity ?? 0);
+        const result = await persistVariantMedia(variants.map((v, i) => ({ ...v, sku: payloadVariants[i].sku })), savedVariants, (id, image) => api.uploadProductMedia(merchantId, id, image));
+        variantManager.setVariants(result.variants.map(v => ({ ...v, stockInput: String(savedVariants.find(saved => saved.id === v.id)?.stockQuantity ?? parseInteger(v.stockInput) ?? 0) })));
+        for (const item of result.uploaded) media.addMedia(item.variantId, { id: item.id, url: item.url });
+        if (result.failed) throw new Error("product_media_upload_failed");
       }
 
       // Post-save: create promotion (create mode only, after product is saved)
       let promoCreationError: string | null = null;
       let rulesCreationError: string | null = null;
-      if (!isEditing && savedProductId && pendingPromoConfig) {
+      if (savedProductId && pendingPromoConfig) {
         try {
           await api.createPromotion(merchantId, savedProductId, pendingPromoConfig);
         } catch (e) {
@@ -264,7 +248,7 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       }
 
       // Post-save: create advanced rules (create mode only, after product is saved)
-      if (!isEditing && savedProductId && pendingRulesConfig && pendingRulesConfig.rules.length > 0) {
+      if (savedProductId && pendingRulesConfig && pendingRulesConfig.rules.length > 0) {
         try {
           await api.upsertProductAdvancedRules(merchantId, savedProductId, pendingRulesConfig);
         } catch (e) {
@@ -292,7 +276,9 @@ export function useProductDetailPage(options: UseProductDetailPageOptions) {
       onSaved?.();
     } catch (e) {
       setSaveResult("error");
-      setSaveErrorMsg(e instanceof Error ? e.message : String(e));
+      const failure = catalogSaveError(e);
+      setSaveErrorMsg(failure.message);
+      setConflictingSkus(failure.conflictingSkus);
       reportError({ source: "ProductDetailPage.save", error: e });
     } finally {
       setSaving(false);

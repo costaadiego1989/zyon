@@ -1,3 +1,4 @@
+import { resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
 import { createDigitalOrderFulfillment } from "../../../../shared/persistence/digital-order-fulfillment.js";
 import { initializeOrderFulfillment } from "../../../../shared/persistence/order-fulfillment.js";
 import { toCheckoutSession } from "./checkout-session.mapper.js";
@@ -786,12 +787,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
 }
 
 function resolveOverviewDateRange(period: StorePeriod): { from: Date; to: Date } {
-  const to = new Date();
-  const from = new Date(to);
-  if (period === "today") from.setHours(0, 0, 0, 0);
-  else if (period === "30d") from.setDate(from.getDate() - 30);
-  else if (period === "90d") from.setDate(from.getDate() - 90);
-  else from.setDate(from.getDate() - 7);
+  const { from, to } = resolveBusinessPeriod(period);
   return { from, to };
 }
 

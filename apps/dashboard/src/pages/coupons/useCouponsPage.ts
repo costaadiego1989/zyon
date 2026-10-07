@@ -5,6 +5,7 @@ import { DashboardHttpError } from "../../api/http/error.js";
 export interface Coupon {
   id: string; code: string; discountType: "percent" | "fixed" | "free_shipping"; discountValue: number;
   minCartValue?: number; maxUses?: number; usedCount: number; startsAt?: string; expiresAt?: string;
+  maxPerBuyer?: number; allowedSkus?: string[]; blockedSkus?: string[]; allowedRegions?: string[]; blockedRegions?: string[];
   productId?: string; categoryId?: string; isActive: boolean; createdAt: string;
   strategyIncentiveExecutionId?: string | null;
   status?: string;
@@ -90,7 +91,13 @@ export function useCouponsPage() {
         starts_at: form.startsAt || todayDate(), expires_at: form.expiresAt || undefined, is_active: true });
       showToast("success", `Cupom ${form.code.toUpperCase().trim()} criado`);
       setForm(defaultForm()); setShowForm(false); await loadCoupons();
-    } catch { setFormError("Não foi possível criar o cupom. Seus dados foram mantidos. Revise o código e tente novamente."); }
+    } catch (error) {
+      if (error instanceof DashboardHttpError && error.status === 409) {
+        setFieldErrors(previous => ({ ...previous, code: "Este código já existe nesta loja. Escolha outro código." }));
+        setValidationAttempt(attempt => attempt + 1);
+        setFormError("Escolha um código diferente para criar o cupom. Seus dados foram mantidos.");
+      } else setFormError("Não foi possível criar o cupom. Seus dados foram mantidos. Revise o código e tente novamente.");
+    }
     finally { setCreating(false); }
   }
   async function handleDelete(id: string): Promise<boolean> {

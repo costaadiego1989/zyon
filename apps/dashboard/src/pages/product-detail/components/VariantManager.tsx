@@ -43,17 +43,18 @@ export function VariantManager(props: VariantManagerProps) {
       {!hasVariants && (
         <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
           <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>
-            {productType === "physical" ? "Preço e estoque" : "Preço"}
+            {productType === "physical" || productType === "food" ? "Preço e estoque" : "Preço"}
           </h3>
           <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
             <Field label="SKU *" value={variants[0].sku} onChange={(val) => onUpdateVariant(0, { sku: val })} error={formErrors["simple_sku"]} placeholder="Auto-gerado do nome se vazio" />
             <PrefixInput prefix="R$" label="Preço *" value={variants[0].basePriceInput} onChange={(val) => onUpdateVariant(0, { basePriceInput: val })} error={formErrors["simple_price"]} placeholder="0,00" />
-            {productType === "physical" && (
-              <Field label="Estoque" value={variants[0].stockInput} onChange={(val) => onUpdateVariant(0, { stockInput: val })} placeholder="0" />
+            <PrefixInput prefix="R$" label="Custo unitário" value={variants[0].costInput} onChange={(val) => onUpdateVariant(0, { costInput: val })} error={formErrors["simple_cost"]} placeholder="Não informado" />
+            {(productType === "physical" || productType === "food") && (
+              <Field label="Estoque" value={variants[0].stockInput} onChange={(val) => onUpdateVariant(0, { stockInput: val })} error={formErrors["simple_stock"]} placeholder="0" />
             )}
           </div>
           <p style={{ font: "11px var(--font-sans)", color: "var(--color-text-faint)", marginTop: 10, lineHeight: 1.5 }}>
-            Sem custo informado, a margem de negociação e descontos assume custo = 50% do preço. Informe o custo real depois em Estoque para cálculos precisos.
+            O custo real permite validar margem e descontos. Sem custo informado, ofertas que dependem da margem ficam indisponíveis.
           </p>
         </section>
       )}
@@ -130,7 +131,8 @@ export function VariantManager(props: VariantManagerProps) {
                 <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
                   <Field label="SKU *" value={v.sku} onChange={(val) => onUpdateVariant(idx, { sku: val })} error={formErrors[`variant_${idx}_sku`]} placeholder="SKU-001" />
                   <PrefixInput prefix="R$" label="Preço *" value={v.basePriceInput} onChange={(val) => onUpdateVariant(idx, { basePriceInput: val })} error={formErrors[`variant_${idx}_price`]} placeholder="0,00" />
-                  {productType === "physical" && <Field label="Estoque" value={v.stockInput} onChange={(val) => onUpdateVariant(idx, { stockInput: val })} placeholder="0" />}
+                  <PrefixInput prefix="R$" label="Custo unitário" value={v.costInput} onChange={(val) => onUpdateVariant(idx, { costInput: val })} error={formErrors[`variant_${idx}_cost`]} placeholder="Não informado" />
+                  {(productType === "physical" || productType === "food") && <Field label="Estoque" value={v.stockInput} onChange={(val) => onUpdateVariant(idx, { stockInput: val })} error={formErrors[`variant_${idx}_stock`]} placeholder="0" />}
                   {productType === "physical" && <PrefixInput prefix="g" label="Peso" value={v.weightInput} onChange={(val) => onUpdateVariant(idx, { weightInput: val })} error={formErrors[`variant_${idx}_weight`]} placeholder="300" />}
                   {productType === "physical" && <PrefixInput prefix="cm" label="Comprimento" value={v.lengthInput} onChange={(val) => onUpdateVariant(idx, { lengthInput: val })} placeholder="20" />}
                   {productType === "physical" && <PrefixInput prefix="cm" label="Largura" value={v.widthInput} onChange={(val) => onUpdateVariant(idx, { widthInput: val })} placeholder="15" />}
@@ -190,17 +192,19 @@ export function VariantManager(props: VariantManagerProps) {
 }
 
 function Field(props: { label: string; value: string; onChange: (v: string) => void; error?: string; placeholder?: string }) {
+  const id = React.useId();
   return (
     <label style={{ display: "block" }}>
-      <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>{props.label}</span>
+      <span id={id} style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>{props.label}</span>
       <input
+        aria-labelledby={id} aria-invalid={Boolean(props.error)} aria-describedby={props.error ? `${id}-error` : undefined}
         value={props.value}
         onChange={(e) => props.onChange(e.target.value)}
         placeholder={props.placeholder}
         style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: `1px solid ${props.error ? "var(--color-error)" : "var(--color-border)"}`, font: "12.5px var(--font-mono)", color: "var(--color-text)", outline: "none", background: "var(--surface-2)" }}
       />
       {props.error ? (
-        <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{props.error}</span>
+        <span id={`${id}-error`} role="alert" style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{props.error}</span>
       ) : null}
     </label>
   );

@@ -1,3 +1,4 @@
+import { assertStandardCancellationInput, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
 import Stripe from "stripe";
 import { createHash } from "node:crypto";
@@ -38,6 +39,29 @@ export class StripePaymentAdapter implements PaymentProviderPort {
   ) {}
 
   creationAccountFingerprint(): string { return createHash("sha256").update(this.secretKey ?? "").digest("hex"); }
+
+  async readCancellationStatus(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    assertStandardCancellationInput(input, "stripe", this.creationAccountFingerprint());
+    const p = input.payment;
+    if (p.method !== "card" || !/^pi_[A-Za-z0-9_]+$/.test(input.providerPaymentId)) return { state: "unsupported" };
+    if (p.stripeChargeMode === "direct_v2" && !/^acct_[A-Za-z0-9]+$/.test(p.stripeConnectAccountId ?? "")) throw new Error("payment_cancellation_identity_invalid");
+    const payment = await this.requireStripe().paymentIntents.retrieve(input.providerPaymentId, {}, this.connectedAccountOptions(p));
+    if (payment.id !== input.providerPaymentId || payment.object !== "payment_intent" || payment.amount !== p.amountCents ||
+        payment.currency !== p.currency.toLowerCase() || payment.livemode !== this.secretKey?.startsWith("sk_live_") ||
+        payment.metadata.intent_id !== p.intentId || payment.metadata.merchant_id !== p.merchantId || payment.metadata.session_id !== p.sessionId) {
+      throw new Error("payment_cancellation_identity_mismatch");
+    }
+    if (payment.status === "succeeded" || payment.status === "requires_capture" || payment.amount_received > 0 || payment.amount_capturable > 0) return { state: "paid" };
+    if (payment.status === "canceled") return { state: "cancelled" };
+    return { state: ["requires_payment_method", "requires_confirmation", "requires_action"].includes(payment.status) ? "pending" : "unavailable" };
+  }
+
+  async cancelPendingPayment(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    const before = await this.readCancellationStatus(input);
+    if (before.state !== "pending") return before;
+    await this.requireStripe().paymentIntents.cancel(input.providerPaymentId, { cancellation_reason: "requested_by_customer" }, { idempotencyKey: input.idempotencyKey, ...this.connectedAccountOptions(input.payment) });
+    return this.readCancellationStatus(input);
+  }
 
   async recoverPayment(input: CreateProviderPaymentInput, firstAttemptAt: string): Promise<CreateProviderPaymentOutput | null> {
     const elapsed = Date.now() - Date.parse(firstAttemptAt);

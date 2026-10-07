@@ -181,7 +181,7 @@ export class CompleteOrderUseCase {
               stocked_items_only: true,
               items: session.cart.items.filter(item => !item.productType || ["physical", "food"].includes(item.productType)).map((item) => ({
                 sku: item.sku,
-                productType: item.productType,
+                ...(item.productType ? { productType: item.productType } : {}),
                 quantity: item.quantity,
                 ...(item.variantId ? { variantId: item.variantId } : {}),
               })),

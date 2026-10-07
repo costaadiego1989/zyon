@@ -67,6 +67,8 @@ export interface ErpConnectionDTO {
   provider: "bling" | "tiny" | "omie" | "mercadolivre" | "shopee" | "tiktokshop";
   status: "connected" | "disconnected" | "error";
   lastSyncAt: string | null;
+  lastErrorCode?: string | null;
+  lastErrorAt?: string | null;
   directionMode: "push" | "pull" | "bidirectional" | "erp_source_of_truth" | "zyon_source_of_truth";
   createdAt: string;
 }

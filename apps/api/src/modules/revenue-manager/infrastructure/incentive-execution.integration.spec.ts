@@ -7,7 +7,7 @@ import { PaymentIntentEntity } from "../../payment/domain/payment-intent.entity.
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout-session.mapper.js";
 import { IncentiveMetricsService } from "../application/incentive-metrics.service.js";
-import { CreatePaymentIntentUseCase } from "../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../payment/__tests__/payment-stock-reader.fixture.js";
 import { FakePaymentProvider } from "../../payment/infrastructure/fake-payment-provider.js";
 import { ApplyCouponUseCase } from "../../coupons/application/use-cases/apply-coupon.use-case.js";
 import { ConflictException } from "@nestjs/common";

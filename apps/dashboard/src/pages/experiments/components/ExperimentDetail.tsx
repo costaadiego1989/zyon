@@ -53,7 +53,7 @@ export function ExperimentDetail({
                 <Pause size={12} /> Pausar
               </Button>
             )}
-            {experiment.status !== "archived" && (
+            {(experiment.status === "draft" || experiment.status === "completed") && (
               <Button size="sm" variant="ghost" onClick={onArchive} loading={saving}>
                 <Trash2 size={12} /> Arquivar
               </Button>

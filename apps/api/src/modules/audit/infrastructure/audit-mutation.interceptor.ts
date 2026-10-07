@@ -13,6 +13,7 @@ import type { AacpHttpRequest } from "../../../shared/http/http-request.js";
 import { RecordAuditEventUseCase } from "../application/audit.use-cases.js";
 import { AUDIT_RESOURCE_KEY, AUDIT_RESOURCE_ID_KEY } from "./audit-resource.decorator.js";
 import { principalToAuditActor } from "../domain/audit-actor.js";
+import { toProblemDetails } from "../../../shared/http/problem-details.filter.js";
 
 const MUTATION_METHODS = new Set(["POST", "PUT", "PATCH", "DELETE"]);
 
@@ -101,7 +102,9 @@ export class AuditMutationInterceptor implements NestInterceptor {
               metadata: truncateMetadata({
                 method: request.method.toUpperCase(),
                 path,
-                statusCode: response.statusCode || 500,
+                // Nest's exception filter runs after the interceptor; at this
+                // point Express can still carry POST's default 201.
+                statusCode: toProblemDetails(err, request.correlationId ?? "").status,
                 error: err instanceof Error ? err.message : String(err),
               }),
             })

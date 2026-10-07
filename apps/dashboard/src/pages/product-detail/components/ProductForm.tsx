@@ -5,6 +5,8 @@ import { CategoryCombobox } from "./CategoryCombobox.js";
 import type { ProductMetadata } from "../ProductDetailPage.js";
 import type { FoodOptionGroupDraft } from "../hooks/useProductForm.js";
 import { MAX_OPTION_GROUPS, MAX_ITEMS_PER_GROUP, emptyFoodOptionGroup, emptyFoodOptionItem } from "../hooks/useProductForm.js";
+import { maximumFoodOptionPrice } from "../utils/food-options-validation.js";
+import { ServiceScheduleEditor } from "./ServiceScheduleEditor.js";
 
 export interface ProductFormProps {
   name: string;
@@ -36,6 +38,7 @@ function formatCents(cents: number): string {
 export function ProductForm(props: ProductFormProps) {
   const descriptionId = useId();
   const nameErrorId = useId();
+  const foodErrorId = useId();
   const {
     name,
     onNameChange,
@@ -168,6 +171,7 @@ export function ProductForm(props: ProductFormProps) {
           <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>Informações do download</h3>
           <div style={{ display: "grid", gridTemplateColumns: "1fr", gap: 12 }}>
             <Field label="URL de Download" value={metadata.downloadUrl ?? ""} onChange={(val) => onMetadataChange({ ...metadata, downloadUrl: val })} placeholder="https://example.com/download/arquivo" />
+            {formErrors.downloadUrl && <span role="alert" style={{ color: "var(--color-error)", fontSize: 12 }}>{formErrors.downloadUrl}</span>}
             <Field label="Tamanho do arquivo" value={metadata.fileSize ?? ""} onChange={(val) => onMetadataChange({ ...metadata, fileSize: val })} placeholder="Ex: 15.5 MB, 320 KB" />
             <Field label="Formato" value={metadata.fileFormat ?? ""} onChange={(val) => onMetadataChange({ ...metadata, fileFormat: val })} placeholder="Ex: PDF, ZIP, MP3" />
           </div>
@@ -191,12 +195,20 @@ export function ProductForm(props: ProductFormProps) {
                 <option value="remoto">Remoto</option>
               </select>
             </label>
+            <ServiceScheduleEditor value={metadata.serviceSchedule} error={formErrors.serviceSchedule} onChange={(serviceSchedule) => {
+              const next = { ...metadata };
+              if (serviceSchedule === undefined) delete next.serviceSchedule;
+              else next.serviceSchedule = serviceSchedule;
+              onMetadataChange(next);
+            }} />
+            <p style={{ fontSize: 12, color: "var(--color-text-muted)", margin: 0 }}>Período da oferta (opcional). Os horários escolhidos pelo comprador são configurados acima.</p>
             <div style={{ display: "grid", gridTemplateColumns: "repeat(2, 1fr)", gap: 12 }}>
               <DateTimeField label="Data Inicial" type="date" value={metadata.startDate ?? ""} onChange={(val) => onMetadataChange({ ...metadata, startDate: val })} />
               <DateTimeField label="Hora Inicial" type="time" value={metadata.startTime ?? ""} onChange={(val) => onMetadataChange({ ...metadata, startTime: val })} />
               <DateTimeField label="Data Final" type="date" value={metadata.endDate ?? ""} onChange={(val) => onMetadataChange({ ...metadata, endDate: val })} />
               <DateTimeField label="Hora Final" type="time" value={metadata.endTime ?? ""} onChange={(val) => onMetadataChange({ ...metadata, endTime: val })} />
             </div>
+            {formErrors.serviceInterval && <span role="alert" style={{ color: "var(--color-error)", fontSize: 12 }}>{formErrors.serviceInterval}</span>}
             {metadata.serviceType === "remoto" && (
               <label style={{ display: "block" }}>
                 <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>Link da reunião</span>
@@ -236,12 +248,13 @@ export function ProductForm(props: ProductFormProps) {
           <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 14 }}>
             Crie categorias de variações (ex: Bordas, Recheio). Cada categoria tem itens com acréscimo opcional. Limite: {MAX_OPTION_GROUPS} categorias, {MAX_ITEMS_PER_GROUP} itens por categoria.
           </p>
+          {formErrors.optionGroups && <p id={foodErrorId} role="alert" style={{ color: "var(--color-error)", fontSize: 12 }}>{formErrors.optionGroups}</p>}
 
           <div style={{ display: "flex", flexDirection: "column", gap: 12 }}>
             {optionGroups.map((group, gIdx) => (
               <div key={group.id} style={{ border: "1px solid var(--color-border)", borderRadius: 10, padding: 14, background: "var(--surface-1)" }}>
-                <div style={{ display: "grid", gridTemplateColumns: "2fr 1fr 1fr auto", gap: 10, alignItems: "end", marginBottom: 10 }}>
-                  <label style={{ display: "block" }}>
+                <div style={{ display: "flex", flexWrap: "wrap", gap: 10, alignItems: "end", marginBottom: 10 }}>
+                  <label style={{ display: "block", flex: "2 1 180px", minWidth: 0 }}>
                     <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>Nome da categoria *</span>
                     <input
                       value={group.name}
@@ -254,13 +267,15 @@ export function ProductForm(props: ProductFormProps) {
                       style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--color-border)", font: "12.5px var(--font-mono)", color: "var(--color-text)", outline: "none", background: "var(--surface-2)" }}
                     />
                   </label>
-                  <label style={{ display: "block" }}>
+                  <label style={{ display: "block", flex: "1 1 130px", minWidth: 0 }}>
                     <span style={{ font: "600 11px var(--font-sans)", color: "var(--color-text)", display: "block", marginBottom: 4 }}>Seleção</span>
                     <select
+                      aria-label={`Seleção em ${group.name || `categoria ${gIdx + 1}`}`}
                       value={group.selectionType}
                       onChange={(e) => {
                         const next = [...optionGroups];
-                        next[gIdx] = { ...group, selectionType: e.target.value as "single" | "multiple" };
+                        next[gIdx] = { ...group, selectionType: e.target.value as "single" | "multiple",
+                          minSelections: undefined, maxSelections: undefined };
                         onOptionGroupsChange(next);
                       }}
                       style={{ width: "100%", padding: "7px 10px", borderRadius: 7, border: "1px solid var(--color-border)", font: "12.5px var(--font-sans)", color: "var(--color-text)", outline: "none", background: "var(--surface-2)", cursor: "pointer" }}
@@ -272,10 +287,10 @@ export function ProductForm(props: ProductFormProps) {
                   <label style={{ display: "flex", alignItems: "center", gap: 8, paddingBottom: 6, cursor: "pointer" }}>
                     <input
                       type="checkbox"
-                      checked={group.required}
+                      checked={group.required || (group.minSelections ?? 0) > 0}
                       onChange={(e) => {
                         const next = [...optionGroups];
-                        next[gIdx] = { ...group, required: e.target.checked };
+                        next[gIdx] = { ...group, required: e.target.checked, minSelections: e.target.checked ? Math.max(1, group.minSelections ?? 1) : 0 };
                         onOptionGroupsChange(next);
                       }}
                       style={{ width: 16, height: 16, accentColor: "var(--color-brand-hover)", cursor: "pointer" }}
@@ -292,9 +307,26 @@ export function ProductForm(props: ProductFormProps) {
                   </button>
                 </div>
 
+                {group.selectionType === "multiple" && <div style={{ display: "flex", flexWrap: "wrap", gap: 12, marginBottom: 12 }}>
+                  <label style={{ flex: "1 1 140px", fontSize: 12 }}>Mínimo de escolhas
+                    <input type="number" min={0} max={group.items.length} step={1} value={group.minSelections ?? (group.required ? 1 : 0)}
+                      aria-label={`Mínimo de escolhas em ${group.name || `categoria ${gIdx + 1}`}`} aria-invalid={Boolean(formErrors.optionGroups)} aria-describedby={formErrors.optionGroups ? foodErrorId : undefined}
+                      onChange={(e) => { const value = e.target.value === "" ? undefined : Number(e.target.value); const next = [...optionGroups];
+                        next[gIdx] = { ...group, minSelections: value, required: value !== undefined && value > 0 }; onOptionGroupsChange(next); }}
+                      style={{ display: "block", width: "100%", padding: "7px 10px", border: "1px solid var(--color-border)", borderRadius: 7, background: "var(--surface-2)", color: "var(--color-text)" }} />
+                  </label>
+                  <label style={{ flex: "1 1 140px", fontSize: 12 }}>Máximo de escolhas
+                    <input type="number" min={1} max={group.items.length} step={1} value={group.maxSelections ?? ""} placeholder={String(group.items.length)}
+                      aria-label={`Máximo de escolhas em ${group.name || `categoria ${gIdx + 1}`}`} aria-invalid={Boolean(formErrors.optionGroups)} aria-describedby={formErrors.optionGroups ? foodErrorId : undefined}
+                      onChange={(e) => { const next = [...optionGroups]; next[gIdx] = { ...group, maxSelections: e.target.value === "" ? undefined : Number(e.target.value) }; onOptionGroupsChange(next); }}
+                      style={{ display: "block", width: "100%", padding: "7px 10px", border: "1px solid var(--color-border)", borderRadius: 7, background: "var(--surface-2)", color: "var(--color-text)" }} />
+                  </label>
+                  <p style={{ flexBasis: "100%", margin: 0, fontSize: 12, color: "var(--color-text-muted)" }}>Sem máximo definido, o cliente pode escolher todos os itens da categoria.</p>
+                </div>}
+
                 <div style={{ display: "flex", flexDirection: "column", gap: 6 }}>
                   {group.items.map((item, iIdx) => (
-                    <div key={item.id} style={{ display: "grid", gridTemplateColumns: "1fr 140px auto", gap: 8, alignItems: "center" }}>
+                    <div key={item.id} style={{ display: "grid", gridTemplateColumns: "minmax(0, 1fr) minmax(0, 140px) auto", gap: 8, alignItems: "center" }}>
                       <input
                         value={item.name}
                         onChange={(e) => {
@@ -310,7 +342,7 @@ export function ProductForm(props: ProductFormProps) {
                       <PrefixInput
                         prefix="R$"
                         inputMode="decimal"
-                        value={item.priceModifierInCents === 0 ? "" : formatCents(item.priceModifierInCents)}
+                        value={!Number.isFinite(item.priceModifierInCents) || item.priceModifierInCents === 0 ? "" : formatCents(item.priceModifierInCents)}
                         onChange={(v) => {
                           const numeric = Number(v.replace(/[^\d,]/g, "").replace(",", ".")) || 0;
                           const cents = Math.round(numeric * 100);
@@ -381,7 +413,7 @@ export function ProductForm(props: ProductFormProps) {
                   ))}
                 </div>
                 <div style={{ marginTop: 8, font: "12px var(--font-mono)", color: "var(--color-brand-hover)" }}>
-                  Acréscimo máximo: +R$ {formatCents(optionGroups.reduce((sum, g) => sum + g.items.reduce((s, it) => s + Math.max(0, it.priceModifierInCents), 0), 0))}
+                  {maximumFoodOptionPrice(optionGroups) === null ? "Revise as opções para calcular o acréscimo máximo." : `Acréscimo máximo: +R$ ${formatCents(maximumFoodOptionPrice(optionGroups)!)}`}
                 </div>
               </div>
             )}

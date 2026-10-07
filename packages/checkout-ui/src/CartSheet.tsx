@@ -1,4 +1,5 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
+import { useModalFocus } from "./useModalFocus";
 import type { CartSheetProps } from "./types";
 
 function formatPrice(value: number): string {
@@ -15,6 +16,9 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
   const [budgetNote, setBudgetNote] = useState("");
   const [budgetSent, setBudgetSent] = useState(false);
   const [budgetSending, setBudgetSending] = useState(false);
+  const scopeRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(open, dialogRef, onClose, scopeRef);
 
   const [budgetError, setBudgetError] = useState<string | null>(null);
   useEffect(() => {
@@ -30,7 +34,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
   const isBottom = position === "bottom";
 
   return (
-    <>
+    <div ref={scopeRef} style={{ display: "contents" }}>
       <style>{`
         @keyframes ckui-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
         @keyframes ckui-drawer-right { from { transform: translateX(100%); } to { transform: translateX(0); } }
@@ -54,7 +58,10 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
 
       {/* Sheet / Drawer */}
       <div data-neu="overlay"
+        ref={dialogRef}
+        tabIndex={-1}
         role="dialog"
+        aria-modal="true"
         aria-label="Carrinho"
         aria-busy={updating || budgetSending}
         style={{
@@ -315,6 +322,6 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
           </div>
         )}
       </div>
-    </>
+    </div>
   );
 }

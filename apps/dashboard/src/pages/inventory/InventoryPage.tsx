@@ -15,6 +15,8 @@ import { SectionHeader } from "../../components/SectionHeader.js";
 import { SidePanel } from "../../components/SidePanel.js";
 import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useInventoryPage } from "./useInventoryPage.js";
+import { formatMovementQuantity, inventoryAdjustment } from "./inventory-display.js";
+import { centsToReais, reaisToCents } from "../../utils/currency.js";
 
 export interface InventoryPageProps {
   apiBaseUrl: string;
@@ -93,11 +95,29 @@ export function InventoryPage(props: InventoryPageProps) {
   const [adjustQty, setAdjustQty] = useState<string>("");
   const [adjustReason, setAdjustReason] = useState<string>("");
   const [adjustBusy, setAdjustBusy] = useState(false);
+  const [adjustError, setAdjustError] = useState<string | null>(null);
+  const [costInput, setCostInput] = useState("");
+  const [costBusy, setCostBusy] = useState(false);
+  const [costError, setCostError] = useState<string | null>(null);
+
+  const saveCost = async () => {
+    if (!productDetail?.product?.id || !productDetail?.variant?.id || !props.me) return;
+    if (costInput.trim() && !/^(?:\d+|\d{1,3}(?:\.\d{3})+)(?:,\d{1,2})?$|^\d+(?:\.\d{1,2})?$/.test(costInput.trim())) { setCostError("Informe um custo válido, maior ou igual a zero."); return; }
+    setCostBusy(true); setCostError(null);
+    try {
+      await vm.api.updateVariant(props.me.id, productDetail.product.id, productDetail.variant.id, { costInCents: costInput.trim() ? reaisToCents(costInput) : null });
+      const detail = await vm.api.getProductDetailBySku(props.me.id, selectedItem.sku);
+      setProductDetail(detail);
+      await vm.loadData();
+    } catch { setCostError("Não foi possível salvar o custo. Tente novamente."); }
+    finally { setCostBusy(false); }
+  };
 
   const submitAdjustment = async () => {
     if (!selectedItem) return;
-    const delta = parseInt(adjustQty, 10);
-    if (!Number.isFinite(delta) || delta === 0) return;
+    const delta = inventoryAdjustment(adjustQty);
+    if (delta === null) { setAdjustError("Informe um número inteiro diferente de zero."); return; }
+    setAdjustError(null);
     setAdjustBusy(true);
     try {
       // Positive delta = ENTRY, negative = ADJUSTMENT (write-off/correction).
@@ -110,6 +130,8 @@ export function InventoryPage(props: InventoryPageProps) {
       setAdjustQty("");
       setAdjustReason("");
       setSelectedItem(null); // close; list refetched by the vm action
+    } catch {
+      setAdjustError("Não foi possível confirmar o ajuste. Confira o saldo e as unidades reservadas e tente novamente.");
     } finally {
       setAdjustBusy(false);
     }
@@ -118,10 +140,11 @@ export function InventoryPage(props: InventoryPageProps) {
   const openItemDetail = async (item: any) => {
     setSelectedItem(item);
     setProductDetail(null);
+    setAdjustError(null); setCostError(null); setCostInput("");
     setLoadingDetail(true);
     try {
       const detail = await vm.api?.getProductDetailBySku?.(props.me?.id ?? "", item.sku);
-      if (detail?.found) setProductDetail(detail);
+      if (detail?.found) { setProductDetail(detail); setCostInput(detail.variant?.cost != null ? centsToReais(detail.variant.cost) : ""); }
     } catch { /* non-fatal */ }
     finally { setLoadingDetail(false); }
   };
@@ -140,7 +163,7 @@ export function InventoryPage(props: InventoryPageProps) {
       const itemStatus = available <= 0 ? "out_of_stock" : (threshold > 0 && available <= threshold ? "low_stock" : "in_stock");
       if (statusFilter !== "all" && itemStatus !== statusFilter) return false;
       if (searchQuery.trim()) {
-        const q = searchQuery.toLowerCase();
+        const q = searchQuery.trim().toLowerCase();
         const name = (item.productName ?? item.product_name ?? "").toLowerCase();
         const sku = (item.sku ?? "").toLowerCase();
         if (!name.includes(q) && !sku.includes(q)) return false;
@@ -322,8 +345,6 @@ export function InventoryPage(props: InventoryPageProps) {
                 <tbody>
                   {paginatedMovements.map((m, i) => {
                     const kindInfo = MOVEMENT_KIND_COLORS[m.kind ?? "ADJUSTMENT"] ?? MOVEMENT_KIND_COLORS.ADJUSTMENT;
-                    const isIncrease = m.kind === "ENTRY" || m.kind === "RELEASE" || m.kind === "TRANSFER_IN";
-                    const qtdSign = isIncrease ? "+" : "−";
                     return (
                       <tr key={m.id} style={{ borderBottom: i < paginatedMovements.length - 1 ? "1px solid color-mix(in srgb, var(--color-border) 50%, transparent)" : undefined }}>
                         <td style={{ padding: "12px 20px", font: "12px var(--font-mono)", color: "var(--color-text-faint)" }}>
@@ -336,7 +357,7 @@ export function InventoryPage(props: InventoryPageProps) {
                           </span>
                         </td>
                         <td style={{ padding: "12px 20px", font: "600 13px var(--font-data)", color: kindInfo.color, textAlign: "right" }}>
-                          {qtdSign}{m.quantity ?? 0}
+                          {formatMovementQuantity(m.kind, m.quantity ?? 0)}
                         </td>
                         <td style={{ padding: "12px 20px", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{labelSource(m.source)}</td>
                         <td style={{ padding: "12px 20px", font: "12px var(--font-sans)", color: "var(--color-text-faint)" }}>{labelReason(m.reason)}</td>
@@ -599,6 +620,12 @@ export function InventoryPage(props: InventoryPageProps) {
                     Venda: <strong style={{ color: "var(--color-brand)" }}>{formatCurrency(productDetail.variant.price)}</strong>
                     {productDetail.variant.cost != null && <> · Custo: <strong>{formatCurrency(productDetail.variant.cost)}</strong></>}
                   </div>
+                  <div style={{ marginTop: 12 }}>
+                    <FormField label="Custo unitário comercial (R$)" value={costInput} onChange={setCostInput} placeholder="Não informado" />
+                    <p style={{ fontSize: 12, color: "var(--color-text-muted)" }}>Usado para validar margem e descontos. Campo vazio remove o custo comercial; o custo médio do inventário é um dado separado.</p>
+                    {costError && <p role="alert" style={{ color: "var(--color-error)" }}>{costError}</p>}
+                    <Button size="sm" onClick={saveCost} disabled={costBusy}>{costBusy ? "Salvando…" : "Salvar custo"}</Button>
+                  </div>
                 </div>
 
                 {/* Barcode */}
@@ -659,6 +686,7 @@ export function InventoryPage(props: InventoryPageProps) {
                   aria-label="Motivo do ajuste"
                   style={{ flex: 1, minWidth: 160, padding: "8px 10px", borderRadius: "var(--radius-sm)", border: "1px solid var(--color-border)", background: "var(--surface-1)", color: "var(--color-text)", font: "13px var(--font-sans)" }}
                 />
+                {adjustError && <p role="alert" style={{ color: "var(--color-error)" }}>{adjustError}</p>}
                 <Button onClick={submitAdjustment} disabled={adjustBusy || !adjustQty.trim()}>
                   {adjustBusy ? "Aplicando..." : "Aplicar"}
                 </Button>
@@ -767,6 +795,12 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
       </p>
 
       {/* Last sync */}
+      {connection?.lastErrorCode && (
+        <p role="status" style={{ fontSize: 12, color: "var(--color-error)", margin: 0 }}>
+          {connection.lastErrorCode.includes("token_refresh_failed") ? "A conexão precisa ser reautorizada. Reconecte o ERP para retomar a sincronização." : "A última sincronização falhou. Confira a conexão antes de tentar novamente."}
+          {connection.lastErrorAt ? ` ${new Date(connection.lastErrorAt).toLocaleString("pt-BR")}` : ""}
+        </p>
+      )}
       {connection?.lastSyncAt && (
         <span style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)" }}>
           Última sincronização: {new Date(connection.lastSyncAt).toLocaleString("pt-BR")}
@@ -775,6 +809,7 @@ function ErpProviderCard({ provider, name, description, connection, onConnect, o
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
+        {connection?.lastErrorCode?.includes("token_refresh_failed") && status === "connected" && <Button variant="outline" size="sm" onClick={handleOAuthConnect}>Reconectar</Button>}
         {status === "disconnected" || status === "error" ? (
           <>
             {isCredentialProvider ? (

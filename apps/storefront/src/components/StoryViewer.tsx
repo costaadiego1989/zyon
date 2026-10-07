@@ -2,6 +2,7 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { StoryCategory } from "./StoriesRow";
+import { useModalFocus } from "@zyon/checkout-ui";
 
 const FONT_MAP: Record<string, string> = {
   inter: "'Inter', sans-serif",
@@ -49,6 +50,8 @@ export default function StoryViewer({
 
   const currentCategory = categories[catIndex];
   const currentStory = currentCategory?.stories[storyIndex];
+  const dialogRef = useRef<HTMLDivElement>(null);
+  useModalFocus(Boolean(currentStory), dialogRef, onClose);
   const duration = (currentStory?.duration ?? 7) * 1000;
 
   useEffect(() => {
@@ -290,6 +293,8 @@ export default function StoryViewer({
     {/* eslint-disable-next-line @next/next/no-page-custom-font */}
     <link rel="stylesheet" href={GOOGLE_FONTS_URL} />
     <div
+      ref={dialogRef}
+      tabIndex={-1}
       role="dialog"
       aria-label="Visualizador de stories"
       aria-modal="true"

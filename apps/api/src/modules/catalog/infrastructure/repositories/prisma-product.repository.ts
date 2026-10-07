@@ -1,4 +1,4 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { BadRequestException, ConflictException, Injectable, Logger } from "@nestjs/common";
 import { PrismaClient, Prisma } from "@prisma/client";
 import {
   ProductRepositoryPort,
@@ -7,6 +7,9 @@ import {
   SearchProductsResult,
 } from "../../domain/ports/product-repository.port.js";
 import { ProductEntity, ProductVariantProps } from "../../domain/entities/product.entity.js";
+import { productInputError } from "../../domain/services/product-input-validation.js";
+import { lockCatalogMerchant, syncCatalogStockLedger } from "../../../../shared/persistence/catalog-stock-ledger.js";
+import { searchAvailableCatalog } from "./catalog-availability-search.js";
 
 /**
  * Normalize text for accent- and case-insensitive matching.
@@ -30,6 +33,11 @@ export class PrismaProductRepository implements ProductRepositoryPort {
 
   async create(input: CreateProductInput): Promise<ProductEntity> {
     const product = await this.prisma.$transaction(async (tx) => {
+      await lockCatalogMerchant(tx, input.merchantId);
+      const error = productInputError(input);
+      if (error) throw new BadRequestException(error);
+      const existing = await tx.productVariant.findMany({ where: { sku: { in: input.variants.map(v => v.sku.trim()) }, product: { merchantId: input.merchantId } }, select: { sku: true } });
+      if (existing.length) throw new ConflictException(`sku_already_exists:${existing.map(v => v.sku).join(",")}`);
       const p = await tx.product.create({
         data: {
           merchantId: input.merchantId,
@@ -82,7 +90,8 @@ export class PrismaProductRepository implements ProductRepositoryPort {
           variants: { include: { price: true, stock: true, media: true } },
         },
       });
-      return p;
+      for (const variant of p.variants) await syncCatalogStockLedger(tx, { merchantId: input.merchantId, variantId: variant.id, source: "catalog_create" });
+      return tx.product.findUniqueOrThrow({ where: { id: p.id }, include: { variants: { include: { price: true, stock: true, media: true } } } });
     });
 
     return this.toEntity(product);
@@ -122,15 +131,18 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   }
 
   async search(input: SearchProductsInput): Promise<SearchProductsResult> {
+    if (input.inStockOnly) {
+      const { rows, total, nextCursor } = await searchAvailableCatalog(this.prisma, input);
+      return { products: rows.map(p => this.toEntity(p)), total, nextCursor };
+    }
     const where: Prisma.ProductWhereInput = {
       merchantId: input.merchantId,
       deletedAt: null, // exclude soft-deleted products from all listings
     };
 
     // Only filter by isActive when explicitly requested (storefront uses true, dashboard shows all)
-    if (input.isActiveOnly) {
-      where.isActive = true;
-    }
+    if (input.isActiveOnly || input.status === "active") where.isActive = true;
+    if (input.status === "inactive") where.isActive = false;
 
     // Skip filter for generic/browse queries — return all products
     const BROWSE_TERMS = ["produtos", "produto", "tudo", "catálogo", "catalogo", "ver tudo", "todos", "listar", "mostrar", "*", "all", "ver produtos"];
@@ -138,17 +150,13 @@ export class PrismaProductRepository implements ProductRepositoryPort {
 
     if (input.query && !isGenericQuery) {
       where.OR = [
-        { name: { contains: input.query, mode: "insensitive" } },
-        { description: { contains: input.query, mode: "insensitive" } },
+        { name: { contains: input.query.trim(), mode: "insensitive" } },
+        { description: { contains: input.query.trim(), mode: "insensitive" } },
       ];
     }
 
     if (input.categoryId) {
       where.categoryId = input.categoryId;
-    }
-
-    if (input.inStockOnly) {
-      where.variants = { some: { stock: { some: { quantity: { gt: 0 } } } } };
     }
 
     const limit = input.limit ?? 20;
@@ -178,7 +186,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     // ignores case, not diacritics. If the DB returned few results AND the query
     // is a text search, broaden to the full active catalog and match in-memory
     // using NFD-normalized comparison ("cafe" matches "Café").
-    if (input.query && !isGenericQuery && entities.length < limit) {
+    if (input.status === undefined && input.query && !isGenericQuery && entities.length < limit) {
       const normalizedQuery = normalizeForSearch(input.query);
       const alreadyFoundIds = new Set(entities.map((e) => e.id));
 
@@ -217,9 +225,14 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       }
     }
 
-    const nextCursor = products.length === limit ? products[products.length - 1].id : undefined;
+    const nextCursor = products.length === limit && (input.offset === undefined || input.offset + products.length < total) ? products[products.length - 1].id : undefined;
+    const totals = input.status === undefined ? undefined : {
+      total,
+      inStock: await this.prisma.product.count({ where: { ...where, variants: { some: { isActive: true, stock: { some: { quantity: { gt: this.prisma.productStock.fields.reserved } } } } } } }),
+      inactive: await this.prisma.product.count({ where: { ...where, ...(where.isActive === true ? { id: { in: [] } } : { isActive: false }) } }),
+    };
 
-    return { products: entities, nextCursor, total };
+    return { products: entities, nextCursor, total, ...(totals ? { totals } : {}) };
   }
 
   async update(
@@ -242,10 +255,18 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     if (data.twitterCard !== undefined) prismaData.twitterCard = data.twitterCard || null;
     if (data.keywords !== undefined) prismaData.keywords = data.keywords;
 
-    const product = await this.prisma.product.update({
-      where: { id: productId, merchantId },
-      data: prismaData,
-      include: { variants: { include: { price: true, stock: true, media: true } } },
+    const product = await this.prisma.$transaction(async tx => {
+      await lockCatalogMerchant(tx, merchantId);
+      const before = await tx.product.findFirst({ where: { id: productId, merchantId, deletedAt: null }, include: { variants: { where: { isActive: true }, include: { price: true, stock: true } } } });
+      if (!before) throw new BadRequestException("product_not_found");
+      const error = productInputError({ merchantId, name: data.name ?? before.name, type: data.type ?? before.type, metadata: (data.metadata ?? before.metadata ?? undefined) as Record<string, unknown> | undefined, variants: before.variants.map(v => ({ sku: v.sku, attributes: v.attributes as Record<string,string>, basePriceInCents: v.price?.basePriceInCents ?? 0, costInCents: v.price?.costInCents ?? undefined, weightGrams: v.weightGrams ?? undefined })) });
+      if (error) throw new BadRequestException(error);
+      if (data.type && data.type !== before.type && before.variants.some(v => v.stock.some(s => s.reserved > 0))) throw new ConflictException("stock_reserved_type_cannot_be_changed");
+      if (data.categoryId && !await tx.productCategory.findFirst({ where: { id: data.categoryId, merchantId }, select: { id: true } })) throw new BadRequestException("category_not_found");
+      return tx.product.update({
+        where: { id: productId, merchantId }, data: prismaData,
+        include: { variants: { include: { price: true, stock: true, media: true } } },
+      });
     });
     return this.toEntity(product);
   }
@@ -257,10 +278,10 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     });
   }
 
-  async listCategories(merchantId: string): Promise<Array<{ id: string; name: string; slug: string; productCount: number }>> {
+  async listCategories(merchantId: string, options?: { publicOnly?: boolean }): Promise<Array<{ id: string; name: string; slug: string; productCount: number }>> {
     const categories = await this.prisma.productCategory.findMany({
-      where: { merchantId },
-      include: { _count: { select: { products: true } } },
+      where: { merchantId, ...(options?.publicOnly ? { isActive: true } : {}) },
+      include: { _count: { select: { products: { where: { isActive: true, deletedAt: null } } } } },
       orderBy: { name: "asc" },
     });
     return categories.map((c) => ({
@@ -276,37 +297,45 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     productId: string,
     variant: CreateProductInput["variants"][0],
   ): Promise<ProductVariantProps> {
+    return this.prisma.$transaction(async tx => {
+    await lockCatalogMerchant(tx, merchantId);
     // Verify product belongs to merchant
-    const product = await this.prisma.product.findFirst({ where: { id: productId, merchantId } });
+    const product = await tx.product.findFirst({ where: { id: productId, merchantId, deletedAt: null } });
     if (!product) throw new Error("product_not_found");
+    const error = productInputError({ merchantId, name: product.name, type: product.type, metadata: (product.metadata ?? undefined) as Record<string, unknown> | undefined, variants: [variant] });
+    if (error) throw new BadRequestException(error);
+    if (await tx.productVariant.findFirst({ where: { sku: variant.sku.trim(), product: { merchantId } } })) throw new ConflictException(`sku_already_exists:${variant.sku.trim()}`);
 
-    const created = await this.prisma.productVariant.create({
-      data: {
-        productId,
-        sku: variant.sku,
-        attributes: variant.attributes as Prisma.InputJsonValue,
-        barcode: variant.barcode,
-        weightGrams: variant.weightGrams,
-        lengthCm: variant.lengthCm,
-        widthCm: variant.widthCm,
-        heightCm: variant.heightCm,
-        price: {
-          create: {
-            basePriceInCents: variant.basePriceInCents,
-            costInCents: variant.costInCents,
-            taxPercent: variant.taxPercent ?? 0,
-            currency: variant.currency ?? "BRL",
+      const created = await tx.productVariant.create({
+        data: {
+          productId,
+          sku: variant.sku,
+          attributes: variant.attributes as Prisma.InputJsonValue,
+          barcode: variant.barcode,
+          weightGrams: variant.weightGrams,
+          lengthCm: variant.lengthCm,
+          widthCm: variant.widthCm,
+          heightCm: variant.heightCm,
+          price: {
+            create: {
+              basePriceInCents: variant.basePriceInCents,
+              costInCents: variant.costInCents,
+              taxPercent: variant.taxPercent ?? 0,
+              currency: variant.currency ?? "BRL",
+            },
           },
+          stock: { create: [{ quantity: variant.stockQuantity ?? 0, reserved: 0 }] },
+          media: variant.media?.length
+            ? { create: variant.media.map((m, i) => ({ url: m.url, type: m.type, alt: m.alt, order: m.order ?? i })) }
+            : undefined,
         },
-        stock: { create: [{ quantity: variant.stockQuantity ?? 0, reserved: 0 }] },
-        media: variant.media?.length
-          ? { create: variant.media.map((m, i) => ({ url: m.url, type: m.type, alt: m.alt, order: m.order ?? i })) }
-          : undefined,
-      },
-      include: { price: true, stock: true, media: true },
-    });
+        include: { price: true, stock: true, media: true },
+      });
 
-    return this.mapVariant(created);
+      await syncCatalogStockLedger(tx, { merchantId, variantId: created.id, source: "catalog_variant" });
+      const saved = await tx.productVariant.findUniqueOrThrow({ where: { id: created.id }, include: { price: true, stock: true, media: true } });
+      return this.mapVariant(saved);
+    });
   }
 
   async updateVariantBySku(
@@ -332,6 +361,8 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     if (!variant) return null;
 
     await this.prisma.$transaction(async (tx) => {
+      await lockCatalogMerchant(tx, merchantId);
+      await tx.$queryRaw`SELECT v.id FROM product_variants v JOIN products p ON p.id = v.product_id WHERE v.id = ${variant.id} AND p.merchant_id = ${merchantId} FOR UPDATE OF v`;
       // Variant physical attributes
       const variantData: Prisma.ProductVariantUpdateInput = {};
       if (data.weightGrams !== undefined) variantData.weightGrams = data.weightGrams;
@@ -352,12 +383,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
 
       // Stock (absolute set — a re-import restates the catalog quantity)
       if (data.stockQuantity !== undefined) {
-        const stockRow = variant.stock?.[0];
-        if (stockRow) {
-          await tx.productStock.update({ where: { id: stockRow.id }, data: { quantity: data.stockQuantity } });
-        } else {
-          await tx.productStock.create({ data: { variantId: variant.id, quantity: data.stockQuantity, reserved: 0 } });
-        }
+        await syncCatalogStockLedger(tx, { merchantId, variantId: variant.id, quantity: data.stockQuantity, source: "spreadsheet_import" });
       }
 
       // Owning product basic fields
@@ -396,14 +422,14 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       seoGeneratedAt: raw.seoGeneratedAt,
       createdAt: raw.createdAt,
       updatedAt: raw.updatedAt,
-      variants: raw.variants?.map((v: any) => this.mapVariant(v)) ?? [],
+      variants: raw.variants?.filter((v: any) => v.isActive !== false).map((v: any) => this.mapVariant(v)) ?? [],
       averageRating: avgRating,
       reviewCount: reviews.length,
     });
   }
 
   private mapVariant(v: any): ProductVariantProps {
-    const stock = v.stock?.[0];
+    const stocks = v.stock ?? [];
     return {
       id: v.id,
       sku: v.sku,
@@ -418,8 +444,8 @@ export class PrismaProductRepository implements ProductRepositoryPort {
       costInCents: v.price?.costInCents,
       taxPercent: v.price?.taxPercent ?? 0,
       currency: v.price?.currency ?? "BRL",
-      stockQuantity: stock?.quantity ?? 0,
-      stockReserved: stock?.reserved ?? 0,
+      stockQuantity: stocks.reduce((n: number, s: any) => n + s.quantity, 0),
+      stockReserved: stocks.reduce((n: number, s: any) => n + s.reserved, 0),
       media: v.media?.map((m: any) => ({ id: m.id, url: m.url, type: m.type, alt: m.alt, order: m.order })) ?? [],
     };
   }

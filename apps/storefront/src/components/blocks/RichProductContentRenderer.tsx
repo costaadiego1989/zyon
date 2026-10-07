@@ -20,6 +20,7 @@ import { useGallerySwipe } from "../useGallerySwipe";
 import { foodSelectionError, foodSelectionLimits, foodSelectionLabel, toggleFoodSelection } from "../../lib/food-selection";
 import { ServiceScheduleSelector } from "./ServiceScheduleSelector";
 import { isSelectableServiceTime } from "../../lib/service-schedule";
+import { useOneBuyClickPresentation } from "../../lib/one-buy-click-presentation";
 
 import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
 
@@ -60,6 +61,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   crossSell?: CrossSellInterstitialData | null;
   onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
 }) {
+  const oneBuyClick = useOneBuyClickPresentation();
   const [selectedVariantId, setSelectedVariantId] = useState(purchase?.defaultVariantId ?? purchase?.variants[0]?.id ?? "");
   const [selectedOptionIds, setSelectedOptionIds] = useState<Set<string>>(new Set());
   const [optionError, setOptionError] = useState<string | null>(null);
@@ -156,7 +158,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
     }
     window.location.assign(href);
   };
-  const inProgress = status === "pending" || status === "review";
+  const inProgress = status === "pending" || status === "review" || oneBuyClick.pending;
   const purchaseActions = <>
     <button data-neu="primary" type="button" data-aacp-rich-product-add-to-cart className={styles.buyButton} onClick={addToCart} disabled={!selectedVariant?.available || inProgress} aria-busy={status === "pending"}>
       {status === "added" ? <FiCheck aria-hidden="true" /> : <FiShoppingBag aria-hidden="true" />}
@@ -183,7 +185,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
           <ProductGallery images={images} productName={purchase.productName} />
           <div className={styles.summary}>
             {shareUrl && purchase ? <div className={styles.shareRow}><span>Compartilhe</span><ProductCardShare productName={purchase.productName} shareUrl={shareUrl} /></div> : null}
-            {rating ? <a className={styles.rating} href="#product-content-reviews-heading"><span aria-hidden="true">★</span><strong>{rating}</strong><span>{testimonials.length} avaliações</span><FiArrowRight aria-hidden="true" /></a> : null}
+            {rating ? <a className={styles.rating} href="#product-content-reviews-heading"><span aria-hidden="true">★</span><strong>{rating}</strong><span>{ratings.length} avaliações</span><FiArrowRight aria-hidden="true" /></a> : null}
             <h1 id="aacp-rich-product-title">{purchase.productName}</h1>
             {purchase.description ? <p className={styles.description}>{purchase.description}</p> : null}
             <div className={styles.priceRow}>

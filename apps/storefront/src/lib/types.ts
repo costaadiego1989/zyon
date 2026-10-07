@@ -85,6 +85,11 @@ export interface CartSummaryBlock {
   };
 }
 
+export interface CartAddResultBlock {
+  type: "cart_add_result";
+  data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string };
+}
+
 export interface ShippingOptionsBlock {
   type: "shipping_options";
   data: {

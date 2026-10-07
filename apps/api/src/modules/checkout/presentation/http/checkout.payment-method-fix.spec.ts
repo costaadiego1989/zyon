@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { AgentContext, AuthorizedOffer, Cart } from "@zyon/shared-types";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../../payment/__tests__/payment-stock-reader.fixture.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
 import { AcceptCheckoutOfferUseCase } from "../../application/use-cases/accept-checkout-offer.use-case.js";

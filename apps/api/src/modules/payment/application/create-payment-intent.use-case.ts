@@ -1,3 +1,6 @@
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { assertCartStock } from "../../catalog/application/services/cart-stock-authority.js";
 import {
   BadGatewayException,
   BadRequestException,
@@ -275,6 +278,7 @@ export class CreatePaymentIntentUseCase {
     private readonly orderQuota?: OrderQuotaService,
     @Optional() private readonly benefits?: CheckoutBenefitsService,
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
@@ -287,14 +291,22 @@ export class CreatePaymentIntentUseCase {
     if (!session) throw new NotFoundException("checkout_session_not_found");
     assertCheckoutReadyForPayment(session);
 
+    const sessionAttempts = await this.payments.listForSession?.(merchantId, sessionId) ?? [];
+    if (sessionAttempts.some(row => ["pending", "requires_action"].includes(row.status) &&
+        ["in_flight", "uncertain"].includes(row.snapshot().creation?.cancellation?.state ?? ""))) {
+      throw new ConflictException("payment_cancellation_pending");
+    }
+
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
     if (existing) {
       assertSameRequest(existing.snapshot(), body, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(existing));
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(existing, () => this.assertStock(session!)));
     }
 
     // An existing idempotency key is an admission made before a later block.
     // Only a brand-new provider/payment attempt must pass the commercial gate.
+    if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
+    await assertCartStock(this.prisma, merchantId, session.cart.items);
     await this.orderQuota?.assertCanAcceptNewSales(merchantId);
     if (sessionSlotRequests(session).length && !this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
     await this.serviceSlots?.assertBeforePayment(session);
@@ -598,9 +610,14 @@ export class CreatePaymentIntentUseCase {
       const winner = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
       if (!winner) throw new ConflictException("payment_creation_concurrent_change");
       assertSameRequest(winner.snapshot(), { ...body, method }, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(winner));
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(winner, () => this.assertStock(session)));
     }
-    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(intent));
+    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(intent, () => this.assertStock(session)));
+  }
+
+  private async assertStock(session: CheckoutSession): Promise<void> {
+    if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
+    await assertCartStock(this.prisma, session.merchantId, session.cart.items);
   }
 
   private async validateAcceptedOffer(

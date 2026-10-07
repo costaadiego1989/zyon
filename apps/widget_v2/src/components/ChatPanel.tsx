@@ -3,6 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   isEnabledPaymentQuickReply,
   paymentMethodForQuickReply,
+  paymentMethodsForConfig,
   useCheckoutStore,
 } from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
@@ -10,6 +11,7 @@ import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkou
 import { renderInlineMarkdown, messageToSpeech } from "./chat/helpers";
 import { BlockRenderer } from "./chat/ChatBlocks";
 import { VoiceComposer } from "./chat/VoiceComposer";
+import { checkoutQuickReplies } from "@/lib/checkout-quick-replies";
 import { useChatRecovery } from "@/lib/use-chat-recovery";
 import { useChatDisplay } from "@/lib/use-chat-display";
 import type { CheckoutSession } from "@/api/checkout-session";
@@ -143,8 +145,7 @@ export function ChatPanel() {
     if (!handlePaymentChoice(text)) void sendMessage(text);
   };
 
-  const activeQuickReplies = (lastAgentMsg?.quickReplies ?? [])
-    .filter((quickReply) => isEnabledPaymentQuickReply(quickReply, merchantPaymentConfig));
+  const activeQuickReplies = checkoutQuickReplies(lastAgentMsg?.quickReplies ?? [], lastAgentMsg?.blocks ?? [], paymentMethodsForConfig(merchantPaymentConfig).map(method => method.key));
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>

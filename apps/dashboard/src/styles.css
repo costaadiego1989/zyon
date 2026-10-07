@@ -31,7 +31,8 @@
   --color-text: oklch(96% 0.002 145);
   --color-text-secondary: oklch(80% 0.005 145);
   --color-text-muted: oklch(70% 0.006 145);
-  --color-text-faint: oklch(52% 0.006 145);
+  --color-text-faint: oklch(65% 0.006 145);
+  --color-on-brand: oklch(13% 0.002 145);
 
   /* Semantic */
   --color-error: oklch(68% 0.18 25);
@@ -97,7 +98,7 @@
   /* ── Prototype aliases (used by inline styles) ── */
   --ink: oklch(96% 0.002 145);
   --muted: oklch(70% 0.006 145);
-  --faint: oklch(52% 0.006 145);
+  --faint: var(--color-text-faint);
   --border: oklch(27% 0.006 145);
   --bg: oklch(13% 0.002 145);
   --card: oklch(18.5% 0.004 145);
@@ -576,7 +577,7 @@ input:focus, select:focus, textarea:focus {
   box-shadow: 0 0 0 2px var(--color-brand-ring);
 }
 
-input::placeholder { color: var(--color-text-faint); }
+input::placeholder, textarea::placeholder { color: var(--color-text-faint); opacity: 1; }
 
 textarea {
   width: 100%;
@@ -4562,9 +4563,10 @@ textarea:disabled {
 }
 
 /* Grid utilities */
-.grid-2 { display: grid; grid-template-columns: repeat(2, 1fr); gap: var(--space-5); }
-.grid-3 { display: grid; grid-template-columns: repeat(3, 1fr); gap: var(--space-5); }
-.grid-4 { display: grid; grid-template-columns: repeat(4, 1fr); gap: var(--space-5); }
+.grid-2 { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5); min-width: 0; }
+.grid-3 { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-5); min-width: 0; }
+.grid-4 { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: var(--space-5); min-width: 0; }
+.grid-2 > *, .grid-3 > *, .grid-4 > * { min-width: 0; }
 
 .gap-sm { gap: var(--space-3); }
 .gap-md { gap: var(--space-4); }
@@ -4631,6 +4633,10 @@ button:active:not(:disabled) {
 }
 
 /* ── Responsive Grid Adjustments ──────────────────────────────– */
+.overview-controls { display: flex; align-items: center; justify-content: flex-end; gap: 12px; margin-left: auto; min-width: 0; flex-wrap: wrap; }
+.overview-time-zone { margin: 0; color: var(--color-text-faint); font: 12px var(--font-sans); }
+.overview-period-selector { max-width: 100%; flex-wrap: wrap; }
+.overview-period-selector button:focus-visible { outline: 2px solid var(--color-text); outline-offset: 2px; }
 @media (max-width: 1024px) {
   .grid-4 { grid-template-columns: repeat(2, 1fr); }
 }
@@ -4643,6 +4649,7 @@ button:active:not(:disabled) {
     align-items: flex-start;
     gap: 12px;
   }
+  .overview-controls { width: 100%; margin-left: 0; justify-content: flex-start; }
 }
 
 /* ── StatCard Premium Hover ───────────────────────────────────– */

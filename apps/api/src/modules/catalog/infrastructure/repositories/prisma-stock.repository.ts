@@ -1,6 +1,7 @@
 import { Injectable, Logger } from "@nestjs/common";
 import type { PrismaClient, Prisma } from "@prisma/client";
 import type { StockRepositoryPort, ReserveStockInput, ReserveStockResult } from "../../domain/ports/product-repository.port.js";
+import { lockCatalogMerchant, syncCatalogStockLedger } from "../../../../shared/persistence/catalog-stock-ledger.js";
 
 @Injectable()
 export class PrismaStockRepository implements StockRepositoryPort {
@@ -124,8 +125,8 @@ export class PrismaStockRepository implements StockRepositoryPort {
   }
 
   async getAvailableStock(variantId: string): Promise<{ quantity: number; reserved: number }> {
-    const stock = await this.prisma.productStock.findFirst({ where: { variantId }, orderBy: { id: "asc" } });
-    return { quantity: stock?.quantity ?? 0, reserved: stock?.reserved ?? 0 };
+    const stocks = await this.prisma.productStock.findMany({ where: { variantId } });
+    return { quantity: stocks.reduce((n, s) => n + s.quantity, 0), reserved: stocks.reduce((n, s) => n + s.reserved, 0) };
   }
 
   async decrementBySku(merchantId: string, sku: string, quantity: number): Promise<{ ok: boolean; quantity?: number }> {
@@ -153,10 +154,15 @@ export class PrismaStockRepository implements StockRepositoryPort {
   }
 
   async setQuantityBySku(merchantId: string, sku: string, quantity: number): Promise<{ ok: boolean }> {
-    if (!Number.isSafeInteger(quantity) || quantity < 0) return { ok: false };
-    const updated = await this.prisma.productStock.updateMany({
-      where: { variant: { sku, product: { merchantId } }, reserved: { lte: quantity } }, data: { quantity },
-    });
-    return { ok: updated.count > 0 };
+    if (!Number.isSafeInteger(quantity) || quantity < 0 || quantity > 2_147_483_647) return { ok: false };
+    try {
+      return await this.prisma.$transaction(async tx => {
+        await lockCatalogMerchant(tx, merchantId);
+        const variants = await tx.productVariant.findMany({ where: { sku, isActive: true, product: { merchantId, deletedAt: null } }, select: { id: true }, take: 2 });
+        if (variants.length !== 1) return { ok: false };
+        await syncCatalogStockLedger(tx, { merchantId, variantId: variants[0]!.id, quantity, source: "stock_reconciliation" });
+        return { ok: true };
+      });
+    } catch { return { ok: false }; }
   }
 }

@@ -542,7 +542,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             {connectedGatewayCount === 1 ? "gateway" : "gateways"}{" "}
             {activeCount === 1 ? "ativo" : "ativos"}
             {activeCount === connectedGatewayCount
-              ? ` e pronta${activeCount === 1 ? "" : "s"} para transações.`
+              ? ". Confira os métodos habilitados antes de receber pagamentos."
               : ". Verifique as conexões pendentes."}
           </span>
         </div>

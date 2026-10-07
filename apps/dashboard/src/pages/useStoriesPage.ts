@@ -2,16 +2,20 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import {
   listStoryCategories,
   createStoryCategory,
+  updateStoryCategory,
   archiveStoryCategory,
   listStories,
   createStory,
+  updateStory,
   archiveStory,
   uploadStoryImage,
   type StoryCategoryDTO,
   type StoryDTO,
   type TitleConfig,
+  type CreateStoryInput,
 } from "../api/endpoints/stories.js";
 import { reportError } from "../lib/observability/error-reporter.js";
+import { changedFields } from "../lib/config-patch.js";
 
 const DEFAULT_TITLE_CONFIG: TitleConfig = {
   font: "inter",
@@ -33,6 +37,16 @@ export interface StoryEditorState {
   uploading: boolean;
 }
 
+export function storyEditorPatch(current: StoryEditorState, initial: StoryEditorState, hasSavedTitleConfig = true): Partial<CreateStoryInput> {
+  const persisted = (value: StoryEditorState) => ({ imageUrl: value.imageUrl,
+    title: value.title, titleConfig: value.titleConfig, duration: value.duration });
+  const patch = changedFields(persisted(current), persisted(initial));
+  // The story API replaces titleConfig; unlike checkout policies it is not a
+  // nested merge. Send the complete style only when the user edits its style.
+  if (patch.titleConfig || (!hasSavedTitleConfig && patch.title?.trim())) patch.titleConfig = current.titleConfig;
+  return patch;
+}
+
 import { showToast } from "../components/Toast.js";
 
 export function useStoriesPage(apiBaseUrl: string) {
@@ -49,8 +63,15 @@ export function useStoriesPage(apiBaseUrl: string) {
   const [showCreateCategory, setShowCreateCategory] = useState(false);
   const [showCreateStory, setShowCreateStory] = useState(false);
   const [newCategoryName, setNewCategoryName] = useState("");
+  const [editingCategoryId, setEditingCategoryId] = useState<string | null>(null);
+  const [initialCategoryName, setInitialCategoryName] = useState("");
+  const [editingStoryId, setEditingStoryId] = useState<string | null>(null);
   const emptyEditor = (): StoryEditorState => ({ imageUrl: "", imagePreview: "", title: "", duration: 7, titleConfig: { ...DEFAULT_TITLE_CONFIG }, uploading: false });
   const [editor, setEditor] = useState<StoryEditorState>(emptyEditor);
+  const [initialEditor, setInitialEditor] = useState<StoryEditorState>(emptyEditor);
+  const [hasSavedTitleConfig, setHasSavedTitleConfig] = useState(true);
+  const categoryDirty = newCategoryName !== initialCategoryName;
+  const storyDirty = JSON.stringify({ ...editor, uploading: false }) !== JSON.stringify({ ...initialEditor, uploading: false });
   const working = useRef(false);
   const uploading = useRef(false);
   const storyRequest = useRef(0);
@@ -79,6 +100,13 @@ export function useStoriesPage(apiBaseUrl: string) {
   }
   const handleCreateCategory = async () => {
     if (!newCategoryName.trim()) return false;
+    if (editingCategoryId) return mutate(async () => {
+      const updated = await updateStoryCategory(apiBaseUrl, editingCategoryId, { name: newCategoryName.trim() });
+      setCategories(current => current.map(category => category.id === updated.id ? updated : category));
+      setSelectedCategory(current => current?.id === updated.id ? updated : current);
+      setNewCategoryName(""); setInitialCategoryName(""); setEditingCategoryId(null); setShowCreateCategory(false);
+      showToast("success", "Categoria atualizada.");
+    }, "Não foi possível atualizar a categoria. O nome foi preservado para você tentar novamente.");
     return mutate(async () => { const created = await createStoryCategory(apiBaseUrl, { name: newCategoryName.trim() }); setCategories(current => [...current, created]); setSelectedCategory(created); setNewCategoryName(""); setShowCreateCategory(false); showToast("success", "Categoria criada."); }, "Não foi possível criar a categoria. O nome foi preservado para você tentar novamente.");
   };
   const handleDeleteCategory = (id: string) => mutate(async () => {
@@ -100,9 +128,15 @@ export function useStoriesPage(apiBaseUrl: string) {
     } catch (error) { setUploadError("Não foi possível enviar a imagem. A prévia foi preservada. Selecione a imagem novamente para tentar o envio."); reportError({ source: "stories.uploadImage", error, severity: "warning" }); }
     finally { uploading.current = false; setEditor(current => ({ ...current, uploading: false })); }
   };
-  const resetEditor = () => { setEditor(emptyEditor()); setUploadError(null); setActionError(null); };
+  const resetEditor = () => { const next = emptyEditor(); setEditor(next); setInitialEditor(next); setEditingStoryId(null); setUploadError(null); setActionError(null); };
   const handleCreateStory = async () => {
     if (!selectedCategory || !editor.imageUrl || editor.uploading || editor.duration < 3 || editor.duration > 15) return false;
+    if (editingStoryId) return mutate(async () => {
+      const updated = await updateStory(apiBaseUrl, editingStoryId, storyEditorPatch(editor, initialEditor, hasSavedTitleConfig));
+      storyRequest.current += 1; setStoriesLoading(false);
+      setStories(current => current.map(story => story.id === updated.id ? updated : story));
+      resetEditor(); setShowCreateStory(false); showToast("success", "Story atualizado.");
+    }, "Não foi possível atualizar o story. Suas alterações foram preservadas para você tentar novamente.");
     return mutate(async () => { await createStory(apiBaseUrl, selectedCategory.id, { imageUrl: editor.imageUrl, title: editor.title.trim() || undefined, titleConfig: editor.title.trim() ? editor.titleConfig : undefined, duration: editor.duration }); resetEditor(); setShowCreateStory(false); showToast("success", "Story criado."); await loadStories(); }, "Não foi possível criar o story. Sua imagem e seu texto foram preservados. Confira a categoria e tente novamente.");
   };
   const openCreateStory = async () => {
@@ -110,5 +144,13 @@ export function useStoriesPage(apiBaseUrl: string) {
   };
   const updateEditorField = <K extends keyof StoryEditorState>(key: K, value: StoryEditorState[K]) => { setEditor(current => ({ ...current, [key]: value })); };
   const updateTitleConfig = (partial: Partial<TitleConfig>) => { setEditor(current => ({ ...current, titleConfig: { ...current.titleConfig, ...partial } })); };
-  return { categories, selectedCategory, stories, loading, storiesLoading, loadError, storiesError, actionError, uploadError, busy, showCreateCategory, showCreateStory, newCategoryName, editor, setSelectedCategory, setShowCreateCategory, setShowCreateStory, setNewCategoryName, updateEditorField, updateTitleConfig, handleCreateCategory, handleDeleteCategory, handleFileUpload, handleCreateStory, handleDeleteStory, openCreateStory, resetEditor, reload: loadCategories, reloadStories: loadStories, clearError: () => setActionError(null) };
+  const openCreateCategory = () => { setEditingCategoryId(null); setNewCategoryName(""); setInitialCategoryName(""); setActionError(null); setShowCreateCategory(true); };
+  const openEditCategory = (category: StoryCategoryDTO) => { setEditingCategoryId(category.id); setNewCategoryName(category.name); setInitialCategoryName(category.name); setActionError(null); setShowCreateCategory(true); };
+  const openEditStory = (story: StoryDTO) => {
+    const next = { imageUrl: story.imageUrl, imagePreview: story.imageUrl, title: story.title ?? "", duration: story.duration,
+      titleConfig: { ...DEFAULT_TITLE_CONFIG, ...story.titleConfig }, uploading: false };
+    setHasSavedTitleConfig(!!story.titleConfig);
+    setEditingStoryId(story.id); setEditor(next); setInitialEditor(next); setUploadError(null); setActionError(null); setShowCreateStory(true);
+  };
+  return { categories, selectedCategory, stories, loading, storiesLoading, loadError, storiesError, actionError, uploadError, busy, showCreateCategory, showCreateStory, newCategoryName, editor, editingCategoryId, editingStoryId, categoryDirty, storyDirty, openCreateCategory, openEditCategory, openEditStory, setSelectedCategory, setShowCreateCategory, setShowCreateStory, setNewCategoryName, updateEditorField, updateTitleConfig, handleCreateCategory, handleDeleteCategory, handleFileUpload, handleCreateStory, handleDeleteStory, openCreateStory, resetEditor, reload: loadCategories, reloadStories: loadStories, clearError: () => setActionError(null) };
 }

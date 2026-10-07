@@ -180,6 +180,11 @@ export type FetchRefundStatusOutput = {
 };
 
 export interface PaymentProviderPort {
+  /** Known original standard-checkout charge only; no cross-provider fallback. */
+  readCancellationStatus?(input: import("../pending-payment-cancellation.js").PendingPaymentCancellationInput): Promise<import("../pending-payment-cancellation.js").PendingPaymentCancellationResult>;
+  /** Must re-read eligibility and never refund or cancel a captured charge. */
+  cancelPendingPayment?(input: import("../pending-payment-cancellation.js").PendingPaymentCancellationInput): Promise<import("../pending-payment-cancellation.js").PendingPaymentCancellationResult>;
+
   /** Only confirms an unpaid charge is no longer payable. Unknown stays blocked. */
   cancelPayment?(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }>;
   creationAccountFingerprint?(): string;

@@ -26,6 +26,18 @@ function setup() {
 }
 
 describe("UpdateCartUseCase", () => {
+  it("rejects quantity above native variant stock before mutating the session or discount", async () => {
+    const { repo } = setup();
+    const session = repo.getSession("mrc_1", "chk_1")!;
+    session.cart.items[1].variantId = "native-b";
+    session.cart.currentDiscount = 10;
+    repo.saveSession(session);
+    const before = JSON.stringify(session.cart);
+    const prisma = { productVariant: { findMany: async () => [{ id: "native-b", sku: "b", isActive: true, product: { isActive: true, deletedAt: null, type: "physical" }, stock: [{ quantity: 2, reserved: 0 }] }] } } as any;
+    const useCase = new UpdateCartUseCase(repo, repo, undefined, undefined, undefined, prisma);
+    await assert.rejects(useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", items: [{ sku: "b", quantity: 3 }] }), /cart_insufficient_stock/);
+    assert.equal(JSON.stringify(repo.getSession("mrc_1", "chk_1")!.cart), before);
+  });
   it("updates quantity and recomputes total from server-held prices", async () => {
     const { repo, useCase } = setup();
 

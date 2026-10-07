@@ -127,10 +127,11 @@ export function CategoriesPage(props: CategoriesPageProps) {
         />
 
         <DataPanel
-          title="Categorias"
+          title="Categorias raiz e suas subcategorias"
           page={page}
           pageSize={PAGE_SIZE}
           total={filteredTree.length}
+          trailing={<span className="field-hint">Paginação por categorias raiz; subcategorias acompanham o grupo.</span>}
           onPageChange={setPage}
           isEmpty={filteredTree.length === 0 && !vm.loading}
           empty={{ icon: FolderTree, title: filtered ? "Nenhuma categoria com estes filtros" : "Organize seu catálogo em categorias", description: filtered ? "Tente outro nome ou remova os filtros." : "Crie grupos como Roupas ou Acessórios e, se precisar, organize subcategorias dentro deles.", action: filtered ? <Button variant="outline" onClick={() => { setSearch(""); setActiveOnly(false); }}>Limpar filtros</Button> : <Button onClick={() => vm.startCreate()}>Nova categoria</Button> }}

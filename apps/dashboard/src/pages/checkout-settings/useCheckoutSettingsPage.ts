@@ -8,7 +8,7 @@ import { useApi } from "../../hooks/useApi.js";
 import { useErrorReporter } from "../../hooks/useErrorReporter.js";
 import { showToast } from "../../components/Toast.js";
 import type { Draft, AdvancedRule } from "./lib/draft.js";
-import { settingsToDraft, draftToPatch, draftsEqual, DEFAULT_DRAFT } from "./lib/draft.js";
+import { settingsToDraft, draftChangesToPatch, draftsEqual, DEFAULT_DRAFT } from "./lib/draft.js";
 import { validate, type ValidationErrors } from "./lib/validation.js";
 
 function errText(e: unknown): string {
@@ -104,7 +104,7 @@ export function useCheckoutSettingsPage(props: {
     }
     setBusy(true);
     try {
-      const s = await api.patchCheckoutSettings(draftToPatch(draft));
+      const s = await api.patchCheckoutSettings(draftChangesToPatch(draft, settings));
       const d = settingsToDraft(s);
       setSettings(s);
       setDraft(d);

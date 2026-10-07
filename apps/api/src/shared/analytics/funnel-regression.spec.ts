@@ -62,11 +62,11 @@ test("approved-payment completion still emits once and rejects mismatched paymen
   assert.equal(repo.listOutbox(input.merchant_id).filter(e => e.event_type === "order.completed").length, 1);
 });
 
-test("date-only range includes the selected UTC day without timezone drift", () => {
+test("date-only range includes the selected São Paulo day without server timezone drift", () => {
   const range = resolveFunnelRange("7d", { from: "2026-09-14", to: "2026-09-14" });
-  assert.equal(range.from.toISOString(), "2026-09-14T00:00:00.000Z");
-  assert.equal(range.to.toISOString(), "2026-09-14T23:59:59.999Z");
-  assert.equal(resolveFunnelRange("today", undefined, new Date("2026-09-14T01:00:00Z")).from.toISOString(), "2026-09-14T00:00:00.000Z");
+  assert.equal(range.from.toISOString(), "2026-09-14T03:00:00.000Z");
+  assert.equal(range.to.toISOString(), "2026-09-15T02:59:59.999Z");
+  assert.equal(resolveFunnelRange("today", undefined, new Date("2026-09-14T01:00:00Z")).from.toISOString(), "2026-09-13T03:00:00.000Z");
 });
 
 test("explicit timestamps preserve their instant and invalid dates never silently fall back", () => {

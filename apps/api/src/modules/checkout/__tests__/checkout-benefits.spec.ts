@@ -5,7 +5,7 @@ import { checkoutSession, merchantRules } from "./checkout-test-fixtures.js";
 import type { AdvancedRule } from "../domain/services/advanced-rule-evaluator.service.js";
 import { CheckoutBenefitsService } from "../application/services/checkout-benefits.service.js";
 import { buildExperienceFromSession } from "../application/services/checkout-experience.service.js";
-import { CreatePaymentIntentUseCase } from "../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../payment/__tests__/payment-stock-reader.fixture.js";
 import { InMemoryPaymentRepository } from "../../payment/infrastructure/in-memory-payment.repository.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { FakePaymentProvider } from "../../payment/infrastructure/fake-payment-provider.js";

@@ -1,6 +1,7 @@
 import { merchantThemeTokens } from "@zyon/shared-types";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { useModalFocus } from "@zyon/checkout-ui/modal-focus";
 import { useCheckoutStore } from "@/store/checkout-store";
 import { ChannelGate } from "@/components/ChannelGate";
 import { ChatPanel } from "@/components/ChatPanel";
@@ -24,6 +25,8 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
   const [supportOpen, setSupportOpen] = useState(false);
   const [cartDrawerOpen, setCartDrawerOpen] = useState(false);
   const [cartDrawerClosing, setCartDrawerClosing] = useState(false);
+  const cartScopeRef = useRef<HTMLDivElement>(null);
+  const cartDialogRef = useRef<HTMLDivElement>(null);
   const [isMobile, setIsMobile] = useState(() =>
     typeof window !== "undefined" ? window.innerWidth < 640 : true
   );
@@ -35,6 +38,7 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
       setCartDrawerClosing(false);
     }, 280);
   }, []);
+  useModalFocus(cartDrawerOpen, cartDialogRef, closeCartDrawer, cartScopeRef);
   const status = useCheckoutStore((s) => s.status);
   const brand = useCheckoutStore((s) => s.brand);
   const agent = useCheckoutStore((s) => s.agent);
@@ -453,7 +457,7 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
         </button>
       )}
       {cartDrawerOpen && (
-        <>
+        <div ref={cartScopeRef} style={{ display: "contents" }}>
           {/* Keyframes for the bottom-sheet (same as storefront CartSheet) */}
           <style>{`
             @keyframes ckui-sheet-up { from { transform: translateY(100%); } to { transform: translateY(0); } }
@@ -478,8 +482,11 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
 
           {/* Bottom sheet — slides up from bottom, slides down to close */}
           <div data-neu="overlay"
+            ref={cartDialogRef}
+            tabIndex={-1}
             className="smart-cart-drawer"
             role="dialog"
+            aria-modal="true"
             aria-label="Carrinho"
             style={{
               position: "fixed",
@@ -516,7 +523,7 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
             </div>
             <SmartCart />
           </div>
-        </>
+        </div>
       )}
 
       {/* Support uses the header control; its panel remains available throughout checkout. */}

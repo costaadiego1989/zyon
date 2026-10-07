@@ -4,7 +4,7 @@ import { createStartCheckoutUseCase } from "../../application/use-cases/start-ch
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { StockCheckedCreatePaymentIntentUseCase as CreatePaymentIntentUseCase } from "../../../payment/__tests__/payment-stock-reader.fixture.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
 import { PaymentDispatchService } from "../../../payment/application/services/payment-dispatch.service.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";

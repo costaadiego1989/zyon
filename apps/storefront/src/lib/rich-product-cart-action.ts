@@ -38,7 +38,9 @@ export async function submitRichProductCart(detail: unknown, send: (message: str
   try {
     const turn = await send(`Adicionar produto ao carrinho [variantId:${input.variantId}]${tag}${serviceTag}`);
     const result = turn?.blocks.find(block => block.type === "cart_add_result" && block.data?.variantId === input.variantId
-      && block.data?.serviceSlotId === input.selectedServiceSlotId)?.data;
+      && (block.data?.serviceSlotId ?? undefined) === input.selectedServiceSlotId
+      && (block.data?.status !== "succeeded" || block.data?.optionItemIds === undefined || (Array.isArray(block.data.optionItemIds)
+        && new Set(block.data.optionItemIds).size === new Set(options).size && options.every(id => block.data.optionItemIds.includes(id)))))?.data;
     if (result && ["succeeded", "rejected", "unknown"].includes(result.status)) {
       emit({ ...base, status: result.status, ...(typeof result.code === "string" ? { code: result.code } : {}) });
     } else emit({ ...base, status: "unknown" });

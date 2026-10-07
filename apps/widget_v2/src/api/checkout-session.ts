@@ -419,8 +419,9 @@ export class CheckoutSession {
   async reopenCheckout(section: CheckoutEditSection): Promise<Experience> {
     this.assertSession();
     if (this.pendingMessageId || this.chatInFlight) throw new ChatRecoveryRequired();
+    if (!this.buyerAccessToken) throw new Error("payment_cancellation_auth_required");
     const response = await fetch(`${this.embedBaseUrl}/embed/checkout/edit`, { method: "POST", headers: this.headers(),
-      body: JSON.stringify({ session_id: this.sessionId, section }) });
+      body: JSON.stringify({ session_id: this.sessionId, section, buyer_access_token: this.buyerAccessToken }) });
     if (!response.ok) throw await CheckoutApiError.fromResponse("embed_checkout_edit", response);
     const result = await response.json() as { experience: Experience; revision?: number };
     this.experience = result.experience;
@@ -772,6 +773,32 @@ export class CheckoutSession {
     );
     if (!res.ok) throw new Error(`embed_payment_status_failed: ${res.status}`);
     return res.json() as Promise<{ status: string; paid_at?: string }>;
+  }
+
+  async cancelPaymentIntent(intentId: string): Promise<import("../lib/payment-cancellation.js").PaymentCancellationResponse> {
+    const scope = this as { isPaymentObservation?: boolean; hasMarketplacePaymentAttempt?: boolean };
+    if (scope.isPaymentObservation || scope.hasMarketplacePaymentAttempt) throw new Error("payment_cancellation_unsupported");
+    this.assertSession();
+    if (!this.buyerAccessToken) throw new Error("payment_cancellation_auth_required");
+    if (!/^[A-Za-z0-9_:-]{1,200}$/.test(intentId)) throw new Error("payment_cancellation_fields_invalid");
+    const sessionId = this.sessionId;
+    const response = await fetch(`${this.embedBaseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/cancel`, {
+      method: "POST", headers: this.headers(), cache: "no-store", signal: AbortSignal.timeout(45_000),
+      body: JSON.stringify({ session_id: sessionId, idempotency_key: `cancel_${intentId}`, buyer_access_token: this.buyerAccessToken }),
+    });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("payment_cancellation", response);
+    if (this.sessionId !== sessionId) throw new Error("checkout_changed");
+    const { parsePaymentCancellation } = await import("../lib/payment-cancellation.js");
+    const result = parsePaymentCancellation(await response.json(), intentId);
+    if (result.cancellation === "cancelled") {
+      // The authoritative receipt retires only this payment. Shopping totals and
+      // merchant benefits remain untouched until a separate buyer edit command.
+      if (this.chatState?.payment_intent_id && this.chatState.payment_intent_id !== intentId) throw new Error("checkout_changed");
+      if (this.chatState) this.chatState = { ...this.chatState, payment_intent_id: undefined };
+      this.paymentRecoveryPending = false;
+      this.paymentRevision++;
+    }
+    return result;
   }
 
   async confirmStripePayment(intentId: string): Promise<{ status: string; intent_id: string }> {

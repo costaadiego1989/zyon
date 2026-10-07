@@ -80,8 +80,9 @@ export function CatalogPage(props: CatalogPageProps) {
 </>} />
 
       {vm.pageError || vm.error ? (
-        <div style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
+        <div role="alert" style={{ padding: "12px 16px", borderRadius: 8, background: "var(--color-error-bg)", border: "1px solid var(--color-error)", font: "13px var(--font-sans)", color: "var(--color-error)", marginBottom: 16 }}>
           {vm.pageError ?? vm.error}
+          {vm.error && <Button size="sm" variant="outline" onClick={() => void vm.reload()}>Tentar novamente</Button>}
         </div>
       ) : null}
 
