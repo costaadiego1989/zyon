@@ -11,7 +11,7 @@ function focusable(dialog: HTMLElement): HTMLElement[] {
 }
 
 /** Keeps keyboard focus in the topmost dialog and restores the invoking control. */
-export function activateModalFocus(scope: HTMLElement, dialog: HTMLElement, onClose: () => void): () => void {
+export function activateModalFocus(scope: HTMLElement, dialog: HTMLElement, onClose: () => void, returnFocus?: () => HTMLElement | null): () => void {
   const doc = dialog.ownerDocument;
   const previous = doc.activeElement instanceof HTMLElement ? doc.activeElement : null;
   const stack = stacks.get(doc) ?? [];
@@ -68,16 +68,20 @@ export function activateModalFocus(scope: HTMLElement, dialog: HTMLElement, onCl
     }
     if (!wasTop) return;
     const parent = stack[stack.length - 1];
-    if (previous?.isConnected && !previous.closest("[inert]") && (!parent || parent.dialog.contains(previous))) previous.focus({ preventScroll: true });
+    // Resolve after the closing React commit, when a conditional opener exists again.
+    const target = returnFocus?.() ?? previous;
+    if (target?.isConnected && !target.closest("[inert]") && (!parent || parent.dialog.contains(target))) target.focus({ preventScroll: true });
     else parent?.focus();
   };
 }
 
-export function useModalFocus(open: boolean, dialogRef: RefObject<HTMLElement | null>, onClose: () => void, scopeRef = dialogRef): void {
+export function useModalFocus(open: boolean, dialogRef: RefObject<HTMLElement | null>, onClose: () => void, scopeRef = dialogRef, returnFocus?: () => HTMLElement | null): void {
   const closeRef = useRef(onClose);
+  const returnFocusRef = useRef(returnFocus);
   closeRef.current = onClose;
+  returnFocusRef.current = returnFocus;
   useEffect(() => {
     if (!open || !dialogRef.current || !scopeRef.current) return;
-    return activateModalFocus(scopeRef.current, dialogRef.current, () => closeRef.current());
+    return activateModalFocus(scopeRef.current, dialogRef.current, () => closeRef.current(), () => returnFocusRef.current?.() ?? null);
   }, [open, dialogRef, scopeRef]);
 }

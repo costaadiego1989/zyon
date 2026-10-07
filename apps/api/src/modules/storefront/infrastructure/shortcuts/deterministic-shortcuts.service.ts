@@ -1,6 +1,6 @@
 import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import type { StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
-import type { ConversationBlock } from "../../domain/types/conversation-block.js";
+import type { CartAddResultBlock, ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { AgentCopyService } from "../copy/agent-copy.service.js";
 import { productGallery } from "../product-gallery.js";
 
@@ -61,6 +61,55 @@ function cartSummaryBlock(cart: any): ConversationBlock | null {
   } as ConversationBlock;
 }
 
+const CART_ADD_REFUSALS = new Set([
+  "variant_out_of_stock", "stock_validation_unavailable", "variant_not_resolved", "variant_selection_required",
+  "product_unavailable", "digital_content_unavailable", "cart_quantity_invalid", "cart_item_limit",
+  "cart_option_line_selection_required", "option_required", "unknown_option_item", "single_selection_exceeded",
+  "required_group_missing", "single_group_multiple_selected",
+]);
+
+function sameOptionIds(actual: unknown, expected: string[]): boolean {
+  if (actual === undefined) return expected.length === 0;
+  if (!Array.isArray(actual) || !actual.every(id => typeof id === "string")) return false;
+  const sorted = [...actual].sort();
+  const expectedSorted = [...expected].sort();
+  return sorted.length === expectedSorted.length && sorted.every((id, index) => id === expectedSorted[index]);
+}
+
+function savedOptionsMatch(selectedOptions: unknown, expected: string[]): boolean {
+  if (selectedOptions === undefined) return expected.length === 0;
+  if (!Array.isArray(selectedOptions) || selectedOptions.length !== expected.length) return false;
+  const ids = selectedOptions.map(option => option?.itemId);
+  if (ids.some(id => id !== undefined)) return sameOptionIds(ids, expected);
+  // The native public DTO omits option IDs. addedItem carries the exact IDs
+  // admitted by the server; the saved line must still contain that composition.
+  return selectedOptions.every(option => option && typeof option.groupName === "string"
+    && typeof option.itemName === "string" && Number.isFinite(option.priceModifier));
+}
+
+/** A cart snapshot alone cannot acknowledge this command: it may predate the add. */
+function cartAddResult(cart: any, cartId: string, variantId: string, optionItemIds: string[]): CartAddResultBlock {
+  const data: CartAddResultBlock["data"] = { cartId, variantId, optionItemIds, status: "unknown" };
+  const code = typeof cart?.error === "string" ? cart.error : typeof cart?.code === "string" ? cart.code : undefined;
+  if (code || cart?.error) {
+    if (code && (CART_ADD_REFUSALS.has(code) || code.startsWith("food_option_") || code.startsWith("service_slot_") || code.startsWith("service_schedule_"))) {
+      data.status = "rejected";
+      data.code = code;
+    }
+    return { type: "cart_add_result", data };
+  }
+  const added = cart?.addedItem;
+  const savedSelection = Array.isArray(cart?.items) && cart.items.some((item: any) => item?.variantId === variantId
+    && Number.isSafeInteger(item.quantity) && item.quantity > 0 && (item.selectedServiceSlot?.slotId ?? undefined) === undefined
+    && savedOptionsMatch(item.selectedOptions, optionItemIds));
+  if (cart?.cartId === cartId && added?.variantId === variantId && (added.serviceSlotId ?? undefined) === undefined
+    && sameOptionIds(added.optionItemIds, optionItemIds) && savedSelection) {
+    data.status = "succeeded";
+    data.optionItemIds = added.optionItemIds ?? [];
+  }
+  return { type: "cart_add_result", data };
+}
+
 async function resolveAddToCartShortcut(
   deps: DeterministicShortcutDeps,
   input: StorefrontConversationInput,
@@ -68,32 +117,36 @@ async function resolveAddToCartShortcut(
   const match = input.userMessage.trim().match(/^adicionar(?:\s+.+?)?\s+ao carrinho\s+\[variantId:([A-Za-z0-9_-]{1,191})\](?:\s+\[optionItemIds:([A-Za-z0-9_,-]+)\])?\s*$/i);
   if (!match || !deps.addItemToCart) return null;
   const optionItemIds = (match[2] ?? "").split(",").filter((id) => /^[A-Za-z0-9_-]{1,191}$/.test(id));
+  const cartId = input.cartId ?? input.sessionId;
   try {
     const cart = await deps.addItemToCart({
-      cartId: input.cartId ?? input.sessionId,
+      cartId,
       variantId: match[1],
       quantity: 1,
       ...(optionItemIds.length ? { selectedOptionItemIds: optionItemIds } : {}),
     });
+    const result = cartAddResult(cart, cartId, match[1], optionItemIds);
     const block = cartSummaryBlock(cart);
-    if (!block) {
+    if (result.data.status !== "succeeded" || !block) {
       return {
-        message: typeof cart?.detail === "string" ? cart.detail : "Não consegui adicionar este produto agora. Tente novamente.",
-        blocks: [],
-        suggestedNext: ["Ver Produtos", "Continuar Comprando"],
+        message: result.data.status === "rejected"
+          ? typeof cart?.detail === "string" ? cart.detail : "Não consegui adicionar este produto agora. Revise sua escolha."
+          : "Não consegui confirmar se o produto foi adicionado. Confira o carrinho antes de tentar novamente.",
+        blocks: [result],
+        suggestedNext: ["Ver Carrinho", "Continuar Comprando"],
       };
     }
     deps.emitFunnelEvent(input.merchantId, input.sessionId, "cart_viewed").catch(() => {});
     return {
       message: "Produto adicionado ao carrinho.",
-      blocks: [block],
+      blocks: [result, block],
       suggestedNext: ["Ver Carrinho", "Continuar Comprando", "Finalizar Compra"],
     };
   } catch {
     return {
-      message: "Não consegui adicionar este produto agora. Tente novamente.",
-      blocks: [],
-      suggestedNext: ["Ver Produtos", "Continuar Comprando"],
+      message: "Não consegui confirmar se o produto foi adicionado. Confira o carrinho antes de tentar novamente.",
+      blocks: [cartAddResult(undefined, cartId, match[1], optionItemIds)],
+      suggestedNext: ["Ver Carrinho", "Continuar Comprando"],
     };
   }
 }

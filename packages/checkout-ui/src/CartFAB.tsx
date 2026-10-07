@@ -5,7 +5,7 @@ function formatPrice(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
-export function CartFAB({ itemCount, total, onClick }: CartFABProps) {
+export function CartFAB({ itemCount, total, onClick, buttonRef }: CartFABProps) {
   const [pulse, setPulse] = useState(false);
   const [prevCount, setPrevCount] = useState(itemCount);
 
@@ -25,6 +25,7 @@ export function CartFAB({ itemCount, total, onClick }: CartFABProps) {
         @keyframes ckui-badge-pop { 0%{transform:scale(0.5)} 60%{transform:scale(1.2)} 100%{transform:scale(1)} }
       `}</style>
       <button data-neu="floating"
+        ref={buttonRef}
         type="button"
         onClick={onClick}
         aria-label={itemCount > 0 ? `Carrinho: ${itemCount} itens, ${formatPrice(total)}` : "Carrinho"}

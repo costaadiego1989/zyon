@@ -31,10 +31,16 @@ export default function NativeCartPanel({
   const { cart, clearCart, updating, error } = useCart();
   const { config: widgetConfig, error: configError } = useWidgetConfig();
   const [sheetOpen, setSheetOpen] = useState(false);
+  const fabButtonRef = useRef<HTMLButtonElement>(null);
+  const returnToFabRef = useRef(false);
   const prevCountRef = useRef(cart.itemCount);
   const manuallyOpenedRef = useRef(false);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const isBudgetMode = widgetConfig?.budgetModeEnabled ?? budgetModeEnabled;
+
+  useEffect(() => {
+    if (!sheetOpen) returnToFabRef.current = false;
+  }, [sheetOpen]);
   
   useEffect(() => {
     if (forceOpen) {
@@ -92,11 +98,13 @@ export default function NativeCartPanel({
   return (
     <>
       {!sheetOpen && <CartFAB
+        buttonRef={fabButtonRef}
         itemCount={cart.itemCount}
         total={cart.total}
-        onClick={handleManualOpen}
+        onClick={() => { returnToFabRef.current = true; handleManualOpen(); }}
       />}
       <CartSheet
+        returnFocus={() => returnToFabRef.current ? fabButtonRef.current : null}
         open={sheetOpen}
         cart={{
           cartId: cart.cartId,

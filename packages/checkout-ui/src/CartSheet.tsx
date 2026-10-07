@@ -8,7 +8,7 @@ function formatPrice(value: number): string {
 
 export type CartSheetPosition = "bottom" | "right";
 
-export function CartSheet({ open, cart, updating = false, error, mode = "checkout", onClose, onCheckout, onBudgetSubmit, onUpdateQty, onRemoveItem, onViewCart, position = "bottom" }: CartSheetProps & { onViewCart?: () => void; position?: CartSheetPosition; onBudgetSubmit?: (data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }) => void }) {
+export function CartSheet({ open, cart, updating = false, error, mode = "checkout", onClose, returnFocus, onCheckout, onBudgetSubmit, onUpdateQty, onRemoveItem, onViewCart, position = "bottom" }: CartSheetProps & { onViewCart?: () => void; position?: CartSheetPosition; onBudgetSubmit?: (data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }) => void }) {
   const [showBudgetForm, setShowBudgetForm] = useState(false);
   const [budgetName, setBudgetName] = useState("");
   const [budgetEmail, setBudgetEmail] = useState("");
@@ -18,7 +18,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
   const [budgetSending, setBudgetSending] = useState(false);
   const scopeRef = useRef<HTMLDivElement>(null);
   const dialogRef = useRef<HTMLDivElement>(null);
-  useModalFocus(open, dialogRef, onClose, scopeRef);
+  useModalFocus(open, dialogRef, onClose, scopeRef, returnFocus);
 
   const [budgetError, setBudgetError] = useState<string | null>(null);
   useEffect(() => {

@@ -1,3 +1,5 @@
+import type { Ref } from "react";
+
 export interface CartItemData {
   variantId: string;
   productName: string;
@@ -23,6 +25,7 @@ export interface CartSheetProps {
   cart: CartState;
   mode?: "checkout" | "budget";
   onClose: () => void;
+  returnFocus?: () => HTMLElement | null;
   onCheckout: () => void;
   onBudgetSubmit?: (data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }) => void;
   onUpdateQty: (variantId: string, quantity: number) => void;
@@ -33,4 +36,5 @@ export interface CartFABProps {
   itemCount: number;
   total: number;
   onClick: () => void;
+  buttonRef?: Ref<HTMLButtonElement>;
 }
