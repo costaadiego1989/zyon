@@ -2,8 +2,8 @@
   "$schema": "https://railway.com/railway.schema.json",
   "build": { "builder": "DOCKERFILE", "dockerfilePath": "apps/api/Dockerfile" },
   "deploy": {
-    "preDeployCommand": ["node scripts/deploy-conversational-returns.mjs"],
-    "startCommand": "node dist/main.js",
+    "preDeployCommand": [],
+    "startCommand": "sh -c 'node scripts/deploy-conversational-returns.mjs && exec node dist/main.js'",
     "healthcheckPath": "/ready",
     "healthcheckTimeout": 180,
     "restartPolicyType": "ON_FAILURE",
