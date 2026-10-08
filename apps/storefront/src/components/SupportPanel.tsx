@@ -7,7 +7,6 @@ import { apiCall, API_BASE } from "@/lib/services/http";
 import { fetchPublicFaq, type FaqItem } from "@/lib/services/support.service";
 import { caseLabel, evidenceUrl, getSupportCase, openGenericCase, readSupportCase, rememberSupportTicket, sendCaseMessage, supportChanged, type SupportCaseDetail } from "@/lib/services/support-case.service";
 import { ReturnRequestForm } from "./ReturnRequestForm";
-import { SupportPhotoPicker } from "./SupportPhotoPicker";
 import styles from "./SupportFlow.module.css";
 
 export interface SupportTarget { ticketId?: string; orderId?: string; view?: "return"; intent?: "cancel"; merchantId?: string; }
@@ -18,10 +17,8 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
   const [faq, setFaq] = useState<FaqItem[]>([]);
   const [answer, setAnswer] = useState<FaqItem | null>(null);
   const [input, setInput] = useState("");
-  const [images, setImages] = useState<string[]>([]);
   const [loading, setLoading] = useState(false);
   const [sending, setSending] = useState(false);
-  const [readingImages, setReadingImages] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const request = useRef(0);
   const messageKey = useRef<string>();
@@ -37,7 +34,7 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
   const buyer = getValidBuyer();
   const identity = buyer?.globalUserId;
   useEffect(() => { if (merchantId) void fetchPublicFaq(merchantId).then(setFaq); }, [merchantId]);
-  useEffect(() => { setTicketId(undefined); setDetail(null); setInput(""); setImages([]); setView("welcome"); messageKey.current = undefined; }, [identity, merchantId]);
+  useEffect(() => { setTicketId(undefined); setDetail(null); setInput(""); setView("welcome"); messageKey.current = undefined; }, [identity, merchantId]);
   useEffect(() => {
     if (!open) return;
     setError(null);
@@ -109,23 +106,22 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
     observer.observe(marker); window.addEventListener("focus", acknowledge);
     return () => { observer.disconnect(); window.removeEventListener("focus", acknowledge); };
   }, [open, view, lastMessage, detail?.ticketId]);
-  function showCase(id: string) { if (sending) return; setTicketId(id); setView("chat"); setInput(""); setImages([]); messageKey.current = undefined; }
+  function showCase(id: string) { if (sending) return; setTicketId(id); setView("chat"); setInput(""); messageKey.current = undefined; }
   function login() { onClose(); window.dispatchEvent(new Event("zyon:open-buyer-hub")); }
   async function send() {
-    if (sending || readingImages || !scope || (!input.trim() && !images.length) || !buyer) return;
+    if (sending || !scope || !input.trim() || !buyer) return;
     const text = input.trim();
     const id = messageKey.current ?? crypto.randomUUID(); messageKey.current = id;
     setSending(true); setError(null);
     try {
-      if (view === "chat" && ticketId) await sendCaseMessage(ticketId, text, images, id);
+      if (view === "chat" && ticketId) await sendCaseMessage(ticketId, text, id);
       else {
         const existing = inbox.items.find(item => item.kind === "support" && item.active && item.merchantId === scope);
-        const result = existing ? { ticketId: existing.ticketId } : await openGenericCase(scope, text || "Enviei fotos para a análise da loja.", id);
-        if (existing) await sendCaseMessage(result.ticketId, text, images, id);
-        else if (images.length) await sendCaseMessage(result.ticketId, "Fotos da solicitação", images, `${id}_photos`);
+        const result = existing ? { ticketId: existing.ticketId } : await openGenericCase(scope, text, id);
+        if (existing) await sendCaseMessage(result.ticketId, text, id);
         setTicketId(result.ticketId); setView("chat");
       }
-      setInput(""); setImages([]); messageKey.current = undefined; supportChanged(); await refresh();
+      setInput(""); messageKey.current = undefined; supportChanged(); await refresh();
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível enviar. Tente novamente."); }
     finally { setSending(false); }
   }
@@ -141,6 +137,6 @@ export default function SupportPanel({ open, onClose, merchantId, agentName, tar
       {error && <div className={styles.error} role="alert">{error}{view === "chat" && <button className={styles.button} onClick={() => void refresh()}>Atualizar conversa</button>}</div>}
     </div></main>
     {view === "chat" && newMessages && <button className={styles.button} onClick={() => bottom.current?.scrollIntoView({ block: "nearest", behavior: "smooth" })}>Ver novas mensagens</button>}
-    {view !== "return" && <div className={styles.composer}>{view === "chat" && detail && !detail.active ? <p className={styles.muted}>Este atendimento foi concluído. O histórico continua disponível na sua conta.</p> : !buyer ? <button className={styles.button} onClick={login}>Entrar para conversar com a loja</button> : <form className={styles.stack} onSubmit={event => { event.preventDefault(); void send(); }}><label className={styles.label} htmlFor="support-message">{view === "chat" ? "Sua mensagem à loja" : "Fale com a loja"}</label><textarea id="support-message" className={styles.textarea} rows={2} maxLength={4000} value={input} disabled={sending} onChange={event => { setInput(event.target.value); messageKey.current = undefined; }} placeholder="Escreva sua mensagem…" /><SupportPhotoPicker compact onReadingChange={setReadingImages} images={images} onChange={value => { setImages(value); messageKey.current = undefined; }} disabled={sending} /><button className={`${styles.button} ${styles.primary}`} type="submit" disabled={sending || readingImages || !scope || (!input.trim() && !images.length) || (view === "chat" && (!detail || loading))}>{sending ? "Enviando…" : "Enviar mensagem"}</button></form>}</div>}
+    {view !== "return" && <div className={styles.composer}>{view === "chat" && detail && !detail.active ? <p className={styles.muted}>Este atendimento foi concluído. O histórico continua disponível na sua conta.</p> : !buyer ? <button className={styles.button} onClick={login}>Entrar para conversar com a loja</button> : <form className={styles.stack} onSubmit={event => { event.preventDefault(); void send(); }}><label className={styles.label} htmlFor="support-message">{view === "chat" ? "Sua mensagem à loja" : "Fale com a loja"}</label><textarea id="support-message" className={styles.textarea} rows={2} maxLength={4000} value={input} disabled={sending} onChange={event => { setInput(event.target.value); messageKey.current = undefined; }} placeholder="Escreva sua mensagem…" /><button className={`${styles.button} ${styles.primary}`} type="submit" disabled={sending || !scope || !input.trim() || (view === "chat" && (!detail || loading))}>{sending ? "Enviando…" : "Enviar mensagem"}</button></form>}</div>}
   </div></>;
 }

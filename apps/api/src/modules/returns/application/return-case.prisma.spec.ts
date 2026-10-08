@@ -14,7 +14,7 @@ import { RealtimeCapabilityService } from "../../../shared/auth/realtime-capabil
 
 test("database lifecycle: concurrent opening, ownership, ordered messages, private photos and one financial attempt", { skip: !process.env.RETURNS_DATABASE_TEST }, async t => {
   const database = new URL(process.env.DATABASE_URL!);
-  assert.equal(database.hostname, "127.0.0.1"); assert.equal(database.port, "56526"); assert.equal(database.pathname, "/returns_qa");
+  assert.equal(database.hostname, "127.0.0.1"); assert.equal(database.port, process.env.RETURNS_DATABASE_TEST_PORT ?? "56526"); assert.equal(database.pathname, "/returns_qa");
   const db = new PrismaClient(); const suffix = randomUUID(); const merchantId = `qa_${suffix}`, buyerId = `buyer_${suffix}`, orderId = `order_${suffix}`;
   t.after(async () => {
     const tickets = await db.supportTicket.findMany({ where: { merchantId }, select: { id: true } });
@@ -39,7 +39,8 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
     reconcileRefundPayment: async () => ({ state: settled ? "succeeded" : "unknown" }),
   } as any, undefined, undefined, db);
   const cases = new ReturnCaseService(db, orders, photos, refund, {} as any, caps);
-  const input = { merchantId, buyerId, orderId, reason: "DEFECTIVE", notes: "Uma unidade chegou com defeito.", requestKey: randomUUID(), items: [{ variantId: "variant_a", quantity: 1 }] };
+  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF9sAAAAASUVORK5CYII=";
+  const input = { merchantId, buyerId, orderId, reason: "DEFECTIVE", notes: "Uma unidade chegou com defeito.", requestKey: randomUUID(), items: [{ variantId: "variant_a", quantity: 1 }], images: [png] };
   await assert.rejects(() => cases.open({ ...input, buyerId: "another_buyer" }), /buyer_order_not_found/);
   await assert.rejects(() => cases.open({ ...input, items: [{ variantId: "foreign", quantity: 1 }] }), /item_not_in_order/);
   await assert.rejects(() => cases.open({ ...input, items: [{ variantId: "variant_a", quantity: 3 }] }), /invalid_return_quantity/);
@@ -65,8 +66,7 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
   let detail = await cases.detail(merchantId, ticketId); assert.ok(detail.unreadCount >= 2);
   await cases.markRead(merchantId, ticketId, "buyer", detail.messages.at(-1)!.id);
   assert.equal((await cases.detail(merchantId, ticketId)).unreadCount, 0);
-  const png = "data:image/png;base64,iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mP8/x8AAwMCAO+aF9sAAAAASUVORK5CYII=";
-  await cases.sendPhotos(merchantId, ticketId, buyerId, "Foto do defeito", [png], randomUUID());
+  await cases.sendMessage(merchantId, ticketId, buyerId, "Foto do defeito enviada na abertura.", randomUUID());
   detail = await cases.detail(merchantId, ticketId); const photoUrl = new URL(detail.imageUrls[0]!, "http://localhost"); const attachmentId = photoUrl.pathname.split("/").at(-1)!;
   assert.equal((await photos.read(attachmentId, photoUrl.searchParams.get("access_token")!)).contentType, "image/png");
   assert.ok(![...storage.values()][0]!.subarray(0, 8).equals(Buffer.from(png.split(",")[1]!, "base64").subarray(0, 8)));
@@ -75,20 +75,23 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
     uploadPrivate: async () => { throw new Error("Database photos must not call object storage"); },
     readPrivate: async () => { throw new Error("Database photos must not call object storage"); } } as any, caps);
   const databaseCases = new ReturnCaseService(db, orders, databasePhotos, refund, {} as any, caps);
-  const photoMessageKey = randomUUID();
-  await Promise.all(Array.from({ length: 3 }, () => databaseCases.sendPhotos(merchantId, ticketId, buyerId, "Foto privada no banco", [png], photoMessageKey)));
-  assert.equal(await db.supportTicketMessage.count({ where: { ticketId, clientMessageId: photoMessageKey } }), 1);
-  const storedPhoto = await db.supportAttachment.findFirstOrThrow({ where: { ticketId, storageKey: { startsWith: "database:" } } });
+  const photoOrderId = `photo_order_${suffix}`;
+  await db.buyerPurchaseRecord.create({ data: { merchantId, globalUserId: buyerId, orderId: photoOrderId, currency: "BRL", totalAmount: 29, discountAmount: 0, completedAt: new Date(), items } });
+  const photoRequestKey = randomUUID();
+  const photoCases = await Promise.all(Array.from({ length: 3 }, () => databaseCases.open({ ...input, orderId: photoOrderId, requestKey: photoRequestKey })));
+  const photoTicketId = photoCases[0]!.ticketId;
+  assert.equal(new Set(photoCases.map(value => value.ticketId)).size, 1);
+  const storedPhoto = await db.supportAttachment.findFirstOrThrow({ where: { ticketId: photoTicketId, storageKey: { startsWith: "database:" } } });
   assert.ok(storedPhoto.encryptedPayload);
   assert.notDeepEqual(Buffer.from(storedPhoto.encryptedPayload!), Buffer.from(png.split(",")[1]!, "base64"));
-  assert.equal(await db.supportAttachment.count({ where: { ticketId, storageKey: { startsWith: "database:" } } }), 1);
+  assert.equal(await db.supportAttachment.count({ where: { ticketId: photoTicketId, storageKey: { startsWith: "database:" } } }), 1);
   const databaseUrl = new URL(databasePhotos.urls([storedPhoto.id], merchantId)[0]!, "http://localhost");
   assert.deepEqual((await databasePhotos.read(storedPhoto.id, databaseUrl.searchParams.get("access_token")!)).buffer, Buffer.from(png.split(",")[1]!, "base64"));
   const foreignToken = caps.issue({ purpose: "support-attachment", merchantId: "another_merchant", resourceId: storedPhoto.id }).token;
   await assert.rejects(() => databasePhotos.read(storedPhoto.id, foreignToken), /attachment_not_found/);
   const beforeReply = detail.messages.at(-1)!.id; await send.execute({ merchantId, ticketId, content: "Recebi a foto.", senderType: "merchant", clientMessageId: randomUUID() }); await cases.markRead(merchantId, ticketId, "buyer", beforeReply);
   assert.equal((await cases.detail(merchantId, ticketId)).unreadCount, 1);
-  for (let index = 0; index < 105; index++) await cases.sendPhotos(merchantId, ticketId, buyerId, `Mensagem ${index}`, [], randomUUID());
+  for (let index = 0; index < 105; index++) await cases.sendMessage(merchantId, ticketId, buyerId, `Mensagem ${index}`, randomUUID());
   const firstPage = await cases.detail(merchantId, ticketId); assert.equal(firstPage.messages.length, 100); assert.ok(firstPage.nextCursor);
   const secondPage = await cases.detail(merchantId, ticketId, firstPage.nextCursor!); const all = [...firstPage.messages, ...secondPage.messages];
   assert.equal(new Set(all.map(item => item.id)).size, all.length); assert.ok(all.length > 100);
@@ -103,7 +106,7 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
   await assert.rejects(() => cases.action(merchantId, ticketId, "operator_qa", { action: "reject", notes: "Conflito" }), /case_cannot_change_during_refund/);
   settled = true; await cases.approveRefund(merchantId, ticketId, 1000); detail = await cases.detail(merchantId, ticketId);
   assert.equal(detail.active, false); assert.equal(detail.refund?.status, "COMPLETED"); assert.equal(detail.status, "resolved"); assert.equal(posts, 1);
-  await assert.rejects(() => cases.sendPhotos(merchantId, ticketId, buyerId, "Outra mensagem", [], randomUUID()), /ticket_resolved/);
+  await assert.rejects(() => cases.sendMessage(merchantId, ticketId, buyerId, "Outra mensagem", randomUUID()), /ticket_resolved/);
   assert.equal(await db.returnNoticeDelivery.count({ where: { returnId, type: "return_refunded" } }), 2);
   const remaining = await orders.load(merchantId, orderId, buyerId); assert.equal(remaining.items.find(item => item.variantId === "variant_a")?.eligibleQuantity, 1);
   const next = await cases.open({ ...input, requestKey: randomUUID(), items: [{ variantId: "variant_a", quantity: 1 }, { variantId: "variant_b", quantity: 1 }] });

@@ -250,25 +250,21 @@ export class ReturnCaseService {
     const ticket = await this.buyerTicket(buyerId, ticketId, merchantId);
     return this.capabilities.issue({ purpose: "support-ticket", merchantId: ticket.merchantId, resourceId: ticket.id, origin });
   }
-  async sendPhotos(merchantId: string, ticketId: string, buyerId: string, content: string, images: string[], clientMessageId: string) {
-    if (!/^[A-Za-z0-9_-]{8,100}$/.test(clientMessageId) || typeof content !== "string" || content.length > 4000) throw new BadRequestException("invalid_message");
+  async sendMessage(merchantId: string, ticketId: string, buyerId: string, content: string, clientMessageId: string) {
+    if (!/^[A-Za-z0-9_-]{8,100}$/.test(clientMessageId) || typeof content !== "string" || !content.trim() || content.length > 4000) throw new BadRequestException("invalid_message");
     const ticket = await this.buyerTicket(buyerId, ticketId, merchantId);
     const previous = await this.prisma.supportTicketMessage.findFirst({ where: { ticketId: ticket.id, senderType: "buyer", clientMessageId } });
     if (previous) return this.messageDto(previous, ticket.id);
     if (["closed", "resolved"].includes(ticket.status)) throw new ConflictException("ticket_resolved");
-    const photos = await this.photos.prepare(images, merchantId, buyerId);
-    if (!photos.length && !content.trim()) throw new BadRequestException("invalid_message");
-    try { return await this.prisma.$transaction(async tx => {
+    return this.prisma.$transaction(async tx => {
       await lockSupportResource(tx, `support:${ticket.id}`);
       const latest = await tx.supportTicket.findUniqueOrThrow({ where: { id: ticket.id } });
       const old = await tx.supportTicketMessage.findFirst({ where: { ticketId: ticket.id, senderType: "buyer", clientMessageId } });
       if (old) return this.messageDto(old, ticket.id);
       if (["closed", "resolved"].includes(latest.status)) throw new ConflictException("ticket_resolved");
-      if (photos.length) await tx.supportAttachment.createMany({ data: photos.map(p => ({ ...p, ticketId: ticket.id })) });
-      const message = await persistSupportMessage(tx, { merchantId, ticketId: ticket.id, senderType: "buyer", content: content.trim() || "Enviei fotos para a análise da loja.", clientMessageId,
-        metadata: photos.length ? { kind: "photos", attachmentIds: photos.map(p => p.id), imageUrls: [] } : undefined });
+      const message = await persistSupportMessage(tx, { merchantId, ticketId: ticket.id, senderType: "buyer", content: content.trim(), clientMessageId });
       return this.messageDto(message, ticket.id);
-    }); } finally { await this.photos.discardUnlinked(photos); }
+    });
   }
 
   async approveRefund(merchantId: string, ticketId: string, expectedAmountCents: number) {

@@ -33,8 +33,8 @@ export async function getSupportCase(ticketId: string) {
 export function readSupportCase(ticketId: string, lastMessageId: string) {
   return apiCall(`/buyer/support/tickets/${encodeURIComponent(ticketId)}/read`, { method: "POST", body: JSON.stringify({ lastMessageId }) });
 }
-export function sendCaseMessage(ticketId: string, content: string, images: string[], clientMessageId: string) {
-  return apiCall(`/buyer/support/tickets/${encodeURIComponent(ticketId)}/messages`, { method: "POST", body: JSON.stringify({ content, images, clientMessageId }) });
+export function sendCaseMessage(ticketId: string, content: string, clientMessageId: string) {
+  return apiCall(`/buyer/support/tickets/${encodeURIComponent(ticketId)}/messages`, { method: "POST", body: JSON.stringify({ content, clientMessageId }) });
 }
 export function openGenericCase(merchantId: string, content: string, clientMessageId: string) {
   return apiCall<{ ticketId: string }>("/buyer/support/tickets", { method: "POST", body: JSON.stringify({ merchantId, content, clientMessageId }) });

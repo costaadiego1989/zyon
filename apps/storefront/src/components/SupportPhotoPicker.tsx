@@ -17,13 +17,13 @@ export function SupportPhotoPicker({ images, onChange, disabled = false, compact
     if (locked || !files?.length) return;
     setError(null); setDragging(false);
     const chosen = Array.from(files);
-    if (chosen.length + images.length > 3) { setError("Você pode enviar até 3 fotos por mensagem."); return; }
+    if (chosen.length + images.length > 3) { setError("Você pode enviar até 3 fotos na solicitação."); return; }
     if (chosen.some(file => !["image/jpeg", "image/png", "image/webp"].includes(file.type) || !file.size || file.size > 2_000_000)) { setError("Use fotos JPG, PNG ou WebP de até 2 MB cada."); return; }
     setReading(true); onReadingChange?.(true);
     try {
       const added = await Promise.all(chosen.map(file => new Promise<string>((resolve, reject) => { const reader = new FileReader(); reader.onload = () => resolve(String(reader.result)); reader.onerror = () => reject(new Error("Não foi possível ler a foto. Tente selecioná-la novamente.")); reader.readAsDataURL(file); })));
       const next = [...images, ...added];
-      if (next.reduce((sum, image) => sum + image.length, 0) > 4_500_000) throw new Error("As fotos juntas devem ter até 3,3 MB. Envie as demais em outra mensagem.");
+      if (next.reduce((sum, image) => sum + image.length, 0) > 4_500_000) throw new Error("As fotos juntas devem ter até 3,3 MB. Escolha fotos menores para esta solicitação.");
       added.forEach((src, index) => names.current.set(src, chosen[index].name));
       onChange(next);
     } catch (e) { setError(e instanceof Error ? e.message : "Não foi possível anexar a foto."); }
@@ -35,7 +35,7 @@ export function SupportPhotoPicker({ images, onChange, disabled = false, compact
       onDragLeave={event => { if (!event.currentTarget.contains(event.relatedTarget as Node | null)) setDragging(false); }}
       onDrop={event => { event.preventDefault(); setDragging(false); void select(event.dataTransfer.files); }}>
       <button className={styles.select} type="button" disabled={locked || images.length >= 3}
-        onClick={() => input.current?.click()} aria-label="Anexar fotos ao atendimento" aria-describedby={hintId}>
+        onClick={() => input.current?.click()} aria-label="Anexar fotos à solicitação de troca ou devolução" aria-describedby={hintId}>
         <span className={styles.uploadIcon}><svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><rect x="3" y="3" width="18" height="18" rx="4" /><circle cx="8.5" cy="8.5" r="1.5" /><path d="m21 15-5-5-8 11M3 16l4-4 4 4" /></svg></span>
         <span className={styles.selectText}><strong>{reading ? "Preparando fotos…" : images.length >= 3 ? "3 fotos selecionadas" : images.length ? "Adicionar outra foto" : "Adicionar fotos"}</strong><span id={hintId}>{compact ? "JPG, PNG ou WebP · até 2 MB cada" : "Selecione os arquivos ou arraste as fotos aqui"}</span></span>
         <span className={styles.count}>{images.length}/3</span>
