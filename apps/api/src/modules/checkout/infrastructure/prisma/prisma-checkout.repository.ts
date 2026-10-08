@@ -528,6 +528,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     return row ? toCompletedOrder(row) : undefined;
   }
 
+  async findCompletedOrderById(merchantId: string, orderId: string): Promise<CompletedOrder | undefined> {
+    const row = await this.prisma.completedOrder.findFirst({ where: { merchantId, id: orderId } });
+    return row ? toCompletedOrder(row) : undefined;
+  }
+
+
   async findCompletedOrderByExternalOrderId(merchantId: string, externalOrderId: string): Promise<CompletedOrder | undefined> {
     const row = await this.prisma.completedOrder.findFirst({
       where: { merchantId, externalOrderId },

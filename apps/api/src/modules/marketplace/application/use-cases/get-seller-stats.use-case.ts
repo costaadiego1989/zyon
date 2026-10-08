@@ -43,25 +43,29 @@ export class GetSellerStatsUseCase {
     const now = new Date();
     const startOfMonth = new Date(now.getFullYear(), now.getMonth(), 1);
 
-    const monthlyOrders = allOrders.filter(
-      (o) => o.createdAt >= startOfMonth,
+    const cancelled = new Set(allSettlements.filter((s) =>
+      ["return_cancelled", "chargeback_cancelled", "chargeback_debt"].includes(s.status)).map((s) => s.lineItemId));
+    const purchased = allOrders.filter((o) => Boolean(o.orderId) && !cancelled.has(o.id));
+    const settlementsByItem = new Map(allSettlements.map(s => [s.lineItemId, s]));
+    const monthlyOrders = purchased.filter(
+      (o) => (o.purchasedAt ?? settlementsByItem.get(o.id)?.createdAt ?? o.createdAt) >= startOfMonth,
     );
 
-    const pendingOrders = allOrders.filter(
+    const pendingOrders = purchased.filter(
       (o) => o.fulfillmentStatus === "pending",
     ).length;
 
     const monthlyRevenueCents = this.sumSellerNet(monthlyOrders);
     const monthlyCommissionCents = this.sumCommission(monthlyOrders);
 
-    const itemsShipped = allOrders.filter(
-      (o) => o.fulfillmentStatus === "shipped",
+    const itemsShipped = purchased.filter(
+      (o) => o.fulfillmentStatus === "shipped" || o.fulfillmentStatus === "delivered",
     ).length;
-    const totalItems = allOrders.length;
+    const totalItems = purchased.length;
     const fulfillmentRate = totalItems > 0 ? itemsShipped / totalItems : 0;
 
     const outstandingDebtCents = outstandingDebts.reduce(
-      (sum, d) => sum + d.amountCents,
+      (sum, d) => sum + (d.outstandingAmountCents ?? d.amountCents),
       0,
     );
 

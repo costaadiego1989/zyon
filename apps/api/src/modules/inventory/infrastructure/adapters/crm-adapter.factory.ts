@@ -3,11 +3,14 @@ import { CrmProviderPort } from "../../domain/ports/crm-provider.port.js";
 import { HubSpotCrmAdapter } from "./hubspot-crm.adapter.js";
 import { PipedriveCrmAdapter } from "./pipedrive-crm.adapter.js";
 import { RdStationCrmAdapter } from "./rdstation-crm.adapter.js";
+import { MailchimpCrmAdapter, ActiveCampaignCrmAdapter, KlaviyoCrmAdapter } from "./marketing-crm.adapters.js";
+import { normalizeCrmConfig } from "./crm-provider-config.js";
 
 export interface CrmProviderConfig {
   provider: string;
   accessToken?: string;
   refreshToken?: string;
+  config?: Record<string, unknown>;
 }
 
 /**
@@ -21,13 +24,21 @@ export class CrmAdapterFactory {
       throw new Error("inventory_crm_adapter_unavailable");
     }
 
-    switch (config.provider.toLowerCase()) {
+    const provider = config.provider.toLowerCase();
+    const settings = normalizeCrmConfig(provider, config.config);
+    switch (provider) {
       case "hubspot":
         return new HubSpotCrmAdapter(config.accessToken);
       case "pipedrive":
         return new PipedriveCrmAdapter(config.accessToken);
       case "rdstation":
         return new RdStationCrmAdapter(config.accessToken);
+      case "mailchimp":
+        return new MailchimpCrmAdapter(config.accessToken, settings.audienceId);
+      case "activecampaign":
+        return new ActiveCampaignCrmAdapter(config.accessToken, settings.apiUrl);
+      case "klaviyo":
+        return new KlaviyoCrmAdapter(config.accessToken);
       default:
         throw new Error("inventory_crm_adapter_unavailable");
     }

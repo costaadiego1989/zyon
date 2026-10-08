@@ -222,11 +222,8 @@ export function handleQuickReply(params: QuickReplyParams) {
       trackFunnelEvent(merchantId, conversationId, "checkout_intent");
     }
     const buyer = getValidBuyer();
-    if (buyer) {
-      setCheckoutIntent(buyer.globalUserId);
-    } else {
-      setShowBuyerAuth(true);
-    }
+    // The shell offers pre-checkout suggestions before deciding whether login is needed.
+    setCheckoutIntent(buyer?.globalUserId ?? "guest");
     return;
   }
   if (lower === "aplicar cupom" && cartItemCount === 0) {

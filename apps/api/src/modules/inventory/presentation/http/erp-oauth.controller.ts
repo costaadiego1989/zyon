@@ -9,6 +9,7 @@ import { fetchBlingCompanyId } from "../../infrastructure/adapters/bling-company
 import { isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
 import { TriggerMarketplaceSyncUseCase } from "../../application/use-cases/trigger-marketplace-sync.use-case.js";
 import { TriggerErpSyncUseCase } from "../../application/use-cases/trigger-erp-sync.use-case.js";
+import { TIKTOKSHOP_OAUTH_PORT, type TikTokShopOAuthPort } from "../../domain/ports/tiktokshop-oauth.port.js";
 
 function env(key: string, fallback = ""): string {
   return process.env[key] ?? fallback;
@@ -37,6 +38,7 @@ export class ErpOAuthController {
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly marketplaceSync: TriggerMarketplaceSyncUseCase,
     private readonly erpSync: TriggerErpSyncUseCase,
+    @Inject(TIKTOKSHOP_OAUTH_PORT) private readonly tiktokOAuth: TikTokShopOAuthPort,
   ) {}
 
   private async triggerInitialSync(merchantId: string, provider: string, accessToken: string, connectionId: string) {
@@ -106,13 +108,7 @@ export class ErpOAuthController {
     }
 
     if (provider_lower === "tiktokshop") {
-      const params = new URLSearchParams({
-        app_key: env("TIKTOKSHOP_APP_KEY"),
-        state,
-      });
-      return {
-        url: `https://services.tiktokshop.com/open/authorize?${params.toString()}`,
-      };
+      return { url: this.tiktokOAuth.authorizationUrl(state) };
     }
 
     throw new Error(`unsupported_erp_provider:${provider_lower}`);
@@ -130,7 +126,7 @@ export class ErpOAuthController {
     @Res() res: any,
     @Query("shop_id") shopId?: string
   ) {
-    if (!code || !state) {
+    if (!code || code === "null" || !state) {
       res.redirect(302, dashboardRedirect({ error: "erp_denied" }));
       return;
     }
@@ -148,6 +144,7 @@ export class ErpOAuthController {
       let clientId = "";
       let clientSecret = "";
       let redirectUri = "";
+      let providerConfig: Record<string, string> | null = null;
 
       if (provider === "bling") {
         tokenEndpoint = "https://api.bling.com.br/Api/v3/oauth/token";
@@ -230,35 +227,20 @@ export class ErpOAuthController {
           expires_in: raw.expire_in ?? raw.data?.expire_in ?? 14400,
         };
       } else if (provider === "tiktokshop") {
-        // TikTok Shop: standard POST with app_key/app_secret
-        const tokenRes = await fetch("https://auth.tiktok-shops.com/api/v2/token/get", {
-          method: "POST",
-          headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({
-            app_key: env("TIKTOKSHOP_APP_KEY"),
-            app_secret: env("TIKTOKSHOP_APP_SECRET"),
-            auth_code: code,
-            grant_type: "authorized_code",
-          }),
-        });
-        if (!tokenRes.ok) {
-          const err = await tokenRes.text();
-          this.logger.error("tiktokshop.token_exchange_failed", { status: tokenRes.status, error: err });
-          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
-          return;
-        }
-        const raw: any = await tokenRes.json();
+        const tokens = await this.tiktokOAuth.exchangeCode(code);
+        const shop = await this.tiktokOAuth.getShopIdentity(tokens.accessToken, shopId);
         tokenData = {
-          access_token: raw.data?.access_token,
-          refresh_token: raw.data?.refresh_token,
-          expires_in: raw.data?.access_token_expire_in ?? 7200,
+          access_token: tokens.accessToken,
+          refresh_token: tokens.refreshToken,
+          expires_at: tokens.expiresAt,
         };
+        providerConfig = { tiktokShopId: shop.id, tiktokShopCipher: shop.cipher, tiktokRefreshExpiresAt: tokens.refreshExpiresAt.toISOString() };
       }
 
       // Encrypt and store in ErpConnection
       const accessTokenCipher = encryptErpSecret(tokenData.access_token);
       const refreshTokenCipher = tokenData.refresh_token ? encryptErpSecret(tokenData.refresh_token) : null;
-      const expiresAt = new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
+      const expiresAt = tokenData.expires_at ?? new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
 
       const blingCompanyId = provider === "bling" ? await fetchBlingCompanyId(tokenData.access_token) : null;
       if (provider === "bling") {
@@ -279,6 +261,7 @@ export class ErpOAuthController {
           tokenExpiresAt: expiresAt,
           lastErrorCode: null,
           ...(blingCompanyId ? { config: { blingCompanyId } } : {}),
+          ...(providerConfig ? { config: providerConfig } : {}),
         },
         create: {
           merchantId,
@@ -289,6 +272,7 @@ export class ErpOAuthController {
           refreshTokenCipher,
           tokenExpiresAt: expiresAt,
           ...(blingCompanyId ? { config: { blingCompanyId } } : {}),
+          ...(providerConfig ? { config: providerConfig } : {}),
         },
       });
 

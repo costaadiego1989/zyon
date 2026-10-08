@@ -47,19 +47,16 @@ export class PrismaFederatedProductRepository
     query: string,
     category: string | undefined,
     limit: number,
-    filters?: { includeMerchants?: string[]; excludeMerchants: string[]; hostMerchantId: string },
+    scope?: { includeMerchants?: string[]; excludeMerchants: string[] },
   ) {
-    const configs = await this.prisma.marketplaceConfig.findMany({
-      where: { enabled: true, ...(filters?.includeMerchants ? { merchantId: { in: filters.includeMerchants } } : {}) },
-      select: { merchantId: true, commissionRateBps: true, blockedMerchants: true },
-    });
-    const eligible = configs.filter(c => !filters || (!filters.excludeMerchants.includes(c.merchantId) && !c.blockedMerchants.includes(filters.hostMerchantId)));
-    const merchants = await this.prisma.merchant.findMany({ where: { id: { in: eligible.map(c => c.merchantId) } }, select: { id: true, name: true } });
     const products = await this.prisma.federatedProduct.findMany({
       where: {
-        sourceMerchantId: { in: eligible.map(c => c.merchantId) },
         stockAvailable: true,
         currency: "BRL",
+        sourceMerchantId: {
+          ...(scope?.includeMerchants ? { in: scope.includeMerchants } : {}),
+          ...(scope?.excludeMerchants.length ? { notIn: scope.excludeMerchants } : {}),
+        },
         AND: [
           {
             OR: [
@@ -72,18 +69,19 @@ export class PrismaFederatedProductRepository
         ],
       },
       take: limit,
+      orderBy: { id: "asc" },
     });
     return products.map((p: any) => ({
       id: p.id,
       sourceMerchantId: p.sourceMerchantId,
       sourceProductId: p.sourceProductId,
-      sellerName: merchants.find(m => m.id === p.sourceMerchantId)?.name ?? "",
+      sellerName: "",
       name: p.name,
       description: p.description,
       category: p.category,
       priceCents: p.priceCents,
       currency: p.currency,
-      commissionRateBps: eligible.find(c => c.merchantId === p.sourceMerchantId)!.commissionRateBps,
+      commissionRateBps: 1500,
       stockAvailable: p.stockAvailable,
       imageUrl: p.imageUrl,
       tsRank: 1,
@@ -108,12 +106,12 @@ export class PrismaFederatedProductRepository
       },
       update: {
         name: input.name,
-        description: input.description ?? undefined,
-        category: input.category ?? undefined,
+        description: input.description ?? null,
+        category: input.category ?? null,
         priceCents: input.priceCents ?? 0,
         currency: input.currency ?? "BRL",
         stockAvailable: input.stockAvailable ?? true,
-        imageUrl: input.imageUrl ?? undefined,
+        imageUrl: input.imageUrl ?? null,
         searchableText,
         syncedAt: new Date(),
       },

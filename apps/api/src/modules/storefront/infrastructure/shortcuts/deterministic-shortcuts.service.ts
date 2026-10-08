@@ -151,7 +151,6 @@ async function resolveAddToCartShortcut(
   }
 }
 
-
 async function resolveOffersShortcut(
   deps: DeterministicShortcutDeps,
   input: StorefrontConversationInput,

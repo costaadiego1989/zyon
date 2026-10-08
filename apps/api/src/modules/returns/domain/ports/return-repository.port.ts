@@ -68,8 +68,10 @@ export interface ReturnRepositoryPort {
   /** Pending attempts are safe to reconcile, never reissue. */
   listPendingRefunds(query: PendingRefundQuery): Promise<ReturnEntity[]>;
   list(input: ListReturnsInput): Promise<ListReturnsResult>;
-  updateStatus(returnId: string, status: ReturnStatus): Promise<void>;
+  updateStatus(returnId: string, status: ReturnStatus, expectedStatus?: ReturnStatus): Promise<void>;
   saveLabel(input: SaveLabelInput): Promise<ReturnLabelProps>;
+  /** Atomic manual registration, serialized with automatic carrier purchases. */
+  registerManualLabel?(merchantId: string, input: SaveLabelInput): Promise<void>;
   saveInspection(input: SaveInspectionInput): Promise<ReturnInspectionProps>;
   beginRefund(input: BeginRefundInput): Promise<boolean>;
   saveRefund(input: SaveRefundInput): Promise<ReturnRefundProps>;

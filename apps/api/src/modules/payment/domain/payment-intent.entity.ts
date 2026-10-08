@@ -292,4 +292,6 @@ export class PaymentIntentEntity {
       { status, occurredAt: new Date().toISOString(), ...(reason ? { reason } : {}) }
     ];
   }
+
+
 }

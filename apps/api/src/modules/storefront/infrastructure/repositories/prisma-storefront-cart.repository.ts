@@ -3,7 +3,7 @@ import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { CartItemNotFoundError } from "../../../catalog/domain/errors.js";
 import type { StorefrontCart, StorefrontCartItem, StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
-import { withStorefrontCart } from "./storefront-cart-transaction.js";
+import { assertMarketplaceDiscount, withStorefrontCart } from "./storefront-cart-transaction.js";
 import { assertLocalCartAdmission } from "./local-cart-admission.js";
 
 @Injectable()
@@ -57,6 +57,7 @@ export class PrismaStorefrontCartRepository implements StorefrontCartPort {
 
   async applyCoupon(merchantId: string, sessionId: string, couponCode: string, discountCents: number): Promise<StorefrontCart> {
     return (await withStorefrontCart(this.prisma, merchantId, sessionId, async (_tx, cart) => {
+      assertMarketplaceDiscount(cart, discountCents);
       cart.couponCode = couponCode; cart.discount = discountCents;
     })).cart;
   }
@@ -69,6 +70,7 @@ export class PrismaStorefrontCartRepository implements StorefrontCartPort {
 
   async applyRuleOutcome(merchantId: string, sessionId: string, outcome: { discountCents: number; freeShipping: boolean }): Promise<StorefrontCart> {
     return (await withStorefrontCart(this.prisma, merchantId, sessionId, async (_tx, cart) => {
+      assertMarketplaceDiscount(cart, outcome.discountCents, outcome.freeShipping);
       cart.discount = outcome.discountCents; cart.freeShipping = outcome.freeShipping;
     })).cart;
   }

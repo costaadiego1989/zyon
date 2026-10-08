@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { MARKETPLACE_CONFIG_REPOSITORY } from "../../domain/ports/marketplace-config-repository.port.js";
 import type {
   MarketplaceConfigRepository,
@@ -47,34 +47,44 @@ export class UpdateMarketplaceConfigUseCase {
   }
 
   private validateInput(input: UpdateMarketplaceConfigInput): void {
+    if (input.enabled !== undefined && typeof input.enabled !== "boolean") {
+      throw new BadRequestException("enabled must be a boolean");
+    }
+    for (const key of ["allowedCategories", "blockedMerchants"] as const) {
+      const values = input[key];
+      if (values !== undefined && (!Array.isArray(values) || values.length > 200 ||
+          values.some((v) => typeof v !== "string" || !v.trim() || v.length > 200))) {
+        throw new BadRequestException(`${key} must be an array of at most 200 non-empty strings`);
+      }
+    }
     if (
       input.commissionRateBps !== undefined &&
-      (input.commissionRateBps < 100 || input.commissionRateBps > 5000)
+      (!Number.isInteger(input.commissionRateBps) || input.commissionRateBps < 100 || input.commissionRateBps > 5000)
     ) {
-      throw new Error(
+      throw new BadRequestException(
         "commission_rate_bps must be between 100 and 5000 (1%-50%)",
       );
     }
 
     if (
       input.returnWindowDays !== undefined &&
-      (input.returnWindowDays < 1 || input.returnWindowDays > 30)
+      (!Number.isInteger(input.returnWindowDays) || input.returnWindowDays < 1 || input.returnWindowDays > 30)
     ) {
-      throw new Error("return_window_days must be between 1 and 30");
+      throw new BadRequestException("return_window_days must be between 1 and 30");
     }
 
     if (
       input.payoutDelayDays !== undefined &&
-      (input.payoutDelayDays < 1 || input.payoutDelayDays > 30)
+      (!Number.isInteger(input.payoutDelayDays) || input.payoutDelayDays < 1 || input.payoutDelayDays > 30)
     ) {
-      throw new Error("payout_delay_days must be between 1 and 30");
+      throw new BadRequestException("payout_delay_days must be between 1 and 30");
     }
 
     if (
       input.chargebackWindowDays !== undefined &&
-      (input.chargebackWindowDays < 7 || input.chargebackWindowDays > 30)
+      (!Number.isInteger(input.chargebackWindowDays) || input.chargebackWindowDays < 7 || input.chargebackWindowDays > 30)
     ) {
-      throw new Error("chargeback_window_days must be between 7 and 30");
+      throw new BadRequestException("chargeback_window_days must be between 7 and 30");
     }
   }
 }

@@ -35,6 +35,8 @@ import { revenueLiftEndpoints } from "./endpoints/revenue-lift.js";
 import { revenueManagerEndpoints } from "./endpoints/revenue-manager.js";
 import { cartRecoveryEndpoints } from "./endpoints/cart-recovery.js";
 import { returnsEndpoints } from "./endpoints/returns.js";
+import { marketplaceRefundEndpoints } from "./endpoints/marketplace-refunds.js";
+import { marketplaceRefundPreparationEndpoints } from "./endpoints/marketplace-refund-preparation.js";
 import { inventoryEndpoints } from "./endpoints/inventory.js";
 import { deliveryEndpoints } from "./endpoints/delivery.js";
 import { postSaleEndpoints } from "./endpoints/post-sale.js";
@@ -92,6 +94,8 @@ export function createDashboardApi(options: {
     ...revenueManagerEndpoints(base, f),
     ...cartRecoveryEndpoints(base, f),
     ...returnsEndpoints(base, f),
+    ...marketplaceRefundPreparationEndpoints(base, f),
+    ...marketplaceRefundEndpoints(base, f),
     ...inventoryEndpoints(base, f),
     ...deliveryEndpoints(base, f),
     ...postSaleEndpoints(base, f),

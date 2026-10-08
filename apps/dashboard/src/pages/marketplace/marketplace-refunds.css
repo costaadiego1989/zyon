@@ -1,0 +1,48 @@
+.marketplace-refunds { display: flex; flex-direction: column; gap: 1.25rem; min-width: 0; }
+.marketplace-refunds p { margin: 0; line-height: 1.6; }
+.marketplace-refunds__help, .marketplace-refunds small { color: var(--color-text-muted); font-size: .875rem; }
+.marketplace-refunds__notice:empty { display: none; }
+.marketplace-refunds__error { color: var(--color-error); }
+.marketplace-refunds__table-wrap { overflow-x: auto; max-width: 100%; border: 1px solid var(--border); border-radius: var(--radius-md); }
+.marketplace-refunds__table { width: 100%; border-collapse: collapse; text-align: left; font-size: .875rem; }
+.marketplace-refunds__table th, .marketplace-refunds__table td { padding: 1rem; border-bottom: 1px solid var(--border); vertical-align: top; }
+.marketplace-refunds__table thead { color: var(--color-text-muted); }
+.marketplace-refunds__table tbody tr:last-child > * { border-bottom: 0; }
+.marketplace-refunds__id { display: block; max-width: 12rem; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-family: var(--font-mono); font-weight: 400; }
+.marketplace-refunds__money { white-space: nowrap; font-variant-numeric: tabular-nums; }
+.marketplace-refunds__state { display: block; font-weight: 600; }
+.marketplace-refunds__state[data-state="confirmed"] { color: var(--color-success); }
+.marketplace-refunds small { display: block; margin-top: .375rem; min-width: 10rem; }
+.marketplace-refunds__actions { display: flex; align-items: center; flex-wrap: wrap; gap: .5rem; }
+.marketplace-refunds .zyn-btn, .marketplace-refunds select { min-height: 44px; }
+.marketplace-refunds__pagination { display: flex; align-items: center; justify-content: flex-end; gap: 1rem; }
+.marketplace-refunds__detail { border: 1px solid var(--border); border-radius: var(--radius-md); padding: 1.5rem; display: flex; flex-direction: column; gap: 1rem; }
+.marketplace-refunds__detail h2 { margin: 0; font: 600 1.125rem var(--font-sans); color: var(--color-text); }
+/* Keep the existing feedback launcher from covering a financial confirmation on mobile. */
+body:has(.marketplace-refunds__detail) .platform-feedback-fab { display: none; }
+.marketplace-refunds__reference { overflow-wrap: anywhere; font-family: var(--font-mono); }
+.marketplace-refunds__detail select { max-width: 26rem; width: 100%; padding: .5rem; font: inherit; color: var(--color-text); background: var(--card); border: 1px solid var(--border); border-radius: var(--radius-sm); }
+.marketplace-refunds :focus-visible { outline: 2px solid var(--color-brand); outline-offset: 3px; }
+.marketplace-refunds__help { max-width: 75ch; }
+@media (max-width: 600px) {
+  .marketplace-refunds__table, .marketplace-refunds__table tbody { display: block; }
+  .marketplace-refunds__table thead { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
+  .marketplace-refunds__table tr { display: grid; grid-template-columns: 1fr 1fr; padding: .75rem; gap: .75rem; border-bottom: 1px solid var(--border); }
+  .marketplace-refunds__table tr:last-child { border-bottom: 0; }
+  .marketplace-refunds__table th, .marketplace-refunds__table td { display: block; min-width: 0; padding: 0; border: 0; }
+  .marketplace-refunds__table th, .marketplace-refunds__table td:nth-child(n+4) { grid-column: 1 / -1; }
+  .marketplace-refunds__table td[data-label]::before { content: attr(data-label); display: block; color: var(--color-text-muted); margin-bottom: .25rem; font-size: .75rem; }
+  .marketplace-refunds__id { max-width: none; white-space: normal; overflow-wrap: anywhere; }
+  .marketplace-refunds__table-wrap { overflow-x: visible; }
+  .marketplace-refunds__detail { padding: 1rem; }
+  .marketplace-refunds__detail .marketplace-refunds__actions > * { width: 100%; }
+  .marketplace-refunds__pagination { justify-content: space-between; gap: .5rem; }
+}
+
+.marketplace-refunds__amounts { display: grid; grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); gap: .75rem 1rem; margin: 0; }
+.marketplace-refunds__amounts dd { margin: 0; text-align: right; font-variant-numeric: tabular-nums; }
+.marketplace-refunds__detail h3 { margin: .5rem 0 0; font-size: 1rem; }
+.marketplace-refunds__accept { display: flex; align-items: center; gap: .75rem; min-height: 44px; }
+.marketplace-refunds__accept input { width: 1.25rem; height: 1.25rem; flex-shrink: 0; }
+.marketplace-refunds small { overflow-wrap: anywhere; max-width: 16rem; }
+.marketplace-refunds summary { cursor: pointer; min-height: 44px; display: flex; align-items: center; }

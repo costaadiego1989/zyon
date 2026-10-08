@@ -1,4 +1,4 @@
-import { Controller, ForbiddenException, Get, Put, Post, Param, Body, UseGuards, Req, Inject } from "@nestjs/common";
+import { Controller, BadRequestException, ForbiddenException, Get, Put, Post, Param, Body, UseGuards, Req, Inject } from "@nestjs/common";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
 import { RequirePlanGuard } from "../../../../shared/guards/require-plan.guard.js";
@@ -10,7 +10,7 @@ import { GenerateSeoSuggestionsUseCase } from "../../application/use-cases/gener
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
 import type { GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse, CrossSellConfig } from "@zyon/shared-types";
-import { DEFAULT_CROSS_SELL_CONFIG } from "@zyon/shared-types";
+import { CROSS_SELL_STRATEGIES, normalizeCrossSellConfig } from "@zyon/shared-types";
 
 @UseGuards(AuthGuard, RequirePlanGuard)
 @Controller("merchants")
@@ -104,16 +104,19 @@ export class StoreSettingsController {
     const user = currentUser(req);
     const merchant = await this.prisma.merchant.findUnique({ where: { id: user.merchantId }, select: { storeSettings: true } });
     const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
-    return { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell, touchpoints: { ...DEFAULT_CROSS_SELL_CONFIG.touchpoints, ...settings.crossSell?.touchpoints } };
+    return normalizeCrossSellConfig(settings.crossSell);
   }
 
   @Put("me/cross-sell-config")
   @RequirePlan("STORE_ONLY", "BOTH")
   async updateCrossSellConfig(@Req() req: any, @Body() body: Partial<CrossSellConfig>): Promise<CrossSellConfig> {
     const user = currentUser(req);
+    if (body.strategies !== undefined && (!Array.isArray(body.strategies) || body.strategies.length > 1 || (body.strategies.length === 1 && !CROSS_SELL_STRATEGIES.includes(body.strategies[0]!)))) {
+      throw new BadRequestException("Escolha uma única estratégia para orientar as recomendações.");
+    }
     const merchant = await this.prisma.merchant.findUnique({ where: { id: user.merchantId }, select: { storeSettings: true } });
     const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
-    const current = { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell, touchpoints: { ...DEFAULT_CROSS_SELL_CONFIG.touchpoints, ...settings.crossSell?.touchpoints } };
+    const current = normalizeCrossSellConfig(settings.crossSell);
     const updated: CrossSellConfig = {
       ...current,
       ...body,
@@ -122,6 +125,9 @@ export class StoreSettingsController {
       discount: { ...current.discount, ...body.discount },
       display: { ...current.display, ...body.display },
     };
+    if (updated.enabled && (!Object.values(updated.touchpoints).some(value => value === true) || updated.strategies.length !== 1)) {
+      throw new BadRequestException("Escolha pelo menos um momento e uma única estratégia antes de ativar as sugestões.");
+    }
     await this.prisma.merchant.update({
       where: { id: user.merchantId },
       data: { storeSettings: { ...settings, crossSell: updated } as any },

@@ -1,5 +1,10 @@
+import { assertMarketplacePublicPaymentPolicy, assertMarketplacePublicPaymentCheckout } from "../application/marketplace-public-payment-admission.service.js";
+import { hasMarketplaceCheckout } from "../../checkout/infrastructure/marketplace-checkout-scope.js";
+import { freezeMarketplaceFunding, fundingHash } from "../../marketplace/infrastructure/repositories/prisma-marketplace-funding.repository.js";
+import { ServiceUnavailableException } from "@nestjs/common";
 import { snapshotDigitalPaymentContent } from "../../../shared/persistence/digital-payment-content.js";
-import { ConflictException, Injectable } from "@nestjs/common";
+import { Injectable } from "@nestjs/common";
+import { ConflictException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { Prisma } from "@prisma/client";
 import type { DomainEventEnvelope } from "@zyon/shared-types";
@@ -194,7 +199,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
     const snapshot = input.intent.snapshot();
     await this.prisma.$transaction(async tx => {
       await this.saveVersion(tx, snapshot);
-      await appendPlannedSettlementInTransaction(tx, input.settlementPlan);
+      if (!snapshot.creation?.input.marketplaceFunding) await appendPlannedSettlementInTransaction(tx, input.settlementPlan);
     });
     input.intent.persisted((snapshot.version ?? 0) + 1);
   }
@@ -210,15 +215,53 @@ export class PrismaPaymentRepository implements PaymentRepository {
   }
 
   private async saveVersion(tx: PrismaTx, snapshot: PaymentIntentSnapshot): Promise<void> {
-    const paymentSessionLock = JSON.stringify(["payment-session", snapshot.merchantId, snapshot.sessionId]);
-    await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${paymentSessionLock}, 0))::text`;
-    await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snapshot.merchantId} FOR UPDATE`;
+    const isMarketplace = Boolean(snapshot.creation?.input.marketplaceFunding);
+    if (!isMarketplace) await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snapshot.merchantId} FOR UPDATE`;
+    if (!isMarketplace) {
+      const paymentSessionLock = JSON.stringify(["payment-session", snapshot.merchantId, snapshot.sessionId]);
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${paymentSessionLock}, 0))::text`;
+    }
+    const legacyCreation = snapshot.creation && !snapshot.creation.input.marketplaceFunding;
+    const publicMarketplaceCreation = snapshot.creation?.input.marketplacePublicAdmission !== undefined;
+    // Admission and the first send share the canonical checkout row lock with
+    // cart writers. Later reconciliation/receipts must remain available.
+    const couldAdmit = (legacyCreation || publicMarketplaceCreation) && ((snapshot.version ?? 0) === 0 ||
+      (snapshot.status === "pending" && !snapshot.providerPaymentId && snapshot.creation?.state === "in_flight"));
+    if (couldAdmit) {
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${snapshot.merchantId} AND session_id = ${snapshot.sessionId} FOR UPDATE`;
+      const stored = await tx.checkoutSession.findUnique({
+        where: { merchantId_sessionId: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId } },
+        select: { cart: true },
+      });
+      const cartRef = (stored?.cart as { cart_ref?: unknown } | null)?.cart_ref;
+      const refs = [...new Set([snapshot.sessionId, ...(typeof cartRef === "string" && cartRef.trim() ? [cartRef] : [])])].sort();
+      // A cart writer may have checked mutability before this checkout existed.
+      // Wait for that writer's lines before deciding whether legacy admission is safe.
+      for (const ref of refs) {
+        const key = JSON.stringify(["storefront-cart", snapshot.merchantId, ref]);
+        await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text`;
+      }
+    }
     const args = paymentIntentUpsertArgs(snapshot);
     const current = await tx.paymentIntent.findUnique({ where: { id: snapshot.id } });
     const previousCreation = current?.creation as PaymentIntentSnapshot["creation"];
     const firstSend = current && previousCreation?.state === "ready" && !previousCreation.firstAttemptAt &&
       snapshot.creation?.state === "in_flight" && !current.providerPaymentId;
-    if (!current || firstSend || snapshot.creation?.cancellation && !previousCreation?.cancellation) {
+    if (publicMarketplaceCreation && (!current || firstSend)) {
+      if (current) {
+        if ((current.version ?? 0) !== (snapshot.version ?? 0)) throw new PaymentIntentConflictError();
+        assertSamePaymentIdentity(snapshotFromRecord(current), snapshot);
+      }
+      // The worker can resume a ready journal without calling the public
+      // endpoint. Recheck policy and canonical shipping under the same locks
+      // before committing its first-send lease. Uncertain reads remain open.
+      assertMarketplacePublicPaymentPolicy(snapshot.creation!.input);
+      await assertMarketplacePublicPaymentCheckout(tx, snapshot.creation!.input);
+    }
+    if (legacyCreation && (!current || firstSend) && await hasMarketplaceCheckout(tx, { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId })) {
+      throw new ServiceUnavailableException("marketplace_checkout_not_ready");
+    }
+    if (!isMarketplace && (!current || firstSend || snapshot.creation?.cancellation && !previousCreation?.cancellation)) {
       const active = await tx.paymentIntent.findMany({ where: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId,
         status: { in: ["pending", "requires_action"] } }, select: { id: true, creation: true, providerPaymentId: true } });
       if ((!current || firstSend) && active.some(row => ["in_flight", "uncertain"].includes((row.creation as unknown as PaymentIntentSnapshot["creation"])?.cancellation?.state ?? ""))) {
@@ -231,27 +274,33 @@ export class PrismaPaymentRepository implements PaymentRepository {
     }
 
     if (!current) {
-      const digitalContent = await snapshotDigitalPaymentContent(tx, snapshot.merchantId, snapshot.sessionId);
-      args.create.digitalContent = digitalContent as unknown as Prisma.InputJsonValue;
       if ((snapshot.version ?? 0) !== 0) throw new PaymentIntentConflictError();
-      if (await tx.paymentIntent.findFirst({ where: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId,
-        status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) {
-        throw new PaymentIntentConflictError();
+      if (await tx.paymentIntent.findFirst({ where: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) throw new PaymentIntentConflictError();
+      if (!isMarketplace) {
+        const content = await snapshotDigitalPaymentContent(tx, snapshot.merchantId, snapshot.sessionId);
+        args.create.digitalContent = content as unknown as Prisma.InputJsonValue;
       }
-      await validateIncentivePayment(tx, snapshot);
+      if (!isMarketplace) await validateIncentivePayment(tx, snapshot);
       try { await tx.paymentIntent.create({ data: args.create }); }
       catch (error) {
         if ((error as { code?: string }).code === "P2002") throw new PaymentIntentConflictError();
         throw error;
       }
-      await recordIncentivePayment(tx, snapshot);
+      if (!isMarketplace) await recordIncentivePayment(tx, snapshot);
+      await freezeMarketplaceFunding(tx, snapshot);
       return;
     }
     if ((current.version ?? 0) !== (snapshot.version ?? 0)) throw new PaymentIntentConflictError();
     assertSamePaymentIdentity(snapshotFromRecord(current), snapshot);
+    if (snapshot.creation?.input.marketplaceFunding) {
+      const plan = await tx.marketplaceFundingPlan.findUnique({ where: { paymentIntentId: snapshot.id } });
+      if (!plan || plan.instructionsHash !== fundingHash(snapshot.creation.input.marketplaceFunding)) {
+        throw new Error("marketplace_funding_immutable_plan_required");
+      }
+    }
     const updated = await tx.paymentIntent.updateMany({ where: { id: snapshot.id, merchantId: snapshot.merchantId, version: snapshot.version ?? 0 }, data: args.update });
     if (updated.count !== 1) throw new PaymentIntentConflictError();
-    await recordIncentivePayment(tx, snapshot);
+    if (!isMarketplace) await recordIncentivePayment(tx, snapshot);
   }
 
   async listStalePending(query: StalePendingQuery): Promise<PaymentIntentEntity[]> {
@@ -475,6 +524,15 @@ export class PrismaPaymentRepository implements PaymentRepository {
       },
       orderBy: { updatedAt: "desc" },
       take: 200,
+    });
+    return rows.map((row) => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
+  }
+
+async listBySessionId(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]> {
+    if (!merchantId.trim() || !sessionId.trim()) return [];
+    const rows = await this.prisma.paymentIntent.findMany({
+      where: { merchantId: merchantId.trim(), sessionId: sessionId.trim() },
+      orderBy: [{ createdAt: "asc" }, { id: "asc" }],
     });
     return rows.map((row) => PaymentIntentEntity.rehydrate(snapshotFromRecord(row)));
   }

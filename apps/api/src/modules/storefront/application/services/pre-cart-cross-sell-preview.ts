@@ -1,3 +1,5 @@
+import { normalizeCrossSellStrategies } from "@zyon/shared-types";
+
 export type PublicCrossSellProduct = {
   id: string;
   name: string;
@@ -35,14 +37,6 @@ export type PreCartCrossSellInput = {
   }>;
 };
 
-const VALID_STRATEGIES = new Set([
-  "same_category",
-  "bought_together",
-  "complementary",
-  "cart_value_upgrade",
-  "ai_personalized",
-]);
-
 function asObject(value: unknown): Record<string, unknown> {
   return value && typeof value === "object" && !Array.isArray(value)
     ? value as Record<string, unknown>
@@ -70,7 +64,7 @@ function configForPreview(value: unknown) {
   const limits = asObject(config.limits);
   const display = asObject(config.display);
   const enabled = config.enabled === true && touchpoints.pre_cart === true;
-  const strategies = strings(config.strategies).filter((strategy) => VALID_STRATEGIES.has(strategy));
+  const strategies = normalizeCrossSellStrategies(config.strategies);
   const maxSuggestions = Math.max(0, Math.min(6, Math.trunc(numberValue(limits.maxSuggestionsPerSession) || 2)));
   return {
     enabled,
@@ -127,7 +121,7 @@ export function buildPreCartCrossSellPreview(input: PreCartCrossSellInput): Publ
     for (const sku of promotion.recommendedSkus) {
       if (products.length >= config.maxSuggestions) break;
       const candidate = productsBySku.get(sku.toLowerCase());
-      if (!candidate || !candidate.inStock || seen.has(candidate.id)) continue;
+      if (!candidate || viewedSkus.has(sku.toLowerCase()) || !candidate.inStock || !Number.isFinite(candidate.price) || candidate.price <= 0 || seen.has(candidate.id)) continue;
       seen.add(candidate.id);
       const discountPercent = Math.max(0, numberValue(promotion.discountPercent));
       products.push({

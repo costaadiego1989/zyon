@@ -190,6 +190,7 @@ export default function ProductContentBlock({
           onCartAdded={onCartAdded}
           crossSell={crossSell ?? content.crossSell ?? null}
           onAddCrossSell={onAddCrossSell}
+          onQuickReply={onQuickReply}
         />
       </article>
     );

@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
 import type {
   MarketplaceSettlementRepository,
@@ -33,7 +33,9 @@ export class PrismaMarketplaceSettlementRepository
         chargebackWindowUntil: input.chargebackWindowUntil,
       },
     });
-    if (settlement.hostMerchantId !== input.hostMerchantId || settlement.sellerMerchantId !== input.sellerMerchantId || settlement.orderId !== input.orderId || settlement.totalAmountCents !== input.totalAmountCents || settlement.commissionCents !== input.commissionCents || settlement.sellerNetCents !== input.sellerNetCents) throw new Error("marketplace_settlement_conflict");
+    for (const key of ["hostMerchantId", "sellerMerchantId", "orderId", "totalAmountCents", "commissionCents", "sellerNetCents"] as const) {
+      if (settlement[key] !== input[key]) throw new ConflictException("marketplace_settlement_replay_mismatch");
+    }
     return this.toSnapshot(settlement);
   }
 
@@ -114,6 +116,9 @@ export class PrismaMarketplaceSettlementRepository
       where: {
         status: "transfer_scheduled",
         transferScheduledAt: { lte: nowDate },
+        OR: [{ payout: { is: null } }, { payout: { is: { OR: [
+          { fundingPlanId: null }, { fundingPlan: { is: { residualPlans: { none: {} } } } },
+        ] } } }],
       },
     });
     return settlements.map((s: any) => this.toSnapshot(s));

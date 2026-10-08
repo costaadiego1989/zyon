@@ -18,8 +18,10 @@ export interface CrmDeal {
 }
 
 export interface CrmProviderPort {
+  /** Marketing destinations require the merchant's recorded email consent. */
+  readonly category?: "crm" | "marketing";
   upsertContact(merchantId: string, contact: CrmContact): Promise<void>;
-  createDeal(merchantId: string, deal: CrmDeal): Promise<void>;
+  createDeal?(merchantId: string, deal: CrmDeal): Promise<void>;
   /**
    * Lightweight authenticated call to verify the credentials are valid before a
    * connection is persisted as "connected". Returns true if the CRM accepts the

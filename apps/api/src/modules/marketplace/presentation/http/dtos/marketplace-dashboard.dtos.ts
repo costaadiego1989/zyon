@@ -46,7 +46,7 @@ export class ListDebtsQueryDto {
   @ApiPropertyOptional({ example: "outstanding" })
   @IsOptional()
   @IsString()
-  @IsIn(["outstanding", "deducted", "resolved"])
+  @IsIn(["outstanding", "deducted", "resolved", "extinguished"])
   status?: string;
 }
 
@@ -92,6 +92,9 @@ export class DebtResponseDto {
   @ApiProperty() sellerMerchantId!: string;
   @ApiProperty() settlementId!: string;
   @ApiProperty() amountCents!: number;
+  @ApiPropertyOptional({ description: "Principal recuperado com comprovante; exclui taxas de disputa." }) recoveredAmountCents?: number;
+  @ApiPropertyOptional({ description: "Principal extinto por restituição nativa após vitória, com taxa de disputa zero; não representa cobrança do vendedor." }) extinguishedAmountCents?: number;
+  @ApiPropertyOptional({ description: "Principal restante após recuperações ou extinções comprovadas; não libera repasses." }) outstandingAmountCents?: number;
   @ApiProperty() status!: string;
   @ApiPropertyOptional() deductedFromSettlementId?: string | null;
   @ApiProperty() createdAt!: string;
@@ -117,6 +120,7 @@ export class ListDebtsResponseDto {
   @ApiProperty() totalOutstandingCents!: number;
   @ApiProperty() totalDeductedCents!: number;
   @ApiProperty() totalResolvedCents!: number;
+  @ApiProperty() totalExtinguishedCents!: number;
 }
 
 export class ChargebackEntryDto {

@@ -11,7 +11,7 @@ interface CrmLeadsTabProps {
 }
 
 type StageFilter = "all" | "lead" | "customer";
-type StatusFilter = "all" | "success" | "failed";
+type StatusFilter = "all" | "success" | "failed" | "skipped";
 
 const PAGE_SIZE = 20;
 
@@ -22,9 +22,9 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
   const [page, setPage] = useState(1);
 
   const totals = useMemo(() => ({
-    total: syncLog.length,
-    leads: syncLog.filter((r) => r.stage === "lead").length,
-    customers: syncLog.filter((r) => r.stage === "customer").length,
+    total: syncLog.filter((r) => r.status === "success").length,
+    leads: syncLog.filter((r) => r.stage === "lead" && r.status === "success").length,
+    customers: syncLog.filter((r) => r.stage === "customer" && r.status === "success").length,
   }), [syncLog]);
 
   const filtered = useMemo(() => {
@@ -48,17 +48,17 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
     <div className="crm-history">
       {/* Stats */}
       <StatCardGroup columns={3}>
-        <StatCard label="Total sincronizado" value={totals.total} icon={<Users size={18} />} />
+        <StatCard label="Envios confirmados" value={totals.total} icon={<Users size={18} />} />
         <StatCard label="Leads (só cadastro)" value={totals.leads} icon={<UserPlus size={18} />} />
         <StatCard label="Clientes (compraram)" value={totals.customers} icon={<ShoppingBag size={18} />} />
       </StatCardGroup>
 
-      <p className="crm-history__note">Até 50 tentativas recentes. O resultado de cada envio aparece abaixo; uma falha não significa que o contato foi recebido pelo CRM.</p>
-      <FilterToolbar tabs={[{ key: "all", label: "Todos os contatos" }, { key: "lead", label: "Leads" }, { key: "customer", label: "Clientes" }]} activeTab={stage} onTabChange={v => setStage(v as StageFilter)} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar contato por e-mail" extra={<FilterSelect ariaLabel="Resultado da sincronização" value={status} onChange={v => setStatus(v as StatusFilter)} options={[{ value: "all", label: "Todos os resultados" }, { value: "success", label: "Enviado ao CRM" }, { value: "failed", label: "Com falha" }]} />} />
-      <DataPanel title="Histórico de sincronização" page={safePage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} isEmpty={filtered.length === 0} empty={{ icon: Users, title: syncLog.length ? "Nenhum contato com estes filtros" : "Nenhuma sincronização registrada", description: syncLog.length ? "Ajuste a busca ou limpe os filtros para ver os contatos." : "Conecte um CRM para acompanhar as tentativas de envio dos contatos da loja.", action: syncLog.length ? <Button variant="outline" onClick={() => { setSearch(""); setStage("all"); setStatus("all"); }}>Limpar filtros</Button> : undefined }}>
+      <p className="crm-history__note">Até 50 tentativas recentes. O resultado de cada envio aparece abaixo; uma falha não significa que o contato foi recebido pelo provedor.</p>
+      <FilterToolbar tabs={[{ key: "all", label: "Todos os contatos" }, { key: "lead", label: "Leads" }, { key: "customer", label: "Clientes" }]} activeTab={stage} onTabChange={v => setStage(v as StageFilter)} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar contato por e-mail" extra={<FilterSelect ariaLabel="Resultado da sincronização" value={status} onChange={v => setStatus(v as StatusFilter)} options={[{ value: "all", label: "Todos os resultados" }, { value: "success", label: "Recebido pelo provedor" }, { value: "failed", label: "Com falha" }, { value: "skipped", label: "Sem consentimento" }]} />} />
+      <DataPanel title="Histórico de sincronização" page={safePage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage} isEmpty={filtered.length === 0} empty={{ icon: Users, title: syncLog.length ? "Nenhum contato com estes filtros" : "Nenhuma sincronização registrada", description: syncLog.length ? "Ajuste a busca ou limpe os filtros para ver os contatos." : "Conecte um provedor para acompanhar as tentativas de envio dos contatos da loja.", action: syncLog.length ? <Button variant="outline" onClick={() => { setSearch(""); setStage("all"); setStatus("all"); }}>Limpar filtros</Button> : undefined }}>
           <div className="table-wrap">
             <table className="data-table">
-              <thead><tr><th>Contato</th><th>Tipo</th><th>CRM</th><th>Resultado</th><th>Quando</th></tr></thead>
+              <thead><tr><th>Contato</th><th>Tipo</th><th>Provedor</th><th>Resultado</th><th>Quando</th></tr></thead>
               <tbody>
                 {pageRows.map((row) => (
                   <tr key={row.id}>
@@ -80,8 +80,8 @@ export function CrmLeadsTab({ syncLog }: CrmLeadsTabProps) {
                     </td>
                     <td style={{ textTransform: "capitalize" }}>{row.provider}</td>
                     <td>
-                      <span style={{ color: row.status === "success" ? "var(--color-brand)" : "var(--color-error)" }}>
-                        {row.status === "success" ? "Enviado ao CRM" : "Falha no envio"}
+                      <span style={{ color: row.status === "success" ? "var(--color-brand)" : row.status === "skipped" ? "var(--color-text-muted)" : "var(--color-error)" }}>
+                        {row.status === "success" ? "Recebido pelo provedor" : row.status === "skipped" ? "Sem consentimento" : "Falha no envio"}
                       </span>
                     </td>
                     <td style={{ color: "var(--color-text-muted)", fontSize: 12 }}>

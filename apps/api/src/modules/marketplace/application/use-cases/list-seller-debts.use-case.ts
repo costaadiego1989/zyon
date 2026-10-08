@@ -16,6 +16,7 @@ export interface ListSellerDebtsOutput {
   totalOutstandingCents: number;
   totalDeductedCents: number;
   totalResolvedCents: number;
+  totalExtinguishedCents: number;
 }
 
 @Injectable()
@@ -32,7 +33,7 @@ export class ListSellerDebtsUseCase {
 
     const totalOutstandingCents = debts
       .filter((d) => d.status === "outstanding")
-      .reduce((sum, d) => sum + d.amountCents, 0);
+      .reduce((sum, d) => sum + (d.outstandingAmountCents ?? d.amountCents), 0);
 
     const totalDeductedCents = debts
       .filter((d) => d.status === "deducted")
@@ -42,11 +43,16 @@ export class ListSellerDebtsUseCase {
       .filter((d) => d.status === "resolved")
       .reduce((sum, d) => sum + d.amountCents, 0);
 
+    const totalExtinguishedCents = debts
+      .filter((d) => d.status === "extinguished")
+      .reduce((sum, d) => sum + (d.extinguishedAmountCents ?? 0), 0);
+
     return {
       debts,
       totalOutstandingCents,
       totalDeductedCents,
       totalResolvedCents,
+      totalExtinguishedCents,
     };
   }
 }

@@ -29,6 +29,10 @@ export interface WhatsAppTemplateDefinition {
 }
 
 const SAMPLES: Record<string, string> = {
+alertName: "MarketplaceOutboxDeliveryFailures",
+alertStatus: "ativo",
+alertSeverity: "crítica",
+observedAt: "03/10/2026, 10:00",
   merchantName: "Loja Exemplo", planName: "Growth", expiresAt: "21/09/2026, 10:00", dashboardLink: "https://app.zyon-payments.com.br/#billing-plans",
   buyerName: "Ana",
   productName: "seu pedido",
@@ -81,6 +85,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
 
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
+marketplace_operational_alert: "Zyon: alerta operacional {{alertName}} está {{alertStatus}}, gravidade {{alertSeverity}}. Início: {{observedAt}}. Consulte o painel: {{dashboardLink}}.",
   plan_expiry_7d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete da semana do vencimento. Confira a renovação em {{dashboardLink}}. Equipe Zyon.",
   plan_expiry_3d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). O vencimento está próximo. Confira a assinatura e a forma de pagamento em {{dashboardLink}}. Equipe Zyon.",
   plan_expiry_24h: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete das últimas 24 horas. Confira a renovação em {{dashboardLink}}. Equipe Zyon.",
@@ -178,6 +183,7 @@ Esperamos que esteja tudo perfeito. Se precisar de qualquer coisa com o {{produc
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
+marketplace_operational_alert: false,
   checkout_otp: false,
   plan_expiry_7d: false, plan_expiry_3d: false, plan_expiry_24h: false, plan_expiry_expired: false,
   follow_up: false,
@@ -196,6 +202,7 @@ const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
+marketplace_operational_alert: "Marketplace: alerta operacional",
   checkout_otp: "Código de confirmação do checkout",
   plan_expiry_7d: "Plano: vencimento em 7 dias", plan_expiry_3d: "Plano: vencimento em 3 dias",
   plan_expiry_24h: "Plano: vencimento em 24 horas", plan_expiry_expired: "Plano: vencido sem renovação",

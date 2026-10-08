@@ -9,11 +9,15 @@ export interface CrossStoreLineItemSnapshot {
   hostMerchantId: string;
   sellerMerchantId: string;
   federatedProductId: string;
+  productName?: string;
+  hostStoreName?: string;
   quantity: number;
   unitPriceCents: number;
   commissionRateBps: number;
   commissionCents: number;
   sellerNetCents: number;
+  purchasedAt?: Date | null;
+  termsJson?: { returnWindowDays: number; payoutDelayDays: number; chargebackWindowDays: number };
   fulfillmentStatus: string;
   fulfillmentReference: string | null;
   createdAt: Date;
@@ -21,6 +25,7 @@ export interface CrossStoreLineItemSnapshot {
 }
 
 export interface CreateCrossStoreLineItemInput {
+  termsJson?: { returnWindowDays: number; payoutDelayDays: number; chargebackWindowDays: number };
   checkoutSessionId: string;
   hostMerchantId: string;
   sellerMerchantId: string;
@@ -46,6 +51,7 @@ export interface CrossStoreOrderRepository {
   ): Promise<CrossStoreLineItemSnapshot>;
   findByCheckoutSessionId(
     checkoutSessionId: string,
+    hostMerchantId: string,
   ): Promise<CrossStoreLineItemSnapshot[]>;
   findByOrderId(orderId: string): Promise<CrossStoreLineItemSnapshot[]>;
   findBySellerMerchantId(

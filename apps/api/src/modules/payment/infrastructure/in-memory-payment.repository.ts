@@ -232,4 +232,11 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       return true;
     }).map(entity => PaymentIntentEntity.rehydrate(entity.snapshot()));
   }
+
+async listBySessionId(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]> {
+    return [...this.byIntentId.values()].filter(entity => {
+      const row = entity.snapshot();
+      return row.merchantId === merchantId.trim() && row.sessionId === sessionId.trim();
+    }).map(entity => PaymentIntentEntity.rehydrate(entity.snapshot()));
+  }
 }

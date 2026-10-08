@@ -1,3 +1,4 @@
+import { PublicProductCrossSellPreview } from "../../application/services/public-product-cross-sell-preview.js";
 import {
   Controller,
   Get,
@@ -20,7 +21,7 @@ import {
 import { loadProductNoticeRules, productRuleNotices } from "../../infrastructure/product-rule-notices.js";
 import { extractOptionGroups, toBlockOptionGroups } from "../../domain/food-options.js";
 import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
-import { buildPreCartCrossSellPreview, type PublicCrossSellPreview } from "../../application/services/pre-cart-cross-sell-preview.js";
+import { type PublicCrossSellPreview } from "../../application/services/pre-cart-cross-sell-preview.js";
 
 export const SUPPORTED_PRODUCT_CONTENT_LOCALES = ["pt-BR", "en", "es"] as const;
 
@@ -275,66 +276,7 @@ export class StorefrontProductContentController {
     viewedSkus: string[],
     viewedCategory?: string | null,
   ): Promise<PublicCrossSellPreview | undefined> {
-    const settings = storeSettings && typeof storeSettings === "object" && !Array.isArray(storeSettings)
-      ? storeSettings as Record<string, unknown>
-      : {};
-    const config = settings.crossSell;
-    const configRecord = config && typeof config === "object" && !Array.isArray(config)
-      ? config as Record<string, unknown>
-      : {};
-    const touchpoints = configRecord.touchpoints && typeof configRecord.touchpoints === "object" && !Array.isArray(configRecord.touchpoints)
-      ? configRecord.touchpoints as Record<string, unknown>
-      : {};
-    if (configRecord.enabled !== true || touchpoints.pre_cart !== true) return undefined;
-
-    try {
-      const now = new Date();
-      const promotions = await this.prisma.crossSellPromotion.findMany({
-        where: {
-          merchantId,
-          status: "active",
-          startsAt: { lte: now },
-          OR: [{ endsAt: null }, { endsAt: { gte: now } }],
-        },
-        select: { id: true, trigger: true, recommendedSkus: true, discountPercent: true },
-      });
-      const recommendedSkus = [...new Set(promotions.flatMap((promotion) => promotion.recommendedSkus))];
-      if (recommendedSkus.length === 0) return undefined;
-
-      const variants = await this.prisma.productVariant.findMany({
-        where: {
-          sku: { in: recommendedSkus },
-          isActive: true,
-          product: { merchantId, isActive: true, deletedAt: null },
-        },
-        select: {
-          id: true,
-          sku: true,
-          price: { select: { basePriceInCents: true } },
-          media: { where: { type: "IMAGE" }, orderBy: { order: "asc" }, take: 1, select: { url: true } },
-          stock: { select: { quantity: true, reserved: true } },
-          product: { select: { name: true, type: true } },
-        },
-      });
-
-      return buildPreCartCrossSellPreview({
-        config,
-        viewedSkus,
-        viewedCategory,
-        promotions,
-        products: variants.map((variant) => ({
-          id: variant.id,
-          sku: variant.sku,
-          name: variant.product.name,
-          price: (variant.price?.basePriceInCents ?? 0) / 100,
-          image: variant.media[0]?.url,
-          inStock: variant.product.type === "digital" || variant.product.type === "service" || variant.stock.some((stock) => stock.quantity > stock.reserved),
-        })),
-      });
-    } catch {
-      // Product details remain available if a non-critical recommendation read
-      // is temporarily unavailable.
-      return undefined;
-    }
+    return new PublicProductCrossSellPreview(this.prisma).suggest(merchantId, storeSettings, viewedSkus, viewedCategory);
   }
+
 }

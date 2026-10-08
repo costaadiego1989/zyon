@@ -21,7 +21,7 @@
 import { aiVisitorToken, conversationFetch, rememberAiVisitorToken, rememberConversationAccess } from "../conversation-access";
 import { getValidBuyer } from "../buyer-auth";
 import { apiCall } from "@/lib/services/http";
-import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
+import type { ConversationAttachment, CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 export interface Product {
@@ -107,6 +107,10 @@ export const settingsApi = {
 
 const conversationStarts = new Map<string, Promise<any>>();
 export const checkoutApi = {
+  async preCheckoutSuggestions(merchantId: string, cartId: string): Promise<CrossSellInterstitialData> {
+    return safeFetch(`${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}/pre-checkout-suggestions?merchantId=${encodeURIComponent(merchantId)}`,
+      { cache: "no-store", signal: AbortSignal.timeout(8000) }, cartId);
+  },
   async create(data: {
     merchantId: string;
     customerId?: string;

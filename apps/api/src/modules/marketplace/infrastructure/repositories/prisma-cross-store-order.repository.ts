@@ -1,5 +1,6 @@
-import { Injectable } from "@nestjs/common";
+import { ConflictException, Injectable } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
+import { hasMarketplaceFulfillmentFunding } from "../../../fulfillment/infrastructure/repositories/marketplace-fulfillment-guard.js";
 import type {
   CrossStoreOrderRepository,
   CrossStoreLineItemSnapshot,
@@ -27,6 +28,7 @@ export class PrismaCrossStoreOrderRepository
         commissionRateBps: input.commissionRateBps,
         commissionCents: input.commissionCents,
         sellerNetCents: input.sellerNetCents,
+        termsJson: input.termsJson,
       },
     });
     return this.toSnapshot(item);
@@ -34,9 +36,10 @@ export class PrismaCrossStoreOrderRepository
 
   async findByCheckoutSessionId(
     checkoutSessionId: string,
+    hostMerchantId: string,
   ): Promise<CrossStoreLineItemSnapshot[]> {
     const items = await this.prisma.crossStoreLineItem.findMany({
-      where: { checkoutSessionId },
+      where: { checkoutSessionId, hostMerchantId },
     });
     return items.map((i: any) => this.toSnapshot(i));
   }
@@ -52,10 +55,24 @@ export class PrismaCrossStoreOrderRepository
     sellerMerchantId: string,
   ): Promise<CrossStoreLineItemSnapshot[]> {
     const items = await this.prisma.crossStoreLineItem.findMany({
-      where: { sellerMerchantId },
+      where: { sellerMerchantId, orderId: { not: null } },
       orderBy: { createdAt: "desc" },
     });
-    return items.map((i: any) => this.toSnapshot(i));
+    if (!items.length) return [];
+    const [products, hosts] = await Promise.all([
+      this.prisma.federatedProduct.findMany({
+        where: { id: { in: [...new Set(items.map((item) => item.federatedProductId))] }, sourceMerchantId: sellerMerchantId },
+        select: { id: true, name: true },
+      }),
+      this.prisma.merchant.findMany({
+        where: { id: { in: [...new Set(items.map((item) => item.hostMerchantId))] } },
+        select: { id: true, name: true },
+      }),
+    ]);
+    const productNames = new Map(products.map((product) => [product.id, product.name]));
+    const hostNames = new Map(hosts.map((host) => [host.id, host.name]));
+    return items.map((item) => ({ ...this.toSnapshot(item),
+      productName: productNames.get(item.federatedProductId), hostStoreName: hostNames.get(item.hostMerchantId) }));
   }
 
   async findByIdForSeller(
@@ -71,21 +88,29 @@ export class PrismaCrossStoreOrderRepository
   async updateFulfillment(
     input: UpdateCrossStoreFulfillmentInput,
   ): Promise<CrossStoreLineItemSnapshot | undefined> {
-    const updated = await this.prisma.crossStoreLineItem.updateMany({
-      where: {
-        id: input.lineItemId,
-        sellerMerchantId: input.sellerMerchantId,
-        fulfillmentStatus: input.expectedStatus,
-      },
-      data: {
-        fulfillmentStatus: input.status,
-        ...(input.fulfillmentReference === undefined
-          ? {}
-          : { fulfillmentReference: input.fulfillmentReference }),
-      },
+    return this.prisma.$transaction(async (tx) => {
+      const current = await tx.crossStoreLineItem.findFirst({ where: { id: input.lineItemId, sellerMerchantId: input.sellerMerchantId } });
+      if (!current || !current.orderId) return undefined;
+      if (await hasMarketplaceFulfillmentFunding(tx, { merchantId: current.hostMerchantId,
+        orderId: current.orderId, checkoutCartRef: current.checkoutSessionId,
+      })) throw new ConflictException("marketplace_delivery_proof_required");
+      const updated = await tx.crossStoreLineItem.updateMany({
+        where: {
+          id: input.lineItemId,
+          sellerMerchantId: input.sellerMerchantId,
+          fulfillmentStatus: input.expectedStatus,
+        },
+        data: {
+          fulfillmentStatus: input.status,
+          ...(input.fulfillmentReference === undefined
+            ? {}
+            : { fulfillmentReference: input.fulfillmentReference }),
+        },
+      });
+      if (updated.count !== 1) return undefined;
+      const item = await tx.crossStoreLineItem.findFirst({ where: { id: input.lineItemId, sellerMerchantId: input.sellerMerchantId } });
+      return item ? this.toSnapshot(item) : undefined;
     });
-    if (updated.count !== 1) return undefined;
-    return this.findByIdForSeller(input.lineItemId, input.sellerMerchantId);
   }
 
   async updateOrderId(
@@ -93,7 +118,7 @@ export class PrismaCrossStoreOrderRepository
     orderId: string,
   ): Promise<CrossStoreLineItemSnapshot> {
     const item = await this.prisma.crossStoreLineItem.update({
-      where: { id: lineItemId },
+      where: { id: lineItemId, OR: [{ orderId: null }, { orderId }] },
       data: { orderId },
     });
     return this.toSnapshot(item);
@@ -112,6 +137,8 @@ export class PrismaCrossStoreOrderRepository
       commissionRateBps: item.commissionRateBps,
       commissionCents: item.commissionCents,
       sellerNetCents: item.sellerNetCents,
+      purchasedAt: item.purchasedAt,
+      termsJson: item.termsJson ?? undefined,
       fulfillmentStatus: item.fulfillmentStatus,
       fulfillmentReference: item.fulfillmentReference,
       createdAt: item.createdAt,

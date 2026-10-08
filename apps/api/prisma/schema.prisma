@@ -1024,6 +1024,7 @@ model PaymentIntent {
   @@map("payment_intents")
   digitalContent      Json?    @map("digital_content")
   digitalEntitlements DigitalEntitlement[]
+  marketplaceFunding MarketplaceFundingPlan?
 }
 
 // Immutable settlement snapshots. A later provider observation is recorded as
@@ -1692,6 +1693,8 @@ model StockReservation {
   @@index([variantId, status])
   @@index([expiresAt, status])
   @@map("stock_reservations")
+  marketplaceFundingPlanId String? @map("marketplace_funding_plan_id")
+  marketplaceFunding MarketplaceFundingPlan? @relation(fields: [marketplaceFundingPlanId], references: [paymentIntentId], onDelete: Restrict)
 }
 
 model ProductReview {
@@ -1901,6 +1904,7 @@ model Return {
   @@index([merchantId, createdAt])
   @@index([orderId])
   @@map("returns")
+  marketplaceRefund MarketplaceRefundPlan?
 }
 
 model ReturnItem {
@@ -2404,11 +2408,15 @@ model CrossStoreLineItem {
   hostMerchantId       String   @map("host_merchant_id")
   sellerMerchantId     String   @map("seller_merchant_id")
   federatedProductId   String   @map("federated_product_id")
+  sourceVariantId      String?  @map("source_variant_id")
+  stockReservationId   String?  @unique @map("stock_reservation_id")
   quantity             Int
   unitPriceCents       Int      @map("unit_price_cents")
   commissionRateBps    Int      @map("commission_rate_bps")
   commissionCents      Int      @map("commission_cents")
   sellerNetCents       Int      @map("seller_net_cents")
+  termsJson            Json?    @map("terms_json")
+  purchasedAt          DateTime? @map("purchased_at")
   fulfillmentStatus    String   @default("pending") @map("fulfillment_status")
   fulfillmentReference String?  @map("fulfillment_reference")
   createdAt            DateTime @default(now()) @map("created_at")
@@ -2417,6 +2425,7 @@ model CrossStoreLineItem {
   @@index([hostMerchantId])
   @@index([sellerMerchantId])
   @@index([orderId])
+  @@index([hostMerchantId, checkoutSessionId])
   @@map("cross_store_line_items")
 }
 
@@ -2440,6 +2449,7 @@ model MarketplaceSettlement {
   providerTransferId    String?   @map("provider_transfer_id")
   createdAt             DateTime  @default(now()) @map("created_at")
   updatedAt             DateTime  @updatedAt @map("updated_at")
+  payout                MarketplacePayout?
 
   @@index([hostMerchantId])
   @@index([sellerMerchantId])
@@ -2449,9 +2459,12 @@ model MarketplaceSettlement {
 }
 
 model MarketplaceSellerDebt {
+  recoveryId String? @unique @map("recovery_id")
+  recovery MarketplaceTransferRecovery? @relation(fields: [recoveryId], references: [id], onDelete: Restrict)
+
   id                       String    @id @default(cuid())
   sellerMerchantId         String    @map("seller_merchant_id")
-  settlementId             String    @map("settlement_id")
+  settlementId             String    @unique @map("settlement_id")
   amountCents              Int       @map("amount_cents")
   status                   String    @default("outstanding")
   deductedFromSettlementId String?   @map("deducted_from_settlement_id")
@@ -4122,4 +4135,352 @@ model DigitalDelivery {
   @@unique([merchantId, entitlementId, channel])
   @@index([merchantId, status])
   @@map("digital_deliveries")
+}
+
+
+model MarketplacePayout {
+  recoveryCredits MarketplaceTransferRecoveryCredit[]
+  recovery MarketplaceTransferRecovery?
+
+  id String @id @default(cuid())
+  settlementId String? @unique @map("settlement_id")
+  settlement MarketplaceSettlement? @relation(fields: [settlementId], references: [id], onDelete: Restrict)
+  fundingPlanId String? @map("funding_plan_id")
+  fundingPlan MarketplaceFundingPlan? @relation(fields: [fundingPlanId], references: [paymentIntentId], onDelete: Restrict)
+  beneficiaryMerchantId String? @map("beneficiary_merchant_id")
+  kind String @default("seller_settlement")
+  dueAt DateTime? @map("due_at")
+  hostDebt MarketplaceHostDebt?
+  reversals MarketplaceTransferReversal[]
+  provider String
+  accountFingerprint String @map("account_fingerprint")
+  providerPaymentId String @map("provider_payment_id")
+  destination String
+  amountCents Int @map("amount_cents")
+  currency String
+  reference String @unique
+  status String @default("planned")
+  version Int @default(0)
+  providerTransferId String? @map("provider_transfer_id")
+  claimedAt DateTime? @map("claimed_at")
+  reconciledAt DateTime? @map("reconciled_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, accountFingerprint, providerTransferId], map: "marketplace_payouts_receipt_key")
+  @@index([status, updatedAt])
+  @@index([fundingPlanId])
+  @@map("marketplace_payouts")
+}
+
+model MarketplaceFundingPlan {
+  recoveryCredits MarketplaceTransferRecoveryCredit[]
+  transferRecoveries MarketplaceTransferRecovery[]
+
+  paymentIntentId String @id @map("payment_intent_id")
+  payment PaymentIntent @relation(fields: [paymentIntentId], references: [id], onDelete: Restrict)
+  hostMerchantId String @map("host_merchant_id")
+  checkoutSessionId String @map("checkout_session_id")
+  provider String
+  environment String
+  accountFingerprint String @map("account_fingerprint")
+  providerPaymentId String? @map("provider_payment_id")
+  amountCents Int @map("amount_cents")
+  instructions Json
+  instructionsHash String @map("instructions_hash")
+  status String @default("awaiting_capture")
+  budget Json?
+  providerFeeCents Int? @map("provider_fee_cents")
+  netAmountCents Int? @map("net_amount_cents")
+  platformRetainedCents Int? @map("platform_retained_cents")
+  payoutTotalCents Int? @map("payout_total_cents")
+  fundedAt DateTime? @map("funded_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  payouts MarketplacePayout[]
+  stockReservations StockReservation[]
+  refunds MarketplaceRefundPlan[]
+  residualPlans MarketplaceResidualPlan[]
+  shipments MarketplaceShipmentJournal[]
+  cancellationOperation MarketplaceCancellationOperation?
+
+  @@unique([provider, accountFingerprint, providerPaymentId], map: "marketplace_funding_plans_capture_key")
+  @@index([hostMerchantId, providerPaymentId], map: "marketplace_funding_plans_order_idx")
+  @@index([status, updatedAt])
+  @@map("marketplace_funding_plans")
+}
+
+model MarketplaceRefundPlan {
+  id String @id @default(cuid())
+  fundingPlanId String @map("funding_plan_id")
+  fundingPlan MarketplaceFundingPlan @relation(fields: [fundingPlanId], references: [paymentIntentId], onDelete: Restrict)
+  hostMerchantId String @map("host_merchant_id")
+  returnId String @unique @map("return_id")
+  return Return @relation(fields: [returnId], references: [id], onDelete: Restrict)
+  inputHash String @map("input_hash")
+  allocation Json
+  allocationHash String @map("allocation_hash")
+  amountCents Int @map("amount_cents")
+  status String @default("prepared")
+  blockReason String? @map("block_reason")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  operation MarketplaceRefundOperation?
+  reversals MarketplaceTransferReversal[]
+
+  @@index([hostMerchantId, status])
+  @@index([fundingPlanId])
+  @@map("marketplace_refund_plans")
+}
+
+model MarketplaceRefundOperation {
+  id String @id @default(cuid())
+  refundPlanId String @unique @map("refund_plan_id")
+  refundPlan MarketplaceRefundPlan @relation(fields: [refundPlanId], references: [id], onDelete: Restrict)
+  provider String
+  accountFingerprint String @map("account_fingerprint")
+  request Json
+  requestHash String @map("request_hash")
+  reference String @unique
+  status String @default("planned")
+  version Int @default(0)
+  providerOperationId String? @map("provider_operation_id")
+  claimedAt DateTime? @map("claimed_at")
+  reconciledAt DateTime? @map("reconciled_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, accountFingerprint, providerOperationId], map: "marketplace_refund_operations_receipt_key")
+  @@index([status, updatedAt])
+  @@map("marketplace_refund_operations")
+}
+
+model MarketplaceResidualPlan {
+  id String @id @default(cuid())
+  fundingPlanId String @map("funding_plan_id")
+  generation Int @default(1)
+  fundingPlan MarketplaceFundingPlan @relation(fields: [fundingPlanId], references: [paymentIntentId], onDelete: Restrict)
+  hostMerchantId String @map("host_merchant_id")
+  basis Json
+  basisHash String @map("basis_hash")
+  allocation Json
+  allocationHash String @map("allocation_hash")
+  status String @default("prepared")
+  heldReason String? @map("held_reason")
+  dueAt DateTime @map("due_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  operations MarketplaceResidualOperation[]
+  @@unique([fundingPlanId, generation])
+  @@unique([fundingPlanId, basisHash])
+  @@index([status, updatedAt])
+  @@map("marketplace_residual_plans")
+}
+
+model MarketplaceResidualOperation {
+  recoveryCredits MarketplaceTransferRecoveryCredit[]
+  recovery MarketplaceTransferRecovery?
+
+  id String @id @default(cuid())
+  residualPlanId String @map("residual_plan_id")
+  residualPlan MarketplaceResidualPlan @relation(fields: [residualPlanId], references: [id], onDelete: Restrict)
+  beneficiaryMerchantId String @map("beneficiary_merchant_id")
+  sourceId String @default("original") @map("source_id")
+  provider String
+  accountFingerprint String @map("account_fingerprint")
+  request Json
+  requestHash String @map("request_hash")
+  reference String @unique
+  amountCents Int @map("amount_cents")
+  status String @default("planned")
+  version Int @default(0)
+  providerTransferId String? @map("provider_transfer_id")
+  claimedAt DateTime? @map("claimed_at")
+  reconciledAt DateTime? @map("reconciled_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  reversals MarketplaceTransferReversal[]
+  @@unique([residualPlanId, beneficiaryMerchantId, sourceId], map: "marketplace_residual_operations_plan_beneficiary_source_key")
+  @@unique([provider, accountFingerprint, providerTransferId], map: "marketplace_residual_operations_receipt_key")
+  @@index([status, updatedAt])
+  @@map("marketplace_residual_operations")
+}
+
+model MarketplaceTransferReversal {
+  recoveryCredit MarketplaceTransferRecoveryCredit?
+  id String @id @default(cuid())
+  refundPlanId String @map("refund_plan_id")
+  refundPlan MarketplaceRefundPlan @relation(fields: [refundPlanId], references: [id], onDelete: Restrict)
+  payoutId String? @map("payout_id")
+  payout MarketplacePayout? @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  residualOperationId String? @map("residual_operation_id")
+  residualOperation MarketplaceResidualOperation? @relation(fields: [residualOperationId], references: [id], onDelete: Restrict)
+  hostMerchantId String @map("host_merchant_id")
+  provider String
+  accountFingerprint String @map("account_fingerprint")
+  amountCents Int @map("amount_cents")
+  request Json
+  requestHash String @map("request_hash")
+  reference String @unique
+  status String @default("planned")
+  version Int @default(0)
+  providerOperationId String? @map("provider_operation_id")
+  claimedAt DateTime? @map("claimed_at")
+  reconciledAt DateTime? @map("reconciled_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([refundPlanId, payoutId])
+  @@unique([refundPlanId, residualOperationId])
+  @@unique([provider, accountFingerprint, providerOperationId], map: "marketplace_transfer_reversals_receipt_key")
+  @@index([status, updatedAt])
+  @@map("marketplace_transfer_reversals")
+}
+
+model MarketplaceCancellationOperation {
+  id String @id @default(cuid())
+  fundingPlanId String @unique @map("funding_plan_id")
+  fundingPlan MarketplaceFundingPlan @relation(fields: [fundingPlanId], references: [paymentIntentId], onDelete: Restrict)
+  hostMerchantId String @map("host_merchant_id")
+  provider String
+  accountFingerprint String @map("account_fingerprint")
+  request Json
+  requestHash String @map("request_hash")
+  reference String @unique
+  status String @default("planned")
+  version Int @default(0)
+  claimedAt DateTime? @map("claimed_at")
+  reconciledAt DateTime? @map("reconciled_at")
+  confirmedAt DateTime? @map("confirmed_at")
+  blockReason String? @map("block_reason")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@index([status, updatedAt])
+  @@map("marketplace_cancellation_operations")
+}
+
+model MarketplaceShipmentJournal {
+  id String @id @default(cuid())
+  fundingPlanId String @map("funding_plan_id")
+  fundingPlan MarketplaceFundingPlan @relation(fields: [fundingPlanId], references: [paymentIntentId], onDelete: Restrict)
+  hostMerchantId String @map("host_merchant_id")
+  originMerchantId String @map("origin_merchant_id")
+  volumeIndex Int @default(0) @map("volume_index")
+  quoteId String @map("quote_id")
+  quoteKey String @map("quote_key")
+  environment String
+  accountFingerprint String @map("account_fingerprint")
+  request Json
+  requestHash String @map("request_hash")
+  reference String @unique
+  status String @default("prepared")
+  version Int @default(0)
+  carrierOrderId String? @map("carrier_order_id")
+  carrierPurchaseId String? @map("carrier_purchase_id")
+  purchaseReceipt Json? @map("purchase_receipt")
+  purchaseReceiptHash String? @map("purchase_receipt_hash")
+  purchaseClaimedAt DateTime? @map("purchase_claimed_at")
+  purchasedAt DateTime? @map("purchased_at")
+  generationClaimedAt DateTime? @map("generation_claimed_at")
+  generationReceipt Json? @map("generation_receipt")
+  generationReceiptHash String? @map("generation_receipt_hash")
+  generatedAt DateTime? @map("generated_at")
+  cancellationStatus String? @map("cancellation_status")
+  cancellationReason String? @map("cancellation_reason")
+  cancellationClaimedAt DateTime? @map("cancellation_claimed_at")
+  cancellationReceipt Json? @map("cancellation_receipt")
+  cancellationReceiptHash String? @map("cancellation_receipt_hash")
+  canceledAt DateTime? @map("canceled_at")
+  claimedAt DateTime? @map("claimed_at")
+  reconciledAt DateTime? @map("reconciled_at")
+  trackingCode String? @map("tracking_code")
+  trackingStatus String? @map("tracking_status")
+  blockReason String? @map("block_reason")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@unique([fundingPlanId, originMerchantId, volumeIndex], map: "marketplace_shipment_journals_origin_volume_key")
+  @@unique([environment, accountFingerprint, carrierOrderId], map: "marketplace_shipment_journals_receipt_key")
+  @@unique([environment, accountFingerprint, carrierPurchaseId], map: "marketplace_shipment_journals_purchase_key")
+  @@index([status, updatedAt])
+  @@map("marketplace_shipment_journals")
+}
+
+model MarketplaceHostDebt {
+  recoveryId String? @unique @map("recovery_id")
+  recovery MarketplaceTransferRecovery? @relation(fields: [recoveryId], references: [id], onDelete: Restrict)
+
+  payoutId String @id @map("payout_id")
+  payout MarketplacePayout @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  hostMerchantId String @map("host_merchant_id")
+  amountCents Int @map("amount_cents")
+  status String @default("outstanding")
+  createdAt DateTime @default(now()) @map("created_at")
+  resolvedAt DateTime? @map("resolved_at")
+
+  @@index([hostMerchantId, status])
+  @@map("marketplace_host_debts")
+}
+
+model MarketplaceOrderLedger {
+  hostMerchantId String @map("host_merchant_id")
+  orderId String @map("order_id")
+  checkoutSessionId String? @map("checkout_session_id")
+  purchasedAt DateTime? @map("purchased_at")
+  chargebackAt DateTime? @map("chargeback_at")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  @@id([hostMerchantId, orderId])
+  @@map("marketplace_order_ledgers")
+}
+
+model MarketplaceTransferRecovery {
+  id String @id @default(cuid())
+  fundingPlanId String @map("funding_plan_id")
+  fundingPlan MarketplaceFundingPlan @relation(fields: [fundingPlanId], references: [paymentIntentId], onDelete: Restrict)
+  hostMerchantId String @map("host_merchant_id")
+  beneficiaryMerchantId String @map("beneficiary_merchant_id")
+  payoutId String? @unique @map("payout_id")
+  payout MarketplacePayout? @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  residualOperationId String? @unique @map("residual_operation_id")
+  residualOperation MarketplaceResidualOperation? @relation(fields: [residualOperationId], references: [id], onDelete: Restrict)
+  provider String
+  accountFingerprint String @map("account_fingerprint")
+  providerTransferId String @map("provider_transfer_id")
+  amountCents Int @map("amount_cents")
+  evidence Json
+  evidenceHash String @map("evidence_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+  sellerDebt MarketplaceSellerDebt?
+  hostDebt MarketplaceHostDebt?
+  @@unique([provider, accountFingerprint, providerTransferId], map: "marketplace_transfer_recoveries_receipt_key")
+  @@index([beneficiaryMerchantId])
+  @@map("marketplace_transfer_recoveries")
+}
+
+model MarketplaceTransferRecoveryCredit {
+  id String @id @default(cuid())
+  fundingPlanId String @map("funding_plan_id")
+  fundingPlan MarketplaceFundingPlan @relation(fields: [fundingPlanId], references: [paymentIntentId], onDelete: Restrict)
+  reversalId String? @unique @map("reversal_id")
+  reversal MarketplaceTransferReversal? @relation(fields: [reversalId], references: [id], onDelete: Restrict)
+  hostMerchantId String @map("host_merchant_id")
+  beneficiaryMerchantId String @map("beneficiary_merchant_id")
+  payoutId String? @map("payout_id")
+  payout MarketplacePayout? @relation(fields: [payoutId], references: [id], onDelete: Restrict)
+  residualOperationId String? @map("residual_operation_id")
+  residualOperation MarketplaceResidualOperation? @relation(fields: [residualOperationId], references: [id], onDelete: Restrict)
+  provider String
+  accountFingerprint String @map("account_fingerprint")
+  providerTransferId String @map("provider_transfer_id")
+  providerOperationId String @map("provider_operation_id")
+  amountCents Int @map("amount_cents")
+  evidence Json
+  evidenceHash String @map("evidence_hash")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([provider, accountFingerprint, providerOperationId], map: "marketplace_transfer_recovery_credits_receipt_key")
+  @@index([fundingPlanId])
+  @@index([payoutId])
+  @@index([residualOperationId])
+  @@index([beneficiaryMerchantId])
+  @@map("marketplace_transfer_recovery_credits")
 }

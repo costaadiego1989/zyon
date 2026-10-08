@@ -90,6 +90,12 @@ export interface Cart {
   appliedBenefits?: CheckoutAppliedBenefit[];
   source?: "storefront" | "checkout" | "platform_api" | "manual";
   commerceCartRef?: string;
+
+marketplacePaymentOptions?: Array<{
+    provider: "stripe" | "asaas";
+    environment: "test" | "live";
+    destinations: Array<{ merchantId: string; destination: string }>;
+  }>;
 }
 
 export type CheckoutCommercialNudgeKind = "coupon" | "progressive_discount" | "advanced_rule";
@@ -258,13 +264,23 @@ export const DEFAULT_MERCHANT_RULES: MerchantRules = {
   autonomousEngineEnabled: true
 };
 
-export type CrossSellTouchpoint = "browsing" | "pre_cart" | "post_cart" | "pre_payment" | "post_purchase";
+export type CrossSellTouchpoint = "browsing" | "pre_cart" | "post_cart" | "pre_checkout" | "pre_payment" | "post_purchase";
 export type CrossSellStrategy = "same_category" | "bought_together" | "cart_value_upgrade" | "complementary" | "ai_personalized";
+export const CROSS_SELL_STRATEGIES: readonly CrossSellStrategy[] = ["same_category", "bought_together", "cart_value_upgrade", "complementary", "ai_personalized"];
+
+/** Keep the first valid source in legacy settings, without mixing recommendation logic. */
+export function normalizeCrossSellStrategies(strategies: unknown): CrossSellStrategy[] {
+  if (strategies === undefined) return ["same_category"];
+  if (!Array.isArray(strategies)) return [];
+  const first = strategies.find((strategy): strategy is CrossSellStrategy => CROSS_SELL_STRATEGIES.includes(strategy));
+  return first ? [first] : [];
+}
 export type CrossSellDisplayMode = "inline" | "modal" | "banner" | "interstitial";
 
 export interface CrossSellConfig {
   enabled: boolean;
-  touchpoints: Record<Exclude<CrossSellTouchpoint, "post_cart">, boolean> & { post_cart?: boolean };
+  touchpoints: Record<Exclude<CrossSellTouchpoint, "post_cart" | "pre_checkout">, boolean> & { post_cart?: boolean; pre_checkout?: boolean };
+  /** Exactly one source when recommendations are enabled; array retained for stored JSON compatibility. */
   strategies: CrossSellStrategy[];
   limits: {
     maxSuggestionsPerSession: number;
@@ -283,12 +299,24 @@ export interface CrossSellConfig {
 
 export const DEFAULT_CROSS_SELL_CONFIG: CrossSellConfig = {
   enabled: false,
-  touchpoints: { browsing: true, pre_cart: false, post_cart: false, pre_payment: true, post_purchase: false },
-  strategies: ["same_category", "ai_personalized"],
+  touchpoints: { browsing: true, pre_cart: false, post_cart: false, pre_checkout: false, pre_payment: true, post_purchase: false },
+  strategies: ["same_category"],
   limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 },
   discount: { enabled: false, percent: 10 },
   display: { mode: "inline" },
 };
+
+export function normalizeCrossSellConfig(config: Partial<CrossSellConfig> = {}): CrossSellConfig {
+  return {
+    ...DEFAULT_CROSS_SELL_CONFIG,
+    ...config,
+    strategies: normalizeCrossSellStrategies(config.strategies),
+    touchpoints: { ...DEFAULT_CROSS_SELL_CONFIG.touchpoints, ...config.touchpoints },
+    limits: { ...DEFAULT_CROSS_SELL_CONFIG.limits, ...config.limits },
+    discount: { ...DEFAULT_CROSS_SELL_CONFIG.discount, ...config.discount },
+    display: { ...DEFAULT_CROSS_SELL_CONFIG.display, ...config.display },
+  };
+}
 
 export type ChatStage = "data_collection" | "shipping" | "payment" | "payment_pending" | "completed";
 
@@ -314,6 +342,10 @@ export interface CrossStoreLineItem {
   totalCents: number;
   commissionCents: number;
   sellerNetCents: number;
+
+providerFeePolicy?: "proportional_seller_sales_v1";
+sourceVariantId?: string;
+stockReservationId?: string;
 }
 
 export interface CheckoutSession {
@@ -1505,3 +1537,5 @@ export { checkoutEditIntent, type CheckoutEditSection } from "./checkout-edit-in
 export { VOICE_MICROPHONE_CONSTRAINTS, RealtimeVoiceInput, RealtimeVoiceResponses, type VoiceInputEvent } from "./realtime-voice-input.js";
 
 export * from "./order-fulfillment.js";
+
+

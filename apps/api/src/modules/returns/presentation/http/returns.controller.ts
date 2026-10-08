@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, Inject, NotFoundException, BadRequestException, Req } from "@nestjs/common";
+import { Controller, Get, Post, Put, Param, Body, Query, UseGuards, Inject, NotFoundException, BadRequestException, Req, Header } from "@nestjs/common";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
 import { RequirePlan } from "../../../../shared/guards/require-plan.decorator.js";
@@ -14,6 +14,9 @@ import { CancelReturnUseCase } from "../../application/use-cases/cancel-return.u
 import { AcceptMarketplaceReturnUseCase } from "../../application/use-cases/accept-marketplace-return.use-case.js";
 import { RETURN_REPOSITORY_PORT, ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { ReturnStatus, ItemCondition } from "../../domain/entities/return.entity.js";
+import { RequireTenantRoles } from "../../../auth/presentation/tenant-role.decorator.js";
+import type { MarketplaceRefundComponents } from "../../../marketplace/domain/services/marketplace-refund-allocation.js";
+import { ReturnReverseShippingService, type ReversePreparation } from "../../application/return-reverse-shipping.service.js";
 
 @UseGuards(AuthGuard, MerchantOwnershipGuard, RequirePlanGuard)
 @Controller("merchants")
@@ -29,6 +32,7 @@ export class ReturnsController {
     private readonly cancelReturn: CancelReturnUseCase,
     private readonly acceptMarketplaceReturn: AcceptMarketplaceReturnUseCase,
     @Inject(RETURN_REPOSITORY_PORT) private readonly returnRepo: ReturnRepositoryPort,
+    @Inject(ReturnReverseShippingService) private readonly reverseShipping: ReturnReverseShippingService,
   ) {}
 
   @Post(":mid/returns")
@@ -79,8 +83,32 @@ export class ReturnsController {
 
   @Post(":mid/returns/:rid/label")
   @RequirePlan("STORE_ONLY", "BOTH")
-  async label(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
-    return this.generateLabel.execute(merchantId, returnId);
+  async label(@Param("mid") merchantId: string, @Param("rid") returnId: string,
+    @Body() body?: { carrier: string; trackingNumber: string; labelUrl?: string }) {
+    return this.generateLabel.execute(merchantId, returnId, body);
+  }
+
+  @Get(":mid/returns/:rid/reverse-shipping")
+  @Header("Cache-Control", "no-store")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async reverseDetail(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
+    return this.reverseShipping.candidates(merchantId, returnId);
+  }
+
+  @Post(":mid/returns/:rid/reverse-shipping/prepare")
+  @Header("Cache-Control", "no-store")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  @RequireTenantRoles("owner", "admin")
+  async reversePrepare(@Param("mid") merchantId: string, @Param("rid") returnId: string, @Body() body: ReversePreparation) {
+    return this.reverseShipping.prepare(merchantId, returnId, body);
+  }
+
+  @Post(":mid/returns/:rid/reverse-shipping/confirm")
+  @Header("Cache-Control", "no-store")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  @RequireTenantRoles("owner", "admin")
+  async reverseConfirm(@Param("mid") merchantId: string, @Param("rid") returnId: string, @Body() body: { expectedAmountCents: number }) {
+    return this.reverseShipping.confirm(merchantId, returnId, body?.expectedAmountCents);
   }
 
   @Post(":mid/returns/:rid/receive")
@@ -90,9 +118,13 @@ export class ReturnsController {
   }
 
   @Post(":mid/returns/:rid/accept")
-  @RequirePlan("STORE_ONLY", "BOTH")
-  async accept(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
-    return this.acceptMarketplaceReturn.execute({ merchantId, returnId });
+  @Header("Cache-Control", "no-store")
+  @RequireTenantRoles("owner", "admin")
+  async accept(@Param("mid") merchantId: string, @Param("rid") returnId: string, @Body() body?: { components?: MarketplaceRefundComponents }) {
+    if (body !== undefined && (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some(key => key !== "components"))) {
+      throw new BadRequestException("invalid_return_acceptance_request");
+    }
+    return this.acceptMarketplaceReturn.execute({ merchantId, returnId, components: body?.components });
   }
 
   @Post(":mid/returns/:rid/inspect")
@@ -110,9 +142,17 @@ export class ReturnsController {
   }
 
   @Post(":mid/returns/:rid/refund")
-  @RequirePlan("STORE_ONLY", "BOTH")
+  @Header("Cache-Control", "no-store")
+  @RequireTenantRoles("owner", "admin")
   async refund(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
     return this.processRefund.execute(merchantId, returnId);
+  }
+
+  @Get(":mid/returns/:rid/refund-preview")
+  @Header("Cache-Control", "no-store")
+  @RequireTenantRoles("owner", "admin")
+  async refundPreview(@Param("mid") merchantId: string, @Param("rid") returnId: string) {
+    return this.processRefund.preview(merchantId, returnId);
   }
 
   @Post(":mid/returns/:rid/restock")

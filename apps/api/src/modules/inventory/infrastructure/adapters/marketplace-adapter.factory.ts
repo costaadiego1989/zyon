@@ -9,11 +9,11 @@ export function isMarketplaceProvider(provider: string): boolean {
   return (MARKETPLACE_PROVIDERS as readonly string[]).includes(provider);
 }
 
-export function createMarketplaceAdapter(provider: string): MarketplaceProviderPort | null {
+export function createMarketplaceAdapter(provider: string, config: Record<string, unknown> = {}): MarketplaceProviderPort | null {
   switch (provider) {
     case "mercadolivre": return new MercadoLivreMarketplaceAdapter();
     case "shopee": return new ShopeeMarketplaceAdapter();
-    case "tiktokshop": return new TikTokShopMarketplaceAdapter();
+    case "tiktokshop": return new TikTokShopMarketplaceAdapter(config);
     default: return null;
   }
 }

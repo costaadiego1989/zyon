@@ -50,6 +50,7 @@ export class FinalizeSettlementsJob implements OnModuleInit, OnModuleDestroy {
 
         await this.settlementRepository.updateStatus({
           settlementId: settlement.id,
+          expectedStatus: "transferred",
           status: newStatus,
           finalizedAt: now,
         });

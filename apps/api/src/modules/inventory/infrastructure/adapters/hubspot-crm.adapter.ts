@@ -1,140 +1,54 @@
-import { Injectable, Logger } from "@nestjs/common";
 import type { CrmProviderPort, CrmContact, CrmDeal } from "../../domain/ports/crm-provider.port.js";
+import { crmRequest, crmJson } from "./crm-http.js";
 
-/**
- * HubSpot CRM adapter using API v3.
- * Auth: Private App Token (Bearer).
- * Docs: https://developers.hubspot.com/docs/api/crm/contacts
- *
- * upsertContact: PATCH by email (idProperty=email) — creates if not found, updates if found.
- * createDeal: POST /crm/v3/objects/deals + associate to contact via v4 associations.
- */
-@Injectable()
+/** HubSpot CRM v3: contacts and deals, with the account's actual pipeline stages. */
 export class HubSpotCrmAdapter implements CrmProviderPort {
-  private readonly logger = new Logger(HubSpotCrmAdapter.name);
   private readonly baseUrl = "https://api.hubapi.com";
-
-  constructor(private readonly accessToken: string) {}
-
+  private readonly headers: Record<string, string>;
+  constructor(accessToken: string) { this.headers = { Authorization: `Bearer ${accessToken}` }; }
+  private request(path: string, method = "GET", body?: unknown, accepted: number[] = []) {
+    return crmRequest(this.baseUrl + path, this.headers, method, body, accepted);
+  }
   async validateCredentials(): Promise<boolean> {
     try {
-      // Minimal authenticated read: list 1 contact. 200 => token valid.
-      const res = await fetch(`${this.baseUrl}/crm/v3/objects/contacts?limit=1`, {
-        headers: { Authorization: `Bearer ${this.accessToken}` },
-        signal: AbortSignal.timeout(8000),
-      });
-      return res.ok;
-    } catch {
-      return false;
+      await Promise.all([this.request("/crm/v3/objects/contacts?limit=1"),
+        this.request("/crm/v3/objects/deals?limit=1"), this.request("/crm/v3/pipelines/deals")]);
+      return true;
+    } catch { return false; }
+  }
+  async upsertContact(_merchantId: string, contact: CrmContact): Promise<void> {
+    const names = contact.name?.trim().split(/\s+/);
+    const properties = { ...(names?.[0] ? { firstname: names[0] } : {}),
+      ...(names && names.length > 1 ? { lastname: names.slice(1).join(" ") } : {}),
+      ...(contact.phone ? { phone: contact.phone } : {}) };
+    const response = await this.request(`/crm/v3/objects/contacts/${encodeURIComponent(contact.email)}?idProperty=email`,
+      "PATCH", { properties }, [404]);
+    if (response.status === 404) {
+      await this.request("/crm/v3/objects/contacts", "POST", { properties: { email: contact.email, ...properties } });
     }
   }
-
-  async upsertContact(merchantId: string, contact: CrmContact): Promise<void> {
-    try {
-      // Try to update by email first (idProperty=email)
-      const patchRes = await fetch(
-        `${this.baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(contact.email)}?idProperty=email`,
-        {
-          method: "PATCH",
-          signal: AbortSignal.timeout(10000),
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            properties: {
-              firstname: contact.name?.split(" ")[0] || "",
-              lastname: contact.name?.split(" ").slice(1).join(" ") || "",
-              phone: contact.phone || "",
-            },
-          }),
-        },
-      );
-
-      if (patchRes.status === 404) {
-        // Contact doesn't exist — create
-        const createRes = await fetch(`${this.baseUrl}/crm/v3/objects/contacts`, {
-          method: "POST",
-          signal: AbortSignal.timeout(10000),
-          headers: {
-            Authorization: `Bearer ${this.accessToken}`,
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            properties: {
-              email: contact.email,
-              firstname: contact.name?.split(" ")[0] || "",
-              lastname: contact.name?.split(" ").slice(1).join(" ") || "",
-              phone: contact.phone || "",
-              lifecyclestage: "customer",
-            },
-          }),
-        });
-
-        if (!createRes.ok) {
-          throw new Error(`inventory_crm_http_${createRes.status}`);
-        }
-        return;
-      }
-
-      if (!patchRes.ok) {
-        throw new Error(`inventory_crm_http_${patchRes.status}`);
-      }
-    } catch {
-      throw new Error("inventory_crm_provider_failed");
+  async createDeal(_merchantId: string, deal: CrmDeal): Promise<void> {
+    // A confirmed retry finds the same order rather than adding another won deal.
+    if (deal.metadata?.order_id) {
+      const result = await crmJson<{ results?: Array<{ id: string }> }>(await this.request("/crm/v3/objects/deals/search", "POST", {
+        filterGroups: [{ filters: [{ propertyName: "dealname", operator: "EQ", value: deal.title }] }], limit: 1,
+      }));
+      if (result.results?.length) return;
     }
-  }
-
-  async createDeal(merchantId: string, deal: CrmDeal): Promise<void> {
-    try {
-      // Look up the contact id first so the deal can be created with the
-      // association inline (one call instead of POST deal + PUT association).
-      let contactId: string | undefined;
-      const contactLookup = await fetch(
-        `${this.baseUrl}/crm/v3/objects/contacts/${encodeURIComponent(deal.contactEmail)}?idProperty=email`,
-        { headers: { Authorization: `Bearer ${this.accessToken}` } },
-      );
-      if (contactLookup.ok) {
-        contactId = ((await contactLookup.json()) as { id?: string }).id;
-      }
-
-      // Open lead deals land in the first default-pipeline stage; sales are won.
-      const dealstage = deal.stage || (deal.open ? "appointmentscheduled" : "closedwon");
-      const body: Record<string, unknown> = {
-        properties: {
-          dealname: deal.title,
-          dealstage,
-          amount: String((deal.valueCents / 100).toFixed(2)),
-          pipeline: "default",
-        },
-      };
-      // associationTypeId 3 = deal → contact (HUBSPOT_DEFINED)
-      if (contactId) {
-        body.associations = [
-          {
-            to: { id: contactId },
-            types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 3 }],
-          },
-        ];
-      }
-
-      const dealRes = await fetch(`${this.baseUrl}/crm/v3/objects/deals`, {
-        method: "POST",
-          signal: AbortSignal.timeout(10000),
-        headers: {
-          Authorization: `Bearer ${this.accessToken}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify(body),
-      });
-
-      if (!dealRes.ok) {
-        throw new Error(`inventory_crm_http_${dealRes.status}`);
-      }
-
-      this.logger.debug(`[HubSpot] Deal created: ${deal.title}`);
-    } catch {
-      throw new Error("inventory_crm_provider_failed");
-    }
+    const contact = await crmJson<{ id?: string }>(await this.request(
+      `/crm/v3/objects/contacts/${encodeURIComponent(deal.contactEmail)}?idProperty=email`));
+    if (!contact.id) throw new Error("inventory_crm_provider_failed");
+    const pipelines = await crmJson<{ results?: Array<{ id: string; stages: Array<{
+      id: string; displayOrder?: number; metadata?: { isClosed?: string; probability?: string }
+    }> }> }>(await this.request("/crm/v3/pipelines/deals"));
+    const pipeline = pipelines.results?.find(p => p.id === "default") ?? pipelines.results?.[0];
+    const stages = [...(pipeline?.stages ?? [])].sort((a, b) => (a.displayOrder ?? 0) - (b.displayOrder ?? 0));
+    const stage = deal.open ? stages.find(s => s.metadata?.isClosed === "false") :
+      stages.find(s => s.metadata?.isClosed === "true" && Number(s.metadata?.probability) > 0);
+    if (!pipeline || !stage) throw new Error("inventory_crm_provider_failed");
+    await this.request("/crm/v3/objects/deals", "POST", {
+      properties: { dealname: deal.title, dealstage: stage.id, pipeline: pipeline.id, amount: (deal.valueCents / 100).toFixed(2) },
+      associations: [{ to: { id: contact.id }, types: [{ associationCategory: "HUBSPOT_DEFINED", associationTypeId: 3 }] }],
+    });
   }
 }

@@ -46,13 +46,35 @@ function setup(
     },
   };
   const refundPayment = {
-    refundOrderPayment: async () => { calls.providerRequests += 1; return refund; },
+    prepareOrderRefund: async () => ({ refunded: false, amountCents: refund.amountCents, paymentIntentId: refund.paymentIntentId,
+      providerRequest: { merchantId: "merchant-b", providerPaymentId: "original", amountCents: refund.amountCents } }),
+    refundPreparedPayment: async () => { calls.providerRequests += 1; return refund; },
     reconcileRefundPayment: async (input: unknown) => { calls.reconciliationRequests += 1; calls.reconciliationInputs.push(input); return reconciliation; },
   };
   return { useCase: new ProcessRefundUseCase(repo as any, refundPayment as any), calls };
 }
 
 describe("Returns refund settlement", () => {
+  it("persists original payment and amount before a lost response, and recovery never submits twice", async () => {
+    const { useCase, calls } = setup();
+    (useCase as any).returnRepo.beginRefund = async (input: any) => { calls.started.push(input);
+      await (useCase as any).returnRepo.saveRefund(input); return true; };
+    (useCase as any).refundPayment.refundPreparedPayment = async () => {
+      calls.providerRequests++;
+      assert.deepEqual(calls.started, [{ returnId: "r", paymentIntentId: "pay_1", amountInCents: 1000, status: "PENDING" }]);
+      throw new Error("response lost");
+    };
+    await assert.rejects(useCase.execute("merchant-b", "r"), /response lost/);
+    await useCase.execute("merchant-b", "r");
+    assert.equal(calls.providerRequests, 1); assert.equal(calls.reconciliationRequests, 1);
+    assert.equal(calls.reconciliationInputs[0].paymentIntentId, "pay_1");
+  });
+  it("a missing original payment cannot advance approval or create a refund claim", async () => {
+    const { useCase, calls } = setup();
+    (useCase as any).refundPayment.prepareOrderRefund = async () => ({ amountCents: 0, reason: "approved_payment_not_found" });
+    await assert.rejects(useCase.execute("merchant-b", "r"), /approved_payment_not_found/);
+    assert.deepEqual(calls.statuses, []); assert.deepEqual(calls.started, []); assert.equal(calls.providerRequests, 0);
+  });
   it("leaves a pending provider refund processing and does not claim completion", async () => {
     const { useCase, calls } = setup("INSPECTED_PASS", {
       refunded: false, amountCents: 1_000, paymentIntentId: "pay_pending", providerRefundId: "refund_pending", reason: "provider_refund_pending",

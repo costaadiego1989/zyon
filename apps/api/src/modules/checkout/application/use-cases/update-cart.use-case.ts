@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { Cart, CartItem, CheckoutSession, UpdateCartRequest, UpdateCartResponse } from "@zyon/shared-types";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
@@ -12,6 +12,7 @@ import { commitCheckoutMutation } from "../services/commit-checkout-mutation.js"
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { assertCartStock } from "../../../catalog/application/services/cart-stock-authority.js";
+import { isMarketplaceCheckoutSession } from "../../infrastructure/marketplace-checkout-scope.js";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -48,6 +49,7 @@ export class UpdateCartUseCase {
 
     const session = await this.sessions.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+    if (isMarketplaceCheckoutSession(session)) throw new ConflictException("marketplace_cart_update_requires_crossstore");
 
     // Server is the price authority: requests only carry sku + quantity, never price.
     const bySku = new Map<string, CartItem>();

@@ -2,18 +2,18 @@ import { useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import type { CrossSellConfig, CrossSellTouchpoint, CrossSellStrategy } from "@zyon/shared-types";
+import { CROSS_SELL_STRATEGIES, normalizeCrossSellConfig } from "@zyon/shared-types";
 
 const DEFAULT: CrossSellConfig = {
   enabled: false,
-  touchpoints: { browsing: false, pre_cart: true, post_cart: false, pre_payment: true, post_purchase: false },
-  strategies: ["same_category", "ai_personalized"],
+  touchpoints: { browsing: false, pre_cart: true, post_cart: false, pre_checkout: false, pre_payment: true, post_purchase: false },
+  strategies: ["same_category"],
   limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 },
   discount: { enabled: false, percent: 10 },
   display: { mode: "inline" },
 };
 function normalize(config: Partial<CrossSellConfig>): CrossSellConfig {
-  return { ...DEFAULT, ...config, touchpoints: { ...DEFAULT.touchpoints, ...config.touchpoints },
-    limits: { ...DEFAULT.limits, ...config.limits }, discount: { ...DEFAULT.discount, ...config.discount }, display: { ...DEFAULT.display, ...config.display } };
+  return normalizeCrossSellConfig({ ...DEFAULT, ...config, touchpoints: { ...DEFAULT.touchpoints, ...config.touchpoints } });
 }
 export type CrossSellContext = "store" | "checkout";
 export interface CrossSellPageState { config: CrossSellConfig; loading: boolean; saving: boolean; }
@@ -32,13 +32,13 @@ export function useCrossSellPage(context: CrossSellContext) {
     api.getCrossSellConfig().then(raw => {
       if (cancelled) return;
       const config = normalize(raw);
-      setSavedConfig(config); setState(p => ({ ...p, config, loading: false }));
+      setSavedConfig({ ...config, strategies: raw.strategies ?? config.strategies }); setState(p => ({ ...p, config, loading: false }));
     }).catch(() => {
       if (!cancelled) { setLoadError("Não foi possível carregar as configurações. Tente novamente antes de editar."); setState(p => ({ ...p, loading: false })); }
     });
     return () => { cancelled = true; };
   }, [api, attempt]);
-  const visibleTouchpoints: CrossSellTouchpoint[] = context === "store" ? ["pre_cart", "post_cart"] : ["pre_payment", "post_purchase"];
+  const visibleTouchpoints: CrossSellTouchpoint[] = ["pre_cart", "pre_checkout", "pre_payment"];
   function patchConfig(partial: Partial<CrossSellConfig>) {
     if (savingRef.current || state.loading || loadError) return;
     setState(p => ({ ...p, config: { ...p.config, ...partial,
@@ -50,12 +50,14 @@ export function useCrossSellPage(context: CrossSellContext) {
     const next = { ...state.config.touchpoints }; for (const key of visibleTouchpoints) next[key] = key === tp;
     patchConfig({ touchpoints: next });
   }
-  function toggleStrategy(strategy: CrossSellStrategy) {
-    patchConfig({ strategies: state.config.strategies.includes(strategy) ? state.config.strategies.filter(s => s !== strategy) : [...state.config.strategies, strategy] });
+  function selectStrategy(strategy: CrossSellStrategy) {
+    patchConfig({ strategies: [strategy] });
   }
   const { config } = state;
   const fieldErrors: Record<string, string> = {};
   if (config.enabled) {
+    if (!visibleTouchpoints.some(moment => config.touchpoints[moment])) fieldErrors.moments = "Escolha pelo menos um momento para sugerir produtos.";
+    if (config.strategies.length !== 1 || !CROSS_SELL_STRATEGIES.includes(config.strategies[0]!)) fieldErrors.strategy = "Escolha uma única estratégia para orientar as recomendações.";
     if (!Number.isInteger(config.limits.maxSuggestionsPerSession) || config.limits.maxSuggestionsPerSession < 1 || config.limits.maxSuggestionsPerSession > 5) fieldErrors.max = "Informe de 1 a 5 sugestões.";
     if (!Number.isInteger(config.limits.cooldownSeconds) || config.limits.cooldownSeconds < 30 || config.limits.cooldownSeconds > 600) fieldErrors.cooldown = "Informe de 30 a 600 segundos.";
     if (config.discount.enabled && (config.discount.mode ?? "percent") === "percent" && (!Number.isInteger(config.discount.percent) || config.discount.percent < 1 || config.discount.percent > 50)) fieldErrors.percent = "Informe de 1% a 50%.";
@@ -72,6 +74,6 @@ export function useCrossSellPage(context: CrossSellContext) {
     } catch { setSaveError("Não foi possível salvar. Seus ajustes foram mantidos. Tente novamente."); }
     finally { savingRef.current = false; setState(p => ({ ...p, saving: false })); }
   }
-  return { state, context, visibleTouchpoints, patchConfig, toggleTouchpoint, selectTouchpoint, toggleStrategy, save,
+  return { state, context, visibleTouchpoints, patchConfig, toggleTouchpoint, selectTouchpoint, selectStrategy, save,
     loadError, saveError, fieldErrors, dirty: savedConfig !== null && JSON.stringify(config) !== JSON.stringify(savedConfig), reload: () => setAttempt(v => v + 1) };
 }

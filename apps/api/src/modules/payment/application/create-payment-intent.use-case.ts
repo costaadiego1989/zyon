@@ -46,6 +46,8 @@ import { OrderQuotaService } from "./services/order-quota.service.js";
 import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
 import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
 import { resolveCheckoutPaymentCapabilities } from "../domain/checkout-payment-routing.js";
+import { hasMarketplaceCheckout } from "../../checkout/infrastructure/marketplace-checkout-scope.js";
+import { CreateMarketplacePaymentService } from "./create-marketplace-payment.service.js";
 import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
 import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../shared/bookings/service-slot-holds.service.js";
 
@@ -276,19 +278,31 @@ export class CreatePaymentIntentUseCase {
     private readonly buyerAccount?: BuyerAccountRepository,
     @Optional() private readonly billingMetering?: BillingPlanMeteringService,
     private readonly orderQuota?: OrderQuotaService,
+    @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Inject(CreateMarketplacePaymentService) private readonly marketplacePayments?: CreateMarketplacePaymentService,
     @Optional() private readonly benefits?: CheckoutBenefitsService,
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
-    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) { }
 
-  async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
+  async execute(body: CreatePaymentIntentRequest, context?: { marketplaceSurface: "embed" | "v1" }): Promise<CreatePaymentIntentResponseBody> {
     const merchantId = body.merchant_id.trim();
     const sessionId = body.session_id.trim();
     const idempotencyKey = body.idempotency_key.trim();
     if (!merchantId || !sessionId || !idempotencyKey) throw new BadRequestException("payment_intent_scope_invalid");
+    if (!["pix", "card", "crypto"].includes(body.method ?? "pix")) {
+      throw new BadRequestException("payment_method_not_supported");
+    }
 
     let session = await this.checkout.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+    // Check the persisted scope before either legacy creation or retry. A
+    // stale snapshot can omit line markers or the original storefront cart.
+    if (!this.prisma) throw new ServiceUnavailableException("marketplace_checkout_scope_unavailable");
+    if (await hasMarketplaceCheckout(this.prisma, { merchantId, sessionId, session })) {
+      if (!context || !["embed", "v1"].includes(context.marketplaceSurface)) throw new ServiceUnavailableException("marketplace_checkout_not_ready");
+      if (!this.marketplacePayments) throw new ServiceUnavailableException("marketplace_checkout_not_ready");
+      return this.marketplacePayments.executePublic({ ...body, merchant_id: merchantId, session_id: sessionId, idempotency_key: idempotencyKey });
+    }
     assertCheckoutReadyForPayment(session);
 
     const sessionAttempts = await this.payments.listForSession?.(merchantId, sessionId) ?? [];

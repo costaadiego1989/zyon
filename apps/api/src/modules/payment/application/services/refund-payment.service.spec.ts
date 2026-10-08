@@ -6,6 +6,7 @@ function serviceFor(
   status: "succeeded" | "pending" | "failed" | "manual_required",
   overrides: {
     capturedCents?: number;
+    breakdown?: any;
     order?: { lineItems?: Array<{ variantId?: string; unitPriceCents: number; quantity: number }>; shippingCents?: number };
     route?: { provider: "asaas" | "stripe" | "mercadopago" | "crypto"; providerAccountFingerprint?: string; settlementMode?: "immediate_split" | "delayed_merchant_payout" };
   } = {},
@@ -15,6 +16,9 @@ function serviceFor(
   const payments = {
     findApprovedBySessionId: async () => ({
       snapshot: () => ({
+        id: "intent_1",
+        currency: "BRL",
+        amountBreakdown: overrides.breakdown,
         providerPaymentId: "pi_approved",
         amountCents: capturedCents,
         approvedAmountCents: capturedCents,
@@ -33,6 +37,55 @@ function serviceFor(
 }
 
 describe("RefundPaymentService provider settlement", () => {
+  it("partial refunds preserve the buyer's original checkout discount", async () => {
+    const { service } = serviceFor("succeeded", { capturedCents: 2700, order: {
+      lineItems: [{ variantId: "v", unitPriceCents: 1000, quantity: 2 }], shippingCents: 1000 },
+      breakdown: { version: 1, currency: "BRL", itemsSubtotalCents: 2000, discountCents: 400, shippingCents: 1000, platformFeeCents: 100, totalCents: 2700 } });
+    const partial = await service.prepareOrderRefund({ merchantId: "m", externalOrderId: "o", returnedItems: [{ variantId: "v", quantity: 1 }] });
+    assert.equal(partial.amountCents, 1300);
+    const full = await service.prepareOrderRefund({ merchantId: "m", externalOrderId: "o", returnedItems: [{ variantId: "v", quantity: 2 }] });
+    assert.equal(full.amountCents, 2700);
+  });
+  it("includes only proportional original freight in a partial refund", async () => {
+    const { service, providerInputs } = serviceFor("succeeded", { capturedCents: 4000,
+      order: { lineItems: [{ variantId: "v", unitPriceCents: 1000, quantity: 3 }], shippingCents: 1000 } });
+    const prepared = await service.prepareOrderRefund({ merchantId: "merchant", externalOrderId: "order", returnedItems: [{ variantId: "v", quantity: 1 }] });
+    assert.equal(prepared.amountCents, 1333); assert.equal(prepared.fullOrderReturn, false);
+    assert.equal(providerInputs.length, 0);
+    await service.refundPreparedPayment(prepared);
+    assert.equal(providerInputs[0].amountCents, 1333);
+  });
+  it("unpriced, duplicate, empty or invalid returned items never become a full refund", async () => {
+    for (const items of [[], [{ variantId: "unknown", quantity: 1 }], [{ variantId: "v", quantity: 4 }],
+      [{ variantId: "v", quantity: 1 }, { variantId: "v", quantity: 2 }], [{ variantId: "v", quantity: 0.5 }]]) {
+      const { service, providerInputs } = serviceFor("succeeded", { order: { lineItems: [{ variantId: "v", unitPriceCents: 100, quantity: 3 }] } });
+      const result = await service.refundOrderPayment({ merchantId: "m", externalOrderId: "o", returnedItems: items });
+      assert.equal(result.reason, "refund_items_unproven"); assert.equal(providerInputs.length, 0);
+    }
+  });
+  it("zero, negative and excessive explicit amounts do not fall back to the capture", async () => {
+    for (const amountCents of [0, -1, 1251, 1.5]) {
+      const { service, providerInputs } = serviceFor("succeeded");
+      assert.equal((await service.refundOrderPayment({ merchantId: "m", externalOrderId: "o", amountCents })).reason, "refund_amount_invalid");
+      assert.equal(providerInputs.length, 0);
+    }
+  });
+  it("leaves marketplace refund reconciliation to its allocation journal without querying a generic provider", async () => {
+    let queried = false;
+    const service = new RefundPaymentService({ getIntentById: async () => ({ snapshot: () => ({ id: "intent", providerPaymentId: "pay_original", creation: { input: {
+      provider: "asaas", providerAccountFingerprint: "original", marketplaceFunding: { provider: "asaas", environment: "test", accountFingerprint: "original" },
+    } } }) }) } as any, { fetchRefundStatus: async (input: any) => {
+      queried = true; return { state: "succeeded" };
+    } } as any, { findCompletedOrderByExternalOrderId: async () => ({ sessionId: "checkout" }) } as any);
+    const result = await service.reconcileRefundPayment({ merchantId: "host", externalOrderId: "order", paymentIntentId: "intent", providerRefundId: "refund" });
+    assert.equal(queried, false); assert.equal(result.state, "unknown");
+    assert.equal(result.reason, "marketplace_refund_allocation_required");
+  });
+  it("does not submit a generic refund before marketplace allocation reversals are ready", async () => {
+    const { service, providerInputs } = serviceFor("succeeded", { route: { provider: "asaas", marketplaceFunding: { provider: "asaas" } } as any });
+    const result = await service.refundOrderPayment({ merchantId: "merchant", externalOrderId: "order", amountCents: 100 });
+    assert.equal(result.reason, "marketplace_refund_allocation_required"); assert.equal(providerInputs.length, 0);
+  });
   it("treats only a succeeded provider response as a completed refund", async () => {
     const result = await serviceFor("succeeded").service.refundOrderPayment({ merchantId: "merchant", externalOrderId: "order" });
     assert.equal(result.refunded, true);

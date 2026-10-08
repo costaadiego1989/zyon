@@ -12,6 +12,12 @@ export function cartTotal(cart: StorefrontCart): number {
   return total;
 }
 
+export function assertMarketplaceDiscount(cart: StorefrontCart, discount: number, freeShipping = false): void {
+  if (cart.items.some(line => line.marketplace) && (discount !== 0 || freeShipping)) {
+    throw new ConflictException("marketplace_discount_allocation_required");
+  }
+}
+
 // All cart writers share this lock, including ordinary host-product mutations.
 export async function withStorefrontCart<T>(prisma: PrismaClient, merchantId: string, sessionId: string,
   work: (tx: Prisma.TransactionClient, cart: StorefrontCart) => Promise<T>): Promise<{ result: T; cart: StorefrontCart }> {

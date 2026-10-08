@@ -41,7 +41,11 @@ export class SearchFederatedProductsUseCase {
       where: { buyerMerchantId: input.hostMerchantId, status: "active" },
       select: { sellerMerchantId: true },
     });
-    const includeMerchants = connections.map((c) => c.sellerMerchantId);
+    const eligible = await Promise.all(connections.map(async (c) => {
+      const seller = await this.configRepository.get(c.sellerMerchantId);
+      return seller?.enabled && !seller.blockedMerchants?.includes(input.hostMerchantId) ? c.sellerMerchantId : undefined;
+    }));
+    const includeMerchants = eligible.filter((id): id is string => Boolean(id));
 
     if (includeMerchants.length === 0) {
       return { products: [] };

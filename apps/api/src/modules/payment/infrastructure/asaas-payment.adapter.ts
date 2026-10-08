@@ -1,5 +1,6 @@
 import { assertStandardCancellationInput, exactCancellationAmount, type PendingPaymentCancellationInput, type PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
+import { marketplaceCaptureAccount } from "../../marketplace/infrastructure/marketplace-capture-account.js";
 import { createHash } from "node:crypto";
 import type {
   CreateProviderPaymentInput,
@@ -8,6 +9,7 @@ import type {
   FetchRefundStatusOutput,
   FetchPaymentStatusInput,
   FetchPaymentStatusOutput,
+  ReadMarketplacePaymentActionOutput,
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
 
@@ -29,6 +31,23 @@ function asaasStateFromStatus(status: string | undefined): FetchPaymentStatusOut
     default:
       return "unknown";
   }
+}
+
+export function safeAsaasSandboxInvoice(value: unknown): string | undefined {
+  if (typeof value !== "string" || value.length > 2048) return undefined;
+  try {
+    const url = new URL(value);
+    return url.protocol === "https:" && url.hostname === "sandbox.asaas.com" && !url.port && !url.username && !url.password &&
+      /^\/i\/[A-Za-z0-9_-]+$/.test(url.pathname) && !url.hash && !url.search ? url.href : undefined;
+  } catch { return undefined; }
+}
+
+/** Preserve explicit offsets; this sandbox profile interprets offset-free timestamps as UTC-03.
+ * The offset assumption still requires provider sandbox homologation. */
+export function asaasQrExpiration(value: unknown): string | undefined {
+  if (typeof value !== "string" || !/^\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:\.\d{1,3})?(?:Z|[+-]\d{2}:\d{2})?$/.test(value)) return undefined;
+  const normalized = value.replace(" ", "T"), timestamp = Date.parse(/(?:Z|[+-]\d{2}:\d{2})$/.test(normalized) ? normalized : `${normalized}-03:00`);
+  return Number.isFinite(timestamp) ? new Date(timestamp).toISOString() : undefined;
 }
 
 type AsaasBillingType = "BOLETO" | "PIX" | "CREDIT_CARD" | "UNDEFINED";
@@ -189,6 +208,12 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
 
   creationAccountFingerprint(): string { return createHash("sha256").update(`${this.apiBaseUrl}\0${this.apiKey}`).digest("hex"); }
 
+  async prepareMarketplaceAccount(input: { provider: "stripe" | "asaas"; environment: "test" | "live" }) {
+    if (input.provider !== "asaas") throw new Error("marketplace_capture_provider_mismatch");
+    if (this.platformWalletId || this.requirePlatformSplit) throw new Error("marketplace_capture_split_forbidden");
+    return marketplaceCaptureAccount("asaas", input.environment, this.apiKey, this.apiBaseUrl);
+  }
+
   async readCancellationStatus(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
     assertStandardCancellationInput(input, "asaas", this.creationAccountFingerprint());
     const p = input.payment;
@@ -224,7 +249,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   }
 
   async recoverPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput | null> {
-    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const base = this.normalizedBaseUrl;
     const query = new URLSearchParams({ externalReference: input.intentId, limit: "100" });
     const response = await this.fetchImpl(`${base}/v3/payments?${query}`, {
       headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000),
@@ -241,6 +266,16 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   }
 
   async fetchPaymentStatus(input: FetchPaymentStatusInput): Promise<FetchPaymentStatusOutput> {
+    const payment = await this.readPayment(input);
+    if (input.marketplaceAccount && (payment.status === "RECEIVED_IN_CASH" ||
+      input.marketplacePayment?.method === "pix" && payment.status === "CONFIRMED")) return { state: "unknown" };
+    return { state: asaasStateFromStatus(typeof payment.status === "string" ? payment.status : undefined),
+      approvedAmountCents: typeof payment.value === "number" && Number.isFinite(payment.value) ? Math.round(payment.value * 100) : undefined };
+  }
+
+  private async readPayment(input: FetchPaymentStatusInput) {
+    const marketplace = input.marketplaceAccount !== undefined || input.marketplacePayment !== undefined;
+    if (marketplace) await this.assertMarketplaceStatusInput(input);
     const base = this.normalizedBaseUrl;
     const res = await this.fetchImpl(`${base}/v3/payments/${encodeURIComponent(input.providerPaymentId)}`, {
       headers: {
@@ -256,13 +291,78 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
       // application logs or error reporting.
       throw new Error(`asaas_payment_fetch_failed:${res.status}`);
     }
-    const payment = (await res.json()) as { status?: string; value?: number };
-    const state = asaasStateFromStatus(typeof payment.status === "string" ? payment.status : undefined);
-    const approvedAmountCents =
-      typeof payment.value === "number" && !Number.isNaN(payment.value)
-        ? Math.round(payment.value * 100)
-        : undefined;
-    return { state, approvedAmountCents };
+    const payment = (await res.json()) as { id?: string; object?: string; status?: string; value?: number;
+      externalReference?: string; customer?: string; billingType?: string; currency?: string;
+      deleted?: boolean; split?: unknown; installment?: unknown; subscription?: unknown; invoiceUrl?: string;
+      discount?: { value?: number }; fine?: { value?: number }; interest?: { value?: number } };
+    if (marketplace) {
+      const expected = input.marketplacePayment!;
+      const cents = typeof payment?.value === "number" ? payment.value * 100 : NaN;
+      if (!payment || payment.object !== "payment" || payment.id !== input.providerPaymentId ||
+          payment.externalReference !== expected.intentId || payment.customer !== expected.asaasCustomerId ||
+          payment.billingType !== billingFromMethod(expected.method) || payment.deleted !== false ||
+          (payment.currency !== undefined && payment.currency !== "BRL") || !Number.isFinite(cents) ||
+          Math.abs(cents - expected.amountCents) > 0.000001 || payment.installment != null || payment.subscription != null ||
+          (payment.split != null && (!Array.isArray(payment.split) || payment.split.length !== 0))) {
+        throw new Error("marketplace_payment_identity_mismatch");
+      }
+      // A manual cash receipt never funds the platform account. It must not
+      // authorize marketplace fulfillment or seller payouts.
+    }
+    return payment;
+  }
+
+  /** Read the original charge only. Removed/overdue/risk-held charges expose no payable instructions. */
+  async readMarketplacePaymentAction(input: FetchPaymentStatusInput): Promise<ReadMarketplacePaymentActionOutput> {
+    const environment = input.marketplaceAccount?.environment;
+    const method = input.marketplacePayment?.method;
+    if (!(environment === "test" && (method === "pix" || method === "boleto") || environment === "live" && method === "pix")) {
+      throw new Error("marketplace_payment_resume_identity_invalid");
+    }
+    const payment = await this.readPayment(input);
+    if (payment.status !== "PENDING") return { providerStatus: payment.status === "RECEIVED" ? "succeeded" :
+      ["CONFIRMED", "AWAITING_RISK_ANALYSIS"].includes(payment.status ?? "") ? "processing" : "unknown", action: null,
+      reason: ["CONFIRMED", "AWAITING_RISK_ANALYSIS"].includes(payment.status ?? "") ? "payment_processing" : "payment_terminal" };
+    // Dynamic QR/boleto amounts may change with surcharges. Do not show a frozen total alongside another payable amount.
+    if ([payment.discount, payment.fine, payment.interest].some(value => value != null && value.value !== 0)) {
+      throw new Error("marketplace_payment_identity_mismatch");
+    }
+    if (input.marketplacePayment!.method === "boleto") {
+      const invoiceUrl = safeAsaasSandboxInvoice(payment.invoiceUrl);
+      if (!invoiceUrl) throw new Error("marketplace_payment_instructions_invalid");
+      return { providerStatus: "requires_action", action: { kind: "asaas_boleto", invoiceUrl }, reason: null };
+    }
+    const response = await this.fetchImpl(`${this.normalizedBaseUrl}/v3/payments/${encodeURIComponent(input.providerPaymentId)}/pixQrCode`, {
+      headers: { accept: "application/json", access_token: this.apiKey }, redirect: "error", signal: AbortSignal.timeout(15_000),
+    });
+    if (!response.ok) throw new Error("marketplace_payment_instructions_unavailable");
+    const qr = await response.json() as { payload?: unknown; encodedImage?: unknown; expirationDate?: unknown };
+    const expiresAt = asaasQrExpiration(qr.expirationDate);
+    if (typeof qr.payload !== "string" || !qr.payload.trim() || qr.payload.length > 4096 || /[\u0000-\u001f]/.test(qr.payload) ||
+      !expiresAt || Date.parse(expiresAt) <= Date.now() || qr.encodedImage !== undefined &&
+      (typeof qr.encodedImage !== "string" || qr.encodedImage.length > 1_000_000 || !/^[A-Za-z0-9+/=]+$/.test(qr.encodedImage))) {
+      throw new Error("marketplace_payment_instructions_invalid");
+    }
+    // A concurrent deletion or amount change between both GETs must not expose stale instructions.
+    const after = await this.readPayment(input);
+    if (after.status !== "PENDING" || [after.discount, after.fine, after.interest].some(value => value != null && value.value !== 0)) {
+      return { providerStatus: "unknown", action: null, reason: "payment_action_unavailable" };
+    }
+    return { providerStatus: "requires_action", action: { kind: "asaas_pix", copyPaste: qr.payload,
+      ...(typeof qr.encodedImage === "string" ? { encodedImage: qr.encodedImage } : {}), expiresAt }, reason: null };
+  }
+
+  private async assertMarketplaceStatusInput(input: FetchPaymentStatusInput): Promise<void> {
+    const account = input.marketplaceAccount, payment = input.marketplacePayment;
+    if (!account || !payment || input.provider !== "asaas" || account.provider !== "asaas" || input.settlementMode ||
+        input.providerAccountFingerprint !== account.accountFingerprint || !/^[a-f0-9]{64}$/.test(account.accountFingerprint) ||
+        !input.merchantId?.trim() || !input.providerPaymentId?.trim() || !payment.intentId?.trim() ||
+        !payment.sessionId?.trim() || payment.currency !== "BRL" || !["pix", "boleto", "card"].includes(payment.method) ||
+        !payment.asaasCustomerId?.trim() || !Number.isSafeInteger(payment.amountCents) || payment.amountCents <= 0) {
+      throw new Error("marketplace_payment_identity_invalid");
+    }
+    const actual = await this.prepareMarketplaceAccount(account);
+    if (actual.accountFingerprint !== account.accountFingerprint) throw new Error("marketplace_capture_account_mismatch");
   }
 
   async cancelPayment(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }> {
@@ -368,7 +468,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
           accept: "application/json",
           access_token: this.apiKey
         },
-        signal: AbortSignal.timeout(15_000)
+        redirect: "error", signal: AbortSignal.timeout(15_000)
       });
       if (!res.ok) return undefined;
       const data = (await res.json()) as { data?: Array<{ id?: string }> };
@@ -450,6 +550,7 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   }
 
   async createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput> {
+    if (!["pix", "card"].includes(input.method)) throw new Error("payment_method_not_supported");
     this.validatePlatformFee(input);
     const base = this.normalizedBaseUrl;
     if (input.currency !== "BRL") throw new Error("asaas_currency_unsupported");
@@ -493,10 +594,21 @@ export class AsaasPaymentAdapter implements PaymentProviderPort {
   }
 
   private async createdOutput(input: CreateProviderPaymentInput, created: { id?: string; status?: string; invoiceUrl?: string }): Promise<CreateProviderPaymentOutput> {
-    const base = this.apiBaseUrl.replace(/\/+$/, "");
+    const base = this.normalizedBaseUrl;
     const billingType = billingFromMethod(input.method);
     const providerPaymentId = typeof created?.id === "string" ? created.id.trim() : "";
     if (!providerPaymentId) throw new Error("asaas_payment_missing_id");
+
+    if (["connected_physical_sandbox_v2", "connected_physical_live_v2"].includes(input.marketplacePublicAdmission?.profile ?? "")) {
+      const observed = await this.readMarketplacePaymentAction({ marketplaceAccount: input.marketplaceFunding!,
+        marketplacePayment: { intentId: input.intentId, sessionId: input.sessionId, amountCents: input.amountCents,
+          currency: input.currency, method: input.method, asaasCustomerId: input.asaasCustomerId },
+        provider: input.provider, providerAccountFingerprint: input.providerAccountFingerprint, merchantId: input.merchantId, providerPaymentId });
+      const action = observed.action;
+      return { providerPaymentId, status: action ? "requires_action" : "pending", buyerFacingPayload:
+        action?.kind === "asaas_pix" ? { qrCodeCopyPaste: action.copyPaste, encodedQrImage: action.encodedImage, quoteExpiresAt: action.expiresAt } :
+        action?.kind === "asaas_boleto" ? { invoiceUrl: action.invoiceUrl } : {} };
+    }
 
     const buyerFacingPayload: CreateProviderPaymentOutput["buyerFacingPayload"] = {
       invoiceUrl: typeof created.invoiceUrl === "string" ? created.invoiceUrl : undefined

@@ -161,4 +161,175 @@ export class PrismaInventorySaleRepository implements InventorySaleRepositoryPor
     const stock = stocks[0];
     return stock ? { id: stock.id, variantId: variant.id } : undefined;
   }
+
+async applyInTransaction(tx: Prisma.TransactionClient, raw: SaleCompletedEvent,
+    marketplace?: MarketplaceInventoryCommit): Promise<AppliedInventorySale> {
+    const event = validateInventorySale(raw);
+    const receiptId = inventorySaleId(event.merchantId, event.orderId);
+    const payloadHash = inventorySaleFingerprint(event);
+    // Merchant lock orders concurrent sales consistently; item row locks also serialize
+    // with other inventory quantity writers. No lock crosses a provider request.
+    const merchant = await tx.$queryRaw<Array<{ id: string }>>`SELECT id FROM merchants WHERE id = ${event.merchantId} FOR UPDATE`;
+    if (!merchant.length) throw new Error("inventory_merchant_not_found");
+    const existing = await tx.inventorySaleReceipt.findUnique({ where: { merchantId_orderId: { merchantId: event.merchantId, orderId: event.orderId } } });
+    if (existing) {
+      if (existing.payloadHash !== payloadHash) throw new Error("inventory_sale_idempotency_conflict");
+      return this.marketplaceToApplied(existing, true);
+    }
+    // Resolve every catalog target before touching inventory. A sale can remain
+    // inventory-only for catalogless SKUs, but it must never guess a catalog
+    // variant, warehouse, or ProductStock row.
+    const catalogStocks: Array<{ id: string; variantId: string } | undefined> = [];
+    const usedCatalogStockIds = new Set<string>();
+    const nonStockLines = new Set<number>();
+    for (const line of event.items) {
+      if (line.variantId && marketplace?.nonStockVariants.has(line.variantId)) {
+        catalogStocks.push(undefined);
+        continue;
+      }
+      const catalogStock = await this.marketplaceResolveCatalogStock(tx, event.merchantId, line);
+      if (catalogStock?.nonStock) {
+        if (marketplace) throw new Error("marketplace_inventory_stock_requirement_changed");
+        nonStockLines.add(catalogStocks.length);
+        catalogStocks.push(undefined);
+        continue;
+      }
+      if (catalogStock && usedCatalogStockIds.has(catalogStock.id)) {
+        throw new Error("inventory_catalog_stock_ambiguous");
+      }
+      if (catalogStock) usedCatalogStockIds.add(catalogStock.id);
+      catalogStocks.push(catalogStock);
+    }
+    // ProductStock has no InventoryLocation mapping. With more than one active
+    // warehouse, an absolute ledger balance from one location cannot be safely
+    // projected to the catalog row, even if the sale line named a location.
+    // Catalogless SKUs deliberately keep the existing inventory-only behavior.
+    if (catalogStocks.some(Boolean)) {
+      const activeLocations = await tx.inventoryLocation.findMany({
+        where: { merchantId: event.merchantId, isActive: true },
+        select: { id: true },
+        take: 2,
+      });
+      if (activeLocations.length > 1) throw new Error("inventory_catalog_location_ambiguous");
+    }
+    const items: AppliedInventorySale["items"] = [];
+    const usedItemIds = new Set<string>();
+    for (const [index, line] of event.items.entries()) {
+      if (nonStockLines.has(index)) continue;
+      if (line.variantId && marketplace?.nonStockVariants.has(line.variantId)) continue;
+      const locations = await tx.inventoryLocation.findMany({ where: { merchantId: event.merchantId, isActive: true,
+        ...(line.locationId ? { id: line.locationId } : { isDefault: true }) }, select: { id: true }, take: 2 });
+      if (locations.length !== 1) throw new Error("inventory_location_missing_or_ambiguous");
+      const locationId = locations[0]!.id;
+      const rows = await tx.$queryRaw<Array<{ id: string; quantity: number; reserved: number; low_stock_threshold: number | null }>>`
+        SELECT i.id, i.quantity, i.reserved, i.low_stock_threshold FROM inventory_items i
+        JOIN inventory_locations l ON l.id = i.location_id AND l.merchant_id = i.merchant_id
+        WHERE i.merchant_id = ${event.merchantId} AND i.sku = ${line.sku} AND i.location_id = ${locationId}
+        AND l.is_active = true FOR UPDATE OF i`;
+      if (rows.length !== 1) throw new Error("inventory_item_not_found");
+      const row = rows[0]!;
+      // Two distinct variant/location representations resolving to one inventory row
+      // are ambiguous: caller must aggregate into an authoritative SKU allocation.
+      if (usedItemIds.has(row.id)) throw new Error("inventory_sale_duplicate_allocation");
+      usedItemIds.add(row.id);
+      if (row.quantity < 0 || row.reserved < 0 || row.quantity - row.reserved < line.quantity) throw new Error("inventory_insufficient_available_stock");
+      const changed = await tx.inventoryItem.updateMany({ where: { id: row.id, merchantId: event.merchantId,
+        locationId, quantity: row.quantity, reserved: row.reserved }, data: { quantity: { decrement: line.quantity } } });
+      if (changed.count !== 1) throw new Error("inventory_stock_changed");
+      await tx.inventoryMovement.create({ data: { merchantId: event.merchantId, itemId: row.id, kind: "EXIT", quantity: line.quantity,
+        reason: "sale_completed", externalRef: event.orderId, source: "commerce" } });
+      const remainingQuantity = row.quantity - line.quantity;
+      await reconcileStockAlert(tx, event.merchantId, row.id);
+      const catalogStock = catalogStocks[index];
+      if (marketplace) {
+        const consumed = line.variantId ? marketplace.consumedStocks.get(line.variantId) : undefined;
+        if (!catalogStock || !consumed || consumed.stockId !== catalogStock.id || consumed.quantity !== line.quantity) {
+          throw new Error("marketplace_inventory_stock_binding_mismatch");
+        }
+        const stock = await tx.productStock.findUnique({ where: { id: consumed.stockId } });
+        // Reservations already consumed this balance in this transaction. Never
+        // debit twice or overwrite a different ledger balance with a projection.
+        if (!stock || stock.quantity !== remainingQuantity || stock.reserved > remainingQuantity) {
+          throw new Error("marketplace_inventory_catalog_balance_mismatch");
+        }
+      } else if (catalogStock) {
+        // Keep the catalog read model at the exact ledger balance. The variant
+        // lock acquired in resolveCatalogStock serializes reservation writers;
+        // the predicate also rejects a stale/corrupt reservation balance.
+        const projected = await tx.productStock.updateMany({
+          where: {
+            id: catalogStock.id,
+            variantId: catalogStock.variantId,
+            reserved: { lte: remainingQuantity },
+          },
+          data: { quantity: remainingQuantity },
+        });
+        if (projected.count !== 1) throw new Error("inventory_catalog_stock_changed");
+      }
+      items.push({ itemId: row.id, sku: line.sku, locationId, quantity: line.quantity, remainingQuantity });
+    }
+    const result = { stockDecrementedCount: items.length, items };
+    await tx.inventorySaleReceipt.create({ data: { id: receiptId, merchantId: event.merchantId, orderId: event.orderId, payloadHash,
+      payload: event as unknown as Prisma.InputJsonValue, result: result as unknown as Prisma.InputJsonValue } });
+    for (const [kind, eventType] of Object.entries(INVENTORY_SALE_JOBS)) {
+      await tx.outboxMessage.create({ data: { eventId: randomUUID(), eventType, schemaVersion: 1,
+        merchantId: event.merchantId, occurredAt: new Date(event.timestamp), correlationId: receiptId, causationId: event.orderId,
+        producer: "inventory", payload: { version: 1, receiptId, kind }, status: "pending" } });
+    }
+    return { receiptId, event, ...result, idempotent: false };
+  }
+
+private marketplaceToApplied(row: { id: string; payload: unknown; result: unknown }, idempotent: boolean): AppliedInventorySale {
+    const event = validateInventorySale(row.payload as SaleCompletedEvent);
+    const result = row.result as Pick<AppliedInventorySale, "stockDecrementedCount" | "items">;
+    return { receiptId: row.id, event, ...result, idempotent };
+  }
+
+private async marketplaceResolveCatalogStock(
+    tx: Prisma.TransactionClient,
+    merchantId: string,
+    line: SaleCompletedEvent["items"][number],
+  ): Promise<{ id: string; variantId: string; nonStock?: false } | { nonStock: true } | undefined> {
+    // Lock the resolved variant. Catalog reservations use the same lock, so the
+    // catalog balance cannot be changed between resolving the target and the
+    // ledger projection below.
+    const variants = line.variantId
+      ? await tx.$queryRaw<Array<{ id: string; type: string }>>`
+          SELECT v.id, p.type FROM product_variants v
+          JOIN products p ON p.id = v.product_id
+          WHERE v.id = ${line.variantId} AND v.sku = ${line.sku}
+            AND p.merchant_id = ${merchantId}
+          FOR UPDATE OF v`
+      : await tx.$queryRaw<Array<{ id: string; type: string }>>`
+          SELECT v.id, p.type FROM product_variants v
+          JOIN products p ON p.id = v.product_id
+          WHERE v.sku = ${line.sku} AND p.merchant_id = ${merchantId}
+          ORDER BY v.id ASC
+          FOR UPDATE OF v`;
+
+    if (line.variantId && variants.length !== 1) {
+      throw new Error("inventory_catalog_variant_mismatch");
+    }
+    if (!line.variantId && variants.length > 1) {
+      throw new Error("inventory_catalog_variant_ambiguous");
+    }
+    const variant = variants[0];
+    if (!variant) return undefined; // SKU is intentionally inventory-only.
+    if (["digital", "service"].includes(variant.type)) return { nonStock: true };
+
+    const stocks = await tx.$queryRaw<Array<{ id: string }>>`
+      SELECT ps.id FROM product_stock ps
+      WHERE ps.variant_id = ${variant.id}
+      ORDER BY ps.id ASC
+      FOR UPDATE OF ps`;
+    if (stocks.length > 1) throw new Error("inventory_catalog_stock_ambiguous");
+    const stock = stocks[0];
+    return stock ? { id: stock.id, variantId: variant.id } : undefined;
+  }
+}
+
+export interface MarketplaceInventoryCommit {
+  /** Only authoritative, persisted marketplace allocations may call this mode. */
+  consumedStocks: Map<string, { stockId: string; quantity: number }>;
+  nonStockVariants: Set<string>;
 }

@@ -1,12 +1,11 @@
 "use client";
 
 import { useCallback, useEffect, useId, useRef, useState } from "react";
-import { FiChevronLeft, FiChevronRight, FiHeart, FiPackage, FiStar } from "react-icons/fi";
+import { FiChevronLeft, FiChevronRight } from "react-icons/fi";
 import type { ProductCarouselBlock as ProductCarouselBlockType, ProductCardBlock } from "@/lib/types";
 import { productsApi } from "@/lib/api/api-client";
-import RuleNotices from "./RuleNotices";
-import ImageSlideshow from "../ImageSlideshow";
-import styles from "./ProductCarouselBlock.module.css";
+import CatalogProductCard from "./CatalogProductCard";
+import { catalogProductStyles as styles } from "@zyon/checkout-ui/catalog-product-card";
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const variantIdPattern = /^[A-Za-z0-9_-]{1,191}$/;
@@ -77,39 +76,13 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
     </div> : null}
     <div className={styles.slider}>
     <div id={trackId} ref={scrollRef} className={styles.track} tabIndex={0} aria-label="Lista de produtos; deslize para explorar">
-      {products.map((product) => {
-        const images = product.images?.length ? product.images : product.image ? [product.image] : [];
-        const details = () => onQuickReply?.("Detalhes " + product.name);
-        const customizable = (product.variants?.length ?? 0) > 1 || (product.optionGroups?.length ?? 0) > 0;
+      {products.map(product => {
         const singleVariantId = product.variants?.length === 1 && variantIdPattern.test(product.variants[0].id)
-          ? product.variants[0].id
-          : undefined;
+          ? product.variants[0].id : undefined;
         const addToCart = () => onQuickReply?.(singleVariantId
           ? `Adicionar ${product.name} ao carrinho [variantId:${singleVariantId}]`
           : "Adicionar " + product.name + " ao carrinho");
-        return <article key={product.id} className={styles.card} data-aacp-carousel-product={product.id}>
-          <div className={styles.media} onClick={details}>
-            {images.length ? <ImageSlideshow images={images} alt={product.name} objectFit="cover" /> : <div className={styles.noImage}><FiPackage aria-hidden="true" /><span>Imagem indisponível</span></div>}
-            <span className={styles.stock} data-available={product.inStock}>{product.inStock ? "Pronta entrega" : "Indisponível"}</span>
-            {(product.discountPercent ?? 0) > 0 ? <span className={styles.discount}>−{product.discountPercent}%</span> : null}
-            <button data-neu="control" type="button" className={styles.wishlist} aria-label={"Adicionar " + product.name + " à lista de desejos"} onClick={(event) => { event.stopPropagation(); onQuickReply?.("Adicionar " + product.name + " à lista de desejos"); }}><FiHeart aria-hidden="true" /></button>
-          </div>
-          <div className={styles.body}>
-            <h4><button data-neu="text" type="button" onClick={details}>{product.name}</button></h4>
-            {product.description ? <p className={styles.description}>{product.description}</p> : null}
-            <div className={styles.rating}>
-              {product.rating != null && (product.reviewCount ?? 0) > 0 ? <><FiStar aria-hidden="true" /><strong>{product.rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</strong><span>({product.reviewCount} avaliações)</span></> : <span>Ainda sem avaliações</span>}
-            </div>
-            {product.variants && product.variants.length > 1 ? <div className={styles.variants}>{product.variants.slice(0, 3).map((variant) => <span key={variant.id}>{variant.value}</span>)}{product.variants.length > 3 ? <span>+{product.variants.length - 3}</span> : null}</div> : null}
-            <div className={styles.price}>{product.originalPriceFormatted ? <del>{product.originalPriceFormatted}</del> : null}<strong>{product.priceFormatted}</strong></div>
-            {product.source === "marketplace" && product.sellerName ? <p className={styles.seller}>Vendido por {product.sellerName}</p> : null}
-            <RuleNotices notices={product.ruleNotices} />
-            <div className={styles.ctas}>
-              <button data-neu="control" type="button" onClick={details}>Saber mais</button>
-              <button data-neu="primary" type="button" className={styles.buy} disabled={!product.inStock} onClick={() => customizable ? details() : addToCart()}>{customizable ? "Escolher opções" : "Adicionar ao carrinho"}</button>
-            </div>
-          </div>
-        </article>;
+        return <CatalogProductCard key={product.id} product={product} onQuickReply={onQuickReply} onAdd={addToCart} />;
       })}
       {cursor ? <div ref={observerRef} className={styles.more} role="status">{loadError ? <><span>Não foi possível carregar mais produtos.</span><button data-neu="control" type="button" onClick={() => void loadMore()}>Tentar novamente</button></> : loadingMore ? "Carregando…" : "Mais produtos"}</div> : null}
     </div>

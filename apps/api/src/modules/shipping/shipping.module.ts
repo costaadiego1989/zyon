@@ -24,6 +24,7 @@ import { QuoteRadiusDeliveryUseCase } from "./application/use-cases/quote-radius
 import { PrismaOwnDeliveryConfigRepository } from "./infrastructure/repositories/prisma-own-delivery-config.repository.js";
 import { OWN_DELIVERY_CONFIG_REPOSITORY } from "./domain/ports/own-delivery-config.port.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { MarketplaceLabelPurchaseGuard } from "./application/use-cases/marketplace-label-purchase.guard.js";
 
 @Module({
   imports: [MerchantModule, FulfillmentModule, IntegrationsModule, CheckoutPersistenceModule, ShippingQuotesModule],
@@ -35,6 +36,7 @@ import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
     { provide: ORDER_TRACKING_UPDATER, useExisting: UpdateTenantOrderTrackingUseCase },
     { provide: SHIPPING_CARRIER_ADAPTER, useExisting: MelhorEnvioCarrierAdapter },
     PurchaseShippingLabelUseCase,
+    MarketplaceLabelPurchaseGuard,
     GetShippingTrackingUseCase,
     GetDeliveryConfigUseCase,
     UpdateDeliveryConfigUseCase,

@@ -44,7 +44,7 @@ export type FederatedSearchRepositoryPort = {
     query: string,
     category: string | undefined,
     limit: number,
-    filters?: { includeMerchants?: string[]; excludeMerchants: string[]; hostMerchantId: string },
+    scope?: { includeMerchants?: string[]; excludeMerchants: string[] }
   ): Promise<RawFederatedProduct[]>;
 };
 
@@ -65,7 +65,7 @@ export class FederatedSearchService {
       params.query,
       params.category,
       params.limit,
-      { includeMerchants: params.includeMerchants, excludeMerchants: [...excludeSet], hostMerchantId: params.hostMerchantId },
+      { includeMerchants: params.includeMerchants, excludeMerchants: [...excludeSet] }
     );
 
     const includeSet = params.includeMerchants ? new Set(params.includeMerchants) : null;
@@ -85,7 +85,7 @@ export class FederatedSearchService {
       throw new Error("Query must be at most 200 characters");
     }
 
-    if (params.limit < 1 || params.limit > 20) {
+    if (!Number.isInteger(params.limit) || params.limit < 1 || params.limit > 20) {
       throw new Error("Limit must be between 1 and 20");
     }
 

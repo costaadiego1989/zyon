@@ -1,3 +1,4 @@
+import { UpdateMarketplaceCheckoutAddressService } from "./application/update-marketplace-checkout-address.service.js";
 import { Module } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
 import { AuthorizeStorefrontCartService } from "./application/authorize-storefront-cart.service.js";
@@ -59,6 +60,7 @@ import { ReopenEmbedCheckoutUseCase } from "./application/reopen-embed-checkout.
     WidgetCatalogController,
   ],
   providers: [
+    UpdateMarketplaceCheckoutAddressService,
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     AuthorizeStorefrontCartService,
     ResolveEmbedBuyerService,

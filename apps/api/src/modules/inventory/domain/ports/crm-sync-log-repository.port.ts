@@ -1,7 +1,7 @@
 export const CRM_SYNC_LOG_REPOSITORY = Symbol("CRM_SYNC_LOG_REPOSITORY");
 
 export type CrmSyncStage = "lead" | "customer";
-export type CrmSyncStatus = "success" | "failed";
+export type CrmSyncStatus = "success" | "failed" | "skipped";
 
 export interface CrmSyncLogRow {
   id: string;
@@ -27,5 +27,5 @@ export interface CrmSyncLogRepositoryPort {
   list(merchantId: string, limit?: number): Promise<CrmSyncLogRow[]>;
 
   /** True if this merchant already has a lead-stage log row for the email. */
-  hasLeadFor(merchantId: string, email: string): Promise<boolean>;
+  hasLeadFor(merchantId: string, email: string, provider?: string): Promise<boolean>;
 }

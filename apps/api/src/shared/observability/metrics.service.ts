@@ -23,6 +23,41 @@ export class MetricsService {
     registers: [this.registry],
   });
 
+  readonly marketplacePublicPaymentAdmission = new Counter({
+    name: "marketplace_public_payment_admission_total",
+    help: "Marketplace public payment admission decisions; not charges, approvals or settlement",
+    labelNames: ["outcome", "reason"],
+    registers: [this.registry],
+  });
+
+  readonly marketplacePaymentCapabilityChecks = new Counter({
+    name: "marketplace_payment_capability_checks_total",
+    help: "Read-only marketplace payment availability checks; not payment admission, charges or approvals",
+    labelNames: ["outcome", "reason"],
+    registers: [this.registry],
+  });
+
+  readonly marketplacePaymentRecoveryLookups = new Counter({
+    name: "marketplace_payment_recovery_lookups_total",
+    help: "Read-only session-bound marketplace payment recovery lookups; not charges or approvals",
+    labelNames: ["outcome", "reason"],
+    registers: [this.registry],
+  });
+
+  readonly marketplacePaymentResumeOperations = new Counter({
+    name: "marketplace_payment_resume_operations_total",
+    help: "Explicit authorization, action reads and verification of the original marketplace payment; no customer or payment labels",
+    labelNames: ["operation", "outcome"],
+    registers: [this.registry],
+  });
+
+  readonly marketplaceCheckoutAddressUpdates = new Counter({
+    name: "marketplace_checkout_address_updates_total",
+    help: "Explicit marketplace checkout address confirmations and refusals; no customer labels",
+    labelNames: ["outcome"],
+    registers: [this.registry],
+  });
+
   readonly paymentFailed = new Counter({
     name: "payment_failed_total",
     help: "Total payments failed",

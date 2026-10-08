@@ -70,6 +70,9 @@ export type CreateProviderPaymentInput = {
    * value when absent.
    */
   brlPerUsdcOverride?: number;
+
+marketplacePublicAdmission?: { version: 1; profile: import("../../application/marketplace-public-payment-admission.service.js").MarketplacePublicPaymentProfile };
+marketplaceFunding?: import("../../../marketplace/domain/services/marketplace-funding-budget.js").FrozenMarketplaceFunding;
 };
 
 export type CryptoTransferQuotePayload = {
@@ -124,6 +127,16 @@ export type FetchPaymentStatusInput = {
   providerPaymentId: string;
   stripeConnectAccountId?: string;
   stripeChargeMode?: "direct_v2";
+
+marketplaceAccount?: MarketplaceCaptureAccount;
+marketplacePayment?: {
+    intentId: string;
+    sessionId: string;
+    amountCents: number;
+    currency: string;
+    method: string;
+    asaasCustomerId?: string;
+  };
 };
 
 export type FetchPaymentStatusOutput = {
@@ -149,6 +162,8 @@ export type RefundPaymentInput = {
   reason?: string;
   /** Stable key for retrying the same return without issuing it twice. */
   idempotencyKey?: string;
+
+marketplaceAccount?: MarketplaceCaptureAccount;
 };
 
 export type RefundPaymentOutput = {
@@ -173,6 +188,8 @@ export type FetchRefundStatusInput = {
    * provider-generated refund id. It is never used to issue a new refund.
    */
   refundReference?: string;
+
+marketplaceAccount?: MarketplaceCaptureAccount;
 };
 
 export type FetchRefundStatusOutput = {
@@ -194,6 +211,7 @@ export interface PaymentProviderPort {
   recoverPayment?(input: CreateProviderPaymentInput, firstAttemptAt: string): Promise<CreateProviderPaymentOutput | null>;
   createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput>;
   createCustomer?(input: {
+    marketplaceAccount?: MarketplaceCaptureAccount;
     merchantId: string;
     name: string;
     email: string;
@@ -217,4 +235,24 @@ export interface PaymentProviderPort {
    * their durable PENDING marker for manual reconciliation.
    */
   fetchRefundStatus?(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput>;
+
+prepareMarketplaceAccount?(input: Pick<MarketplaceCaptureAccount, "provider" | "environment">): Promise<MarketplaceCaptureAccount>;
+readMarketplacePaymentAction?(input: FetchPaymentStatusInput): Promise<ReadMarketplacePaymentActionOutput>;
 }
+
+export type MarketplaceCaptureAccount = {
+  provider: "stripe" | "asaas";
+  environment: "test" | "live";
+  accountFingerprint: string;
+};
+
+export type ReadMarketplacePaymentActionOutput = {
+  providerStatus: import("../marketplace-payment-resume.js").MarketplacePaymentProviderStatus;
+  action: null | {
+    kind: "stripe_card_entry" | "stripe_card_3ds";
+    clientSecret: string;
+    publishableKey: string;
+  } | { kind: "asaas_pix"; copyPaste: string; encodedImage?: string; expiresAt: string }
+    | { kind: "asaas_boleto"; invoiceUrl: string };
+  reason: import("../marketplace-payment-resume.js").MarketplacePaymentActionReason | null;
+};

@@ -35,7 +35,7 @@ export class RequestReturnUseCase {
     notes?: string;
     imageUrls?: string[];
     items: Array<{ variantId: string; quantity: number; reason?: string }>;
-  }): Promise<ReturnEntity> {
+  }): Promise<ReturnEntity & { supportTicketId?: string }> {
     if (!VALID_REASONS.includes(input.reason as ReturnReason)) {
       throw new BadRequestException("invalid_return_reason");
     }
@@ -43,8 +43,9 @@ export class RequestReturnUseCase {
       throw new BadRequestException("at_least_one_item_required");
     }
     for (const item of input.items) {
-      if (item.quantity <= 0) throw new BadRequestException("quantity_must_be_positive");
+      if (!item.variantId?.trim() || !Number.isSafeInteger(item.quantity) || item.quantity <= 0) throw new BadRequestException("quantity_must_be_positive");
     }
+    if (input.items.length > 100 || new Set(input.items.map(row => row.variantId)).size !== input.items.length) throw new BadRequestException("invalid_return_items");
 
     const orderId = input.orderId?.trim() || `manual_${Date.now()}`;
 
@@ -66,12 +67,12 @@ export class RequestReturnUseCase {
       items: input.items,
     });
 
-    await this.linkSupportTicket(created);
-
-    return created;
+    const supportTicketId = await this.linkSupportTicket(created);
+    return Object.assign(created, { supportTicketId });
   }
 
-  private async linkSupportTicket(ret: ReturnEntity): Promise<void> {
+  private async linkSupportTicket(ret: ReturnEntity): Promise<string | undefined> {
+    let ticketId: string | undefined;
     try {
       const reason = ret.reason as SupportReturnReason;
       const reasonLabel = REASON_LABELS[ret.reason] ?? "Solicitação de troca/devolução";
@@ -83,6 +84,7 @@ export class RequestReturnUseCase {
         source: "return_request",
         returnId: ret.id,
       });
+      ticketId = ticket.id;
 
       const metadata: SupportMessageMetadata = {
         kind: "return_request",
@@ -108,5 +110,6 @@ export class RequestReturnUseCase {
     } catch (err) {
       this.logger.warn(`failed_to_link_support_ticket return=${ret.id}: ${(err as Error).message}`);
     }
+    return ticketId;
   }
 }

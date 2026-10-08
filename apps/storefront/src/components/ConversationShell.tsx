@@ -30,6 +30,7 @@ import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
 import { submitRichProductCart, visibleCommerceMessage } from "@/lib/rich-product-cart-action";
 import { checkoutApi } from "@/lib/api/api-client";
+import { usePreCheckoutCrossSell } from "../lib/use-pre-checkout-cross-sell";
 import { useRealtimeProductNarration, type ProductNarrationProgress } from "@/lib/voice/use-realtime-product-narration";
 import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
 import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
@@ -361,8 +362,18 @@ export default function ConversationShell({
     },
   });
 
+  const preCheckout = usePreCheckoutCrossSell({ merchantId: merchantId ?? null, cartId: cart.cartId ?? null,
+    itemCount: cart.itemCount, sendMessage, dismissOtherSuggestions: dismissCrossSell });
+
   // Every checkout entry point must honor the same buyer preference and auth gate.
   async function beginCheckout() {
+    if (!budgetModeEnabled) {
+      void preCheckout.request(() => { void continueCheckout(); });
+      return { agentMessage: "Revise as sugestões para completar seu pedido antes do checkout." };
+    }
+    return continueCheckout();
+  }
+  async function continueCheckout() {
       if (budgetModeEnabled) {
         setShowBuyerAuth(false);
         navigation.setCart(true);
@@ -538,27 +549,9 @@ export default function ConversationShell({
       return;
     }
     openedPreparedActions.current.add(preparedCheckout.actionId);
-    const buyer = getValidBuyer();
-    if (!buyer) {
-      setBuyerAuthIntent("enable_quick_purchase");
-      setShowBuyerAuth(true);
-      clearPreparedCheckout();
-      return;
-    }
-    if (!oneBuyClick.preferencesConfigured) {
-      setQuickPurchasePreferencesOpen(true);
-      clearPreparedCheckout();
-      return;
-    }
-    setCheckoutUserId(buyer?.globalUserId ?? "");
-    setCheckoutCartRef(preparedCheckout.cartId);
-    setCheckoutPreferences({
-      shippingPreference: preparedCheckout.shippingPreference,
-      paymentPreference: preparedCheckout.paymentPreference,
-    });
-    setCheckoutOpen(true);
     clearPreparedCheckout();
-  }, [preparedCheckout, oneBuyClick, clearPreparedCheckout, budgetModeEnabled]);
+    void preCheckout.request(() => { void continueCheckout(); });
+  }, [preparedCheckout, oneBuyClick, clearPreparedCheckout, budgetModeEnabled, preCheckout.request]);
   useEffect(() => {
     if ((!richProduct && !checkoutOpen && !navigation.view.cart) || openedInitialRichProduct.current) return;
     openedInitialRichProduct.current = true;
@@ -648,13 +641,10 @@ export default function ConversationShell({
       return;
     }
     if (checkoutIntent) {
-      setCheckoutUserId(checkoutIntent);
-      setCheckoutCartRef(cart.cartId ?? undefined);
-      setCheckoutPreferences(undefined);
-      setCheckoutOpen(true);
       setCheckoutIntent(null);
+      void beginCheckout();
     }
-  }, [checkoutIntent, setCheckoutIntent, budgetModeEnabled]);
+  }, [checkoutIntent, setCheckoutIntent, budgetModeEnabled, preCheckout.request]);
   useEffect(() => {
     const buyerToken = localStorage.getItem("zyon_buyer_token");
     if (buyerToken && !showBuyerAuth && !checkoutUserId) {
@@ -1117,12 +1107,14 @@ export default function ConversationShell({
           forceOpen={navigation.view.cart}
           onOpen={() => navigation.setCart(true)}
           onClose={() => navigation.setCart(false)}
-          suppressAutoOpen={Boolean(crossSellPending) || Boolean(richProduct) || checkoutOpen}
+          suppressAutoOpen={Boolean(crossSellPending) || Boolean(preCheckout.data) || Boolean(richProduct) || checkoutOpen}
         />
       )}
       {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}
       <CrossSellInterstitial
-        data={crossSellPending}
+        data={preCheckout.data ? null : crossSellPending}
+        theme={theme}
+        onQuickReply={message => { dismissCrossSell(); setRichProduct(null); handleQuickReply(message); }}
         onClose={dismissCrossSell}
         onViewCart={() => {
           dismissCrossSell();
@@ -1141,6 +1133,10 @@ export default function ConversationShell({
           }
         }}
       />
+      <CrossSellInterstitial data={preCheckout.data} theme={theme} primaryLabel="Continuar para o checkout"
+        busy={preCheckout.busy} addedIds={preCheckout.addedIds} error={preCheckout.error}
+        onQuickReply={message => { preCheckout.cancel(); handleQuickReply(message); }}
+        onClose={preCheckout.cancel} onViewCart={preCheckout.proceed} onAddItem={(id, name) => { void preCheckout.add(id, name); }} />
       {/* Buyer Hub Panel */}
       <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} merchantSlug={merchantSlug} onToggleTheme={toggleTheme}
         currentSessionId={conversationId}
@@ -1217,12 +1213,12 @@ export default function ConversationShell({
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} crossSell={productCrossSell?.productId === richProduct.productId ? productCrossSell.data : null} onAddCrossSell={(product) => {
+      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} crossSell={productCrossSell?.productId === richProduct.productId ? productCrossSell.data : null} onQuickReply={message => { setRichProduct(null); handleQuickReply(message); }} onAddCrossSell={(product) => {
         dismissProductCrossSell();
         const tags = `[variantId:${product.id}]${product.promoId ? `[crossSellPromoId:${product.promoId}]` : ""}`;
         handleQuickReply(`Adicionar ${product.name} ao carrinho ${tags}`);
         if (product.couponCode) setTimeout(() => handleQuickReply(`Aplicar cupom ${product.couponCode}`), 400);
-      }} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || Boolean(crossSellPending)} onProductResolved={({ productId, defaultVariantId }) => {
+      }} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || Boolean(crossSellPending) || Boolean(preCheckout.data)} onProductResolved={({ productId, defaultVariantId }) => {
         if (richProduct.productId === productId && typeof defaultVariantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(defaultVariantId)) {
           presentedProductVariantRef.current = defaultVariantId;
         }

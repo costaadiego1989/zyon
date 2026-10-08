@@ -14,6 +14,8 @@ import ProductContentRenderer, {
 import type { ProductContentBlock } from "./ContentBlocks";
 import styles from "./RichProductContent.module.css";
 import choiceStyles from "./ProductChoiceControl.module.css";
+import CatalogProductCard from "./CatalogProductCard";
+import { catalogProductStyles } from "@zyon/checkout-ui/catalog-product-card";
 import ProductNarration from "./ProductNarration";
 import { buildProductNarration } from "@/lib/services/product-narration";
 import { useGallerySwipe } from "../useGallerySwipe";
@@ -43,7 +45,7 @@ function getImages(purchase: PurchaseTarget | undefined, blocks: ProductContentB
   return candidates.filter((image, index) => safeImage(image.src) && candidates.findIndex((other) => other.src === image.src) === index).slice(0, 8);
 }
 
-export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, merchantSlug, productId, embedded = false, immersive = false, narrationEnabled = true, shareUrl, showNarration = true, onCartAdded, crossSell, onAddCrossSell }: {
+export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, merchantSlug, productId, embedded = false, immersive = false, narrationEnabled = true, shareUrl, showNarration = true, onCartAdded, crossSell, onAddCrossSell, onQuickReply }: {
   blocks: ProductContentBlock[];
   faqs: ProductContentSupplementalFaq[];
   testimonials: ProductContentSupplementalTestimonial[];
@@ -60,6 +62,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   onCartAdded?: () => void;
   crossSell?: CrossSellInterstitialData | null;
   onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  onQuickReply?: (message: string) => void;
 }) {
   const oneBuyClick = useOneBuyClickPresentation();
   const [selectedVariantId, setSelectedVariantId] = useState(purchase?.defaultVariantId ?? purchase?.variants[0]?.id ?? "");
@@ -127,7 +130,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
       return;
     }
     if (purchase.serviceSchedule && !purchase.serviceSchedule.slots.some(slot => slot.slotId === selectedServiceSlotId && isSelectableServiceTime(slot))) {
-      setServiceError("Escolha uma data e um horário disponíveis para continuar.");
+      setServiceError("Escolha uma data e um horÃ¡rio disponÃ­veis para continuar.");
       document.querySelector<HTMLElement>("[data-aacp-service-schedule] input:not(:disabled)")?.focus();
       return;
     }
@@ -162,12 +165,12 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   const purchaseActions = <>
     <button data-neu="primary" type="button" data-aacp-rich-product-add-to-cart className={styles.buyButton} onClick={addToCart} disabled={!selectedVariant?.available || inProgress} aria-busy={status === "pending"}>
       {status === "added" ? <FiCheck aria-hidden="true" /> : <FiShoppingBag aria-hidden="true" />}
-      <span>{status === "pending" ? "Adicionando…" : status === "review" ? "Confirmação pendente" : status === "rejected" ? "Tentar novamente" : status === "added" ? purchase?.serviceSchedule ? "Escolher outro horário" : "Adicionar mais um" : selectedVariant?.available ? "Adicionar ao carrinho" : "Produto indisponível"}</span>
+      <span>{status === "pending" ? "Adicionandoâ€¦" : status === "review" ? "ConfirmaÃ§Ã£o pendente" : status === "rejected" ? "Tentar novamente" : status === "added" ? purchase?.serviceSchedule ? "Escolher outro horÃ¡rio" : "Adicionar mais um" : selectedVariant?.available ? "Adicionar ao carrinho" : "Produto indisponÃ­vel"}</span>
       <FiArrowRight aria-hidden="true" />
     </button>
     <div className={styles.feedback} data-aacp-rich-product-confirmation={status === "added" ? true : undefined} aria-live="polite" aria-atomic="true">
       {status === "added" ? <><FiCheck className={styles.confirmationCheck} aria-hidden="true" /><span>Produto adicionado.</span><button data-neu="text" type="button" data-aacp-rich-product-open-cart onClick={openCart}>Ver carrinho <FiArrowRight aria-hidden="true" /></button></> : null}
-      {status === "review" ? <div className={styles.pendingConfirmation}><p>A inclusão ainda não foi confirmada. Confira o carrinho antes de tentar novamente.</p><button data-neu="control" type="button" onClick={openCart}>Confira o carrinho <FiArrowRight aria-hidden="true" /></button></div> : null}
+      {status === "review" ? <div className={styles.pendingConfirmation}><p>A inclusÃ£o ainda nÃ£o foi confirmada. Confira o carrinho antes de tentar novamente.</p><button data-neu="control" type="button" onClick={openCart}>Confira o carrinho <FiArrowRight aria-hidden="true" /></button></div> : null}
       {status === "rejected" ? <span role="alert">{actionError}</span> : null}
     </div>
   </>;
@@ -185,21 +188,21 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
           <ProductGallery images={images} productName={purchase.productName} />
           <div className={styles.summary}>
             {shareUrl && purchase ? <div className={styles.shareRow}><span>Compartilhe</span><ProductCardShare productName={purchase.productName} shareUrl={shareUrl} /></div> : null}
-            {rating ? <a className={styles.rating} href="#product-content-reviews-heading"><span aria-hidden="true">★</span><strong>{rating}</strong><span>{ratings.length} avaliações</span><FiArrowRight aria-hidden="true" /></a> : null}
+            {rating ? <a className={styles.rating} href="#product-content-reviews-heading"><span aria-hidden="true">â˜…</span><strong>{rating}</strong><span>{ratings.length} avaliaÃ§Ãµes</span><FiArrowRight aria-hidden="true" /></a> : null}
             <h1 id="aacp-rich-product-title">{purchase.productName}</h1>
             {purchase.description ? <p className={styles.description}>{purchase.description}</p> : null}
             <div className={styles.priceRow}>
-              <strong data-aacp-rich-product-price className={styles.price}>{typeof price === "number" ? currency.format(price + optionExtraReais) : "Preço indisponível"}</strong>
+              <strong data-aacp-rich-product-price className={styles.price}>{typeof price === "number" ? currency.format(price + optionExtraReais) : "PreÃ§o indisponÃ­vel"}</strong>
               <span className={styles.stock}>{status === "rejected" && ["variant_out_of_stock", "marketplace_insufficient_stock"].includes(actionCode ?? "")
-                ? "Quantidade indisponível" : status === "rejected" && ["product_unavailable", "digital_content_unavailable"].includes(actionCode ?? "")
-                ? "Indisponível no momento" : selectedVariant?.available ? <><FiCheck aria-hidden="true" /> Disponível</> : "Indisponível no momento"}</span>
+                ? "Quantidade indisponÃ­vel" : status === "rejected" && ["product_unavailable", "digital_content_unavailable"].includes(actionCode ?? "")
+                ? "IndisponÃ­vel no momento" : selectedVariant?.available ? <><FiCheck aria-hidden="true" /> DisponÃ­vel</> : "IndisponÃ­vel no momento"}</span>
             </div>
             {purchase.variants.length > 1 || purchase.variants.some((variant) => Object.keys(variant.attributes).length > 0) ? (
               <fieldset className={styles.variants} disabled={inProgress}>
-                <legend>Escolha sua versão</legend>
+                <legend>Escolha sua versÃ£o</legend>
                 <div className={styles.variantList}>
                   {purchase.variants.map((variant, index) => {
-                    const label = Object.values(variant.attributes).join(" / ") || (purchase.variants.length > 1 ? "Opção " + (index + 1) : "Padrão");
+                    const label = Object.values(variant.attributes).join(" / ") || (purchase.variants.length > 1 ? "OpÃ§Ã£o " + (index + 1) : "PadrÃ£o");
                     return <label key={variant.id} className={styles.variant} data-unavailable={!variant.available}>
                       <input type="radio" name="rich-product-variant" value={variant.id} checked={variant.id === selectedVariantId} onChange={() => { setSelectedVariantId(variant.id); setSelectedServiceSlotId(null); setServiceError(null); setStatus("idle"); }} disabled={!variant.available} />
                       <span>{label}{!variant.available ? <small>Esgotado</small> : null}</span>
@@ -211,55 +214,44 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
             {purchase.serviceSchedule ? <ServiceScheduleSelector schedule={purchase.serviceSchedule} selectedSlotId={selectedServiceSlotId} error={serviceError} disabled={inProgress}
               onChange={id => { setSelectedServiceSlotId(id); setServiceError(null); setStatus("idle"); }} /> : null}
             {purchase.optionGroups.length ? <FoodOptions groups={purchase.optionGroups} selected={selectedOptionIds} error={optionError} disabled={inProgress} onToggle={toggleOption} /> : null}
-            {selectedVariant?.available && selectedVariant.lowStock ? <p data-aacp-rich-product-nudge className={styles.nudge}><FiPackage aria-hidden="true" /><span>Últimas unidades desta versão disponíveis.</span></p> : null}
+            {selectedVariant?.available && selectedVariant.lowStock ? <p data-aacp-rich-product-nudge className={styles.nudge}><FiPackage aria-hidden="true" /><span>Ãšltimas unidades desta versÃ£o disponÃ­veis.</span></p> : null}
             <RuleNotices notices={purchase.ruleNotices} />
             {!immersive ? purchaseActions : null}
-            {crossSell?.products.length ? <ProductCrossSell data={crossSell} onAdd={onAddCrossSell} /> : null}
-            <div className={styles.delivery}><FiTruck aria-hidden="true" /><div><strong>{purchase.productType === "digital" ? "Acesso digital" : purchase.productType === "service" ? "Condições do serviço" : "Entrega calculada para você"}</strong><p>{purchase.productType === "digital" ? "O acesso é liberado após a confirmação do pagamento." : purchase.productType === "service" ? "Confira com a loja as condições de agendamento e execução." : "Consulte o frete e o prazo com seu CEP no checkout."}</p></div></div>
+            {crossSell?.products.length ? <ProductCrossSell data={crossSell} onAdd={onAddCrossSell} onQuickReply={onQuickReply} /> : null}
+            <div className={styles.delivery}><FiTruck aria-hidden="true" /><div><strong>{purchase.productType === "digital" ? "Acesso digital" : purchase.productType === "service" ? "CondiÃ§Ãµes do serviÃ§o" : "Entrega calculada para vocÃª"}</strong><p>{purchase.productType === "digital" ? "O acesso Ã© liberado apÃ³s a confirmaÃ§Ã£o do pagamento." : purchase.productType === "service" ? "Confira com a loja as condiÃ§Ãµes de agendamento e execuÃ§Ã£o." : "Consulte o frete e o prazo com seu CEP no checkout."}</p></div></div>
           </div>
         </section>
       ) : null}
       <div id="rich-product-details" className={styles.editorial}>
         <ProductContentRenderer blocks={blocks} faqs={faqs} testimonials={testimonials} videos={videos} onCtaClick={onCtaClick} merchantSlug={merchantSlug} productId={productId} productName={purchase?.productName} />
       </div>
-      {purchase ? <div className={styles.closing}><div><span>Pronto para escolher?</span><strong>{purchase.productName}</strong></div><a href="#aacp-rich-product-title">Ver opções <FiArrowRight aria-hidden="true" /></a></div> : null}
+      {purchase ? <div className={styles.closing}><div><span>Pronto para escolher?</span><strong>{purchase.productName}</strong></div><a href="#aacp-rich-product-title">Ver opÃ§Ãµes <FiArrowRight aria-hidden="true" /></a></div> : null}
       </div>
       {immersive && purchase ? <footer className={styles.purchaseDock} data-aacp-product-purchase-dock>
-        <div className={styles.dockPrice}><span>{Object.values(selectedVariant?.attributes ?? {}).join(" / ") || "Sua escolha"}</span><strong data-aacp-product-total>{typeof price === "number" ? currency.format(price + optionExtraReais) : "Preço indisponível"}</strong></div>
+        <div className={styles.dockPrice}><span>{Object.values(selectedVariant?.attributes ?? {}).join(" / ") || "Sua escolha"}</span><strong data-aacp-product-total>{typeof price === "number" ? currency.format(price + optionExtraReais) : "PreÃ§o indisponÃ­vel"}</strong></div>
         <div className={styles.dockActions}>{purchaseActions}</div>
       </footer> : null}
     </div>
   );
 }
 
-function ProductCrossSell({ data, onAdd }: {
+function ProductCrossSell({ data, onAdd, onQuickReply }: {
   data: CrossSellInterstitialData;
   onAdd?: (product: CrossSellInterstitialData["products"][number]) => void;
+  onQuickReply?: (message: string) => void;
 }) {
   return <section className={styles.crossSell} data-aacp-product-cross-sell aria-labelledby="aacp-product-cross-sell-heading">
     <div className={styles.crossSellHeading}>
       <div>
         <p>Complete sua rotina</p>
-        <h2 id="aacp-product-cross-sell-heading">Você também pode gostar</h2>
+        <h2 id="aacp-product-cross-sell-heading">VocÃª tambÃ©m pode gostar</h2>
       </div>
       <span>{data.trigger}</span>
     </div>
-    <div className={styles.crossSellList}>
-      {data.products.map((product) => <article key={product.id} className={styles.crossSellCard}>
-        <div className={styles.crossSellImage}>
-          {product.image && safeImage(product.image)
-            ? <img src={product.image} alt={product.name} loading="lazy" />
-            : <FiPackage aria-hidden="true" />}
-        </div>
-        <div className={styles.crossSellInfo}>
-          <strong>{product.name}</strong>
-          <span>{product.priceFormatted}</span>
-          {product.discountPercent && product.discountPercent > 0 ? <small>Oferta de {Math.round(product.discountPercent)}%</small> : null}
-        </div>
-        <button data-neu="control" type="button" onClick={() => onAdd?.(product)} disabled={!product.inStock}>
-          {product.inStock ? "Adicionar" : "Indisponível"}
-        </button>
-      </article>)}
+    <div className={catalogProductStyles.carousel}>
+      <div className={catalogProductStyles.track} tabIndex={0} aria-label="Produtos complementares; deslize para explorar">
+        {data.products.map(product => <CatalogProductCard key={product.id} product={product} onQuickReply={onQuickReply} onAdd={() => onAdd?.(product)} />)}
+      </div>
     </div>
   </section>;
 }
@@ -272,8 +264,8 @@ function ProductGallery({ images, productName }: { images: GalleryImage[]; produ
   const swipe = useGallerySwipe(images.length > 1, move);
   return <div className={styles.gallery} role="group" aria-label={"Imagens de " + productName}>
     <div className={styles.mainImage} {...swipe} style={{ touchAction: images.length > 1 ? "pan-y pinch-zoom" : "auto" }}>
-      {current && !failed.has(current.src) ? <img key={current.src} src={current.src} alt={current.alt || productName} fetchPriority="high" draggable={false} onError={() => setFailed((previous) => new Set(previous).add(current.src))} /> : <div className={styles.imageFallback}><FiPackage aria-hidden="true" /><span>Imagem indisponível</span></div>}
-      {images.length > 1 ? <div className={styles.galleryControls}><span aria-live="polite">{String(index + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span><button data-neu="text" type="button" onClick={() => move(-1)} aria-label="Foto anterior"><FiChevronLeft /></button><button data-neu="text" type="button" onClick={() => move(1)} aria-label="Próxima foto"><FiChevronRight /></button></div> : null}
+      {current && !failed.has(current.src) ? <img key={current.src} src={current.src} alt={current.alt || productName} fetchPriority="high" draggable={false} onError={() => setFailed((previous) => new Set(previous).add(current.src))} /> : <div className={styles.imageFallback}><FiPackage aria-hidden="true" /><span>Imagem indisponÃ­vel</span></div>}
+      {images.length > 1 ? <div className={styles.galleryControls}><span aria-live="polite">{String(index + 1).padStart(2, "0")} / {String(images.length).padStart(2, "0")}</span><button data-neu="text" type="button" onClick={() => move(-1)} aria-label="Foto anterior"><FiChevronLeft /></button><button data-neu="text" type="button" onClick={() => move(1)} aria-label="PrÃ³xima foto"><FiChevronRight /></button></div> : null}
     </div>
     {images.length > 1 ? <div className={styles.thumbnails} aria-label="Escolher foto">{images.map((image, i) => <button data-neu="media" key={image.src} type="button" aria-label={"Ver foto " + (i + 1) + ": " + image.alt} aria-pressed={i === index} onClick={() => setIndex(i)}><img src={image.src} alt="" loading="lazy" /></button>)}</div> : null}
   </div>;
@@ -288,7 +280,7 @@ function FoodOptions({ groups, selected, error, disabled, onToggle }: {
     <h2>Monte do seu jeito</h2>
     {groups.map((group) => {
       const { min, max } = foodSelectionLimits(group), count = group.items.filter(item => selected.has(item.id)).length;
-      return <fieldset key={group.id} disabled={disabled}><legend>{group.name}<small>{min > 0 ? "Obrigatório" : "Opcional"} · {foodSelectionLabel(group)} · {count}/{max}</small></legend>{group.items.map((item) => <label key={item.id} className={styles.foodChoice}><input className={choiceStyles.input} type={group.selectionType === "single" && min > 0 ? "radio" : "checkbox"} name={"food-" + group.id} checked={selected.has(item.id)} disabled={group.selectionType === "multiple" && !selected.has(item.id) && count >= max} onChange={() => onToggle(group, item.id)} /><span>{item.name}</span>{item.priceModifierInCents !== 0 ? <strong>{item.priceModifierInCents > 0 ? "+ " : ""}{currency.format(item.priceModifierInCents / 100)}</strong> : null}</label>)}</fieldset>;
+      return <fieldset key={group.id} disabled={disabled}><legend>{group.name}<small>{min > 0 ? "ObrigatÃ³rio" : "Opcional"} Â· {foodSelectionLabel(group)} Â· {count}/{max}</small></legend>{group.items.map((item) => <label key={item.id} className={styles.foodChoice}><input className={choiceStyles.input} type={group.selectionType === "single" && min > 0 ? "radio" : "checkbox"} name={"food-" + group.id} checked={selected.has(item.id)} disabled={group.selectionType === "multiple" && !selected.has(item.id) && count >= max} onChange={() => onToggle(group, item.id)} /><span>{item.name}</span>{item.priceModifierInCents !== 0 ? <strong>{item.priceModifierInCents > 0 ? "+ " : ""}{currency.format(item.priceModifierInCents / 100)}</strong> : null}</label>)}</fieldset>;
     })}
     {error ? <p role="alert" className={styles.optionError}>{error}</p> : null}
   </div>;

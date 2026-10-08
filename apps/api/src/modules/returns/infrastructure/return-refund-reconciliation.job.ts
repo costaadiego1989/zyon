@@ -2,6 +2,8 @@ import { Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/commo
 import { Queue, Worker, type Job } from "bullmq";
 import type { RedisOptions } from "ioredis";
 import { ReconcilePendingRefundsUseCase } from "../application/use-cases/reconcile-pending-refunds.use-case.js";
+import { ReturnShippingService } from "../application/return-shipping.service.js";
+import { ReturnReverseShippingService } from "../application/return-reverse-shipping.service.js";
 
 export const RETURN_REFUND_RECONCILIATION_QUEUE = "return-refund-reconciliation";
 const JOB_NAME = "reconcile-pending-return-refunds";
@@ -60,6 +62,8 @@ export class ReconcilePendingRefundsWorker implements OnModuleInit, OnModuleDest
   constructor(
     private readonly reconcile: ReconcilePendingRefundsUseCase,
     private readonly scheduler: ReconcilePendingRefundsScheduler,
+    private readonly shipping: ReturnShippingService,
+    private readonly reverseShipping: ReturnReverseShippingService,
   ) {}
 
   async onModuleInit(): Promise<void> {
@@ -96,6 +100,8 @@ export class ReconcilePendingRefundsWorker implements OnModuleInit, OnModuleDest
   async reconcileAndLog() {
     try {
       const result = await this.reconcile.execute({ staleAfterMs: STALE_AFTER_MS, limit: BATCH_SIZE });
+      await this.shipping.reconcile(BATCH_SIZE);
+      await this.reverseShipping.reconcile(BATCH_SIZE);
       if (result.scanned > 0) {
         const completed = result.reconciled.filter((item) => item.outcome === "completed").length;
         const failed = result.reconciled.filter((item) => item.outcome === "failed").length;

@@ -13,9 +13,10 @@ import "./cross-sell.css";
 
 const MOMENTS: Record<CrossSellTouchpoint, [string, string]> = {
   browsing: ["Durante a navegação", "Sugere produtos enquanto o cliente navega pela loja."],
-  pre_cart: ["Nos detalhes do produto", "Mostra complementos na visualização do produto, antes de adicioná-lo ao carrinho."],
+  pre_cart: ["Nos produtos", "Mostra complementos nos detalhes do produto."],
   post_cart: ["Após adicionar ao carrinho", "Depois que o produto é adicionado com sucesso."],
-  pre_payment: ["Antes do pagamento", "Durante o checkout, antes de pagar."],
+  pre_checkout: ["Antes de ir para o checkout", "Mostra complementos ao finalizar o carrinho, antes do login e da entrada no checkout."],
+  pre_payment: ["No checkout", "Mostra complementos durante o checkout, antes do pagamento."],
   post_purchase: ["Após a compra", "Na confirmação do pedido."],
 };
 const STRATEGIES: Record<CrossSellStrategy, [string, string]> = {
@@ -46,7 +47,7 @@ function CrossSellChoice({ type, name, checked, title, description, onChange }: 
       <strong id={id + '-title'}>{title}</strong>
       <small id={id + '-description'}>{description}</small>
     </span>
-    <Check className="cross-sell-choice__check" size={20} strokeWidth={2} aria-hidden="true" />
+    {type === "radio" ? <span className="cross-sell-choice__radio" aria-hidden="true" /> : <Check className="cross-sell-choice__check" size={20} strokeWidth={2} aria-hidden="true" />}
   </label>;
 }
 
@@ -58,7 +59,7 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
   const error = (key: string) => submitted ? vm.fieldErrors[key] : undefined;
   function save(event: React.FormEvent) {
     event.preventDefault(); setSubmitted(true); void vm.save();
-    requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('[aria-invalid="true"]')?.focus());
+    requestAnimationFrame(() => formRef.current?.querySelector<HTMLInputElement>('input[aria-invalid="true"], [aria-invalid="true"] input')?.focus());
   }
   return <div className="page-container cross-sell-page">
     <PageHeader title="Produtos complementares" description={context === "store" ? "Configure as sugestões que acompanham a escolha de produtos na loja." : "Configure as sugestões apresentadas durante o checkout."}
@@ -83,19 +84,21 @@ export function CrossSellPage({ context }: { context: CrossSellContext }) {
           {config.enabled && <>
             <section className="configuration-form__section" aria-labelledby={id + '-moments'}>
               <h3 id={id + '-moments'}>Quando sugerir</h3><p id={id + '-moments-hint'}>Você pode escolher mais de um momento.</p>
-              <div className="cross-sell-choices" role="group" aria-labelledby={id + '-moments'} aria-describedby={id + '-moments-hint'}>
+              <div className="cross-sell-choices" role="group" aria-labelledby={id + '-moments'} aria-describedby={id + '-moments-hint'} aria-invalid={!!error('moments')}>
                 {vm.visibleTouchpoints.map(tp => <CrossSellChoice key={tp} type="checkbox"
                   checked={!!config.touchpoints[tp]} onChange={() => vm.toggleTouchpoint(tp)}
                   title={MOMENTS[tp][0]} description={MOMENTS[tp][1]} />)}
               </div>
+              {error('moments') && <p className="form-field-error" role="alert">{error('moments')}</p>}
             </section>
             <section className="configuration-form__section" aria-labelledby={id + '-strategy'}>
-              <h3 id={id + '-strategy'}>Como escolher os produtos</h3><p id={id + '-strategy-hint'}>Escolha as estratégias que devem orientar as recomendações.</p>
-              <div className="cross-sell-choices" role="group" aria-labelledby={id + '-strategy'} aria-describedby={id + '-strategy-hint'}>
-                {(Object.keys(STRATEGIES) as CrossSellStrategy[]).map(strategy => <CrossSellChoice key={strategy} type="checkbox"
-                  name={id + '-strategy'} checked={config.strategies.includes(strategy)} onChange={() => vm.toggleStrategy(strategy)}
+              <h3 id={id + '-strategy'}>Como escolher os produtos</h3><p id={id + '-strategy-hint'}>Escolha uma única fonte para as recomendações, usada em todos os momentos selecionados.</p>
+              <div className="cross-sell-choices" role="radiogroup" aria-labelledby={id + '-strategy'} aria-describedby={id + '-strategy-hint'} aria-invalid={!!error('strategy')}>
+                {(Object.keys(STRATEGIES) as CrossSellStrategy[]).map(strategy => <CrossSellChoice key={strategy} type="radio"
+                  name={id + '-strategy'} checked={config.strategies[0] === strategy} onChange={() => vm.selectStrategy(strategy)}
                   title={STRATEGIES[strategy][0]} description={STRATEGIES[strategy][1]} />)}
               </div>
+              {error('strategy') && <p className="form-field-error" role="alert">{error('strategy')}</p>}
             </section>
             <section className="configuration-form__section">
               <h3>Frequência e apresentação</h3>

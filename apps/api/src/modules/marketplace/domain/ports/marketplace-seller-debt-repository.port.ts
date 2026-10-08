@@ -2,13 +2,19 @@ export const MARKETPLACE_SELLER_DEBT_REPOSITORY = Symbol(
   "MARKETPLACE_SELLER_DEBT_REPOSITORY",
 );
 
-export type SellerDebtStatus = "outstanding" | "deducted" | "resolved";
+export type SellerDebtStatus = "outstanding" | "deducted" | "resolved" | "extinguished";
 
 export interface MarketplaceSellerDebtSnapshot {
   id: string;
   sellerMerchantId: string;
   settlementId: string;
   amountCents: number;
+  /** Derived from immutable receipts; original principal and lifecycle remain unchanged. */
+  recoveredAmountCents?: number;
+  /** Native reinstatement extinguishes a principal liability without collecting
+   * funds from a seller. This amount is never reported as a recovery. */
+  extinguishedAmountCents?: number;
+  outstandingAmountCents?: number;
   status: SellerDebtStatus;
   deductedFromSettlementId: string | null;
   createdAt: Date;

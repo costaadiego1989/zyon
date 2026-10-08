@@ -16,6 +16,7 @@ export default function RichProductDetailsPanel({
   merchantSlug,
   crossSell = null,
   onAddCrossSell,
+  onQuickReply,
   suspended = false,
   onClose,
   onProductResolved,
@@ -24,6 +25,7 @@ export default function RichProductDetailsPanel({
   merchantSlug?: string;
   crossSell?: CrossSellInterstitialData | null;
   onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  onQuickReply?: (message: string) => void;
   suspended?: boolean;
   onClose: (result: { productId: string; productName?: string; defaultVariantId?: string | null; cartAdded: boolean }) => void;
   onProductResolved?: (product: { productId: string; name: string; defaultVariantId: string | null }) => void;
@@ -126,6 +128,7 @@ export default function RichProductDetailsPanel({
         onCartAdded={() => setCartAdded(true)}
         crossSell={crossSell}
         onAddCrossSell={onAddCrossSell}
+        onQuickReply={onQuickReply}
       />
     </div>
   );

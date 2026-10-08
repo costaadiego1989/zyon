@@ -17,5 +17,7 @@ export interface MelhorEnvioTokenResolver {
    * Returns undefined for an expired token so the caller degrades gracefully
    * (flat-rate only) instead of calling the API with a dead credential.
    */
-  resolveToken(merchantId: string): Promise<string | undefined>;
+  /** Marketplace must set false even in sandbox: an origin cannot borrow the
+   * platform's carrier account when its own credential is unavailable. */
+  resolveToken(merchantId: string, options?: { allowPlatformFallback?: boolean }): Promise<string | undefined>;
 }

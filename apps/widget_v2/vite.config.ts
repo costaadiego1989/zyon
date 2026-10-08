@@ -21,7 +21,7 @@ export default defineConfig(({ mode }) => ({
       fileName: "index",
     },
     rollupOptions: {
-      external: ["react", "react-dom", "react/jsx-runtime"],
+      external: ["react", "react-dom", "react/jsx-runtime", "@zyon/checkout-ui/catalog-product-card"],
     },
     outDir: "dist",
     emptyOutDir: true,

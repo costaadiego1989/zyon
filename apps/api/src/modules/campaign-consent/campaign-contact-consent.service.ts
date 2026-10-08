@@ -90,4 +90,11 @@ export class CampaignContactConsentService {
     }
     return channels;
   }
+
+  async canContactEmail(input: { merchantId: string; email: string }): Promise<boolean> {
+    const buyer = await this.prisma.buyerAccount.findUnique({
+      where: { email: input.email.trim().toLowerCase() }, select: { globalUserId: true },
+    });
+    return buyer ? this.canContact({ merchantId: input.merchantId, globalUserId: buyer.globalUserId, channel: "email" }) : false;
+  }
 }

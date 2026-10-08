@@ -37,6 +37,8 @@ import { reevaluateCartRules } from "../../infrastructure/tool-handlers/cart.han
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
 
+import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort } from "../../../checkout/domain/ports/cross-sell-recommender.port.js";
+
 export interface StartConversationRequest {
   merchant_id: string;
   initial_message?: string;
@@ -81,6 +83,7 @@ export class StorefrontController {
     @Optional() private readonly oneBuyClick?: OneBuyClickSessionService,
     @Optional() private readonly aiIdentity?: AiUserIdentityService,
     @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
+    @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -380,6 +383,38 @@ export class StorefrontController {
       freeShipping: cart.freeShipping,
       nextNudge,
       activeRules,
+    };
+  }
+
+  @Get("cart/:cartId/pre-checkout-suggestions")
+  async preCheckoutSuggestions(
+    @Param("cartId") cartId: string,
+    @Query("merchantId") merchantId: string,
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
+  ) {
+    if (!merchantId) throw new BadRequestException("merchantId query param required");
+    this.conversationAccess(request, cartId, merchantId);
+    const cart = await this.cartRepo.getOrCreate(merchantId, cartId);
+    if (!cart.items.length || !this.crossSellRecommender || !this.prisma) return { products: [] };
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: cart.items.map(item => item.variantId) }, product: { merchantId } },
+      select: { id: true, sku: true, product: { select: { categoryId: true, category: { select: { name: true } } } } },
+    });
+    const byId = new Map(variants.map(variant => [variant.id, variant]));
+    const suggestions = await this.crossSellRecommender.suggest({
+      merchant_id: merchantId, session_id: cartId, touchpoint: "pre_checkout",
+      cart: { currency: "BRL", source: "storefront", total: (cart.total - cart.discount) / 100,
+        items: cart.items.map(item => ({ sku: byId.get(item.variantId)?.sku ?? item.variantId, name: item.name,
+          quantity: item.quantity, price: item.unitPriceCents / 100,
+          category: byId.get(item.variantId)?.product?.category?.name ?? byId.get(item.variantId)?.product?.categoryId ?? undefined })),
+      },
+    });
+    const cartVariantIds = new Set(cart.items.map(item => item.variantId));
+    return { trigger: "Antes de finalizar, quer completar seu pedido?", products: suggestions
+      .filter(product => product.variant_id && product.in_stock && !cartVariantIds.has(product.variant_id))
+      .map(product => ({ id: product.variant_id!, name: product.name, price: product.unit_price,
+        priceFormatted: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(product.unit_price),
+        image: product.image_url, inStock: product.in_stock === true })),
     };
   }
 

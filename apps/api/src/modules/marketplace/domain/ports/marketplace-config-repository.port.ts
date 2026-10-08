@@ -28,6 +28,7 @@ export interface UpsertMarketplaceConfigInput {
 }
 
 export interface MarketplaceConfigRepository {
+  isConnected(hostMerchantId: string, sellerMerchantId: string): Promise<boolean>;
   get(merchantId: string): Promise<MarketplaceConfigSnapshot | undefined>;
   upsert(input: UpsertMarketplaceConfigInput): Promise<MarketplaceConfigSnapshot>;
 }

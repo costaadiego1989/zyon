@@ -63,7 +63,7 @@ export function SupportTicketsTab(props: Props) {
 
   const [draggedTicket, setDraggedTicket] = useState<(typeof tickets)[0] | null>(null);
   const [dropTarget, setDropTarget] = useState<string | null>(null);
-  const [period, setPeriod] = useState<"all" | "today" | "7d" | "15d" | "30d">("all");
+  const [period, setPeriod] = useState<"all" | "today" | "7d" | "15d" | "30d">("today");
   const [dateRange, setDateRange] = useState<{ from: string; to: string }>({ from: "", to: "" });
 
   const [search, setSearch] = useState("");
@@ -84,7 +84,9 @@ export function SupportTicketsTab(props: Props) {
       if (period === "today") cutoff.setHours(0, 0, 0, 0);
       else cutoff.setDate(cutoff.getDate() - days);
       const cutoffIso = cutoff.toISOString();
-      result = result.filter((t) => new Date(t.createdAt).toISOString() >= cutoffIso);
+      const nextDay = new Date(cutoff);
+      nextDay.setDate(nextDay.getDate() + 1);
+      result = result.filter((t) => new Date(t.createdAt).toISOString() >= cutoffIso && (period !== "today" || new Date(t.createdAt) < nextDay));
     }
 
     const term = search.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");

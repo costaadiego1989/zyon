@@ -12,10 +12,23 @@ export class PrismaMarketplaceConfigRepository
 {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async get(merchantId: string): Promise<MarketplaceConfigSnapshot | undefined> {
-    const config = await this.prisma.marketplaceConfig.findUnique({
-      where: { merchantId },
+  async isConnected(hostMerchantId: string, sellerMerchantId: string): Promise<boolean> {
+    const connection = await this.prisma.marketplaceConnection.findUnique({
+      where: { buyerMerchantId_sellerMerchantId: { buyerMerchantId: hostMerchantId, sellerMerchantId } },
+      select: { status: true },
     });
+    return connection?.status === "active";
+  }
+
+  async get(merchantId: string): Promise<MarketplaceConfigSnapshot | undefined> {
+    // Marketplace reads intentionally cross the host/seller boundary. Query the
+    // merchant relation so tenant middleware cannot silently replace the seller
+    // with the current host. Writes below remain scoped to the caller's tenant.
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: merchantId },
+      select: { marketplaceConfig: true },
+    });
+    const config = merchant?.marketplaceConfig;
     if (!config) return undefined;
     return this.toSnapshot(config);
   }

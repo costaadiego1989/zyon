@@ -33,6 +33,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   "payment-connections": ["OWNER", "ADMIN"],
   integrations: ["OWNER", "ADMIN"],
   "crm-integrations": ["OWNER", "ADMIN"],
+  "erp-integrations": ["OWNER", "ADMIN"],
   // Inteligência IA
   "revenue-manager": ["OWNER", "ADMIN"],
   "revenue-lift": ["OWNER", "ADMIN"],
@@ -52,6 +53,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   funnel: ["OWNER", "ADMIN", "STAFF"],
   shipments: ["OWNER", "ADMIN", "STAFF"],
   customers: ["OWNER", "ADMIN", "STAFF"],
+  "marketplace-refunds": ["OWNER", "ADMIN"],
   marketplace: ["OWNER", "ADMIN", "STAFF"],
 };
 

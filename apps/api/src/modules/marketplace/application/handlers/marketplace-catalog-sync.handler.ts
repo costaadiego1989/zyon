@@ -1,4 +1,4 @@
-import { Injectable, Inject, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
+import { Injectable, Inject, Optional, OnModuleInit, OnModuleDestroy, Logger } from "@nestjs/common";
 import { createHash } from "node:crypto";
 import { Queue, Worker, type Job } from "bullmq";
 import type { RedisOptions } from "ioredis";
@@ -6,6 +6,12 @@ import { DOMAIN_EVENT_BUS, type DomainEventBus, type DomainEvent } from "../../.
 import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { PrismaFederatedProductRepository } from "../../infrastructure/repositories/prisma-federated-product.repository.js";
 import { FEDERATED_PRODUCT_REPOSITORY } from "../../domain/ports/federated-product-repository.port.js";
+import { TenantContextService } from "../../../../shared/tenant/tenant-context.service.js";
+import { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { isMarketplaceVariantPrice, marketplaceVariantInStock } from "../../domain/services/marketplace-variant.js";
+import { assertMarketplaceProductOptions } from "../../domain/services/marketplace-product-options.js";
+import { extractOptionGroups, resolveSelectedOptions } from "../../../storefront/domain/food-options.js";
 
 export const MARKETPLACE_SYNC_QUEUE = "marketplace-catalog-sync";
 
@@ -38,10 +44,11 @@ export function redisConnection(): RedisOptions | null {
   };
 }
 
-async function syncCanonicalProduct(
+export async function syncCanonicalProduct(
   data: ProductSyncJobData,
   productRepo: ProductRepositoryPort,
   federatedRepo: PrismaFederatedProductRepository,
+  prisma: Pick<PrismaClient, "productVariant">,
 ): Promise<void> {
   const productId = data.payload.productId ?? data.payload.id;
   if (typeof productId !== "string" || !productId) {
@@ -52,21 +59,42 @@ async function syncCanonicalProduct(
   // product at handling time makes delete-v3 followed by stale upsert-v2
   // converge to the current catalog state even when the queue reorders jobs.
   const product = await productRepo.findById(data.merchantId, productId);
+  // A request-scoped tenant middleware may pin a repository read to its
+  // caller. Never copy that caller's product into an event's other merchant.
+  if (product && product.merchantId !== data.merchantId) {
+    throw new Error("marketplace_catalog_sync_merchant_mismatch");
+  }
   if (!product || !product.isActive) {
     await federatedRepo.delete(data.merchantId, productId);
     return;
   }
+  const rows = await prisma.productVariant.findMany({ where: { productId, isActive: true,
+    product: { merchantId: data.merchantId, isActive: true, deletedAt: null } }, orderBy: { id: "asc" }, take: 51,
+    include: { product: true, price: true, stock: true, media: { where: { type: "IMAGE" }, orderBy: { order: "asc" }, take: 1 } } });
+  if (rows.some(row => row.productId !== productId || row.product.id !== productId || row.product.merchantId !== data.merchantId)) {
+    throw new Error("marketplace_catalog_sync_merchant_mismatch");
+  }
+  const canonical = rows[0]?.product;
+  const variants = rows.filter(v => v.isActive && v.product.isActive && !v.product.deletedAt && isMarketplaceVariantPrice(v.price?.basePriceInCents, v.price?.currency));
+  let requiresOptions = false;
+  try { assertMarketplaceProductOptions(canonical?.metadata); resolveSelectedOptions(extractOptionGroups(canonical?.metadata), []); } catch { requiresOptions = true; }
+  if (!canonical || !variants.length || rows.length > 50 || requiresOptions) {
+    await federatedRepo.delete(data.merchantId, productId);
+    return;
+  }
+  const available = variants.filter(v => marketplaceVariantInStock(canonical.type, v.stock));
+  const variant = [...(available.length ? available : variants)].sort((a, b) => a.price!.basePriceInCents - b.price!.basePriceInCents || a.id.localeCompare(b.id))[0]!;
 
   await federatedRepo.upsert({
     sourceMerchantId: data.merchantId,
     sourceProductId: product.id,
-    name: product.name,
-    description: product.description ?? undefined,
-    category: product.categoryId ?? undefined,
-    priceCents: product.variants?.[0]?.basePriceInCents ?? 0,
-    currency: product.variants?.[0]?.currency ?? "BRL",
-    stockAvailable: true,
-    imageUrl: undefined,
+    name: canonical.name,
+    description: canonical.description ?? undefined,
+    category: canonical.categoryId ?? undefined,
+    priceCents: variant.price!.basePriceInCents,
+    currency: variant.price!.currency,
+    stockAvailable: available.length > 0,
+    imageUrl: variant.media?.find((m) => m.type === "IMAGE")?.url,
   });
 }
 
@@ -93,6 +121,8 @@ export class MarketplaceCatalogSyncScheduler implements OnModuleInit, OnModuleDe
     private readonly federatedRepo: PrismaFederatedProductRepository,
     @Inject("ProductRepositoryPort")
     private readonly productRepo: ProductRepositoryPort,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Optional() private readonly tenantContext?: TenantContextService,
   ) {
     const connection = redisConnection();
     this.queue = connection
@@ -126,6 +156,10 @@ export class MarketplaceCatalogSyncScheduler implements OnModuleInit, OnModuleDe
   }
 
   private async enqueue(event: DomainEvent): Promise<void> {
+    const currentTenant = this.tenantContext?.get();
+    if (currentTenant && currentTenant.merchantId !== event.merchantId) {
+      throw new Error("marketplace_catalog_sync_merchant_mismatch");
+    }
     const data: ProductSyncJobData = {
       eventType: event.eventType as ProductSyncJobData["eventType"],
       merchantId: event.merchantId,
@@ -159,11 +193,11 @@ export class MarketplaceCatalogSyncScheduler implements OnModuleInit, OnModuleDe
   }
 
   private async handleUpsert(data: ProductSyncJobData): Promise<void> {
-    await syncCanonicalProduct(data, this.productRepo, this.federatedRepo);
+    await syncCanonicalProduct(data, this.productRepo, this.federatedRepo, this.prisma);
   }
 
   private async handleDelete(data: ProductSyncJobData): Promise<void> {
-    await syncCanonicalProduct(data, this.productRepo, this.federatedRepo);
+    await syncCanonicalProduct(data, this.productRepo, this.federatedRepo, this.prisma);
   }
 }
 
@@ -181,6 +215,7 @@ export class MarketplaceCatalogSyncWorker implements OnModuleInit, OnModuleDestr
     private readonly federatedRepo: PrismaFederatedProductRepository,
     @Inject("ProductRepositoryPort")
     private readonly productRepo: ProductRepositoryPort,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
   onModuleInit(): void {
@@ -212,11 +247,11 @@ export class MarketplaceCatalogSyncWorker implements OnModuleInit, OnModuleDestr
   }
 
   private async handleUpsert(data: ProductSyncJobData): Promise<void> {
-    await syncCanonicalProduct(data, this.productRepo, this.federatedRepo);
+    await syncCanonicalProduct(data, this.productRepo, this.federatedRepo, this.prisma);
   }
 
   private async handleDelete(data: ProductSyncJobData): Promise<void> {
-    await syncCanonicalProduct(data, this.productRepo, this.federatedRepo);
+    await syncCanonicalProduct(data, this.productRepo, this.federatedRepo, this.prisma);
   }
 }
 

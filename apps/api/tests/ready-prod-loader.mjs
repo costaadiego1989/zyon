@@ -17,6 +17,8 @@ for (const folder of fs.readdirSync(path.join(root, "packages"))) {
 }
 
 export async function resolve(specifier, context, nextResolve) {
+  // Next's extensionless bundler entry needs its actual file for Node ESM route tests.
+  if (specifier === "next/server") return nextResolve("next/server.js", context);
   // Resolve workspace packages to this checkout, never another worktree's dist.
   if (packages.has(specifier)) return { url: packages.get(specifier), shortCircuit: true };
   if (specifier === "@prisma/client" && process.env.READY_PROD_TEST_PRISMA_CLIENT) {
@@ -25,6 +27,15 @@ export async function resolve(specifier, context, nextResolve) {
   if (specifier.startsWith(".") && specifier.endsWith(".js") && context.parentURL?.startsWith("file:")) {
     const candidate = new URL(specifier.slice(0, -3) + ".ts", context.parentURL);
     if (fs.existsSync(candidate)) return { url: candidate.href, shortCircuit: true };
+  }
+  // Storefront source follows Next's native extensionless import convention.
+  // Resolve it only for Node tests; no application bundler alias is introduced.
+  if (specifier.startsWith(".") && !path.extname(specifier) &&
+      context.parentURL?.startsWith(pathToFileURL(path.join(root, "apps/storefront/src/")).href)) {
+    for (const extension of [".ts", ".tsx"]) {
+      const candidate = new URL(specifier + extension, context.parentURL);
+      if (fs.existsSync(candidate)) return { url: candidate.href, shortCircuit: true };
+    }
   }
   return nextResolve(specifier, context);
 }

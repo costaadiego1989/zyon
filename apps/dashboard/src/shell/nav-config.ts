@@ -47,6 +47,7 @@ export type TabKey =
   | "integrations"
   | "integrations-api"
   | "crm-integrations"
+  | "erp-integrations"
   | "shipments"
   | "customers"
   | "returns"
@@ -77,6 +78,7 @@ export type TabKey =
   | "stories"
   | "team"
   | "account-settings"
+  | "marketplace-refunds"
   | "marketplace"
   | "whatsapp-seller"
   | "m2m-agents"
@@ -166,6 +168,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "agent-config", label: "Agente IA", section: "channels", icon: Bot, requiredPlan: STORE, keywords: ["agente", "agent", "ia", "ai", "assistente", "bot"] },
   { key: "theme", label: "Aparência do checkout", section: "channels", icon: Palette, requiredPlan: STORE, keywords: ["tema", "theme", "aparência", "cores", "visual", "branding"] },
   { key: "whatsapp-seller", label: "WhatsApp", section: "channels", icon: Smartphone, keywords: ["whatsapp", "zap", "wpp", "vendedor"] },
+  { key: "marketplace-refunds", label: "Estornos do marketplace", section: "channels", icon: ShoppingBag, keywords: ["marketplace", "devoluções", "estornos", "reembolso"] },
   { key: "marketplace", label: "Marketplace", section: "channels", icon: ShoppingBag, keywords: ["marketplace", "mercado", "conexões"] },
   { key: "custom-domain", label: "Domínio", section: "channels", icon: Globe, requiredPlan: STORE, keywords: ["domínio", "domain", "dns", "url", "site"] },
 
@@ -173,6 +176,8 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "payment-connections", label: "Pagamentos", section: "integrations", icon: CreditCard, keywords: ["pagamentos", "payments", "asaas", "stripe", "mercado pago", "gateway"] },
   { key: "integrations", label: "API e webhooks", section: "integrations", icon: Webhook, keywords: ["api", "webhooks", "chaves", "keys", "desenvolvedor", "integração", "shopify", "woocommerce", "vtex"] },
   { key: "crm-integrations", label: "CRM e marketing", section: "integrations", icon: Plug, keywords: ["crm", "marketing", "hubspot", "pipedrive", "rd station"] },
+
+  { key: "erp-integrations", label: "ERP e marketplaces", section: "integrations", icon: Package, requiredPlan: STORE, keywords: ["erp", "estoque", "bling", "tiny", "omie", "mercado livre", "shopee", "tiktok shop"] },
 
   // ─── INTELIGÊNCIA IA ─── features avançadas/analytics
   { key: "revenue-manager", label: "Otimização com IA", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["otimizador", "revenue manager", "ia", "hipóteses", "otimização"] },

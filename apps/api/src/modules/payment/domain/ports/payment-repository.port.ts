@@ -136,4 +136,8 @@ export interface PaymentRepository {
     merchantId: string,
     statusPrefix?: string,
   ): Promise<PaymentIntentEntity[]>;
+
+listBySessionId(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]>;
 }
+
+

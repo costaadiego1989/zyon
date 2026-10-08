@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { MARKETPLACE_SETTLEMENT_REPOSITORY } from "../../domain/ports/marketplace-settlement-repository.port.js";
 import type {
   MarketplaceSettlementRepository,
@@ -30,6 +30,13 @@ export class ListSellerSettlementsUseCase {
   async execute(
     input: ListSellerSettlementsInput,
   ): Promise<ListSellerSettlementsOutput> {
+    if ((input.limit !== undefined && (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 200)) ||
+        (input.offset !== undefined && (!Number.isInteger(input.offset) || input.offset < 0)) ||
+        (input.createdAfter && !Number.isFinite(input.createdAfter.getTime())) ||
+        (input.createdBefore && !Number.isFinite(input.createdBefore.getTime())) ||
+        (input.createdAfter && input.createdBefore && input.createdAfter > input.createdBefore)) {
+      throw new BadRequestException("invalid_marketplace_settlements_query");
+    }
     const settlements = await this.settlementRepository.findBySellerMerchantId(
       input.sellerMerchantId,
     );

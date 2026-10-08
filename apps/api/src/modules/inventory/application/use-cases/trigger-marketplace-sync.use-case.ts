@@ -7,6 +7,7 @@ import { INVENTORY_REPOSITORY } from "../../domain/ports/inventory-repository.po
 import { INVENTORY_MOVEMENT_REPOSITORY } from "../../domain/ports/inventory-movement-repository.port.js";
 import { INVENTORY_LOCATION_REPOSITORY } from "../../domain/ports/inventory-location-repository.port.js";
 import { ERP_REPOSITORY } from "../../domain/ports/erp-repository.port.js";
+import { TIKTOKSHOP_TOKEN_PORT, type TikTokShopTokenPort } from "../../domain/ports/tiktokshop-token.port.js";
 import { createMarketplaceAdapter, isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
 
 export interface TriggerMarketplaceSyncInput {
@@ -37,6 +38,7 @@ export class TriggerMarketplaceSyncUseCase {
     @Inject(INVENTORY_MOVEMENT_REPOSITORY) private readonly movementRepo: InventoryMovementRepositoryPort,
     @Inject(INVENTORY_LOCATION_REPOSITORY) private readonly locationRepo: InventoryLocationRepositoryPort,
     @Inject(ERP_REPOSITORY) private readonly erpRepo: ErpRepositoryPort,
+    @Inject(TIKTOKSHOP_TOKEN_PORT) private readonly tiktokTokens: TikTokShopTokenPort,
   ) {}
 
   async execute(input: TriggerMarketplaceSyncInput): Promise<TriggerMarketplaceSyncResult> {
@@ -46,7 +48,11 @@ export class TriggerMarketplaceSyncUseCase {
       throw new Error(`provider_not_supported_for_product_sync:${provider}`);
     }
 
-    const adapter = createMarketplaceAdapter(provider);
+    const tiktokConnection = provider === "tiktokshop" && connectionId
+      ? await this.erpRepo.findByProvider(merchantId, provider) : null;
+    const providerAccessToken = provider === "tiktokshop" && connectionId
+      ? await this.tiktokTokens.getValidAccessToken(merchantId, connectionId) : accessToken;
+    const adapter = createMarketplaceAdapter(provider, tiktokConnection?.config ?? {});
     if (!adapter) {
       throw new Error(`adapter_not_found:${provider}`);
     }
@@ -58,6 +64,12 @@ export class TriggerMarketplaceSyncUseCase {
     if (!location) {
       location = await this.locationRepo.create(merchantId, { name: locationName, kind: "marketplace" });
     }
+    if (tiktokConnection && tiktokConnection.id === connectionId) {
+      await this.erpRepo.upsert(merchantId, provider, {
+        status: tiktokConnection.status,
+        config: { ...tiktokConnection.config, inventoryLocationId: location.id },
+      });
+    }
 
     let imported = 0;
     let errors = 0;
@@ -68,7 +80,7 @@ export class TriggerMarketplaceSyncUseCase {
 
     while (hasMore) {
       try {
-        const result = await adapter.listProducts(accessToken, page);
+        const result = await adapter.listProducts(providerAccessToken, page);
         hasMore = result.hasMore;
 
         for (const product of result.products) {
@@ -105,6 +117,7 @@ export class TriggerMarketplaceSyncUseCase {
 
         page++;
       } catch (err) {
+        if (provider === "tiktokshop") errors++;
         this.logger.error(`marketplace.sync.page_error`, {
           merchantId,
           provider,
@@ -118,12 +131,16 @@ export class TriggerMarketplaceSyncUseCase {
     // Mark connection as synced
     if (connectionId) {
       try {
-        await this.erpRepo.markSynced(merchantId, connectionId);
+        if (provider === "tiktokshop" && errors > 0) {
+          await this.erpRepo.markError(merchantId, connectionId, "tiktokshop_sync_failed");
+        } else {
+          await this.erpRepo.markSynced(merchantId, connectionId);
+        }
       } catch (_) { /* non-fatal */ }
     }
 
     this.logger.log(`marketplace.sync.complete`, { merchantId, provider, imported, errors });
 
-    return { synced: true, productsImported: imported, errors };
+    return { synced: provider === "tiktokshop" ? errors === 0 : true, productsImported: imported, errors };
   }
 }

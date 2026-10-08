@@ -49,7 +49,8 @@ const TRANSITIONS: TransitionMap = {
     chargeback_window_expired: "finalized",
     chargeback_received: "chargeback_debt",
   },
-  finalized: {},
+  // An internal window cannot extinguish a later verified PSP dispute.
+  finalized: { chargeback_received: "chargeback_debt" },
   return_cancelled: {},
   chargeback_cancelled: {},
   chargeback_debt: {},

@@ -36,6 +36,7 @@ export class PrismaCrmConnectionRepository implements CrmConnectionRepositoryPor
         refreshTokenCipher: data.refreshTokenCipher,
         tokenExpiresAt: data.tokenExpiresAt,
         config: data.config as any,
+        lastErrorCode: null,
       },
       update: {
         status: data.status,
@@ -43,6 +44,7 @@ export class PrismaCrmConnectionRepository implements CrmConnectionRepositoryPor
         refreshTokenCipher: data.refreshTokenCipher,
         tokenExpiresAt: data.tokenExpiresAt,
         config: data.config as any,
+        lastErrorCode: null,
         updatedAt: new Date(),
       },
     });
@@ -55,10 +57,18 @@ export class PrismaCrmConnectionRepository implements CrmConnectionRepositoryPor
     });
   }
 
+  async updateOAuthTokens(merchantId: string, id: string, expectedAccessTokenCipher: string,
+    tokens: { accessTokenCipher: string; refreshTokenCipher: string; tokenExpiresAt: Date }): Promise<boolean> {
+    const result = await this.prisma.crmConnection.updateMany({
+      where: { id, merchantId, accessTokenCipher: expectedAccessTokenCipher }, data: tokens,
+    });
+    return result.count === 1;
+  }
+
   async markSynced(merchantId: string, id: string): Promise<void> {
     await this.prisma.crmConnection.updateMany({
       where: { id, merchantId },
-      data: { lastSyncAt: new Date() },
+      data: { lastSyncAt: new Date(), lastErrorCode: null, status: "connected" },
     });
   }
 
@@ -76,6 +86,9 @@ export class PrismaCrmConnectionRepository implements CrmConnectionRepositoryPor
       provider: row.provider,
       status: row.status,
       accessTokenCipher: row.accessTokenCipher,
+      refreshTokenCipher: row.refreshTokenCipher,
+      tokenExpiresAt: row.tokenExpiresAt,
+      config: row.config,
       lastSyncAt: row.lastSyncAt,
       lastErrorCode: row.lastErrorCode,
       createdAt: row.createdAt,

@@ -79,6 +79,7 @@ const TeamPage = lazy(() => import("../pages/team-page.js").then(m => ({ default
 const AccountSettingsPage = lazy(() => import("../pages/account-settings-page.js").then(m => ({ default: m.AccountSettingsPage })));
 const CustomDomainPage = lazy(() => import("../pages/custom-domains/index.js").then(m => ({ default: m.CustomDomainPage })));
 const CrossSellPage = lazy(() => import("../pages/cross-sell/index.js").then(m => ({ default: m.CrossSellPage })));
+const MarketplaceRefundsPage = lazy(() => import("../pages/marketplace/MarketplaceRefundsPage.js").then(m => ({ default: m.MarketplaceRefundsPage })));
 const MarketplacePage = lazy(() => import("../pages/marketplace/index.js").then(m => ({ default: m.MarketplacePage })));
 const WhatsAppSellerPage = lazy(() => import("../pages/whatsapp-seller/WhatsAppSellerPage.js").then(m => ({ default: m.WhatsAppSellerPage })));
 const ExperimentsPage = lazy(() => import("../pages/experiments-page.js").then(m => ({ default: m.ExperimentsPage })));
@@ -594,6 +595,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "settings" ? <RouteGuard me={me} require="settings"><CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "support" ? <RouteGuard me={me} require="support"><SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {(tab === "integrations" || tab === "integrations-api") ? <RouteGuard me={me} require="integrations"><IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "erp-integrations" ? <RouteGuard me={me} require="erp-integrations"><InventoryPage apiBaseUrl={API_BASE_URL} me={me} connectorsOnly /></RouteGuard> : null}
             {tab === "crm-integrations" ? (
               <RouteGuard me={me} require="crm-integrations">
                 <PremiumFeatureGate
@@ -602,7 +604,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   featureLabel="CRM & Marketing"
                   description="Conecte sua loja a CRMs (HubSpot, Pipedrive, RD Station) e ferramentas de marketing automation para sincronizar leads e clientes."
                 >
-                  <CrmIntegrationsPage apiBaseUrl={API_BASE_URL} me={me} />
+                  <CrmIntegrationsPage key={me.id} apiBaseUrl={API_BASE_URL} me={me} />
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
@@ -666,6 +668,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "stories" ? <RouteGuard me={me} require="stories"><StoriesPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "team" ? <RouteGuard me={me} require="team"><TeamPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "account-settings" ? <RouteGuard me={me} require="account-settings"><AccountSettingsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "marketplace-refunds" ? <RouteGuard me={me} require="marketplace-refunds"><MarketplaceRefundsPage me={me} /></RouteGuard> : null}
             {tab === "marketplace" ? (
               <RouteGuard me={me} require="marketplace">
                 <PremiumFeatureGate feature="marketplace" requiredPlan="Scale" featureLabel="Marketplace" description="Venda em rede com outras lojas, catálogo federado e settlement automático entre vendedores.">

@@ -20,6 +20,8 @@ export interface StorefrontCartItem {
   imageUrl?: string;
   /** Chosen food options (size, add-ons) composing this line, when applicable. */
   selectedOptions?: StorefrontCartSelectedOption[];
+
+marketplace?: { lineItemId: string; sellerMerchantId: string; sellerName?: string; federatedProductId: string };
 }
 
 export interface StorefrontCart {
@@ -57,3 +59,5 @@ export interface StorefrontCartPort {
     outcome: { discountCents: number; freeShipping: boolean },
   ): Promise<StorefrontCart>;
 }
+
+

@@ -49,9 +49,9 @@ export class PrismaCrmSyncLogRepository implements CrmSyncLogRepositoryPort {
     }));
   }
 
-  async hasLeadFor(merchantId: string, email: string): Promise<boolean> {
+  async hasLeadFor(merchantId: string, email: string, provider?: string): Promise<boolean> {
     const existing = await this.prisma.crmSyncLog.findFirst({
-      where: { merchantId, email, stage: "lead", status: "success" },
+      where: { merchantId, email, ...(provider ? { provider } : {}), stage: "lead", status: "success" },
       select: { id: true },
     });
     return existing != null;

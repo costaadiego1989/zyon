@@ -17,15 +17,21 @@ import { RestockInventoryUseCase } from "./application/use-cases/restock-invento
 import { ListReturnsUseCase } from "./application/use-cases/list-returns.use-case.js";
 import { CancelReturnUseCase } from "./application/use-cases/cancel-return.use-case.js";
 import { AcceptMarketplaceReturnUseCase } from "./application/use-cases/accept-marketplace-return.use-case.js";
+import { MarketplaceReturnWorkflowService } from "./application/marketplace-return-workflow.service.js";
+import { MarketplaceRefundPreparationService } from "./application/marketplace-refund-preparation.service.js";
+import { MarketplaceRefundPreparationController } from "./presentation/http/marketplace-refund-preparation.controller.js";
 import { ReturnsController } from "./presentation/http/returns.controller.js";
 import { BuyerReturnsController } from "./presentation/http/buyer-returns.controller.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
+import { ShippingQuotesModule } from "../shipping/shipping-quotes.module.js";
+import { ReturnShippingService } from "./application/return-shipping.service.js";
+import { ReturnReverseShippingService } from "./application/return-reverse-shipping.service.js";
 import { ReconcilePendingRefundsScheduler, ReconcilePendingRefundsWorker } from "./infrastructure/return-refund-reconciliation.job.js";
 
 @Module({
-  imports: [PersistenceModule, BuyerAccountModule, SupportModule, StorageModule, MarketplaceModule, PaymentModule],
-  controllers: [ReturnsController, BuyerReturnsController],
+  imports: [PersistenceModule, BuyerAccountModule, SupportModule, StorageModule, MarketplaceModule, PaymentModule, ShippingQuotesModule],
+  controllers: [ReturnsController, BuyerReturnsController, MarketplaceRefundPreparationController],
   providers: [
     {
       provide: RETURN_REPOSITORY_PORT,
@@ -45,6 +51,10 @@ import { ReconcilePendingRefundsScheduler, ReconcilePendingRefundsWorker } from 
     ListReturnsUseCase,
     CancelReturnUseCase,
     AcceptMarketplaceReturnUseCase,
+    MarketplaceReturnWorkflowService,
+    ReturnShippingService,
+    ReturnReverseShippingService,
+    MarketplaceRefundPreparationService,
   ],
   exports: [
     RETURN_REPOSITORY_PORT,

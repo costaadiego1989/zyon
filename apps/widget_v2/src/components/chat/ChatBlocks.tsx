@@ -1,5 +1,7 @@
-import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useState, useEffect, useMemo, useRef, type ReactNode, type CSSProperties } from "react";
+import { useModalFocus } from "@zyon/checkout-ui/modal-focus";
 import { createPortal } from "react-dom";
+import CatalogProductCard, { catalogProductStyles } from "@zyon/checkout-ui/catalog-product-card";
 import { paymentMethodsForConfig, useCheckoutStore } from "@/store/checkout-store";
 import { confirmCryptoPayment } from "@/api/payment";
 import { PulseAgentOrb } from "../PulseAgentOrb";
@@ -71,10 +73,10 @@ function PaymentPanel({
   );
 }
 
-function PaymentCompleted({ description = "Seu pedido está sendo processado." }: { description?: string }) {
+function PaymentCompleted({ description = "Seu pedido estÃƒÂ¡ sendo processado." }: { description?: string }) {
   return (
     <section data-neu="surface" className="checkout-payment-panel checkout-payment-panel--completed" aria-label="Pagamento confirmado">
-      <span className="checkout-payment-panel__success" aria-hidden="true">✓</span>
+      <span className="checkout-payment-panel__success" aria-hidden="true">Ã¢Å“â€œ</span>
       <div>
         <h3>Pagamento confirmado</h3>
         <p>{description}</p>
@@ -90,7 +92,7 @@ function CheckoutPriceReviewBlock({ fingerprint }: { fingerprint: unknown }) {
   if (!pending || pending.review.confirmation_fingerprint !== fingerprint) return null;
   const total = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(pending.review.total_to_pay_cents / 100);
   return <PaymentPanel title="Confira o novo total" totalLabel={total}
-    description="O pedido está sem o desconto anterior. Confirme este valor para continuar com o pagamento.">
+    description="O pedido estÃƒÂ¡ sem o desconto anterior. Confirme este valor para continuar com o pagamento.">
     <button type="button" data-neu="control" className="checkout-payment-panel__action" disabled={busy}
       onClick={() => { void confirm(pending.review.confirmation_fingerprint); }}>
       {busy ? "Preparando pagamento..." : `Confirmar pedido de ${total}`}
@@ -145,12 +147,12 @@ function ShippingOptionsBlock({ options, selectionMode }: { options?: unknown; s
 
   const handleSelect = async (opt: (typeof opts)[0]) => {
     if (selectionMode === "chat") {
-      await sendMessage(`Entrega · ${opt.label}`);
+      await sendMessage(`Entrega Ã‚Â· ${opt.label}`);
       return;
     }
     const selected = await selectShipping({ key: opt.key, label: translateShippingLabel(opt.label) });
     if (!selected) return;
-    void sendMessage(`Entrega · ${translateShippingLabel(opt.label)}`);
+    void sendMessage(`Entrega Ã‚Â· ${translateShippingLabel(opt.label)}`);
   };
 
   const formatPrice = (v: number) =>
@@ -180,10 +182,10 @@ function ShippingOptionsBlock({ options, selectionMode }: { options?: unknown; s
           <div style={{ fontWeight: 600, display: "flex", justifyContent: "space-between" }}>
             <span>{translateShippingLabel(opt.label)}</span>
             <span style={{ fontSize: "12px", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))" }}>
-              {opt.cost === 0 ? "Grátis" : opt.cost != null ? formatPrice(opt.cost / 100) : ""}
+              {opt.cost === 0 ? "GrÃƒÂ¡tis" : opt.cost != null ? formatPrice(opt.cost / 100) : ""}
             </span>
           </div>
-          {preference && opts[0]?.key === opt.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "3px" }}>Prioridade da compra rápida</div>}
+          {preference && opts[0]?.key === opt.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "3px" }}>Prioridade da compra rÃƒÂ¡pida</div>}
           {opt.sub && <div style={{ fontSize: "11px", color: "var(--mut)", marginTop: "2px" }}>{opt.sub}</div>}
           {selectedShipping?.key === opt.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "4px" }}>Frete selecionado</div>}
         </button>
@@ -237,7 +239,7 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
           }}
         >
           <div style={{ fontWeight: 600 }}>Confirmar pagamento com {m.label}</div>
-          {preference && meths[0]?.key === m.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "3px" }}>Preferência da compra rápida</div>}
+          {preference && meths[0]?.key === m.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "3px" }}>PreferÃƒÂªncia da compra rÃƒÂ¡pida</div>}
           {m.sub && <div style={{ fontSize: "11px", color: "var(--mut)" }}>{m.sub}</div>}
         </button>
       ))}
@@ -300,9 +302,9 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   return (
     <PaymentPanel
       title="Pix"
-      description="Escaneie o QR Code no app do seu banco ou copie o código. A confirmação aparece aqui automaticamente."
+      description="Escaneie o QR Code no app do seu banco ou copie o cÃƒÂ³digo. A confirmaÃƒÂ§ÃƒÂ£o aparece aqui automaticamente."
       totalLabel={totalLabel}
-      status="Aguardando a confirmação do Pix"
+      status="Aguardando a confirmaÃƒÂ§ÃƒÂ£o do Pix"
     >
       {data.pix_qr_url ? (
         <div className="checkout-payment-panel__qr">
@@ -313,13 +315,13 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         <div className="checkout-payment-panel__code">
           <code>{String(data.pix_code).slice(0, 50)}...</code>
           <button data-neu="primary" type="button" onClick={handleCopy}>
-            {copied ? "Código copiado" : "Copiar código"}
+            {copied ? "CÃƒÂ³digo copiado" : "Copiar cÃƒÂ³digo"}
           </button>
         </div>
       )}
       {safeInvoiceUrl(data.invoice_url) ? (
           <a className="checkout-payment-panel__action" data-neu="control" href={safeInvoiceUrl(data.invoice_url)!} target="_blank" rel="noopener noreferrer">
-          Abrir página do Pix
+          Abrir pÃƒÂ¡gina do Pix
         </a>
       ) : null}
     </PaymentPanel>
@@ -357,8 +359,8 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   if (!invoiceUrl) {
     return (
       <section data-neu="surface" className="checkout-payment-panel checkout-payment-panel--error" role="alert">
-        <h3>Pagamento indisponível</h3>
-        <p>Não foi possível abrir o pagamento com segurança. Escolha outra forma de pagamento.</p>
+        <h3>Pagamento indisponÃƒÂ­vel</h3>
+        <p>NÃƒÂ£o foi possÃƒÂ­vel abrir o pagamento com seguranÃƒÂ§a. Escolha outra forma de pagamento.</p>
       </section>
     );
   }
@@ -369,18 +371,18 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
   return (
     <PaymentPanel
-      title={hostedCard ? "Cartão de crédito" : "Boleto"}
+      title={hostedCard ? "CartÃƒÂ£o de crÃƒÂ©dito" : "Boleto"}
       description={hostedCard
-        ? "Você será direcionado à página segura do provedor para informar o cartão."
-        : "Abra o boleto em uma nova aba. A compensação será confirmada aqui."}
+        ? "VocÃƒÂª serÃƒÂ¡ direcionado ÃƒÂ  pÃƒÂ¡gina segura do provedor para informar o cartÃƒÂ£o."
+        : "Abra o boleto em uma nova aba. A compensaÃƒÂ§ÃƒÂ£o serÃƒÂ¡ confirmada aqui."}
       totalLabel={totalLabel}
-      status={hostedCard ? "Aguardando a confirmação do provedor" : "Aguardando a compensação do boleto"}
+      status={hostedCard ? "Aguardando a confirmaÃƒÂ§ÃƒÂ£o do provedor" : "Aguardando a compensaÃƒÂ§ÃƒÂ£o do boleto"}
     >
       <a data-neu="primary" className="checkout-payment-panel__action" href={invoiceUrl} target="_blank" rel="noopener noreferrer">
         {hostedCard ? "Continuar para o pagamento seguro" : "Abrir boleto seguro"}
-        <span aria-hidden="true">↗</span>
+        <span aria-hidden="true">Ã¢â€ â€”</span>
       </a>
-      <p className="checkout-payment-panel__hint">O pedido só é confirmado depois da aprovação do pagamento.</p>
+      <p className="checkout-payment-panel__hint">O pedido sÃƒÂ³ ÃƒÂ© confirmado depois da aprovaÃƒÂ§ÃƒÂ£o do pagamento.</p>
     </PaymentPanel>
   );
 }
@@ -405,7 +407,7 @@ function StripeCardBlockForm({
     e.preventDefault();
     if (loading) return;
     if (!stripe || !elements) {
-      setError("Stripe não carregou corretamente");
+      setError("Stripe nÃƒÂ£o carregou corretamente");
       return;
     }
 
@@ -416,12 +418,12 @@ function StripeCardBlockForm({
       const existing = await stripe.retrievePaymentIntent(clientSecret);
       if (existing.paymentIntent?.status === "succeeded") {
         if (!api) {
-          setError("Não foi possível confirmar o pagamento com o servidor. Tente novamente.");
+          setError("NÃƒÂ£o foi possÃƒÂ­vel confirmar o pagamento com o servidor. Tente novamente.");
           return;
         }
         const confirmed = await api.confirmStripePayment(intentId);
         if ((confirmed as { status?: string }).status !== "approved") {
-          setError("Pagamento processado, mas a confirmação do pedido ainda está pendente. Tente novamente.");
+          setError("Pagamento processado, mas a confirmaÃƒÂ§ÃƒÂ£o do pedido ainda estÃƒÂ¡ pendente. Tente novamente.");
           return;
         }
         useCheckoutStore.setState((s) => ({
@@ -443,19 +445,19 @@ function StripeCardBlockForm({
       );
 
       if (confirmError) {
-        setError(confirmError.message || "Erro ao processar cartão");
+        setError(confirmError.message || "Erro ao processar cartÃƒÂ£o");
         setLoading(false);
         return;
       }
 
       if (paymentIntent?.status === "succeeded") {
         if (!api) {
-          setError("Não foi possível confirmar o pagamento com o servidor. Tente novamente.");
+          setError("NÃƒÂ£o foi possÃƒÂ­vel confirmar o pagamento com o servidor. Tente novamente.");
           return;
         }
         const confirmed = await api.confirmStripePayment(intentId);
         if ((confirmed as { status?: string }).status !== "approved") {
-          setError("Pagamento processado, mas a confirmação do pedido ainda está pendente. Tente novamente.");
+          setError("Pagamento processado, mas a confirmaÃƒÂ§ÃƒÂ£o do pedido ainda estÃƒÂ¡ pendente. Tente novamente.");
           return;
         }
         useCheckoutStore.setState((s) => ({
@@ -464,7 +466,7 @@ function StripeCardBlockForm({
         }));
         void trackEvent("order_completed", { intent_id: intentId });
       } else {
-        setError(`Pagamento não foi concluído: ${paymentIntent?.status ?? "desconhecido"}`);
+        setError(`Pagamento nÃƒÂ£o foi concluÃƒÂ­do: ${paymentIntent?.status ?? "desconhecido"}`);
       }
     } catch (err) {
       setError(err instanceof Error ? err.message : "Erro desconhecido");
@@ -533,8 +535,8 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
   if (!clientSecret || !publishableKey || !intentId || typeof amountCents !== "number" || !Number.isSafeInteger(amountCents) || amountCents <= 0) {
     return (
       <section data-neu="surface" className="checkout-payment-panel checkout-payment-panel--error" role="alert">
-        <h3>Pagamento indisponível</h3>
-        <p>Não foi possível carregar os dados necessários. Escolha outra forma de pagamento.</p>
+        <h3>Pagamento indisponÃƒÂ­vel</h3>
+        <p>NÃƒÂ£o foi possÃƒÂ­vel carregar os dados necessÃƒÂ¡rios. Escolha outra forma de pagamento.</p>
       </section>
     );
   }
@@ -544,8 +546,8 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
 
   return (
     <PaymentPanel
-      title="Cartão de crédito"
-      description="Confira o valor e informe o cartão neste ambiente seguro."
+      title="CartÃƒÂ£o de crÃƒÂ©dito"
+      description="Confira o valor e informe o cartÃƒÂ£o neste ambiente seguro."
       totalLabel={totalLabel}
     >
       <Elements stripe={stripePromise} options={elementsOptions}>
@@ -564,7 +566,7 @@ function OrderConfirmationBlock({ data }: { data?: Record<string, unknown> }) {
           <PulseAgentOrb placement="chatBubble" active />
         </div>
       </div>
-      <div style={{ fontSize: "28px", marginBottom: "6px" }}>✓</div>
+      <div style={{ fontSize: "28px", marginBottom: "6px" }}>Ã¢Å“â€œ</div>
       <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>
         {(data.title as string) || "Pedido confirmado!"}
       </div>
@@ -582,262 +584,105 @@ function OrderConfirmationBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
-type CrossSellProduct = { name: string; price?: number; image?: string; sku?: string; suggestionId?: string; variantId?: string; inStock?: boolean };
+type CrossSellProduct = {
+  id?: string; name: string; price?: number; priceFormatted?: string; image?: string;
+  sku?: string; suggestionId?: string; variantId?: string; inStock?: boolean; discountPercent?: number;
+};
 
-const formatCrossSellPrice = (v: number) =>
-  new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
-  const sendMessage = useCheckoutStore((s) => s.sendMessage);
-  const acceptCrossSell = useCheckoutStore((s) => s.acceptCrossSell);
+  const sendMessage = useCheckoutStore(s => s.sendMessage);
+  const acceptCrossSell = useCheckoutStore(s => s.acceptCrossSell);
   const [dismissed, setDismissed] = useState(false);
-  const [pendingSku, setPendingSku] = useState<string | null>(null);
+  const [pendingKey, setPendingKey] = useState<string | null>(null);
   const [error, setError] = useState<string | null>(null);
-
+  const [portalTheme, setPortalTheme] = useState<CSSProperties>({});
+  const anchorRef = useRef<HTMLSpanElement>(null);
+  const scopeRef = useRef<HTMLDivElement>(null);
+  const dialogRef = useRef<HTMLDivElement>(null);
+  const pendingRef = useRef(false);
   const products = (data?.products as CrossSellProduct[]) ?? [];
   const mode = (data?.displayMode as string) ?? "inline";
-
-  const handleEsc = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") setDismissed(true);
-  }, []);
+  const close = () => { if (!pendingRef.current) setDismissed(true); };
+  useModalFocus(mode === "modal" && !dismissed && products.length > 0, dialogRef, close, scopeRef);
 
   useEffect(() => {
-    if (mode !== "modal" || dismissed) return;
-    document.addEventListener("keydown", handleEsc);
-    return () => document.removeEventListener("keydown", handleEsc);
-  }, [mode, dismissed, handleEsc]);
-
-  if (!data || products.length === 0 || dismissed) return null;
+    if (mode !== "modal" || !anchorRef.current) return;
+    const computed = getComputedStyle(anchorRef.current);
+    const inherited: Record<string, string> = { fontFamily: computed.fontFamily };
+    for (let index = 0; index < computed.length; index++) {
+      const name = computed[index];
+      if (name.startsWith("--aacp-") || ["--bd", "--tx", "--mut"].includes(name)) inherited[name] = computed.getPropertyValue(name);
+    }
+    setPortalTheme(inherited as CSSProperties);
+  }, [mode, data]);
 
   const addProduct = async (product: CrossSellProduct) => {
-    if (product.inStock === false || pendingSku) return;
+    if (product.inStock === false || pendingRef.current) return;
+    pendingRef.current = true;
+    setPendingKey(product.sku || product.variantId || product.name);
     setError(null);
-    if (!product.suggestionId || !product.sku) {
-      await sendMessage(`Adicionar ${product.name}`);
-      setDismissed(true);
-      return;
-    }
-    setPendingSku(product.sku);
-    const result = await acceptCrossSell(product.suggestionId, product.sku);
-    setPendingSku(null);
-    if (result.ok) {
-      setDismissed(true);
-    } else {
-      setError(result.error || "Nao foi possivel adicionar este complemento.");
+    try {
+      if (product.suggestionId && product.sku) {
+        const result = await acceptCrossSell(product.suggestionId, product.sku);
+        if (result.ok) setDismissed(true);
+        else setError(result.error || "NÃƒÂ£o foi possÃƒÂ­vel adicionar este complemento.");
+      } else {
+        await sendMessage(`Adicionar ${product.name}${product.variantId ? ` [variantId:${product.variantId}]` : ""}`);
+        setDismissed(true);
+      }
+    } catch {
+      setError("NÃƒÂ£o foi possÃƒÂ­vel adicionar este complemento. Tente novamente.");
+    } finally {
+      pendingRef.current = false;
+      setPendingKey(null);
     }
   };
-
-  const addButton = (p: CrossSellProduct, i: number, compact = false) => (
-    <button data-neu="choice"
-      key={i}
-      data-testid="cross-sell-product"
-      disabled={p.inStock === false || Boolean(pendingSku)}
-      aria-busy={pendingSku === p.sku}
-      aria-label={error ? `${p.name}. ${error}` : p.name}
-      onClick={() => void addProduct(p)}
-      style={{
-        display: "flex",
-        justifyContent: "space-between",
-        alignItems: "center",
-        width: compact ? "auto" : "100%",
-        gap: compact ? "8px" : undefined,
-        padding: "8px 10px",
-        borderRadius: "8px",
-        border: "1px solid var(--bd)",
-        background: "transparent",
-        color: "var(--tx)",
-        cursor: p.inStock === false || pendingSku ? "not-allowed" : "pointer",
-        fontSize: "12px",
-        marginBottom: compact ? 0 : "6px",
-        textAlign: "left",
-        flexShrink: 0,
-      }}
-    >
-      <span>{p.name}</span>
-      <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
-        {p.price != null && (
-          <span style={{ color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", fontWeight: 600 }}>
-            {formatCrossSellPrice(p.price)}
-          </span>
-        )}
-        {!compact && <span style={{ color: "var(--mut)", fontSize: "11px", fontWeight: 600 }}>Adicionar</span>}
-        </span>
-    </button>
-  );
-
-  if (mode === "modal") {
-    return createPortal(
-      <div
-        role="dialog"
-        aria-modal="true"
-        aria-label="Complementos sugeridos"
-        data-testid="cross-sell-modal"
-        onClick={(e) => { if (e.target === e.currentTarget) setDismissed(true); }}
-        style={{
-          position: "fixed",
-          inset: 0,
-          zIndex: 9999,
-          background: "rgba(0,0,0,0.55)",
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          padding: "20px",
-        }}
-      >
-        <div data-neu="surface"
-          style={{
-            background: "var(--card)",
-            border: "1px solid var(--bd)",
-            borderRadius: "14px",
-            padding: "18px",
-            width: "min(420px, calc(100vw - 40px))",
-            maxWidth: "calc(100vw - 40px)",
-            boxSizing: "border-box",
-            maxHeight: "calc(100dvh - 40px)",
-            overflowY: "auto",
-            boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
-          }}
-        >
-          <div style={{ display: "flex", justifyContent: "space-between", alignItems: "start", marginBottom: "12px" }}>
-            <div>
-              <div style={{ fontSize: "11px", color: "var(--mut)", textTransform: "uppercase", letterSpacing: "0.04em" }}>Antes de pagar</div>
-              <div style={{ fontSize: "15px", fontWeight: 700 }}>Você também pode gostar</div>
-            </div>
-            <button data-neu="icon"
-              type="button"
-              aria-label="Fechar sugestões"
-              data-testid="cross-sell-dismiss"
-              onClick={() => setDismissed(true)}
-              style={{ background: "transparent", border: "none", color: "var(--mut)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }}
-            >
-              ×
-            </button>
-          </div>
-          <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-            {products.map((p, i) => addButton(p, i))}
-          </div>
-          <button data-neu="control"
-            type="button"
-            data-testid="cross-sell-skip"
-            onClick={() => setDismissed(true)}
-            style={{ marginTop: "12px", width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid var(--bd)", background: "transparent", color: "var(--mut)", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}
-          >
-            Continuar sem adicionar →
-          </button>
-        </div>
-      </div>,
-      document.body,
-    );
-  }
-
-  if (mode === "banner") {
-    return (
-      <div data-neu="surface"
-        data-testid="cross-sell-banner"
-        style={{
-          position: "sticky",
-          top: 0,
-          zIndex: 50,
-          background: "var(--card)",
-          border: "1px solid var(--bd)",
-          borderRadius: "10px",
-          padding: "10px 12px",
-          marginBottom: "8px",
-          boxShadow: "0 4px 12px rgba(0,0,0,0.12)",
-        }}
-      >
-        <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: "8px" }}>
-          <span style={{ fontSize: "12px", fontWeight: 600 }}>Você também pode gostar:</span>
-          <button data-neu="icon"
-            type="button"
-            aria-label="Fechar sugestões"
-            data-testid="cross-sell-dismiss"
-            onClick={() => setDismissed(true)}
-            style={{ background: "transparent", border: "none", color: "var(--mut)", cursor: "pointer", fontSize: "16px", lineHeight: 1 }}
-          >
-            ×
-          </button>
-        </div>
-        <div style={{ display: "flex", gap: "8px", overflowX: "auto", scrollbarWidth: "none" }}>
-          {products.map((p, i) => addButton(p, i, true))}
-        </div>
-      </div>
-    );
-  }
-
-  if (mode === "interstitial") {
-    const advanceToPayment = () => {
-      setDismissed(true);
-      void sendMessage("Continuar");
-    };
-    return (
-      <div data-neu="surface"
-        data-testid="cross-sell-interstitial"
-        style={{
-          width: "100%",
-          background: "var(--card)",
-          border: "1px solid var(--bd)",
-          borderRadius: "14px",
-          overflow: "hidden",
-          display: "flex",
-          flexDirection: "column",
-        }}
-      >
-        <style>{`.cs-scroll::-webkit-scrollbar { display: none; }`}</style>
-        <div style={{ padding: "12px 14px 10px", display: "flex", alignItems: "center", gap: "9px" }}>
-          <span aria-hidden style={{ flexShrink: 0, width: "28px", height: "28px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center" }}>
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" strokeLinejoin="round"><circle cx="9" cy="21" r="1"/><circle cx="20" cy="21" r="1"/><path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6"/></svg>
-          </span>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <p style={{ margin: 0, fontSize: "13.5px", fontWeight: 700, color: "var(--tx)", lineHeight: 1.3 }}>Complete seu pedido</p>
-            <p style={{ margin: "1px 0 0", fontSize: "11.5px", fontWeight: 500, color: "var(--mut)", lineHeight: 1.3 }}>Aproveite e leve junto:</p>
-          </div>
-        </div>
-        <div className="cs-scroll" style={{ display: "flex", gap: "10px", padding: "0 14px 14px", overflowX: "auto", overflowY: "hidden", WebkitOverflowScrolling: "touch", scrollSnapType: "x mandatory", scrollbarWidth: "none" }}>
-          {products.map((p, i) => (
-            <div data-neu="surface" key={i} style={{ minWidth: "140px", maxWidth: "140px", flexShrink: 0, scrollSnapAlign: "start", background: "var(--tile2, var(--chip, rgba(255,255,255,0.04)))", border: "1px solid var(--bd)", borderRadius: "10px", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-              <div style={{ width: "100%", height: "80px", background: "var(--tile1, var(--card))", display: "flex", alignItems: "center", justifyContent: "center", overflow: "hidden" }}>
-                {p.image ? (
-                  <img src={p.image} alt={p.name} loading="lazy" style={{ maxWidth: "100%", maxHeight: "100%", objectFit: "contain" }} />
-                ) : (
-                  <span style={{ fontSize: "30px", fontWeight: 800, color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", opacity: 0.22 }}>{p.name.charAt(0).toUpperCase()}</span>
-                )}
-              </div>
-              <div style={{ padding: "10px", display: "flex", flexDirection: "column", gap: "6px", flex: 1 }}>
-                <span style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)", lineHeight: 1.3, display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden" }}>{p.name}</span>
-                {p.price != null && <span style={{ fontSize: "14px", fontWeight: 800, color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))" }}>{formatCrossSellPrice(p.price)}</span>}
-                <button data-neu="control"
-                  type="button"
-                  data-testid="cross-sell-product"
-                  disabled={p.inStock === false || Boolean(pendingSku)}
-                  aria-busy={pendingSku === p.sku}
-                  onClick={() => {
-                    void addProduct(p);
-                  }}
-                  style={{ marginTop: "auto", width: "100%", padding: "9px 8px", borderRadius: "8px", border: "none", background: p.inStock === false ? "var(--bd)" : "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "12px", fontWeight: 800, cursor: p.inStock === false ? "not-allowed" : "pointer", opacity: p.inStock === false ? 0.5 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
-                >
-                  <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  {p.inStock === false ? "Indisponível" : "Adicionar"}
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-        <div style={{ padding: "12px 14px", borderTop: "1px solid var(--bd)" }}>
-          <button data-neu="control" type="button" data-testid="cross-sell-continue" onClick={advanceToPayment} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid var(--bd)", background: "transparent", color: "var(--tx)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
-            Continuar
-          </button>
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div data-neu="surface" data-testid="cross-sell-inline" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Você também pode gostar:</div>
-      {products.map((p, i) => addButton(p, i))}
+  if (!data || !products.length || dismissed) return null;
+  const cards = <div className={catalogProductStyles.carousel}>
+    <div className={catalogProductStyles.track} tabIndex={0} aria-label="Produtos complementares; deslize para explorar">
+      {products.map((product, index) => <CatalogProductCard key={product.suggestionId || product.variantId || product.sku || index}
+        product={{ ...product, id: product.variantId || product.sku || product.id || String(index), price: product.price ?? 0,
+          priceFormatted: product.priceFormatted || (product.price != null ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(product.price) : "PreÃƒÂ§o indisponÃƒÂ­vel"), inStock: product.inStock !== false }}
+        busy={Boolean(pendingKey)} addTestId="cross-sell-product" onAdd={() => { void addProduct(product); }}
+        onQuickReply={message => { if (!pendingRef.current) { setDismissed(true); void sendMessage(message); } }} />)}
     </div>
-  );
+  </div>;
+  const header = <header style={{ display: "flex", alignItems: "center", justifyContent: "space-between", gap: 12, marginBottom: 14 }}>
+    <h3 style={{ margin: 0, fontSize: 15, fontWeight: 700 }}>VocÃƒÂª tambÃƒÂ©m pode gostar</h3>
+    {mode !== "inline" ? <button data-neu="icon" type="button" aria-label="Fechar sugestÃƒÂµes" data-testid="cross-sell-dismiss"
+      disabled={Boolean(pendingKey)} onClick={close} style={{ width: 40, height: 40, flexShrink: 0, borderRadius: "50%",
+        border: "1px solid var(--aacp-line)", background: "var(--aacp-surface)", color: "inherit", fontSize: 20 }}>Ãƒâ€”</button> : null}
+  </header>;
+  const alert = error ? <p role="alert" style={{ color: "var(--aacp-error, #ef4444)", fontSize: 13 }}>{error}</p> : null;
+  if (mode === "modal") return <>
+    <span ref={anchorRef} />
+    {createPortal(<div ref={scopeRef} style={portalTheme}>
+      <div role="presentation" onClick={close} style={{ position: "fixed", inset: 0, zIndex: 9998, background: "rgba(0,0,0,.55)" }} />
+      <div ref={dialogRef} tabIndex={-1} role="dialog" aria-modal="true" aria-label="Complementos sugeridos" data-testid="cross-sell-modal" data-cross-sell
+        style={{ position: "fixed", left: "50%", top: "50%", transform: "translate(-50%, -50%)", zIndex: 9999,
+          width: "min(560px, calc(100vw - 32px))", maxHeight: "82dvh", overflow: "hidden", display: "flex", flexDirection: "column",
+          padding: 18, boxSizing: "border-box", border: "1px solid var(--aacp-line)", borderRadius: 20,
+          background: "var(--aacp-panel-bg, #edf0ee)", color: "var(--aacp-fg, #202b24)", fontFamily: "var(--aacp-font, inherit)", boxShadow: "0 20px 60px rgba(0,0,0,.4)" }}>
+        <div style={{ flexShrink: 0 }}>{header}</div>
+        <div style={{ minHeight: 0, overflowY: "auto" }}>{cards}</div>
+        {alert}
+        <button data-neu="control" type="button" data-testid="cross-sell-skip" onClick={close} disabled={Boolean(pendingKey)}
+          style={{ flexShrink: 0, minHeight: 44, marginTop: 12, padding: 12, border: "1px solid var(--aacp-line)", borderRadius: 8,
+            background: "var(--aacp-surface)", color: "inherit", font: "inherit", fontSize: 13 }}>Continuar sem adicionar</button>
+      </div>
+    </div>, document.body)}
+  </>;
+  return <section data-cross-sell data-testid={`cross-sell-${mode}`} className={catalogProductStyles.carousel}
+    style={{ minWidth: 0, width: "100%", boxSizing: "border-box", border: "1px solid var(--aacp-line)", borderRadius: 14,
+      background: "var(--aacp-surface, #edf0ee)", padding: 14 }}>
+    {header}{cards}{alert}
+    {mode === "interstitial" ? <button data-neu="control" type="button" data-testid="cross-sell-continue" disabled={Boolean(pendingKey)}
+      onClick={() => { if (!pendingRef.current) { setDismissed(true); void sendMessage("Continuar"); } }}
+      style={{ minHeight: 44, width: "100%", padding: 12, marginTop: 12, borderRadius: 8, border: "1px solid var(--aacp-line)",
+        background: "var(--aacp-surface)", color: "inherit", font: "inherit", fontSize: 13 }}>Continuar</button> : null}
+  </section>;
 }
+
 
 function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
   const applyCouponCode = useCheckoutStore((s) => s.applyCouponCode);
@@ -878,7 +723,7 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
     if (result.ok) {
       advance();
     } else {
-      setError(result.error || "Cupom inválido");
+      setError(result.error || "Cupom invÃƒÂ¡lido");
     }
   };
 
@@ -890,7 +735,7 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
           type="text"
           value={code}
           onChange={(e) => setCode(e.target.value.toUpperCase())}
-          placeholder="Código do cupom"
+          placeholder="CÃƒÂ³digo do cupom"
           style={{
             flex: 1, minWidth: 0, padding: "8px 10px", borderRadius: "8px",
             border: "1px solid var(--bd)", background: "var(--chip)",
@@ -925,7 +770,7 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
           cursor: loading ? "not-allowed" : "pointer",
         }}
       >
-        Não possuo cupom
+        NÃƒÂ£o possuo cupom
       </button>
     </div>
   );
@@ -961,7 +806,7 @@ function AddressConfirmationBlock({ data }: { data?: Record<string, unknown> }) 
   };
 
   const handleNo = () => {
-    void sendMessage("Não");
+    void sendMessage("NÃƒÂ£o");
   };
 
   return (
@@ -1002,7 +847,7 @@ function AddressConfirmationBlock({ data }: { data?: Record<string, unknown> }) 
             cursor: "pointer",
           }}
         >
-          Não
+          NÃƒÂ£o
         </button>
       </div>
     </div>
@@ -1100,7 +945,7 @@ function LeadCaptureBlock() {
     setError("");
     const result = await registerLead(values);
     setSaving(false);
-    if (!result.ok) setError(result.error ?? "Não foi possível salvar seus dados.");
+    if (!result.ok) setError(result.error ?? "NÃƒÂ£o foi possÃƒÂ­vel salvar seus dados.");
   };
 
   return (
@@ -1241,7 +1086,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     const nativeBal = BigInt(nativeBalHex || "0x0");
     const required = requiredAtomic;
     if (tokenBalHex !== null && tokenBal < required) {
-      return `Saldo de ${tokenSymbol} insuficiente. Você precisa de ${amountDisplay}.`;
+      return `Saldo de ${tokenSymbol} insuficiente. VocÃƒÂª precisa de ${amountDisplay}.`;
     }
     if (nativeBalHex !== null && nativeBal === 0n) {
       const gasSymbol = cryptoNativeCurrency?.symbol || "ETH";
@@ -1264,7 +1109,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         setError("");
       }
     } catch {
-      setError("Conexão rejeitada");
+      setError("ConexÃƒÂ£o rejeitada");
     }
   };
 
@@ -1289,7 +1134,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     try {
       await confirmSubmittedTransfers(submittedTxHashes);
     } catch {
-      setError("As transferências já foram enviadas. Aguarde a rede e use Verificar pagamento; não pague novamente.");
+      setError("As transferÃƒÂªncias jÃƒÂ¡ foram enviadas. Aguarde a rede e use Verificar pagamento; nÃƒÂ£o pague novamente.");
       setStep("connected");
     }
   };
@@ -1352,7 +1197,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       }
 
       if (!transfersValid) {
-        setError("Valor do pagamento inválido. Recarregue e tente novamente.");
+        setError("Valor do pagamento invÃƒÂ¡lido. Recarregue e tente novamente.");
         setStep("connected");
         return;
       }
@@ -1384,28 +1229,28 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       console.error("[CRYPTO-PAY] ERROR:", e?.code, e?.message, e);
       if (txHashes.length && !allTransfersSubmitted) {
         setPartialSubmission(true);
-        setError("Uma transferência já foi enviada, mas o pagamento não foi concluído. Não pague novamente; contate o suporte com o hash da transação.");
+        setError("Uma transferÃƒÂªncia jÃƒÂ¡ foi enviada, mas o pagamento nÃƒÂ£o foi concluÃƒÂ­do. NÃƒÂ£o pague novamente; contate o suporte com o hash da transaÃƒÂ§ÃƒÂ£o.");
         setStep("error");
         return;
       }
       if (allTransfersSubmitted) {
-        setError("As transferências já foram enviadas. Aguarde a rede e use Verificar pagamento; não pague novamente.");
+        setError("As transferÃƒÂªncias jÃƒÂ¡ foram enviadas. Aguarde a rede e use Verificar pagamento; nÃƒÂ£o pague novamente.");
         setStep("connected");
         return;
       }
       if (e?.code === 4001) {
-        setError("Transação cancelada");
+        setError("TransaÃƒÂ§ÃƒÂ£o cancelada");
         setStep("connected");
       } else {
         const msg = String(e?.message || "").toLowerCase();
         if (msg.includes("rate limit") || msg.includes("getblockbynumber") || msg.includes("sendrawtransaction")) {
           setRpcHelp(true);
-          setError("O RPC da sua carteira está sobrecarregado. Atualize o endereço RPC da rede (instruções abaixo) e tente novamente.");
+          setError("O RPC da sua carteira estÃƒÂ¡ sobrecarregado. Atualize o endereÃƒÂ§o RPC da rede (instruÃƒÂ§ÃƒÂµes abaixo) e tente novamente.");
         } else if (msg.includes("insufficient funds") || msg.includes("client error") || msg.includes("http")) {
           const gasSymbol = cryptoNativeCurrency?.symbol || "ETH";
           setError(`Falha ao enviar. Verifique se tem ${tokenSymbol} suficiente e ${gasSymbol} para gas.`);
         } else {
-          setError(e?.message || "Erro ao enviar transação");
+          setError(e?.message || "Erro ao enviar transaÃƒÂ§ÃƒÂ£o");
         }
         setStep("connected");
       }
@@ -1440,12 +1285,12 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       </p>
       {transfers.length > 1 && (
         <p style={{ fontSize: "11px", color: "var(--mut)", margin: "0 0 10px", lineHeight: 1.4 }}>
-          Sua carteira solicitará {transfers.length} confirmações para concluir este pagamento.
+          Sua carteira solicitarÃƒÂ¡ {transfers.length} confirmaÃƒÂ§ÃƒÂµes para concluir este pagamento.
         </p>
       )}
       {!transfersValid && (
         <div style={{ padding: "6px 10px", borderRadius: "6px", background: "#fee", color: "#c92a2a", fontSize: "12px", marginBottom: "8px" }}>
-          A cotação cripto está incompleta. Gere um novo pagamento antes de transferir.
+          A cotaÃƒÂ§ÃƒÂ£o cripto estÃƒÂ¡ incompleta. Gere um novo pagamento antes de transferir.
         </div>
       )}
 
@@ -1460,7 +1305,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
           </div>
           {partialSubmission ? (
             <div style={{ padding: "6px 10px", borderRadius: "6px", background: "#fff4e5", color: "#8a4b08", fontSize: "12px" }}>
-              Há uma transferência parcial. Não envie novos valores; contate o suporte com o hash da transação.
+              HÃƒÂ¡ uma transferÃƒÂªncia parcial. NÃƒÂ£o envie novos valores; contate o suporte com o hash da transaÃƒÂ§ÃƒÂ£o.
             </div>
           ) : submittedTxHashes.length ? (
             <button data-neu="primary" onClick={handleVerifySubmitted} style={btnBase}>Verificar pagamento</button>
@@ -1480,7 +1325,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
       {step === "confirming" && (
         <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "8px 0" }}>
           <PulseAgentOrb placement="chatLoading" active />
-          <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>Transação enviada! Verificando on-chain...</p>
+          <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>TransaÃƒÂ§ÃƒÂ£o enviada! Verificando on-chain...</p>
         </div>
       )}
 
@@ -1493,7 +1338,7 @@ function CryptoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
         <div data-neu="surface" style={{ padding: "10px 12px", borderRadius: "8px", background: "var(--chip)", border: "1px solid var(--bd)", fontSize: "12px", color: "var(--tx)", marginTop: "8px", lineHeight: 1.5 }}>
           <div style={{ fontWeight: 600, marginBottom: "6px" }}>Como corrigir (1 min):</div>
           <ol style={{ margin: "0 0 8px", paddingLeft: "18px" }}>
-            <li>Abra o MetaMask → Configurações → Redes → {chainLabel} {network}</li>
+            <li>Abra o MetaMask Ã¢â€ â€™ ConfiguraÃƒÂ§ÃƒÂµes Ã¢â€ â€™ Redes Ã¢â€ â€™ {chainLabel} {network}</li>
             <li>Substitua a URL do RPC pela abaixo e salve</li>
             <li>Volte aqui e toque em Pagar novamente</li>
           </ol>

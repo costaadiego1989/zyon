@@ -1,3 +1,9 @@
+import { MarketplaceOperationalAlertService } from "./application/services/marketplace-operational-alert.service.js";
+import { MarketplaceOperationalAlertJob } from "./application/services/marketplace-operational-alert.job.js";
+import { MarketplaceOperationalAlertSender } from "./infrastructure/adapters/marketplace-operational-alert.sender.js";
+import { MarketplaceOperationalAlertMetrics } from "./infrastructure/marketplace-operational-alert.metrics.js";
+import { PrismaMarketplaceOperationalAlertRepository } from "./infrastructure/repositories/prisma-marketplace-operational-alert.repository.js";
+import { MarketplaceOperationalAlertController } from "./presentation/http/marketplace-operational-alert.controller.js";
 import { DigitalFulfillmentService } from "./application/services/digital-fulfillment.service.js";
 import { DigitalDownloadLinkService } from "./domain/services/digital-download-link.service.js";
 import { DigitalDeliveryListener } from "./presentation/listeners/digital-delivery.listener.js";
@@ -41,8 +47,13 @@ import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repo
 
 @Module({
   imports: [PersistenceModule, PaymentModule, WhatsAppTemplatesModule, AuthModule],
-  controllers: [MerchantNotificationController, DigitalDownloadController],
+  controllers: [MerchantNotificationController, DigitalDownloadController, MarketplaceOperationalAlertController],
   providers: [
+    MarketplaceOperationalAlertService,
+    MarketplaceOperationalAlertJob,
+    MarketplaceOperationalAlertSender,
+    MarketplaceOperationalAlertMetrics,
+    PrismaMarketplaceOperationalAlertRepository,
     { provide: DigitalDownloadLinkService, useFactory: () => new DigitalDownloadLinkService() },
     DigitalFulfillmentService,
     DigitalDeliveryListener,

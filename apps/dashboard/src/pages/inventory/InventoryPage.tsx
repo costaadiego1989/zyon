@@ -22,6 +22,7 @@ export interface InventoryPageProps {
   apiBaseUrl: string;
   me: MerchantProfile | null;
   notificationTarget?: { id: string; itemId?: string; alertId?: string } | null;
+  connectorsOnly?: boolean;
 }
 
 type InventoryTab = "overview" | "movements" | "alerts" | "erp";
@@ -82,7 +83,7 @@ const PAGE_SIZE = 10;
 
 export function InventoryPage(props: InventoryPageProps) {
   const vm = useInventoryPage({ me: props.me });
-  const [tab, setTab] = useState<InventoryTab>(props.notificationTarget ? "alerts" : "overview");
+  const [tab, setTab] = useState<InventoryTab>(props.connectorsOnly ? "erp" : props.notificationTarget ? "alerts" : "overview");
   React.useEffect(() => { if (props.notificationTarget) setTab("alerts"); }, [props.notificationTarget]);
   const [itemPage, setItemPage] = useState(1);
   const [movementPage, setMovementPage] = useState(1);
@@ -190,16 +191,20 @@ export function InventoryPage(props: InventoryPageProps) {
 
   if (!props.me) {
     return (
-      <PageHeader title="Estoque" description="Login necessário" />
+      <PageHeader title={props.connectorsOnly ? "ERP e marketplaces" : "Estoque"} description="Login necessário" />
     );
   }
 
   return (
     <div className="page-container">
       {/* Header */}
-      <PageHeader title="Estoque" description="Acompanhe o saldo disponível, as reservas e os produtos que precisam de reposição." />
+      <PageHeader
+        title={props.connectorsOnly ? "ERP e marketplaces" : "Estoque"}
+        description={props.connectorsOnly ? "Conecte seus sistemas de gestão e marketplaces e acompanhe a sincronização." : "Acompanhe o saldo disponível, as reservas e os produtos que precisam de reposição."}
+      />
 
       {/* KPI Stats */}
+      {!props.connectorsOnly && <>
       <div className="grid-4" style={{ gap: 14 }}>
         <StatCard
           icon={<Package size={16} />}
@@ -238,6 +243,7 @@ export function InventoryPage(props: InventoryPageProps) {
         activeTab={tab}
         onTabChange={(k) => setTab(k as InventoryTab)}
       />
+      </>}
 
       {/* Tab: Visão Geral */}
       {tab === "overview" && (
