@@ -3,6 +3,10 @@ import type { Prisma, PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { MelhorEnvioReverseAdapter, type ReversePackage, type ReverseRequest, type ReverseSource } from "../../shipping/infrastructure/adapters/melhor-envio-reverse.adapter.js";
+import { awaitingReturnLabel } from "./return-shipping-state.js";
+import { lockSupportResource, persistSupportMessage } from "../../support/application/support-persistence.js";
+import { enqueueReturnNotice } from "../../notifications/application/return-notice-persistence.js";
+import type { ReturnNoticeType } from "../../notifications/domain/return-notice.js";
 import { fundingHash } from "../../marketplace/infrastructure/repositories/prisma-marketplace-funding.repository.js";
 import { verifyMarketplaceShipmentRecord } from "../../shipping/domain/marketplace-shipment-proof.js";
 import type { FrozenMarketplaceFunding } from "../../marketplace/domain/services/marketplace-funding-budget.js";
@@ -51,12 +55,12 @@ export class ReturnReverseShippingService {
     return { returnId, amountCents: rows.reduce((sum, row) => sum + Number(object(row.carrierRaw).amountCents ?? 0), 0),
       shipments: rows.map(row => { const data = object(row.carrierRaw); return { id: row.id, originMerchantId: data.request.originMerchantId as string,
         originName: data.originName as string, amountCents: data.amountCents as number | null, status: row.status,
-        postingCode: data.postingCode as string | null, serviceId: data.request.body.service as 1 | 2 }; }) };
+        postingCode: data.postingCode as string | null, declarationUrl: (data.declarationUrl as string | null) ?? null, serviceId: data.request.body.service as 1 | 2 }; }) };
   }
   async candidates(host: string, returnId: string) {
     const ret = await this.returned(host, returnId), view = await this.view(host, returnId);
     if (view.shipments.length) return { ...view, candidates: [] };
-    if (ret.status !== "REQUESTED" || ret.label) throw new ConflictException("invalid_status_for_label_generation");
+    if (!awaitingReturnLabel(ret)) throw new ConflictException("invalid_status_for_label_generation");
     const sources = await this.sources(host, ret);
     const candidates = [];
     for (const source of sources) {
@@ -72,7 +76,7 @@ export class ReturnReverseShippingService {
       new Set(input.packages.map(row => row?.originMerchantId)).size !== input.packages.length) throw new BadRequestException("return_reverse_packages_required");
     const ret = await this.returned(host, returnId), previous = await this.rows(host, returnId);
     if (previous.length) return this.view(host, returnId);
-    if (ret.status !== "REQUESTED" || ret.label) throw new ConflictException("invalid_status_for_label_generation");
+    if (!awaitingReturnLabel(ret)) throw new ConflictException("invalid_status_for_label_generation");
     const sources = await this.sources(host, ret);
     if (sources.length !== input.packages.length || input.packages.some(row => !sources.some(s => s.originMerchantId === row.originMerchantId))) throw new BadRequestException("return_reverse_origins_mismatch");
     const requests: Array<{ source: Source; request: ReverseRequest }> = [];
@@ -86,7 +90,7 @@ export class ReturnReverseShippingService {
     const owned = await this.prisma.$transaction(async tx => {
       await tx.$queryRaw`SELECT id FROM returns WHERE id = ${returnId} AND merchant_id = ${host} FOR UPDATE`;
       const current = await tx.return.findFirst({ where: { id: returnId, merchantId: host }, include: { label: true } });
-      if (!current || current.status !== "REQUESTED" || current.label) throw new ConflictException("return_status_changed");
+      if (!current || !awaitingReturnLabel(current)) throw new ConflictException("return_status_changed");
       if ((await tx.trackingEvent.count({ where: { merchantId: host, id: { in: requests.map(row => key(host, returnId, row.source.originMerchantId)) } } })) > 0) return false;
       for (const { source, request } of requests) {
         const id = key(host, returnId, source.originMerchantId);
@@ -126,7 +130,8 @@ export class ReturnReverseShippingService {
   async reconcile(limit = 10) {
     const rows = await this.prisma.trackingEvent.findMany({ where: { id: { startsWith: prefix },
       OR: [{ status: { in: ["reverse_cart_unknown", "reverse_purchase_unknown", "reverse_generation_unknown"] } },
-        { status: "reverse_generated", carrierRaw: { path: ["finalized"], equals: false } }],
+        { status: "reverse_generated", carrierRaw: { path: ["finalized"], equals: false } },
+        { status: "reverse_generated", carrierRaw: { path: ["declarationPending"], equals: true } }],
       occurredAt: { lt: new Date(Date.now() - 60_000) } }, take: limit, orderBy: { occurredAt: "asc" } });
     for (const row of rows) {
       try {
@@ -152,8 +157,8 @@ export class ReturnReverseShippingService {
         // all further calls can only observe the existing carrier purchase.
         const claimed = await this.prisma.$transaction(async tx => {
           await tx.$queryRaw`SELECT id FROM returns WHERE id = ${data.returnId} AND merchant_id = ${row.merchantId} FOR UPDATE`;
-          const ret = await tx.return.findFirst({ where: { id: data.returnId, merchantId: row.merchantId, status: "REQUESTED" }, include: { label: true } });
-          if (!ret || ret.label || !observed.purchasable) return false;
+          const ret = await tx.return.findFirst({ where: { id: data.returnId, merchantId: row.merchantId }, include: { label: true } });
+          if (!ret || !awaitingReturnLabel(ret) || !observed.purchasable) return false;
           return (await tx.trackingEvent.updateMany({ where: { id: row.id, status }, data: { status: "reverse_purchase_unknown", occurredAt: new Date() } })).count === 1;
         });
         if (!claimed) return;
@@ -173,33 +178,60 @@ export class ReturnReverseShippingService {
       }
       if (["reverse_purchased", "reverse_generation_unknown"].includes(status) && observed.code) {
         await this.prisma.trackingEvent.updateMany({ where: { id: row.id, status }, data: { status: "reverse_generated", occurredAt: new Date(),
-          description: "Código de devolução confirmado pelo Melhor Envio", carrierRaw: json({ ...data, postingCode: observed.code, generatedAt: observed.generatedAt }) } });
+          description: "Código de devolução confirmado pelo Melhor Envio", carrierRaw: json({ ...data, postingCode: observed.code, generatedAt: observed.generatedAt, declarationPending: true }) } });
       }
     } catch { this.logger.warn(`return_reverse_provider_unproven return=${data.returnId} attempt=${row.id}`); }
   }
   private async finish(host: string, returnId: string) {
-    const rows = await this.rows(host, returnId);
+    let rows = await this.rows(host, returnId);
     if (!rows.length || rows.some(row => row.status !== "reverse_generated" || !object(row.carrierRaw).postingCode)) return;
+    // Retry document reads independently; they never buy or generate freight.
+    for (const row of rows) {
+      const data = object(row.carrierRaw);
+      if (data.declarationUrl) continue;
+      try {
+        const url = await this.carrier.declaration(data.request as ReverseRequest, data.carrierOrderId, data.amountCents);
+        await this.prisma.trackingEvent.update({ where: { id: row.id }, data: { carrierRaw: json({ ...data, declarationUrl: url, declarationPending: false }) } });
+      } catch { this.logger.warn(`return_reverse_declaration_pending attempt=${row.id}`); }
+    }
+    rows = await this.rows(host, returnId);
     await this.prisma.$transaction(async tx => {
+      const ticket = await tx.supportTicket.findFirst({ where: { merchantId: host, returnId, mergedIntoId: null } });
+      if (ticket) await lockSupportResource(tx, `support:${ticket.id}`);
       await tx.$queryRaw`SELECT id FROM returns WHERE id = ${returnId} AND merchant_id = ${host} FOR UPDATE`;
-      const current = await tx.return.findFirst({ where: { id: returnId, merchantId: host }, include: { label: true } });
-      if (!current) return;
+      const current = await tx.return.findFirst({ where: { id: returnId, merchantId: host }, include: { label: true, items: true } });
+      if (!current || !["REQUESTED", "LABEL_GENERATED"].includes(current.status)) return;
       const codes = rows.map(row => { const data = object(row.carrierRaw); return rows.length === 1 ? data.postingCode : `${data.originName}: ${data.postingCode}`; }).join("; ");
       if (current.label && current.label.trackingNumber !== codes) throw new ConflictException("return_reverse_label_changed");
-      // The existing label field keeps all origin codes available to the buyer.
-      // Reverse codes expire after seven days, independently from outbound
-      // labels. Keep a conservative date from generation, never from recovery.
       const generatedDay = rows.map(row => String(object(row.carrierRaw).generatedAt).slice(0, 10)).sort()[0];
       const expiresAt = new Date(Date.parse(`${generatedDay}T00:00:00Z`) + 7 * 24 * 60 * 60 * 1000);
       if (!Number.isFinite(expiresAt.getTime())) throw new ConflictException("return_reverse_generation_date_unproven");
       if (!current.label) await tx.returnLabel.create({ data: { returnId, carrier: "Correios", trackingNumber: codes, expiresAt } });
-      await tx.return.updateMany({ where: { id: returnId, merchantId: host, status: "REQUESTED" }, data: { status: "LABEL_GENERATED" } });
+      const declarations = rows.map(row => ({ originMerchantId: String(object(row.carrierRaw).request.originMerchantId), originName: String(object(row.carrierRaw).originName), url: object(row.carrierRaw).declarationUrl ? String(object(row.carrierRaw).declarationUrl) : null }));
+      await tx.return.updateMany({ where: { id: returnId, merchantId: host, status: current.status }, data: { status: "LABEL_GENERATED",
+        resolution: json({ ...object(current.resolution), returnAuthorizedAt: object(current.resolution).returnAuthorizedAt ?? new Date().toISOString(), returnDeclarations: declarations }) } });
+      if (ticket) {
+        const notify = async (clientMessageId: string, type: ReturnNoticeType, content: string, metadata: Prisma.InputJsonValue) => {
+          if (await tx.supportTicketMessage.findFirst({ where: { ticketId: ticket.id, clientMessageId } })) return;
+          const message = await persistSupportMessage(tx, { merchantId: host, ticketId: ticket.id, senderType: "system", clientMessageId, content, metadata });
+          await enqueueReturnNotice(tx, { merchantId: host, ticketId: ticket.id, messageId: message.id, type, explanation: content, ret: current });
+        };
+        const content = "Código de devolução dos Correios: " + codes + "\nValidade até " + expiresAt.toLocaleDateString("pt-BR", { timeZone: "UTC" }) +
+          ". Reembale os itens e leve o código e a declaração de conteúdo impressa a uma agência dos Correios. Aguarde a declaração antes da postagem.";
+        await notify("reverse-code-" + returnId, "return_posting_code", content, { kind: "return_posting_code", returnId, postingCode: codes, expiresAt: expiresAt.toISOString() });
+        if (declarations.every(doc => doc.url)) {
+          const instructions = "A declaração de conteúdo da devolução está disponível. Imprima o PDF correspondente a cada pacote e leve-o com o código à agência dos Correios.\n" + declarations.map(d => d.originName + ": " + d.url).join("\n");
+          await notify("reverse-declaration-" + returnId, "return_declaration_ready", instructions, json({ kind: "return_declaration_ready", returnId, declarations }));
+        }
+      }
       for (const row of rows) {
-        await tx.trackingEvent.update({ where: { id: row.id }, data: { carrierRaw: json({ ...object(row.carrierRaw), finalized: true }) } });
+        const fresh = await tx.trackingEvent.findUniqueOrThrow({ where: { id: row.id } });
+        await tx.trackingEvent.update({ where: { id: row.id }, data: { carrierRaw: json({ ...object(fresh.carrierRaw), finalized: true }) } });
         await tx.shipment.update({ where: { id: row.shipmentId }, data: { status: "reverse_generated" } });
       }
     });
   }
+
   private async sources(host: string, ret: Awaited<ReturnType<ReturnReverseShippingService["returned"]>>): Promise<Source[]> {
     if (!ret.items.length || ret.items.length > 100 || new Set(ret.items.map(i => i.variantId)).size !== ret.items.length ||
       ret.items.some(i => !Number.isSafeInteger(i.quantity) || i.quantity < 1)) throw new BadRequestException("return_items_invalid");

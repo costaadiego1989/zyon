@@ -114,4 +114,16 @@ export class MelhorEnvioReverseAdapter {
     if (!(await this.read(request, orderId, amountCents)).paid) throw Error("reverse_purchase_unproven");
     await this.post(request, "/api/v2/me/shipment/generate", { orders: [orderId] });
   }
+  async declaration(request: ReverseRequest, orderId: string, amountCents: number) {
+    if (!(await this.read(request, orderId, amountCents)).code) throw Error("reverse_generation_unproven");
+    const auth = await this.auth(request);
+    const response = await this.transport(`${auth.base}/api/v2/me/imprimir/dace/pdf/${encodeURIComponent(orderId)}`, {
+      method: "GET", headers: auth.headers, signal: AbortSignal.timeout(15000), redirect: "error" });
+    if (!response.ok) throw Error("reverse_declaration_unavailable");
+    const result = await response.json() as { pdf?: unknown };
+    if (typeof result.pdf !== "string") throw Error("reverse_declaration_unavailable");
+    const url = new URL(result.pdf);
+    if (url.protocol !== "https:" || url.username || url.password) throw Error("reverse_declaration_url_invalid");
+    return url.href;
+  }
 }

@@ -69,6 +69,7 @@ export interface ReturnProps {
   notes?: string;
   imageUrls?: string[];
   status: ReturnStatus;
+  returnAuthorized?: boolean;
   createdAt: Date;
   updatedAt: Date;
   items: ReturnItemProps[];
@@ -86,6 +87,7 @@ export class ReturnEntity {
   readonly notes?: string;
   readonly imageUrls?: string[];
   readonly status: ReturnStatus;
+  readonly returnAuthorized: boolean;
   readonly createdAt: Date;
   readonly updatedAt: Date;
   readonly items: ReturnItemProps[];
@@ -102,6 +104,7 @@ export class ReturnEntity {
     this.notes = props.notes;
     this.imageUrls = props.imageUrls;
     this.status = props.status;
+    this.returnAuthorized = props.returnAuthorized ?? false;
     this.createdAt = props.createdAt;
     this.updatedAt = props.updatedAt;
     this.items = props.items;

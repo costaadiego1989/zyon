@@ -24,6 +24,7 @@ export interface ReturnEntry {
   createdAt: string;
   updatedAt: string;
   label?: { carrier: string; trackingNumber: string; labelUrl?: string };
+  returnAuthorized?: boolean;
   inspection?: { inspectedBy: string; itemCondition: ReturnItemCondition; verdict: string; notes?: string };
   refund?: { amountInCents: number; status: string; processedAt?: string };
 }
@@ -37,7 +38,7 @@ export type ReverseParcel = { height: number; width: number; length: number; wei
 export type ReverseShippingView = {
   returnId: string; amountCents: number;
   shipments: Array<{ id: string; originMerchantId: string; originName: string; amountCents: number | null;
-    status: string; postingCode: string | null; serviceId: 1 | 2 }>;
+    status: string; postingCode: string | null; declarationUrl?: string | null; serviceId: 1 | 2 }>;
   candidates?: Array<{ originMerchantId: string; originName: string; package: ReverseParcel | null; email: string; phone: string }>;
 };
 

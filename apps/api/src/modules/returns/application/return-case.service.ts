@@ -7,6 +7,7 @@ import { RealtimeCapabilityService } from "../../../shared/auth/realtime-capabil
 import { appendSupportEvent, lockSupportResource, persistSupportMessage } from "../../support/application/support-persistence.js";
 import { ReturnOrderService, RETURN_REASON_LABELS, RESOLVED_RETURN_STATUSES, validateReturnItems } from "./return-order.service.js";
 import { ReturnAttachmentService } from "./return-attachment.service.js";
+import { returnShippingState } from "./return-shipping-state.js";
 import { enqueueReturnNotice } from "../../notifications/application/return-notice-persistence.js";
 import type { ReturnNoticeType } from "../../notifications/domain/return-notice.js";
 import { ProcessRefundUseCase } from "./use-cases/process-refund.use-case.js";
@@ -26,7 +27,7 @@ export class ReturnCaseService {
 
   private async linkedReturn(ticket: { returnId: string | null; sessionId: string | null; source: string; merchantId: string }) {
     const id = ticket.returnId ?? (ticket.source === "return_request" ? ticket.sessionId : null);
-    return id ? this.prisma.return.findFirst({ where: { id, merchantId: ticket.merchantId }, include: { items: true, refund: true } }) : null;
+    return id ? this.prisma.return.findFirst({ where: { id, merchantId: ticket.merchantId }, include: { items: true, refund: true, label: true } }) : null;
   }
 
   async open(input: OpenReturnCaseInput): Promise<ReturnRequestResult> {
@@ -191,7 +192,7 @@ export class ReturnCaseService {
       this.prisma.supportTicketMessage.count({ where: { ...scope, senderType: { in: ["merchant", "system"] }, ...(ticket.buyerReadAt ? { createdAt: { gt: ticket.buyerReadAt } } : {}) } }),
     ]);
     return { ticketId: ticket.id, merchantId: ticket.merchantId, returnId: ret?.id, orderId: ret?.orderId,
-      kind: ret ? ret.kind as "refund" | "exchange" : "support", status: ticket.status, returnStatus: ret?.status,
+      kind: ret ? ret.kind as "refund" | "exchange" : "support", status: ticket.status, returnStatus: ret?.status, returnAuthorized: returnShippingState(ret)?.authorized ?? false,
       active: ret ? !RESOLVED_RETURN_STATUSES.includes(ret.status) : !["closed", "resolved"].includes(ticket.status),
       unreadCount: unread, lastMessage: last ? this.messageDto(last, ticket.id) : null, updatedAt: ticket.updatedAt.toISOString() };
   }
@@ -233,7 +234,7 @@ export class ReturnCaseService {
       selectedItems: ret?.items.map(it => ({ variantId: it.variantId, quantity: it.quantity, name: order?.items.find(line => line.variantId === it.variantId || line.sku === it.variantId)?.name ?? (it.variantId === "all" ? "Pedido completo (solicitação anterior)" : it.variantId) })) ?? [],
       notifications: await this.prisma.returnNoticeDelivery.findMany({ where: { merchantId, ticketId: ticket.id }, orderBy: { createdAt: "asc" },
         select: { id: true, type: true, channel: true, status: true, lastError: true } }),
-      imageUrls, messages, nextCursor: rows.length > 100 && last ? Buffer.from(JSON.stringify({ createdAt: last.createdAt.toISOString(), id: last.id })).toString("base64url") : null,
+      returnShipping: returnShippingState(ret), imageUrls, messages, nextCursor: rows.length > 100 && last ? Buffer.from(JSON.stringify({ createdAt: last.createdAt.toISOString(), id: last.id })).toString("base64url") : null,
       refund: ret?.refund ? { status: ret.refund.status, amountInCents: ret.refund.amountInCents, providerRefundId: ret.refund.providerRefundId } : null, resolution: ret?.resolution as SupportCaseDetail["resolution"] };
   }
 
@@ -286,10 +287,17 @@ export class ReturnCaseService {
       await lockSupportResource(tx, `support:${ticketId}`);
       const ticket = await tx.supportTicket.findFirst({ where: { id: ticketId, merchantId, returnId: { not: null } } });
       if (!ticket?.returnId) throw new NotFoundException("return_not_found");
-      const ret = await tx.return.findFirstOrThrow({ where: { id: ticket.returnId, merchantId }, include: { refund: true, items: true } });
+      await tx.$queryRaw`SELECT id FROM returns WHERE id = ${ticket.returnId} AND merchant_id = ${merchantId} FOR UPDATE`;
+      const ret = await tx.return.findFirstOrThrow({ where: { id: ticket.returnId, merchantId }, include: { refund: true, items: true, label: true } });
       if (RESOLVED_RETURN_STATUSES.includes(ret.status) || ret.refund) throw new ConflictException("case_cannot_change_during_refund");
       let status: string; let event: string; let content: string;
       let resolution: Prisma.InputJsonObject = { ...(ret.resolution as Prisma.InputJsonObject ?? {}), instructions: notes };
+      if (["cancel", "reject", "confirm_items", "complete_exchange"].includes(input.action)) {
+        const attempts = await tx.trackingEvent.count({ where: { merchantId, id: { startsWith: "return_reverse_" }, carrierRaw: { path: ["returnId"], equals: ret.id },
+          ...(input.action === "confirm_items" ? {} : { status: { notIn: ["reverse_cart_ready", "reverse_cart_unknown"] } }),
+          ...(["complete_exchange", "reject"].includes(input.action) ? { NOT: { AND: [{ status: "reverse_generated" }, { carrierRaw: { path: ["finalized"], equals: true } }] } } : {}) } });
+        if (attempts) throw new ConflictException("return_reverse_purchase_requires_review_before_cancellation");
+      }
       if (input.action === "confirm_items" && ["REQUESTED", "RECEIVED", "INSPECTED_PASS", "REFUND_PROCESSING"].includes(ret.status)) {
         const order = await this.orders.load(merchantId, ret.orderId, ret.buyerId, tx, ret.id);
         const selected = validateReturnItems(order, input.items ?? []);
@@ -299,11 +307,15 @@ export class ReturnCaseService {
         status = ret.status; event = "items_confirmed"; content = "A loja confirmou os itens desta solicitação:\n" + selected.map(item => `${item.quantity} × ${item.name}`).join("\n") + "\n" + notes;
         resolution = { ...resolution, itemsConfirmedBy: operatorId, itemsConfirmedAt: new Date().toISOString() };
       } else if (input.action === "authorize_return" && ret.status === "REQUESTED") {
-        status = "LABEL_GENERATED"; event = "return_authorized"; content = "A loja autorizou o envio dos itens selecionados.\n" + notes;
+        if (Boolean(input.labelUrl) !== Boolean(input.trackingCode)) throw new BadRequestException("return_label_and_code_required");
+        if ((ret.resolution as Record<string, unknown> | null)?.returnAuthorizedAt && !input.labelUrl) return;
+        status = input.labelUrl && input.trackingCode ? "LABEL_GENERATED" : "REQUESTED";
+        event = "return_authorized"; content = "A loja aceitou a devolução dos itens selecionados.\n" + notes + (status === "REQUESTED" ? "\nAguarde o código e as instruções de postagem antes de enviar o pacote." : "\nCódigo: " + input.trackingCode + "\nEtiqueta: " + input.labelUrl);
         if (input.labelUrl && (!/^https:\/\//.test(input.labelUrl) || input.labelUrl.includes("stub.zyon"))) throw new BadRequestException("real_shipping_label_required");
+        if (input.labelUrl && input.trackingCode && await tx.trackingEvent.count({ where: { merchantId, id: { startsWith: "return_reverse_" }, carrierRaw: { path: ["returnId"], equals: ret.id } } })) throw new ConflictException("return_reverse_attempt_already_exists");
         if (input.labelUrl && input.trackingCode) await tx.returnLabel.create({ data: { returnId: ret.id, carrier: "Informado pela loja", trackingNumber: input.trackingCode, labelUrl: input.labelUrl, expiresAt: new Date(Date.now() + 30 * 86400000) } });
-        resolution = { ...resolution, labelUrl: input.labelUrl ?? null, trackingCode: input.trackingCode ?? null };
-      } else if (input.action === "received" && ["LABEL_GENERATED", "SHIPPED"].includes(ret.status)) {
+        resolution = { ...resolution, returnAuthorizedAt: new Date().toISOString(), returnAuthorizedBy: operatorId, labelUrl: input.labelUrl ?? null, trackingCode: input.trackingCode ?? null };
+      } else if (input.action === "received" && (["LABEL_GENERATED", "SHIPPED"].includes(ret.status) || (ret.status === "REQUESTED" && returnShippingState(ret)?.authorized))) {
         status = "RECEIVED"; event = "received"; content = "A loja recebeu os itens para análise.\n" + notes;
       } else if (input.action === "inspection_pass" && ret.status === "RECEIVED") {
         if (!["NEW", "GOOD", "DAMAGED"].includes(input.itemCondition ?? "")) throw new BadRequestException("item_condition_required");
@@ -323,7 +335,7 @@ export class ReturnCaseService {
       await tx.return.update({ where: { id: ret.id }, data: { status: status as any, resolution } });
       const message = await persistSupportMessage(tx, { merchantId, ticketId, senderType: "system", content, metadata: { kind: "case_update", event, returnId: ret.id } });
       const noticeType: ReturnNoticeType | undefined = ({ return_authorized: "return_authorized", inspection_pass: "return_approved", rejected: "return_rejected", exchange_completed: "exchange_completed" } as Record<string, ReturnNoticeType>)[event];
-      if (noticeType) await enqueueReturnNotice(tx, { merchantId, ticketId, messageId: message.id, type: noticeType, explanation: event === "exchange_completed" ? content : notes, ret });
+      if (noticeType) await enqueueReturnNotice(tx, { merchantId, ticketId, messageId: message.id, type: noticeType, explanation: ["exchange_completed", "return_authorized"].includes(event) ? content : notes, ret });
       await tx.supportTicket.update({ where: { id: ticketId }, data: { status: terminal ? "resolved" : "in_progress", assignedTo: operatorId, resolvedAt: terminal ? new Date() : null } });
     });
     return this.detail(merchantId, ticketId);

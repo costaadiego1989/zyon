@@ -187,6 +187,8 @@ Esperamos que esteja tudo perfeito. Se precisar de qualquer coisa com o {{produc
   return_rejected: `Olá, {{buyerName}}. Após a análise, a {{storeName}} não aprovou sua solicitação do pedido {{orderId}}, itens: {{productName}}. Motivo: {{decisionReason}}. Consulte os detalhes em {{link}}. Acesse sua conta para ver a conversa.`,
   return_refunded: `Olá, {{buyerName}}. O provedor de pagamento confirmou o reembolso do pedido {{orderId}}, itens: {{productName}}. Detalhes: {{decisionReason}}. Acompanhe em {{link}}. O prazo de crédito depende do meio de pagamento.`,
   exchange_completed: `Olá, {{buyerName}}. A {{storeName}} concluiu a troca dos itens {{productName}} do pedido {{orderId}} e confirmou a entrega. Detalhes: {{decisionReason}}. Consulte a conversa em {{link}}. O histórico continua disponível na sua conta.`,
+  return_posting_code: `Olá, {{buyerName}}. A {{storeName}} disponibilizou o código de devolução dos itens {{productName}} do pedido {{orderId}}. Instruções: {{decisionReason}}. Consulte os documentos em {{link}}.`,
+  return_declaration_ready: `Olá, {{buyerName}}. A declaração de conteúdo para devolver os itens {{productName}} do pedido {{orderId}} à {{storeName}} está disponível. Instruções: {{decisionReason}}. Imprima o documento na conversa: {{link}}.`,
   checkout_otp: `Seu código de confirmação é {{otpCode}}. Ele expira em 10 minutos.`,
 };
 
@@ -207,7 +209,7 @@ marketplace_operational_alert: false,
   digital_delivery: false,
   order_shipped: false,
   order_delivered: false,
-  return_authorized: false, return_approved: false, return_rejected: false, return_refunded: false, exchange_completed: false,
+  return_authorized: false, return_approved: false, return_rejected: false, return_refunded: false, exchange_completed: false, return_posting_code: false, return_declaration_ready: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
@@ -233,6 +235,8 @@ marketplace_operational_alert: "Marketplace: alerta operacional",
   return_rejected: "Troca ou devolução não aprovada",
   return_refunded: "Reembolso confirmado",
   exchange_completed: "Troca concluída",
+  return_posting_code: "Código de devolução disponível",
+  return_declaration_ready: "Declaração de conteúdo disponível",
 };
 
 // Incentives, reactivation and replenishment campaigns are promotional.

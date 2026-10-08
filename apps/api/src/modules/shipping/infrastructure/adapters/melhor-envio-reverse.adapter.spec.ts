@@ -15,11 +15,13 @@ function fixture() {
     paid_at: null, generated_at: null, canceled_at: null, expired_at: null, from: original.to, to: original.from, products: source.products, volumes: [parcel], authorization_code: null };
   const calls: Array<{ url: string; init: any }> = [], tokens: any[] = [];
   let currentOwner = owner, loseCheckout = false;
+  let declaration: unknown = { pdf: "https://me-0047-prod.s3.amazonaws.com/pdf/qa-document.pdf" };
   const adapter = new MelhorEnvioReverseAdapter({ resolveToken: async (...args) => { tokens.push(args); return "synthetic-test-token"; } }, (async (url, init) => {
     calls.push({ url: String(url), init });
     if (String(url).endsWith("/api/v2/me")) return Response.json({ id: currentOwner });
     if (String(url).endsWith(`/orders/${originalId}`)) return Response.json(original);
     if (String(url).endsWith(`/orders/${reverseId}`)) return Response.json(reverse);
+    if (String(url).endsWith(`/imprimir/dace/pdf/${reverseId}`)) return Response.json(declaration);
     if (String(url).endsWith("/cart/reverse")) return Response.json({ id: reverseId }, { status: 201 });
     if (String(url).endsWith("/checkout")) { reverse.paid_at = "2026-10-07 12:02:00"; reverse.status = "released";
       if (loseCheckout) throw Error("response lost"); return Response.json({}); }
@@ -27,8 +29,21 @@ function fixture() {
     throw Error("unexpected endpoint");
   }) as typeof fetch);
   return { adapter, source, parcel, original, reverse, reverseId, calls, tokens,
-    changeOwner: () => { currentOwner = randomUUID(); }, loseCheckout: () => { loseCheckout = true; } };
+    changeOwner: () => { currentOwner = randomUUID(); }, loseCheckout: () => { loseCheckout = true; }, setDeclaration: (value: unknown) => { declaration = value; } };
 }
+test("DACE PDF is read only after bound native generation; invalid document responses never become buyer links", async () => {
+  const f = fixture(), r = await f.adapter.prepareRequest(f.source, { serviceId: 1, package: f.parcel });
+  await assert.rejects(f.adapter.declaration(r, f.reverseId, 1999), /generation_unproven/);
+  assert.equal(f.calls.filter(c => c.url.includes("/imprimir/dace/")).length, 0);
+  await f.adapter.checkout(r, f.reverseId, 1999); await f.adapter.generate(r, f.reverseId, 1999);
+  const posts = f.calls.filter(c => c.init.method === "POST").length;
+  assert.equal(await f.adapter.declaration(r, f.reverseId, 1999), "https://me-0047-prod.s3.amazonaws.com/pdf/qa-document.pdf");
+  f.setDeclaration({ pdf: "javascript:alert(1)" }); await assert.rejects(f.adapter.declaration(r, f.reverseId, 1999), /url_invalid/);
+  f.setDeclaration({ zpl: "https://example.test/document.zpl" }); await assert.rejects(f.adapter.declaration(r, f.reverseId, 1999), /declaration_unavailable/);
+  assert.equal(f.calls.filter(c => c.init.method === "POST").length, posts);
+  assert.ok(f.calls.filter(c => c.url.includes("/imprimir/dace/")).every(c => c.init.method === "GET" && c.init.redirect === "error"));
+  f.changeOwner(); await assert.rejects(f.adapter.declaration(r, f.reverseId, 1999), /account_unavailable/);
+});
 test("native reverse payload uses original label, returned insured value and buyer contact", async () => {
   const f = fixture(), r = await f.adapter.prepareRequest(f.source, { serviceId: 1, package: f.parcel });
   assert.equal(r.body.order_id, f.source.originalOrderId); assert.equal(r.body.insurance_value, 12.34);

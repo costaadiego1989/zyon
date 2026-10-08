@@ -39,10 +39,12 @@ export function ReturnReverseShippingPanel({ view, busy, onClose, onRefresh, onP
       <ul>{view.shipments.map(shipment => <li key={shipment.id} style={{ marginBlock: 12 }}><strong>{shipment.originName}</strong>{" · "}
         {shipment.amountCents === null ? "Custo em conferência" : brl(shipment.amountCents)}{" · "}{statuses[shipment.status] ?? "Em conferência"}
         {shipment.postingCode && <div>Código de devolução: <strong>{shipment.postingCode}</strong></div>}
+        {shipment.declarationUrl && <a href={shipment.declarationUrl} target="_blank" rel="noopener noreferrer">Baixar declaração de conteúdo — {shipment.originName}</a>}
       </li>)}</ul>
       {allGenerated ? <>
         <p>O comprador informa o código da loja correspondente em uma agência dos Correios em até 7 dias da geração. Não precisa imprimir etiqueta, mas deve levar a declaração de conteúdo impressa com o pacote.</p>
-        <p>Baixe a DC-e nos detalhes do envio no Melhor Envio e encaminhe o documento ao comprador pelo chamado antes da postagem.</p>
+        <p>O código e as declarações disponíveis ficam registrados na conversa do comprador. A declaração deve ser impressa antes da postagem.</p>
+        {view.shipments.some(s => !s.declarationUrl) && <><p>A declaração ainda está em preparação no Melhor Envio. Aguarde o documento antes de orientar a postagem.</p><button type="button" className="zyn-btn zyn-btn--ghost" disabled={busy} onClick={() => void onConfirm()}>Conferir declaração</button></>}
         <a href="https://melhorenvio.com.br/painel" target="_blank" rel="noopener noreferrer">Abrir Melhor Envio para baixar a DC-e</a>
       </> : <>
         {costKnown && <p>Frete de volta: <strong>{brl(view.amountCents)}</strong>. A compra usa a conta Melhor Envio de cada loja. Este valor é separado do estorno ao comprador.</p>}

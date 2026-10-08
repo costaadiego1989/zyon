@@ -25,7 +25,7 @@ export class ReturnNoticeSender {
   async prepare(claim: ReturnNoticeClaim): Promise<PreparedReturnNotice> {
     const ret = await this.prisma.return.findFirst({ where: { id: claim.returnId, merchantId: claim.merchantId }, select: { buyerId: true, status: true } });
     if (!ret) return { status: "skipped", reason: "return_removed" };
-    if ((claim.type === "return_authorized" || claim.type === "return_approved") &&
+    if ((["return_authorized", "return_approved", "return_posting_code", "return_declaration_ready"].includes(claim.type)) &&
         ["REJECTED", "CANCELLED", "REFUND_COMPLETED", "EXCHANGE_COMPLETED"].includes(ret.status))
       return { status: "skipped", reason: "decision_superseded" };
     if ((claim.type === "return_refunded" && ret.status !== "REFUND_COMPLETED") ||

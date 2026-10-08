@@ -48,7 +48,7 @@ function fixture() {
     update: async ({ where, data }: any) => { Object.assign(events.get(where.id), data); return events.get(where.id); },
     updateMany: async ({ where, data }: any) => { let count = 0; for (const row of events.values()) if (matches(row, where)) { Object.assign(row, data); count++; } return { count }; },
   };
-  const prisma: any = { trackingEvent, $queryRaw: async () => [], $transaction: async (fn: any) => fn(prisma),
+  const prisma: any = { supportTicket: { findFirst: async () => null }, trackingEvent, $queryRaw: async () => [], $transaction: async (fn: any) => fn(prisma),
     return: { findFirst: async ({ where }: any) => where.merchantId === "host" && (!where.status || where.status === ret.status) ? structuredClone(ret) : null,
       updateMany: async ({ where, data }: any) => { if (where.status !== ret.status) return { count: 0 }; Object.assign(ret, data); return { count: 1 }; } },
     completedOrder: { findMany: async () => [{ externalOrderId: "commerce_order", sessionId: "session", lineItemsJson: [
@@ -61,7 +61,7 @@ function fixture() {
     shipment: { create: async ({ data }: any) => { parcels.set(data.id, data); }, update: async () => ({}) },
     returnLabel: { create: async ({ data }: any) => { ret.label = data; } },
   };
-  const carrier: any = {
+  const carrier: any = { declaration: async (request: any) => "https://melhorenvio.com.br/declaration/" + request.originMerchantId + ".pdf",
     original: async (source: any) => { calls.push(["original", source]); return { package: parcel, email: "buyer@example.test", phone: "11999999999" }; },
     prepareRequest: async (source: any, input: any) => ({ ...source, body: { service: input.serviceId, package: input.package }, from: {}, to: {} }),
     create: async (request: any) => { calls.push(["cart", request.originMerchantId]); native.set(request.originMerchantId, { paid: false, code: null }); return randomUUID(); },
@@ -94,4 +94,16 @@ test("a return cannot send another seller's variant or use a changed original sh
 test("changed funding identity fails before any carrier request", async () => {
   const f = fixture(); f.plan.instructionsHash = "0".repeat(64);
   await assert.rejects(f.service.candidates("host", "return"), /original_order_unproven/); assert.equal(f.calls.length, 0);
+});
+test("legacy acceptance without a real label recovers native generation without buying twice", async () => {
+  const f = fixture(); f.ret.status = "LABEL_GENERATED";
+  const view = await f.service.candidates("host", "return");
+  await f.service.prepare("host", "return", { serviceId: 1, packages: view.candidates.map(c => ({ originMerchantId: c.originMerchantId, package: parcel })) });
+  await f.service.confirm("host", "return", 3998);
+  await f.service.confirm("host", "return", 3998);
+  assert.equal(f.calls.filter(c => c[0] === "checkout").length, 2);
+  assert.equal(f.calls.filter(c => c[0] === "generate").length, 2);
+  assert.equal(f.ret.label.carrier, "Correios");
+  assert.equal(f.ret.resolution.returnDeclarations.length, 2);
+  assert.ok(f.ret.resolution.returnDeclarations.every((d: any) => d.url && d.originMerchantId));
 });

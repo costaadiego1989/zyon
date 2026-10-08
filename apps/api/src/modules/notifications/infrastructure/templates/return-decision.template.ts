@@ -2,7 +2,9 @@ import { MERCHANT_EMAIL_HEADER_SLOT, MERCHANT_EMAIL_FOOTER_SLOT } from "../../..
 import type { ReturnNoticePayload, ReturnNoticeType } from "../../domain/return-notice.js";
 
 const COPY: Record<ReturnNoticeType, { badge: string; title: string; description: string }> = {
-  return_authorized: { badge: "Envio autorizado", title: "Vamos acompanhar sua solicitação", description: "A loja autorizou o envio dos itens para análise. Confira abaixo as instruções do atendente." },
+  return_posting_code: { badge: "Código de devolução", title: "Seu código de devolução está disponível", description: "Confira o código e as instruções de postagem na conversa com a loja. Aguarde a declaração de conteúdo antes de levar o pacote aos Correios." },
+  return_declaration_ready: { badge: "Declaração disponível", title: "Sua declaração de conteúdo está disponível", description: "Imprima o documento e leve-o com o código de devolução e o pacote a uma agência dos Correios." },
+  return_authorized: { badge: "Devolução aceita", title: "A loja aceitou sua devolução", description: "Aguarde as instruções de postagem antes de enviar o pacote. Acompanhe o código e os documentos na conversa com a loja." },
   return_approved: { badge: "Solicitação aprovada", title: "Sua solicitação foi aprovada", description: "Confira a decisão da loja e os próximos passos. Você pode acompanhar cada atualização na conversa." },
   return_rejected: { badge: "Análise concluída", title: "Uma atualização sobre sua solicitação", description: "Após analisar os itens, a loja não aprovou a solicitação. A explicação do atendente está abaixo." },
   return_refunded: { badge: "Reembolso confirmado", title: "Seu reembolso foi confirmado", description: "O provedor de pagamento confirmou o reembolso. O prazo para aparecer na sua conta depende do meio de pagamento." },

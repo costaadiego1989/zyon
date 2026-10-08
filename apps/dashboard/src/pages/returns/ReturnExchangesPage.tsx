@@ -148,7 +148,8 @@ export function ReturnExchangesPage({ me }: ReturnExchangesPageProps) {
             </thead>
             <tbody>
               {slice.map((r, i) => {
-                const st = STATUS_MAP[r.status] ?? STATUS_MAP.REQUESTED;
+                const st = (r.status === "REQUESTED" && r.returnAuthorized) || (r.status === "LABEL_GENERATED" && !r.label)
+                ? { ...STATUS_MAP.REQUESTED, label: "Aceita · aguardando código" } : STATUS_MAP[r.status] ?? STATUS_MAP.REQUESTED;
                 const actionButton = getAction(r, vm, id => { setLabelInput({ carrier: "Correios", trackingNumber: "", labelUrl: "" }); setLabelTarget(id); },
                   id => { setCondition(""); setInspectionTarget(id); });
                 return (

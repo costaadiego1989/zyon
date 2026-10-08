@@ -1,6 +1,6 @@
 import type { QuotaDeliveryResult } from "./ports/order-quota-notice.port.js";
 
-export const RETURN_NOTICE_TYPES = ["return_authorized", "return_approved", "return_rejected", "return_refunded", "exchange_completed"] as const;
+export const RETURN_NOTICE_TYPES = ["return_authorized", "return_approved", "return_rejected", "return_refunded", "exchange_completed", "return_posting_code", "return_declaration_ready"] as const;
 export type ReturnNoticeType = typeof RETURN_NOTICE_TYPES[number];
 export type ReturnNoticeResult = QuotaDeliveryResult | { status: "waiting_template" | "waiting_configuration"; reason: string };
 export interface ReturnNoticePayload {

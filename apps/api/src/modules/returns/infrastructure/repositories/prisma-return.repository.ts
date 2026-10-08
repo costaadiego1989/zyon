@@ -134,6 +134,17 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
   }
 
   async updateStatus(returnId: string, status: ReturnStatus, expectedStatus?: ReturnStatus): Promise<void> {
+    if (status === "REFUND_PROCESSING" && expectedStatus === "REQUESTED") {
+      await this.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM returns WHERE id = ${returnId} FOR UPDATE`;
+        const attempts = await tx.trackingEvent.count({ where: { id: { startsWith: "return_reverse_" }, carrierRaw: { path: ["returnId"], equals: returnId },
+          status: { notIn: ["reverse_cart_ready", "reverse_cart_unknown"] } } });
+        if (attempts) throw new ConflictException("return_reverse_purchase_requires_review_before_cancellation");
+        const result = await tx.return.updateMany({ where: { id: returnId, status: expectedStatus }, data: { status } });
+        if (result.count !== 1) throw new ConflictException("return_status_changed");
+      });
+      return;
+    }
     const result = await this.prisma.return.updateMany({
       where: { id: returnId, ...(expectedStatus ? { status: expectedStatus as any } : {}) },
       data: { status: status as any },
@@ -269,6 +280,7 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
       notes: row.notes ?? undefined,
       imageUrls: row.imageUrls ?? [],
       status: row.status,
+      returnAuthorized: Boolean(row.resolution?.returnAuthorizedAt || row.status === "LABEL_GENERATED" || row.label),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       items: row.items.map((i: any) => ({

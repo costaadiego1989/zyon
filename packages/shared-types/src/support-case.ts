@@ -34,12 +34,16 @@ export interface SupportCaseSummary {
   kind: "refund" | "exchange" | "support";
   status: string;
   returnStatus?: string | null;
+  returnAuthorized?: boolean;
   active: boolean;
   unreadCount: number;
   lastMessage?: SupportCaseMessage | null;
   updatedAt: string;
 }
 export interface SupportCaseDetail extends SupportCaseSummary {
+  returnShipping?: { authorized: boolean; awaitingCode: boolean; carrier: string | null;
+    postingCode: string | null; labelUrl: string | null; expiresAt: string | null;
+    declarations: Array<{ originMerchantId: string; originName: string; url: string | null }> };
   order?: SupportOrder | null;
   reason?: string;
   reasonLabel?: string;

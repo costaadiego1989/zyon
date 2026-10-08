@@ -11,6 +11,9 @@ import { PrismaSupportTicketRepository } from "../../support/infrastructure/pris
 import { UpdateSupportTicketStatusUseCase } from "../../support/application/update-support-ticket-status.use-case.js";
 import { SendTicketMessageUseCase } from "../../support/application/send-ticket-message.use-case.js";
 import { RealtimeCapabilityService } from "../../../shared/auth/realtime-capability.js";
+import { ReturnReverseShippingService } from "./return-reverse-shipping.service.js";
+import { fundingHash } from "../../marketplace/infrastructure/repositories/prisma-marketplace-funding.repository.js";
+import { createHash } from "node:crypto";
 
 test("database lifecycle: concurrent opening, ownership, ordered messages, private photos and one financial attempt", { skip: !process.env.RETURNS_DATABASE_TEST }, async t => {
   const database = new URL(process.env.DATABASE_URL!);
@@ -20,11 +23,13 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
     const tickets = await db.supportTicket.findMany({ where: { merchantId }, select: { id: true } });
     await db.supportTicketMessage.deleteMany({ where: { ticketId: { in: tickets.map(item => item.id) } } });
     await db.supportAttachment.deleteMany({ where: { merchantId } }); await db.supportTicket.deleteMany({ where: { merchantId } });
+    await db.trackingEvent.deleteMany({ where: { merchantId } }); await db.shipment.deleteMany({ where: { merchantId } });
     await db.return.deleteMany({ where: { merchantId } }); await db.buyerPurchaseRecord.deleteMany({ where: { merchantId } });
     await db.completedOrder.deleteMany({ where: { merchantId } }); await db.paymentIntent.deleteMany({ where: { merchantId } });
-    await db.outboxMessage.deleteMany({ where: { merchantId } }); await db.checkoutSession.deleteMany({ where: { merchantId } }); await db.$disconnect();
+    await db.outboxMessage.deleteMany({ where: { merchantId } }); await db.checkoutSession.deleteMany({ where: { merchantId } }); await db.merchant.deleteMany({ where: { id: merchantId } }); await db.$disconnect();
   });
   const items = [{ variantId: "variant_a", name: "Item A", quantity: 2, unitPriceCents: 1000 }, { variantId: "variant_b", name: "Item B", quantity: 1, unitPriceCents: 900 }];
+  await db.merchant.create({ data: { id: merchantId, name: "Disposable local returns QA" } });
   await db.checkoutSession.create({ data: { merchantId, sessionId: suffix, globalUserId: buyerId, conversationId: suffix, cart: { items }, createdAt: new Date(), updatedAt: new Date() } });
   await db.buyerPurchaseRecord.create({ data: { merchantId, globalUserId: buyerId, orderId, currency: "BRL", totalAmount: 29, discountAmount: 0, completedAt: new Date(), items } });
   await db.completedOrder.create({ data: { merchantId, sessionId: suffix, externalOrderId: orderId, orderTotal: 29, currency: "BRL", lineItemsJson: items, completedAt: new Date() } });
@@ -125,7 +130,42 @@ test("database lifecycle: concurrent opening, ownership, ordered messages, priva
   assert.ok(rejectionNotices.every(row => (row.payload as any).items.length === 2));
   const exchange = await cases.open({ ...input, kind: "exchange", requestKey: randomUUID(), items: [{ variantId: "variant_b", quantity: 1 }] });
   await assert.rejects(() => cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "complete_exchange", notes: "Ainda em análise", replacementOrderId: "replacement_qa", trackingCode: "tracking_qa" }), /replacement_and_delivery_required/);
-  await cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "authorize_return", notes: "Entregue o item na loja; entraremos em contato ao receber." });
+  await t.test("acceptance and native code share one return; concurrent retries send code and recovered PDF exactly once", async () => {
+    await Promise.all(Array.from({ length: 8 }, () => cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "authorize_return", notes: "Devolução aceita. Aguarde o código nesta conversa." })));
+    const accepted = await cases.detail(merchantId, exchange.ticketId);
+    assert.equal(accepted.returnStatus, "REQUESTED"); assert.equal(accepted.returnShipping?.authorized, true); assert.equal(accepted.returnShipping?.awaitingCode, true);
+    assert.equal(await db.returnLabel.count({ where: { returnId: exchange.returnId } }), 0);
+    assert.equal(await db.supportTicketMessage.count({ where: { ticketId: exchange.ticketId, metadata: { path: ["event"], equals: "return_authorized" } } }), 1);
+    assert.equal((await new PrismaReturnRepository(db).findById(merchantId, exchange.returnId))!.returnAuthorized, true);
+    const request = { originMerchantId: merchantId, body: { service: 1 }, originalOrderId: randomUUID() };
+    const id = "return_reverse_" + createHash("sha256").update(JSON.stringify([merchantId, exchange.returnId, merchantId])).digest("hex");
+    await db.shipment.create({ data: { id, merchantId, sessionId: suffix, externalOrderId: id, carrier: "melhor-envio-reverse", trackingCode: id, status: "reverse_generated" } });
+    await db.trackingEvent.create({ data: { id, merchantId, shipmentId: id, trackingCode: id, status: "reverse_generated", description: "Synthetic carrier proof for local database test only", occurredAt: new Date(), carrierRaw: { returnId: exchange.returnId, originName: "Loja QA", request, requestHash: fundingHash(request), carrierOrderId: randomUUID(), amountCents: 1999, postingCode: "1234567890", generatedAt: "2026-10-08 12:03:00", declarationPending: true, finalized: false } } });
+    await assert.rejects(new PrismaReturnRepository(db).updateStatus(exchange.returnId, "REFUND_PROCESSING", "REQUESTED"), /return_reverse_purchase_requires_review/);
+    let documentReady = false; let financialPosts = 0;
+    const reverse = new ReturnReverseShippingService(db, { read: async () => ({ paid: true, code: "1234567890", amountCents: 1999, generatedAt: "2026-10-08 12:03:00", purchasable: false }),
+      declaration: async () => { if (!documentReady) throw Error("Document pending"); return "https://melhorenvio.com.br/qa-declaration.pdf"; },
+      checkout: async () => { financialPosts++; }, generate: async () => { financialPosts++; } } as any);
+    await Promise.all(Array.from({ length: 8 }, () => reverse.confirm(merchantId, exchange.returnId, 1999)));
+    const coded = await cases.detail(merchantId, exchange.ticketId);
+    assert.equal(coded.returnStatus, "LABEL_GENERATED"); assert.equal(coded.returnShipping?.postingCode, "1234567890");
+    assert.equal(coded.returnShipping?.declarations[0]?.url, null); assert.equal(coded.returnShipping?.awaitingCode, false);
+    assert.equal(await db.returnLabel.count({ where: { returnId: exchange.returnId } }), 1);
+    assert.equal(await db.supportTicketMessage.count({ where: { ticketId: exchange.ticketId, clientMessageId: "reverse-code-" + exchange.returnId } }), 1);
+    assert.equal(await db.returnNoticeDelivery.count({ where: { returnId: exchange.returnId, type: "return_posting_code" } }), 2);
+    await assert.rejects(cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "cancel", notes: "Confirmar frete primeiro" }), /return_reverse_purchase_requires_review/);
+    documentReady = true;
+    await Promise.all(Array.from({ length: 8 }, () => reverse.confirm(merchantId, exchange.returnId, 1999)));
+    const complete = await cases.detail(merchantId, exchange.ticketId);
+    assert.equal(complete.returnShipping?.declarations[0]?.url, "https://melhorenvio.com.br/qa-declaration.pdf");
+    assert.equal(await db.supportTicketMessage.count({ where: { ticketId: exchange.ticketId, clientMessageId: "reverse-declaration-" + exchange.returnId } }), 1);
+    assert.equal(await db.supportTicketMessage.count({ where: { ticketId: exchange.ticketId, clientMessageId: "reverse-code-" + exchange.returnId } }), 1);
+    assert.equal(await db.returnNoticeDelivery.count({ where: { returnId: exchange.returnId, type: "return_declaration_ready" } }), 2);
+    assert.equal((await cases.buyerTicket(buyerId, exchange.ticketId)).returnId, exchange.returnId);
+    await assert.rejects(cases.buyerTicket("another_buyer", exchange.ticketId), /ticket_not_found/);
+    assert.equal(await db.supportTicket.count({ where: { merchantId, returnId: exchange.returnId, mergedIntoId: null } }), 1);
+    assert.equal(financialPosts, 0); assert.equal(posts, 1);
+  });
   await cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "received", notes: "Recebemos uma unidade do item B." });
   await cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "inspection_pass", notes: "Item conferido com o relato do cliente.", itemCondition: "GOOD" });
   await cases.action(merchantId, exchange.ticketId, "operator_qa", { action: "complete_exchange", notes: "Cliente confirmou o recebimento da reposição.", replacementOrderId: "replacement_qa", trackingCode: "tracking_qa", deliveryConfirmed: true });

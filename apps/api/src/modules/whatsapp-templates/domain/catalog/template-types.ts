@@ -24,7 +24,7 @@ export const WHATSAPP_TEMPLATE_TYPES = [
   "order_shipped",
   "order_delivered",
   // Transactional return and exchange decisions
-  "return_authorized", "return_approved", "return_rejected", "return_refunded", "exchange_completed",
+  "return_authorized", "return_approved", "return_rejected", "return_refunded", "exchange_completed", "return_posting_code", "return_declaration_ready",
   // Transactional identity verification for the checkout email fallback.
   "checkout_otp",
 ] as const;
