@@ -1,11 +1,12 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { io, type Socket } from "socket.io-client";
 import type { SupportMessageMetadata } from "@zyon/shared-types";
+import { getSessionAccessToken, SESSION_TOKEN_CHANGED } from "../api/http/session-fetch.js";
 
 export interface TicketMessage {
   id: string;
   ticketId: string;
-  senderType: "buyer" | "merchant";
+  senderType: "buyer" | "merchant" | "system";
   content: string;
   metadata?: SupportMessageMetadata | null;
   createdAt: string;
@@ -33,13 +34,16 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
   useEffect(() => {
     if (!merchantId) return;
 
-    const base = apiBaseUrl.replace(/\/+$/, "");
+    const base = new URL(apiBaseUrl).origin;
     const socket = io(`${base}/support`, {
       transports: ["websocket", "polling"],
       autoConnect: true,
       withCredentials: true,
+      auth: (callback) => callback({ accessToken: getSessionAccessToken(apiBaseUrl) }),
     });
     socketRef.current = socket;
+    const reconnect = () => { socket.disconnect(); socket.connect(); };
+    window.addEventListener(SESSION_TOKEN_CHANGED, reconnect);
 
     socket.on("authenticated", () => {
       setConnected(true);
@@ -56,6 +60,7 @@ export function useSupportSocket(apiBaseUrl: string, merchantId: string | undefi
     });
 
     return () => {
+      window.removeEventListener(SESSION_TOKEN_CHANGED, reconnect);
       socket.disconnect();
       socketRef.current = null;
       joinedTicketsRef.current.clear();

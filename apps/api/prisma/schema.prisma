@@ -573,12 +573,18 @@ model SupportTicket {
   createdAt        DateTime  @map("created_at")
   updatedAt        DateTime  @updatedAt @map("updated_at")
   resolvedAt       DateTime? @map("resolved_at")
+  buyerId          String?   @map("buyer_id")
+  buyerReadAt      DateTime? @map("buyer_read_at")
+  merchantReadAt   DateTime? @map("merchant_read_at")
+  assignedTo       String?   @map("assigned_to")
+  mergedIntoId     String?   @map("merged_into_id")
 
   messages SupportTicketMessage[]
 
   @@index([merchantId, status, createdAt])
   @@index([merchantId, sessionId])
   @@index([returnId])
+  @@index([buyerId, updatedAt])
   @@map("support_tickets")
 }
 
@@ -591,6 +597,9 @@ model SupportTicketMessage {
   createdAt  DateTime @default(now()) @map("created_at")
 
   ticket SupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  clientMessageId String? @map("client_message_id")
+  @@unique([ticketId, senderType, clientMessageId])
 
   @@index([ticketId, createdAt])
   @@map("support_ticket_messages")
@@ -1863,6 +1872,7 @@ enum ReturnStatus {
   INSPECTED_FAIL
   REFUND_PROCESSING
   REFUND_COMPLETED
+  EXCHANGE_COMPLETED
   REJECTED
   CANCELLED
 }
@@ -1894,17 +1904,46 @@ model Return {
   status     ReturnStatus @default(REQUESTED)
   createdAt  DateTime     @default(now()) @map("created_at")
   updatedAt  DateTime     @updatedAt @map("updated_at")
+  kind       String       @default("refund")
+  requestKey String?      @map("request_key")
+  orderSnapshot Json?     @map("order_snapshot")
+  resolution Json?
 
   items      ReturnItem[]
   label      ReturnLabel?
   inspection ReturnInspection?
   refund     ReturnRefund?
+  notices    ReturnNoticeDelivery[]
 
   @@index([merchantId, status])
   @@index([merchantId, createdAt])
   @@index([orderId])
+  @@unique([merchantId, buyerId, requestKey])
   @@map("returns")
   marketplaceRefund MarketplaceRefundPlan?
+}
+
+// Encrypted evidence. Only a scoped, expiring application capability can read it.
+model SupportAttachment {
+  id          String   @id
+  ticketId    String   @map("ticket_id")
+  merchantId  String   @map("merchant_id")
+  uploadedBy  String   @map("uploaded_by")
+  storageKey  String   @map("storage_key")
+  contentType String   @map("content_type")
+  encryptedPayload Bytes? @map("encrypted_payload")
+  createdAt   DateTime @default(now()) @map("created_at")
+  @@index([ticketId])
+  @@map("support_attachments")
+}
+
+model ReturnDraft {
+  merchantId String @map("merchant_id")
+  buyerId String @map("buyer_id")
+  data Json
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@id([merchantId, buyerId])
+  @@map("return_drafts")
 }
 
 model ReturnItem {
@@ -1961,6 +2000,33 @@ model ReturnRefund {
 
   @@index([status, createdAt])
   @@map("return_refunds")
+}
+
+// A decision and both channel deliveries are committed atomically. Provider
+// acceptance is recorded separately from delivery; ambiguous sends are not retried.
+model ReturnNoticeDelivery {
+  id                String   @id @default(cuid())
+  merchantId        String   @map("merchant_id")
+  returnId          String   @map("return_id")
+  ticketId          String   @map("ticket_id")
+  messageId         String   @map("message_id")
+  type              String
+  channel           String
+  payload           Json
+  status            String   @default("pending")
+  attempts          Int      @default(0)
+  nextAttemptAt     DateTime @default(now()) @map("next_attempt_at")
+  leaseUntil        DateTime? @map("lease_until")
+  providerMessageId String?  @map("provider_message_id")
+  lastError         String?  @map("last_error")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+  return            Return   @relation(fields: [returnId], references: [id], onDelete: Cascade)
+
+  @@unique([returnId, type, channel], map: "return_notice_deliveries_once")
+  @@index([status, nextAttemptAt, leaseUntil], map: "return_notice_deliveries_queue")
+  @@index([merchantId, ticketId])
+  @@map("return_notice_deliveries")
 }
 
 // ─── Store Analytics ──────────────────────────────────────────────────────────

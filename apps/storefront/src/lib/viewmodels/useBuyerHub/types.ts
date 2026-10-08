@@ -37,6 +37,7 @@ export interface PurchaseItem {
 }
 
 export interface BuyerPurchase {
+  merchant_id?: string;
   id: string;
   order_id: string;
   merchant_name: string;

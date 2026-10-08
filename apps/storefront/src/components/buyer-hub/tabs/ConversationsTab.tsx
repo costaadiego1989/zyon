@@ -4,7 +4,12 @@ import { useState, useCallback, useId } from "react";
 import { FiMessageSquare, FiThumbsUp, FiThumbsDown, FiChevronRight } from "react-icons/fi";
 import type { BuyerConversation, ConversationMessage } from "@/lib/viewmodels/useBuyerHub";
 
+import { caseLabel, type SupportCaseSummary } from "@/lib/services/support-case.service";
+
 export interface ConversationsTabProps {
+  supportCases?: SupportCaseSummary[];
+  supportLoading?: boolean;
+  supportError?: string | null;
   conversations: BuyerConversation[];
   loading: boolean;
   error?: string | null;
@@ -279,7 +284,7 @@ function ConversationRow({ conv, current, onRate, onResume }: {
   </li>;
 }
 
-export default function ConversationsTab({ conversations, loading, error, merchantId, currentSessionId, onRate, onRetry, onResume }: ConversationsTabProps) {
+export default function ConversationsTab({ supportCases = [], supportLoading = false, supportError, conversations, loading, error, merchantId, currentSessionId, onRate, onRetry, onResume }: ConversationsTabProps) {
   const scoped = merchantId ? conversations.filter((conversation) => conversation.merchant_id === merchantId) : conversations;
   const ordered = [...scoped].sort((a, b) => Number(b.session_id === currentSessionId) - Number(a.session_id === currentSessionId));
   return <section aria-label="Histórico de conversas">
@@ -290,7 +295,17 @@ export default function ConversationsTab({ conversations, loading, error, mercha
       .buyer-conversation-action:disabled { opacity:.6; cursor:wait }
       .buyer-conversation-action:hover:not(:disabled) { text-decoration:underline }
     `}</style>
-    <p style={{ margin: "0 0 4px", fontSize: 13, lineHeight: 1.5, color: "var(--aacp-muted)" }}>Consulte suas mensagens ou continue a conversa atual.</p>
+    <section aria-label="Atendimentos e cancelamentos">
+      <h3 style={{ margin: "12px 0 0", fontSize: 16 }}>Conversas com a loja</h3>
+      {supportLoading && <p role="status">Carregando atendimentos…</p>}
+      {supportError && <p role="alert">{supportError}</p>}
+      <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>{supportCases.map(item => <li className="buyer-conversation-row" key={item.ticketId}>
+        <strong>{item.orderId ? `Pedido ${item.orderId}` : "Atendimento"}</strong><p style={{ margin: "6px 0" }}>{caseLabel(item)}{item.unreadCount > 0 ? ` ? ${item.unreadCount} nova(s) mensagem(ns)` : ""}</p>
+        <button type="button" className="buyer-conversation-action" onClick={() => window.dispatchEvent(new CustomEvent("zyon:open-support", { detail: { ticketId: item.ticketId, merchantId: item.merchantId } }))}>Abrir conversa</button>
+      </li>)}</ul>
+      {!supportLoading && !supportError && !supportCases.length && <p style={{ color: "var(--aacp-muted)", fontSize: 13 }}>Seus atendimentos aparecer?o aqui.</p>}
+    </section>
+    <p style={{ margin: "16px 0 4px", fontSize: 13, lineHeight: 1.5, color: "var(--aacp-muted)" }}>Consulte suas mensagens ou continue a conversa atual.</p>
     {loading ? <p role="status" aria-live="polite" style={{ padding: "20px 0", color: "var(--aacp-muted)" }}>Carregando conversas…</p>
       : error ? <div role="alert"><p>{error}</p><button type="button" className="buyer-conversation-action" onClick={onRetry}>Tentar novamente</button></div>
       : ordered.length ? <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>

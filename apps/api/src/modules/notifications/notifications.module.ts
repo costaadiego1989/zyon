@@ -9,6 +9,9 @@ import { DigitalDownloadLinkService } from "./domain/services/digital-download-l
 import { DigitalDeliveryListener } from "./presentation/listeners/digital-delivery.listener.js";
 import { DigitalDownloadController } from "./presentation/http/digital-download.controller.js";
 import { AuthModule } from "../auth/auth.module.js";
+import { ReturnNoticeJob } from "./application/services/return-notice.job.js";
+import { ReturnNoticeSender } from "./infrastructure/adapters/return-notice.sender.js";
+import { PrismaReturnNoticeRepository } from "./infrastructure/repositories/prisma-return-notice.repository.js";
 import { PlanNoticeJob } from "./application/services/plan-notice.job.js";
 import { PlanNoticeSender } from "./infrastructure/adapters/plan-notice.sender.js";
 import { PrismaPlanNoticeRepository } from "./infrastructure/repositories/prisma-plan-notice.repository.js";
@@ -82,6 +85,7 @@ import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repo
     PrismaBudgetRequestNotificationRepository,
     BudgetRequestNotificationSender,
     BudgetRequestNotificationJob,
+    PrismaReturnNoticeRepository, ReturnNoticeSender, ReturnNoticeJob,
     PlanNoticeJob, PlanNoticeSender, PrismaPlanNoticeRepository,
     { provide: MERCHANT_NOTIFICATION_INBOX_PORT, useClass: PrismaMerchantNotificationInboxRepository },
   ],

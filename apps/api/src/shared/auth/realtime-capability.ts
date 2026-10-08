@@ -2,7 +2,7 @@ import { createHmac, randomUUID, timingSafeEqual } from "node:crypto";
 import { requireSecret } from "../config/secret-config.js";
 import { resolveCorsConfig } from "../config/cors-config.js";
 
-export type RealtimePurpose = "storefront-conversation" | "support-ticket" | "ai-voice-turn";
+export type RealtimePurpose = "storefront-conversation" | "support-ticket" | "support-attachment" | "ai-voice-turn";
 export interface RealtimeCapability {
   typ: "aacp_realtime_v1";
   purpose: RealtimePurpose;
@@ -33,7 +33,7 @@ export class RealtimeCapabilityService {
   issue(input: { purpose: RealtimePurpose; merchantId: string; resourceId: string; origin?: string; aiUserId?: string }, now = Math.floor(Date.now() / 1000)) {
     const claims: RealtimeCapability = {
       typ: "aacp_realtime_v1", ...input, issuedAt: now,
-      expiresAt: now + MAX_LIFETIME_SECONDS, nonce: randomUUID(),
+      expiresAt: now + (input.purpose === "support-attachment" ? 300 : MAX_LIFETIME_SECONDS), nonce: randomUUID(),
     };
     this.validate(claims, input.purpose, input.origin, now);
     // Voice permits travel in Realtime response metadata (512 chars per value).

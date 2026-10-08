@@ -1,4 +1,5 @@
 "use client";
+import { useSupportInbox } from "@/lib/hooks/useSupportInbox";
 
 import { BuyerBiometricAccess } from "../BuyerBiometricAccess";
 import BuyerRegistrationForm from "../BuyerRegistrationForm";
@@ -469,6 +470,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
     freeShipping: currentCart.freeShipping,
     activeRules: currentCart.activeRules,
   } : undefined;
+  const supportInbox = useSupportInbox(merchantId, isOpen);
   const [authVersion, setAuthVersion] = useState(0);
   const [registrationOtp, setRegistrationOtp] = useState<{ email: string; otp: string } | null>(null);
 
@@ -745,6 +747,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
               )}
               {vm.activeTab === "orders" && (
                 <OrdersTab
+                  merchantId={merchantId}
                   purchases={vm.purchases.data ?? []}
                   loading={vm.purchases.loading}
                   error={vm.purchases.error}
@@ -764,6 +767,9 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
               )}
               {vm.activeTab === "conversations" && (
                 <ConversationsTab
+                  supportCases={supportInbox.items}
+                  supportLoading={supportInbox.loading}
+                  supportError={supportInbox.error}
                   conversations={vm.conversations.data ?? []}
                   loading={vm.conversations.loading}
                   error={vm.conversations.error}

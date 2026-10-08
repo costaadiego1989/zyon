@@ -7,9 +7,41 @@ import type {
   SupportTicketStatusPatch,
 } from "../types.js";
 import type { TicketMessage } from "../../hooks/useSupportSocket.js";
+import type { SupportCaseDetail, SupportRefundPreview } from "@zyon/shared-types";
+
+export type OperatorSupportCase = SupportCaseDetail & { canRefund: boolean };
 
 export function supportEndpoints(base: string, f: typeof fetch) {
   return {
+    getSupportTicket(ticketId: string): Promise<SupportTicket> {
+      return dashboardJson(base, `/support/tickets/${encodeURIComponent(ticketId)}`, { method: "GET" }, f);
+    },
+    getReturnSupportCase(returnId: string): Promise<{ ticketId: string }> {
+      return dashboardJson(base, `/support/tickets/for-return/${encodeURIComponent(returnId)}`, { method: "POST" }, f);
+    },
+    async getSupportCase(ticketId: string): Promise<OperatorSupportCase> {
+      const path = `/support/tickets/${encodeURIComponent(ticketId)}/case`;
+      let detail = await dashboardJson<OperatorSupportCase>(base, path, { method: "GET" }, f);
+      let cursor = detail.nextCursor;
+      while (cursor) {
+        const page = await dashboardJson<OperatorSupportCase>(base, `${path}?cursor=${encodeURIComponent(cursor)}`, { method: "GET" }, f);
+        detail = { ...page, messages: [...detail.messages, ...page.messages] }; cursor = page.nextCursor;
+      }
+      const url = (value: string) => value.startsWith("/support/") ? `${base.replace(/\/$/, "")}${value}` : value;
+      return { ...detail, imageUrls: detail.imageUrls.map(url), messages: detail.messages.map(message => ({ ...message, metadata: message.metadata ? { ...message.metadata, imageUrls: message.metadata.imageUrls?.map(url) } : null })) };
+    },
+    markSupportCaseRead(ticketId: string, lastMessageId: string) {
+      return dashboardJson(base, `/support/tickets/${encodeURIComponent(ticketId)}/read`, { method: "POST", jsonBody: { lastMessageId } }, f);
+    },
+    getSupportRefundPreview(ticketId: string): Promise<SupportRefundPreview> {
+      return dashboardJson(base, `/support/tickets/${encodeURIComponent(ticketId)}/refund-preview`, { method: "GET" }, f);
+    },
+    confirmSupportRefund(ticketId: string, expectedAmountCents: number): Promise<OperatorSupportCase> {
+      return dashboardJson(base, `/support/tickets/${encodeURIComponent(ticketId)}/refund`, { method: "POST", jsonBody: { expectedAmountCents } }, f);
+    },
+    supportCaseAction(ticketId: string, input: { action: string; notes: string; replacementOrderId?: string; trackingCode?: string; labelUrl?: string; itemCondition?: string; deliveryConfirmed?: boolean; items?: Array<{ variantId: string; quantity: number }> }): Promise<OperatorSupportCase> {
+      return dashboardJson(base, `/support/tickets/${encodeURIComponent(ticketId)}/actions`, { method: "POST", jsonBody: input }, f);
+    },
     getSupportSettings(): Promise<SupportSettings> {
       return dashboardJson(base, "/support/settings", { method: "GET" }, f);
     },
@@ -47,11 +79,11 @@ export function supportEndpoints(base: string, f: typeof fetch) {
       return Array.isArray(response) ? response : (response?.data ?? []);
     },
 
-    sendTicketMessage(ticketId: string, content: string): Promise<TicketMessage> {
+    sendTicketMessage(ticketId: string, content: string, clientMessageId?: string): Promise<TicketMessage> {
       return dashboardJson(
         base,
         `/support/tickets/${encodeURIComponent(ticketId)}/messages`,
-        { method: "POST", jsonBody: { content } },
+        { method: "POST", jsonBody: { content, clientMessageId } },
         f
       );
     },

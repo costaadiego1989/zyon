@@ -3,6 +3,7 @@ import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { BuyerAccountModule } from "../buyer-account/buyer-account.module.js";
 import { SupportModule } from "../support/support.module.js";
+import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { StorageModule } from "../../shared/storage/storage.module.js";
 import { RETURN_REPOSITORY_PORT } from "./domain/ports/return-repository.port.js";
 import { PrismaReturnRepository } from "./infrastructure/repositories/prisma-return.repository.js";
@@ -22,6 +23,12 @@ import { MarketplaceRefundPreparationService } from "./application/marketplace-r
 import { MarketplaceRefundPreparationController } from "./presentation/http/marketplace-refund-preparation.controller.js";
 import { ReturnsController } from "./presentation/http/returns.controller.js";
 import { BuyerReturnsController } from "./presentation/http/buyer-returns.controller.js";
+import { BuyerSupportController } from "./presentation/http/buyer-support.controller.js";
+import { SupportCaseController, SupportAttachmentController } from "./presentation/http/support-case.controller.js";
+import { ReturnCaseService } from "./application/return-case.service.js";
+import { ReturnOrderService } from "./application/return-order.service.js";
+import { ReturnAttachmentService } from "./application/return-attachment.service.js";
+import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { PaymentModule } from "../payment/payment.module.js";
 import { ShippingQuotesModule } from "../shipping/shipping-quotes.module.js";
@@ -30,8 +37,8 @@ import { ReturnReverseShippingService } from "./application/return-reverse-shipp
 import { ReconcilePendingRefundsScheduler, ReconcilePendingRefundsWorker } from "./infrastructure/return-refund-reconciliation.job.js";
 
 @Module({
-  imports: [PersistenceModule, BuyerAccountModule, SupportModule, StorageModule, MarketplaceModule, PaymentModule, ShippingQuotesModule],
-  controllers: [ReturnsController, BuyerReturnsController, MarketplaceRefundPreparationController],
+  imports: [PersistenceModule, BuyerAccountModule, SupportModule, IntegrationsModule, StorageModule, MarketplaceModule, PaymentModule, ShippingQuotesModule],
+  controllers: [ReturnsController, BuyerReturnsController, BuyerSupportController, SupportCaseController, SupportAttachmentController, MarketplaceRefundPreparationController],
   providers: [
     {
       provide: RETURN_REPOSITORY_PORT,
@@ -39,6 +46,10 @@ import { ReconcilePendingRefundsScheduler, ReconcilePendingRefundsWorker } from 
       inject: [PRISMA_CLIENT],
     },
     RequestReturnUseCase,
+    ReturnCaseService,
+    ReturnOrderService,
+    ReturnAttachmentService,
+    { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     UploadReturnImageUseCase,
     GenerateReturnLabelUseCase,
     MarkReturnReceivedUseCase,

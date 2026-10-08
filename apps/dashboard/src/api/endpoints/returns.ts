@@ -1,6 +1,6 @@
 import { dashboardJson } from "../http/client.js";
 
-export type ReturnStatus = "REQUESTED" | "LABEL_GENERATED" | "SHIPPED" | "RECEIVED" | "INSPECTED_PASS" | "INSPECTED_FAIL" | "REFUND_PROCESSING" | "REFUND_COMPLETED" | "REJECTED" | "CANCELLED";
+export type ReturnStatus = "REQUESTED" | "LABEL_GENERATED" | "SHIPPED" | "RECEIVED" | "INSPECTED_PASS" | "INSPECTED_FAIL" | "REFUND_PROCESSING" | "REFUND_COMPLETED" | "EXCHANGE_COMPLETED" | "REJECTED" | "CANCELLED";
 export type ReturnReason = "DEFECTIVE" | "WRONG_ITEM" | "NOT_AS_DESCRIBED" | "CHANGED_MIND" | "DAMAGED_IN_TRANSIT" | "OTHER";
 export type ReturnItemCondition = "NEW" | "GOOD" | "DAMAGED" | "UNUSABLE";
 

@@ -7,7 +7,7 @@ import "./dashboard-ui.css";
 export interface ModalProps {
   isOpen: boolean; title: string; subtitle?: string; eyebrow?: string;
   presentation?: "drawer" | "floating-panel" | "center";
-  size?: "sm" | "md" | "lg";
+  size?: "sm" | "md" | "lg" | "xl";
   onClose: () => void; children: React.ReactNode; footer?: React.ReactNode;
 }
 export function Modal({ isOpen, title, subtitle, eyebrow, presentation = "drawer", size = "md", onClose, children, footer }: ModalProps) {

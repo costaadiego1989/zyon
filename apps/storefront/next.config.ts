@@ -28,18 +28,20 @@ const config: NextConfig = {
   },
   async headers() {
     const isDev = process.env.NODE_ENV !== "production";
+    const localApi = isDev && /^http:\/\/(localhost|127\.0\.0\.1):\d+(?:\/|$)/.test(publicApiBaseUrl)
+      ? new URL(publicApiBaseUrl).origin : "";
     // Merchant themes may opt into the configured Google Font family. Keep that
     // stylesheet source explicit in production rather than silently falling back.
     // The API and widget local origins remain development-only.
     const devConnect = isDev
-      ? " http://localhost:3009 http://localhost:5174 http://127.0.0.1:3009 ws://localhost:3001 ws://localhost:3009"
+      ? ` http://localhost:3009 http://localhost:5174 http://127.0.0.1:3009 ws://localhost:3001 ws://localhost:3009 ${localApi} ${localApi.replace(/^http:/, "ws:")}`
       : "";
     const devFont = isDev ? " https://fonts.gstatic.com" : "";
     const contentSecurityPolicy = (frameAncestors: string) => [
       "default-src 'self'",
       "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://js.stripe.com https://challenges.cloudflare.com",
       "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
-      "img-src 'self' data: https: blob:",
+      `img-src 'self' data: https: blob: ${localApi}`,
       `connect-src 'self' https: ${websocketApiOrigin}${devConnect} https://api.stripe.com`,
       "frame-src 'self' https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://challenges.cloudflare.com",
       "media-src 'self' https: blob:",

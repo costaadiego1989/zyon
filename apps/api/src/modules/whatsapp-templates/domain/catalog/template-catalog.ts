@@ -44,6 +44,7 @@ observedAt: "03/10/2026, 10:00",
   trackingCode: "BR123456789",
   link: "https://loja.exemplo",
   otpCode: "123456",
+  decisionReason: "A análise confirmou o defeito. A loja informará a próxima etapa na conversa.",
 };
 
 /**
@@ -66,6 +67,7 @@ export function toPositional(named: string, storeName = "sua loja"): {
     { name: "couponBlock", token: /\{\{couponBlock\}\}/g },
     { name: "coupon", token: /\{\{coupon\}\}/g },
     { name: "discount", token: /\{\{discount\}\}/g },
+    { name: "decisionReason", token: /\{\{decisionReason\}\}/g },
     { name: "link", token: /\{\{link\}\}/g },
   ];
   let body = named.replace(/\{\{storeName\}\}/g, storeName);
@@ -179,6 +181,12 @@ Acompanhe a entrega e qualquer coisa é só falar com a gente. 🚚`,
   order_delivered: `Olá, {{buyerName}}, seu pedido {{orderId}} foi entregue! 🎉
 
 Esperamos que esteja tudo perfeito. Se precisar de qualquer coisa com o {{productName}}, é só responder aqui. 💬`,
+
+  return_authorized: `Olá, {{buyerName}}. A {{storeName}} autorizou o envio dos itens do pedido {{orderId}} para análise: {{productName}}. Instruções: {{decisionReason}}. Veja a conversa: {{link}}. Acesse sua conta para acompanhar.`,
+  return_approved: `Olá, {{buyerName}}. A {{storeName}} aprovou sua solicitação referente ao pedido {{orderId}}, itens: {{productName}}. Próximos passos: {{decisionReason}}. Acompanhe em {{link}}. O reembolso, quando aplicável, será confirmado separadamente.`,
+  return_rejected: `Olá, {{buyerName}}. Após a análise, a {{storeName}} não aprovou sua solicitação do pedido {{orderId}}, itens: {{productName}}. Motivo: {{decisionReason}}. Consulte os detalhes em {{link}}. Acesse sua conta para ver a conversa.`,
+  return_refunded: `Olá, {{buyerName}}. O provedor de pagamento confirmou o reembolso do pedido {{orderId}}, itens: {{productName}}. Detalhes: {{decisionReason}}. Acompanhe em {{link}}. O prazo de crédito depende do meio de pagamento.`,
+  exchange_completed: `Olá, {{buyerName}}. A {{storeName}} concluiu a troca dos itens {{productName}} do pedido {{orderId}} e confirmou a entrega. Detalhes: {{decisionReason}}. Consulte a conversa em {{link}}. O histórico continua disponível na sua conta.`,
   checkout_otp: `Seu código de confirmação é {{otpCode}}. Ele expira em 10 minutos.`,
 };
 
@@ -199,6 +207,7 @@ marketplace_operational_alert: false,
   digital_delivery: false,
   order_shipped: false,
   order_delivered: false,
+  return_authorized: false, return_approved: false, return_rejected: false, return_refunded: false, exchange_completed: false,
 };
 
 const LABELS: Record<WhatsAppTemplateType, string> = {
@@ -219,6 +228,11 @@ marketplace_operational_alert: "Marketplace: alerta operacional",
   digital_delivery: "Entrega de Produto Digital",
   order_shipped: "Pedido Enviado",
   order_delivered: "Pedido Entregue",
+  return_authorized: "Envio para análise autorizado",
+  return_approved: "Troca ou devolução aprovada",
+  return_rejected: "Troca ou devolução não aprovada",
+  return_refunded: "Reembolso confirmado",
+  exchange_completed: "Troca concluída",
 };
 
 // Incentives, reactivation and replenishment campaigns are promotional.

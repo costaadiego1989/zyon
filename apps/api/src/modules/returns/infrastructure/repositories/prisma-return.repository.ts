@@ -216,7 +216,15 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
   }
 
   async saveRefund(input: SaveRefundInput): Promise<ReturnRefundProps> {
-    const row = await this.prisma.returnRefund.upsert({
+    // The financial reservation exists before the PSP call. A late pending
+    // response must not overwrite a completion observed by reconciliation.
+    const persisted = await this.prisma.returnRefund.findUnique({ where: { returnId: input.returnId } });
+    if (persisted) {
+      if (persisted.amountInCents > 0 && input.amountInCents !== persisted.amountInCents) throw new Error("refund_amount_requires_reconciliation");
+      await this.prisma.returnRefund.updateMany({ where: { returnId: input.returnId, status: { notIn: input.status === "PENDING" ? ["COMPLETED", "FAILED"] : input.status === "FAILED" ? ["COMPLETED"] : [] } },
+        data: { paymentIntentId: input.paymentIntentId, providerRefundId: input.providerRefundId, amountInCents: persisted.amountInCents || input.amountInCents, status: input.status } });
+    }
+    const row = persisted ? await this.prisma.returnRefund.findUniqueOrThrow({ where: { returnId: input.returnId } }) : await this.prisma.returnRefund.upsert({
       where: { returnId: input.returnId },
       create: {
         returnId: input.returnId,
@@ -245,8 +253,8 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
   }
 
   async updateRefundStatus(returnId: string, status: string, processedAt?: Date): Promise<void> {
-    await this.prisma.returnRefund.update({
-      where: { returnId },
+    await this.prisma.returnRefund.updateMany({
+      where: { returnId, ...(status !== "COMPLETED" ? { status: { not: "COMPLETED" } } : {}) },
       data: { status, ...(processedAt ? { processedAt } : {}) },
     });
   }
