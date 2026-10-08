@@ -1,0 +1,279 @@
+{
+  "schemaVersion": 1,
+  "recordedAt": "2026-10-08T17:43:01.832Z",
+  "scope": "Native Melhor Envio reverse posting from Atendimento, with one Return record and buyer conversation instructions.",
+  "source": {
+    "branch": "release/conversational-cancellation-20261008",
+    "implementationCommit": "7be9527ec0f964374f4fa36ba2f548a57a7f7ed6",
+    "combinedCommit": "25930b41fd6e052767a91be2087b793bbbcfe357",
+    "checkoutFilesPreserved": 47,
+    "mainWorkspaceReset": false
+  },
+  "behavior": {
+    "acceptancePersistsWithoutInventingLabel": true,
+    "sameReturnInSupportAndReturns": true,
+    "explicitCostConfirmationBeforePurchase": true,
+    "codeAndContentDeclarationPersistInConversation": true,
+    "documentRetryReusesExistingCarrierOrder": true,
+    "manualLabelFallbackInSupport": true,
+    "photosOnlyAtOpening": true
+  },
+  "local": {
+    "tests": {
+      "files": 16,
+      "count": 74,
+      "pass": 74,
+      "fail": 0,
+      "skipped": 0,
+      "realDisposablePostgresLifecycle": true,
+      "realProvider": false
+    },
+    "builds": {
+      "api": "PASS Nest",
+      "dashboard": "PASS TypeScript and Vite",
+      "storefront": "PASS Next production build"
+    },
+    "browser": {
+      "environment": "local",
+      "api": "synthetic callbacks; no provider or remote API calls",
+      "checks": [
+        {
+          "name": "code_button_waits_for_acceptance",
+          "ok": true
+        },
+        {
+          "name": "acceptance_keeps_same_return",
+          "ok": true
+        },
+        {
+          "name": "cost_visible_before_confirm",
+          "ok": true
+        },
+        {
+          "name": "cost_lookup_has_no_purchase_callback",
+          "ok": true
+        },
+        {
+          "name": "posting_code_visible_in_support",
+          "ok": true
+        },
+        {
+          "name": "pending_document_stops_posting_instruction",
+          "ok": true
+        },
+        {
+          "name": "declaration_button_identifies_document",
+          "ok": true
+        },
+        {
+          "name": "same_return_and_cost_used_for_document_refresh",
+          "ok": true
+        },
+        {
+          "name": "support_reload_retains_code_and_declaration",
+          "ok": true
+        },
+        {
+          "name": "buyer_sees_code_and_printing_instruction",
+          "ok": true
+        },
+        {
+          "name": "buyer_mobile_no_horizontal_overflow",
+          "ok": true
+        },
+        {
+          "name": "missing_original_shipping_has_useful_error",
+          "ok": true
+        },
+        {
+          "name": "failed_code_lookup_keeps_acceptance",
+          "ok": true
+        },
+        {
+          "name": "manual_label_requires_real_pair",
+          "ok": true
+        },
+        {
+          "name": "operator_mobile_no_horizontal_overflow",
+          "ok": true
+        },
+        {
+          "name": "no_page_errors",
+          "ok": true
+        }
+      ],
+      "pageErrors": []
+    }
+  },
+  "sandbox": {
+    "status": "partially_superseded_by_concurrent_checkout_publisher",
+    "ourDeployments": {
+      "api": {
+        "id": "f9828d2a-9488-4174-b2ff-4f6d7d3a3d33",
+        "status": "SUCCESS"
+      },
+      "dashboard": {
+        "id": "02aefafb-5f83-4765-a39a-d5aad709ec36",
+        "status": "SUCCESS"
+      },
+      "storefront": {
+        "id": "dd191794-a79b-4f20-a625-dc75d74b8748",
+        "status": "REMOVED"
+      }
+    },
+    "newerStorefront": {
+      "id": "b68e9fbc-b429-428e-b3ad-8139500ac896",
+      "status": "SUCCESS",
+      "message": "Verify terminal payment before recovered-chat retry"
+    },
+    "guestBrowser": {
+      "at": "2026-10-08T17:39:53.353Z",
+      "environment": "sandbox",
+      "url": "https://storefront-sandbox-3f42.up.railway.app/store/qa-pos-venda-24d0da34",
+      "checks": [
+        {
+          "name": "storefront_ready",
+          "ok": true
+        },
+        {
+          "name": "photos_absent_in_support_entry",
+          "ok": true
+        },
+        {
+          "name": "mobile_no_horizontal_overflow",
+          "ok": true
+        },
+        {
+          "name": "real_purchase_requires_buyer_login",
+          "ok": true
+        },
+        {
+          "name": "buyer_posting_document_bundle_deployed",
+          "ok": false
+        }
+      ],
+      "pageErrors": [],
+      "financialExecution": false,
+      "jsAssetPaths": [
+        "/_next/static/chunks/dfd89489-9f4a76bec06f6daa.js",
+        "/_next/static/chunks/59-0dee833a04d399c8.js",
+        "/_next/static/chunks/main-app-ab8df7705c7dbeb0.js",
+        "/_next/static/chunks/ff00f882-2883f6346abcbd8e.js",
+        "/_next/static/chunks/fd4cade4-38359a3d02a3a377.js",
+        "/_next/static/chunks/756-3262a18a66804736.js",
+        "/_next/static/chunks/949-4ee74587af4d0de5.js",
+        "/_next/static/chunks/872-4fb1ef0592143e77.js",
+        "/_next/static/chunks/app/store/%5Bslug%5D/page-c185f82ad788c287.js",
+        "/_next/static/chunks/polyfills-42372ed130431b0a.js",
+        "/_next/static/chunks/webpack-8dfa5fe5b968f19c.js"
+      ],
+      "failure": "buyer_posting_document_bundle_deployed"
+    },
+    "dashboardBundles": {
+      "at": "2026-10-08T17:35:27.813Z",
+      "environment": "sandbox",
+      "host": "https://dashboard-sandbox-59d9.up.railway.app",
+      "main": "/assets/index-DkTHZV7j.js",
+      "supportChunk": "support-settings-page-CQaaqdrx.js",
+      "sha256": "2891eda5eabc851c8f5cfd262bb7706d009c8af563f87118696e1aad3ea107c7",
+      "markers": {
+        "accept": true,
+        "generateCode": true,
+        "declaration": true,
+        "manualLabel": true
+      },
+      "readOnly": true
+    },
+    "authenticatedAcceptanceRetest": false,
+    "realFreightPurchased": false
+  },
+  "production": {
+    "status": "candidates_ready_pending_concurrent_publisher_coordination",
+    "apiDeployed": false,
+    "canonicalAliasesPromoted": false,
+    "candidates": {
+      "dashboard": {
+        "id": "dpl_XxSQJX7nPPLt13EdmAxUyngkYJCm",
+        "url": "https://zyon-dashboard-8g7yc5dnz-diegos-projects-b6fd2a25.vercel.app",
+        "inspectorUrl": "https://vercel.com/diegos-projects-b6fd2a25/zyon-dashboard/XxSQJX7nPPLt13EdmAxUyngkYJCm",
+        "readyState": "READY",
+        "target": "production",
+        "deploymentApiUrl": "https://api.vercel.com/v13/deployments/dpl_XxSQJX7nPPLt13EdmAxUyngkYJCm"
+      },
+      "storefront": {
+        "id": "dpl_A9sBvBYyPoWQC7L3rnrkNCB2fRv1",
+        "url": "https://zyon-storefront-fjcimw6fd-diegos-projects-b6fd2a25.vercel.app",
+        "inspectorUrl": "https://vercel.com/diegos-projects-b6fd2a25/zyon-storefront/A9sBvBYyPoWQC7L3rnrkNCB2fRv1",
+        "readyState": "READY",
+        "target": "production",
+        "deploymentApiUrl": "https://api.vercel.com/v13/deployments/dpl_A9sBvBYyPoWQC7L3rnrkNCB2fRv1"
+      }
+    },
+    "realPurchaseId": "pi_3UMCm02IReEzfWnS1xlNEJKW",
+    "realPurchaseModified": false
+  },
+  "healthAndAuth": {
+    "at": "2026-10-08T17:37:00.866Z",
+    "readOnly": true,
+    "rows": [
+      {
+        "host": "https://api-sandbox-8146.up.railway.app",
+        "route": "/ready",
+        "status": 200
+      },
+      {
+        "host": "https://api-sandbox-8146.up.railway.app",
+        "route": "/v1/buyer/support/tickets",
+        "status": 401
+      },
+      {
+        "host": "https://api-sandbox-8146.up.railway.app",
+        "route": "/v1/support/tickets/sup_not_owned/case",
+        "status": 401
+      },
+      {
+        "host": "https://api-sandbox-8146.up.railway.app",
+        "route": "/v1/merchants/not_owned/returns/not_owned/reverse-shipping",
+        "status": 401
+      },
+      {
+        "host": "https://api.zyon-payments.com.br",
+        "route": "/ready",
+        "status": 200
+      },
+      {
+        "host": "https://api.zyon-payments.com.br",
+        "route": "/v1/buyer/support/tickets",
+        "status": 401
+      },
+      {
+        "host": "https://api.zyon-payments.com.br",
+        "route": "/v1/support/tickets/sup_not_owned/case",
+        "status": 401
+      },
+      {
+        "host": "https://api.zyon-payments.com.br",
+        "route": "/v1/merchants/not_owned/returns/not_owned/reverse-shipping",
+        "status": 401
+      }
+    ]
+  },
+  "provider": {
+    "sandboxCanGenerateFinalNativeCode": false,
+    "liveIssuanceVerified": false,
+    "pdf": "DC-e content declaration; required printed with Correios parcel",
+    "api": "GET /api/v2/me/imprimir/dace/pdf/{order_id}, read pdf URL from JSON",
+    "postingCodeValidityDays": 7,
+    "whatsappRequiresConsentAndApprovedTemplates": true,
+    "docs": [
+      "https://docs.melhorenvio.com.br/reference/impressao-dace",
+      "https://docs.melhorenvio.com.br/reference/inserir-logistica-reversa-no-carrinho",
+      "https://centraldeajuda.melhorenvio.com.br/hc/pt-br/articles/31220449351700-Como-fa%C3%A7o-para-gerar-um-envio-quando-eu-precisar-receber-uma-encomenda"
+    ]
+  },
+  "remaining": {
+    "required": "Finish or coordinate concurrent publisher, incorporate its last payment-retry fix, restore combined sandbox, deploy API production and promote combined frontends, then recheck canonical UI.",
+    "userQuestionPending": "Has the other checkout publication finished?",
+    "realPurchaseFinancialTestExecuted": false
+  }
+}
