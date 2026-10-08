@@ -1059,10 +1059,24 @@ export interface CheckoutWidgetBehavior {
   budgetModeEnabled?: boolean;
 }
 
+export interface CheckoutAssistanceSettings {
+  pix: boolean;
+  installments: boolean;
+  unavailableProduct: boolean;
+  humanHandoff: boolean;
+}
+
+export const DEFAULT_CHECKOUT_ASSISTANCE: CheckoutAssistanceSettings = {
+  pix: true, installments: true, unavailableProduct: true, humanHandoff: true,
+};
+
 export interface CheckoutInterventionPolicy {
   minimumAbandonmentScore: number;
   cooldownSeconds: number;
   maxInterventionsPerSession: number;
+  /** Seconds without buyer interaction before offering help; defaults to 180. */
+  idleSeconds?: number;
+  assistance?: Partial<CheckoutAssistanceSettings>;
   progressiveDiscount?: ProgressiveDiscountPolicy;
 }
 

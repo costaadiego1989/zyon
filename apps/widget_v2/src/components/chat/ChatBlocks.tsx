@@ -12,6 +12,8 @@ import { Elements, CardElement, useStripe, useElements } from "@stripe/react-str
 import { trackEvent } from "@/lib/tracking";
 import { translateShippingLabel } from "./helpers";
 import { buyerServiceFeeCopy, checkoutLocale } from "@/lib/checkout-totals";
+import { CheckoutHelpBlock, CheckoutAlternativesBlock } from "./CheckoutHelpBlock";
+import { PixPayment } from "../PixPayment";
 
 function BuyerServiceFeeNotice() {
   const serviceFee = useCheckoutStore((s) => s.cart.serviceFee);
@@ -206,7 +208,7 @@ function shippingPriority(
 
 function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
   const pay = useCheckoutStore((s) => s.pay);
-  const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
+  const busy = useCheckoutStore(s => s.paymentCreating || s.paymentSubmitting || s.assistanceBusy || s.cartUpdating || s.paymentObservation || s.status !== "active");
   const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
   const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.paymentPreference);
   const permittedKeys = new Set(paymentMethodsForConfig(merchantPaymentConfig).map((method) => method.key));
@@ -225,7 +227,7 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
       {meths.map((m) => (
         <button data-neu="choice"
           key={m.key}
-          disabled={paymentCreating}
+          disabled={busy}
           onClick={() => handleSelect(m)}
           style={{
             padding: "10px 12px",
@@ -257,75 +259,7 @@ function paymentPriority(
 }
 
 function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
-  const pollPayment = useCheckoutStore((s) => s.pollPayment);
-  const stopPolling = useCheckoutStore((s) => s.stopPolling);
-  const status = useCheckoutStore((s) => s.status);
-  const language = useCheckoutStore((s) => s.agent.language);
-  const [copied, setCopied] = useState(false);
-
-  useEffect(() => {
-    pollPayment();
-    return () => stopPolling();
-  }, [pollPayment, stopPolling]);
-
-  if (!data) return null;
-  const amountCents = data.amount_cents;
-  const totalLabel = typeof amountCents === "number" && Number.isSafeInteger(amountCents) && amountCents > 0
-    ? new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100)
-    : null;
-
-  if (status === "completed") {
-    return <PaymentCompleted />;
-  }
-
-  const handleCopy = async () => {
-    const code = String(data.pix_code ?? "");
-    if (!code) return;
-    try {
-      await navigator.clipboard.writeText(code);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    } catch {
-      const ta = document.createElement("textarea");
-      ta.value = code;
-      ta.style.position = "fixed";
-      ta.style.opacity = "0";
-      document.body.appendChild(ta);
-      ta.select();
-      document.execCommand("copy");
-      document.body.removeChild(ta);
-      setCopied(true);
-      setTimeout(() => setCopied(false), 2000);
-    }
-  };
-
-  return (
-    <PaymentPanel
-      title="Pix"
-      description="Escaneie o QR Code no app do seu banco ou copie o cÃƒÂ³digo. A confirmaÃƒÂ§ÃƒÂ£o aparece aqui automaticamente."
-      totalLabel={totalLabel}
-      status="Aguardando a confirmaÃƒÂ§ÃƒÂ£o do Pix"
-    >
-      {data.pix_qr_url ? (
-        <div className="checkout-payment-panel__qr">
-          <img src={String(data.pix_qr_url)} alt="QR Code Pix" />
-        </div>
-      ) : null}
-      {data.pix_code != null && (
-        <div className="checkout-payment-panel__code">
-          <code>{String(data.pix_code).slice(0, 50)}...</code>
-          <button data-neu="primary" type="button" onClick={handleCopy}>
-            {copied ? "CÃƒÂ³digo copiado" : "Copiar cÃƒÂ³digo"}
-          </button>
-        </div>
-      )}
-      {safeInvoiceUrl(data.invoice_url) ? (
-          <a className="checkout-payment-panel__action" data-neu="control" href={safeInvoiceUrl(data.invoice_url)!} target="_blank" rel="noopener noreferrer">
-          Abrir pÃƒÂ¡gina do Pix
-        </a>
-      ) : null}
-    </PaymentPanel>
-  );
+  return <PixPayment data={data} />;
 }
 
 function safeInvoiceUrl(value: unknown): string | null {
@@ -445,7 +379,10 @@ function StripeCardBlockForm({
       );
 
       if (confirmError) {
-        setError(confirmError.message || "Erro ao processar cartÃƒÂ£o");
+        setError(confirmError.message || "Erro ao processar cartão");
+        if (confirmError.type === "card_error" && confirmError.code === "card_declined") {
+          void useCheckoutStore.getState().reportPaymentFailure(intentId);
+        }
         setLoading(false);
         return;
       }
@@ -1424,6 +1361,10 @@ export function BlockRenderer({ block }: { block: ChatBlock }) {
   switch (block.type) {
     case "checkout_price_review":
       return <CheckoutPriceReviewBlock fingerprint={block.data?.fingerprint} />;
+    case "checkout_help":
+      return <CheckoutHelpBlock data={block.data} />;
+    case "checkout_alternatives":
+      return <CheckoutAlternativesBlock data={block.data} />;
     case "text":
     case "message":
       return <p style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--tx)", margin: 0, wordBreak: "break-word" }}>{String(block.data?.content || block.text || "")}</p>;

@@ -32,6 +32,10 @@ function isPaymentPresentationBlock(type: string): boolean {
   return ["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "checkout_price_review"].includes(type);
 }
 
+function hasOwnCard(type: string) {
+  return type === "cross_sell" || type === "checkout_alternatives" || type === "pix_payment";
+}
+
 export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
   const isTyping = useCheckoutStore((s) => s.isTyping);
@@ -170,7 +174,7 @@ export function ChatPanel() {
               <AgentAvatar active />
             )}
 
-            <div style={{ maxWidth: msg.blocks?.some(block => block.type === "cross_sell") ? "calc(100% - 36px)" : msg.blocks?.some((block) => isPaymentPresentationBlock(block.type)) ? "min(100%, 620px)" : "80%", flex: msg.blocks?.some(block => block.type === "cross_sell") ? 1 : undefined, display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
+            <div style={{ maxWidth: msg.blocks?.some(block => hasOwnCard(block.type)) ? "calc(100% - 36px)" : msg.blocks?.some((block) => isPaymentPresentationBlock(block.type)) ? "min(100%, 620px)" : "80%", flex: msg.blocks?.some(block => hasOwnCard(block.type)) ? 1 : undefined, display: "flex", flexDirection: "column", gap: "6px", minWidth: 0 }}>
               {msg.text && (
                 <MessageText message={msg} api={api} />
               )}
@@ -181,10 +185,10 @@ export function ChatPanel() {
                 const paymentBlock = isPaymentPresentationBlock(block.type);
                 return (
                   <div
-                    data-neu={paymentBlock || block.type === "cross_sell" ? undefined : "surface"}
+                    data-neu={paymentBlock || hasOwnCard(block.type) ? undefined : "surface"}
                     key={j}
-                    className={paymentBlock ? "checkout-chat__payment-block" : undefined}
-                    style={paymentBlock ? undefined : block.type === "cross_sell" ? { minWidth: 0 } : { padding: "10px 12px", borderRadius: "12px", background: "var(--card)", border: "1px solid var(--bd)" }}
+                    className={[paymentBlock ? "checkout-chat__payment-block" : "", hasOwnCard(block.type) ? "checkout-commerce" : ""].filter(Boolean).join(" ") || undefined}
+                    style={paymentBlock ? undefined : hasOwnCard(block.type) ? { minWidth: 0 } : { padding: "10px 12px", borderRadius: "12px", background: "var(--card)", border: "1px solid var(--bd)" }}
                   >
                     <BlockRenderer block={block} />
                   </div>
@@ -250,7 +254,8 @@ export function ChatPanel() {
             </div>
           </div>
         )}
-        <div ref={chatEndRef} />
+        <div ref={chatEndRef} style={lastAgentMsg?.blocks?.some(block => hasOwnCard(block.type))
+          ? { minHeight: "var(--checkout-commerce-clearance, 0px)", flexShrink: 0 } : undefined} />
       </div>
 
       {chatResponseUnavailable && !chatRecovery && <p role="status" aria-live="polite"

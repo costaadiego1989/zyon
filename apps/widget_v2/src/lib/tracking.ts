@@ -26,6 +26,7 @@ export function initTracking(apiInstance: CheckoutSession, session: string) {
 }
 
 export interface TrackEventResult {
+  trigger_agent?: boolean;
   progressive_offer?: {
     stage: string;
     approved_percent: number;

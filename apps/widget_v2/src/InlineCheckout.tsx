@@ -5,6 +5,7 @@ import { CheckoutLayout } from "./layouts/CheckoutLayout";
 import { MascotOverlay } from "./components/MascotOverlay";
 import { setupAbandonmentTracking, trackEvent } from "./lib/tracking";
 import { onOrderCompleted } from "./lib/lifecycle";
+import { idleAssistanceMessage } from "./lib/checkout-assistance";
 import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "./lib/triggers";
 import type { DiscountStage } from "./components/DiscountBanner";
 import { MERCHANT_SALES_SUSPENDED_MESSAGE } from "./lib/checkout-error-message";
@@ -66,10 +67,11 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     return cleanup;
   }, []);
 
+  const paymentObservation = useCheckoutStore((s) => s.paymentObservation);
   const triggerConfig = useCheckoutStore((s) => s.triggerConfig);
   const triggerMessages = useCheckoutStore((s) => s.triggerMessages);
   useEffect(() => {
-    if (!triggerConfig) return;
+    if (!triggerConfig || status !== "active" || paymentObservation) return;
 
     const stageMap: Partial<Record<TriggerName, DiscountStage>> = {
       idle_30_seconds: "initial_coupon",
@@ -80,13 +82,19 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       const stage = stageMap[trigger];
       if (!stage) return;
       const msg = triggerMessages?.[trigger];
-      useCheckoutStore.getState().setActiveDiscount(stage, 0, msg?.couponCode, msg?.message);
+      const live = useCheckoutStore.getState();
+      const message = msg?.message || (trigger === "idle_30_seconds" ? idleAssistanceMessage({
+        paymentIntent: live.paymentIntent, shippingChosen: Boolean(live.cart.shipping),
+        leadRegistered: live.leadRegistered, hasAddress: Boolean(live.buyer.address?.zip),
+      }) : undefined);
+      live.setActiveDiscount(stage, 0, msg?.couponCode, message);
+      if (trigger === "idle_30_seconds" && live.paymentIntent?.method === "pix") live.showCheckoutHelp("pix");
     };
 
     const cleanupIdle = setupIdleTrigger(triggerConfig, onTrigger);
     const cleanupExit = setupExitIntentTrigger(triggerConfig, onTrigger);
     return () => { cleanupIdle(); cleanupExit(); };
-  }, [triggerConfig, triggerMessages, status]);
+  }, [triggerConfig, triggerMessages, status, paymentObservation]);
 
   useEffect(() => {
     if (status === "completed" && sessionId) {

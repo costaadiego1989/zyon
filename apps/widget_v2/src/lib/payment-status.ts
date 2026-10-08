@@ -3,6 +3,7 @@ export type PaymentPollingOutcome = "pending" | "completed" | "failed";
 const COMPLETED_STATUSES = new Set(["approved", "paid", "confirmed"]);
 const FAILED_STATUSES = new Set([
   "failed",
+  "expired",
   "cancelled",
   "refunded",
   "chargeback_lost",

@@ -47,6 +47,15 @@ export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {
   const dismissDiscount = useCheckoutStore((s) => s.dismissDiscount);
   const resetSession = useCheckoutStore((s) => s.resetSession);
   const showBranding = useCheckoutStore((s) => s.showBranding);
+  const supportRequest = useCheckoutStore(s => s.supportRequest);
+  useEffect(() => {
+    if (supportRequest) { setCartDrawerOpen(false); setSupportOpen(true); }
+  }, [supportRequest]);
+  useEffect(() => {
+    const reviewCart = () => { setSupportOpen(false); setCartDrawerOpen(true); };
+    window.addEventListener("aacp:review-cart", reviewCart);
+    return () => window.removeEventListener("aacp:review-cart", reviewCart);
+  }, []);
 
   // Follow the actual composer when voice controls or the
   // viewport change height. Fixed estimates let the FAB cover the send action.

@@ -20,6 +20,18 @@
   --aacp-neu-overlay: 10px 16px 42px oklch(26% 0.012 155 / 0.2), -2px -2px 5px color-mix(in oklab, var(--aacp-neu-light) 22%, transparent), inset 0 1px 0 var(--aacp-neu-edge);
 }
 
+/* Product and payment cards retain the storefront's original raised material.
+   Keep the lighter treatment of the surrounding checkout controls separate. */
+[data-neu-theme="light"] .checkout-commerce {
+  --aacp-neu-light: color-mix(in oklab, var(--aacp-bg) 18%, oklch(99.5% 0.003 145));
+  --aacp-neu-shade: color-mix(in oklab, var(--aacp-bg) 76%, oklch(39% 0.018 155));
+  --aacp-neu-edge: color-mix(in oklab, var(--aacp-bg) 48%, oklch(99.5% 0.003 145));
+  --aacp-neu-raised-sm: 2px 3px 6px color-mix(in oklab, var(--aacp-neu-shade) 65%, transparent), -1px -1px 3px color-mix(in oklab, var(--aacp-neu-light) 60%, transparent), inset 0 1px 0 color-mix(in oklab, var(--aacp-neu-edge) 60%, transparent);
+  --aacp-neu-raised-md: 4px 6px 14px color-mix(in oklab, var(--aacp-neu-shade) 65%, transparent), -2px -2px 6px color-mix(in oklab, var(--aacp-neu-light) 45%, transparent), inset 0 1px 0 var(--aacp-neu-edge);
+  --aacp-neu-message: 2px 3px 7px color-mix(in oklab, var(--aacp-neu-shade) 65%, transparent), inset 0 1px 0 var(--aacp-neu-edge);
+  --aacp-neu-primary: var(--aacp-neu-raised-md);
+}
+
 :root[data-neu-theme="dark"],
 [data-neu-theme="dark"],
 body.theme-dark {

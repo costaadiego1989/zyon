@@ -17,8 +17,15 @@ const TICKET_KEY = "zyon_support_ticket";
 
 export function useSupportViewModel(): SupportViewModelInterface {
   const api = useCheckoutStore((s) => s.api);
+  const checkoutSessionId = useCheckoutStore(s => s.sessionId);
   const merchantId = api?.currentMerchantId ?? null;
   const apiBaseUrl = api?.apiBaseUrl ?? "http://localhost:3009";
+  const scope = merchantId && checkoutSessionId ? `${merchantId}:${checkoutSessionId}` : null;
+  const scopeRef = useRef(scope);
+  scopeRef.current = scope;
+  const messageKey = `${SESSION_KEY}:${scope}`;
+  const ticketKey = `${TICKET_KEY}:${scope}`;
+  const [loadedScope, setLoadedScope] = useState<string | null>(null);
 
   const [messages, setMessages] = useState<SupportMessage[]>([]);
   const [input, setInput] = useState("");
@@ -32,8 +39,11 @@ export function useSupportViewModel(): SupportViewModelInterface {
   const sessionIdRef = useRef(`support_${Date.now()}`);
 
   useEffect(() => {
+    setMessages([]); setTicketId(null); setView("welcome"); setError(null); setLoading(false); setFaqItems(DEFAULT_FAQ_ITEMS);
+    setLoadedScope(scope);
+    if (!scope) return;
     try {
-      const saved = sessionStorage.getItem(SESSION_KEY);
+      const saved = sessionStorage.getItem(messageKey);
       if (saved) {
         const parsed = JSON.parse(saved);
         if (Array.isArray(parsed) && parsed.length > 0) {
@@ -41,37 +51,37 @@ export function useSupportViewModel(): SupportViewModelInterface {
           setView("chat");
         }
       }
-      const savedTicket = sessionStorage.getItem(TICKET_KEY);
+      const savedTicket = sessionStorage.getItem(ticketKey);
       if (savedTicket) {
         setTicketId(savedTicket);
         setView("chat");
       }
     } catch {
     }
-  }, []);
+  }, [scope, messageKey, ticketKey]);
 
   useEffect(() => {
-    if (messages.length > 0) {
+    if (scope && loadedScope === scope && messages.length > 0) {
       try {
-        sessionStorage.setItem(SESSION_KEY, JSON.stringify(messages));
+        sessionStorage.setItem(messageKey, JSON.stringify(messages));
       } catch {
       }
     }
-  }, [messages]);
+  }, [messages, scope, loadedScope, messageKey]);
 
   useEffect(() => {
     try {
-      if (ticketId) sessionStorage.setItem(TICKET_KEY, ticketId);
+      if (scope && loadedScope === scope && ticketId) sessionStorage.setItem(ticketKey, ticketId);
     } catch {
     }
-  }, [ticketId]);
+  }, [ticketId, scope, loadedScope, ticketKey]);
 
   const loadFaq = useCallback(async () => {
     if (!merchantId) return;
     let cancelled = false;
     try {
       const items = await fetchPublicFaq(apiBaseUrl, merchantId);
-      if (!cancelled && items.length > 0) {
+      if (!cancelled && scopeRef.current === scope && items.length > 0) {
         const hasHandoff = items.some((i) => /atendente|humano/i.test(i.question));
         const withHandoff: FaqItem[] = [
           ...items.map((it) => ({ ...it, icon: it.icon || "❓" })),
@@ -82,28 +92,32 @@ export function useSupportViewModel(): SupportViewModelInterface {
     } catch (err) {
       reportError(err, "useSupportViewModel.loadFaq");
     }
-  }, [merchantId, apiBaseUrl]);
+  }, [merchantId, apiBaseUrl, scope]);
 
   useEffect(() => {
     void loadFaq();
   }, [loadFaq]);
 
   useEffect(() => {
-    if (!ticketId) return;
+    if (!ticketId || !scope || loadedScope !== scope) return;
     let socket: Socket | null = null;
+    let cancelled = false;
+    const current = () => !cancelled && scopeRef.current === scope;
 
     void (async () => {
       try {
         const { io } = await import("socket.io-client");
+        if (!current()) return;
         socket = io(`${apiBaseUrl}/support`, { transports: ["websocket", "polling"] });
         socketRef.current = socket;
 
         socket.on("connect", () => {
+          if (!current()) return;
           socket!.emit("join_ticket", { ticketId });
         });
 
         socket.on("new_message", (msg: { senderType: string; content: string; senderName?: string }) => {
-          if (msg.senderType === "merchant") {
+          if (current() && msg.senderType === "merchant") {
             setMessages((prev) => [
               ...prev,
               {
@@ -117,6 +131,7 @@ export function useSupportViewModel(): SupportViewModelInterface {
         });
 
         socket.on("agent_joined", (data: { agentName: string }) => {
+          if (!current()) return;
           setMessages((prev) => [
             ...prev,
             {
@@ -128,13 +143,14 @@ export function useSupportViewModel(): SupportViewModelInterface {
         });
 
         socket.on("ticket_closed", () => {
+          if (!current()) return;
           setMessages([]);
           setView("welcome");
           setTicketId(null);
           setLoading(false);
           try {
-            sessionStorage.removeItem(SESSION_KEY);
-            sessionStorage.removeItem(TICKET_KEY);
+            sessionStorage.removeItem(messageKey);
+            sessionStorage.removeItem(ticketKey);
           } catch {
           }
         });
@@ -144,10 +160,11 @@ export function useSupportViewModel(): SupportViewModelInterface {
     })();
 
     return () => {
+      cancelled = true;
       socket?.disconnect();
-      socketRef.current = null;
+      if (socketRef.current === socket) socketRef.current = null;
     };
-  }, [ticketId, apiBaseUrl]);
+  }, [ticketId, apiBaseUrl, scope, loadedScope, messageKey, ticketKey]);
 
   const getFallbackResponse = useCallback(
     (label: string): string => {
@@ -179,6 +196,7 @@ export function useSupportViewModel(): SupportViewModelInterface {
         if (isFaqClick && !isHandoffRequest) {
           const fallbackText = getFallbackResponse(trimmed);
           setTimeout(() => {
+            if (scopeRef.current !== scope) return;
             setMessages((prev) => [
               ...prev,
               {
@@ -197,9 +215,10 @@ export function useSupportViewModel(): SupportViewModelInterface {
             const data = await sendSupportChat(apiBaseUrl, {
               merchantId,
               message: trimmed,
-              sessionId: sessionIdRef.current,
+              sessionId: checkoutSessionId ?? sessionIdRef.current,
               headers: api?.supportHeaders(),
             });
+            if (scopeRef.current !== scope) return;
 
             if (data) {
               if (data.ticketId) {
@@ -217,11 +236,14 @@ export function useSupportViewModel(): SupportViewModelInterface {
               return;
             }
           } catch (err) {
+            if (scopeRef.current !== scope) return;
             reportError(err, "useSupportViewModel.sendSupportChat");
           }
         }
 
-        const fallbackText = `Entendi, "${trimmed}". Um atendente será designado em breve.`;
+        if (scopeRef.current !== scope) return;
+        const fallbackText = "Não consegui enviar sua mensagem à equipe da loja. Tente novamente em instantes.";
+        setError("Mensagem não enviada");
         setMessages((prev) => [
           ...prev,
           {
@@ -231,6 +253,7 @@ export function useSupportViewModel(): SupportViewModelInterface {
           },
         ]);
       } catch (err) {
+        if (scopeRef.current !== scope) return;
         reportError(err, "useSupportViewModel.sendMessage");
         setMessages((prev) => [
           ...prev,
@@ -242,10 +265,10 @@ export function useSupportViewModel(): SupportViewModelInterface {
         ]);
         setError("Erro ao enviar mensagem");
       } finally {
-        setLoading(false);
+        if (scopeRef.current === scope) setLoading(false);
       }
     },
-    [merchantId, apiBaseUrl, api, getFallbackResponse]
+    [merchantId, apiBaseUrl, api, getFallbackResponse, checkoutSessionId, scope]
   );
 
   const switchToChat = useCallback(() => {

@@ -11,17 +11,18 @@ export interface CatalogProductData {
   optionGroups?: unknown[]; source?: "local" | "marketplace"; sellerName?: string;
   ruleNotices?: Array<{ ruleId?: string; message: string }>;
 }
-export default function CatalogProductCard({ product, onQuickReply, onAdd, busy = false, added = false, addTestId, renderImages, renderRuleNotices }: {
+export default function CatalogProductCard({ product, onQuickReply, onDetails, onAdd, busy = false, added = false, disabled = false, hideWishlist = false, addLabel, addAriaLabel, busyLabel, addTestId, renderImages, renderRuleNotices }: {
   product: CatalogProductData; onQuickReply?: (message: string) => void; onAdd?: () => void;
-  busy?: boolean; added?: boolean; addTestId?: string;
+  onDetails?: () => void; busy?: boolean; added?: boolean; disabled?: boolean; hideWishlist?: boolean;
+  addLabel?: string; addAriaLabel?: string; busyLabel?: string; addTestId?: string;
   renderImages?: (images: string[], alt: string) => ReactNode;
   renderRuleNotices?: (notices: CatalogProductData["ruleNotices"]) => ReactNode;
 }) {
   const images = product.images?.length ? product.images : product.image ? [product.image] : [];
-  const details = () => { if (!busy) onQuickReply?.("Detalhes " + product.name); };
+  const details = () => { if (!busy && !disabled) { if (onDetails) onDetails(); else onQuickReply?.("Detalhes " + product.name); } };
   const customizable = (product.variants?.length ?? 0) > 1 || (product.optionGroups?.length ?? 0) > 0;
   const add = () => {
-    if (busy || added) return;
+    if (busy || added || disabled) return;
     if (customizable) details();
     else if (onAdd) onAdd();
     else onQuickReply?.("Adicionar " + product.name + " ao carrinho");
@@ -31,12 +32,12 @@ export default function CatalogProductCard({ product, onQuickReply, onAdd, busy 
       {images.length ? (renderImages ? renderImages(images, product.name) : <img src={images[0]} alt={product.name} loading="lazy" style={{ width: "100%", height: "100%", objectFit: "cover" }} />) : <div className={styles.noImage}><Icon kind="package" /><span>Imagem indisponível</span></div>}
       <span className={styles.stock} data-available={product.inStock}>{product.inStock ? "Pronta entrega" : "Indisponível"}</span>
       {(product.discountPercent ?? 0) > 0 ? <span className={styles.discount}>−{product.discountPercent}%</span> : null}
-      <button data-neu="control" type="button" className={styles.wishlist} disabled={busy || !onQuickReply}
+      {!hideWishlist && <button data-neu="control" type="button" className={styles.wishlist} disabled={busy || disabled || !onQuickReply}
         aria-label={"Adicionar " + product.name + " à lista de desejos"}
-        onClick={event => { event.stopPropagation(); onQuickReply?.("Adicionar " + product.name + " à lista de desejos"); }}><Icon kind="heart" /></button>
+        onClick={event => { event.stopPropagation(); onQuickReply?.("Adicionar " + product.name + " à lista de desejos"); }}><Icon kind="heart" /></button>}
     </div>
     <div className={styles.body}>
-      <h4><button data-neu="text" type="button" onClick={details} disabled={busy || !onQuickReply}>{product.name}</button></h4>
+      <h4><button data-neu="text" type="button" onClick={details} disabled={busy || disabled || (!onQuickReply && !onDetails)}>{product.name}</button></h4>
       {product.description ? <p className={styles.description}>{product.description}</p> : null}
       <div className={styles.rating}>
         {product.rating != null && (product.reviewCount ?? 0) > 0 ? <><Icon kind="star" /><strong>{product.rating.toLocaleString("pt-BR", { maximumFractionDigits: 1 })}</strong><span>({product.reviewCount} avaliações)</span></> : <span>Ainda sem avaliações</span>}
@@ -46,9 +47,9 @@ export default function CatalogProductCard({ product, onQuickReply, onAdd, busy 
       {product.source === "marketplace" && product.sellerName ? <p className={styles.seller}>Vendido por {product.sellerName}</p> : null}
       {renderRuleNotices?.(product.ruleNotices)}
       <div className={styles.ctas}>
-        <button data-neu="control" type="button" onClick={details} disabled={busy || !onQuickReply}>Saber mais</button>
-        <button data-neu="primary" type="button" className={styles.buy} data-testid={addTestId} disabled={!product.inStock || busy || added} onClick={add}>
-          {added ? "Adicionado" : busy ? "Adicionando…" : customizable ? "Escolher opções" : "Adicionar ao carrinho"}
+        <button data-neu="control" type="button" onClick={details} disabled={busy || disabled || (!onQuickReply && !onDetails)}>Saber mais</button>
+        <button data-neu="primary" type="button" className={styles.buy} data-testid={addTestId} aria-label={addAriaLabel} disabled={!product.inStock || busy || added || disabled} onClick={add}>
+          {added ? "Adicionado" : busy ? (busyLabel ?? "Adicionando…") : customizable ? "Escolher opções" : (addLabel ?? "Adicionar ao carrinho")}
         </button>
       </div>
     </div>

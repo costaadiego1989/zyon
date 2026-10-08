@@ -20,7 +20,9 @@ import {
   initTracking,
   trackEvent,
 } from "@/lib/tracking";
-import type { TriggerConfig, TriggerName } from "@/lib/triggers";
+import { resetTriggers, type TriggerConfig, type TriggerName } from "@/lib/triggers";
+import { DEFAULT_ASSISTANCE, assistanceCommand, isStockError,
+  type AssistanceSettings, type HelpAction, type HelpChoice } from "@/lib/checkout-assistance";
 import type { AdvancedRule, RuleAction } from "@/lib/advanced-rules";
 import { evaluateRules } from "@/lib/advanced-rules";
 import type { DiscountStage } from "@/components/DiscountBanner";
@@ -233,6 +235,11 @@ export interface Message {
 }
 
 interface CheckoutState {
+  assistance: AssistanceSettings;
+  handoffEnabled: boolean;
+  assistanceFailures: number;
+  assistanceBusy: boolean;
+  supportRequest: { id: string; message: string } | null;
   status: CheckoutStatus;
   error: string | null;
 
@@ -254,6 +261,9 @@ interface CheckoutState {
   recoverChat: () => Promise<void>;
   channel: "chat" | "voice";
 
+  shippingMode: "standard" | "marketplace";
+  paymentObservation: boolean;
+  marketplacePaymentAttemptContext?: string | null;
   paymentIntent: PaymentIntent | null;
   pendingPriceReview: PendingPriceReview | null;
   paymentSubmitting: boolean;
@@ -300,11 +310,16 @@ interface CheckoutState {
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
   selectShipping: (option: Pick<ShippingOption, "key" | "label">) => Promise<boolean>;
-  pay: (method: CheckoutPaymentMethod, installments?: number, confirmedCartFingerprint?: string) => Promise<void>;
+  pay: (method: CheckoutPaymentMethod, installments?: number, confirmedCartFingerprint?: string, isCurrent?: () => boolean) => Promise<void>;
   confirmUpdatedOrder: (fingerprint: string) => Promise<void>;
   registerLead: (input: LeadRegistrationInput) => Promise<{ ok: boolean; error?: string }>;
   selectCryptoChain: (chain: "polygon" | "base", confirmedCartFingerprint?: string) => Promise<void>;
   pollPayment: () => void;
+  reportPaymentFailure: (intentId: string) => Promise<void>;
+  showCheckoutHelp: (kind: "pix" | "installments" | "stock" | "human", explicit?: boolean, sku?: string) => void;
+  recordCheckoutDifficulty: (error?: unknown) => void;
+  runHelpAction: (action: HelpAction, intentId?: string, cartContext?: string, sku?: string) => Promise<void>;
+  addAlternative: (sku: string, cartContext: string, replaceSku?: string, replaceVariant?: string) => Promise<void>;
   stopPolling: () => void;
   setActiveDiscount: (stage: DiscountStage, percent: number, couponCode?: string, message?: string) => void;
   dismissDiscount: () => void;
@@ -491,14 +506,39 @@ function startPolling(): void {
         });
       } else if (outcome === "failed") {
         useCheckoutStore.getState().stopPolling();
-        useCheckoutStore.setState({ status: "error", error: "payment_failed" });
+        applyTerminalPaymentStatus(status.status, paymentIntent.intent_id);
       }
     } catch {
     }
   }, 3000);
 }
 
+function applyMarketplaceStatus(observed: { status: string; checkout_status?: string; order_id?: string }, intentId: string): void {
+  const state = useCheckoutStore.getState();
+  if (state.paymentIntent?.intent_id !== intentId) return;
+  useCheckoutStore.setState({ paymentIntent: { ...state.paymentIntent, status: observed.status,
+    checkout_status: observed.checkout_status ?? "pending", order_id: observed.order_id } });
+  if (observed.checkout_status === "completed" && observed.order_id) {
+    state.stopPolling();
+    useCheckoutStore.setState({ status: "completed", cart: { ...state.cart, status: "paid" } });
+  } else if (paymentPollingOutcome(observed.status) === "failed") state.stopPolling();
+}
+
+export function marketplaceCardActionCurrent(state: CheckoutState, intentId: unknown, context: unknown): boolean {
+  return state.shippingMode !== "marketplace" && !state.paymentObservation && state.paymentIntent?.intent_id === intentId && context === undefined;
+}
+
+function applyTerminalPaymentStatus(status: string, intentId: string): void {
+  const state = useCheckoutStore.getState();
+  if (!state.paymentIntent || state.paymentIntent.intent_id !== intentId || state.paymentObservation || state.status === "completed") return;
+  useCheckoutStore.setState({ status: "active", error: null,
+    paymentIntent: { ...state.paymentIntent, status },
+    cart: { ...state.cart, status: "ready_to_pay" } });
+  if (status === "failed") void state.reportPaymentFailure(intentId);
+}
+
 export const useCheckoutStore = create<CheckoutState>((set, get) => ({
+  assistance: { ...DEFAULT_ASSISTANCE }, handoffEnabled: true, assistanceFailures: 0, assistanceBusy: false, supportRequest: null,
   status: "loading",
   error: null,
   sessionId: null,
@@ -513,6 +553,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   chatRecovery: null,
   chatResponseUnavailable: false,
   channel: "chat",
+  shippingMode: "standard", paymentObservation: false,
   paymentIntent: null,
   pendingPriceReview: null,
   paymentSubmitting: false,
@@ -542,6 +583,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       get().stopPolling();
+      resetTriggers();
+      set({ assistance: { ...DEFAULT_ASSISTANCE }, handoffEnabled: true, assistanceFailures: 0, assistanceBusy: false, supportRequest: null, shippingMode: "standard", paymentObservation: false });
       set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
         pendingPriceReview: null, paymentCancellationPending: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false, quickPurchaseApplying: false });
 
@@ -589,6 +632,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
       set({
         sessionId: response.session_id,
+        shippingMode: exp?.shipping_mode ?? "standard",
         chatRecovery: api.requiresChatRecovery ? "blocked" : null,
         chatResponseUnavailable: !api.requiresChatRecovery && api.chatState?.request?.response_outcome === "withheld",
         brand,
@@ -640,12 +684,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           const settings = await settingsRes.json();
           set({
             triggerConfig: {
+              mode: settings.mode,
               enabledTriggers: (settings.enabledTriggers ?? []) as TriggerName[],
               cooldownMs: (settings.cooldownSeconds ?? 120) * 1000,
               maxInterventions: settings.maxInterventionsPerSession ?? 3,
-              idleSeconds: settings.idleSeconds ?? 300,
+              idleSeconds: settings.idleSeconds ?? 180,
             },
             triggerMessages: settings.triggerMessages ?? null,
+            assistance: { ...DEFAULT_ASSISTANCE, ...settings.assistance },
+            handoffEnabled: settings.handoffEnabled !== false,
             progressiveDiscount: settings.progressiveDiscount ?? null,
             advancedRules: settings.advancedRules ?? [],
             maxDiscountPercent: settings.maxDiscountPercent ?? 10,
@@ -809,6 +856,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       timestamp: Date.now(),
     };
     set({ messages: [...messages, userMsg], isTyping: true, chatResponseUnavailable: false });
+    const helpCommand = assistanceCommand(text);
+    if (helpCommand && get().assistance[helpCommand === "human" ? "humanHandoff" : helpCommand] &&
+        (helpCommand !== "human" || get().handoffEnabled)) {
+      set({ isTyping: false });
+      if (helpCommand === "human") await get().runHelpAction("human");
+      else get().showCheckoutHelp(helpCommand, true);
+      return;
+    }
+
 
     const normalizedConfirm = text.trim().toLowerCase().replace(/[.!?,;]+$/, "");
     const isAddrConfirm = ["sim", "correto", "confirmo", "certo", "isso", "é esse", "esse mesmo"].includes(normalizedConfirm);
@@ -1020,6 +1076,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
     } catch (err) {
       if (get().api !== api) return;
+      get().recordCheckoutDifficulty(err);
       const admissionError = checkoutChatErrorMessage(err);
       if (admissionError) {
         set(state => ({ messages: [...state.messages, { id: `error_${Date.now()}`, role: "agent", text: admissionError, timestamp: Date.now() }], isTyping: false }));
@@ -1158,7 +1215,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const cart = cartFromExperience(response.experience);
       get().stopPolling();
       set((state) => ({
-        cart: { ...cart, status: "awaiting" },
+        cart: { ...cart, status: "awaiting" }, assistanceFailures: 0,
         activeDiscount: activeDiscountFromNudge(response.experience?.commercial_nudge),
         paymentIntent: null,
         messages: response.agent_turn?.text
@@ -1172,10 +1229,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }));
       void trackEvent("cross_sell_accepted", { sku });
       return { ok: true };
-    } catch {
-      const error = "Nao foi possivel adicionar este complemento. Tente novamente.";
-      set({ cartError: error });
-      return { ok: false, error };
+    } catch (error) {
+      if (get().api !== api) return { ok: false, error: "checkout_changed" };
+      get().recordCheckoutDifficulty(error);
+      const message = "Nao foi possivel adicionar este complemento. Tente novamente.";
+      set({ cartError: message });
+      return { ok: false, error: message };
     } finally {
       set({ cartUpdating: false });
     }
@@ -1190,7 +1249,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const cart = cartFromExperience(response.experience);
       get().stopPolling();
       set((state) => ({
-        cart: { ...cart, status: "awaiting" },
+        cart: { ...cart, status: "awaiting" }, assistanceFailures: 0,
         activeDiscount: activeDiscountFromNudge(response.experience?.commercial_nudge),
         paymentIntent: null,
         messages: [
@@ -1199,7 +1258,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         ],
       }));
       void trackEvent(quantity === 0 ? "item_removed" : "item_quantity_updated", { sku, new_qty: quantity });
-    } catch {
+    } catch (error) {
+      get().recordCheckoutDifficulty(error);
       set({ cartError: "Não foi possível atualizar o carrinho. Seus itens foram mantidos; tente novamente." });
     } finally {
       set({ cartUpdating: false });
@@ -1223,6 +1283,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
       console.log('[WIDGET-DBG] selectShipping success', { key: option.key, result });
       set((s) => ({
+        assistanceFailures: 0,
         cart: {
           ...s.cart,
           totalToPay: checkoutTotalWithServiceFee({
@@ -1254,6 +1315,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg] }));
+      get().recordCheckoutDifficulty(err);
       return false;
     } finally {
       set({ cartUpdating: false });
@@ -1287,6 +1349,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       set((state) => ({
         buyer: { ...state.buyer, ...buyer },
         leadRegistered: true,
+        assistanceFailures: 0,
         pendingPayment: null,
       }));
 
@@ -1295,7 +1358,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         get().proceedToPayment();
       }
       return { ok: true };
-    } catch {
+    } catch (error) {
+      if (get().api === api) get().recordCheckoutDifficulty(error);
       return { ok: false, error: "Não foi possível salvar seus dados agora. Tente novamente." };
     }
   },
@@ -1353,8 +1417,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  pay: async (method, installments, confirmedCartFingerprint) => {
-    const { api, cart, leadRegistered } = get();
+  pay: async (method, installments, confirmedCartFingerprint, isCurrent) => {
+    const { api, sessionId, cart, leadRegistered } = get();
+    if (get().assistanceBusy && !isCurrent || isCurrent && !isCurrent()) return;
     if (!api || get().paymentCancellationPending || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
@@ -1412,8 +1477,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
     set({ paymentSubmitting: true, paymentCreating: true });
     try {
-      const intent = await api.createPaymentIntent(method, installments, { confirmedCartFingerprint });
-      if (get().api !== api) return;
+      const intent = await api.createPaymentIntent(method, installments, { confirmedCartFingerprint, isCurrent });
+      if (get().api !== api || get().sessionId !== sessionId || isCurrent && !isCurrent()) return;
       if (method === "pix" && !intent.pix_code?.trim()) {
         throw new Error("pix_payload_unavailable");
       }
@@ -1469,7 +1534,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       };
       set((s) => ({ messages: [...s.messages, paymentMsg] }));
     } catch (error) {
-      if (get().api !== api) return;
+      if (get().api !== api || get().sessionId !== sessionId || isCurrent && !isCurrent()) return;
       const review = priceReviewPatch(error, get(), { method, installments });
       if (review) { set(review); return; }
       if (isMerchantSalesSuspendedError(error)) {
@@ -1485,8 +1550,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg] }));
+      if (get().api === api) get().recordCheckoutDifficulty(error);
     } finally {
-      if (get().api === api) set({ paymentSubmitting: false, paymentCreating: false });
+      if (get().api === api && get().sessionId === sessionId) set({ paymentSubmitting: false, paymentCreating: false });
     }
   },
 
@@ -1575,26 +1641,221 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       apiBaseUrl: api.apiBaseUrl,
       token: api.authToken,
       intentId: paymentIntent.intent_id,
-      onApproved: () => {
-        if (get().cartUpdating || get().paymentIntent?.intent_id !== paymentIntent.intent_id) return;
-        get().stopPolling();
-        void trackEvent("order_completed", {
-          intent_id: paymentIntent.intent_id,
-        });
-        set({
-          cart: { ...get().cart, status: "paid" },
-          status: "completed",
-        });
+      onApproved: async () => {
+        if (get().api !== api || get().cartUpdating || get().paymentIntent?.intent_id !== paymentIntent.intent_id) return;
+        try {
+          // The WS may precede the first HTTP read, including on historical
+          // checkouts whose client bootstrap omitted the marketplace marker.
+          const observed = await api.getPaymentStatus(paymentIntent.intent_id);
+          if (get().api !== api || get().cartUpdating || get().paymentIntent?.intent_id !== paymentIntent.intent_id) return;
+          if (get().shippingMode === "marketplace" || Object.hasOwn(observed, "checkout_status") || get().paymentIntent?.checkout_status !== undefined) {
+            applyMarketplaceStatus(observed, paymentIntent.intent_id);
+            return;
+          }
+          const outcome = paymentPollingOutcome(observed.status);
+          if (outcome === "completed") {
+            get().stopPolling();
+            void trackEvent("order_completed", { intent_id: paymentIntent.intent_id });
+            set({ cart: { ...get().cart, status: "paid" }, status: "completed" });
+          } else if (outcome === "failed") {
+            get().stopPolling();
+            applyTerminalPaymentStatus(observed.status, paymentIntent.intent_id);
+          }
+        } catch {
+          // HTTP polling remains active. A transport failure is not approval.
+        }
       },
-      onFailed: () => {
-        if (get().cartUpdating || get().paymentIntent?.intent_id !== paymentIntent.intent_id) return;
-        get().stopPolling();
-        set({ status: "error", error: "payment_failed" });
+      onFailed: async () => {
+        if (get().api !== api || get().cartUpdating || get().paymentIntent?.intent_id !== paymentIntent.intent_id) return;
+        // Confirm the provider's terminal outcome before offering another method.
+        try {
+          const observed = await api.getPaymentStatus(paymentIntent.intent_id);
+          if (get().api !== api || get().cartUpdating || get().paymentIntent?.intent_id !== paymentIntent.intent_id) return;
+          if (get().shippingMode === "marketplace" || Object.hasOwn(observed, "checkout_status") || get().paymentIntent?.checkout_status !== undefined) {
+            applyMarketplaceStatus(observed, paymentIntent.intent_id);
+          } else if (paymentPollingOutcome(observed.status) === "failed") {
+            get().stopPolling();
+            applyTerminalPaymentStatus(observed.status, paymentIntent.intent_id);
+          }
+        } catch { /* Keep observing the same payment when confirmation is unavailable. */ }
       },
       onError: () => {
         startPolling();
       },
     });
+  },
+
+  reportPaymentFailure: async (intentId) => {
+    const state = get();
+    const { api, sessionId, triggerConfig } = state;
+    if (!api || !sessionId || state.paymentObservation || state.status === "completed" || state.paymentIntent?.intent_id !== intentId) return;
+    const id = `payment_failed_${sessionId}_${intentId}`;
+    if (state.messages.some(message => message.id === id)) return;
+    get().recordCheckoutDifficulty();
+    const marketplace = state.shippingMode === "marketplace" || state.paymentIntent.checkout_status !== undefined;
+    set(current => ({ messages: [...current.messages, { id, role: "agent", timestamp: Date.now(),
+      text: marketplace ? "O pagamento não foi aprovado. Confira o estado desta operação para continuar com segurança."
+        : "O pagamento não foi aprovado. Você pode revisar os dados ou escolher outra forma de pagamento." }] }));
+    const result = await trackEvent("payment_failed", { intent_id: intentId });
+    const live = get();
+    if (live.api !== api || live.sessionId !== sessionId || live.paymentObservation || live.status === "completed" || live.paymentIntent?.intent_id !== intentId) return;
+    if (!triggerConfig?.enabledTriggers.includes("payment_failed") || triggerConfig.mode === "manual_only" || result?.trigger_agent !== true) return;
+    const custom = live.triggerMessages?.payment_failed;
+    const methods = marketplace ? [] : paymentMethodsForConfig(live.merchantPaymentConfig);
+    set(current => ({ messages: current.messages.map(message => message.id === id ? { ...message,
+      text: custom?.message?.trim() || (marketplace
+        ? "O pagamento não foi aprovado. Confira o estado desta operação para continuar com segurança."
+        : "O pagamento não foi aprovado. Escolha uma das formas de pagamento disponíveis para tentar novamente."),
+      ...(methods.length ? { blocks: [{ type: "payment_methods", data: { methods } }] as ChatBlock[] } : {}),
+    } : message) }));
+  },
+
+  showCheckoutHelp: (kind, explicit = false, sku) => {
+    const state = get();
+    if (!state.api || state.status !== "active" || state.paymentObservation ||
+      (!explicit && state.triggerConfig?.mode === "manual_only")) return;
+    const flag = kind === "stock" ? "unavailableProduct" : kind === "human" ? "humanHandoff" : kind;
+    if (!state.assistance[flag] || kind === "human" && !state.handoffEnabled) return;
+    const intent = state.paymentIntent;
+    const id = `help_${kind}_${state.sessionId}_${intent?.intent_id ?? sku ?? "checkout"}`;
+    if (!explicit && state.messages.some(message => message.id === id)) return;
+    let text: string;
+    let actions: HelpChoice[];
+    if (kind === "pix") {
+      if (intent?.method !== "pix") {
+        text = "Ainda não há um Pix gerado neste checkout. Escolha Pix nas formas de pagamento para receber o código.";
+        actions = [];
+      } else {
+        const expired = ["expired", "cancelled", "failed"].includes(intent.status);
+        const pending = paymentPollingOutcome(intent.status) === "pending";
+        const codeValid = pending && Boolean(intent.pix_code) &&
+          (intent.expires_at_unix === undefined || intent.expires_at_unix * 1000 > Date.now());
+        text = expired ? "Este Pix encerrou. Podemos consultar o estado do pagamento e, quando permitido, gerar um novo código."
+          : codeValid ? "Se você já pagou, posso consultar a confirmação. Se ainda não pagou, posso mostrar o mesmo código Pix."
+          : pending ? "O código Pix não está disponível para pagamento agora. Vamos consultar a confirmação antes de continuar."
+          : paymentPollingOutcome(intent.status) === "completed" ? "O pagamento recebeu confirmação. Consulte o estado do pedido para acompanhar a conclusão."
+          : "Este Pix está encerrado. Consulte a situação desta operação ou peça ajuda à equipe da loja.";
+        actions = [{ action: "check_payment", label: "Consultar pagamento" },
+          ...(codeValid ? [{ action: "show_pix" as const, label: "Mostrar código Pix" }] : []),
+          ...(!codeValid && (expired || pending && intent.expires_at_unix !== undefined && intent.expires_at_unix * 1000 <= Date.now()) && state.shippingMode === "standard" ? [{ action: "renew_pix" as const, label: "Consultar e renovar Pix" }] : [])];
+      }
+    } else if (kind === "installments") {
+      const cardAvailable = paymentMethodsForConfig(state.merchantPaymentConfig).some(method => method.key === "credito");
+      const provider = state.merchantPaymentConfig.paymentMethods?.providers?.card;
+      text = !cardAvailable ? "Esta loja não disponibiliza cartão neste checkout. As formas disponíveis aparecem na etapa de pagamento."
+        : state.shippingMode === "marketplace" || provider === "stripe" || !provider && !intent?.invoice_url
+          ? "O cartão está disponível à vista neste checkout. Não há uma opção de parcelamento confirmada para este pedido."
+          : "As condições de cartão disponíveis para este pedido são apresentadas no ambiente seguro de pagamento, antes de você confirmar a cobrança.";
+      actions = cardAvailable && !intent ? [{ action: "card_conditions", label: "Ver formas de pagamento" }] : [];
+    } else if (kind === "stock") {
+      text = "A quantidade ou o produto escolhido não está mais disponível. Você pode revisar o carrinho ou consultar outras opções com estoque na loja.";
+      actions = [{ action: "review_cart", label: "Revisar carrinho" }, { action: "alternatives", label: "Ver alternativas disponíveis" }];
+    } else {
+      text = "Ainda não conseguimos concluir esta etapa. Quer pedir ajuda à equipe da loja?";
+      actions = [{ action: "human", label: "Falar com atendente" }];
+    }
+    set(current => ({ messages: [...current.messages, { id: explicit ? `${id}_${Date.now()}_${current.messages.length}` : id,
+      role: "agent", text, timestamp: Date.now(), blocks: actions.length ? [{ type: "checkout_help", data: {
+        actions, intent_id: kind === "pix" ? intent?.intent_id : undefined,
+        cart_context: kind === "stock" || kind === "installments" ? JSON.stringify(current.cart.items) : undefined, sku,
+        session_id: current.sessionId,
+      } }] : undefined }] }));
+  },
+
+  recordCheckoutDifficulty: error => {
+    if (get().paymentObservation || get().status !== "active") return;
+    set(state => ({ assistanceFailures: state.assistanceFailures + 1 }));
+    if (isStockError(error)) {
+      const sku = error && typeof error === "object" && "details" in error
+        ? (error.details as { sku?: string } | undefined)?.sku : undefined;
+      get().showCheckoutHelp("stock", false, sku);
+    }
+    if (get().assistanceFailures >= 2) get().showCheckoutHelp("human");
+  },
+
+  runHelpAction: async (action, intentId, cartContext, sku) => {
+    const state = get(), { api, sessionId } = state;
+    if (!api || state.status !== "active" || state.paymentObservation || state.assistanceBusy || state.paymentSubmitting || state.cartUpdating || state.isTyping || state.chatRecovery || api.requiresChatRecovery || state.pendingPriceReview || state.paymentCancellationPending ||
+        intentId && state.paymentIntent?.intent_id !== intentId || cartContext && JSON.stringify(state.cart.items) !== cartContext) return;
+    const current = () => get().api === api && get().sessionId === sessionId && get().status === "active" &&
+      !get().paymentObservation && (!intentId || get().paymentIntent?.intent_id === intentId) && (!cartContext || JSON.stringify(get().cart.items) === cartContext);
+    const reply = (text: string, blocks?: ChatBlock[]) => {
+      if (current()) set(live => ({ messages: [...live.messages, { id: `help_result_${Date.now()}_${live.messages.length}`,
+        role: "agent", text, blocks, timestamp: Date.now() }] }));
+    };
+    if (action === "human") {
+      if (!state.assistance.humanHandoff || !state.handoffEnabled) return;
+      set({ supportRequest: { id: `${sessionId}_${Date.now()}`, message: "Preciso falar com um atendente humano para concluir minha compra." } });
+      return;
+    }
+    if (action === "review_cart") {
+      if (typeof window !== "undefined") window.dispatchEvent(new CustomEvent("aacp:review-cart"));
+      return;
+    }
+    if (action === "card_conditions") {
+      if (state.assistance.installments && !state.paymentIntent) reply("Estas são as formas disponíveis. Confirme o frete e seus dados antes de pagar.",
+        [{ type: "payment_methods", data: { methods: paymentMethodsForConfig(state.merchantPaymentConfig) } }]);
+      return;
+    }
+    set({ assistanceBusy: true });
+    try {
+      if (action === "alternatives" && state.assistance.unavailableProduct) {
+        const item = state.cart.items.find(item => item.sku === sku) ?? state.cart.items[0];
+        const candidates = await api.searchAvailableAlternatives(item?.category || item?.name.split(/\s+/)[0] || "produto");
+        const products = candidates.filter(product => !state.cart.items.some(item => item.sku === product.sku));
+        reply(products.length ? "Encontrei estas opções com estoque na loja. Você pode escolher uma alternativa ou revisar o carrinho. A troca só acontece quando você confirmar no botão."
+          : "Não encontrei uma alternativa disponível agora. Você pode revisar o carrinho ou pedir ajuda à loja.",
+          products.length ? [{ type: "checkout_alternatives", data: { products, cart_context: JSON.stringify(state.cart.items), session_id: sessionId,
+            replace_sku: sku && item?.sku === sku ? sku : undefined, replace_variant: sku && item?.sku === sku ? item.variant : undefined } }] : undefined);
+      } else if (["check_payment", "show_pix", "renew_pix"].includes(action) && state.assistance.pix && state.paymentIntent?.method === "pix") {
+        const intent = state.paymentIntent;
+        if (action === "renew_pix") {
+          if (state.shippingMode !== "standard") return;
+          await api.prepareExpiredPixRenewal(intent.intent_id, current);
+          if (!current()) return;
+          state.stopPolling();
+          await get().pay("pix", undefined, undefined, current);
+        } else {
+          const observed = await api.getPaymentStatus(intent.intent_id);
+          if (!current()) return;
+          if (state.shippingMode === "marketplace" || observed.checkout_status !== undefined || intent.checkout_status !== undefined) applyMarketplaceStatus(observed, intent.intent_id);
+          else if (paymentPollingOutcome(observed.status) === "completed") {
+            state.stopPolling(); set({ paymentIntent: { ...intent, status: observed.status }, status: "completed", cart: { ...get().cart, status: "paid" } }); return;
+          } else { set({ paymentIntent: { ...intent, status: observed.status } }); }
+          if (!current()) return;
+          if (paymentPollingOutcome(observed.status) === "failed") {
+            state.stopPolling(); get().showCheckoutHelp("pix", true);
+          } else if (paymentPollingOutcome(observed.status) === "completed") {
+            reply("O pagamento recebeu confirmação. Vou acompanhar a conclusão do pedido.");
+          } else if (action === "show_pix" && intent.pix_code &&
+              (intent.expires_at_unix === undefined || intent.expires_at_unix * 1000 > Date.now())) {
+            reply("Este é o código da mesma operação Pix.", [{ type: "pix_payment", data: { ...intent,
+              ...(state.shippingMode === "marketplace" ? { marketplace_context: state.marketplacePaymentAttemptContext } : {}) } }]);
+          } else reply("A confirmação deste pagamento ainda não chegou. Vou continuar acompanhando a mesma operação.");
+        }
+      }
+    } catch {
+      reply(action === "renew_pix" ? "Ainda não foi possível confirmar a renovação do Pix. Consulte o pagamento antes de tentar novamente."
+        : "Não consegui consultar esta informação agora. Tente novamente em instantes.");
+    } finally { if (get().api === api && get().sessionId === sessionId) set({ assistanceBusy: false }); }
+  },
+
+  addAlternative: async (sku, cartContext, replaceSku, replaceVariant) => {
+    const state = get(), { api, sessionId } = state;
+    if (!api || !state.assistance.unavailableProduct || state.status !== "active" || state.paymentObservation ||
+      state.shippingMode === "marketplace" || state.paymentIntent && paymentPollingOutcome(state.paymentIntent.status) === "pending" ||
+      state.cartUpdating || state.assistanceBusy || state.paymentSubmitting || state.paymentCreating || state.isTyping || state.chatRecovery || api.requiresChatRecovery || state.pendingPriceReview || state.paymentCancellationPending || JSON.stringify(state.cart.items) !== cartContext) return;
+    set({ cartUpdating: true });
+    try {
+      const result = await api.addCatalogAlternative(sku, replaceSku, replaceVariant);
+      if (get().api !== api || get().sessionId !== sessionId || get().paymentObservation || get().status !== "active" || JSON.stringify(get().cart.items) !== cartContext) return;
+      state.stopPolling();
+      set(live => ({ cart: { ...cartFromExperience(result.experience), shipping: undefined, status: "awaiting" }, paymentIntent: null, assistanceFailures: 0, activeDiscount: null,
+        messages: [...live.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block => !["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "crypto_payment", "crypto_chain_select", "shipping_options", "payment_methods", "coupon_input"].includes(block.type)) })),
+          { id: `alternative_${Date.now()}`, role: "agent", text: replaceSku ? "Produto trocado por uma unidade da alternativa escolhida. Revise o carrinho e confirme novamente a entrega antes de pagar."
+            : "Alternativa adicionada. Revise os itens do carrinho e confirme novamente a entrega antes de pagar.", timestamp: Date.now() }] }));
+    } catch (error) { if (get().api === api) { set({ cartError: "Não foi possível adicionar esta alternativa. Seus itens foram mantidos." }); get().recordCheckoutDifficulty(error); } }
+    finally { if (get().api === api) set({ cartUpdating: false }); }
   },
 
   stopPolling: () => {
@@ -1708,10 +1969,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   resetSession: () => {
+    resetTriggers();
     if (wsCleanup) { wsCleanup(); wsCleanup = null; }
     if (pollTimer) { clearInterval(pollTimer); pollTimer = null; }
     set({
       status: "loading",
+      assistance: { ...DEFAULT_ASSISTANCE }, handoffEnabled: true, assistanceFailures: 0, assistanceBusy: false, supportRequest: null, shippingMode: "standard", paymentObservation: false,
       api: null,
       sessionId: null,
       chatRecovery: null,

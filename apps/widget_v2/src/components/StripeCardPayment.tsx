@@ -56,6 +56,9 @@ function CardForm() {
 
     if (stripeError) {
       setClientError(stripeError.message || "Erro no pagamento");
+      if (stripeError.type === "card_error" && stripeError.code === "card_declined" && useCheckoutStore.getState().api === api) {
+        void useCheckoutStore.getState().reportPaymentFailure(paymentIntent.intent_id);
+      }
       return;
     }
 

@@ -9,6 +9,7 @@ export class CheckoutApiError extends Error {
     readonly retryAfterSeconds?: number,
     readonly chatRequest?: ChatReceipt,
     readonly checkoutReview?: CheckoutPriceReview,
+    readonly details?: { sku?: string; availableQuantity?: number },
   ) {
     super(`${operation}_failed: ${status}${code ? ` ${code}` : ""}`);
     this.name = "CheckoutApiError";
@@ -32,6 +33,9 @@ export class CheckoutApiError extends Error {
       positiveInteger(body.retry_after_seconds) ?? positiveInteger(body.retryAfterSeconds) ?? retryAfterHeader(response),
       chatReceipt(body.chat_request),
       response.status === 409 && body.code === "checkout_review_required" ? checkoutPriceReview(body.review) : undefined,
+      { ...(typeof body.sku === "string" ? { sku: body.sku } : {}),
+        ...(typeof body.availableQuantity === "number" && Number.isSafeInteger(body.availableQuantity) && body.availableQuantity >= 0
+          ? { availableQuantity: body.availableQuantity } : {}) },
     );
   }
 }

@@ -26,7 +26,7 @@ export interface CheckoutSettingsViewModel {
   draft: Draft | null;
   busy: boolean;
   message: { text: string; kind: "info" | "error" } | null;
-  activeTab: "behavior" | "triggers" | "discounts" | "rules";
+  activeTab: "triggers" | "discounts" | "rules";
   dirty: boolean;
   reloadRequired: boolean;
   errors: ValidationErrors;
@@ -38,7 +38,7 @@ export interface CheckoutSettingsViewModel {
   discardChanges: () => void;
   patchDraft: (partial: Partial<Draft>) => void;
   patchTrigger: (trigger: CheckoutTriggerName, partial: Partial<{ enabled: boolean; message: string; cooldownSeconds: number; couponCode: string }>) => void;
-  setActiveTab: (tab: "behavior" | "triggers" | "discounts" | "rules") => void;
+  setActiveTab: (tab: "triggers" | "discounts" | "rules") => void;
   openRuleEditor: (rule: AdvancedRule | null) => void;
   closeRuleEditor: () => void;
   addRule: (rule: AdvancedRule) => void;
@@ -60,7 +60,7 @@ export function useCheckoutSettingsPage(props: {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [reloadRequired, setReloadRequired] = useState(false);
-  const [activeTab, setActiveTab] = useState<"behavior" | "triggers" | "discounts" | "rules">("behavior");
+  const [activeTab, setActiveTab] = useState<"triggers" | "discounts" | "rules">("triggers");
   const [editingRule, setEditingRule] = useState<AdvancedRule | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -122,7 +122,18 @@ export function useCheckoutSettingsPage(props: {
   }
 
   function restoreDefaults() {
-    setDraft({ ...DEFAULT_DRAFT, triggers: { ...DEFAULT_DRAFT.triggers } });
+    setDraft({ ...savedDraft, ...DEFAULT_DRAFT,
+      // Presentation belongs to the store; this page cannot change hidden settings.
+      mode: savedDraft?.mode ?? DEFAULT_DRAFT.mode,
+      openWidgetOnTrigger: savedDraft?.openWidgetOnTrigger ?? DEFAULT_DRAFT.openWidgetOnTrigger,
+      startMinimized: savedDraft?.startMinimized ?? DEFAULT_DRAFT.startMinimized,
+      position: savedDraft?.position ?? DEFAULT_DRAFT.position,
+      initialDelaySeconds: savedDraft?.initialDelaySeconds ?? DEFAULT_DRAFT.initialDelaySeconds,
+      fabColor: savedDraft?.fabColor ?? DEFAULT_DRAFT.fabColor,
+      inviteText: savedDraft?.inviteText ?? DEFAULT_DRAFT.inviteText,
+      showCartBadge: savedDraft?.showCartBadge ?? DEFAULT_DRAFT.showCartBadge,
+      checkoutReturnUrl: savedDraft?.checkoutReturnUrl ?? DEFAULT_DRAFT.checkoutReturnUrl,
+      triggers: { ...DEFAULT_DRAFT.triggers } });
     setMessage({
       text: "Valores padrão carregados. Revise e salve para aplicar.",
       kind: "info",

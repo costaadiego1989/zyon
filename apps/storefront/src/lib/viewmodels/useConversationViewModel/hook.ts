@@ -320,7 +320,7 @@ export function useConversationViewModel(
     [merchantId],
   );
 
-  useNudgeTriggers(merchantId, conversationIdRef, fireNudge);
+  useNudgeTriggers(merchantId, conversationIdRef, fireNudge, widgetConfig?.idleSeconds ?? 180);
   useProactiveMode(agentMode, agentInitialDelaySeconds, initConversation, selectChannel);
   useReturnOrderTracking(returnOrderId);
 

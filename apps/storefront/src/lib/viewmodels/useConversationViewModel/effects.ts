@@ -8,6 +8,7 @@ export function useNudgeTriggers(
   merchantId: string | undefined,
   conversationIdRef: { current: string | null },
   fireNudge: (t: TriggerName) => void,
+  idleSeconds = 180,
 ) {
   const fireNudgeRef = useRef(fireNudge);
   fireNudgeRef.current = fireNudge;
@@ -15,7 +16,7 @@ export function useNudgeTriggers(
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
     const cfg = {
-      idleSeconds: 300,
+      idleSeconds,
       apiBaseUrl: API_BASE,
       merchantId,
       get sessionId() {
@@ -29,7 +30,7 @@ export function useNudgeTriggers(
       cleanupIdle();
       cleanupExit();
     };
-  }, [merchantId]);
+  }, [merchantId, idleSeconds]);
 }
 
 export function useProactiveMode(

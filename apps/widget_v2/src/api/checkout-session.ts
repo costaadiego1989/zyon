@@ -122,6 +122,10 @@ export interface SuggestedProduct {
   unit_price: number;
   image_url?: string;
   in_stock?: boolean;
+  product_url?: string;
+  category?: string;
+  description?: string;
+  option_groups?: unknown[];
   display_mode?: string;
 }
 
@@ -136,6 +140,7 @@ export interface CommercialNudge {
 }
 
 export interface Experience {
+  shipping_mode?: "standard" | "marketplace";
   policies?: { privacyUrl?: string; termsUrl?: string; refundUrl?: string; shippingUrl?: string };
   items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; original_unit_price?: number; image_url?: string; variant?: string; variant_label?: string }>;
   totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
@@ -239,6 +244,8 @@ export interface ChatResponse {
 }
 
 export interface PaymentIntent {
+  checkout_status?: string;
+  order_id?: string;
   experience?: Experience;
   intent_id: string;
   method: string;
@@ -282,6 +289,7 @@ export class CheckoutSession {
   private sessionId: string | null = null;
   private experience?: Experience;
   private paymentRevision = 0;
+  private renewedPixIntent?: string;
   private conversationId: string | null = null;
   private protectedChat = false;
   private pendingMessageId?: string;
@@ -290,6 +298,8 @@ export class CheckoutSession {
   chatState?: ChatState;
   private readonly displayedTurns = new Set<string>();
   private readonly displayInFlight = new Map<string, Promise<void>>();
+
+  get hasMarketplacePaymentAttempt(): boolean { return this.experience?.shipping_mode === "marketplace" && !!this.chatState?.payment_intent_id; }
 
   get requiresChatRecovery(): boolean { return !!this.pendingMessageId || this.paymentRecoveryPending; }
   get usesDurableChat(): boolean { return this.protectedChat; }
@@ -538,7 +548,7 @@ export class CheckoutSession {
       headers: this.headers(),
       body: JSON.stringify({ session_id: this.sessionId, items }),
     });
-    if (!res.ok) throw new Error(`embed_cart_failed: ${res.status}`);
+    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_cart", res);
     const response = await res.json() as StartResponse;
     cartFromExperience(response.experience);
     this.experience = response.experience;
@@ -553,7 +563,7 @@ export class CheckoutSession {
       headers: this.headers(),
       body: JSON.stringify({ session_id: this.sessionId, suggestion_id: suggestionId, accepted_skus: [sku] }),
     });
-    if (!res.ok) throw new Error(`cross_sell_accept_failed: ${res.status}`);
+    if (!res.ok) throw await CheckoutApiError.fromResponse("cross_sell_accept", res);
     const response = await res.json() as CrossSellAcceptResponse;
     if (response.experience) {
       cartFromExperience(response.experience);
@@ -561,6 +571,47 @@ export class CheckoutSession {
       this.paymentRevision += 1;
     }
     return response;
+  }
+
+  async searchAvailableAlternatives(query: string): Promise<SuggestedProduct[]> {
+    this.assertSession();
+    const response = await fetch(`${this.embedBaseUrl}/embed/catalog/search?q=${encodeURIComponent(query)}&limit=8`, {
+      headers: this.headers(), cache: "no-store",
+    });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("embed_catalog", response);
+    const body = await response.json();
+    return Array.isArray(body.products) ? body.products.filter((product: SuggestedProduct) =>
+      product.in_stock === true && typeof product.sku === "string" && typeof product.name === "string" &&
+      typeof product.unit_price === "number" && Number.isFinite(product.unit_price) && product.unit_price >= 0) : [];
+  }
+
+  async addCatalogAlternative(sku: string, replaceSku?: string, replaceVariant?: string): Promise<CrossSellAcceptResponse> {
+    this.assertSession();
+    if (this.experience?.shipping_mode === "marketplace" || this.hasMarketplacePaymentAttempt || this.requiresChatRecovery || this.chatInFlight || this.chatState?.payment_intent_id) throw Error("checkout_unavailable");
+    const response = await fetch(`${this.embedBaseUrl}/embed/catalog/add`, {
+      method: "POST", headers: this.headers(), body: JSON.stringify({ session_id: this.sessionId, sku, quantity: 1, replace_sku: replaceSku, replace_variant: replaceVariant }),
+    });
+    if (!response.ok) throw await CheckoutApiError.fromResponse("embed_catalog_add", response);
+    const body = await response.json() as CrossSellAcceptResponse;
+    cartFromExperience(body.experience);
+    this.experience = body.experience;
+    this.paymentRevision++;
+    return body;
+  }
+
+  async prepareExpiredPixRenewal(intentId: string, isCurrent: () => boolean): Promise<void> {
+    this.assertSession();
+    if (this.experience?.shipping_mode === "marketplace" || this.hasMarketplacePaymentAttempt || this.requiresChatRecovery || this.chatInFlight ||
+        this.chatState?.payment_intent_id && this.chatState.payment_intent_id !== intentId) throw Error("checkout_unavailable");
+    const sessionId = this.sessionId;
+    const observed = await this.getPaymentStatus(intentId);
+    if (this.sessionId !== sessionId || !isCurrent() || !["expired", "cancelled", "failed"].includes(observed.status) ||
+        observed.checkout_status !== undefined || this.chatState?.payment_intent_id && this.chatState.payment_intent_id !== intentId) throw Error("pix_not_expired");
+    // Retire only the intent the server confirmed as terminal. A lost creation
+    // response retries the same renewal key; buyer/cart revision stays intact.
+    if (this.chatState) this.chatState = { ...this.chatState, payment_intent_id: undefined };
+    this.paymentRecoveryPending = false;
+    if (this.renewedPixIntent !== intentId) { this.paymentRevision++; this.renewedPixIntent = intentId; }
   }
 
   async fetchShippingQuote(destinationZip?: string): Promise<Array<{ key: string; label: string; tag: string; sub: string; cost: number }>> {
@@ -639,11 +690,12 @@ export class CheckoutSession {
   async createPaymentIntent(
     method: "pix" | "boleto" | "credito" | "debito" | "crypto",
     installments?: number,
-    options?: { chain?: "polygon" | "base"; confirmedCartFingerprint?: string }
+    options?: { chain?: "polygon" | "base"; confirmedCartFingerprint?: string; isCurrent?: () => boolean }
   ): Promise<PaymentIntent> {
     this.assertSession();
     if (this.pendingMessageId || this.chatInFlight || this.chatState?.payment_intent_id) throw new ChatRecoveryRequired();
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
+    if (options?.isCurrent && !options.isCurrent()) throw Error("checkout_changed");
     const idempotencyKey = `pay_${this.sessionId}_${apiMethod}_${this.paymentRevision}`;
     console.log('[WIDGET-DBG] API createPaymentIntent', { method: apiMethod, sessionId: this.sessionId });
     const res = await fetch(`${this.embedBaseUrl}/embed/payment/intents`, {
@@ -679,6 +731,8 @@ export class CheckoutSession {
       status: string;
       method: string;
       amountCents: number;
+      checkout_status?: string;
+      order_id?: string;
       experience?: Experience;
       buyerFacing?: {
         qrCodeCopyPaste?: string;
@@ -759,10 +813,12 @@ export class CheckoutSession {
       })),
       expires_at_unix: expiresAtUnix,
       amount_cents: raw.amountCents,
+      checkout_status: raw.checkout_status,
+      order_id: raw.order_id,
     };
   }
 
-  async getPaymentStatus(intentId: string): Promise<{ status: string; paid_at?: string }> {
+  async getPaymentStatus(intentId: string): Promise<{ status: string; paid_at?: string; checkout_status?: string; order_id?: string }> {
     this.assertSession();
     const res = await fetch(
       `${this.embedBaseUrl}/embed/payment/intents/${encodeURIComponent(intentId)}/status?session_id=${encodeURIComponent(this.sessionId!)}`,
@@ -772,7 +828,7 @@ export class CheckoutSession {
       }
     );
     if (!res.ok) throw new Error(`embed_payment_status_failed: ${res.status}`);
-    return res.json() as Promise<{ status: string; paid_at?: string }>;
+    return res.json() as Promise<{ status: string; paid_at?: string; checkout_status?: string; order_id?: string }>;
   }
 
   async cancelPaymentIntent(intentId: string): Promise<import("../lib/payment-cancellation.js").PaymentCancellationResponse> {

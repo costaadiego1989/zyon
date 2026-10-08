@@ -97,6 +97,14 @@ export class SendSupportMessageUseCase {
     input: SupportMessageInput,
     ctx?: SupportMessageContext,
   ): Promise<SupportMessageOutput> {
+    const request = input.message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
+    if (!/\b(nao quero|nao preciso|dispenso)\b/.test(request) &&
+        /\b(atendente|atendimento humano|falar com (uma? )?(pessoa|humano)|suporte humano)\b/.test(request)) {
+      const result = await this.handoff.createHandoff({
+        merchantId: input.merchant_id, sessionId: input.session_id, buyerMessage: input.message,
+      });
+      return { reply: result.reply, safe: true, handoff: { ticketId: result.ticketId, status: "open" } };
+    }
     let knowledgeContext: string | undefined;
     if (this.queryKnowledge) {
       try {

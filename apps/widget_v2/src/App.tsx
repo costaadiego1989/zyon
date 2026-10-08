@@ -4,6 +4,7 @@ import { CheckoutLayout } from "@/layouts/CheckoutLayout";
 import { MascotOverlay } from "@/components/MascotOverlay";
 import { setupAbandonmentTracking, trackEvent } from "@/lib/tracking";
 import { onOrderCompleted } from "@/lib/lifecycle";
+import { idleAssistanceMessage } from "@/lib/checkout-assistance";
 import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "@/lib/triggers";
 import type { DiscountStage } from "@/components/DiscountBanner";
 import { parseThemePreviewUpdate } from "@/lib/theme-update";
@@ -96,10 +97,11 @@ export function App() {
     }
   }, [status, sessionId]);
 
+  const paymentObservation = useCheckoutStore((s) => s.paymentObservation);
   const triggerConfig = useCheckoutStore((s) => s.triggerConfig);
   const triggerMessages = useCheckoutStore((s) => s.triggerMessages);
   useEffect(() => {
-    if (!triggerConfig) return;
+    if (!triggerConfig || status !== "active" || paymentObservation) return;
 
     const stageMap: Partial<Record<TriggerName, DiscountStage>> = {
       idle_30_seconds: "initial_coupon",
@@ -110,7 +112,13 @@ export function App() {
       const stage = stageMap[trigger];
       if (!stage) return;
       const msg = triggerMessages?.[trigger];
-      useCheckoutStore.getState().setActiveDiscount(stage, 0, msg?.couponCode, msg?.message);
+      const live = useCheckoutStore.getState();
+      const message = msg?.message || (trigger === "idle_30_seconds" ? idleAssistanceMessage({
+        paymentIntent: live.paymentIntent, shippingChosen: Boolean(live.cart.shipping),
+        leadRegistered: live.leadRegistered, hasAddress: Boolean(live.buyer.address?.zip),
+      }) : undefined);
+      live.setActiveDiscount(stage, 0, msg?.couponCode, message);
+      if (trigger === "idle_30_seconds" && live.paymentIntent?.method === "pix") live.showCheckoutHelp("pix");
     };
 
     const cleanupIdle = setupIdleTrigger(triggerConfig, onTrigger);
@@ -120,7 +128,7 @@ export function App() {
       cleanupIdle();
       cleanupExit();
     };
-  }, [triggerConfig, triggerMessages, status]);
+  }, [triggerConfig, triggerMessages, status, paymentObservation]);
 
   useEffect(() => {
     const { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId } = readUrlParams();
@@ -195,7 +203,8 @@ export function App() {
     else root.style.setProperty("--aacp-shell-max-width", "100%");
     if (brand.fontFamily && !document.querySelector(`link[data-font-loaded]`)) {
       const stripQuotes = (s: string) => s.trim().replace(/^['"]|['"]$/g, "");
-      const isSystem = (f: string) => f.startsWith("ui-") || f.startsWith("system");
+      const isSystem = (f: string) => f.startsWith("ui-") || f.startsWith("system") ||
+        ["sans-serif", "serif", "monospace", "cursive", "fantasy", "inherit"].includes(f.toLowerCase());
       const families = brand.fontFamily.split(",").map(stripQuotes).filter((f) => f && !isSystem(f));
       const displayFamilies = brand.fontDisplay?.split(",").map(stripQuotes).filter((f) => f && !isSystem(f)) ?? [];
       const all = [...new Set([...families, ...displayFamilies])];

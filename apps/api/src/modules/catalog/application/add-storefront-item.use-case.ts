@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException , Logger, Optional} from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException , Logger, Optional} from "@nestjs/common";
 import type { CartItem, ChatTurn, CheckoutExperienceSnapshot } from "@zyon/shared-types";
 import {
   CHECKOUT_SESSION_REPOSITORY,
@@ -31,7 +31,7 @@ export class AddStorefrontItemUseCase {
     @Inject(CROSS_SELL_RESOLVER_PORT) private readonly crossSell: CrossSellResolverPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Optional() private readonly recordFunnelEvent?: RecordFunnelEventUseCase,
-    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Pick<PrismaClient, "productVariant">
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Pick<PrismaClient, "productVariant"> & Partial<Pick<PrismaClient, "paymentIntent">>
   ) {}
 
   async execute(input: {
@@ -39,9 +39,21 @@ export class AddStorefrontItemUseCase {
     session_id: string;
     sku: string;
     quantity?: number;
+    replace_sku?: string;
+    replace_variant?: string;
   }): Promise<{ experience: CheckoutExperienceSnapshot; agent_turn: ChatTurn }> {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+    if (input.replace_sku) {
+      if (!this.prisma?.paymentIntent) throw new ConflictException("checkout_replacement_unavailable");
+      const payment = await this.prisma.paymentIntent.findFirst({
+        where: { merchantId: input.merchant_id, sessionId: input.session_id, status: { notIn: ["failed", "cancelled", "expired"] } },
+        select: { id: true },
+      });
+      if (payment || session.crossStoreItems?.length || session.cart.items.some(item => item.marketplace)) {
+        throw new ConflictException("checkout_replacement_unavailable");
+      }
+    }
 
     const sku = input.sku.trim();
     const catalogProduct = await this.catalog.findBySku(
@@ -62,7 +74,20 @@ export class AddStorefrontItemUseCase {
 
     const quantity = input.quantity ?? 1;
     if (!Number.isSafeInteger(quantity) || quantity < 1 || quantity > 99) throw new BadRequestException("cart_quantity_invalid");
-    const next = addOrUpdateCartItem(session, product, quantity);
+    let source = session;
+    if (input.replace_sku) {
+      const matches = session.cart.items.filter(item => item.sku === input.replace_sku &&
+        (input.replace_variant === undefined || item.variant === input.replace_variant));
+      if (matches.length !== 1 || input.replace_sku === sku) throw new BadRequestException("checkout_replacement_item_invalid");
+      source = { ...session, cart: { ...session.cart, items: session.cart.items.filter(item => item !== matches[0]) } };
+    }
+    const next = addOrUpdateCartItem(source, product, quantity);
+    if (input.replace_sku) {
+      next.shipping = undefined;
+      next.shippingOptions = undefined;
+      next.cart = { ...next.cart, currentDiscount: 0, commercialNudge: undefined };
+    }
+    // Validate the entire result before writing: a failed replacement preserves the original cart.
     if (this.prisma) await assertCartStock(this.prisma, input.merchant_id, next.cart.items);
     await this.sessions.saveSession(next);
 
@@ -80,7 +105,8 @@ export class AddStorefrontItemUseCase {
 
     const agentTurn: ChatTurn = {
       role: "agent",
-      text: `Adicionei ${product.name} ao seu pedido. Quando quiser, seguimos com o cadastro.`,
+      text: input.replace_sku ? `Troquei o item por ${quantity} unidade(s) de ${product.name}. Revise o carrinho e confirme a entrega.`
+        : `Adicionei ${product.name} ao seu pedido. Quando quiser, seguimos com o cadastro.`,
       occurredAt: new Date().toISOString()
     };
     const updated = await this.sessions.appendChatTurn(input.merchant_id, input.session_id, agentTurn);

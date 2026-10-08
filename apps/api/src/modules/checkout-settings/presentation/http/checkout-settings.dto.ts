@@ -7,6 +7,7 @@ import {
   IsArray,
   IsBoolean,
   IsIn,
+  IsInt,
   IsNumber,
   IsOptional,
   IsString,
@@ -75,7 +76,42 @@ class ProgressiveDiscountDto {
   stages?: ProgressiveDiscountStagesDto;
 }
 
+class CheckoutAssistanceDto {
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  pix?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  installments?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  unavailableProduct?: boolean;
+
+  @ApiPropertyOptional({ default: true })
+  @IsOptional()
+  @IsBoolean()
+  humanHandoff?: boolean;
+}
+
 class InterventionPolicyDto {
+  @ApiPropertyOptional({ type: CheckoutAssistanceDto })
+  @IsOptional()
+  @ValidateNested()
+  @Type(() => CheckoutAssistanceDto)
+  assistance?: CheckoutAssistanceDto;
+
+  @ApiPropertyOptional({ minimum: 10, maximum: 3600, default: 180 })
+  @IsOptional()
+  @IsInt()
+  @Min(10)
+  @Max(3600)
+  idleSeconds?: number;
+
   @ApiPropertyOptional({ minimum: 0, maximum: 1 })
   @IsOptional()
   @IsNumber()
@@ -287,6 +323,9 @@ export class CheckoutSettingsPatchDto {
 }
 
 export class WidgetConfigDto {
+  @ApiPropertyOptional({ type: CheckoutAssistanceDto })
+  assistance?: CheckoutAssistanceDto;
+
   @ApiProperty({ enum: ["silent_until_trigger", "proactive", "manual_only"] })
   mode!: "silent_until_trigger" | "proactive" | "manual_only";
 
@@ -356,7 +395,7 @@ export class WidgetConfigDto {
   @ApiPropertyOptional({ minimum: 1, maximum: 10 })
   maxInterventionsPerSession?: number;
 
-  @ApiPropertyOptional({ minimum: 10, description: "Seconds of inactivity before idle trigger fires" })
+  @ApiPropertyOptional({ minimum: 10, maximum: 3600, default: 180, description: "Seconds of inactivity before idle trigger fires" })
   idleSeconds?: number;
 
   @ApiPropertyOptional({ description: "Progressive discount config (enabled + per-stage percents)" })

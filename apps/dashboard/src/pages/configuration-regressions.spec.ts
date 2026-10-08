@@ -18,6 +18,14 @@ const settings: CheckoutSettings = {
   advancedRules: [], createdAt: "2026-10-06T12:00:00Z", updatedAt: "2026-10-06T12:00:00Z",
 };
 describe("preserving merchant configuration when editing one field", () => {
+  it("editing one assistance flag preserves other flags and the inactivity setting", () => {
+    const saved = { ...settings, interventionPolicy: { ...settings.interventionPolicy, idleSeconds: 180,
+      assistance: { pix: false, installments: true, unavailableProduct: true, humanHandoff: false } } };
+    const draft = settingsToDraft(saved);
+    expect(draft.assistance.pix).toBe(false);
+    expect(draftChangesToPatch({ ...draft, assistance: { ...draft.assistance, installments: false } }, saved))
+      .toEqual({ interventionPolicy: { assistance: { installments: false } } });
+  });
   it("position-only save leaves incentives, absent triggers and commercial policy untouched", () => {
     const draft = { ...settingsToDraft(settings), position: "bottom_left" as const };
     expect(draftChangesToPatch(draft, settings)).toEqual({ widgetBehavior: { position: "bottom_left" } });

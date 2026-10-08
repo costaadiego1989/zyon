@@ -8,10 +8,11 @@ export type TriggerName =
   | "payment_failed";
 
 export interface TriggerConfig {
+  mode?: "silent_until_trigger" | "proactive" | "manual_only";
   enabledTriggers: TriggerName[];
   cooldownMs: number;
   maxInterventions: number;
-  /** Seconds of inactivity before the idle trigger fires (default five minutes). */
+  /** Seconds of inactivity before the idle trigger fires (default 180). */
   idleSeconds?: number;
 }
 
@@ -20,6 +21,7 @@ let lastTriggerTime = 0;
 let idleTimer: ReturnType<typeof setTimeout> | null = null;
 
 function canFire(config: TriggerConfig): boolean {
+  if (config.mode === "manual_only") return false;
   if (interventionCount >= config.maxInterventions) return false;
   const now = Date.now();
   if (now - lastTriggerTime < config.cooldownMs) return false;
@@ -49,7 +51,7 @@ export function setupIdleTrigger(
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
       fireTrigger("idle_30_seconds", config, onTrigger);
-    }, (config.idleSeconds ?? 300) * 1000);
+    }, (config.idleSeconds ?? 180) * 1000);
   };
 
   const events = ["mousemove", "keydown", "scroll", "click", "touchstart"];

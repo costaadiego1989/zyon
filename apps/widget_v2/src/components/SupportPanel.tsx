@@ -15,6 +15,15 @@ export default function SupportPanel({ open, onClose }: SupportPanelProps) {
   const vm = useSupportViewModel();
   const threadRef = useRef<HTMLDivElement | null>(null);
   const inputRef = useRef<HTMLInputElement | null>(null);
+  const supportRequest = useCheckoutStore(s => s.supportRequest);
+  const handledRequest = useRef<string | null>(null);
+  useEffect(() => {
+    if (!open || !supportRequest || handledRequest.current === supportRequest.id || vm.loading) return;
+    handledRequest.current = supportRequest.id;
+    useCheckoutStore.setState({ supportRequest: null });
+    if (vm.hasTicket) vm.switchToChat();
+    else void vm.sendMessage(supportRequest.message);
+  }, [open, supportRequest, vm.hasTicket, vm.loading, vm.sendMessage, vm.switchToChat]);
 
   useEffect(() => {
     if (threadRef.current) {

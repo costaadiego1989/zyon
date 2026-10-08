@@ -30,6 +30,8 @@ export interface Draft {
   initialDelaySeconds: number;
   minimumAbandonmentScore: number;
   cooldownSeconds: number;
+  idleSeconds: number;
+  assistance: { pix: boolean; installments: boolean; unavailableProduct: boolean; humanHandoff: boolean };
   maxInterventionsPerSession: number;
   triggers: Record<CheckoutTriggerName, { enabled: boolean; message?: string; cooldownSeconds?: number; couponCode?: string }>;
   suppressAfterOfferAccepted: boolean;
@@ -56,6 +58,8 @@ export const DEFAULT_DRAFT: Draft = {
   initialDelaySeconds: 4,
   minimumAbandonmentScore: 0.6,
   cooldownSeconds: 90,
+  idleSeconds: 180,
+  assistance: { pix: true, installments: true, unavailableProduct: true, humanHandoff: true },
   maxInterventionsPerSession: 3,
   triggers: {
     shipping_objection_detected: { enabled: true },
@@ -105,6 +109,8 @@ export function settingsToDraft(s: CheckoutSettings): Draft {
     initialDelaySeconds: s.widgetBehavior.initialDelaySeconds ?? DEFAULT_DRAFT.initialDelaySeconds,
     minimumAbandonmentScore: s.interventionPolicy.minimumAbandonmentScore ?? DEFAULT_DRAFT.minimumAbandonmentScore,
     cooldownSeconds: s.interventionPolicy.cooldownSeconds ?? DEFAULT_DRAFT.cooldownSeconds,
+    idleSeconds: s.interventionPolicy.idleSeconds ?? DEFAULT_DRAFT.idleSeconds,
+    assistance: { ...DEFAULT_DRAFT.assistance, ...s.interventionPolicy.assistance },
     maxInterventionsPerSession: s.interventionPolicy.maxInterventionsPerSession ?? DEFAULT_DRAFT.maxInterventionsPerSession,
     triggers,
     suppressAfterOfferAccepted: s.suppressionRules.suppressAfterOfferAccepted,
@@ -136,6 +142,8 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
     interventionPolicy: {
       minimumAbandonmentScore: d.minimumAbandonmentScore,
       cooldownSeconds: d.cooldownSeconds,
+      idleSeconds: d.idleSeconds,
+      assistance: d.assistance,
       maxInterventionsPerSession: d.maxInterventionsPerSession,
       progressiveDiscount: {
         enabled: d.progressiveDiscountEnabled,
