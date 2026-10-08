@@ -191,3 +191,10 @@ describe("RefundPaymentService provider settlement", () => {
     });
   });
 });
+
+it("refund submission preserves the original Stripe direct charge account", async () => {
+  const { service, providerInputs } = serviceFor("succeeded", { route: { provider: "stripe", stripeConnectAccountId: "acct_original", stripeChargeMode: "direct_v2" } as any });
+  await service.refundOrderPayment({ merchantId: "merchant", externalOrderId: "order" });
+  assert.equal((providerInputs[0] as any).stripeConnectAccountId, "acct_original");
+  assert.equal((providerInputs[0] as any).stripeChargeMode, "direct_v2");
+});

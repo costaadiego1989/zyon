@@ -7,5 +7,8 @@ export function paymentProviderRoute(input: CreateProviderPaymentInput | undefin
     provider: funding.provider, environment: funding.environment, accountFingerprint: funding.accountFingerprint,
   } : undefined;
   return { provider: input?.provider, providerAccountFingerprint: input?.providerAccountFingerprint,
-    settlementMode: input?.settlementMode, ...(marketplaceAccount ? { marketplaceAccount } : {}) };
+    settlementMode: input?.settlementMode,
+    ...(input?.stripeConnectAccountId ? { stripeConnectAccountId: input.stripeConnectAccountId } : {}),
+    ...(input?.stripeChargeMode ? { stripeChargeMode: input.stripeChargeMode } : {}),
+    ...(marketplaceAccount ? { marketplaceAccount } : {}) };
 }

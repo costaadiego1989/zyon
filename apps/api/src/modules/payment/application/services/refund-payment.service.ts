@@ -47,6 +47,7 @@ export interface PreparedOrderRefund extends RefundOrderPaymentResult {
 export interface RefundReconciliationResult {
   state: "succeeded" | "pending" | "failed" | "unknown";
   paymentIntentId?: string;
+  providerRefundId?: string;
   reason?: string;
 }
 
@@ -254,6 +255,12 @@ export class RefundPaymentService {
   }
 
   /** Only call after the return owns its durable one-time submission marker. */
+  async canRecoverPreparedRefund(prepared: PreparedOrderRefund): Promise<boolean> {
+    return Boolean(prepared.providerRequest && this.provider.readRefundRecoveryEligibility &&
+      await this.provider.readRefundRecoveryEligibility(prepared.providerRequest));
+  }
+
+  /** Only call after the return owns its durable one-time submission marker. */
   async refundPreparedPayment(prepared: PreparedOrderRefund): Promise<RefundOrderPaymentResult> {
     const { providerRequest, fullOrderReturn: _fullOrderReturn, ...resultMetadata } = prepared;
     if (!providerRequest || !this.provider.refundPayment) return resultMetadata;
@@ -275,7 +282,10 @@ export class RefundPaymentService {
         reason: refunded ? undefined : `provider_refund_${result.status}`,
       };
     } catch (err) {
-      this.logger.error(`Refund outcome unknown for payment ${paymentIntentId}`);
+      const failure = err as { type?: string; code?: string; statusCode?: number };
+      const code = typeof failure?.code === "string" && /^[a-z_]{1,80}$/.test(failure.code) ? failure.code : "unknown";
+      const status = Number.isInteger(failure?.statusCode) ? failure.statusCode : "unknown";
+      this.logger.error(`Refund outcome unknown for payment ${paymentIntentId} providerCode=${code} httpStatus=${status}`);
       return { refunded: false, amountCents, paymentIntentId, reason: "provider_refund_unknown" };
     }
   }
@@ -290,6 +300,7 @@ export class RefundPaymentService {
     providerRefundId: string;
     paymentIntentId?: string;
     refundReference?: string;
+    amountCents?: number;
   }): Promise<RefundReconciliationResult> {
     if (!this.orders || typeof this.provider.fetchRefundStatus !== "function") {
       return { state: "unknown", reason: "provider_refund_status_unsupported" };
@@ -304,6 +315,7 @@ export class RefundPaymentService {
       : await this.payments.findApprovedBySessionId(input.merchantId, order.sessionId);
     if (!intent) return { state: "unknown", reason: "approved_payment_not_found" };
     const snap = intent.snapshot();
+    if (snap.sessionId && snap.sessionId !== order.sessionId) return { state: "unknown", reason: "refund_original_payment_mismatch" };
     // The generic return worker must not complete a marketplace return while
     // its allocation/operation journal is still pending. The dedicated refund
     // reconciler commits the provider proof and both records atomically.
@@ -320,9 +332,10 @@ export class RefundPaymentService {
         providerPaymentId: snap.providerPaymentId,
         providerRefundId: input.providerRefundId,
         refundReference: input.refundReference,
+        ...(input.amountCents !== undefined ? { amountCents: input.amountCents, currency: snap.currency } : {}),
         ...paymentProviderRoute(snap.creation?.input),
       });
-      return { state: result.state, paymentIntentId: snap.id };
+      return { state: result.state, paymentIntentId: snap.id, ...(result.providerRefundId ? { providerRefundId: result.providerRefundId } : {}) };
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
       this.logger.warn(`Refund reconciliation failed for order ${input.externalOrderId}: ${message}`);

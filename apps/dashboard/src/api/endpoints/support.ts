@@ -39,6 +39,11 @@ export function supportEndpoints(base: string, f: typeof fetch) {
     confirmSupportRefund(ticketId: string, expectedAmountCents: number): Promise<OperatorSupportCase> {
       return dashboardJson(base, `/support/tickets/${encodeURIComponent(ticketId)}/refund`, { method: "POST", jsonBody: { expectedAmountCents } }, f);
     },
+    recoverSupportRefund(ticketId: string, expectedAmountCents: number): Promise<OperatorSupportCase> {
+      return dashboardJson(base, `/support/tickets/${encodeURIComponent(ticketId)}/refund-recovery`, {
+        method: "POST", jsonBody: { expectedAmountCents, confirmed: true }
+      }, f);
+    },
     supportCaseAction(ticketId: string, input: { action: string; notes: string; replacementOrderId?: string; trackingCode?: string; labelUrl?: string; itemCondition?: string; deliveryConfirmed?: boolean; items?: Array<{ variantId: string; quantity: number }> }): Promise<OperatorSupportCase> {
       return dashboardJson(base, `/support/tickets/${encodeURIComponent(ticketId)}/actions`, { method: "POST", jsonBody: input }, f);
     },

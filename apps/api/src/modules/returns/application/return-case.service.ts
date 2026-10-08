@@ -280,6 +280,13 @@ export class ReturnCaseService {
     return this.detail(merchantId, ticketId);
   }
 
+  async recoverRefund(merchantId: string, ticketId: string, expectedAmountCents: number) {
+    const detail = await this.detail(merchantId, ticketId);
+    if (!detail.returnId || detail.kind !== "refund" || !detail.refund) throw new BadRequestException("refund_case_required");
+    await this.processRefund.recover(merchantId, detail.returnId, expectedAmountCents);
+    return this.detail(merchantId, ticketId);
+  }
+
   async action(merchantId: string, ticketId: string, operatorId: string, input: { action: string; notes?: string; replacementOrderId?: string; trackingCode?: string; labelUrl?: string; itemCondition?: string; deliveryConfirmed?: boolean; items?: Array<{ variantId: string; quantity: number }> }) {
     if (typeof input.notes !== "string" || !input.notes.trim() || input.notes.length > 3500) throw new BadRequestException("resolution_notes_required");
     const notes = input.notes.trim();

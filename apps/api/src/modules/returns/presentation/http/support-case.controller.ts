@@ -44,6 +44,13 @@ export class SupportCaseController {
   refund(@Req() req: any, @Param("id") id: string, @Body() body: { expectedAmountCents: number }) {
     return this.cases.approveRefund(currentTenantPrincipal(req).tenantId, id, body.expectedAmountCents);
   }
+  @Post(":id/refund-recovery")
+  @RequireTenantAccess({ humanOnly: true, humanRoles: ["owner", "admin"] })
+  recovery(@Req() req: any, @Param("id") id: string, @Body() body: { expectedAmountCents: number; confirmed: boolean }) {
+    if (body.confirmed !== true) throw new BadRequestException("refund_recovery_confirmation_required");
+    return this.cases.recoverRefund(currentTenantPrincipal(req).tenantId, id, body.expectedAmountCents);
+  }
+
   @Post(":id/actions")
   @RequireTenantAccess({ humanOnly: true, humanRoles: ["owner", "admin", "staff"] })
   action(@Req() req: any, @Param("id") id: string, @Body() body: Parameters<ReturnCaseService["action"]>[3]) {

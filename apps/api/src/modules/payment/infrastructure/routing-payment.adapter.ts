@@ -272,6 +272,14 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     return asaas?.fetchRefundStatus ? asaas.fetchRefundStatus(input) : { state: "unknown" };
   }
 
+  async readRefundRecoveryEligibility(input: RefundPaymentInput): Promise<boolean> {
+    if (input.provider !== "stripe" || input.marketplaceAccount || input.stripeChargeMode !== "direct_v2") return false;
+    const { adapter } = await this.creationRoute({ merchantId: input.merchantId, provider: input.provider,
+      method: "", settlementMode: input.settlementMode, providerAccountFingerprint: input.providerAccountFingerprint });
+    this.assertAccount(adapter, input.providerAccountFingerprint);
+    return adapter.readRefundRecoveryEligibility ? adapter.readRefundRecoveryEligibility(input) : false;
+  }
+
   async createCustomer(input: {
     marketplaceAccount?: MarketplaceCaptureAccount;
     merchantId: string;

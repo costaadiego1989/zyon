@@ -183,6 +183,9 @@ export type FetchRefundStatusInput = {
   stripeConnectAccountId?: string;
   stripeChargeMode?: "direct_v2";
   providerRefundId: string;
+  /** Amount reserved before submission; binds recovery to this exact attempt. */
+  amountCents?: number;
+  currency?: string;
   /**
    * Stable merchant reference for providers whose refund list lacks a
    * provider-generated refund id. It is never used to issue a new refund.
@@ -194,6 +197,7 @@ marketplaceAccount?: MarketplaceCaptureAccount;
 
 export type FetchRefundStatusOutput = {
   state: RefundProviderState;
+  providerRefundId?: string;
 };
 
 export interface PaymentProviderPort {
@@ -235,6 +239,8 @@ export interface PaymentProviderPort {
    * their durable PENDING marker for manual reconciliation.
    */
   fetchRefundStatus?(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput>;
+  /** GET-only proof before a human-confirmed, bounded idempotent recovery. */
+  readRefundRecoveryEligibility?(input: RefundPaymentInput): Promise<boolean>;
 
 prepareMarketplaceAccount?(input: Pick<MarketplaceCaptureAccount, "provider" | "environment">): Promise<MarketplaceCaptureAccount>;
 readMarketplacePaymentAction?(input: FetchPaymentStatusInput): Promise<ReadMarketplacePaymentActionOutput>;

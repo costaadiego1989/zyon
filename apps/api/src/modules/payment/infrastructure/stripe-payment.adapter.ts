@@ -8,6 +8,7 @@ import type {
   CreateProviderPaymentOutput,
   FetchRefundStatusInput,
   FetchRefundStatusOutput,
+  RefundPaymentInput,
   FetchPaymentStatusInput,
   FetchPaymentStatusOutput,
   ReadMarketplacePaymentActionOutput,
@@ -286,24 +287,53 @@ export class StripePaymentAdapter implements PaymentProviderPort {
   }
 
   async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
-    const refund = await this.requireStripe().refunds.retrieve(
-      input.providerRefundId,
-      undefined,
-      this.connectedAccountOptions(input),
-    );
+    const stripe = this.requireStripe();
+    const options = this.connectedAccountOptions(input);
+    const payment = await stripe.paymentIntents.retrieve(input.providerPaymentId, undefined, options);
+    if (payment.id !== input.providerPaymentId || payment.livemode !== this.secretKey?.startsWith("sk_live_") ||
+        (payment.metadata.merchant_id && payment.metadata.merchant_id !== input.merchantId) ||
+        (input.stripeChargeMode === "direct_v2" && payment.metadata.merchant_id !== input.merchantId)) {
+      throw new Error("refund_original_payment_mismatch");
+    }
+    let refund: Stripe.Refund | undefined;
+    if (/^re_[A-Za-z0-9]+$/.test(input.providerRefundId)) {
+      refund = await stripe.refunds.retrieve(input.providerRefundId, undefined, options);
+    } else {
+      // Internal pending markers are references, never Stripe object ids. Read
+      // the original charge only; an empty/ambiguous list cannot authorize a POST.
+      if (!input.refundReference || !Number.isSafeInteger(input.amountCents) || Number(input.amountCents) <= 0) return { state: "unknown" };
+      const matches: Stripe.Refund[] = [];
+      let cursor: string | undefined;
+      for (let page = 0; page < 10; page++) {
+        const rows = await stripe.refunds.list({ payment_intent: input.providerPaymentId, limit: 100,
+          ...(cursor ? { starting_after: cursor } : {}) }, options);
+        matches.push(...rows.data.filter(row => row.metadata?.refund_reference === input.refundReference &&
+          row.metadata?.merchant_id === input.merchantId && row.amount === input.amountCents));
+        if (!rows.has_more) {
+          if (matches.length !== 1) return { state: "unknown" };
+          refund = matches[0]; break;
+        }
+        cursor = rows.data.at(-1)?.id;
+        if (!cursor) return { state: "unknown" };
+      }
+      if (!refund) return { state: "unknown" };
+    }
     const original = typeof refund.payment_intent === "string" ? refund.payment_intent : refund.payment_intent?.id;
-    if (input.marketplaceAccount && original !== input.providerPaymentId) throw new Error("marketplace_refund_payment_mismatch");
+    if (original !== input.providerPaymentId ||
+        (input.amountCents !== undefined && refund.amount !== input.amountCents) ||
+        (input.currency && refund.currency !== input.currency.toLowerCase())) throw new Error("refund_original_payment_mismatch");
+    const identity = { providerRefundId: refund.id };
     switch (refund.status) {
       case "succeeded":
-        return { state: "succeeded" };
+        return { state: "succeeded", ...identity };
       case "failed":
       case "canceled":
-        return { state: "failed" };
+        return { state: "failed", ...identity };
       case "pending":
       case "requires_action":
-        return { state: "pending" };
+        return { state: "pending", ...identity };
       default:
-        return { state: "unknown" };
+        return { state: "unknown", ...identity };
     }
   }
 
@@ -311,6 +341,16 @@ export class StripePaymentAdapter implements PaymentProviderPort {
     if (!this.secretKey) throw new Error("stripe_not_configured");
     this.stripe ??= new Stripe(this.secretKey, { apiVersion: "2026-04-22.dahlia" });
     return this.stripe;
+  }
+
+  async readRefundRecoveryEligibility(input: RefundPaymentInput): Promise<boolean> {
+    if (input.stripeChargeMode !== "direct_v2" || !input.idempotencyKey || !Number.isSafeInteger(input.amountCents) || input.amountCents <= 0) return false;
+    const stripe = this.requireStripe(), options = this.connectedAccountOptions(input);
+    const payment = await stripe.paymentIntents.retrieve(input.providerPaymentId, undefined, options);
+    if (payment.id !== input.providerPaymentId || payment.status !== "succeeded" || payment.livemode !== this.secretKey?.startsWith("sk_live_") ||
+        payment.metadata.merchant_id !== input.merchantId || payment.currency !== "brl" || payment.amount_received !== input.amountCents) return false;
+    const refunds = await stripe.refunds.list({ payment_intent: input.providerPaymentId, limit: 1 }, options);
+    return refunds.data.length === 0 && refunds.has_more === false;
   }
 
   private requirePublishableKey(): string {
@@ -324,15 +364,18 @@ export class StripePaymentAdapter implements PaymentProviderPort {
       payment_intent: input.providerPaymentId,
       amount: input.amountCents,
       reason: "requested_by_customer",
+      metadata: { merchant_id: input.merchantId, ...(input.idempotencyKey ? { refund_reference: input.idempotencyKey } : {}) },
     }, {
       ...(input.idempotencyKey ? { idempotencyKey: input.idempotencyKey } : {}),
       ...this.connectedAccountOptions(input),
     });
-    return { refundId: refund.id, status: refund.status === "succeeded" ? "succeeded" as const : "pending" as const };
+    return { refundId: refund.id, status: refund.status === "succeeded" ? "succeeded" as const :
+      refund.status === "failed" || refund.status === "canceled" ? "failed" as const : "pending" as const };
   }
 
   private connectedAccountOptions(input: { stripeConnectAccountId?: string; stripeChargeMode?: "direct_v2" }): Stripe.RequestOptions | undefined {
-    if (input.stripeChargeMode !== "direct_v2" || !input.stripeConnectAccountId) return undefined;
+    if (input.stripeChargeMode !== "direct_v2") return undefined;
+    if (!/^acct_[A-Za-z0-9]+$/.test(input.stripeConnectAccountId ?? "")) throw new Error("stripe_original_account_unproven");
     return { stripeAccount: input.stripeConnectAccountId };
   }
 }

@@ -59,7 +59,12 @@ export class ProcessRefundUseCase {
         providerRefundId: ret.refund.providerRefundId ?? `pending:return:${returnId}`,
         paymentIntentId: ret.refund.paymentIntentId,
         refundReference: `return:${returnId}`,
+        amountCents: ret.refund.amountInCents,
       });
+      if (reconciliation.providerRefundId && reconciliation.providerRefundId !== ret.refund.providerRefundId) {
+        await this.returnRepo.saveRefund({ returnId, paymentIntentId: ret.refund.paymentIntentId,
+          providerRefundId: reconciliation.providerRefundId, amountInCents: ret.refund.amountInCents, status: ret.refund.status });
+      }
       if (reconciliation.state === "succeeded") {
         await this.returnRepo.updateRefundStatus(returnId, "COMPLETED", new Date());
         await this.returnRepo.updateStatus(returnId, "REFUND_COMPLETED");
@@ -139,6 +144,51 @@ export class ProcessRefundUseCase {
     try { await this.shipping?.cancelOrdinary(merchantId, returnId, prepared.fullOrderReturn === true); }
     catch { this.logger.warn(`return_shipping_cancellation_requires_review return=${returnId}`); }
 
+    await this.syncCase(merchantId, returnId);
+    return (await this.returnRepo.findById(merchantId, returnId))!;
+  }
+
+  /** Separate human action; normal reconciliation never repeats a financial POST. */
+  async recover(merchantId: string, returnId: string, expectedAmountCents: number): Promise<ReturnEntity> {
+    const ret = await this.returnRepo.findById(merchantId, returnId);
+    if (!ret) throw new NotFoundException("return_not_found");
+    await this.marketplace?.assertOrdinary(merchantId, returnId);
+    if (!this.prisma || !this.refundPayment) throw new ConflictException("return_refund_service_unavailable");
+    if (ret.status !== "REFUND_PROCESSING" || ret.refund?.status !== "PENDING" || ret.refund.providerRefundId || !ret.refund.paymentIntentId) {
+      throw new ConflictException("refund_recovery_requires_unconfirmed_attempt");
+    }
+    if (!Number.isSafeInteger(expectedAmountCents) || expectedAmountCents !== ret.refund.amountInCents) throw new ConflictException("refund_preview_changed");
+    // Stripe retains keys for at least 24 hours. Leave one hour for transit;
+    // never infer that an empty refund list alone makes a replacement safe.
+    const age = Date.now() - ret.refund.createdAt.getTime();
+    if (!Number.isFinite(age) || age < 60000 || age >= 23 * 3600000) throw new ConflictException("refund_recovery_window_unavailable");
+    const prepared = await this.refundPayment.prepareOrderRefund({ merchantId, externalOrderId: ret.orderId,
+      amountCents: ret.refund.amountInCents, reason: `return:${returnId}`, idempotencyKey: `return:${returnId}` });
+    if (!prepared.providerRequest || prepared.paymentIntentId !== ret.refund.paymentIntentId || prepared.amountCents !== expectedAmountCents ||
+        !await this.refundPayment.canRecoverPreparedRefund(prepared)) throw new ConflictException("refund_recovery_original_payment_unproven");
+    const claimed = await this.prisma.$transaction(async tx => {
+      await lockSupportResource(tx, `refund-recovery:${returnId}`);
+      const row = await tx.return.findFirst({ where: { id: returnId, merchantId }, include: { refund: true } });
+      const refund = row?.refund;
+      if (!row || row.status !== "REFUND_PROCESSING" || refund?.status !== "PENDING" || refund.providerRefundId ||
+          refund.paymentIntentId !== ret.refund!.paymentIntentId || refund.amountInCents !== expectedAmountCents ||
+          Date.now() - refund.createdAt.getTime() >= 23 * 3600000) throw new ConflictException("refund_recovery_requires_unconfirmed_attempt");
+      const resolution = row.resolution as Record<string, any> | null;
+      if (resolution?.refundRecovery) return false;
+      await tx.return.update({ where: { id: returnId }, data: { resolution: { ...resolution,
+        refundRecovery: { claimedAt: new Date().toISOString(), idempotencyKey: `return:${returnId}` } } } });
+      return true;
+    });
+    if (!claimed) return this.execute(merchantId, returnId);
+    const result = await this.refundPayment.refundPreparedPayment(prepared);
+    await this.returnRepo.saveRefund({ returnId, paymentIntentId: ret.refund.paymentIntentId, providerRefundId: result.providerRefundId,
+      amountInCents: expectedAmountCents, status: result.refunded ? "COMPLETED" : result.reason === "provider_refund_failed" ? "FAILED" : "PENDING" });
+    if (result.refunded) {
+      await this.returnRepo.updateRefundStatus(returnId, "COMPLETED", new Date());
+      await this.returnRepo.updateStatus(returnId, "REFUND_COMPLETED");
+    }
+    try { await this.shipping?.cancelOrdinary(merchantId, returnId); }
+    catch { this.logger.warn(`return_shipping_cancellation_requires_review return=${returnId}`); }
     await this.syncCase(merchantId, returnId);
     return (await this.returnRepo.findById(merchantId, returnId))!;
   }
