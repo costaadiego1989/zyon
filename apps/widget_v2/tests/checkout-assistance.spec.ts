@@ -2,9 +2,42 @@ import test, { type TestContext } from "node:test";
 import assert from "node:assert/strict";
 import { CheckoutSession } from "../src/api/checkout-session.js";
 import { useCheckoutStore as store } from "../src/store/checkout-store.js";
+import { initTracking } from "../src/lib/tracking.js";
 import { assistanceCommand, idleAssistanceMessage } from "../src/lib/checkout-assistance.js";
 
 const experience = { items: [{ sku: "shirt", name: "Camiseta azul", quantity: 1, unit_price: 20 }], totals: { subtotal: 20, total: 20 } };
+test("manual Pix consultation reports failure without any polling or websocket update", async t => {
+  const f = await ready(t, url => {
+    if (url.includes("/payment/intents/pix/status")) return Response.json({ status: "failed" });
+    if (url.endsWith("/embed/track")) return Response.json({ trigger_agent: true });
+  });
+  initTracking(f.api, "checkout");
+  store.setState({ triggerConfig: { mode: "silent_until_trigger", enabledTriggers: ["payment_failed"], cooldownMs: 30000, maxInterventions: 3 },
+    triggerMessages: { payment_failed: { message: "Ajuda confirmada após consulta manual." } } });
+  await store.getState().runHelpAction("check_payment", "pix");
+  assert.equal(store.getState().status, "active");
+  assert.equal(store.getState().cart.status, "ready_to_pay");
+  assert(store.getState().messages.some(message => message.text === "Ajuda confirmada após consulta manual."));
+  assert.equal(f.requests.filter(request => request.url.endsWith("/embed/track") && JSON.parse(String(request.init.body)).event === "payment_failed").length, 1);
+  assert.equal(f.requests.filter(request => request.url.endsWith("/embed/payment/intents")).length, 0);
+});
+test("a recovered terminal payment is verified before retry and an active payment is retained", async t => {
+  for (const observed of ["requires_action", "failed"]) {
+    const f = await ready(t, (url, init) => {
+      if (url.includes("/payment/intents/pix/status")) return Response.json({ status: observed });
+      if (url.endsWith("/embed/payment/intents")) return Response.json({ id: "new-pix", method: "pix", status: "requires_action", amountCents: 2000, buyerFacing: { qrCodeCopyPaste: "new-code" } });
+    });
+    f.api.chatState = { protocol: "durable_v2", session_id: "checkout", conversation_id: "conversation", turns: [], payment_intent_id: "pix" };
+    store.setState({ paymentIntent: { ...store.getState().paymentIntent!, status: "failed" } });
+    await store.getState().pay("pix");
+    const creations = f.requests.filter(request => request.url.endsWith("/embed/payment/intents"));
+    assert.equal(creations.length, observed === "failed" ? 1 : 0);
+    assert(f.requests[0].url.includes("/payment/intents/pix/status"));
+    if (observed === "failed") { assert.equal(store.getState().paymentIntent?.intent_id, "new-pix"); assert.equal(f.api.chatState.payment_intent_id, undefined); }
+    else { assert.equal(store.getState().paymentIntent?.intent_id, "pix"); assert.equal(f.api.chatState.payment_intent_id, "pix"); }
+    store.getState().resetSession();
+  }
+});
 async function ready(t: TestContext, transport?: (url: string, init: RequestInit) => Response | Promise<Response> | undefined) {
   store.getState().resetSession();
   const requests: Array<{ url: string; init: RequestInit }> = [];

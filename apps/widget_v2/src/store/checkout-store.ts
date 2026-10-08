@@ -1076,7 +1076,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }
     } catch (err) {
       if (get().api !== api) return;
-      get().recordCheckoutDifficulty(err);
+      if (!api.usesDurableChat) get().recordCheckoutDifficulty(err);
       const admissionError = checkoutChatErrorMessage(err);
       if (admissionError) {
         set(state => ({ messages: [...state.messages, { id: `error_${Date.now()}`, role: "agent", text: admissionError, timestamp: Date.now() }], isTyping: false }));
@@ -1420,8 +1420,23 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   pay: async (method, installments, confirmedCartFingerprint, isCurrent) => {
     const { api, sessionId, cart, leadRegistered } = get();
     if (get().assistanceBusy && !isCurrent || isCurrent && !isCurrent()) return;
-    if (!api || get().paymentCancellationPending || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().paymentCancellationPending || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
+    if (api.chatState?.payment_intent_id) {
+      const previous = get().paymentIntent;
+      if (!previous || previous.intent_id !== api.chatState.payment_intent_id || paymentPollingOutcome(previous.status) !== "failed") return;
+      const cartContext = JSON.stringify(cart);
+      const current = () => get().api === api && get().sessionId === sessionId && get().status === "active" &&
+        get().paymentIntent?.intent_id === previous.intent_id && JSON.stringify(get().cart) === cartContext && (!isCurrent || isCurrent());
+      set({ paymentSubmitting: true });
+      try { await api.prepareTerminalPaymentRetry(previous.intent_id, current); }
+      catch {
+        if (current()) set(state => ({ messages: [...state.messages, { id: `payment_retry_${Date.now()}`, role: "agent", timestamp: Date.now(),
+          text: "Ainda não consegui confirmar que o pagamento anterior terminou. Consulte a operação antes de tentar outra forma de pagamento." }] }));
+        return;
+      } finally { if (get().api === api && get().sessionId === sessionId) set({ paymentSubmitting: false }); }
+      if (!current()) return;
+    }
 
     const availableMethods = paymentMethodsForConfig(get().merchantPaymentConfig);
     if (!availableMethods.some((available) => available.key === method)) {
@@ -1824,7 +1839,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           } else { set({ paymentIntent: { ...intent, status: observed.status } }); }
           if (!current()) return;
           if (paymentPollingOutcome(observed.status) === "failed") {
-            state.stopPolling(); get().showCheckoutHelp("pix", true);
+            state.stopPolling();
+            if (observed.status === "failed" && state.shippingMode === "standard" && observed.checkout_status === undefined && intent.checkout_status === undefined) {
+              set(live => ({ cart: { ...live.cart, status: "ready_to_pay" } }));
+              await get().reportPaymentFailure(intent.intent_id);
+              if (!current()) return;
+            }
+            get().showCheckoutHelp("pix", true);
           } else if (paymentPollingOutcome(observed.status) === "completed") {
             reply("O pagamento recebeu confirmação. Vou acompanhar a conclusão do pedido.");
           } else if (action === "show_pix" && intent.pix_code &&

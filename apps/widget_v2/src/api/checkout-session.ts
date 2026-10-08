@@ -600,6 +600,10 @@ export class CheckoutSession {
   }
 
   async prepareExpiredPixRenewal(intentId: string, isCurrent: () => boolean): Promise<void> {
+    return this.prepareTerminalPaymentRetry(intentId, isCurrent);
+  }
+
+  async prepareTerminalPaymentRetry(intentId: string, isCurrent: () => boolean): Promise<void> {
     this.assertSession();
     if (this.experience?.shipping_mode === "marketplace" || this.hasMarketplacePaymentAttempt || this.requiresChatRecovery || this.chatInFlight ||
         this.chatState?.payment_intent_id && this.chatState.payment_intent_id !== intentId) throw Error("checkout_unavailable");
