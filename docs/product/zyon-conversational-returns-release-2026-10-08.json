@@ -1,0 +1,418 @@
+{
+  "recordedAt": "2026-10-08T16:11:01.210Z",
+  "scope": "Publicação do fluxo persistente de cancelamento, troca e devolução em Atendimento e no hub do comprador, com fotos somente na abertura de troca/devolução.",
+  "source": {
+    "branch": "release/conversational-cancellation-20261008",
+    "applicationCommit": "e360156edbf9e2b1172515bcf4dd388514543df1",
+    "photoRuleCommit": "d8fc645714b35a3ab0636a4d7648a53d7f913032",
+    "baselineCommit": "6ab4d9a",
+    "repository": "https://github.com/costaadiego1989/zyon",
+    "integrationStatus": "Branch de release publicada e runtime atualizado. Ainda não integrada à master. O snapshot usado preserva o código efetivamente publicado; compará-lo diretamente com master produz alterações alheias ao escopo. Não reaplicar master sem integrar os ajustes desta release."
+  },
+  "production": {
+    "api": {
+      "deploymentId": "5a3bf69f-84a6-4597-9608-8e410b9a386e",
+      "status": "SUCCESS",
+      "health": "200 /ready; db connected",
+      "buyerOrders": "401 sem autenticação, rota presente",
+      "buyerSupport": "401 sem autenticação, rota presente",
+      "startup": "sh -c 'node scripts/deploy-conversational-returns.mjs && exec node dist/main.js'",
+      "migrationMessages": [
+        {
+          "message": "returns_migration_already_applied 20261003150000_conversational_returns",
+          "timestamp": "2026-10-08T15:56:50.368297305Z"
+        },
+        {
+          "message": "returns_migration_already_applied 20261004110000_recover_return_conversations",
+          "timestamp": "2026-10-08T15:56:50.368301155Z"
+        },
+        {
+          "message": "returns_migration_already_applied 20261005100000_private_support_photo_payload",
+          "timestamp": "2026-10-08T15:56:50.368307035Z"
+        },
+        {
+          "message": "returns_migration_already_applied 20261005160000_return_decision_notices",
+          "timestamp": "2026-10-08T15:56:50.368311395Z"
+        }
+      ]
+    },
+    "storefront": {
+      "deploymentId": "dpl_3rdzzgCHQk7CFZqdv5FetFSy4Nbe",
+      "status": "READY e promovido",
+      "deploymentUrl": "https://zyon-storefront-pnhgh9fkn-diegos-projects-b6fd2a25.vercel.app",
+      "publicUrl": "https://storefront.zyon-payments.com.br/store/athom-technologies",
+      "photoCapabilityReads": [
+        {
+          "credential": "absent",
+          "status": 404
+        },
+        {
+          "credential": "invalid",
+          "status": 404
+        }
+      ],
+      "photoCacheControl": "private, no-store"
+    },
+    "dashboard": {
+      "deploymentId": "dpl_ATsTC3TTW3DKd8u1WcFzLBm2cQy5",
+      "status": "READY e promovido",
+      "url": "https://app.zyon-payments.com.br"
+    }
+  },
+  "sandbox": {
+    "apiDeploymentId": "f3db00a7-4150-4521-8077-817d812b3db3",
+    "storefrontDeploymentId": "c2ceffd5-301d-4220-8c4b-e10fe4ff3369",
+    "dashboardDeploymentId": "f44c9e81-e8ac-42bc-a420-c677d194dc1d",
+    "status": "SUCCESS",
+    "financialOrShippingProviderWrites": false
+  },
+  "initialProductionMigration": {
+    "deploymentId": "d835c0ba-e77a-426f-8f41-1cfd8cb16fc4",
+    "messages": [
+      {
+        "message": "returns_migration_applied 20261005100000_private_support_photo_payload",
+        "timestamp": "2026-10-08T15:17:54.745991658Z"
+      },
+      {
+        "message": "returns_migration_applied 20261005160000_return_decision_notices",
+        "timestamp": "2026-10-08T15:17:54.746002189Z"
+      },
+      {
+        "message": "returns_schema_verified {\"drafts\":true,\"notices\":true,\"private_photos\":true,\"buyer_ownership\":true,\"order_snapshot\":true}",
+        "timestamp": "2026-10-08T15:17:54.746012724Z"
+      },
+      {
+        "message": "returns_migration_applied 20261003150000_conversational_returns",
+        "timestamp": "2026-10-08T15:17:54.746084422Z"
+      },
+      {
+        "message": "returns_migration_applied 20261004110000_recover_return_conversations",
+        "timestamp": "2026-10-08T15:17:54.746090175Z"
+      }
+    ]
+  },
+  "implemented": [
+    "Conversas persistentes por pedido/loja, caixa de entrada do comprador, mensagens não lidas e histórico após recarga.",
+    "Ação Cancelar ou devolver pedido no hub, revisão de cancelamento e reutilização da solicitação existente.",
+    "Prévia de estorno e validações financeiras antes da chamada ao provedor; conciliação de resultado incerto; avisos persistidos.",
+    "Suporte comum e mensagens posteriores aceitam texto. A API rejeita fotos fora da abertura com photos_only_return_opening antes de gravar.",
+    "Fotos opcionais somente na solicitação de troca/devolução; anexos existentes continuam disponíveis.",
+    "Proxy permite somente leitura assinada de imagens de suporte, preserva bytes binários e desativa cache público."
+  ],
+  "verification": {
+    "focusedLocal": {
+      "tests": 53,
+      "passed": 53,
+      "failed": 0,
+      "skipped": 0,
+      "log": "C:/tmp/zyon-returns-focused-tests-20261008.log"
+    },
+    "photoControllerAndDatabase": {
+      "tests": 5,
+      "passed": 5,
+      "failed": 0,
+      "skipped": 0,
+      "log": "C:/tmp/zyon-returns-photo-tests-20261008.log"
+    },
+    "proxyAndOrigin": {
+      "tests": 14,
+      "passed": 14,
+      "failed": 0,
+      "description": "11 testes de origem existentes e 3 testes do proxy: bytes de imagem, rotas/métodos bloqueados, negativa do token e JSON/autenticação."
+    },
+    "builds": [
+      "API",
+      "dashboard",
+      "widget",
+      "storefront"
+    ],
+    "initialSandboxReports": [
+      "C:/tmp/zyon-returns-sandbox-live-qa-20261008.json",
+      "C:/tmp/zyon-returns-sandbox-dashboard-qa-20261008.json"
+    ],
+    "finalSandboxPhotoReport": "C:/tmp/zyon-returns-sandbox-photo-qa-20261008.json",
+    "finalProductionGuestReport": "C:/tmp/zyon-returns-production-photo-qa-20261008.json",
+    "screenshots": [
+      "C:/tmp/zyon-returns-production-support-welcome-mobile.png",
+      "C:/tmp/zyon-returns-sandbox-photo-opening-mobile.png",
+      "C:/tmp/zyon-returns-sandbox-photo-conversation-mobile.png"
+    ],
+    "visualInspection": "Entrada de produção sem anexo; abertura com foto opcional; foto renderizada na conversa após recarga, sem seletor para novas fotos.",
+    "productionAuthenticatedBuyer": false,
+    "realProductionRefundExecuted": false,
+    "browserEvidence": {
+      "initialBuyerSandbox": {
+        "environment": "sandbox",
+        "fixtureOrder": "pedido-teste-29-1c9ef479",
+        "checks": [
+          {
+            "name": "merchant_session_valid",
+            "ok": true,
+            "details": {
+              "status": 200
+            }
+          },
+          {
+            "name": "canonical_ticket_created",
+            "ok": true
+          },
+          {
+            "name": "buyer_message_persisted",
+            "ok": true
+          },
+          {
+            "name": "operator_sees_purchase_and_case",
+            "ok": true,
+            "details": {
+              "status": 200,
+              "orderId": "pedido-teste-29-1c9ef479",
+              "canRefund": true
+            }
+          },
+          {
+            "name": "operator_reply_persisted",
+            "ok": true,
+            "details": {
+              "status": 201
+            }
+          },
+          {
+            "name": "conversation_survives_reload",
+            "ok": true
+          },
+          {
+            "name": "mobile_no_horizontal_overflow",
+            "ok": true
+          },
+          {
+            "name": "fake_provider_cannot_refund",
+            "ok": true,
+            "details": {
+              "status": 200,
+              "automatic": false,
+              "provider": "qa_fixture"
+            }
+          },
+          {
+            "name": "foreign_buyer_cannot_read",
+            "ok": true,
+            "details": {
+              "status": 404
+            }
+          }
+        ],
+        "errors": [],
+        "startedAt": "2026-10-08T15:11:22.403Z",
+        "reusedExistingCase": true,
+        "ticketId": "sup_fff63bef-061d-4de5-9dcf-e7ca48f94034",
+        "finishedAt": "2026-10-08T15:11:32.973Z"
+      },
+      "initialOperatorSandbox": {
+        "environment": "sandbox",
+        "checks": [
+          {
+            "name": "operator_drawer_has_order",
+            "ok": true
+          },
+          {
+            "name": "operator_ui_reply_persisted",
+            "ok": true
+          },
+          {
+            "name": "operator_no_horizontal_overflow",
+            "ok": true
+          }
+        ],
+        "pageErrors": [],
+        "requests": []
+      },
+      "finalPhotoSandbox": {
+        "environment": "sandbox",
+        "startedAt": "2026-10-08T16:03:34.770Z",
+        "checks": [
+          {
+            "name": "sandbox_fixture_only",
+            "ok": true
+          },
+          {
+            "name": "store_page_healthy",
+            "ok": true,
+            "details": {
+              "url": "https://storefront-sandbox-3f42.up.railway.app/store/qa-pos-venda-24d0da34",
+              "status": 200
+            }
+          },
+          {
+            "name": "welcome_has_no_photo_upload",
+            "ok": true
+          },
+          {
+            "name": "ordinary_support_sends_text_only",
+            "ok": true,
+            "details": {
+              "status": 201,
+              "payloadKeys": [
+                "merchantId",
+                "content",
+                "clientMessageId"
+              ]
+            }
+          },
+          {
+            "name": "api_rejects_support_photos_without_writing",
+            "ok": true,
+            "details": {
+              "messageStatus": 400,
+              "openingStatus": 400,
+              "errorCode": "photos_only_return_opening",
+              "beforeMessages": 5,
+              "afterMessages": 5
+            }
+          },
+          {
+            "name": "previous_fake_case_closed",
+            "ok": true,
+            "details": {
+              "status": 201
+            }
+          },
+          {
+            "name": "photos_available_inside_return_opening",
+            "ok": true
+          },
+          {
+            "name": "photo_not_uploaded_before_confirmation",
+            "ok": true
+          },
+          {
+            "name": "photo_sent_only_with_return_confirmation",
+            "ok": true,
+            "details": {
+              "status": 201,
+              "kind": "exchange",
+              "photoCount": 1
+            }
+          },
+          {
+            "name": "conversation_has_no_new_photo_upload",
+            "ok": true
+          },
+          {
+            "name": "opening_photo_renders_in_browser",
+            "ok": true
+          },
+          {
+            "name": "opening_photo_persisted_privately",
+            "ok": true,
+            "details": {
+              "status": 200
+            }
+          },
+          {
+            "name": "opening_evidence_survives_reload",
+            "ok": true
+          },
+          {
+            "name": "mobile_no_horizontal_overflow",
+            "ok": true
+          },
+          {
+            "name": "no_page_errors",
+            "ok": true
+          }
+        ],
+        "pageErrors": [],
+        "ticketId": "sup_c75106f6-65c6-4a34-a901-090de6d7a667",
+        "finishedAt": "2026-10-08T16:03:46.819Z"
+      },
+      "finalProductionGuest": {
+        "environment": "production",
+        "startedAt": "2026-10-08T16:08:14.494Z",
+        "checks": [
+          {
+            "name": "store_page_healthy",
+            "ok": true,
+            "details": {
+              "url": "https://storefront.zyon-payments.com.br/store/athom-technologies",
+              "status": 200
+            }
+          },
+          {
+            "name": "welcome_has_no_photo_upload",
+            "ok": true
+          },
+          {
+            "name": "real_purchase_requires_buyer_login",
+            "ok": true
+          },
+          {
+            "name": "production_serves_corrected_support_bundle",
+            "ok": true
+          },
+          {
+            "name": "production_dashboard_healthy",
+            "ok": true
+          },
+          {
+            "name": "production_dashboard_has_persistent_case_actions",
+            "ok": true,
+            "details": {
+              "asset": "/assets/index-D_bklr2G.js",
+              "sha256": "2283c40358c19b03edb5e8deef9f8a2434c4beb49efb99a927dea9cc46684363"
+            }
+          },
+          {
+            "name": "mobile_no_horizontal_overflow",
+            "ok": true
+          },
+          {
+            "name": "no_page_errors",
+            "ok": true
+          }
+        ],
+        "pageErrors": [],
+        "storefrontSupportAsset": {
+          "path": "/_next/static/chunks/594-75c849f65c80492b.js",
+          "sha256": "4c8ca04a7e472b8a3bf30504e9ee4296a7d2c56bab7c9058c46bf49fa2d7f605"
+        },
+        "finishedAt": "2026-10-08T16:08:18.928Z"
+      }
+    }
+  },
+  "realPurchase": {
+    "providerPaymentId": "pi_3UMCm02IReEzfWnS1xlNEJKW",
+    "merchantStore": "athom-technologies",
+    "readOnlyVerified": true,
+    "paymentStatus": "approved",
+    "amountCents": 3089,
+    "currency": "BRL",
+    "createdAt": "2026-10-02T20:09:40.763Z",
+    "existingReturnCount": 1,
+    "existingReturnStatus": "Não auditado nesta publicação.",
+    "nextStep": "Comprador entra na própria conta e abre o pedido ou atendimento existente para testar o fluxo. Nenhum cancelamento ou estorno real foi executado pelo agente."
+  },
+  "shippingAnalysis": {
+    "officialSources": [
+      "https://docs.melhorenvio.com.br/docs/logistica-reversa-carrinho",
+      "https://docs.melhorenvio.com.br/reference/inserir-logistica-reversa-no-carrinho",
+      "https://centraldeajuda.melhorenvio.com.br/hc/pt-br/articles/31220449351700-Como-fa%C3%A7o-para-gerar-um-envio-quando-eu-precisar-receber-uma-encomenda"
+    ],
+    "rules": [
+      "Loja compra e gera o frete reverso. A reversa nativa é exclusiva dos Correios PAC/SEDEX; pode retornar envio original feito por outra transportadora.",
+      "Comprador embala, leva o código de postagem e a DC-e impressa à agência dos Correios. Não precisa imprimir a etiqueta da reversa nativa.",
+      "Código válido por 7 dias da geração, prazo distinto do direito de arrependimento.",
+      "Correios enviam o código por e-mail; a loja precisa baixar e encaminhar a DC-e PDF.",
+      "Para outra transportadora, gerar novo envio com CEPs invertidos e compartilhar a etiqueta; comprador imprime e posta na unidade selecionada. Isso não cria coleta domiciliar automaticamente.",
+      "O Melhor Envio informa que devolução por CEPs invertidos na Jadlog não recebe indenização por sinistro.",
+      "Cada pacote requer uma solicitação de reversa nativa. Sandbox do provedor não permite homologar a geração final do código."
+    ],
+    "existingImplementation": "ReturnReverseShippingService, adapter Melhor Envio e painel de Trocas/devoluções geram reversa nativa com confirmação de custo, uma emissão financeira por tentativa e conciliação.",
+    "gaps": [
+      "O painel de emissão nativa ainda não está integrado diretamente ao drawer de Atendimento.",
+      "SupportCaseDetail não expõe ReturnLabel: o código gerado não é automaticamente disponibilizado na conversa canônica do comprador.",
+      "Ainda não há download/entrega automática de DC-e PDF pela integração; a loja precisa baixar no Melhor Envio.",
+      "Links/etiquetas manuais persistidos na resolução precisam de apresentação e instruções dedicadas na conversa."
+    ],
+    "scopeOfThisRelease": "Análise documentada; emissão real de frete e integração adicional de código/DC-e em Atendimento não executadas."
+  }
+}
