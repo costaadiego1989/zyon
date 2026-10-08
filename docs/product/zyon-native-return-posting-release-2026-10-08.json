@@ -1,13 +1,15 @@
 {
   "schemaVersion": 1,
-  "recordedAt": "2026-10-08T17:43:01.832Z",
+  "recordedAt": "2026-10-08T18:15:29.575Z",
   "scope": "Native Melhor Envio reverse posting from Atendimento, with one Return record and buyer conversation instructions.",
   "source": {
     "branch": "release/conversational-cancellation-20261008",
     "implementationCommit": "7be9527ec0f964374f4fa36ba2f548a57a7f7ed6",
-    "combinedCommit": "25930b41fd6e052767a91be2087b793bbbcfe357",
+    "combinedCommit": "d48345942db1425ecda17c2bd3546ccd57c7387a",
     "checkoutFilesPreserved": 47,
-    "mainWorkspaceReset": false
+    "mainWorkspaceReset": false,
+    "latestPaymentRetryFixFilesPreserved": 3,
+    "latestPaymentRetryFixCommit": "d48345942db1425ecda17c2bd3546ccd57c7387a"
   },
   "behavior": {
     "acceptancePersistsWithoutInventingLabel": true,
@@ -103,11 +105,27 @@
         }
       ],
       "pageErrors": []
+    },
+    "checkoutRetryTests": {
+      "files": 2,
+      "count": 18,
+      "pass": 18,
+      "fail": 0,
+      "skipped": 0,
+      "command": "node --loader ./apps/widget_v2/tests/checkout-test-loader.mjs --test --test-force-exit apps/widget_v2/tests/checkout-assistance.spec.ts apps/widget_v2/tests/checkout-help.spec.ts"
+    },
+    "automatedTotals": {
+      "count": 92,
+      "pass": 92,
+      "fail": 0,
+      "skipped": 0,
+      "nativeAndCheckoutApi": 74,
+      "latestWidgetRetryAndHelp": 18
     }
   },
   "sandbox": {
-    "status": "partially_superseded_by_concurrent_checkout_publisher",
-    "ourDeployments": {
+    "status": "published_combined_release",
+    "deployments": {
       "api": {
         "id": "f9828d2a-9488-4174-b2ff-4f6d7d3a3d33",
         "status": "SUCCESS"
@@ -117,17 +135,12 @@
         "status": "SUCCESS"
       },
       "storefront": {
-        "id": "dd191794-a79b-4f20-a625-dc75d74b8748",
-        "status": "REMOVED"
+        "id": "7c4682d6-8512-40d8-9ac0-8835131b45cc",
+        "status": "SUCCESS"
       }
     },
-    "newerStorefront": {
-      "id": "b68e9fbc-b429-428e-b3ad-8139500ac896",
-      "status": "SUCCESS",
-      "message": "Verify terminal payment before recovered-chat retry"
-    },
     "guestBrowser": {
-      "at": "2026-10-08T17:39:53.353Z",
+      "at": "2026-10-08T18:06:17.898Z",
       "environment": "sandbox",
       "url": "https://storefront-sandbox-3f42.up.railway.app/store/qa-pos-venda-24d0da34",
       "checks": [
@@ -149,7 +162,27 @@
         },
         {
           "name": "buyer_posting_document_bundle_deployed",
-          "ok": false
+          "ok": true
+        },
+        {
+          "name": "dashboard_contains_Aceitar devolução",
+          "ok": true
+        },
+        {
+          "name": "dashboard_contains_Gerar código de devolução",
+          "ok": true
+        },
+        {
+          "name": "dashboard_contains_Baixar declaração de conteúdo",
+          "ok": true
+        },
+        {
+          "name": "dashboard_contains_Informar etiqueta emitida pela loja",
+          "ok": true
+        },
+        {
+          "name": "no_page_errors",
+          "ok": true
         }
       ],
       "pageErrors": [],
@@ -165,9 +198,16 @@
         "/_next/static/chunks/872-4fb1ef0592143e77.js",
         "/_next/static/chunks/app/store/%5Bslug%5D/page-c185f82ad788c287.js",
         "/_next/static/chunks/polyfills-42372ed130431b0a.js",
-        "/_next/static/chunks/webpack-8dfa5fe5b968f19c.js"
+        "/_next/static/chunks/webpack-3e3fd892407fe783.js"
       ],
-      "failure": "buyer_posting_document_bundle_deployed"
+      "storefrontAsset": {
+        "path": "/_next/static/chunks/872-4fb1ef0592143e77.js",
+        "sha256": "c11811b92a42a5ecb2ddccb35acaf8378b0dba2b774f23424b202dd444738c98"
+      },
+      "dashboardAsset": {
+        "path": "/assets/support-settings-page-CQaaqdrx.js",
+        "sha256": "2891eda5eabc851c8f5cfd262bb7706d009c8af563f87118696e1aad3ea107c7"
+      }
     },
     "dashboardBundles": {
       "at": "2026-10-08T17:35:27.813Z",
@@ -185,76 +225,288 @@
       "readOnly": true
     },
     "authenticatedAcceptanceRetest": false,
-    "realFreightPurchased": false
+    "realFreightPurchased": false,
+    "collisionResolved": true
   },
   "production": {
-    "status": "candidates_ready_pending_concurrent_publisher_coordination",
-    "apiDeployed": false,
-    "canonicalAliasesPromoted": false,
+    "status": "published_and_canonical_guest_ui_verified",
+    "apiDeployed": true,
+    "canonicalAliasesPromoted": true,
     "candidates": {
       "dashboard": {
-        "id": "dpl_XxSQJX7nPPLt13EdmAxUyngkYJCm",
-        "url": "https://zyon-dashboard-8g7yc5dnz-diegos-projects-b6fd2a25.vercel.app",
-        "inspectorUrl": "https://vercel.com/diegos-projects-b6fd2a25/zyon-dashboard/XxSQJX7nPPLt13EdmAxUyngkYJCm",
-        "readyState": "READY",
-        "target": "production",
-        "deploymentApiUrl": "https://api.vercel.com/v13/deployments/dpl_XxSQJX7nPPLt13EdmAxUyngkYJCm"
+        "id": "dpl_ESdu5JDBj2ov6daVqL8mc5EEzjUE",
+        "url": "https://zyon-dashboard-hjq824xp7-diegos-projects-b6fd2a25.vercel.app",
+        "readyState": "READY"
       },
       "storefront": {
-        "id": "dpl_A9sBvBYyPoWQC7L3rnrkNCB2fRv1",
-        "url": "https://zyon-storefront-fjcimw6fd-diegos-projects-b6fd2a25.vercel.app",
-        "inspectorUrl": "https://vercel.com/diegos-projects-b6fd2a25/zyon-storefront/A9sBvBYyPoWQC7L3rnrkNCB2fRv1",
-        "readyState": "READY",
-        "target": "production",
-        "deploymentApiUrl": "https://api.vercel.com/v13/deployments/dpl_A9sBvBYyPoWQC7L3rnrkNCB2fRv1"
+        "id": "dpl_A4JRE7C6ZFqHctmGtaibbZ6zXDXM",
+        "url": "https://zyon-storefront-5pfgfd0zs-diegos-projects-b6fd2a25.vercel.app",
+        "readyState": "READY"
       }
     },
     "realPurchaseId": "pi_3UMCm02IReEzfWnS1xlNEJKW",
-    "realPurchaseModified": false
+    "realPurchaseModified": false,
+    "sourceProof": {
+      "at": "2026-10-08T18:07:33.671Z",
+      "targets": {
+        "storefront": {
+          "id": "dpl_A4JRE7C6ZFqHctmGtaibbZ6zXDXM",
+          "url": "zyon-storefront-5pfgfd0zs-diegos-projects-b6fd2a25.vercel.app",
+          "readyState": "READY",
+          "sourceFilesVerified": 33,
+          "files": [
+            "apps/api/src/modules/returns/application/return-shipping-state.ts",
+            "apps/storefront/src/components/ReturnPostingInstructions.tsx",
+            "apps/storefront/src/components/SupportPanel.tsx",
+            "apps/storefront/src/lib/services/support-case.service.ts",
+            "apps/storefront/src/lib/viewmodels/useConversationViewModel/effects.ts",
+            "apps/storefront/src/lib/viewmodels/useConversationViewModel/hook.ts",
+            "apps/storefront/src/lib/widget-config.ts",
+            "apps/widget_v2/e2e/checkout-assistance.spec.ts",
+            "apps/widget_v2/e2e/checkout-help.spec.ts",
+            "apps/widget_v2/src/App.tsx",
+            "apps/widget_v2/src/InlineCheckout.tsx",
+            "apps/widget_v2/src/api/checkout-api-error.ts",
+            "apps/widget_v2/src/api/checkout-session.ts",
+            "apps/widget_v2/src/components/ChatPanel.tsx",
+            "apps/widget_v2/src/components/PixPayment.tsx",
+            "apps/widget_v2/src/components/StripeCardPayment.tsx",
+            "apps/widget_v2/src/components/SupportPanel.tsx",
+            "apps/widget_v2/src/components/chat/ChatBlocks.tsx",
+            "apps/widget_v2/src/components/chat/CheckoutHelpBlock.tsx",
+            "apps/widget_v2/src/layouts/CheckoutLayout.tsx",
+            "apps/widget_v2/src/lib/checkout-assistance.ts",
+            "apps/widget_v2/src/lib/payment-status.ts",
+            "apps/widget_v2/src/lib/tracking.ts",
+            "apps/widget_v2/src/lib/triggers.ts",
+            "apps/widget_v2/src/store/checkout-store.ts",
+            "apps/widget_v2/src/styles/checkout.css",
+            "apps/widget_v2/src/styles/neumorphism.css",
+            "apps/widget_v2/src/viewModels/useSupportViewModel.ts",
+            "apps/widget_v2/tests/checkout-assistance.spec.ts",
+            "apps/widget_v2/tests/checkout-help.spec.ts",
+            "packages/checkout-ui/src/CatalogProductCard.tsx",
+            "packages/shared-types/src/index.ts",
+            "packages/shared-types/src/support-case.ts"
+          ],
+          "archiveVerified": true
+        },
+        "dashboard": {
+          "id": "dpl_ESdu5JDBj2ov6daVqL8mc5EEzjUE",
+          "url": "zyon-dashboard-hjq824xp7-diegos-projects-b6fd2a25.vercel.app",
+          "readyState": "READY",
+          "sourceFilesVerified": 20,
+          "files": [
+            "apps/api/src/modules/returns/application/return-shipping-state.ts",
+            "apps/dashboard/src/api/endpoints/returns.ts",
+            "apps/dashboard/src/pages/checkout-settings/CheckoutSettingsPage.tsx",
+            "apps/dashboard/src/pages/checkout-settings/components/TriggerCard.tsx",
+            "apps/dashboard/src/pages/checkout-settings/components/TriggerEditor.tsx",
+            "apps/dashboard/src/pages/checkout-settings/lib/constants.ts",
+            "apps/dashboard/src/pages/checkout-settings/lib/draft.ts",
+            "apps/dashboard/src/pages/checkout-settings/lib/validation.ts",
+            "apps/dashboard/src/pages/checkout-settings/useCheckoutSettingsPage.ts",
+            "apps/dashboard/src/pages/configuration-regressions.spec.ts",
+            "apps/dashboard/src/pages/returns/ReturnExchangesPage.tsx",
+            "apps/dashboard/src/pages/returns/ReturnReverseShippingPanel.tsx",
+            "apps/dashboard/src/pages/support-settings/components/SupportChatDrawer.tsx",
+            "apps/storefront/src/components/ReturnPostingInstructions.tsx",
+            "apps/widget_v2/src/api/checkout-session.ts",
+            "apps/widget_v2/src/store/checkout-store.ts",
+            "apps/widget_v2/tests/checkout-assistance.spec.ts",
+            "packages/checkout-ui/src/CatalogProductCard.tsx",
+            "packages/shared-types/src/index.ts",
+            "packages/shared-types/src/support-case.ts"
+          ],
+          "archiveVerified": true
+        }
+      }
+    },
+    "api": {
+      "id": "15bc87a0-0306-4d09-97b5-0a3d959f14af",
+      "status": "SUCCESS",
+      "readyAt": "2026-10-08T18:11:53.758Z",
+      "sourceArchiveMatchesRelease": true,
+      "extraRuntimeSourceRead": {
+        "passed": false,
+        "reason": "Railway SSH read unavailable",
+        "exitCode": 11
+      },
+      "migrationStartup": {
+        "appliedPreviously": true,
+        "migrations": [
+          "20261003150000_conversational_returns",
+          "20261004110000_recover_return_conversations",
+          "20261005100000_private_support_photo_payload",
+          "20261005160000_return_decision_notices"
+        ]
+      }
+    },
+    "aliases": {
+      "at": "2026-10-08T18:12:49.020Z",
+      "mode": "promote",
+      "targets": {
+        "dashboard": {
+          "host": "app.zyon-payments.com.br",
+          "deploymentId": "dpl_ESdu5JDBj2ov6daVqL8mc5EEzjUE",
+          "deploymentUrl": "zyon-dashboard-hjq824xp7-diegos-projects-b6fd2a25.vercel.app",
+          "candidateId": "dpl_ESdu5JDBj2ov6daVqL8mc5EEzjUE",
+          "candidateReadyState": "READY"
+        },
+        "storefront": {
+          "host": "storefront.zyon-payments.com.br",
+          "deploymentId": "dpl_A4JRE7C6ZFqHctmGtaibbZ6zXDXM",
+          "deploymentUrl": "zyon-storefront-5pfgfd0zs-diegos-projects-b6fd2a25.vercel.app",
+          "candidateId": "dpl_A4JRE7C6ZFqHctmGtaibbZ6zXDXM",
+          "candidateReadyState": "READY"
+        }
+      }
+    },
+    "previousAliases": {
+      "at": "2026-10-08T18:08:21.533Z",
+      "mode": "inspect",
+      "targets": {
+        "dashboard": {
+          "host": "app.zyon-payments.com.br",
+          "deploymentId": "dpl_Cc59s6N2GKhzuEg1tetwYcWsCgD9",
+          "deploymentUrl": "zyon-dashboard-oca1ol6wg-diegos-projects-b6fd2a25.vercel.app",
+          "candidateId": "dpl_ESdu5JDBj2ov6daVqL8mc5EEzjUE",
+          "candidateReadyState": "READY"
+        },
+        "storefront": {
+          "host": "storefront.zyon-payments.com.br",
+          "deploymentId": "dpl_HXbJceH76GBcqFajP5MgoSHkM6mv",
+          "deploymentUrl": "zyon-storefront-jsqcnjnfe-diegos-projects-b6fd2a25.vercel.app",
+          "candidateId": "dpl_A4JRE7C6ZFqHctmGtaibbZ6zXDXM",
+          "candidateReadyState": "READY"
+        }
+      }
+    },
+    "guestBrowser": {
+      "at": "2026-10-08T18:14:37.875Z",
+      "environment": "production",
+      "url": "https://storefront.zyon-payments.com.br/store/athom-technologies",
+      "checks": [
+        {
+          "name": "storefront_ready",
+          "ok": true
+        },
+        {
+          "name": "photos_absent_in_support_entry",
+          "ok": true
+        },
+        {
+          "name": "mobile_no_horizontal_overflow",
+          "ok": true
+        },
+        {
+          "name": "real_purchase_requires_buyer_login",
+          "ok": true
+        },
+        {
+          "name": "buyer_posting_document_bundle_deployed",
+          "ok": true
+        },
+        {
+          "name": "dashboard_contains_Aceitar devolução",
+          "ok": true
+        },
+        {
+          "name": "dashboard_contains_Gerar código de devolução",
+          "ok": true
+        },
+        {
+          "name": "dashboard_contains_Baixar declaração de conteúdo",
+          "ok": true
+        },
+        {
+          "name": "dashboard_contains_Informar etiqueta emitida pela loja",
+          "ok": true
+        },
+        {
+          "name": "no_page_errors",
+          "ok": true
+        }
+      ],
+      "pageErrors": [],
+      "financialExecution": false,
+      "jsAssetPaths": [
+        "/_next/static/chunks/dfd89489-9f4a76bec06f6daa.js",
+        "/_next/static/chunks/59-0dee833a04d399c8.js",
+        "/_next/static/chunks/main-app-095fa1926c018793.js",
+        "/_next/static/chunks/ff00f882-2883f6346abcbd8e.js",
+        "/_next/static/chunks/fd4cade4-38359a3d02a3a377.js",
+        "/_next/static/chunks/756-3262a18a66804736.js",
+        "/_next/static/chunks/949-4ee74587af4d0de5.js",
+        "/_next/static/chunks/594-01433fe865c74f74.js",
+        "/_next/static/chunks/app/store/%5Bslug%5D/page-90b788292eedce87.js",
+        "/_next/static/chunks/polyfills-42372ed130431b0a.js",
+        "/_next/static/chunks/webpack-3e3fd892407fe783.js"
+      ],
+      "storefrontAsset": {
+        "path": "/_next/static/chunks/594-01433fe865c74f74.js",
+        "sha256": "598bae80ccc5e487a8b9068294b77f94a8a711a05dc36de21390100f62d5d856"
+      },
+      "dashboardAsset": {
+        "path": "/assets/support-settings-page-CUsnf30D.js",
+        "sha256": "ca474b25d90ca67290e524b6abcab1567047a928e0390211cb26ad1bcd589ba7"
+      }
+    },
+    "authenticatedAcceptanceRetest": false,
+    "realFreightPurchased": false
   },
   "healthAndAuth": {
-    "at": "2026-10-08T17:37:00.866Z",
+    "at": "2026-10-08T18:12:22.822Z",
     "readOnly": true,
+    "passed": true,
     "rows": [
       {
         "host": "https://api-sandbox-8146.up.railway.app",
         "route": "/ready",
-        "status": 200
+        "status": 200,
+        "expected": 200
       },
       {
         "host": "https://api-sandbox-8146.up.railway.app",
         "route": "/v1/buyer/support/tickets",
-        "status": 401
+        "status": 401,
+        "expected": 401
       },
       {
         "host": "https://api-sandbox-8146.up.railway.app",
         "route": "/v1/support/tickets/sup_not_owned/case",
-        "status": 401
+        "status": 401,
+        "expected": 401
       },
       {
         "host": "https://api-sandbox-8146.up.railway.app",
         "route": "/v1/merchants/not_owned/returns/not_owned/reverse-shipping",
-        "status": 401
+        "status": 401,
+        "expected": 401
       },
       {
         "host": "https://api.zyon-payments.com.br",
         "route": "/ready",
-        "status": 200
+        "status": 200,
+        "expected": 200
       },
       {
         "host": "https://api.zyon-payments.com.br",
         "route": "/v1/buyer/support/tickets",
-        "status": 401
+        "status": 401,
+        "expected": 401
       },
       {
         "host": "https://api.zyon-payments.com.br",
         "route": "/v1/support/tickets/sup_not_owned/case",
-        "status": 401
+        "status": 401,
+        "expected": 401
       },
       {
         "host": "https://api.zyon-payments.com.br",
         "route": "/v1/merchants/not_owned/returns/not_owned/reverse-shipping",
-        "status": 401
+        "status": 401,
+        "expected": 401
       }
     ]
   },
@@ -269,11 +521,26 @@
       "https://docs.melhorenvio.com.br/reference/impressao-dace",
       "https://docs.melhorenvio.com.br/reference/inserir-logistica-reversa-no-carrinho",
       "https://centraldeajuda.melhorenvio.com.br/hc/pt-br/articles/31220449351700-Como-fa%C3%A7o-para-gerar-um-envio-quando-eu-precisar-receber-uma-encomenda"
-    ]
+    ],
+    "publicationComplete": true
   },
   "remaining": {
-    "required": "Finish or coordinate concurrent publisher, incorporate its last payment-retry fix, restore combined sandbox, deploy API production and promote combined frontends, then recheck canonical UI.",
-    "userQuestionPending": "Has the other checkout publication finished?",
-    "realPurchaseFinancialTestExecuted": false
+    "releaseWork": [],
+    "realPurchaseFinancialTestExecuted": false,
+    "buyerAuthenticationRequired": true,
+    "liveNativeProviderIssuanceVerified": false,
+    "providerFreightRequiresEligibleOriginalShipmentAndExplicitCostConfirmation": true
+  },
+  "concurrentPublisherCoordination": {
+    "resolved": true,
+    "checkoutPublicationCompletedAt": "2026-10-08T18:02:47.530Z",
+    "latestCheckoutSourceCompared": true,
+    "intentionalSourceDelta": "Only native-return posting source differs from completed checkout release."
+  },
+  "validationLimits": {
+    "localUiUsesSyntheticCallbacks": true,
+    "sandboxAndProductionBrowserScope": "Guest support UI, login gate, mobile layout and delivered feature bundles; not authenticated acceptance or actual carrier purchase.",
+    "realPurchaseId": "pi_3UMCm02IReEzfWnS1xlNEJKW",
+    "realPurchaseModified": false
   }
 }
