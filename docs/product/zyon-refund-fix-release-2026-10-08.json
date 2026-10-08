@@ -1,0 +1,435 @@
+{
+  "at": "2026-10-08T21:07:25.939Z",
+  "commit": "9ea6118039f08050b486c908a33c82f7a68f2612",
+  "branch": "release/conversational-cancellation-20261008",
+  "baseline": "d48345942db1425ecda17c2bd3546ccd57c7387a",
+  "scope": "Original Stripe Connect account for refunds, GET-only pending reconciliation, explicit bounded recovery, support refresh 429 backoff",
+  "local": {
+    "apiUnitTestsPassed": 39,
+    "databaseTestsPassed": 9,
+    "dashboardTestsPassed": 8,
+    "uiChecksPassed": 14,
+    "apiTypecheck": "passed",
+    "apiBuild": "passed",
+    "dashboardTypecheck": "passed",
+    "dashboardBuild": "passed",
+    "financialProviderCalls": "synthetic only"
+  },
+  "financialRecovery": {
+    "explicitHumanConfirmation": true,
+    "roles": [
+      "owner",
+      "admin"
+    ],
+    "ordinaryFullStripeDirectChargeOnly": true,
+    "originalFrozenAccountAndFingerprint": true,
+    "originalIdentityAndNoRefundsProviderGetRequired": true,
+    "existingAmountAndPaymentBound": true,
+    "minAgeSeconds": 60,
+    "maxAgeHours": 23,
+    "sameOriginalIdempotencyKey": true,
+    "durableOneTimeClaim": true,
+    "automaticReconciliationFinancialPosts": 0
+  },
+  "deployment": {
+    "sandbox": {
+      "api": {
+        "mode": "api-sandbox",
+        "startedAt": "2026-10-08T20:50:57.545Z",
+        "finishedAt": "2026-10-08T20:51:20.455Z",
+        "exitCode": 0,
+        "deploymentId": "a8a6faa3-dea4-4276-813d-720264f65c5e",
+        "log": "C:/tmp/zyon-refund-api-sandbox-deploy-20261008.log",
+        "status": "SUCCESS"
+      },
+      "dashboard": {
+        "mode": "dashboard-sandbox",
+        "startedAt": "2026-10-08T20:51:07.721Z",
+        "finishedAt": "2026-10-08T20:51:19.589Z",
+        "exitCode": 0,
+        "deploymentId": "cfec6d33-8889-412c-a03c-98846ca2b18c",
+        "log": "C:/tmp/zyon-refund-dashboard-sandbox-deploy-20261008.log",
+        "status": "SUCCESS"
+      },
+      "liveQa": {
+        "at": "2026-10-08T21:05:26.853Z",
+        "environment": "sandbox",
+        "checks": [
+          {
+            "name": "api_ready",
+            "ok": true
+          },
+          {
+            "name": "recovery_requires_authentication_before_any_financial_call",
+            "ok": true
+          },
+          {
+            "name": "retry_after_is_browser_readable",
+            "ok": true
+          },
+          {
+            "name": "deployed_Retomar estorno sem confirmação",
+            "ok": true
+          },
+          {
+            "name": "deployed_Confirmar retomada de",
+            "ok": true
+          },
+          {
+            "name": "deployed_O histórico carregado continua disponível",
+            "ok": true
+          },
+          {
+            "name": "deployed_Não foi possível atualizar agora. Uma nova consulta será feita automaticamente.",
+            "ok": true
+          },
+          {
+            "name": "deployed_retryAfterSeconds",
+            "ok": true
+          },
+          {
+            "name": "support_no_five_second_poll",
+            "ok": true
+          }
+        ],
+        "passed": true,
+        "financialPosts": 0,
+        "unauthenticatedRecoveryRequest": true,
+        "dashboardAsset": {
+          "path": "/assets/support-settings-page-BcV_H92L.js",
+          "sha256": "8cc74b0f1d2490cf84d3d6ff05df7623b6b540f7e4199dc58eba7ff8914c711f"
+        }
+      },
+      "activeApiStartCommand": "Guarded migrations and API; service-level configuration overrides archive startup",
+      "storefrontAndReturnsPublicRegression": {
+        "at": "2026-10-08T21:06:33.791Z",
+        "environment": "sandbox",
+        "url": "https://storefront-sandbox-3f42.up.railway.app/store/qa-pos-venda-24d0da34",
+        "checks": [
+          {
+            "name": "storefront_ready",
+            "ok": true
+          },
+          {
+            "name": "photos_absent_in_support_entry",
+            "ok": true
+          },
+          {
+            "name": "mobile_no_horizontal_overflow",
+            "ok": true
+          },
+          {
+            "name": "real_purchase_requires_buyer_login",
+            "ok": true
+          },
+          {
+            "name": "buyer_posting_document_bundle_deployed",
+            "ok": true
+          },
+          {
+            "name": "dashboard_contains_Aceitar devolução",
+            "ok": true
+          },
+          {
+            "name": "dashboard_contains_Gerar código de devolução",
+            "ok": true
+          },
+          {
+            "name": "dashboard_contains_Baixar declaração de conteúdo",
+            "ok": true
+          },
+          {
+            "name": "dashboard_contains_Informar etiqueta emitida pela loja",
+            "ok": true
+          },
+          {
+            "name": "no_page_errors",
+            "ok": true
+          }
+        ],
+        "pageErrors": [],
+        "financialExecution": false,
+        "jsAssetPaths": [
+          "/_next/static/chunks/dfd89489-9f4a76bec06f6daa.js",
+          "/_next/static/chunks/59-0dee833a04d399c8.js",
+          "/_next/static/chunks/main-app-ab8df7705c7dbeb0.js",
+          "/_next/static/chunks/ff00f882-2883f6346abcbd8e.js",
+          "/_next/static/chunks/fd4cade4-38359a3d02a3a377.js",
+          "/_next/static/chunks/756-3262a18a66804736.js",
+          "/_next/static/chunks/949-4ee74587af4d0de5.js",
+          "/_next/static/chunks/872-4fb1ef0592143e77.js",
+          "/_next/static/chunks/app/store/%5Bslug%5D/page-c185f82ad788c287.js",
+          "/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "/_next/static/chunks/webpack-3e3fd892407fe783.js"
+        ],
+        "storefrontAsset": {
+          "path": "/_next/static/chunks/872-4fb1ef0592143e77.js",
+          "sha256": "c11811b92a42a5ecb2ddccb35acaf8378b0dba2b774f23424b202dd444738c98"
+        },
+        "dashboardAsset": {
+          "path": "/assets/support-settings-page-BcV_H92L.js",
+          "sha256": "8cc74b0f1d2490cf84d3d6ff05df7623b6b540f7e4199dc58eba7ff8914c711f"
+        }
+      }
+    },
+    "production": {
+      "dashboardCandidate": {
+        "mode": "dashboard-production",
+        "startedAt": "2026-10-08T20:52:27.423Z",
+        "finishedAt": "2026-10-08T20:53:38.957Z",
+        "exitCode": 0,
+        "deploymentId": "dpl_5kozccFKLawa7ZjGg2GwvGAKQesA",
+        "deploymentUrl": "https://zyon-dashboard-hyn3pjsp8-diegos-projects-b6fd2a25.vercel.app",
+        "state": "READY",
+        "log": "C:/tmp/zyon-refund-dashboard-production-deploy-20261008.log"
+      },
+      "publicationVerified": true,
+      "api": {
+        "mode": "api-production",
+        "startedAt": "2026-10-08T20:57:59.940Z",
+        "finishedAt": "2026-10-08T20:58:13.960Z",
+        "exitCode": 0,
+        "deploymentId": "cb227149-5ab7-4b1d-8a95-a534e2912072",
+        "log": "C:/tmp/zyon-refund-api-production-deploy-20261008.log",
+        "status": "SUCCESS",
+        "readyAt": "2026-10-08T21:03:17.132Z"
+      },
+      "dashboardSourceProof": {
+        "at": "2026-10-08T20:54:18.042Z",
+        "targets": {
+          "dashboard": {
+            "id": "dpl_5kozccFKLawa7ZjGg2GwvGAKQesA",
+            "url": "zyon-dashboard-hyn3pjsp8-diegos-projects-b6fd2a25.vercel.app",
+            "readyState": "READY",
+            "sourceFilesVerified": 7,
+            "files": [
+              "apps/dashboard/src/api/endpoints/support.ts",
+              "apps/dashboard/src/pages/support-settings/components/SupportChatDrawer.tsx",
+              "apps/dashboard/src/pages/support-settings/hooks/support-refresh.spec.ts",
+              "apps/dashboard/src/pages/support-settings/hooks/support-refresh.ts",
+              "apps/dashboard/src/pages/support-settings/hooks/useSupportChat.ts",
+              "apps/dashboard/src/pages/support-settings/hooks/useSupportRefresh.ts",
+              "apps/dashboard/src/pages/support-settings/hooks/useSupportTickets.ts"
+            ],
+            "archiveVerified": true
+          }
+        }
+      },
+      "temporaryReadOnlyAuditStartupConfigured": true,
+      "dashboardAlias": {
+        "at": "2026-10-08T21:06:43.429Z",
+        "host": "app.zyon-payments.com.br",
+        "deploymentId": "dpl_5kozccFKLawa7ZjGg2GwvGAKQesA",
+        "candidateId": "dpl_5kozccFKLawa7ZjGg2GwvGAKQesA",
+        "readyState": "READY",
+        "sourceFilesVerified": 7
+      },
+      "runtimeSourceAndOriginalPayment": {
+        "at": "2026-10-08T21:04:00.133Z",
+        "deploymentId": "cb227149-5ab7-4b1d-8a95-a534e2912072",
+        "financialPosts": 0,
+        "logs": [
+          {
+            "at": "2026-10-08T21:03:09.455538846Z",
+            "message": "refund_release_source {\"src/modules/payment/domain/payment-provider-route.ts\":\"db0e6070fe584ccd48bb68e2280aa9912163744d726ba0b91b76018c61026330\",\"src/modules/payment/infrastructure/stripe-payment.adapter.ts\":\"3ab6bcba460671fdf80f871bc4589f9f604179a8fee73fe18b7ad26d85d95c45\",\"src/modules/returns/application/use-cases/process-refund.use-case.ts\":\"ff2b43c95246078d267cd93e05ceb9d56e609d266ef0ccd5d2707f1c9ac7181f\",\"src/modules/returns/presentation/http/support-case.controller.ts\":\"a2658afbbf5bce4cd589ba78f4d0d81cb601ee6483da191e26a660fbd7f0709f\"}"
+          },
+          {
+            "at": "2026-10-08T21:03:09.455543466Z",
+            "message": "refund_incident_readonly {\"id\":\"cmusy9ui59quhla0187jfphm8\",\"merchant_id\":\"mrc_696a583b-e0b8-4956-aea7-4f15037de32b\",\"order_id\":\"pi_3UMCm02IReEzfWnS1xlNEJKW\",\"status\":\"REFUND_PROCESSING\",\"refund_status\":\"PENDING\",\"amount_in_cents\":3089,\"provider_refund_id\":null,\"attempt_created_at\":\"2026-10-08T19:52:16.327Z\",\"payment_id\":\"pay_int_e004047d-f023-4852-87ce-f01254152cd2\",\"provider_payment_id\":\"pi_3UMCm02IReEzfWnS1xlNEJKW\",\"currency\":\"BRL\",\"approved_amount_cents\":3089,\"original_account\":\"acct_1UJOi62IReEzfWnS\",\"original_charge_mode\":\"direct_v2\",\"original_provider\":\"stripe\",\"fingerprintMatches\":true,\"financialPosts\":0}"
+          },
+          {
+            "at": "2026-10-08T21:03:09.837147546Z",
+            "message": "refund_provider_readonly {\"orderId\":\"pi_3UMCm02IReEzfWnS1xlNEJKW\",\"returnId\":\"cmusy9ui59quhla0187jfphm8\",\"financialPosts\":0,\"originalIdentityMatches\":true,\"status\":\"succeeded\",\"amountReceived\":3089,\"amountRefunded\":0,\"refunds\":[],\"complete\":true}"
+          }
+        ],
+        "sourceFilesVerified": 4,
+        "refund_incident_readonly": {
+          "id": "cmusy9ui59quhla0187jfphm8",
+          "merchant_id": "mrc_696a583b-e0b8-4956-aea7-4f15037de32b",
+          "order_id": "pi_3UMCm02IReEzfWnS1xlNEJKW",
+          "status": "REFUND_PROCESSING",
+          "refund_status": "PENDING",
+          "amount_in_cents": 3089,
+          "provider_refund_id": null,
+          "attempt_created_at": "2026-10-08T19:52:16.327Z",
+          "payment_id": "pay_int_e004047d-f023-4852-87ce-f01254152cd2",
+          "provider_payment_id": "pi_3UMCm02IReEzfWnS1xlNEJKW",
+          "currency": "BRL",
+          "approved_amount_cents": 3089,
+          "original_account": "acct_1UJOi62IReEzfWnS",
+          "original_charge_mode": "direct_v2",
+          "original_provider": "stripe",
+          "fingerprintMatches": true,
+          "financialPosts": 0
+        },
+        "refund_provider_readonly": {
+          "orderId": "pi_3UMCm02IReEzfWnS1xlNEJKW",
+          "returnId": "cmusy9ui59quhla0187jfphm8",
+          "financialPosts": 0,
+          "originalIdentityMatches": true,
+          "status": "succeeded",
+          "amountReceived": 3089,
+          "amountRefunded": 0,
+          "refunds": [],
+          "complete": true
+        }
+      },
+      "temporaryAuditStartupRestored": true,
+      "liveQa": {
+        "at": "2026-10-08T21:05:27.351Z",
+        "environment": "production",
+        "checks": [
+          {
+            "name": "api_ready",
+            "ok": true
+          },
+          {
+            "name": "recovery_requires_authentication_before_any_financial_call",
+            "ok": true
+          },
+          {
+            "name": "retry_after_is_browser_readable",
+            "ok": true
+          },
+          {
+            "name": "deployed_Retomar estorno sem confirmação",
+            "ok": true
+          },
+          {
+            "name": "deployed_Confirmar retomada de",
+            "ok": true
+          },
+          {
+            "name": "deployed_O histórico carregado continua disponível",
+            "ok": true
+          },
+          {
+            "name": "deployed_Não foi possível atualizar agora. Uma nova consulta será feita automaticamente.",
+            "ok": true
+          },
+          {
+            "name": "deployed_retryAfterSeconds",
+            "ok": true
+          },
+          {
+            "name": "support_no_five_second_poll",
+            "ok": true
+          }
+        ],
+        "passed": true,
+        "financialPosts": 0,
+        "unauthenticatedRecoveryRequest": true,
+        "dashboardAsset": {
+          "path": "/assets/support-settings-page-ZmMerwvb.js",
+          "sha256": "381578b2ce5073d255801ab34d12963d49c16245a4dc8ff275ebd46bcfc2c4ad"
+        }
+      },
+      "storefrontAndReturnsPublicRegression": {
+        "at": "2026-10-08T21:05:27.999Z",
+        "environment": "production",
+        "url": "https://storefront.zyon-payments.com.br/store/athom-technologies",
+        "checks": [
+          {
+            "name": "storefront_ready",
+            "ok": true
+          },
+          {
+            "name": "photos_absent_in_support_entry",
+            "ok": true
+          },
+          {
+            "name": "mobile_no_horizontal_overflow",
+            "ok": true
+          },
+          {
+            "name": "real_purchase_requires_buyer_login",
+            "ok": true
+          },
+          {
+            "name": "buyer_posting_document_bundle_deployed",
+            "ok": true
+          },
+          {
+            "name": "dashboard_contains_Aceitar devolução",
+            "ok": true
+          },
+          {
+            "name": "dashboard_contains_Gerar código de devolução",
+            "ok": true
+          },
+          {
+            "name": "dashboard_contains_Baixar declaração de conteúdo",
+            "ok": true
+          },
+          {
+            "name": "dashboard_contains_Informar etiqueta emitida pela loja",
+            "ok": true
+          },
+          {
+            "name": "no_page_errors",
+            "ok": true
+          }
+        ],
+        "pageErrors": [],
+        "financialExecution": false,
+        "jsAssetPaths": [
+          "/_next/static/chunks/dfd89489-9f4a76bec06f6daa.js",
+          "/_next/static/chunks/59-0dee833a04d399c8.js",
+          "/_next/static/chunks/main-app-095fa1926c018793.js",
+          "/_next/static/chunks/ff00f882-2883f6346abcbd8e.js",
+          "/_next/static/chunks/fd4cade4-38359a3d02a3a377.js",
+          "/_next/static/chunks/756-3262a18a66804736.js",
+          "/_next/static/chunks/949-4ee74587af4d0de5.js",
+          "/_next/static/chunks/594-01433fe865c74f74.js",
+          "/_next/static/chunks/app/store/%5Bslug%5D/page-90b788292eedce87.js",
+          "/_next/static/chunks/polyfills-42372ed130431b0a.js",
+          "/_next/static/chunks/webpack-3e3fd892407fe783.js"
+        ],
+        "storefrontAsset": {
+          "path": "/_next/static/chunks/594-01433fe865c74f74.js",
+          "sha256": "598bae80ccc5e487a8b9068294b77f94a8a711a05dc36de21390100f62d5d856"
+        },
+        "dashboardAsset": {
+          "path": "/assets/support-settings-page-ZmMerwvb.js",
+          "sha256": "381578b2ce5073d255801ab34d12963d49c16245a4dc8ff275ebd46bcfc2c4ad"
+        }
+      }
+    }
+  },
+  "realCase": {
+    "orderId": "pi_3UMCm02IReEzfWnS1xlNEJKW",
+    "returnId": "cmusy9ui59quhla0187jfphm8",
+    "ticketId": "sup_204f91de-6c82-4af9-b4e8-8d6361763843",
+    "financialPostsByAgent": 0,
+    "providerRefundStatus": "No Stripe refund exists at the recorded read",
+    "providerReadAt": "2026-10-08T21:03:09.837147546Z",
+    "amountReceived": 3089,
+    "amountRefunded": 0,
+    "localRefundStatus": "PENDING",
+    "originalFrozenAccountVerified": true,
+    "nextAction": "Authenticated owner/admin reloads case 763843 and chooses Retomar estorno sem confirmação, then explicitly confirms R$ 30,89"
+  },
+  "mainWorktree": {
+    "preserved": true,
+    "focusedPatchDryRun": "does_not_apply_without_conflicts",
+    "sourcePublishedFromIsolatedReleaseBranch": true
+  },
+  "recoveryLimitations": {
+    "ordinaryFullStripeDirectChargeOnly": true,
+    "existingProviderRefundIdsUseReadOnlyReconciliation": true,
+    "partialRefundsAndOtherProvidersRequireReview": true,
+    "emptyRefundListAloneNeverAuthorizesAutomaticRetry": true,
+    "productionFinancialExecutionNotTestedByAgent": true
+  },
+  "documentationSources": [
+    "https://docs.stripe.com/connect/direct-charges?platform=web&ui=elements",
+    "https://docs.stripe.com/api/refunds/list",
+    "https://docs.stripe.com/api/idempotent_requests"
+  ],
+  "qaInfrastructure": {
+    "localDatabaseContainer": "zyon-returns-photos-qa-20261008",
+    "stopped": true,
+    "localPreviewPort5183": "stopped",
+    "temporaryUiHarness": "removed"
+  }
+}

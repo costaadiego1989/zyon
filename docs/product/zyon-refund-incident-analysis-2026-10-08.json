@@ -1,0 +1,96 @@
+{
+  "recordedAt": "2026-10-08T20:01:58.212Z",
+  "scope": "Read-only diagnosis of support case 763843 and real refund request",
+  "environment": "production",
+  "ticketId": "sup_204f91de-6c82-4af9-b4e8-8d6361763843",
+  "returnId": "cmusy9ui59quhla0187jfphm8",
+  "orderId": "pi_3UMCm02IReEzfWnS1xlNEJKW",
+  "financialPostsByAgent": 0,
+  "case429CountInSample": 47,
+  "logs": [
+    {
+      "at": "2026-10-08T19:52:16.736704981Z",
+      "message": "[Nest] 1  - 10/08/2026, 7:52:16 PM   ERROR [RefundPaymentService] Refund outcome unknown for payment pay_int_e004047d-f023-4852-87ce-f01254152cd2"
+    },
+    {
+      "at": "2026-10-08T19:52:16.736708491Z",
+      "message": "[Nest] 1  - 10/08/2026, 7:52:16 PM    WARN [ProcessRefundUseCase] Refund not completed for return cmusy9ui59quhla0187jfphm8 (order pi_3UMCm02IReEzfWnS1xlNEJKW): provider_refund_unknown"
+    },
+    {
+      "at": "2026-10-08T19:52:34.931546427Z",
+      "message": "[Nest] 1  - 10/08/2026, 7:52:34 PM    WARN [RefundPaymentService] Refund reconciliation failed for order pi_3UMCm02IReEzfWnS1xlNEJKW: No such refund: 'pending:return:cmusy9ui59quhla0187jfphm8'"
+    },
+    {
+      "at": "2026-10-08T19:52:38.795275438Z",
+      "message": "[Nest] 1  - 10/08/2026, 7:52:38 PM    WARN [RefundPaymentService] Refund reconciliation failed for order pi_3UMCm02IReEzfWnS1xlNEJKW: No such refund: 'pending:return:cmusy9ui59quhla0187jfphm8'"
+    }
+  ],
+  "findings": [
+    "The customer payment exists in the connected Athom account, while a platform-account read returns resource_missing.",
+    "paymentProviderRoute drops stripeConnectAccountId and stripeChargeMode, so ordinary refund creation and reconciliation lose the original direct-charge account.",
+    "A missing provider refund id is replaced with pending:return:<id>; the Stripe adapter tries refunds.retrieve on that internal placeholder.",
+    "Support conversation and ticket list poll every 5 seconds, do not deduplicate active requests or wait for Retry-After. HTTP 429 appears as a raw dashboard_http_429 in the UI."
+  ],
+  "providerEvidenceFile": "C:/tmp/zyon-refund-connected-provider-readonly-20261008.json",
+  "requiredCorrections": [
+    "Preserve and validate the original Stripe connected-account identity for refund creation and status reads.",
+    "Use provider-specific read-only reconciliation for missing refund ids, preserving ambiguous state and preventing duplicate financial POSTs.",
+    "Use a shared refresh scheduler with deduplication and Retry-After backoff; retain loaded conversation and show a friendly status.",
+    "Explicitly resolve the already-recorded pending request after provider/account identity has been verified; never infer completed from notification acceptance."
+  ],
+  "productionChangedByThisAnalysis": false,
+  "provider": {
+    "at": "2026-10-08T20:00:27.834Z",
+    "readOnly": true,
+    "financialPosts": 0,
+    "connectedAccount": "acct_1UJOi62IReEzfWnS",
+    "accountMerchantId": "mrc_696a583b-e0b8-4956-aea7-4f15037de32b",
+    "payment": {
+      "id": "pi_3UMCm02IReEzfWnS1xlNEJKW",
+      "status": "succeeded",
+      "livemode": true,
+      "amount": 3089,
+      "amountReceived": 3089,
+      "currency": "brl",
+      "metadataMerchantId": "mrc_696a583b-e0b8-4956-aea7-4f15037de32b",
+      "metadataIntentId": "pay_int_e004047d-f023-4852-87ce-f01254152cd2",
+      "charge": {
+        "id": "ch_3UMCm02IReEzfWnS1iPiHQJj",
+        "paid": true,
+        "captured": true,
+        "amount": 3089,
+        "amountRefunded": 0,
+        "refunded": false
+      }
+    },
+    "refundListComplete": true,
+    "refunds": []
+  },
+  "platformProviderRead": {
+    "at": "2026-10-08T19:58:56.427Z",
+    "readOnly": true,
+    "financialPosts": 0,
+    "keyMode": "live",
+    "rateLimits": {
+      "apiTenantMax": "default60",
+      "apiIpMax": "default600"
+    },
+    "paymentError": {
+      "httpStatus": 404,
+      "code": "resource_missing",
+      "type": "invalid_request_error",
+      "message": "No such payment_intent: 'pi_3UMCm02IReEzfWnS1xlNEJKW'"
+    }
+  },
+  "routeProbe": {
+    "synthetic": true,
+    "accountPreserved": false,
+    "directChargeModePreserved": false
+  },
+  "sources": {
+    "route": "apps/api/src/modules/payment/domain/payment-provider-route.ts:9",
+    "placeholder": "apps/api/src/modules/returns/application/use-cases/process-refund.use-case.ts:59",
+    "polling": "apps/dashboard/src/pages/support-settings/hooks/useSupportChat.ts:21",
+    "ticketPolling": "apps/dashboard/src/pages/support-settings/hooks/useSupportTickets.ts:42"
+  }
+}
