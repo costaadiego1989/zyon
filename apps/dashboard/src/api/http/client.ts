@@ -6,6 +6,7 @@
 import { DashboardHttpError, DashboardJsonParseError } from "./error.js";
 import { mergeUrl } from "./url.js";
 import { createIdempotencyKey } from "./idempotency.js";
+import { createSessionFetch } from "./session-fetch.js";
 
 export const SESSION_EXPIRED_EVENT = "aacp:session_expired";
 
@@ -24,8 +25,7 @@ async function silentRefresh(apiBaseUrl: string, fetchImpl: typeof fetch): Promi
     try {
       const res = await fetchImpl(mergeUrl(apiBaseUrl, "/auth/refresh"), {
         method: "POST",
-        credentials: "include",
-        cache: "no-store"
+        credentials: "include"
       });
       return res.ok;
     } catch {
@@ -44,6 +44,7 @@ export async function dashboardFetch(
   init: Omit<RequestInit, "credentials"> & { jsonBody?: unknown } = {},
   fetchImpl: typeof fetch = globalThis.fetch
 ): Promise<Response> {
+  const sessionFetch = createSessionFetch(apiBaseUrl, fetchImpl);
   const { jsonBody, body, headers: headersInit, ...rest } = init;
   const headers = new Headers(headersInit ?? undefined);
 
@@ -62,14 +63,12 @@ export async function dashboardFetch(
   }
 
   const doFetch = () =>
-    fetchImpl(mergeUrl(apiBaseUrl, path), {
+    sessionFetch(mergeUrl(apiBaseUrl, path), {
       ...rest,
+      cache: "no-store",
       headers,
       body: finalBody,
-      credentials: "include",
-      // Tenant-scoped dashboard reads must never render data from the
-      // previously active store after a successful store activation.
-      cache: "no-store"
+      credentials: "include"
     });
 
   let res: Response;
@@ -83,7 +82,7 @@ export async function dashboardFetch(
   }
 
   if (res.status === 401 && !path.includes("/auth/")) {
-    const refreshed = await silentRefresh(apiBaseUrl, fetchImpl);
+    const refreshed = await silentRefresh(apiBaseUrl, sessionFetch);
     if (refreshed) {
       const retryRes = await doFetch();
       if (retryRes.status === 401) {

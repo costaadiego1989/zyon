@@ -2,18 +2,16 @@
 .store-settings-fieldset { min-width: 0; border: 0; padding: 0; margin: 0; }
 .store-budget { display: grid; gap: 24px; }
 .store-budget > .admin-help { margin: 0; max-width: 70ch; }
-.store-budget__activation { display: flex; align-items: center; justify-content: space-between; gap: 24px; min-height: 44px; padding: 0 0 24px; border-bottom: 1px solid var(--color-border); }
-.store-budget__activation > div { display: grid; gap: 6px; min-width: 0; font-size: 14px; line-height: 1.6; }
-.store-budget__activation label { font-size: 15px; font-weight: 600; cursor: pointer; }
-.store-budget__activation p { margin: 0; max-width: 65ch; color: var(--color-text-muted); }
+.store-budget__activation { display: flex; align-items: flex-start; gap: 14px; min-height: 44px; padding: 16px 0 24px; border-bottom: 1px solid var(--color-border); cursor: pointer; }
+.store-budget__activation input { width: 20px; height: 20px; margin: 2px 0 0; flex: 0 0 auto; accent-color: var(--color-brand, var(--accent)); }
+.store-budget__activation input:focus-visible { outline: 2px solid var(--color-brand, var(--accent)); outline-offset: 3px; }
+.store-budget__activation > span { display: grid; gap: 6px; font-size: 14px; line-height: 1.6; }
+.store-budget__activation strong { font-size: 15px; font-weight: 600; }
+.store-budget__activation span span { color: var(--color-text-muted); }
 .store-settings-page .store-hour-row { display: grid; grid-template-columns: 120px minmax(0,1fr) minmax(0,1fr) 112px; align-items: center; gap: 20px; padding: 12px 0; border-bottom: 1px solid var(--color-border); }
 .store-settings-page .store-hour-row:last-child { border-bottom: 0; }
 .store-settings-page .store-hour-row label { font-size: 14px; cursor: pointer; }
 .store-settings-page .store-policy-list { display: grid; gap: 32px; }
-.store-settings-page .store-policy-help { display: grid; gap: 12px; }
-.store-settings-page .store-policy-help .admin-help { margin: 0; }
-.store-settings-page .store-policy-help a { display: inline-flex; align-items: center; min-height: 44px; color: var(--color-text); text-decoration: underline; text-underline-offset: 3px; }
-.store-settings-page .store-policy-help a:focus-visible { outline: 2px solid var(--color-primary); outline-offset: 2px; }
 .store-settings-page .store-policy-list section + section { border-top: 1px solid var(--color-border); padding-top: 32px; }
 .store-settings-page .store-policy-list textarea { min-height: 160px; }
 .store-settings-page .store-policy-list .admin-actions { margin-top: 12px; }

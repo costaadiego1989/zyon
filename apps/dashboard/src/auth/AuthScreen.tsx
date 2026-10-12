@@ -6,6 +6,7 @@ import { Turnstile } from "./Turnstile.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
 import { DashboardHttpError } from "../api-client.js";
+import { friendlyAuthError } from "./auth-error.js";
 import "./auth-screen.css";
 
 export type AuthMode = "login" | "signup" | "forgot" | "reset";
@@ -68,16 +69,21 @@ export function AuthScreen(props: AuthScreenProps) {
       onSwitchToLogin={() => props.setMode("login")}
       onGithubClick={() => startOAuthFlow("github")} onGoogleClick={() => startOAuthFlow("google")}
       turnstileSiteKey={props.turnstileSiteKey} captchaToken={props.captchaToken} setCaptchaToken={props.setCaptchaToken}
-    /> : props.mode === "reset" ? <ResetPasswordForm onBack={() => props.setMode("login")} />
-      : props.mode === "forgot" ? <ForgotPasswordForm onBack={() => props.setMode("login")} />
+    /> : props.mode === "reset" ? <ResetPasswordForm onBack={() => props.setMode("login")} turnstileSiteKey={props.turnstileSiteKey} />
+      : props.mode === "forgot" ? <ForgotPasswordForm onBack={() => props.setMode("login")} turnstileSiteKey={props.turnstileSiteKey} />
       : <LoginForm {...props} onGithubClick={() => startOAuthFlow("github")} onGoogleClick={() => startOAuthFlow("google")} />}
   </AuthExperience>;
 }
 
 function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogleClick: () => void }) {
   const [showPass, setShowPass] = useState(false);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   return (
-    <form onSubmit={props.onSubmit} className="auth-form" aria-busy={props.busy}>
+    <form onSubmit={(event) => {
+      if (props.busy || (props.turnstileSiteKey && !props.captchaToken)) { event.preventDefault(); return; }
+      props.onSubmit(event);
+      setCaptchaAttempt(value => value + 1);
+    }} className="auth-form" aria-busy={props.busy}>
       <div className="auth-form__header">
         <h2 className="auth-form__title">Acesse seu painel</h2>
         <p className="auth-form__subtitle">Acompanhe sua loja, seus pedidos e o trabalho da IA.</p>
@@ -119,6 +125,8 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
       {props.turnstileSiteKey ? (
         <div className="auth-field">
           <Turnstile
+            action="login"
+            resetKey={captchaAttempt}
             theme="light"
             siteKey={props.turnstileSiteKey}
             onChange={props.setCaptchaToken}
@@ -132,7 +140,7 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
         type="submit"
         disabled={
           props.busy ||
-          (import.meta.env.PROD && Boolean(props.turnstileSiteKey) && !props.captchaToken)
+          (Boolean(props.turnstileSiteKey) && !props.captchaToken)
         }
         className="auth-cta"
       >
@@ -144,8 +152,10 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
   );
 }
 
-function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
+function ForgotPasswordForm({ onBack, turnstileSiteKey }: { onBack: () => void; turnstileSiteKey: string }) {
   const api = useApi();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [email, setEmail] = React.useState("");
   const [sent, setSent] = React.useState(false);
   const [busy, setBusy] = React.useState(false);
@@ -153,12 +163,13 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy || (turnstileSiteKey && !captchaToken)) return;
     setBusy(true);
     setError(null);
     try {
-      await api.forgotPassword(email);
+      await api.forgotPassword(email, captchaToken ?? undefined);
       setSent(true);
-    } catch (err) { setError(readError(err) || "Erro ao enviar email"); } finally { setBusy(false); }
+    } catch (err) { setError(friendlyAuthError(err)); } finally { setBusy(false); setCaptchaToken(null); setCaptchaAttempt(value => value + 1); }
   };
 
   if (sent) {
@@ -181,15 +192,18 @@ function ForgotPasswordForm({ onBack }: { onBack: () => void }) {
         <label className="auth-field__label" htmlFor="recovery-email">E-mail</label>
         <input id="recovery-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="voce@empresa.com.br" required className="auth-field__input" />
       </div>
+      <Turnstile theme="light" siteKey={turnstileSiteKey} action="forgot_password" resetKey={captchaAttempt} onChange={setCaptchaToken} />
       {error ? <div className="auth-hint" role="alert">{error}</div> : null}
-      <button type="submit" disabled={busy} className="auth-cta">{busy ? "Enviando..." : "Enviar link"}</button>
+      <button type="submit" disabled={busy || (Boolean(turnstileSiteKey) && !captchaToken)} className="auth-cta">{busy ? "Enviando..." : "Enviar link"}</button>
       <button type="button" onClick={onBack} disabled={busy} className="auth-btn-secondary">← Voltar ao login</button>
     </form>
   );
 }
 
-export function ResetPasswordForm({ onBack }: { onBack: () => void }) {
+export function ResetPasswordForm({ onBack, turnstileSiteKey = "" }: { onBack: () => void; turnstileSiteKey?: string }) {
   const api = useApi();
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [newPassword, setNewPassword] = React.useState("");
   const [confirmPassword, setConfirmPassword] = React.useState("");
   const [showPw, setShowPw] = React.useState(false);
@@ -201,12 +215,13 @@ export function ResetPasswordForm({ onBack }: { onBack: () => void }) {
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (busy || (turnstileSiteKey && !captchaToken)) return;
     setError(null);
     if (newPassword.length < 8) { setError("Senha deve ter no mínimo 8 caracteres"); return; }
     if (newPassword !== confirmPassword) { setError("Senhas não conferem"); return; }
     setBusy(true);
     try {
-      await api.resetPassword(token, newPassword);
+      await api.resetPassword(token, newPassword, captchaToken ?? undefined);
       setDone(true);
       // Clean URL
       window.history.replaceState({}, "", "/");
@@ -226,7 +241,7 @@ export function ResetPasswordForm({ onBack }: { onBack: () => void }) {
         message = readError(err) || "Erro ao redefinir senha";
       }
       setError(message);
-    } finally { setBusy(false); }
+    } finally { setBusy(false); setCaptchaToken(null); setCaptchaAttempt(value => value + 1); }
   };
 
   if (!token && !done) {
@@ -268,8 +283,9 @@ export function ResetPasswordForm({ onBack }: { onBack: () => void }) {
         <label className="auth-field__label" htmlFor="reset-confirm-password">Confirmar senha</label>
         <input id="reset-confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" placeholder="Repita a nova senha" required className="auth-field__input" />
       </div>
+      <Turnstile theme="light" siteKey={turnstileSiteKey} action="reset_password" resetKey={captchaAttempt} onChange={setCaptchaToken} />
       {error ? <div className="auth-hint" role="alert">{error}</div> : null}
-      <button type="submit" disabled={busy} className="auth-cta">{busy ? "Salvando..." : "Redefinir senha"}</button>
+      <button type="submit" disabled={busy || (Boolean(turnstileSiteKey) && !captchaToken)} className="auth-cta">{busy ? "Salvando..." : "Redefinir senha"}</button>
     </form>
   );
 }

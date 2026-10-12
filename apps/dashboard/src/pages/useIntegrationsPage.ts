@@ -136,7 +136,7 @@ export function useIntegrationsPage(
   const [newKeyName, setNewKeyName] = useState("Backend principal");
   const [newSecret, setNewSecret] = useState<string | null>(null);
   const [secretKind, setSecretKind] = useState<"api" | "webhook">("api");
-  const [selectedScopes, setSelectedScopes] = useState<string[]>([...ALL_SCOPES]);
+  const [selectedScopes, setSelectedScopes] = useState<string[]>([]);
   const [webhookUrl, setWebhookUrl] = useState("");
   const [selectedEvents, setSelectedEvents] = useState<string[]>([
     "order.approved",

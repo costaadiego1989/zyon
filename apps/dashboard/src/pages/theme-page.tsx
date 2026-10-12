@@ -13,7 +13,7 @@ import { showToast } from "../components/Toast.js";
 import { Button } from "../components/Button.js";
 import { FormField, FormSelect } from "../components/FormField.js";
 import { reportError } from "../lib/observability/error-reporter.js";
-import { applyThemeMode, normalizeThemeDraft } from "./theme-page/theme-preview-palette.js";
+import { changedFields } from "../lib/config-patch.js";
 
 // ── Exported Constants & Helpers (testable) ──────────────────────────────────
 
@@ -118,7 +118,10 @@ function handleImageUpload(
 }
 
 function mergeTheme(theme?: Partial<MerchantTheme> | null): MerchantTheme {
-  return normalizeThemeDraft(theme);
+  return {
+    ...DEFAULT_MERCHANT_THEME,
+    ...(theme ?? {}),
+  };
 }
 
 // ── Component ────────────────────────────────────────────────────────────────
@@ -156,7 +159,9 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
       }
       setBusy(true); setLoadError(null);
       try {
-        const next = mergeTheme(await api.getMerchantTheme());
+        const [savedTheme, agent] = await Promise.all([api.getMerchantTheme(), api.getAgentRules()]);
+        const identity = agent.identity as { agentName?: string } | undefined;
+        const next = mergeTheme({ ...savedTheme, agentName: identity?.agentName ?? savedTheme.agentName });
         if (!active) return;
         setTheme(next);
         const badges = (next.trustBadges ?? []).join(", ");
@@ -203,12 +208,13 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
     saving.current = true; setSaveError(null);
     setBusy(true);
     try {
-      const payload = normalizedTheme();
-      // Upload every image data URI to S3 so the theme stores hosted URLs, not
-      // multi-hundred-KB base64 blobs. All four image fields (logo, favicon,
-      // avatar, background) go through the same uploader — previously only the
-      // logo was uploaded and the other three persisted inline as data URIs,
-      // bloating the theme row and risking validation/size limits.
+      const payload = changedFields(normalizedTheme(), {
+        ...initialTheme,
+        trustBadges: parseBadges(initialBadges),
+      });
+      // Identity belongs to Agente IA, even when resetting the appearance.
+      delete payload.agentName;
+      // Upload only edited image fields; unrelated appearance values stay intact.
       const imageFields = ["logoUrl", "faviconUrl", "agentAvatarUrl", "backgroundImageUrl"] as const;
       for (const field of imageFields) {
         const value = payload[field];
@@ -222,7 +228,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
           }
         }
       }
-      const saved = mergeTheme(await api.putMerchantTheme(payload));
+      const saved = mergeTheme({ ...await api.putMerchantTheme(payload), agentName: theme.agentName });
       setTheme(saved);
       const badges = (saved.trustBadges ?? []).join(", ");
       setBadgesText(badges);
@@ -241,7 +247,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
   function reset() {
     setConfirmReset(false); setSaveError(null);
-    const next = mergeTheme();
+    const next = mergeTheme({ agentName: initialTheme.agentName });
     setTheme(next);
     setBadgesText((next.trustBadges ?? []).join(", "));
   }
@@ -314,11 +320,15 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
             <div className="panel stacked">
               <SectionHeader title="Identidade e tipografia" variant="secondary" />
 
-              <div className="form-field">
-                <label htmlFor="theme-agent-name">Nome do assistente</label>
-                <input id="theme-agent-name" value={theme.agentName ?? ""} readOnly />
-                <span className="form-field-hint">Altere o nome em Canais → Agente IA. Ele é usado na loja e no checkout.</span>
-              </div>
+              <FormField
+                label="Nome do assistente"
+                maxLength={80}
+                value={theme.agentName ?? ""}
+                onChange={() => {}}
+                inputProps={{ readOnly: true }}
+                placeholder="Ex: Pulse, Luna, Max"
+                hint="Nome salvo em Agente IA. Edite a identidade naquela página."
+              />
 
               <div className="theme-grid-2">
                 <FormSelect
@@ -439,7 +449,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                 </div>
                 <input
                   type="range"
-                  min={0}
+                  min={4}
                   max={24}
                   step={1}
                   value={theme.borderRadius ?? DEFAULT_MERCHANT_THEME.borderRadius}
@@ -469,7 +479,7 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
 
               <label>
                 Modo de cor
-                <br /><span className="field-hint" style={{ marginTop: 4, display: "inline-block" }}>Escolha uma base para fundos e textos. A cor da marca, as imagens e as fontes são mantidas.</span>
+                <br /><span className="field-hint" style={{ marginTop: 4, display: "inline-block" }}>Aparência geral do checkout</span>
               </label>
               <div className="filter-tabs">
                 {([
@@ -480,9 +490,9 @@ export function ThemePage(props: { apiBaseUrl: string; me: MerchantProfile | nul
                   <button
                     type="button"
                     key={opt.value}
-                    className={`filter-tab${(theme.mode ?? "light") === opt.value ? " active" : ""}`}
-                    aria-pressed={(theme.mode ?? "light") === opt.value}
-                    onClick={() => setTheme(current => applyThemeMode(current, opt.value))}
+                    aria-pressed={(theme.mode ?? "dark") === opt.value}
+                    className={`filter-tab${(theme.mode ?? "dark") === opt.value ? " active" : ""}`}
+                    onClick={() => patch({ mode: opt.value })}
                   >
                     {opt.label}
                   </button>

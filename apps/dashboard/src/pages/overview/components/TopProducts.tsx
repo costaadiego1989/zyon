@@ -78,7 +78,8 @@ export function TopProducts({ products }: TopProductsProps) {
                 style={{
                   display: "flex",
                   alignItems: "center",
-                  gap: 12,
+                  gap: 8,
+                  flexWrap: "wrap",
                   padding: "10px 0",
                   borderBottom:
                     i < top.length - 1 ? "1px solid var(--color-border)" : "none",
@@ -142,7 +143,7 @@ export function TopProducts({ products }: TopProductsProps) {
                 )}
 
                 {/* Name and progress */}
-                <div style={{ flex: 1, minWidth: 0 }}>
+                <div style={{ flex: "1 1 80px", minWidth: 0 }}>
                   <div
                     style={{
                       fontSize: 13,
@@ -203,7 +204,7 @@ export function TopProducts({ products }: TopProductsProps) {
                     fontFamily: "var(--font-mono)",
                     fontWeight: 700,
                     color: "var(--color-text)",
-                    minWidth: 85,
+                    minWidth: 0,
                     textAlign: "right",
                     flexShrink: 0,
                   }}

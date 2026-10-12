@@ -2,7 +2,7 @@ import { SetupGuide } from "../../components/SetupGuide.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
 import { PageHeader } from "../../components/PageHeader.js";
 import React, { useState } from "react";
-import { AlertCircle, CheckCircle2, CreditCard, FileText, PlugZap, QrCode, RefreshCw } from "lucide-react";
+import { AlertCircle, CheckCircle2, CreditCard, PlugZap, QrCode, RefreshCw } from "lucide-react";
 import type { PaymentConnection } from "../../api-client.js";
 import { StatusBadge } from "./components/StatusBadge.js";
 import { GatewayCard } from "./components/GatewayCard.js";
@@ -50,7 +50,7 @@ function ConnectionSkeleton() {
   );
 }
 
-function PaymentRoutingPanel({
+export function PaymentRoutingPanel({
   routing,
   saving,
   asaasActive,
@@ -93,7 +93,7 @@ function PaymentRoutingPanel({
       : selectedCard === "mercadopago"
       ? mercadoPagoActive
       : false;
-  const availableCount = [pixAvailable, asaasActive, cardAvailable].filter(
+  const availableCount = [pixAvailable, cardAvailable].filter(
     Boolean
   ).length;
   const providerName = (provider: string) =>
@@ -134,7 +134,7 @@ function PaymentRoutingPanel({
           <CheckCircle2 size={15} aria-hidden="true" />
           {saving
             ? "Salvando alterações"
-            : `${availableCount} de 3 métodos disponíveis`}
+            : `${availableCount} de 2 métodos disponíveis`}
         </span>
       </header>
 
@@ -182,38 +182,6 @@ function PaymentRoutingPanel({
                 ? `Conectado via ${providerName(selectedPix)}`
                 : "Este método ficará oculto no checkout."}
             </span>
-          </div>
-        </article>
-
-        <article
-          className="payment-routing__method"
-          data-available={asaasActive}
-        >
-          <div className="payment-routing__method-identity">
-            <span className="payment-routing__method-icon" aria-hidden="true">
-              <FileText size={18} />
-            </span>
-            <div>
-              <div className="payment-routing__method-title-row">
-                <h3>Boleto</h3>
-                <span className="payment-routing__availability">
-                  {asaasActive ? "Disponível" : "Indisponível"}
-                </span>
-              </div>
-              <p>Cobrança bancária com vencimento.</p>
-            </div>
-          </div>
-          <div className="payment-routing__control">
-            <span className="payment-routing__control-label">
-              Processar com
-            </span>
-            <div
-              className="payment-routing__fixed-provider"
-              data-available={asaasActive}
-            >
-              <strong>{asaasActive ? "Asaas" : "Conecte o Asaas"}</strong>
-              <span>Único provedor compatível</span>
-            </div>
           </div>
         </article>
 
@@ -348,7 +316,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
   const tokenAddress = USDC_TOKEN_BY_CHAIN_NETWORK[`${crypto.config.chain}:${crypto.config.network}`];
   const connectedGatewayCount = gatewayConnectionCount(connections);
   const activeCount = connections.filter((c) => c.status === "active").length;
-  const supportsCheckoutMethod = (connection: PaymentConnection | undefined, method: "pix" | "boleto" | "card") =>
+  const supportsCheckoutMethod = (connection: PaymentConnection | undefined, method: "pix" | "card") =>
     Boolean(connection?.checkout_methods?.includes(method));
 
   return (
@@ -421,7 +389,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
           <GatewayCard
             provider="asaas"
             name="Asaas"
-            description="Pix, boleto e cartão hospedado"
+            description="Pix e cartão hospedado"
             iconBg="#fff"
             icon={<AsaasLogo size={52} />}
             connection={asaasConn}
@@ -542,7 +510,7 @@ export function PaymentConnectionsPage({ me }: PaymentConnectionsPageProps) {
             {connectedGatewayCount === 1 ? "gateway" : "gateways"}{" "}
             {activeCount === 1 ? "ativo" : "ativos"}
             {activeCount === connectedGatewayCount
-              ? ` e pronta${activeCount === 1 ? "" : "s"} para transações.`
+              ? ". Confira os métodos habilitados antes de receber pagamentos."
               : ". Verifique as conexões pendentes."}
           </span>
         </div>

@@ -6,6 +6,7 @@ import { PageLoader } from "../../../components/PageLoader.js";
 import { reportError } from "../../../hooks/useErrorReporter.js";
 import type { SettlementDetail } from "../../../api/endpoints/marketplace-v2.js";
 import { SettlementTimeline } from "./SettlementTimeline.js";
+import { MarketplaceDebtPrincipal, marketplaceDebtStatusLabel } from "./MarketplaceDebtPrincipal.js";
 import "./settlement-detail-panel.css";
 
 const formatCurrency = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
@@ -119,14 +120,7 @@ export function SettlementDetailPanel({ settlementId, onClose }: SettlementDetai
                     Débito associado
                   </span>
                 </div>
-                <div className="settlement-panel__info-row">
-                  <span style={{ color: "var(--color-text-muted)" }}>Valor</span>
-                  <span
-                    style={{ fontFamily: "var(--font-mono)", color: "var(--color-error)", fontWeight: 600 }}
-                  >
-                    {formatCurrency(detail.debt.amountCents)}
-                  </span>
-                </div>
+                <MarketplaceDebtPrincipal debt={detail.debt} />
                 <div className="settlement-panel__info-row">
                   <span style={{ color: "var(--color-text-muted)" }}>Status</span>
                   <span
@@ -142,11 +136,7 @@ export function SettlementDetailPanel({ settlementId, onClose }: SettlementDetai
                       fontWeight: 600,
                     }}
                   >
-                    {detail.debt.status === "outstanding"
-                      ? "Pendente"
-                      : detail.debt.status === "deducted"
-                      ? "Deduzido"
-                      : "Resolvido"}
+                    {marketplaceDebtStatusLabel(detail.debt.status)}
                   </span>
                 </div>
               </div>

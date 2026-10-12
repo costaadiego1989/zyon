@@ -17,6 +17,7 @@ export interface Experiment {
   started_at?: string;
   ended_at?: string;
   sample_size: number;
+  metrics?: ExperimentMetrics[];
 }
 
 export interface ExperimentMetrics {

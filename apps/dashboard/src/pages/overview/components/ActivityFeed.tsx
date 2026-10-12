@@ -1,6 +1,4 @@
 import React from "react";
-import { Activity } from "lucide-react";
-import { EmptyState } from "../../../components/EmptyState.js";
 
 export type ActivityType = "order" | "session" | "offer" | "payment";
 
@@ -84,16 +82,13 @@ export function ActivityFeed({ items }: ActivityFeedProps) {
       {visible.length === 0 ? (
         <div
           style={{
-            display: "flex",
-            flex: 1,
-            minHeight: 0,
+            padding: 32,
+            textAlign: "center",
+            color: "var(--color-text-muted)",
+            fontSize: 13,
           }}
         >
-          <EmptyState
-            icon={Activity}
-            title="Sem atividade recente"
-            description="Novos pedidos, sessões e pagamentos aparecerão aqui."
-          />
+          Sem atividade recente
         </div>
       ) : (
         <div

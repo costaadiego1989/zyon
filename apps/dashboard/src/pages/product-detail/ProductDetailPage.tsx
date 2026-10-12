@@ -14,6 +14,7 @@ import { PromotionSection } from "./components/PromotionSection.js";
 import { AdvancedLayoutTab } from "./components/AdvancedLayoutTab.js";
 import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
+import type { ServiceScheduleDraft } from "./utils/service-schedule-validation.js";
 
 export type ProductType = "physical" | "digital" | "service" | "food";
 
@@ -22,6 +23,7 @@ export interface ProductMetadata {
   fileSize?: string;
   fileFormat?: string;
   serviceType?: "presencial" | "remoto";
+  serviceSchedule?: ServiceScheduleDraft;
   startDate?: string;
   startTime?: string;
   endDate?: string;
@@ -87,6 +89,7 @@ export function ProductDetailPage(props: ProductDetailPageProps) {
 
   return (
     <div className="page-container product-detail">
+      {page.saveErrorMsg && <p role="alert" style={{ color: "var(--color-error)" }}>{page.saveErrorMsg}</p>}
       <div className="product-detail__header">
         <Button variant="ghost" size="sm" onClick={() => props.onBack?.()}><ArrowLeft size={14} /> Voltar para Produtos</Button>
         <PageHeader title={page.isEditing ? (page.form.name || "Editar produto") : "Novo produto"} description="Preencha as informações, defina preço e estoque e adicione as imagens." actions={<Button variant="primary" loading={page.saving} disabled={!page.canSave} onClick={() => void page.handleSave()}><Save size={14} /> {page.isEditing ? "Salvar alterações" : "Criar produto"}</Button>} />

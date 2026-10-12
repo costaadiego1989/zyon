@@ -4,7 +4,7 @@ import "./stories-page.css";
 import { SetupGuide } from "../components/SetupGuide.js";
 import { PageHeader } from "../components/PageHeader.js";
 import React, { useRef, useState } from "react";
-import { Plus, Trash2, GripVertical, Image, Clock, FolderOpen, X, Upload, CircleDashed } from "lucide-react";
+import { Plus, Pencil, Trash2, GripVertical, Image, Clock, FolderOpen, X, Upload, CircleDashed } from "lucide-react";
 import { EmptyState } from "../components/EmptyState.js";
 import { ConfirmDialog } from "../components/ConfirmDialog.js";
 import type { MerchantProfile } from "../api-client.js";
@@ -45,7 +45,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
   const [discard, setDiscard] = useState<"category" | "story" | null>(null);
   function closeEditor(type: "category" | "story") {
     if (vm.busy || vm.editor.uploading) return;
-    const dirty = type === "category" ? Boolean(vm.newCategoryName.trim()) : Boolean(vm.editor.imagePreview || vm.editor.title || vm.editor.duration !== 7);
+    const dirty = type === "category" ? vm.categoryDirty : vm.storyDirty;
     if (dirty) { setDiscard(type); return; }
     if (type === "category") vm.setShowCreateCategory(false); else vm.setShowCreateStory(false);
   }
@@ -86,7 +86,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
       />
       {/* Header */}
       <PageHeader title="Stories" description="Crie stories visuais para engajar compradores com promoções, destaques e novidades" actions={<>
-<Button variant="primary" size="sm" arrow disabled={vm.busy || Boolean(vm.loadError)} onClick={() => { vm.clearError(); vm.setShowCreateCategory(true); }}>
+<Button variant="primary" size="sm" arrow disabled={vm.busy || Boolean(vm.loadError)} onClick={vm.openCreateCategory}>
           <Plus size={14} /> Nova categoria
         </Button>
 </>} />
@@ -102,8 +102,8 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
           icon={<FolderOpen size={16} />}
         />
         <StatCard
-          label="Stories ativos"
-          value={vm.stories.length}
+          label="Stories na categoria selecionada"
+          value={vm.storiesLoading || vm.storiesError ? "—" : vm.stories.length}
           icon={<Image size={16} />}
           accent="var(--color-brand)"
         />
@@ -126,6 +126,7 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
               {cat.coverImage ? <img src={cat.coverImage} alt="" /> : <FolderOpen size={18} aria-hidden="true" />}
               <span>{cat.name}</span>
             </button>
+            <button type="button" className="ui-icon-button" aria-label={`Editar categoria ${cat.name}`} disabled={vm.busy} onClick={() => vm.openEditCategory(cat)}><Pencil size={15} /></button>
             <button type="button" className="ui-icon-button" aria-label={`Remover categoria ${cat.name}`} disabled={vm.busy} onClick={() => requestDeleteCategory(cat.id, cat.name)}><Trash2 size={15} /></button>
           </div>)}
           {vm.categories.length === 0 && (
@@ -166,7 +167,8 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
                     <div style={{ position: "absolute", top: "8px", right: "8px", display: "flex", alignItems: "center", gap: "3px", padding: "3px 6px", borderRadius: "4px", background: "rgba(0,0,0,0.6)", color: "#fff", fontSize: "10px" }}>
                       <Clock size={10} /> {story.duration}s
                     </div>
-                    <button type="button" aria-label={"Remover story " + (story.title || "sem título")} disabled={vm.busy} onClick={() => requestDeleteStory(story.id)} style={{ position: "absolute", top: "8px", left: "8px", width: 40, height: 40, padding: "4px", borderRadius: "4px", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer" }}>
+                    <button type="button" aria-label={"Editar story " + (story.title || "sem título")} disabled={vm.busy} onClick={() => vm.openEditStory(story)} style={{ position: "absolute", bottom: 8, right: 8, width: 44, height: 44, borderRadius: 4, border: "none", background: "rgba(0,0,0,0.8)", color: "#fff", cursor: "pointer" }}><Pencil size={16} /></button>
+                    <button type="button" aria-label={"Remover story " + (story.title || "sem título")} disabled={vm.busy} onClick={() => requestDeleteStory(story.id)} style={{ position: "absolute", top: "8px", left: "8px", width: 44, height: 44, padding: "4px", borderRadius: "4px", border: "none", background: "rgba(0,0,0,0.6)", color: "#fff", cursor: "pointer" }}>
                       <Trash2 size={12} />
                     </button>
                   </div>
@@ -188,10 +190,10 @@ export function StoriesPage({ apiBaseUrl, me }: StoriesPageProps) {
       </div>
 
       </>}
-      <Modal isOpen={vm.showCreateCategory} title="Nova categoria" subtitle="Organize os stories por assunto para facilitar a navegação dos compradores." presentation="center" size="lg" onClose={() => closeEditor("category")} footer={discard === "category" ? <DiscardActions onContinue={() => setDiscard(null)} onDiscard={discardEditor} /> : <><Button variant="outline" disabled={vm.busy} onClick={() => closeEditor("category")}>Cancelar</Button><Button variant="primary" loading={vm.busy} disabled={vm.busy || !vm.newCategoryName.trim()} onClick={() => void vm.handleCreateCategory()}>Criar categoria</Button></>}>
+      <Modal isOpen={vm.showCreateCategory} title={vm.editingCategoryId ? "Editar categoria" : "Nova categoria"} subtitle="Organize os stories por assunto para facilitar a navegação dos compradores." presentation="center" size="lg" onClose={() => closeEditor("category")} footer={discard === "category" ? <DiscardActions onContinue={() => setDiscard(null)} onDiscard={discardEditor} /> : <><Button variant="outline" disabled={vm.busy} onClick={() => closeEditor("category")}>Cancelar</Button><Button variant="primary" loading={vm.busy} disabled={vm.busy || !vm.newCategoryName.trim() || (!!vm.editingCategoryId && !vm.categoryDirty)} onClick={() => void vm.handleCreateCategory()}>{vm.editingCategoryId ? "Salvar categoria" : "Criar categoria"}</Button></>}>
         <div className="story-editor configuration-form">{vm.actionError && <div className="panel-error" role="alert">{vm.actionError}</div>}<FormField label="Nome da categoria" value={vm.newCategoryName} onChange={vm.setNewCategoryName} placeholder="Ex.: Novidades, Coleções ou Promoções" maxLength={100} disabled={vm.busy} hint="As categorias de stories são independentes das categorias de produtos." /></div>
       </Modal>
-      <Modal isOpen={vm.showCreateStory} title="Novo story" subtitle={"Categoria: " + vm.selectedCategory?.name} presentation="center" size="lg" onClose={() => closeEditor("story")} footer={discard === "story" ? <DiscardActions onContinue={() => setDiscard(null)} onDiscard={discardEditor} /> : <><Button variant="outline" disabled={vm.busy || vm.editor.uploading} onClick={() => closeEditor("story")}>Cancelar</Button><Button variant="primary" loading={vm.busy || vm.editor.uploading} disabled={vm.busy || !vm.editor.imageUrl || vm.editor.uploading} onClick={() => void vm.handleCreateStory()}>Criar story</Button></>}>
+      <Modal isOpen={vm.showCreateStory} title={vm.editingStoryId ? "Editar story" : "Novo story"} subtitle={"Categoria: " + vm.selectedCategory?.name} presentation="center" size="lg" onClose={() => closeEditor("story")} footer={discard === "story" ? <DiscardActions onContinue={() => setDiscard(null)} onDiscard={discardEditor} /> : <><Button variant="outline" disabled={vm.busy || vm.editor.uploading} onClick={() => closeEditor("story")}>Cancelar</Button><Button variant="primary" loading={vm.busy || vm.editor.uploading} disabled={vm.busy || !vm.editor.imageUrl || vm.editor.uploading || (!!vm.editingStoryId && !vm.storyDirty)} onClick={() => void vm.handleCreateStory()}>{vm.editingStoryId ? "Salvar story" : "Criar story"}</Button></>}>
         {vm.showCreateStory && <StoryEditorContent vm={vm} />}
       </Modal>
       <link rel="stylesheet" href={GOOGLE_FONTS_URL} />

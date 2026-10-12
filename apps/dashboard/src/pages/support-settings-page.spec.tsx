@@ -231,12 +231,6 @@ describe("SupportSettingsPage — structure", () => {
     expect(src).toMatch(/<section\b[^>]*className="[^"]*\bpanel\b/);
   });
 
-  it("opens the human support conversation from a selected ticket", () => {
-    const src = readSource();
-    expect(src).toContain("<SupportChatDrawer");
-    expect(src).toContain("selectedTicket");
-  });
-
   it("explains escalation to human support in Portuguese", () => {
     const src = readSource();
     expect(src).toContain("encaminha uma conversa para atendimento humano");

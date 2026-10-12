@@ -4,6 +4,7 @@ import { Modal } from "../Modal.js";
 import { Button } from "../Button.js";
 import "../import-dialog.css";
 import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
+import { importUploadError, spreadsheetUploadMime } from "./import-feedback.js";
 
 export interface AiSpreadsheetImportModalProps {
   isOpen: boolean;
@@ -17,13 +18,7 @@ type Phase =
   | { kind: "idle" }
   | { kind: "uploading" };
 
-const ACCEPTED_MIMES = [
-  "text/csv",
-  "application/vnd.ms-excel",
-  "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet",
-  "application/octet-stream",
-];
-const ACCEPTED_EXT_LABEL = ".csv, .xls, .xlsx";
+const ACCEPTED_EXT_LABEL = ".csv, .xlsx";
 
 function readFileAsBase64(file: File): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -44,10 +39,6 @@ function readFileAsBase64(file: File): Promise<string> {
     };
     reader.readAsDataURL(file);
   });
-}
-
-function classifyError(err: unknown): string {
-  return "Não foi possível confirmar o envio. Consulte o andamento em Produtos antes de tentar novamente.";
 }
 
 export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImportStarted }: AiSpreadsheetImportModalProps) {
@@ -73,11 +64,14 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
       setFile(null);
       return;
     }
-    const okByMime = ACCEPTED_MIMES.includes(selected.type);
-    const okByExt = /\.(csv|xls|xlsx)$/i.test(selected.name);
-    if (!okByMime && !okByExt) {
+    if (!spreadsheetUploadMime(selected.name)) {
       setFile(null);
       setErrorMsg(`Formato não suportado. Aceitos: ${ACCEPTED_EXT_LABEL}`);
+      return;
+    }
+    if (selected.size === 0 || selected.size > 5 * 1024 * 1024) {
+      setFile(null);
+      setErrorMsg(selected.size === 0 ? "O arquivo está vazio. Selecione uma planilha com produtos." : "O arquivo deve ter até 5 MB.");
       return;
     }
     setErrorMsg(null);
@@ -92,7 +86,7 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
       const base64 = await readFileAsBase64(file);
       const result = await catalog.uploadSpreadsheetImport(merchantId, {
         fileName: file.name,
-        mimeType: file.type || "application/octet-stream",
+        mimeType: spreadsheetUploadMime(file.name)!,
         base64,
       });
       // Upload accepted — hand off to the page and close. Polling lives in the VM hook.
@@ -104,7 +98,7 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
       onImportStarted(jobId, fileName);
       onClose();
     } catch (err) {
-      setErrorMsg(classifyError(err));
+      setErrorMsg(importUploadError(err));
       setPhase({ kind: "idle" });
     }
   }
@@ -120,7 +114,7 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
           {(phase.kind === "idle") && (
             <>
               <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 16 }}>
-                Envie uma planilha com nome, código (SKU), preço, estoque e variações, quando houver. A IA interpreta as colunas para importar os produtos. Depois do processamento, confira o resultado e as linhas com erro no catálogo.
+                Envie uma planilha com nome, código (SKU), preço, categoria, tipo e estoque, quando aplicável. A IA interpreta as colunas para importar os produtos. Depois do processamento, confira o resultado e as linhas com erro no catálogo.
               </p>
 
               <button type="button" className="import-dialog__dropzone"
@@ -156,7 +150,7 @@ export function AiSpreadsheetImportModal({ isOpen, onClose, merchantId, onImport
                 ref={fileInputRef}
                 aria-label="Selecionar planilha"
                 type="file"
-                accept=".csv,.xls,.xlsx,application/vnd.ms-excel,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
+                accept=".csv,.xlsx,application/vnd.openxmlformats-officedocument.spreadsheetml.sheet,text/csv"
                 style={{ display: "none" }}
                 onChange={(e) => { handleFileSelection(e.target.files?.[0] ?? null); e.target.value = ""; }}
               />

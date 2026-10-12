@@ -12,6 +12,8 @@ export interface FoodOptionGroupDraft {
   name: string;
   selectionType: "single" | "multiple";
   required: boolean;
+  minSelections?: number;
+  maxSelections?: number;
   items: FoodOptionItemDraft[];
 }
 
@@ -76,11 +78,14 @@ export function useProductForm(initialName: string = "", initialDescription: str
             id: g.id ?? crypto.randomUUID(),
             name: g.name ?? "",
             selectionType: g.selectionType === "multiple" ? "multiple" : "single",
-            required: !!g.required,
+            required: !!g.required || (g.minSelections ?? 0) > 0,
+            minSelections: g.minSelections,
+            maxSelections: g.maxSelections,
             items: (g.items ?? []).map((it) => ({
               id: it.id ?? crypto.randomUUID(),
               name: it.name ?? "",
-              priceModifierInCents: Number(it.priceModifierInCents ?? 0) || 0,
+              priceModifierInCents: it.priceModifierInCents === undefined ? 0
+                : typeof it.priceModifierInCents === "number" ? it.priceModifierInCents : Number.NaN,
             })),
           })),
         );

@@ -108,7 +108,7 @@ export function ExperimentCard({ experiment, metrics, selected, onSelect }: Expe
         <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr 1fr", gap: 8, paddingTop: 8, borderTop: "1px solid var(--color-border)" }}>
           <div>
             <div style={{ font: "600 9px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Sessões</div>
-            <div style={{ font: "700 14px var(--font-mono)", color: "var(--color-text)" }}>{totalVisitors > 0 ? totalVisitors.toLocaleString("pt-BR") : String(experiment.sample_size ?? 0)}</div>
+            <div style={{ font: "700 14px var(--font-mono)", color: "var(--color-text)" }}>{metrics ? totalVisitors.toLocaleString("pt-BR") : "—"}</div>
           </div>
           <div>
             <div style={{ font: "600 9px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Conversão</div>
@@ -117,7 +117,7 @@ export function ExperimentCard({ experiment, metrics, selected, onSelect }: Expe
           <div>
             <div style={{ font: "600 9px var(--font-mono)", color: "var(--color-text-faint)", textTransform: "uppercase", letterSpacing: "0.06em", marginBottom: 2 }}>Receita</div>
             <div style={{ font: "700 14px var(--font-mono)", color: "var(--color-success)" }}>
-              {totalRevenue > 0 ? `R$ ${(totalRevenue / 100).toLocaleString("pt-BR", { minimumFractionDigits: 0 })}` : "—"}
+              {metrics ? totalRevenue.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "—"}
             </div>
           </div>
         </div>

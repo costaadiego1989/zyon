@@ -38,7 +38,7 @@ const api='https://api.zyon-payments.com.br';
    else if(p.includes('/checkout/')||p.includes('/storefront/funnel/'))data=null;
    await route.fulfill({status,contentType:'application/json',body:JSON.stringify(data)});
   });
-  const asaas=page.locator('.onb-field').filter({has:page.getByText('Asaas (PIX e Boleto)',{exact:true})});
+  const asaas=page.locator('.onb-field').filter({has:page.getByText('Asaas (Pix e cartão)',{exact:true})});
   async function submitAsaas(){
    await page.getByLabel('Data de nascimento',{exact:true}).fill('1990-01-31');
    await page.getByLabel('Renda ou faturamento mensal (R$)',{exact:true}).fill('2500');

@@ -32,6 +32,7 @@ import {
   CircleDashed,
   TrendingUp,
   ShoppingCart,
+  Undo2,
   Smartphone,
   Network,
   Star,
@@ -47,6 +48,7 @@ export type TabKey =
   | "integrations"
   | "integrations-api"
   | "crm-integrations"
+  | "erp-integrations"
   | "shipments"
   | "customers"
   | "returns"
@@ -78,6 +80,13 @@ export type TabKey =
   | "team"
   | "account-settings"
   | "marketplace"
+  | "marketplace-payments"
+  | "marketplace-shipments"
+  | "marketplace-refunds"
+  | "marketplace-asaas-wallet-returns"
+  | "marketplace-contributions"
+  | "marketplace-fees"
+  | "marketplace-host-fees"
   | "whatsapp-seller"
   | "m2m-agents"
   | "checkout-protocol"
@@ -167,12 +176,18 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "theme", label: "Aparência do checkout", section: "channels", icon: Palette, requiredPlan: STORE, keywords: ["tema", "theme", "aparência", "cores", "visual", "branding"] },
   { key: "whatsapp-seller", label: "WhatsApp", section: "channels", icon: Smartphone, keywords: ["whatsapp", "zap", "wpp", "vendedor"] },
   { key: "marketplace", label: "Marketplace", section: "channels", icon: ShoppingBag, keywords: ["marketplace", "mercado", "conexões"] },
+  { key: "marketplace-payments", label: "Cobranças do marketplace", section: "channels", icon: CreditCard, keywords: ["marketplace", "cobranças", "cancelamento"] },
+  { key: "marketplace-shipments", label: "Remessas do marketplace", section: "channels", icon: PackageSearch, keywords: ["marketplace", "remessas", "melhor envio", "recuperar", "uuid"] },
+  { key: "marketplace-refunds", label: "Estornos do marketplace", section: "channels", icon: Undo2, keywords: ["marketplace", "devoluções", "estornos", "reembolso"] },
+  { key: "marketplace-asaas-wallet-returns", label: "Retornos Asaas", section: "channels", icon: Undo2, keywords: ["marketplace", "repasses", "retorno", "asaas", "estorno"] },
+  { key: "marketplace-contributions", label: "Aportes para estornos", section: "channels", icon: CreditCard, keywords: ["marketplace", "aporte", "stripe", "taxas", "estorno"] },
   { key: "custom-domain", label: "Domínio", section: "channels", icon: Globe, requiredPlan: STORE, keywords: ["domínio", "domain", "dns", "url", "site"] },
 
   // ─── INTEGRAÇÕES ─── conexões técnicas
   { key: "payment-connections", label: "Pagamentos", section: "integrations", icon: CreditCard, keywords: ["pagamentos", "payments", "asaas", "stripe", "mercado pago", "gateway"] },
   { key: "integrations", label: "API e webhooks", section: "integrations", icon: Webhook, keywords: ["api", "webhooks", "chaves", "keys", "desenvolvedor", "integração", "shopify", "woocommerce", "vtex"] },
   { key: "crm-integrations", label: "CRM e marketing", section: "integrations", icon: Plug, keywords: ["crm", "marketing", "hubspot", "pipedrive", "rd station"] },
+  { key: "erp-integrations", label: "ERP e marketplaces", section: "integrations", icon: Package, requiredPlan: STORE, keywords: ["erp", "estoque", "bling", "tiny", "omie", "mercado livre", "shopee", "tiktok shop"] },
 
   // ─── INTELIGÊNCIA IA ─── features avançadas/analytics
   { key: "revenue-manager", label: "Otimização com IA", section: "intelligence", icon: Brain, requiredPlan: STORE, keywords: ["otimizador", "revenue manager", "ia", "hipóteses", "otimização"] },

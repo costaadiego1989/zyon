@@ -20,7 +20,7 @@ export function BillingPlanDetails({ plan, billingCycle, choice }: {
     <div className="billing-plan-details__pricing">
       <div className="billing-plan-details__price"><strong>{offer ? billingMoney(offer.equivalentMonthlyCents) : "Indisponível"}</strong>{offer && <span>/mês</span>}</div>
       <p>{plan.key === "starter"
-        ? `${plan.trialDays ?? 14} dias para conhecer a Zyon, sem taxa Zyon por transação nesse período. Depois, ${plan.fee} por transação.`
+        ? `${plan.trialDays ?? 14} dias para conhecer a Zyon, sem taxa Zyon por transação nesse período. Depois, escolha Growth ou Scale para manter a loja publicada.`
         : `${plan.fee} por transação. Tarifa fixa por compra.`}</p>
       {plan.key !== "starter" && billingCycle === "annual" && <p>{offer
         ? <>Total anual: <strong>{billingMoney(offer.amountCents)}</strong>, pago de uma vez. Economia de {billingMoney(offer.savingsCents)} ({offer.discountPercent}%).</>

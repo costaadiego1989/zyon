@@ -35,31 +35,33 @@ export function RevenueChart({
     );
   }
 
-  const latestValue = data[data.length - 1]?.value ?? 0;
+  const latestValue = (data[data.length - 1]?.value ?? 0) * (valueFormat === "percent" ? 100 : 1);
 
   const formatValue = (val: number): string => {
     if (valueFormat === "currency") {
       return `R$ ${val.toLocaleString("pt-BR", { maximumFractionDigits: 0 })}`;
     }
     if (valueFormat === "percent") {
-      return `${val.toFixed(1)}%`;
+      return `${val.toLocaleString("pt-BR", { maximumFractionDigits: 2 })}%`;
     }
     return val.toLocaleString("pt-BR", { maximumFractionDigits: 0 });
   };
 
   const aligned = useMemo((): uPlot.AlignedData => {
-    const timestamps = data.map((d) => Math.floor(new Date(d.date).getTime() / 1000));
-    const values = data.map((d) => d.value);
+    const timestamps = data.map((d) => Math.floor(new Date(d.date.length === 10 ? `${d.date}T12:00:00Z` : d.date).getTime() / 1000));
+    const values = data.map((d) => d.value * (valueFormat === "percent" ? 100 : 1));
     return [timestamps, values];
-  }, [data]);
+  }, [data, valueFormat]);
 
   const options = useMemo((): uPlot.Options => {
+    const canvasColor = typeof document === "undefined" ? color : color.replace(/^var\((--[\w-]+)\)$/, (_match, token) => getComputedStyle(document.documentElement).getPropertyValue(token).trim());
     const series: uPlot.Series[] = [
       {},
       {
         label,
-        stroke: color,
-        fill: type === "line" ? "oklch(74% 0.19 149 / 0.06)" : color + "22",
+        stroke: canvasColor,
+        fill: type === "line" ? "oklch(74% 0.19 149 / 0.06)" : canvasColor,
+        points: { show: data.length === 1, size: 6, fill: canvasColor, stroke: canvasColor },
         width: 2,
         paths: type === "bar" ? (uPlot as any).paths?.bars?.({ size: [0.6] }) : undefined,
       },
@@ -69,14 +71,17 @@ export function RevenueChart({
       width: 400,
       height: 200,
       series,
+      scales: { x: { time: true, range: data.length === 1 ? [aligned[0][0] - 43_200, aligned[0][0] + 43_200] : undefined } },
       axes: [
         {
-          stroke: "oklch(50% 0.006 145)",
+          splits: data.length === 1 ? () => [aligned[0][0]] : undefined,
+          values: (_u, ticks) => ticks.map(timestamp => new Date(timestamp * 1000).toLocaleDateString("pt-BR", { timeZone: "UTC", day: "2-digit", month: "2-digit" })),
+          stroke: "oklch(65% 0.006 145)",
           grid: { stroke: "oklch(22% 0.006 145)", width: 1 },
           ticks: { stroke: "oklch(22% 0.006 145)", width: 1 },
         },
         {
-          stroke: "oklch(50% 0.006 145)",
+          stroke: "oklch(65% 0.006 145)",
           grid: { stroke: "oklch(22% 0.006 145)", width: 1 },
           ticks: { stroke: "oklch(22% 0.006 145)", width: 1 },
           size: 56,
@@ -91,12 +96,13 @@ export function RevenueChart({
       },
       legend: { show: false },
     };
-  }, [label, color, type, valueFormat]);
+  }, [label, color, type, valueFormat, aligned, data.length]);
 
   return (
     <div
       style={{
         background: "var(--surface-2)",
+        minWidth: 0,
         border: "1px solid var(--color-border)",
         borderRadius: 14,
         padding: 20,

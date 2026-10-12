@@ -16,6 +16,7 @@ function Toggle({ checked, onChange }: { checked: boolean; onChange: (v: boolean
       type="button"
       role="switch"
       aria-checked={checked}
+      aria-label="Aceitar pagamentos em USDC"
       onClick={() => onChange(!checked)}
       className={`wallet-toggle${checked ? " on" : ""}`}
     >

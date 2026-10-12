@@ -12,12 +12,14 @@ const TRIGGER_ICONS: Record<string, React.ReactNode> = {
 
 export function TriggerCard({
   trigger,
+  idleSeconds = 180,
   enabled,
   busy,
   onChange,
   onConfigure,
 }: {
   trigger: CheckoutTriggerName;
+  idleSeconds?: number;
   enabled: boolean;
   busy: boolean;
   message?: string;
@@ -63,7 +65,9 @@ export function TriggerCard({
           {TRIGGER_LABELS[trigger]}
         </div>
         <div style={{ font: "11.5px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 2, lineHeight: 1.4 }}>
-          {TRIGGER_HELP[trigger]}
+          {trigger === "idle_30_seconds"
+            ? `${idleSeconds % 60 === 0 ? `${idleSeconds / 60} min` : `${idleSeconds}s`} sem interação → agente oferece ajuda proativa`
+            : TRIGGER_HELP[trigger]}
         </div>
       </div>
 
@@ -78,9 +82,10 @@ export function TriggerCard({
           <button
             type="button"
             className="cfg-rule-icon-btn"
+            disabled={busy}
             onClick={onConfigure}
             title="Configurar sinal"
-            aria-label="Configurar sinal"
+            aria-label={`Configurar sinal: ${TRIGGER_LABELS[trigger]}`}
           >
             <Pencil size={14} strokeWidth={1.75} />
           </button>

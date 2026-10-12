@@ -1,7 +1,6 @@
 import { dashboardJson } from "../http/client.js";
 import type { ManagedMerchantStore, MerchantProfile, MerchantRules, MerchantTheme } from "../types.js";
 import { normalizeRole } from "../../lib/auth/roles.js";
-import { normalizeTeamResponse } from "./team-response.js";
 import type { SeoSettings, GtmSettings, GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse, CrossSellConfig } from "@zyon/shared-types";
 
 export interface SeoGtmConfig {
@@ -22,8 +21,6 @@ export interface UpdateSeoOutput {
 }
 
 export interface DomainEntry {
-  txt_name?: string;
-  txt_value?: string;
   id: string;
   domain: string;
   verified: boolean;
@@ -32,8 +29,6 @@ export interface DomainEntry {
 }
 
 export interface RegisterDomainOutput {
-  txt_name?: string;
-  txt_value?: string;
   domain_id: string;
   domain: string;
   cname_target: string;
@@ -85,7 +80,7 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
         .then((response) => response.data);
     },
 
-    createMerchantStore(input: { name: string }): Promise<ManagedMerchantStore> {
+    createMerchantStore(input: { name: string; slug: string }): Promise<ManagedMerchantStore> {
       return dashboardJson(base, "/merchants/me/stores", { method: "POST", jsonBody: input }, f);
     },
 
@@ -105,7 +100,7 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, "/merchants/me/theme", { method: "GET" }, f);
     },
 
-    putMerchantTheme(theme: MerchantTheme): Promise<MerchantTheme> {
+    putMerchantTheme(theme: Partial<MerchantTheme>): Promise<MerchantTheme> {
       return dashboardJson(base, "/merchants/me/theme", { method: "PUT", jsonBody: theme }, f);
     },
 
@@ -181,8 +176,8 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, "/intent-memory/records", { method: "GET" }, f);
     },
 
-    async listTeam(merchantId: string): Promise<ReturnType<typeof normalizeTeamResponse>> {
-      return normalizeTeamResponse(await dashboardJson(base, `/merchants/${merchantId}/team`, { method: "GET" }, f));
+    listTeam(merchantId: string): Promise<{ members: Array<{ id: string; userId: string; email: string; role: "OWNER" | "ADMIN" | "STAFF"; joinedAt: string }>; invites: Array<{ id: string; email: string; role: "OWNER" | "ADMIN" | "STAFF"; status: "PENDING" | "ACCEPTED" | "EXPIRED"; createdAt: string; expiresAt: string }> }> {
+      return dashboardJson(base, `/merchants/${merchantId}/team`, { method: "GET" }, f);
     },
 
     inviteTeamMember(merchantId: string, payload: { name: string; email: string; phone?: string; role: "OWNER" | "ADMIN" | "STAFF" }): Promise<{ id: string }> {
@@ -198,10 +193,6 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
     },
 
     // ─── WhatsApp Seller ───────────────────────────────────────────────────
-
-    getWhatsAppDeliveryIssues(): Promise<Array<{ id: string; state: string; updatedAt: string; providerMessageId: string | null }>> {
-      return dashboardJson(base, "/merchants/me/whatsapp/delivery-issues", { method: "GET" }, f);
-    },
 
     getWhatsAppConfig(merchantId: string): Promise<any> {
       return dashboardJson(base, `/merchants/${merchantId}/whatsapp/connection`, { method: "GET" }, f);

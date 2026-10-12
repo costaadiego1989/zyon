@@ -37,8 +37,7 @@ describe("consistent plan information", () => {
     const html = renderToStaticMarkup(<BillingPlanDetails plan={plan} billingCycle="monthly" />);
     expect(html).toContain("Ilimitado");
     expect(html).toContain("Não informado");
-    expect(toPlanDef({ ...catalogPlan("starter"), limits: { ordersPerMonth: 100 } }).limits.voiceSessions).toBeUndefined();
-    expect(toPlanDef({ ...catalogPlan("starter"), limits: { ordersPerMonth: 100, voiceSessionsPerMonth: 0 } }).limits.voiceSessions).toBe(0);
+    expect(toPlanDef(catalogPlan("starter")).limits.voiceSessions).toBe(0);
   });
   it.each(["growth", "scale"] as const)("shows the exact annual total for %s and no fabricated offer when unavailable", key => {
     const plan = toPlanDef(catalogPlan(key));

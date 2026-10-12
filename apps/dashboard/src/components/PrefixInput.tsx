@@ -22,7 +22,7 @@ export function PrefixInput({ prefix, value, onChange, placeholder, error, label
           onChange={(e) => onChange(e.target.value)}
           placeholder={placeholder}
           inputMode={inputMode}
-          style={{ flex: 1, padding: "7px 10px", borderRadius: "0 7px 7px 0", border: `1px solid ${error ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-mono)", outline: "none" }}
+          style={{ flex: 1, minWidth: 0, padding: "7px 10px", borderRadius: "0 7px 7px 0", border: `1px solid ${error ? "var(--color-error)" : "var(--color-border)"}`, background: "var(--surface-1)", color: "var(--color-text)", font: "12.5px var(--font-mono)", outline: "none" }}
         />
       </div>
       {error && <span style={{ font: "11px var(--font-sans)", color: "var(--color-error)", marginTop: 4, display: "block" }}>{error}</span>}

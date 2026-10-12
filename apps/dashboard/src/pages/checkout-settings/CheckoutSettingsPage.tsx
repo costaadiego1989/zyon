@@ -6,15 +6,12 @@ import {
   Save,
   RotateCcw,
   Bell,
-  Minimize2,
   Timer,
   AlertTriangle,
   CheckCircle2,
   Activity,
+  MessageCircle,
 } from "lucide-react";
-import type {
-  CheckoutWidgetPosition,
-} from "@zyon/shared-types";
 import type { MerchantProfile as MerchantMeProfile } from "../../api-client.js";
 import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import { Button } from "../../components/Button.js";
@@ -23,16 +20,13 @@ import { useCheckoutSettingsPage } from "./useCheckoutSettingsPage.js";
 import { SectionRail } from "./components/SectionRail.js";
 import { SettingRow } from "./components/SettingRow.js";
 import { ToggleSwitch } from "./components/ToggleSwitch.js";
-import { SliderField } from "./components/SliderField.js";
 import { NumberField } from "./components/NumberField.js";
 import { TriggerCard } from "./components/TriggerCard.js";
 import { TriggerEditor } from "./components/TriggerEditor.js";
 import { RulesList } from "./components/RulesList.js";
 import { RuleEditor } from "./components/RuleEditor.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
-import { FormField, FormSelect, FormTextarea } from "../../components/FormField.js";
-import { ALL_TRIGGERS, PROGRESSIVE_PRESETS, TRIGGER_STATUS } from "./lib/constants.js";
-import type { Draft } from "./lib/draft.js";
+import { ALL_TRIGGERS, TRIGGER_STATUS } from "./lib/constants.js";
 import "./checkout-settings-page.css";
 import "./checkout-refinements.css";
 
@@ -141,90 +135,15 @@ export function CheckoutSettingsPage(props: {
           {/* Tabs */}
           <TabBar
             tabs={[
-              { key: "behavior", label: "Apresentação" },
               { key: "triggers", label: "Quando ajudar" },
               { key: "discounts", label: "Descontos" },
               { key: "rules", label: "Regras avançadas" },
             ]}
             activeTab={vm.activeTab}
-            onTabChange={(k) => vm.setActiveTab(k as "behavior" | "triggers" | "discounts" | "rules")}
+            onTabChange={(k) => vm.setActiveTab(k as "triggers" | "discounts" | "rules")}
           />
 
           <div className="cfg-panel">
-
-            {vm.activeTab === "behavior" && <>
-            {/* Activation mode moved to the AI Agents page (Agentes de IA · Loja) —
-                it is agent behavior, and only meaningful in the storefront where the
-                buyer is browsing. In checkout the agent already IS the interface. */}
-
-            {/* 2 — Behavior */}
-            <SectionRail
-              icon={<Minimize2 size={16} strokeWidth={1.75} />}
-              index="01"
-              title="Como aparece"
-              desc="Escolha como o assistente aparece para o comprador."
-            >
-              <div className="cfg-rows">
-                <SettingRow
-                  id="toggle-open-widget"
-                  title="Abrir ao ativar"
-                  desc="Abre sozinho quando o agente age."
-                  control={
-                    <ToggleSwitch
-                      id="toggle-open-widget"
-                      checked={vm.draft!.openWidgetOnTrigger}
-                      disabled={vm.busy}
-                      onChange={(v) => vm.patchDraft({ openWidgetOnTrigger: v })}
-                    />
-                  }
-                />
-                <SettingRow
-                  id="toggle-minimized"
-                  title="Começar fechado"
-                  desc="O assistente inicia recolhido no canto da tela."
-                  control={
-                    <ToggleSwitch
-                      id="toggle-minimized"
-                      checked={vm.draft!.startMinimized}
-                      disabled={vm.busy}
-                      onChange={(v) => vm.patchDraft({ startMinimized: v })}
-                    />
-                  }
-                />
-              </div>
-
-              <div className="cfg-grid-2">
-                <div className="cfg-field">
-                  <label htmlFor="cfg-position">Posição na tela</label>
-                  <div className="cfg-select">
-                    <select
-                      id="cfg-position"
-                      value={vm.draft!.position}
-                      disabled={vm.busy}
-                      onChange={(e) =>
-                        vm.patchDraft({ position: e.target.value as CheckoutWidgetPosition })
-                      }
-                    >
-                      <option value="bottom_right">Canto inferior direito</option>
-                      <option value="bottom_left">Canto inferior esquerdo</option>
-                    </select>
-                  </div>
-                </div>
-
-                <SliderField
-                  label="Espera inicial"
-                  help="Tempo antes do agente abrir o chat no modo Iniciar sozinho."
-                  value={vm.draft!.initialDelaySeconds}
-                  min={0}
-                  max={30}
-                  step={1}
-                  disabled={vm.busy}
-                  display={`${vm.draft!.initialDelaySeconds}s`}
-                  onChange={(v) => vm.patchDraft({ initialDelaySeconds: v })}
-                />
-              </div>
-            </SectionRail>
-            </>}
 
             {vm.activeTab === "triggers" && <>
             {/* 4 — Triggers */}
@@ -244,6 +163,7 @@ export function CheckoutSettingsPage(props: {
                   <TriggerCard
                     key={t}
                     trigger={t}
+                    idleSeconds={vm.draft!.idleSeconds}
                     enabled={vm.draft!.triggers[t].enabled}
                     busy={vm.busy}
                     onChange={(v) => vm.patchTrigger(t, { enabled: v })}
@@ -254,6 +174,20 @@ export function CheckoutSettingsPage(props: {
             </SectionRail>
 
             {/* 4 — Limits */}
+            <SectionRail icon={<MessageCircle size={16} strokeWidth={1.75} />} index="02"
+              title="Ajuda durante a compra" desc="Respostas e ações para destravar a etapa em que o comprador está.">
+              <div className="cfg-rows">
+                {([
+                  ["pix", "Pix pendente ou expirado", "Ajuda a consultar a confirmação, reencontrar o código ou renovar um Pix expirado."],
+                  ["installments", "Dúvidas sobre parcelamento", "Explica as condições disponíveis e direciona ao pagamento seguro com cartão."],
+                  ["unavailableProduct", "Produto indisponível", "Explica a falta de estoque e consulta alternativas disponíveis na loja."],
+                  ["humanHandoff", "Dificuldade persistente", "Após duas tentativas sem solução, oferece atendimento humano. O comprador escolhe se quer chamar a equipe."],
+                ] as const).map(([key, title, desc]) => <SettingRow key={key} id={`help-${key}`} title={title} desc={desc}
+                  control={<ToggleSwitch id={`help-${key}`} checked={vm.draft!.assistance[key]} disabled={vm.busy}
+                    onChange={enabled => vm.patchDraft({ assistance: { ...vm.draft!.assistance, [key]: enabled } })} />} />)}
+              </div>
+            </SectionRail>
+
             <SectionRail
               icon={<Timer size={16} strokeWidth={1.75} />}
               index="03"
@@ -484,11 +418,12 @@ export function CheckoutSettingsPage(props: {
             {editingTrigger && vm.draft && (
               <TriggerEditor
                 trigger={editingTrigger}
+                idleSeconds={vm.draft.idleSeconds}
                 message={vm.draft.triggers[editingTrigger].message}
-                cooldownSeconds={vm.draft.triggers[editingTrigger].cooldownSeconds}
                 couponCode={vm.draft.triggers[editingTrigger].couponCode}
-                onSave={(data) => {
+                onSave={({ idleSeconds, ...data }) => {
                   vm.patchTrigger(editingTrigger, data);
+                  if (idleSeconds !== undefined) vm.patchDraft({ idleSeconds });
                   setEditingTrigger(null);
                 }}
                 onCancel={() => setEditingTrigger(null)}

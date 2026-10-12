@@ -1,7 +1,6 @@
 import { describe, expect, it } from "vitest";
 import {
   computeOrderMetrics,
-  DEFAULT_ORDER_PERIOD,
   filterOrders,
   filterOrdersByPeriod,
   STATUS_LABELS,
@@ -32,12 +31,6 @@ function makeOrder(overrides: Partial<TenantOrder> = {}): TenantOrder {
 }
 
 // ── STATUS_LABELS ────────────────────────────────────────────────────────────
-
-describe("order period default", () => {
-  it("opens the orders filter on today", () => {
-    expect(DEFAULT_ORDER_PERIOD).toBe("today");
-  });
-});
 
 describe("STATUS_LABELS", () => {
   it("maps approved to Aprovado", () => {

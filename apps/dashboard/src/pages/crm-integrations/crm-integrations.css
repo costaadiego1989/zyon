@@ -6,6 +6,13 @@
   display: flex;
   flex-direction: column;
 }
+.crm-provider-actions { display: flex; gap: 8px; align-items: center; }
+.crm-marketing-note, .crm-connection-instructions {
+  color: var(--color-text-muted);
+  font: 14px/1.6 var(--font-sans);
+  margin: 0;
+}
+.crm-marketing-note { margin-top: 24px; }
 .crm-provider-row {
   display: grid;
   grid-template-columns: minmax(0, 1fr) auto auto;

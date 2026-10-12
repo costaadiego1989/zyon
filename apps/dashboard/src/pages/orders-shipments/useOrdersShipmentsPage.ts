@@ -279,6 +279,38 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     }
   }, [api]);
 
+  const fulfillmentCommands = useRef(new Map<string, { command_id: string; action: string; expected_version: number; proof?: string; quantity?: number; schedule_slot_id?: string }>());
+  const executeFulfillment = useCallback(async (order: TenantOrder, unitId: string, action: string, proof?: string, quantity?: number, scheduleSlotId?: string) => {
+    if (actionInFlight.current || !order.fulfillment) return false;
+    const operationKey = JSON.stringify([order.id, unitId]);
+    const command = fulfillmentCommands.current.get(operationKey) ?? { command_id: crypto.randomUUID(), action, expected_version: order.fulfillment.version, ...(proof ? { proof } : {}), ...(quantity ? { quantity } : {}), ...(scheduleSlotId ? { schedule_slot_id: scheduleSlotId } : {}) };
+    fulfillmentCommands.current.set(operationKey, command);
+    actionInFlight.current = true; setBusy(true); setMessage(null);
+    try {
+      const canonical = await api.executeFulfillmentAction(order.id, unitId, command);
+      setOrders(previous => previous.map(item => item.id === order.id ? canonical : item));
+      setOrderDetail(current => current?.id === order.id ? canonical : current);
+      fulfillmentCommands.current.delete(operationKey);
+      showToast("success", "Atendimento atualizado."); return true;
+    } catch (error) {
+      const code = error instanceof DashboardHttpError ? error.responseBody : "";
+      const messages: Record<string, string> = {
+        fulfillment_version_conflict: "Outro operador ou integração atualizou o pedido. Confira a etapa atual antes de continuar.",
+        service_capacity_unavailable: "Este horário já tem uma reserva. Escolha outro horário para o atendimento.",
+        service_reservation_required: "Confirme a reserva do horário antes de iniciar o atendimento.",
+        service_schedule_not_started: "O horário escolhido ainda não começou.",
+        service_schedule_invalid: "Este horário mudou ou já passou. Consulte a agenda novamente.",
+        fulfillment_payment_required: "O pagamento ainda não tem confirmação válida.",
+        marketplace_delivery_proof_required: "O marketplace exige comprovação própria para este atendimento.",
+        fulfillment_order_cancelled: "Este pedido foi cancelado ou devolvido.",
+      };
+      if (error instanceof DashboardHttpError && error.status >= 400 && error.status < 500) fulfillmentCommands.current.delete(operationKey);
+      setMessage(Object.entries(messages).find(([key]) => code.includes(key))?.[1] ?? "Não foi possível confirmar a atualização. Consulte a etapa atual; tentar novamente reutiliza a mesma operação.");
+      try { const canonical = await api.getOrderDetail(order.id); setOrders(previous => previous.map(item => item.id === order.id ? canonical : item)); setOrderDetail(current => current?.id === order.id ? canonical : current); } catch { /* Keep the last confirmed state and the same command identity. */ }
+      return false;
+    } finally { actionInFlight.current = false; setBusy(false); }
+  }, [api]);
+
   const cancelOrder = useCallback(async (order: TenantOrder, input: { reason: string; notifyCustomer: boolean; restock: boolean }) => {
     if (actionInFlight.current) return false;
     const reason = input.reason.trim();
@@ -378,6 +410,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     purchaseShippingLabel,
     shippingLabelBusyOrderId,
     changeOrderStatus,
+    executeFulfillment,
     cancelBusyOrderId,
     cancelOrder,
     updateTrackingDraft,

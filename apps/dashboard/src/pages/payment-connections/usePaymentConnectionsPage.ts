@@ -8,6 +8,8 @@ import {
 } from "../../api-client.js";
 import { useApi } from "../../hooks/useApi.js";
 import type { AsaasConnectionPayload } from "./components/AsaasConnectionForm.js";
+import { normalizePaymentRouting, type PaymentRoutingSettings } from "./payment-routing.js";
+export type { PaymentRoutingSettings } from "./payment-routing.js";
 
 export type Operation =
   | "idle"
@@ -32,13 +34,6 @@ export interface CryptoWalletState {
   config: CryptoConfig;
   saving: boolean;
   saved: boolean;
-}
-
-export interface PaymentRoutingSettings {
-  pix?: "asaas" | "mercadopago";
-  boleto?: "asaas";
-  card?: "asaas" | "stripe" | "mercadopago";
-  fallbackWhenUnavailable?: boolean;
 }
 
 export function usePaymentConnectionsPage(me: MerchantProfile | null) {
@@ -73,7 +68,7 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
         setCompanyPrefill((settings?.company as Record<string, any>) ?? null);
         const routing = settings?.paymentRouting;
         if (routing && typeof routing === "object" && !Array.isArray(routing)) {
-          setPaymentRouting(routing as PaymentRoutingSettings);
+          setPaymentRouting(normalizePaymentRouting(routing));
         } else {
           setPaymentRouting({});
         }
@@ -306,11 +301,12 @@ export function usePaymentConnectionsPage(me: MerchantProfile | null) {
     setPaymentRoutingSaving(true);
     setAlert(null);
     try {
-      const settings = await api.putStoreSettings({ paymentRouting: next });
+      const current = normalizePaymentRouting(next);
+      const settings = await api.putStoreSettings({ paymentRouting: current });
       const saved = settings?.paymentRouting;
       setPaymentRouting(saved && typeof saved === "object" && !Array.isArray(saved)
-        ? saved as PaymentRoutingSettings
-        : next);
+        ? normalizePaymentRouting(saved)
+        : current);
       showToast("success", "Formas de pagamento atualizadas");
     } catch (e) {
       setAlert({ message: sanitizeError(e), kind: "error" });

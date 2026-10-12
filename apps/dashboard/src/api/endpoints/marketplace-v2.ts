@@ -69,7 +69,10 @@ export interface MarketplaceSellerDebt {
   id: string;
   settlementId: string;
   amountCents: number;
-  status: "outstanding" | "deducted" | "resolved";
+  recoveredAmountCents?: number;
+  extinguishedAmountCents?: number;
+  outstandingAmountCents?: number;
+  status: "outstanding" | "deducted" | "resolved" | "extinguished";
   deductedFromSettlementId: string | null;
   createdAt: string;
   resolvedAt: string | null;
@@ -196,11 +199,12 @@ export function marketplaceEndpoints(base: string, f: typeof fetch) {
       );
     },
 
-    async getMarketplaceDebts(status?: "outstanding" | "deducted" | "resolved"): Promise<{
+    async getMarketplaceDebts(status?: MarketplaceSellerDebt["status"]): Promise<{
       debts: MarketplaceSellerDebt[];
       totalOutstandingCents: number;
       totalDeductedCents: number;
       totalResolvedCents: number;
+      totalExtinguishedCents: number;
     }> {
       const url = status
         ? `/marketplace/dashboard/debts?status=${status}`

@@ -2,7 +2,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import type { MerchantProfile } from "../../api-client.js";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
-import { launchEmbeddedSignup, loadFacebookSdk, type EmbeddedSignupSettings } from "./embedded-signup.js";
+import { EmbeddedSignupProviderError, launchEmbeddedSignup, loadFacebookSdk, type EmbeddedSignupSettings } from "./embedded-signup.js";
 
 export interface WhatsAppConfig {
   enabled: boolean; provider: string; whatsappNumber?: string | null; connectedAt?: string | null;
@@ -40,6 +40,8 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
   const [saving, setSaving] = useState(false);
   const [sdkReady, setSdkReady] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
+  const [connectErrorCode, setConnectErrorCode] = useState<string | null>(null);
+  const [justConnected, setJustConnected] = useState(false);
   const operation = useRef(false);
   const scope = useRef(0);
   const signup = useRef<AbortController | null>(null);
@@ -54,6 +56,7 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
       setConfig(connection);
       setSettings(onboarding);
       setConnectError(onboardingErrorMessage(connection.onboardingError));
+      setConnectErrorCode(null);
     } catch {
       if (scope.current === generation) setConnectError("Não foi possível carregar a conexão. Tente novamente.");
     } finally { if (scope.current === generation) setLoading(false); }
@@ -64,6 +67,7 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
     setConfig(null);
     setSettings(null);
     setSaving(false);
+    setJustConnected(false);
     operation.current = false;
     void load();
     return () => { scope.current++; signup.current?.abort(); };
@@ -89,6 +93,7 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
     const generation = scope.current;
     setSaving(true);
     setConnectError(null);
+    setConnectErrorCode(null);
     try {
       const result = await action();
       if (scope.current === generation) accept(result);
@@ -114,6 +119,7 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
     signup.current = controller;
     setSaving(true);
     setConnectError(null);
+    setConnectErrorCode(null);
     // The call stays synchronous with the click, so browsers can open the popup.
     void launchEmbeddedSignup(settings, controller.signal).then(async result => {
       if (controller.signal.aborted || scope.current !== generation) return;
@@ -122,18 +128,25 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
       catch { throw new Error("Não foi possível concluir o cadastro. Atualize o estado para consultar a conexão antes de tentar novamente."); }
       if (scope.current !== generation) return;
       accept(response);
-      if (response.status === "active" && !response.error) showToast("success", "Conexão oficial da Meta ativada.");
+      if (response.status === "active" && !response.error) {
+        setJustConnected(true);
+        showToast("success", "Conexão oficial da Meta ativada.");
+      }
     }).catch(error => {
-      if (scope.current === generation) setConnectError(error instanceof Error && !("status" in error)
-        ? error.message : "Não foi possível concluir o cadastro. Atualize o estado para consultar a conexão.");
+      if (scope.current === generation) {
+        setConnectError(error instanceof Error && !("status" in error)
+          ? error.message : "Não foi possível concluir o cadastro. Atualize o estado para consultar a conexão.");
+        setConnectErrorCode(error instanceof EmbeddedSignupProviderError ? error.code ?? null : null);
+      }
     }).finally(() => {
       if (scope.current === generation) { operation.current = false; setSaving(false); signup.current = null; }
     });
   }, [merchantId, settings, sdkReady, api, accept]);
 
   return {
-    config, settings, loading, saving, sdkReady, connectError,
+    config, settings, loading, saving, sdkReady, connectError, connectErrorCode, justConnected,
     load, refresh, handleEmbeddedSignup,
+    dismissConnectionSuccess: () => setJustConnected(false),
     cancelSignup: () => signup.current?.abort(),
     awaitingAuthorization: Boolean(signup.current),
     handleDisconnect: () => run(() => api.disconnectWhatsApp(merchantId!)),

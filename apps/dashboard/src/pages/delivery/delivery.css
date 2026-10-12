@@ -19,3 +19,8 @@
 .delivery-table th { padding: 14px 20px; font: 500 12px/1.4 var(--font-sans); color: var(--color-text-muted); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
 .delivery-table td { padding: 16px 20px; font: 13px/1.5 var(--font-sans); border-bottom: 1px solid var(--color-border); white-space: nowrap; }
 .delivery-table th:last-child, .delivery-table td:last-child { text-align: right; }
+.delivery-order-reference { overflow-wrap:anywhere; white-space:normal; text-align:left; }
+.delivery-detail { display:grid; gap:12px; }
+.delivery-detail div { min-width:0; }
+.delivery-detail dt { color:var(--color-text-muted); font-size:12px; }
+.delivery-detail dd { margin:4px 0 0; overflow-wrap:anywhere; }

@@ -1,8 +1,6 @@
 import { Button } from "../../components/Button.js";
 import "./revenue-lift.css";
 import { PageHeader } from "../../components/PageHeader.js";
-import { SetupGuide } from "../../components/SetupGuide.js";
-import { FilterToolbar } from "../../components/FilterToolbar.js";
 import React, { useState } from "react";
 import { TrendingUp, DollarSign, Zap, BarChart3 } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
@@ -61,13 +59,23 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
 
   return (
     <div className="page-container revenue-lift-page">
-      <PageHeader title="Impacto na receita" description="Compare os resultados das sessões com e sem IA no período selecionado." />
-      <SetupGuide title="Como interpretar o impacto na receita" steps={[
-        { title: "Escolha um período", description: "Use os filtros para consultar os grupos com e sem IA no mesmo intervalo." },
-        { title: "Confira a amostra", description: "Verifique a qualidade dos dados, o número de sessões e a receita aprovada por sessão em cada grupo." },
-        { title: "Avalie a diferença", description: "O resultado pode ser positivo, negativo ou inconclusivo. Receita associada a um recurso não comprova, isoladamente, que ele causou a diferença observada." },
-      ]} />
-      <FilterToolbar tabs={[7, 30, 90].map(days => ({ key: String(days), label: `${days} dias` }))} activeTab={String(vm.periodDays)} onTabChange={value => { vm.setPeriodDays(Number(value)); setTrendPage(0); }} />
+      <PageHeader title="Impacto na receita" description="Compare os resultados das sessões com e sem IA no período selecionado." actions={<>
+<div style={{ display: "flex", gap: 8 }}>
+          {[7, 30, 90].map((d) => (
+            <button
+              key={d}
+              type="button"
+              className={`fnl-period-btn${vm.periodDays === d ? " active" : ""}`}
+              aria-pressed={vm.periodDays === d}
+              onClick={() => { vm.setPeriodDays(d); setTrendPage(0); }}
+            >
+              {d} dias
+            </button>
+          ))}
+        </div>
+</>} />
+
+      <details className="revenue-lift-method"><summary>Como interpretar esta comparação</summary><p>Comparamos a receita aprovada por sessão entre os grupos com e sem IA. O resultado pode ser positivo, negativo ou inconclusivo. A leitura depende da amostra e da qualidade dos dados disponíveis.</p><p>Receita associada a um recurso não comprova, isoladamente, que ele causou a diferença observada.</p></details>
 
       {vm.loading ? (
         <PageLoader />
@@ -75,7 +83,7 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
         <EmptyState
           icon={BarChart3}
           title="Sem dados ainda"
-          description="A comparação de receita aparecerá quando houver sessões e pedidos suficientes nos dois grupos."
+          description="A comparação aparecerá quando houver dados suficientes nos grupos com e sem IA."
         />
       ) : (
         <>
@@ -95,35 +103,31 @@ export function RevenueLiftPage({ me }: RevenueLiftPageProps) {
           {/* KPIs */}
           <div className="grid-4" style={{ gap: 14 }}>
             <StatCard
-              label="Variação estimada de receita"
+              label="Ganho"
               value={vm.summary.lift.grossLiftPercent != null ? `${vm.summary.lift.grossLiftPercent > 0 ? "+" : ""}${vm.summary.lift.grossLiftPercent.toFixed(1)}%` : "—"}
               icon={<TrendingUp size={16} />}
-              accent={vm.summary.lift.grossLiftPercent == null ? "var(--color-text-muted)" : vm.summary.lift.grossLiftPercent >= 0 ? "var(--color-success)" : "var(--color-error)"}
+              accent={vm.summary.lift.grossLiftPercent != null && vm.summary.lift.grossLiftPercent > 0 ? "var(--color-success)" : "var(--color-error)"}
             />
             <StatCard
-              label="Diferença estimada de receita"
-              value={vm.summary.estimatedRevenueDifferenceCents != null ? formatBRL(vm.summary.estimatedRevenueDifferenceCents) : "—"}
+              label="Receita Extra"
+              value={vm.summary.lift.netLiftCents != null ? formatBRL(vm.summary.lift.netLiftCents) : "—"}
               icon={<DollarSign size={16} />}
               accent="var(--color-brand)"
             />
             <StatCard
-              label="Contribuição"
-              value={vm.summary.contribution?.contributionCents != null ? formatBRL(vm.summary.contribution.contributionCents) : "—"}
+              label="Retorno"
+              value={vm.summary.lift.roiPercent != null ? `${vm.summary.lift.roiPercent.toFixed(0)}×` : "—"}
               icon={<Zap size={16} />}
               accent="var(--color-brand)"
             />
             <StatCard
               label="Custo IA"
-              value={vm.summary.aiCostCents != null ? formatBRL(vm.summary.aiCostCents) : "—"}
+              value={formatBRL(vm.summary.aiCostCents)}
               icon={<DollarSign size={16} />}
             />
           </div>
 
           {/* Comparação */}
-          <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", maxWidth: "72ch" }}>
-            A comparação de receita é uma estimativa. A contribuição e o custo total de IA
-            ficam indisponíveis até a conciliação de estornos, mercadorias, frete, taxas e consumo.
-          </p>
           <div className="grid-2" style={{ gap: 14 }}>
             <div className="panel" style={{ padding: "20px 24px" }}>
               <SectionHeader variant="secondary" title="Sessões com IA" />

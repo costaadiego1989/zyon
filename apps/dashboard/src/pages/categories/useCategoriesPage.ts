@@ -114,10 +114,7 @@ export function useCategoriesPage(props: { merchantId: string }) {
   const createCategory = (data: CreateCategoryInput) => mutate(() => api.createCategory(props.merchantId, data), "form", "Categoria criada");
   const updateCategory = (id: string, data: UpdateCategoryInput) => mutate(() => api.updateCategory(props.merchantId, id, data), "form", "Categoria salva");
   const deleteCategory = (id: string) => mutate(() => api.deleteCategory(props.merchantId, id), "list", "Categoria excluída");
-  const toggleActive = (id: string, active: boolean) => mutate(async () => {
-    await api.updateCategory(props.merchantId, id, { is_active: !active });
-    setCategories(current => current.map(category => category.id === id ? { ...category, is_active: !active } : category));
-  }, "list", active ? "Categoria pausada" : "Categoria ativada");
+  const toggleActive = (id: string, active: boolean) => mutate(() => api.updateCategory(props.merchantId, id, { is_active: !active }), "list", active ? "Categoria pausada" : "Categoria ativada");
   async function reparentCategory(id: string, parentId: string | null) {
     if (id === parentId || (parentId && getDescendantIds(categories, id).has(parentId))) return;
     await mutate(() => api.updateCategory(props.merchantId, id, { parent_id: parentId }), "list", "Organização atualizada");

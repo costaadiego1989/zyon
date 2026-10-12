@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useRef, useState } from "react";
+﻿import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { DashboardHttpError } from "../../api/http/error.js";
 import { showToast } from "../../components/Toast.js";
@@ -12,14 +12,14 @@ import type { PostSaleTemplate } from "./usePostSalePage.js";
  */
 export const TEMPLATE_TYPES: Array<{ type: string; label: string; hasCoupon: boolean }> = [
   { type: "follow_up", label: "Acompanhamento da entrega", hasCoupon: false },
-  { type: "review_request", label: "Pedido de avaliação", hasCoupon: false },
-  { type: "nps", label: "Pesquisa de satisfação (NPS)", hasCoupon: false },
+  { type: "review_request", label: "Pedido de avaliaÃ§Ã£o", hasCoupon: false },
+  { type: "nps", label: "Pesquisa de satisfaÃ§Ã£o (NPS)", hasCoupon: false },
   { type: "cross_sell", label: "Produtos complementares", hasCoupon: true },
   { type: "win_back", label: "Retorno de clientes", hasCoupon: true },
   { type: "loyalty", label: "Fidelidade", hasCoupon: true },
   { type: "reorder", label: "Recompra", hasCoupon: true },
-  { type: "cart_recovery", label: "Recuperação de carrinho", hasCoupon: true },
-  { type: "order_confirmation", label: "Confirmação do pedido", hasCoupon: false },
+  { type: "cart_recovery", label: "RecuperaÃ§Ã£o de carrinho", hasCoupon: true },
+  { type: "order_confirmation", label: "ConfirmaÃ§Ã£o do pedido", hasCoupon: false },
   { type: "order_shipped", label: "Pedido enviado", hasCoupon: false },
   { type: "order_delivered", label: "Pedido entregue", hasCoupon: false },
 ];
@@ -57,7 +57,7 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
       if (version === readVersion.current) { setTemplates(map); setLoadError(null); }
     } catch (e) {
       reportError({ source: "post-sale-templates.load", error: e });
-      if (version === readVersion.current) setLoadError("Não foi possível carregar as mensagens. Tente novamente antes de editar.");
+      if (version === readVersion.current) setLoadError("NÃ£o foi possÃ­vel carregar as mensagens. Tente novamente antes de editar.");
     } finally {
       if (version === readVersion.current) setLoading(false);
     }
@@ -107,7 +107,7 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
     } catch (e) {
       reportError({ source: "post-sale-templates.save", error: e });
       if (e instanceof DashboardHttpError && e.status === 409) { setConflictKey(k); await load(); }
-      setActionError("Não foi possível salvar. Seu rascunho foi preservado. Confira a versão atual antes de tentar novamente.");
+      setActionError("NÃ£o foi possÃ­vel salvar. Seu rascunho foi preservado. Confira a versÃ£o atual antes de tentar novamente.");
       return false;
     } finally {
       setSavingKey(null);
@@ -127,11 +127,11 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
     setGeneratingKey(k);
     try {
       const res = await api.generateTemplate({ type, channel, ...opts });
-      showToast("success", "Sugestão gerada pela IA");
+      showToast("success", "SugestÃ£o gerada pela IA");
       return res;
     } catch (e) {
       reportError({ source: "post-sale-templates.generate", error: e });
-      setActionError("Não foi possível gerar a sugestão. Seu texto foi mantido. Tente novamente.");
+      setActionError("NÃ£o foi possÃ­vel gerar a sugestÃ£o. Seu texto foi mantido. Tente novamente.");
       return null;
     } finally {
       setGeneratingKey(null);
@@ -148,11 +148,11 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
     try {
       const res = await api.submitMetaTemplate(type, channel);
       receiveTemplate(res.template);
-      showToast("success", "Solicitação registrada. Acompanhe o estado da análise.");
+      showToast("success", "SolicitaÃ§Ã£o registrada. Acompanhe o estado da anÃ¡lise.");
       return true;
     } catch (e) {
       reportError({ source: "post-sale-templates.submitMeta", error: e });
-      setActionError("Não foi possível confirmar o envio para análise. Atualize o estado antes de tentar novamente.");
+      setActionError("NÃ£o foi possÃ­vel confirmar o envio para anÃ¡lise. Atualize o estado antes de tentar novamente.");
       return false;
     } finally {
       setSavingKey(null);
@@ -177,7 +177,7 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
       return res.status;
     } catch (e) {
       reportError({ source: "post-sale-templates.refreshMetaStatus", error: e });
-      setActionError("Não foi possível atualizar a análise. O estado anterior foi mantido; tente novamente.");
+      setActionError("NÃ£o foi possÃ­vel atualizar a anÃ¡lise. O estado anterior foi mantido; tente novamente.");
       return null;
     } finally { working.current = false; setRefreshingKey(null); }
   }
@@ -191,10 +191,10 @@ export function usePostSaleTemplates(props: { me: MerchantProfile | null }) {
     try {
       const result = await api.restorePostSaleTemplate(type, revision, expectedRevision);
       receiveTemplate(result.template);
-      showToast("success", "Versão restaurada após confirmação da Meta.");
+      showToast("success", "VersÃ£o restaurada apÃ³s confirmaÃ§Ã£o da Meta.");
       return true;
     } catch {
-      setActionError("Não foi possível restaurar. A versão precisa continuar aprovada na conta conectada. Atualize o estado e tente novamente.");
+      setActionError("NÃ£o foi possÃ­vel restaurar. A versÃ£o precisa continuar aprovada na conta conectada. Atualize o estado e tente novamente.");
       return false;
     } finally { setSavingKey(null); working.current = false; }
   }

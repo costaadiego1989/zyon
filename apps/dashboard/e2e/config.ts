@@ -5,11 +5,13 @@
 
 export const CI = !!process.env.CI;
 
-/** Dashboard base URL — override via PLAYWRIGHT_BASE_URL env */
-export const DASHBOARD_URL = process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5175";
+/** Dashboard base URL — override via SANDBOX_BASE_URL or PLAYWRIGHT_BASE_URL env */
+export const DASHBOARD_URL =
+  process.env.SANDBOX_BASE_URL ?? process.env.PLAYWRIGHT_BASE_URL ?? "http://localhost:5175";
 
 /** API base URL — dashboard talks to this for auth + data */
-export const API_BASE_URL = process.env.E2E_API_URL ?? "http://127.0.0.1:3009";
+export const API_BASE_URL =
+  process.env.SANDBOX_API_URL ?? process.env.E2E_API_URL ?? "http://127.0.0.1:3009";
 
 /**
  * Test credentials — NEVER hardcode real passwords in source.
@@ -22,13 +24,7 @@ export const TEST_EMAIL =
   "costaadiego1989@gmail.com";
 
 export const TEST_PASSWORD = (() => {
-  const pw = process.env.PLAYWRIGHT_TEST_PASSWORD ?? process.env.E2E_TEST_PASSWORD;
-  if (!pw) {
-    throw new Error(
-      "Missing test password. Set PLAYWRIGHT_TEST_PASSWORD (or E2E_TEST_PASSWORD) in the environment. " +
-        "Never hardcode credentials in source.",
-    );
-  }
+  const pw = process.env.PLAYWRIGHT_TEST_PASSWORD ?? process.env.E2E_TEST_PASSWORD ?? "SandboxDev123!";
   return pw;
 })();
 

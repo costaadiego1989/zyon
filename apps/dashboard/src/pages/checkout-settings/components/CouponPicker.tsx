@@ -24,3 +24,4 @@ export function CouponPicker({ value, onChange, disabled, label = "Código do cu
     {status === "error" && <div className="cfg-editor-feedback"><p role="alert">Não foi possível consultar os cupons. Sua seleção foi mantida.</p><Button variant="outline" size="sm" disabled={disabled} onClick={() => setAttempt(a => a + 1)}>Tentar novamente</Button></div>}
   </div>;
 }
+

@@ -16,6 +16,7 @@ import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useMarketplacePage } from "./useMarketplacePage.js";
 import { OrderRow } from "./components/OrderRow.js";
 import { SettlementDetailPanel } from "./components/SettlementDetailPanel.js";
+import { MarketplaceDebtPrincipal, marketplaceDebtStatusLabel } from "./components/MarketplaceDebtPrincipal.js";
 import { MarketplaceSettings } from "./components/MarketplaceSettings.js";
 import { StoreDiscoveryGrid } from "./components/StoreDiscoveryGrid.js";
 import "./marketplace-page.css";
@@ -413,7 +414,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
               accent="var(--color-error)"
             />
             <StatCard
-              label="Total Débitos"
+              label="Principal original das dívidas"
               value={new Intl.NumberFormat("pt-BR", {
                 style: "currency",
                 currency: "BRL",
@@ -477,7 +478,7 @@ export function MarketplacePage({ me, apiBaseUrl }: MarketplacePageProps) {
                         </span>
                       </td>
                       <td style={{ fontFamily: "var(--font-mono)", color: cb.debt ? "var(--color-error)" : "var(--color-text-muted)" }}>
-                        {cb.debt ? formatCurrency(cb.debt.amountCents) : "—"}
+                        {cb.debt ? <><MarketplaceDebtPrincipal debt={cb.debt} /><small>{marketplaceDebtStatusLabel(cb.debt.status)}</small></> : "—"}
                       </td>
                       <td style={{ fontSize: 12, color: "var(--color-text-muted)" }}>
                         {cb.settlement.chargebackAt

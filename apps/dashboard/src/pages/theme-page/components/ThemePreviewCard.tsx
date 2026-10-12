@@ -1,7 +1,5 @@
 import React, { useEffect } from "react";
-import { type MerchantTheme } from "@zyon/shared-types";
-import { themePreviewTokens } from "../theme-preview-palette.js";
-import "../theme-preview.css";
+import type { MerchantTheme } from "@zyon/shared-types";
 
 // First family token of a CSS font stack, e.g. "Poppins, Inter, sans-serif" → "Poppins".
 function primaryFamily(stack?: string): string | null {
@@ -51,36 +49,57 @@ export interface ThemePreviewCardProps {
   storeName: string;
 }
 
+// Mode defaults mirror the storefront exactly (apps/storefront store/[slug]/page.tsx):
+// dark/grey override the individual colors; light uses the theme's own colors.
+function modeDefaults(mode: MerchantTheme["mode"]): { bg: string; fg: string; card: string; line: string; muted: string; surface: string } | null {
+  switch (mode) {
+    case "dark":
+      return { bg: "#09090b", fg: "#fafafa", card: "rgba(255,255,255,0.05)", line: "rgba(255,255,255,0.1)", muted: "#8b8b95", surface: "#18181b" };
+    case "grey":
+      return { bg: "#191919", fg: "#fafafa", card: "rgba(255,255,255,0.05)", line: "rgba(255,255,255,0.1)", muted: "#a1a1aa", surface: "#262626" };
+    default:
+      return null; // light — use the theme's own colors
+  }
+}
+
 export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
   const agent = theme.agentName?.trim() || "Assistente";
+  const md = modeDefaults(theme.mode);
   useThemeFonts(theme.fontFamily, theme.fontDisplay);
-  const tokens = themePreviewTokens(theme);
-  const vars = tokens as React.CSSProperties;
+
+  // CSS variables — same names + precedence the storefront uses: when a color mode
+  // (dark/grey) is chosen it OVERRIDES the individual colors (modeDefaults ?? color);
+  // in light mode the theme's own colors apply. Accent/secondary/fonts/radius always
+  // come from the theme. New object every render → the preview updates in real time.
+  const vars: React.CSSProperties & Record<string, string> = {
+    "--aacp-accent": theme.accentColor || "#0f766e",
+    "--aacp-accent-2": theme.secondaryColor || theme.accentColor || "#0f766e",
+    "--aacp-bg": md?.bg ?? theme.backgroundColor ?? "#f7f8fa",
+    "--aacp-fg": md?.fg ?? theme.textColor ?? "#111827",
+    "--aacp-card": md?.card ?? theme.surfaceColor ?? "#ffffff",
+    // Dark/grey get an elevated header surface; light forces white so the header
+    // reads clean with just the subtle border-bottom separating it from the body.
+    "--aacp-header-bg": md?.surface ?? "#ffffff",
+    "--aacp-line": md?.line ?? theme.borderColor ?? "#e5e7eb",
+    "--aacp-muted": md?.muted ?? theme.mutedTextColor ?? "#6b7280",
+    "--aacp-font": theme.fontFamily || "Inter, ui-sans-serif, system-ui, sans-serif",
+    "--aacp-font-display": theme.fontDisplay || theme.fontFamily || "Inter, ui-sans-serif, system-ui, sans-serif",
+    "--aacp-radius": `${theme.borderRadius ?? 8}px`,
+  } as React.CSSProperties & Record<string, string>;
 
   const initial = (storeName || "L").charAt(0).toUpperCase();
 
   return (
-    <div data-testid="theme-preview-frame" className="theme-preview-frame">
     <div
-      data-testid="theme-preview"
-      className="theme-preview-canvas"
-      data-density={theme.density ?? "comfortable"}
-      data-preview-mode={theme.mode ?? "light"}
       style={{
         ...vars,
-        colorScheme: theme.mode === "light" || !theme.mode ? "light" : "dark",
         width: "100%",
-        maxWidth: "var(--theme-preview-shell-max-width)",
-        margin: "0 auto",
-        borderRadius: "var(--theme-preview-radius)",
         height: "100%",
         display: "flex",
         flexDirection: "column",
-        background: "var(--theme-preview-bg)",
-        backgroundImage: theme.backgroundImageUrl ? `url(${JSON.stringify(theme.backgroundImageUrl)})` : undefined,
-        backgroundSize: "cover",
-        color: "var(--theme-preview-fg)",
-        fontFamily: "var(--theme-preview-font)",
+        background: "var(--aacp-bg)",
+        color: "var(--aacp-fg)",
+        fontFamily: "var(--aacp-font)",
         overflow: "hidden",
       }}
     >
@@ -92,28 +111,29 @@ export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
         @keyframes tpEyeLookLR { 0%,100%{transform:translateX(-2.5px)} 50%{transform:translateX(2.5px)} }
       `}</style>
       {/* Header — matches the storefront chrome (avatar + store + agent · Checkout seguro) */}
-      <div className="theme-preview-header" style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: "var(--theme-preview-header-bg, var(--theme-preview-bg))", borderBottom: "1px solid var(--theme-preview-line)", flex: "none" }}>
+      <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "14px 16px", background: "var(--aacp-header-bg, var(--aacp-bg))", borderBottom: "1px solid var(--aacp-line)", flex: "none" }}>
         {theme.logoUrl ? (
           // Logo keeps its natural aspect (not forced round) — contain within a
           // fixed-height box so wordmark/rectangular logos aren't distorted.
-          <img data-testid="theme-preview-logo" src={theme.logoUrl} alt="Logo da loja" style={{ height: 28, maxWidth: 100, objectFit: "contain", flex: "none" }} />
+          <img src={theme.logoUrl} alt="" style={{ height: 28, maxWidth: 120, objectFit: "contain", flex: "none" }} />
         ) : (
-          <div style={{ width: 34, height: 34, borderRadius: "var(--theme-preview-radius)", background: "var(--theme-preview-card)", border: "1px solid var(--theme-preview-line)", display: "flex", alignItems: "center", justifyContent: "center", font: "700 14px var(--theme-preview-font-display)", color: "var(--theme-preview-fg)", flex: "none" }}>
+          <div style={{ width: 34, height: 34, borderRadius: 8, background: "var(--aacp-card)", border: "1px solid var(--aacp-line)", display: "flex", alignItems: "center", justifyContent: "center", font: "700 14px var(--aacp-font-display)", color: "var(--aacp-fg)", flex: "none" }}>
             {initial}
           </div>
         )}
         <div style={{ minWidth: 0 }}>
-          <div className="theme-preview-store" style={{ font: "700 14px var(--theme-preview-font-display)", color: "var(--theme-preview-fg)", lineHeight: 1.4, overflowWrap: "anywhere" }}>{storeName || "Sua loja"}</div>
-          <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--theme-preview-muted)", display: "flex", alignItems: "center", gap: 5, marginTop: 1, overflowWrap: "anywhere" }}>
-            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--theme-preview-accent)", flex: "none" }} />
+          <div style={{ font: "700 14px var(--aacp-font-display)", color: "var(--aacp-fg)", lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{storeName || "Sua loja"}</div>
+          <div style={{ fontSize: 11, color: "var(--aacp-muted)", display: "flex", alignItems: "center", gap: 5, marginTop: 1 }}>
+            <span style={{ width: 6, height: 6, borderRadius: "50%", background: "var(--aacp-accent)", flex: "none" }} />
             {agent} · Checkout seguro
           </div>
         </div>
       </div>
 
       {/* Intro hero — replica of ConversationShell intro mode */}
-      <div className="theme-preview-body">
-        <div className="theme-preview-intro">
+      <div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", padding: "28px 24px", overflowY: "auto", position: "relative" }}>
+        <div style={{ maxWidth: 520, width: "100%", display: "flex", flexDirection: "column", alignItems: "center", textAlign: "center", position: "relative" }}>
+          <div style={{ position: "absolute", top: -50, left: "50%", transform: "translateX(-50%)", width: 220, height: 220, borderRadius: "50%", background: "var(--aacp-accent)", filter: "blur(80px)", opacity: 0.22, pointerEvents: "none" }} />
 
           {/* Agent orb — same markup as the storefront PulseAgentOrb (ring + glow +
               sphere + animated eyes) so the preview matches the real store exactly. */}
@@ -121,37 +141,37 @@ export function ThemePreviewCard({ theme, storeName }: ThemePreviewCardProps) {
             <PreviewAgentOrb size={96} avatarUrl={theme.agentAvatarUrl} />
           </div>
 
-          <div style={{ fontSize: 12, lineHeight: 1.5, color: "var(--theme-preview-muted)", marginBottom: 8 }}>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 10, lineHeight: 1.45, letterSpacing: 2, textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: 6 }}>
             Gerente de vendas da {storeName || "sua loja"}
           </div>
-          <div className="theme-preview-greeting" style={{ fontSize: 26, lineHeight: 1.2, fontWeight: 700, letterSpacing: "-0.5px", marginBottom: 12, fontFamily: "var(--theme-preview-font-display)", overflowWrap: "anywhere" }}>
+          <div style={{ fontSize: 27, fontWeight: 700, letterSpacing: "-0.5px", marginBottom: 10, fontFamily: "var(--aacp-font-display)" }}>
             Oi, eu sou a {agent}.
           </div>
-          <div style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--theme-preview-muted)", marginBottom: 22 }}>
+          <div style={{ fontSize: 13.5, lineHeight: 1.55, color: "var(--aacp-muted)", marginBottom: 22 }}>
             Eu cuido da sua compra do início ao fim. Acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
           </div>
-          <div style={{ fontSize: 12, lineHeight: 1.5, fontWeight: 600, color: "var(--theme-preview-muted)", marginBottom: 12 }}>
+          <div style={{ fontFamily: "'Space Mono', monospace", fontSize: 9, letterSpacing: 1.5, textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: 11 }}>
             Como você prefere comprar?
           </div>
-          <div className="theme-preview-choices">
-            <div data-testid="theme-preview-chat" className="theme-preview-choice" style={{ border: "1px solid var(--theme-preview-line)", background: "var(--theme-preview-card)", borderRadius: "var(--theme-preview-radius)", padding: "16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, color: "var(--theme-preview-fg)" }}>
-              <span style={{ width: 38, height: 38, borderRadius: 11, background: "var(--theme-preview-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+          <div style={{ display: "flex", gap: 10, width: "100%" }}>
+            <div style={{ flex: 1, border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: 16, padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, color: "var(--aacp-fg)" }}>
+              <span style={{ width: 38, height: 38, borderRadius: 11, background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
               </span>
               <span style={{ fontSize: 13.5, fontWeight: 600 }}>Por chat</span>
-              <span style={{ fontSize: 12, color: "var(--theme-preview-muted)", lineHeight: 1.4 }}>Converse digitando</span>
+              <span style={{ fontSize: 10.5, color: "var(--aacp-muted)", lineHeight: 1.3 }}>Converse digitando</span>
             </div>
-            <div data-testid="theme-preview-voice" className="theme-preview-choice" style={{ border: "1px solid var(--theme-preview-accent)", background: "var(--theme-preview-card)", borderRadius: "var(--theme-preview-radius)", padding: "16px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, position: "relative", overflow: "hidden", color: "var(--theme-preview-fg)" }}>
-              <span style={{ width: 38, height: 38, borderRadius: 11, background: "var(--theme-preview-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
+            <div style={{ flex: 1, border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: 16, padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: 9, position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
+              <span style={{ position: "absolute", top: 9, right: 9, fontFamily: "'Space Mono', monospace", fontSize: 7.5, letterSpacing: ".5px", color: "var(--aacp-accent)", border: "1px solid var(--aacp-accent)", borderRadius: 5, padding: "1px 4px" }}>IA</span>
+              <span style={{ width: 38, height: 38, borderRadius: 11, background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                 <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
               </span>
               <span style={{ fontSize: 13.5, fontWeight: 600 }}>Por voz</span>
-              <span style={{ fontSize: 12, color: "var(--theme-preview-muted)", lineHeight: 1.4 }}>Fale com a {agent}</span>
+              <span style={{ fontSize: 10.5, color: "var(--aacp-muted)", lineHeight: 1.3 }}>Fale com a {agent}</span>
             </div>
           </div>
         </div>
       </div>
-    </div>
     </div>
   );
 }
@@ -170,13 +190,13 @@ function PreviewAgentOrb({ size = 96, avatarUrl }: { size?: number; avatarUrl?: 
 
   return (
     <div aria-hidden style={{ position: "relative", width: size, height: size, flexShrink: 0, animation: "tpOrbFloat 6s ease-in-out infinite" }}>
-      <div style={{ position: "absolute", inset: ringInset, borderRadius: "50%", border: "1px solid var(--theme-preview-accent, #0f766e)", animation: "tpWaveRing 2.6s ease-out infinite" }} />
-      <div style={{ position: "absolute", inset: glowInset, borderRadius: "50%", background: "var(--theme-preview-accent, #0f766e)", filter: "blur(20px)", opacity: 0.38, pointerEvents: "none" }} />
+      <div style={{ position: "absolute", inset: ringInset, borderRadius: "50%", border: "1px solid var(--aacp-accent, #0f766e)", animation: "tpWaveRing 2.6s ease-out infinite" }} />
+      <div style={{ position: "absolute", inset: glowInset, borderRadius: "50%", background: "var(--aacp-accent, #0f766e)", filter: "blur(20px)", opacity: 0.38, pointerEvents: "none" }} />
       {avatarUrl ? (
-        <img data-testid="theme-preview-avatar" src={avatarUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", zIndex: 1 }} />
+        <img src={avatarUrl} alt="" style={{ position: "absolute", inset: 0, width: "100%", height: "100%", borderRadius: "50%", objectFit: "cover", zIndex: 1 }} />
       ) : (
         <>
-          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--theme-preview-accent, #0f766e)`, boxShadow: "inset 0 0 30px rgba(255, 255, 255, 0.28), 0 0 28px color-mix(in srgb, var(--theme-preview-accent, #0f766e) 50%, transparent)", zIndex: 1 }} />
+          <div style={{ position: "absolute", inset: 0, borderRadius: "50%", background: `radial-gradient(120% 120% at 30% 25%, rgba(255, 255, 255, 0.92), rgba(255, 255, 255, 0) 42%), var(--aacp-accent, #0f766e)`, boxShadow: "inset 0 0 30px rgba(255, 255, 255, 0.28), 0 0 28px color-mix(in srgb, var(--aacp-accent, #0f766e) 50%, transparent)", zIndex: 1 }} />
           <div style={{ position: "absolute", inset: 0, zIndex: 2, display: "flex", alignItems: "center", justifyContent: "center", gap: `${eyeGap}px`, pointerEvents: "none", animation: "tpEyeLookLR 2.6s ease-in-out infinite" }}>
             <span style={{ width: eyeW, height: eyeH, borderRadius: "50%", background: "#fff", boxShadow: "0 0 10px rgba(0,0,0,0.18)", animation: "tpEyeBlink 4s ease-in-out infinite" }} />
             <span style={{ width: eyeW, height: eyeH, borderRadius: "50%", background: "#fff", boxShadow: "0 0 10px rgba(0,0,0,0.18)", animation: "tpEyeBlink 4s ease-in-out infinite", animationDelay: "0.12s" }} />

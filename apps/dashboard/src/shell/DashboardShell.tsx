@@ -12,8 +12,8 @@ import { PlatformFeedbackFab } from "../components/PlatformFeedbackFab.js";
 import { FreeTrialNotice } from "../pages/billing-plans/FreeTrialNotice.js";
 import { PlanProvider } from "../components/FeatureGate.js";
 import { PremiumFeatureGate } from "../components/PremiumFeatureGate.js";
-import { StrategyReviewPage } from "../pages/revenue-manager/StrategyReviewPage.js";
-import { STRATEGY_REVIEW_EVENT, STRATEGY_CHANGED_EVENT, openStrategyReview, strategyReviewHash, strategyIdFromHash } from "../pages/revenue-manager/strategy-review.js";
+import { StrategyReviewModal } from "../pages/revenue-manager/StrategyReviewModal.js";
+import { STRATEGY_REVIEW_EVENT, STRATEGY_CHANGED_EVENT } from "../pages/revenue-manager/strategy-review.js";
 import { NotificationBell, type NotificationItem } from "../components/NotificationBell.js";
 import { useSupportSocket } from "../hooks/useSupportSocket.js";
 import { useNavCounts } from "./useNavCounts.js";
@@ -36,6 +36,15 @@ function ShellImportProgressProvider({ children }: { children: React.ReactNode }
 }
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
+
+type DomainRecord = { domain?: unknown; verified?: unknown };
+
+function verifiedDomain(value: unknown): string | undefined {
+  if (typeof value !== "string") return undefined;
+  const domain = value.trim().toLowerCase();
+  if (!domain || domain.includes("://") || domain.includes("/") || domain.includes("@")) return undefined;
+  return domain;
+}
 
 function getStorefrontUrl(slug: string | undefined, customDomain?: string): string | undefined {
   const publicSlug = slug?.trim();
@@ -80,6 +89,12 @@ const AccountSettingsPage = lazy(() => import("../pages/account-settings-page.js
 const CustomDomainPage = lazy(() => import("../pages/custom-domains/index.js").then(m => ({ default: m.CustomDomainPage })));
 const CrossSellPage = lazy(() => import("../pages/cross-sell/index.js").then(m => ({ default: m.CrossSellPage })));
 const MarketplacePage = lazy(() => import("../pages/marketplace/index.js").then(m => ({ default: m.MarketplacePage })));
+const MarketplacePaymentsPage = lazy(() => import("../pages/marketplace/MarketplacePaymentsPage.js").then(m => ({ default: m.MarketplacePaymentsPage })));
+const MarketplaceShipmentsPage = lazy(() => import("../pages/marketplace/MarketplaceShipmentsPage.js").then(m => ({ default: m.MarketplaceShipmentsPage })));
+const MarketplaceRefundsPage = lazy(() => import("../pages/marketplace/MarketplaceRefundsPage.js").then(m => ({ default: m.MarketplaceRefundsPage })));
+const MarketplaceAsaasWalletReturnsPage = lazy(() => import("../pages/marketplace/MarketplaceAsaasWalletReturnsPage.js").then(m => ({ default: m.MarketplaceAsaasWalletReturnsPage })));
+const MarketplaceContributionsPage = lazy(() => import("../pages/marketplace/MarketplaceContributionsPage.js").then(m => ({ default: m.MarketplaceContributionsPage })));
+const MarketplaceSellerFeesPage = lazy(() => import("../pages/marketplace/MarketplaceSellerFeesPage.js").then(m => ({ default: m.MarketplaceSellerFeesPage })));
 const WhatsAppSellerPage = lazy(() => import("../pages/whatsapp-seller/WhatsAppSellerPage.js").then(m => ({ default: m.WhatsAppSellerPage })));
 const ExperimentsPage = lazy(() => import("../pages/experiments-page.js").then(m => ({ default: m.ExperimentsPage })));
 const CouponsPage = lazy(() => import("../pages/coupons/index.js").then(m => ({ default: m.CouponsPage })));
@@ -119,32 +134,23 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     return initialTab ?? "overview";
   };
   const [tab, setTab] = useState<TabKey>(resolveInitialTab);
-  const [editingProductId, setEditingProductId] = useState<string | null>(null);
+  const [editingProductId, setEditingProductId] = useState<string | null>(() => new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("productId"));
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const appliedOnboardingTabRef = React.useRef(false);
   const notificationMerchant = React.useRef(me.id);
   notificationMerchant.current = me.id;
   const [inventoryNotice, setInventoryNotice] = useState<{ id: string; itemId?: string; alertId?: string } | null>(null);
   const [notifications, setNotifications] = useState<NotificationItem[]>([]);
-  const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(() => strategyIdFromHash(window.location.hash));
+  const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(null);
   useEffect(() => {
-    const navigate = () => {
-      setReviewStrategyId(strategyIdFromHash(window.location.hash));
-      const hash = window.location.hash.slice(1).split("?")[0];
-      setTab((hash || initialTab || "overview") as TabKey);
-    };
-    navigate();
+    setReviewStrategyId(null);
     const review = (event: Event) => {
       const id = (event as CustomEvent<{ hypothesisId?: string }>).detail?.hypothesisId;
-      if (typeof id === "string" && id.trim() && id.length <= 150) {
-        window.location.hash = strategyReviewHash(id);
-        navigate();
-      }
+      if (typeof id === "string" && id.trim()) setReviewStrategyId(id);
     };
     window.addEventListener(STRATEGY_REVIEW_EVENT, review);
-    window.addEventListener("hashchange", navigate);
-    return () => { window.removeEventListener(STRATEGY_REVIEW_EVENT, review); window.removeEventListener("hashchange", navigate); };
-  }, [me.id, initialTab]);
+    return () => window.removeEventListener(STRATEGY_REVIEW_EVENT, review);
+  }, [me.id]);
   const [customDomain, setCustomDomain] = useState<string>();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("aacp_nav_collapsed");
@@ -161,6 +167,15 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [searchQuery, setSearchQuery] = useState("");
   const searchInputRef = React.useRef<HTMLInputElement>(null);
 
+  useEffect(() => {
+    const onHashChange = () => {
+      const hash = window.location.hash.slice(1).split("?")[0];
+      if (hash === "product-detail") setEditingProductId(new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("productId"));
+      if (hash) setTab(hash as TabKey);
+    };
+    window.addEventListener("hashchange", onHashChange);
+    return () => window.removeEventListener("hashchange", onHashChange);
+  }, []);
 
   // Onboarding state resolves asynchronously in the parent (after
   // getOnboardingState). useState reads props only on mount, so react to
@@ -182,6 +197,25 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   }, [initialTab, initialOnboardingCompleted]);
 
   useEffect(() => {
+    let active = true;
+    void dashboardFetch(API_BASE_URL, "/merchants/me/domains")
+      .then(async (response) => {
+        if (!response.ok) return;
+        const payload: unknown = await response.json();
+        if (!Array.isArray(payload)) return;
+        const match = payload.find((entry): entry is DomainRecord =>
+          typeof entry === "object" && entry !== null && (entry as DomainRecord).verified === true,
+        );
+        const domain = match ? verifiedDomain(match.domain) : undefined;
+        if (active) setCustomDomain(domain);
+      })
+      .catch(() => {
+        if (active) setCustomDomain(undefined);
+      });
+    return () => { active = false; };
+  }, []);
+
+  useEffect(() => {
     localStorage.setItem("aacp_nav_collapsed", JSON.stringify(Array.from(collapsedSections)));
   }, [collapsedSections]);
 
@@ -201,7 +235,6 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   }, [searchQuery]);
 
   const changeTab = useCallback((next: TabKey) => {
-    setReviewStrategyId(null);
     setTab(next);
     window.location.hash = next;
   }, []);
@@ -295,7 +328,8 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     [visibleSectionIds]
   );
 
-  const activeItem = visibleNavItems.find((item) => item.key === tab) ?? NAV_ITEMS[0]!;
+  const navigationTab = tab === "product-detail" ? "catalog" : tab;
+  const activeItem = visibleNavItems.find((item) => item.key === navigationTab) ?? NAV_ITEMS[0]!;
   const ActiveIcon = activeItem.icon;
   const activeSection = NAV_SECTIONS.find(section => section.id === activeItem.section)?.label ?? activeItem.section;
 
@@ -421,7 +455,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   >
                     {sectionItems.map((item) => {
                       const Icon = item.icon;
-                      const active = tab === item.key;
+                      const active = navigationTab === item.key;
                       const rawCount = item.badgeKey
                         ? item.badgeKey === "cart-recovery"
                           ? navCounts.cartRecovery
@@ -516,7 +550,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
       {/* ── MAIN ── */}
       <main className="dashboard-main" style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0, overflow: "hidden", position: "relative", padding: 0 }}>
         <div className="console-topbar" style={{ flex: "none", display: "flex", alignItems: "center", justifyContent: "space-between", padding: "10px 32px", borderBottom: "1px solid var(--color-border)", background: "var(--surface-2)" }}>
-          <select className="console-mobile-nav" aria-label="Navegar no dashboard" value={tab} onChange={event => event.target.value === "logout" ? onLogout() : changeTab(event.target.value as TabKey)}>
+          <select className="console-mobile-nav" aria-label="Navegar no dashboard" value={navigationTab} onChange={event => event.target.value === "logout" ? onLogout() : changeTab(event.target.value as TabKey)}>
             {visibleNavItems.map(item => <option key={item.key} value={item.key}>{item.label}</option>)}
             <option value="logout">Sair da conta</option>
           </select>
@@ -554,8 +588,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 if (notificationMerchant.current === me.id) setNotifications([]);
               }}
               onClickNotification={async (n) => {
-                if (n.type === "ai_analysis_update") changeTab("revenue-manager");
-                if (n.hypothesisId) openStrategyReview(n.hypothesisId);
+                if (n.hypothesisId) setReviewStrategyId(n.hypothesisId);
                 if (n.type === "inventory_alert") { setInventoryNotice({ id: n.id, itemId: n.inventoryItemId, alertId: n.inventoryAlertId }); changeTab("inventory"); }
                 if (n.type === "plan_expiry") changeTab("billing-plans");
                 if (n.ticketId) changeTab("support");
@@ -570,6 +603,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </div>
         </div>
         <section className={"console-content" + (tab === "overview" ? "" : " dashboard-ui")} data-dashboard-page={tab} style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
+          {reviewStrategyId && <StrategyReviewModal key={me.id + reviewStrategyId} hypothesisId={reviewStrategyId} merchantId={me.id} onClose={() => setReviewStrategyId(null)} />}
           <FreeTrialNotice onViewPlans={() => changeTab("billing-plans")} />
           <PageErrorBoundary key={tab}>
             <Suspense fallback={<LoadingFallback />}>
@@ -592,6 +626,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "settings" ? <RouteGuard me={me} require="settings"><CheckoutSettingsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "support" ? <RouteGuard me={me} require="support"><SupportSettingsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {(tab === "integrations" || tab === "integrations-api") ? <RouteGuard me={me} require="integrations"><IntegrationsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
+            {tab === "erp-integrations" ? <RouteGuard me={me} require="erp-integrations"><InventoryPage apiBaseUrl={API_BASE_URL} me={me} connectorsOnly /></RouteGuard> : null}
             {tab === "crm-integrations" ? (
               <RouteGuard me={me} require="crm-integrations">
                 <PremiumFeatureGate
@@ -600,7 +635,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   featureLabel="CRM & Marketing"
                   description="Conecte sua loja a CRMs (HubSpot, Pipedrive, RD Station) e ferramentas de marketing automation para sincronizar leads e clientes."
                 >
-                  <CrmIntegrationsPage apiBaseUrl={API_BASE_URL} me={me} />
+                  <CrmIntegrationsPage key={me.id} apiBaseUrl={API_BASE_URL} me={me} />
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
@@ -621,7 +656,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                   apiBaseUrl={API_BASE_URL}
                   me={me}
                   onCreate={() => { setEditingProductId(null); changeTab("product-detail"); }}
-                  onEdit={(id) => { setEditingProductId(id); changeTab("product-detail"); }}
+                  onEdit={(id) => { setEditingProductId(id); setTab("product-detail"); window.location.hash = `product-detail?productId=${encodeURIComponent(id)}`; }}
                 />
               </RouteGuard>
             ) : null}
@@ -653,7 +688,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "custom-domain" ? (
               <RouteGuard me={me} require="custom-domain">
                 <PremiumFeatureGate feature="customDomain" requiredPlan="Growth" featureLabel="Domínio próprio" description="Use seu próprio domínio na loja a partir do plano Growth.">
-                  <CustomDomainPage onVerifiedDomainChange={setCustomDomain} />
+                  <CustomDomainPage />
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
@@ -671,6 +706,13 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
+            {tab === "marketplace-payments" ? <RouteGuard me={me} require="marketplace-payments"><MarketplacePaymentsPage me={me} /></RouteGuard> : null}
+            {tab === "marketplace-shipments" ? <RouteGuard me={me} require="marketplace-shipments"><MarketplaceShipmentsPage me={me} /></RouteGuard> : null}
+            {tab === "marketplace-refunds" ? <RouteGuard me={me} require="marketplace-refunds"><MarketplaceRefundsPage me={me} /></RouteGuard> : null}
+            {tab === "marketplace-asaas-wallet-returns" ? <RouteGuard me={me} require="marketplace-asaas-wallet-returns"><MarketplaceAsaasWalletReturnsPage me={me} /></RouteGuard> : null}
+            {tab === "marketplace-contributions" ? <RouteGuard me={me} require="marketplace-contributions"><MarketplaceContributionsPage me={me} /></RouteGuard> : null}
+            {tab === "marketplace-fees" ? <RouteGuard me={me} require="marketplace-fees"><MarketplaceSellerFeesPage me={me} /></RouteGuard> : null}
+            {tab === "marketplace-host-fees" ? <RouteGuard me={me} require="marketplace-host-fees"><MarketplaceSellerFeesPage family="host" me={me} /></RouteGuard> : null}
             {tab === "whatsapp-seller" ? <RouteGuard me={me} require="whatsapp-seller"><WhatsAppSellerPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "coupons" ? <RouteGuard me={me} require="coupons"><CouponsPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
             {tab === "experiments" ? (
@@ -690,8 +732,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "revenue-manager" ? (
               <RouteGuard me={me} require="revenue-manager">
                 <PremiumFeatureGate feature="revenueManager" requiredPlan="Scale" featureLabel="Otimizador IA" description="IA autônoma que gera hipóteses de otimização e ajusta estratégias de conversão continuamente.">
-                  {reviewStrategyId ? <StrategyReviewPage key={`${me.id}:${reviewStrategyId}`} strategyId={reviewStrategyId} merchantId={me.id} onBack={() => changeTab("revenue-manager")} />
-                    : <RevenueManagerPage key={me.id} apiBaseUrl={API_BASE_URL} me={me} />}
+                  <RevenueManagerPage apiBaseUrl={API_BASE_URL} me={me} />
                 </PremiumFeatureGate>
               </RouteGuard>
             ) : null}
@@ -758,7 +799,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 >
                   <AdvancedLayoutListPage
                     me={me}
-                    onEditProduct={(id) => { setEditingProductId(id); changeTab("product-detail"); }}
+                    onEditProduct={(id) => { setEditingProductId(id); setTab("product-detail"); window.location.hash = `product-detail?productId=${encodeURIComponent(id)}`; }}
                   />
                 </PremiumFeatureGate>
               </RouteGuard>

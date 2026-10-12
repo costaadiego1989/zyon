@@ -86,6 +86,7 @@ export function useMarketplacePage(me: MerchantProfile | null) {
         if (Array.isArray(li.line_items)) return li;
         const statusMap: Record<string, string> = {
           fulfilled: "delivered",
+          delivered: "delivered",
           shipped: "shipped",
           pending: "pending",
           created: "pending",

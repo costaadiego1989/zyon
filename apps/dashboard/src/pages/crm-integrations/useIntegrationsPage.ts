@@ -8,13 +8,15 @@ export interface CrmConnectionDTO {
   provider: string;
   status: "connected" | "disconnected" | "error";
   lastSyncAt?: string | null;
+  lastErrorCode?: string | null;
+  config?: Record<string, string>;
 }
 export interface CrmSyncLogDTO {
   id: string;
   provider: string;
   email: string;
   stage: "lead" | "customer";
-  status: "success" | "failed";
+  status: "success" | "failed" | "skipped";
   error_code: string | null;
   created_at: string;
 }
@@ -60,7 +62,7 @@ export function useIntegrationsPage(options: { me: MerchantProfile | null }) {
       generation.current++;
     };
   }, [loadData]);
-  const connectCrm = async (provider: string, credentials: Record<string, string>) => {
+  const connectCrm = async (provider: string, credentials: { accessToken: string; config?: Record<string, string> }) => {
     if (!options.me || working.current) return false;
     working.current = true;
     setBusy(true);
@@ -73,7 +75,7 @@ export function useIntegrationsPage(options: { me: MerchantProfile | null }) {
       return true;
     } catch {
       setActionError(
-        "Não foi possível conectar. Confira o token e as permissões no provedor e tente novamente."
+        "Não foi possível conectar. Confira a chave, as permissões e os dados da conta no provedor e tente novamente."
       );
       return false;
     } finally {
@@ -99,6 +101,25 @@ export function useIntegrationsPage(options: { me: MerchantProfile | null }) {
       setBusy(false);
     }
   };
+  const authorizeHubSpot = async () => {
+    if (!options.me || working.current) return;
+    working.current = true;
+    setBusy(true);
+    setActionError(null);
+    try {
+      const { url } = await api.authorizeHubSpotCrm();
+      const target = new URL(url);
+      if (target.origin !== "https://app.hubspot.com" || target.pathname !== "/oauth/authorize" || target.username || target.password) {
+        throw new Error("invalid_authorization_url");
+      }
+      window.location.assign(target.toString());
+    } catch {
+      setActionError("Não foi possível iniciar a conexão com o HubSpot. Tente novamente mais tarde.");
+    } finally {
+      working.current = false;
+      setBusy(false);
+    }
+  };
   return {
     crmConnections,
     syncLog,
@@ -109,6 +130,7 @@ export function useIntegrationsPage(options: { me: MerchantProfile | null }) {
     busy,
     connectCrm,
     disconnectCrm,
+    authorizeHubSpot,
     loadData,
     clearActionError: () => setActionError(null),
   };

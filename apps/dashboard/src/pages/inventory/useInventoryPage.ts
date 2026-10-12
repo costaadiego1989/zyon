@@ -107,6 +107,7 @@ export function useInventoryPage(options: {
       await loadData();
     } catch (err) {
       showToast("error", err instanceof Error ? err.message : "Erro ao registrar movimentação");
+      throw err;
     }
   }, [api, options.me, loadData]);
 

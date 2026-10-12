@@ -209,7 +209,7 @@ export function SettlementTimeline({ detail, isLoading }: SettlementTimelineProp
         {settlement.status === "chargeback_debt" && debt && (
           <div className="settlement-timeline__window settlement-timeline__window--debt">
             <div style={{ fontSize: 13, color: "var(--color-error)", textTransform: "none" }}>
-              Débito registrado
+              Principal original
             </div>
             <div
               style={{

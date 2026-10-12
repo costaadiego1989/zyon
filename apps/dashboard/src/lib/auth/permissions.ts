@@ -33,6 +33,7 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   "payment-connections": ["OWNER", "ADMIN"],
   integrations: ["OWNER", "ADMIN"],
   "crm-integrations": ["OWNER", "ADMIN"],
+  "erp-integrations": ["OWNER", "ADMIN"],
   // Inteligência IA
   "revenue-manager": ["OWNER", "ADMIN"],
   "revenue-lift": ["OWNER", "ADMIN"],
@@ -53,6 +54,13 @@ export const PERMISSIONS: Partial<Record<TabKey, ReadonlyArray<Role>>> = {
   shipments: ["OWNER", "ADMIN", "STAFF"],
   customers: ["OWNER", "ADMIN", "STAFF"],
   marketplace: ["OWNER", "ADMIN", "STAFF"],
+  "marketplace-payments": ["OWNER", "ADMIN"],
+  "marketplace-shipments": ["OWNER", "ADMIN"],
+  "marketplace-refunds": ["OWNER", "ADMIN"],
+  "marketplace-asaas-wallet-returns": ["OWNER", "ADMIN"],
+  "marketplace-contributions": ["OWNER", "ADMIN"],
+  "marketplace-fees": ["OWNER", "ADMIN"],
+  "marketplace-host-fees": ["OWNER", "ADMIN"],
 };
 
 export function canAccessTab(role: Role | undefined, tab: TabKey): boolean {

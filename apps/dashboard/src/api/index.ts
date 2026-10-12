@@ -13,6 +13,14 @@ import { catalogEndpoints } from "./endpoints/catalog.js";
 import { productContentEndpoints } from "./endpoints/product-content.js";
 import { experimentsEndpoints } from "./endpoints/experiments.js";
 import { marketplaceEndpoints } from "./endpoints/marketplace-v2.js";
+import { marketplaceCancellationEndpoints } from "./endpoints/marketplace-cancellation.js";
+import { marketplaceShipmentEndpoints } from "./endpoints/marketplace-shipments.js";
+import { marketplaceRefundEndpoints } from "./endpoints/marketplace-refunds.js";
+import { marketplaceRefundPreparationEndpoints } from "./endpoints/marketplace-refund-preparation.js";
+import { marketplaceAsaasWalletReturnEndpoints } from "./endpoints/marketplace-asaas-wallet-returns.js";
+import { marketplaceContributionCheckoutEndpoints } from "./endpoints/marketplace-contribution-checkouts.js";
+import { marketplaceSellerFeeCollectionEndpoints } from "./endpoints/marketplace-seller-fee-collections.js";
+import { marketplaceHostFeeCollectionEndpoints } from "./endpoints/marketplace-host-fee-collections.js";
 import { webhookEndpoints } from "./endpoints/webhook.js";
 import { orderEndpoints } from "./endpoints/order.js";
 import {
@@ -87,6 +95,14 @@ export function createDashboardApi(options: {
     ...productContentEndpoints(base, f),
     ...experimentsEndpoints(base, f),
     ...marketplaceEndpoints(base, f),
+    ...marketplaceCancellationEndpoints(base, f),
+    ...marketplaceShipmentEndpoints(base, f),
+    ...marketplaceRefundEndpoints(base, f),
+    ...marketplaceRefundPreparationEndpoints(base, f),
+    ...marketplaceAsaasWalletReturnEndpoints(base, f),
+    ...marketplaceContributionCheckoutEndpoints(base, f),
+    ...marketplaceSellerFeeCollectionEndpoints(base, f),
+    ...marketplaceHostFeeCollectionEndpoints(base, f),
     ...funnelEndpoints(base, f),
     ...revenueLiftEndpoints(base, f),
     ...revenueManagerEndpoints(base, f),

@@ -1,59 +1,52 @@
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
+import { DashboardHttpError } from "../../api/http/index.js";
 import { showToast } from "../../components/Toast.js";
-import type { DomainEntry } from "../../api/endpoints/merchants.js";
-import { domainErrorMessage } from "./domain-errors.js";
+import type { DomainEntry, RegisterDomainOutput, VerifyDomainOutput } from "../../api/endpoints/merchants.js";
 
 export interface DomainsPageState {
   domains: DomainEntry[];
   loading: boolean;
   adding: boolean;
   verifying: string | null;
-  removing: string | null;
   newDomain: string;
   error: string | null;
-  loadFailed: boolean;
 }
 
 export function useDomainsPage() {
   const api = useApi();
   const [loadAttempt, setLoadAttempt] = useState(0);
-  const mutating = useRef(false);
   const [state, setState] = useState<DomainsPageState>({
     domains: [],
     loading: true,
     adding: false,
     verifying: null,
-    removing: null,
     newDomain: "",
     error: null,
-    loadFailed: false,
   });
 
   useEffect(() => {
     let cancelled = false;
-    setState(p => ({ ...p, loading: true, error: null, loadFailed: false }));
+    setState(p => ({ ...p, loading: true, error: null }));
     (async () => {
       try {
         const domains = await api.listDomains();
         if (cancelled) return;
         setState((p) => ({ ...p, domains, loading: false }));
-      } catch (error) {
-        if (!cancelled) setState((p) => ({ ...p, loading: false, loadFailed: true, error: domainErrorMessage(error, "load") }));
+      } catch {
+        if (!cancelled) setState((p) => ({ ...p, loading: false, error: "Não foi possível carregar os domínios. Tente novamente." }));
       }
     })();
     return () => { cancelled = true; };
   }, [api, loadAttempt]);
 
   async function addDomain() {
-    if (mutating.current || state.loading || state.loadFailed) return;
     const domain = state.newDomain.trim().toLowerCase();
     if (!domain) {
       showToast("error", "Digite um domínio válido");
       return;
     }
 
-    mutating.current = true;
     setState((p) => ({ ...p, adding: true, error: null }));
     try {
       const result = await api.addDomain(domain);
@@ -64,23 +57,23 @@ export function useDomainsPage() {
           domain: result.domain,
           verified: false,
           cname_target: result.cname_target,
-          txt_name: result.txt_name,
-          txt_value: result.txt_value,
         }],
         newDomain: "",
         adding: false,
       }));
-      showToast("success", `Domínio adicionado. Configure os registros CNAME e TXT indicados.`);
+      showToast("success", `Domínio adicionado. Configure o CNAME para: ${result.cname_target}`);
     } catch (e) {
-      const msg = domainErrorMessage(e, "add");
+      const raw = e instanceof DashboardHttpError ? e.responseBody : e instanceof Error ? e.message : "Erro desconhecido";
+      const msg = raw.includes("merchant_not_found") ? "Erro de autenticação. Recarregue a página."
+        : raw.includes("domain_already_registered") ? "Domínio já registrado por outra loja."
+        : raw.includes("invalid_domain") ? "Formato de domínio inválido. Ex: meusite.com.br"
+        : "Erro ao adicionar domínio. Tente novamente.";
       setState((p) => ({ ...p, adding: false, error: msg }));
       showToast("error", msg);
-    } finally { mutating.current = false; }
+    }
   }
 
   async function verifyDomain(domainId: string) {
-    if (mutating.current || state.loading || state.loadFailed) return;
-    mutating.current = true;
     setState((p) => ({ ...p, verifying: domainId, error: null }));
     try {
       const result = await api.verifyDomain(domainId);
@@ -96,21 +89,18 @@ export function useDomainsPage() {
       if (result.verified) {
         showToast("success", `${result.domain} verificado com sucesso`);
       } else {
-        const message = `Ainda não confirmamos os registros CNAME e TXT de ${result.domain}. Confira os dois no provedor e tente verificar novamente.`;
-        setState(p => ({ ...p, error: message }));
-        showToast("error", message);
+        showToast("error", `Ainda não confirmamos o apontamento de ${result.domain}. Confira os registros no provedor e tente verificar novamente.`);
       }
     } catch (e) {
-      const msg = domainErrorMessage(e, "verify");
+      const msg = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : "Erro ao verificar domínio";
       setState((p) => ({ ...p, verifying: null, error: msg }));
       showToast("error", msg);
-    } finally { mutating.current = false; }
+    }
   }
 
   async function removeDomain(domainId: string) {
-    if (mutating.current || state.loading || state.loadFailed) return false;
-    mutating.current = true;
-    setState((p) => ({ ...p, error: null, removing: domainId }));
+
+    setState((p) => ({ ...p, error: null }));
     try {
       await api.removeDomain(domainId);
       setState((p) => ({
@@ -118,13 +108,11 @@ export function useDomainsPage() {
         domains: p.domains.filter((d) => d.id !== domainId),
       }));
       showToast("success", "Domínio removido");
-      return true;
     } catch (e) {
-      const msg = domainErrorMessage(e, "remove");
+      const msg = e instanceof DashboardHttpError ? e.responseBody.slice(0, 180) : e instanceof Error ? e.message : "Erro ao remover domínio";
       setState((p) => ({ ...p, error: msg }));
       showToast("error", msg);
-      return false;
-    } finally { mutating.current = false; setState(p => ({ ...p, removing: null })); }
+    }
   }
 
   return {

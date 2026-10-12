@@ -1,6 +1,6 @@
 import { SetupGuide } from "../../components/SetupGuide.js";
 import { PageHeader } from "../../components/PageHeader.js";
-import React from "react";
+import React, { useEffect, useState } from "react";
 import { Package, Link2 } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { DataPanel } from "../../components/DataPanel.js";
@@ -11,6 +11,11 @@ import { Button } from "../../components/Button.js";
 import { useDeliveryPage } from "./useDeliveryPage.js";
 import { MelhorEnvioCard } from "./components/MelhorEnvioCard.js";
 import { OwnDeliveryCard, OwnDeliveryConfigPanel } from "./components/OwnDeliveryCard.js";
+import { Modal } from "../../components/Modal.js";
+import { useApi } from "../../hooks/useApi.js";
+import type { TenantOrderDetail } from "../../api/types.js";
+import type { Shipment } from "../../api/endpoints/delivery.js";
+import { STATUS_LABELS, formatMinor } from "../orders-shipments/utils.js";
 
 export interface DeliveryPageProps {
   apiBaseUrl: string;
@@ -56,6 +61,21 @@ const carrierLabel = (carrier: string | null | undefined): string =>
 
 export function DeliveryPage(props: DeliveryPageProps) {
   const vm = useDeliveryPage();
+  const api = useApi();
+  const [selected, setSelected] = useState<Shipment | null>(null);
+  const [order, setOrder] = useState<TenantOrderDetail | null>(null);
+  const [orderLoading, setOrderLoading] = useState(false);
+  const [orderError, setOrderError] = useState<string | null>(null);
+  useEffect(() => {
+    let active = true;
+    setOrder(null); setOrderError(null); setOrderLoading(false);
+    if (!selected?.orderId) return;
+    setOrderLoading(true);
+    void api.getOrderDetail(selected.orderId).then(value => { if (active) setOrder(value); })
+      .catch(() => { if (active) setOrderError("Não foi possível consultar o pedido associado. A referência do envio está disponível abaixo."); })
+      .finally(() => { if (active) setOrderLoading(false); });
+    return () => { active = false; };
+  }, [api, selected]);
   const unavailable = vm.shipmentsLoading || !!vm.shipmentsError;
   const header = <PageHeader title="Frete e entregas" description="Configure a entrega da loja e acompanhe os envios dos pedidos." />;
   async function copyTracking(code: string) {
@@ -83,13 +103,30 @@ export function DeliveryPage(props: DeliveryPageProps) {
       {vm.shipmentsLoading ? <p className="delivery-state" role="status">Carregando entregas…</p> : vm.shipmentsError ? <EmptyState icon={Package} title="Não foi possível carregar as entregas" description="Tente novamente para consultar os envios da loja." action={<Button variant="outline" onClick={vm.reloadShipments}>Tentar novamente</Button>} /> : <div className="delivery-table-scroll" tabIndex={0} role="region" aria-label="Lista de entregas">
         <table className="delivery-table"><thead><tr>{["Pedido", "Transportadora", "Rastreio", "Status", "Ação"].map(label => <th key={label} scope="col">{label}</th>)}</tr></thead>
           <tbody>{vm.shipments.map(shipment => <tr key={shipment.id}>
-            <td>#{(shipment.orderId ?? shipment.externalOrderId ?? shipment.id).slice(0, 8)}</td>
+            <td><Button variant="ghost" size="sm" onClick={() => setSelected(shipment)} aria-label={"Ver detalhes do envio " + shipment.id}><span className="delivery-order-reference">#{shipment.externalOrderId ?? shipment.orderId ?? shipment.id}</span></Button></td>
             <td>{carrierLabel(shipment.carrier)}</td><td>{isRealTrackingCode(shipment.trackingCode) ? shipment.trackingCode : "—"}</td>
             <td><span style={{ color: shipmentStatusColor(shipment.status) }}>{shipmentStatusLabel(shipment.status)}</span></td>
             <td>{isRealTrackingCode(shipment.trackingCode) ? <Button variant="outline" size="sm" onClick={() => void copyTracking(shipment.trackingCode!)} aria-label={"Copiar rastreio " + shipment.trackingCode}><Link2 size={14} /> Copiar</Button> : <span>{isCarrierShipment(shipment.carrier) ? "Aguardando rastreio" : "Entrega própria"}</span>}</td>
           </tr>)}</tbody></table>
       </div>}
     </DataPanel>
+    <Modal isOpen={!!selected} title="Detalhes do envio" presentation="center" size="lg" onClose={() => setSelected(null)}>
+      {selected && <dl className="delivery-detail">
+        <div><dt>Envio</dt><dd>{selected.id}</dd></div>
+        <div><dt>Pedido da loja</dt><dd>{selected.orderId ?? "Não informado"}</dd></div>
+        <div><dt>Referência externa</dt><dd>{selected.externalOrderId ?? "Não informada"}</dd></div>
+        <div><dt>Transportadora</dt><dd>{carrierLabel(selected.carrier)}</dd></div>
+        <div><dt>Status do envio</dt><dd>{shipmentStatusLabel(selected.status)}</dd></div>
+        <div><dt>Rastreio</dt><dd>{isRealTrackingCode(selected.trackingCode) ? selected.trackingCode : "Aguardando rastreio"}</dd></div>
+      </dl>}
+      {orderLoading && <p role="status">Carregando pedido…</p>}
+      {orderError && <p role="alert">{orderError}</p>}
+      {order && <section><h3>Pedido associado</h3><dl className="delivery-detail">
+        <div><dt>Identificação</dt><dd>{order.external_order_id || order.id}</dd></div>
+        <div><dt>Total</dt><dd>{formatMinor(order.total, order.currency || "BRL")}</dd></div>
+        <div><dt>Status do pedido</dt><dd>{STATUS_LABELS[order.status] ?? (order.status === "completed" ? "Concluído" : "Status indisponível")}</dd></div>
+      </dl></section>}
+    </Modal>
     {vm.ownDeliveryPanelOpen && <OwnDeliveryConfigPanel config={vm.config.ownDelivery} saving={vm.saving} onSave={vm.saveOwnDeliveryConfig} onClose={() => vm.setOwnDeliveryPanelOpen(false)} originZip={vm.config.originZip} />}
   </div>;
 }

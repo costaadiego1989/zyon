@@ -10,7 +10,7 @@ import { TEMPLATE_TYPES, type TemplateChannel, usePostSaleTemplates } from "./us
 import { messageStatusLabel } from "./template-status.js";
 import "../../components/configuration-form.css";
 
-export function TemplateEditor(props: { me: MerchantProfile | null; initialType?: string; onClose?: () => void }) {
+export function TemplateEditor(props: { me: MerchantProfile | null; initialType?: string; onClose?: () => void; definition?: { label: string; body: string } }) {
   const tpl = usePostSaleTemplates(props);
   const id = useId();
   const [type, setType] = useState(props.initialType ?? TEMPLATE_TYPES[0].type);
@@ -27,14 +27,14 @@ export function TemplateEditor(props: { me: MerchantProfile | null; initialType?
   const busy = Boolean(tpl.savingKey || tpl.generatingKey || tpl.refreshingKey);
   const conflict = dirty && (revision !== stored?.metaRevision || tpl.conflictKey === key);
   const canSubmit = channel === "whatsapp" && !!stored && ["draft", "rejected", "disabled"].includes(stored.metaStatus ?? "");
-  const label = TEMPLATE_TYPES.find(template => template.type === type)?.label ?? type;
+  const label = props.definition?.label ?? TEMPLATE_TYPES.find(template => template.type === type)?.label ?? type;
 
   useEffect(() => {
     if (selected.current === key && dirty) return;
     selected.current = key;
-    setBody(stored?.body ?? ""); setSubject(stored?.subject ?? "");
+    setBody(stored?.body ?? props.definition?.body ?? ""); setSubject(stored?.subject ?? "");
     setRevision(stored?.metaRevision); setDirty(false);
-  }, [key, stored, dirty]);
+  }, [key, stored, dirty, props.definition?.body]);
 
   async function save(event: React.FormEvent) {
     event.preventDefault();
@@ -117,5 +117,5 @@ export function TemplateEditor(props: { me: MerchantProfile | null; initialType?
       {stored && !props.onClose && <div className="post-sale-template-editor__actions">{actions}</div>}
     </form>}
   </section>;
-  return props.onClose ? <Modal isOpen title={label} subtitle="Revise a mensagem do WhatsApp. Uma alteração salva passa pela análise da Meta." presentation="center" size="lg" onClose={close} footer={actions}>{editor}</Modal> : editor;
+  return props.onClose ? <Modal isOpen title={label} subtitle="Revise a mensagem do WhatsApp. Uma alteração salva passa pela análise da Meta." presentation="floating-panel" onClose={close} footer={actions}>{editor}</Modal> : editor;
 }

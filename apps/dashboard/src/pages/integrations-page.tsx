@@ -58,7 +58,7 @@ export function IntegrationsPage(props: { apiBaseUrl: string; me: MerchantProfil
           icon={<Webhook size={16} />}
         />
         <StatCard
-          label="Deliveries"
+          label="Entregas de webhooks"
           value={deliveries.length}
           icon={<Send size={16} />}
           trend={deliveries.length > 0 ? deliverySuccessRate - 100 : undefined}

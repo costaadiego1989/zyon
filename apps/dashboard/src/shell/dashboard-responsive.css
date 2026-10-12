@@ -7,5 +7,6 @@
     border: 1px solid var(--color-border); border-radius: var(--radius-sm); background: var(--surface-2); color: var(--color-text); font: 600 13px var(--font-sans); }
   .merchant-console .console-merchant-label { display: none !important; }
   .merchant-console .console-content { padding: 28px 16px 40px !important; min-width: 0; }
-  .merchant-console .console-topbar-actions { min-width: 0; }
+  .merchant-console .console-topbar-actions { width: 100%; min-width: 0; justify-content: flex-end; }
+  .merchant-console .merchant-store-switcher { margin-left: auto; }
 }

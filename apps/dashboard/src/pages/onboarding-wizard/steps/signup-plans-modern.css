@@ -45,7 +45,7 @@
 .signup-plan__details summary span { font-size:20px; transition:transform 200ms var(--plan-ease); }
 .signup-plan__details[open] summary span { transform:rotate(45deg); }
 .signup-plan__details[open] .signup-plan__features { padding-top:10px; }
-.signup-plan__select { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:48px; margin-top:auto; padding:12px; border:1px solid var(--plan-line); border-radius:7px; background:transparent; color:var(--plan-ink); cursor:pointer; font:600 12px/1.5 Manrope,system-ui,sans-serif; transition:background-color 180ms var(--plan-ease),transform 180ms var(--plan-ease); }
+.signup-plan__select { display:flex; align-items:center; justify-content:center; gap:8px; width:100%; min-height:48px; margin-top:24px; padding:12px; border:1px solid var(--plan-line); border-radius:7px; background:transparent; color:var(--plan-ink); cursor:pointer; font:600 12px/1.5 Manrope,system-ui,sans-serif; transition:background-color 180ms var(--plan-ease),transform 180ms var(--plan-ease); }
 .signup-plan--featured .signup-plan__select { background:oklch(80% .11 155); color:oklch(25% .04 155); border-color:transparent; }
 .signup-plan__select:hover { background:oklch(77% .07 155 / .16); }
 .signup-plan--featured .signup-plan__select:hover { background:oklch(86% .1 155); }

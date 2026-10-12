@@ -1,6 +1,7 @@
 import React, { createContext, useCallback, useContext, useEffect, useMemo, useRef, useState } from "react";
 import { showToast } from "../../components/Toast.js";
 import type { ImportJobStatus } from "../../api/endpoints/catalog.js";
+import { importErrorMessage } from "./import-feedback.js";
 
 export interface BackgroundImportJob {
   jobId: string;
@@ -113,7 +114,7 @@ export function ImportProgressProvider({ children, getImportJob }: ImportProgres
       if (inflightRef.current.has(jobId)) return;
       const target = importsRef.current.find((j) => j.jobId === jobId);
       if (!target) return;
-      if (target.status !== "processing") return;
+      if (target.status !== "processing" && target.status !== "completed") return;
       const fn = getImportJobRef.current;
       if (!fn) return;
       inflightRef.current.add(jobId);
@@ -121,7 +122,7 @@ export function ImportProgressProvider({ children, getImportJob }: ImportProgres
         const job = await fn(target.merchantId, jobId);
         if (job.status === "completed") {
           const success = job.successRows ?? 0;
-          showToast("success", `Importação concluída: ${success} produto${success !== 1 ? "s" : ""}`);
+          if (target.status !== "completed") showToast("success", `Importação concluída no catálogo: ${success} produto${success !== 1 ? "s" : ""}`);
           updateJob(jobId, {
             status: "completed",
             job,
@@ -133,7 +134,7 @@ export function ImportProgressProvider({ children, getImportJob }: ImportProgres
           });
         } else if (job.status === "failed") {
           const first = job.errors?.[0]?.reason ?? "Falha ao processar planilha";
-          showToast("error", `Falha na importação: ${first}`);
+          showToast("error", `Falha na importação: ${importErrorMessage(first)}`);
           updateJob(jobId, {
             status: "failed",
             job,
@@ -148,8 +149,7 @@ export function ImportProgressProvider({ children, getImportJob }: ImportProgres
           updateJob(jobId, { job });
         }
       } catch (err) {
-        const msg = err instanceof Error ? err.message : String(err);
-        showToast("error", `Erro ao consultar importação: ${msg}`);
+        showToast("error", "Não foi possível consultar o andamento da importação. Tente verificar novamente.");
       } finally {
         inflightRef.current.delete(jobId);
       }
