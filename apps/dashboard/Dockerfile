@@ -13,6 +13,22 @@ RUN corepack enable && corepack prepare pnpm@9.15.0 --activate
 
 WORKDIR /repo
 
+# Vite substitutes these values while producing the static dashboard bundle.
+# Docker needs explicit build arguments for Railway environment variables to be
+# available to the build stage.
+ARG VITE_API_BASE_URL
+ARG VITE_GOOGLE_CLIENT_ID
+ARG VITE_OAUTH_REDIRECT_URI
+ARG VITE_STOREFRONT_URL
+ARG VITE_TURNSTILE_SITE_KEY
+ARG VITE_WIDGET_V2_URL
+ENV VITE_API_BASE_URL=$VITE_API_BASE_URL \
+    VITE_GOOGLE_CLIENT_ID=$VITE_GOOGLE_CLIENT_ID \
+    VITE_OAUTH_REDIRECT_URI=$VITE_OAUTH_REDIRECT_URI \
+    VITE_STOREFRONT_URL=$VITE_STOREFRONT_URL \
+    VITE_TURNSTILE_SITE_KEY=$VITE_TURNSTILE_SITE_KEY \
+    VITE_WIDGET_V2_URL=$VITE_WIDGET_V2_URL
+
 # 1) Workspace config
 COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 
