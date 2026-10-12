@@ -134,6 +134,9 @@
   outline: 2px solid var(--color-brand) !important;
   outline-offset: 4px;
 }
+.revenue-manager-page > .filter-toolbar {
+  padding-inline: 0;
+}
 .revenue-manager-page .filter-toolbar input,
 .revenue-manager-page .filter-toolbar select {
   min-height: 44px;

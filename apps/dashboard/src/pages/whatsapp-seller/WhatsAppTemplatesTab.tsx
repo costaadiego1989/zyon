@@ -55,15 +55,22 @@ export function WhatsAppTemplatesTab(props: { me: MerchantProfile | null }) {
           options={[{ value: "all", label: "Todos os estados" }, ...Object.entries(MESSAGE_STATUS_LABELS).map(([value, label]) => ({ value, label })), { value: "missing", label: "Aguardando sincronização" }]} />} />
       <DataPanel title={`${filtered.length} ${filtered.length === 1 ? "modelo" : "modelos"} de mensagem`} page={currentPage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage}
         isEmpty={!filtered.length} empty={{ icon: WhatsAppBrandIcon, title: "Nenhum modelo com estes filtros", description: "Altere a busca ou o estado para encontrar a mensagem.", action: <Button variant="outline" onClick={() => { setSearch(""); setStatus("all"); setPage(1); }}>Limpar filtros</Button> }}>
-        <div className="whatsapp-template-list">
+        <ul className="whatsapp-template-list" aria-label="Modelos de mensagem do WhatsApp">
           {rows.map(t => {
             const stored = tpl.get(t.type, "whatsapp");
-            return <button type="button" key={t.type} className="whatsapp-template-row" onClick={() => setEditing(t)} aria-label={`Ver ou editar ${t.label}`}>
-              <span className="whatsapp-template-row__copy"><span className="whatsapp-template-row__heading"><strong>{t.label}</strong><em>{t.category}</em></span><small>{stored ? `WhatsApp · Versão ${stored.metaRevision ?? 1}` : "Texto padrão aguardando sincronização com a Meta."}</small><p>{stored?.body || t.body}</p><span className="whatsapp-template-row__signature">Assinatura: {"{{storeName}}"}</span></span>
-              <span className="whatsapp-template-row__action"><span className="message-status-badge" data-status={stored?.metaStatus}>{stored ? messageStatusLabel(stored.metaStatus) : "Aguardando sincronização"}</span><Pencil size={16} aria-hidden="true" /></span>
-            </button>;
+            return <li key={t.type} className="whatsapp-template-row">
+              <div className="whatsapp-template-row__copy">
+                <div className="whatsapp-template-row__heading"><h3>{t.label}</h3><span className="whatsapp-template-row__category">{t.category}</span></div>
+                <p className="whatsapp-template-row__preview">{(stored?.body || t.body).replace(/\s+/g, " ").trim()}</p>
+                <div className="whatsapp-template-row__meta"><span>{stored ? `Versão ${stored.metaRevision ?? 1}` : "Texto padrão"}</span><span>Assinatura: <strong>{props.me?.name || "Nome da loja"}</strong></span></div>
+              </div>
+              <div className="whatsapp-template-row__action">
+                <span className="whatsapp-template-row__status" data-status={stored?.metaStatus ?? "missing"}>{stored ? messageStatusLabel(stored.metaStatus) : "Aguardando sincronização"}</span>
+                <Button variant="outline" size="sm" onClick={() => setEditing(t)} aria-label={`Ver ou editar ${t.label}`}><Pencil size={15} aria-hidden="true" /> Ver e editar</Button>
+              </div>
+            </li>;
           })}
-        </div>
+        </ul>
       </DataPanel>
     </>}
     {editing && <TemplateEditor key={editing.type} me={props.me} initialType={editing.type} definition={editing} onClose={() => { setEditing(null); void tpl.reload(); }} />}

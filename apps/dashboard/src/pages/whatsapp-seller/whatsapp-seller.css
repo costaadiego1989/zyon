@@ -59,12 +59,6 @@
 .whatsapp-template-notice > svg { flex: 0 0 auto; margin-top: 2px; color: var(--color-warning, #aa7622); }
 .whatsapp-template-notice strong { display: block; color: var(--color-text); font: 600 13px/1.4 var(--font-sans); }
 .whatsapp-template-notice p { max-width: 78ch; margin: 3px 0 0; color: var(--color-text-muted); font: 13px/1.55 var(--font-sans); }
-.whatsapp-template-row { align-items: flex-start; }
-.whatsapp-template-row__heading { display: flex; align-items: center; gap: 8px; }
-.whatsapp-template-row__heading em { padding: 2px 7px; color: var(--color-text-muted); border: 1px solid var(--color-border); border-radius: 999px; font: 600 10px/1.4 var(--font-sans); font-style: normal; text-transform: uppercase; letter-spacing: .04em; }
-.whatsapp-template-row__copy p { display: -webkit-box; max-width: 74ch; margin: 9px 0 0; overflow: hidden; color: var(--color-text); font: 13px/1.55 var(--font-sans); text-align: left; white-space: pre-line; -webkit-box-orient: vertical; -webkit-line-clamp: 3; }
-.whatsapp-template-row__action { padding-top: 2px; }
-@media (max-width: 680px) { .whatsapp-template-row__action { align-items: flex-end; } .whatsapp-template-row__copy p { -webkit-line-clamp: 4; } }
 .whatsapp-seller__orders { padding: clamp(24px, 4vw, 40px); }
 .whatsapp-seller__orders > p { max-width: 76ch; }
 .whatsapp-seller__order-flow { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); margin-top: 28px; border-top: 1px solid var(--color-border); border-bottom: 1px solid var(--color-border); }
@@ -77,15 +71,22 @@
 @media (max-width: 880px) { .whatsapp-seller__order-flow { grid-template-columns: repeat(2, minmax(0, 1fr)); } .whatsapp-seller__order-flow > div:nth-child(3) { border-left: 0; border-top: 1px solid var(--color-border); } .whatsapp-seller__order-flow > div:nth-child(4) { border-top: 1px solid var(--color-border); } }
 @media (max-width: 560px) { .whatsapp-seller__order-flow { grid-template-columns: 1fr; } .whatsapp-seller__order-flow > div + div { border-top: 1px solid var(--color-border); border-left: 0; } }
 .whatsapp-template-catalog { display: grid; gap: 20px; min-width: 0; }
-.whatsapp-template-list { display: grid; gap: 0; }
-.whatsapp-template-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; width: 100%; gap: 18px; padding: 18px 14px; color: inherit; border: 0; border-bottom: 1px solid var(--color-border); background: transparent; cursor: pointer; text-align: left; }
-.whatsapp-template-row:first-child { padding-top: 2px; }
-.whatsapp-template-row:last-child { border-bottom: 0; padding-bottom: 2px; }
-.whatsapp-template-row:hover { background: var(--color-surface-alt); }
-.whatsapp-template-row:focus-visible { outline: 2px solid var(--color-brand); outline-offset: -2px; }
-.whatsapp-template-row__copy { display: block; min-width: 0; }
-.whatsapp-template-row__copy strong { display: block; color: var(--color-text); font: 600 14px/1.4 var(--font-sans); }
-.whatsapp-template-row__copy small { display: block; margin-top: 4px; color: var(--color-text-muted); font: 12px/1.45 var(--font-sans); }
-.whatsapp-template-row__action { display: inline-flex; align-items: center; gap: 8px; color: var(--color-text-muted); }
-@media (max-width: 680px) { .whatsapp-template-row { grid-template-columns: 1fr; gap: 12px; padding: 16px 6px; } .whatsapp-template-row__action { justify-content: space-between; } }
-.whatsapp-template-row__signature { display: block; margin-top: 9px; color: var(--color-brand); font: 600 11px/1.4 var(--font-mono); }
+.whatsapp-template-catalog > .filter-toolbar { padding-inline: 0; }
+.whatsapp-template-list { display: grid; gap: 0; margin: 0; padding: 0; list-style: none; }
+.whatsapp-template-row { display: grid; grid-template-columns: minmax(0, 1fr) 224px; align-items: center; gap: 24px; padding: 20px 24px; color: var(--color-text); border: 0; border-radius: 0; background: transparent; text-align: left; }
+.whatsapp-template-row + .whatsapp-template-row { border-top: 1px solid var(--color-border); }
+.whatsapp-template-row__copy { min-width: 0; }
+.whatsapp-template-row__heading { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; }
+.whatsapp-template-row__heading h3 { margin: 0; color: var(--color-text); font: 600 14px/1.5 var(--font-sans); letter-spacing: normal; text-transform: none; }
+.whatsapp-template-row__category { padding: 2px 8px; color: var(--color-text-muted); border: 1px solid var(--color-border); border-radius: var(--radius-full); font: 500 11px/1.5 var(--font-sans); }
+.whatsapp-template-row__preview { display: -webkit-box; max-width: 80ch; margin: 8px 0 0; overflow: hidden; overflow-wrap: anywhere; color: var(--color-text-muted); font: 400 13px/1.6 var(--font-sans); -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
+.whatsapp-template-row__meta { display: flex; flex-wrap: wrap; gap: 4px 16px; margin-top: 10px; color: var(--color-text-muted); font: 400 12px/1.5 var(--font-sans); }
+.whatsapp-template-row__meta strong { color: var(--color-text); font-weight: 500; }
+.whatsapp-template-row__action { display: flex; flex-direction: column; align-items: flex-end; gap: 12px; min-width: 0; }
+.whatsapp-template-row__action button { display: inline-flex; align-items: center; gap: 8px; min-height: 44px; }
+.whatsapp-template-row__status { display: inline-flex; align-items: center; gap: 8px; max-width: 100%; color: var(--color-text-muted); font: 500 12px/1.5 var(--font-sans); }
+.whatsapp-template-row__status::before { content: ""; width: 7px; height: 7px; border-radius: 50%; flex-shrink: 0; background: currentColor; }
+.whatsapp-template-row__status[data-status="approved"] { color: var(--color-success); }
+.whatsapp-template-row__status[data-status="submitted"], .whatsapp-template-row__status[data-status="submitting"] { color: var(--color-warning); }
+.whatsapp-template-row__status[data-status="rejected"], .whatsapp-template-row__status[data-status="disabled"] { color: var(--color-error); }
+@media (max-width: 680px) { .whatsapp-template-row { grid-template-columns: minmax(0, 1fr); gap: 16px; padding: 20px 16px; } .whatsapp-template-row__action { flex-direction: row; flex-wrap: wrap; align-items: center; justify-content: space-between; } }

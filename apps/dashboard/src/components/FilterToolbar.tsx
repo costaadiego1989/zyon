@@ -32,7 +32,7 @@ export function FilterToolbar({
   return (
     <div className="filter-toolbar">
       <div className="filter-toolbar__controls">
-        <TabBar tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} role="group" label="Filtrar resultados" />
+        {tabs.length > 0 && <TabBar tabs={tabs} activeTab={activeTab} onTabChange={onTabChange} role="group" label="Filtrar resultados" />}
         {extra ? <div className="filter-toolbar__extra">{extra}</div> : null}
       </div>
       {onSearchChange !== undefined && search !== undefined && (
