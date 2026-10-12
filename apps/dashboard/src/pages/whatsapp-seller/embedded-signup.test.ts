@@ -14,7 +14,7 @@ describe("Embedded Signup authorization", () => {
       removeEventListener: events.removeEventListener.bind(events), setTimeout, clearTimeout });
   });
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
-  function message(data = finish, origin = "https://www.facebook.com") {
+  function message(data: unknown = finish, origin = "https://www.facebook.com") {
     const event = new Event("message");
     Object.assign(event, { origin, data: JSON.stringify(data) });
     events.dispatchEvent(event);
