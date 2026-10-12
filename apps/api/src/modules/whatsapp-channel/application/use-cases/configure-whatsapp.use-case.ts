@@ -129,7 +129,7 @@ export class ConfigureWhatsAppUseCase {
       credentials: { ...lease.config.credentials, subscriptionStatus: "SUBSCRIBED", onboardingError: null },
     });
     if (activateTemplates && this.templatePackage) {
-      void this.templatePackage.execute(lease.config.merchantId).catch(() => this.logger.warn("Meta template package submission failed"));
+      void this.registerTemplatePackage(lease.config.merchantId);
     }
   }
 
@@ -150,9 +150,20 @@ export class ConfigureWhatsAppUseCase {
         credentials: { ...lease.config.credentials, subscriptionStatus: "SUBSCRIBED", onboardingError: null },
       });
       if (activateTemplates && this.templatePackage) {
-        void this.templatePackage.execute(lease.config.merchantId).catch(() => this.logger.warn("Meta template package submission failed"));
+        void this.registerTemplatePackage(lease.config.merchantId);
       }
     });
+  }
+
+  private async registerTemplatePackage(merchantId: string) {
+    try {
+      const outcome = await this.templatePackage?.execute(merchantId);
+      this.logger.log(`Meta template registration requested for connected merchant ${merchantId}`, outcome);
+    } catch {
+      // The WABA connection is valid independently of the template package.
+      // The durable lifecycle monitor will reconcile any persisted rows.
+      this.logger.warn(`Meta template package registration failed for merchant ${merchantId}`);
+    }
   }
 
   async disconnect(merchantId: string) {
