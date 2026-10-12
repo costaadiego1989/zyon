@@ -2,6 +2,7 @@ import React, { useId } from "react";
 import { CheckCircle2, Mail, MessageCircle, RefreshCw, Sparkles } from "lucide-react";
 import { Button } from "../../components/Button.js";
 import { SectionHeader } from "../../components/SectionHeader.js";
+import { FormField, FormTextarea } from "../../components/FormField.js";
 import { TEMPLATE_STATUS_LABELS, validateTemplates } from "./recovery-templates-model.js";
 import { useRecoveryTemplates } from "./useRecoveryTemplates.js";
 
@@ -57,21 +58,18 @@ export function RecoveryTemplatesPanel({ apiBaseUrl }: { apiBaseUrl: string }) {
             <fieldset disabled={busy}>
               <legend><Mail size={18} aria-hidden="true" /> E-mail</legend>
               <p className="recovery-channel-description">Não depende de aprovação da Meta. Exige contato autorizado e serviço de e-mail configurado.</p>
-              <label htmlFor={id + "-subject"} className="field-label">Assunto</label>
-              <input id={id + "-subject"} className="field-input" required maxLength={150} value={vm.draft.email.subject}
-                onChange={(e) => vm.edit({ ...vm.draft!, email: { ...vm.draft!.email, subject: e.target.value } })} />
-              <label htmlFor={id + "-email"} className="field-label">Mensagem de e-mail</label>
-              <textarea id={id + "-email"} className="field-input" rows={9} required maxLength={10_000}
-                aria-describedby={id + "-variables"} value={vm.draft.email.body}
-                onChange={(e) => vm.edit({ ...vm.draft!, email: { ...vm.draft!.email, body: e.target.value } })} />
+              <FormField label="Assunto do e-mail" maxLength={150} value={vm.draft.email.subject} hint="Até 150 caracteres. Identifique o convite para retomar a compra."
+                onChange={subject => vm.edit({ ...vm.draft!, email: { ...vm.draft!.email, subject } })} />
+              <FormTextarea label="Mensagem de e-mail" rows={9} maxLength={10_000} value={vm.draft.email.body}
+                hint="Mantenha {{link}} para o comprador retornar ao carrinho."
+                onChange={body => vm.edit({ ...vm.draft!, email: { ...vm.draft!.email, body } })} />
             </fieldset>
             <fieldset disabled={busy}>
               <legend><MessageCircle size={18} aria-hidden="true" /> WhatsApp</legend>
               <p className="recovery-channel-description">Alterar o texto exige uma nova análise. O envio começa com a conta da loja conectada e o modelo aprovado.</p>
-              <label htmlFor={id + "-whatsapp"} className="field-label">Mensagem para aprovação</label>
-              <textarea id={id + "-whatsapp"} className="field-input recovery-whatsapp-body" rows={13} required maxLength={1_024}
-                aria-describedby={id + "-variables " + id + "-whatsapp-detail"} value={vm.draft.whatsapp.body}
-                onChange={(e) => vm.edit({ ...vm.draft!, whatsapp: { ...vm.draft!.whatsapp, body: e.target.value } })} />
+              <FormTextarea label="Mensagem para aprovação" rows={13} maxLength={1_024} value={vm.draft.whatsapp.body}
+                hint="Mantenha {{link}}. O texto pode ter até 1.024 caracteres."
+                onChange={body => vm.edit({ ...vm.draft!, whatsapp: { ...vm.draft!.whatsapp, body } })} />
               <div id={id + "-whatsapp-detail"} className="recovery-field-meta">
                 <span>Português (Brasil) · Marketing · Versão {vm.saved.whatsapp.revision}</span>
                 <span>{vm.draft.whatsapp.body.length.toLocaleString("pt-BR")} / 1.024</span>

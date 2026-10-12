@@ -1,129 +1,24 @@
-import React, { useEffect, useState } from "react";
-import {
-  AlertTriangle,
-  CheckCircle2,
-  Plus,
-  Save,
-  Trash2,
-} from "lucide-react";
+import React from "react";
+import { MessageSquare, Plus, Save } from "lucide-react";
 import { EmptyState } from "../../../components/EmptyState.js";
 import { Button } from "../../../components/Button.js";
 import { SectionHeader } from "../../../components/SectionHeader.js";
-import { FormField, FormTextarea } from "../../../components/FormField.js";
-import { showToast } from "../../../components/Toast.js";
+import { PageLoader } from "../../../components/PageLoader.js";
 import { useSupportFaq } from "../hooks/useSupportFaq.js";
 import { FaqEditor } from "../components/FaqEditor.js";
-import type { DashboardHttpError } from "../../../api-client.js";
-import { createDashboardApi } from "../../../api-client.js";
-
-type DashboardApi = ReturnType<typeof createDashboardApi>;
-
-interface Props {
-  api: DashboardApi;
-}
-
-export function SupportFaqTab(props: Props) {
-  const {
-    items,
-    loading,
-    saving,
-    message,
-    updateItem,
-    removeItem,
-    addItem,
-    save,
-  } = useSupportFaq(props.api);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-5)" }}>
-      {/* ── Message ── */}
-      {message ? (
-        <div
-          className={`panel ${message.kind === "error" ? "panel-error" : "panel-info"}`}
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "var(--space-2)",
-            marginBottom: "var(--space-4)",
-          }}
-        >
-          {message.kind === "error" ? (
-            <AlertTriangle size={15} style={{ flexShrink: 0 }} />
-          ) : (
-            <CheckCircle2 size={15} style={{ flexShrink: 0 }} />
-          )}
-          {message.text}
-        </div>
-      ) : null}
-
-      {/* ── Loading skeleton ── */}
-      {loading && items.length === 0 ? (
-        <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-4)" }}>
-          <div className="skeleton" style={{ height: 52, borderRadius: "var(--radius-md)" }} />
-          <div className="skeleton" style={{ height: 280, borderRadius: "var(--radius-md)" }} />
-        </div>
-      ) : null}
-
-      {/* ── FAQ Section ── */}
-      {!loading || items.length > 0 ? (
-        <section className="panel stacked">
-          <SectionHeader
-            title="Resposta automática"
-            subtitle="Mensagem exibida fora do horário de atendimento"
-            trailing={<span className={`badge ${items.length > 0 ? "ok" : "muted"}`}>{items.length}/20 itens</span>}
-          />
-
-          {items.length === 0 ? (
-            <EmptyState icon={Plus} title="Nenhuma pergunta cadastrada"
-              description="Adicione perguntas frequentes para que o agente responda automaticamente no checkout."
-              action={<Button variant="outline" disabled={saving} onClick={addItem}><Plus size={14} /> Adicionar primeira pergunta</Button>} />
-          ) : (
-            <>
-              <div style={{ display: "flex", flexDirection: "column", gap: "var(--space-3)" }}>
-                {items.map((item, idx) => (
-                  <FaqEditor
-                    key={item.id}
-                    index={idx}
-                    item={item}
-                    disabled={saving}
-                    onUpdate={(field, val) => updateItem(item.id, field, val)}
-                    onRemove={() => removeItem(item.id)}
-                  />
-                ))}
-              </div>
-
-              {items.length < 20 ? (
-                <button
-                  type="button"
-                  className="btn-secondary"
-                  disabled={saving}
-                  onClick={addItem}
-                  style={{ alignSelf: "flex-start" }}
-                >
-                  <Plus size={14} />
-                  Adicionar pergunta
-                </button>
-              ) : (
-                <p
-                  style={{
-                    fontSize: 12,
-                    color: "var(--color-text-muted)",
-                    fontStyle: "italic",
-                  }}
-                >
-                  Limite de 20 perguntas atingido.
-                </p>
-              )}
-
-              <div style={{ display: "flex", gap: 8, paddingTop: "var(--space-3)", borderTop: "1px solid var(--color-border)" }}>
-                <Button variant="primary" size="sm" arrow disabled={saving || items.length === 0} loading={saving} onClick={() => void save()}>
-                  <Save size={14} /> Salvar FAQ
-                </Button>
-              </div>
-            </>
-          )}
-        </section>
-      ) : null}
-    </div>
-  );
+type DashboardApi = ReturnType<typeof import("../../../api-client.js").createDashboardApi>;
+export function SupportFaqTab({ api }: { api: DashboardApi }) {
+  const vm = useSupportFaq(api);
+  return <section className="panel support-faq configuration-form">
+    <SectionHeader title="Perguntas frequentes" subtitle="Prepare respostas sobre entrega, trocas e seus produtos para orientar o atendimento automático no checkout." trailing={<span className="badge muted">{vm.items.length} de 20 perguntas</span>} />
+    {vm.loading ? <PageLoader /> : vm.loadError ? <EmptyState icon={MessageSquare} title="Perguntas indisponíveis" description={vm.loadError} action={<Button variant="outline" onClick={() => void vm.reload()}>Tentar novamente</Button>} /> : <>
+      {vm.message && <div className="panel-error" role="alert">{vm.message.text}</div>}
+      {vm.items.length ? <div className="support-faq__items">{vm.items.map((item, index) => <FaqEditor key={item.id} item={item} index={index} disabled={vm.saving} onUpdate={(field, value) => vm.updateItem(item.id, field, value)} onRemove={() => vm.removeItem(item.id)} />)}</div> : <EmptyState icon={MessageSquare} title="Adicione a primeira pergunta" description="Comece pela dúvida que sua equipe recebe com mais frequência. Revise a resposta antes de salvar." />}
+      <div className="support-faq__actions">
+        {vm.items.length < 20 ? <Button variant="outline" disabled={vm.saving} onClick={vm.addItem}><Plus size={16} /> Adicionar pergunta</Button> : <p>Limite de 20 perguntas atingido.</p>}
+        <Button variant="primary" loading={vm.saving} disabled={!vm.dirty || !vm.valid || vm.saving} onClick={() => void vm.save()}><Save size={16} /> Salvar perguntas</Button>
+      </div>
+      <p className="support-faq__hint" role="status">{!vm.valid ? "Preencha a pergunta e a resposta de cada item para salvar." : vm.dirty ? "Há alterações não salvas. Salve para aplicar as respostas ao atendimento." : "As alterações são aplicadas depois de salvar."}</p>
+    </>}
+  </section>;
 }

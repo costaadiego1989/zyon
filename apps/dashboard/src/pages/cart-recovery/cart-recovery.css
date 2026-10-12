@@ -23,6 +23,13 @@
 .recovery-message-editors textarea { padding: 12px 14px; resize: vertical; min-height: 180px; }
 .recovery-message-editors .recovery-whatsapp-body { min-height: 264px; }
 .recovery-field-meta { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 6px 14px; margin-top: 8px; font: 12px/1.5 var(--font-sans); color: var(--color-text-secondary); }
+.recovery-message-editors .form-field { min-width:0; margin:0 0 20px; }
+.recovery-message-editors .form-field label { font:500 13px/1.5 var(--font-sans); text-transform:none; letter-spacing:normal; }
+.recovery-message-editors .form-field input { width:100%; min-width:0; height:44px; }
+.recovery-message-editors .form-field textarea { width:100%; min-width:0; min-height:208px; font:400 14px/1.6 var(--font-sans); }
+.recovery-config-error { color:var(--color-error); font:400 13px/1.6 var(--font-sans); margin:16px 0; }
+.recovery-attempts-scroll { overflow-x:auto; }
+.recovery-attempts-scroll table { min-width:580px; }
 .recovery-variables { margin-top: 24px; font: 13px/1.6 var(--font-sans); color: var(--color-text); }
 .recovery-variables summary, .recovery-feedback summary { cursor: pointer; width: fit-content; }
 .recovery-variables code { color: var(--color-text); }
@@ -37,7 +44,7 @@
 @media (max-width: 900px) {
   .recovery-message-editors { grid-template-columns: minmax(0, 1fr); gap: 28px; }
   .recovery-message-editors fieldset + fieldset { border-top: 1px solid var(--color-border); padding-top: 24px; }
-  .recovery-message-editors fieldset + fieldset legend { padding-top: 24px; }
+  .recovery-message-editors fieldset + fieldset legend { padding-top: 0; }
   .recovery-templates .recovery-channel-description { min-height: 0; }
   .recovery-message-editors .recovery-whatsapp-body { min-height: 220px; }
 }

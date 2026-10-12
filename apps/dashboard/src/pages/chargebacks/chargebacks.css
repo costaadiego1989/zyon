@@ -1,0 +1,55 @@
+.own-chargebacks-page {
+  min-width: 0;
+}
+.chargebacks-help {
+  margin: 0;
+  max-width: 72ch;
+  color: var(--color-text-muted);
+  font: 14px/1.7 var(--font-sans);
+}
+.own-chargebacks-page .data-table {
+  min-width: 840px;
+}
+.own-chargebacks-page .data-table th {
+  font: 600 13px var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.own-chargebacks-page .data-table td {
+  font: 14px/1.6 var(--font-sans);
+}
+.own-chargebacks-page .data-table code {
+  font-size: 13px;
+  overflow-wrap: anywhere;
+}
+.own-chargebacks-page .data-table td:first-child {
+  max-width: 240px;
+}
+.own-chargebacks-page .chargebacks-amount {
+  text-align: right;
+  white-space: nowrap;
+  font-variant-numeric: tabular-nums;
+}
+.chargebacks-status {
+  display: inline-flex;
+  white-space: nowrap;
+  padding: 5px 9px;
+  font: 500 12px/1.5 var(--font-sans);
+  border-radius: var(--radius-sm);
+}
+.chargebacks-status--warning {
+  color: var(--color-warning);
+  background: var(--color-warning-bg);
+}
+.chargebacks-status--info {
+  color: var(--color-info);
+  background: var(--color-info-bg);
+}
+.chargebacks-status--success {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+.chargebacks-status--error {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+}

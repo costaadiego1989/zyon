@@ -32,7 +32,7 @@ export function MediaUploader(props: MediaUploaderProps) {
 
   return (
     <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
-      <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>IMAGENS</h3>
+      <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em", marginBottom: 14 }}>Imagens</h3>
       <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
         {variants.map((v, idx) => (
           <div key={idx} style={{ background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: 10, padding: "16px" }}>

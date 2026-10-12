@@ -1,104 +1,187 @@
-import React from "react";
-import { AlertCircle, Clock3, RefreshCw, ShieldAlert } from "lucide-react";
-import type { MerchantProfile as MerchantMeProfile } from "../../api-client.js";
+import React, { useState } from "react";
+import { AlertCircle, RefreshCw, ShieldAlert } from "lucide-react";
+import type { MerchantProfile } from "../../api-client.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import { Button } from "../../components/Button.js";
 import { EmptyState } from "../../components/EmptyState.js";
+import { PageLoader } from "../../components/PageLoader.js";
+import { FilterToolbar, FilterSelect } from "../../components/FilterToolbar.js";
+import { DataPanel } from "../../components/DataPanel.js";
 import { useChargebacksPage, type OwnChargeback } from "./useChargebacksPage.js";
+import "./chargebacks.css";
 
-const STATUS_META: Record<OwnChargeback["disputeStatus"], { label: string; background: string; color: string }> = {
-  pending: { label: "Em análise", background: "var(--color-warning-bg)", color: "var(--color-warning)" },
-  disputed: { label: "Em contestação", background: "var(--color-info-bg)", color: "var(--color-info)" },
-  won: { label: "Resolvido a favor", background: "var(--color-success-bg)", color: "var(--color-success)" },
-  lost: { label: "Resolvido contra", background: "var(--color-error-bg)", color: "var(--color-error)" },
+const STATUS_META: Record<OwnChargeback["disputeStatus"], { label: string; tone: string }> = {
+  pending: { label: "Em análise", tone: "warning" },
+  disputed: { label: "Em contestação", tone: "info" },
+  won: { label: "Resolvido a favor", tone: "success" },
+  lost: { label: "Resolvido contra", tone: "error" },
 };
-
-function formatDate(value: string): string {
+const providerLabel = (provider: string) =>
+  (({ mercadopago: "Mercado Pago", asaas: "Asaas", stripe: "Stripe" } as Record<string, string>)[provider] ??
+  provider);
+const formatDate = (value: string) => {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? "—" : date.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
-}
-
-function providerLabel(provider: OwnChargeback["provider"]): string {
-  return provider === "mercadopago" ? "Mercado Pago" : provider === "asaas" ? "Asaas" : provider === "stripe" ? "Stripe" : provider;
-}
-
-export function OwnChargebacksPage(props: { apiBaseUrl: string; me: MerchantMeProfile | null }) {
-  const { chargebacks, loading, error, refetch } = useChargebacksPage(props.apiBaseUrl);
-
-  if (!props.me) {
+  return Number.isNaN(date.getTime())
+    ? "Não informado"
+    : date.toLocaleString("pt-BR", { dateStyle: "short", timeStyle: "short" });
+};
+export function OwnChargebacksPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
+  const { chargebacks, loading, error, refetch } = useChargebacksPage(props.apiBaseUrl, !!props.me);
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [provider, setProvider] = useState("all");
+  const [page, setPage] = useState(1);
+  const filtered = chargebacks.filter(
+    (item) =>
+      (status === "all" || item.disputeStatus === status) &&
+      (provider === "all" || item.provider === provider) &&
+      [item.orderId, item.paymentIntentId, item.disputeReason]
+        .join(" ")
+        .toLowerCase()
+        .includes(search.trim().toLowerCase())
+  );
+  const safePage = Math.min(page, Math.max(1, Math.ceil(filtered.length / 10)));
+  const clear = () => {
+    setSearch("");
+    setStatus("all");
+    setProvider("all");
+    setPage(1);
+  };
+  if (!props.me)
     return (
-      <div className="page-container">
-        <header className="page-head">
-          <div>
-            <span className="eyebrow">Vendas</span>
-            <h1>Chargebacks</h1>
-          </div>
-        </header>
-        <EmptyState icon={ShieldAlert} title="Login necessário" description="Faça login para acompanhar as contestações dos pagamentos da sua loja." />
-      </div>
+      <PageHeader
+        title="Contestações de pagamento"
+        description="Faça login para acompanhar as contestações da sua loja."
+      />
     );
-  }
-
   return (
-    <div className="page-container">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Vendas</span>
-          <h1>Chargebacks</h1>
-          <p className="page-lead">Acompanhe as contestações dos pagamentos recebidos pela sua loja.</p>
-        </div>
-        <Button variant="outline" size="sm" onClick={() => void refetch()} disabled={loading}>
-          <RefreshCw size={15} aria-hidden="true" /> Atualizar
-        </Button>
-      </header>
-
-      {error ? (
-        <div className="panel" role="alert" style={{ padding: "16px 18px", borderColor: "var(--color-error)" }}>
-          <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
-            <AlertCircle size={18} color="var(--color-error)" aria-hidden="true" />
-            <div>
-              <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>Não foi possível carregar os chargebacks</div>
-              <p style={{ margin: "4px 0 0", font: "13px var(--font-sans)", color: "var(--color-text-muted)" }}>{error}</p>
-            </div>
-          </div>
-        </div>
-      ) : loading ? (
-        <div className="panel" style={{ padding: "32px 16px", textAlign: "center", color: "var(--color-text-muted)", font: "13px var(--font-sans)" }}>
-          Carregando chargebacks...
-        </div>
-      ) : chargebacks.length === 0 ? (
-        <EmptyState icon={ShieldAlert} title="Nenhum chargeback registrado" description="As novas contestações enviadas pelos provedores de pagamento aparecerão aqui." />
+    <div className="page-container own-chargebacks-page">
+      <PageHeader
+        title="Contestações de pagamento"
+        description="Acompanhe pedidos contestados e o estado informado pelo provedor de pagamento."
+        actions={
+          <Button variant="outline" onClick={() => void refetch()} disabled={loading}>
+            <RefreshCw size={16} /> Atualizar
+          </Button>
+        }
+      />
+      <p className="chargebacks-help">
+        Esta página permite consultar as contestações. Para enviar documentos ou acompanhar prazos de defesa,
+        acesse o provedor responsável pelo pagamento.
+      </p>
+      {loading ? (
+        <PageLoader variant="section" />
+      ) : error ? (
+        <EmptyState
+          icon={AlertCircle}
+          title="Contestações indisponíveis"
+          description={error}
+          action={<Button onClick={() => void refetch()}>Tentar novamente</Button>}
+        />
       ) : (
-        <div className="panel" style={{ padding: 0, overflow: "hidden" }}>
-          <div style={{ overflowX: "auto" }}>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Pedido</th>
-                  <th>Provedor</th>
-                  <th>Motivo</th>
-                  <th>Aberto em</th>
-                  <th style={{ textAlign: "right" }}>Valor</th>
-                  <th>Status</th>
-                </tr>
-              </thead>
-              <tbody>
-                {chargebacks.map((chargeback) => {
-                  const status = STATUS_META[chargeback.disputeStatus];
-                  return (
-                    <tr key={chargeback.paymentIntentId}>
-                      <td><code style={{ font: "12px var(--font-mono)" }}>{chargeback.orderId || chargeback.paymentIntentId}</code></td>
-                      <td>{providerLabel(chargeback.provider)}</td>
-                      <td>{chargeback.disputeReason || "Não informado pelo provedor"}</td>
-                      <td><span style={{ display: "inline-flex", alignItems: "center", gap: 5 }}><Clock3 size={14} aria-hidden="true" /> {formatDate(chargeback.disputeOpenedAt)}</span></td>
-                      <td style={{ textAlign: "right", fontVariantNumeric: "tabular-nums" }}>{new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(chargeback.amountCents / 100)}</td>
-                      <td><span style={{ display: "inline-flex", padding: "3px 8px", borderRadius: 999, background: status.background, color: status.color, font: "600 11px var(--font-sans)", whiteSpace: "nowrap" }}>{status.label}</span></td>
-                    </tr>
-                  );
-                })}
-              </tbody>
-            </table>
-          </div>
-        </div>
+        <>
+          <FilterToolbar
+            tabs={[
+              { key: "all", label: "Todas" },
+              { key: "pending", label: "Em análise" },
+              { key: "disputed", label: "Em contestação" },
+              { key: "won", label: "A favor" },
+              { key: "lost", label: "Contra" },
+            ]}
+            activeTab={status}
+            onTabChange={(value) => {
+              setStatus(value);
+              setPage(1);
+            }}
+            search={search}
+            onSearchChange={(value) => {
+              setSearch(value);
+              setPage(1);
+            }}
+            searchPlaceholder="Buscar pedido ou motivo"
+            extra={
+              <FilterSelect
+                value={provider}
+                onChange={(value) => {
+                  setProvider(value);
+                  setPage(1);
+                }}
+                ariaLabel="Provedor do pagamento"
+                options={[
+                  { value: "all", label: "Todos os provedores" },
+                  ...[...new Set(chargebacks.map((item) => item.provider))]
+                    .sort()
+                    .map((value) => ({ value, label: providerLabel(value) })),
+                ]}
+              />
+            }
+          />
+          <DataPanel
+            title="Contestações registradas"
+            page={safePage}
+            pageSize={10}
+            total={filtered.length}
+            onPageChange={setPage}
+            isEmpty={!filtered.length}
+            empty={{
+              icon: ShieldAlert,
+              title: chargebacks.length
+                ? "Nenhuma contestação com estes filtros"
+                : "Nenhuma contestação registrada",
+              description: chargebacks.length
+                ? "Ajuste a busca ou limpe os filtros para ver os registros."
+                : "As contestações informadas pelos provedores de pagamento aparecerão aqui.",
+              action: chargebacks.length ? (
+                <Button variant="outline" onClick={clear}>
+                  Limpar filtros
+                </Button>
+              ) : undefined,
+            }}
+          >
+            <div className="table-wrap">
+              <table className="data-table">
+                <thead>
+                  <tr>
+                    <th>Pedido</th>
+                    <th>Provedor</th>
+                    <th>Motivo</th>
+                    <th>Aberta em</th>
+                    <th className="chargebacks-amount">Valor</th>
+                    <th>Estado</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {filtered.slice((safePage - 1) * 10, safePage * 10).map((item) => {
+                    const meta = STATUS_META[item.disputeStatus] ?? {
+                      label: "Aguardando atualização",
+                      tone: "info",
+                    };
+                    return (
+                      <tr key={item.paymentIntentId}>
+                        <td>
+                          <code>{item.orderId || item.paymentIntentId}</code>
+                        </td>
+                        <td>{providerLabel(item.provider)}</td>
+                        <td>{item.disputeReason || "Não informado pelo provedor"}</td>
+                        <td>{formatDate(item.disputeOpenedAt)}</td>
+                        <td className="chargebacks-amount">
+                          {new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(
+                            item.amountCents / 100
+                          )}
+                        </td>
+                        <td>
+                          <span className={`chargebacks-status chargebacks-status--${meta.tone}`}>
+                            {meta.label}
+                          </span>
+                        </td>
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </DataPanel>
+        </>
       )}
     </div>
   );

@@ -1,5 +1,10 @@
 import React, { useEffect, useRef, useState } from "react";
-import { X, Send, MessageSquare, Store } from "lucide-react";
+import { Send, MessageSquare, Store } from "lucide-react";
+import { Modal } from "../../../components/Modal.js";
+import { FormTextarea } from "../../../components/FormField.js";
+import { EmptyState } from "../../../components/EmptyState.js";
+import { PageLoader } from "../../../components/PageLoader.js";
+import type { SupportTicketStatus } from "@zyon/shared-types";
 import { Button } from "../../../components/Button.js";
 import { useSupportChat } from "../hooks/useSupportChat.js";
 import { reportError } from "../../../hooks/useErrorReporter.js";
@@ -11,6 +16,11 @@ type DashboardApi = ReturnType<typeof import("../../../api-client.js").createDas
 
 interface SupportChatDrawerProps {
   ticketId: string;
+  connected: boolean;
+  busy: boolean;
+  actionError: string | null;
+  onStatus: (status: SupportTicketStatus) => void;
+  statusOptions: Array<{ value: SupportTicketStatus; label: string }>;
   buyerMessage: string;
   status: string;
   api: DashboardApi;
@@ -23,8 +33,10 @@ interface SupportChatDrawerProps {
 
 export function SupportChatDrawer(props: SupportChatDrawerProps) {
   const { ticketId, buyerMessage, status, api, onClose, onSend, onJoin, onLeave, onNewMessage } = props;
-  const { messages, loading, addMessage, addOptimisticMerchantMessage } = useSupportChat(api, ticketId);
+  const { messages, loading, error, reload, addMessage, addOptimisticMerchantMessage } = useSupportChat(api, ticketId);
   const [input, setInput] = React.useState("");
+  const [confirmClose, setConfirmClose] = useState(false);
+  function close() { if (props.busy) return; if (input.trim()) setConfirmClose(true); else onClose(); }
   const [isMarketplaceOrigin, setIsMarketplaceOrigin] = useState(false);
   const [showTransferDropdown, setShowTransferDropdown] = useState(false);
   const [transferredTo, setTransferredTo] = useState<string | null>(null);
@@ -70,7 +82,7 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
 
   function handleSend() {
     const text = input.trim();
-    if (!text) return;
+    if (!text || !props.connected || props.busy) return;
     onSend(ticketId, text);
     // Optimistic add
     addOptimisticMerchantMessage(text);
@@ -80,29 +92,13 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
   const ticketRef = ticketId.slice(-6).toUpperCase();
 
   return (
-    <div className="support-drawer-overlay" onClick={onClose}>
-      <aside
-        className="support-drawer"
-        onClick={(e) => e.stopPropagation()}
-        role="dialog"
-        aria-label={`Chat do chamado ${ticketRef}`}
-      >
-        {/* Header */}
-        <header className="support-drawer-header">
-          <div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-            <MessageSquare size={16} />
-            <strong>Chamado #{ticketRef}</strong>
-            <span className={`badge ${status === "open" ? "warn" : status === "resolved" ? "ok" : "muted"}`} style={{ fontSize: 10, padding: "2px 6px" }}>
-              {status === "open" ? "Aberto" : status === "in_progress" ? "Em atendimento" : status === "resolved" ? "Resolvido" : "Fechado"}
-            </span>
-          </div>
-          <button type="button" onClick={onClose} aria-label="Fechar drawer" style={{ background: "none", border: "none", cursor: "pointer", padding: 4 }}>
-            <X size={18} />
-          </button>
-        </header>
-
+    <Modal isOpen title={"Chamado #" + ticketRef} subtitle="Converse com o comprador e acompanhe a resolução do chamado." presentation="center" size="lg" onClose={close} footer={confirmClose ? <div className="support-chat__close"><p>Há uma resposta que ainda não foi enviada.</p><Button variant="outline" onClick={() => setConfirmClose(false)}>Continuar editando</Button><Button variant="danger" onClick={onClose}>Descartar e fechar</Button></div> : <div className="support-chat__footer">{status !== "closed" && status !== "resolved" ? <><FormTextarea label="Sua resposta" value={input} onChange={setInput} maxLength={4000} rows={3} disabled={props.busy} placeholder="Escreva uma resposta clara para o comprador." hint={props.connected ? "Revise a resposta antes de enviar." : "Reconectando ao atendimento. Seu rascunho está preservado."} /><Button variant="primary" disabled={!input.trim() || !props.connected || props.busy || loading || Boolean(error)} onClick={handleSend}><Send size={16} /> Enviar resposta</Button></> : <p>Este chamado está {status === "resolved" ? "resolvido" : "fechado"}. O histórico continua disponível para consulta.</p>}</div>}>
+      <div className="support-chat configuration-form">
+        <div className="support-chat__status"><span className={"badge " + (status === "resolved" ? "ok" : status === "open" ? "warn" : "muted")}>{status === "open" ? "Aberto" : status === "in_progress" ? "Em atendimento" : status === "resolved" ? "Resolvido" : "Fechado"}</span><span role="status">{props.connected ? "Atendimento conectado" : "Reconectando ao atendimento"}</span></div>
+        {props.actionError && <div className="panel-error" role="alert">{props.actionError}</div>}
+        {props.statusOptions.length > 0 && <div className="support-chat__actions" aria-label="Atualizar etapa do chamado">{props.statusOptions.map(option => <Button key={option.value} variant="outline" size="sm" disabled={props.busy} onClick={() => props.onStatus(option.value)}>{option.value === "in_progress" ? "Iniciar atendimento" : option.value === "resolved" ? "Marcar como resolvido" : "Fechar chamado"}</Button>)}</div>}
         {/* Messages */}
-        <div className="support-drawer-body">
+        <div className="support-chat__messages">
           {/* Initial buyer message */}
           <div className="support-msg support-msg--buyer">
             <span className="support-msg-label">Comprador</span>
@@ -110,8 +106,8 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
           </div>
 
           {loading ? (
-            <div style={{ textAlign: "center", padding: 16, color: "var(--color-muted)" }}>Carregando...</div>
-          ) : (
+            <PageLoader />
+          ) : error ? <EmptyState icon={MessageSquare} title="Conversa indisponível" description={error} action={<Button variant="outline" onClick={() => void reload()}>Tentar novamente</Button>} /> : (
             messages.map((msg) => {
               if (msg.metadata?.kind === "ticket_transferred") {
                 return (
@@ -148,7 +144,7 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
                     <p>{msg.content}</p>
                   )}
                   <time style={{ fontSize: 10, color: "var(--color-muted)" }}>
-                    {new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
+                    {msg.id.startsWith("temp_") ? "Envio solicitado" : new Date(msg.createdAt).toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" })}
                   </time>
                 </div>
               );
@@ -191,40 +187,7 @@ export function SupportChatDrawer(props: SupportChatDrawerProps) {
           </div>
         )}
 
-        {/* Input */}
-        {status !== "closed" && status !== "resolved" ? (
-          <footer className="support-drawer-footer" style={{ display: "flex", alignItems: "flex-end", gap: 8, padding: "12px 16px", borderTop: "1px solid var(--color-border)" }}>
-            <textarea
-              ref={textareaRef}
-              value={input}
-              onChange={(e) => {
-                setInput(e.target.value);
-                // Auto-grow
-                const el = textareaRef.current;
-                if (el) {
-                  el.style.height = "auto";
-                  el.style.height = Math.min(el.scrollHeight, 120) + "px";
-                }
-              }}
-              placeholder="Digite sua resposta..."
-              rows={1}
-              style={{ resize: "none", minHeight: 36, maxHeight: 120, lineHeight: "20px", padding: "8px 12px" }}
-              onKeyDown={(e) => {
-                if (e.key === "Enter" && !e.shiftKey) {
-                  e.preventDefault();
-                  handleSend();
-                  // Reset height
-                  const el = textareaRef.current;
-                  if (el) el.style.height = "auto";
-                }
-              }}
-            />
-            <Button variant="primary" size="sm" onClick={() => { handleSend(); const el = textareaRef.current; if (el) el.style.height = "auto"; }} disabled={!input.trim()} style={{ height: 36 }}>
-              <Send size={14} /> Enviar
-            </Button>
-          </footer>
-        ) : null}
-      </aside>
-    </div>
+      </div>
+    </Modal>
   );
 }

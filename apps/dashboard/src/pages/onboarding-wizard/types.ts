@@ -41,6 +41,7 @@ export type StepMeta = {
   label: string;
   caption: string;
   icon: LucideIcon;
+  optional?: boolean;
 };
 
 // ── Helpers ──────────────────────────────────────────────────────────────────

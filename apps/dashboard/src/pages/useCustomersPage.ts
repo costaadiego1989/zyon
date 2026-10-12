@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { CursorPage, MerchantProfile, TenantCustomer } from "../api-client.js";
 import { useApi } from "../hooks/useApi.js";
 import { DashboardHttpError } from "../api/http/index.js";
@@ -24,6 +24,9 @@ export interface CustomersPageViewModel {
   selectedCustomerId: string | null;
   customerDetail: unknown | null;
   loadingDetail: boolean;
+  detailError: string | null;
+  reload: () => Promise<void>;
+  retryDetail: () => void;
   metrics: CustomerKpis | null;
   setSearchTerm: (v: string) => void;
   setSortCol: (col: "name" | "email" | "lastSeen") => void;
@@ -87,7 +90,7 @@ export function useCustomersPage(props: {
 }): CustomersPageViewModel {
   const api = useApi();
   const [rows, setRows] = useState<CustomerRow[]>([]);
-  const [loading, setLoading] = useState(false);
+  const [loading, setLoading] = useState(true);
   const [loadingMore, setLoadingMore] = useState(false);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
@@ -102,6 +105,9 @@ export function useCustomersPage(props: {
   const [customerDetail, setCustomerDetail] = useState<unknown | null>(null);
   const [loadingDetail, setLoadingDetail] = useState(false);
   const [metrics, setMetrics] = useState<CustomerKpis | null>(null);
+  const [detailError, setDetailError] = useState<string | null>(null);
+  const detailRequest = useRef(0);
+  const moreRequest = useRef(false);
 
   const load = useCallback(async () => {
     if (!props.me) return;
@@ -112,6 +118,7 @@ export function useCustomersPage(props: {
     setNextCursor(null);
     setHasMore(false);
     setMetrics(null);
+    setPage(1);
     try {
       const page: CursorPage<TenantCustomer> = await api.getCustomersPage(PAGE_SIZE);
       setRows(toCustomerRows(page.data));
@@ -129,7 +136,7 @@ export function useCustomersPage(props: {
       }
     } catch (e) {
       reportError({ source: "customers.load", error: e, severity: "warning" });
-      setMessage(errorMessage(e));
+      setMessage("Não foi possível carregar os clientes. Tente novamente.");
     } finally {
       setBusy(false);
       setLoading(false);
@@ -137,33 +144,39 @@ export function useCustomersPage(props: {
   }, [props.me, api]);
 
   const loadMore = useCallback(async () => {
-    if (!nextCursor || loadingMore) return;
+    if (!nextCursor || moreRequest.current) return;
+    moreRequest.current = true;
+    setMessage(null);
     setLoadingMore(true);
     setBusy(true);
     try {
       const page: CursorPage<TenantCustomer> = await api.getCustomersPage(PAGE_SIZE, nextCursor);
-      setRows((prev) => [...prev, ...toCustomerRows(page.data)]);
+      setRows((prev) => [...prev, ...toCustomerRows(page.data).filter((row) => !prev.some((existing) => existing.globalUserId === row.globalUserId))]);
       setNextCursor(page.next_cursor);
       setHasMore(page.has_more);
     } catch (e) {
       reportError({ source: "customers.loadMore", error: e, severity: "warning" });
-      setMessage(errorMessage(e));
+      setMessage("Não foi possível carregar mais clientes. Os registros já carregados continuam disponíveis.");
     } finally {
       setLoadingMore(false);
+      moreRequest.current = false;
       setBusy(false);
     }
   }, [nextCursor, loadingMore, api]);
 
   const loadCustomerDetail = useCallback(async (customerId: string) => {
+    const request = ++detailRequest.current;
     setLoadingDetail(true);
+    setCustomerDetail(null);
+    setDetailError(null);
     try {
       const detail = await api.getCustomerDetail(customerId);
-      setCustomerDetail(detail);
+      if (request === detailRequest.current) setCustomerDetail(detail);
     } catch (e) {
       reportError({ source: "customers.loadDetail", error: e, severity: "warning" });
-      setMessage(errorMessage(e));
+      if (request === detailRequest.current) setDetailError("Não foi possível carregar o histórico deste cliente. Tente novamente.");
     } finally {
-      setLoadingDetail(false);
+      if (request === detailRequest.current) setLoadingDetail(false);
     }
   }, [api]);
 
@@ -181,6 +194,7 @@ export function useCustomersPage(props: {
   }
 
   function closeCustomerDetail() {
+    detailRequest.current += 1;
     setSelectedCustomerId(null);
     setCustomerDetail(null);
   }
@@ -212,6 +226,9 @@ export function useCustomersPage(props: {
     selectedCustomerId,
     customerDetail,
     loadingDetail,
+    detailError,
+    reload: load,
+    retryDetail: () => { if (selectedCustomerId) void loadCustomerDetail(selectedCustomerId); },
     metrics,
     setSearchTerm,
     setSortCol,

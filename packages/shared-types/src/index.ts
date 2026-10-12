@@ -1,4 +1,5 @@
 export type CurrencyCode = "BRL" | "USD" | "EUR";
+export * from "./order-fulfillment.js";
 
 export type CheckoutEventName =
   | "checkout_started"
@@ -31,6 +32,15 @@ export type CheckoutEventName =
   | "message_sent";
 
 export interface CartItem {
+  originalPrice?: number;
+  variantLabel?: string;
+  fulfillmentStrategy?: import("./order-fulfillment.js").FulfillmentStrategy;
+  fulfillmentSchedule?: import("./order-fulfillment.js").FulfillmentSchedule;
+  digitalDeliveryChannels?: string[];
+  /** Product type reconstructed from the merchant catalog by checkout authority. */
+  productType?: "physical" | "digital" | "service" | "food";
+  /** Verified marketplace allocation; never accepted from public cart input. */
+  marketplace?: CrossStoreLineItem;
   sku: string;
   /** Canonical catalog variant, distinct from the option-selection line key. */
   variantId?: string;
@@ -71,6 +81,12 @@ export interface ShippingContext {
 }
 
 export interface Cart {
+  /** Common provider/beneficiary candidates verified from every participating merchant. */
+  marketplacePaymentOptions?: Array<{
+    provider: "stripe" | "asaas";
+    environment: "test" | "live";
+    destinations: Array<{ merchantId: string; destination: string }>;
+  }>;
   currency: CurrencyCode;
   total: number;
   items: CartItem[];
@@ -166,6 +182,37 @@ export interface ShippingQuoteResponse {
   expires_at: string;
 }
 
+/** Buyer-facing marketplace shipping. Monetary fields are BRL integer cents;
+ * carrier credentials and frozen shipment contracts are never public DTOs. */
+export interface MarketplaceShippingQuoteRequest {
+  session_id: string;
+}
+
+export interface MarketplaceShippingSelectRequest {
+  session_id: string;
+  selections: Array<{ origin_merchant_id: string; quote_id: string; carrier_key: string }>;
+}
+
+export interface MarketplaceShippingQuoteResponse {
+  session_id: string;
+  destination_zip: string;
+  currency: "BRL";
+  origins: Array<{
+    origin_merchant_id: string;
+    quote_id: string;
+    expires_at: string;
+    options: Array<{ carrier_key: string; label: string; price_cents: number; eta_days: number }>;
+  }>;
+}
+
+export interface MarketplaceShippingSelectResponse {
+  session_id: string;
+  currency: "BRL";
+  total_price_cents: number;
+  delivery_days: number;
+  selections: Array<{ origin_merchant_id: string; quote_id: string; carrier_key: string; price_cents: number }>;
+}
+
 export interface StageQuickReplies {
   data_collection?: {
     nome?: string[];
@@ -240,13 +287,23 @@ export const DEFAULT_MERCHANT_RULES: MerchantRules = {
   autonomousEngineEnabled: true
 };
 
-export type CrossSellTouchpoint = "browsing" | "pre_cart" | "post_cart" | "pre_payment" | "post_purchase";
+export type CrossSellTouchpoint = "browsing" | "pre_cart" | "post_cart" | "pre_checkout" | "pre_payment" | "post_purchase";
 export type CrossSellStrategy = "same_category" | "bought_together" | "cart_value_upgrade" | "complementary" | "ai_personalized";
+export const CROSS_SELL_STRATEGIES: readonly CrossSellStrategy[] = ["same_category", "bought_together", "cart_value_upgrade", "complementary", "ai_personalized"];
+
+/** Keep the first valid source in legacy settings, without mixing recommendation logic. */
+export function normalizeCrossSellStrategies(strategies: unknown): CrossSellStrategy[] {
+  if (strategies === undefined) return ["same_category"];
+  if (!Array.isArray(strategies)) return [];
+  const first = strategies.find((strategy): strategy is CrossSellStrategy => CROSS_SELL_STRATEGIES.includes(strategy));
+  return first ? [first] : [];
+}
 export type CrossSellDisplayMode = "inline" | "modal" | "banner" | "interstitial";
 
 export interface CrossSellConfig {
   enabled: boolean;
-  touchpoints: Record<Exclude<CrossSellTouchpoint, "post_cart">, boolean> & { post_cart?: boolean };
+  touchpoints: Record<Exclude<CrossSellTouchpoint, "post_cart" | "pre_checkout">, boolean> & { post_cart?: boolean; pre_checkout?: boolean };
+  /** Exactly one source when recommendations are enabled; array retained for stored JSON compatibility. */
   strategies: CrossSellStrategy[];
   limits: {
     maxSuggestionsPerSession: number;
@@ -265,12 +322,24 @@ export interface CrossSellConfig {
 
 export const DEFAULT_CROSS_SELL_CONFIG: CrossSellConfig = {
   enabled: false,
-  touchpoints: { browsing: true, pre_cart: false, post_cart: false, pre_payment: true, post_purchase: false },
-  strategies: ["same_category", "ai_personalized"],
+  touchpoints: { browsing: true, pre_cart: false, post_cart: false, pre_checkout: false, pre_payment: true, post_purchase: false },
+  strategies: ["same_category"],
   limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 },
   discount: { enabled: false, percent: 10 },
   display: { mode: "inline" },
 };
+
+export function normalizeCrossSellConfig(config: Partial<CrossSellConfig> = {}): CrossSellConfig {
+  return {
+    ...DEFAULT_CROSS_SELL_CONFIG,
+    ...config,
+    strategies: normalizeCrossSellStrategies(config.strategies),
+    touchpoints: { ...DEFAULT_CROSS_SELL_CONFIG.touchpoints, ...config.touchpoints },
+    limits: { ...DEFAULT_CROSS_SELL_CONFIG.limits, ...config.limits },
+    discount: { ...DEFAULT_CROSS_SELL_CONFIG.discount, ...config.discount },
+    display: { ...DEFAULT_CROSS_SELL_CONFIG.display, ...config.display },
+  };
+}
 
 export type ChatStage = "data_collection" | "shipping" | "payment" | "payment_pending" | "completed";
 
@@ -286,6 +355,9 @@ export interface ChatTurn {
 }
 
 export interface CrossStoreLineItem {
+  providerFeePolicy?: "proportional_seller_sales_v1";
+  sourceVariantId?: string;
+  stockReservationId?: string;
   lineItemId: string;
   federatedProductId: string;
   sourceMerchantId: string;
@@ -297,6 +369,7 @@ export interface CrossStoreLineItem {
 }
 
 export interface CheckoutSession {
+  serviceSlotHold?: { expiresAt: string; slots: Array<{ resourceId: string; slotId: string; startsAt: string; endsAt: string }> };
   merchantId: string;
   sessionId: string;
   globalUserId: string;
@@ -387,6 +460,8 @@ export interface CheckoutBrandSnapshot {
 }
 
 export interface CheckoutItemSnapshot {
+  /** Public grouping key for independently shipped items, never an allocation. */
+  origin_merchant_id?: string;
   sku: string;
   name: string;
   quantity: number;
@@ -441,6 +516,8 @@ export interface CheckoutTotalsSnapshot {
 }
 
 export interface CheckoutExperienceSnapshot {
+  /** Marketplace carts require a shipping choice for each origin. */
+  shipping_mode?: "marketplace";
   brand: CheckoutBrandSnapshot;
   stage?: ChatStage;
   rules?: {
@@ -523,10 +600,30 @@ export interface CheckoutExperienceSnapshot {
     qr_code_image?: string;
     copy_paste?: string;
     ticket_url?: string;
+    invoice_url?: string;
+    stripe_client_secret?: string;
+    stripe_publishable_key?: string;
+    crypto_chain_id?: number;
+    crypto_chain?: string;
+    crypto_network?: string;
+    crypto_chain_label?: string;
+    crypto_token_address?: string;
+    crypto_token_symbol?: string;
+    crypto_amount_atomic?: string;
+    crypto_amount_display?: string;
+    crypto_destination_address?: string;
+    crypto_wallet_connect_project_id?: string;
+    crypto_transfers?: Array<{
+      kind: "merchant" | "platform_fee";
+      destination_address: string;
+      amount_atomic: string;
+      amount_display: string;
+    }>;
   };
 }
 
 export interface StartCheckoutResponse {
+  service_slot_hold?: CheckoutSession["serviceSlotHold"];
   conversation_id: string;
   session_id: string;
   global_user_id: string;
@@ -662,6 +759,13 @@ export type CompletedOrderStatus =
   | "returned";
 
 export interface CompletedOrderLineItem {
+  snapshotVersion?: 2;
+  lineId?: string;
+  productType?: import("./order-fulfillment.js").FulfillmentProductType;
+  fulfillmentStrategy?: import("./order-fulfillment.js").FulfillmentStrategy;
+  selectedOptions?: Array<{ group_name: string; item_name: string; price_modifier: number }>;
+  schedule?: import("./order-fulfillment.js").FulfillmentSchedule;
+  requiredChannels?: string[];
   sku: string;
   variantId?: string;
   name?: string;
@@ -986,10 +1090,24 @@ export interface CheckoutWidgetBehavior {
   budgetModeEnabled?: boolean;
 }
 
+export interface CheckoutAssistanceSettings {
+  pix: boolean;
+  installments: boolean;
+  unavailableProduct: boolean;
+  humanHandoff: boolean;
+}
+
+export const DEFAULT_CHECKOUT_ASSISTANCE: CheckoutAssistanceSettings = {
+  pix: true, installments: true, unavailableProduct: true, humanHandoff: true,
+};
+
 export interface CheckoutInterventionPolicy {
   minimumAbandonmentScore: number;
   cooldownSeconds: number;
   maxInterventionsPerSession: number;
+  /** Seconds without buyer interaction before offering help; defaults to 180. */
+  idleSeconds?: number;
+  assistance?: Partial<CheckoutAssistanceSettings>;
   progressiveDiscount?: ProgressiveDiscountPolicy;
 }
 

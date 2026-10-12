@@ -13,7 +13,7 @@ export function FunnelChart({ steps, transitions }: FunnelChartProps): React.Rea
     <div className="fnl-chart-card">
       <SectionHeader
         variant="secondary"
-        title="Funil de Etapas"
+        title="Etapas da jornada"
         trailing={
           <span className="fnl-chart-conversion">
             {steps.length > 0 ? `${(conversionStep?.percentage ?? 0).toFixed(1)}% conversão` : "—"}

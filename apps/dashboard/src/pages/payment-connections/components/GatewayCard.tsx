@@ -54,7 +54,7 @@ export function GatewayCard({
   const disabled = operation !== "idle" || comingSoon || (!isConnected && connectionLimitReached);
 
   return (
-    <section className="gateway-card" aria-labelledby={`gateway-${provider}`}>
+    <section className="gateway-card" data-connected={isConnected} aria-labelledby={`gateway-${provider}`}>
       <div className="gateway-card__header">
         <div className="gateway-card__title-group">
           <div className="gateway-card__icon-container" style={{ background: iconBg }}>
@@ -102,11 +102,11 @@ export function GatewayCard({
         </div>
       ) : !comingSoon ? (
         <div className="gateway-card__empty">
-          <PlugZap size={18} aria-hidden="true" />
+
           {connectionLimitReached ? (
-            <p className="gateway-card__empty-text">Limite de 2 gateways atingido. Desconecte um para conectar este.</p>
+            <p className="gateway-card__empty-text">Limite de 2 provedores atingido. Desconecte um para usar esta conta.</p>
           ) : null}
-          {!connectionLimitReached ? <p className="gateway-card__empty-text">Não conectado</p> : null}
+
         </div>
       ) : (
         <div className="gateway-card__empty">
@@ -188,8 +188,7 @@ export function GatewayCard({
           </div>
         ) : (
           <Button
-            variant="primary"
-            arrow
+            variant="outline"
             disabled={!!disabled}
             onClick={onConnect}
             aria-busy={isMyConnecting}
@@ -199,7 +198,7 @@ export function GatewayCard({
             fullWidth
           >
             <ExternalLink size={14} aria-hidden="true" />
-            {isMyConnecting ? "Conectando..." : "Conectar provedor"}
+            {isMyConnecting ? "Conectando..." : "Conectar " + name}
           </Button>
         )}
       </div>

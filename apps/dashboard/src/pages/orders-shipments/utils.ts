@@ -181,6 +181,21 @@ export function formatMinor(value: number, currency: string): string {
   }).format(value / divisor);
 }
 
+/** Checkout cart price/unit_price are major units; explicit *Cents fields
+ * already carry minor units. Never infer the unit from the amount's size.
+ */
+export function formatOrderItemUnitPrice(item: unknown, currency: string): string {
+  if (!item || typeof item !== "object" || Array.isArray(item)) return "Valor indisponível";
+  const value = item as Record<string, unknown>;
+  const explicitMinor = value.unitPriceCents !== undefined || value.unit_price_cents !== undefined;
+  const price = explicitMinor ? (value.unitPriceCents ?? value.unit_price_cents) : (value.price ?? value.unit_price);
+  if (typeof price !== "number" || !Number.isFinite(price) || price < 0) return "Valor indisponível";
+  const divisor = ZERO_DECIMAL_CURRENCIES.has(currency.toUpperCase()) ? 1 : 100;
+  const minor = explicitMinor ? price : Math.round(price * divisor);
+  if (!Number.isSafeInteger(minor)) return "Valor indisponível";
+  try { return formatMinor(minor, currency); } catch { return "Valor indisponível"; }
+}
+
 export function formatDate(value: string | null | undefined): string {
   if (!value) return "—";
   const date = new Date(value);

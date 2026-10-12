@@ -1,17 +1,18 @@
 import type { BillingPlanCard } from "../../api/types.js";
 import type { PlanDef } from "./components/PlanCard.js";
-import { billingOffer, type BillingCycle, type BillingOffer, BILLING_FEATURE_LABELS, billingLimitHighlights } from "@zyon/shared-types";
+import { billingOffer, type BillingCycle, type BillingOffer, BILLING_FEATURE_LABELS } from "@zyon/shared-types";
 
 export function toPlanDef(plan: BillingPlanCard): PlanDef {
   if (!["starter", "growth", "scale"].includes(plan.key)) throw new Error("Plano desconhecido no catálogo.");
-  const limit = (key: string) => plan.limits?.[key] ?? -1;
+  const limit = (key: string) => plan.limits?.[key] === null ? -1 : plan.limits?.[key];
   return {
     key: plan.key as PlanDef["key"], name: plan.name, price: plan.priceBrl,
     billingOptions: plan.billingOptions, annualCheckoutAvailable: plan.annualCheckoutAvailable,
     fee: ((plan.transactionFeeCents ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
-    limits: { orders: limit("ordersPerMonth"), connections: limit("commerceConnections") },
-    features: plan.features.flatMap(key => BILLING_FEATURE_LABELS[key] ? [BILLING_FEATURE_LABELS[key]] : []), recommended: plan.recommended,
-    highlights: billingLimitHighlights(plan.limits ?? {}), trialDays: plan.trialDays,
+    limits: { orders: limit("ordersPerMonth"), voiceSessions: limit("voiceSessionsPerMonth") },
+    features: [...new Set(plan.features.flatMap(feature => BILLING_FEATURE_LABELS[feature]
+      ? [BILLING_FEATURE_LABELS[feature]] : /\s/.test(feature) ? [feature] : []))],
+    recommended: plan.recommended, trialDays: plan.trialDays,
   };
 }
 

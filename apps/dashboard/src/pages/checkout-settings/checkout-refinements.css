@@ -1,0 +1,21 @@
+﻿.cfg-editor-content { display: grid; gap: 24px; min-width: 0; }
+.cfg-editor-feedback { display: grid; justify-items: start; gap: 8px; font: 13px/1.6 var(--font-sans); }
+.cfg-priority-note { padding: 16px; border: 1px solid var(--color-border); border-radius: 10px; background: var(--surface-1); font: 13px/1.65 var(--font-sans); color: var(--color-text-secondary); }
+.rule-editor { display: grid; gap: 28px; min-width: 0; container-type: inline-size; }
+.rule-editor__section, .rule-editor__conditions { display: grid; gap: 16px; min-width: 0; }
+.rule-editor__section > .zyn-btn { justify-self: start; }
+.rule-editor__section-heading h3, .rule-editor__preview h3 { margin: 0; font: 600 16px/1.5 var(--font-sans); text-transform: none; letter-spacing: normal; }
+.rule-editor__section-heading p, .rule-editor__hint { margin: 4px 0 0; font: 400 13px/1.65 var(--font-sans); color: var(--color-text-muted); }
+.rule-editor__condition { display: grid; gap: 16px; min-width: 0; padding: 18px; background: var(--surface-1); border: 1px solid var(--color-border); border-radius: 12px; }
+.rule-editor__condition-heading { display: flex; flex-wrap: wrap; justify-content: space-between; gap: 8px 16px; align-items: center; }
+.rule-editor__condition-heading h4 { margin: 0; font: 600 14px/1.5 var(--font-sans); text-transform: none; letter-spacing: normal; }
+.rule-editor__pair { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); align-items: start; gap: 16px; }
+.rule-editor .form-field { min-width: 0; margin: 0; }
+.rule-editor .form-field label { text-transform: none; letter-spacing: normal; }
+.rule-editor .form-field input, .rule-editor .form-field select { min-height: 44px; width: 100%; min-width: 0; box-sizing: border-box; font-size: 14px; }
+.rule-editor__preview { padding: 18px; border: 1px solid var(--color-border); border-radius: 12px; background: var(--surface-1); }
+.rule-editor__preview p { margin: 8px 0 0; font: 400 14px/1.65 var(--font-sans); overflow-wrap: anywhere; }
+@container (max-width: 460px) {
+  .rule-editor__pair { grid-template-columns: minmax(0, 1fr); }
+  .rule-editor__condition { padding: 14px; }
+}

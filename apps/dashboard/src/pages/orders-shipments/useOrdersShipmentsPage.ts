@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { DashboardHttpError } from "../../api/http/index.js";
 import type { PurchaseShippingLabelPayload, PurchasedShippingLabel } from "../../api/endpoints/order.js";
@@ -29,6 +29,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   const [trackingDrafts, setTrackingDrafts] = useState<Record<string, string>>({});
   const [cancelBusyOrderId, setCancelBusyOrderId] = useState<string | null>(null);
   const [shippingLabelBusyOrderId, setShippingLabelBusyOrderId] = useState<string | null>(null);
+  const actionInFlight = useRef(false);
 
   const load = useCallback(async (cursor?: string) => {
     setBusy(true);
@@ -138,6 +139,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   }, [api, expandedOrderId, orderDetailReloadToken]);
 
   const openOrderDetails = useCallback((orderId: string) => {
+    setMessage(null);
     setOrderDetail(null);
     setOrderDetailError(null);
     setOrderDetailLoading(true);
@@ -201,11 +203,13 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   }, [filteredOrders]);
 
   const saveManualTracking = useCallback(async (order: TenantOrder) => {
+    if (actionInFlight.current) return;
     const trackingCode = (trackingDrafts[order.id] ?? "").trim();
     if (!trackingCode) {
       setMessage("Informe o código de rastreio.");
       return;
     }
+    actionInFlight.current = true;
     setBusy(true);
     setMessage(null);
     try {
@@ -216,10 +220,11 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
       });
       setOrders((prev) => prev.map((item) => item.id === order.id ? { ...item, tracking_code: trackingCode } : item));
       setTrackingDrafts((prev) => ({ ...prev, [order.id]: "" }));
-      setMessage("Rastreio salvo. Verifique o envio ao cliente no histórico de comunicações.");
+      showToast("success", "Rastreio salvo. O envio ao cliente pode ser consultado no histórico de comunicações.");
     } catch (e) {
-      setMessage(e instanceof Error ? e.message : String(e));
+      setMessage("Não foi possível salvar o rastreio. O código foi mantido para você tentar novamente.");
     } finally {
+      actionInFlight.current = false;
       setBusy(false);
     }
   }, [api, trackingDrafts]);
@@ -229,6 +234,8 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     input: Omit<PurchaseShippingLabelPayload, "order_id">,
     idempotencyKey: string,
   ): Promise<PurchasedShippingLabel> => {
+    if (actionInFlight.current) throw new Error("Uma atualização já está em andamento.");
+    actionInFlight.current = true;
     setShippingLabelBusyOrderId(order.id);
     try {
       const result = await api.purchaseShippingLabel({
@@ -248,11 +255,14 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
       setOrderDetailReloadToken((token) => token + 1);
       return result;
     } finally {
+      actionInFlight.current = false;
       setShippingLabelBusyOrderId(null);
     }
   }, [api]);
 
   const changeOrderStatus = useCallback(async (order: TenantOrder, status: string) => {
+    if (actionInFlight.current) return false;
+    actionInFlight.current = true;
     setBusy(true);
     setMessage(null);
     try {
@@ -261,19 +271,54 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
       showToast("success", `Pedido #${order.external_order_id?.slice(-6) ?? order.id.slice(-6)} → ${STATUS_LABELS[status] ?? status}`);
       return true;
     } catch (e) {
-      showToast("error", e instanceof Error ? e.message : "Erro ao atualizar status");
+      setMessage("Não foi possível atualizar a etapa do pedido. A etapa anterior foi mantida.");
       return false;
     } finally {
+      actionInFlight.current = false;
       setBusy(false);
     }
   }, [api]);
 
+  const fulfillmentCommands = useRef(new Map<string, { command_id: string; action: string; expected_version: number; proof?: string; quantity?: number; schedule_slot_id?: string }>());
+  const executeFulfillment = useCallback(async (order: TenantOrder, unitId: string, action: string, proof?: string, quantity?: number, scheduleSlotId?: string) => {
+    if (actionInFlight.current || !order.fulfillment) return false;
+    const operationKey = JSON.stringify([order.id, unitId]);
+    const command = fulfillmentCommands.current.get(operationKey) ?? { command_id: crypto.randomUUID(), action, expected_version: order.fulfillment.version, ...(proof ? { proof } : {}), ...(quantity ? { quantity } : {}), ...(scheduleSlotId ? { schedule_slot_id: scheduleSlotId } : {}) };
+    fulfillmentCommands.current.set(operationKey, command);
+    actionInFlight.current = true; setBusy(true); setMessage(null);
+    try {
+      const canonical = await api.executeFulfillmentAction(order.id, unitId, command);
+      setOrders(previous => previous.map(item => item.id === order.id ? canonical : item));
+      setOrderDetail(current => current?.id === order.id ? canonical : current);
+      fulfillmentCommands.current.delete(operationKey);
+      showToast("success", "Atendimento atualizado."); return true;
+    } catch (error) {
+      const code = error instanceof DashboardHttpError ? error.responseBody : "";
+      const messages: Record<string, string> = {
+        fulfillment_version_conflict: "Outro operador ou integração atualizou o pedido. Confira a etapa atual antes de continuar.",
+        service_capacity_unavailable: "Este horário já tem uma reserva. Escolha outro horário para o atendimento.",
+        service_reservation_required: "Confirme a reserva do horário antes de iniciar o atendimento.",
+        service_schedule_not_started: "O horário escolhido ainda não começou.",
+        service_schedule_invalid: "Este horário mudou ou já passou. Consulte a agenda novamente.",
+        fulfillment_payment_required: "O pagamento ainda não tem confirmação válida.",
+        marketplace_delivery_proof_required: "O marketplace exige comprovação própria para este atendimento.",
+        fulfillment_order_cancelled: "Este pedido foi cancelado ou devolvido.",
+      };
+      if (error instanceof DashboardHttpError && error.status >= 400 && error.status < 500) fulfillmentCommands.current.delete(operationKey);
+      setMessage(Object.entries(messages).find(([key]) => code.includes(key))?.[1] ?? "Não foi possível confirmar a atualização. Consulte a etapa atual; tentar novamente reutiliza a mesma operação.");
+      try { const canonical = await api.getOrderDetail(order.id); setOrders(previous => previous.map(item => item.id === order.id ? canonical : item)); setOrderDetail(current => current?.id === order.id ? canonical : current); } catch { /* Keep the last confirmed state and the same command identity. */ }
+      return false;
+    } finally { actionInFlight.current = false; setBusy(false); }
+  }, [api]);
+
   const cancelOrder = useCallback(async (order: TenantOrder, input: { reason: string; notifyCustomer: boolean; restock: boolean }) => {
+    if (actionInFlight.current) return false;
     const reason = input.reason.trim();
     if (!reason) {
       setMessage("Informe o motivo do cancelamento.");
       return false;
     }
+    actionInFlight.current = true;
     setCancelBusyOrderId(order.id);
     setMessage(null);
     try {
@@ -288,9 +333,10 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
       showToast("success", `Pedido #${order.external_order_id?.slice(-6) ?? order.id.slice(-6)} cancelado`);
       return true;
     } catch (e) {
-      showToast("error", e instanceof Error ? e.message : "Erro ao cancelar pedido");
+      setMessage("Não foi possível cancelar o pedido. O motivo foi preservado para você tentar novamente.");
       return false;
     } finally {
+      actionInFlight.current = false;
       setCancelBusyOrderId(null);
     }
   }, [api]);
@@ -330,7 +376,7 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
   return {
     orders,
     message,
-    busy,
+    busy: busy || Boolean(cancelBusyOrderId) || Boolean(shippingLabelBusyOrderId),
     hasLoaded,
     expandedOrderId,
     setExpandedOrderId,
@@ -358,11 +404,13 @@ export function useOrdersShipmentsPage(props: { me: MerchantProfile | null }) {
     paginatedOrders,
     PAGE_SIZE,
     load,
+    reload: loadAll,
     exportCsv,
     saveManualTracking,
     purchaseShippingLabel,
     shippingLabelBusyOrderId,
     changeOrderStatus,
+    executeFulfillment,
     cancelBusyOrderId,
     cancelOrder,
     updateTrackingDraft,

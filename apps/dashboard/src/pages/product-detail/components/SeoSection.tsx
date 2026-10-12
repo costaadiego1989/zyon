@@ -51,7 +51,7 @@ export function SeoSection(props: SeoSectionProps) {
   return (
     <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: "20px 22px" }}>
       <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", marginBottom: 14 }}>
-        <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em" }}>SEO & REDES SOCIAIS</h3>
+        <h3 style={{ font: "600 12px var(--font-mono)", color: "var(--color-text-faint)", letterSpacing: "0.05em" }}>Busca e redes sociais</h3>
         <Button variant="outline" size="sm" onClick={regenerate} disabled={generating} loading={generating}>
           {generating ? "Gerando..." : seoTitle ? "Alterar com IA" : "Gerar com IA"}
         </Button>

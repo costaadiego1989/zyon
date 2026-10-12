@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import type { TicketMessage } from "../../../hooks/useSupportSocket.js";
 import { reportError } from "../../../hooks/useErrorReporter.js";
 
@@ -7,25 +7,31 @@ type DashboardApi = ReturnType<typeof import("../../../api-client.js").createDas
 export function useSupportChat(api: DashboardApi, ticketId: string) {
   const [messages, setMessages] = useState<TicketMessage[]>([]);
   const [loading, setLoading] = useState(true);
+  const [error, setError] = useState<string | null>(null);
+  const request = useRef(0);
 
   useEffect(() => {
     void loadMessages();
+    return () => { request.current += 1; };
   }, [ticketId]); // eslint-disable-line react-hooks/exhaustive-deps
 
   async function loadMessages() {
+    const current = ++request.current;
     setLoading(true);
+    setError(null);
     try {
       const data = await api.getTicketMessages(ticketId);
-      setMessages(Array.isArray(data) ? data : []);
+      if (current === request.current) setMessages(Array.isArray(data) ? data : []);
     } catch (e) {
       reportError({ source: "useSupportChat.loadMessages", error: e });
+      if (current === request.current) setError("Não foi possível carregar o histórico da conversa.");
     } finally {
-      setLoading(false);
+      if (current === request.current) setLoading(false);
     }
   }
 
   const addMessage = useCallback((msg: TicketMessage) => {
-    setMessages((prev) => [...prev, msg]);
+    setMessages((prev) => prev.some(message => message.id === msg.id) ? prev : [...prev, msg]);
   }, []);
 
   const addOptimisticMerchantMessage = useCallback((content: string) => {
@@ -42,6 +48,7 @@ export function useSupportChat(api: DashboardApi, ticketId: string) {
   return {
     messages,
     loading,
+    error,
     addMessage,
     addOptimisticMerchantMessage,
     reload: loadMessages,

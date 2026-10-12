@@ -1,4 +1,4 @@
-import React, { useEffect, useState } from "react";
+import React, { useEffect, useRef, useState } from "react";
 import { Check, FlaskConical } from "lucide-react";
 import { Modal } from "../../components/Modal.js";
 import { PageLoader } from "../../components/PageLoader.js";
@@ -36,6 +36,7 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
   hypothesisId: string; merchantId: string; onClose: () => void;
 }) {
   const api = useApi();
+  const working = useRef(false);
   const [hypothesis, setHypothesis] = useState<Hypothesis | null>(null);
   const [loading, setLoading] = useState(true);
   const [busy, setBusy] = useState(false);
@@ -52,8 +53,8 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
   }, [api, hypothesisId, merchantId, refresh]);
 
   const decide = async (approve: boolean) => {
-    if (busy || !hypothesis || hypothesis.status !== "pending_review") return;
-    setBusy(true); setError("");
+    if (working.current || !hypothesis || hypothesis.status !== "pending_review") return;
+    working.current = true; setBusy(true); setError("");
     try {
       if (approve) {
         await api.approveHypothesis(hypothesis.id, { approved_by: merchantId, mode });
@@ -70,7 +71,7 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
       const current = await api.getHypothesis(hypothesis.id).catch(() => null);
       if (current) setHypothesis(current);
       strategyChanged(hypothesis.id);
-    } finally { setBusy(false); }
+    } finally { working.current = false; setBusy(false); }
   };
   const rule = hypothesis?.template?.discount_rule_json;
   const canApplyDirect = hypothesis?.template?.hypothesis_type === "discount_rule" && !!rule;
@@ -78,7 +79,7 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
   const b = variant(hypothesis?.template?.variant_b);
   const weightSum = Number(a.weight ?? 0) + Number(b.weight ?? 0);
   const pending = hypothesis?.status === "pending_review";
-  return <Modal isOpen title="Revisar estratégia" eyebrow="Otimização da loja"
+  return <Modal isOpen title="Revisar estratégia" presentation="center" size="lg" subtitle="Confira as condições e escolha como aplicar a proposta."
     onClose={() => { if (!busy) onClose(); }}
     footer={hypothesis && pending ? <div className="strategy-review-actions">
       <button type="button" className="zyn-btn zyn-btn--ghost" disabled={busy} onClick={() => void decide(false)}>Declinar</button>
@@ -108,7 +109,7 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
             <section className="strategy-detail-section"><h3>Por que foi sugerida</h3><p>{hypothesis.reasoning || "Proposta para comparar com os resultados atuais da loja."}</p></section>
             <dl className="strategy-review-facts"><div><dt>Risco estimado</dt><dd>{RISK[hypothesis.risk_level]}</dd></div>
               <div><dt>Impacto estimado</dt><dd>{hypothesis.expected_lift_percent > 0 ? "+" : ""}{hypothesis.expected_lift_percent.toLocaleString("pt-BR")}%</dd></div></dl>
-            <p className="strategy-review-note">Estimativas do motor, sujeitas à validação pelos resultados.</p>
+            <p className="strategy-review-note">Estimativas da análise, sujeitas à validação pelos resultados.</p>
             {!rule && <section className="strategy-detail-section">
               <h3>Abordagem proposta</h3><p className="strategy-review-copy">{b.system_prompt || "Detalhes da abordagem não disponíveis."}</p>
               <h3>Abordagem atual</h3><p className="strategy-review-copy">{a.system_prompt || "Abordagem atual da loja."}</p>
@@ -122,7 +123,7 @@ export function StrategyReviewModal({ hypothesisId, merchantId, onClose }: {
           </div>
         </details>
         {!pending && <p role="status" className="strategy-review-note">{hypothesis.status === "experiment_failed"
-          ? "A aprovação foi registrada, mas o teste não foi iniciado. Revise a falha em Otimização de Checkout."
+          ? "A aprovação foi registrada, mas o teste não foi iniciado. Revise a falha em Otimização com IA."
           : "Esta estratégia já foi analisada e não está mais aguardando aprovação."}</p>}
       </>}
     </div>

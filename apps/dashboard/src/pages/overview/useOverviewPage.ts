@@ -60,13 +60,21 @@ export function useOverviewPage(props: OverviewPageProps): OverviewPageVM {
   const hasData = !!(checkoutOverview || storeOverview);
 
   useEffect(() => {
+    // A failed period change must not display the preceding window's KPIs.
+    setCheckoutOverview(null);
+    setStoreOverview(null);
+    setTimeseries(null);
+    setFunnelData(null);
+    setStorefrontFunnelData(null);
+    setLastUpdated(null);
     void fetchAll();
-  }, [period]);
+    return () => { requestVersion.current++; };
+  }, [period, props.me.id, showCheckout, showStore]);
 
   useEffect(() => {
     const interval = setInterval(() => void fetchAll(), 60_000);
     return () => clearInterval(interval);
-  }, [period]);
+  }, [period, props.me.id, showCheckout, showStore]);
 
   async function fetchAll() {
     const version = ++requestVersion.current;

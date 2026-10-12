@@ -1,3 +1,5 @@
+import { SetupGuide } from "../../components/SetupGuide.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import React, { useState } from "react";
 import { ShoppingCart, Activity, CheckCircle, DollarSign, Clock, XCircle, RefreshCw, Edit, Ticket, SlidersHorizontal, AlertTriangle } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
@@ -29,10 +31,10 @@ interface StrategyOption {
 }
 
 const STRATEGY_OPTIONS: StrategyOption[] = [
-  { key: "offer_free_shipping", label: "Frete Grátis", description: "Oferecer frete grátis como incentivo para fechar a compra", needsConfig: false },
-  { key: "personalized_cross_sell", label: "Cross-sell", description: "Sugerir produtos complementares baseados no histórico do comprador", needsConfig: false },
-  { key: "offer_coupon", label: "Cupom de Desconto", description: "Usar um cupom configurado e válido na recuperação", needsConfig: true, configLabel: "Selecionar cupom" },
-  { key: "advanced_rule", label: "Regra Avançada", description: "Usar regras do engine de negociação (desconto progressivo, objeção, timing)", needsConfig: true, configLabel: "Selecionar regra" },
+  { key: "offer_free_shipping", label: "Frete grátis", description: "Oferecer frete grátis como incentivo para fechar a compra", needsConfig: false },
+  { key: "personalized_cross_sell", label: "Produtos complementares", description: "Sugerir produtos complementares baseados no histórico do comprador", needsConfig: false },
+  { key: "offer_coupon", label: "Cupom de desconto", description: "Usar um cupom configurado e válido na recuperação", needsConfig: true, configLabel: "Selecionar cupom" },
+  { key: "advanced_rule", label: "Regra avançada", description: "Aplicar uma regra de negociação já configurada para a loja", needsConfig: true, configLabel: "Selecionar regra" },
 ];
 
 const PAGE_SIZE = 10;
@@ -45,6 +47,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
     savingKey,
     loading,
     error,
+    saveError,
     retry,
     selectStrategy,
     saveConfig,
@@ -60,13 +63,7 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
 
   if (!props.me) {
     return (
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Inteligência IA</span>
-          <h1>Recuperação de Carrinho</h1>
-          <p className="page-lead">Login necessário</p>
-        </div>
-      </header>
+      <PageHeader title="Recuperação de carrinho" description="Login necessário" />
     );
   }
 
@@ -102,14 +99,14 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
   const strategyLabel = (strategy: string) => {
     switch (strategy) {
       case "free_shipping":
-      case "offer_free_shipping": return "Frete Grátis";
+      case "offer_free_shipping": return "Frete grátis";
       case "coupon":
       case "offer_coupon":
       case "escalate_discount": return "Cupom";
       case "cross_sell":
-      case "personalized_cross_sell": return "Cross-sell";
+      case "personalized_cross_sell": return "Produtos complementares";
       case "address_objection":
-      case "advanced_rule": return "Regra Avançada";
+      case "advanced_rule": return "Regra avançada";
       case "wait_and_retry": return "Aguardar e tentar";
       default: return strategy;
     }
@@ -134,13 +131,8 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
 
   return (
     <div className="page-container">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Inteligência IA</span>
-          <h1>Recuperação de Carrinho</h1>
-          <p className="page-lead">Recuperação automática de carrinhos abandonados por WhatsApp ou e-mail</p>
-        </div>
-      </header>
+      <PageHeader title="Recuperação de carrinho" description="Recuperação automática de carrinhos abandonados por WhatsApp ou e-mail" />
+      <SetupGuide title="Como preparar a recuperação de carrinhos" steps={[{"title":"Revise a elegibilidade","description":"Confira quais carrinhos podem receber uma tentativa e o tempo de espera antes da abordagem."},{"title":"Defina incentivo e canal","description":"Use descontos dentro dos limites da loja. E-mail e WhatsApp dependem da configuração do canal e das autorizações necessárias."},{"title":"Revise a mensagem e salve","description":"Confira o texto, o link de recuperação e o estado de aprovação. Salve as alterações pendentes antes de trocar de estratégia."}]} />
 
       <div className="recovery-page-tabs">
         <TabBar
@@ -238,9 +230,10 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         )}
       </div>
 
+      {saveError && !panelOpen && <p role="alert" className="recovery-config-error">{saveError}</p>}
       {/* Attempts table */}
       <DataPanel
-        title="Tentativas Recentes"
+        title="Tentativas recentes"
         page={page}
         pageSize={PAGE_SIZE}
         total={totalAttempts}
@@ -248,14 +241,14 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
         isEmpty={attempts.length === 0}
         empty={{ icon: ShoppingCart, title: "Nenhuma tentativa registrada", description: "As tentativas aparecerão aqui conforme o sistema tenta recuperar carrinhos abandonados." }}
       >
-        <div style={{ overflowX: "auto" }}>
+        <div className="recovery-attempts-scroll">
           <table style={{ width: "100%", borderCollapse: "collapse" }}>
             <thead>
               <tr>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Sessão</th>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Estratégia</th>
-                <th style={{ textAlign: "left", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Status</th>
-                <th style={{ textAlign: "right", padding: "10px 20px", font: "600 10px var(--font-mono)", letterSpacing: "0.04em", color: "var(--color-text-faint)", textTransform: "uppercase", borderBottom: "1px solid var(--color-border)" }}>Data</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>Sessão</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>Estratégia</th>
+                <th style={{ textAlign: "left", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>Status</th>
+                <th style={{ textAlign: "right", padding: "10px 20px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>Data</th>
               </tr>
             </thead>
             <tbody>
@@ -283,10 +276,11 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       {/* Side Panel — Coupon Selection */}
       <SidePanel
         isOpen={panelOpen === "coupon"}
-        title="Vincular Cupom"
-        onClose={() => setPanelOpen(null)}
+        title="Vincular cupom"
+        onClose={() => { if (savingKey === null) setPanelOpen(null); }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {saveError && <p role="alert" className="recovery-config-error">{saveError}</p>}
           <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
             Selecione o cupom para a estratégia de recuperação. A aplicação depende das regras da loja.
           </div>
@@ -327,12 +321,13 @@ export function CartRecoveryPage(props: CartRecoveryPageProps) {
       {/* Side Panel — Rule Selection */}
       <SidePanel
         isOpen={panelOpen === "rule"}
-        title="Vincular Regra Avançada"
-        onClose={() => setPanelOpen(null)}
+        title="Vincular regra avançada"
+        onClose={() => { if (savingKey === null) setPanelOpen(null); }}
       >
         <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
+          {saveError && <p role="alert" className="recovery-config-error">{saveError}</p>}
           <div style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", lineHeight: 1.6 }}>
-            Selecione a regra que será usada na recuperação. A regra define desconto progressivo, tratamento de objeções ou timing.
+            Selecione a regra que será usada na recuperação. A regra define as condições e o momento de oferecer um incentivo.
           </div>
 
           {rules.length === 0 ? (

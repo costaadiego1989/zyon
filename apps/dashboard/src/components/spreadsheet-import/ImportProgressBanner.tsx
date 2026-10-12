@@ -1,6 +1,7 @@
 import React, { useEffect, useState } from "react";
 import { CheckCircle2, AlertTriangle, Loader2, RefreshCw, ChevronDown, ChevronUp, X } from "lucide-react";
 import { useImportProgress, type BackgroundImportJob } from "./ImportProgressProvider.js";
+import { importErrorMessage } from "./import-feedback.js";
 
 const STALE_AFTER_MS = 10 * 60 * 1000;
 
@@ -83,6 +84,10 @@ function BackgroundImportBannerCard({
   const failCount = completedJob?.failedRows ?? job.failedRows ?? 0;
   const totalCount = completedJob?.totalRows ?? job.totalRows ?? 0;
   const errors = completedJob?.errors ?? failedJob?.errors ?? job.errors ?? [];
+  const erp = completedJob?.erpSummary;
+  const hasErp = erp && Object.values(erp).some(count => count > 0);
+  const showRefresh = (job.status === "processing" && stale) || (job.status === "completed" && hasErp);
+  const showDetails = (job.status === "completed" || job.status === "failed") && errors.length > 0;
 
   const accent =
     job.status === "completed"
@@ -100,7 +105,7 @@ function BackgroundImportBannerCard({
 
   const title =
     job.status === "completed"
-      ? `Importação concluída: ${job.fileName}`
+      ? `Catálogo atualizado: ${job.fileName}`
       : job.status === "failed"
         ? `Falha na importação: ${job.fileName}`
         : stale
@@ -111,7 +116,7 @@ function BackgroundImportBannerCard({
     job.status === "completed"
       ? `${successCount} de ${totalCount} produto${successCount !== 1 ? "s" : ""} importado${successCount !== 1 ? "s" : ""}${failCount > 0 ? ` • ${failCount} com falha` : ""}`
       : job.status === "failed"
-        ? (job.reason ?? "Não foi possível processar a planilha.")
+        ? (job.reason ? importErrorMessage(job.reason) : "Não foi possível processar a planilha.")
         : stale
           ? "A análise está levando mais que o esperado. Você pode continuar usando o painel."
           : "A IA está analisando sua planilha em segundo plano.";
@@ -133,7 +138,7 @@ function BackgroundImportBannerCard({
         boxShadow: "0 8px 24px rgba(0,0,0,0.28)",
       }}
     >
-      <div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+      <div style={{ display: "flex", alignItems: "flex-start", gap: 10 }}>
         <Icon
           size={18}
           style={{
@@ -143,11 +148,33 @@ function BackgroundImportBannerCard({
           }}
         />
         <div style={{ flex: 1, minWidth: 0 }}>
-          <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>{title}</div>
+          <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)", overflowWrap: "anywhere" }}>{title}</div>
           <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>{subtitle}</div>
         </div>
+        <button
+          type="button"
+          onClick={() => onDismiss(job.jobId)}
+          aria-label="Fechar"
+          style={{
+            background: "none",
+            border: "none",
+            cursor: "pointer",
+            color: "var(--color-text-faint)",
+            padding: 8,
+            display: "inline-flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flexShrink: 0,
+            minWidth: 32,
+            minHeight: 32,
+          }}
+        >
+          <X size={14} />
+        </button>
+      </div>
 
-        {job.status === "processing" && stale && (
+      {(showRefresh || showDetails) && <div style={{ display: "flex", flexWrap: "wrap", justifyContent: "flex-end", gap: 8 }}>
+        {showRefresh && (
           <button
             type="button"
             onClick={() => void onRefresh(job.jobId)}
@@ -156,6 +183,7 @@ function BackgroundImportBannerCard({
               alignItems: "center",
               gap: 4,
               padding: "6px 10px",
+              minHeight: 40,
               borderRadius: 6,
               border: "1px solid var(--color-border)",
               background: "var(--surface-1)",
@@ -168,7 +196,7 @@ function BackgroundImportBannerCard({
           </button>
         )}
 
-        {(job.status === "completed" || job.status === "failed") && errors.length > 0 && (
+        {showDetails && (
           <button
             type="button"
             onClick={() => setDetailsOpen((v) => !v)}
@@ -178,6 +206,7 @@ function BackgroundImportBannerCard({
               alignItems: "center",
               gap: 4,
               padding: "6px 10px",
+              minHeight: 40,
               borderRadius: 6,
               border: "1px solid var(--color-border)",
               background: "var(--surface-1)",
@@ -191,23 +220,14 @@ function BackgroundImportBannerCard({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => onDismiss(job.jobId)}
-          aria-label="Fechar"
-          style={{
-            background: "none",
-            border: "none",
-            cursor: "pointer",
-            color: "var(--color-text-faint)",
-            padding: 4,
-            display: "inline-flex",
-            alignItems: "center",
-          }}
-        >
-          <X size={14} />
-        </button>
-      </div>
+      </div>}
+
+      {hasErp && erp ? <div style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>
+        <div>Estoque no ERP: {erp.completed} ajustes confirmados; {erp.queued + erp.running} aguardando confirmação.</div>
+        {erp.blocked > 0 ? <div>{erp.blocked} ajustes bloqueados. Confira o vínculo do SKU, o depósito e a conexão do ERP.</div> : null}
+        {erp.uncertain + erp.failed > 0 ? <div>{erp.uncertain + erp.failed} ajustes precisam de conferência no ERP antes de um novo envio.</div> : null}
+        {erp.superseded > 0 ? <div>{erp.superseded} ajustes foram substituídos por uma importação posterior. Confira o resultado dessa importação.</div> : null}
+      </div> : null}
 
       {job.status === "processing" && !stale && (
         <div style={{ position: "relative", height: 4, borderRadius: 4, background: "var(--surface-1)", overflow: "hidden" }}>
@@ -232,6 +252,7 @@ function BackgroundImportBannerCard({
               key={`${e.row}-${i}`}
               style={{
                 display: "flex",
+                flexWrap: "wrap",
                 gap: 12,
                 padding: "6px 10px",
                 borderBottom: i === errors.length - 1 ? "none" : "1px solid var(--color-border)",
@@ -240,14 +261,14 @@ function BackgroundImportBannerCard({
               }}
             >
               <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-faint)", minWidth: 56 }}>
-                Linha {e.row}
+                {e.row > 0 ? `Linha ${e.row}` : "Arquivo"}
               </span>
               {e.sku && (
-                <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-faint)", minWidth: 80 }}>
+                <span style={{ font: "12px var(--font-mono)", color: "var(--color-text-faint)", minWidth: 80, overflowWrap: "anywhere", maxWidth: "100%" }}>
                   {e.sku}
                 </span>
               )}
-              <span style={{ flex: 1 }}>{e.reason}</span>
+              <span style={{ flex: "1 1 140px", overflowWrap: "anywhere" }}>{importErrorMessage(e.reason)}</span>
             </div>
           ))}
         </div>

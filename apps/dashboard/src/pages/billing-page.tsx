@@ -1,258 +1,62 @@
-import React, { useEffect, useState } from "react";
-import { CreditCard, Receipt, Activity, BarChart3 } from "lucide-react";
-import { EmptyState } from "../components/EmptyState.js";
-import {
-  type BillingSubscription,
-  type MerchantProfile,
-} from "../api-client.js";
-import { useBillingApi } from "../hooks/api/useBillingApi.js";
-import { SectionHeader } from "../components/SectionHeader.js";
+﻿import React, { useEffect, useState } from "react";
+import { Receipt, ExternalLink } from "lucide-react";
+import type { BillingSubscription, MerchantProfile } from "../api-client.js";
+import type { BillingInvoice } from "../api/endpoints/billing.js";
+import { useApi } from "../hooks/useApi.js";
+import { PageHeader } from "../components/PageHeader.js";
 import { Button } from "../components/Button.js";
-import { readError } from "../utils/read-error.js";
+import { DataPanel } from "../components/DataPanel.js";
+import { EmptyState } from "../components/EmptyState.js";
+import { FormSelect } from "../components/FormField.js";
+import "./billing-history.css";
 
-function formatDate(iso: string | null): string {
-  if (!iso) return "—";
-  return new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" }).format(new Date(iso));
-}
+const STATUS: Record<string, string> = { paid: "Paga", pending: "Pendente", open: "Em aberto", overdue: "Em atraso", void: "Cancelada", uncollectible: "Não cobrada", draft: "Rascunho" };
+const SUB_STATUS: Record<string, string> = { active: "Ativa", trialing: "Em teste", past_due: "Em atraso", canceled: "Cancelada", cancelled: "Cancelada", unpaid: "Pagamento pendente", incomplete: "Pendente" };
+function date(value: string) { const d = new Date(value); return Number.isNaN(d.getTime()) ? "Não informada" : d.toLocaleDateString("pt-BR"); }
+function invoiceLink(value?: string) { try { const url = new URL(value ?? ""); return ["https:", "http:"].includes(url.protocol) ? url.href : undefined; } catch { return undefined; } }
 
-const STATUS_LABEL: Record<string, string> = {
-  active: "Ativa",
-  starter: "Starter",
-  trialing: "Em teste",
-  past_due: "Em atraso",
-  canceled: "Cancelada",
-  cancelled: "Cancelada",
-  incomplete: "Pendente",
-  incomplete_expired: "Expirada",
-  unpaid: "Pagamento pendente",
-};
-
-function statusBadgeClass(status: string): string {
-  if (status === "active" || status === "starter" || status === "trialing") return "badge ok";
-  if (status === "past_due" || status === "unpaid") return "badge warn";
-  return "badge bad";
-}
-
-function subscriptionStatusBadge(status: string | undefined) {
-  if (!status) {
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 999, font: "600 11px var(--font-mono)", background: "var(--surface-1)", color: "var(--color-text-muted)", border: "1px solid var(--color-border)" }}>Sem plano</span>
-    );
-  }
-  if (status === "active" || status === "starter" || status === "trialing") {
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: "600 11px var(--font-mono)", background: "var(--color-success-bg)", color: "var(--color-success)", border: "1px solid var(--color-success)" }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-success)", flexShrink: 0 }} />
-        {STATUS_LABEL[status] ?? status}
-      </span>
-    );
-  }
-  if (status === "past_due" || status === "unpaid") {
-    return (
-      <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: "600 11px var(--font-mono)", background: "var(--color-warning-bg)", color: "var(--color-warning)", border: "1px solid var(--color-warning)" }}>
-        <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-warning)", flexShrink: 0 }} />
-        {STATUS_LABEL[status] ?? status}
-      </span>
-    );
-  }
-  return (
-    <span style={{ display: "inline-flex", alignItems: "center", gap: 6, padding: "3px 10px", borderRadius: 999, font: "600 11px var(--font-mono)", background: "var(--color-error-bg)", color: "var(--color-error)", border: "1px solid var(--color-error)" }}>
-      <span style={{ width: 8, height: 8, borderRadius: "50%", background: "var(--color-error)", flexShrink: 0 }} />
-      {STATUS_LABEL[status] ?? status}
-    </span>
-  );
-}
-
-function formatLimit(limit: number | null | undefined): string {
-  return limit === null ? "Ilimitado" : typeof limit === "number" ? new Intl.NumberFormat("pt-BR").format(limit) : "—";
-}
-
-function usagePercent(current: number | null | undefined, limit: number | null | undefined): number {
-  if (!limit || current === null || current === undefined) return 0;
-  return Math.min(100, Math.round((current / limit) * 100));
-}
-
-function UsageBar(props: { label: string; current?: number | null; limit?: number | null }) {
-  const percent = usagePercent(props.current, props.limit);
-  return (
-    <div style={{ background: "var(--surface-1)", border: "1px solid var(--color-border)", borderRadius: 10, padding: "12px 14px", display: "flex", flexDirection: "column", gap: 8 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: 12, alignItems: "baseline" }}>
-        <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>{props.label}</span>
-        <span style={{ font: "600 12px var(--font-mono)", color: "var(--color-text)" }}>{formatLimit(props.current)} / {formatLimit(props.limit)}</span>
-      </div>
-      {props.limit === null ? (
-        <span style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)" }}>Uso ilimitado neste plano</span>
-      ) : (
-        <div aria-hidden="true" style={{ height: 8, borderRadius: 999, background: "var(--color-border)", overflow: "hidden" }}>
-          <div style={{ height: "100%", width: `${percent}%`, borderRadius: 999, background: percent >= 90 ? "var(--color-warning)" : "var(--color-brand)" }} />
-        </div>
-      )}
-    </div>
-  );
-}
-
-
-export function BillingPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
-  const billing = useBillingApi();
+export function BillingPage({ me }: { apiBaseUrl: string; me: MerchantProfile | null }) {
+  const api = useApi();
   const [subscription, setSubscription] = useState<BillingSubscription | null>(null);
-  const [busy, setBusy] = useState(false);
-  const [message, setMessage] = useState<string | null>(null);
-  const [loading, setLoading] = useState(false);
-
+  const [invoices, setInvoices] = useState<BillingInvoice[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [invoiceError, setInvoiceError] = useState(false);
+  const [subscriptionError, setSubscriptionError] = useState(false);
+  const [attempt, setAttempt] = useState(0);
+  const [filter, setFilter] = useState("");
+  const [page, setPage] = useState(1);
   useEffect(() => {
-    if (!props.me) {
-      setSubscription(null);
-      return;
-    }
-    void load();
-  }, [props.me]); // eslint-disable-line react-hooks/exhaustive-deps
-
-  async function load() {
+    if (!me) return;
+    let alive = true;
     setLoading(true);
-    setMessage(null);
-    try {
-      const sub = await billing.getBillingSubscription();
-      setSubscription(sub);
-    } catch (e) {
-      setMessage(readError(e));
-    } finally {
+    setInvoiceError(false);
+    setSubscriptionError(false);
+    setSubscription(null);
+    setInvoices([]);
+    setPage(1);
+    void Promise.allSettled([api.getBillingSubscription(), api.listBillingInvoices()]).then(([sub, bills]) => {
+      if (!alive) return;
+      if (sub.status === "fulfilled") setSubscription(sub.value); else setSubscriptionError(true);
+      if (bills.status === "fulfilled" && Array.isArray(bills.value)) setInvoices(bills.value); else setInvoiceError(true);
       setLoading(false);
-    }
-  }
-
-  async function openPortal() {
-    setBusy(true);
-    setMessage(null);
-    try {
-      const { url } = await billing.createBillingPortalSession({
-        return_url: window.location.href,
-      });
-      window.open(url, "_blank", "noopener,noreferrer");
-    } catch (e) {
-      setMessage(readError(e));
-    } finally {
-      setBusy(false);
-    }
-  }
-
-  if (!props.me) {
-    return (
-      <>
-        <header className="page-head">
-          <div>
-            <span className="eyebrow">Conta</span>
-            <h1>Faturamento</h1>
-            <p className="page-lead">Login necessário para ver assinatura e faturas</p>
-          </div>
-        </header>
-        <div style={{ background: "var(--color-brand-subtle)", border: "1px solid var(--color-brand-ring)", borderRadius: 14, padding: "14px 18px", color: "var(--color-brand)", font: "13px var(--font-sans)" }}>
-          <p style={{ margin: 0 }}>Faça login para acessar informações de faturamento.</p>
-        </div>
-      </>
-    );
-  }
-
-  return (
-    <>
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Conta</span>
-          <h1>Faturamento</h1>
-          <p className="page-lead">Gerencie sua assinatura e acompanhe o uso da plataforma</p>
-        </div>
-      </header>
-
-      <div role="status" aria-live="polite">
-        {message ? (
-          <div style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)", borderRadius: 14, padding: "14px 18px", marginBottom: 20, color: "var(--color-warning)", font: "13px var(--font-sans)" }}>
-            <p style={{ margin: 0 }}>{message}</p>
-          </div>
-        ) : null}
-        {loading ? (
-          <div style={{ background: "var(--color-brand-subtle)", border: "1px solid var(--color-brand-ring)", borderRadius: 14, padding: "14px 18px", marginBottom: 20, color: "var(--color-brand)", font: "13px var(--font-sans)" }}>
-            <p style={{ margin: 0 }}>Carregando...</p>
-          </div>
-        ) : null}
-      </div>
-
-      <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(180px, 1fr))", gap: 16, marginBottom: 20 }}>
-        <article style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-          <BarChart3 size={18} aria-hidden="true" style={{ color: "var(--color-brand)" }} />
-          <span style={{ font: "700 24px var(--font-serif)", color: "var(--color-text)" }}>{subscription?.plan_name ?? subscription?.plan ?? "—"}</span>
-          <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Plano Atual</span>
-        </article>
-        <article style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-          <Activity size={18} aria-hidden="true" style={{ color: "var(--color-brand)" }} />
-          <span style={{ font: "700 24px var(--font-serif)", color: "var(--color-text)" }}>{subscription?.usage?.orders_current ?? "—"}</span>
-          <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Pedidos este mês</span>
-        </article>
-        <article style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: 20, display: "flex", flexDirection: "column", gap: 8 }}>
-          <CreditCard size={18} aria-hidden="true" style={{ color: "var(--color-brand)" }} />
-          <div>{subscriptionStatusBadge(subscription?.status)}</div>
-          <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Status</span>
-        </article>
-      </div>
-
-      {subscription ? (
-        <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }} aria-label="Assinatura atual">
-          <SectionHeader title="Assinatura atual" variant="secondary" />
-          <dl style={{ display: "grid", gridTemplateColumns: "160px 1fr", rowGap: 10, columnGap: 16, margin: 0 }}>
-            <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Plano</dt>
-            <dd style={{ margin: 0, font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>{subscription.plan_name ?? subscription.plan}</dd>
-            <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Fee Zyon</dt>
-            <dd style={{ margin: 0, font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>R$ {subscription.transaction_fee_cents ? ((subscription.transaction_fee_cents / 100).toLocaleString("pt-BR", { minimumFractionDigits: 2 })) : "—"}/venda</dd>
-            <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Status</dt>
-            <dd style={{ margin: 0 }}>{subscriptionStatusBadge(subscription.status)}</dd>
-            <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Renovação</dt>
-            <dd style={{ margin: 0, font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>{formatDate(subscription.current_period_end)}</dd>
-            {subscription.trial_end ? (
-              <>
-                <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Fim do teste</dt>
-                <dd style={{ margin: 0, font: "600 13px var(--font-mono)", color: "var(--color-text)" }}>{formatDate(subscription.trial_end)}</dd>
-              </>
-            ) : null}
-            {subscription.cancel_at_period_end ? (
-              <>
-                <dt style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", color: "var(--color-text-faint)", textTransform: "uppercase" }}>Cancelamento</dt>
-                <dd style={{ margin: 0 }}>
-                  <span style={{ display: "inline-flex", alignItems: "center", padding: "3px 10px", borderRadius: 999, font: "600 11px var(--font-mono)", background: "var(--color-warning-bg)", color: "var(--color-warning)", border: "1px solid var(--color-warning)" }}>Agendado ao fim do período</span>
-                </dd>
-              </>
-            ) : null}
-          </dl>
-          {subscription.usage ? (
-            <div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fit, minmax(220px, 1fr))", gap: 12 }}>
-              <UsageBar label="Pedidos" current={subscription.usage.orders_current} limit={subscription.usage.orders_limit} />
-              <UsageBar label="Conexões commerce" current={subscription.usage.commerce_connections_current} limit={subscription.usage.commerce_connections_limit} />
-              <UsageBar label="Webhooks" current={subscription.usage.webhook_endpoints_current} limit={subscription.usage.webhook_endpoints_limit} />
-              <UsageBar label="Cupons ativos" current={subscription.usage.active_coupons_current} limit={subscription.usage.active_coupons_limit} />
-            </div>
-          ) : null}
-        </section>
-      ) : !loading ? (
-        <div style={{ background: "var(--color-warning-bg)", border: "1px solid var(--color-warning)", borderRadius: 14, padding: "14px 18px", color: "var(--color-warning)", font: "13px var(--font-sans)" }}>
-          Você ainda não tem um plano ativo. Escolha o plano ideal para sua operação.
-        </div>
-      ) : null}
-
-      <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }} aria-label="Histórico de faturas">
-        <SectionHeader title="Histórico de faturas" variant="secondary" />
-        <EmptyState icon={Receipt} title="Nenhuma fatura encontrada" description="O histórico estará disponível em breve." />
-      </section>
-
-      <section style={{ background: "var(--surface-2)", border: "1px solid var(--color-border)", borderRadius: 14, padding: 22, marginBottom: 20, display: "flex", flexDirection: "column", gap: 16 }} aria-label="Método de pagamento">
-        <SectionHeader title="Método de pagamento" variant="secondary" />
-        <EmptyState
-          icon={CreditCard}
-          title="Nenhum método cadastrado"
-          action={
-            <Button variant="outline" size="md" disabled={busy} loading={busy} onClick={() => void openPortal()}>
-              Gerenciar assinatura
-            </Button>
-          }
-        />
-      </section>
-
-    </>
-  );
+    });
+    return () => { alive = false; };
+  }, [api, me?.id, attempt]);
+  const filtered = invoices.filter(invoice => !filter || invoice.status === filter);
+  const provider = subscription?.billing_provider?.toLowerCase();
+  const unsupported = provider && provider !== "stripe" && invoices.length === 0;
+  return <div className="billing-history">
+    <PageHeader title="Histórico de cobranças" description="Consulte as faturas da assinatura. Para trocar de plano ou atualizar o pagamento, acesse Planos e assinatura." actions={<a href="#billing-plans" className="btn btn-outline">Gerenciar plano</a>} />
+    {!me ? <EmptyState icon={Receipt} title="Entre para consultar as cobranças" description="Use a conta responsável pela assinatura da loja." /> : <>
+      {subscription && <div className="billing-history__summary"><div><span className="billing-history__label">Assinatura atual</span><strong>{subscription.plan_name ?? subscription.plan}</strong></div><span className="badge muted">{SUB_STATUS[subscription.status] ?? "Status em consulta"}</span><p>Limites, consumo e alterações de plano ficam em Planos e assinatura.</p></div>}
+      {subscriptionError && <div className="billing-history__notice" role="alert">Não foi possível consultar a assinatura. <Button variant="outline" size="sm" onClick={() => setAttempt(a => a + 1)}>Tentar novamente</Button></div>}
+      {!loading && !invoiceError && !unsupported && invoices.length > 0 && <div className="billing-history__filters"><FormSelect label="Status da fatura" value={filter} onChange={value => { setFilter(value); setPage(1); }} options={[{ value: "", label: "Todos os status" }, ...[...new Set(invoices.map(i => i.status))].map(status => ({ value: status, label: STATUS[status] ?? "Outro status" }))]} /><p>{filtered.length} {filtered.length === 1 ? "fatura disponível" : "faturas disponíveis"} nesta consulta</p></div>}
+      <DataPanel title="Faturas da assinatura" page={!loading && !invoiceError && !unsupported ? page : undefined} pageSize={10} total={filtered.length} onPageChange={setPage}>
+        {loading ? <p className="billing-history__notice" role="status">Consultando cobranças…</p> : invoiceError ? <div className="billing-history__notice" role="alert"><p>Não foi possível carregar as faturas. Tente novamente para consultar o histórico.</p><Button variant="outline" onClick={() => setAttempt(a => a + 1)}>Tentar novamente</Button></div> : unsupported ? <EmptyState icon={Receipt} title="Histórico deste provedor indisponível aqui" description="Esta consulta exibe faturas do Stripe. Consulte a assinatura em Planos e assinatura para gerenciar seu pagamento." /> : filtered.length === 0 ? <EmptyState icon={Receipt} title={filter ? "Nenhuma fatura neste status" : "Nenhuma fatura disponível"} description={filter ? "Escolha outro status para consultar as cobranças retornadas." : "Não há faturas retornadas pelo provedor nesta consulta."} action={filter ? <Button variant="outline" onClick={() => setFilter("")}>Limpar filtro</Button> : undefined} /> : <div className="billing-history__table"><table><caption className="sr-only">Faturas retornadas pelo provedor de cobrança</caption><thead><tr><th>Período</th><th>Emissão</th><th>Valor</th><th>Status</th><th>Documento</th></tr></thead><tbody>{filtered.slice((page - 1) * 10, page * 10).map(invoice => {
+          const url = invoiceLink(invoice.invoice_url);
+          return <tr key={invoice.invoice_id}><td>{date(invoice.period_start)} a {date(invoice.period_end)}</td><td>{date(invoice.created_at)}</td><td className="billing-history__amount">{Number.isFinite(invoice.amount_brl) ? invoice.amount_brl.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }) : "Não informado"}</td><td><span className={`badge ${invoice.status === "paid" ? "ok" : ["overdue", "pending", "open"].includes(invoice.status) ? "warn" : "muted"}`}>{STATUS[invoice.status] ?? "Status indisponível"}</span></td><td>{url ? <a href={url} target="_blank" rel="noopener noreferrer" aria-label={`Abrir fatura de ${date(invoice.created_at)} em nova aba`}>Abrir fatura <ExternalLink size={13} aria-hidden="true" /></a> : <span>Sem documento</span>}</td></tr>;
+        })}</tbody></table></div>}
+      </DataPanel>
+    </>}
+  </div>;
 }

@@ -4,6 +4,7 @@ import { useCatalogApi } from "../../hooks/api/useCatalogApi.js";
 import { usePlanFeatures } from "../../hooks/api/usePlanFeatures.js";
 import type { CsvRow } from "../../components/CsvImportModal.js";
 import { useImportProgress } from "../../components/spreadsheet-import/ImportProgressProvider.js";
+import { catalogErrorReason } from "../../api/http/catalog-error-reason.js";
 
 export type StatusFilter = "all" | "active" | "inactive";
 
@@ -29,6 +30,7 @@ export interface CatalogPageVM {
   loading: boolean;
   error: string | null;
   pageError: string | null;
+  importNotice: string | null;
   deletingId: string | null;
   togglingId: string | null;
   deleteTarget: Product | null;
@@ -71,6 +73,7 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
   const [deletingId, setDeletingId] = useState<string | null>(null);
   const [togglingId, setTogglingId] = useState<string | null>(null);
   const [pageError, setPageError] = useState<string | null>(null);
+  const [importNotice, setImportNotice] = useState<string | null>(null);
   const [showCsvModal, setShowCsvModal] = useState(false);
   const [hoveredRow, setHoveredRow] = useState<string | null>(null);
   const [deleteTarget, setDeleteTarget] = useState<Product | null>(null);
@@ -80,6 +83,8 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
   const [page, setPage] = useState(1);
   const [items, setItems] = useState<Product[]>([]);
   const [total, setTotal] = useState(0);
+  const [totals, setTotals] = useState({ total: 0, inStock: 0, inactive: 0 });
+  const loadGeneration = useRef(0);
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -92,32 +97,36 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
 
   const load = useCallback(async () => {
     if (!merchantId) return;
+    const generation = ++loadGeneration.current;
     setLoading(true);
     setError(null);
     try {
       const result = await catalog.listProducts(merchantId, {
-        query: search || undefined,
+        query: search.trim() || undefined,
+        status: statusFilter,
         categoryId: categoryFilter || undefined,
         limit: PAGE_SIZE,
         offset: (page - 1) * PAGE_SIZE,
       });
+      if (generation !== loadGeneration.current) return;
       setItems(result.products);
       setTotal(result.total);
+      setTotals(result.totals ?? { total: result.total, inStock: 0, inactive: 0 });
     } catch (e) {
-      setError(e instanceof Error ? e.message : String(e));
+      if (generation !== loadGeneration.current) return;
+      setItems([]);
+      setTotal(0);
+      setTotals({ total: 0, inStock: 0, inactive: 0 });
+      setError(e instanceof Error && /429|rate.limit/i.test(e.message) ? "Muitas consultas em pouco tempo. Aguarde alguns instantes e tente novamente." : "Não foi possível carregar os produtos. Tente novamente.");
     } finally {
-      setLoading(false);
+      if (generation === loadGeneration.current) setLoading(false);
     }
-  }, [catalog, merchantId, search, categoryFilter, page]);
+  }, [catalog, merchantId, search, categoryFilter, statusFilter, page]);
 
   useEffect(() => {
     void load();
   }, [load]);
 
-  // Reset page on filter change
-  useEffect(() => {
-    setPage(1);
-  }, [search, categoryFilter, statusFilter]);
 
   // Refresh product list when a tracked import finishes. The provider owns the
   // banner + toasts; we just observe completed transitions.
@@ -132,21 +141,13 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
         }
       }
     }
-    if (mutated) void load();
-  }, [imports, load]);
+    if (mutated) {
+      void load();
+      if (merchantId) void catalog.listCategories(merchantId).then(setCategories).catch(() => {});
+    }
+  }, [imports, load, catalog, merchantId]);
 
-  const filteredItems = useMemo(() => {
-    if (statusFilter === "all") return items;
-    if (statusFilter === "active") return items.filter((p) => p.isActive);
-    return items.filter((p) => !p.isActive);
-  }, [items, statusFilter]);
-
-  const totals = useMemo(() => {
-    const totalCount = total;
-    const inStock = filteredItems.filter((p) => totalStock(p) > 0).length;
-    const inactive = filteredItems.filter((p) => !p.isActive).length;
-    return { total: totalCount, inStock, inactive };
-  }, [filteredItems, total]);
+  const filteredItems = items;
 
   const confirmDelete = useCallback((product: Product) => {
     setDeleteTarget(product);
@@ -189,29 +190,42 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
     if (!merchantId) throw new Error("Merchant ID não disponível");
 
     setPageError(null);
+    const failedSkus: string[] = [];
+    let erpQueued = 0, erpBlocked = 0;
+    setImportNotice(null);
 
     for (const row of rows) {
       try {
-        await catalog.createProduct(merchantId, {
+        const result = await catalog.importProductRow(merchantId, {
           name: row.name,
+          type: row.product_type,
+          metadata: row.metadata,
           description: row.description || undefined,
           categoryId: row.category ? row.category : undefined,
           variants: [{
             sku: row.sku,
             basePriceInCents: Math.round(row.price * 100),
-            stockQuantity: row.stock ?? 0,
+            stockQuantity: row.stock,
             weightGrams: row.weight_grams,
             lengthCm: row.length_cm,
             widthCm: row.width_cm,
             heightCm: row.height_cm,
           }],
         });
-      } catch {
-        // Continue importing remaining rows
+        erpQueued += result.erp?.queued ?? 0;
+        erpBlocked += result.erp?.blocked ?? 0;
+      } catch (error) {
+        failedSkus.push(catalogErrorReason(error) === "stock_managed_by_erp" ? `${row.sku} (saldo controlado pelo ERP)` : row.sku);
       }
     }
 
     await load();
+    await catalog.listCategories(merchantId).then(setCategories);
+    if (erpQueued || erpBlocked) setImportNotice(`${rows.length - failedSkus.length} produtos confirmados no catálogo. ${erpQueued} ajustes de estoque aguardam envio ao ERP.${erpBlocked ? ` ${erpBlocked} ajustes precisam de vínculo entre o SKU e o produto do ERP.` : ""}`);
+    if (failedSkus.length > 0) {
+      const confirmed = rows.length - failedSkus.length;
+      throw new Error(`${confirmed} de ${rows.length} produtos confirmados. Não foi possível confirmar: ${failedSkus.slice(0, 5).join(", ")}${failedSkus.length > 5 ? ` e mais ${failedSkus.length - 5}` : ""}.`);
+    }
   }, [catalog, merchantId, load]);
 
   const onImportStarted = useCallback(
@@ -231,15 +245,16 @@ export function useCatalogPage({ me }: UseCatalogPageArgs): CatalogPageVM {
     loading,
     error,
     pageError,
+    importNotice,
     deletingId,
     togglingId,
     deleteTarget,
     search,
-    setSearch,
+    setSearch: (value) => { setPage(1); setSearch(value); },
     statusFilter,
-    setStatusFilter,
+    setStatusFilter: (value) => { setPage(1); setStatusFilter(value); },
     categoryFilter,
-    setCategoryFilter,
+    setCategoryFilter: (value) => { setPage(1); setCategoryFilter(value); },
     page,
     setPage,
     pageSize: PAGE_SIZE,

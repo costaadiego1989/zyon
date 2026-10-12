@@ -21,6 +21,7 @@ export function useCatalogApi() {
       listProducts: api.listProducts,
       getProduct: api.getProduct,
       createProduct: api.createProduct,
+      importProductRow: api.importProductRow,
       updateProduct: api.updateProduct,
       deleteProduct: api.deleteProduct,
       updateVariant: api.updateVariant,

@@ -1,50 +1,36 @@
-import React, { useState } from "react";
-import { Users, UserPlus, Trash2, Shield, Mail, Crown } from "lucide-react";
+import React, { useEffect, useMemo, useState } from "react";
+import { Users, UserPlus, Trash2, Mail, Crown } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
+import { PageHeader } from "../components/PageHeader.js";
 import { Button } from "../components/Button.js";
 import { StatCard } from "./overview/components/StatCard.js";
-import { SectionHeader } from "../components/SectionHeader.js";
 import { Modal } from "../components/Modal.js";
 import { EmptyState } from "../components/EmptyState.js";
+import { DataPanel } from "../components/DataPanel.js";
+import { FilterToolbar } from "../components/FilterToolbar.js";
 import { FormField, FormSelect } from "../components/FormField.js";
-import { useTeamPage, ROLE_LABELS, type MemberRole } from "./useTeamPage.js";
+import { useTeamPage, ROLE_LABELS, type MemberRole, type TeamMember } from "./useTeamPage.js";
 import { maskPhone } from "../utils/masks.js";
+import "./administration-pages.css";
 
 export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useTeamPage({ me: props.me });
   const [showInviteModal, setShowInviteModal] = useState(false);
-
-  if (!props.me) {
-    return (
-      <header className="page-head">
-        <div>
-          <h1>Equipe</h1>
-          <p className="page-lead">Login necessário para gerenciar a equipe</p>
-        </div>
-      </header>
-    );
-  }
-
-  return (
-    <>
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Conta</span>
-          <h1>Equipe</h1>
-          <p className="page-lead">Gerencie os membros e agentes da sua loja</p>
-        </div>
-        <div className="button-row" style={{ marginLeft: "auto", display: "flex", gap: 8 }}>
-          <Button variant="primary" size="sm" arrow onClick={() => setShowInviteModal(true)}>
-            <UserPlus size={14} /> Novo membro
-          </Button>
-        </div>
-      </header>
-
-      {vm.message ? (
-        <p className={`panel ${vm.message.kind === "ok" ? "panel-ok" : "panel-warn"}`}>{vm.message.text}</p>
-      ) : null}
-      {vm.error ? <p className="panel panel-warn">{vm.error}</p> : null}
-
+  const [confirmDiscard, setConfirmDiscard] = useState(false);
+  const [removal, setRemoval] = useState<TeamMember | null>(null);
+  const [search, setSearch] = useState("");
+  const [role, setRole] = useState("all");
+  const [page, setPage] = useState(1);
+  const filtered = useMemo(() => vm.members.filter(m => (role === "all" || m.role === role) && m.email.toLowerCase().includes(search.trim().toLowerCase())), [vm.members, role, search]);
+  useEffect(() => setPage(1), [search, role]);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / 10)));
+  const busy = vm.inviting || !!vm.removingId || !!vm.updatingId;
+  const closeInvite = () => { if (vm.inviting) return; if (vm.inviteName || vm.inviteEmail || vm.invitePhone) setConfirmDiscard(true); else setShowInviteModal(false); };
+  const openInvite = () => { vm.setInviteError(null); setConfirmDiscard(false); setShowInviteModal(true); };
+  if (!props.me) return <PageHeader title="Equipe" description="Entre na sua conta para gerenciar a equipe." />;
+  return <div className="administration-page">
+    <PageHeader title="Equipe" description="Gerencie os membros da equipe e o acesso de cada pessoa à loja." actions={<Button onClick={openInvite} disabled={vm.loading || !!vm.error || busy}><UserPlus size={16} /> Convidar membro</Button>} />
+    {vm.message && !removal && <p className={`admin-feedback admin-feedback--${vm.message.kind}`} role={vm.message.kind === "error" ? "alert" : "status"}>{vm.message.text}</p>}
       {/* KPIs */}
       {!vm.loading && vm.members.length > 0 ? (
         <div className="grid-3" style={{ gap: 14, marginBottom: 20 }}>
@@ -67,150 +53,33 @@ export function TeamPage(props: { apiBaseUrl: string; me: MerchantProfile | null
         </div>
       ) : null}
 
-      {/* Members list */}
-      <section className="panel stacked">
-        <SectionHeader title="Membros ativos" variant="secondary" />
 
-        {vm.loading ? (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr><th>Email</th><th>Função</th><th>Desde</th><th></th></tr>
-              </thead>
-              <tbody>
-                {Array.from({ length: 3 }).map((_, i) => (
-                  <tr key={i} className="skeleton-row">
-                    <td><div className="skeleton-cell" style={{ width: 180 }} /></td>
-                    <td><div className="skeleton-cell" style={{ width: 80 }} /></td>
-                    <td><div className="skeleton-cell" style={{ width: 80 }} /></td>
-                    <td><div className="skeleton-cell" style={{ width: 30 }} /></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : vm.members.length > 0 ? (
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr><th>Email</th><th>Função</th><th>Desde</th><th></th></tr>
-              </thead>
-              <tbody>
-                {vm.members.map((m) => (
-                  <tr key={m.id}>
-                    <td><code>{m.email}</code></td>
-                    <td>
-                      {m.role === "OWNER" ? (
-                        <span className="badge ok">{ROLE_LABELS[m.role]}</span>
-                      ) : (
-                        <select
-                          value={m.role}
-                          onChange={(e) => void vm.updateRole(m.userId, e.target.value as MemberRole)}
-                          style={{ fontSize: 12, padding: "2px 8px" }}
-                        >
-                          <option value="ADMIN">Administrador</option>
-                          <option value="STAFF">Agente</option>
-                        </select>
-                      )}
-                    </td>
-                    <td style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                      {new Date(m.joinedAt).toLocaleDateString("pt-BR")}
-                    </td>
-                    <td>
-                      {m.role !== "OWNER" ? (
-                        <button
-                          type="button"
-                          onClick={() => void vm.removeMember(m.userId)}
-                          disabled={vm.removingId === m.userId}
-                          aria-label={`Remover ${m.email}`}
-                          style={{ background: "none", border: "none", cursor: "pointer", color: "var(--color-danger, #ef4444)", padding: 4, opacity: vm.removingId === m.userId ? 0.5 : 1 }}
-                        >
-                          <Trash2 size={14} />
-                        </button>
-                      ) : null}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        ) : (
-          <EmptyState
-            icon={Users}
-            title="Nenhum membro cadastrado"
-            description="Convide agentes e administradores para gerenciar sua loja."
-            action={<Button variant="primary" size="sm" arrow onClick={() => setShowInviteModal(true)}><UserPlus size={14} /> Convidar membro</Button>}
-          />
-        )}
-      </section>
-
-      {/* Pending invites */}
-      {vm.invites.length > 0 ? (
-        <section className="panel stacked" style={{ marginTop: 16 }}>
-          <SectionHeader title="Convites pendentes" variant="secondary" />
-          <div className="table-wrap">
-            <table className="data-table">
-              <thead>
-                <tr><th>Email</th><th>Função</th><th>Status</th><th>Expira</th></tr>
-              </thead>
-              <tbody>
-                {vm.invites.map((inv) => (
-                  <tr key={inv.id}>
-                    <td><code>{inv.email}</code></td>
-                    <td><span className="badge muted">{ROLE_LABELS[inv.role]}</span></td>
-                    <td>
-                      <span className={`badge ${inv.status === "PENDING" ? "warn" : inv.status === "ACCEPTED" ? "ok" : "muted"}`}>
-                        {inv.status === "PENDING" ? "Pendente" : inv.status === "ACCEPTED" ? "Aceito" : "Expirado"}
-                      </span>
-                    </td>
-                    <td style={{ fontSize: 12, color: "var(--color-muted)" }}>
-                      {new Date(inv.expiresAt).toLocaleDateString("pt-BR")}
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        </section>
-      ) : null}
-
-      {/* Invite Modal */}
-      <Modal
-        isOpen={showInviteModal}
-        title="Novo membro"
-        eyebrow="EQUIPE"
-        onClose={() => setShowInviteModal(false)}
-        footer={
-          <Button
-            variant="primary"
-            size="sm"
-            arrow
-            disabled={!vm.inviteEmail.trim() || !vm.inviteName.trim() || vm.inviting}
-            onClick={async () => {
-              await vm.invite();
-              if (!vm.inviting) setShowInviteModal(false);
-            }}
-          >
-            <UserPlus size={14} /> {vm.inviting ? "Enviando..." : "Convidar"}
-          </Button>
-        }
-      >
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <FormField label="Nome completo" placeholder="Maria Silva" value={vm.inviteName} onChange={vm.setInviteName} />
-          <FormField label="Email" type="email" placeholder="agente@sualoja.com" value={vm.inviteEmail} onChange={vm.setInviteEmail} />
-          <FormField label="WhatsApp" type="tel" placeholder="(11) 99999-9999" value={maskPhone(vm.invitePhone)} onChange={(v) => vm.setInvitePhone(maskPhone(v))} maxLength={15} />
-          <FormSelect
-            label="Função"
-            value={vm.inviteRole}
-            onChange={(v) => vm.setInviteRole(v as MemberRole)}
-            options={[
-              { value: "STAFF", label: "Agente de suporte" },
-              { value: "ADMIN", label: "Administrador" },
-            ]}
-            hint={vm.inviteRole === "STAFF" ? "Agentes podem atender chats e gerenciar tickets." : "Administradores têm acesso completo ao painel."}
-          />
-        </div>
-      </Modal>
-    </>
-  );
+    {vm.loading ? <section className="panel admin-skeleton" aria-label="Carregando equipe" aria-busy="true">{[1,2,3].map(n => <div className="skeleton-cell" key={n} />)}</section> : vm.error ? <section className="panel"><EmptyState icon={Users} title="Equipe indisponível" description="Não foi possível consultar os membros e convites. Tente novamente para ver os acessos atuais." action={<Button variant="outline" onClick={() => void vm.load()}>Tentar novamente</Button>} /></section> : <>
+      <FilterToolbar tabs={[{ key: "all", label: "Todos" }, { key: "OWNER", label: "Proprietários" }, { key: "ADMIN", label: "Administradores" }, { key: "STAFF", label: "Agentes" }]} activeTab={role} onTabChange={setRole} search={search} onSearchChange={setSearch} searchPlaceholder="Buscar por e-mail" />
+      <DataPanel title="Membros ativos" page={currentPage} pageSize={10} total={filtered.length} onPageChange={setPage} isEmpty={!filtered.length} empty={{ icon: Users, title: vm.members.length ? "Nenhum membro com estes filtros" : "Sua equipe começa aqui", description: vm.members.length ? "Busque outro e-mail ou remova o filtro de função." : "Convide as pessoas que vão atender clientes e administrar sua loja.", action: vm.members.length ? <Button variant="outline" onClick={() => { setSearch(""); setRole("all"); }}>Limpar filtros</Button> : <Button onClick={openInvite}>Convidar membro</Button> }}>
+        <div className="table-wrap"><table className="data-table"><thead><tr><th>E-mail</th><th>Função</th><th>Na equipe desde</th><th><span className="sr-only">Ações</span></th></tr></thead><tbody>
+          {filtered.slice((currentPage - 1) * 10, currentPage * 10).map(m => <tr key={m.id}>
+            <td className="admin-email">{m.email}</td><td>{m.role === "OWNER" ? <span className="badge ok">{ROLE_LABELS[m.role]}</span> : <select className="admin-role-select" aria-label={`Função de ${m.email}`} value={m.role} disabled={busy} onChange={e => void vm.updateRole(m.userId, e.target.value as MemberRole)}><option value="ADMIN">Administrador</option><option value="STAFF">Agente</option></select>}</td>
+            <td className="admin-muted">{new Date(m.joinedAt).toLocaleDateString("pt-BR")}</td><td>{m.role !== "OWNER" && <Button className="admin-icon-action" variant="ghost" disabled={busy} aria-label={`Remover ${m.email}`} onClick={() => { vm.setMessage(null); setRemoval(m); }}><Trash2 size={16} /></Button>}</td>
+          </tr>)}
+        </tbody></table></div>
+      </DataPanel>
+      <p className="admin-help" style={{ marginTop: 16 }}>As mudanças de função são salvas ao selecionar uma opção. O acesso do proprietário não pode ser alterado nesta lista.</p>
+      {vm.invites.length > 0 && <DataPanel title="Convites" trailing={<span className="admin-muted">O acesso começa após o aceite</span>}><div className="table-wrap"><table className="data-table"><thead><tr><th>E-mail</th><th>Função</th><th>Situação</th><th>Expira em</th></tr></thead><tbody>{vm.invites.map(inv => <tr key={inv.id}><td className="admin-email">{inv.email}</td><td>{ROLE_LABELS[inv.role]}</td><td><span className={`badge ${inv.status === "PENDING" ? "warn" : inv.status === "ACCEPTED" ? "ok" : "muted"}`}>{inv.status === "PENDING" ? "Aguardando aceite" : inv.status === "ACCEPTED" ? "Aceito" : "Expirado"}</span></td><td>{new Date(inv.expiresAt).toLocaleDateString("pt-BR")}</td></tr>)}</tbody></table></div></DataPanel>}
+    </>}
+    <Modal isOpen={showInviteModal} title="Convidar membro" subtitle="Informe os dados da pessoa e escolha a função que ela terá na loja." presentation="center" size="lg" onClose={closeInvite} footer={<div className="admin-modal-footer">{confirmDiscard ? <><p>Há um convite que ainda não foi enviado.</p><Button variant="outline" onClick={e => { e.preventDefault(); setConfirmDiscard(false); }}>Continuar editando</Button><Button variant="ghost" onClick={() => { vm.setInviteName(""); vm.setInviteEmail(""); vm.setInvitePhone(""); setShowInviteModal(false); setConfirmDiscard(false); }}>Descartar e fechar</Button></> : <><Button variant="ghost" disabled={vm.inviting} onClick={closeInvite}>Cancelar</Button><Button type="submit" form="team-invite" loading={vm.inviting} disabled={!vm.inviteName.trim() || !vm.inviteEmail.trim()}>Enviar convite</Button></>}</div>}>
+      <form id="team-invite" className="configuration-form administration-page" onSubmit={async e => { e.preventDefault(); if (await vm.invite()) setShowInviteModal(false); }}>
+        <fieldset className="admin-fields" disabled={vm.inviting}>
+          <FormField label="Nome completo" value={vm.inviteName} onChange={vm.setInviteName} placeholder="Maria Silva" inputProps={{ required: true, autoComplete: "name" }} />
+          <FormField label="E-mail" type="email" value={vm.inviteEmail} onChange={vm.setInviteEmail} placeholder="pessoa@sualoja.com" inputProps={{ required: true, autoComplete: "email" }} />
+          <FormField label="WhatsApp (opcional)" type="tel" value={maskPhone(vm.invitePhone)} onChange={v => vm.setInvitePhone(maskPhone(v))} placeholder="(11) 99999-9999" maxLength={15} />
+          <FormSelect label="Função" value={vm.inviteRole} onChange={v => vm.setInviteRole(v as MemberRole)} options={[{ value: "STAFF", label: "Agente de suporte" }, { value: "ADMIN", label: "Administrador" }]} hint={vm.inviteRole === "STAFF" ? "Atende conversas e gerencia chamados de suporte." : "Gerencia a operação e as configurações do painel, conforme as permissões da conta."} />
+        </fieldset>
+        {vm.inviteError && <p role="alert" className="admin-feedback admin-feedback--error">{vm.inviteError}</p>}
+      </form>
+    </Modal>
+    <Modal isOpen={!!removal} title="Remover acesso à loja?" subtitle={removal?.email} presentation="center" size="md" onClose={() => { if (!vm.removingId) setRemoval(null); }} footer={<><Button variant="outline" disabled={!!vm.removingId} onClick={() => setRemoval(null)}>Manter acesso</Button><Button variant="danger" loading={!!vm.removingId} onClick={async () => { if (removal && await vm.removeMember(removal.userId)) setRemoval(null); }}>Remover acesso</Button></>}>
+      <div className="administration-page"><p className="admin-help">Esta pessoa deixará de acessar a loja com sua função atual. Para voltar à equipe, ela precisará de um novo convite.</p>{vm.message?.kind === "error" && <p role="alert" className="admin-feedback admin-feedback--error">{vm.message.text}</p>}</div>
+    </Modal>
+  </div>;
 }

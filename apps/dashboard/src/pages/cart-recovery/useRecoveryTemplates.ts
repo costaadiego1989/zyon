@@ -66,7 +66,7 @@ export function useRecoveryTemplates(apiBaseUrl: string) {
       setEditor({ saved, draft: templateDraft(saved), conflict: false });
       setNotice(saved.whatsappConnected
         ? "Mensagens salvas. Acompanhe o estado da análise do WhatsApp acima."
-        : "Mensagens salvas. O e-mail já pode ser usado. A análise do WhatsApp começa após conectar a conta da loja.");
+        : "Mensagens salvas. O e-mail depende de contato autorizado e serviço de envio configurado. A análise do WhatsApp começa após conectar a conta da loja.");
     } catch (cause) {
       if (current !== generation.current) return;
       if (cause instanceof DashboardHttpError && cause.status === 409 && cause.responseBody.includes("template_submission_in_progress")) {

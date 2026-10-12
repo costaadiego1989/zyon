@@ -1,66 +1,25 @@
-import React from "react";
+﻿import React from "react";
 import { Truck, CheckCircle2 } from "lucide-react";
 import { Button } from "../../../components/Button.js";
+import type { useStepShipping } from "../hooks/useStepShipping.js";
 
-interface StepShippingProps {
-  apiBaseUrl: string;
-  connected: boolean;
-  loading: boolean;
-  onConnect: () => void;
-  onSkip: () => void;
-}
-
-/**
- * Onboarding step 3 — connect Melhor Envio via OAuth so the store can quote
- * freight, buy labels and track deliveries. Optional: the merchant can skip and
- * configure it later. Matches the wizard's .onb-field card language.
- */
-export function StepShipping({ connected, loading, onConnect, onSkip }: StepShippingProps) {
-  return (
-    <div className="onb-fields">
-      <p className="onb-help">
-        Conecte sua conta do Melhor Envio para cotar fretes, gerar etiquetas e
-        rastrear entregas automaticamente. Você pode pular e configurar depois.
-      </p>
-
-      <div className="onb-field" style={{ padding: "var(--space-4)", background: "var(--color-surface)", border: "1px solid var(--color-border)", borderRadius: "var(--radius-md)" }}>
-        <div style={{ display: "flex", alignItems: "center", gap: "var(--space-3)" }}>
-          <div style={{ width: 44, height: 44, borderRadius: "var(--radius-md)", background: "color-mix(in srgb, var(--color-brand) 12%, transparent)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
-            <Truck size={20} color="var(--color-brand)" />
-          </div>
-          <div style={{ flex: 1, minWidth: 0 }}>
-            <strong style={{ fontSize: "14px", color: "var(--color-text)", display: "block" }}>Melhor Envio</strong>
-            <span style={{ fontSize: "12px", color: "var(--color-text-muted)" }}>
-              Cotação, etiquetas e rastreio — Correios, Jadlog, Azul Cargo, Latam Cargo
-            </span>
-          </div>
-          {connected ? (
-            <span style={{ display: "inline-flex", alignItems: "center", gap: 6, fontSize: "12px", fontWeight: 600, color: "var(--color-success)" }}>
-              <CheckCircle2 size={14} /> Conectado
-            </span>
-          ) : (
-            <Button variant="outline" size="sm" disabled={loading} onClick={onConnect}>
-              {loading ? "Conectando..." : "Conectar conta"}
-            </Button>
-          )}
-        </div>
-      </div>
-
-      <p style={{ fontSize: "12px", color: "var(--color-text-muted)", padding: "var(--space-3)", background: "var(--color-surface-raised)", borderRadius: "var(--radius-sm)", border: "1px dashed var(--color-border)", margin: 0, lineHeight: 1.6 }}>
-        <strong style={{ color: "var(--color-text)" }}>Como funciona:</strong> ao conectar, você autoriza a
-        Zyon a cotar e comprar fretes usando <strong>sua conta</strong> no Melhor Envio. As etiquetas são
-        cobradas na sua carteira do Melhor Envio — não na Zyon.
-      </p>
-
-      {!connected && (
-        <button
-          type="button"
-          onClick={onSkip}
-          style={{ alignSelf: "flex-start", padding: 0, background: "none", border: "none", color: "var(--color-text-muted)", fontSize: "12px", cursor: "pointer", textDecoration: "underline" }}
-        >
-          Pular por agora — configurar depois
-        </button>
-      )}
+export function StepShipping({ shipping }: { shipping: ReturnType<typeof useStepShipping> }) {
+  const ownDelivery = shipping.config?.ownDelivery.enabled;
+  return <div className="onb-fields">
+    <p className="onb-help">O frete é obrigatório. Conecte o Melhor Envio ou ative a entrega própria em Frete e entregas. Depois, volte a esta etapa para continuar.</p>
+    <ol className="onb-review-list">
+      <li>Escolha como a loja vai entregar os pedidos.</li>
+      <li>Configure a modalidade e confira o endereço de origem, as tarifas e os prazos.</li>
+      <li>Com a modalidade ativa, continue para os pagamentos.</li>
+    </ol>
+    <div className="onb-shipping-provider">
+      <Truck size={22} aria-hidden="true" />
+      <div><h3>{shipping.ready && ownDelivery ? "Entrega própria ativa" : "Melhor Envio"}</h3><p>{ownDelivery ? "Revise valores, prazos e regiões atendidas em Frete e entregas." : "Cotação, etiquetas e rastreio com as transportadoras disponíveis na sua conta."}</p></div>
+      {shipping.ready ? <span className="onb-shipping-status" role="status"><CheckCircle2 size={16} aria-hidden="true" /> Modalidade ativa</span> : <Button variant="outline" size="sm" disabled={shipping.loading || shipping.connecting} onClick={() => void shipping.connect()}>{shipping.connecting ? "Conectando…" : "Conectar Melhor Envio"}</Button>}
     </div>
-  );
+    <div className="onb-shipping-actions"><a href="#delivery" className="btn btn-outline">Configurar frete e entregas</a><Button variant="ghost" disabled={shipping.loading || shipping.connecting} onClick={shipping.refresh}>{shipping.loading ? "Consultando…" : "Atualizar configuração"}</Button></div>
+    {shipping.error && <p className="onb-message" role="alert">{shipping.error}</p>}
+    {!shipping.loading && !shipping.ready && !shipping.error && <p className="onb-help" role="status">Ative uma modalidade de entrega para liberar a próxima etapa. Uma conexão expirada precisa ser renovada.</p>}
+    <p className="onb-help">As etiquetas do Melhor Envio são cobradas na sua carteira do provedor. Na entrega própria, a loja define os valores e realiza os envios.</p>
+  </div>;
 }

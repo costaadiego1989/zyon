@@ -1,0 +1,178 @@
+﻿.revenue-manager-guide {
+  font: 14px/1.6 var(--font-sans);
+  padding: 16px 0;
+  border-bottom: 1px solid var(--color-border);
+}
+.revenue-manager-guide summary {
+  cursor: pointer;
+  font-weight: 600;
+}
+.revenue-manager-guide p,
+.revenue-manager-guide ol {
+  color: var(--color-text-muted);
+  max-width: 75ch;
+  margin-bottom: 0;
+}
+.revenue-manager-guide li + li {
+  margin-top: 8px;
+}
+.revenue-manager-error {
+  padding: 16px 20px;
+  background: var(--color-error-bg);
+  color: var(--color-error);
+  border-radius: var(--radius-sm);
+  font: 14px/1.6 var(--font-sans);
+}
+.revenue-manager-error p {
+  margin: 0 0 12px;
+}
+.revenue-manager-proposals {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+.revenue-manager-proposal {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) 132px 180px;
+  gap: 28px;
+  align-items: center;
+  padding: 24px;
+}
+.revenue-manager-proposal + .revenue-manager-proposal {
+  border-top: 1px solid var(--color-border);
+}
+.revenue-manager-proposal-content {
+  min-width: 0;
+}
+.revenue-manager-proposal-content h3 {
+  margin: 0;
+  font: 600 16px/1.5 var(--font-sans);
+  color: var(--color-text);
+  letter-spacing: normal;
+  text-transform: none;
+  overflow-wrap: anywhere;
+}
+.revenue-manager-proposal-context {
+  display: -webkit-box;
+  -webkit-box-orient: vertical;
+  -webkit-line-clamp: 2;
+  overflow: hidden;
+  margin: 8px 0 0;
+  max-width: 70ch;
+  font: 14px/1.6 var(--font-sans);
+  color: var(--color-text-muted);
+}
+.revenue-manager-proposal-meta {
+  display: flex;
+  align-items: center;
+  flex-wrap: wrap;
+  gap: 8px 16px;
+  margin-top: 14px;
+  font: 13px/1.5 var(--font-sans);
+  color: var(--color-text-muted);
+}
+.revenue-manager-proposal-risk {
+  display: inline-flex;
+  align-items: center;
+  gap: 7px;
+}
+.revenue-manager-proposal-risk::before {
+  content: "";
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background: currentColor;
+  flex-shrink: 0;
+}
+.revenue-manager-proposal-risk--medium {
+  color: var(--color-warning);
+}
+.revenue-manager-proposal-risk--high {
+  color: var(--color-error);
+}
+.revenue-manager-proposal-impact {
+  display: grid;
+  gap: 4px;
+}
+.revenue-manager-proposal-impact > span,
+.revenue-manager-proposal-impact > small {
+  font: 13px/1.5 var(--font-sans);
+  color: var(--color-text-muted);
+}
+.revenue-manager-proposal-impact > strong {
+  font: 600 22px/1.4 var(--font-data);
+  color: var(--color-text);
+  font-variant-numeric: tabular-nums;
+}
+.revenue-manager-proposal-impact > .is-negative {
+  color: var(--color-error);
+}
+.revenue-manager-proposal-actions {
+  display: flex;
+  flex-direction: column;
+  align-items: flex-end;
+  gap: 16px;
+  min-width: 0;
+}
+.revenue-manager-proposal-status {
+  display: inline-flex;
+  align-items: center;
+  border-radius: var(--radius-full);
+  padding: 4px 10px;
+  font: 500 13px/1.5 var(--font-sans);
+}
+.revenue-manager-proposal-actions button {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  min-height: 44px;
+  font: 500 14px/1.5 var(--font-sans);
+  padding: 10px 14px;
+}
+.revenue-manager-page [role="switch"]:focus-visible {
+  outline: 2px solid var(--color-brand) !important;
+  outline-offset: 4px;
+}
+.revenue-manager-page .filter-toolbar input,
+.revenue-manager-page .filter-toolbar select {
+  min-height: 44px;
+  height: 44px;
+}
+@media (max-width: 1000px) {
+  .revenue-manager-proposal {
+    grid-template-columns: minmax(0, 1fr) auto;
+    gap: 20px;
+  }
+  .revenue-manager-proposal-content {
+    grid-column: 1 / -1;
+  }
+}
+@media (max-width: 540px) {
+  .revenue-manager-proposal {
+    grid-template-columns: minmax(0, 1fr);
+    padding: 20px 16px;
+    gap: 20px;
+  }
+  .revenue-manager-proposal-impact {
+    grid-template-columns: minmax(0, 1fr) auto;
+    align-items: center;
+    gap: 0 16px;
+  }
+  .revenue-manager-proposal-impact > strong {
+    grid-column: 2;
+    grid-row: 1 / 3;
+  }
+  .revenue-manager-proposal-actions {
+    flex-direction: row;
+    flex-wrap: wrap;
+    align-items: center;
+    justify-content: space-between;
+    gap: 12px;
+    padding-top: 16px;
+    border-top: 1px solid var(--color-border);
+  }
+  .revenue-manager-proposal-actions button {
+    flex-grow: 1;
+  }
+}

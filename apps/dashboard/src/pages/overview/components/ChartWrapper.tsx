@@ -20,7 +20,7 @@ export function ChartWrapper({ options, data, className, style }: ChartWrapperPr
 
     const rect = container.getBoundingClientRect();
     const plot = new uPlot(
-      { ...options, width: rect.width, height: rect.height },
+      { ...options, width: Math.max(1, Math.floor(rect.width)), height: Math.max(1, Math.floor(rect.height)) },
       data,
       container,
     );
@@ -29,7 +29,7 @@ export function ChartWrapper({ options, data, className, style }: ChartWrapperPr
     const observer = new ResizeObserver((entries) => {
       for (const entry of entries) {
         const { width, height } = entry.contentRect;
-        plot.setSize({ width, height });
+        if (width > 0 && height > 0) plot.setSize({ width: Math.floor(width), height: Math.floor(height) });
       }
     });
     observer.observe(container);
@@ -43,5 +43,5 @@ export function ChartWrapper({ options, data, className, style }: ChartWrapperPr
     };
   }, [options, data]);
 
-  return <div ref={containerRef} className={className} style={style} />;
+  return <div ref={containerRef} className={className} style={{ minWidth: 0, maxWidth: "100%", overflow: "hidden", ...style }} />;
 }

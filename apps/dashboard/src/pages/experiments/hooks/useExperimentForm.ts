@@ -6,8 +6,8 @@ const DEFAULT_FORM: ExperimentForm = {
   name: "",
   description: "",
   variants: [
-    { name: "Control", description: "" },
-    { name: "Variant A", description: "" },
+    { name: "Referência", description: "" },
+    { name: "Nova abordagem 1", description: "" },
   ],
   sample_size: 100,
 };
@@ -35,9 +35,10 @@ export function useExperimentForm() {
   }
 
   function addVariant() {
+    if (form.variants.length >= 10) return;
     setForm((prev) => ({
       ...prev,
-      variants: [...prev.variants, { name: `Variant ${String.fromCharCode(65 + prev.variants.length)}` }],
+      variants: [...prev.variants, { name: `Nova abordagem ${prev.variants.length}` }],
     }));
   }
 

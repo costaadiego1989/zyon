@@ -9,12 +9,7 @@ describe("dashboardFetch", () => {
     vi.stubGlobal(
       "fetch",
       vi.fn(async (): Promise<Response> => {
-        return {
-          ok: true,
-          status: 200,
-          text: async () => "{}",
-          json: async () => ({})
-        } as Response;
+        return Response.json({});
       })
     );
   });
@@ -23,12 +18,12 @@ describe("dashboardFetch", () => {
     vi.unstubAllGlobals();
   });
 
-  it("usar sempre credentials include", async () => {
+  it("usar sempre credentials include e sem cache", async () => {
     const spy = vi.mocked(fetch);
     await dashboardFetch("http://localhost:3001/", "/merchants/me", { method: "GET" });
     expect(spy).toHaveBeenCalledWith(
       "http://localhost:3001/v1/merchants/me",
-      expect.objectContaining({ credentials: "include" })
+      expect.objectContaining({ credentials: "include", cache: "no-store" })
     );
   });
 
@@ -67,6 +62,7 @@ describe("dashboardJson", () => {
       "fetch",
       vi.fn(async (): Promise<Response> => {
         return {
+          headers: new Headers(),
           ok: false,
           status: 401,
           text: async () => '{"err":true}',
@@ -146,12 +142,9 @@ describe("createDashboardApi", () => {
   it("register and logout call merchant auth routes with cookies", async () => {
     const spy = vi.fn(
       async (url: RequestInfo | URL): Promise<Response> =>
-        ({
-          ok: true,
-          status: String(url).endsWith("/auth/logout") ? 204 : 200,
-          text: async () =>
+        new Response(
             String(url).endsWith("/auth/logout")
-              ? ""
+              ? null
               : JSON.stringify({
                   merchant_id: "mrc_1",
                   user_id: "usr_1",
@@ -159,8 +152,9 @@ describe("createDashboardApi", () => {
                   access_token: "jwt",
                   token_type: "Bearer",
                   expires_in: 3600
-                })
-        }) as Response
+                }),
+          { status: String(url).endsWith("/auth/logout") ? 204 : 200 }
+        )
     );
     const api = createDashboardApi({
       baseUrl: "http://localhost:9999/",

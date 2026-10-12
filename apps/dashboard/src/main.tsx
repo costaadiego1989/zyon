@@ -13,11 +13,21 @@ import { friendlyAuthError } from "./auth/auth-error.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
 import { LoadingSplash } from "./components/LoadingSplash.js";
 import { PlanSelection } from "./pages/onboarding-wizard/steps/PlanSelection.js";
+import { MarketplacePaymentsPage } from "./pages/marketplace/MarketplacePaymentsPage.js";
+import { MarketplaceShipmentsPage } from "./pages/marketplace/MarketplaceShipmentsPage.js";
+import { MarketplaceRefundsPage } from "./pages/marketplace/MarketplaceRefundsPage.js";
+import { MarketplaceAsaasWalletReturnsPage } from "./pages/marketplace/MarketplaceAsaasWalletReturnsPage.js";
+import { MarketplaceContributionsPage } from "./pages/marketplace/MarketplaceContributionsPage.js";
+import { MarketplaceSellerFeesPage } from "./pages/marketplace/MarketplaceSellerFeesPage.js";
+import { Button } from "./components/Button.js";
 import type { TabKey } from "./shell/nav-config.js";
 import { ApiContext, useApiInstance } from "./hooks/useApi.js";
 import { reportError } from "./lib/observability/error-reporter.js";
 import { readSubscriptionIntent, clearSubscriptionIntent } from "./auth/subscription-intent.js";
+import { installDeploymentRecovery } from "./lib/deployment-recovery.js";
 import "./styles.css";
+
+installDeploymentRecovery();
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
@@ -58,8 +68,24 @@ function App({ api }: AppProps) {
   const [initialTab, setInitialTab] = useState<TabKey | undefined>(undefined);
   const [onboardingCompleted, setOnboardingCompleted] = useState(true);
   const [planSelectionPending, setPlanSelectionPending] = useState(false);
+  const [subscriptionRequired, setSubscriptionRequired] = useState(false);
+  const [remediationOpen, setRemediationOpen] = useState(() => window.location.hash === "#marketplace-payments");
+  const [shipmentRemediationOpen, setShipmentRemediationOpen] = useState(() => window.location.hash === "#marketplace-shipments");
+  const [refundRemediationOpen, setRefundRemediationOpen] = useState(() => window.location.hash === "#marketplace-refunds");
+  const [walletReturnRemediationOpen, setWalletReturnRemediationOpen] = useState(() => window.location.hash === "#marketplace-asaas-wallet-returns");
+  const [contributionRemediationOpen, setContributionRemediationOpen] = useState(() => window.location.hash === "#marketplace-contributions");
+  const [sellerFeeRemediationOpen, setSellerFeeRemediationOpen] = useState(() => window.location.hash === "#marketplace-fees");
+  const [hostFeeRemediationOpen, setHostFeeRemediationOpen] = useState(() => window.location.hash === "#marketplace-host-fees");
   const [subscriptionIntent, setSubscriptionIntent] = useState(readSubscriptionIntent);
   const onboardingRedirectedRef = useRef(false);
+  useEffect(() => {
+    const syncFeeRoute = () => {
+      setSellerFeeRemediationOpen(window.location.hash === "#marketplace-fees");
+      setHostFeeRemediationOpen(window.location.hash === "#marketplace-host-fees");
+    };
+    window.addEventListener("hashchange", syncFeeRoute);
+    return () => window.removeEventListener("hashchange", syncFeeRoute);
+  }, []);
 
   async function refreshSession() {
     try {
@@ -72,16 +98,24 @@ function App({ api }: AppProps) {
         setOauthProfile({ name: owner.name ?? "", email: owner.email ?? "" });
         setAuthMode("signup");
         setMe(null);
+        setSubscriptionRequired(false);
         return;
       }
       setMe(profile);
       setAuthHint(null);
       try {
+        const subscription = await api.getBillingSubscription();
+        setSubscriptionRequired(subscription.trial_expired === true);
+      } catch (error) {
+        setSubscriptionRequired(false);
+        reportError({ source: "main.refreshSession.billing", error, severity: "warning" });
+      }
+      try {
         const onboarding = await api.getOnboardingState();
         setOnboardingCompleted(onboarding.completed);
         // Open onboarding on first session resolution if incomplete.
         // One-shot flag prevents re-directing when user manually navigates away.
-        if (!onboarding.completed && !onboardingRedirectedRef.current) {
+        if (!onboarding.completed && !onboardingRedirectedRef.current && window.location.hash !== "#marketplace-host-fees") {
           onboardingRedirectedRef.current = true;
           setInitialTab("onboarding");
         }
@@ -95,6 +129,7 @@ function App({ api }: AppProps) {
       } else {
         setMe(null);
       }
+      setSubscriptionRequired(false);
     } finally {
       setCheckingSession(false);
     }
@@ -224,8 +259,45 @@ function App({ api }: AppProps) {
 
   if (checkingSession) return <LoadingSplash />;
 
-  if (me && (!me.role || me.role === "OWNER") && (planSelectionPending || subscriptionIntent)) {
-    return <main className="signup-plans"><PlanSelection merchantName={me.name} initialPlan={subscriptionIntent ?? undefined} onDone={handlePlanComplete} onExit={planSelectionPending && new URLSearchParams(window.location.search).get("billing") !== "success" ? undefined : handlePlanComplete} /></main>;
+  if (me && (!me.role || me.role === "OWNER") && (planSelectionPending || subscriptionIntent || subscriptionRequired)) {
+    if (hostFeeRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setHostFeeRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceSellerFeesPage family="host" me={me} />
+    </main>;
+    if (sellerFeeRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setSellerFeeRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceSellerFeesPage me={me} />
+    </main>;
+    if (contributionRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setContributionRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceContributionsPage me={me} />
+    </main>;
+    if (walletReturnRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setWalletReturnRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceAsaasWalletReturnsPage me={me} />
+    </main>;
+    if (refundRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setRefundRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceRefundsPage me={me} />
+    </main>;
+    if (shipmentRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setShipmentRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplaceShipmentsPage me={me} />
+    </main>;
+    // Existing financial obligations remain accessible without opening commercial features.
+    if (remediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
+      <div><Button variant="outline" onClick={() => { setRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
+      <MarketplacePaymentsPage me={me} />
+    </main>;
+    return <main className="signup-plans"><PlanSelection merchantName={me.name} initialPlan={subscriptionIntent ?? undefined} requirePaidPlan={subscriptionRequired} onDone={handlePlanComplete} onExit={subscriptionRequired || (planSelectionPending && new URLSearchParams(window.location.search).get("billing") !== "success") ? undefined : handlePlanComplete} />
+      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setRemediationOpen(true); window.location.hash = "marketplace-payments"; }}>Gerenciar cobranças existentes do marketplace</Button></div>}
+      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setShipmentRemediationOpen(true); window.location.hash = "marketplace-shipments"; }}>Gerenciar remessas existentes do marketplace</Button></div>}
+      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setRefundRemediationOpen(true); window.location.hash = "marketplace-refunds"; }}>Gerenciar estornos existentes do marketplace</Button></div>}
+      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setWalletReturnRemediationOpen(true); window.location.hash = "marketplace-asaas-wallet-returns"; }}>Gerenciar retornos Asaas do marketplace</Button></div>}
+      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setContributionRemediationOpen(true); window.location.hash = "marketplace-contributions"; }}>Gerenciar aportes para estornos do marketplace</Button></div>}
+      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setSellerFeeRemediationOpen(true); window.location.hash = "marketplace-fees"; }}>Gerenciar taxas existentes do marketplace</Button></div>}
+      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setHostFeeRemediationOpen(true); window.location.hash = "marketplace-host-fees"; }}>Gerenciar taxas existentes da loja principal</Button></div>}
+    </main>;
   }
 
   if (!me) {

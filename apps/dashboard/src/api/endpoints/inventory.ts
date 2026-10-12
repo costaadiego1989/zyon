@@ -67,6 +67,8 @@ export interface ErpConnectionDTO {
   provider: "bling" | "tiny" | "omie" | "mercadolivre" | "shopee" | "tiktokshop";
   status: "connected" | "disconnected" | "error";
   lastSyncAt: string | null;
+  lastErrorCode?: string | null;
+  lastErrorAt?: string | null;
   directionMode: "push" | "pull" | "bidirectional" | "erp_source_of_truth" | "zyon_source_of_truth";
   createdAt: string;
 }
@@ -253,6 +255,10 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
 
     // --- CRM Connections ---
 
+    authorizeHubSpotCrm(): Promise<{ url: string }> {
+      return dashboardJson<{ url: string }>(base, "/inventory/crm/oauth/hubspot/authorize", { method: "GET" }, f);
+    },
+
     getCrmConnections(merchantId: string): Promise<any[]> {
       return dashboardJson<any[]>(
         base,
@@ -265,7 +271,7 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
     connectCrm(
       merchantId: string,
       provider: string,
-      credentials?: Record<string, string>,
+      credentials?: Record<string, unknown>,
     ): Promise<any> {
       return dashboardJson<any>(
         base,
@@ -289,7 +295,7 @@ export function inventoryEndpoints(base: string, f: typeof fetch) {
       provider: string;
       email: string;
       stage: "lead" | "customer";
-      status: "success" | "failed";
+      status: "success" | "failed" | "skipped";
       error_code: string | null;
       created_at: string;
     }>> {

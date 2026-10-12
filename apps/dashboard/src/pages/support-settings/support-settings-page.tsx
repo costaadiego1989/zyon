@@ -1,3 +1,5 @@
+import "./support-settings.css";
+import { PageHeader } from "../../components/PageHeader.js";
 import React, { useMemo, useState } from "react";
 import { Plus, RefreshCw, Save } from "lucide-react";
 import { Button } from "../../components/Button.js";
@@ -14,7 +16,7 @@ type Tab = "faq" | "tickets";
 
 const TABS = [
   { key: "tickets" as const, label: "Chamados" },
-  { key: "faq" as const, label: "FAQ automático" },
+  { key: "faq" as const, label: "Perguntas frequentes" },
 ];
 
 export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeProfile | null }) {
@@ -25,30 +27,19 @@ export function SupportSettingsPage(props: { apiBaseUrl: string; me: MerchantMeP
   if (!props.me) {
     return (
       <div className="dashboard-content">
-        <header className="page-head">
-          <div>
-            <h1>Atendimento ao Comprador</h1>
-            <p className="page-lead">Login necessário para configurar o atendimento</p>
-          </div>
-        </header>
+        <PageHeader title="Atendimento" description="Login necessário para configurar o atendimento" />
       </div>
     );
   }
 
   return (
-    <div className="page-container">
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Atendimento</span>
-          <h1>Atendimento ao Comprador</h1>
-          <p className="page-lead">Configure e acompanhe o atendimento ao comprador</p>
-        </div>
-      </header>
+    <div className="page-container support-page">
+      <PageHeader title="Atendimento" description="Acompanhe os chamados dos compradores e prepare as respostas da sua equipe." />
 
       <TabBar tabs={TABS} activeTab={activeTab} onTabChange={(k) => setActiveTab(k as Tab)} />
 
-      {activeTab === "faq" && <SupportFaqTab api={api} />}
-      {activeTab === "tickets" && <SupportTicketsTab api={api} socket={socket} />}
+      <div hidden={activeTab !== "faq"}><SupportFaqTab api={api} /></div>
+      <div hidden={activeTab !== "tickets"}><SupportTicketsTab api={api} socket={socket} /></div>
     </div>
   );
 }

@@ -79,6 +79,7 @@ export interface ProductSearchResult {
   products: Product[];
   nextCursor?: string;
   total: number;
+  totals?: { total: number; inStock: number; inactive: number };
 }
 
 export interface CreateProductPayload {
@@ -188,6 +189,7 @@ export interface ImportJobError {
 }
 
 export interface ImportJobStatus {
+  erpSummary?: { queued: number; running: number; completed: number; blocked: number; uncertain: number; failed: number; superseded: number };
   id: string;
   status: ImportJobStatusValue;
   totalRows?: number;
@@ -203,12 +205,13 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
   return {
     listProducts(
       merchantId: string,
-      opts: { query?: string; categoryId?: string; inStockOnly?: boolean; limit?: number; cursor?: string; offset?: number } = {},
+      opts: { query?: string; categoryId?: string; inStockOnly?: boolean; status?: "all" | "active" | "inactive"; limit?: number; cursor?: string; offset?: number } = {},
     ): Promise<ProductSearchResult> {
       const params = new URLSearchParams();
       if (opts.query) params.set("query", opts.query);
       if (opts.categoryId) params.set("categoryId", opts.categoryId);
       if (opts.inStockOnly) params.set("inStockOnly", "true");
+      if (opts.status) params.set("status", opts.status);
       if (opts.limit) params.set("limit", String(opts.limit));
       if (opts.cursor) params.set("cursor", opts.cursor);
       if (opts.offset != null) params.set("offset", String(opts.offset));
@@ -236,6 +239,14 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
+    importProductRow(merchantId: string, payload: CreateProductPayload): Promise<{ productId: string; action: "created" | "updated"; stock: "committed" | "not_applicable"; events: "queued"; erp: { status: string; queued: number; blocked: number } }> {
+      return dashboardJson(
+        base,
+        `/merchants/${encodeURIComponent(merchantId)}/products/import-row`,
+        { method: "POST", jsonBody: payload },
+        f,
+      );
+    },
     updateProduct(merchantId: string, productId: string, payload: UpdateProductPayload): Promise<Product> {
       return dashboardJson<Product>(
         base,
@@ -252,7 +263,10 @@ export function catalogEndpoints(base: string, f: typeof fetch) {
         f,
       );
     },
-    updateVariant(merchantId: string, productId: string, variantId: string, data: { basePriceInCents?: number; costInCents?: number | null; stockQuantity?: number; weightGrams?: number | null; lengthCm?: number | null; widthCm?: number | null; heightCm?: number | null }): Promise<unknown> {
+    replaceProductVariants(merchantId: string, productId: string, variants: Array<{ id?: string; sku: string; attributes: Record<string, string>; basePriceInCents: number; costInCents?: number | null; stockQuantity?: number; weightGrams?: number; lengthCm?: number; widthCm?: number; heightCm?: number }>, product?: UpdateProductPayload): Promise<{ variants: Array<{ id: string; sku: string; stockQuantity: number }> }> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/variants`, { method: "PUT", jsonBody: { variants, ...(product ? { product } : {}) } }, f);
+    },
+    updateVariant(merchantId: string, productId: string, variantId: string, data: { sku?: string; attributes?: Record<string, string>; basePriceInCents?: number; costInCents?: number | null; stockQuantity?: number; weightGrams?: number | null; lengthCm?: number | null; widthCm?: number | null; heightCm?: number | null }): Promise<unknown> {
       return dashboardJson(
         base,
         `/merchants/${encodeURIComponent(merchantId)}/products/${encodeURIComponent(productId)}/variants/${encodeURIComponent(variantId)}`,

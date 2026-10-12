@@ -1,5 +1,5 @@
 import React from "react";
-import { ArrowRight } from "lucide-react";
+import { ArrowRight, Loader2 } from "lucide-react";
 
 export type ButtonVariant = "primary" | "outline" | "ghost" | "danger";
 export type ButtonSize = "sm" | "md" | "lg";
@@ -38,9 +38,10 @@ export function Button({
       type="button"
       className={classes}
       disabled={disabled || loading}
+      aria-busy={loading || undefined}
       {...props}
     >
-      <span className="zyn-btn__label">{loading ? "Carregando..." : children}</span>
+      <span className="zyn-btn__label">{loading && <Loader2 size={14} className="zyn-btn__spinner" aria-hidden="true" />}{children}</span>
       {arrow && !loading && <ArrowRight size={14} className="zyn-btn__arrow" />}
     </button>
   );

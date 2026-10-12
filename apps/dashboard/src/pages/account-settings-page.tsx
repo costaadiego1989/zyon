@@ -1,98 +1,56 @@
-import React from "react";
-import { Settings, Lock } from "lucide-react";
+import React, { useEffect, useState } from "react";
+import { Lock, UserRound } from "lucide-react";
 import type { MerchantProfile } from "../api-client.js";
+import { PageHeader } from "../components/PageHeader.js";
 import { Button } from "../components/Button.js";
-import { OtpModal } from "../components/OtpModal.js";
+import { Modal } from "../components/Modal.js";
+import { EmptyState } from "../components/EmptyState.js";
 import { SectionHeader } from "../components/SectionHeader.js";
 import { FormField } from "../components/FormField.js";
 import { useAccountSettingsPage } from "./useAccountSettingsPage.js";
 import { maskPhone } from "../utils/masks.js";
+import "./administration-pages.css";
 
 export function AccountSettingsPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useAccountSettingsPage({ me: props.me });
-
-  if (!props.me) {
-    return (
-      <header className="page-head">
-        <div>
-          <h1>Configurações</h1>
-          <p className="page-lead">Login necessário para acessar configurações da conta</p>
-        </div>
-      </header>
-    );
-  }
-
+  const [code, setCode] = useState("");
+  const [cooldown, setCooldown] = useState(0);
   const otpOpen = vm.otpStep === "confirm";
-
-  return (
-    <>
-      <header className="page-head">
-        <div>
-          <span className="eyebrow">Conta</span>
-          <h1>Configurações</h1>
-          <p className="page-lead">Gerencie seus dados pessoais e credenciais de acesso</p>
-        </div>
-      </header>
-
-      {vm.message ? (
-        <p className={`panel ${vm.message.kind === "ok" ? "panel-ok" : "panel-warn"}`}>{vm.message.text}</p>
-      ) : null}
-
-      {/* Profile section */}
-      <section className="panel stacked">
+  useEffect(() => { setCode(""); setCooldown(otpOpen ? 60 : 0); }, [otpOpen]);
+  useEffect(() => { if (cooldown > 0) { const timer = setTimeout(() => setCooldown(c => c - 1), 1000); return () => clearTimeout(timer); } }, [cooldown]);
+  if (!props.me) return <PageHeader title="Minha conta" description="Entre na sua conta para gerenciar seus dados." />;
+  return <div className="administration-page">
+    <PageHeader title="Minha conta" description="Atualize seus dados pessoais e gerencie o acesso à sua conta." />
+    {vm.loading ? <section className="panel admin-skeleton" aria-label="Carregando dados pessoais" aria-busy="true">{[1, 2, 3].map(n => <div key={n} className="skeleton-cell" />)}</section> : vm.loadError ? <section className="panel"><EmptyState icon={UserRound} title="Dados pessoais indisponíveis" description="Não foi possível carregar sua conta. Tente novamente para editar os dados atuais." action={<Button variant="outline" onClick={() => void vm.loadProfile()}>Tentar novamente</Button>} /></section> : <>
+      <form className="panel configuration-form admin-section" onSubmit={e => { e.preventDefault(); void vm.saveProfile(); }}>
         <SectionHeader title="Dados pessoais" variant="secondary" />
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <FormField label="Nome completo" placeholder="Seu nome" value={vm.form.name} onChange={(v) => vm.setForm((f) => ({ ...f, name: v }))} />
-          <FormField label="Email" type="email" placeholder="seu@email.com" value={vm.form.email} onChange={(v) => vm.setForm((f) => ({ ...f, email: v }))} />
-          <FormField label="Celular / WhatsApp" type="tel" placeholder="(11) 99999-9999" value={maskPhone(vm.form.phone)} onChange={(v) => vm.setForm((f) => ({ ...f, phone: maskPhone(v) }))} maxLength={15} />
-        </div>
-
-        <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
-          <Button variant="primary" size="sm" arrow disabled={vm.saving || !vm.form.name.trim() || !vm.form.email.trim()} onClick={() => void vm.saveProfile()}>
-            {vm.saving ? "Salvando..." : "Salvar alterações"}
-          </Button>
-        </div>
-      </section>
-
-      {/* Password section */}
-      <section className="panel stacked" style={{ marginTop: 16 }}>
+        <p className="admin-help">Ao mudar o e-mail, confirme o código enviado para o novo endereço. Nome e celular serão salvos após essa confirmação.</p>
+        <fieldset disabled={vm.saving || otpOpen} className="admin-fields">
+          <FormField label="Nome completo" value={vm.form.name} onChange={name => vm.setForm(f => ({ ...f, name }))} inputProps={{ required: true, autoComplete: "name" }} />
+          <FormField label="E-mail" type="email" value={vm.form.email} onChange={email => vm.setForm(f => ({ ...f, email }))} inputProps={{ required: true, autoComplete: "email" }} />
+          <FormField label="Celular / WhatsApp (opcional)" type="tel" placeholder="(11) 99999-9999" value={maskPhone(vm.form.phone)} onChange={phone => vm.setForm(f => ({ ...f, phone: maskPhone(phone) }))} maxLength={15} inputProps={{ autoComplete: "tel" }} />
+        </fieldset>
+        {vm.message && <p className={`admin-feedback admin-feedback--${vm.message.kind}`} role={vm.message.kind === "error" ? "alert" : "status"}>{vm.message.text}</p>}
+        <div className="admin-actions"><Button type="submit" loading={vm.saving} disabled={otpOpen || !vm.form.name.trim() || !vm.form.email.trim()}>Salvar dados pessoais</Button></div>
+      </form>
+      <form className="panel configuration-form admin-section" onSubmit={e => { e.preventDefault(); void vm.changePassword(); }}>
         <SectionHeader title="Alterar senha" variant="secondary" />
-
-        <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-          <FormField label="Senha atual" type="password" placeholder="••••••••" value={vm.passwordForm.currentPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, currentPassword: v }))} />
-          <FormField label="Nova senha" type="password" placeholder="Mínimo 8 caracteres" value={vm.passwordForm.newPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, newPassword: v }))} />
-          <FormField label="Confirmar nova senha" type="password" placeholder="Repita a nova senha" value={vm.passwordForm.confirmPassword} onChange={(v) => vm.setPasswordForm((f) => ({ ...f, confirmPassword: v }))} />
-        </div>
-
-        <div style={{ marginTop: 20, display: "flex", justifyContent: "flex-end" }}>
-          <Button
-            variant="outline"
-            size="sm"
-            disabled={vm.savingPassword || !vm.passwordForm.currentPassword || !vm.passwordForm.newPassword || !vm.passwordForm.confirmPassword}
-            onClick={() => void vm.changePassword()}
-          >
-            <Lock size={14} /> {vm.savingPassword ? "Alterando..." : "Alterar senha"}
-          </Button>
-        </div>
-      </section>
-
-      {/* Security note */}
-      <div style={{ marginTop: 16, padding: "12px 16px", borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface)", fontSize: 12, color: "var(--color-muted)", lineHeight: 1.5 }}>
-        <strong>Segurança:</strong> Trocar email exige confirmação por código de 6 dígitos enviado para o novo email. Autenticação multifator (2FA/MFA) estará disponível em breve.
-      </div>
-
-      <OtpModal
-        open={otpOpen}
-        title="Confirme seu novo email"
-        description="Enviamos um código de 6 dígitos para:"
-        maskedDestination={vm.maskedEmail}
-        onConfirm={vm.handleConfirmOtp}
-        onResend={vm.handleResendOtp}
-        onCancel={vm.handleCancelOtp}
-        busy={vm.saving}
-        errorMessage={vm.otpError}
-      />
-    </>
-  );
+        <p className="admin-help">Use pelo menos 8 caracteres e escolha uma senha exclusiva para sua conta.</p>
+        <fieldset disabled={vm.savingPassword} className="admin-fields">
+          <div className="admin-field-wide"><FormField label="Senha atual" type="password" value={vm.passwordForm.currentPassword} onChange={currentPassword => vm.setPasswordForm(f => ({ ...f, currentPassword }))} inputProps={{ required: true, autoComplete: "current-password" }} /></div>
+          <FormField label="Nova senha" type="password" value={vm.passwordForm.newPassword} onChange={newPassword => vm.setPasswordForm(f => ({ ...f, newPassword }))} inputProps={{ required: true, minLength: 8, autoComplete: "new-password" }} />
+          <FormField label="Confirmar nova senha" type="password" value={vm.passwordForm.confirmPassword} onChange={confirmPassword => vm.setPasswordForm(f => ({ ...f, confirmPassword }))} inputProps={{ required: true, autoComplete: "new-password" }} />
+        </fieldset>
+        {vm.passwordMessage && <p className={`admin-feedback admin-feedback--${vm.passwordMessage.kind}`} role={vm.passwordMessage.kind === "error" ? "alert" : "status"}>{vm.passwordMessage.text}</p>}
+        <div className="admin-actions"><Button variant="outline" type="submit" loading={vm.savingPassword} disabled={!vm.passwordForm.currentPassword || !vm.passwordForm.newPassword || !vm.passwordForm.confirmPassword}><Lock size={16} /> Alterar senha</Button></div>
+      </form>
+    </>}
+    <Modal isOpen={otpOpen} title="Confirme seu novo e-mail" subtitle={`Digite o código de 6 dígitos enviado para ${vm.maskedEmail}.`} presentation="center" size="md" onClose={vm.handleCancelOtp} footer={<><Button variant="ghost" disabled={vm.saving} onClick={vm.handleCancelOtp}>Cancelar</Button><Button type="submit" form="account-email-confirm" disabled={code.length !== 6} loading={vm.saving}>Confirmar e salvar</Button></>}>
+      <form id="account-email-confirm" className="configuration-form administration-page" onSubmit={e => { e.preventDefault(); if (code.length === 6) void vm.handleConfirmOtp(code); }}>
+        <FormField label="Código de confirmação" value={code} onChange={v => setCode(v.replace(/\D/g, "").slice(0, 6))} disabled={vm.saving} maxLength={6} inputProps={{ inputMode: "numeric", autoComplete: "one-time-code", pattern: "[0-9]{6}", required: true }} error={vm.otpError ?? undefined} />
+        <p className="admin-help">Se não encontrar a mensagem, confira a pasta de spam. Os dados pessoais permanecem no formulário se você cancelar.</p>
+        <Button variant="outline" disabled={vm.saving || cooldown > 0} onClick={() => { setCooldown(60); void vm.handleResendOtp(); }}>{cooldown > 0 ? `Reenviar em ${cooldown}s` : "Reenviar código"}</Button>
+      </form>
+    </Modal>
+  </div>;
 }

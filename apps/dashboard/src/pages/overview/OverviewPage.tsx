@@ -48,7 +48,8 @@ function buildActivityItems(vm: ReturnType<typeof useOverviewPage>): ActivityIte
       items.push({
         id: o.id,
         type: "order",
-        description: `Pedido de ${o.buyer_name}`,
+        description: o.buyer_name && o.buyer_name !== "Unknown" && o.buyer_name !== "Não identificado"
+          ? `Pedido de ${o.buyer_name}` : "Pedido sem identificação",
         timestamp: o.created_at,
         amount: o.total,
       });
@@ -166,18 +167,14 @@ function formatCurrency(n: number | null | undefined): string {
   });
 }
 
-function calcTrend(current: number, previous: number | null | undefined): number {
-  if (previous === undefined || previous === null || previous === 0) return 0;
+export function calcTrend(current: number, previous: number | null | undefined): number | undefined {
+  if (previous == null || previous === 0 || !Number.isFinite(previous) || !Number.isFinite(current)) return undefined;
   return ((current - previous) / previous) * 100;
 }
 
 export function OverviewPage(props: OverviewPageProps) {
   const vm = useOverviewPage({ me: props.me });
   const activityItems = buildActivityItems(vm);
-
-  if (vm.loading && !vm.hasData) return <LoadingSkeleton />;
-  if (vm.error && !vm.hasData)
-    return <ErrorState message={vm.error} onRetry={vm.refresh} />;
 
   // Derived metrics — all from real API data
   const revenue = vm.storeOverview?.revenue;
@@ -252,7 +249,7 @@ export function OverviewPage(props: OverviewPageProps) {
     .filter(Boolean) as Array<{ label: string; value: number; color: string }>;
 
   return (
-    <div className="page-container">
+    <div className="page-container overview-page">
       {/* Header */}
       <header className="page-head">
         <div>
@@ -261,7 +258,7 @@ export function OverviewPage(props: OverviewPageProps) {
           <p className="page-lead">Métricas consolidadas do seu negócio</p>
         </div>
 
-        <div style={{ display: "flex", alignItems: "center", gap: 12, marginLeft: "auto" }}>
+        <div className="overview-controls">
           <LastUpdatedCounter lastUpdated={vm.lastUpdated} />
           <PeriodSelector value={vm.period} onChange={vm.setPeriod} />
           <button
@@ -270,7 +267,8 @@ export function OverviewPage(props: OverviewPageProps) {
             disabled={vm.loading}
             className="icon-btn"
             title="Atualizar dados"
-            style={{ width: 34, height: 34, border: "1px solid var(--color-border)", borderRadius: 8, background: "var(--surface-2)" }}
+            aria-label="Atualizar dados"
+            style={{ width: 44, height: 44, flexShrink: 0, border: "1px solid var(--color-border)", borderRadius: 8, background: "var(--surface-2)" }}
           >
             <svg
               width="14"
@@ -290,6 +288,14 @@ export function OverviewPage(props: OverviewPageProps) {
           </button>
         </div>
       </header>
+
+      <p className="overview-time-zone">Períodos e dias em America/Sao_Paulo</p>
+      {vm.error && vm.hasData ? <div className="panel-error" role="alert">
+        <p>Não foi possível atualizar os dados. Exibindo a última consulta concluída{vm.lastUpdated ? ` em ${vm.lastUpdated.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo" })}` : ""}.</p>
+        <button type="button" className="btn" disabled={vm.loading} onClick={() => void vm.refresh()}>Tentar novamente</button>
+      </div> : null}
+
+      {!vm.hasData ? (vm.loading ? <LoadingSkeleton /> : vm.error ? <ErrorState message={vm.error} onRetry={vm.refresh} /> : null) : <>
 
       {/* AI Suggestions — self-hides when there are no pending hypotheses */}
       <SectionErrorBoundary sectionName="Sugestões de IA">
@@ -441,6 +447,7 @@ export function OverviewPage(props: OverviewPageProps) {
         <ActivityFeed items={activityItems} />
       </div>
       </SectionErrorBoundary>
+      </>}
     </div>
   );
 }

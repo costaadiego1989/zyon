@@ -13,6 +13,9 @@ import { StepPayment } from "./steps/StepPayment.js";
 import { StepWhatsApp } from "./steps/StepWhatsApp.js";
 import { StepAiEngine } from "./steps/StepAiEngine.js";
 import "./onboarding-wizard.css";
+import "./onboarding-refinements.css";
+import { Button } from "../../components/Button.js";
+import { PageHeader } from "../../components/PageHeader.js";
 
 export interface OnboardingWizardProps {
   apiBaseUrl: string;
@@ -26,6 +29,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
   const [planChosen, setPlanChosen] = React.useState(false);
 
   if (!vm.onboardingState) {
+    if (vm.message) return <div className="page-container"><PageHeader title="Primeiros passos" description="Prepare a loja e acompanhe cada etapa da configuração." /><div role="alert" className="onb-message">Não foi possível carregar sua configuração.</div><Button variant="outline" onClick={vm.retryLoad}>Tentar novamente</Button></div>;
     return (
       <div className="onb-loading" role="status" aria-live="polite">
         <span className="onb-loading-dot" aria-hidden="true" />
@@ -48,6 +52,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
   }
 
   const handleNext = () => {
+    if (vm.currentStep >= 3 && !vm.shipping.ready) return;
     if (vm.currentStep === 1) void vm.saveStep1();       // Identidade
     else if (vm.currentStep === 2) void vm.saveStep2();  // Endereço → Frete
     else if (vm.currentStep === 3) vm.advanceFromShipping(); // Frete → Pagamento
@@ -58,17 +63,20 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
 
   return (
     <div className="onb">
-      <div className="onb-main">
+      <PageHeader title="Primeiros passos" description="Configure a identidade, o frete e os recebimentos. WhatsApp e automação podem ser configurados depois." />
+      <div className="onb-main" data-preview={vm.currentStep === 1}>
         <StepRail
           steps={vm.steps}
           currentStep={vm.currentStep}
           progress={Math.round(((vm.currentStep - 1) / Math.max(1, vm.totalSteps - 1)) * 100)}
+          onStepClick={step => { if (!vm.busy && step < vm.currentStep) vm.setCurrentStep(step); }}
         />
 
         <section className="onb-stage">
           <div className="onb-stage-content">
             <header className="onb-stage-header">
               <h2 className="onb-stage-title">{vm.activeMeta?.label}</h2>
+              {vm.activeMeta?.optional && <span className="onb-optional">Opcional, pode configurar depois</span>}
               <p className="onb-stage-caption">{vm.activeMeta?.caption}</p>
             </header>
 
@@ -97,13 +105,7 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
               )}
 
               {vm.currentStep === 3 && (
-                <StepShipping
-                  apiBaseUrl={vm.apiBaseUrl}
-                  connected={vm.shippingConnected}
-                  loading={vm.shippingLoading}
-                  onConnect={vm.connectMelhorEnvio}
-                  onSkip={vm.advanceFromShipping}
-                />
+                <StepShipping shipping={vm.shipping} />
               )}
 
               {vm.currentStep === 4 && (
@@ -132,11 +134,13 @@ export function OnboardingWizard(props: OnboardingWizardProps) {
             busy={vm.busy}
             onBack={vm.goBack}
             onNext={handleNext}
+            nextDisabled={vm.currentStep >= 3 && !vm.shipping.ready}
+            nextLabel={vm.currentStep <= 2 ? "Salvar e continuar" : vm.currentStep === 3 ? "Continuar para pagamento" : vm.currentStep === 5 ? (vm.currentStep === vm.totalSteps ? "Concluir configuração" : "Continuar para automação") : undefined}
           />
           <span className="onb-stage-index" aria-hidden="true">{vm.activeMeta?.label}</span>
         </section>
 
-        <LivePreview apiBaseUrl={vm.apiBaseUrl} me={vm.me} themeDraft={vm.themeDraft} />
+        {vm.currentStep === 1 && <LivePreview apiBaseUrl={vm.apiBaseUrl} me={vm.me} themeDraft={vm.themeDraft} />}
       </div>
     </div>
   );

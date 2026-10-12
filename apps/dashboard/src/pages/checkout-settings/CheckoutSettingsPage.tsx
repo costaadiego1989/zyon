@@ -1,36 +1,34 @@
+import { SetupGuide } from "../../components/SetupGuide.js";
+import { PageHeader } from "../../components/PageHeader.js";
 import React from "react";
 import { useState } from "react";
 import {
   Save,
   RotateCcw,
   Bell,
-  Minimize2,
   Timer,
   AlertTriangle,
   CheckCircle2,
   Activity,
+  MessageCircle,
 } from "lucide-react";
-import type {
-  CheckoutWidgetPosition,
-} from "@zyon/shared-types";
 import type { MerchantProfile as MerchantMeProfile } from "../../api-client.js";
+import { ConfirmDialog } from "../../components/ConfirmDialog.js";
 import { Button } from "../../components/Button.js";
 import { TabBar } from "../../components/TabBar.js";
 import { useCheckoutSettingsPage } from "./useCheckoutSettingsPage.js";
 import { SectionRail } from "./components/SectionRail.js";
 import { SettingRow } from "./components/SettingRow.js";
 import { ToggleSwitch } from "./components/ToggleSwitch.js";
-import { SliderField } from "./components/SliderField.js";
 import { NumberField } from "./components/NumberField.js";
 import { TriggerCard } from "./components/TriggerCard.js";
 import { TriggerEditor } from "./components/TriggerEditor.js";
 import { RulesList } from "./components/RulesList.js";
 import { RuleEditor } from "./components/RuleEditor.js";
 import { SectionErrorBoundary } from "../../components/PageErrorBoundary.js";
-import { FormField, FormSelect, FormTextarea } from "../../components/FormField.js";
-import { ALL_TRIGGERS, PROGRESSIVE_PRESETS, TRIGGER_STATUS } from "./lib/constants.js";
-import type { Draft } from "./lib/draft.js";
+import { ALL_TRIGGERS, TRIGGER_STATUS } from "./lib/constants.js";
 import "./checkout-settings-page.css";
+import "./checkout-refinements.css";
 
 // ── Skeleton ─────────────────────────────────────────────────────────────────
 
@@ -63,17 +61,12 @@ export function CheckoutSettingsPage(props: {
   const vm = useCheckoutSettingsPage({ me: props.me });
   const [editingTrigger, setEditingTrigger] = useState<import("@zyon/shared-types").CheckoutTriggerName | null>(null);
 
+  const [confirmation, setConfirmation] = useState<"reload" | "defaults" | "discard" | null>(null);
+
   if (!props.me) {
     return (
       <div className="dashboard-content">
-        <header className="page-head">
-          <div>
-            <h1>Configurações do Checkout</h1>
-            <p className="page-lead">
-              Login necessário para acessar as configurações de checkout.
-            </p>
-          </div>
-        </header>
+        <PageHeader title="Checkout" description="Login necessário para acessar as configurações de checkout." />
       </div>
     );
   }
@@ -85,15 +78,8 @@ export function CheckoutSettingsPage(props: {
   return (
     <div className="dashboard-content cfg-page">
       {/* ── Page Head ── */}
-      <header className="page-head cfg-head">
-        <div>
-          <span className="eyebrow">Atendimento</span>
-          <h1>Configurações do Checkout</h1>
-          <p className="page-lead">
-            Defina quando e como o agente entra em ação durante a compra.
-          </p>
-        </div>
-        <div className="cfg-head-actions">
+      <PageHeader title="Checkout" description="Defina quando e como o agente entra em ação durante a compra." actions={<>
+<div className="cfg-head-actions">
           {vm.dirty ? (
             <span className="cfg-dirty-pill" aria-live="polite">
               <span className="cfg-dirty-dot" />
@@ -104,31 +90,32 @@ export function CheckoutSettingsPage(props: {
             variant="primary"
             arrow
             className="cfg-save"
-            disabled={vm.busy || !vm.draft || hasErrors || !vm.dirty}
+            disabled={vm.busy || !vm.settings || vm.reloadRequired || !vm.draft || hasErrors || !vm.dirty}
             onClick={() => vm.save()}
             loading={vm.busy}
           >
             <Save size={14} strokeWidth={2} />
-            Salvar
+            Salvar configurações
           </Button>
         </div>
-      </header>
+</>} />
+      <SetupGuide title="Como configurar a atuação no checkout" steps={[{"title":"Defina quando ajudar","description":"Revise os sinais que permitem uma intervenção e os momentos em que o agente deve aguardar."},{"title":"Estabeleça limites","description":"Confira a frequência das intervenções, os descontos permitidos e as regras adicionais. Uma regra mais restritiva pode limitar a oferta."},{"title":"Salve e confira a experiência","description":"O botão Salvar configurações aplica as mudanças de todas as abas. Depois, revise o checkout da loja. Ajuste as condições antes de disponibilizar uma nova estratégia."}]} />
 
       {/* ── Messages ── */}
       {vm.message ? (
-        <div className={`cfg-banner ${vm.message.kind === "error" ? "err" : "info"}`} role="status">
+        <div className={`cfg-banner ${vm.message.kind === "error" ? "err" : "info"}`} role={vm.message.kind === "error" ? "alert" : "status"}>
           {vm.message.kind === "error" ? (
             <AlertTriangle size={16} strokeWidth={1.75} />
           ) : (
             <CheckCircle2 size={16} strokeWidth={1.75} />
           )}
           <span>{vm.message.text}</span>
-          {vm.reloadRequired ? (
+          {vm.reloadRequired || !vm.settings ? (
             <Button
               variant="outline"
               size="sm"
               disabled={vm.busy}
-              onClick={() => vm.load()}
+              onClick={() => vm.dirty ? setConfirmation("reload") : vm.load()}
             >
               Recarregar configurações
             </Button>
@@ -139,6 +126,8 @@ export function CheckoutSettingsPage(props: {
       {/* ── Loading ── */}
       {!vm.settings && !vm.message ? <SettingsSkeleton /> : null}
 
+      {hasErrors && <div className="cfg-banner err" role="alert"><span>Revise os campos com erro antes de salvar.</span><Button variant="outline" size="sm" onClick={() => vm.setActiveTab("triggers")}>Revisar limites</Button></div>}
+      <ConfirmDialog open={confirmation !== null} variant="default" title={confirmation === "defaults" ? "Restaurar configuração padrão?" : confirmation === "reload" ? "Recarregar configurações?" : "Descartar mudanças?"} description={confirmation === "defaults" ? "O rascunho de todas as abas será substituído pelos valores padrão. Revise e salve para aplicar." : "As mudanças ainda não salvas serão descartadas. A configuração salva na loja será mantida."} confirmLabel={confirmation === "defaults" ? "Restaurar rascunho" : confirmation === "reload" ? "Descartar e recarregar" : "Descartar mudanças"} onCancel={() => setConfirmation(null)} onConfirm={() => { if (confirmation === "defaults") vm.restoreDefaults(); else if (confirmation === "reload") vm.load(); else vm.discardChanges(); setConfirmation(null); }} />
       {/* ── Content ── */}
       {vm.draft ? (
         <div className="cfg-controls">
@@ -146,96 +135,21 @@ export function CheckoutSettingsPage(props: {
           {/* Tabs */}
           <TabBar
             tabs={[
-              { key: "behavior", label: "Aparência" },
-              { key: "triggers", label: "Sinais & Limites" },
+              { key: "triggers", label: "Quando ajudar" },
               { key: "discounts", label: "Descontos" },
-              { key: "rules", label: "Regras" },
+              { key: "rules", label: "Regras avançadas" },
             ]}
             activeTab={vm.activeTab}
-            onTabChange={(k) => vm.setActiveTab(k as "behavior" | "triggers" | "discounts" | "rules")}
+            onTabChange={(k) => vm.setActiveTab(k as "triggers" | "discounts" | "rules")}
           />
 
           <div className="cfg-panel">
-
-            {vm.activeTab === "behavior" && <>
-            {/* Activation mode moved to the AI Agents page (Agentes de IA · Loja) —
-                it is agent behavior, and only meaningful in the storefront where the
-                buyer is browsing. In checkout the agent already IS the interface. */}
-
-            {/* 2 — Behavior */}
-            <SectionRail
-              icon={<Minimize2 size={16} strokeWidth={1.75} />}
-              index="02"
-              title="Como aparece"
-              desc="Onde e como o widget mostra para o comprador."
-            >
-              <div className="cfg-rows">
-                <SettingRow
-                  id="toggle-open-widget"
-                  title="Abrir ao ativar"
-                  desc="Abre sozinho quando o agente age."
-                  control={
-                    <ToggleSwitch
-                      id="toggle-open-widget"
-                      checked={vm.draft!.openWidgetOnTrigger}
-                      disabled={vm.busy}
-                      onChange={(v) => vm.patchDraft({ openWidgetOnTrigger: v })}
-                    />
-                  }
-                />
-                <SettingRow
-                  id="toggle-minimized"
-                  title="Começar fechado"
-                  desc="Widget inicia recolhido no canto."
-                  control={
-                    <ToggleSwitch
-                      id="toggle-minimized"
-                      checked={vm.draft!.startMinimized}
-                      disabled={vm.busy}
-                      onChange={(v) => vm.patchDraft({ startMinimized: v })}
-                    />
-                  }
-                />
-              </div>
-
-              <div className="cfg-grid-2">
-                <div className="cfg-field">
-                  <label htmlFor="cfg-position">Posição na tela</label>
-                  <div className="cfg-select">
-                    <select
-                      id="cfg-position"
-                      value={vm.draft!.position}
-                      disabled={vm.busy}
-                      onChange={(e) =>
-                        vm.patchDraft({ position: e.target.value as CheckoutWidgetPosition })
-                      }
-                    >
-                      <option value="bottom_right">Canto inferior direito</option>
-                      <option value="bottom_left">Canto inferior esquerdo</option>
-                    </select>
-                  </div>
-                </div>
-
-                <SliderField
-                  label="Espera inicial"
-                  help="Tempo antes do agente abrir o chat no modo Iniciar sozinho."
-                  value={vm.draft!.initialDelaySeconds}
-                  min={0}
-                  max={30}
-                  step={1}
-                  disabled={vm.busy}
-                  display={`${vm.draft!.initialDelaySeconds}s`}
-                  onChange={(v) => vm.patchDraft({ initialDelaySeconds: v })}
-                />
-              </div>
-            </SectionRail>
-            </>}
 
             {vm.activeTab === "triggers" && <>
             {/* 4 — Triggers */}
             <SectionRail
               icon={<Bell size={16} strokeWidth={1.75} />}
-              index="03"
+              index="02"
               title="Sinais do comprador"
               desc="Momentos em que o agente pode intervir automaticamente."
               aside={
@@ -249,6 +163,7 @@ export function CheckoutSettingsPage(props: {
                   <TriggerCard
                     key={t}
                     trigger={t}
+                    idleSeconds={vm.draft!.idleSeconds}
                     enabled={vm.draft!.triggers[t].enabled}
                     busy={vm.busy}
                     onChange={(v) => vm.patchTrigger(t, { enabled: v })}
@@ -259,9 +174,23 @@ export function CheckoutSettingsPage(props: {
             </SectionRail>
 
             {/* 4 — Limits */}
+            <SectionRail icon={<MessageCircle size={16} strokeWidth={1.75} />} index="02"
+              title="Ajuda durante a compra" desc="Respostas e ações para destravar a etapa em que o comprador está.">
+              <div className="cfg-rows">
+                {([
+                  ["pix", "Pix pendente ou expirado", "Ajuda a consultar a confirmação, reencontrar o código ou renovar um Pix expirado."],
+                  ["installments", "Dúvidas sobre parcelamento", "Explica as condições disponíveis e direciona ao pagamento seguro com cartão."],
+                  ["unavailableProduct", "Produto indisponível", "Explica a falta de estoque e consulta alternativas disponíveis na loja."],
+                  ["humanHandoff", "Dificuldade persistente", "Após duas tentativas sem solução, oferece atendimento humano. O comprador escolhe se quer chamar a equipe."],
+                ] as const).map(([key, title, desc]) => <SettingRow key={key} id={`help-${key}`} title={title} desc={desc}
+                  control={<ToggleSwitch id={`help-${key}`} checked={vm.draft!.assistance[key]} disabled={vm.busy}
+                    onChange={enabled => vm.patchDraft({ assistance: { ...vm.draft!.assistance, [key]: enabled } })} />} />)}
+              </div>
+            </SectionRail>
+
             <SectionRail
               icon={<Timer size={16} strokeWidth={1.75} />}
-              index="04"
+              index="03"
               title="Limites"
               desc="Controla a frequência para o agente não ser insistente."
               aside={hasErrors ? <span className="badge bad">erros</span> : undefined}
@@ -295,7 +224,7 @@ export function CheckoutSettingsPage(props: {
             {/* 5 — Progressive discount */}
             <SectionRail
               icon={<Activity size={16} strokeWidth={1.75} />}
-              index="05"
+              index="04"
               title="Desconto progressivo"
               desc="Oferece mais desconto conforme o risco de perda aumenta. O motor de regras ainda valida o teto e a margem."
               aside={
@@ -306,12 +235,12 @@ export function CheckoutSettingsPage(props: {
             >
               {(() => {
                 const hasCommercialRule = vm.draft!.advancedRules.some(
-                  (r) => r.action?.type === "offer_discount" || r.action?.type === "offer_free_shipping"
+                  (r) => r.enabled && (r.action?.type === "offer_discount" || r.action?.type === "offer_free_shipping")
                 );
                 if (!vm.draft!.progressiveDiscountEnabled || !hasCommercialRule) return null;
                 return (
-                  <div className="cfg-help" role="note" style={{ backgroundColor: "#fef3c7", borderLeft: "4px solid #f59e0b", padding: "12px" }} data-priority="rules-over-progressive">
-                    <strong>Aviso:</strong> Você tem regras avançadas de desconto/frete ativas. Elas têm prioridade — se uma regra já aplicou desconto, este desconto progressivo <strong>não acumula</strong>. O motor de regras sempre respeita o teto e a margem.
+                  <div className="cfg-priority-note" role="note" data-priority="rules-over-progressive">
+                    <strong>Aviso:</strong> Você tem regras avançadas de desconto/frete ativas. Quando aplicáveis, elas têm prioridade. Se uma regra já aplicou desconto, este desconto progressivo <strong>não acumula</strong>. O motor de regras sempre respeita o teto e a margem.
                   </div>
                 );
               })()}
@@ -345,7 +274,7 @@ export function CheckoutSettingsPage(props: {
               </div>
 
               <div className="cfg-preset-buttons">
-                <span className="cfg-preset-label">Presets:</span>
+                <span className="cfg-preset-label">Sugestões:</span>
                 <button
                   type="button"
                   className="cfg-preset-btn"
@@ -439,7 +368,7 @@ export function CheckoutSettingsPage(props: {
             <SectionErrorBoundary sectionName="Regras avançadas">
             <SectionRail
               icon={<Activity size={16} strokeWidth={1.75} />}
-              index="06"
+              index="05"
               title="Regras avançadas"
               desc="Defina regras customizadas para que o agente siga durante o checkout."
               aside={
@@ -450,7 +379,7 @@ export function CheckoutSettingsPage(props: {
             >
               {vm.draft!.progressiveDiscountEnabled && (
                 <div className="cfg-help" role="note" data-priority="advanced-over-progressive">
-                  <strong>Prioridade:</strong> Regras Avançadas têm preferência. O desconto progressivo só dispara quando esta regra não casa.
+                  <strong>Prioridade:</strong> Uma regra avançada aplicável tem prioridade. O desconto progressivo é considerado quando nenhuma regra prioritária se aplica. Os descontos não são somados.
                 </div>
               )}
               <RulesList
@@ -489,11 +418,12 @@ export function CheckoutSettingsPage(props: {
             {editingTrigger && vm.draft && (
               <TriggerEditor
                 trigger={editingTrigger}
+                idleSeconds={vm.draft.idleSeconds}
                 message={vm.draft.triggers[editingTrigger].message}
-                cooldownSeconds={vm.draft.triggers[editingTrigger].cooldownSeconds}
                 couponCode={vm.draft.triggers[editingTrigger].couponCode}
-                onSave={(data) => {
+                onSave={({ idleSeconds, ...data }) => {
                   vm.patchTrigger(editingTrigger, data);
+                  if (idleSeconds !== undefined) vm.patchDraft({ idleSeconds });
                   setEditingTrigger(null);
                 }}
                 onCancel={() => setEditingTrigger(null)}
@@ -507,7 +437,7 @@ export function CheckoutSettingsPage(props: {
                 <Button
                   variant="ghost"
                   disabled={vm.busy}
-                  onClick={() => vm.restoreDefaults()}
+                  onClick={() => setConfirmation("defaults")}
                 >
                   <RotateCcw size={14} strokeWidth={1.75} />
                   Restaurar padrão
@@ -516,7 +446,7 @@ export function CheckoutSettingsPage(props: {
                   <Button
                     variant="ghost"
                     disabled={vm.busy}
-                    onClick={() => vm.discardChanges()}
+                    onClick={() => setConfirmation("discard")}
                   >
                     Descartar mudanças
                   </Button>

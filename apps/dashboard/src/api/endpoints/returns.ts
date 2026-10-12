@@ -25,7 +25,7 @@ export interface ReturnEntry {
   updatedAt: string;
   label?: { carrier: string; trackingNumber: string; labelUrl?: string };
   inspection?: { inspectedBy: string; itemCondition: ReturnItemCondition; verdict: string; notes?: string };
-  refund?: { amountCents: number; status: string; processedAt?: string };
+  refund?: { amountInCents: number; status: string; processedAt?: string };
 }
 
 export interface ReturnListResponse {
@@ -33,8 +33,26 @@ export interface ReturnListResponse {
   total: number;
 }
 
+export type ReverseParcel = { height: number; width: number; length: number; weight: number };
+export type ReverseShippingView = {
+  returnId: string; amountCents: number;
+  shipments: Array<{ id: string; originMerchantId: string; originName: string; amountCents: number | null;
+    status: string; postingCode: string | null; serviceId: 1 | 2 }>;
+  candidates?: Array<{ originMerchantId: string; originName: string; package: ReverseParcel | null; email: string; phone: string }>;
+};
+
 export function returnsEndpoints(base: string, f: typeof fetch) {
   return {
+    async getReturnReverseShipping(merchantId: string, returnId: string): Promise<ReverseShippingView> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${encodeURIComponent(returnId)}/reverse-shipping`, { method: "GET" }, f);
+    },
+    async prepareReturnReverseShipping(merchantId: string, returnId: string, input: { serviceId: 1 | 2;
+      packages: Array<{ originMerchantId: string; package: ReverseParcel; email: string; phone: string }> }): Promise<ReverseShippingView> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${encodeURIComponent(returnId)}/reverse-shipping/prepare`, { method: "POST", jsonBody: input }, f);
+    },
+    async confirmReturnReverseShipping(merchantId: string, returnId: string, expectedAmountCents: number): Promise<ReverseShippingView> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${encodeURIComponent(returnId)}/reverse-shipping/confirm`, { method: "POST", jsonBody: { expectedAmountCents } }, f);
+    },
     async listReturns(merchantId: string, params?: { status?: ReturnStatus; limit?: number; offset?: number }): Promise<ReturnListResponse> {
       const query = new URLSearchParams();
       if (params?.status) query.set("status", params.status);
@@ -44,22 +62,25 @@ export function returnsEndpoints(base: string, f: typeof fetch) {
       return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns${qs ? `?${qs}` : ""}`, { method: "GET" }, f);
     },
 
-    async generateReturnLabel(merchantId: string, returnId: string): Promise<void> {
-      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/label`, { method: "POST" }, f);
+    async generateReturnLabel(merchantId: string, returnId: string, label: { carrier: string; trackingNumber: string; labelUrl?: string }): Promise<ReturnEntry> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${encodeURIComponent(returnId)}/label`, { method: "POST", jsonBody: label }, f);
     },
 
-    async markReturnReceived(merchantId: string, returnId: string): Promise<void> {
+    async markReturnReceived(merchantId: string, returnId: string): Promise<ReturnEntry> {
       return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/receive`, { method: "POST" }, f);
     },
 
-    async inspectReturn(merchantId: string, returnId: string, data: { itemCondition: ReturnItemCondition; verdict: string; notes?: string }): Promise<void> {
+    async inspectReturn(merchantId: string, returnId: string, data: { itemCondition: ReturnItemCondition; verdict: string; notes?: string }): Promise<ReturnEntry> {
       return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/inspect`, { method: "POST", jsonBody: data }, f);
     },
 
     async processRefund(merchantId: string, returnId: string): Promise<Pick<ReturnEntry, "status" | "refund">> {
       return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/refund`, { method: "POST" }, f);
     },
-    async acceptReturn(merchantId: string, returnId: string): Promise<void> {
+    async previewReturnRefund(merchantId: string, returnId: string): Promise<{ amountCents: number; alreadySubmitted: boolean }> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${encodeURIComponent(returnId)}/refund-preview`, { method: "GET" }, f);
+    },
+    async acceptReturn(merchantId: string, returnId: string): Promise<{ status: ReturnStatus; refund?: ReturnEntry["refund"] }> {
       return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/returns/${returnId}/accept`, { method: "POST" }, f);
     },
   };

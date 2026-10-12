@@ -2,15 +2,59 @@
  * Unit tests for AuditLogPage — audit-log-page.tsx
  * Validates: Portuguese diacritics, API contract (occurred_at, actor_type, correlation_id),
  * cursor pagination, filtering logic, CSV export, expandable rows, accessibility.
- * Environment: node (no jsdom) — tests validate source strings + pure function logic.
+ * Environment: node (no jsdom), with server-rendered markup and pure function tests.
  */
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
+import { createElement } from "react";
+import { renderToStaticMarkup } from "react-dom/server";
 import * as fs from "node:fs";
 import * as path from "node:path";
+import type { AuditEvent } from "../api-client.js";
+import { AuditLogPage } from "./audit-log-page.js";
+import { useAuditLogPage } from "./useAuditLogPage.js";
+
+vi.mock("./useAuditLogPage.js", async (importOriginal) => {
+  const actual = await importOriginal<typeof import("./useAuditLogPage.js")>();
+  return { ...actual, useAuditLogPage: vi.fn() };
+});
 
 const SOURCE_PATH = path.resolve(import.meta.dirname ?? ".", "audit-log-page.tsx");
 const HOOK_PATH = path.resolve(import.meta.dirname ?? ".", "useAuditLogPage.ts");
 const source = fs.readFileSync(SOURCE_PATH, "utf-8") + "\n" + fs.readFileSync(HOOK_PATH, "utf-8");
+
+const renderedEvents: AuditEvent[] = ["human", "service"].map((actorType, index): AuditEvent => ({
+  id: `event-${index + 1}`,
+  actor_type: actorType as "human" | "service",
+  actor_id: `actor-${index + 1}`,
+  action: index ? "delete_key" : "create_rule",
+  resource_type: "rule",
+  resource_id: `rule-${index + 1}`,
+  correlation_id: `correlation-${index + 1}`,
+  ip_address: null,
+  user_agent: null,
+  outcome: "success",
+  metadata: { description: `Activity ${index + 1}` },
+  occurred_at: "2026-09-28T12:00:00Z",
+}));
+
+function renderPage(overrides: Partial<ReturnType<typeof useAuditLogPage>> = {}, authenticated = true) {
+  vi.mocked(useAuditLogPage).mockReturnValue({
+    events: renderedEvents, filteredEvents: renderedEvents, pagedEvents: renderedEvents,
+    page: 1, pageSize: 20, totalFiltered: renderedEvents.length, setPage: vi.fn(),
+    loading: false, loadingMore: false, hasMore: false, error: null, moreError: null,
+    filters: { dateRange: "all", actionCategory: "all", actorType: "all" },
+    setFilters: vi.fn(), expandedRowId: null, load: vi.fn(), loadMore: vi.fn(),
+    exportCsv: vi.fn(), toggleExpand: vi.fn(), ...overrides,
+  });
+  return renderToStaticMarkup(createElement(AuditLogPage, {
+    apiBaseUrl: "",
+    me: authenticated ? { id: "merchant-test", user_id: "owner-test", name: "Loja de teste", role: "OWNER" } : null,
+  }));
+}
+
+function exportButton(markup: string) {
+  return markup.match(/<button\b[^>]*>[\s\S]*?<\/button>/g)?.find(button => button.includes("Exportar registros carregados"));
+}
 
 // ── Portuguese Diacritics ────────────────────────────────────────────────────
 
@@ -30,16 +74,19 @@ describe("AuditLogPage — Portuguese diacritics", () => {
     });
   }
 
-  it("contains correct 'necessário' with accent", () => {
-    expect(source).toContain("necessário");
+  it("explains how to access the history when signed out", () => {
+    const markup = renderPage({}, false);
+    expect(markup).toContain("Entre na sua conta para consultar as atividades da loja.");
+    expect(markup).not.toContain("<table");
+    expect(exportButton(markup)).toBeUndefined();
   });
 
-  it("contains correct 'ações realizadas' with accent", () => {
-    expect(source).toContain("ações realizadas");
+  it("describes the actor and time of each action", () => {
+    expect(source).toContain("quem realizou cada ação");
   });
 
-  it("contains correct 'auditoria' word in heading context", () => {
-    expect(source).toContain("Auditoria");
+  it("uses the activity history heading", () => {
+    expect(source).toContain('title="Histórico de atividades"');
   });
 
   it("contains correct 'Ação' table header with accent", () => {
@@ -72,9 +119,8 @@ describe("AuditLogPage — API contract alignment", () => {
 
 describe("AuditLogPage — pagination", () => {
   it("exposes a loadMore handler for progressive loading", () => {
-    // Redesign replaced the explicit "Carregar mais" button with
-    // infinite-scroll driven by loadMore()/hasMore.
-    expect(source).toContain("loadMore");
+    expect(renderPage({ hasMore: true })).toContain("Carregar registros anteriores");
+    expect(renderPage({ hasMore: false })).not.toContain("Carregar registros anteriores");
   });
 
   it("uses cursor-based pagination (nextCursor state)", () => {
@@ -100,9 +146,11 @@ describe("AuditLogPage — filters", () => {
   });
 
   it("has action category filter", () => {
-    expect(source).toContain("Exclusão");
-    expect(source).toContain("Criação");
-    expect(source).toContain("Alteração");
+    const markup = renderPage();
+    expect(markup).toContain('aria-label="Tipo de ação"');
+    expect(markup).toContain('<option value="destructive">Exclusões</option>');
+    expect(markup).toContain('<option value="constructive">Criações</option>');
+    expect(markup).toContain('<option value="update">Alterações</option>');
   });
 
   it("has actor type filter", () => {
@@ -111,8 +159,9 @@ describe("AuditLogPage — filters", () => {
   });
 
   it("shows event count summary", () => {
-    expect(source).toContain("Exibindo");
-    expect(source).toContain("eventos");
+    const markup = renderPage();
+    expect(markup).toContain("2 registros carregados.");
+    expect(markup).toContain("Os filtros e a exportação consideram esses registros.");
   });
 
   it("implements filterEvents as a pure function", () => {
@@ -127,8 +176,13 @@ describe("AuditLogPage — expandable row", () => {
     expect(source).toContain("expandedRowId");
   });
 
-  it("renders audit-detail-row class for expanded content", () => {
-    expect(source).toContain("audit-detail-row");
+  it("renders the expanded row as the target of its disclosure button", () => {
+    const collapsed = renderPage();
+    const expanded = renderPage({ expandedRowId: "event-1" });
+    expect(collapsed).not.toContain('id="detail-event-1"');
+    expect(expanded).toMatch(/aria-expanded="true" aria-controls="detail-event-1"/);
+    expect(expanded).toMatch(/<tr id="detail-event-1"><td colspan="7">/i);
+    expect(expanded).toContain("Activity 1");
   });
 
   it("shows metadata as JSON in pre block", () => {
@@ -165,27 +219,38 @@ describe("AuditLogPage — CSV export", () => {
 
 describe("AuditLogPage — accessibility", () => {
   it("has table caption for screen readers", () => {
-    expect(source).toContain("<caption");
-    expect(source).toContain("sr-only");
-    expect(source).toContain("Log de auditoria do merchant");
+    expect(renderPage()).toContain('<caption class="sr-only">Atividades da loja</caption>');
   });
 
   it("has aria-live region", () => {
-    expect(source).toContain('aria-live="polite"');
+    const liveRegion = (markup: string) => markup.match(/<p[^>]*role="status"[^>]*>[\s\S]*?<\/p>/)?.[0];
+    const loaded = liveRegion(renderPage({ totalFiltered: 42, pagedEvents: renderedEvents, page: 3 }));
+    expect(loaded).toContain('aria-live="polite"');
+    expect(loaded).toContain('aria-atomic="true"');
+    expect(loaded).toContain("42 atividades encontradas. Exibindo 2 na página 3.");
+    expect(liveRegion(renderPage({ loading: true }))).toContain("Carregando atividades.");
+    expect(liveRegion(renderPage({ loadingMore: true }))).toContain("Carregando registros anteriores.");
+    expect(liveRegion(renderPage({ moreError: "unavailable" }))).toContain("Os registros atuais foram mantidos.");
+    expect(liveRegion(renderPage({ error: "unavailable" }))).toContain("Não foi possível carregar as atividades.");
   });
 
   it("has aria-busy during loading", () => {
     expect(source).toContain("aria-busy");
   });
 
-  it("export button has an accessible aria-label", () => {
-    // The manual refresh button was removed (data auto-loads); export remains
-    // the primary labelled action in the header.
-    expect(source).toContain('aria-label="Exportar registros"');
+  it("export button has a visible accessible name that states its scope", () => {
+    const button = exportButton(renderPage());
+    expect(button).toBeDefined();
+    expect(button).toContain("Exportar registros carregados");
+    expect(button).not.toMatch(/^<button\b[^>]*aria-hidden="true"/);
+    const override = button?.match(/aria-label="([^"]+)"/)?.[1];
+    if (override) expect(override).toContain("Exportar registros carregados");
   });
 
-  it("export button has aria-label", () => {
-    expect(source).toContain('aria-label="Exportar registros"');
+  it("only enables export when results are available and loading has finished", () => {
+    expect(exportButton(renderPage({ loading: true }))).toMatch(/\sdisabled(?:=|\s|>)/);
+    expect(exportButton(renderPage({ totalFiltered: 0 }))).toMatch(/\sdisabled(?:=|\s|>)/);
+    expect(exportButton(renderPage())).not.toMatch(/\sdisabled(?:=|\s|>)/);
   });
 
   it("expand button has aria-expanded attribute", () => {
@@ -205,8 +270,11 @@ describe("AuditLogPage — accessibility", () => {
 // ── Loading skeleton ─────────────────────────────────────────────────────────
 
 describe("AuditLogPage — loading skeleton", () => {
-  it("renders skeleton-row class for table skeleton", () => {
-    expect(source).toContain("skeleton-row");
+  it("renders a named busy placeholder while activities load", () => {
+    const markup = renderPage({ loading: true });
+    expect(markup).toMatch(/<section[^>]*aria-label="Carregando atividades"[^>]*aria-busy="true"/);
+    expect(markup).toContain('class="skeleton-cell"');
+    expect(markup).not.toContain("<table");
   });
 
   it("renders skeleton-cell class for individual cells", () => {
@@ -217,8 +285,10 @@ describe("AuditLogPage — loading skeleton", () => {
 // ── Actor type badge ─────────────────────────────────────────────────────────
 
 describe("AuditLogPage — actor type display", () => {
-  it("renders actor-badge class with type distinction", () => {
-    expect(source).toContain("actor-badge");
+  it("names human and service actors without relying on badge color", () => {
+    const table = renderPage().match(/<table\b[\s\S]*?<\/table>/)?.[0];
+    expect(table).toContain("<td>Pessoa</td>");
+    expect(table).toContain("<td>Sistema</td>");
   });
 
   it("distinguishes human vs service actors", () => {

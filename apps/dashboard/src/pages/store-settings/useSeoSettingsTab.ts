@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
 import type { SeoSettings, GtmSettings, GenerateSeoSuggestionsResponse, SeoTone } from "@zyon/shared-types";
@@ -8,6 +8,9 @@ export interface SeoGtmTabState {
   gtm: GtmSettings;
   slug: string;
   loading: boolean;
+  loadError: string | null;
+  actionError: string | null;
+  saveMessage: string | null;
   saving: boolean;
   generatingAi: boolean;
   showGeneratorModal: boolean;
@@ -21,12 +24,17 @@ const EMPTY_GTM: GtmSettings = { dataLayerEnabled: true };
 
 export function useSeoSettingsTab() {
   const api = useApi();
+  const working = useRef(false);
+  const [reloadTick, setReloadTick] = useState(0);
 
   const [state, setState] = useState<SeoGtmTabState>({
     seo: EMPTY_SEO,
     gtm: EMPTY_GTM,
     slug: "",
     loading: true,
+    loadError: null,
+    actionError: null,
+    saveMessage: null,
     saving: false,
     generatingAi: false,
     showGeneratorModal: false,
@@ -37,6 +45,7 @@ export function useSeoSettingsTab() {
 
   useEffect(() => {
     let cancelled = false;
+    setState(p => ({ ...p, loading: true, loadError: null }));
     (async () => {
       try {
         const [seoResult, storeResult] = await Promise.all([
@@ -52,16 +61,16 @@ export function useSeoSettingsTab() {
           loading: false,
         }));
       } catch {
-        if (!cancelled) setState((p) => ({ ...p, loading: false }));
+        if (!cancelled) setState((p) => ({ ...p, loading: false, loadError: "Não foi possível carregar as configurações de busca e rastreamento." }));
       }
     })();
     return () => { cancelled = true; };
-  }, [api]);
+  }, [api, reloadTick]);
 
   const setSeo = useCallback((partial: Partial<SeoSettings>) => {
     setState((p) => {
       const next = { ...p.seo, ...partial };
-      const errors = validateSeo(next);
+      const errors = { ...validateSeo(next), ...validateGtm(p.gtm) };
       return { ...p, seo: next, errors };
     });
   }, []);
@@ -69,8 +78,8 @@ export function useSeoSettingsTab() {
   const setGtm = useCallback((partial: Partial<GtmSettings>) => {
     setState((p) => {
       const next = { ...p.gtm, ...partial };
-      const errors = validateGtm(next);
-      return { ...p, gtm: next, errors: { ...p.errors, ...errors } };
+      const errors = { ...validateSeo(p.seo), ...validateGtm(next) };
+      return { ...p, gtm: next, errors };
     });
   }, []);
 
@@ -79,6 +88,7 @@ export function useSeoSettingsTab() {
   }, []);
 
   const handleSave = useCallback(async () => {
+    if (working.current || state.loading || state.loadError) return;
     const seoErrors = validateSeo(state.seo);
     const gtmErrors = validateGtm(state.gtm);
     const allErrors = { ...seoErrors, ...gtmErrors };
@@ -88,29 +98,30 @@ export function useSeoSettingsTab() {
       return;
     }
 
-    setState((p) => ({ ...p, saving: true }));
+    working.current = true;
+    setState((p) => ({ ...p, saving: true, actionError: null, saveMessage: null }));
+    let seoSaved = false;
     try {
-      await Promise.all([
-        api.putSeoSettings({ seo: state.seo, gtm: state.gtm }),
-        api.putStoreSettings({ slug: state.slug }),
-      ]);
-      setState((p) => ({ ...p, saving: false }));
+      await api.putSeoSettings({ seo: state.seo, gtm: state.gtm });
+      seoSaved = true;
+      await api.putStoreSettings({ slug: state.slug });
+      setState((p) => ({ ...p, saving: false, saveMessage: "Configurações de busca e rastreamento salvas." }));
       showToast("success", "Configurações de SEO salvas com sucesso");
     } catch (e) {
-      setState((p) => ({ ...p, saving: false }));
-      showToast("error", e instanceof Error ? e.message : "Erro ao salvar SEO");
-    }
-  }, [state.seo, state.gtm, state.slug, api]);
+      setState((p) => ({ ...p, saving: false, actionError: seoSaved ? "As configurações de busca foram salvas, mas o endereço da loja não foi atualizado. Seu rascunho foi mantido; tente salvar novamente." : "Não foi possível salvar. Suas alterações foram mantidas; tente novamente." }));
+    } finally { working.current = false; }
+  }, [state.seo, state.gtm, state.slug, state.loading, state.loadError, api]);
 
   const handleGenerate = useCallback(async (prompt: string, tone: SeoTone, storeCategory?: string) => {
-    setState((p) => ({ ...p, generatingAi: true }));
+    if (working.current) return;
+    working.current = true;
+    setState((p) => ({ ...p, generatingAi: true, actionError: null }));
     try {
       const suggestions = await api.generateSeoSuggestions({ prompt, tone, storeCategory });
       setState((p) => ({ ...p, generatingAi: false, suggestions }));
     } catch (e) {
-      setState((p) => ({ ...p, generatingAi: false }));
-      showToast("error", e instanceof Error ? e.message : "Erro ao gerar sugestões");
-    }
+      setState((p) => ({ ...p, generatingAi: false, actionError: "Não foi possível gerar sugestões. A descrição do negócio foi mantida para você tentar novamente." }));
+    } finally { working.current = false; }
   }, [api]);
 
   const handleApplySuggestion = useCallback((titleIdx: number, descIdx: number, keywords: string[]) => {
@@ -127,11 +138,12 @@ export function useSeoSettingsTab() {
   }, []);
 
   const openGeneratorModal = useCallback(() => setState((p) => ({ ...p, showGeneratorModal: true, suggestions: null })), []);
-  const closeGeneratorModal = useCallback(() => setState((p) => ({ ...p, showGeneratorModal: false, suggestions: null })), []);
+  const closeGeneratorModal = useCallback(() => { if (!working.current) setState((p) => ({ ...p, showGeneratorModal: false, suggestions: null, actionError: null })); }, []);
   const toggleSection = useCallback((section: "og" | "pixels") => setState((p) => ({ ...p, expandedSections: { ...p.expandedSections, [section]: !p.expandedSections[section] } })), []);
 
   return {
     state,
+    reload: () => setReloadTick(n => n + 1),
     setSeo,
     setGtm,
     setSlug,

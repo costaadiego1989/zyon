@@ -1,277 +1,52 @@
-import React from "react";
-import { X, Download } from "lucide-react";
+﻿import React, { useEffect } from "react";
+import { Download } from "lucide-react";
+import { Modal } from "../Modal.js";
+import { Button } from "../Button.js";
 import { useCsvImport } from "./hooks/useCsvImport.js";
 import { CsvFileDropzone } from "./components/CsvFileDropzone.js";
 import { CsvPreviewTable } from "./components/CsvPreviewTable.js";
 import { CsvProgressBar } from "./components/CsvProgressBar.js";
 import { CsvErrorList } from "./components/CsvErrorList.js";
 import type { CsvRow } from "./utils/csv-validation.js";
+import "../import-dialog.css";
 
-export interface CsvImportModalProps {
-  isOpen: boolean;
-  onClose: () => void;
-  onImport: (rows: CsvRow[]) => Promise<void>;
-}
-
+export interface CsvImportModalProps { isOpen: boolean; onClose: () => void; onImport: (rows: CsvRow[]) => Promise<void>; }
 const TEMPLATE_HEADER = "name,sku,price,stock,weight_grams,length_cm,width_cm,height_cm,description,category";
-const TEMPLATE_ROWS = [
-  'Produto Exemplo 1,SKU-001,99.99,100,500,10,15,20,"Descrição do produto","Eletrônicos"',
-  'Produto Exemplo 2,SKU-002,149.50,50,750,12,18,25,"Outro produto","Acessórios"',
-];
-
+const TEMPLATE_ROWS = ['Produto Exemplo 1,SKU-001,99.99,100,500,10,15,20,"Descrição do produto","Eletrônicos"', 'Produto Exemplo 2,SKU-002,149.50,50,750,12,18,25,"Outro produto","Acessórios"'];
 function downloadTemplate() {
-  const csv = [TEMPLATE_HEADER, ...TEMPLATE_ROWS].join("\n");
-  const blob = new Blob([csv], { type: "text/csv;charset=utf-8;" });
-  const link = document.createElement("a");
-  link.href = URL.createObjectURL(blob);
-  link.download = `template-produtos-${new Date().toISOString().slice(0, 10)}.csv`;
-  link.click();
+  const url = URL.createObjectURL(new Blob([[TEMPLATE_HEADER, ...TEMPLATE_ROWS].join("\n")], { type: "text/csv;charset=utf-8;" }));
+  const link = document.createElement("a"); link.href = url; link.download = "modelo-produtos.csv"; link.click();
+  setTimeout(() => URL.revokeObjectURL(url), 1000);
 }
-
 export function CsvImportModal({ isOpen, onClose, onImport }: CsvImportModalProps) {
-  const {
-    step,
-    parsedRows,
-    errors,
-    importing,
-    importError,
-    handleFileSelect,
-    goToPreview,
-    goToConfirm,
-    goBack,
-    handleImportConfirm,
-  } = useCsvImport();
-
-  if (!isOpen) return null;
-
-  const hasErrors = errors.length > 0;
-
-  return (
-    <div
-      onClick={onClose}
-      style={{
-        position: "fixed",
-        inset: 0,
-        zIndex: 1000,
-        display: "flex",
-        alignItems: "center",
-        justifyContent: "center",
-        background: "rgba(0,0,0,0.5)",
-        backdropFilter: "blur(2px)",
-      }}
-    >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        style={{
-          position: "relative",
-          background: "var(--surface-2)",
-          border: "1px solid var(--color-border)",
-          borderRadius: 14,
-          width: "90vw",
-          maxWidth: 700,
-          maxHeight: "90vh",
-          overflowY: "auto",
-          display: "flex",
-          flexDirection: "column",
-          animation: "slideInUp 0.2s ease-out",
-        }}
-      >
-        {/* Header */}
-        <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "20px 24px", borderBottom: "1px solid var(--color-border)" }}>
-          <h2 style={{ font: "600 18px var(--font-serif)", color: "var(--color-text)", margin: 0 }}>
-            {step === "upload" && "Importar Produtos"}
-            {step === "preview" && "Revisar Dados"}
-            {step === "confirm" && "Confirmar Importação"}
-          </h2>
-          <button
-            onClick={onClose}
-            style={{
-              background: "none",
-              border: "none",
-              fontSize: 20,
-              cursor: "pointer",
-              color: "var(--color-text-faint)",
-              padding: 0,
-            }}
-          >
-            <X size={20} />
-          </button>
-        </div>
-
-        {/* Content */}
-        <div style={{ flex: 1, padding: "24px", overflowY: "auto" }}>
-          {step === "upload" && (
-            <>
-              <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 16 }}>
-                Selecione ou arraste um arquivo CSV com os dados dos produtos. O arquivo deve incluir as colunas: <strong>name</strong>, <strong>sku</strong> e <strong>price</strong>.
-              </p>
-
-              <CsvFileDropzone onFileSelect={handleFileSelect} />
-
-              <CsvErrorList errors={errors} maxToShow={5} />
-
-              <button
-                type="button"
-                onClick={downloadTemplate}
-                style={{
-                  display: "flex",
-                  alignItems: "center",
-                  gap: 8,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-border)",
-                  background: "var(--surface-1)",
-                  font: "600 12.5px var(--font-sans)",
-                  color: "var(--color-text)",
-                  cursor: "pointer",
-                  width: "100%",
-                  justifyContent: "center",
-                }}
-              >
-                <Download size={14} /> Baixar Template CSV
-              </button>
-            </>
-          )}
-
-          {step === "preview" && (
-            <>
-              <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 16 }}>
-                {parsedRows.length} linha{parsedRows.length !== 1 ? "s" : ""} pronta{parsedRows.length !== 1 ? "s" : ""} para importação.
-              </p>
-
-              <CsvErrorList errors={errors} maxToShow={10} />
-
-              <CsvPreviewTable rows={parsedRows} errors={errors} />
-            </>
-          )}
-
-          {step === "confirm" && (
-            <>
-              <p style={{ font: "13px var(--font-sans)", color: "var(--color-text-muted)", marginBottom: 16 }}>
-                Você está prestes a importar {parsedRows.length} produto{parsedRows.length !== 1 ? "s" : ""}. Esta ação não pode ser desfeita. Confirme para continuar.
-              </p>
-
-              {importError && (
-                <div style={{ background: "var(--color-error-bg)", border: "1px solid var(--color-error)", borderRadius: 8, padding: "12px 14px", marginBottom: 16 }}>
-                  <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-error)" }}>
-                    Erro durante importação:
-                  </div>
-                  <p style={{ font: "12px var(--font-sans)", color: "var(--color-error)", margin: "6px 0 0" }}>
-                    {importError}
-                  </p>
-                </div>
-              )}
-
-              <CsvProgressBar isImporting={importing} rowCount={parsedRows.length} />
-            </>
-          )}
-        </div>
-
-        {/* Footer */}
-        <div style={{ display: "flex", gap: 10, padding: "16px 24px", borderTop: "1px solid var(--color-border)" }}>
-          {step === "upload" && (
-            <button
-              type="button"
-              onClick={onClose}
-              style={{
-                flex: 1,
-                padding: "10px 14px",
-                borderRadius: 8,
-                border: "1px solid var(--color-border)",
-                background: "var(--surface-1)",
-                font: "600 12.5px var(--font-sans)",
-                color: "var(--color-text)",
-                cursor: "pointer",
-              }}
-            >
-              Cancelar
-            </button>
-          )}
-
-          {step === "preview" && (
-            <>
-              <button
-                type="button"
-                onClick={goBack}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-border)",
-                  background: "var(--surface-1)",
-                  font: "600 12.5px var(--font-sans)",
-                  color: "var(--color-text)",
-                  cursor: "pointer",
-                }}
-              >
-                Voltar
-              </button>
-              <button
-                type="button"
-                onClick={goToConfirm}
-                disabled={hasErrors}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-brand-hover)",
-                  background: "var(--color-brand-hover)",
-                  font: "600 12.5px var(--font-sans)",
-                  color: "white",
-                  cursor: hasErrors ? "not-allowed" : "pointer",
-                  opacity: hasErrors ? 0.6 : 1,
-                }}
-              >
-                Próximo
-              </button>
-            </>
-          )}
-
-          {step === "confirm" && (
-            <>
-              <button
-                type="button"
-                onClick={goBack}
-                disabled={importing}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-border)",
-                  background: "var(--surface-1)",
-                  font: "600 12.5px var(--font-sans)",
-                  color: "var(--color-text)",
-                  cursor: importing ? "not-allowed" : "pointer",
-                  opacity: importing ? 0.6 : 1,
-                }}
-              >
-                Voltar
-              </button>
-              <button
-                type="button"
-                onClick={() => handleImportConfirm(onImport, onClose)}
-                disabled={importing}
-                style={{
-                  flex: 1,
-                  padding: "10px 14px",
-                  borderRadius: 8,
-                  border: "1px solid var(--color-brand-hover)",
-                  background: "var(--color-brand-hover)",
-                  font: "600 12.5px var(--font-sans)",
-                  color: "white",
-                  cursor: importing ? "not-allowed" : "pointer",
-                  opacity: importing ? 0.6 : 1,
-                }}
-              >
-                {importing ? "Importando..." : "Confirmar Importação"}
-              </button>
-            </>
-          )}
-        </div>
-      </div>
+  const vm = useCsvImport();
+  useEffect(() => { if (isOpen) vm.resetAll(); }, [isOpen]); // eslint-disable-line react-hooks/exhaustive-deps
+  const valid = vm.parsedRows.length > 0 && vm.errors.length === 0;
+  const stepIndex = vm.step === "upload" ? 1 : vm.step === "preview" ? 2 : 3;
+  return <Modal isOpen={isOpen} title={vm.step === "upload" ? "Importar produtos por CSV" : vm.step === "preview" ? "Revisar produtos" : "Confirmar importação"} subtitle={`Etapa ${stepIndex} de 3: arquivo, revisão e importação.`} presentation="center" size="lg" onClose={() => { if (!vm.importing) onClose(); }} footer={<>
+    <Button variant="outline" disabled={vm.importing} onClick={vm.step === "upload" ? onClose : vm.goBack}>{vm.step === "upload" ? "Cancelar" : "Voltar"}</Button>
+    {vm.step === "preview" && <Button variant="primary" disabled={!valid} onClick={vm.goToConfirm}>Continuar para confirmação</Button>}
+    {vm.step === "confirm" && <Button variant="primary" loading={vm.importing} disabled={vm.importing || !valid} onClick={() => void vm.handleImportConfirm(onImport, onClose)}>{vm.importing ? "Importando…" : `Importar ${vm.parsedRows.length} produtos`}</Button>}
+  </>}>
+    <div className="import-dialog">
+      {vm.step === "upload" && <>
+        <p>Baixe o modelo e preencha uma linha por produto. As colunas <strong>name</strong> (nome), <strong>sku</strong> (código) e <strong>price</strong> (preço) são obrigatórias. Use ponto para os centavos, por exemplo, 99.90.</p>
+        <CsvFileDropzone onFileSelect={vm.handleFileSelect} />
+        <CsvErrorList errors={vm.errors} maxToShow={5} />
+        <Button variant="outline" onClick={downloadTemplate}><Download size={16} /> Baixar modelo CSV</Button>
+      </>}
+      {vm.step === "preview" && <>
+        <p>{vm.parsedRows.length} linhas lidas. Confira nomes, códigos, preços e estoque antes de continuar.</p>
+        <CsvErrorList errors={vm.errors} maxToShow={10} />
+        {vm.errors.length > 0 && <p role="alert">Corrija as linhas indicadas no arquivo e volte para enviá-lo novamente.</p>}
+        <CsvPreviewTable rows={vm.parsedRows} errors={vm.errors} />
+      </>}
+      {vm.step === "confirm" && <>
+        <p>Ao confirmar, os {vm.parsedRows.length} produtos serão enviados para o catálogo. Mantenha esta janela aberta até receber o resultado.</p>
+        {vm.importError && <div className="import-dialog__error" role="alert"><strong>Não foi possível concluir a importação.</strong><p>{vm.importError}</p><p>Confira o catálogo antes de tentar novamente para evitar repetir produtos já importados.</p></div>}
+        <CsvProgressBar isImporting={vm.importing} rowCount={vm.parsedRows.length} />
+      </>}
     </div>
-  );
+  </Modal>;
 }
-
-// Re-exports for backward compatibility
 export type { CsvRow } from "./utils/csv-validation.js";

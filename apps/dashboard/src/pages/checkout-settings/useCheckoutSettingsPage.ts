@@ -8,7 +8,7 @@ import { useApi } from "../../hooks/useApi.js";
 import { useErrorReporter } from "../../hooks/useErrorReporter.js";
 import { showToast } from "../../components/Toast.js";
 import type { Draft, AdvancedRule } from "./lib/draft.js";
-import { settingsToDraft, draftToPatch, draftsEqual, DEFAULT_DRAFT } from "./lib/draft.js";
+import { settingsToDraft, draftChangesToPatch, draftsEqual, DEFAULT_DRAFT } from "./lib/draft.js";
 import { validate, type ValidationErrors } from "./lib/validation.js";
 
 function errText(e: unknown): string {
@@ -16,9 +16,9 @@ function errText(e: unknown): string {
     if (e.status === 412) {
       return "As configurações foram alteradas desde a última leitura. Recarregue-as, revise e tente salvar novamente.";
     }
-    return e.responseBody.slice(0, 160);
+    return "Não foi possível concluir a solicitação. Tente novamente.";
   }
-  return e instanceof Error ? e.message : String(e);
+  return "Não foi possível concluir a solicitação. Tente novamente.";
 }
 
 export interface CheckoutSettingsViewModel {
@@ -26,7 +26,7 @@ export interface CheckoutSettingsViewModel {
   draft: Draft | null;
   busy: boolean;
   message: { text: string; kind: "info" | "error" } | null;
-  activeTab: "behavior" | "triggers" | "discounts" | "rules";
+  activeTab: "triggers" | "discounts" | "rules";
   dirty: boolean;
   reloadRequired: boolean;
   errors: ValidationErrors;
@@ -38,7 +38,7 @@ export interface CheckoutSettingsViewModel {
   discardChanges: () => void;
   patchDraft: (partial: Partial<Draft>) => void;
   patchTrigger: (trigger: CheckoutTriggerName, partial: Partial<{ enabled: boolean; message: string; cooldownSeconds: number; couponCode: string }>) => void;
-  setActiveTab: (tab: "behavior" | "triggers" | "discounts" | "rules") => void;
+  setActiveTab: (tab: "triggers" | "discounts" | "rules") => void;
   openRuleEditor: (rule: AdvancedRule | null) => void;
   closeRuleEditor: () => void;
   addRule: (rule: AdvancedRule) => void;
@@ -60,7 +60,7 @@ export function useCheckoutSettingsPage(props: {
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<{ text: string; kind: "info" | "error" } | null>(null);
   const [reloadRequired, setReloadRequired] = useState(false);
-  const [activeTab, setActiveTab] = useState<"behavior" | "triggers" | "discounts" | "rules">("behavior");
+  const [activeTab, setActiveTab] = useState<"triggers" | "discounts" | "rules">("triggers");
   const [editingRule, setEditingRule] = useState<AdvancedRule | null>(null);
   const [editorOpen, setEditorOpen] = useState(false);
 
@@ -96,7 +96,7 @@ export function useCheckoutSettingsPage(props: {
   }
 
   async function save() {
-    if (!draft) return;
+    if (!draft || busy || reloadRequired || !settings) return;
     const errs = validate(draft);
     if (Object.keys(errs).length > 0) {
       setMessage({ text: "Corrija os erros antes de salvar.", kind: "error" });
@@ -104,7 +104,7 @@ export function useCheckoutSettingsPage(props: {
     }
     setBusy(true);
     try {
-      const s = await api.patchCheckoutSettings(draftToPatch(draft));
+      const s = await api.patchCheckoutSettings(draftChangesToPatch(draft, settings));
       const d = settingsToDraft(s);
       setSettings(s);
       setDraft(d);
@@ -115,7 +115,6 @@ export function useCheckoutSettingsPage(props: {
       const conflict = e instanceof DashboardHttpError && e.status === 412;
       setMessage({ text: `Erro ao salvar: ${errText(e)}`, kind: "error" });
       setReloadRequired(conflict);
-      showToast("error", conflict ? "A configuração mudou. Recarregue antes de salvar." : `Erro ao salvar: ${errText(e)}`);
       reportError({ source: "checkout-settings.save", error: e, severity: "warning" });
     } finally {
       setBusy(false);
@@ -123,13 +122,18 @@ export function useCheckoutSettingsPage(props: {
   }
 
   function restoreDefaults() {
-    if (
-      !window.confirm(
-        "Voltar tudo para o padrão recomendado? Você ainda precisa salvar para aplicar."
-      )
-    )
-      return;
-    setDraft({ ...DEFAULT_DRAFT, triggers: { ...DEFAULT_DRAFT.triggers } });
+    setDraft({ ...savedDraft, ...DEFAULT_DRAFT,
+      // Presentation belongs to the store; this page cannot change hidden settings.
+      mode: savedDraft?.mode ?? DEFAULT_DRAFT.mode,
+      openWidgetOnTrigger: savedDraft?.openWidgetOnTrigger ?? DEFAULT_DRAFT.openWidgetOnTrigger,
+      startMinimized: savedDraft?.startMinimized ?? DEFAULT_DRAFT.startMinimized,
+      position: savedDraft?.position ?? DEFAULT_DRAFT.position,
+      initialDelaySeconds: savedDraft?.initialDelaySeconds ?? DEFAULT_DRAFT.initialDelaySeconds,
+      fabColor: savedDraft?.fabColor ?? DEFAULT_DRAFT.fabColor,
+      inviteText: savedDraft?.inviteText ?? DEFAULT_DRAFT.inviteText,
+      showCartBadge: savedDraft?.showCartBadge ?? DEFAULT_DRAFT.showCartBadge,
+      checkoutReturnUrl: savedDraft?.checkoutReturnUrl ?? DEFAULT_DRAFT.checkoutReturnUrl,
+      triggers: { ...DEFAULT_DRAFT.triggers } });
     setMessage({
       text: "Valores padrão carregados. Revise e salve para aplicar.",
       kind: "info",

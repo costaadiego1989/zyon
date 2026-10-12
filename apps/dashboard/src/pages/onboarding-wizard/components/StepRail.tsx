@@ -6,6 +6,7 @@ interface StepMeta {
   label: string;
   caption: string;
   icon: LucideIcon;
+  optional?: boolean;
 }
 
 interface StepRailProps {
@@ -17,11 +18,11 @@ interface StepRailProps {
 
 export function StepRail({ steps, currentStep, onStepClick, progress }: StepRailProps) {
   return (
-    <aside className="onb-rail" aria-label="Progresso do onboarding">
+    <aside className="onb-rail" aria-label="Etapas da configuração">
       <div className="onb-rail-head">
         <div>
-          <strong>Ative seu checkout assistido</strong>
-          <small>Configure tudo em poucos minutos. Você pode alterar qualquer configuração depois.</small>
+          <strong>Prepare sua loja</strong>
+          <small>Seu rascunho fica neste navegador. Revise as etapas anteriores quando precisar.</small>
         </div>
       </div>
 
@@ -37,22 +38,21 @@ export function StepRail({ steps, currentStep, onStepClick, progress }: StepRail
             <li
               key={step.id}
               className={`onb-rail-step onb-rail-step-${state}`}
-              onClick={() => onStepClick?.(step.id)}
-              role={onStepClick ? "button" : undefined}
-              tabIndex={onStepClick ? 0 : undefined}
-              onKeyDown={onStepClick ? (e) => { if (e.key === "Enter" || e.key === " ") onStepClick(step.id); } : undefined}
+              aria-current={state === "active" ? "step" : undefined}
             >
+              <button type="button" className="onb-rail-step-button" disabled={!onStepClick || state !== "done"} onClick={() => onStepClick?.(step.id)}>
               <span className="onb-rail-node" aria-hidden="true">
                 {state === "done" ? <Check size={14} strokeWidth={3} /> : <Icon size={15} strokeWidth={2} />}
               </span>
               <span className="onb-rail-text">
                 <span className="onb-rail-index">
                   Etapa {String(step.id).padStart(2, "0")}
-                  {state === "done" ? " · concluída" : state === "active" ? " · atual" : ""}
+                  {state === "done" ? " · revisada" : state === "active" ? " · atual" : ""}
                 </span>
-                <span className="onb-rail-label">{step.label}</span>
+                <span className="onb-rail-label">{step.label}{step.optional && <small className="onb-optional">Opcional</small>}</span>
                 <span className="onb-rail-caption">{step.caption}</span>
               </span>
+              </button>
             </li>
           );
         })}

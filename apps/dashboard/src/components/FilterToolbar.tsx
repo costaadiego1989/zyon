@@ -60,32 +60,15 @@ export function FilterSelect(props: {
   size?: "sm" | "md";
   className?: string;
 }) {
-  const isMedium = props.size === "md";
+
 
   return (
     <select
       value={props.value}
       onChange={(e) => props.onChange(e.target.value)}
-      aria-label={props.ariaLabel}
-      className={props.className}
-      style={{
-        height: isMedium ? 40 : 32,
-        width: props.width ?? 200,
-        padding: isMedium ? "0 32px 0 12px" : "0 26px 0 12px",
-        borderRadius: isMedium ? "var(--radius-sm)" : 7,
-        border: "1px solid var(--color-border)",
-        font: isMedium ? "12px var(--font-sans)" : "600 12px var(--font-sans)",
-        color: "var(--color-text)",
-        background: isMedium ? "var(--surface-2)" : "var(--surface-1)",
-        cursor: "pointer",
-        outline: "none",
-        boxSizing: "border-box",
-        WebkitAppearance: "none",
-        appearance: "none",
-        backgroundImage: "url(\"data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23999' stroke-width='2'%3E%3Cpath d='M6 9l6 6 6-6'/%3E%3C/svg%3E\")",
-        backgroundRepeat: "no-repeat",
-        backgroundPosition: "right 8px center",
-      }}
+      aria-label={props.ariaLabel ?? props.placeholder ?? "Filtrar resultados"}
+      className={["ui-filter-select", props.className].filter(Boolean).join(" ")}
+      style={{ width: props.width ?? 200 }}
     >
       {props.placeholder && <option value="">{props.placeholder}</option>}
       {props.options.map((opt) => (

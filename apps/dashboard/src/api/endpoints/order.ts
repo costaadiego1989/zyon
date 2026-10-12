@@ -24,8 +24,26 @@ export type PurchasedShippingLabel = {
   label_url: string | null;
 };
 
+export type DigitalOrderAccess = { products: Array<{
+  id: string; name: string; status: string; expiresAt: string; downloadCount: number;
+  deliveries: Array<{ id: string; channel: string; status: string; reason: string | null; sentAt: string | null }>;
+}> };
+
 export function orderEndpoints(base: string, f: typeof fetch) {
   return {
+    getServiceFulfillmentSlots(orderId: string, unitId: string): Promise<{ slots: Array<{ slotId: string; startsAt: string; timeZone: string; selectable: boolean }> }> {
+      return dashboardJson(base, `/orders/${encodeURIComponent(orderId)}/fulfillments/${encodeURIComponent(unitId)}/service-slots`, { method: "GET" }, f);
+    },
+    executeFulfillmentAction(orderId: string, unitId: string, payload: { action: string; expected_version: number; command_id: string; proof?: string; quantity?: number; schedule_slot_id?: string }): Promise<TenantOrderDetail> {
+      return dashboardJson(base, `/orders/${encodeURIComponent(orderId)}/fulfillments/${encodeURIComponent(unitId)}/actions`,
+        { method: "POST", jsonBody: payload, headers: { "Idempotency-Key": payload.command_id } }, f);
+    },
+    getDigitalOrderAccess(merchantId: string, externalOrderId: string): Promise<DigitalOrderAccess> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/orders/${encodeURIComponent(externalOrderId)}/digital-access`, { method: "GET" }, f);
+    },
+    retryDigitalDelivery(merchantId: string, deliveryId: string): Promise<{ status: "queued" }> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/digital-deliveries/${encodeURIComponent(deliveryId)}/retry`, { method: "POST" }, f);
+    },
     async getOrders(limit?: number, cursor?: string): Promise<CursorPage<TenantOrder>> {
       const params = new URLSearchParams();
       if (limit) params.set("limit", String(limit));

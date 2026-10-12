@@ -2,6 +2,8 @@ import { useEffect, useRef, useState } from "react";
 
 export interface TurnstileProps {
   siteKey: string | undefined;
+  action?: string;
+  resetKey?: string | number;
   onChange: (token: string | null) => void;
   onExpire?: () => void;
   className?: string;
@@ -13,6 +15,7 @@ declare global {
     turnstile?: {
       render: (container: HTMLElement, options: {
         sitekey: string;
+        action?: string;
         callback: (token: string) => void;
         "expired-callback": () => void;
         "error-callback": (code: string) => boolean;
@@ -20,7 +23,7 @@ declare global {
         "unsupported-callback": () => void;
         appearance: "always";
         theme: "dark" | "light" | "auto";
-        size: "flexible";
+        size: "flexible" | "compact";
         language: "pt-br";
       }) => string;
       remove: (widgetId: string) => void;
@@ -62,8 +65,20 @@ export function Turnstile(props: TurnstileProps) {
   const callbacks = useRef(props);
   callbacks.current = props;
   const [attempt, setAttempt] = useState(0);
+  const [compact, setCompact] = useState(false);
   const [status, setStatus] = useState<"loading" | "verifying" | "ready" | "error">("loading");
   const [message, setMessage] = useState("");
+
+  useEffect(() => {
+    const container = containerRef.current;
+    if (!props.siteKey || !container) return;
+    const resize = () => setCompact(container.clientWidth > 0 && container.clientWidth < 300);
+    resize();
+    if (typeof ResizeObserver === "undefined") return;
+    const observer = new ResizeObserver(resize);
+    observer.observe(container);
+    return () => observer.disconnect();
+  }, [props.siteKey]);
 
   useEffect(() => {
     if (!props.siteKey) return;
@@ -86,6 +101,7 @@ export function Turnstile(props: TurnstileProps) {
       verificationTimer = window.setTimeout(() => fail("A verificação está demorando. Tente novamente ou use outro navegador."), 30000);
       widgetId = window.turnstile.render(containerRef.current, {
         sitekey: props.siteKey!,
+        action: props.action,
         callback: token => {
           if (cancelled) return;
           window.clearTimeout(verificationTimer);
@@ -102,7 +118,7 @@ export function Turnstile(props: TurnstileProps) {
         "unsupported-callback": () => fail("Este navegador não é compatível com a verificação. Abra o cadastro em outro navegador."),
         appearance: "always",
         theme: props.theme ?? "dark",
-        size: "flexible",
+        size: compact ? "compact" : "flexible",
         language: "pt-br",
       });
     }).catch(() => fail("Não foi possível carregar a verificação. Confira sua conexão e tente novamente."));
@@ -115,13 +131,13 @@ export function Turnstile(props: TurnstileProps) {
       }
       callbacks.current.onChange(null);
     };
-  }, [props.siteKey, props.theme, attempt]);
+  }, [props.siteKey, props.theme, props.action, props.resetKey, attempt, compact]);
 
   if (!props.siteKey) return null;
   return (
-    <div className={props.className ?? "auth-verification"}>
+    <div className={props.className ?? "auth-verification"} style={{ minWidth: 0, maxWidth: "100%" }}>
       <div ref={containerRef} data-testid="cf-turnstile" />
-      <p className="auth-verification__status" role="status" aria-live="polite">
+      <p className="auth-verification__status" role="status" aria-live="polite" style={{ fontSize: 14, lineHeight: 1.5, color: "inherit" }}>
         {status === "loading" ? "Carregando verificação de segurança…" : status === "verifying" ? "Conclua a verificação de segurança para continuar." : status === "ready" ? "Verificação concluída." : message}
       </p>
       {status === "error" && <button type="button" className="auth-btn-secondary" onClick={() => setAttempt(value => value + 1)}>Tentar verificação novamente</button>}

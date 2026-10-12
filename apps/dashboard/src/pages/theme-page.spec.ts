@@ -141,7 +141,7 @@ describe("DENSITY_OPTIONS", () => {
     const labels = DENSITY_OPTIONS.map((o) => o.label);
     expect(labels).toContain("Estreito");
     expect(labels).toContain("Médio");
-    expect(labels).toContain("Full");
+    expect(labels).toContain("Amplo");
   });
 
   it("maps to correct density values", () => {
@@ -202,6 +202,6 @@ describe("LABELS", () => {
   });
 
   it("has URL validation error message", () => {
-    expect(LABELS.urlInvalid).toBe("URL inválida — use https://...");
+    expect(LABELS.urlInvalid).toBe("Use um endereço válido, começando com https://");
   });
 });

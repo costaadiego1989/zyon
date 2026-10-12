@@ -60,6 +60,7 @@ export function useDeliveryPage() {
   const [shipmentsPage, setShipmentsPage] = useState(1); // 1-based
   const [shipmentsTotal, setShipmentsTotal] = useState(0);
   const PAGE_SIZE = 10;
+  const [shipmentsAttempt, setShipmentsAttempt] = useState(0);
 
   useEffect(() => {
     const url = new URL(window.location.href);
@@ -107,14 +108,13 @@ export function useDeliveryPage() {
       } catch {
         if (!cancelled) {
           setShipmentsError("Não foi possível carregar as entregas.");
-          showToast("error", "Erro ao carregar entregas");
         }
       } finally {
         if (!cancelled) setShipmentsLoading(false);
       }
     })();
     return () => { cancelled = true; };
-  }, [api, shipmentsFilter, shipmentsPage]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [api, shipmentsFilter, shipmentsPage, shipmentsAttempt]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const changeFilter = useCallback((value: string) => {
     setShipmentsFilter(value);
@@ -123,7 +123,7 @@ export function useDeliveryPage() {
 
   // Toggle Melhor Envio
   const toggleMelhorEnvio = useCallback(async (enabled: boolean) => {
-    // Immediate optimistic update — NO revert
+    // Restore the saved configuration if the update fails.
     const previous = configRef.current;
     setConfig({
       ...previous,
@@ -146,49 +146,28 @@ export function useDeliveryPage() {
     }
   }, [api]);
 
-  // Toggle own delivery
+  // Activation is saved together with its configuration, after review.
   const toggleOwnDelivery = useCallback(async (enabled: boolean) => {
-    // Immediate optimistic update — NO revert
-    const previous = configRef.current;
-    setConfig({
-      ...previous,
-      melhorEnvioEnabled: enabled ? false : previous.melhorEnvioEnabled,
-      ownDelivery: { ...previous.ownDelivery, enabled },
-    });
-
-    if (enabled) setOwnDeliveryPanelOpen(true);
-
+    if (enabled) { setOwnDeliveryPanelOpen(true); return; }
     setSaving(true);
     try {
-      await api.updateDeliveryConfig({
-        ownDelivery: { enabled },
-        ...(enabled ? { melhorEnvioEnabled: false } : {}),
-      });
-      showToast("success", enabled ? "Entrega própria ativada" : "Entrega própria desativada");
-    } catch {
-      setConfig(previous);
-      showToast("error", "Erro ao salvar — tente novamente");
-    } finally {
-      setSaving(false);
-    }
+      await api.updateDeliveryConfig({ ownDelivery: { enabled: false } });
+      setConfig(previous => ({ ...previous, ownDelivery: { ...previous.ownDelivery, enabled: false } }));
+      showToast("success", "Entrega própria desativada");
+    } catch { showToast("error", "Não foi possível desativar a entrega própria. Tente novamente."); }
+    finally { setSaving(false); }
   }, [api]);
 
-  // Save own delivery config from SidePanel
   const saveOwnDeliveryConfig = useCallback(async (patch: Partial<OwnDeliveryConfig>) => {
-    const previous = configRef.current;
-    const updated = { ...previous.ownDelivery, ...patch, enabled: true };
-    setConfig({ ...previous, ownDelivery: updated });
-
+    const updated = { ...configRef.current.ownDelivery, ...patch, enabled: true };
     setSaving(true);
     try {
-      await api.updateDeliveryConfig({ ownDelivery: updated });
-      showToast("success", "Configuração salva");
+      await api.updateDeliveryConfig({ ownDelivery: updated, melhorEnvioEnabled: false });
+      setConfig(previous => ({ ...previous, melhorEnvioEnabled: false, ownDelivery: updated }));
+      showToast("success", "Entrega própria salva e ativada");
     } catch {
-      setConfig(previous);
-      showToast("error", "Erro ao salvar configuração");
-    } finally {
-      setSaving(false);
-    }
+      throw new Error("Não foi possível salvar a entrega própria. Seus ajustes foram mantidos. Tente novamente.");
+    } finally { setSaving(false); }
   }, [api]);
 
   // Connect Melhor Envio — requires toggle active
@@ -215,6 +194,7 @@ export function useDeliveryPage() {
     saveOwnDeliveryConfig,
     shipments,
     shipmentsLoading,
+    reloadShipments: () => setShipmentsAttempt(attempt => attempt + 1),
     shipmentsError,
     shipmentsFilter,
     setShipmentsFilter: changeFilter,

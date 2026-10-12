@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 
 export interface OwnChargeback {
   paymentIntentId: string;
@@ -13,12 +13,18 @@ export interface OwnChargeback {
 
 type ChargebacksResponse = { chargebacks?: OwnChargeback[] };
 
-export function useChargebacksPage(apiBaseUrl: string) {
+export function useChargebacksPage(apiBaseUrl: string, enabled = true) {
   const [chargebacks, setChargebacks] = useState<OwnChargeback[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
+  const readVersion = useRef(0);
 
   const fetchChargebacks = useCallback(async () => {
+    if (!enabled) {
+      setLoading(false);
+      return;
+    }
+    const version = ++readVersion.current;
     setLoading(true);
     setError(null);
 
@@ -30,21 +36,31 @@ export function useChargebacksPage(apiBaseUrl: string) {
       });
 
       if (!response.ok) {
-        throw new Error(`HTTP ${response.status}`);
+        throw new Error(
+          response.status === 403
+            ? "Você não tem permissão para consultar estas contestações."
+            : "Não foi possível consultar as contestações. Tente novamente."
+        );
       }
 
-      const data = await response.json() as ChargebacksResponse;
-      setChargebacks(Array.isArray(data.chargebacks) ? data.chargebacks : []);
+      const data = (await response.json()) as ChargebacksResponse;
+      if (version === readVersion.current)
+        setChargebacks(Array.isArray(data.chargebacks) ? data.chargebacks : []);
     } catch (err: unknown) {
-      setError(err instanceof Error ? err.message : "Não foi possível carregar os chargebacks");
-      setChargebacks([]);
+      if (version === readVersion.current)
+        setError(
+          err instanceof Error ? err.message : "Não foi possível consultar as contestações. Tente novamente."
+        );
     } finally {
-      setLoading(false);
+      if (version === readVersion.current) setLoading(false);
     }
-  }, [apiBaseUrl]);
+  }, [apiBaseUrl, enabled]);
 
   useEffect(() => {
-    fetchChargebacks();
+    void fetchChargebacks();
+    return () => {
+      readVersion.current++;
+    };
   }, [fetchChargebacks]);
 
   return {

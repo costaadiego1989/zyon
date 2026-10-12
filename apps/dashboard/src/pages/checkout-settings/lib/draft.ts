@@ -6,6 +6,7 @@ import type {
   CheckoutWidgetPosition,
 } from "@zyon/shared-types";
 import { ALL_TRIGGERS, TRIGGER_FIXED_PRIORITIES } from "./constants.js";
+import { changedFields } from "../../../lib/config-patch.js";
 
 export interface AdvancedRule {
   productId?: string;
@@ -25,6 +26,8 @@ export interface Draft {
   initialDelaySeconds: number;
   minimumAbandonmentScore: number;
   cooldownSeconds: number;
+  idleSeconds: number;
+  assistance: { pix: boolean; installments: boolean; unavailableProduct: boolean; humanHandoff: boolean };
   maxInterventionsPerSession: number;
   triggers: Record<CheckoutTriggerName, { enabled: boolean; message?: string; cooldownSeconds?: number; couponCode?: string }>;
   suppressAfterOfferAccepted: boolean;
@@ -51,6 +54,8 @@ export const DEFAULT_DRAFT: Draft = {
   initialDelaySeconds: 4,
   minimumAbandonmentScore: 0.6,
   cooldownSeconds: 90,
+  idleSeconds: 180,
+  assistance: { pix: true, installments: true, unavailableProduct: true, humanHandoff: true },
   maxInterventionsPerSession: 3,
   triggers: {
     shipping_objection_detected: { enabled: true },
@@ -99,6 +104,8 @@ export function settingsToDraft(s: CheckoutSettings): Draft {
     initialDelaySeconds: s.widgetBehavior.initialDelaySeconds ?? DEFAULT_DRAFT.initialDelaySeconds,
     minimumAbandonmentScore: s.interventionPolicy.minimumAbandonmentScore ?? DEFAULT_DRAFT.minimumAbandonmentScore,
     cooldownSeconds: s.interventionPolicy.cooldownSeconds ?? DEFAULT_DRAFT.cooldownSeconds,
+    idleSeconds: s.interventionPolicy.idleSeconds ?? DEFAULT_DRAFT.idleSeconds,
+    assistance: { ...DEFAULT_DRAFT.assistance, ...s.interventionPolicy.assistance },
     maxInterventionsPerSession: s.interventionPolicy.maxInterventionsPerSession ?? DEFAULT_DRAFT.maxInterventionsPerSession,
     triggers,
     suppressAfterOfferAccepted: s.suppressionRules.suppressAfterOfferAccepted,
@@ -130,6 +137,8 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
     interventionPolicy: {
       minimumAbandonmentScore: d.minimumAbandonmentScore,
       cooldownSeconds: d.cooldownSeconds,
+      idleSeconds: d.idleSeconds,
+      assistance: d.assistance,
       maxInterventionsPerSession: d.maxInterventionsPerSession,
       progressiveDiscount: {
         enabled: d.progressiveDiscountEnabled,
@@ -148,7 +157,7 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
     suppressionRules: {
       suppressAfterOfferAccepted: d.suppressAfterOfferAccepted,
       respectBuyerOptOut: d.respectBuyerOptOut,
-      minimumCartValue: d.minimumCartValue > 0 ? d.minimumCartValue : undefined,
+      minimumCartValue: d.minimumCartValue,
     },
     widgetBehavior: {
       openWidgetOnTrigger: d.openWidgetOnTrigger,
@@ -167,4 +176,31 @@ export function draftToPatch(d: Draft): CheckoutSettingsPatch {
 
 export function draftsEqual(a: Draft, b: Draft): boolean {
   return JSON.stringify(a) === JSON.stringify(b);
+}
+
+export function draftChangesToPatch(draft: Draft, saved: CheckoutSettings): CheckoutSettingsPatch {
+  const initial = settingsToDraft(saved);
+  const patch = changedFields(draftToPatch(draft), draftToPatch(initial));
+  // The API replaces this array. Keep every saved rule, including rules that
+  // this version of the editor does not expose, and change only edited rules.
+  delete patch.triggerRules;
+  const changed = ALL_TRIGGERS.filter(trigger =>
+    JSON.stringify(draft.triggers[trigger]) !== JSON.stringify(initial.triggers[trigger]));
+  if (changed.length) {
+    const rules = saved.triggerRules.map(rule => ({ ...rule }));
+    for (const trigger of changed) {
+      const index = rules.findIndex(rule => rule.trigger === trigger);
+      const value = draft.triggers[trigger];
+      const rule = {
+        ...(index >= 0 ? rules[index] : { trigger, priority: TRIGGER_FIXED_PRIORITIES[trigger] }),
+        enabled: value.enabled,
+        message: value.message || undefined,
+        cooldownSeconds: value.cooldownSeconds,
+        couponCode: value.couponCode || undefined,
+      };
+      if (index >= 0) rules[index] = rule; else rules.push(rule);
+    }
+    patch.triggerRules = rules;
+  }
+  return patch;
 }

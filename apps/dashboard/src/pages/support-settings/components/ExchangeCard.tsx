@@ -113,7 +113,7 @@ export function ExchangeCard({ metadata }: ExchangeCardProps) {
               fontSize: "11px",
               fontWeight: 600,
               color: "var(--color-text-muted)",
-              textTransform: "uppercase",
+              textTransform: "none",
               marginBottom: "8px",
             }}
           >

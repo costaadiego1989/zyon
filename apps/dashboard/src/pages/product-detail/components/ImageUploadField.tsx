@@ -31,7 +31,7 @@ const labelStyle: React.CSSProperties = {
   color: "var(--color-text-muted)",
   display: "block",
   marginBottom: 4,
-  textTransform: "uppercase",
+  textTransform: "none",
   letterSpacing: "0.04em",
 };
 

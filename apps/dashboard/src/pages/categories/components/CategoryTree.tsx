@@ -6,6 +6,7 @@ import { CategoryRow } from "./CategoryRow.js";
 
 interface CategoryTreeProps {
   tree: CategoryTreeNode[];
+  disabled?: boolean;
   onEdit: (category: ProductCategoryDTO) => void;
   onDelete: (id: string) => void;
   onToggleActive: (id: string, isActive: boolean) => void;
@@ -16,6 +17,7 @@ interface CategoryTreeProps {
 function renderNodes(
   nodes: CategoryTreeNode[],
   depth: number,
+  disabled: boolean,
   dragOverId: string | null,
   setDragOverId: (id: string | null) => void,
   onEdit: (cat: ProductCategoryDTO) => void,
@@ -30,6 +32,7 @@ function renderNodes(
       <CategoryRow
         key={node.id}
         category={node}
+        disabled={disabled}
         depth={depth}
         isDropTarget={dragOverId === node.id}
         onEdit={() => onEdit(node)}
@@ -52,22 +55,22 @@ function renderNodes(
       />
     );
     if (node.children && node.children.length > 0) {
-      rows.push(...renderNodes(node.children, depth + 1, dragOverId, setDragOverId, onEdit, onDelete, onToggleActive, onAddChild, onReparent));
+      rows.push(...renderNodes(node.children, depth + 1, disabled, dragOverId, setDragOverId, onEdit, onDelete, onToggleActive, onAddChild, onReparent));
     }
   }
   return rows;
 }
 
-export function CategoryTree({ tree, onEdit, onDelete, onToggleActive, onAddChild, onReparent }: CategoryTreeProps) {
+export function CategoryTree({ tree, disabled = false, onEdit, onDelete, onToggleActive, onAddChild, onReparent }: CategoryTreeProps) {
   const [dragOverId, setDragOverId] = useState<string | null>(null);
 
   return (
     <div
-      style={{ background: "var(--surface-2)", overflow: "hidden" }}
+      className="categories-table"
       onDragOver={(e) => e.preventDefault()}
       onDrop={(e) => {
         const id = e.dataTransfer.getData("category-id");
-        if (id) onReparent(id, null);
+        if (id && !disabled) onReparent(id, null);
         setDragOverId(null);
       }}
       onDragEnd={() => setDragOverId(null)}
@@ -78,13 +81,13 @@ export function CategoryTree({ tree, onEdit, onDelete, onToggleActive, onAddChil
         <table style={{ width: "100%", borderCollapse: "collapse" }}>
           <thead>
             <tr>
-              {["NOME", "PRODUTOS", "STATUS", ""].map((c) => (
-                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "600 10.5px var(--font-mono)", letterSpacing: "0.05em", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{c}</th>
+              {["Nome", "Produtos", "Status", "Ações"].map((c) => (
+                <th key={c} style={{ textAlign: "left", padding: "10px 22px", font: "500 12px var(--font-sans)", color: "var(--color-text-faint)", borderBottom: "1px solid var(--color-border)" }}>{c}</th>
               ))}
             </tr>
           </thead>
           <tbody>
-            {renderNodes(tree, 0, dragOverId, setDragOverId, onEdit, onDelete, onToggleActive, onAddChild, onReparent)}
+            {renderNodes(tree, 0, disabled, dragOverId, setDragOverId, onEdit, onDelete, onToggleActive, onAddChild, onReparent)}
           </tbody>
         </table>
       )}

@@ -23,6 +23,7 @@ import { useStepIdentity } from "./hooks/useStepIdentity.js";
 import { useStepAddress } from "./hooks/useStepAddress.js";
 import { useStepPayment } from "./hooks/useStepPayment.js";
 import type { AsaasConnectionPayload } from "../payment-connections/components/AsaasConnectionForm.js";
+import { useStepShipping } from "./hooks/useStepShipping.js";
 import { useStepReview } from "./hooks/useStepReview.js";
 
 export type { ThemeDraft, AddressDraft, PaymentDraft, IntegrationDraft, PlatformChoice } from "./types.js";
@@ -31,10 +32,10 @@ export { isValidEvmAddress } from "./types.js";
 export const STEPS: StepMeta[] = [
   { id: 1, label: "Identidade", caption: "Logo, cores, tipografia e agente", icon: Palette },
   { id: 2, label: "Endereço", caption: "CEP e localização da loja", icon: MapPin },
-  { id: 3, label: "Frete", caption: "Conecte sua conta de envios", icon: Truck },
+  { id: 3, label: "Frete", caption: "Ative uma modalidade de entrega para continuar", icon: Truck },
   { id: 4, label: "Pagamento", caption: "Como você vai receber", icon: CreditCard },
-  { id: 5, label: "WhatsApp", caption: "Conecte seu WhatsApp Business", icon: MessageCircle },
-  { id: 6, label: "Motor de IA", caption: "Ative a IA autônoma de vendas", icon: Sparkles },
+  { id: 5, label: "WhatsApp", caption: "Conecte o número da loja quando estiver pronto", icon: MessageCircle, optional: true },
+  { id: 6, label: "Automação de vendas", caption: "Escolha se quer ativar a otimização com IA", icon: Sparkles, optional: true },
 ];
 
 export const TOTAL_STEPS = STEPS.length;
@@ -99,12 +100,11 @@ export interface OnboardingWizardVM {
   initiateAsaasOnboarding: (payload?: AsaasConnectionPayload) => Promise<boolean>;
   initiateMercadoPagoOnboarding: () => Promise<void>;
   advanceFromShipping: () => void;
-  connectMelhorEnvio: () => void;
-  shippingConnected: boolean;
-  shippingLoading: boolean;
+  shipping: ReturnType<typeof useStepShipping>;
   completeWhatsAppStep: () => Promise<void>;
   finish: () => Promise<void>;
   goBack: () => void;
+  retryLoad: () => void;
   markOnboardingStep: (step: OnboardingStepId) => Promise<void>;
 
   activeMeta: StepMeta | undefined;
@@ -143,7 +143,7 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
   }
 
   const saved = loadDrafts();
-  const [currentStep, setCurrentStep] = useState(saved?.step ?? 1);
+  const [currentStep, setCurrentStep] = useState(Number.isInteger(saved?.step) ? Math.max(1, Math.min(6, saved.step)) : 1);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState<string | null>(null);
   const [onboardingState, setOnboardingState] = useState<OnboardingStateResponse | null>(null);
@@ -155,29 +155,30 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     stripeStatus: "idle", asaasStatus: "idle", mercadopagoStatus: "idle", asaasApiKey: "",
   });
   const [fieldErrors, setFieldErrors] = useState<Record<string, string>>({});
-  // Melhor Envio (Frete) OAuth connection state for step 3.
-  const [shippingConnected, setShippingConnected] = useState(false);
-  const [shippingLoading, setShippingLoading] = useState(false);
+  const [loadAttempt, setLoadAttempt] = useState(0);
+  const shipping = useStepShipping();
 
   useEffect(() => {
-    localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: currentStep, theme: themeDraft, address: addressDraft, payment: paymentDraft }));
-  }, [currentStep, themeDraft, addressDraft, paymentDraft]);
+    try { localStorage.setItem(STORAGE_KEY, JSON.stringify({ step: currentStep, theme: themeDraft, address: addressDraft })); }
+    catch { /* The form remains usable when browser storage is unavailable. */ }
+  }, [currentStep, themeDraft, addressDraft]);
 
   useEffect(() => {
     let active = true;
+    setMessage(null);
     void (async () => {
       try {
         const s = await api.getOnboardingState();
         if (active) {
           setOnboardingState(s);
-          if (s.completed) localStorage.removeItem(STORAGE_KEY);
+          if (s.completed) { try { localStorage.removeItem(STORAGE_KEY); } catch { /* Optional local draft. */ } }
         }
       } catch (e) {
         if (active) setMessage(friendlyError(e));
       }
     })();
     return () => { active = false; };
-  }, [api]);
+  }, [api, loadAttempt]);
 
   useEffect(() => {
     let active = true;
@@ -242,46 +243,22 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     return () => { active = false; };
   }, [api]);
 
-  // Melhor Envio (Frete): load current connection status; the OAuth flow
-  // redirects back with ?shipping_connected=melhor_envio, which we also honor.
   useEffect(() => {
-    let active = true;
     const params = new URLSearchParams(window.location.search);
-    const justConnected = params.get("shipping_connected") === "melhor_envio";
-    const shippingError = params.get("shipping_error");
-    if (shippingError) {
-      setMessage(shippingError === "denied"
-        ? "A conexão com o Melhor Envio foi cancelada. Você pode tentar novamente."
-        : "Não foi possível conectar o Melhor Envio. Inicie a conexão novamente.");
-      params.delete("shipping_error");
-    }
-    if (justConnected) {
-      setShippingConnected(true);
-      params.delete("shipping_connected");
-    }
-    if (justConnected || shippingError) {
-      const qs = params.toString();
-      window.history.replaceState({}, "", `${window.location.pathname}${qs ? `?${qs}` : ""}${window.location.hash}`);
-    }
-    void (async () => {
-      try {
-        const status = await api.getMelhorEnvioStatus?.();
-        if (active && status) setShippingConnected(status.connected && !status.expired);
-      } catch (err) {
-        reportError({ source: "onboarding.melhorEnvioStatus", error: err, severity: "warning" });
-      }
-    })();
-    return () => { active = false; };
-  }, [api]);
+    if (!params.has("shipping_connected") && !params.has("shipping_error")) return;
+    setCurrentStep(3);
+    if (params.has("shipping_error")) setMessage("A conexão de frete não foi concluída. Tente novamente ou configure a entrega própria.");
+    params.delete("shipping_connected");
+    params.delete("shipping_error");
+    const query = params.toString();
+    window.history.replaceState({}, "", window.location.pathname + (query ? "?" + query : "") + window.location.hash);
+  }, []);
 
-  // Frete: kick off Melhor Envio OAuth (full-page redirect to the authorize URL).
-  function connectMelhorEnvio() {
-    const url = api.getMelhorEnvioAuthorizeUrl?.("onboarding");
-    if (url) {
-      setShippingLoading(true);
-      window.location.href = url;
+  useEffect(() => {
+    if (onboardingState?.completed === false && !shipping.loading && !shipping.ready) {
+      setCurrentStep(step => step > 3 ? 3 : step);
     }
-  }
+  }, [onboardingState?.completed, shipping.loading, shipping.ready]);
 
   useEffect(() => {
     if (saved) return;
@@ -318,6 +295,7 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
       setOnboardingState(next);
     } catch (err) {
       reportError({ source: "onboarding.markStep", error: err, severity: "warning", context: { step } });
+      throw err;
     }
   }
 
@@ -367,15 +345,18 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     setCurrentStep((s: number) => Math.max(1, s - 1));
   }
 
-  // Step 3 (Frete) is optional — advance to Payment (step 4) whether or not the
-  // merchant connected Melhor Envio.
+  // Frete must have an active delivery method before continuing.
   function advanceFromShipping() {
+    if (!shipping.ready) return;
     setMessage(null);
     setFieldErrors({});
     setCurrentStep(4);
   }
 
   async function completeWhatsAppStep() {
+    setBusy(true);
+    setMessage(null);
+    try {
     await markOnboardingStep("whatsapp");
     if (isGrowthPlus) {
       setCurrentStep(6);
@@ -384,12 +365,17 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
       // required step set.
       await finish();
     }
+    } catch (error) { setMessage(friendlyError(error)); }
+    finally { setBusy(false); }
   }
 
   // ── Derived ──────────────────────────────────────────────────────────────
 
   // Step 6 (Motor de IA) is Growth+ only; lower plans skip it entirely.
   const isGrowthPlus = plan === "growth" || plan === "scale";
+  useEffect(() => {
+    if (plan === "starter") setCurrentStep(step => Math.min(step, 5));
+  }, [plan]);
   const visibleSteps = isGrowthPlus ? STEPS : STEPS.slice(0, 5);
   const totalSteps = visibleSteps.length;
   const activeMeta = STEPS[currentStep - 1];
@@ -417,12 +403,11 @@ export function useOnboardingWizard(props: OnboardingWizardProps): OnboardingWiz
     initiateAsaasOnboarding,
     initiateMercadoPagoOnboarding,
     advanceFromShipping,
-    connectMelhorEnvio,
-    shippingConnected,
-    shippingLoading,
+    shipping,
     completeWhatsAppStep,
     finish,
     goBack,
+    retryLoad: () => setLoadAttempt(attempt => attempt + 1),
     markOnboardingStep,
 
     activeMeta,
