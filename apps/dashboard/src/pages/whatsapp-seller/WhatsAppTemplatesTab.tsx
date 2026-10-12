@@ -14,8 +14,8 @@ const CHANNEL = "whatsapp";
  * approval status. Clicking a row opens a lateral drawer to edit the message
  * (with AI generation) and submit it to Meta for approval.
  */
-export function WhatsAppTemplatesTab(props: { me: MerchantProfile | null }) {
-  const tpl = usePostSaleTemplates({ me: props.me });
+export function WhatsAppTemplatesTab(props: { me: MerchantProfile | null; templates: ReturnType<typeof usePostSaleTemplates> }) {
+  const tpl = props.templates;
   const [page, setPage] = useState(1);
   const [editing, setEditing] = useState<string | null>(null); // type being edited
 

@@ -37,6 +37,7 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
   const [sdkReady, setSdkReady] = useState(false);
   const [connectError, setConnectError] = useState<string | null>(null);
   const [connectErrorCode, setConnectErrorCode] = useState<string | null>(null);
+  const [justConnected, setJustConnected] = useState(false);
   const operation = useRef(false);
   const scope = useRef(0);
   const signup = useRef<AbortController | null>(null);
@@ -62,6 +63,7 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
     setConfig(null);
     setSettings(null);
     setSaving(false);
+    setJustConnected(false);
     operation.current = false;
     void load();
     return () => { scope.current++; signup.current?.abort(); };
@@ -122,7 +124,10 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
       catch { throw new Error("Não foi possível concluir o cadastro. Atualize o estado para consultar a conexão antes de tentar novamente."); }
       if (scope.current !== generation) return;
       accept(response);
-      if (response.status === "active" && !response.error) showToast("success", "Conexão oficial da Meta ativada.");
+      if (response.status === "active" && !response.error) {
+        setJustConnected(true);
+        showToast("success", "Conexão oficial da Meta ativada.");
+      }
     }).catch(error => {
       if (scope.current === generation) {
         setConnectError(error instanceof Error && !("status" in error)
@@ -135,8 +140,9 @@ export function useWhatsAppSellerPage({ me }: { me: MerchantProfile | null }) {
   }, [merchantId, settings, sdkReady, api, accept]);
 
   return {
-    config, settings, loading, saving, sdkReady, connectError, connectErrorCode,
+    config, settings, loading, saving, sdkReady, connectError, connectErrorCode, justConnected,
     load, refresh, handleEmbeddedSignup,
+    dismissConnectionSuccess: () => setJustConnected(false),
     cancelSignup: () => signup.current?.abort(),
     awaitingAuthorization: Boolean(signup.current),
     handleDisconnect: () => run(() => api.disconnectWhatsApp(merchantId!)),
