@@ -20,6 +20,7 @@
 .whatsapp-seller__guidance p { margin-bottom: 8px; }
 .whatsapp-seller__error { border: 1px solid var(--color-error); border-radius: 12px; padding: 16px 20px; }
 .whatsapp-seller__error p { margin: 0 0 12px; color: var(--color-text); line-height: 1.6; }
+.whatsapp-seller__manager-link { display: inline-block; margin: 0 0 12px; color: var(--color-brand); font: 600 14px var(--font-sans); }
 @media (max-width: 560px) {
   .whatsapp-seller__actions { align-items: stretch; flex-direction: column; }
   .whatsapp-seller__actions button { width: 100%; }

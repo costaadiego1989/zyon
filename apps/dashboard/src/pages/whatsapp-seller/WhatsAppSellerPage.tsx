@@ -42,6 +42,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
           {vm.loading && <p role="status" className="whatsapp-seller__inline"><Loader2 size={18} className="spin" /> Carregando conexão…</p>}
           {vm.connectError && <div className="whatsapp-seller__error" role="alert">
             <p>{vm.connectError}</p>
+            {vm.connectErrorCode === "2388386" && <a className="whatsapp-seller__manager-link" href="https://business.facebook.com/latest/whatsapp_manager/phone_numbers/" target="_blank" rel="noreferrer">Abrir WhatsApp Manager para solicitar mais números</a>}
             <Button variant="outline" size="sm" disabled={vm.saving || vm.loading} onClick={vm.config ? vm.refresh : vm.load}>
               <RefreshCw size={14} /> {vm.config ? "Atualizar estado" : "Tentar novamente"}
             </Button>
@@ -82,7 +83,8 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
             {canStart && vm.settings?.configured && <section className="panel whatsapp-seller__panel">
               <span className="eyebrow">Conexão oficial pela Meta</span>
               <h2>Escolha o número dentro da Meta</h2>
-              <p>Ao continuar, a janela oficial da Meta permite escolher a conta Business e o número da loja. A própria Meta conduz as verificações necessárias.</p>
+              <p>Ao continuar, escolha a conta Business da sua loja e o número da loja. Cada empresa conecta os próprios ativos; não escolha uma conta da Zyon.</p>
+              <p className="whatsapp-seller__hint">Um número novo pode ser usado. Se a Meta informar limite de números, solicite mais capacidade no WhatsApp Manager da própria empresa. Esse limite pertence à conta Meta selecionada, não à Zyon.</p>
               <div className="whatsapp-seller__actions">
                 <Button variant="primary" onClick={vm.handleEmbeddedSignup}
                   disabled={vm.saving || !vm.sdkReady}>

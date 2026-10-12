@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { launchEmbeddedSignup, parseEmbeddedSignupEvent } from "./embedded-signup.js";
+import { EmbeddedSignupProviderError, embeddedSignupErrorMessage, launchEmbeddedSignup, parseEmbeddedSignupEvent } from "./embedded-signup.js";
 
 const settings = { configured: true, appId: "123456", configId: "234567" };
 const finish = { type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "123456789", phone_number_id: "987654321" } };
@@ -56,5 +56,17 @@ describe("Embedded Signup authorization", () => {
     const result = launchEmbeddedSignup(settings, new AbortController().signal);
     message({ ...finish, event: "CANCEL" });
     await expect(result).rejects.toThrow("Seus dados foram preservados");
+  });
+  it("turns Meta phone-capacity errors into an actionable merchant message", async () => {
+    const error = { type: "WA_EMBEDDED_SIGNUP", event: "ERROR", data: { error_code: 2388386 } };
+    expect(parseEmbeddedSignupEvent({ origin: "https://www.facebook.com", data: error })).toEqual({ type: "error", code: "2388386" });
+    expect(embeddedSignupErrorMessage("2388386")).toMatch(/limite de números/);
+    const result = launchEmbeddedSignup(settings, new AbortController().signal);
+    message(error);
+    await expect(result).rejects.toThrow("solicite mais números");
+    expect(new EmbeddedSignupProviderError("2388386").code).toBe("2388386");
+  });
+  it("explains the difference between registration and migration", () => {
+    expect(embeddedSignupErrorMessage("2388091")).toMatch(/migrar/);
   });
 });
