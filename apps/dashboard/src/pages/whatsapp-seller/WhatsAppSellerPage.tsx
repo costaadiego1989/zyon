@@ -1,25 +1,13 @@
-import React, { useMemo, useState } from "react";
-import {
-  ArrowUpRight,
-  CheckCircle,
-  ExternalLink,
-  FileText,
-  Loader2,
-  MessageCircle,
-  Pause,
-  Play,
-  RefreshCw,
-  ShieldCheck,
-  Unplug,
-  X,
-} from "lucide-react";
+﻿import { PageHeader } from "../../components/PageHeader.js";
+import React, { useState } from "react";
+import { CheckCircle, CircleCheck, CreditCard, ExternalLink, Loader2, PackageCheck, RefreshCw, ShieldCheck, ShoppingBag, X } from "lucide-react";
 import { Button } from "../../components/Button.js";
 import { TabBar } from "../../components/TabBar.js";
 import type { MerchantProfile } from "../../api-client.js";
 import { useWhatsAppSellerPage } from "./useWhatsAppSellerPage.js";
 import { WhatsAppTemplatesTab } from "./WhatsAppTemplatesTab.js";
+import { WhatsAppBrandIcon } from "../../components/WhatsAppBrandIcon.js";
 import { PremiumFeatureGate } from "../../components/PremiumFeatureGate.js";
-import { TEMPLATE_TYPES, usePostSaleTemplates } from "../post-sale/usePostSaleTemplates.js";
 import "./whatsapp-seller.css";
 
 const stateCopy: Record<string, { title: string; text: string }> = {
@@ -28,114 +16,147 @@ const stateCopy: Record<string, { title: string; text: string }> = {
   error: { title: "Conexão não concluída", text: "O canal ainda não está disponível. Você pode iniciar uma nova conexão pela Meta." },
 };
 
-function formatPhone(number?: string | null) {
-  const digits = (number ?? "").replace(/\D/g, "");
-  if (!digits) return "Número confirmado pela Meta";
-  const national = digits.startsWith("55") ? digits.slice(2) : digits;
-  if (national.length === 11) return `+55 (${national.slice(0, 2)}) ${national.slice(2, 7)}-${national.slice(7)}`;
-  if (national.length === 10) return `+55 (${national.slice(0, 2)}) ${national.slice(2, 6)}-${national.slice(6)}`;
-  return `+${digits}`;
-}
-
-function templateState(approved: number, total: number, loading: boolean) {
-  if (loading) return { label: "Consultando", detail: "Verificando o catálogo da loja", tone: "neutral" };
-  if (approved === total) return { label: "Prontos", detail: `${approved} templates aprovados`, tone: "success" };
-  if (approved > 0) return { label: "Parcial", detail: `${approved} de ${total} aprovados pela Meta`, tone: "pending" };
-  return { label: "Pendente", detail: "Templates ainda precisam ser enviados", tone: "pending" };
-}
+const whatsappManagerUrl = "https://business.facebook.com/wa/manage/phone-numbers/";
 
 export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useWhatsAppSellerPage({ me: props.me });
-  const templates = usePostSaleTemplates({ me: props.me });
-  const [tab, setTab] = useState<"connection" | "templates">("connection");
+  const [tab, setTab] = useState<"connection" | "templates" | "orders">("connection");
   const status = vm.config?.status ?? "disconnected";
   const pending = stateCopy[status];
   const active = status === "active";
   const canStart = vm.config && ["disconnected", "error", "inactive"].includes(status);
-  const approvedTemplates = useMemo(() => TEMPLATE_TYPES.filter(({ type }) => templates.get(type, "whatsapp")?.metaStatus === "approved").length, [templates.templates]);
-  const approval = templateState(approvedTemplates, TEMPLATE_TYPES.length, templates.loading);
 
   return (
     <div className="page-container whatsapp-seller">
-      <header className="whatsapp-seller__head">
-        <div>
-          <span className="whatsapp-seller__kicker">Canais da loja <span aria-hidden="true">/</span> WhatsApp</span>
-          <h1>WhatsApp Business</h1>
-          <p>Atendimento e vendas pela integração oficial da Meta.</p>
-        </div>
-        {active && <span className="whatsapp-seller__live"><span aria-hidden="true" /> Canal operacional</span>}
-      </header>
+      <PageHeader
+        title="WhatsApp"
+        description="Conecte o WhatsApp Business da sua loja pela integração oficial da Meta."
+        actions={active ? <span className="whatsapp-seller__connected"><CheckCircle size={16} /> Conexão Meta ativa</span> : undefined}
+      />
 
       {!props.me ? <p>Entre na sua conta para configurar o WhatsApp.</p> : <>
-        <TabBar tabs={[{ key: "connection", label: "Canal" }, { key: "templates", label: "Templates" }]}
-          activeTab={tab} onTabChange={key => setTab(key as "connection" | "templates")} />
+        <TabBar
+          tabs={[{ key: "connection", label: "Conexão", panelId: "whatsapp-connection" }, { key: "templates", label: "Modelos de mensagem", panelId: "whatsapp-templates" }, { key: "orders", label: "Pedidos no WhatsApp", panelId: "whatsapp-orders" }]}
+          activeTab={tab}
+          onTabChange={key => setTab(key as "connection" | "templates" | "orders")}
+          label="Configurações do WhatsApp"
+        />
 
-        {tab === "templates" && <PremiumFeatureGate feature="postSale" requiredPlan="Growth" featureLabel="Templates de WhatsApp">
-          <WhatsAppTemplatesTab me={props.me} templates={templates} />
-        </PremiumFeatureGate>}
+        {tab === "templates" && <section id="whatsapp-templates" role="tabpanel" aria-labelledby="whatsapp-templates-tab">
+          <PremiumFeatureGate feature="postSale" requiredPlan="Growth" featureLabel="Modelos de mensagem do WhatsApp">
+            <WhatsAppTemplatesTab me={props.me} />
+          </PremiumFeatureGate>
+        </section>}
 
-        {tab === "connection" && <div className="whatsapp-seller__content">
-          {vm.loading && <p role="status" className="whatsapp-seller__loading"><Loader2 size={18} className="spin" /> Carregando canal…</p>}
+        {tab === "orders" && <section id="whatsapp-orders" role="tabpanel" aria-labelledby="whatsapp-orders-tab" className="whatsapp-seller__content">
+          <section className="panel whatsapp-seller__panel whatsapp-seller__orders">
+            <span className="whatsapp-seller__eyebrow">Venda e atendimento no mesmo canal</span>
+            <h2>Transforme conversas em compras assistidas</h2>
+            <p>Com o canal ativo, clientes podem iniciar uma conversa pelo WhatsApp da loja, consultar produtos e seguir para o checkout. A confirmação do pedido continua vinculada ao pagamento e às regras da loja.</p>
+            <div className="whatsapp-seller__order-flow" aria-label="Fluxo de pedidos pelo WhatsApp">
+              <div><WhatsAppBrandIcon size={22} /><strong>Cliente chama a loja</strong><small>O canal recebe a mensagem e inicia o atendimento.</small></div>
+              <div><ShoppingBag size={20} /><strong>Produtos e compra</strong><small>A conversa pode apresentar opções e orientar o cliente até o checkout.</small></div>
+              <div><CreditCard size={20} /><strong>Pagamento autorizado</strong><small>Quando aplicável, o cliente recebe PIX ou link de pagamento.</small></div>
+              <div><PackageCheck size={20} /><strong>Atualizações do pedido</strong><small>Confirmação, envio e entrega usam os modelos aprovados pela Meta.</small></div>
+            </div>
+          </section>
+          <section className="panel whatsapp-seller__guidance whatsapp-seller__orders-note">
+            <ShieldCheck size={20} aria-hidden="true" />
+            <div><h2>O que sua loja recebe</h2><p>Mensagens recebidas por este número entram no fluxo de atendimento e compra da Zyon. A loja só deve confirmar o pedido depois do checkout e do pagamento autoritativo; uma conversa isolada não cria cobrança ou pedido.</p></div>
+          </section>
+        </section>}
+        {tab === "connection" && <section id="whatsapp-connection" role="tabpanel" aria-labelledby="whatsapp-connection-tab" className="whatsapp-seller__content">
+          {vm.loading && <p role="status" className="whatsapp-seller__inline"><Loader2 size={18} className="spin" /> Carregando conexão…</p>}
 
           {vm.connectError && <div className="whatsapp-seller__error" role="alert">
-            <div><strong>Não foi possível concluir esta etapa</strong><p>{vm.connectError}</p></div>
-            {vm.connectErrorCode === "2388386" && <a href="https://business.facebook.com/latest/whatsapp_manager/phone_numbers/" target="_blank" rel="noreferrer">Abrir o WhatsApp Manager <ArrowUpRight size={14} /></a>}
-            <Button variant="outline" size="sm" disabled={vm.saving || vm.loading} onClick={vm.config ? vm.refresh : vm.load}><RefreshCw size={14} /> Atualizar</Button>
+            <div><strong>Não foi possível concluir a conexão</strong><p>{vm.connectError}</p></div>
+            <Button variant="outline" size="sm" disabled={vm.saving || vm.loading} onClick={vm.config ? vm.refresh : vm.load}>
+              <RefreshCw size={14} /> {vm.config ? "Atualizar estado" : "Tentar novamente"}
+            </Button>
           </div>}
 
           {!vm.loading && vm.config && <>
-            {vm.justConnected && active && <section className="whatsapp-seller__success" aria-live="polite">
-              <button className="whatsapp-seller__success-close" aria-label="Fechar confirmação" onClick={vm.dismissConnectionSuccess}><X size={18} /></button>
-              <div className="whatsapp-seller__success-mark" aria-hidden="true"><span /><CheckCircle size={42} /></div>
-              <span className="whatsapp-seller__success-kicker">Conexão concluída</span>
-              <h2>Seu WhatsApp está pronto.</h2>
-              <p>O canal oficial foi conectado à sua loja. Agora configure o pagamento na Meta e envie seus templates para começar campanhas e vendas pelo WhatsApp.</p>
-              <Button variant="primary" onClick={vm.dismissConnectionSuccess}>Ver configuração do canal</Button>
+            {!vm.settings?.configured && <section className="panel whatsapp-seller__panel" role="status">
+              <h2>Conexão oficial em preparação</h2>
+              <p>A conexão oficial pela Meta ainda está sendo configurada pela Zyon. Volte a esta tela quando ela estiver disponível.</p>
             </section>}
 
-            {!vm.settings?.configured && <section className="whatsapp-seller__notice" role="status">
-              <ShieldCheck size={20} /><div><strong>Conexão oficial em preparação</strong><p>A integração Meta está sendo configurada pela Zyon. Volte a esta tela quando ela estiver disponível.</p></div>
-            </section>}
-
-            {active && !vm.justConnected && <section className="whatsapp-seller__console">
-              <div className="whatsapp-seller__console-top">
-                <div className="whatsapp-seller__channel-id">
-                  <div className="whatsapp-seller__channel-icon"><MessageCircle size={25} /></div>
-                  <div><span>Canal conectado</span><h2>{formatPhone(vm.config.whatsappNumber)}</h2><p>Meta Cloud API · conta da própria empresa</p></div>
+            {active && <section className="panel whatsapp-seller__panel whatsapp-seller__connection-panel">
+              <div className="whatsapp-seller__panel-heading">
+                <div className="whatsapp-seller__identity-icon" aria-hidden="true"><WhatsAppBrandIcon size={25} /></div>
+                <div>
+                  <span className="whatsapp-seller__eyebrow">Canal conectado</span>
+                  <h2>WhatsApp Business ativo</h2>
+                  <p className="whatsapp-seller__number">+{vm.config.whatsappNumber}</p>
                 </div>
                 <Button variant={vm.config.enabled ? "outline" : "primary"} disabled={vm.saving} onClick={() => vm.handleToggleEnabled(!vm.config!.enabled)}>
-                  {vm.config.enabled ? <Pause size={16} /> : <Play size={16} />}{vm.config.enabled ? "Pausar canal" : "Habilitar canal"}
+                  {vm.config.enabled ? "Pausar canal" : "Habilitar canal"}
                 </Button>
               </div>
 
-              <div className="whatsapp-seller__readiness" aria-label="Situação da configuração">
-                <div className="whatsapp-seller__readiness-row"><span className="whatsapp-seller__readiness-icon whatsapp-seller__readiness-icon--success"><CheckCircle size={17} /></span><div><strong>Atendimento</strong><small>{vm.config.enabled ? "Recebimento de mensagens habilitado" : "Canal pausado pela loja"}</small></div><b className={vm.config.enabled ? "is-success" : ""}>{vm.config.enabled ? "Ativo" : "Pausado"}</b></div>
-                <div className="whatsapp-seller__readiness-row"><span className="whatsapp-seller__readiness-icon"><FileText size={17} /></span><div><strong>Templates Meta</strong><small>{approval.detail}</small></div><button type="button" onClick={() => setTab("templates")} className={`whatsapp-seller__status whatsapp-seller__status--${approval.tone}`}>{approval.label}<ArrowUpRight size={13} /></button></div>
-                <div className="whatsapp-seller__readiness-row"><span className="whatsapp-seller__readiness-icon"><ShieldCheck size={17} /></span><div><strong>Faturamento da Meta</strong><small>O cartão da empresa é cadastrado e cobrado pela Meta</small></div><a className="whatsapp-seller__status whatsapp-seller__status--action" href="https://business.facebook.com/latest/whatsapp_manager/" target="_blank" rel="noreferrer">Configurar na Meta <ArrowUpRight size={13} /></a></div>
+              <div className="whatsapp-seller__readiness" aria-label="Prontidão do canal">
+                <div><CircleCheck size={18} aria-hidden="true" /><span><strong>Atendimento</strong><small>{vm.config.enabled ? "Receba e responda mensagens pelo canal da loja." : "O canal está pausado para novos atendimentos."}</small></span><b className={vm.config.enabled ? "is-success" : undefined}>{vm.config.enabled ? "Ativo" : "Pausado"}</b></div>
+                <div><CircleCheck size={18} aria-hidden="true" /><span><strong>Modelos Meta</strong><small>Os modelos necessários são enviados para análise quando o canal é ativado.</small></span><button type="button" onClick={() => setTab("templates")}>Ver modelos</button></div>
+                <div><CreditCard size={18} aria-hidden="true" /><span><strong>Faturamento Meta</strong><small>A empresa conecta o próprio método de pagamento na Meta para as cobranças de mensagens.</small></span><a href={whatsappManagerUrl} target="_blank" rel="noreferrer">Gerenciar <ExternalLink size={13} /></a></div>
               </div>
 
-              <div className="whatsapp-seller__console-foot">
-                <p>Com o canal, faturamento e templates prontos, a loja pode atender clientes e conduzir vendas pelo WhatsApp.</p>
-                <div><Button variant="outline" disabled={vm.saving} onClick={vm.refresh}><RefreshCw size={16} /> Atualizar estado</Button><Button variant="ghost" disabled={vm.saving} onClick={vm.handleDisconnect}><Unplug size={16} /> Desconectar</Button></div>
+              <div className="whatsapp-seller__panel-footer">
+                <p>Este número já pode atender clientes e apoiar vendas pelo WhatsApp. Para testar a recepção, envie uma mensagem de outro WhatsApp.</p>
+                <div className="whatsapp-seller__actions">
+                  <Button variant="outline" disabled={vm.saving} onClick={vm.refresh}><RefreshCw size={16} /> Atualizar conexão</Button>
+                  <Button variant="ghost" disabled={vm.saving} onClick={vm.handleDisconnect}>Desconectar da loja</Button>
+                </div>
+              </div>
+              <p className="whatsapp-seller__hint">Desconectar desativa o canal na Zyon. O número continua associado à conta Business escolhida na Meta.</p>
+            </section>}
+
+            {pending && !active && <section className="panel whatsapp-seller__panel" aria-live="polite">
+              <h2>{pending.title}</h2>
+              {vm.config.whatsappNumber && <p className="whatsapp-seller__number">+{vm.config.whatsappNumber}</p>}
+              <p>{pending.text}</p>
+              <div className="whatsapp-seller__actions">
+                <Button variant="outline" disabled={vm.saving} onClick={vm.refresh}><RefreshCw size={16} /> Atualizar estado</Button>
+                {status === "provisioning" && <Button variant="ghost" disabled={vm.saving} onClick={vm.handleDisconnect}>Interromper conexão</Button>}
               </div>
             </section>}
 
-            {pending && !active && <section className="whatsapp-seller__notice whatsapp-seller__notice--state" aria-live="polite">
-              <RefreshCw size={20} /><div><strong>{pending.title}</strong>{vm.config.whatsappNumber && <h2>{formatPhone(vm.config.whatsappNumber)}</h2>}<p>{pending.text}</p><div className="whatsapp-seller__actions"><Button variant="outline" disabled={vm.saving} onClick={vm.refresh}><RefreshCw size={16} /> Atualizar estado</Button>{status === "provisioning" && <Button variant="ghost" disabled={vm.saving} onClick={vm.handleDisconnect}>Interromper conexão</Button>}</div></div>
-            </section>}
-
-            {canStart && vm.settings?.configured && <section className="whatsapp-seller__setup">
-              <div className="whatsapp-seller__setup-intro"><span className="whatsapp-seller__kicker">Integração oficial da Meta</span><h2>Conecte a conta da sua empresa.</h2><p>A Zyon nunca usa a conta ou cartão de outra loja. Você escolhe os ativos da própria empresa dentro da Meta.</p></div>
+            {canStart && vm.settings?.configured && <section className="panel whatsapp-seller__panel whatsapp-seller__setup">
+              <div className="whatsapp-seller__setup-copy">
+                <span className="whatsapp-seller__eyebrow">Integração oficial da Meta</span>
+                <h2>Conecte o WhatsApp da sua empresa</h2>
+                <p>A Meta abre uma janela segura para escolher a conta Business e o número que ficará ligado à sua loja.</p>
+              </div>
               <ol className="whatsapp-seller__steps">
-                <li><span>01</span><div><strong>Conta e número</strong><p>Entre na Meta, escolha ou crie a conta Business e confirme o número da loja.</p></div></li>
-                <li><span>02</span><div><strong>Cartão da empresa</strong><p>Cadastre o método de pagamento na Meta. Ele cobre as mensagens cobradas pela Meta, não as vendas da loja.</p></div></li>
-                <li><span>03</span><div><strong>Vendas no WhatsApp</strong><p>Envie os templates para aprovação. Com eles ativos, a loja atende, recupera pedidos e vende pelo canal.</p></div></li>
+                <li><WhatsAppBrandIcon size={19} /><span><strong>Conta e número</strong><small>Escolha a conta Business e confirme o número da empresa.</small></span></li>
+                <li><CreditCard size={18} aria-hidden="true" /><span><strong>Cartão da empresa</strong><small>Adicione o método de pagamento da própria empresa na Meta.</small></span></li>
+                <li><ShoppingBag size={18} aria-hidden="true" /><span><strong>Vendas no WhatsApp</strong><small>Após a conexão, a loja pode atender e enviar comunicações autorizadas.</small></span></li>
               </ol>
-              <div className="whatsapp-seller__setup-action"><Button variant="primary" onClick={vm.handleEmbeddedSignup} disabled={vm.saving || !vm.sdkReady}>{vm.saving ? <Loader2 size={16} className="spin" /> : <ExternalLink size={16} />}{vm.saving ? "Aguardando conexão?" : "Continuar na Meta"}</Button>{vm.awaitingAuthorization && <Button variant="ghost" onClick={vm.cancelSignup}>Cancelar</Button>}{!vm.sdkReady && !vm.connectError && <span role="status">Preparando autorização da Meta…</span>}</div>
-              <p className="whatsapp-seller__setup-help">Use os dados da empresa que vai operar este número. Se a Meta informar limite de números, a empresa deve solicitar capacidade no seu WhatsApp Manager.</p>
+              <div className="whatsapp-seller__setup-action">
+                <Button variant="primary" onClick={vm.handleEmbeddedSignup} disabled={vm.saving || !vm.sdkReady}>
+                  {vm.saving ? <Loader2 size={16} className="spin" /> : <ExternalLink size={16} />}
+                  {vm.saving ? "Aguardando conexão…" : "Conectar WhatsApp pela Meta"}
+                </Button>
+                {vm.awaitingAuthorization && <Button variant="ghost" onClick={vm.cancelSignup}>Cancelar</Button>}
+                {!vm.sdkReady && !vm.connectError && <span role="status">Preparando a autorização da Meta…</span>}
+              </div>
             </section>}
+
+            <section className="panel whatsapp-seller__guidance">
+              <ShieldCheck size={20} aria-hidden="true" />
+              <div>
+                <h2>Modelos aprovados antes do envio</h2>
+                <p>Confirmações, atualização de pedidos e recuperação de carrinho usam modelos de mensagem da loja. O envio depende de conexão ativa, autorização do cliente e aprovação dos modelos pela Meta.</p>
+                <Button variant="ghost" onClick={() => setTab("templates")}>Ver modelos de mensagem</Button>
+              </div>
+            </section>
           </>}
-        </div>}
+
+          {vm.justConnected && <section className="panel whatsapp-seller__success" aria-live="polite">
+            <button type="button" className="whatsapp-seller__success-close" aria-label="Fechar confirmação" onClick={vm.dismissConnectionSuccess}><X size={16} /></button>
+            <span className="whatsapp-seller__success-mark" aria-hidden="true"><CircleCheck size={38} /><i /></span>
+            <div><h2>Seu WhatsApp está pronto.</h2><p>A Zyon vai cadastrar os modelos de mensagem necessários e atualizar o estado nesta tela.</p></div>
+          </section>}
+        </section>}
       </>}
     </div>
   );

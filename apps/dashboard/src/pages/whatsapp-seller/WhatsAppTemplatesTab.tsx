@@ -1,256 +1,71 @@
-import React, { useMemo, useState } from "react";
-import { Sparkles, Save, Send, RefreshCw, Pencil } from "lucide-react";
+﻿import React, { useMemo, useState } from "react";
+import { Pencil } from "lucide-react";
 import type { MerchantProfile } from "../../api-client.js";
 import { Button } from "../../components/Button.js";
-import { SidePanel } from "../../components/SidePanel.js";
-import { Pagination } from "../../components/Pagination.js";
-import { usePostSaleTemplates, TEMPLATE_TYPES } from "../post-sale/usePostSaleTemplates.js";
+import { EmptyState } from "../../components/EmptyState.js";
+import { DataPanel } from "../../components/DataPanel.js";
+import { FilterToolbar, FilterSelect } from "../../components/FilterToolbar.js";
+import { SectionHeader } from "../../components/SectionHeader.js";
+import { WhatsAppBrandIcon } from "../../components/WhatsAppBrandIcon.js";
+import { usePostSaleTemplates } from "../post-sale/usePostSaleTemplates.js";
+import { TemplateEditor } from "../post-sale/TemplateEditor.js";
+import { MESSAGE_STATUS_LABELS, messageStatusLabel } from "../post-sale/template-status.js";
+import "../post-sale/post-sale.css";
 
 const PAGE_SIZE = 6;
-const CHANNEL = "whatsapp";
+const normalizeSearch = (value: string) => value.trim().toLocaleLowerCase("pt-BR").normalize("NFD").replace(/[\u0300-\u036f]/g, "");
 
-/**
- * WhatsApp templates tab: paginated list of every catalog type with its Meta
- * approval status. Clicking a row opens a lateral drawer to edit the message
- * (with AI generation) and submit it to Meta for approval.
- */
-export function WhatsAppTemplatesTab(props: { me: MerchantProfile | null; templates: ReturnType<typeof usePostSaleTemplates> }) {
-  const tpl = props.templates;
+export const WHATSAPP_TEMPLATE_CATALOG = [
+  { type: "order_confirmation", label: "Confirmação do pedido", category: "Utilidade", body: "Olá, {{buyerName}}!\n\nRecebemos o pedido {{orderId}} e já iniciamos a preparação. Você receberá uma nova atualização assim que houver mudança no status.\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "order_shipped", label: "Pedido enviado", category: "Utilidade", body: "Olá, {{buyerName}}!\n\nSeu pedido {{orderId}} foi enviado e já está a caminho. Código de rastreio: {{trackingCode}}.\n\nSe precisar de apoio durante a entrega, responda a esta mensagem.\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "order_delivered", label: "Pedido entregue", category: "Utilidade", body: "Olá, {{buyerName}}!\n\nConfirmamos a entrega do pedido {{orderId}}. Esperamos que {{productName}} atenda às suas expectativas. Se precisar de suporte, estamos à disposição.\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "follow_up", label: "Acompanhamento da entrega", category: "Utilidade", body: "Olá, {{buyerName}}!\n\nQueremos confirmar se o seu {{productName}} chegou bem e se está tudo certo com o pedido. Se precisar de qualquer apoio, responda a esta mensagem.\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "review_request", label: "Pedido de avaliação", category: "Utilidade", body: "Olá, {{buyerName}}!\n\nSua experiência com {{productName}} é muito importante para nós. De 1 a 5 estrelas, qual nota você daria para sua compra? Se quiser, conte também o que podemos melhorar.\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "nps", label: "Pesquisa de satisfação", category: "Utilidade", body: "Olá, {{buyerName}}!\n\nEm uma escala de 1 a 5 estrelas, o quanto você recomendaria a sua experiência com {{storeName}} após a compra de {{productName}}? Sua resposta nos ajuda a evoluir.\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "cart_recovery", label: "Recuperação de carrinho", category: "Marketing", body: "Olá, {{buyerName}}!\n\nVimos que há itens aguardando no seu carrinho da {{storeName}}. Se ainda quiser concluir a compra, você pode retomar pelo checkout.\n\n{{couponBlock}}\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "cross_sell", label: "Produtos complementares", category: "Marketing", body: "Olá, {{buyerName}}!\n\nSelecionamos opções que combinam com {{productName}} e podem complementar sua compra.\n\n{{couponBlock}}\n\nConfira as condições e escolha quando fizer sentido para você.\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "win_back", label: "Retorno de clientes", category: "Marketing", body: "Olá, {{buyerName}}!\n\nSentimos sua falta. A {{storeName}} separou uma condição especial para uma próxima compra, conforme as regras da oferta.\n\n{{couponBlock}}\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "loyalty", label: "Fidelidade", category: "Marketing", body: "Olá, {{buyerName}}!\n\nAgradecemos por escolher a {{storeName}} novamente. Como reconhecimento pela sua fidelidade, liberamos a condição abaixo.\n\n{{couponBlock}}\n\nAtenciosamente,\n{{storeName}}" },
+  { type: "reorder", label: "Recompra", category: "Marketing", body: "Olá, {{buyerName}}!\n\nPode estar chegando o momento de repor {{productName}}. Se for útil para você, veja a condição disponível e as opções da loja.\n\n{{couponBlock}}\n\nAtenciosamente,\n{{storeName}}" },
+] as const;
+
+type CatalogTemplate = (typeof WHATSAPP_TEMPLATE_CATALOG)[number];
+
+export function WhatsAppTemplatesTab(props: { me: MerchantProfile | null }) {
+  const tpl = usePostSaleTemplates(props);
   const [page, setPage] = useState(1);
-  const [editing, setEditing] = useState<string | null>(null); // type being edited
+  const [search, setSearch] = useState("");
+  const [status, setStatus] = useState("all");
+  const [editing, setEditing] = useState<CatalogTemplate | null>(null);
+  const filtered = useMemo(() => WHATSAPP_TEMPLATE_CATALOG.filter(t => normalizeSearch(`${t.label} ${t.category} ${t.body}`).includes(normalizeSearch(search))
+    && (status === "all" || (tpl.templates[`${t.type}:whatsapp`]?.metaStatus ?? "missing") === status)), [search, status, tpl.templates]);
+  const currentPage = Math.min(page, Math.max(1, Math.ceil(filtered.length / PAGE_SIZE)));
+  const rows = filtered.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
-  const rows = useMemo(() => {
-    const start = (page - 1) * PAGE_SIZE;
-    return TEMPLATE_TYPES.slice(start, start + PAGE_SIZE);
-  }, [page]);
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 16 }}>
-      <div>
-        <div style={{ font: "600 14px var(--font-sans)", color: "var(--color-brand)" }}>Templates de Mensagem</div>
-        <p style={{ font: "12px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 4 }}>
-          Cada campanha tem um template aprovado pela Meta no seu WhatsApp. Clique para editar com IA e enviar para aprovação.
-        </p>
-      </div>
-
-      <div className="panel" style={{ overflow: "hidden" }}>
-        {rows.map((t, i) => {
-          const rec = tpl.get(t.type, CHANNEL);
-          const status = rec?.metaStatus ?? "draft";
-          return (
-            <button
-              key={t.type}
-              onClick={() => setEditing(t.type)}
-              style={{
-                display: "flex",
-                alignItems: "center",
-                justifyContent: "space-between",
-                width: "100%",
-                padding: "14px 18px",
-                border: "none",
-                borderTop: i === 0 ? "none" : "1px solid var(--color-border)",
-                background: "transparent",
-                cursor: "pointer",
-                textAlign: "left",
-              }}
-            >
-              <div>
-                <div style={{ font: "600 13px var(--font-sans)", color: "var(--color-text)" }}>{t.label}</div>
-                <div style={{ font: "11px var(--font-mono)", color: "var(--color-text-faint)", marginTop: 2 }}>
-                  {t.type}
-                </div>
-              </div>
-              <div style={{ display: "flex", alignItems: "center", gap: 12 }}>
-                <span style={badgeStyle(status)}>{statusLabel(status)}</span>
-                <Pencil size={14} style={{ color: "var(--color-text-muted)" }} />
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <Pagination page={page} pageSize={PAGE_SIZE} total={TEMPLATE_TYPES.length} onChange={setPage} disabled={tpl.loading} />
-
-      <SidePanel
-        isOpen={editing !== null}
-        title={editing ? (TEMPLATE_TYPES.find((t) => t.type === editing)?.label ?? "Template") : "Template"}
-        onClose={() => setEditing(null)}
-      >
-        {editing && <TemplateDrawerForm me={props.me} tpl={tpl} type={editing} />}
-      </SidePanel>
+  return <div className="whatsapp-template-catalog">
+    <SectionHeader title="Modelos de mensagem" subtitle="Estes são os textos padrão cadastrados pela Zyon para o WhatsApp da loja. O estado abaixo vem da Meta e determina se cada modelo pode ser enviado." />
+    <div className="whatsapp-template-notice" role="note">
+      <WhatsAppBrandIcon size={20} />
+      <div><strong>Editar cria uma nova análise da Meta</strong><p>Você pode personalizar um texto. Ao salvar, a nova versão precisa ser aprovada pela Meta e pode ser recusada. Enquanto estiver em análise ou recusada, ela não será enviada pelo WhatsApp.</p></div>
     </div>
-  );
-}
-
-function TemplateDrawerForm(props: {
-  me: MerchantProfile | null;
-  tpl: ReturnType<typeof usePostSaleTemplates>;
-  type: string;
-}) {
-  const { tpl, type } = props;
-  const meta = TEMPLATE_TYPES.find((t) => t.type === type)!;
-  const existing = tpl.get(type, CHANNEL);
-  const key = `${type}:${CHANNEL}`;
-  const saving = tpl.savingKey === key;
-  const generating = tpl.generatingKey === key;
-
-  const [name, setName] = useState(existing?.name ?? meta.label);
-  const [body, setBody] = useState(existing?.body ?? "");
-  const [metaBody, setMetaBody] = useState(existing?.metaTemplateBody ?? "");
-  const [metaVarMap, setMetaVarMap] = useState<Record<string, string>>(
-    (existing?.metaVariableMap as Record<string, string>) ?? {}
-  );
-  const [metaCategory, setMetaCategory] = useState(existing?.metaCategory ?? (type === "cross_sell" || type === "win_back" || type === "cart_recovery" ? "MARKETING" : "UTILITY"));
-  const [metaLanguage, setMetaLanguage] = useState(existing?.metaLanguage ?? "pt_BR");
-  const [tone, setTone] = useState("amigavel");
-
-  const status = existing?.metaStatus ?? "draft";
-
-  async function onGenerate() {
-    const res = await tpl.generate(type, CHANNEL, { storeName: props.me?.name, tone });
-    if (res) {
-      setName(res.name || name);
-      setBody(res.body || body);
-      if (res.meta) {
-        setMetaBody(res.meta.metaBody);
-        setMetaVarMap(res.meta.variableMap);
-        setMetaCategory(res.meta.category);
-        setMetaLanguage(res.meta.language);
-      }
-    }
-  }
-
-  async function onSave() {
-    if (!body.trim()) return;
-    await tpl.save(type, CHANNEL, {
-      name: name.trim() || meta.label,
-      body: body.trim(),
-      metaCategory,
-      metaLanguage,
-      metaTemplateBody: metaBody.trim() || undefined,
-      metaVariableMap: Object.keys(metaVarMap).length ? metaVarMap : undefined,
-    });
-  }
-
-  async function onSubmitMeta() {
-    await onSave();
-    await tpl.submitMeta(type, CHANNEL);
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: 14 }}>
-      <div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
-        <span style={badgeStyle(status)}>{statusLabel(status)}</span>
-        {existing?.twilioContentSid && (
-          <span style={{ font: "10px var(--font-mono)", color: "var(--color-text-faint)" }}>{existing.twilioContentSid}</span>
-        )}
-      </div>
-
-      {status === "rejected" && existing?.metaRejectionReason && (
-        <div style={{ font: "12px var(--font-sans)", color: "var(--color-danger, #c0392b)" }}>
-          Rejeitado pela Meta: {existing.metaRejectionReason}
+    {tpl.loading ? <div className="panel whatsapp-template-loading" role="status"><span /><span />Carregando modelos…</div> : tpl.loadError ?
+      <EmptyState title="Modelos indisponíveis" description={tpl.loadError} action={<Button variant="outline" onClick={tpl.reload}>Tentar novamente</Button>} /> : <>
+      <FilterToolbar tabs={[]} activeTab="" onTabChange={() => {}} search={search} searchPlaceholder="Buscar por modelo ou conteúdo" onSearchChange={value => { setSearch(value); setPage(1); }}
+        extra={<FilterSelect ariaLabel="Estado dos modelos" value={status} onChange={value => { setStatus(value); setPage(1); }} width={250}
+          options={[{ value: "all", label: "Todos os estados" }, ...Object.entries(MESSAGE_STATUS_LABELS).map(([value, label]) => ({ value, label })), { value: "missing", label: "Aguardando sincronização" }]} />} />
+      <DataPanel title={`${filtered.length} ${filtered.length === 1 ? "modelo" : "modelos"} de mensagem`} page={currentPage} pageSize={PAGE_SIZE} total={filtered.length} onPageChange={setPage}
+        isEmpty={!filtered.length} empty={{ icon: WhatsAppBrandIcon, title: "Nenhum modelo com estes filtros", description: "Altere a busca ou o estado para encontrar a mensagem.", action: <Button variant="outline" onClick={() => { setSearch(""); setStatus("all"); setPage(1); }}>Limpar filtros</Button> }}>
+        <div className="whatsapp-template-list">
+          {rows.map(t => {
+            const stored = tpl.get(t.type, "whatsapp");
+            return <button type="button" key={t.type} className="whatsapp-template-row" onClick={() => setEditing(t)} aria-label={`Ver ou editar ${t.label}`}>
+              <span className="whatsapp-template-row__copy"><span className="whatsapp-template-row__heading"><strong>{t.label}</strong><em>{t.category}</em></span><small>{stored ? `WhatsApp · Versão ${stored.metaRevision ?? 1}` : "Texto padrão aguardando sincronização com a Meta."}</small><p>{stored?.body || t.body}</p><span className="whatsapp-template-row__signature">Assinatura: {"{{storeName}}"}</span></span>
+              <span className="whatsapp-template-row__action"><span className="message-status-badge" data-status={stored?.metaStatus}>{stored ? messageStatusLabel(stored.metaStatus) : "Aguardando sincronização"}</span><Pencil size={16} aria-hidden="true" /></span>
+            </button>;
+          })}
         </div>
-      )}
-
-      <label style={col}>
-        <span style={label}>Tom da IA</span>
-        <select value={tone} onChange={(e) => setTone(e.target.value)} style={input}>
-          <option value="amigavel">Amigável</option>
-          <option value="profissional">Profissional</option>
-          <option value="descontraido">Descontraído</option>
-          <option value="promocional">Promocional</option>
-          <option value="luxo">Luxo / Premium</option>
-        </select>
-      </label>
-
-      <label style={col}>
-        <span style={label}>Nome interno</span>
-        <input value={name} onChange={(e) => setName(e.target.value)} style={input} placeholder={meta.label} />
-      </label>
-
-      <label style={col}>
-        <span style={label}>Mensagem (texto — e-mail / janela 24h)</span>
-        <textarea value={body} onChange={(e) => setBody(e.target.value)} rows={6} style={{ ...input, resize: "vertical", fontFamily: "var(--font-mono, monospace)" }} placeholder="Digite ou gere com IA…" />
-      </label>
-
-      <div style={{ padding: 12, borderRadius: 8, border: "1px solid var(--color-border)", background: "var(--color-surface-subtle, var(--color-surface))" }}>
-        <div style={{ font: "600 12px var(--font-sans)", color: "var(--color-text)", marginBottom: 8 }}>Template Meta (oficial)</div>
-        <div style={{ display: "flex", gap: 8, marginBottom: 8 }}>
-          <select value={metaCategory} onChange={(e) => setMetaCategory(e.target.value)} style={{ ...input, flex: 1 }}>
-            <option value="UTILITY">UTILITY</option>
-            <option value="MARKETING">MARKETING</option>
-          </select>
-          <input value={metaLanguage} onChange={(e) => setMetaLanguage(e.target.value)} style={{ ...input, width: 90 }} />
-        </div>
-        <textarea value={metaBody} onChange={(e) => setMetaBody(e.target.value)} rows={4} style={{ ...input, width: "100%", resize: "vertical", fontFamily: "var(--font-mono, monospace)" }} placeholder="Ex.: Oi {{1}}! Use {{2}}" />
-        {Object.keys(metaVarMap).length > 0 && (
-          <div style={{ font: "11px var(--font-sans)", color: "var(--color-text-muted)", marginTop: 6 }}>
-            {Object.entries(metaVarMap).map(([p, n]) => (
-              <code key={p} style={{ marginRight: 8 }}>{`{{${p}}}`}={n}</code>
-            ))}
-          </div>
-        )}
-      </div>
-
-      <div style={{ display: "flex", gap: 8, flexWrap: "wrap" }}>
-        <Button variant="outline" onClick={onGenerate} disabled={generating || saving}>
-          <Sparkles size={14} style={{ marginRight: 6 }} />
-          {generating ? "Gerando…" : "Gerar com IA"}
-        </Button>
-        <Button variant="primary" onClick={onSave} disabled={saving || generating || !body.trim()}>
-          <Save size={14} style={{ marginRight: 6 }} />
-          {saving ? "Salvando…" : "Salvar"}
-        </Button>
-      </div>
-      <div style={{ display: "flex", gap: 8 }}>
-        <Button variant="outline" onClick={() => tpl.refreshMetaStatus(type, CHANNEL)} disabled={saving}>
-          <RefreshCw size={13} style={{ marginRight: 6 }} />
-          Status
-        </Button>
-        <Button variant="primary" onClick={onSubmitMeta} disabled={saving || generating || !metaBody.trim()}>
-          <Send size={13} style={{ marginRight: 6 }} />
-          Enviar para aprovação Meta
-        </Button>
-      </div>
-    </div>
-  );
+      </DataPanel>
+    </>}
+    {editing && <TemplateEditor key={editing.type} me={props.me} initialType={editing.type} definition={editing} onClose={() => { setEditing(null); void tpl.reload(); }} />}
+  </div>;
 }
-
-function statusLabel(s: string): string {
-  switch (s) {
-    case "approved": return "Aprovado";
-    case "submitted": return "Em análise";
-    case "rejected": return "Rejeitado";
-    default: return "Rascunho";
-  }
-}
-
-function badgeStyle(s: string): React.CSSProperties {
-  const pal: Record<string, { bg: string; fg: string }> = {
-    approved: { bg: "rgba(39,174,96,0.15)", fg: "#1e8449" },
-    submitted: { bg: "rgba(243,156,18,0.15)", fg: "#b9770e" },
-    rejected: { bg: "rgba(192,57,43,0.15)", fg: "#c0392b" },
-    draft: { bg: "var(--color-surface)", fg: "var(--color-text-muted)" },
-  };
-  const c = pal[s] ?? pal.draft;
-  return {
-    font: "600 11px var(--font-sans)",
-    padding: "3px 10px",
-    borderRadius: 999,
-    background: c.bg,
-    color: c.fg,
-    border: "1px solid var(--color-border)",
-    whiteSpace: "nowrap",
-  };
-}
-
-const col: React.CSSProperties = { display: "flex", flexDirection: "column", gap: 4 };
-const label: React.CSSProperties = { font: "600 12px var(--font-sans)", color: "var(--color-text-muted)" };
-const input: React.CSSProperties = {
-  padding: "8px 12px",
-  borderRadius: 8,
-  border: "1px solid var(--color-border)",
-  background: "var(--color-surface)",
-  color: "var(--color-text)",
-  font: "13px var(--font-sans)",
-};

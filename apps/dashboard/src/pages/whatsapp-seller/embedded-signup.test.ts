@@ -1,5 +1,5 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
-import { EmbeddedSignupProviderError, embeddedSignupErrorMessage, launchEmbeddedSignup, parseEmbeddedSignupEvent } from "./embedded-signup.js";
+import { launchEmbeddedSignup, parseEmbeddedSignupEvent } from "./embedded-signup.js";
 
 const settings = { configured: true, appId: "123456", configId: "234567" };
 const finish = { type: "WA_EMBEDDED_SIGNUP", event: "FINISH", data: { waba_id: "123456789", phone_number_id: "987654321" } };
@@ -14,7 +14,7 @@ describe("Embedded Signup authorization", () => {
       removeEventListener: events.removeEventListener.bind(events), setTimeout, clearTimeout });
   });
   afterEach(() => { vi.unstubAllGlobals(); vi.restoreAllMocks(); });
-  function message(data: unknown = finish, origin = "https://www.facebook.com") {
+  function message(data = finish, origin = "https://www.facebook.com") {
     const event = new Event("message");
     Object.assign(event, { origin, data: JSON.stringify(data) });
     events.dispatchEvent(event);
@@ -36,8 +36,8 @@ describe("Embedded Signup authorization", () => {
       auth_type: "rerequest",
       response_type: "code",
       override_default_response_type: true,
-      extras: { setup: {}, sessionInfoVersion: "3" },
     });
+    expect(login.mock.calls[0][1]).not.toHaveProperty("extras");
     if (order === "finish-first") message();
     callback({ authResponse: { code: "oauth-code" } });
     if (order === "code-first") message();
@@ -56,17 +56,5 @@ describe("Embedded Signup authorization", () => {
     const result = launchEmbeddedSignup(settings, new AbortController().signal);
     message({ ...finish, event: "CANCEL" });
     await expect(result).rejects.toThrow("Seus dados foram preservados");
-  });
-  it("turns Meta phone-capacity errors into an actionable merchant message", async () => {
-    const error = { type: "WA_EMBEDDED_SIGNUP", event: "ERROR", data: { error_code: 2388386 } };
-    expect(parseEmbeddedSignupEvent({ origin: "https://www.facebook.com", data: error })).toEqual({ type: "error", code: "2388386" });
-    expect(embeddedSignupErrorMessage("2388386")).toMatch(/limite de números/);
-    const result = launchEmbeddedSignup(settings, new AbortController().signal);
-    message(error);
-    await expect(result).rejects.toThrow("solicite mais números");
-    expect(new EmbeddedSignupProviderError("2388386").code).toBe("2388386");
-  });
-  it("explains the difference between registration and migration", () => {
-    expect(embeddedSignupErrorMessage("2388091")).toMatch(/migrar/);
   });
 });

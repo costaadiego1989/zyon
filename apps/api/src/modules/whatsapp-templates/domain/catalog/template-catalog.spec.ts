@@ -54,3 +54,11 @@ test("getTemplateDefinition inlines storeName", () => {
   const def = getTemplateDefinition("follow_up", "Minha Loja");
   assert.match(def.metaBody, /Minha Loja/);
 });
+
+test("buyer-facing catalog templates end with the store signature", () => {
+  const cat = buildCatalog();
+  const buyerTypes = ["follow_up", "review_request", "nps", "cross_sell", "win_back", "loyalty", "reorder", "cart_recovery", "order_confirmation", "order_shipped", "order_delivered"] as const;
+  for (const type of buyerTypes) {
+    assert.match(cat[type].freeformBody, /\n\{\{storeName\}$/, type + " must end with the store signature");
+  }
+});

@@ -79,89 +79,21 @@ export function toPositional(named: string, storeName = "sua loja"): {
 
 // Named-placeholder freeform bodies (source of truth for both channels).
 const FREEFORM: Record<WhatsAppTemplateType, string> = {
-  plan_expiry_7d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete da semana do vencimento. Confira a renovação em {{dashboardLink}}. Equipe Zyon.",
-  plan_expiry_3d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). O vencimento está próximo. Confira a assinatura e a forma de pagamento em {{dashboardLink}}. Equipe Zyon.",
-  plan_expiry_24h: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete das últimas 24 horas. Confira a renovação em {{dashboardLink}}. Equipe Zyon.",
-  plan_expiry_expired: "Olá, {{merchantName}}. O plano {{planName}} na Zyon terminou em {{expiresAt}} (horário de Brasília) e ainda não identificamos a renovação. Consulte sua assinatura em {{dashboardLink}}. Equipe Zyon.",
-  follow_up: `Oi {{buyerName}}! 😊 Aqui é da {{storeName}}.
-
-Seu {{productName}} já chegou? Queremos saber se está tudo certo com o pedido!
-
-Se precisar de algo, é só responder aqui. Estamos à disposição! 💬`,
-
-  review_request: `Oi {{buyerName}}! ⭐
-
-Você recebeu o {{productName}} há alguns dias. O que achou?
-
-De 1 a 5 estrelas, que nota você dá? Responda com o número (1 a 5) e, se quiser, um comentário!
-
-Sua opinião ajuda demais outros clientes. Obrigado! 🙏`,
-
-  nps: `Oi {{buyerName}}! 😊
-
-Aqui é da {{storeName}}. Seu pedido do {{productName}} chegou faz uns dias.
-
-De 1 a 5 estrelas, o quanto você recomendaria a gente? ⭐
-
-É só responder com o número (1 a 5) aqui mesmo! 🙏`,
-
-  cross_sell: `Olá, {{buyerName}}, tudo bem? 🎁
-
-Como você comprou o {{productName}}, separamos algumas opções que combinam perfeitamente!
-
-{{couponBlock}}
-
-Estamos à disposição! 💛`,
-
-  win_back: `Oi {{buyerName}}! Sentimos sua falta! 💜
-
-Faz um tempo que você não aparece por aqui. A {{storeName}} preparou algo especial pra você voltar.
-
-{{couponBlock}}
-
-Te esperamos! 🙌`,
-
-  loyalty: `Parabéns, {{buyerName}}! 🎉🎊
-
-Você acaba de completar mais uma compra conosco na {{storeName}}!
-
-Como agradecimento pela sua fidelidade, preparamos um benefício exclusivo:
-
-{{couponBlock}}
-
-Obrigado por fazer parte! 💛`,
-
-  reorder: `Olá, {{buyerName}}, tudo bem? 🔔
-
-Lembra do {{productName}} que você comprou? Pelo tempo de uso, pode ser que esteja na hora de repor!
-
-{{couponBlock}}
-
-Confira as opções e condições de entrega na loja.`,
-
-  cart_recovery: `Oi {{buyerName}}! 🛒
-
-Você deixou alguns itens no carrinho na {{storeName}}. Ainda dá tempo de concluir!
-
-{{couponBlock}}
-
-Qualquer dúvida, é só chamar. 💬`,
-
-  order_confirmation: `Oi {{buyerName}}! ✅
-
-Recebemos seu pedido {{orderId}} na {{storeName}} e já estamos preparando tudo.
-
-Você será avisado quando ele for enviado. Obrigado pela compra! 💛`,
-
-  order_shipped: `Boa notícia, {{buyerName}}! 📦
-
-Seu pedido {{orderId}} foi enviado. Código de rastreio: {{trackingCode}}.
-
-Acompanhe a entrega e qualquer coisa é só falar com a gente. 🚚`,
-
-  order_delivered: `Olá, {{buyerName}}, seu pedido {{orderId}} foi entregue! 🎉
-
-Esperamos que esteja tudo perfeito. Se precisar de qualquer coisa com o {{productName}}, é só responder aqui. 💬`,
+  plan_expiry_7d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Este é o lembrete de 7 dias para que você revise a renovação em {{dashboardLink}}.\n\nEquipe Zyon.",
+  plan_expiry_3d: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Faltam 3 dias para o vencimento. Revise a assinatura e a forma de pagamento em {{dashboardLink}}.\n\nEquipe Zyon.",
+  plan_expiry_24h: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon termina em {{expiresAt}} (horário de Brasília). Restam menos de 24 horas. Confira a renovação em {{dashboardLink}}.\n\nEquipe Zyon.",
+  plan_expiry_expired: "Olá, {{merchantName}}. O período do plano {{planName}} na Zyon terminou em {{expiresAt}} (horário de Brasília) e a renovação ainda não foi identificada. Consulte sua assinatura em {{dashboardLink}}.\n\nEquipe Zyon.",
+  follow_up: "Olá, {{buyerName}}!\n\nQueremos confirmar se o seu {{productName}} chegou bem e se está tudo certo com o pedido. Se precisar de qualquer apoio, responda a esta mensagem.\n\nAtenciosamente,\n{{storeName}}",
+  review_request: "Olá, {{buyerName}}!\n\nSua experiência com {{productName}} é muito importante para nós. De 1 a 5 estrelas, qual nota você daria para sua compra? Se quiser, conte também o que podemos melhorar.\n\nAtenciosamente,\n{{storeName}}",
+  nps: "Olá, {{buyerName}}!\n\nEm uma escala de 1 a 5 estrelas, o quanto você recomendaria a sua experiência com {{storeName}} após a compra de {{productName}}? Sua resposta nos ajuda a evoluir.\n\nAtenciosamente,\n{{storeName}}",
+  cross_sell: "Olá, {{buyerName}}!\n\nSelecionamos opções que combinam com {{productName}} e podem complementar sua compra.\n\n{{couponBlock}}\n\nConfira as condições e escolha quando fizer sentido para você.\n\nAtenciosamente,\n{{storeName}}",
+  win_back: "Olá, {{buyerName}}!\n\nSentimos sua falta. A {{storeName}} separou uma condição especial para uma próxima compra, conforme as regras da oferta.\n\n{{couponBlock}}\n\nAtenciosamente,\n{{storeName}}",
+  loyalty: "Olá, {{buyerName}}!\n\nAgradecemos por escolher a {{storeName}} novamente. Como reconhecimento pela sua fidelidade, liberamos a condição abaixo.\n\n{{couponBlock}}\n\nAtenciosamente,\n{{storeName}}",
+  reorder: "Olá, {{buyerName}}!\n\nPode estar chegando o momento de repor {{productName}}. Se for útil para você, veja a condição disponível e as opções da loja.\n\n{{couponBlock}}\n\nAtenciosamente,\n{{storeName}}",
+  cart_recovery: "Olá, {{buyerName}}!\n\nVimos que há itens aguardando no seu carrinho da {{storeName}}. Se ainda quiser concluir a compra, você pode retomar pelo checkout.\n\n{{couponBlock}}\n\nAtenciosamente,\n{{storeName}}",
+  order_confirmation: "Olá, {{buyerName}}!\n\nRecebemos o pedido {{orderId}} e já iniciamos a preparação. Você receberá uma nova atualização assim que houver mudança no status.\n\nAtenciosamente,\n{{storeName}}",
+  order_shipped: "Olá, {{buyerName}}!\n\nSeu pedido {{orderId}} foi enviado e já está a caminho. Código de rastreio: {{trackingCode}}.\n\nSe precisar de apoio durante a entrega, responda a esta mensagem.\n\nAtenciosamente,\n{{storeName}}",
+  order_delivered: "Olá, {{buyerName}}!\n\nConfirmamos a entrega do pedido {{orderId}}. Esperamos que {{productName}} atenda às suas expectativas. Se precisar de suporte, estamos à disposição.\n\nAtenciosamente,\n{{storeName}}",
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
