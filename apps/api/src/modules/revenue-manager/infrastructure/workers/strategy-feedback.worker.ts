@@ -3,6 +3,7 @@ import { DOMAIN_EVENT_BUS, type DomainEvent, type DomainEventBus } from "../../.
 import { RecordStrategyLessonUseCase } from "../../application/use-cases/record-strategy-lesson.use-case.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
+import { requiresWeeklyReview } from "../../../experiments/application/weekly-experiment-governance.js";
 
 /** The shared dispatcher owns delivery, retries and shutdown for this handler. */
 @Injectable()
@@ -29,6 +30,8 @@ export class StrategyFeedbackWorker implements OnModuleInit {
     });
     // Experiments created directly by the merchant need no strategy lesson.
     if (!hypothesis) return;
+    // A manual stop still closes the test, but cannot become success evidence.
+    if (await requiresWeeklyReview(this.prisma, event.merchantId)) return;
     await this.recordLessonUseCase.execute({
       merchant_id: event.merchantId,
       experiment_id: payload.experiment_id,

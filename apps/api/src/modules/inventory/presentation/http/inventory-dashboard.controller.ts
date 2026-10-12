@@ -280,7 +280,7 @@ export class InventoryDashboardController {
     return this.triggerErpSyncUseCase.execute(user.merchantId, id);
   }
 
-  private toSafeErpConnection(connection: { id: string; merchantId: string; provider: string; status: string; directionMode: string; lastSyncAt: Date | null; createdAt: Date }, jobId: string) {
+  private toSafeErpConnection(connection: { id: string; merchantId: string; provider: string; status: string; directionMode: string; lastSyncAt: Date | null; createdAt: Date }, jobId: string | undefined) {
     return {
       id: connection.id,
       merchantId: connection.merchantId,

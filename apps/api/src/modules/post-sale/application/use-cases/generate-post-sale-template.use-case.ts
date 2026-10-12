@@ -40,7 +40,7 @@ export class GeneratePostSaleTemplateUseCase {
     const defaults = salesDefaults(type);
     let body = defaults[input.channel].body;
     try {
-      const generated = await this.copywriter.generateWithAi(this.buildFreeformPrompt(type, input.storeName, input.tone || "profissional"));
+      const generated = await this.copywriter.generateWithAi(this.buildFreeformPrompt(type, input.storeName, input.tone || "profissional", input.channel));
       const edit = validateSalesEdit(type, { email: { ...defaults.email, ...(input.channel === "email" ? { body: generated } : {}) },
         whatsapp: { body: input.channel === "whatsapp" ? generated : defaults.whatsapp.body, revision: 1 } });
       body = edit[input.channel].body;
@@ -50,7 +50,7 @@ export class GeneratePostSaleTemplateUseCase {
       meta: { metaBody: prepared.metaBody, variableMap: prepared.variableMap, sampleVariables: prepared.sampleVariables, category: prepared.category as "UTILITY" | "MARKETING", language: "pt_BR" } };
   }
 
-  private buildFreeformPrompt(type: string, storeName: string, tone: string): string {
+  private buildFreeformPrompt(type: string, storeName: string, tone: string, channel: "email" | "whatsapp"): string {
     const typeDescriptions: Record<string, string> = {
       follow_up: "A follow-up message after delivery to check if the customer is happy",
       review_request: "A review request asking for feedback on a product",
@@ -79,12 +79,12 @@ export class GeneratePostSaleTemplateUseCase {
         ? "Coupon area: {{couponBlock}} (place this exactly where a coupon/benefit should appear; leave it verbatim)\n"
         : "";
 
-    return `Generate a post-sale WhatsApp message for the following scenario:
+    return `Generate a post-sale ${channel} message for the following scenario:
 
 Type: ${type} (${typeDescriptions[type] || ""})
 Store: {{storeName}} (use this placeholder)
 Buyer: {{buyerName}} (use this placeholder)
-Allowed variables and scenario reference: ${salesDefaults(type).whatsapp.body}
+Allowed variables and scenario reference: ${salesDefaults(type)[channel].body}
 ${couponHint}Tone/style: ${style}
 
 Rules:
@@ -92,6 +92,8 @@ Rules:
 - Match the tone/style above; adapt length to it (a promotional message can be richer, a utility one shorter).
 - Include a natural call-to-action when it fits the campaign type.
 - Never guarantee discounts, free shipping, or request sensitive data.
+- Never promise a coupon or an exclusive benefit outside {{couponBlock}}.
+- For email, direct questions and feedback to the store's support; never ask the recipient to reply to this email or claim that email replies record ratings.
 - Use emojis naturally (a few, not excessive).
 - Keep named placeholders exactly as written in the scenario reference. Do not add other variables.
 

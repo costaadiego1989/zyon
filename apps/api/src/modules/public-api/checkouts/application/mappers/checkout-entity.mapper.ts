@@ -66,15 +66,16 @@ export class CheckoutEntityMapper {
    * Chat message response → v1 response
    * ChatMessageUseCase returns ChatTurn-like objects
    */
-  static toChatMessageResponse(result: any) {
+  static toChatMessageResponse(result: any, scope?: { conversation_id: string; session_id: string }) {
     return {
       role: result.role ?? 'assistant',
-      content: result.text ?? result.content ?? '',
-      conversation_id: result.conversation_id ?? result.conversationId,
-      session_id: result.session_id ?? result.sessionId,
+      content: result.message ?? result.text ?? result.content ?? '',
+      conversation_id: scope?.conversation_id ?? result.conversation_id ?? result.conversationId,
+      session_id: scope?.session_id ?? result.session_id ?? result.sessionId,
       experience: result.experience ?? null,
       offers: result.offers ?? [],
       turns: result.turns ?? [],
+      ...(result.chat_request ? { chat_request: result.chat_request } : {}),
     };
   }
 

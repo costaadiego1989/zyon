@@ -70,6 +70,7 @@ export class AuthController {
       properties: {
         email: { type: "string", format: "email", example: "merchant@example.com" },
         password: { type: "string", minLength: 8, example: "secure_password_123" },
+        turnstile_token: { type: "string", maxLength: 2048, description: "Fresh Turnstile token for action signup; required in production." },
       },
     },
   })
@@ -99,20 +100,7 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
-    if (process.env.NODE_ENV === "production") {
-      const captcha = await this.verifyCaptcha.execute({
-        token: body.turnstile_token,
-        remoteIp: ip || undefined,
-      });
-      if (!captcha.allowed) {
-        throw new BadRequestException({
-          statusCode: 400,
-          code: "captcha_invalid",
-          message: "captcha_invalid",
-          reason: captcha.reason,
-        });
-      }
-    }
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip || undefined, action: "signup" });
     const auth = await this.registerMerchant.execute(body);
     response.setHeader("Set-Cookie", this.cookies.create(auth));
     return auth;
@@ -130,6 +118,7 @@ export class AuthController {
       properties: {
         email: { type: "string", format: "email", example: "merchant@example.com" },
         password: { type: "string", example: "secure_password_123" },
+        turnstile_token: { type: "string", maxLength: 2048, description: "Fresh Turnstile token for action login; required in production." },
       },
     },
   })
@@ -165,23 +154,7 @@ export class AuthController {
     @Ip() ip: string,
     @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
   ) {
-    // Captcha first — block bot traffic before we hit the rate limiter / DB.
-    // DEV: captcha bypassed entirely to keep local testing unblocked.
-    // Production CAPTCHA remains required except for a scoped, expiring audit key.
-    if (process.env.NODE_ENV === "production") {
-      const captcha = await this.verifyCaptcha.execute({
-        token: body.turnstile_token,
-        remoteIp: ip || undefined,
-      });
-      if (!captcha.allowed) {
-        throw new BadRequestException({
-          statusCode: 400,
-          code: "captcha_invalid",
-          message: "captcha_invalid",
-          reason: captcha.reason,
-        });
-      }
-    }
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip || undefined, action: "login" });
 
     // Build scope from trusted identifiers
     const scope: LoginAttemptScope = { ip: ip || "unknown", email: normalizeEmail(body.email ?? "") };
@@ -299,6 +272,7 @@ export class AuthController {
       required: ["email"],
       properties: {
         email: { type: "string", format: "email", example: "merchant@example.com" },
+        turnstile_token: { type: "string", maxLength: 2048, description: "Fresh Turnstile token for action forgot_password; required in production." },
       },
     },
   })
@@ -312,7 +286,8 @@ export class AuthController {
       },
     },
   })
-  async forgotPassword(@Body() body: { email: string }) {
+  async forgotPassword(@Body() body: { email: string; turnstile_token?: string }, @Ip() ip?: string) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "forgot_password" });
     return this.requestPasswordReset.execute(body.email ?? "");
   }
 
@@ -329,6 +304,7 @@ export class AuthController {
       properties: {
         token: { type: "string", description: "Reset token from email", example: "eyJhbGc..." },
         password: { type: "string", minLength: 8, example: "new_secure_password_456" },
+        turnstile_token: { type: "string", maxLength: 2048, description: "Fresh Turnstile token for action reset_password; required in production." },
       },
     },
   })
@@ -347,7 +323,8 @@ export class AuthController {
     status: 400,
     description: "Invalid or expired reset token, or password validation failed",
   })
-  async resetPasswordAction(@Body() body: { token: string; password: string }) {
+  async resetPasswordAction(@Body() body: { token: string; password: string; turnstile_token?: string }, @Ip() ip?: string) {
+    await this.verifyCaptcha.assertAllowed({ token: body.turnstile_token, remoteIp: ip, action: "reset_password" });
     return this.resetPassword.execute(body.token ?? "", body.password ?? "");
   }
 

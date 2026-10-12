@@ -110,7 +110,8 @@ import { ListMerchantProductReviewsUseCase } from "./application/use-cases/list-
     ExperimentsModule,
     CheckoutSettingsModule,
   ],
-  controllers: [WidgetCatalogController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController, ModerationController, ProductLayoutStatusController, ProductContentHistoryController, ProductContentController],
+  // Static product collections must precede /products/:pid in the Express router.
+  controllers: [WidgetCatalogController, ProductLayoutStatusController, StoreBuilderCatalogController, ProductPromotionController, SpreadsheetImportController, ModerationController, ProductContentHistoryController, ProductContentController],
   providers: [
     BillingPlanMeteringService,
     PlanLimitGuard,

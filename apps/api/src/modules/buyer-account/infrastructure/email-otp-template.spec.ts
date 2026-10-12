@@ -79,3 +79,25 @@ test("invalid configured sender fails before contacting Resend", async () => {
   await assert.rejects(sender.send("buyer@example.test", "123456", { merchantName: "Loja" }), /otp_email_unavailable/);
   assert.equal(requested, false);
 });
+
+test("merchant OTP adds the configured logo, CNPJ and social links", async () => {
+  let sent: Record<string, string> | undefined;
+  const sender = new ResendEmailOtpSender({ apiKey: "test-key", fromEmail: "verified@example.test" }, {
+    fetch: async (_url, options) => {
+      sent = JSON.parse(String(options?.body));
+      return new Response("accepted", { status: 202 });
+    },
+  });
+  await sender.send("buyer@example.test", "123456", {
+    merchantName: "Loja do Teste",
+    merchantBranding: {
+      merchantName: "Loja do Teste",
+      logoUrl: "https://cdn.example.test/otp-logo.png",
+      cnpj: "12.345.678/0001-90",
+      social: { instagram: "https://instagram.com/lojadoTeste" },
+    },
+  });
+  assert.match(sent?.html ?? "", /otp-logo\.png/);
+  assert.match(sent?.html ?? "", /CNPJ: 12\.345\.678\/0001-90/);
+  assert.match(sent?.html ?? "", /instagram\.com\/lojadoTeste/);
+});

@@ -14,6 +14,7 @@ import { randomBytes } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 import { PasswordHasher } from "../../../auth/domain/services/password-hasher.service.js";
+import { cleanEmailSubject, escapeEmailHtml } from "../../../../shared/messaging/email-content.js";
 
 export { EMAIL_SENDER_PORT };
 
@@ -72,8 +73,8 @@ export class InviteMemberUseCase {
       return { merchant, invite };
     });
 
-    const dashboardUrl = process.env.DASHBOARD_URL || "http://localhost:5175";
-    await this.sendWelcomeEmail(email, input.name || input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
+    const dashboardUrl = process.env.DASHBOARD_PUBLIC_URL || process.env.DASHBOARD_URL || "https://app.zyon-payments.com.br";
+    await this.sendWelcomeEmail(input.merchant_id, email, input.name || input.email, merchant.name, provisionalPassword, input.role, dashboardUrl);
 
     return {
       invite_id: invite.id,
@@ -83,15 +84,16 @@ export class InviteMemberUseCase {
     };
   }
 
-  private async sendWelcomeEmail(email: string, name: string, merchantName: string, password: string, role: string, dashboardUrl: string) {
-    const roleLabel = role === "ADMIN" ? "Administrador" : "Agente de Suporte";
+  private async sendWelcomeEmail(merchantId: string, email: string, name: string, merchantName: string, password: string, role: string, dashboardUrl: string) {
+    const roleLabel = ({ OWNER: "Proprietário", ADMIN: "Administrador", AGENT: "Agente de suporte" } as Record<string, string>)[role.toUpperCase()] || "Membro da equipe";
     try {
       await this.emailSender.send({
         to: email,
-        subject: `🔐 Bem-vindo(a) à ${merchantName}, ${name} — defina sua senha`,
+        merchantId,
+        subject: cleanEmailSubject(`${merchantName} | Seu acesso à equipe na Zyon`),
         html: `
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head><meta charset="utf-8"></head>
 <body style="margin:0;padding:0;background:#f8fafc;font-family:-apple-system,BlinkMacSystemFont,'Segoe UI',Roboto,sans-serif;">
   <div style="max-width:520px;margin:0 auto;padding:40px 24px;">
@@ -103,10 +105,10 @@ export class InviteMemberUseCase {
       <!-- Body -->
       <div style="padding:32px;">
         <p style="font-size:15px;color:#334155;line-height:1.6;margin:0 0 16px;">
-          Olá <strong>${name}</strong>,
+          Olá <strong>${escapeEmailHtml(name)}</strong>,
         </p>
         <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 20px;">
-          Você foi convidado como <strong>${roleLabel}</strong> na loja <strong>${merchantName}</strong>.
+          Você recebeu acesso como <strong>${roleLabel}</strong> na loja <strong>${escapeEmailHtml(merchantName)}</strong>.
           Abaixo estão suas credenciais de acesso ao painel de gerenciamento.
         </p>
         <!-- Credentials box -->
@@ -114,12 +116,12 @@ export class InviteMemberUseCase {
           <table style="width:100%;border-collapse:collapse;">
             <tr>
               <td style="padding:6px 0;font-size:13px;color:#64748b;width:100px;">Email</td>
-              <td style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:500;">${email}</td>
+              <td style="padding:6px 0;font-size:13px;color:#0f172a;font-weight:500;">${escapeEmailHtml(email)}</td>
             </tr>
             <tr>
-              <td style="padding:6px 0;font-size:13px;color:#64748b;">Senha</td>
+              <td style="padding:6px 0;font-size:13px;color:#64748b;">Senha inicial</td>
               <td style="padding:6px 0;">
-                <code style="background:#e2e8f0;padding:3px 8px;border-radius:4px;font-size:13px;color:#0f172a;font-weight:600;">${password}</code>
+                <code style="background:#e2e8f0;padding:3px 8px;border-radius:4px;font-size:13px;color:#0f172a;font-weight:600;">${escapeEmailHtml(password)}</code>
               </td>
             </tr>
             <tr>
@@ -130,7 +132,7 @@ export class InviteMemberUseCase {
         </div>
         <!-- CTA -->
         <div style="text-align:center;margin:0 0 24px;">
-          <a href="${dashboardUrl}" style="display:inline-block;padding:12px 28px;background:#0f766e;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;">Acessar Painel →</a>
+          <a href="${escapeEmailHtml(dashboardUrl)}" style="display:inline-block;padding:12px 28px;background:#0f766e;color:#ffffff;font-size:14px;font-weight:600;text-decoration:none;border-radius:8px;">Acessar painel</a>
         </div>
         <p style="font-size:12px;color:#94a3b8;line-height:1.5;margin:0;text-align:center;">
           Recomendamos alterar sua senha no primeiro acesso.<br/>

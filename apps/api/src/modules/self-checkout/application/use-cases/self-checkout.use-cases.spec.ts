@@ -49,7 +49,7 @@ describe("RegisterBuyerUserUseCase", () => {
     const wallet = await wallets.findByBuyerUserId(result.user_id);
     assert.ok(wallet, "wallet should be created");
 
-    const events = outbox.listOutbox("platform");
+    const events = outbox.listOutbox("test_merchant");
     assert.equal(events.length, 1);
     assert.equal(events[0].event_type, "buyer.registered");
   });
@@ -173,7 +173,7 @@ describe("AddSavedPaymentMethodUseCase", () => {
     const updatedWallet = await repos.wallets.findByBuyerUserId(user.id);
     assert.equal(updatedWallet!.saved_payment_methods.length, 1);
 
-    const events = repos.outbox.listOutbox("platform");
+    const events = repos.outbox.listOutbox("test_merchant");
     assert.equal(events.length, 1);
     assert.equal(events[0].event_type, "buyer.wallet.payment-method-added");
   });

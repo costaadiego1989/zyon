@@ -21,6 +21,7 @@ export interface ProfileTabProps {
 }
 
 export interface AddressFormValues {
+  label: string;
   zip: string;
   street: string;
   number: string;
@@ -269,6 +270,7 @@ function Skeleton() {
 
 
 const EMPTY_ADDRESS: AddressFormValues = {
+  label: "",
   zip: "",
   street: "",
   number: "",
@@ -345,6 +347,8 @@ function AddressForm(props: {
       style={{ ...styles.card, background: "var(--aacp-surface-2)", gap: 12 }}
       aria-label="Formulário de endereço"
     >
+      <EditField id="addr-label" label="Nome do endereço (ex.: Casa ou Trabalho)" value={values.label}
+        onChange={(v) => set({ label: v.slice(0, 40) })} />
       <div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 12 }}>
         <label htmlFor="addr-zip" style={styles.inputWrap}>
           <span style={styles.inputLabel}>CEP</span>
@@ -442,6 +446,7 @@ function AddressCard(props: {
             <IconPin />
           </span>
           <div style={{ display: "flex", flexDirection: "column", gap: 2, minWidth: 0 }}>
+            {address.label && <strong style={{ fontSize: 14, color: "var(--aacp-fg)" }}>{address.label}</strong>}
             <span style={{ fontSize: 14, fontWeight: 600, color: "var(--aacp-fg)" }}>{line1 || "Endereço"}</span>
             {line2 && <span style={{ fontSize: 13, color: "var(--aacp-muted)" }}>{line2}</span>}
             {line3 && <span style={{ fontSize: 13, color: "var(--aacp-muted)" }}>{line3}</span>}
@@ -543,6 +548,7 @@ export default function ProfileTab({
   );
 
   const toFormValues = (a: BuyerAddress): AddressFormValues => ({
+    label: a.label ?? "",
     zip: formatCEP(a.zip),
     street: a.street ?? "",
     number: a.number ?? "",
@@ -554,6 +560,7 @@ export default function ProfileTab({
 
   async function handleAddAddress(values: AddressFormValues) {
     await onAddAddress({
+      label: values.label.trim(),
       zip: values.zip.replace(/\D/g, ""),
       street: values.street.trim(),
       number: values.number.trim(),
@@ -567,6 +574,7 @@ export default function ProfileTab({
 
   async function handleEditAddress(id: string, values: AddressFormValues) {
     await onUpdateAddress(id, {
+      label: values.label.trim(),
       zip: values.zip.replace(/\D/g, ""),
       street: values.street.trim(),
       number: values.number.trim(),

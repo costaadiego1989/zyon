@@ -1,7 +1,7 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { SuggestedProduct, CrossSellConfig } from "@zyon/shared-types";
-import { DEFAULT_CROSS_SELL_CONFIG } from "@zyon/shared-types";
+import { DEFAULT_CROSS_SELL_CONFIG, normalizeCrossSellConfig } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { CheckoutCrossSellRecommenderPort } from "../../../checkout/domain/ports/cross-sell-recommender.port.js";
 import { ListEligibleCrossSellsUseCase } from "../use-cases/list-eligible-cross-sells.use-case.js";
@@ -118,7 +118,7 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
         select: { storeSettings: true },
       });
       const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
-      return { ...DEFAULT_CROSS_SELL_CONFIG, ...settings.crossSell };
+      return normalizeCrossSellConfig(settings.crossSell);
     } catch {
       return DEFAULT_CROSS_SELL_CONFIG;
     }
@@ -129,6 +129,7 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
       browsing: "browsing",
       pre_cart: "pre_cart",
       post_cart: "post_cart",
+      pre_checkout: "pre_checkout",
       pre_payment: "pre_payment",
       post_purchase: "post_purchase",
     };

@@ -8,6 +8,7 @@ import RichProductContentRenderer from "./RichProductContentRenderer";
 import { flattenProductContentBlocks } from "./product-content-normalizer";
 import type { ProductContentBlock as ProductContentBlockType } from "./ContentBlocks";
 import { buildProductNarration } from "@/lib/services/product-narration";
+import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 const CATALOG_ID = /^[A-Za-z0-9_-]{1,191}$/;
@@ -48,8 +49,31 @@ function readPublicContent(body: unknown, fallbackProductId: string): PublicProd
     faqs: Array.isArray(value.faqs) ? value.faqs as PublicProductContent["faqs"] : [],
     testimonials: Array.isArray(value.testimonials) ? value.testimonials as PublicProductContent["testimonials"] : [],
     videos: Array.isArray(value.videos) ? value.videos as PublicProductContent["videos"] : [],
+    crossSell: readCrossSell(value.crossSell),
     purchase: usablePurchase,
   };
+}
+
+function readCrossSell(value: unknown): PublicProductContent["crossSell"] {
+  if (!value || typeof value !== "object") return undefined;
+  const data = value as Record<string, unknown>;
+  if (typeof data.trigger !== "string" || !Array.isArray(data.products)) return undefined;
+  const products = data.products.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const product = item as Record<string, unknown>;
+    if (typeof product.id !== "string" || typeof product.name !== "string" || typeof product.price !== "number" || typeof product.priceFormatted !== "string" || typeof product.inStock !== "boolean") return [];
+    return [{
+      id: product.id,
+      name: product.name,
+      price: product.price,
+      priceFormatted: product.priceFormatted,
+      ...(typeof product.image === "string" ? { image: product.image } : {}),
+      inStock: product.inStock,
+      ...(typeof product.discountPercent === "number" ? { discountPercent: product.discountPercent } : {}),
+      ...(typeof product.promoId === "string" ? { promoId: product.promoId } : {}),
+    }];
+  });
+  return products.length > 0 ? { trigger: data.trigger, products } : undefined;
 }
 
 /**
@@ -68,6 +92,8 @@ export default function ProductContentBlock({
   onNarrationChange,
   onProductResolved,
   onCartAdded,
+  crossSell,
+  onAddCrossSell,
 }: {
   block: ConversationBlock & { type: "product_content" };
   merchantSlug?: string;
@@ -78,6 +104,8 @@ export default function ProductContentBlock({
   onNarrationChange?: (details: ProductNarrationDetails | null) => void;
   onProductResolved?: (product: { name: string; defaultVariantId: string | null }) => void;
   onCartAdded?: () => void;
+  crossSell?: CrossSellInterstitialData | null;
+  onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
 }) {
   const data = block.data as unknown as ProductContentData;
   const productId = typeof data?.productId === "string" && CATALOG_ID.test(data.productId) ? data.productId : null;
@@ -91,7 +119,7 @@ export default function ProductContentBlock({
     setStatus("loading");
     setContent(null);
 
-    fetch(`${API_BASE}/storefront/${encodeURIComponent(merchantSlug)}/products/${encodeURIComponent(productId)}/content`, {
+    fetch(`${API_BASE}/storefront/${encodeURIComponent(merchantSlug)}/products/${encodeURIComponent(productId)}/share`, {
       // Use the storefront's displayed language. The browser preference can
       // differ (e.g. English browser on the Portuguese storefront).
       headers: { Accept: "application/json", "Accept-Language": document.documentElement.lang || "pt-BR" },
@@ -160,6 +188,8 @@ export default function ProductContentBlock({
           shareUrl={shareUrl}
           showNarration={!onNarrationChange}
           onCartAdded={onCartAdded}
+          crossSell={crossSell ?? content.crossSell ?? null}
+          onAddCrossSell={onAddCrossSell}
         />
       </article>
     );

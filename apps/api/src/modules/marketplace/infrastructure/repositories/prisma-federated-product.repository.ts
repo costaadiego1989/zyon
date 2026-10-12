@@ -47,9 +47,16 @@ export class PrismaFederatedProductRepository
     query: string,
     category: string | undefined,
     limit: number,
+    scope?: { includeMerchants?: string[]; excludeMerchants: string[] },
   ) {
     const products = await this.prisma.federatedProduct.findMany({
       where: {
+        stockAvailable: true,
+        currency: "BRL",
+        sourceMerchantId: {
+          ...(scope?.includeMerchants ? { in: scope.includeMerchants } : {}),
+          ...(scope?.excludeMerchants.length ? { notIn: scope.excludeMerchants } : {}),
+        },
         AND: [
           {
             OR: [
@@ -62,6 +69,7 @@ export class PrismaFederatedProductRepository
         ],
       },
       take: limit,
+      orderBy: { id: "asc" },
     });
     return products.map((p: any) => ({
       id: p.id,
@@ -98,12 +106,12 @@ export class PrismaFederatedProductRepository
       },
       update: {
         name: input.name,
-        description: input.description ?? undefined,
-        category: input.category ?? undefined,
+        description: input.description ?? null,
+        category: input.category ?? null,
         priceCents: input.priceCents ?? 0,
         currency: input.currency ?? "BRL",
         stockAvailable: input.stockAvailable ?? true,
-        imageUrl: input.imageUrl ?? undefined,
+        imageUrl: input.imageUrl ?? null,
         searchableText,
         syncedAt: new Date(),
       },

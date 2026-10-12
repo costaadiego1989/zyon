@@ -11,7 +11,7 @@ export interface TriggerConfig {
   enabledTriggers: TriggerName[];
   cooldownMs: number;
   maxInterventions: number;
-  /** Seconds of inactivity before the idle trigger fires (default 30). */
+  /** Seconds of inactivity before the idle trigger fires (default five minutes). */
   idleSeconds?: number;
 }
 
@@ -49,7 +49,7 @@ export function setupIdleTrigger(
     if (idleTimer) clearTimeout(idleTimer);
     idleTimer = setTimeout(() => {
       fireTrigger("idle_30_seconds", config, onTrigger);
-    }, (config.idleSeconds ?? 30) * 1000);
+    }, (config.idleSeconds ?? 300) * 1000);
   };
 
   const events = ["mousemove", "keydown", "scroll", "click", "touchstart"];

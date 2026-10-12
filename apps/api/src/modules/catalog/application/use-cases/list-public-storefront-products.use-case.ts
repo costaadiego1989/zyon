@@ -5,8 +5,11 @@ import type { ProductRepositoryPort } from "../../domain/ports/product-repositor
 import { CHECKOUT_SETTINGS_REPOSITORY, type CheckoutSettingsRepository } from "../../../checkout-settings/domain/ports/checkout-settings-repository.port.js";
 import { productRuleNotices } from "../../../storefront/domain/services/advanced-rule-notices.js";
 import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
+import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
+import { publicServiceSchedule, type PublicServiceSchedule } from "../../domain/services/service-schedule.js";
 
 export interface PublicStorefrontProduct {
+  serviceSchedule?: PublicServiceSchedule;
   ruleNotices?: Array<{ ruleId?: string; message: string }>;
   id: string;
   name: string;
@@ -34,6 +37,7 @@ export class ListPublicStorefrontProductsUseCase {
   constructor(
     @Inject("ProductRepositoryPort") private readonly products: ProductRepositoryPort,
     @Optional() @Inject(CHECKOUT_SETTINGS_REPOSITORY) private readonly settings?: CheckoutSettingsRepository,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
   ) {}
 
   async execute(input: {
@@ -55,7 +59,7 @@ export class ListPublicStorefrontProductsUseCase {
 
     const rules = (await this.settings?.get(input.merchantId))?.advancedRules ?? [];
     return {
-      products: page.products.map((product) => this.toPublicProduct(product, rules as AdvancedRule[])),
+      products: await Promise.all(page.products.map((product) => this.toPublicProduct(product, rules as AdvancedRule[]))),
       nextCursor: page.nextCursor,
     };
   }
@@ -67,9 +71,11 @@ export class ListPublicStorefrontProductsUseCase {
     return this.toPublicProduct(product, rules as AdvancedRule[]);
   }
 
-  private toPublicProduct(product: ProductEntity, rules: AdvancedRule[]): PublicStorefrontProduct {
+  private async toPublicProduct(product: ProductEntity, rules: AdvancedRule[]): Promise<PublicStorefrontProduct> {
     const sellableVariants = product.variants.filter((variant) => variant.isActive);
     const firstVariant = sellableVariants[0];
+    const serviceSchedule = product.type === "service" && firstVariant && publicServiceSchedule(product.metadata)
+      ? await this.serviceSlots?.availability(product.merchantId, firstVariant.id, product.metadata) : undefined;
     const images = sellableVariants
       .flatMap((variant) => variant.media)
       .filter((media) => media.type === "IMAGE")
@@ -82,6 +88,7 @@ export class ListPublicStorefrontProductsUseCase {
 
     return {
       id: product.id,
+      ...(serviceSchedule ? { serviceSchedule } : {}),
       ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
       name: product.name,
       description: product.description,
@@ -91,7 +98,7 @@ export class ListPublicStorefrontProductsUseCase {
       currency: firstVariant?.currency ?? "BRL",
       image: images[0],
       images: [...new Set(images)],
-      inStock,
+      inStock: inStock && (!serviceSchedule || serviceSchedule.slots.some(slot => slot.selectable)),
       rating: product.averageRating,
       reviewCount: product.reviewCount,
       variants: sellableVariants.map((variant) => ({

@@ -1,3 +1,4 @@
+import { commitCheckoutMutation } from "../../checkout/application/services/commit-checkout-mutation.js";
 import { Inject, Injectable } from "@nestjs/common";
 import type { CheckoutSession, CustomerHints } from "@zyon/shared-types";
 import {
@@ -60,10 +61,10 @@ export class AcpBuyerMerger {
       };
     }
 
-    await this.sessions.saveSession({
+    await commitCheckoutMutation(this.sessions, { expected: session, next: {
       ...session,
       customer: next,
       updatedAt: new Date().toISOString(),
-    });
+    } });
   }
 }

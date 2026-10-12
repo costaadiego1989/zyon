@@ -30,6 +30,27 @@ export type StoreStage =
   | "promotions"
   | "post_purchase" | "support";
 
+/** Accept both the dashboard's stage-array configuration and the persisted map shape. */
+export function normalizeStoreQuickRepliesConfig(value: unknown): StoreQuickRepliesConfig {
+  if (isQuickRepliesConfig(value)) return value;
+  const stored = value && typeof value === "object" && !Array.isArray(value)
+    ? value as Record<string, unknown>
+    : {};
+  return {
+    ...DEFAULT_STORE_QUICK_REPLIES,
+    stages: DEFAULT_STORE_QUICK_REPLIES.stages.map((stage) => {
+      const replies = stored[stage.stage];
+      return Array.isArray(replies) && replies.every((reply) => typeof reply === "string")
+        ? { ...stage, replies }
+        : stage;
+    }),
+  };
+}
+
+function isQuickRepliesConfig(value: unknown): value is StoreQuickRepliesConfig {
+  return Boolean(value && typeof value === "object" && Array.isArray((value as StoreQuickRepliesConfig).stages));
+}
+
 /**
  * Detect conversation stage from the last tool that was executed.
  * Maps tool names to semantic stages for better UX flows.
@@ -123,7 +144,7 @@ export function storefrontQuickReplies(
   userMessage?: string,
   listedCouponCodes?: string[]
 ): string[] {
-  const cfg = config ?? DEFAULT_STORE_QUICK_REPLIES;
+  const cfg = normalizeStoreQuickRepliesConfig(config);
   const stage = detectStoreStage(lastToolUsed, { cartItemCount: cartState?.itemCount, userMessage });
 
   // For shipping stage, inject dynamic carrier options if available

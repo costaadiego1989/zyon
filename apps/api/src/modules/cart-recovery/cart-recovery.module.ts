@@ -1,3 +1,8 @@
+import { EmbedModule } from "../embed/embed.module.js";
+import { GenerateRecoveryLinkUseCase } from "./application/use-cases/generate-recovery-link.use-case.js";
+import { ResumeRecoveryCheckoutUseCase } from "./application/use-cases/resume-recovery-checkout.use-case.js";
+import { RecoveryLinkTokenService } from "./domain/recovery-link-token.service.js";
+import { RecoveryCheckoutController } from "./presentation/http/recovery-checkout.controller.js";
 import { Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { TRACK_RECOVERY_OUTCOME_USE_CASE, ATTEMPT_CART_RECOVERY_USE_CASE } from "./cart-recovery.tokens.js";
@@ -50,6 +55,7 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
  */
 @Module({
   imports: [
+    EmbedModule,
     MerchantModule,
     BuyerPurchaseHistoryModule,
     NotificationsModule,
@@ -58,8 +64,11 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     WhatsAppTemplatesModule,
     CampaignConsentModule,
   ],
-  controllers: [CartRecoveryController, CartRecoveryDashboardController, RecoveryTemplatesController],
+  controllers: [RecoveryCheckoutController, CartRecoveryController, CartRecoveryDashboardController, RecoveryTemplatesController],
   providers: [
+    { provide: RecoveryLinkTokenService, useFactory: () => new RecoveryLinkTokenService() },
+    GenerateRecoveryLinkUseCase,
+    ResumeRecoveryCheckoutUseCase,
     GenerateRecoveryTemplatesUseCase,
     {
       provide: CHAT_COMPLETION_PORT,
@@ -84,9 +93,9 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
     CartRecoveryOnOrderCompletedHandler,
     {
       provide: ATTEMPT_CART_RECOVERY_USE_CASE,
-      useFactory: (repo: RecoveryAttemptRepositoryPort, sender: SendWhatsAppMessageUseCase, consent: CampaignContactConsentService) =>
-        new AttemptCartRecoveryUseCase(repo, undefined, sender, undefined, consent),
-      inject: [RECOVERY_ATTEMPT_REPOSITORY, SendWhatsAppMessageUseCase, CampaignContactConsentService],
+      useFactory: (repo: RecoveryAttemptRepositoryPort, sender: SendWhatsAppMessageUseCase, consent: CampaignContactConsentService, links: GenerateRecoveryLinkUseCase) =>
+        new AttemptCartRecoveryUseCase(repo, undefined, sender, (_url, sessionId, _cart, _embed, merchantId) => links.execute({ merchantId: merchantId!, sessionId }), consent),
+      inject: [RECOVERY_ATTEMPT_REPOSITORY, SendWhatsAppMessageUseCase, CampaignContactConsentService, GenerateRecoveryLinkUseCase],
     },
     {
       provide: TRACK_RECOVERY_OUTCOME_USE_CASE,

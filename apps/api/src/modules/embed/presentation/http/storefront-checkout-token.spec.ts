@@ -5,6 +5,7 @@ import vm from "node:vm";
 import { createRequire } from "node:module";
 import { webcrypto } from "node:crypto";
 import ts from "typescript";
+import { storefrontRequestOrigin } from "../../../../../../storefront/src/lib/platform-hostname.js";
 
 // Execute the actual Next route with a mocked upstream, without a Next dev server
 // or a service credential from the environment. NextResponse remains the real class.
@@ -14,7 +15,7 @@ function route(upstream: typeof fetch) {
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
   const module = { exports: {} as { POST: (request: Request) => Promise<Response> } };
   vm.runInNewContext(outputText, {
-    module, exports: module.exports, require: createRequire(sourceUrl),
+    module, exports: module.exports, require: (name: string) => name === "@/lib/platform-hostname" ? { storefrontRequestOrigin } : createRequire(sourceUrl)(name),
     process: { env: { INTERNAL_SERVICE_TOKEN: "unit-test-service-token", AACP_API_URL: "https://api.example" } },
     URL, AbortSignal, crypto: webcrypto, fetch: upstream,
   }, { filename: sourceUrl.pathname });

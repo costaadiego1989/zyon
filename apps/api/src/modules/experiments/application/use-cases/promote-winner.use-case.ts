@@ -1,4 +1,5 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { ConflictException, Inject, Injectable, Logger } from "@nestjs/common";
+import { requiresWeeklyReview } from "../weekly-experiment-governance.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { EXPERIMENT_REPOSITORY_PORT, type ExperimentRepositoryPort } from "../../domain/ports/experiment-repository.port.js";
@@ -16,6 +17,9 @@ export class PromoteWinnerUseCase {
   ) {}
 
   async execute(experimentId: string, merchantId: string, winnerVariantId: string): Promise<void> {
+    if (await requiresWeeklyReview(this.prisma, merchantId)) {
+      throw new ConflictException("EXPERIMENT_REVIEW_PLAN_REQUIRED");
+    }
     // Fetch experiment
     const experiment = await this.experimentRepo.findById(experimentId, merchantId);
 

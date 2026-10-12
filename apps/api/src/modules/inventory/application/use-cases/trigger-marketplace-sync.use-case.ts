@@ -7,6 +7,8 @@ import { INVENTORY_REPOSITORY } from "../../domain/ports/inventory-repository.po
 import { INVENTORY_MOVEMENT_REPOSITORY } from "../../domain/ports/inventory-movement-repository.port.js";
 import { INVENTORY_LOCATION_REPOSITORY } from "../../domain/ports/inventory-location-repository.port.js";
 import { ERP_REPOSITORY } from "../../domain/ports/erp-repository.port.js";
+import { TIKTOKSHOP_TOKEN_PORT, type TikTokShopTokenPort } from "../../domain/ports/tiktokshop-token.port.js";
+import { SHOPEE_TOKEN_PORT, type ShopeeTokenPort } from "../../domain/ports/shopee-token.port.js";
 import { createMarketplaceAdapter, isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
 
 export interface TriggerMarketplaceSyncInput {
@@ -37,6 +39,8 @@ export class TriggerMarketplaceSyncUseCase {
     @Inject(INVENTORY_MOVEMENT_REPOSITORY) private readonly movementRepo: InventoryMovementRepositoryPort,
     @Inject(INVENTORY_LOCATION_REPOSITORY) private readonly locationRepo: InventoryLocationRepositoryPort,
     @Inject(ERP_REPOSITORY) private readonly erpRepo: ErpRepositoryPort,
+    @Inject(TIKTOKSHOP_TOKEN_PORT) private readonly tiktokTokens: TikTokShopTokenPort,
+    @Inject(SHOPEE_TOKEN_PORT) private readonly shopeeTokens?: ShopeeTokenPort,
   ) {}
 
   async execute(input: TriggerMarketplaceSyncInput): Promise<TriggerMarketplaceSyncResult> {
@@ -46,7 +50,14 @@ export class TriggerMarketplaceSyncUseCase {
       throw new Error(`provider_not_supported_for_product_sync:${provider}`);
     }
 
-    const adapter = createMarketplaceAdapter(provider);
+    const managedConnection = (provider === "tiktokshop" || provider === "shopee") && connectionId
+      ? await this.erpRepo.findByProvider(merchantId, provider) : null;
+    if (provider === "shopee" && (!managedConnection || managedConnection.id !== connectionId || managedConnection.status !== "connected")) throw new Error("shopee_connection_missing");
+    const providerAccessToken = provider === "tiktokshop" && connectionId
+      ? await this.tiktokTokens.getValidAccessToken(merchantId, connectionId)
+      : provider === "shopee" && connectionId && this.shopeeTokens
+        ? await this.shopeeTokens.getValidAccessToken(merchantId, connectionId) : accessToken;
+    const adapter = createMarketplaceAdapter(provider, managedConnection?.config ?? {});
     if (!adapter) {
       throw new Error(`adapter_not_found:${provider}`);
     }
@@ -58,6 +69,12 @@ export class TriggerMarketplaceSyncUseCase {
     if (!location) {
       location = await this.locationRepo.create(merchantId, { name: locationName, kind: "marketplace" });
     }
+    if (managedConnection && managedConnection.id === connectionId) {
+      await this.erpRepo.upsert(merchantId, provider, {
+        status: managedConnection.status,
+        config: { ...managedConnection.config, inventoryLocationId: location.id },
+      });
+    }
 
     let imported = 0;
     let errors = 0;
@@ -68,12 +85,14 @@ export class TriggerMarketplaceSyncUseCase {
 
     while (hasMore) {
       try {
-        const result = await adapter.listProducts(accessToken, page);
+        const result = await adapter.listProducts(providerAccessToken, page);
         hasMore = result.hasMore;
 
         for (const product of result.products) {
           try {
             const sku = product.sku || product.id;
+            const previous = provider === "shopee" ? await this.inventoryRepo.findBySku(merchantId, sku, location.id) : null;
+            if (provider === "shopee" && previous && product.stock < previous.reserved) throw new Error("shopee_stock_below_local_reservations");
             const item = await this.inventoryRepo.upsert(merchantId, {
               sku,
               productName: product.title,
@@ -81,11 +100,11 @@ export class TriggerMarketplaceSyncUseCase {
               quantity: product.stock,
             });
 
-            await this.movementRepo.record({
+            if (provider !== "shopee" || product.stock !== (previous?.quantity ?? 0)) await this.movementRepo.record({
               merchantId,
               itemId: item.id,
-              kind: "ENTRY",
-              quantity: product.stock,
+              kind: provider === "shopee" ? "ADJUSTMENT" : "ENTRY",
+              quantity: provider === "shopee" ? product.stock - (previous?.quantity ?? 0) : product.stock,
               reason: "Sync inicial",
               source: `marketplace:${provider}`,
               externalRef: product.id,
@@ -105,6 +124,7 @@ export class TriggerMarketplaceSyncUseCase {
 
         page++;
       } catch (err) {
+        if (provider === "tiktokshop" || provider === "shopee") errors++;
         this.logger.error(`marketplace.sync.page_error`, {
           merchantId,
           provider,
@@ -118,12 +138,16 @@ export class TriggerMarketplaceSyncUseCase {
     // Mark connection as synced
     if (connectionId) {
       try {
-        await this.erpRepo.markSynced(merchantId, connectionId);
+        if ((provider === "tiktokshop" || provider === "shopee") && errors > 0) {
+          await this.erpRepo.markError(merchantId, connectionId, `${provider}_sync_failed`);
+        } else {
+          await this.erpRepo.markSynced(merchantId, connectionId);
+        }
       } catch (_) { /* non-fatal */ }
     }
 
     this.logger.log(`marketplace.sync.complete`, { merchantId, provider, imported, errors });
 
-    return { synced: true, productsImported: imported, errors };
+    return { synced: provider === "tiktokshop" || provider === "shopee" ? errors === 0 : true, productsImported: imported, errors };
   }
 }

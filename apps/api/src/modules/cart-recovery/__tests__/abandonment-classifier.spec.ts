@@ -26,10 +26,10 @@ test("C4 — exit_intent + idle_30s chain without mapped terminal event → hesi
   assert.equal(result, "hesitation");
 });
 
-// C5 — checkout_abandoned only → unknown (no mapped event, no hesitation signals)
-test("C5 — checkout_abandoned only → unknown", () => {
+// C5 — explicit browser abandonment is an actionable hesitation signal.
+test("C5 — checkout_abandoned only → hesitation", () => {
   const result = AbandonmentReasonClassifier.classify(["checkout_abandoned"]);
-  assert.equal(result, "unknown");
+  assert.equal(result, "hesitation");
 });
 
 // C6 — Unrelated event sequence → unknown

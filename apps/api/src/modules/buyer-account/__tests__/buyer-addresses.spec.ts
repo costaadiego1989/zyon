@@ -1,7 +1,13 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { PasswordHasher } from "../../auth/domain/services/password-hasher.service.js";
+import { RegisterBuyerUseCase } from "../application/use-cases/register-buyer.use-case.js";
+import { ListBuyerAddressesUseCase } from "../application/use-cases/list-buyer-addresses.use-case.js";
 import { BuyerAddress } from "../domain/entities/buyer-address.entity.js";
+import { BuyerAccount } from "../domain/entities/buyer-account.entity.js";
 import type { BuyerAddressRepository } from "../domain/ports/buyer-address.port.js";
+import { BuyerJwtService } from "../domain/services/buyer-jwt.service.js";
+import { InMemoryBuyerAccountRepository } from "../infrastructure/in-memory-buyer-account.repository.js";
 
 // In-memory test double (per CLAUDE.md: in-memory repos are test doubles only)
 class InMemoryBuyerAddressRepository implements BuyerAddressRepository {
@@ -165,4 +171,55 @@ test("BuyerAddress accepts CEP with or without formatting (8 digits only)", () =
     zip: "01310-100",
   });
   assert.equal(b.zip, "01310100");
+});
+
+test("registration persists the delivery address as the buyer default address", async () => {
+  const accounts = new InMemoryBuyerAccountRepository();
+  const addresses = new InMemoryBuyerAddressRepository();
+  const register = new RegisterBuyerUseCase(
+    accounts,
+    new PasswordHasher(),
+    new BuyerJwtService("test-secret", 3600),
+    addresses,
+  );
+
+  const auth = await register.execute({
+    email: "buyer-address@example.test",
+    displayName: "Buyer Address",
+    phone: "11999999999",
+    cpf: "52998224725",
+    address: validInput,
+  });
+
+  const saved = await addresses.list(auth.globalUserId);
+  assert.equal(saved.length, 1);
+  assert.equal(saved[0].street, "Avenida Paulista");
+  assert.equal(saved[0].zip, "01310100");
+  assert.equal(saved[0].isDefault, true);
+});
+
+test("Hub address lookup migrates the address saved by an earlier registration", async () => {
+  const accounts = new InMemoryBuyerAccountRepository();
+  const addresses = new InMemoryBuyerAddressRepository();
+  const createdAt = new Date("2026-09-15T12:00:00.000Z");
+  const account = new BuyerAccount({
+    globalUserId: "buyer_legacy_address",
+    email: "legacy-address@example.test",
+    passwordHash: "password-hash",
+    displayName: "Legacy Address",
+    phone: "11999999999",
+    cpf: "52998224725",
+    address: validInput,
+    createdAt,
+    updatedAt: createdAt,
+  });
+  await accounts.save(account);
+
+  const listAddresses = new ListBuyerAddressesUseCase(addresses, accounts);
+  const listed = await listAddresses.execute(account.globalUserId);
+
+  assert.equal(listed.length, 1);
+  assert.equal(listed[0].street, "Avenida Paulista");
+  assert.equal(listed[0].isDefault, true);
+  assert.equal((await addresses.list(account.globalUserId)).length, 1);
 });

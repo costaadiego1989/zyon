@@ -2,37 +2,48 @@ import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/lib/cart-store";
 import { CartFAB, CartSheet } from "@zyon/checkout-ui";
 import { useWidgetConfig } from "@/lib/widget-config";
-import { checkoutApi } from "@/lib/api/api-client";
+import { cartApi } from "@/lib/api/api-client";
 
 interface NativeCartPanelProps {
   merchantId?: string;
+  budgetModeEnabled?: boolean;
   onCheckout: () => void | Promise<void>;
   onViewCart: () => void;
   onUpdateQty: (variantId: string, quantity: number) => void;
   onRemoveItem: (variantId: string) => void;
   forceOpen?: boolean;
+  onOpen?: () => void;
+  onClose?: () => void;
   suppressAutoOpen?: boolean;
 }
 export default function NativeCartPanel({
   merchantId,
+  budgetModeEnabled = false,
   onCheckout,
   onViewCart,
   onUpdateQty,
   onRemoveItem,
   forceOpen,
+  onOpen,
+  onClose,
   suppressAutoOpen,
 }: NativeCartPanelProps) {
   const { cart, clearCart, updating, error } = useCart();
-  const { config: widgetConfig } = useWidgetConfig();
+  const { config: widgetConfig, error: configError } = useWidgetConfig();
   const [sheetOpen, setSheetOpen] = useState(false);
   const prevCountRef = useRef(cart.itemCount);
   const manuallyOpenedRef = useRef(false);
   const autoCloseTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
-  const isBudgetMode = widgetConfig?.budgetModeEnabled === true;
+  const isBudgetMode = widgetConfig?.budgetModeEnabled ?? budgetModeEnabled;
   
   useEffect(() => {
     if (forceOpen) {
-      handleManualOpen();
+      manuallyOpenedRef.current = true;
+      if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current);
+      setSheetOpen(true);
+    } else {
+      manuallyOpenedRef.current = false;
+      setSheetOpen(false);
     }
   }, [forceOpen]);
   
@@ -55,8 +66,9 @@ export default function NativeCartPanel({
       autoCloseTimerRef.current = null;
     }
     setSheetOpen(true);
+    onOpen?.();
   };
-  const closeSheet = () => { manuallyOpenedRef.current = false; setSheetOpen(false); };
+  const closeSheet = () => { manuallyOpenedRef.current = false; setSheetOpen(false); onClose?.(); };
   useEffect(() => () => { if (autoCloseTimerRef.current) clearTimeout(autoCloseTimerRef.current); }, []);
   
   useEffect(() => {
@@ -72,15 +84,9 @@ export default function NativeCartPanel({
     customerPhone: string;
     note?: string;
   }) => {
-    await checkoutApi.create({
-      merchantId: merchantId!,
-      items: cart.items.map((item) => ({
-        variantId: item.variantId,
-        productName: item.productName,
-        quantity: item.quantity,
-        price: item.price,
-      })),
-    });
+    if (!merchantId || !cart.cartId) throw new Error("Não foi possível identificar seu carrinho. Reabra a loja e tente novamente.");
+    const result = await cartApi.requestBudget(cart.cartId, merchantId, data);
+    if (!result.id) throw new Error("A solicitação não foi confirmada. Tente novamente.");
     clearCart();
   };
   return (
@@ -104,8 +110,8 @@ export default function NativeCartPanel({
           total: cart.total,
         }}
         mode={isBudgetMode ? "budget" : "checkout"}
-        updating={updating}
-        error={error}
+        updating={updating || widgetConfig == null}
+        error={error ?? (configError ? "Não foi possível carregar as configurações da loja. Recarregue a página para tentar novamente." : null)}
         onClose={closeSheet}
         onCheckout={() => {
           void (async () => {

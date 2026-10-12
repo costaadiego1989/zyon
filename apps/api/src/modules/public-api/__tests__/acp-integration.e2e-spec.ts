@@ -3,25 +3,11 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { EmbedTokenService } from "../../embed/domain/embed-token.service.js";
 
-/**
- * ACP Full-Flow Integration Tests (Phase 2 + Phase 3).
- *
- * Hits the live NestJS app via HTTP. Tolerates ECONNREFUSED when the
- * server is offline by wrapping every request in a fetch-guard that
- * treats network failure as a skip rather than a hard failure.
- *
- * Broad OR tolerance is applied throughout: every happy-path assertion
- * accepts the full envelope of expected status codes (200 | 201 | 400 |
- * 401 | 403 | 404 | 422) so the suite is meaningful even when the live
- * server lacks seeded merchants/products.
- *
- * Phase 3 endpoints (`/v1/acp/webhooks/subscriptions`,
- * `/v1/acp/mandates/*`) are advertised in the agent card but not yet
- * implemented — those scenarios are expected to return 404 and the
- * tests assert that surface contract explicitly.
- */
+/** External ACP contract probes. Require an explicit test API.
+ * These probes retain legacy status alternatives and do not prove a successful purchase.
+ * An unreachable configured API is a test failure. */
 
-const BASE_URL = process.env.E2E_API_URL || "http://localhost:3009";
+const BASE_URL = process.env.E2E_API_URL || "";
 const API_KEY = process.env.E2E_API_KEY || "aacp_test_e2e_key";
 const MERCHANT_ID = process.env.E2E_MERCHANT_ID || "mrc_test";
 const TENANT_A = process.env.E2E_TENANT_A || "mrc_test";
@@ -38,15 +24,8 @@ async function safeFetch(
   url: string,
   init?: RequestInit,
 ): Promise<{ ok: true; res: Response } | { ok: false; offline: true }> {
-  try {
-    const res = await fetch(url, init);
-    return { ok: true, res };
-  } catch (err) {
-    if (err instanceof Error && /ECONNREFUSED|fetch failed/i.test(err.message)) {
-      return { ok: false, offline: true };
-    }
-    throw err;
-  }
+  const res = await fetch(url, init);
+  return { ok: true, res };
 }
 
 async function request<T = unknown>(
@@ -119,7 +98,7 @@ function skipIfOffline(res: ApiResponse<unknown>): boolean {
   return res.offline === true;
 }
 
-test.describe("ACP Full-Flow Integration (Phase 2 + Phase 3)", async () => {
+test.describe("ACP Full-Flow Integration (Phase 2 + Phase 3)", { skip: !process.env.E2E_API_URL ? "Set E2E_API_URL to an explicitly selected test API; no implicit localhost target." : false }, async () => {
   test.describe("1. Discovery chain", async () => {
     test("1a. GET /.well-known/ucp advertises checkout_sessions_endpoint", async () => {
       const guarded = await safeFetch(`${BASE_URL}/.well-known/ucp`, {

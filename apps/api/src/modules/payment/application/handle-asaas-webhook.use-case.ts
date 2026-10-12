@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
+import { BadRequestException, ServiceUnavailableException, Inject, Injectable, Optional , Logger} from "@nestjs/common";
 import { timingSafeEqual } from "node:crypto";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import {
@@ -18,6 +18,8 @@ import {
 } from "../domain/ports/payment-settlement-ledger.port.js";
 import { ChargebackPaymentHoldUseCase, RefundPaymentHoldUseCase } from "./payment-hold.use-cases.js";
 import { HandleMarketplaceChargebackUseCase } from "../../marketplace/application/use-cases/handle-marketplace-chargeback.use-case.js";
+import { marketplacePaymentStatusInput } from "../domain/marketplace-payment-status.js";
+import { PAYMENT_PROVIDER_PORT, type PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 
 export type AsaasWebhookInbound = {
   id: string;
@@ -138,6 +140,7 @@ export class HandleAsaasWebhookUseCase {
     @Optional() private readonly refundPaymentHold?: RefundPaymentHoldUseCase,
     @Optional() private readonly chargebackPaymentHold?: ChargebackPaymentHoldUseCase,
     @Optional() private readonly marketplaceChargeback?: HandleMarketplaceChargebackUseCase,
+    @Inject(PAYMENT_PROVIDER_PORT) private readonly paymentProvider?: PaymentProviderPort,
   ) {}
 
   async execute(inboundAccessTokenHeader: string | undefined, rawBody: unknown, webhookToken?: string): Promise<HandleAsaasWebhookResult> {
@@ -157,7 +160,19 @@ export class HandleAsaasWebhookUseCase {
     // Resolve the tenant from the external reference WITHOUT trusting it as a
     // scoped read: the port returns only { id, merchantId }; the authoritative
     // entity is re-fetched scoped below (ADR 0001 #3).
-    const ref = extRef ? await this.payments.getIntentByExternalReference(extRef) : null;
+    let ref = extRef ? await this.payments.getIntentByExternalReference(extRef) : null;
+    if (body.event === "PAYMENT_RECEIVED" || body.event === "PAYMENT_CONFIRMED") {
+      const providerPaymentId = body.payment?.id?.trim();
+      const persistedReference = providerPaymentId
+        ? await this.payments.getIntentReferenceByProviderPaymentId?.(providerPaymentId)
+        : null;
+      if (persistedReference && (ref?.id !== persistedReference.id || ref?.merchantId !== persistedReference.merchantId)) {
+        const persisted = await this.payments.getIntentById(persistedReference.merchantId, persistedReference.id);
+        // Treat externalReference only as a claim. It cannot redirect a known
+        // marketplace charge to an ordinary payment or hide its proof checks.
+        if (persisted?.snapshot().creation?.input.marketplaceFunding !== undefined) ref = persistedReference;
+      }
+    }
     const merchantId = ref?.merchantId ?? null;
     const eventKey: ProviderEventKey = { provider: "asaas", merchantId, eventId: body.id };
 
@@ -266,6 +281,26 @@ export class HandleAsaasWebhookUseCase {
     if (!payId) throw new BadRequestException("payment_id_missing_on_webhook");
     if (typeof centsFromWebhook !== "number") throw new BadRequestException("payment_value_missing_on_webhook");
 
+    const marketplaceRead = marketplacePaymentStatusInput(snap);
+    if (marketplaceRead) {
+      if (marketplaceRead.provider !== "asaas" || payId !== snap.providerPaymentId ||
+          paymentSlice?.externalReference !== snap.id || centsFromWebhook !== snap.amountCents) {
+        throw new BadRequestException("marketplace_payment_event_identity_mismatch");
+      }
+      if (!this.paymentProvider?.fetchPaymentStatus) {
+        throw new ServiceUnavailableException("marketplace_payment_confirmation_unavailable");
+      }
+      let proof;
+      try {
+        proof = await this.paymentProvider.fetchPaymentStatus(marketplaceRead);
+      } catch {
+        throw new ServiceUnavailableException("marketplace_payment_confirmation_unavailable");
+      }
+      if (proof.state !== "approved" || proof.approvedAmountCents !== snap.amountCents) {
+        throw new ServiceUnavailableException("marketplace_payment_not_approved");
+      }
+    }
+
     if (snap.status !== "approved" && centsFromWebhook !== snap.amountCents) {
       this.metrics?.paymentWebhookAnomaly.inc({ provider: "asaas", kind: "value_mismatch" });
       await this.paymentDispatch.markFailed(intentEntity, "payment_value_mismatch");
@@ -305,15 +340,15 @@ export class HandleAsaasWebhookUseCase {
     const after = intentEntity.snapshot();
     if (before.status === "approved" && after.status.startsWith("chargeback_")) {
       await this.chargebackPaymentHold?.execute(before.id);
-      await this.propagateMarketplaceChargeback(after.commerceOrderId ?? after.sessionId);
+      await this.propagateMarketplaceChargeback(after.providerPaymentId ?? after.commerceOrderId ?? after.sessionId, after.merchantId);
     }
     return `chargeback_${status}`;
   }
 
-  private async propagateMarketplaceChargeback(orderId: string | undefined): Promise<void> {
+  private async propagateMarketplaceChargeback(orderId: string | undefined, merchantId: string): Promise<void> {
     if (!this.marketplaceChargeback || !orderId) return;
     try {
-      const results = await this.marketplaceChargeback.executeForOrder(orderId);
+      const results = await this.marketplaceChargeback.executeForOrder(orderId, merchantId);
       if (results.length > 0) {
         this.logger.log(`Marketplace chargeback processed for order ${orderId}: ${results.length} settlement(s)`);
       }

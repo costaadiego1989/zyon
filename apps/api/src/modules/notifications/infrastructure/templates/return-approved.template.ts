@@ -1,11 +1,11 @@
 import { ReturnApprovedEvent } from "../../domain/events/notification.events.js";
+import { escapeEmailHtml } from "../../../../shared/messaging/email-content.js";
 
 export function renderReturnApprovedTemplate(event: ReturnApprovedEvent): string {
-  const baseUrl = process.env.STOREFRONT_URL || "https://app.zyon.com.br";
 
   return `
 <!DOCTYPE html>
-<html>
+<html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
   <meta name="viewport" content="width=device-width, initial-scale=1.0">
@@ -28,18 +28,18 @@ export function renderReturnApprovedTemplate(event: ReturnApprovedEvent): string
             <td style="padding: 24px 20px; border-bottom: 1px solid #f0f0f0;">
               <div style="margin-bottom: 16px;">
                 <p style="margin: 0 0 8px 0; color: #999; font-size: 12px; font-weight: 500; text-transform: uppercase;">Pedido Original</p>
-                <p style="margin: 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">#${event.orderId}</p>
+                <p style="margin: 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">#${escapeEmailHtml(event.orderId)}</p>
               </div>
               <div style="margin-bottom: 16px;">
                 <p style="margin: 0 0 8px 0; color: #999; font-size: 12px; font-weight: 500; text-transform: uppercase;">Solicitação de Devolução</p>
-                <p style="margin: 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">#${event.returnId}</p>
+                <p style="margin: 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">#${escapeEmailHtml(event.returnId)}</p>
               </div>
               ${
                 event.refundAmount
                   ? `
               <div>
                 <p style="margin: 0 0 8px 0; color: #999; font-size: 12px; font-weight: 500; text-transform: uppercase;">Valor a Reembolsar</p>
-                <p style="margin: 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">${event.refundAmount}</p>
+                <p style="margin: 0; color: #1a1a1a; font-size: 16px; font-weight: 600;">${escapeEmailHtml(event.refundAmount)}</p>
               </div>
               `
                   : ""
@@ -50,14 +50,14 @@ export function renderReturnApprovedTemplate(event: ReturnApprovedEvent): string
           <!-- Info Box -->
           <tr>
             <td style="padding: 20px; background-color: #f0f8ff; border-radius: 6px; margin: 24px 20px 0 20px;">
-              <p style="margin: 0; color: #1a1a1a; font-size: 14px; line-height: 1.5;">O valor será reembolsado para a mesma forma de pagamento em até 5-7 dias úteis. Você receberá uma notificação quando o reembolso for processado.</p>
+              <p style="margin: 0; color: #1a1a1a; font-size: 14px; line-height: 1.5;">A aprovação da devolução não confirma que o reembolso foi concluído. Consulte o atendimento da loja para conferir as próximas etapas e, quando aplicável, as instruções de envio. O prazo de crédito depende da forma de pagamento e da instituição responsável.</p>
             </td>
           </tr>
 
           <!-- CTA Button -->
           <tr>
             <td style="padding: 32px 20px; text-align: center; border-top: 1px solid #f0f0f0;">
-              <a href="${baseUrl}/returns/${event.returnId}" style="display: inline-block; background-color: #2563eb; color: #fff; padding: 12px 32px; border-radius: 6px; font-weight: 600; font-size: 14px; text-decoration: none; text-transform: uppercase; letter-spacing: 0.5px;">Ver Devolução</a>
+              <p style="margin:0;color:#666;font-size:14px;line-height:1.6;">Para acompanhar a solicitação, volte à loja e abra o atendimento relacionado ao pedido.</p>
             </td>
           </tr>
 
@@ -65,7 +65,7 @@ export function renderReturnApprovedTemplate(event: ReturnApprovedEvent): string
           <tr>
             <td style="padding: 24px 20px; border-top: 1px solid #f0f0f0; text-align: center; color: #999; font-size: 12px;">
               <p style="margin: 0;">Este é um e-mail automático. Por favor, não responda.</p>
-              <p style="margin: 8px 0 0 0;">Qualquer dúvida, acesse nosso <a href="${baseUrl}/support" style="color: #2563eb; text-decoration: none;">suporte</a>.</p>
+              <p style="margin: 8px 0 0 0;">Se precisar de ajuda, use o atendimento disponível na loja.</p>
             </td>
           </tr>
         </table>

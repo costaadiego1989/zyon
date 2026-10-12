@@ -22,6 +22,9 @@ export class TenantWebhooksBridgeHandler implements OnModuleInit {
   ) {}
 
   onModuleInit(): void {
+    for (const eventType of ["order.fulfillment.updated", "order.fulfillment.completed"] as const) {
+      this.eventBus.subscribe(eventType, event => this.emit(event.merchantId, eventType, event.payload as Record<string, unknown>, event.eventId), `integrations.${eventType}`);
+    }
     this.eventBus.subscribe(
       "checkout.session.started",
       (event) => this.handleCheckoutStarted(event),
@@ -99,8 +102,9 @@ export class TenantWebhooksBridgeHandler implements OnModuleInit {
     merchantId: string,
     eventType: TenantWebhookEventType,
     data: Record<string, unknown>,
+    sourceEventId?: string,
   ): Promise<void> {
-    const deliveries = await this.publisher.publish({ merchantId, eventType, data });
+    const deliveries = await this.publisher.publish({ merchantId, eventType, data, sourceEventId });
     for (const delivery of deliveries) {
       try {
         await this.dispatcher.dispatchDelivery(delivery);

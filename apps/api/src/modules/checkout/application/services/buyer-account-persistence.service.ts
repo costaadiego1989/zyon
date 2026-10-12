@@ -52,7 +52,7 @@ export class BuyerAccountPersistenceService {
       const hydrated = existing.withUpdatedProfile(
         customer.fullName,
         customer.phone,
-        customer.address,
+        customer.deliveryAddressLabel || customer.isReturning ? existing.address : customer.address,
         customer.cpf
       );
       if (hydrated !== existing) await this.buyerAccounts.save(hydrated);

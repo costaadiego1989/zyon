@@ -1,8 +1,9 @@
-import { useState, useEffect, useCallback, useMemo } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { paymentMethodsForConfig, useCheckoutStore } from "@/store/checkout-store";
 import { confirmCryptoPayment } from "@/api/payment";
 import { PulseAgentOrb } from "../PulseAgentOrb";
+import { PerimeterBorder } from "../PerimeterBorder";
 import type { ChatBlock } from "@/api/checkout-session";
 import { loadStripe } from "@stripe/stripe-js";
 import { Elements, CardElement, useStripe, useElements } from "@stripe/react-stripe-js";
@@ -21,6 +22,80 @@ function BuyerServiceFeeNotice() {
       <strong>{copy.label}: {feeLabel}.</strong> {copy.notice}
     </p>
   );
+}
+
+function PaymentPanel({
+  title,
+  description,
+  totalLabel,
+  children,
+  status,
+}: {
+  title: string;
+  description: string;
+  totalLabel?: string | null;
+  children?: ReactNode;
+  status?: string;
+}) {
+  return (
+    <section data-neu="surface" className="checkout-payment-panel" aria-label={title}>
+      <header className="checkout-payment-panel__header">
+        <span className="checkout-payment-panel__mark" aria-hidden="true">
+          <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.9" strokeLinecap="round" strokeLinejoin="round">
+            <rect x="4" y="7" width="16" height="12" rx="2.5" />
+            <path d="M8 7V5.8a4 4 0 0 1 8 0V7" />
+            <path d="M8 13h8" />
+          </svg>
+        </span>
+        <div>
+          <p className="checkout-payment-panel__eyebrow">Pagamento seguro</p>
+          <h3>{title}</h3>
+        </div>
+      </header>
+      <p className="checkout-payment-panel__description">{description}</p>
+      {totalLabel && (
+        <div className="checkout-payment-panel__total">
+          <span>Total a pagar</span>
+          <strong>{totalLabel}</strong>
+        </div>
+      )}
+      <BuyerServiceFeeNotice />
+      {children && <div className="checkout-payment-panel__body">{children}</div>}
+      {status && (
+        <footer className="checkout-payment-panel__status" aria-live="polite">
+          <span aria-hidden="true" />
+          {status}
+        </footer>
+      )}
+    </section>
+  );
+}
+
+function PaymentCompleted({ description = "Seu pedido está sendo processado." }: { description?: string }) {
+  return (
+    <section data-neu="surface" className="checkout-payment-panel checkout-payment-panel--completed" aria-label="Pagamento confirmado">
+      <span className="checkout-payment-panel__success" aria-hidden="true">✓</span>
+      <div>
+        <h3>Pagamento confirmado</h3>
+        <p>{description}</p>
+      </div>
+    </section>
+  );
+}
+
+function CheckoutPriceReviewBlock({ fingerprint }: { fingerprint: unknown }) {
+  const pending = useCheckoutStore(s => s.pendingPriceReview);
+  const busy = useCheckoutStore(s => s.paymentSubmitting || s.cartUpdating);
+  const confirm = useCheckoutStore(s => s.confirmUpdatedOrder);
+  if (!pending || pending.review.confirmation_fingerprint !== fingerprint) return null;
+  const total = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(pending.review.total_to_pay_cents / 100);
+  return <PaymentPanel title="Confira o novo total" totalLabel={total}
+    description="O pedido está sem o desconto anterior. Confirme este valor para continuar com o pagamento.">
+    <button type="button" data-neu="control" className="checkout-payment-panel__action" disabled={busy}
+      onClick={() => { void confirm(pending.review.confirmation_fingerprint); }}>
+      {busy ? "Preparando pagamento..." : `Confirmar pedido de ${total}`}
+    </button>
+  </PaymentPanel>;
 }
 
 function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
@@ -57,16 +132,24 @@ function CartSummaryBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
-function ShippingOptionsBlock({ options }: { options?: unknown }) {
+function ShippingOptionsBlock({ options, selectionMode }: { options?: unknown; selectionMode?: unknown }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const selectShipping = useCheckoutStore((s) => s.selectShipping);
+  const selectedShipping = useCheckoutStore((s) => s.cart.shipping);
+  const cartUpdating = useCheckoutStore((s) => s.cartUpdating);
+  const chatBusy = useCheckoutStore((s) => s.isTyping || Boolean(s.chatRecovery));
   const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.shippingPreference);
   const opts = ((options as Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>) ?? [])
     .filter((o) => o && o.key && o.label)
     .sort((left, right) => shippingPriority(left, preference) - shippingPriority(right, preference));
 
   const handleSelect = async (opt: (typeof opts)[0]) => {
-    await selectShipping(opt.key);
+    if (selectionMode === "chat") {
+      await sendMessage(`Entrega · ${opt.label}`);
+      return;
+    }
+    const selected = await selectShipping({ key: opt.key, label: translateShippingLabel(opt.label) });
+    if (!selected) return;
     void sendMessage(`Entrega · ${translateShippingLabel(opt.label)}`);
   };
 
@@ -79,16 +162,19 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
       {opts.map((opt) => (
         <button data-neu="choice"
           key={opt.key}
+          disabled={cartUpdating || (selectionMode === "chat" && chatBusy)}
+          aria-pressed={selectedShipping?.key === opt.key}
           onClick={() => void handleSelect(opt)}
           style={{
             padding: "10px 12px",
             borderRadius: "10px",
-            border: "1px solid var(--bd)",
-            background: "var(--chip)",
+            border: selectedShipping?.key === opt.key ? "1px solid var(--aacp-accent, #0f766e)" : "1px solid var(--bd)",
+            background: selectedShipping?.key === opt.key ? "color-mix(in srgb, var(--aacp-accent, #0f766e) 9%, var(--chip))" : "var(--chip)",
             color: "var(--tx)",
-            cursor: "pointer",
+            cursor: cartUpdating ? "wait" : "pointer",
             textAlign: "left",
             fontSize: "13px",
+            opacity: cartUpdating && selectedShipping?.key !== opt.key ? 0.58 : 1,
           }}
         >
           <div style={{ fontWeight: 600, display: "flex", justifyContent: "space-between" }}>
@@ -99,6 +185,7 @@ function ShippingOptionsBlock({ options }: { options?: unknown }) {
           </div>
           {preference && opts[0]?.key === opt.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "3px" }}>Prioridade da compra rápida</div>}
           {opt.sub && <div style={{ fontSize: "11px", color: "var(--mut)", marginTop: "2px" }}>{opt.sub}</div>}
+          {selectedShipping?.key === opt.key && <div style={{ fontSize: "10px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", marginTop: "4px" }}>Frete selecionado</div>}
         </button>
       ))}
     </div>
@@ -117,6 +204,7 @@ function shippingPriority(
 
 function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
   const pay = useCheckoutStore((s) => s.pay);
+  const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
   const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
   const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.paymentPreference);
   const permittedKeys = new Set(paymentMethodsForConfig(merchantPaymentConfig).map((method) => method.key));
@@ -135,6 +223,7 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
       {meths.map((m) => (
         <button data-neu="choice"
           key={m.key}
+          disabled={paymentCreating}
           onClick={() => handleSelect(m)}
           style={{
             padding: "10px 12px",
@@ -184,15 +273,7 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
     : null;
 
   if (status === "completed") {
-    return (
-      <div data-neu="surface" style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
-        <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "10px" }}>
-          <div style={{ fontSize: "32px" }}>✓</div>
-          <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>Pagamento confirmado! 🎉</div>
-          <p style={{ fontSize: "13px", color: "var(--mut)", margin: 0 }}>Seu pedido está sendo processado.</p>
-        </div>
-      </div>
-    );
+    return <PaymentCompleted />;
   }
 
   const handleCopy = async () => {
@@ -217,42 +298,31 @@ function PixPaymentBlock({ data }: { data?: Record<string, unknown> }) {
   };
 
   return (
-    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>Pague com Pix</div>
-      <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px", lineHeight: 1.4 }}>
-        Escaneie o QR Code no app do seu banco. Pedido confirmado assim que o pagamento cai.
-      </p>
-      {totalLabel && (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", margin: "0 0 8px", color: "var(--tx)", fontSize: "12px" }}>
-          <span>Total a pagar</span><strong>{totalLabel}</strong>
-        </div>
-      )}
-      <BuyerServiceFeeNotice />
+    <PaymentPanel
+      title="Pix"
+      description="Escaneie o QR Code no app do seu banco ou copie o código. A confirmação aparece aqui automaticamente."
+      totalLabel={totalLabel}
+      status="Aguardando a confirmação do Pix"
+    >
       {data.pix_qr_url ? (
-        <div style={{ display: "flex", justifyContent: "center", marginBottom: "10px" }}>
-          <img src={String(data.pix_qr_url)} alt="QR Code Pix" style={{ width: "160px", height: "160px", borderRadius: "8px" }} />
+        <div className="checkout-payment-panel__qr">
+          <img src={String(data.pix_qr_url)} alt="QR Code Pix" />
         </div>
       ) : null}
       {data.pix_code != null && (
-        <div style={{ display: "flex", gap: "6px", marginBottom: "8px" }}>
-          <code style={{ flex: 1, minWidth: 0, background: "var(--chip, var(--card))", padding: "8px 10px", borderRadius: "8px", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", fontSize: "11px", fontFamily: "var(--aacp-font, inherit)" }}>
-            {String(data.pix_code).slice(0, 50)}...
-          </code>
-          <button data-neu="primary"
-            onClick={handleCopy}
-            style={{ padding: "8px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", border: "none", fontSize: "13px", fontWeight: 600, fontFamily: "var(--aacp-font, inherit)", cursor: "pointer", flex: "none", transition: "opacity 0.2s" }}
-          >
-            {copied ? "✓ Copiado" : "Copiar Pix"}
+        <div className="checkout-payment-panel__code">
+          <code>{String(data.pix_code).slice(0, 50)}...</code>
+          <button data-neu="primary" type="button" onClick={handleCopy}>
+            {copied ? "Código copiado" : "Copiar código"}
           </button>
         </div>
       )}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "16px" }}>
-        <PulseAgentOrb placement="chatLoading" active />
-        <p style={{ fontSize: "13px", color: "var(--mut)", margin: 0, textAlign: "center" }}>
-          Aguardando pagamento...
-        </p>
-      </div>
-    </div>
+      {safeInvoiceUrl(data.invoice_url) ? (
+          <a className="checkout-payment-panel__action" data-neu="control" href={safeInvoiceUrl(data.invoice_url)!} target="_blank" rel="noopener noreferrer">
+          Abrir página do Pix
+        </a>
+      ) : null}
+    </PaymentPanel>
   );
 }
 
@@ -286,48 +356,32 @@ function BoletoPaymentBlock({ data }: { data?: Record<string, unknown> }) {
 
   if (!invoiceUrl) {
     return (
-      <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", color: "var(--mut)", fontSize: "13px" }}>
-        Não foi possível disponibilizar o pagamento com segurança. Escolha outra forma de pagamento.
-      </div>
+      <section data-neu="surface" className="checkout-payment-panel checkout-payment-panel--error" role="alert">
+        <h3>Pagamento indisponível</h3>
+        <p>Não foi possível abrir o pagamento com segurança. Escolha outra forma de pagamento.</p>
+      </section>
     );
   }
 
   if (status === "completed") {
-    return (
-      <div data-neu="surface" style={{ padding: "16px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)", textAlign: "center" }}>
-        <div style={{ fontSize: "15px", fontWeight: 700, color: "var(--tx)" }}>Pagamento confirmado!</div>
-        <p style={{ fontSize: "13px", color: "var(--mut)", margin: "8px 0 0" }}>Seu pedido está sendo processado.</p>
-      </div>
-    );
+    return <PaymentCompleted />;
   }
 
   return (
-    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "4px" }}>{hostedCard ? "Pague com cartão" : "Pague com boleto"}</div>
-      <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 8px", lineHeight: 1.4 }}>
-        {hostedCard
-          ? "Abra o ambiente seguro do provedor em uma nova aba para informar o cartão. Confirmaremos seu pedido automaticamente."
-          : "Abra o boleto em uma nova aba. Confirmaremos seu pedido quando o pagamento for compensado."}
-      </p>
-      {totalLabel && (
-        <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", margin: "0 0 8px", color: "var(--tx)", fontSize: "12px" }}>
-          <span>Total a pagar</span><strong>{totalLabel}</strong>
-        </div>
-      )}
-      <BuyerServiceFeeNotice />
-      <a data-neu="primary"
-        href={invoiceUrl}
-        target="_blank"
-        rel="noopener noreferrer"
-        style={{ display: "block", marginTop: "12px", padding: "10px 14px", borderRadius: "8px", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "13px", fontWeight: 600, textAlign: "center", textDecoration: "none" }}
-      >
-        {hostedCard ? "Abrir pagamento seguro" : "Abrir boleto seguro"}
+    <PaymentPanel
+      title={hostedCard ? "Cartão de crédito" : "Boleto"}
+      description={hostedCard
+        ? "Você será direcionado à página segura do provedor para informar o cartão."
+        : "Abra o boleto em uma nova aba. A compensação será confirmada aqui."}
+      totalLabel={totalLabel}
+      status={hostedCard ? "Aguardando a confirmação do provedor" : "Aguardando a compensação do boleto"}
+    >
+      <a data-neu="primary" className="checkout-payment-panel__action" href={invoiceUrl} target="_blank" rel="noopener noreferrer">
+        {hostedCard ? "Continuar para o pagamento seguro" : "Abrir boleto seguro"}
+        <span aria-hidden="true">↗</span>
       </a>
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "8px", padding: "14px 0 2px" }}>
-        <PulseAgentOrb placement="chatLoading" active />
-        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0, textAlign: "center" }}>{hostedCard ? "Aguardando a confirmação..." : "Aguardando a compensação..."}</p>
-      </div>
-    </div>
+      <p className="checkout-payment-panel__hint">O pedido só é confirmado depois da aprovação do pagamento.</p>
+    </PaymentPanel>
   );
 }
 
@@ -420,8 +474,8 @@ function StripeCardBlockForm({
   };
 
   return (
-    <form onSubmit={handleSubmit}>
-      <div style={{ marginBottom: "12px" }}>
+    <form className="checkout-payment-panel__stripe-form" onSubmit={handleSubmit}>
+      <div className="checkout-payment-panel__card-field">
         <CardElement
           options={{
             style: {
@@ -441,25 +495,14 @@ function StripeCardBlockForm({
         />
       </div>
       {error && (
-        <div style={{ padding: "8px 10px", borderRadius: "6px", background: "#fee", color: "#c92a2a", fontSize: "12px", marginBottom: "12px" }}>
+        <div className="checkout-payment-panel__error" role="alert">
           {error}
         </div>
       )}
       <button data-neu="control"
+        className="checkout-payment-panel__action"
         type="submit"
         disabled={!stripe || loading}
-        style={{
-          width: "100%",
-          padding: "10px 14px",
-          borderRadius: "8px",
-          background: loading || !stripe ? "var(--bd)" : "var(--aacp-accent, #0f766e)",
-          color: "var(--aacp-on-accent, #fff)",
-          border: "none",
-          fontSize: "13px",
-          fontWeight: 600,
-          fontFamily: "var(--aacp-font, inherit)",
-          cursor: loading || !stripe ? "not-allowed" : "pointer",
-        }}
       >
         {loading ? "Processando..." : `Pagar ${totalLabel}`}
       </button>
@@ -468,11 +511,12 @@ function StripeCardBlockForm({
 }
 
 const stripePromiseCache = new Map<string, ReturnType<typeof loadStripe>>();
-function getStripePromise(publishableKey: string) {
-  let p = stripePromiseCache.get(publishableKey);
+function getStripePromise(publishableKey: string, stripeAccountId?: string) {
+  const cacheKey = `${publishableKey}:${stripeAccountId ?? "platform"}`;
+  let p = stripePromiseCache.get(cacheKey);
   if (!p) {
-    p = loadStripe(publishableKey);
-    stripePromiseCache.set(publishableKey, p);
+    p = loadStripe(publishableKey, stripeAccountId ? { stripeAccount: stripeAccountId } : undefined);
+    stripePromiseCache.set(cacheKey, p);
   }
   return p;
 }
@@ -481,35 +525,33 @@ function StripeCardBlock({ data }: { data?: Record<string, unknown> }) {
   const language = useCheckoutStore((s) => s.agent.language);
   const clientSecret = data?.stripe_client_secret as string | undefined;
   const publishableKey = data?.stripe_publishable_key as string | undefined;
+  const stripeAccountId = data?.stripe_account_id as string | undefined;
   const intentId = data?.intent_id as string | undefined;
   const amountCents = data?.amount_cents;
   const elementsOptions = useMemo(() => ({ clientSecret }), [clientSecret]);
 
   if (!clientSecret || !publishableKey || !intentId || typeof amountCents !== "number" || !Number.isSafeInteger(amountCents) || amountCents <= 0) {
     return (
-      <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-        <p style={{ fontSize: "12px", color: "var(--mut)", margin: 0 }}>Erro: dados de pagamento incompletos</p>
-      </div>
+      <section data-neu="surface" className="checkout-payment-panel checkout-payment-panel--error" role="alert">
+        <h3>Pagamento indisponível</h3>
+        <p>Não foi possível carregar os dados necessários. Escolha outra forma de pagamento.</p>
+      </section>
     );
   }
 
-  const stripePromise = getStripePromise(publishableKey);
+  const stripePromise = getStripePromise(publishableKey, stripeAccountId);
   const totalLabel = new Intl.NumberFormat(checkoutLocale(language), { style: "currency", currency: "BRL" }).format(amountCents / 100);
 
   return (
-    <div data-neu="surface" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
-      <div style={{ fontSize: "13px", fontWeight: 600, marginBottom: "8px" }}>Pague com Cartão de Crédito</div>
-      <p style={{ fontSize: "12px", color: "var(--mut)", margin: "0 0 12px", lineHeight: 1.4 }}>
-        Pagamento processado pela Stripe. Confira o total antes de confirmar.
-      </p>
-      <div style={{ display: "flex", justifyContent: "space-between", gap: "12px", marginBottom: "12px", color: "var(--tx)" }}>
-        <span>Total a pagar</span><strong>{totalLabel}</strong>
-      </div>
-      <BuyerServiceFeeNotice />
+    <PaymentPanel
+      title="Cartão de crédito"
+      description="Confira o valor e informe o cartão neste ambiente seguro."
+      totalLabel={totalLabel}
+    >
       <Elements stripe={stripePromise} options={elementsOptions}>
         <StripeCardBlockForm clientSecret={clientSecret} intentId={intentId} totalLabel={totalLabel} />
       </Elements>
-    </div>
+    </PaymentPanel>
   );
 }
 
@@ -611,11 +653,14 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
       }}
     >
       <span>{p.name}</span>
-      {p.price != null && (
-        <span style={{ color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", fontWeight: 600 }}>
-          {formatCrossSellPrice(p.price)}
+      <span style={{ display: "inline-flex", alignItems: "center", gap: "8px", flexShrink: 0 }}>
+        {p.price != null && (
+          <span style={{ color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", fontWeight: 600 }}>
+            {formatCrossSellPrice(p.price)}
+          </span>
+        )}
+        {!compact && <span style={{ color: "var(--mut)", fontSize: "11px", fontWeight: 600 }}>Adicionar</span>}
         </span>
-      )}
     </button>
   );
 
@@ -644,8 +689,11 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
             border: "1px solid var(--bd)",
             borderRadius: "14px",
             padding: "18px",
-            maxWidth: "420px",
-            width: "100%",
+            width: "min(420px, calc(100vw - 40px))",
+            maxWidth: "calc(100vw - 40px)",
+            boxSizing: "border-box",
+            maxHeight: "calc(100dvh - 40px)",
+            overflowY: "auto",
             boxShadow: "0 20px 60px rgba(0,0,0,0.4)",
           }}
         >
@@ -801,6 +849,7 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [done, setDone] = useState(false);
+  const advanced = useRef(false);
 
   const methods = data?.methods as Array<{ key: string; label: string; sub?: string }> | undefined;
 
@@ -808,18 +857,17 @@ function CouponInputBlock({ data }: { data?: Record<string, unknown> }) {
   const atMaxDiscount = currentDiscountPercent >= maxDiscountPercent - 0.01;
 
   useEffect(() => {
-    if (atMaxDiscount && !done) {
-      setDone(true);
-      proceedToPayment(methods);
-    }
+    if (atMaxDiscount) advance();
   }, [atMaxDiscount]);
 
   if (atMaxDiscount || done) return null;
 
-  const advance = () => {
+  function advance() {
+    if (advanced.current) return;
+    advanced.current = true;
     setDone(true);
     proceedToPayment(methods);
-  };
+  }
 
   const handleApply = async () => {
     if (!code.trim() || loading) return;
@@ -963,38 +1011,61 @@ function AddressConfirmationBlock({ data }: { data?: Record<string, unknown> }) 
 
 function FormFieldBlock({ data }: { data?: Record<string, unknown> }) {
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
+  const completeFormField = useCheckoutStore((s) => s.completeFormField);
   const [value, setValue] = useState("");
   if (!data) return null;
+  const field = typeof data.field === "string" ? data.field : "";
   const label = (data.label as string) || (data.field as string) || "";
   const placeholder = (data.placeholder as string) || "";
+  const isCep = field === "cep";
+  const normalizedValue = isCep ? value.replace(/\D/g, "") : value.trim();
+  const canSubmit = isCep ? normalizedValue.length === 8 : normalizedValue.length > 0;
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
-    if (value.trim()) {
-      void sendMessage(value.trim());
+    if (canSubmit) {
+      completeFormField(field);
+      void sendMessage(normalizedValue);
       setValue("");
     }
   };
 
+  const updateValue = (next: string) => {
+    if (!isCep) {
+      setValue(next);
+      return;
+    }
+    const digits = next.replace(/\D/g, "").slice(0, 8);
+    setValue(digits.length > 5 ? `${digits.slice(0, 5)}-${digits.slice(5)}` : digits);
+  };
+
   return (
-    <form onSubmit={handleSubmit} style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
-      {label && <label style={{ fontSize: "12px", fontWeight: 600, color: "var(--tx)" }}>{label}</label>}
-      <div style={{ display: "flex", gap: "6px" }}>
-        <input data-neu="field"
-          type="text"
-          value={value}
-          onChange={(e) => setValue(e.target.value)}
-          placeholder={placeholder}
-          style={{ flex: 1, padding: "8px 12px", borderRadius: "8px", border: "1px solid var(--bd)", background: "var(--chip)", color: "var(--tx)", fontSize: "13px", fontFamily: "inherit" }}
-        />
-        <button data-neu="control"
-          type="submit"
-          disabled={!value.trim()}
-          style={{ padding: "8px 12px", borderRadius: "8px", background: value.trim() ? "var(--aacp-accent, #0f766e)" : "var(--bd)", color: "#fff", border: "none", fontSize: "12px", fontWeight: 600, cursor: value.trim() ? "pointer" : "not-allowed" }}
-        >
-          Enviar
-        </button>
-      </div>
+    <form data-neu="inset" data-aacp-inline-field={field || "text"} onSubmit={handleSubmit}
+      style={{ position: "relative", display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg, var(--chip))", border: "1px solid var(--bd)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}
+    >
+      <PerimeterBorder radius="14px" variant="input" />
+      <label style={{ position: "absolute", width: 1, height: 1, padding: 0, margin: -1, overflow: "hidden", clip: "rect(0, 0, 0, 0)", whiteSpace: "nowrap", border: 0 }}>
+        {label}
+      </label>
+      <input data-neu="field"
+        type="text"
+        value={value}
+        onChange={(e) => updateValue(e.target.value)}
+        placeholder={placeholder}
+        inputMode={isCep ? "numeric" : undefined}
+        autoComplete={isCep ? "postal-code" : "off"}
+        maxLength={isCep ? 9 : undefined}
+        aria-label={label}
+        style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--tx)", fontSize: "13px", padding: 0, fontFamily: "inherit" }}
+      />
+      <button data-neu="send"
+        type="submit"
+        disabled={!canSubmit}
+        aria-label={label ? `Enviar ${label}` : "Enviar"}
+        style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: canSubmit ? "pointer" : "not-allowed", background: canSubmit ? "var(--aacp-accent, #0f766e)" : "var(--bd)", color: "#fff", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}
+      >
+        <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
+      </button>
     </form>
   );
 }
@@ -1506,6 +1577,8 @@ function CryptoChainSelectBlock({ data }: { data?: Record<string, unknown> }) {
 
 export function BlockRenderer({ block }: { block: ChatBlock }) {
   switch (block.type) {
+    case "checkout_price_review":
+      return <CheckoutPriceReviewBlock fingerprint={block.data?.fingerprint} />;
     case "text":
     case "message":
       return <p style={{ fontSize: "14px", lineHeight: 1.5, color: "var(--tx)", margin: 0, wordBreak: "break-word" }}>{String(block.data?.content || block.text || "")}</p>;
@@ -1514,7 +1587,7 @@ export function BlockRenderer({ block }: { block: ChatBlock }) {
     case "address_confirmation":
       return <AddressConfirmationBlock data={block.data} />;
     case "shipping_options":
-      return <ShippingOptionsBlock options={block.data?.options} />;
+      return <ShippingOptionsBlock options={block.data?.options} selectionMode={block.data?.selection_mode} />;
     case "coupon_input":
       return <CouponInputBlock data={block.data} />;
     case "payment_methods":

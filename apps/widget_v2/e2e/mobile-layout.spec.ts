@@ -1,4 +1,5 @@
 import { test, expect, type Page } from "@playwright/test";
+import { selectChatChannel } from "./fixtures/cross-sell-mocks.js";
 
 /**
  * Validates the checkout cart is mobile-first: on a narrow viewport the cart
@@ -32,13 +33,10 @@ async function setupMocks(page: Page) {
 
 async function enterChat(page: Page) {
   await page.goto(`${WIDGET_URL}/?embed=1&embedToken=t&merchantId=m&cartRef=c&apiBaseUrl=${WIDGET_URL}`, { waitUntil: "domcontentloaded", timeout: 30000 });
-  const chatBtn = page.locator("button", { hasText: "Por chat" });
-  await chatBtn.waitFor({ state: "visible", timeout: 15000 });
-  await chatBtn.click();
-  await page.locator("text=/carrinho|Olá|produto ideal/i").first().waitFor({ state: "visible", timeout: 10000 });
+  await selectChatChannel(page);
 }
 
-test("mobile: cart sidebar hidden, FAB shown, FABs clear the chat input", async ({ page }) => {
+test("mobile: cart sidebar hidden, cart FAB clears the chat input and support stays in the header", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 }); // iPhone-ish
   await setupMocks(page);
   await enterChat(page);
@@ -53,29 +51,21 @@ test("mobile: cart sidebar hidden, FAB shown, FABs clear the chat input", async 
   const chatWidth = await page.locator(".pulse-widget-shell").first().evaluate((el) => el.clientWidth);
   expect(chatWidth).toBeGreaterThan(340);
 
-  // FAB must sit ABOVE the chat input bar (not overlapping "Enviar").
+  // Cart FAB must sit ABOVE the chat input bar (not overlapping "Enviar").
   const input = page.getByPlaceholder(/mensagem/i).first();
   const inputBox = await input.boundingBox();
   const fabBox = await fab.boundingBox();
   // FAB bottom edge should be above the input's top edge
   expect(fabBox!.y + fabBox!.height).toBeLessThan(inputBox!.y);
   const support = page.getByRole("button", { name: "Abrir suporte", exact: true });
-  const assertClear = async () => {
+  const assertLayout = async () => {
     const field = (await input.boundingBox())!;
     const supportBox = (await support.boundingBox())!;
     const cartBox = (await fab.boundingBox())!;
-    expect(supportBox.y + supportBox.height).toBeLessThan(field.y);
-    expect(cartBox.y + cartBox.height).toBeLessThan(supportBox.y);
+    expect(supportBox.y + supportBox.height).toBeLessThanOrEqual(64);
+    expect(cartBox.y + cartBox.height).toBeLessThan(field.y);
   };
-  await assertClear();
-  await page.getByText("Preferências de contato desta loja", { exact: true }).click();
-  await expect(page.getByRole("checkbox", { name: "WhatsApp", exact: true })).toBeVisible();
-  await expect.poll(async () => {
-    const field = (await input.boundingBox())!;
-    const supportBox = (await support.boundingBox())!;
-    return supportBox.y + supportBox.height < field.y;
-  }).toBe(true);
-  await assertClear();
+  await assertLayout();
 });
 
 test("mobile: tapping FAB opens cart drawer (slides up from bottom)", async ({ page }) => {
@@ -103,7 +93,7 @@ test("mobile: tapping FAB opens cart drawer (slides up from bottom)", async ({ p
   const rect = (await drawer.boundingBox())!;
   expect(rect.x).toBe(0);
   expect(rect.width).toBe(390);
-  await expect(page.getByRole("button", { name: "Abrir suporte", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("button", { name: "Abrir suporte", exact: true })).toBeVisible();
 });
 
 test("mobile: closing drawer plays slide-down animation then unmounts", async ({ page }) => {

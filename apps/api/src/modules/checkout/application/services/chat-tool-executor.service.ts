@@ -1,6 +1,7 @@
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { AuthorizedOffer } from "@zyon/shared-types";
+import { checkoutNavigationBlock } from "../../domain/services/checkout-chat-navigation.js";
 
 export interface ToolCall {
   name: string;
@@ -119,29 +120,12 @@ export class ChatToolExecutorService {
           break;
 
         // ─── UI Navigation Tools ───
-        case "confirm_address": {
-          if (context.address?.formatted) {
-            blocks.push({ type: "address_confirmation", data: context.address });
-          }
-          break;
-        }
-
-        case "show_shipping_options": {
-          if (context.shippingOptions?.length) {
-            blocks.push({ type: "shipping_options", data: { options: context.shippingOptions } });
-          }
-          break;
-        }
-
-        case "show_payment_methods": {
-          if (context.paymentMethods?.length) {
-            blocks.push({ type: "payment_methods", data: { methods: context.paymentMethods } });
-          }
-          break;
-        }
-
+        case "confirm_address":
+        case "show_shipping_options":
+        case "show_payment_methods":
         case "request_cep": {
-          blocks.push({ type: "form_field", data: { field: "cep", label: "CEP de entrega", placeholder: "00000-000" } });
+          const block = checkoutNavigationBlock(fn, context);
+          if (block) blocks.push(block);
           break;
         }
 

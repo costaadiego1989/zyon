@@ -4,7 +4,7 @@ import { PromptVariantEntity, type PromptVariantSnapshot } from "./prompt-varian
 export type ExperimentStatus = "draft" | "running" | "completed" | "archived";
 
 const LEGAL_TRANSITIONS: Record<ExperimentStatus, ExperimentStatus[]> = {
-  draft: ["running"],
+  draft: ["running", "archived"],
   running: ["completed"],
   completed: ["archived"],
   archived: [],

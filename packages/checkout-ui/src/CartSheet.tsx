@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import type { CartSheetProps } from "./types";
 
 function formatPrice(value: number): string {
@@ -16,6 +16,15 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
   const [budgetSent, setBudgetSent] = useState(false);
   const [budgetSending, setBudgetSending] = useState(false);
 
+  const [budgetError, setBudgetError] = useState<string | null>(null);
+  useEffect(() => {
+    if (!open && !budgetSending) {
+      setBudgetSent(false);
+      setShowBudgetForm(false);
+      setBudgetError(null);
+    }
+  }, [open, budgetSending]);
+
   if (!open) return null;
 
   const isBottom = position === "bottom";
@@ -32,7 +41,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
 
       {/* Scrim */}
       <div
-        onClick={onClose}
+        onClick={budgetSending ? undefined : onClose}
         role="presentation"
         style={{
           position: "absolute",
@@ -47,7 +56,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
       <div data-neu="overlay"
         role="dialog"
         aria-label="Carrinho"
-        aria-busy={updating}
+        aria-busy={updating || budgetSending}
         style={{
           position: "absolute",
           ...(isBottom
@@ -99,7 +108,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
           </div>
           <button data-neu="icon"
             type="button"
-            onClick={onClose}
+            onClick={budgetSending ? undefined : onClose}
             aria-label="Fechar carrinho"
             style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line, rgba(255,255,255,0.1))", background: "transparent", color: "var(--aacp-muted)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0, flexShrink: 0 }}
           >
@@ -156,7 +165,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
                     <button data-neu="control"
                       type="button"
                       className="ckui-quantity"
-                      disabled={updating}
+                      disabled={updating || budgetSending}
                       aria-label={`Diminuir quantidade de ${item.productName}`}
                       onClick={() => item.quantity <= 1 ? onRemoveItem(item.variantId) : onUpdateQty(item.variantId, item.quantity - 1)}
                       style={{ borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
@@ -169,7 +178,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
                     <button data-neu="control"
                       type="button"
                       className="ckui-quantity"
-                      disabled={updating || item.quantity >= 99}
+                      disabled={updating || budgetSending || item.quantity >= 99}
                       aria-label={`Aumentar quantidade de ${item.productName}`}
                       onClick={() => onUpdateQty(item.variantId, item.quantity + 1)}
                       style={{ borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
@@ -204,30 +213,34 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
         {/* Footer CTAs / Success state */}
         {cart.items.length > 0 && (
           <div style={{ padding: "0 18px 20px", display: "flex", flexDirection: "column", gap: "8px" }}>
-            {budgetSent && (
-              <div style={{ padding: "16px 14px", borderRadius: "10px", background: "color-mix(in srgb, var(--aacp-success, #34d399) 12%, transparent)", border: "1px solid var(--aacp-success, #34d399)", textAlign: "center" }}>
-                <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--aacp-success, #34d399)" }}>✓ Orçamento enviado!</div>
-                <div style={{ fontSize: "12px", color: "var(--aacp-muted)", marginTop: "4px" }}>Entraremos em contato em breve.</div>
-              </div>
-            )}
             {!budgetSent && (
               <>
                 {mode === "budget" && showBudgetForm ? (
                   <div style={{ display: "flex", flexDirection: "column", gap: 10, padding: "14px 0 6px", borderTop: "1px solid var(--aacp-line, rgba(255,255,255,0.08))" }}>
                     <span style={{ fontSize: 12, fontWeight: 600, color: "var(--aacp-fg)" }}>Seus dados para contato</span>
-                    <input data-neu="field" type="text" placeholder="Nome completo" value={budgetName} onChange={(e) => setBudgetName(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
-                    <input data-neu="field" type="email" placeholder="Email" value={budgetEmail} onChange={(e) => setBudgetEmail(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
-                    <input data-neu="field" type="tel" placeholder="WhatsApp (11) 99999-9999" value={budgetPhone} onChange={(e) => setBudgetPhone(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
-                    <textarea data-neu="field" placeholder="Observação (opcional)" value={budgetNote} onChange={(e) => setBudgetNote(e.target.value)} rows={2} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit", resize: "none" }} />
+                    {budgetError && <p role="alert" style={{ color: "var(--aacp-warning)", margin: 0 }}>{budgetError}</p>}
+                    <input data-neu="field" type="text" aria-label="Nome completo" autoComplete="name" maxLength={200} disabled={budgetSending} placeholder="Nome completo" value={budgetName} onChange={(e) => setBudgetName(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
+                    <input data-neu="field" type="email" aria-label="Email" autoComplete="email" maxLength={254} disabled={budgetSending} placeholder="Email" value={budgetEmail} onChange={(e) => setBudgetEmail(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
+                    <input data-neu="field" type="tel" aria-label="WhatsApp" autoComplete="tel" maxLength={32} disabled={budgetSending} placeholder="WhatsApp (11) 99999-9999" value={budgetPhone} onChange={(e) => setBudgetPhone(e.target.value)} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit" }} />
+                    <textarea data-neu="field" aria-label="Observação" maxLength={2000} disabled={budgetSending} placeholder="Observação (opcional)" value={budgetNote} onChange={(e) => setBudgetNote(e.target.value)} rows={2} style={{ padding: "10px 12px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "var(--aacp-bg, #08080c)", color: "var(--aacp-fg)", fontSize: 13, fontFamily: "inherit", resize: "none" }} />
                 <button data-neu="control"
                   type="button"
                   disabled={updating || !budgetName.trim() || !budgetEmail.trim() || !budgetPhone.trim() || budgetSending}
                   onClick={async () => {
+                    if (!onBudgetSubmit || budgetSending) return;
+                    setBudgetError(null);
+                    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(budgetEmail.trim()) || !/^\d{10,15}$/.test(budgetPhone.replace(/\D/g, ""))) {
+                      setBudgetError("Informe um email válido e um WhatsApp com DDD.");
+                      return;
+                    }
                     setBudgetSending(true);
                     try {
-                      await onBudgetSubmit?.({ customerName: budgetName.trim(), customerEmail: budgetEmail.trim(), customerPhone: budgetPhone.trim(), note: budgetNote.trim() || undefined });
+                      await onBudgetSubmit({ customerName: budgetName.trim(), customerEmail: budgetEmail.trim(), customerPhone: budgetPhone.trim(), note: budgetNote.trim() || undefined });
                       setBudgetSent(true);
-                    } catch { /* */ }
+                      setBudgetName(""); setBudgetEmail(""); setBudgetPhone(""); setBudgetNote("");
+                    } catch {
+                      setBudgetError("Não foi possível enviar a solicitação. Seus itens foram mantidos. Tente novamente.");
+                    }
                     setBudgetSending(false);
                   }}
                   style={{ width: "100%", height: 44, borderRadius: 10, border: "none", background: "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: 13, fontWeight: 700, cursor: "pointer", fontFamily: "inherit", opacity: (!budgetName.trim() || !budgetEmail.trim() || !budgetPhone.trim()) ? 0.5 : 1 }}
@@ -239,7 +252,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
               <button data-neu="primary"
                 type="button"
                 onClick={mode === "budget" ? () => setShowBudgetForm(true) : onCheckout}
-                disabled={updating}
+                disabled={updating || budgetSending}
                 style={{
                   width: "100%",
                   height: "48px",
@@ -267,7 +280,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
             {onClose && (
               <button data-neu="control"
                 type="button"
-                onClick={onClose}
+                onClick={budgetSending ? undefined : onClose}
                 style={{
                   width: "100%",
                   height: "40px",
@@ -292,13 +305,13 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
 
         {/* Budget sent confirmation */}
         {budgetSent && (
-          <div style={{ padding: "24px 18px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
+          <div role="status" style={{ padding: "24px 18px", textAlign: "center", display: "flex", flexDirection: "column", alignItems: "center", gap: 10 }}>
             <div style={{ width: 40, height: 40, borderRadius: "50%", background: "color-mix(in srgb, var(--aacp-accent) 15%, transparent)", display: "flex", alignItems: "center", justifyContent: "center" }}>
               <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent, #0f766e)" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round"><polyline points="20 6 9 17 4 12" /></svg>
             </div>
             <p style={{ margin: 0, fontSize: 14, fontWeight: 600, color: "var(--aacp-fg)" }}>Orçamento enviado!</p>
             <p style={{ margin: 0, fontSize: 12, color: "var(--aacp-muted)" }}>Entraremos em contato em breve.</p>
-            <button data-neu="control" type="button" onClick={onClose} style={{ marginTop: 8, padding: "8px 16px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Fechar</button>
+            <button data-neu="control" type="button" onClick={budgetSending ? undefined : onClose} style={{ marginTop: 8, padding: "8px 16px", borderRadius: 8, border: "1px solid var(--aacp-line)", background: "transparent", color: "var(--aacp-muted)", fontSize: 12, cursor: "pointer", fontFamily: "inherit" }}>Fechar</button>
           </div>
         )}
       </div>

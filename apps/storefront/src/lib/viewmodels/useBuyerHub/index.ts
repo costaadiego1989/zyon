@@ -17,6 +17,7 @@ export type {
   EarnedBenefit,
   BenefitProgress,
   BuyerBenefits,
+  BuyerPersonalizedOffer,
   PurchasePage,
   TabType,
   SectionState,

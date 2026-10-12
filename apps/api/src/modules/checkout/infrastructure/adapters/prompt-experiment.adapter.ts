@@ -19,6 +19,9 @@ export class PromptExperimentAdapter implements PromptExperimentPort {
     if (!experiment) {
       return undefined;
     }
+    // A reviewed recipe reference is not a system prompt. Only the forthcoming
+    // versioned execution path may bind it to an approved, measured exposure.
+    if (experiment.variants.some(v => v.system_prompt.includes("checkout-chat-baseline-v1:"))) return undefined;
 
     return {
       id: experiment.id,

@@ -54,7 +54,7 @@ test("generateDeterministicReply asks for complement after number without repeat
   });
 
   assert.match(result.message, /complemento/i);
-  assert.match(result.message, /Nao tem/i);
+  assert.match(result.message, /N[aã]o tem/i);
   assert.doesNotMatch(result.message, /numero e complemento/i);
 });
 

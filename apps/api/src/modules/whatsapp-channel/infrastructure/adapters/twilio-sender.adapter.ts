@@ -96,10 +96,10 @@ export class TwilioSenderAdapter implements WhatsAppSenderPort {
       }
 
       this.logger.error(`Twilio send failed: HTTP ${response.status}`);
-      return { messageId: "", status: "failed" };
+      return { messageId: "", status: response.status >= 500 || response.status === 408 ? "unknown" : "failed" };
     } catch (error) {
       this.logger.error("Twilio transport failed");
-      return { messageId: "", status: "failed" };
+      return { messageId: "", status: "unknown" };
     }
   }
 

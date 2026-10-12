@@ -20,7 +20,21 @@ import {
 export class PrismaPaymentPlatformRepository
   implements PaymentPlatformRepository
 {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(
+    private readonly prisma: PrismaClient,
+    // Only platform billing crosses stores, after resolving their owning account.
+    // Payment connections below continue using the active-store client.
+    private readonly billingPrisma: PrismaClient = prisma,
+  ) {}
+
+  private async billingMerchantId(merchantId: string): Promise<string> {
+    const scopedMerchantId = merchantId.trim();
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: scopedMerchantId },
+      select: { billingAccountMerchantId: true },
+    });
+    return merchant?.billingAccountMerchantId ?? scopedMerchantId;
+  }
 
   async listConnections(
     merchantId: string,
@@ -120,8 +134,8 @@ export class PrismaPaymentPlatformRepository
     const trialEndsAt = new Date(
       Date.now() + Math.max(1, trialDays) * 86_400_000,
     );
-    const scopedMerchantId = merchantId.trim();
-    const existing = await this.prisma.merchantBillingSubscription.findUnique({
+    const scopedMerchantId = await this.billingMerchantId(merchantId);
+    const existing = await this.billingPrisma.merchantBillingSubscription.findUnique({
       where: { merchantId: scopedMerchantId },
     });
     if (
@@ -130,7 +144,7 @@ export class PrismaPaymentPlatformRepository
       existing.trialEndsAt.getTime() <= Date.now() &&
       !existing.stripeSubscriptionId
     ) {
-      const row = await this.prisma.merchantBillingSubscription.update({
+      const row = await this.billingPrisma.merchantBillingSubscription.update({
         where: { merchantId: scopedMerchantId },
         data: {
           status: "starter",
@@ -141,7 +155,7 @@ export class PrismaPaymentPlatformRepository
       return toBilling(row);
     }
     if (existing) return toBilling(existing);
-    const row = await this.prisma.merchantBillingSubscription.create({
+    const row = await this.billingPrisma.merchantBillingSubscription.create({
       data: {
         merchantId: scopedMerchantId,
         status: "trialing",
@@ -154,13 +168,15 @@ export class PrismaPaymentPlatformRepository
   }
 
   async saveBilling(input: SaveBillingSubscriptionInput): Promise<void> {
-    const update = billingUpdate(input);
-    await this.prisma.merchantBillingSubscription.upsert({
-      where: { merchantId: input.merchantId.trim() },
+    const merchantId = await this.billingMerchantId(input.merchantId);
+    const scopedInput = { ...input, merchantId };
+    const update = billingUpdate(scopedInput);
+    await this.billingPrisma.merchantBillingSubscription.upsert({
+      where: { merchantId },
       create: {
-        merchantId: input.merchantId.trim(),
-        status: input.status ?? "trialing",
-        cancelAtPeriodEnd: input.cancelAtPeriodEnd ?? false,
+        merchantId,
+        status: scopedInput.status ?? "trialing",
+        cancelAtPeriodEnd: scopedInput.cancelAtPeriodEnd ?? false,
         ...update,
       },
       update,
@@ -168,8 +184,8 @@ export class PrismaPaymentPlatformRepository
   }
 
   async mutateBilling(merchantId: string, decide: BillingMutation): Promise<BillingSubscriptionSnapshot | undefined> {
-    const scopedMerchantId = merchantId.trim();
-    return this.prisma.$transaction(async (tx) => {
+    const scopedMerchantId = await this.billingMerchantId(merchantId);
+    return this.billingPrisma.$transaction(async (tx) => {
       await tx.$queryRaw`SELECT merchant_id FROM merchant_billing_subscriptions WHERE merchant_id = ${scopedMerchantId} FOR UPDATE`;
       const row = await tx.merchantBillingSubscription.findUnique({ where: { merchantId: scopedMerchantId } });
       if (!row) return undefined;
@@ -181,7 +197,7 @@ export class PrismaPaymentPlatformRepository
   }
 
   async processBillingWebhook(input: BillingWebhookMutation, decide: BillingMutation): Promise<BillingWebhookOutcome> {
-    return this.prisma.$transaction(async (tx) => {
+    return this.billingPrisma.$transaction(async (tx) => {
       // The event lock also serializes a replay that names another subscription.
       const eventLock = `asaas-billing-event:${input.eventId}`;
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${eventLock}))`;
@@ -206,8 +222,9 @@ export class PrismaPaymentPlatformRepository
   async getBilling(
     merchantId: string,
   ): Promise<BillingSubscriptionSnapshot | undefined> {
-    const row = await this.prisma.merchantBillingSubscription.findUnique({
-      where: { merchantId: merchantId.trim() },
+    const billingMerchantId = await this.billingMerchantId(merchantId);
+    const row = await this.billingPrisma.merchantBillingSubscription.findUnique({
+      where: { merchantId: billingMerchantId },
     });
     return row ? toBilling(row) : undefined;
   }
@@ -215,7 +232,7 @@ export class PrismaPaymentPlatformRepository
   async listBillingCancellationsNeedingProviderSuspend(
     limit: number,
   ): Promise<BillingSubscriptionSnapshot[]> {
-    const rows = await this.prisma.merchantBillingSubscription.findMany({
+    const rows = await this.billingPrisma.merchantBillingSubscription.findMany({
       where: {
         cancelAtPeriodEnd: true,
         providerCancellationScheduledAt: null,
@@ -232,7 +249,7 @@ export class PrismaPaymentPlatformRepository
     now: Date,
     limit: number,
   ): Promise<BillingSubscriptionSnapshot[]> {
-    const rows = await this.prisma.merchantBillingSubscription.findMany({
+    const rows = await this.billingPrisma.merchantBillingSubscription.findMany({
       where: {
         cancelAtPeriodEnd: true,
         currentPeriodEnd: { not: null, lte: now },
@@ -246,9 +263,10 @@ export class PrismaPaymentPlatformRepository
   }
 
   async expireTrial(merchantId: string, now: Date): Promise<boolean> {
-    const result = await this.prisma.merchantBillingSubscription.updateMany({
+    const billingMerchantId = await this.billingMerchantId(merchantId);
+    const result = await this.billingPrisma.merchantBillingSubscription.updateMany({
       where: {
-        merchantId: merchantId.trim(),
+        merchantId: billingMerchantId,
         status: "trialing",
         stripeSubscriptionId: null,
         trialEndsAt: { lte: now },
@@ -263,7 +281,7 @@ export class PrismaPaymentPlatformRepository
   }
 
   async expireTrials(now: Date, limit: number): Promise<number> {
-    const rows = await this.prisma.merchantBillingSubscription.findMany({
+    const rows = await this.billingPrisma.merchantBillingSubscription.findMany({
       where: {
         status: "trialing",
         stripeSubscriptionId: null,
@@ -274,7 +292,7 @@ export class PrismaPaymentPlatformRepository
       take: Math.max(1, Math.trunc(limit)),
     });
     if (!rows.length) return 0;
-    const result = await this.prisma.merchantBillingSubscription.updateMany({
+    const result = await this.billingPrisma.merchantBillingSubscription.updateMany({
       where: {
         merchantId: { in: rows.map((row) => row.merchantId) },
         status: "trialing",
@@ -293,7 +311,7 @@ export class PrismaPaymentPlatformRepository
   async findMerchantByStripeCustomerId(
     customerId: string,
   ): Promise<string | undefined> {
-    const row = await this.prisma.merchantBillingSubscription.findUnique({
+    const row = await this.billingPrisma.merchantBillingSubscription.findUnique({
       where: { stripeCustomerId: customerId.trim() },
       select: { merchantId: true },
     });
@@ -303,7 +321,7 @@ export class PrismaPaymentPlatformRepository
   async findMerchantByStripeSubscriptionId(
     subscriptionId: string,
   ): Promise<string | undefined> {
-    const row = await this.prisma.merchantBillingSubscription.findUnique({
+    const row = await this.billingPrisma.merchantBillingSubscription.findUnique({
       where: { stripeSubscriptionId: subscriptionId.trim() },
       select: { merchantId: true },
     });
@@ -313,7 +331,7 @@ export class PrismaPaymentPlatformRepository
   async findMerchantByAsaasSubscriptionId(
     subscriptionId: string,
   ): Promise<string | undefined> {
-    const row = await this.prisma.merchantBillingSubscription.findFirst({
+    const row = await this.billingPrisma.merchantBillingSubscription.findFirst({
       where: { asaasSubscriptionId: subscriptionId.trim() },
       select: { merchantId: true },
     });

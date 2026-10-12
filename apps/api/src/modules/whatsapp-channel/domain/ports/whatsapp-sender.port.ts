@@ -7,6 +7,7 @@ export const WHATSAPP_SENDER_PORT = Symbol("WhatsAppSenderPort");
 
 export interface WhatsAppOutboundMessage {
   provider?: string;
+  correlationId?: string;
   toNumber: string;
   deviceId: string;
   text: string;

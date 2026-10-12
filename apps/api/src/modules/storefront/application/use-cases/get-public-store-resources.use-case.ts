@@ -34,7 +34,10 @@ export class GetPublicStoreResourcesUseCase {
     const now = new Date();
     const items = (await this.coupons.findAllByMerchant(merchant.id))
       .map((coupon) => coupon.snapshot())
+      // Strategy codes belong to eligible checkout assignments, never a public catalog.
+      .filter((coupon) => coupon.strategy_incentive_execution_id == null)
       .filter((coupon) => coupon.status === "active" && new Date(coupon.starts_at) <= now && (!coupon.ends_at || new Date(coupon.ends_at) > now))
+      .filter((coupon) => coupon.max_usages === null || coupon.usages_count < coupon.max_usages)
       .map((coupon) => ({
         id: coupon.id,
         code: coupon.code,

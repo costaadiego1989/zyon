@@ -1,6 +1,6 @@
 "use client";
 
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useId, useRef, useState } from "react";
 import { FiChevronLeft, FiChevronRight, FiHeart, FiPackage, FiStar } from "react-icons/fi";
 import type { ProductCarouselBlock as ProductCarouselBlockType, ProductCardBlock } from "@/lib/types";
 import { productsApi } from "@/lib/api/api-client";
@@ -9,6 +9,7 @@ import ImageSlideshow from "../ImageSlideshow";
 import styles from "./ProductCarouselBlock.module.css";
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
+const variantIdPattern = /^[A-Za-z0-9_-]{1,191}$/;
 
 export default function ProductCarouselBlock({ block, onQuickReply }: {
   block: ProductCarouselBlockType;
@@ -17,6 +18,8 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
   const { data } = block;
   const scrollRef = useRef<HTMLDivElement>(null);
   const observerRef = useRef<HTMLDivElement>(null);
+  const trackId = useId();
+  const [scrollEdges, setScrollEdges] = useState({ previous: false, next: false });
   const [products, setProducts] = useState<ProductCardBlock["data"][]>(data.products);
   const [cursor, setCursor] = useState(data.nextCursor);
   const [loadingMore, setLoadingMore] = useState(false);
@@ -37,6 +40,23 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
   }, [cursor, data.merchantId, data.query, data.categoryId]);
 
   useEffect(() => {
+    const track = scrollRef.current;
+    if (!track) return;
+    const updateEdges = () => setScrollEdges({
+      previous: track.scrollLeft > 2,
+      next: track.scrollLeft + track.clientWidth < track.scrollWidth - 2,
+    });
+    updateEdges();
+    track.addEventListener("scroll", updateEdges, { passive: true });
+    const observer = new ResizeObserver(updateEdges);
+    observer.observe(track);
+    return () => {
+      track.removeEventListener("scroll", updateEdges);
+      observer.disconnect();
+    };
+  }, [products.length, cursor, loadError]);
+
+  useEffect(() => {
     const target = observerRef.current;
     if (!target || loadError) return;
     const observer = new IntersectionObserver((entries) => {
@@ -54,13 +74,19 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
   return <section className={styles.carousel} aria-label="Produtos da loja">
     {products.length > 1 ? <div className={styles.navigation}>
       <span>Explore os produtos</span>
-      <div><button data-neu="control" type="button" aria-label="Produtos anteriores" onClick={() => scroll(-1)}><FiChevronLeft /></button><button data-neu="control" type="button" aria-label="Próximos produtos" onClick={() => scroll(1)}><FiChevronRight /></button></div>
     </div> : null}
-    <div ref={scrollRef} className={styles.track} tabIndex={0} aria-label="Lista de produtos; deslize para explorar">
+    <div className={styles.slider}>
+    <div id={trackId} ref={scrollRef} className={styles.track} tabIndex={0} aria-label="Lista de produtos; deslize para explorar">
       {products.map((product) => {
         const images = product.images?.length ? product.images : product.image ? [product.image] : [];
         const details = () => onQuickReply?.("Detalhes " + product.name);
         const customizable = (product.variants?.length ?? 0) > 1 || (product.optionGroups?.length ?? 0) > 0;
+        const singleVariantId = product.variants?.length === 1 && variantIdPattern.test(product.variants[0].id)
+          ? product.variants[0].id
+          : undefined;
+        const addToCart = () => onQuickReply?.(singleVariantId
+          ? `Adicionar ${product.name} ao carrinho [variantId:${singleVariantId}]`
+          : "Adicionar " + product.name + " ao carrinho");
         return <article key={product.id} className={styles.card} data-aacp-carousel-product={product.id}>
           <div className={styles.media} onClick={details}>
             {images.length ? <ImageSlideshow images={images} alt={product.name} objectFit="cover" /> : <div className={styles.noImage}><FiPackage aria-hidden="true" /><span>Imagem indisponível</span></div>}
@@ -80,12 +106,17 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
             <RuleNotices notices={product.ruleNotices} />
             <div className={styles.ctas}>
               <button data-neu="control" type="button" onClick={details}>Saber mais</button>
-              <button data-neu="primary" type="button" className={styles.buy} disabled={!product.inStock} onClick={() => customizable ? details() : onQuickReply?.("Adicionar " + product.name + " ao carrinho")}>{customizable ? "Escolher opções" : "Adicionar ao carrinho"}</button>
+              <button data-neu="primary" type="button" className={styles.buy} disabled={!product.inStock} onClick={() => customizable ? details() : addToCart()}>{customizable ? "Escolher opções" : "Adicionar ao carrinho"}</button>
             </div>
           </div>
         </article>;
       })}
       {cursor ? <div ref={observerRef} className={styles.more} role="status">{loadError ? <><span>Não foi possível carregar mais produtos.</span><button data-neu="control" type="button" onClick={() => void loadMore()}>Tentar novamente</button></> : loadingMore ? "Carregando…" : "Mais produtos"}</div> : null}
+    </div>
+    {products.length > 1 ? <>
+      <button data-neu="control" className={`${styles.arrow} ${styles.previous}`} type="button" aria-label="Produtos anteriores" aria-controls={trackId} disabled={!scrollEdges.previous} onClick={() => scroll(-1)}><FiChevronLeft aria-hidden="true" /></button>
+      <button data-neu="control" className={`${styles.arrow} ${styles.next}`} type="button" aria-label="Próximos produtos" aria-controls={trackId} disabled={!scrollEdges.next} onClick={() => scroll(1)}><FiChevronRight aria-hidden="true" /></button>
+    </> : null}
     </div>
   </section>;
 }

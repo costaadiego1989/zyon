@@ -462,13 +462,13 @@ function fallbackReply(
     if (normalizedNext.includes("numero")) {
       return {
         objection,
-        message: `Ja achei o endereco pelo CEP. Qual o numero do imovel?`
+        message: `Já achei o endereço pelo CEP. Qual o número do imóvel?`
       };
     }
     if (normalizedNext.includes("complemento")) {
       return {
         objection,
-        message: `Numero anotado. Tem complemento, como apto, bloco ou casa? Se nao tiver, responda "Nao tem".`
+        message: `Número anotado. Tem complemento, como apto, bloco ou casa? Se não tiver, responda "Não tem".`
       };
     }
     if (next === "frete") {
@@ -491,12 +491,6 @@ function fallbackReply(
         message: `Localizei o endereço pelo CEP:${addrLine} Está correto? (Sim/Não)`
       };
     }
-    if (next.includes("número") || next.includes("complemento")) {
-      return {
-        objection,
-        message: `Já achei o endereço pelo CEP. Qual o número e complemento (apto/bloco, se houver)?`
-      };
-    }
     if (next.includes("confirmar")) {
       return {
         objection,
@@ -511,7 +505,7 @@ function fallbackReply(
   if (stage === "payment") {
     return {
       objection,
-      message: `Vamos finalizar seu pedido. Prefere pagar com PIX, cartão de crédito ou Crypto?`
+      message: "Vamos finalizar seu pedido. Escolha uma das formas de pagamento disponíveis."
     };
   }
 
@@ -693,7 +687,7 @@ function stageMessageForField(
       ) {
         return "E-mail confirmado! Qual seu nome completo para a nota fiscal?";
       }
-      return `Olá! Sou ${agentName ?? "o assistente"}${greetingTail}. Antes de continuar, posso saber seu nome completo?`;
+      return "Qual é seu nome completo para este pedido?";
     case "email":
       return "Perfeito. Qual o seu melhor email para o pedido?";
     case "código de verificação":
@@ -701,7 +695,7 @@ function stageMessageForField(
     case "CPF":
       return "Obrigado. Pode me informar o CPF para emitir a nota?";
     case "telefone":
-      return "Qual é seu celular com DDD para contato sobre o pedido? Seu acesso é confirmado por e-mail.";
+      return "Qual é seu celular com DDD para contato sobre o pedido? Para confirmar seu acesso, enviaremos um código por e-mail.";
     case "código de verificação do celular":
       return "Enviei um SMS de confirmação para o seu celular. Pode me informar o código recebido?";
     case "CEP":

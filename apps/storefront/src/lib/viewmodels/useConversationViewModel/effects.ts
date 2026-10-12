@@ -15,7 +15,7 @@ export function useNudgeTriggers(
   useEffect(() => {
     const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
     const cfg = {
-      idleSeconds: 30,
+      idleSeconds: 300,
       apiBaseUrl: API_BASE,
       merchantId,
       get sessionId() {

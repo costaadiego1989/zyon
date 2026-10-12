@@ -5,6 +5,7 @@ import { STRATEGY_LESSON_REPOSITORY_PORT, type StrategyLessonRepositoryPort } fr
 import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
 import { StrategyLessonEntity } from "../../domain/entities/strategy-lesson.entity.js";
 import type { PrismaClient } from "@prisma/client";
+import { requiresWeeklyReview } from "../../../experiments/application/weekly-experiment-governance.js";
 
 export interface RecordStrategyLessonInput {
   merchant_id: string;
@@ -30,6 +31,11 @@ export class RecordStrategyLessonUseCase {
   ) {}
 
   async execute(input: RecordStrategyLessonInput): Promise<RecordStrategyLessonOutput> {
+    if (await requiresWeeklyReview(this.prisma, input.merchant_id)) {
+      // Legacy result rows do not establish a complete assignment population or
+      // a preregistered analysis. Never teach the weekly planner an invented win.
+      throw new Error("EXPERIMENT_REVIEW_PLAN_REQUIRED");
+    }
     // Fetch the completed experiment + results
     const experiment = await this.prisma.promptExperiment.findFirstOrThrow({
       where: { id: input.experiment_id, merchantId: input.merchant_id },

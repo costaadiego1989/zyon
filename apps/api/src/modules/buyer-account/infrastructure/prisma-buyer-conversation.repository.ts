@@ -18,19 +18,19 @@ type ConversationRow = {
 export class PrismaBuyerConversationRepository implements BuyerConversationRepository {
   constructor(private readonly prisma: PrismaClient) {}
 
-  async listByBuyer(globalUserId: string, options?: { maxAgeDays?: number }): Promise<BuyerConversation[]> {
+  async listByBuyer(globalUserId: string, options?: { maxAgeDays?: number; merchantId?: string }): Promise<BuyerConversation[]> {
     const maxAge = options?.maxAgeDays ?? 30;
     const cutoff = new Date(Date.now() - maxAge * 24 * 3600_000);
     const rows = await (this.prisma.buyerConversation as unknown as {
       findMany: (args: {
-        where: { globalUserId: string; lastMessageAt?: { gte: Date } };
+        where: { globalUserId: string; merchantId?: string; lastMessageAt?: { gte: Date } };
         orderBy: Record<string, "desc">;
       }) => Promise<ConversationRow[]>;
     }).findMany({
-      where: { globalUserId, lastMessageAt: { gte: cutoff } },
+      where: { globalUserId, ...(options?.merchantId ? { merchantId: options.merchantId } : {}), lastMessageAt: { gte: cutoff } },
       orderBy: { lastMessageAt: "desc" },
     });
-    return rows.map(toDomain);
+    return this.withDisplayState(rows);
   }
 
   async listByBuyerSince(globalUserId: string, since: Date): Promise<BuyerConversation[]> {
@@ -50,7 +50,29 @@ export class PrismaBuyerConversationRepository implements BuyerConversationRepos
     const row = await (this.prisma.buyerConversation as unknown as {
       findFirst: (args: { where: { id: string; globalUserId: string } }) => Promise<ConversationRow | null>;
     }).findFirst({ where: { id, globalUserId } });
-    return row ? toDomain(row) : null;
+    return row ? (await this.withDisplayState([row]))[0] : null;
+  }
+
+  /** Display evidence is read only, scoped to the already-owned history rows. */
+  private async withDisplayState(rows: ConversationRow[]): Promise<BuyerConversation[]> {
+    if (!rows.length) return [];
+    const [merchants, carts, checkouts] = await Promise.all([
+      this.prisma.merchant.findMany({ where: { id: { in: [...new Set(rows.map((row) => row.merchantId))] } }, select: { id: true, name: true } }),
+      this.prisma.storefrontCart.findMany({ where: { OR: rows.map((row) => ({ merchantId: row.merchantId, sessionId: row.sessionId })) }, select: { merchantId: true, sessionId: true, expiresAt: true } }),
+      this.prisma.checkoutSession.findMany({
+        where: { OR: rows.map((row) => ({ merchantId: row.merchantId, globalUserId: row.globalUserId, OR: [{ sessionId: row.sessionId }, { conversationId: row.sessionId }] })) },
+        select: { merchantId: true, globalUserId: true, sessionId: true, conversationId: true, completedOrders: { select: { id: true }, take: 1 } },
+      }),
+    ]);
+    const names = new Map(merchants.map((merchant) => [merchant.id, merchant.name]));
+    const now = Date.now();
+    return rows.map((row) => {
+      const completed = checkouts.some((session) => session.merchantId === row.merchantId && session.globalUserId === row.globalUserId
+        && (session.sessionId === row.sessionId || session.conversationId === row.sessionId) && session.completedOrders.length > 0);
+      const cart = carts.find((item) => item.merchantId === row.merchantId && item.sessionId === row.sessionId);
+      return { ...toDomain(row), merchantName: names.get(row.merchantId),
+        status: completed ? "completed" : cart ? (cart.expiresAt.getTime() > now ? "in_progress" : "expired") : "history" };
+    });
   }
 
   async findBySession(merchantId: string, sessionId: string): Promise<BuyerConversation | null> {

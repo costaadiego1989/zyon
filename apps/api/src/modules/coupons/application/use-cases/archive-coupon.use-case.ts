@@ -17,6 +17,9 @@ export class ArchiveCouponUseCase {
   async execute(input: { id: string; merchant_id: string }) {
     const coupon = await this.repo.findById(input.id, input.merchant_id);
     if (!coupon) throw new NotFoundException("coupon_not_found");
+    if (coupon.snapshot().strategy_incentive_execution_id) {
+      throw new ConflictException("COUPON_MANAGED_BY_STRATEGY");
+    }
 
     const archived = coupon.archive();
     await this.repo.save(archived);

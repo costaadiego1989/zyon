@@ -9,6 +9,7 @@ export type PaymentCreation = {
   leaseUntil?: string;
   firstAttemptAt?: string;
   reason?: string;
+  cancellation?: import("./pending-payment-cancellation.js").PaymentCancellation;
 };
 
 const FORBIDDEN_PAYMENT_INPUT_KEYS = ["unsafeRawCardPan", "cvv", "cardNumber", "rawPan", "pan"] as const;
@@ -69,6 +70,7 @@ export type PaymentIntentSnapshot = {
     encodedQrImage?: string;
     clientSecret?: string;
     stripePublishableKey?: string;
+    stripeAccountId?: string;
     chainId?: number;
     chain?: string;
     evmNetwork?: string;
@@ -148,6 +150,14 @@ export class PaymentIntentEntity {
 
   persisted(version: number): void { this.s.version = version; }
 
+  recordCancellation(value: import("./pending-payment-cancellation.js").PaymentCancellation): void {
+    if (!this.s.creation || value.providerPaymentId !== this.s.providerPaymentId) throw new Error("payment_cancellation_identity_invalid");
+    const previous = this.s.creation.cancellation;
+    if (previous && (["operationId", "buyerId", "idempotencyKey", "providerPaymentId", "startedAt"] as const).some(key => previous[key] !== value[key]) ||
+        previous?.mutationAttemptedAt && previous.mutationAttemptedAt !== value.mutationAttemptedAt) throw new Error("payment_cancellation_identity_invalid");
+    this.s.creation = { ...this.s.creation, cancellation: structuredClone(value) };
+  }
+
   prepareCreation(input: CreateProviderPaymentInput): void {
     if (this.s.creation || this.s.providerPaymentId || input.creditCard || input.creditCardHolderInfo || input.remoteIp) throw new Error("payment_creation_input_invalid");
     if (input.intentId !== this.s.id || input.amountCents !== this.s.amountCents || input.merchantId !== this.s.merchantId || input.sessionId !== this.s.sessionId || input.currency !== this.s.currency) throw new Error("payment_creation_input_invalid");
@@ -171,6 +181,12 @@ export class PaymentIntentEntity {
   completeCreation(token: string): void {
     if (this.s.creation?.leaseToken !== token) throw new Error("payment_creation_lease_lost");
     this.s.creation = { ...this.s.creation, state: "complete", leaseToken: undefined, leaseUntil: undefined, reason: undefined };
+  }
+
+  rejectCreation(token: string, reason: string): void {
+    if (this.s.creation?.leaseToken !== token || this.s.providerPaymentId || this.s.status !== "pending") throw new Error("payment_creation_lease_lost");
+    this.markFailed(reason);
+    this.s.creation = { ...this.s.creation, state: "complete", leaseToken: undefined, leaseUntil: undefined, reason };
   }
 
   get status(): PaymentIntentStatus {
@@ -209,6 +225,7 @@ export class PaymentIntentEntity {
       throw new Error("illegal_transition");
     }
     this.s.status = "cancelled";
+    this.s.buyerFacing = undefined;
     this.pushStatus("cancelled", reason);
   }
 
@@ -275,4 +292,6 @@ export class PaymentIntentEntity {
       { status, occurredAt: new Date().toISOString(), ...(reason ? { reason } : {}) }
     ];
   }
+
+
 }

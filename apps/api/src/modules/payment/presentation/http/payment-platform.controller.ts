@@ -89,6 +89,10 @@ class SubscribeToPlanHttpDto {
 }
 class ChangePlanHttpDto {
   @IsIn(["starter", "growth", "scale"]) targetPlan!: "starter" | "growth" | "scale";
+
+  @IsOptional()
+  @IsIn(["monthly", "annual"])
+  billingCycle?: "monthly" | "annual";
 }
 class CancelSubscriptionHttpDto {
   @IsOptional() @IsBoolean() immediate?: boolean;
@@ -482,7 +486,11 @@ export class BillingController {
   @Idempotent()
   async changePlanRoute(@Req() request: unknown, @Body() body: ChangePlanHttpDto) {
     const merchantId = humanPrincipal(request).tenantId;
-    await this.changePlan.execute({ merchantId, targetPlanKey: body.targetPlan });
+    await this.changePlan.execute({
+      merchantId,
+      targetPlanKey: body.targetPlan,
+      billingCycle: body.billingCycle,
+    });
     return toBillingResponse(await this.getSubscription.execute(merchantId));
   }
 
@@ -647,7 +655,7 @@ function checkoutMethodsFor(connection: PaymentConnectionSnapshot): Array<"pix" 
   }
 }
 
-function toBillingResponse(subscription: BillingSubscriptionWithPlanSnapshot) {
+export function toBillingResponse(subscription: BillingSubscriptionWithPlanSnapshot) {
   return {
     plan: subscription.plan,
     plan_name: subscription.planName,
@@ -664,8 +672,11 @@ function toBillingResponse(subscription: BillingSubscriptionWithPlanSnapshot) {
     trial_ends_at: subscription.trialEndsAt ?? null,
     current_period_end: subscription.currentPeriodEnd ?? null,
     cancel_at_period_end: subscription.cancelAtPeriodEnd,
-    has_billing_customer: Boolean(subscription.stripeCustomerId),
-    has_subscription: Boolean(subscription.stripeSubscriptionId),
+    // Both billing providers use the same dashboard journey for plan changes.
+    // Reporting only Stripe identifiers here made an active Asaas subscription
+    // look like it did not exist, so the dashboard blocked every plan change.
+    has_billing_customer: Boolean(subscription.stripeCustomerId || subscription.asaasCustomerId),
+    has_subscription: Boolean(subscription.stripeSubscriptionId || subscription.asaasSubscriptionId),
     usage: subscription.usage ? {
       period_start: subscription.usage.periodStart,
       orders_current: subscription.usage.ordersPerMonth,

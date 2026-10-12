@@ -3,7 +3,11 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useCart } from "@/lib/cart-store";
-import { conversationAccessHeaders } from "@/lib/conversation-access";
+import {
+  conversationAccessHeaders,
+  conversationAccessMatchesCurrentOrigin,
+  forgetConversationAccess,
+} from "@/lib/conversation-access";
 import { canFireTrigger, recordTriggerFired, noteActivity } from "@/lib/intervention-tracker";
 import { trackConversationStart } from "@/lib/analytics";
 import { useNudgeTriggers, useProactiveMode, useReturnOrderTracking } from "./effects";
@@ -23,8 +27,6 @@ import {
   handleUpdateQuantity,
   handleFireNudge,
   initConversation as runInitConversation,
-  startVoiceRecognition,
-  stopVoiceRecognition,
 } from "@/lib/handlers/conversation.handlers";
 import { useCheckoutExperiment } from "@/lib/useCheckoutExperiment";
 import type {
@@ -36,6 +38,9 @@ import type {
   Theme,
   Mode,
   CrossSellInterstitialData,
+  ConversationAttachment,
+  ProductCrossSellPlacement,
+  CommerceTurnResult,
 } from "./types";
 
 export const SHARED_THEME_KEY = "zyon-theme";
@@ -45,7 +50,7 @@ export const CONVERSATION_STATE_KEY = (merchantId: string) => `zyon_conversation
 export function useConversationViewModel(
   props: ConversationViewModelProps,
 ): ConversationViewModelState & ConversationViewModelActions {
-  const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId, themeMode, agentMode, agentInitialDelaySeconds } = props;
+  const { storeName, merchantId, merchantSlug, agentName, agentGreeting, quickReplies, returnOrderId, themeMode, merchantTheme, agentMode, agentInitialDelaySeconds } = props;
   const agent = agentName || "Assistente";
   const [mode, setMode] = useState<Mode>("intro");
   const [channel, setChannel] = useState<Channel | null>(null);
@@ -58,7 +63,6 @@ export function useConversationViewModel(
   const [messages, setMessages] = useState<Message[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [listening, setListening] = useState(false);
   const [conversationId, setConversationIdState] = useState<string | null>(null);
   const conversationIdRef = useRef<string | null>(null);
   const initializationRef = useRef<Promise<void> | null>(null);
@@ -76,10 +80,11 @@ export function useConversationViewModel(
   const [checkoutIntent, setCheckoutIntent] = useState<string | null>(null);
   const [policyModal, setPolicyModal] = useState<{ title: string; content: string } | null>(null);
   const [crossSellPending, setCrossSellPending] = useState<CrossSellInterstitialData | null>(null);
+  const [productCrossSell, setProductCrossSell] = useState<ProductCrossSellPlacement | null>(null);
   const [preparedCheckout, setPreparedCheckout] = useState<ConversationViewModelState["preparedCheckout"]>(null);
   const dismissCrossSell = useCallback(() => setCrossSellPending(null), []);
+  const dismissProductCrossSell = useCallback(() => setProductCrossSell(null), []);
   const clearPreparedCheckout = useCallback(() => setPreparedCheckout(null), []);
-  const recognitionRef = useRef<any>(null);
   const { config: widgetConfig } = useWidgetConfig();
   const { cart, updateFromBlocks, updateItemQuantity, clearCart } = useCart();
   const experimentVM = useCheckoutExperiment();
@@ -100,8 +105,8 @@ export function useConversationViewModel(
   }, [merchantId, conversationId, agent, storeName, cart.cartId, experimentVM]);
 
   const applyTheme = useCallback((t: Theme) => {
-    applyThemeToDOM(t);
-  }, []);
+    applyThemeToDOM(t, merchantTheme);
+  }, [merchantTheme]);
 
   const toggleTheme = useCallback(() => {
     const next: Theme = theme === "dark" ? "light" : "dark";
@@ -114,7 +119,9 @@ export function useConversationViewModel(
     (ch: Channel) => {
       setChannel(ch);
       setMode("chat");
-      saveChannelPreference(ch);
+      // Voice is opt-in for the current page only. Do not restore it after
+      // a reload, which could make the storefront appear voice-active.
+      saveChannelPreference(ch === "voice" ? "chat" : ch);
       initConversation();
 
       const expGreeting = experimentVM.getExperimentGreeting();
@@ -135,29 +142,33 @@ export function useConversationViewModel(
   const toggleChannel = useCallback(() => {
     const next: Channel = channel === "voice" ? "chat" : "voice";
     setChannel(next);
-    saveChannelPreference(next);
-    if (next === "voice") startListening();
-    else stopListening();
+    saveChannelPreference(next === "voice" ? "chat" : next);
   }, [channel]);
 
-  function startListening() {
-    startVoiceRecognition({ recognitionRef, setListening, sendMessage });
-  }
+  const returnToCurrentConversation = useCallback(() => {
+    // Resume the existing thread; selectChannel starts a fresh welcome message.
+    setMode("chat");
+    setChannel("chat");
+    setBuyerHubOpen(false);
+    saveChannelPreference("chat");
+  }, []);
 
-  function stopListening() {
-    stopVoiceRecognition(recognitionRef, setListening);
-  }
+  const ensureConversation = useCallback(async (): Promise<string | null> => {
+    await initConversation();
+    return conversationIdRef.current;
+  }, [initConversation]);
 
   const sendMessage = useCallback(
-    async (text: string) => {
+    async (text: string, attachment?: ConversationAttachment): Promise<CommerceTurnResult | null> => {
       const trimmed = text.trim();
-      if (!trimmed || sendingRef.current) return;
+      if ((!trimmed && !attachment) || sendingRef.current) return null;
       sendingRef.current = true;
       try {
         await initConversation();
         const variantId = experimentVM.getTrackingVariantId() || undefined;
-        await handleSendMessage({
+        return await handleSendMessage({
           trimmed,
+          attachment,
           conversationId: conversationIdRef.current,
           setConversationId,
           clearCart,
@@ -170,6 +181,7 @@ export function useConversationViewModel(
           setIsLoading,
           setInput,
           setCrossSellPending,
+          setProductCrossSell,
           updateFromBlocks,
           noteActivity,
           onCheckoutPrepared: setPreparedCheckout,
@@ -182,6 +194,7 @@ export function useConversationViewModel(
   const handleQuickReplyAction = useCallback(
     (option: string) => {
       handleQuickReply({
+        budgetModeEnabled: props.budgetModeEnabled || widgetConfig?.budgetModeEnabled,
         option,
         cartItemCount: cart.itemCount,
         merchantId: merchantId || null,
@@ -192,7 +205,7 @@ export function useConversationViewModel(
         setShowBuyerAuth,
       });
     },
-    [cart.itemCount, merchantId, conversationId, sendMessage],
+    [cart.itemCount, merchantId, conversationId, sendMessage, props.budgetModeEnabled, widgetConfig?.budgetModeEnabled],
   );
 
   const appendAgentMessage = useCallback((message: Pick<Message, "text" | "blocks">) => {
@@ -219,7 +232,7 @@ export function useConversationViewModel(
     if (!merchantId) return;
     const persisted = messages.filter((m) => !m.ephemeral);
     if (persisted.length === 0) return;
-    saveConversationState(merchantId, CONVERSATION_STATE_KEY, { conversationId, messages: persisted, mode, channel });
+    saveConversationState(merchantId, CONVERSATION_STATE_KEY, { conversationId, messages: persisted, mode, channel: channel === "voice" ? "chat" : channel });
   }, [merchantId, conversationId, messages, mode, channel]);
 
   const restoredRef = useRef(false);
@@ -229,21 +242,38 @@ export function useConversationViewModel(
       applyTheme(theme);
       const restored = restoreConversation(merchantId, CONVERSATION_STATE_KEY);
       if (restored && restored.messages.length > 0) {
-        setMessages(restored.messages);
-        if (restored.conversationId) setConversationId(restored.conversationId);
-        if (restored.mode) setMode(restored.mode);
-        if (restored.channel) setChannel(restored.channel);
-        restoredRef.current = true;
-        return;
+        const conversationCanBeRestored = !restored.conversationId
+          || conversationAccessMatchesCurrentOrigin(restored.conversationId);
+        if (conversationCanBeRestored) {
+          setMessages(restored.messages);
+          if (restored.conversationId) setConversationId(restored.conversationId);
+          if (restored.mode) setMode(restored.mode);
+          if (restored.channel) setChannel(restored.channel === "voice" ? "chat" : restored.channel);
+          restoredRef.current = true;
+          return;
+        }
+
+        forgetConversationAccess(restored.conversationId!);
+        sessionStorage.removeItem(CONVERSATION_STATE_KEY(merchantId!));
+        sessionStorage.removeItem(`zyon-cart-id:${merchantId}`);
+        sessionStorage.removeItem("zyon_conversation_id");
+        clearCart();
       }
       // Chat history may expire before the cart. Keep their identity aligned;
       // the API will verify/renew the stored proof before either is accessed.
       const savedCartId = merchantId ? sessionStorage.getItem(`zyon-cart-id:${merchantId}`) : null;
       if (savedCartId && conversationAccessHeaders(savedCartId).Authorization) {
-        setConversationId(savedCartId);
+        if (conversationAccessMatchesCurrentOrigin(savedCartId)) {
+          setConversationId(savedCartId);
+        } else {
+          forgetConversationAccess(savedCartId);
+          sessionStorage.removeItem(`zyon-cart-id:${merchantId}`);
+          sessionStorage.removeItem("zyon_conversation_id");
+          clearCart();
+        }
       }
-      if (savedChannel === "chat" || savedChannel === "voice") {
-        setChannel(savedChannel);
+      if (savedChannel === "chat") {
+        setChannel("chat");
         setMode("chat");
       }
     } catch {}
@@ -300,7 +330,6 @@ export function useConversationViewModel(
     messages,
     input,
     isLoading,
-    listening,
     conversationId,
     supportOpen,
     buyerHubOpen,
@@ -310,12 +339,16 @@ export function useConversationViewModel(
     setCheckoutIntent,
     policyModal,
     crossSellPending,
+    productCrossSell,
     preparedCheckout,
     dismissCrossSell,
+    dismissProductCrossSell,
     clearPreparedCheckout,
     selectChannel,
+    returnToCurrentConversation,
     toggleChannel,
     toggleTheme,
+    ensureConversation,
     sendMessage,
     handleQuickReply: handleQuickReplyAction,
     appendAgentMessage,
@@ -326,7 +359,5 @@ export function useConversationViewModel(
     setShowBuyerAuth,
     setPolicyModal,
     setCartDrawerForceOpen,
-    startListening,
-    stopListening,
   };
 }

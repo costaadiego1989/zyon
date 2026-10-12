@@ -1,4 +1,4 @@
-import { Injectable, Optional, Inject } from "@nestjs/common";
+import { ConflictException, Injectable, Optional, Inject } from "@nestjs/common";
 import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import { assertSamePaymentIdentity, PaymentIntentConflictError } from "../domain/payment-persistence.js";
@@ -47,6 +47,21 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     readonly settlementLedger = new InMemoryPaymentSettlementLedgerRepository(),
   ) {}
 
+  async hasCommittedPaymentForSession(merchantId: string, sessionId: string): Promise<boolean> {
+    return Array.from(this.byIntentId.values()).some(intent => {
+      const snapshot = intent.snapshot();
+      return snapshot.merchantId === merchantId && snapshot.sessionId === sessionId &&
+        snapshot.status !== "failed" && snapshot.status !== "cancelled";
+    });
+  }
+
+  async listForSession(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]> {
+    return Array.from(this.byIntentId.values()).filter(entity => {
+      const row = entity.snapshot();
+      return row.merchantId === merchantId && row.sessionId === sessionId;
+    }).map(entity => PaymentIntentEntity.rehydrate(entity.snapshot()));
+  }
+
   async saveIntentWithOutbox(input: SavePaymentIntentInput, event: DomainEventEnvelope): Promise<void> {
     await this.saveIntent(input);
     if (this.outbox) {
@@ -71,6 +86,16 @@ export class InMemoryPaymentRepository implements PaymentRepository {
     const snap = input.intent.snapshot();
     const ik = keyIdempotency(snap.merchantId, snap.sessionId, snap.idempotencyKey);
     const current = this.byIdempotency.get(ik)?.snapshot();
+    const firstSend = current?.creation?.state === "ready" && !current.creation.firstAttemptAt && snap.creation?.state === "in_flight" && !current.providerPaymentId;
+    const active = [...this.byIntentId.values()].map(row => row.snapshot()).filter(row => row.merchantId === snap.merchantId && row.sessionId === snap.sessionId && ["pending", "requires_action"].includes(row.status));
+    if ((!current || firstSend) && active.some(row => ["in_flight", "uncertain"].includes(row.creation?.cancellation?.state ?? ""))) throw new ConflictException("payment_cancellation_pending");
+    if (snap.creation?.cancellation && !current?.creation?.cancellation && active.some(row => row.id !== snap.id && !row.providerPaymentId && ["in_flight", "uncertain"].includes(row.creation?.state ?? ""))) throw new ConflictException("payment_creation_in_progress");
+
+    if (!current && Array.from(this.byIntentId.values()).some(intent => {
+      const row = intent.snapshot();
+      return row.merchantId === snap.merchantId && row.sessionId === snap.sessionId
+        && !["failed", "cancelled"].includes(row.status);
+    })) throw new PaymentIntentConflictError();
     if (current) {
       if (current.id !== snap.id || (current.version ?? 0) !== (snap.version ?? 0)) throw new PaymentIntentConflictError();
       assertSamePaymentIdentity(current, snap);
@@ -205,6 +230,13 @@ export class InMemoryPaymentRepository implements PaymentRepository {
       if (snap.merchantId !== merchantId) return false;
       if (statusPrefix && !snap.status.startsWith(statusPrefix)) return false;
       return true;
+    }).map(entity => PaymentIntentEntity.rehydrate(entity.snapshot()));
+  }
+
+async listBySessionId(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]> {
+    return [...this.byIntentId.values()].filter(entity => {
+      const row = entity.snapshot();
+      return row.merchantId === merchantId.trim() && row.sessionId === sessionId.trim();
     }).map(entity => PaymentIntentEntity.rehydrate(entity.snapshot()));
   }
 }

@@ -104,7 +104,7 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     "- NUNCA diga 'não encontrei' sem antes ter tentado pelo menos 3 buscas com termos diferentes.",
     "- Quando pedirem 'Calcular frete': use quote_shipping com o CEP informado. Se não tem CEP, peça o CEP ao cliente — NÃO peça pra adicionar ao carrinho primeiro.",
     "- Quando pedirem 'Ver variações': use get_product_details e responda 'Aqui estão as variações disponíveis:' (UI mostra selector).",
-    "- Quando pedirem 'Comparar': use compare_products com o produto + similares da mesma categoria. Responda 'Comparação:' (UI mostra tabela).",
+    "- Quando pedirem 'Comparar': se houver um produto atual, use compare_products com productId para trazer similares da mesma categoria. Para dois ou mais produtos nomeados, passe productNames com os nomes exatos. Nunca escolha uma correspondência aproximada sem confirmação. Responda 'Comparação:' (UI mostra tabela).",
     "- Quando pedirem 'Calcular frete': peça o CEP. Quando o cliente enviar o CEP, use search_products com o nome do produto para obter o ID, depois chame quote_shipping com productId e zipCode. NUNCA diga que precisa adicionar ao carrinho.",
     "- Quando pedirem 'Ver avaliações': responda com avaliações se houver, senão diga que ainda não há avaliações.",
     "- Quando pedirem 'Tirar dúvida': NÃO despeje todas as informações. Apenas diga 'Claro, pode perguntar!' e ESPERE a próxima mensagem do cliente pra responder objetivamente.",
@@ -122,6 +122,7 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     "- 'Ver produtos de [Categoria]' → use search_products com categoryId da categoria mencionada. NÃO liste categorias novamente.",
     "- 'Prazo de Entrega' → peça o CEP ao cliente. Depois use quote_shipping.",
     "- 'Trocas e Devoluções' → use get_store_policies com policyType 'returns'. Responda com a política da loja.",
+    "- Antes de informar regras de privacidade, termos, trocas, devoluções, envio ou garantia, consulte get_store_policies. O resultado atual prevalece sobre histórico e trechos antigos da base. Se configured=false, informe que a política não está publicada e encaminhe ao atendimento, preservando direitos legais. Se houver apenas URL, forneça o link sem inventar seu conteúdo.",
     "- 'Rastrear Pedido' → Peça o número/ID do pedido ao cliente. Depois use track_order.",
     "- 'Meus Dados' → use get_buyer_profile. Responda com as informações disponíveis.",
     "- 'Ofertas' ou 'Promoções' → use get_daily_deals. Responda 'Aqui estão nossas ofertas:'.",
@@ -193,5 +194,8 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     ? `\n\nONEBUYCLICK ATIVO, ESTAS REGRAS SOBRESCREVEM QUALQUER INSTRUCAO ANTERIOR DE CARRINHO:\n- So altere o carrinho com um pedido explicito de adicionar ou comprar. Perguntas, comparacoes, negacoes e mencoes isoladas a quero nao autorizam uma compra.\n- Resolva o produto exato. Nunca escolha o primeiro resultado da busca.\n- Se houver mais de uma variacao vendavel ou opcao obrigatoria pendente, pergunte somente a escolha que falta. Nunca escolha a primeira variante. Use exatamente o variantId retornado pela interface.\n- Depois de produto, variante, opcoes obrigatorias e estoque validados, adicione uma unica vez e chame create_checkout_session.\n- Frete preferido: ${oneBuyClick.shippingPreference === "cheapest" ? "mais economico" : "mais rapido"}. Pagamento preferido: ${oneBuyClick.paymentPreference === "card" ? "cartao" : "Pix"}. O checkout confirma a escolha final.\n- Nunca confirme pagamento, desconto ou frete sem o resultado deterministico da API.`
     : `\n\nREGRAS ATUAIS DE CARRINHO, ESTAS REGRAS SOBRESCREVEM QUALQUER INSTRUCAO ANTERIOR CONTRARIA:\n- Adicione apenas diante de um pedido explicito de adicionar ou comprar.\n- Resolva um produto exato e nunca escolha o primeiro resultado da busca ou a primeira variacao.\n- Se houver mais de uma variacao vendavel, solicite a escolha antes de alterar o carrinho.\n- Use create_checkout_session apenas quando o cliente pedir para finalizar um carrinho valido.`;
 
-  return base + knowledgeNote + buyerIdentityNote + purchaseModeNote;
+  const budgetNote = storeSettings?.budget?.enabled === true
+    ? "\n\nMODO ORÇAMENTO ATIVO: esta regra prevalece sobre instruções de pagamento e OneBuyClick. Ajude a selecionar os itens e, ao finalizar, use create_checkout_session para oferecer Solicitar orçamento. O comprador informa nome, email e telefone no formulário do carrinho. Não solicite dados de cartão, não prometa cobrança nem pedido pago. Só confirme o envio após o registro da solicitação."
+    : "";
+  return base + knowledgeNote + buyerIdentityNote + purchaseModeNote + budgetNote;
 }

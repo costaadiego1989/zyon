@@ -1,4 +1,5 @@
-import { Injectable } from "@nestjs/common";
+import type { MarketplaceFinancialRepository } from "../../domain/ports/marketplace-financial-repository.port.js";
+import { ConflictException, Injectable } from "@nestjs/common";
 import { CROSS_STORE_ORDER_REPOSITORY } from "../../domain/ports/cross-store-order-repository.port.js";
 import type { CrossStoreOrderRepository } from "../../domain/ports/cross-store-order-repository.port.js";
 import { MARKETPLACE_SETTLEMENT_REPOSITORY } from "../../domain/ports/marketplace-settlement-repository.port.js";
@@ -12,6 +13,7 @@ export interface PlaceCrossStoreOrderInput {
   checkoutSessionId: string;
   orderId: string;
   hostMerchantId: string;
+  purchasedAt?: Date;
 }
 
 export interface PlaceCrossStoreOrderOutput {
@@ -25,57 +27,13 @@ export class PlaceCrossStoreOrderUseCase {
     private readonly settlementRepository: MarketplaceSettlementRepository,
     private readonly configRepository: MarketplaceConfigRepository,
     private readonly stateMachine: SettlementStateMachineService,
+    private readonly financialRepository?: MarketplaceFinancialRepository,
   ) {}
 
   async execute(
     input: PlaceCrossStoreOrderInput,
   ): Promise<PlaceCrossStoreOrderOutput> {
-    const config = await this.configRepository.get(input.hostMerchantId);
-    if (!config?.enabled) {
-      return { settlements: [] };
-    }
-
-    const lineItems = await this.orderRepository.findByCheckoutSessionId(
-      input.checkoutSessionId,
-    );
-
-    if (lineItems.length === 0) {
-      return { settlements: [] };
-    }
-
-    const orderDate = new Date();
-    const windows = this.stateMachine.calculateWindows(
-      {
-        returnWindowDays: config.returnWindowDays,
-        payoutDelayDays: config.payoutDelayDays,
-        chargebackWindowDays: config.chargebackWindowDays,
-      },
-      orderDate,
-    );
-
-    await Promise.all(
-      lineItems.map((item) =>
-        this.orderRepository.updateOrderId(item.id, input.orderId),
-      ),
-    );
-
-    const settlements = await Promise.all(
-      lineItems.map((item) =>
-        this.settlementRepository.create({
-          hostMerchantId: input.hostMerchantId,
-          sellerMerchantId: item.sellerMerchantId,
-          orderId: input.orderId,
-          lineItemId: item.id,
-          totalAmountCents: item.quantity * item.unitPriceCents,
-          commissionCents: item.commissionCents,
-          sellerNetCents: item.sellerNetCents,
-          returnWindowUntil: windows.returnWindowUntil,
-          transferScheduledAt: windows.transferScheduledAt,
-          chargebackWindowUntil: windows.chargebackWindowUntil,
-        }),
-      ),
-    );
-
-    return { settlements };
+    if (!this.financialRepository) throw new Error("marketplace_financial_repository_required");
+    return { settlements: await this.financialRepository.placeOrder(input) };
   }
 }

@@ -1,3 +1,6 @@
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { assertCartStock } from "../../catalog/application/services/cart-stock-authority.js";
 import {
   BadGatewayException,
   BadRequestException,
@@ -5,13 +8,17 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   Optional
 , Logger} from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { requiresPhysicalDelivery } from "../../checkout/domain/services/cart-fulfillment.js";
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
 import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
+import { isPaymentCreationRejectionCode, PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import type { PaymentAmountBreakdown } from "../domain/payment-amount.js";
+import { paymentReviewFingerprint } from "../domain/payment-amount.js";
 import { PaymentIntentEntity, type PaymentIntentSnapshot, type PaymentMethod } from "../domain/payment-intent.entity.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
 import { OFFER_REPOSITORY, type OfferRepository } from "../../checkout/domain/ports/offer.repository.port.js";
@@ -39,6 +46,10 @@ import { OrderQuotaService } from "./services/order-quota.service.js";
 import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
 import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
 import { resolveCheckoutPaymentCapabilities } from "../domain/checkout-payment-routing.js";
+import { hasMarketplaceCheckout } from "../../checkout/infrastructure/marketplace-checkout-scope.js";
+import { CreateMarketplacePaymentService } from "./create-marketplace-payment.service.js";
+import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
+import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../shared/bookings/service-slot-holds.service.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -46,6 +57,7 @@ export type CreatePaymentIntentRequest = {
   idempotency_key: string;
   method?: PaymentMethod;
   accepted_offer_id?: string;
+  confirmed_cart_fingerprint?: string;
   /**
    * Crypto-only: buyer-selected chain (e.g. "polygon" or "base"). Harmless for
    * non-crypto methods. Threaded into the crypto provider so the buyer-driven
@@ -65,6 +77,17 @@ export type CreatePaymentIntentRequest = {
 export type CreatePaymentIntentResponseBody = Omit<PaymentIntentSnapshot, "creation" | "version">;
 
 function publicPayment(snapshot: PaymentIntentSnapshot): CreatePaymentIntentResponseBody {
+  const rejection = snapshot.creation?.reason;
+  if (snapshot.status === "failed" && isPaymentCreationRejectionCode(rejection)) {
+    throw new ConflictException(rejection);
+  }
+  if (snapshot.status === "pending" && !snapshot.providerPaymentId) {
+    throw new BadGatewayException("payment_creation_uncertain");
+  }
+  if (snapshot.method === "pix" && snapshot.status === "requires_action" &&
+    !snapshot.buyerFacing?.qrCodeCopyPaste?.trim()) {
+    throw new BadGatewayException("payment_creation_uncertain");
+  }
   const { creation: _creation, version: _version, ...publicFields } = snapshot;
   return publicFields;
 }
@@ -116,7 +139,7 @@ function resolveAsaasCustomerForProvider(asaasCustomer: string | undefined): str
 }
 
 function assertCheckoutReadyForPayment(session: CheckoutSession): void {
-  if (session.cart.items.length > 0 && !session.shipping) {
+  if (session.cart.items.length > 0 && requiresPhysicalDelivery(session.cart) && !session.shipping) {
     throw new BadRequestException("shipping_method_required_before_payment");
   }
 }
@@ -132,9 +155,11 @@ function commerceCartRefFrom(session: CheckoutSession): string | undefined {
   return ref || undefined;
 }
 
-function paymentDescription(merchantId: string, sessionId: string, commerceOrderId: string | undefined): string {
-  const base = `${merchantId}:${sessionId}`;
-  return commerceOrderId ? `${base}:commerce_order:${commerceOrderId}` : base;
+function paymentDescription(storeName: string | undefined, session: CheckoutSession): string {
+  const clean = (value: string) => value.replace(/[\u0000-\u001f\u007f]/g, " ").replace(/\s+/g, " ").trim();
+  const store = clean(storeName ?? "") || "Loja";
+  const items = session.cart.items.map(item => `${item.quantity}x ${clean(item.name) || "Produto"}`).join(", ");
+  return `${store} — ${items || "Compra na loja"}`.slice(0, 256);
 }
 
 /**
@@ -253,35 +278,66 @@ export class CreatePaymentIntentUseCase {
     private readonly buyerAccount?: BuyerAccountRepository,
     @Optional() private readonly billingMetering?: BillingPlanMeteringService,
     private readonly orderQuota?: OrderQuotaService,
+    @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Inject(CreateMarketplacePaymentService) private readonly marketplacePayments?: CreateMarketplacePaymentService,
+    @Optional() private readonly benefits?: CheckoutBenefitsService,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
   ) { }
 
-  async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
+  async execute(body: CreatePaymentIntentRequest, context?: { marketplaceSurface: "embed" | "v1" }): Promise<CreatePaymentIntentResponseBody> {
     const merchantId = body.merchant_id.trim();
     const sessionId = body.session_id.trim();
     const idempotencyKey = body.idempotency_key.trim();
     if (!merchantId || !sessionId || !idempotencyKey) throw new BadRequestException("payment_intent_scope_invalid");
+    if (!["pix", "card", "crypto"].includes(body.method ?? "pix")) {
+      throw new BadRequestException("payment_method_not_supported");
+    }
 
     let session = await this.checkout.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+    // Check the persisted scope before either legacy creation or retry. A
+    // stale snapshot can omit line markers or the original storefront cart.
+    if (!this.prisma) throw new ServiceUnavailableException("marketplace_checkout_scope_unavailable");
+    if (await hasMarketplaceCheckout(this.prisma, { merchantId, sessionId, session })) {
+      if (!context || !["embed", "v1"].includes(context.marketplaceSurface)) throw new ServiceUnavailableException("marketplace_checkout_not_ready");
+      if (!this.marketplacePayments) throw new ServiceUnavailableException("marketplace_checkout_not_ready");
+      return this.marketplacePayments.executePublic({ ...body, merchant_id: merchantId, session_id: sessionId, idempotency_key: idempotencyKey });
+    }
     assertCheckoutReadyForPayment(session);
+
+    const sessionAttempts = await this.payments.listForSession?.(merchantId, sessionId) ?? [];
+    if (sessionAttempts.some(row => ["pending", "requires_action"].includes(row.status) &&
+        ["in_flight", "uncertain"].includes(row.snapshot().creation?.cancellation?.state ?? ""))) {
+      throw new ConflictException("payment_cancellation_pending");
+    }
 
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
     if (existing) {
       assertSameRequest(existing.snapshot(), body, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(existing));
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(existing, () => this.assertStock(session!)));
     }
 
     // An existing idempotency key is an admission made before a later block.
     // Only a brand-new provider/payment attempt must pass the commercial gate.
+    if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
+    await assertCartStock(this.prisma, merchantId, session.cart.items);
     await this.orderQuota?.assertCanAcceptNewSales(merchantId);
+    if (sessionSlotRequests(session).length && !this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
+    await this.serviceSlots?.assertBeforePayment(session);
 
     const method: PaymentMethod = body.method ?? "pix";
+    // Interactive and quick-purchase intents share this server guard.
+    // Explicitly accepted offers and price-review confirmations keep their quote.
+    if (this.benefits && !body.accepted_offer_id && !body.confirmed_cart_fingerprint) {
+      session = await this.benefits.prepare(merchantId, sessionId, method);
+      assertCheckoutReadyForPayment(session);
+    }
 
     const acceptedOfferId = await this.validateAcceptedOffer(body, merchantId, sessionId);
     const commerceOrderId = await this.ensurePendingCommerceOrder(merchantId, sessionId, session);
 
     const itemsSubtotalCents = session.cart.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
-    const shippingCents = Math.round((session.shipping?.customerPrice ?? 0) * 100);
+    const shippingCents = requiresPhysicalDelivery(session.cart) ? Math.round((session.shipping?.customerPrice ?? 0) * 100) : 0;
     const discountCents = Math.round((session.cart.currentDiscount ?? 0) * 100);
     const orderAmountCents = itemsSubtotalCents + shippingCents - discountCents;
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
@@ -338,6 +394,7 @@ export class CreatePaymentIntentUseCase {
       throw new BadRequestException("delayed_merchant_payout_provider_not_supported");
     }
     const mercadoPagoPayerEmail = session.customer?.email?.trim();
+    const mercadoPagoPayerCpf = session.customer?.cpf?.replace(/\D/g, "");
     if (usesMercadoPago && !mercadoPagoPayerEmail) {
       throw new BadRequestException("mercadopago_payer_email_required");
     }
@@ -384,6 +441,8 @@ export class CreatePaymentIntentUseCase {
       discountCents,
       shippingCents,
       platformFeeCents: buyerServiceFeeCents, totalCents: amountCents,
+      ...(typeof body.confirmed_cart_fingerprint === "string" && /^[a-f0-9]{64}$/.test(body.confirmed_cart_fingerprint)
+        ? { confirmedCartFingerprint: body.confirmed_cart_fingerprint } : {}),
     };
     let asaasCustomer = resolveAsaasCustomerIdFromSession(session);
     let asaasPayoutDestination: string | undefined;
@@ -495,16 +554,21 @@ export class CreatePaymentIntentUseCase {
       merchantId, sessionId, intentId: intent.id,
       providerIdempotencyKey: deriveProviderIdempotencyKey(merchantId, sessionId, idempotencyKey),
       amountCents, currency: intent.snapshot().currency, method,
-      description: paymentDescription(merchantId, sessionId, commerceOrderId),
+      description: paymentDescription(merchant?.name === merchantId ? undefined : merchant?.name, session),
         ...(isStripeCard ? {
           provider: "stripe" as const,
           stripeConnectAccountId,
+          stripeChargeMode: "direct_v2" as const,
           platformFeeCents: stripeApplicationFeeCents,
         }
         : usesMercadoPago ? {
             provider: "mercadopago" as const,
             platformFeeCents: mercadoPagoPlatformFeeCents,
             payerEmail: mercadoPagoPayerEmail,
+            payerName: session.customer?.fullName?.trim(),
+            ...(mercadoPagoPayerCpf?.length === 11
+              ? { payerIdentification: { type: "CPF" as const, number: mercadoPagoPayerCpf } }
+              : {}),
           }
           : usesAsaas ? {
               provider: "asaas" as const,
@@ -520,7 +584,12 @@ export class CreatePaymentIntentUseCase {
             }
             : { platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) }),
     };
-    if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput);
+    try {
+      if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput);
+    } catch (error) {
+      if (error instanceof PaymentCreationRejectedError) throw new ConflictException(error.code);
+      throw error;
+    }
     intent.prepareCreation(providerInput);
     const settlementPlan = settlementPlanForCreation({
       merchantId,
@@ -532,13 +601,37 @@ export class CreatePaymentIntentUseCase {
     });
     try { await this.payments.saveIntentWithSettlementPlan({ intent, settlementPlan }); }
     catch (error) {
+      if (error instanceof Error && (/^INCENTIVE_PAYMENT_(AUTHORITY_CHANGED|POLICY_CHANGED|MARGIN_CHANGED|CART_CHANGED|REVIEW_REQUIRED)$/.test(error.message)
+        || error.message === "INCENTIVE_PROGRESSIVE_REVIEW_REQUIRED")) {
+        const progressed = error.message === "INCENTIVE_PROGRESSIVE_REVIEW_REQUIRED";
+        const revised = progressed ? await this.checkout.getSession(merchantId, sessionId)
+          : await this.checkout.reviseIncentiveForPaymentReview?.(merchantId, sessionId);
+        if (revised) {
+          const subtotal = Math.round(revised.cart.total * 100), discount = Math.round((revised.cart.currentDiscount ?? 0) * 100);
+          const shipping = requiresPhysicalDelivery(revised.cart) ? Math.round((revised.shipping?.customerPrice ?? 0) * 100) : 0, orderTotal = subtotal - discount + shipping;
+          throw new ConflictException({ code: "checkout_review_required",
+          message: progressed ? "Seu desconto aumentou. Confira o novo total e confirme o pedido novamente antes de pagar."
+            : "O desconto deixou de estar disponível. Confira o novo total e confirme o pedido novamente antes de pagar.",
+          review: { cart: revised.cart, shipping: revised.shipping, currency: revised.cart.currency,
+            order_total_cents: orderTotal, service_fee_cents: buyerServiceFeeCents, total_to_pay_cents: orderTotal + buyerServiceFeeCents,
+            confirmation_fingerprint: paymentReviewFingerprint({ version: 1, currency: revised.cart.currency,
+              cartFingerprint: paymentCartFingerprint(revised), itemsSubtotalCents: subtotal, discountCents: discount,
+              shippingCents: shipping, platformFeeCents: buyerServiceFeeCents, totalCents: orderTotal + buyerServiceFeeCents }) } });
+        }
+        throw new ConflictException({ code: "checkout_review_required", message: "O benefício mudou. Revise o pedido antes de pagar." });
+      }
       if (!(error instanceof PaymentIntentConflictError)) throw error;
       const winner = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
       if (!winner) throw new ConflictException("payment_creation_concurrent_change");
       assertSameRequest(winner.snapshot(), { ...body, method }, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(winner));
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(winner, () => this.assertStock(session)));
     }
-    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(intent));
+    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(intent, () => this.assertStock(session)));
+  }
+
+  private async assertStock(session: CheckoutSession): Promise<void> {
+    if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
+    await assertCartStock(this.prisma, session.merchantId, session.cart.items);
   }
 
   private async validateAcceptedOffer(

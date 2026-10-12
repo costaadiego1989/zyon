@@ -39,7 +39,7 @@ COPY apps/api/ apps/api/
 # Include devDependencies because Nest CLI, TypeScript, and Prisma CLI
 # are build-time requirements.
 # ============================================================
-RUN pnpm install --prod=false
+RUN pnpm install --prod=false --frozen-lockfile
 
 # ============================================================
 # VERIFY PRISMA INSTALL
@@ -94,11 +94,12 @@ RUN pnpm --filter @zyon/decision-engine build
 RUN pnpm --filter @zyon/negotiation-engine build
 RUN pnpm --filter @zyon/rules-engine build
 RUN pnpm --filter @zyon/shipping-engine build
+RUN pnpm --filter @zyon/payments-evm build
 
 # ============================================================
 # API
 # ============================================================
-RUN pnpm --filter @zyon/api build
+RUN cd /repo/apps/api && pnpm exec nest build
 
 # Verify nest build produced output.
 RUN test -f /repo/apps/api/dist/main.js && \
@@ -120,4 +121,4 @@ EXPOSE 3009
 # The generated Prisma client alone does not create schema objects. Run the
 # guarded migration entrypoint inside Railway's private network before the API
 # can accept traffic, then replace the shell so signals reach Node directly.
-CMD ["sh", "-c", "node scripts/predeploy-migrations.mjs && exec node dist/main.js"]
+CMD ["node", "dist/main.js"]

@@ -30,6 +30,7 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnModuleDestroy
   private inFlight = 0;
   private lastErrorAt = 0;
   private lastMetricsAt = 0;
+  private lastCompletedRoundAt = 0;
 
   constructor(
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: LeasedOutboxRepository,
@@ -84,7 +85,9 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnModuleDestroy
     if (this.stopping) return Promise.resolve();
     if (this.active) return this.active;
     if (Date.now() - this.lastErrorAt < ERROR_COOLDOWN_MS) return Promise.resolve();
-    this.active = this.runRound().catch(() => {
+    this.active = this.runRound().then(() => {
+      if (!this.stopping) this.lastCompletedRoundAt = Date.now();
+    }).catch(() => {
       this.lastErrorAt = Date.now();
       this.logger.warn("outbox_dispatch_failed");
     }).finally(() => { this.active = undefined; });
@@ -94,6 +97,8 @@ export class OutboxDispatcher implements OnApplicationBootstrap, OnModuleDestroy
   getStatus(): { inFlight: number; running: boolean; stopping: boolean; abandoned: boolean } {
     return { inFlight: this.inFlight, running: Boolean(this.active), stopping: this.stopping, abandoned: this.abandoning };
   }
+
+  getLastCompletedRoundAt(): number { return this.lastCompletedRoundAt; }
 
   private async runRound(): Promise<void> {
     await this.reportBacklog();

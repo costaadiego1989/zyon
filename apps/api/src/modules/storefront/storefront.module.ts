@@ -32,6 +32,7 @@ import { AddMarketplaceItemToCartStorefrontUseCase } from "./application/use-cas
 import { GetPublicStoreResourcesUseCase } from "./application/use-cases/get-public-store-resources.use-case.js";
 import { TrackStorefrontEventUseCase } from "./application/use-cases/track-storefront-event.use-case.js";
 import { GetStorefrontLiveSessionsUseCase } from "./application/use-cases/get-storefront-live-sessions.use-case.js";
+import { StorefrontAttachmentInterpreter } from "./application/services/storefront-attachment-interpreter.service.js";
 import { StorefrontConversationAdapter, STOREFRONT_CONVERSATION_ADAPTER } from "./infrastructure/adapters/storefront-conversation.adapter.js";
 import { StorefrontConversationGateway } from "./infrastructure/gateways/conversation.gateway.js";
 import { STOREFRONT_CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
@@ -53,6 +54,10 @@ import { RateLimitStore } from "../../shared/rate-limit/rate-limit.store.js";
 import { RedisRateLimitStore } from "../../shared/rate-limit/redis-rate-limit.store.js";
 import { StorefrontConversationRateLimitService } from "./application/services/storefront-conversation-rate-limit.service.js";
 import { OneBuyClickSessionService } from "./application/services/one-buy-click-session.service.js";
+import { OpenAIRealtimeVoiceService } from "../../shared/openai/openai-realtime-voice.service.js";
+import { StorefrontRealtimeVoiceController } from "./presentation/http/storefront-realtime-voice.controller.js";
+import { CampaignConsentModule } from "../campaign-consent/campaign-consent.module.js";
+import { StorefrontConsentController } from "./presentation/http/storefront-consent.controller.js";
 @Module({
   imports: [
     PersistenceModule,
@@ -68,14 +73,16 @@ import { OneBuyClickSessionService } from "./application/services/one-buy-click-
     KnowledgeBaseModule,
     StoriesModule,
     BuyerAccountModule,
+    CampaignConsentModule,
   ],
-  controllers: [StorefrontController, StorefrontProductContentController, StorefrontProductSubmissionController],
+  controllers: [StorefrontController, StorefrontRealtimeVoiceController, StorefrontProductContentController, StorefrontProductSubmissionController, StorefrontConsentController],
   providers: [
     { provide: RateLimitStore, useClass: RedisRateLimitStore },
     StorefrontConversationRateLimitService,
     BillingPlanMeteringService,
     PlanLimitGuard,
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
+    OpenAIRealtimeVoiceService,
     StorefrontConversationAdapter,
     StorefrontConversationGateway,
     {
@@ -116,6 +123,7 @@ import { OneBuyClickSessionService } from "./application/services/one-buy-click-
     BudgetTrackerService,
     AIGatewayService,
     OneBuyClickSessionService,
+    StorefrontAttachmentInterpreter,
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
     GenerateNudgeUseCase,

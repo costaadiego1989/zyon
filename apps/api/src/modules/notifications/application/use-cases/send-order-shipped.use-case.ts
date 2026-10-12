@@ -22,7 +22,8 @@ export class SendOrderShippedUseCase {
       const html = renderOrderShippedTemplate(event);
       await this.emailSender.send({
         to: event.buyerEmail,
-        subject: `📦 Seu pedido está a caminho!`,
+        merchantId: event.merchantId,
+        subject: `Zyon | Pedido #${event.orderId} enviado`,
         html,
         requireDelivery: true,
       });

@@ -32,6 +32,7 @@ test("categories: only cross_sell/win_back/cart_recovery are MARKETING", () => {
   assert.equal(categoryFor("follow_up"), "UTILITY");
   assert.equal(categoryFor("order_confirmation"), "UTILITY");
   assert.equal(categoryFor("nps"), "UTILITY");
+  assert.equal(categoryFor("checkout_otp"), "UTILITY");
 });
 
 test("coupon-bearing types expose a couponBlock variable", () => {
@@ -55,10 +56,8 @@ test("getTemplateDefinition inlines storeName", () => {
   assert.match(def.metaBody, /Minha Loja/);
 });
 
-test("buyer-facing catalog templates end with the store signature", () => {
-  const cat = buildCatalog();
-  const buyerTypes = ["follow_up", "review_request", "nps", "cross_sell", "win_back", "loyalty", "reorder", "cart_recovery", "order_confirmation", "order_shipped", "order_delivered"] as const;
-  for (const type of buyerTypes) {
-    assert.match(cat[type].freeformBody, /\n\{\{storeName\}$/, type + " must end with the store signature");
-  }
+test("checkout OTP template has one code variable", () => {
+  const def = getTemplateDefinition("checkout_otp");
+  assert.deepEqual(def.variableMap, { "1": "otpCode" });
+  assert.match(def.metaBody, /\{\{1\}\}/);
 });

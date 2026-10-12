@@ -10,6 +10,7 @@ export interface BuyerProfile {
 }
 
 export interface BuyerAddress {
+  label?: string | null;
   id: string;
   zip: string;
   street: string;
@@ -39,6 +40,10 @@ export interface BuyerPurchase {
   id: string;
   order_id: string;
   merchant_name: string;
+  /** API confirmation of a physical delivery with a valid tracking code. */
+  has_tracking?: boolean;
+  /** Only the physical items covered by this delivery; never use the full order here. */
+  tracking_items?: PurchaseItem[];
   tracking_code?: string | null;
   tracking_status?: string | null;
   tracking_url?: string | null;
@@ -55,7 +60,7 @@ export interface BuyerPurchase {
 
 export interface ConversationMessage {
   id: string;
-  role: "user" | "agent" | "assistant" | "system";
+  role: "user" | "buyer" | "agent" | "assistant" | "system";
   content: string;
   created_at: string;
   rating?: "up" | "down" | null;
@@ -66,6 +71,8 @@ export interface BuyerConversation {
   session_id: string;
   merchant_id: string;
   started_at: string;
+  merchant_name?: string | null;
+  status?: "in_progress" | "completed" | "expired" | "history";
   last_message_at: string;
   messages: ConversationMessage[];
 }
@@ -80,6 +87,7 @@ export interface BuyerPreferences {
   one_buy_click_enabled: boolean;
   shipping_preference: "fastest" | "cheapest";
   payment_preference: "pix" | "card";
+  purchase_preferences_configured: boolean;
 }
 
 export interface BuyerLoyalty {
@@ -127,32 +135,52 @@ export interface BuyerIntentProfile {
 }
 
 export interface AvailableBenefit {
-  id: string;
-  name: string;
+  ruleId: string;
   description: string;
+  discountPercent?: number;
+  maxReais?: number;
   condition: string;
 }
 
 export interface EarnedBenefit {
-  id: string;
-  name: string;
   description: string;
+  value: number;
   origin: string;
+  expiresAt?: string;
 }
 
 export interface BenefitProgress {
-  id: string;
-  name: string;
   description: string;
-  current_value: number;
-  target_value: number;
-  remaining_value?: number;
+  current: number;
+  target: number;
+  remaining: number;
 }
 
 export interface BuyerBenefits {
   available: AvailableBenefit[];
+  /** Published conditions, without claiming eligibility or granting a benefit. */
+  conditions?: AvailableBenefit[];
   earned: EarnedBenefit[];
   progress: BenefitProgress[];
+  offers?: BuyerPersonalizedOffer[];
+}
+
+/** A benefit already assigned and applied to this buyer's checkout by the API. */
+export interface BuyerPersonalizedOffer {
+  id: string;
+  kind: "percentage" | "fixed" | "shipping" | "progressive";
+  name: string;
+  description: string;
+  currency: "BRL";
+  amountCents: number;
+  maxDiscountCents: number;
+  discountPercent: number;
+  deliveryMode: "automatic" | "coupon_code";
+  couponCode?: string;
+  sessionId: string;
+  expiresAt: string;
+  condition: string;
+  status: "applied";
 }
 
 export interface PurchasePage {

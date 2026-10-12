@@ -1,4 +1,6 @@
 import type { ChatStage, CheckoutSession, CustomerAddress } from "@zyon/shared-types";
+import { requiresPhysicalDelivery } from "./cart-fulfillment.js";
+import { pendingCustomerCorrection, correctionLabels } from "./customer-correction-prompts.js";
 
 const EMAIL_RE = /[A-Za-z0-9._%+-]+@[A-Za-z0-9-]+(?:\.[A-Za-z0-9-]+)+/;
 const NAME_QUESTION_RE = /\b(nome\s*completo|seu\s+nome|posso\s+te\s+chamar|como\s+(?:te\s+chamar|posso\s+te\s+chamar)|chamo|qual\s+(?:o\s+)?seu\s+nome)\b/i;
@@ -155,10 +157,11 @@ export function extractOtp(text: string): string | undefined {
 
 export function deriveChatStage(session: CheckoutSession, completed = false): ChatStage {
   if (completed) return "completed";
+  if (pendingCustomerCorrection(session)) return "data_collection";
   const c = session.customer ?? {};
   if (!c.fullName || !c.email || !c.email_verified || !c.cpf || !c.phone || !isBrazilianMobilePhone(c.phone)) return "data_collection";
   const addr = c.address ?? {};
-  if (
+  if (requiresPhysicalDelivery(session.cart) && (
     !addr.zip ||
     !addr.street ||
     !(addr.city && addr.state) ||
@@ -166,21 +169,23 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
     !addr.number ||
     addr.complement === undefined ||
     !session.shipping
-  ) {
+  )) {
     return "shipping";
   }
   if (!session.paymentMethod) return "payment";
-  // payment_pending: method selected but payment not yet confirmed via webhook
-  if (!(session as any).paymentConfirmed) return "payment_pending" as any;
-  return "completed";
+  // Only the explicit, server-verified `completed` argument can report success.
+  // A method selection (or an untyped field on a snapshot) is not payment proof.
+  return "payment_pending";
 }
 
 const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [
+  // A valid WhatsApp is collected before email verification so a merchant's
+  // approved Meta template can recover an unavailable e-mail delivery.
+  { label: "telefone", has: (s) => Boolean(s.customer?.phone && isBrazilianMobilePhone(s.customer.phone)) },
   { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
   { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
   { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
   { label: "CPF", has: (s) => Boolean(s.customer?.cpf) },
-  { label: "telefone", has: (s) => Boolean(s.customer?.phone && isBrazilianMobilePhone(s.customer.phone)) }
 ];
 
 export function isShippingQuickReplyQuestion(text: string): boolean {
@@ -198,6 +203,8 @@ export function isShippingQuickReplyQuestion(text: string): boolean {
 const EMAIL_OTP_FIELD = "código de verificação";
 
 export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage): string[] {
+  const correction = pendingCustomerCorrection(session);
+  if (correction) return [correctionLabels[correction]];
   if (stage === "data_collection") {
     const missing = DATA_FIELD_ORDER.filter((f) => !f.has(session)).map((f) => f.label);
     const customer = session.customer ?? {};
@@ -207,6 +214,7 @@ export function missingFieldsForStage(session: CheckoutSession, stage: ChatStage
     return missing;
   }
   if (stage === "shipping") {
+    if (!requiresPhysicalDelivery(session.cart)) return [];
     const addr = session.customer?.address ?? {};
     if (!addr.zip) return ["CEP"];
     if (!(addr.street && addr.city && addr.state)) return ["confirmar CEP"];

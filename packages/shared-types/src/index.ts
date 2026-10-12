@@ -1,5 +1,4 @@
 export type CurrencyCode = "BRL" | "USD" | "EUR";
-export * from "./order-fulfillment.js";
 
 export type CheckoutEventName =
   | "checkout_started"
@@ -81,23 +80,31 @@ export interface ShippingContext {
 }
 
 export interface Cart {
-  /** Common provider/beneficiary candidates verified from every participating merchant. */
-  marketplacePaymentOptions?: Array<{
-    provider: "stripe" | "asaas";
-    environment: "test" | "live";
-    destinations: Array<{ merchantId: string; destination: string }>;
-  }>;
   currency: CurrencyCode;
   total: number;
   items: CartItem[];
   currentDiscount?: number;
   /** Server-authored context for a promotion already applied to this session. */
   commercialNudge?: CheckoutCommercialNudge;
+  /** Display only; amounts are already reflected in prices/discount/shipping. */
+  appliedBenefits?: CheckoutAppliedBenefit[];
   source?: "storefront" | "checkout" | "platform_api" | "manual";
   commerceCartRef?: string;
+
+marketplacePaymentOptions?: Array<{
+    provider: "stripe" | "asaas";
+    environment: "test" | "live";
+    destinations: Array<{ merchantId: string; destination: string }>;
+  }>;
 }
 
 export type CheckoutCommercialNudgeKind = "coupon" | "progressive_discount" | "advanced_rule";
+
+export interface CheckoutAppliedBenefit {
+  kind: "discount" | "shipping";
+  label: string;
+  amount: number;
+}
 
 /**
  * Presentation metadata for a commercial benefit that the server already
@@ -124,6 +131,7 @@ export interface CustomerAddress {
 }
 
 export interface CustomerHints {
+  deliveryAddressLabel?: string;
   externalCustomerId?: string;
   asaasCustomerId?: string;
   email?: string;
@@ -180,37 +188,6 @@ export interface ShippingQuoteResponse {
   selected_carrier_key: string | null;
   created_at: string;
   expires_at: string;
-}
-
-/** Buyer-facing marketplace shipping. Monetary fields are BRL integer cents;
- * carrier credentials and frozen shipment contracts are never public DTOs. */
-export interface MarketplaceShippingQuoteRequest {
-  session_id: string;
-}
-
-export interface MarketplaceShippingSelectRequest {
-  session_id: string;
-  selections: Array<{ origin_merchant_id: string; quote_id: string; carrier_key: string }>;
-}
-
-export interface MarketplaceShippingQuoteResponse {
-  session_id: string;
-  destination_zip: string;
-  currency: "BRL";
-  origins: Array<{
-    origin_merchant_id: string;
-    quote_id: string;
-    expires_at: string;
-    options: Array<{ carrier_key: string; label: string; price_cents: number; eta_days: number }>;
-  }>;
-}
-
-export interface MarketplaceShippingSelectResponse {
-  session_id: string;
-  currency: "BRL";
-  total_price_cents: number;
-  delivery_days: number;
-  selections: Array<{ origin_merchant_id: string; quote_id: string; carrier_key: string; price_cents: number }>;
 }
 
 export interface StageQuickReplies {
@@ -352,12 +329,11 @@ export interface ChatTurn {
   text: string;
   occurredAt: string;
   authorizedOfferId?: string;
+  /** Server-owned link to the durable buyer-message admission, when present. */
+  chatRequestId?: string;
 }
 
 export interface CrossStoreLineItem {
-  providerFeePolicy?: "proportional_seller_sales_v1";
-  sourceVariantId?: string;
-  stockReservationId?: string;
   lineItemId: string;
   federatedProductId: string;
   sourceMerchantId: string;
@@ -366,6 +342,10 @@ export interface CrossStoreLineItem {
   totalCents: number;
   commissionCents: number;
   sellerNetCents: number;
+
+providerFeePolicy?: "proportional_seller_sales_v1";
+sourceVariantId?: string;
+stockReservationId?: string;
 }
 
 export interface CheckoutSession {
@@ -393,6 +373,8 @@ export interface CheckoutSession {
     intentPersonalization?: boolean;
   };
   aiCostCents?: number;
+  /** Server-loaded optimistic concurrency token. Never accept it from buyer input. */
+  persistenceVersion?: number;
   createdAt: string;
   updatedAt: string;
 }
@@ -460,17 +442,17 @@ export interface CheckoutBrandSnapshot {
 }
 
 export interface CheckoutItemSnapshot {
-  /** Public grouping key for independently shipped items, never an allocation. */
-  origin_merchant_id?: string;
   sku: string;
   name: string;
   quantity: number;
   unit_price: number;
+  original_unit_price?: number;
   line_total: number;
   image_url?: string;
   product_url?: string;
   category?: string;
   variant?: string;
+  variant_label?: string;
   description?: string;
 }
 
@@ -516,8 +498,6 @@ export interface CheckoutTotalsSnapshot {
 }
 
 export interface CheckoutExperienceSnapshot {
-  /** Marketplace carts require a shipping choice for each origin. */
-  shipping_mode?: "marketplace";
   brand: CheckoutBrandSnapshot;
   stage?: ChatStage;
   rules?: {
@@ -532,6 +512,7 @@ export interface CheckoutExperienceSnapshot {
   totals: CheckoutTotalsSnapshot;
   /** A benefit already authorized for this checkout session, if any. */
   commercial_nudge?: CheckoutCommercialNudge;
+  applied_benefits?: CheckoutAppliedBenefit[];
   shipping?: ShippingQuote;
   shippingOptions?: ShippingQuote[];
   suggestedProducts?: SuggestedProduct[];
@@ -600,30 +581,13 @@ export interface CheckoutExperienceSnapshot {
     qr_code_image?: string;
     copy_paste?: string;
     ticket_url?: string;
-    invoice_url?: string;
-    stripe_client_secret?: string;
-    stripe_publishable_key?: string;
-    crypto_chain_id?: number;
-    crypto_chain?: string;
-    crypto_network?: string;
-    crypto_chain_label?: string;
-    crypto_token_address?: string;
-    crypto_token_symbol?: string;
-    crypto_amount_atomic?: string;
-    crypto_amount_display?: string;
-    crypto_destination_address?: string;
-    crypto_wallet_connect_project_id?: string;
-    crypto_transfers?: Array<{
-      kind: "merchant" | "platform_fee";
-      destination_address: string;
-      amount_atomic: string;
-      amount_display: string;
-    }>;
   };
 }
 
 export interface StartCheckoutResponse {
   service_slot_hold?: CheckoutSession["serviceSlotHold"];
+  /** Present only for sessions owned by the durable message protocol. */
+  chat_protocol?: "durable_v2";
   conversation_id: string;
   session_id: string;
   global_user_id: string;
@@ -894,6 +858,7 @@ export type RevenueManagerDomainEventType =
   | "revenue_manager.lesson.recorded";
 
 export type DomainEventType =
+  | "support.case.changed"
   | CheckoutDomainEventType
   | CrossSellDomainEventType
   | CouponsDomainEventType
@@ -907,6 +872,7 @@ export type DomainEventType =
   | RevenueManagerDomainEventType;
 
 export type DomainEventProducer =
+  | "support"
   | "checkout"
   | "cross-sell"
   | "coupons"
@@ -956,6 +922,8 @@ export interface ChatMessageRequest {
   user_message: string;
   agent_id?: string;
   agent_user_id?: string;
+  /** Stable for every retry of one buyer message. Required for the opted-in protocol. */
+  message_id?: string;
 }
 
 export type AgentRuleScope = "merchant_default" | "user_agent";
@@ -1042,7 +1010,8 @@ export type CheckoutTriggerName =
   | "coupon_field_clicked"
   | "payment_failed"
   | "exit_intent_detected"
-  | "idle_30_seconds";
+  | "idle_30_seconds"
+  | "checkout_abandoned";
 
 export type ProgressiveDiscountStage =
   | "initial_coupon"
@@ -1199,7 +1168,47 @@ export interface ChatUiBlock {
   data?: Record<string, unknown>;
 }
 
+export interface ChatMessageReference {
+  merchant_id: string;
+  session_id: string;
+  conversation_id: string;
+  message_id: string;
+}
+
+/** Opaque publication identity; acknowledgement is client-reported visibility only. */
+export interface ChatDisplayReference {
+  turn_id: string;
+  text_hash: string;
+}
+
+export interface ChatDisplayReport {
+  session_id: string;
+  conversation_id: string;
+  display_ref: ChatDisplayReference;
+  definition: "widget-visible-text-v1";
+}
+
+/** Saved text, current navigation and a payment reference. Payment credentials require a separate financial scope. */
+export interface ChatSessionStateResponse {
+  protocol: "durable_v2" | "legacy";
+  session_id: string;
+  conversation_id: string;
+  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string; display_ref?: ChatDisplayReference;
+    blocks?: ChatUiBlock[]; checkout_stage?: ChatStage }>;
+  request?: { message_id: string; status: "processing" | "unknown" | "completed" | "reconciled" | "rejected"; response_outcome?: "withheld" };
+  active_request?: { message_id: string; status: "processing" | "unknown" };
+  payment_intent_id?: string;
+}
+
+/** Receipt only; never an old response, authorization or delivery confirmation. */
+export interface ChatMessageRecoveryResponse {
+  chat_request: { message_id: string; status: "completed" | "reconciled" | "rejected"; next_action: "refresh_session" };
+}
+
 export interface ChatMessageResponse {
+  display_ref?: ChatDisplayReference;
+  /** Processing receipt; does not assert browser delivery or experimental exposure. */
+  chat_request?: { message_id: string; status: "completed" };
   message: string;
   objection: "shipping_cost" | "price" | "trust" | "payment" | "unknown";
   authorized_offer?: AuthorizedOffer;
@@ -1266,6 +1275,7 @@ export interface SupportSettingsPatch {
   faqItems: SupportFaqItem[];
 }
 
+export * from "./support-case.js";
 export type SupportTicketStatus = "open" | "in_progress" | "resolved" | "closed";
 
 export interface SupportTicket {
@@ -1300,6 +1310,8 @@ export interface SupportReturnItem {
 
 export type SupportMessageMetadata =
   | { kind: "text" }
+  | { kind: "photos"; imageUrls: string[] }
+  | { kind: "case_update"; event: string; returnId?: string }
   | {
       kind: "return_request";
       returnId: string;
@@ -1319,7 +1331,7 @@ export type SupportMessageMetadata =
 export interface SupportTicketMessage {
   id: string;
   ticketId: string;
-  senderType: "buyer" | "merchant";
+  senderType: "buyer" | "merchant" | "system";
   content: string;
   metadata?: SupportMessageMetadata | null;
   createdAt: string;
@@ -1537,3 +1549,12 @@ export interface OAuthCallbackPayload {
 export * from "./billing-plans.js";
 
 export * from "./billing-offers.js";
+
+export { NEUMORPHIC_THEME, merchantThemeTokens, type MerchantThemeAppearance } from "./merchant-theme.js";
+
+export { checkoutEditIntent, type CheckoutEditSection } from "./checkout-edit-intent.js";
+export { VOICE_MICROPHONE_CONSTRAINTS, RealtimeVoiceInput, RealtimeVoiceResponses, type VoiceInputEvent } from "./realtime-voice-input.js";
+
+export * from "./order-fulfillment.js";
+
+

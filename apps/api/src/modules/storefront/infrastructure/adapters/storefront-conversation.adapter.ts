@@ -16,7 +16,7 @@ import { COUPON_REPOSITORY, type CouponRepository } from "../../../coupons/domai
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
-import { storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
+import { normalizeStoreQuickRepliesConfig, storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
 import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -27,6 +27,7 @@ import { executeStorefrontUiAction } from "../agents/storefront-ui-action.execut
 import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { appendOneBuyClickCheckout } from "../one-buy-click/one-buy-click-checkout-preparation.js";
+import { STOREFRONT_TELEMETRY_PORT, type StorefrontTelemetryPort } from "../../domain/ports/storefront-telemetry.port.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
 
@@ -54,6 +55,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
     @Optional() private readonly queryKnowledge?: QueryKnowledgeUseCase,
     @Optional() private readonly oneBuyClick?: OneBuyClickSessionService,
+    @Optional() @Inject(STOREFRONT_TELEMETRY_PORT) private readonly telemetry?: StorefrontTelemetryPort,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -112,6 +114,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       conversationId: input.sessionId,
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
+      conversationId: input.sessionId,
       buyer: input.buyerContext,
       oneBuyClick: input.oneBuyClick ? {
         enabled: input.oneBuyClick.enabled,
@@ -120,7 +123,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       } : undefined,
     };
     const deviceMeta = input.deviceType ? { device: input.deviceType } : undefined;
-    this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started", deviceMeta).catch(() => {});
+    this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
     const shortcutHandlers = composeStoreToolHandlers(this.handlerDeps, ctx);
     if (input.uiAction) {
       const output = await executeStorefrontUiAction(shortcutHandlers, input.uiAction, input.merchantId, input.cartId || input.sessionId);
@@ -132,8 +135,11 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       {
         productRepo: this.productRepo,
         copyService: this.copyService,
-        emitFunnelEvent: this.emitFunnelEvent.bind(this),
+        emitFunnelEvent: (merchantId, sessionId, event) => this.emitFunnelEvent(
+          { ...input, merchantId, sessionId }, event, deviceMeta,
+        ),
         applyCoupon: (args) => shortcutHandlers.applyCoupon(args),
+        addItemToCart: (args) => shortcutHandlers.addItemToCart(args),
         // Build an updated cart_summary block after a deterministic coupon apply
         // so the storefront cart store (CartFAB drawer) refreshes its discount /
         // net total. Without this the coupon persists server-side but the drawer
@@ -197,6 +203,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       userMessage: input.userMessage,
       cartId: input.cartId,
       history: input.history,
+      attachmentContext: input.attachmentContext,
       merchantName: input.merchantName,
       storeCategory: input.storeCategory,
       storeSettings: input.storeSettings,
@@ -216,7 +223,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       cartId: input.cartId || input.sessionId,
       createCheckoutSession: shortcutHandlers.createCheckoutSession,
     });
-    this.emitToolFunnelEvents(input.merchantId, input.sessionId, result.toolsUsed, deviceMeta).catch(() => {});
+    this.emitToolFunnelEvents(input, result.toolsUsed, deviceMeta).catch(() => {});
     let cartState: StorefrontCartState | undefined;
     if (input.cartId) {
       try {
@@ -254,7 +261,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     let quickRepliesConfig: StoreQuickRepliesConfig | null = null;
     if (input.storeSettings?.quick_replies) {
       try {
-        quickRepliesConfig = input.storeSettings.quick_replies as StoreQuickRepliesConfig;
+        quickRepliesConfig = normalizeStoreQuickRepliesConfig(input.storeSettings.quick_replies);
       } catch {}
     }
     let finalMessage = result.message;
@@ -299,45 +306,32 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     if (toolsUsed.includes("get_similar_products")) return "Produtos similares que podem te interessar:";
     return "Aqui está o que encontrei:";
   }
-  private async ensureCheckoutSession(merchantId: string, sessionId: string): Promise<void> {
-    await this.prisma.checkoutSession.upsert({
-      where: { merchantId_sessionId: { merchantId, sessionId } },
-      create: {
-        merchantId, sessionId, globalUserId: sessionId, conversationId: sessionId,
-        cart: {}, abandonmentScore: 0, triggerAgent: false, chatHistory: [],
-        createdAt: new Date(), updatedAt: new Date(),
-      },
-      update: { updatedAt: new Date() },
+  private async emitFunnelEvent(input: StorefrontConversationInput, eventName: string, metadata?: Record<string, unknown>): Promise<void> {
+    if (!this.telemetry) return;
+    await this.telemetry.recordEvent({
+      merchantId: input.merchantId,
+      conversationId: input.sessionId,
+      cartId: input.cartId || input.sessionId,
+      globalUserId: input.buyerContext?.globalUserId,
+      event: eventName,
+      metadata,
     });
   }
-  private async emitFunnelEvent(merchantId: string, sessionId: string, eventName: string, metadata?: Record<string, unknown>): Promise<void> {
-    try {
-      await this.ensureCheckoutSession(merchantId, sessionId);
-      const existing = await this.prisma.checkoutEvent.findFirst({
-        where: { merchantId, sessionId, eventName }
-      });
-      if (!existing) {
-        await this.prisma.checkoutEvent.create({
-          data: { merchantId, sessionId, eventName, occurredAt: new Date(), metadata: metadata as any }
-        });
-      }
-    } catch {}
-  }
-  private async emitToolFunnelEvents(merchantId: string, sessionId: string, toolsUsed: string[], meta?: Record<string, unknown>): Promise<void> {
+  private async emitToolFunnelEvents(input: StorefrontConversationInput, toolsUsed: string[], meta?: Record<string, unknown>): Promise<void> {
     if (toolsUsed.includes("search_products") || toolsUsed.includes("get_product_details")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "product_viewed", meta);
+      await this.emitFunnelEvent(input, "product_viewed", meta);
     }
     if (toolsUsed.includes("add_item_to_cart")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "cart_viewed", meta);
+      await this.emitFunnelEvent(input, "cart_viewed", meta);
     }
     if (toolsUsed.includes("quote_shipping")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "shipping_option_selected", meta);
+      await this.emitFunnelEvent(input, "shipping_option_selected", meta);
     }
     if (toolsUsed.includes("apply_coupon")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "coupon_applied", meta);
+      await this.emitFunnelEvent(input, "coupon_applied", meta);
     }
     if (toolsUsed.includes("create_checkout_session")) {
-      await this.emitFunnelEvent(merchantId, sessionId, "payment_method_selected", meta);
+      await this.emitFunnelEvent(input, "payment_method_selected", meta);
     }
   }
   private buildSuggestedActions(toolsUsed: string[], cartId?: string): string[] {

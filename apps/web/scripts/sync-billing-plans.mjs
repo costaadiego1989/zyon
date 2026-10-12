@@ -1,11 +1,17 @@
 import fs from 'node:fs';
 import { fileURLToPath } from 'node:url';
-import { BILLING_PLANS, BILLING_PLAN_PRESENTATION, BILLING_FEATURE_LABELS, billingLimitHighlights } from '../../../packages/shared-types/dist/billing-plans.js';
+import { BILLING_PLANS, BILLING_PLAN_PRESENTATION, BILLING_FEATURE_LABELS, billingLimitHighlights } from '../../../packages/shared-types/src/billing-plans.ts';
 
 const file = fileURLToPath(new URL('../index.html', import.meta.url));
 const html = fs.readFileSync(file, 'utf8');
 const escape = value => String(value).replaceAll('&','&amp;').replaceAll('<','&lt;').replaceAll('>','&gt;').replaceAll('"','&quot;');
 const list = items => items.map(item => `                <li>${escape(item)}</li>`).join('\n');
+const capacityDescription = limits => {
+  const entries = billingLimitHighlights(limits).slice(0, 4).map((entry, index) =>
+    index === 0 ? entry : entry.charAt(0).toLocaleLowerCase('pt-BR') + entry.slice(1),
+  );
+  return new Intl.ListFormat('pt-BR',{style:'long',type:'conjunction'}).format(entries)+'.';
+};
 const cards = Object.entries(BILLING_PLANS).map(([key,plan]) => {
   const copy = BILLING_PLAN_PRESENTATION[key];
   const limits = billingLimitHighlights(plan.limits);
@@ -19,7 +25,7 @@ const cards = Object.entries(BILLING_PLANS).map(([key,plan]) => {
   return `            <article class="plan${key === 'growth' ? ' plan--featured' : ''}" data-plan="${key}">
               <div class="plan-label">${copy.eyebrow} <span>${copy.badge}</span></div>
               <h3>${plan.name}</h3>
-              <p class="plan-description">${copy.description}</p>
+              <p class="plan-description">${capacityDescription(plan.limits)}</p>
               <div class="plan-price">R$ ${plan.monthlyPriceBrl} <small>/mês</small></div>
               <p class="plan-fee">${key === 'starter' ? `Após os 14 dias iniciais: ${fee} por transação.` : `${fee} por transação. Assinatura mensal.`}</p>
               <p class="plan-annual" hidden></p>
@@ -36,7 +42,9 @@ ${list(additional)}
 const start = html.indexOf('          <div class="pricing-grid">');
 const end = html.indexOf('          <p class="pricing-note">',start);
 if (start < 0 || end < 0) throw Error('Pricing block not found');
-const next = html.slice(0,start)+'          <div class="pricing-grid">\n'+cards.join('\n')+'\n          </div>\n'+html.slice(end);
+const withCards = html.slice(0,start)+'          <div class="pricing-grid">\n'+cards.join('\n')+'\n          </div>\n'+html.slice(end);
+const highestMonthlyPrice = Math.max(...Object.values(BILLING_PLANS).map(plan => plan.monthlyPriceBrl));
+const next = withCards.replace(/("highPrice":\s*")[^"]+("\s*,)/, `$1${highestMonthlyPrice}$2`);
 if (process.argv.includes('--check')) {
   if (next !== html) { console.error('Site billing catalog is stale. Run the sync script after building shared-types.'); process.exit(1); }
   console.log('Site plans match the shared billing catalog.');

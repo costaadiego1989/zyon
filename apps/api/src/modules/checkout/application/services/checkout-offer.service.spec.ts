@@ -83,6 +83,29 @@ function buyerTurn(text: string, i: number): ChatTurn {
   };
 }
 
+test("ended experiment continuation cannot force the next experiment's commercial rule", async () => {
+  const repository = fakeRepo(); let experimentReads = 0;
+  const rule = { id: "next-experiment-discount", name: "Next test", enabled: true, priority: 1,
+    conditions: [{ field: "cart_total", operator: "gte", value: 10000 }],
+    action: { type: "offer_discount", params: { percent: 10 } } };
+  const service = new CheckoutOfferService(repository, undefined, undefined, undefined, {
+    async findRunningExperiment() { experimentReads++; return { id: "next-test", variants: [{ id: "new-treatment",
+      name: "Treatment", weight: 100, systemPrompt: "new test", isControl: false, appliedRuleId: rule.id }] }; },
+  });
+  const session = checkoutSession({ cart: { currency: "BRL", total: 300,
+    items: [{ sku: "kit", name: "Kit", price: 300, cost: 120, quantity: 1 }] } });
+  const rules = merchantRules({ maxDiscountPercent: 15, minimumMarginPercent: 38, advancedRules: [rule as any] });
+  const active = await service.authorizeOffer("Quais são as formas de pagamento?", session, rules, "payment", []);
+  assert.equal(active.approved, true); assert.equal(active.value, 10); assert.equal(experimentReads, 1);
+  const retired = await service.authorizeOffer("Quais são as formas de pagamento?", session, rules, "payment", [], { skipExperiment: true });
+  assert.equal(retired.approved, true); assert.equal(retired.value, 15); assert.equal(experimentReads, 1);
+  const requested = await service.authorizeOffer("Tem desconto?", session, rules, "payment", [], { skipExperiment: true });
+  assert.equal(requested.approved, true); assert.ok(requested.value <= 15);
+  const lowMargin = { ...session, cart: { ...session.cart, items: [{ sku: "kit", name: "Kit", price: 300, cost: 299, quantity: 1 }] } };
+  const denied = await service.authorizeOffer("Tem desconto?", lowMargin, rules, "payment", [], { skipExperiment: true });
+  assert.equal(denied.approved, false); assert.equal(experimentReads, 1);
+});
+
 test("authorizeOffer discounts use static rules-engine cap, ignoring chat history", async () => {
   const repository = fakeRepo();
   const service = new CheckoutOfferService(repository);

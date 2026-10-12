@@ -24,7 +24,7 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
       });
       if (!response.ok) {
         this.logger.error(`Meta Cloud text send failed: HTTP ${response.status}`);
-        return { messageId: "", status: "failed" };
+        return { messageId: "", status: response.status >= 500 || response.status === 408 ? "unknown" : "failed" };
       }
       const payload = await response.json().catch(() => ({})) as { messages?: Array<{ id?: unknown }> };
       const messageId = typeof payload.messages?.[0]?.id === "string" ? payload.messages[0].id : "";

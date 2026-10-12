@@ -8,6 +8,8 @@ import {
 import { HandleIncomingMessageUseCase, type IncomingMessageInput } from "../use-cases/handle-incoming-message.use-case.js";
 import { HandleStatusUpdateUseCase, type StatusUpdateInput } from "../use-cases/handle-status-update.use-case.js";
 
+import { WhatsAppDeliveryService, WhatsAppDeliveryUncertainError } from "./whatsapp-delivery.service.js";
+
 const POLL_INTERVAL_MS = 1_000;
 /** When a poll keeps failing, back off so a misconfigured DB doesn't flood logs. */
 const BACKOFF_BASE_MS = 5_000;
@@ -30,6 +32,7 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
     @Inject(WHATSAPP_CONFIG_REPOSITORY) private readonly configRepo: WhatsAppConfigRepository,
     private readonly handleMessage: HandleIncomingMessageUseCase,
     private readonly handleStatus: HandleStatusUpdateUseCase,
+    private readonly delivery?: WhatsAppDeliveryService,
   ) {}
 
   onModuleInit(): void {
@@ -118,7 +121,13 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
         if (leaseLost) throw new Error("whatsapp_inbox_lease_lost");
         if (claim.kind === "message") {
           const payload = claim.payload as IncomingMessageInput & { ignored?: boolean };
-          if (!payload.ignored) await this.handleMessage.execute({ ...payload, inboxClaim: claim });
+          if (!payload.ignored) {
+            if (payload.provider === "META_CLOUD") await this.handleMessage.execute({ ...payload, inboxClaim: claim });
+            else {
+              if (!this.delivery) throw new Error("whatsapp_delivery_not_configured");
+              await this.delivery.process(claim, () => this.handleMessage.execute(payload), () => this.inbox.renew(claim));
+            }
+          }
         } else {
           await this.handleStatus.execute(claim.payload as StatusUpdateInput);
         }
@@ -127,6 +136,7 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
         }
       } catch (error) {
         if (error instanceof Error && ["whatsapp_turn_result_unknown", "whatsapp_send_result_unknown", "whatsapp_service_window_expired"].includes(error.message)) errorCode = error.message;
+        if (error instanceof WhatsAppDeliveryUncertainError) errorCode = error.message;
         if (!leaseLost) await this.inbox.fail(claim, errorCode);
         this.logger.warn(`whatsapp_inbox_attempt_failed id=${claim.id} attempt=${claim.attempts} code=${errorCode}`);
       } finally {

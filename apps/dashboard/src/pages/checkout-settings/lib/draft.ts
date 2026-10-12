@@ -63,6 +63,7 @@ export const DEFAULT_DRAFT: Draft = {
     payment_failed: { enabled: true },
     exit_intent_detected: { enabled: true },
     idle_30_seconds: { enabled: false },
+    checkout_abandoned: { enabled: true },
   },
   suppressAfterOfferAccepted: true,
   respectBuyerOptOut: true,

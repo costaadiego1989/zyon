@@ -1,10 +1,18 @@
+import type { MerchantThemeAppearance } from "@zyon/shared-types";
 export type Message = {
   id: string;
   role: "user" | "agent";
   text?: string;
+  attachment?: ConversationAttachmentPreview;
   blocks?: any[];
   ephemeral?: boolean;
 };
+
+export type ConversationAttachment =
+  | { kind: "image"; name: string; mimeType: "image/jpeg" | "image/png" | "image/webp"; dataBase64: string }
+  | { kind: "shopping_list"; name: string; mimeType: "text/plain" | "text/csv"; text: string };
+
+export type ConversationAttachmentPreview = Pick<ConversationAttachment, "kind" | "name">;
 
 export type Channel = "chat" | "voice";
 export type Theme = "dark" | "light";
@@ -18,6 +26,8 @@ export interface ConversationViewModelProps {
   agentGreeting?: string;
   quickReplies?: string[];
   returnOrderId?: string;
+  merchantTheme?: MerchantThemeAppearance;
+  budgetModeEnabled?: boolean;
   themeMode?: "dark" | "light" | "grey";
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
@@ -30,7 +40,6 @@ export interface ConversationViewModelState {
   messages: Message[];
   input: string;
   isLoading: boolean;
-  listening: boolean;
   conversationId: string | null;
   supportOpen: boolean;
   buyerHubOpen: boolean;
@@ -39,6 +48,7 @@ export interface ConversationViewModelState {
   checkoutIntent: string | null;
   policyModal: { title: string; content: string } | null;
   crossSellPending: CrossSellInterstitialData | null;
+  productCrossSell: ProductCrossSellPlacement | null;
   preparedCheckout: {
     actionId: string;
     cartId: string;
@@ -62,11 +72,20 @@ export interface CrossSellInterstitialData {
   }>;
 }
 
+/** A pre-cart offer belongs to the product the buyer is currently viewing. */
+export interface ProductCrossSellPlacement {
+  productId: string;
+  data: CrossSellInterstitialData;
+}
+
 export interface ConversationViewModelActions {
+  returnToCurrentConversation: () => void;
   selectChannel: (ch: Channel) => void;
   toggleChannel: () => void;
   toggleTheme: () => void;
-  sendMessage: (text: string) => Promise<void>;
+  /** Resolves a signed conversation before a client-only capability is requested. */
+  ensureConversation: () => Promise<string | null>;
+  sendMessage: (text: string, attachment?: ConversationAttachment) => Promise<CommerceTurnResult | null>;
   handleQuickReply: (option: string) => void;
   appendAgentMessage: (message: Pick<Message, "text" | "blocks">) => void;
   handleUpdateQuantity: (variantId: string, quantity: number) => void;
@@ -78,7 +97,12 @@ export interface ConversationViewModelActions {
   setPolicyModal: (value: { title: string; content: string } | null) => void;
   setCartDrawerForceOpen: (value: boolean) => void;
   dismissCrossSell: () => void;
+  dismissProductCrossSell: () => void;
   clearPreparedCheckout: () => void;
-  startListening: () => void;
-  stopListening: () => void;
+}
+
+/** Result emitted by the authoritative commerce agent after a buyer turn. */
+export interface CommerceTurnResult {
+  agentMessage: string;
+  blocks: any[];
 }

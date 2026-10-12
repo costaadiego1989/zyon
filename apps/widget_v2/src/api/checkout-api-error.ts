@@ -1,9 +1,14 @@
+import { chatReceipt, type ChatReceipt } from "./chat-protocol";
+import { checkoutPriceReview, type CheckoutPriceReview } from "./checkout-price-review";
+
 export class CheckoutApiError extends Error {
   constructor(
     readonly operation: string,
     readonly status: number,
     readonly code?: string,
     readonly retryAfterSeconds?: number,
+    readonly chatRequest?: ChatReceipt,
+    readonly checkoutReview?: CheckoutPriceReview,
   ) {
     super(`${operation}_failed: ${status}${code ? ` ${code}` : ""}`);
     this.name = "CheckoutApiError";
@@ -12,11 +17,21 @@ export class CheckoutApiError extends Error {
   static async fromResponse(operation: string, response: Response): Promise<CheckoutApiError> {
     const payload = await response.json().catch((): unknown => undefined);
     const body = isRecord(payload) ? payload : {};
+    // Nest's default HTTP exception payload uses `message` for a stable
+    // machine-readable code. Keep supporting the explicit `code` envelope,
+    // but retain that default so callers can recover with useful guidance.
+    const code = typeof body.code === "string"
+      ? body.code
+      : typeof body.message === "string"
+        ? body.message
+        : undefined;
     return new CheckoutApiError(
       operation,
       response.status,
-      typeof body.code === "string" ? body.code : undefined,
+      code,
       positiveInteger(body.retry_after_seconds) ?? positiveInteger(body.retryAfterSeconds) ?? retryAfterHeader(response),
+      chatReceipt(body.chat_request),
+      response.status === 409 && body.code === "checkout_review_required" ? checkoutPriceReview(body.review) : undefined,
     );
   }
 }

@@ -1,3 +1,4 @@
+import { commitCheckoutMutation } from "../../checkout/application/services/commit-checkout-mutation.js";
 import {
   BadRequestException,
   Inject,
@@ -43,6 +44,16 @@ export class AcpLineItemsResolver {
     session: CheckoutSession,
     lineItems: ReadonlyArray<AcpLineItemInput>,
   ): Promise<void> {
+    if (!lineItems.length) throw new BadRequestException("acp_line_items_required");
+    for (const item of lineItems) {
+      if (!item.id?.trim()) throw new BadRequestException("acp_line_item_id_required");
+      if (!Number.isInteger(item.quantity) || item.quantity < 0 || item.quantity > 99) {
+        throw new BadRequestException("acp_line_item_quantity_invalid");
+      }
+      if (session.cart.items.filter(existing => existing.sku === item.id.trim()).length > 1) {
+        throw new BadRequestException("acp_line_item_variant_required");
+      }
+    }
     const existingSkus = new Set(session.cart.items.map((i) => i.sku));
     const allExisting = lineItems.every((li) => existingSkus.has(li.id?.trim() ?? ""));
 
@@ -52,7 +63,7 @@ export class AcpLineItemsResolver {
         session_id: session.sessionId,
         items: lineItems.map((li) => ({
           sku: li.id.trim(),
-          quantity: Math.floor(li.quantity),
+          quantity: li.quantity,
         })),
       });
       return;
@@ -64,7 +75,7 @@ export class AcpLineItemsResolver {
       const sku = item.id?.trim();
       if (!sku) throw new BadRequestException("acp_line_item_id_required");
 
-      const quantity = Math.floor(item.quantity);
+      const quantity = item.quantity;
       if (!Number.isInteger(quantity) || quantity < 0) {
         throw new BadRequestException("acp_line_item_quantity_invalid");
       }
@@ -81,14 +92,16 @@ export class AcpLineItemsResolver {
           throw new BadRequestException("acp_catalog_unavailable");
         }
         const variant = await this.variantLookup.findBySku(session.merchantId, sku);
-        if (!variant || variant.price == null) {
+        if (!variant || variant.price == null || !Number.isFinite(variant.price) || variant.price < 0) {
           throw new BadRequestException(`acp_sku_not_found:${sku}`);
         }
+        if (variant.currency && variant.currency !== session.cart.currency) throw new BadRequestException("acp_sku_currency_mismatch");
         existingBySku.set(sku, {
           sku,
           name: variant.name ?? sku,
           price: variant.price,
           quantity,
+          ...(variant.cost !== undefined && Number.isFinite(variant.cost) && variant.cost >= 0 ? { cost: variant.cost } : {}),
         });
       }
     }
@@ -97,6 +110,7 @@ export class AcpLineItemsResolver {
     const total = AcpLineItemsResolver.roundCurrency(
       mergedItems.reduce((sum, i) => sum + i.price * i.quantity, 0),
     );
+    if (!Number.isSafeInteger(Math.round(total * 100))) throw new BadRequestException("acp_cart_total_invalid");
 
     const nextCart: Cart = {
       ...session.cart,
@@ -105,12 +119,11 @@ export class AcpLineItemsResolver {
       source: session.cart.source ?? "platform_api",
     };
 
-    await this.sessions.saveSession({
+    await commitCheckoutMutation(this.sessions, { expected: session, next: {
       ...session,
       cart: nextCart,
-      shipping: undefined,
       updatedAt: new Date().toISOString(),
-    });
+    } });
   }
 
   static roundCurrency(value: number): number {

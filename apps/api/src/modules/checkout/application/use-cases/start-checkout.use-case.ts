@@ -15,6 +15,7 @@ import {
   type CheckoutCrossSellRecommenderPort
 } from "../../domain/ports/cross-sell-recommender.port.js";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { checkoutPolicyLinks } from "../../../../shared/legal/store-policies.js";
 import { BuyerResolutionService } from "../services/buyer-resolution.service.js";
 import { BuyerContextService } from "../services/buyer-context.service.js";
 import { CheckoutBootstrapService } from "../services/checkout-bootstrap.service.js";
@@ -35,6 +36,7 @@ import {
 import type { MerchantStoreSettings } from "../../../merchant/domain/merchant.types.js";
 import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 import { selectWeightedVariant } from "../../../../shared/experiments/weighted-variant-assignment.js";
+import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../../shared/bookings/service-slot-holds.service.js";
 
 @Injectable()
 export class StartCheckoutUseCase {
@@ -55,9 +57,10 @@ export class StartCheckoutUseCase {
     private readonly orderQuota?: OrderQuotaService,
     @Optional() @Inject(PAYMENT_PLATFORM_REPOSITORY) private readonly paymentConnections?: PaymentPlatformRepository,
     @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
   ) { }
 
-  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean;
+  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; refreshCart?: boolean;
     trustedPhoneBuyer?: { globalUserId: string; phone: string; fullName?: string; email?: string } }): Promise<StartCheckoutResponse> {
     if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
       throw new BadRequestException("checkout_merchant_required");
@@ -69,7 +72,9 @@ export class StartCheckoutUseCase {
       ...untrustedInput,
       merchant_id: input.merchant_id.trim(),
       cart: trustedContext?.storefrontCartRef
-        ? await this.cartAuthority.resolveStorefront(input.merchant_id.trim(), trustedContext.storefrontCartRef)
+        ? trustedContext.refreshCart
+          ? await this.cartAuthority.resolveRecoveredStorefront(input.merchant_id.trim(), input.cart, trustedContext.storefrontCartRef)
+          : await this.cartAuthority.resolveStorefront(input.merchant_id.trim(), trustedContext.storefrontCartRef)
         : await this.cartAuthority.resolve(input.merchant_id.trim(), input.cart),
       customer: trustedContext?.trustedBuyer?.customer ?? (trustedContext?.trustedPhoneBuyer
         ? { ...unverifiedCustomerHints(trustedContext.trustedPhoneBuyer), phone: trustedContext.trustedPhoneBuyer.phone, phone_verified: true, email_verified: false }
@@ -78,6 +83,7 @@ export class StartCheckoutUseCase {
     };
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
     const merchant = await this.merchantRepository?.getProfile(input.merchant_id);
+    if (merchant?.budgetModeEnabled) throw new BadRequestException("budget_mode_requires_request");
     const paymentMethods = await this.resolvePaymentMethods(
       input.merchant_id,
       merchant?.stripeConnectAccountId,
@@ -106,8 +112,11 @@ export class StartCheckoutUseCase {
       trustedBuyer: trustedContext?.trustedBuyer,
       trustedPhoneBuyer: trustedContext?.trustedPhoneBuyer,
       requireBuyerProof: trustedContext?.requireBuyerProof,
+      refreshCart: trustedContext?.refreshCart,
     });
     session = await this.assignExperimentVariant(input.merchant_id, session);
+    if (sessionSlotRequests(session).length && !this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
+    const serviceSlotHold = await this.serviceSlots?.acquire(session);
 
     // Phase 4: Suggested Products
     const suggestedProducts = await this.resolveSuggestedProducts(input.merchant_id, session);
@@ -124,6 +133,7 @@ export class StartCheckoutUseCase {
     return {
       conversation_id: session.conversationId,
       session_id: session.sessionId,
+      ...(serviceSlotHold ? { service_slot_hold: serviceSlotHold } : {}),
       global_user_id: session.globalUserId,
       agent_enabled: settings?.checkout_settings.mode !== "manual_only",
       initial_mode: settings?.checkout_settings.mode === "proactive" ? "open" : "silent",
@@ -134,6 +144,7 @@ export class StartCheckoutUseCase {
         agent,
         couponBoxEnabled: merchantRules?.couponBoxEnabled,
         rules: merchantRules,
+        policies: checkoutPolicyLinks(merchant?.storeSettings, merchantRules?.policies, process.env.PUBLIC_STOREFRONT_URL || process.env.STOREFRONT_URL || "https://storefront.zyon-payments.com.br"),
         showBranding,
         voiceEnabled,
         serviceFee: this.experienceConfig.platformFeeBrl,

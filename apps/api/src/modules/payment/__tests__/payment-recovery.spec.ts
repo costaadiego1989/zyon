@@ -2,6 +2,7 @@ import "reflect-metadata";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
+import { PaymentCreationRejectedError } from "../domain/payment-creation-rejected.error.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";
 import { AsaasPaymentAdapter } from "../infrastructure/asaas-payment.adapter.js";
 import { StripePaymentAdapter } from "../infrastructure/stripe-payment.adapter.js";
@@ -20,6 +21,48 @@ function prepared() {
   intent.prepareCreation({ merchantId: "merchant_recovery", sessionId: "session_recovery", intentId: intent.id, amountCents: 1099, currency: "BRL", method: "pix", asaasCustomerId: "cus_owned", providerIdempotencyKey: "stable-key", provider: "asaas" });
   return intent;
 }
+
+for (const rejectionCode of ["mercadopago_oauth_required_for_platform_fee", "mercadopago_pix_key_required"] as const) {
+test(`definite ${rejectionCode} refusal is persisted once and retries do not enter uncertain recovery`, async () => {
+  const repo = new InMemoryPaymentRepository();
+  const intent = prepared();
+  await repo.saveIntent({ intent });
+  let posts = 0;
+  const provider: PaymentProviderPort = {
+    createPayment: async () => { posts++; throw new PaymentCreationRejectedError(rejectionCode); },
+    recoverPayment: async () => { throw new Error("must_not_recover_rejected_payment"); },
+  };
+  const resume = new ResumePaymentCreationService(repo, provider);
+  for (let attempt = 0; attempt < 3; attempt++) {
+    await assert.rejects(resume.execute((await repo.getIntentById("merchant_recovery", intent.id))!),
+      error => (error as any).getStatus?.() === 409 && (error as Error).message === rejectionCode);
+  }
+  const saved = (await repo.getIntentById("merchant_recovery", intent.id))!.snapshot();
+  assert.equal(posts, 1);
+  assert.equal(saved.status, "failed");
+  assert.equal(saved.creation?.state, "complete");
+  assert.equal(saved.providerPaymentId, undefined);
+  assert.equal(repo.capturedEvents.length, 1);
+});
+}
+
+test("existing incomplete Pix presentation is repaired from the same provider payment", async () => {
+  const repo = new InMemoryPaymentRepository();
+  const intent = prepared();
+  intent.claimCreation("lease", new Date());
+  intent.completeCreation("lease");
+  intent.markRequiresAction({ providerPaymentId: "pix-existing" });
+  intent.setBuyerFacingPayload({});
+  await repo.saveIntent({ intent });
+  const provider: PaymentProviderPort = {
+    createPayment: async () => { throw new Error("must_not_create_payment"); },
+    recoverPayment: async () => ({ providerPaymentId: "pix-existing", status: "requires_action", buyerFacingPayload: { qrCodeCopyPaste: "pix-code", encodedQrImage: "png" } }),
+  };
+  const result = await new ResumePaymentCreationService(repo, provider).execute(intent);
+  assert.equal(result.buyerFacing?.qrCodeCopyPaste, "pix-code");
+  assert.equal(result.providerPaymentId, "pix-existing");
+  assert.equal(repo.capturedEvents.length, 0);
+});
 
 function asaasMock(intentId: string, options: { loseResponse?: boolean; empty?: boolean; duplicate?: boolean; mismatch?: boolean } = {}) {
   let posts = 0;
@@ -103,6 +146,52 @@ test("API013: Stripe retries stable parameters within retention and only searche
   assert.equal(calls.length, 2); assert.equal(calls[1], "search");
 });
 
+test("Stripe destination charge retains the Free R$2.98 platform split", async () => {
+  const provider = new StripePaymentAdapter("sk_test_fake", "pk_test_fake");
+  const input: CreateProviderPaymentInput = { ...prepared().snapshot().creation!.input, method: "card", stripeConnectAccountId: "acct_owned", platformFeeCents: 298 };
+  const calls: any[] = [];
+  (provider as any).stripe = { paymentIntents: {
+    create: async (body: unknown, options: unknown) => { calls.push({ body, options }); return { id: "pi_fee", client_secret: "client-secret" }; },
+  } };
+
+  await provider.createPayment(input);
+
+  assert.equal(calls[0].options.idempotencyKey, "stable-key");
+  assert.deepEqual(calls[0].body.transfer_data, { destination: "acct_owned" });
+  assert.equal(calls[0].body.application_fee_amount, 298);
+});
+
+test("Accounts v2 Managed Risk creates and recovers a direct charge on the connected account", async () => {
+  const provider = new StripePaymentAdapter("sk_test_fake", "pk_test_fake");
+  const input: CreateProviderPaymentInput = {
+    ...prepared().snapshot().creation!.input,
+    method: "card",
+    stripeConnectAccountId: "acct_v2_merchant",
+    stripeChargeMode: "direct_v2",
+    platformFeeCents: 298,
+  };
+  const calls: any[] = [];
+  (provider as any).stripe = { paymentIntents: {
+    create: async (body: unknown, options: unknown) => {
+      calls.push({ body, options });
+      return { id: "pi_direct", client_secret: "client-secret" };
+    },
+    search: async (_body: unknown, options: unknown) => {
+      calls.push({ search: true, options });
+      return { has_more: false, data: [] };
+    },
+  } };
+
+  const created = await provider.createPayment(input);
+  assert.equal(calls[0].options.stripeAccount, "acct_v2_merchant");
+  assert.equal(calls[0].body.application_fee_amount, 298);
+  assert.equal(calls[0].body.transfer_data, undefined);
+  assert.equal(created.buyerFacingPayload.stripeAccountId, "acct_v2_merchant");
+
+  assert.equal(await provider.recoverPayment(input, new Date(Date.now() - 24 * 3600_000).toISOString()), null);
+  assert.equal(calls[1].options.stripeAccount, "acct_v2_merchant");
+});
+
 test("API014: card fee snapshot survives configuration changes and dispatch forwards captured total and intent ID", async t => {
   const keys = ["STRIPE_SECRET_KEY_TEST", "STRIPE_PUBLISHABLE_KEY_TEST", "PLATFORM_FEE_BRL"] as const;
   const old = Object.fromEntries(keys.map(key => [key, process.env[key]]));
@@ -123,7 +212,9 @@ test("API014: card fee snapshot survives configuration changes and dispatch forw
     const completions: CheckoutPaymentApprovedInput[] = [];
     const port: CheckoutPaymentPort = { completeAfterApproval: async input => { completions.push(input); }, recordPaymentFailure: async () => {}, recordPaymentStatusChanged: async () => {} };
     await new PaymentDispatchService(repo, port).markApprovedAndComplete((await repo.getIntentById(session.merchantId, result.id))!, "pi_one");
-    assert.equal(completions[0].orderTotalMajorUnits, expected / 100); assert.equal(completions[0].paymentIntentId, result.id); assert.deepEqual(completions[0].amountBreakdown, result.amountBreakdown);
+    // The buyer fee is part of the payment amount, not the merchant commerce order.
+    const merchantOrderCents = expected - Math.round(Number(fee) * 100);
+    assert.equal(completions[0].orderTotalMajorUnits, merchantOrderCents / 100); assert.equal(completions[0].paymentIntentId, result.id); assert.deepEqual(completions[0].amountBreakdown, result.amountBreakdown);
   }
 });
 
@@ -170,7 +261,7 @@ test("API014: idempotent retry rejects changed sale identities and hides persist
   const session = checkoutSession({ customer: { fullName: "Buyer", email: "buyer@example.invalid", cpf: "00000000000", asaasCustomerId: "cus_one" },
     cart: { currency: "BRL", total: 10, currentDiscount: 0, items: [{ sku: "sku-one", name: "Item", price: 10, quantity: 1 }] } });
   await checkout.saveSession(session); let creates = 0;
-  const provider: PaymentProviderPort = { createPayment: async () => { creates++; return { providerPaymentId: "pay_one", status: "requires_action", buyerFacingPayload: {} }; } };
+  const provider: PaymentProviderPort = { createPayment: async () => { creates++; return { providerPaymentId: "pay_one", status: "requires_action", buyerFacingPayload: { qrCodeCopyPaste: "pix-code" } }; } };
   const uc = new CreatePaymentIntentUseCase(checkout, checkout, repo, provider);
   const input = { merchant_id: session.merchantId, session_id: session.sessionId, idempotency_key: "same-sale", method: "pix" as const };
   const result = await uc.execute(input);

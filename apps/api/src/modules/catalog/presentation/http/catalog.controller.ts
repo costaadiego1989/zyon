@@ -20,7 +20,7 @@ import { UpdateCategoryUseCase } from "../../application/use-cases/update-catego
 import { DeleteCategoryUseCase } from "../../application/use-cases/delete-category.use-case.js";
 import { ReorderCategoriesUseCase, type ReorderCategoriesPayload, type ReorderCategoryItem } from "../../application/use-cases/reorder-categories.use-case.js";
 import { GenerateProductSeoUseCase } from "../../application/use-cases/generate-product-seo.use-case.js";
-import { CatalogVariantService } from "../../application/services/catalog-variant.service.js";
+import { CatalogVariantService, type ProductEditorChanges, type VariantReplacement } from "../../application/services/catalog-variant.service.js";
 
 @UseGuards(AuthGuard, MerchantOwnershipGuard, RequirePlanGuard)
 @Controller("merchants")
@@ -96,7 +96,9 @@ export class StoreBuilderCatalogController {
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
     @Query("offset") offset?: string,
+    @Query("status") status?: string,
   ) {
+    if (status !== undefined && !["all", "active", "inactive"].includes(status)) throw new BadRequestException("invalid_product_status");
     return this.searchProducts.execute({
       merchantId,
       query,
@@ -105,6 +107,7 @@ export class StoreBuilderCatalogController {
       limit: limit ? parseInt(limit, 10) : undefined,
       cursor,
       offset: offset ? parseInt(offset, 10) : undefined,
+      status: status as "all" | "active" | "inactive" | undefined,
     });
   }
 
@@ -157,6 +160,12 @@ export class StoreBuilderCatalogController {
     });
   }
 
+  @Put(":mid/products/:pid/variants")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async replaceVariants(@Param("mid") merchantId: string, @Param("pid") productId: string, @Body() body: { variants: VariantReplacement[]; product?: ProductEditorChanges }) {
+    return this.variants.replace(merchantId, productId, body.variants, body.product);
+  }
+
   @Put(":mid/products/:pid/variants/:vid")
   @RequirePlan("STORE_ONLY", "BOTH")
   async updateVariant(
@@ -164,6 +173,8 @@ export class StoreBuilderCatalogController {
     @Param("pid") productId: string,
     @Param("vid") variantId: string,
     @Body() body: {
+      sku?: string;
+      attributes?: Record<string, string>;
       basePriceInCents?: number;
       costInCents?: number | null;
       stockQuantity?: number;

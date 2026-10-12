@@ -1,17 +1,17 @@
+import { merchantThemeTokens } from "@zyon/shared-types";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import ConversationShell from "@/components/ConversationShell";
 import { WidgetConfigProvider } from "@/components/WidgetConfigProvider";
 import { CartProvider } from "@/lib/cart-store";
 import { OrganizationSchema, WebSiteSchema, BreadcrumbListSchema, ProductSchema } from "@/components/StructuredData";
-import { GoogleTagManager } from "@/components/GoogleTagManager";
-import { FacebookPixel, TiktokPixel } from "@/components/PixelTrackers";
+import { StorefrontConsent } from "@/components/StorefrontConsent";
 import { getDemoMerchant } from "@/lib/demo-merchant";
 import { fetchStoreConfig, fetchStoreStories } from "@/lib/api/server-client";
 import { fetchProductContent } from "@/lib/api/product-content";
 import { DemoEmbedBridge } from "@/components/DemoEmbedBridge";
 
-const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://zyon-storefront.vercel.app";
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://storefront.zyon-payments.com.br";
 
 function readableOnAccent(accent: string | undefined): string {
   const match = accent?.trim().match(/^#([0-9a-f]{3}|[0-9a-f]{6})$/i);
@@ -33,6 +33,7 @@ type SearchParams = {
   show?: string;
   product?: string;
   productId?: string;
+  recovery?: string;
 };
 
 export async function generateMetadata({
@@ -96,12 +97,13 @@ export async function generateMetadata({
       description: productSeo?.ogDescription ?? productSeo?.description ?? seo?.ogDescription ?? description,
       images: logo ? [logo] : [],
     },
+    referrer: query?.recovery ? "no-referrer" : "strict-origin-when-cross-origin",
     robots: {
-      index: true,
-      follow: true,
+      index: !query?.recovery && query?.show !== "checkout" && query?.show !== "cart",
+      follow: !query?.recovery,
       googleBot: {
-        index: true,
-        follow: true,
+        index: !query?.recovery && query?.show !== "checkout" && query?.show !== "cart",
+        follow: !query?.recovery,
         "max-image-preview": "large",
       },
     },
@@ -120,7 +122,12 @@ export default async function StorePage({
   searchParams: Promise<SearchParams>;
 }) {
   const { slug } = await params;
-  const { order, show, product, productId } = await searchParams;
+  const { order, show, product, productId, recovery } = await searchParams;
+  const privateCheckout = show === "checkout" || show === "cart" || Boolean(recovery);
+  const initialSearch = new URLSearchParams();
+  for (const [key, value] of Object.entries({ show, product, productId, recovery })) {
+    if (typeof value === "string") initialSearch.set(key, value);
+  }
 
   const config = await fetchStoreConfig(slug);
   const stories = config?.stories ?? await fetchStoreStories(slug);
@@ -253,6 +260,7 @@ export default async function StorePage({
       ${themeColors.borderRadius != null ? `--aacp-radius: ${themeColors.borderRadius}px;` : ""}
       ${modeDefaults?.muted ? `--aacp-muted: ${modeDefaults.muted};` : ""}
       ${themeColors.backgroundImageUrl ? `--aacp-chat-bg-image: url(${themeColors.backgroundImageUrl});` : ""}
+      ${config ? Object.entries(merchantThemeTokens(config.theme)).map(([key, value]) => `${key}: ${value};`).join("\n"): ""}
     }
   `;
 
@@ -283,7 +291,7 @@ export default async function StorePage({
           display:flex; flex-direction:column; height:100vh; height:100dvh; overflow:hidden;
           background: var(--aacp-bg);
           color:var(--aacp-fg); font-family:var(--aacp-font);
-          ${themeColors.density === "compact" ? "max-width:480px; margin:0 auto;" : themeColors.density === "comfortable" ? "max-width:680px; margin:0 auto;" : ""}
+          max-width:var(--aacp-shell-max-width, 100%); width:100%; margin:0 auto;
         }
         ${themeColors.backgroundImageUrl ? `
         body {
@@ -327,14 +335,12 @@ export default async function StorePage({
           { name, url: pageUrl },
         ]}
       />
-      {gtmId && <GoogleTagManager gtmId={gtmId} />}
-      {fbPixelId && <FacebookPixel pixelId={fbPixelId} />}
-      {tiktokPixelId && <TiktokPixel pixelId={tiktokPixelId} />}
       {["demo", "athom-technologies"].includes(slug) && config?.merchantId ? <DemoEmbedBridge /> : null}
       {/* suppressHydrationWarning: zoom/reader browser extensions inject
           data-original-width + inline max-width on this shell before React
           hydrates. That mutation is outside our control. */}
       <div className="storefront-shell" suppressHydrationWarning>
+        <StorefrontConsent key={config?.merchantId ?? slug} storeKey={config?.merchantId ?? slug} merchantId={config?.merchantId} storeName={name} storeSlug={config ? slug : undefined} gtmId={privateCheckout ? undefined : gtmId} fbPixelId={privateCheckout ? undefined : fbPixelId} tiktokPixelId={privateCheckout ? undefined : tiktokPixelId}>
         <WidgetConfigProvider merchantId={config?.merchantId}>
           <CartProvider merchantId={config?.merchantId}>
             <ConversationShell
@@ -350,13 +356,18 @@ export default async function StorePage({
               storeSettings={config?.storeSettings}
               initialStories={stories}
               themeMode={config?.theme?.mode}
+              merchantTheme={config?.theme}
+              budgetModeEnabled={config?.budgetModeEnabled === true}
               showBranding={config?.showBranding}
+              voiceCheckoutEnabled={config?.voiceCheckoutEnabled}
               agentMode={config?.agentMode}
               agentInitialDelaySeconds={config?.agentInitialDelaySeconds}
               initialRichProductId={richProductId ?? undefined}
+              initialSearch={initialSearch.toString()}
             />
           </CartProvider>
         </WidgetConfigProvider>
+        </StorefrontConsent>
       </div>
     </>
   );

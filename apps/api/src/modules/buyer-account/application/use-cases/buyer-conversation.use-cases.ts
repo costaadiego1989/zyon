@@ -1,4 +1,4 @@
-import { Inject, Injectable } from "@nestjs/common";
+import { Inject, Injectable, NotFoundException } from "@nestjs/common";
 import {
   BUYER_CONVERSATION_REPOSITORY,
   type BuyerConversation,
@@ -11,9 +11,10 @@ export class ListBuyerConversationsUseCase {
     @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly repo: BuyerConversationRepository
   ) {}
 
-  async execute(input: { globalUserId: string }): Promise<BuyerConversation[]> {
+  async execute(input: { globalUserId: string; merchantId?: string }): Promise<BuyerConversation[]> {
     if (!input.globalUserId) throw new Error("buyer_conversation_missing_global_user_id");
-    return this.repo.listByBuyer(input.globalUserId);
+    const rows = await this.repo.listByBuyer(input.globalUserId, { merchantId: input.merchantId });
+    return input.merchantId ? rows.filter((row) => row.merchantId === input.merchantId) : rows;
   }
 }
 
@@ -23,11 +24,11 @@ export class GetBuyerConversationUseCase {
     @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly repo: BuyerConversationRepository
   ) {}
 
-  async execute(input: { globalUserId: string; id: string }): Promise<BuyerConversation> {
+  async execute(input: { globalUserId: string; id: string; merchantId?: string }): Promise<BuyerConversation> {
     if (!input.globalUserId) throw new Error("buyer_conversation_missing_global_user_id");
     if (!input.id) throw new Error("buyer_conversation_missing_id");
     const c = await this.repo.findById(input.globalUserId, input.id);
-    if (!c) throw new Error("buyer_conversation_not_found");
+    if (!c || (input.merchantId && c.merchantId !== input.merchantId)) throw new NotFoundException("buyer_conversation_not_found");
     return c;
   }
 }
@@ -43,12 +44,17 @@ export class RateBuyerConversationMessageUseCase {
     conversationId: string;
     messageId: string;
     rating: "up" | "down";
+    merchantId?: string;
   }): Promise<void> {
     if (!input.globalUserId) throw new Error("buyer_conversation_missing_global_user_id");
     if (!input.conversationId) throw new Error("buyer_conversation_missing_id");
     if (!input.messageId) throw new Error("buyer_conversation_missing_message_id");
     if (input.rating !== "up" && input.rating !== "down") {
       throw new Error("buyer_conversation_invalid_rating");
+    }
+    if (input.merchantId) {
+      const owned = await this.repo.findById(input.globalUserId, input.conversationId);
+      if (!owned || owned.merchantId !== input.merchantId) throw new NotFoundException("buyer_conversation_not_found");
     }
     await this.repo.rateMessage(input);
   }

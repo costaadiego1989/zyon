@@ -5,10 +5,13 @@ import type { MerchantRepository } from "../../../merchant/domain/ports/merchant
 import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import { extractOptionGroups } from "../../domain/food-options.js";
+import { isDigitalContentReady } from "../../../catalog/domain/services/product-type-validation.js";
+import { isServiceOfferAvailable } from "../../../catalog/domain/services/service-schedule.js";
 import { loadProductNoticeRules, productRuleNotices } from "../product-rule-notices.js";
 import { productGallery } from "../product-gallery.js";
+import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
 
-import { buildCrossSellSuggestions, type CrossSellConfig } from "./cart-cross-sell.helper.js";
+import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 
@@ -38,15 +41,18 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       });
 
       const noticeRules = await loadProductNoticeRules(deps.prisma, ctx.merchantId);
-      const localProducts = result.products.map((p) => {
+      const localProducts = await Promise.all(result.products.map(async (p) => {
+        const serviceSchedule = p.type === "service" && p.defaultVariant ? await new ServiceSlotHoldsService(deps.prisma).availability(ctx.merchantId, p.defaultVariant.id, p.metadata) : undefined;
         const ruleNotices = productRuleNotices(noticeRules, p.variants.map((v) => v.sku), p.id);
         return {
           id: p.id,
+          type: p.type,
+          serviceSchedule,
           name: p.name,
           description: p.description,
           price: p.defaultVariant?.basePriceInCents ?? 0,
           ...productGallery(p),
-          inStock: p.hasStock,
+          inStock: p.hasStock && (!serviceSchedule || serviceSchedule.slots.some(slot => slot.selectable)),
           rating: p.averageRating,
           reviewCount: p.reviewCount,
           // Full variant shape so the storefront can render a variant selector
@@ -57,12 +63,13 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             attributes: v.attributes ?? {},
             basePriceInCents: v.basePriceInCents,
             stockQuantity: v.stockQuantity,
+            stockReserved: v.stockReserved,
           })),
           optionGroups: extractOptionGroups(p.metadata),
           ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
           source: "local" as const,
         };
-      });
+      }));
 
       const federatedSearch = deps.searchFederatedProducts;
       const shouldSearchMarketplace = localProducts.length < 3 && federatedSearch && args.query && args.query !== "*";
@@ -119,6 +126,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     getProductDetails: async (args) => {
       const product = await deps.productRepo.findById(ctx.merchantId, args.productId);
       if (!product) return { error: "product_not_found" };
+      const serviceSchedule = product.type === "service" && product.defaultVariant ? await new ServiceSlotHoldsService(deps.prisma).availability(ctx.merchantId, product.defaultVariant.id, product.metadata) : undefined;
       const noticeRules = await loadProductNoticeRules(deps.prisma, ctx.merchantId);
       const ruleNotices = productRuleNotices(
         noticeRules,
@@ -126,24 +134,47 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         product.id,
       );
       const config = await deps.loadCrossSellConfig?.(ctx.merchantId);
-      const crossSellSuggestions = config?.enabled && config.touchpoints.pre_cart && deps.cartRepo
-        ? await buildCrossSellSuggestions(deps, ctx.merchantId, await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId), config, product.name)
-        : [];
+      let crossSellSuggestions: CrossSellSuggestion[] = [];
+      if (config?.enabled && config.touchpoints.pre_cart && deps.cartRepo) {
+        const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
+        const viewedVariant = product.variants.find((variant) => variant.isActive);
+        // Before the shopper adds an item, evaluate the offer as if the viewed
+        // product were in the cart. This is only an eligibility snapshot: it
+        // never persists an item or changes the shopper's actual cart.
+        const crossSellCart: CartSnapshot = viewedVariant && !cart.items.some((item) => item.variantId === viewedVariant.id)
+          ? {
+              sessionId: cart.sessionId,
+              total: cart.total + viewedVariant.basePriceInCents,
+              items: [
+                ...cart.items,
+                {
+                  variantId: viewedVariant.id,
+                  sku: viewedVariant.sku,
+                  name: product.name,
+                  unitPriceCents: viewedVariant.basePriceInCents,
+                  quantity: 1,
+                },
+              ],
+            }
+          : cart;
+        crossSellSuggestions = await buildCrossSellSuggestions(deps, ctx.merchantId, crossSellCart, config, product.name);
+      }
       return {
         crossSellSuggestions,
-        crossSellDisplayMode: "inline",
+        crossSellDisplayMode: crossSellSuggestions.length > 0 ? config?.display?.mode : undefined,
         product: {
           id: product.id,
           name: product.name,
           description: product.description,
           type: product.type,
+          serviceSchedule,
           ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
           variants: product.variants,
           optionGroups: extractOptionGroups(product.metadata),
           media: product.defaultVariant?.media ?? [],
           ...productGallery(product),
-          stock: product.totalStock,
-          inStock: product.hasStock,
+          stock: product.type === "digital" || product.type === "service" ? null : product.totalStock,
+          inStock: product.hasStock && (!serviceSchedule || serviceSchedule.slots.some(slot => slot.selectable)),
           rating: product.averageRating,
           reviewCount: product.reviewCount
         }
@@ -151,31 +182,66 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     },
 
     compareProducts: async (args) => {
-      const products = await Promise.all(
-        args.productIds.slice(0, 5).map((id) => deps.productRepo.findById(ctx.merchantId, id))
-      );
+      const productIds = uniqueStrings([...(Array.isArray(args.productIds) ? args.productIds : []), args.productId]).slice(0, 5);
+      const productNames = uniqueStrings([...(Array.isArray(args.productNames) ? args.productNames : []), args.productName]).slice(0, 5);
+      if (productIds.length === 0 && productNames.length === 0) {
+        return { error: "comparison_product_required", comparison: [], message: "Informe o produto atual ou os nomes dos produtos que deseja comparar." };
+      }
+
+      const products = (await Promise.all(
+        productIds.map((id) => deps.productRepo.findById(ctx.merchantId, id)),
+      )).filter((product): product is NonNullable<typeof product> => Boolean(product?.isActive));
+
+      const missingProductNames: string[] = [];
+      for (const productName of productNames) {
+        const result = await deps.productRepo.search({ merchantId: ctx.merchantId, query: productName, isActiveOnly: true, limit: 10 });
+        const exactMatch = result.products.find((product) => normalizeProductName(product.name) === normalizeProductName(productName));
+        if (exactMatch && !products.some((product) => product.id === exactMatch.id)) products.push(exactMatch);
+        else if (!exactMatch) missingProductNames.push(productName);
+      }
+
+      const requestedCount = productIds.length + productNames.length;
+      const baseProduct = products[0];
+      if (args.includeSimilar !== false && requestedCount === 1 && products.length === 1 && baseProduct?.categoryId) {
+        const similar = await deps.productRepo.search({ merchantId: ctx.merchantId, categoryId: baseProduct.categoryId, isActiveOnly: true, limit: 5 });
+        for (const product of similar.products) {
+          if (products.length >= 5) break;
+          if (product.id !== baseProduct.id && !products.some((item) => item.id === product.id)) products.push(product);
+        }
+      }
+
       return {
-        comparison: products
-          .filter((p): p is any => p !== null)
-          .map((p) => ({
-            id: p.id,
-            name: p.name,
-            price: p.defaultVariant?.basePriceInCents ?? 0,
-            attributes: p.defaultVariant?.attributes ?? {},
-            stock: p.totalStock,
-            rating: p.averageRating
-          }))
+        comparison: products.map((product) => ({
+          id: product.id,
+          name: product.name,
+          price: product.defaultVariant?.basePriceInCents ?? 0,
+          attributes: product.defaultVariant?.attributes ?? {},
+          stock: product.totalStock,
+          rating: product.averageRating,
+          type: product.type,
+        })),
+        requestedProductNames: productNames,
+        missingProductNames,
+        requiresProductNames: products.length < 2,
       };
     },
 
     getProductAvailability: async (args) => {
+      const variant = await deps.prisma.productVariant.findFirst({ where: {
+        id: args.variantId, isActive: true, product: { merchantId: ctx.merchantId, isActive: true, deletedAt: null },
+      }, select: { product: { select: { type: true, metadata: true } } } });
+      if (!variant) return { error: "product_not_found", inStock: false, quantity: 0 };
+      if (variant.product.type === "digital") return {
+        inStock: isDigitalContentReady(variant.product.metadata), quantity: null,
+        estimatedShipping: "Acesso liberado após confirmação do pagamento",
+      };
+      if (variant.product.type === "service") return {
+        inStock: isServiceOfferAvailable(variant.product.metadata), quantity: null, estimatedShipping: "Conforme as condições do serviço",
+      };
       const stock = await deps.stockRepo.getAvailableStock(args.variantId);
-      const variant = await deps.prisma.productVariant.findUnique({ where: { id: args.variantId }, select: { product: { select: { type: true } } } });
-      const isDigitalOrService = variant?.product?.type === "digital" || variant?.product?.type === "service";
+      const available = Math.max(0, stock.quantity - stock.reserved);
       return {
-        inStock: isDigitalOrService || stock.quantity > 0,
-        quantity: isDigitalOrService ? 999 : stock.quantity,
-        estimatedShipping: isDigitalOrService ? "Entrega imediata" : "3-5 dias úteis"
+        inStock: available > 0, quantity: available, estimatedShipping: "3-5 dias úteis",
       };
     },
 
@@ -284,20 +350,15 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
     },
 
     listCategories: async () => {
-      const result = await deps.productRepo.search({
-        merchantId: ctx.merchantId,
-        query: undefined,
-        limit: 1,
-      });
       try {
-        const cats = await (deps.productRepo as any).listCategories?.(ctx.merchantId);
+        const cats = await (deps.productRepo as any).listCategories?.(ctx.merchantId, { publicOnly: true });
         if (cats?.length) {
           return {
             categories: cats.map((c: any) => ({
               id: c.id,
               name: c.name,
               slug: c.slug,
-              productCount: c._count?.products ?? 0,
+              productCount: Number.isInteger(c.productCount) && c.productCount >= 0 ? c.productCount : c._count?.products ?? 0,
             }))
           };
         }
@@ -305,4 +366,20 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       return { categories: [] };
     }
   };
+}
+
+function uniqueStrings(values: unknown[]): string[] {
+  return [...new Set(values
+    .filter((value): value is string => typeof value === "string")
+    .map((value) => value.trim())
+    .filter(Boolean))];
+}
+
+function normalizeProductName(value: string): string {
+  return value
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLocaleLowerCase("pt-BR")
+    .replace(/\s+/g, " ")
+    .trim();
 }

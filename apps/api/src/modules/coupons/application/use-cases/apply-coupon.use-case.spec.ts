@@ -98,6 +98,31 @@ const BASE_INPUT = {
   merchantRules: PERMISSIVE_RULES,
 };
 
+it("a strategy coupon cannot bypass audience, assignment and budget through the ordinary coupon path", async () => {
+  const { couponRepo, outbox, useCase } = makeSetup();
+  const normal = CouponEntity.create(makeCouponInput());
+  await couponRepo.save(CouponEntity.rehydrate({ ...normal.snapshot(), strategy_incentive_execution_id: "execution-1" }));
+  await assert.rejects(useCase.execute(BASE_INPUT), /COUPON_STRATEGY_CHECKOUT_REQUIRED/);
+  assert.equal(outbox.listOutbox("mrc_1").length, 0);
+});
+
+it("shipping coupon enforces known costs and subsidy limits before reserving usage", async () => {
+  for (const scenario of ["missing_cost", "excess_subsidy", "margin_floor"] as const) {
+    const { couponRepo, outbox, useCase } = makeSetup();
+    const coupon = CouponEntity.create(makeCouponInput({ discount_type: "shipping_free", discount_value: 0 }));
+    await couponRepo.save(coupon);
+    const expected = { missing_cost: "product_cost_missing", excess_subsidy: "shipping_subsidy_above_limit", margin_floor: "minimum_margin_violation" }[scenario];
+    await assert.rejects(useCase.execute({ ...BASE_INPUT,
+      cart: { ...BASE_CART, items: BASE_CART.items.map(item => ({ ...item, cost: scenario === "missing_cost" ? undefined : 80 })) },
+      shipping: { customerPrice: 25, realCost: 25 },
+      merchantRules: { ...PERMISSIVE_RULES, allowFreeShipping: true, freeShippingMinCartValue: 0,
+        maxShippingSubsidy: scenario === "excess_subsidy" ? 20 : 45, minimumMarginPercent: 38 },
+    }), new RegExp(expected));
+    assert.equal(outbox.listOutbox("mrc_1").length, 0);
+    assert.equal((await couponRepo.findById(coupon.id, "mrc_1"))?.snapshot().usages_count, 0);
+  }
+});
+
 describe("ApplyCouponUseCase", () => {
   it("applies coupon and fires outbox event", async () => {
     const { couponRepo, outbox, useCase } = makeSetup();
@@ -213,8 +238,9 @@ describe("ApplyCouponUseCase", () => {
 
     const result = await useCase.execute({
       ...BASE_INPUT,
-      merchantRules: { ...PERMISSIVE_RULES, allowFreeShipping: true },
-      shipping: { customerPrice: 25 },
+      merchantRules: { ...PERMISSIVE_RULES, allowFreeShipping: true, freeShippingMinCartValue: 0 },
+      cart: { ...BASE_CART, items: BASE_CART.items.map(item => ({ ...item, cost: 20 })) },
+      shipping: { customerPrice: 25, realCost: 25 },
     });
 
     assert.equal(result.discount_applied, 0);

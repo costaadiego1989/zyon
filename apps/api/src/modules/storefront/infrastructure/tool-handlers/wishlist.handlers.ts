@@ -16,11 +16,7 @@ export interface WishlistHandlerDeps {
   productRepo: ProductRepositoryPort;
 }
 
-/**
- * Wishlist ownership is server-derived. Guests are scoped to their signed
- * conversation; authenticated buyers can also see saved products from the
- * active session without exposing or trusting browser identity.
- */
+/** Server-derived owner keys keep wishlists tenant-scoped for buyers and guests. */
 export function createWishlistHandlers(
   deps: WishlistHandlerDeps,
   ctx: ToolRequestContext,
@@ -57,14 +53,12 @@ export function createWishlistHandlers(
   };
 
   return {
-    addToWishlist: async (args: any) => {
+    addToWishlist: async (args) => {
       if (typeof args.productId !== "string" || !args.productId.trim()) {
         return { error: "product_id_required", items: await list() };
       }
       const product = await deps.productRepo.findById(ctx.merchantId, args.productId);
-      if (!product?.isActive) {
-        return { error: "product_not_found", items: await list() };
-      }
+      if (!product?.isActive) return { error: "product_not_found", items: await list() };
       await wishlist.upsert({
         where: {
           merchantId_ownerKey_productId: {
@@ -76,12 +70,7 @@ export function createWishlistHandlers(
         create: { merchantId: ctx.merchantId, ownerKey: ownerKeys[0], productId: product.id },
         update: {},
       });
-      return {
-        added: true,
-        productId: product.id,
-        items: await list(),
-        message: "Produto adicionado à lista de desejos.",
-      };
+      return { added: true, productId: product.id, items: await list(), message: "Produto adicionado à lista de desejos." };
     },
 
     getWishlist: async () => {
@@ -94,23 +83,14 @@ export function createWishlistHandlers(
       };
     },
 
-    removeFromWishlist: async (args: any) => {
+    removeFromWishlist: async (args) => {
       if (typeof args.productId !== "string" || !args.productId.trim()) {
         return { error: "product_id_required", items: await list() };
       }
       await wishlist.deleteMany({
-        where: {
-          merchantId: ctx.merchantId,
-          ownerKey: { in: ownerKeys },
-          productId: args.productId,
-        },
+        where: { merchantId: ctx.merchantId, ownerKey: { in: ownerKeys }, productId: args.productId },
       });
-      return {
-        removed: true,
-        productId: args.productId,
-        items: await list(),
-        message: "Produto removido da lista de desejos.",
-      };
+      return { removed: true, productId: args.productId, items: await list(), message: "Produto removido da lista de desejos." };
     },
   };
 }

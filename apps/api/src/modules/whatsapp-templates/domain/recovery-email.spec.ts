@@ -2,9 +2,10 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { renderRecoveryEmail } from "./recovery-email.js";
 import { prepareRecoveryWhatsApp, RECOVERY_TEMPLATE_DEFAULTS, renderRecoveryText } from "./recovery-template-content.js";
+import { applyMerchantEmailBranding } from "../../../shared/email/merchant-email-branding.js";
 
 test("recovery email renders merchant identity, escaped copy and a single primary CTA", () => {
-  const html = renderRecoveryEmail('Olá <Ana>!\n\nhttps://shop.example/cart?a=1&b=2\n\nEquipe <Loja>', 'Casa & Aurora', 'https://shop.example/cart?a=1&b=2');
+  const html = applyMerchantEmailBranding(renderRecoveryEmail('Olá <Ana>!\n\nhttps://shop.example/cart?a=1&b=2\n\nEquipe <Loja>', 'Casa & Aurora', 'https://shop.example/cart?a=1&b=2'), { merchantName: 'Casa & Aurora' });
   assert.match(html, /Casa &amp; Aurora/);
   assert.match(html, /Olá &lt;Ana&gt;/);
   assert.match(html, /Equipe &lt;Loja&gt;/);

@@ -9,11 +9,14 @@ import {
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { readStripeConnection } from "../infrastructure/stripe-env.js";
 import { PaymentDispatchService } from "./services/payment-dispatch.service.js";
-import { HandleStripePlatformEventUseCase } from "./payment-platform.use-cases.js";
+import {  HandleStripePlatformEventUseCase,} from "./payment-platform.use-cases.js";
 import { CorrelationIdStorage } from "../../../shared/logger/correlation-id.storage.js";
 import { STRIPE_PLATFORM_PORT, type StripePlatformPort } from "../domain/ports/payment-platform-provider.port.js";
 import { HandleMarketplaceChargebackUseCase } from "../../marketplace/application/use-cases/handle-marketplace-chargeback.use-case.js";
 import { ChargebackPaymentHoldUseCase, RefundPaymentHoldUseCase } from "./payment-hold.use-cases.js";
+import { fundingHash, lockMarketplaceOrder } from "../../marketplace/infrastructure/repositories/prisma-marketplace-funding.repository.js";
+import { marketplacePaymentStatusInput } from "../domain/marketplace-payment-status.js";
+import { PAYMENT_PROVIDER_PORT, type PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 
 export type HandleStripeWebhookResult =
   | { outcome: "duplicate" }
@@ -41,9 +44,9 @@ export class HandleStripeWebhookUseCase {
     @Optional() private readonly platformEvents?: HandleStripePlatformEventUseCase,
     @Optional() @Inject("PRISMA_CLIENT") private readonly prisma?: any,
     @Optional() private readonly marketplaceChargeback?: HandleMarketplaceChargebackUseCase,
-    @Optional() @Inject(STRIPE_PLATFORM_PORT) private readonly billingStripe?: StripePlatformPort,
-    @Optional() private readonly refundPaymentHold?: RefundPaymentHoldUseCase,
+    @Optional() @Inject(STRIPE_PLATFORM_PORT) private readonly billingStripe?: StripePlatformPort,    @Optional() private readonly refundPaymentHold?: RefundPaymentHoldUseCase,
     @Optional() private readonly chargebackPaymentHold?: ChargebackPaymentHoldUseCase,
+    @Inject(PAYMENT_PROVIDER_PORT) private readonly paymentProvider?: PaymentProviderPort,
   ) {
     const { secretKey } = readStripeConnection();
     // Stripe is optional: an Asaas-only installation must still boot.
@@ -109,9 +112,14 @@ export class HandleStripeWebhookUseCase {
 
   private async resolveMerchantId(event: Stripe.Event): Promise<string | null> {
     const obj = event.data.object as {
+      id?: string;
       metadata?: Record<string, string> | null;
       payment_intent?: string | { id?: string } | null;
     };
+    if (event.type === "payment_intent.succeeded") {
+      const marketplaceIntent = await this.marketplaceIntentForProviderId(obj.id);
+      if (marketplaceIntent) return marketplaceIntent.snapshot().merchantId;
+    }
     const intentId = obj?.metadata?.intent_id;
     const metaMerchantId = obj?.metadata?.merchant_id;
     if (intentId && metaMerchantId) {
@@ -129,10 +137,17 @@ export class HandleStripeWebhookUseCase {
     return reference?.merchantId ?? null;
   }
 
+  private async marketplaceIntentForProviderId(providerPaymentId: string | undefined) {
+    if (!providerPaymentId?.trim()) return null;
+    const reference = await this.payments.getIntentReferenceByProviderPaymentId?.(providerPaymentId);
+    const intent = reference ? await this.payments.getIntentById(reference.merchantId, reference.id) : null;
+    return intent?.snapshot().creation?.input.marketplaceFunding !== undefined ? intent : null;
+  }
+
   private async dispatch(event: Stripe.Event): Promise<string> {
     switch (event.type) {
       case "payment_intent.succeeded":
-        return this.handleSucceeded(event.data.object as Stripe.PaymentIntent);
+        return this.handleSucceeded(event, event.data.object as Stripe.PaymentIntent);
 
       case "payment_intent.payment_failed":
         return this.handleFailed(event.data.object as Stripe.PaymentIntent);
@@ -165,29 +180,61 @@ export class HandleStripeWebhookUseCase {
           event.data.object as Stripe.Subscription,
         );
 
+      case "invoice.created":
+      case "invoice.finalized":
+      case "invoice.payment_action_required":
+      case "invoice.payment_failed":
       case "invoice.paid":
-      case "invoice.payment_failed": {
-        const invoice = event.data.object as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null };
-        const subscriptionId = idFrom(invoice.parent?.subscription_details?.subscription ?? invoice.subscription);
-        if (!subscriptionId || !this.billingStripe || !this.platformEvents) return "ignored_non_subscription_invoice";
-        await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscriptionId));
-        return "billing_invoice_synchronized";
-      }
+      case "invoice.voided":
+      case "invoice.marked_uncollectible":
+        return this.handleBillingInvoice(
+          event,
+          event.data.object as Stripe.Invoice & { subscription?: string | Stripe.Subscription | null },
+        );
 
       default:
         return "ignored_event_type";
     }
   }
 
-  private async handleSucceeded(pi: Stripe.PaymentIntent): Promise<string> {
+  private async handleSucceeded(event: Stripe.Event, pi: Stripe.PaymentIntent): Promise<string> {
     const intentId = pi.metadata?.intent_id;
     const metaMerchantId = pi.metadata?.merchant_id;
-    if (!intentId || !metaMerchantId) return "ignored_missing_intent_id";
-
-    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
+    // A known marketplace charge cannot be redirected to an ordinary intent by
+    // event metadata. The metadata is checked against this persisted identity.
+    const marketplaceIntent = await this.marketplaceIntentForProviderId(pi.id);
+    if (!marketplaceIntent && (!intentId || !metaMerchantId)) return "ignored_missing_intent_id";
+    const intentEntity = marketplaceIntent ?? await this.payments.getIntentById(metaMerchantId!, intentId!);
     if (!intentEntity) return "intent_not_found";
 
     const snap = intentEntity.snapshot();
+
+    const marketplaceRead = marketplacePaymentStatusInput(snap);
+    if (marketplaceRead) {
+      const live = marketplaceRead.marketplaceAccount!.environment === "live";
+      // Marketplace charges belong to the frozen platform account. A signed
+      // Connect event, stale metadata or another environment is not its proof.
+      if (marketplaceRead.provider !== "stripe" || event.account !== undefined || event.livemode !== live ||
+          pi.livemode !== live || pi.id !== snap.providerPaymentId || pi.status !== "succeeded" ||
+          pi.metadata?.merchant_id !== snap.merchantId || pi.metadata?.intent_id !== snap.id ||
+          pi.metadata?.session_id !== snap.sessionId || pi.currency?.toUpperCase() !== snap.currency ||
+          pi.amount !== snap.amountCents || pi.amount_received !== snap.amountCents) {
+        throw new BadRequestException("marketplace_payment_event_identity_mismatch");
+      }
+      if (!this.paymentProvider?.fetchPaymentStatus) {
+        throw new ServiceUnavailableException("marketplace_payment_confirmation_unavailable");
+      }
+      let proof;
+      try {
+        proof = await this.paymentProvider.fetchPaymentStatus(marketplaceRead);
+      } catch {
+        throw new ServiceUnavailableException("marketplace_payment_confirmation_unavailable");
+      }
+      if (proof.state !== "approved" || proof.approvedAmountCents !== snap.amountCents) {
+        throw new ServiceUnavailableException("marketplace_payment_not_approved");
+      }
+      return this.paymentDispatch.markApprovedAndComplete(intentEntity, snap.providerPaymentId!);
+    }
 
     // A signed amount is meaningful only in the currency of this intent.
     // Reject before any state change; a corrected delivery can be retried.
@@ -292,16 +339,74 @@ export class HandleStripeWebhookUseCase {
     return "billing_subscription_updated";
   }
 
+  private async handleBillingInvoice(event: Stripe.Event, invoice: Stripe.Invoice & { subscription?: string | Stripe.Subscription | null }): Promise<string> {
+    if (event.type !== "invoice.paid" && event.type !== "invoice.payment_failed") return "ignored_event_type";
+    const subscriptionId = idFrom(invoice.parent?.subscription_details?.subscription ?? invoice.subscription);
+    if (!subscriptionId || !this.billingStripe || !this.platformEvents) return "ignored_non_subscription_invoice";
+    await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscriptionId));
+    return "billing_invoice_synchronized";
+  }
+
   private async handleChargeRefunded(charge: Stripe.Charge): Promise<string> {
     const pi = charge.payment_intent;
     const piId = typeof pi === "string" ? pi : pi?.id;
     if (!piId) return "ignored_missing_payment_intent";
-    const metaMerchantId = charge.metadata?.merchant_id;
-    const intentId = charge.metadata?.intent_id;
-    if (!intentId || !metaMerchantId) return "ignored_missing_intent_id";
+    const reference = await this.payments.getIntentReferenceByProviderPaymentId?.(piId);
+    const merchantId = reference?.merchantId ?? charge.metadata?.merchant_id;
+    const intentId = reference?.id ?? charge.metadata?.intent_id;
+    if (!intentId || !merchantId) return "ignored_missing_intent_id";
 
-    const intentEntity = await this.payments.getIntentById(metaMerchantId, intentId);
+    const intentEntity = await this.payments.getIntentById(merchantId, intentId);
     if (!intentEntity) return "intent_not_found";
+    const snapshot = intentEntity.snapshot();
+    if (snapshot.providerPaymentId !== piId ||
+        (charge.metadata?.merchant_id && charge.metadata.merchant_id !== snapshot.merchantId) ||
+        (charge.metadata?.intent_id && charge.metadata.intent_id !== snapshot.id)) {
+      throw new BadRequestException("stripe_refund_payment_mismatch");
+    }
+    if (typeof charge.currency !== "string" || charge.currency.toUpperCase() !== snapshot.currency.toUpperCase() ||
+        charge.amount !== snapshot.amountCents || !Number.isSafeInteger(charge.amount_refunded) ||
+        charge.amount_refunded <= 0 || charge.amount_refunded > snapshot.amountCents ||
+        typeof charge.refunded !== "boolean" || charge.refunded !== (charge.amount_refunded === snapshot.amountCents)) {
+      throw new BadRequestException("stripe_refund_amount_mismatch");
+    }
+
+    if (snapshot.creation?.input.marketplaceFunding) {
+      // This event also fires for partial refunds and does not bind a return's
+      // allocation journal. Only the dedicated refund GET reconciler settles
+      // marketplace accounting. Hold the original budget under the same order
+      // lock as payout admission, including manual refunds without a journal.
+      const frozen = snapshot.creation.input.marketplaceFunding;
+      if (!["test", "live"].includes(frozen.environment) || charge.livemode !== (frozen.environment === "live")) {
+        throw new BadRequestException("stripe_refund_environment_mismatch");
+      }
+      if (!this.prisma) throw new ServiceUnavailableException("marketplace_refund_reconciliation_unavailable");
+      await this.prisma.$transaction(async (tx: any) => {
+        await lockMarketplaceOrder(tx, snapshot.merchantId, piId);
+        const plan = await tx.marketplaceFundingPlan.findFirst({ where: { paymentIntentId: snapshot.id, hostMerchantId: snapshot.merchantId } });
+        if (!plan || plan.provider !== "stripe" || plan.providerPaymentId !== piId || plan.amountCents !== snapshot.amountCents ||
+            plan.accountFingerprint !== frozen.accountFingerprint || fundingHash(frozen) !== plan.instructionsHash ||
+            fundingHash(plan.instructions) !== plan.instructionsHash) {
+          throw new ServiceUnavailableException("marketplace_refund_funding_reconciliation_required");
+        }
+        const capture = plan.budget?.capture;
+        if (plan.budget && (!capture || capture.provider !== "stripe" || capture.providerPaymentId !== piId ||
+            capture.sourceId !== charge.id || capture.amountCents !== snapshot.amountCents || capture.currency !== snapshot.currency ||
+            capture.environment !== frozen.environment || capture.accountFingerprint !== frozen.accountFingerprint)) {
+          throw new BadRequestException("stripe_refund_capture_mismatch");
+        }
+        await tx.marketplaceFundingPlan.update({ where: { paymentIntentId: snapshot.id }, data: { status: "held" } });
+        const confirmed = await tx.marketplaceRefundPlan.aggregate({ where: { fundingPlanId: snapshot.id, hostMerchantId: snapshot.merchantId, status: "confirmed" },
+          _sum: { amountCents: true } });
+        if (charge.amount_refunded > (confirmed._sum.amountCents ?? 0)) {
+          await tx.marketplaceResidualPlan.updateMany({ where: { fundingPlanId: snapshot.id, hostMerchantId: snapshot.merchantId, status: { not: "held" } },
+            data: { status: "held", heldReason: "marketplace_residual_external_refund_requires_reconciliation" } });
+        }
+      });
+      this.metrics?.paymentWebhookAnomaly.inc({ provider: "stripe", kind: "marketplace_refund_requires_reconciliation" });
+      return "marketplace_refund_reconciliation_required";
+    }
+    if (charge.amount_refunded < snapshot.amountCents) return "payment_partially_refunded";
 
     await this.paymentDispatch.markRefunded(intentEntity, "charge.refunded");
     await this.refundPaymentHold?.execute(intentId);
@@ -344,10 +449,10 @@ export class HandleStripeWebhookUseCase {
     // too: cancel the seller repasse if still scheduled, or open a seller debt
     // if the money was already transferred. No-op for pure own-store orders.
     const snap = intentEntity.snapshot();
-    const orderId = snap.commerceOrderId ?? snap.sessionId;
+    const orderId = snap.providerPaymentId ?? snap.commerceOrderId ?? snap.sessionId;
     if (this.marketplaceChargeback && orderId) {
       try {
-        const results = await this.marketplaceChargeback.executeForOrder(orderId);
+        const results = await this.marketplaceChargeback.executeForOrder(orderId, snap.merchantId);
         if (results.length > 0) {
           this.logger.log(
             `Marketplace chargeback processed for order ${orderId}: ${results.length} settlement(s)`,
@@ -413,6 +518,14 @@ function idFrom(
     | undefined,
 ): string | undefined {
   return typeof value === "string" ? value : value?.id;
+}
+
+
+
+function unixTimestampToIso(value: number | null | undefined): string | undefined {
+  if (typeof value !== "number" || !Number.isSafeInteger(value) || value < 0) return undefined;
+  const date = new Date(value * 1_000);
+  return Number.isNaN(date.getTime()) ? undefined : date.toISOString();
 }
 
 function stripeChargebackStatus(

@@ -5,11 +5,14 @@ import { useCart } from "@/lib/cart-store";
 import { cartApi } from "@/lib/api/api-client";
 import { conversationFetch } from "@/lib/conversation-access";
 import { getValidBuyer } from "@/lib/buyer-auth";
+import CheckoutErrorBoundary from "./CheckoutErrorBoundary";
 
 interface CheckoutPanelProps {
   merchantId: string;
   globalUserId: string;
   cartRef: string | undefined;
+  initialEmbedToken?: string;
+  recovered?: boolean;
   oneBuyClickPreferences?: {
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
@@ -18,7 +21,7 @@ interface CheckoutPanelProps {
   onClose: () => void;
 }
 
-const InlineCheckout = lazy(() =>
+const createInlineCheckout = () => lazy(() =>
   import("@zyon/widget-v2").then((mod) => ({ default: mod.InlineCheckout }))
 );
 
@@ -31,29 +34,45 @@ function resolveInitialTheme(propTheme?: "dark" | "light"): "dark" | "light" {
   return "light";
 }
 
-export default function CheckoutPanel({
+export default function CheckoutPanel(props: CheckoutPanelProps) {
+  const [attempt, setAttempt] = useState(0);
+
+  return (
+    <CheckoutErrorBoundary key={attempt} onClose={props.onClose} onRetry={() => setAttempt((value) => value + 1)}>
+      <CheckoutPanelContent {...props} />
+    </CheckoutErrorBoundary>
+  );
+}
+
+function CheckoutPanelContent({
   merchantId,
   globalUserId: initialGlobalUserId,
   cartRef,
+  initialEmbedToken,
+  recovered = false,
   oneBuyClickPreferences,
   theme,
   onClose,
 }: CheckoutPanelProps) {
+  // React.lazy caches rejected imports. A fresh mount must be able to retry
+  // loading the checkout after a network failure, including after closing it.
+  const [InlineCheckout] = useState(createInlineCheckout);
   const effectiveTheme = resolveInitialTheme(theme);
-  const [embedToken, setEmbedToken] = useState<string | null>(null);
+  const [embedToken, setEmbedToken] = useState<string | null>(initialEmbedToken ?? null);
   const [error, setError] = useState<string | null>(null);
   const [globalUserId, setGlobalUserId] = useState(initialGlobalUserId);
   const { cart, clearCart } = useCart();
 
   useEffect(() => {
     const onOrderCompleted = () => {
+      if (recovered) return;
       const cid = cart.cartId;
       if (cid && merchantId) void cartApi.clear(cid, merchantId).catch(() => {});
       clearCart();
     };
     window.addEventListener("aacp:order-completed", onOrderCompleted);
     return () => window.removeEventListener("aacp:order-completed", onOrderCompleted);
-  }, [clearCart, cart.cartId, merchantId]);
+  }, [clearCart, cart.cartId, merchantId, recovered]);
 
   useEffect(() => {
     if (!initialGlobalUserId) {
@@ -70,10 +89,13 @@ export default function CheckoutPanel({
 
   const tokenCartRef = useRef<string | null>(null);
   if (tokenCartRef.current === null) {
-    tokenCartRef.current = cartRef || cart.cartId || "";
+    tokenCartRef.current = recovered ? "" : cartRef || cart.cartId || "";
   }
   useEffect(() => {
+    if (initialEmbedToken) return;
     const cartRefForToken = cartRef || tokenCartRef.current || undefined;
+    if (!cartRefForToken) { setError("Seu carrinho está vazio neste navegador. Volte à loja para adicionar produtos."); return; }
+    setError(null);
     conversationFetch(cartRefForToken ?? "", "/api/checkout-token", {
       method: "POST",
       headers: { "Content-Type": "application/json" },
@@ -94,7 +116,7 @@ export default function CheckoutPanel({
       .catch(() => setError("Erro ao conectar com servidor de checkout"));
     // Intentionally excludes cart.cartId: see comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [merchantId, cartRef]);
+  }, [merchantId, cartRef, initialEmbedToken]);
 
   if (error) {
     return (
@@ -119,21 +141,17 @@ export default function CheckoutPanel({
 
   return (
     <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
-      <button data-neu="control"
-        onClick={onClose}
-        style={{ position: "absolute", top: 12, right: 12, zIndex: 10001, background: "var(--aacp-surface, #ffffff)", border: "1px solid var(--aacp-border-color, #e5e7eb)", color: "var(--aacp-fg, #111827)", borderRadius: 6, padding: "8px 12px", cursor: "pointer", fontSize: 13, fontWeight: 500 }}
-      >
-        ✕ Voltar
-      </button>
       <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-fg, #f0f0f0)" }}>Carregando...</div>}>
         <InlineCheckout
           embedToken={embedToken}
           merchantId={merchantId}
           apiBaseUrl={apiBase}
-          cartRef={cartRef || tokenCartRef.current || undefined}
+          embedApiBaseUrl="/api"
+          cartRef={recovered ? undefined : cartRef || tokenCartRef.current || undefined}
           globalUserId={globalUserId}
           buyerAccessToken={getValidBuyer()?.token}
           oneBuyClickPreferences={oneBuyClickPreferences}
+          initialChannel="chat"
           theme={effectiveTheme}
           onClose={onClose}
         />

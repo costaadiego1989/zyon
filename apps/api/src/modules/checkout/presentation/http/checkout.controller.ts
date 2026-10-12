@@ -1,4 +1,5 @@
-import { Body, Controller, Get, Param, Patch, Post, Put, Query, UseGuards } from "@nestjs/common";
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Headers, Optional, UseGuards } from "@nestjs/common";
+import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
 import type {
   ApplyOfferRequest,
   ChatMessageRequest,
@@ -58,6 +59,7 @@ export class CheckoutController {
     private readonly getTimeseries?: GetTimeseriesUseCase,
     private readonly getFunnel?: GetFunnelUseCase,
     private readonly getFunnelSessions?: GetFunnelSessionsUseCase,
+    @Optional() private readonly aiIdentities?: AiUserIdentityService,
   ) {}
 
   @Post("start-checkout")
@@ -81,8 +83,11 @@ export class CheckoutController {
   }
 
   @Post("chat/message")
-  chat(@Body() body: ChatMessageRequest) {
-    return this.sendChatMessage.execute(body);
+  async chat(@Body() body: ChatMessageRequest & { ai_user_token?: string; buyer_access_token?: string }, @Headers("x-ai-user-token") visitorToken?: string) {
+    const identity = (this.aiIdentities ?? new AiUserIdentityService()).resolve({ merchantId: body.merchant_id, visitorToken: visitorToken ?? body.ai_user_token, buyerToken: body.buyer_access_token });
+    const { ai_user_token: _visitor, buyer_access_token: _buyer, ...input } = body;
+    const result = await this.sendChatMessage.execute(input, { aiUserId: identity.userId });
+    return { ...result, ...(identity.token ? { ai_user_token: identity.token } : {}) };
   }
 
   @Post("shipping/evaluate")

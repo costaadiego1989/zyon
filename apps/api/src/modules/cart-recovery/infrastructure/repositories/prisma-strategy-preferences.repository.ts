@@ -37,16 +37,37 @@ export class PrismaStrategyPreferencesRepository implements StrategyPreferencesR
     });
     if (!row || !row.config) {
       return {
-        active_strategy: "offer_coupon",
+        active_strategy: "personalized_cross_sell",
         coupon_code: undefined,
         rule_id: undefined,
       };
     }
     const cfg = row.config as Record<string, unknown>;
+    const couponCode = typeof cfg.coupon_code === "string" && cfg.coupon_code.trim()
+      ? cfg.coupon_code.trim()
+      : undefined;
+    const ruleId = typeof cfg.rule_id === "string" && cfg.rule_id.trim()
+      ? cfg.rule_id.trim()
+      : undefined;
+    const configuredStrategy = cfg.active_strategy;
+    const validStrategy = configuredStrategy === "offer_free_shipping"
+      || configuredStrategy === "personalized_cross_sell"
+      || configuredStrategy === "offer_coupon"
+      || configuredStrategy === "advanced_rule";
+
+    // Legacy preference rows can name a coupon without a code, an advanced
+    // rule without its rule id, or a now-removed strategy. None can produce a
+    // valid message, so fall back to the safe, no-discount reminder. Any
+    // complete, supported merchant configuration remains untouched.
+    const activeStrategy = !validStrategy
+      || (configuredStrategy === "offer_coupon" && !couponCode)
+      || (configuredStrategy === "advanced_rule" && !ruleId)
+      ? "personalized_cross_sell"
+      : configuredStrategy;
     return {
-      active_strategy: (cfg.active_strategy as any) ?? "offer_coupon",
-      coupon_code: (cfg.coupon_code as string | undefined) ?? undefined,
-      rule_id: (cfg.rule_id as string | undefined) ?? undefined,
+      active_strategy: activeStrategy,
+      coupon_code: couponCode,
+      rule_id: ruleId,
     };
   }
 
@@ -57,7 +78,7 @@ export class PrismaStrategyPreferencesRepository implements StrategyPreferencesR
         return await this.prisma.$transaction(async tx => {
           const row = await tx.cartRecoveryStrategyPref.findUnique({ where: { merchantId } });
           const cfg = {
-            active_strategy: "offer_coupon",
+            active_strategy: "personalized_cross_sell",
             ...((row?.config as Record<string, unknown> | null) ?? {}),
             ...defined,
           } as StrategyConfig;

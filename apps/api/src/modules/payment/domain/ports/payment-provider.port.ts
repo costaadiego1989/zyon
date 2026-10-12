@@ -23,6 +23,9 @@ export type CreateProviderPaymentInput = {
   description?: string;
   /** Provider-validated contact for PIX or boleto notifications. */
   payerEmail?: string;
+  /** Buyer details already collected and validated by the checkout. */
+  payerName?: string;
+  payerIdentification?: { type: "CPF" | "CNPJ"; number: string };
   // Asaas-only (pix / boleto / card via Asaas)
   asaasCustomerId?: string;
   creditCard?: {
@@ -42,7 +45,11 @@ export type CreateProviderPaymentInput = {
   };
   remoteIp?: string;
   stripeConnectAccountId?: string;
+  /** Accounts v2 Managed Risk direct charges belong to the connected account. */
+  stripeChargeMode?: "direct_v2";
   platformFeeCents?: number;
+  /** Authenticated collector comparison, frozen before creating the payment. */
+  mercadoPagoFeeMode?: "split" | "same_account";
   /**
    * `delayed_merchant_payout` is opt-in. Its charge must be created on the
    * platform account, and a merchant destination is snapshotted for the
@@ -63,6 +70,9 @@ export type CreateProviderPaymentInput = {
    * value when absent.
    */
   brlPerUsdcOverride?: number;
+
+marketplacePublicAdmission?: { version: 1; profile: import("../../application/marketplace-public-payment-admission.service.js").MarketplacePublicPaymentProfile };
+marketplaceFunding?: import("../../../marketplace/domain/services/marketplace-funding-budget.js").FrozenMarketplaceFunding;
 };
 
 export type CryptoTransferQuotePayload = {
@@ -96,6 +106,7 @@ export type CreateProviderPaymentOutput = {
     encodedQrImage?: string;
     clientSecret?: string;
     stripePublishableKey?: string;
+    stripeAccountId?: string;
   } & Partial<CryptoBuyerFacingPayload>;
 };
 
@@ -114,6 +125,18 @@ export type FetchPaymentStatusInput = {
   settlementMode?: MerchantSettlementMode;
   merchantId: string;
   providerPaymentId: string;
+  stripeConnectAccountId?: string;
+  stripeChargeMode?: "direct_v2";
+
+marketplaceAccount?: MarketplaceCaptureAccount;
+marketplacePayment?: {
+    intentId: string;
+    sessionId: string;
+    amountCents: number;
+    currency: string;
+    method: string;
+    asaasCustomerId?: string;
+  };
 };
 
 export type FetchPaymentStatusOutput = {
@@ -133,10 +156,14 @@ export type RefundPaymentInput = {
   settlementMode?: MerchantSettlementMode;
   merchantId: string;
   providerPaymentId: string;
+  stripeConnectAccountId?: string;
+  stripeChargeMode?: "direct_v2";
   amountCents: number;
   reason?: string;
   /** Stable key for retrying the same return without issuing it twice. */
   idempotencyKey?: string;
+
+marketplaceAccount?: MarketplaceCaptureAccount;
 };
 
 export type RefundPaymentOutput = {
@@ -153,19 +180,34 @@ export type FetchRefundStatusInput = {
   settlementMode?: MerchantSettlementMode;
   merchantId: string;
   providerPaymentId: string;
+  stripeConnectAccountId?: string;
+  stripeChargeMode?: "direct_v2";
   providerRefundId: string;
+  /** Amount reserved before submission; binds recovery to this exact attempt. */
+  amountCents?: number;
+  currency?: string;
   /**
    * Stable merchant reference for providers whose refund list lacks a
    * provider-generated refund id. It is never used to issue a new refund.
    */
   refundReference?: string;
+
+marketplaceAccount?: MarketplaceCaptureAccount;
 };
 
 export type FetchRefundStatusOutput = {
   state: RefundProviderState;
+  providerRefundId?: string;
 };
 
 export interface PaymentProviderPort {
+  /** Known original standard-checkout charge only; no cross-provider fallback. */
+  readCancellationStatus?(input: import("../pending-payment-cancellation.js").PendingPaymentCancellationInput): Promise<import("../pending-payment-cancellation.js").PendingPaymentCancellationResult>;
+  /** Must re-read eligibility and never refund or cancel a captured charge. */
+  cancelPendingPayment?(input: import("../pending-payment-cancellation.js").PendingPaymentCancellationInput): Promise<import("../pending-payment-cancellation.js").PendingPaymentCancellationResult>;
+
+  /** Only confirms an unpaid charge is no longer payable. Unknown stays blocked. */
+  cancelPayment?(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }>;
   creationAccountFingerprint?(): string;
   /** Freeze the route/account before reserving a new financial operation. */
   preparePayment?(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput>;
@@ -173,6 +215,7 @@ export interface PaymentProviderPort {
   recoverPayment?(input: CreateProviderPaymentInput, firstAttemptAt: string): Promise<CreateProviderPaymentOutput | null>;
   createPayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentOutput>;
   createCustomer?(input: {
+    marketplaceAccount?: MarketplaceCaptureAccount;
     merchantId: string;
     name: string;
     email: string;
@@ -196,4 +239,26 @@ export interface PaymentProviderPort {
    * their durable PENDING marker for manual reconciliation.
    */
   fetchRefundStatus?(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput>;
+  /** GET-only proof before a human-confirmed, bounded idempotent recovery. */
+  readRefundRecoveryEligibility?(input: RefundPaymentInput): Promise<boolean>;
+
+prepareMarketplaceAccount?(input: Pick<MarketplaceCaptureAccount, "provider" | "environment">): Promise<MarketplaceCaptureAccount>;
+readMarketplacePaymentAction?(input: FetchPaymentStatusInput): Promise<ReadMarketplacePaymentActionOutput>;
 }
+
+export type MarketplaceCaptureAccount = {
+  provider: "stripe" | "asaas";
+  environment: "test" | "live";
+  accountFingerprint: string;
+};
+
+export type ReadMarketplacePaymentActionOutput = {
+  providerStatus: import("../marketplace-payment-resume.js").MarketplacePaymentProviderStatus;
+  action: null | {
+    kind: "stripe_card_entry" | "stripe_card_3ds";
+    clientSecret: string;
+    publishableKey: string;
+  } | { kind: "asaas_pix"; copyPaste: string; encodedImage?: string; expiresAt: string }
+    | { kind: "asaas_boleto"; invoiceUrl: string };
+  reason: import("../marketplace-payment-resume.js").MarketplacePaymentActionReason | null;
+};

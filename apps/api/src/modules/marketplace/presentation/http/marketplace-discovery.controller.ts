@@ -7,8 +7,11 @@ import {
   Query,
   UseGuards,
   Req,
+  BadRequestException,
+  NotFoundException,
 } from "@nestjs/common";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import { PrismaClient } from "@prisma/client";
 import { ListPartnerStoresUseCase } from "../../application/use-cases/list-partner-stores.use-case.js";
 
@@ -35,7 +38,8 @@ interface ListAvailableStoresResponse {
   nextCursor: string | null;
 }
 
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("marketplace")
 @Controller("marketplace/stores")
 export class MarketplaceDiscoveryController {
   constructor(
@@ -69,11 +73,13 @@ export class MarketplaceDiscoveryController {
     const user = currentUser(request);
     const merchantId = user.merchantId;
 
-    const limit = Math.min(Number(limitStr) || 20, 50);
+    const limit = limitStr === undefined ? 20 : Number(limitStr);
+    if (!Number.isInteger(limit) || limit < 1 || limit > 50) throw new BadRequestException("invalid_marketplace_store_limit");
+    const config = await this.prisma.marketplaceConfig.findUnique({ where: { merchantId } });
 
     const where: any = {
-      id: { not: merchantId },
-      marketplaceConfig: { isNot: null },
+      id: { notIn: [merchantId, ...(config?.blockedMerchants ?? [])] },
+      marketplaceConfig: { is: { enabled: true, NOT: { blockedMerchants: { has: merchantId } } } },
     };
 
     if (category) {
@@ -98,7 +104,7 @@ export class MarketplaceDiscoveryController {
           select: { commissionRateBps: true },
         },
       },
-      orderBy: { name: "asc" },
+      orderBy: [{ name: "asc" }, { id: "asc" }],
     });
 
     const hasMore = merchants.length > limit;
@@ -136,6 +142,17 @@ export class MarketplaceDiscoveryController {
   ): Promise<{ connected: boolean }> {
     const user = currentUser(request);
     const merchantId = user.merchantId;
+
+    if (sellerId === merchantId) throw new BadRequestException("marketplace_self_connection");
+    const [buyer, sellerMerchant] = await Promise.all([
+      this.prisma.marketplaceConfig.findUnique({ where: { merchantId } }),
+      this.prisma.merchant.findUnique({ where: { id: sellerId }, select: { marketplaceConfig: true } }),
+    ]);
+    const seller = sellerMerchant?.marketplaceConfig;
+    if (!buyer?.enabled) throw new BadRequestException("marketplace_not_enabled");
+    if (!seller?.enabled || buyer.blockedMerchants.includes(sellerId) || seller.blockedMerchants.includes(merchantId)) {
+      throw new NotFoundException("marketplace_partner_unavailable");
+    }
 
     await this.prisma.marketplaceConnection.upsert({
       where: {

@@ -74,6 +74,15 @@ export class VariantResponseDto {
   @ApiProperty() is_control!: boolean;
 }
 
+export class ExperimentListMetricDto {
+  @ApiProperty() experiment_id!: string;
+  @ApiProperty() variant_id!: string;
+  @ApiProperty() total_visitors!: number;
+  @ApiProperty() conversions!: number;
+  @ApiProperty({ description: "Percentual de sessões convertidas" }) conversion_rate!: number;
+  @ApiProperty({ description: "Receita total em BRL" }) revenue!: number;
+}
+
 export class ExperimentResponseDto {
   @ApiProperty() id!: string;
   @ApiProperty() merchant_id!: string;
@@ -87,6 +96,7 @@ export class ExperimentResponseDto {
   @ApiPropertyOptional() winner_variant_id!: string | null;
   @ApiProperty() created_at!: string;
   @ApiProperty() updated_at!: string;
+  @ApiPropertyOptional({ type: [ExperimentListMetricDto] }) metrics?: ExperimentListMetricDto[];
 }
 
 export class ExperimentListResponseDto {
@@ -103,6 +113,7 @@ export class VariantResultDto {
   @ApiProperty() conversion_rate!: number;
   @ApiProperty() revenue!: number;
   @ApiProperty() avg_order_value!: number;
+  @ApiPropertyOptional({ description: "Receita em BRL por sessão; distinta do ticket por venda" }) revenue_per_session?: number;
   @ApiProperty() offers_shown!: number;
   @ApiProperty() offers_accepted!: number;
   @ApiProperty() offer_acceptance_rate!: number;

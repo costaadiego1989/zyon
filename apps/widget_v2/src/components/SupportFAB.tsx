@@ -7,6 +7,8 @@ interface SupportFABProps {
   cartItemCount?: number;
   /** Extra bottom offset in px (e.g. to clear the whitelabel badge). */
   bottomOffset?: number;
+  /** Horizontal inset when a desktop checkout rail occupies the right edge. */
+  rightOffset?: string;
 }
 
 export default function SupportFAB({
@@ -14,6 +16,7 @@ export default function SupportFAB({
   onToggle,
   cartItemCount = 0,
   bottomOffset = 0,
+  rightOffset,
 }: SupportFABProps) {
   const brand = useCheckoutStore((s) => s.brand);
   const [showTooltip, setShowTooltip] = useState(true);
@@ -27,13 +30,14 @@ export default function SupportFAB({
   const initialDelay = 0;
   const startMinimized = true;
 
+  const right = rightOffset ?? "16px";
   const positionStyles: Record<
     string,
     { bottom?: string; top?: string; left?: string; right?: string }
   > = {
-    bottom_right: { bottom: `${16 + bottomOffset}px`, right: "16px" },
+    bottom_right: { bottom: `${16 + bottomOffset}px`, right },
     bottom_left: { bottom: `${16 + bottomOffset}px`, left: "16px" },
-    top_right: { top: "16px", right: "16px" },
+    top_right: { top: "16px", right },
     top_left: { top: "16px", left: "16px" },
   };
   const posStyle = positionStyles[position] ?? positionStyles.bottom_right;
@@ -42,9 +46,9 @@ export default function SupportFAB({
     string,
     { bottom?: string; top?: string; left?: string; right?: string }
   > = {
-    bottom_right: { bottom: `${22 + bottomOffset}px`, right: "76px" },
+    bottom_right: { bottom: `${22 + bottomOffset}px`, right: `calc(${right} + 60px)` },
     bottom_left: { bottom: `${22 + bottomOffset}px`, left: "76px" },
-    top_right: { top: "72px", right: "16px" },
+    top_right: { top: "72px", right },
     top_left: { top: "72px", left: "16px" },
   };
   const tooltipPos =

@@ -77,3 +77,7 @@ export function readAsaasConnection(): { sandbox: boolean; apiKey: string | unde
 export function isAsaasConfigured(): boolean {
   return Boolean(readAsaasConnection().apiKey);
 }
+
+export function readAsaasPlatformMerchantId(): string | undefined {
+  return process.env.ASAAS_PLATFORM_MERCHANT_ID?.trim() || undefined;
+}

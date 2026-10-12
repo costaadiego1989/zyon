@@ -1,4 +1,4 @@
-import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException, ForbiddenException } from "@nestjs/common";
+import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException, ForbiddenException, Param, Res } from "@nestjs/common";
 import type { MerchantTheme } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
@@ -20,8 +20,13 @@ import {
 import { GetMerchantThemeUseCase } from "../application/get-merchant-theme.use-case.js";
 import { UpdateMerchantThemeUseCase } from "../application/update-merchant-theme.use-case.js";
 import { UpdateMerchantRulesDto } from "./dto/update-merchant-rules.dto.js";
+import { storePolicyGenerationPrompt } from "../domain/services/store-policy-generation.js";
 import { SubmitPlatformFeedbackDto } from "./dto/submit-platform-feedback.dto.js";
 import { Idempotent } from "../../../shared/http/idempotency/idempotent.decorator.js";
+import { MerchantStoreService } from "../application/merchant-store.service.js";
+import { ActivateMerchantStoreUseCase } from "../application/activate-merchant-store.use-case.js";
+import { AuthCookieService } from "../../auth/domain/services/auth-cookie.service.js";
+import type { AuthenticatedPrincipal } from "../../auth/domain/auth.types.js";
 
 /**
  * MERC-H2: Uses @CurrentTenant() decorator instead of unsafe request casting.
@@ -39,7 +44,42 @@ export class MerchantController {
     private readonly updateTheme: UpdateMerchantThemeUseCase,
     private readonly s3: S3UploadService,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly stores: MerchantStoreService,
+    private readonly activateStore: ActivateMerchantStoreUseCase,
+    private readonly cookies: AuthCookieService,
   ) {}
+
+  @Get("stores")
+  async listStores(@Req() request: { user?: AuthenticatedPrincipal }) {
+    return { data: await this.stores.list(authenticatedMerchantActor(request)) };
+  }
+
+  @Post("stores")
+  @Idempotent()
+  async createStore(
+    @Req() request: { user?: AuthenticatedPrincipal },
+    @Body() body: { name?: string },
+  ) {
+    return this.stores.create({
+      actor: authenticatedMerchantActor(request),
+      name: body.name ?? "",
+    });
+  }
+
+  // This is an account-scoped command, not a request scoped to the current
+  // tenant. The target membership is verified by MerchantStoreService before a
+  // new session is issued. Keep the parameter distinct from `merchantId` so
+  // the global tenant guard does not mistake the target for a forged tenant.
+  @Post("stores/:targetMerchantId/activate")
+  async activateMerchantStore(
+    @Req() request: { user?: AuthenticatedPrincipal },
+    @Param("targetMerchantId") targetMerchantId: string,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const auth = await this.activateStore.execute(authenticatedPrincipal(request), targetMerchantId);
+    response.setHeader("Set-Cookie", this.cookies.create(auth));
+    return auth;
+  }
 
   @ApiOperation({
     summary: "Get merchant profile",
@@ -216,27 +256,7 @@ export class MerchantController {
     @CurrentTenant() merchantId: string,
     @Body() body: { type: "privacy" | "returns" | "terms" | "shipping"; company?: Record<string, unknown> },
   ) {
-    const typeLabels: Record<string, string> = {
-      privacy: "Política de Privacidade",
-      returns: "Política de Devolução e Trocas",
-      terms: "Termos de Uso",
-      shipping: "Política de Envio e Frete",
-    };
-
-    const companyContext = body.company
-      ? `Dados da empresa: ${JSON.stringify(body.company)}`
-      : "";
-
-    const prompt = `Gere uma ${typeLabels[body.type]} completa e profissional para um e-commerce brasileiro.
-${companyContext}
-
-Regras:
-- Texto em português brasileiro, tom profissional
-- Adequada ao CDC (Código de Defesa do Consumidor) e LGPD
-- Estruturada com seções claras (use títulos sem markdown)
-- Prazo de devolução: 7 dias corridos (direito de arrependimento)
-- Texto puro, sem markdown
-- Máximo 800 palavras`;
+    const prompt = storePolicyGenerationPrompt(body?.type, body?.company);
 
     const providers = [
       {
@@ -264,7 +284,7 @@ Regras:
             model: provider.model,
             messages: [{ role: "user", content: prompt }],
             max_tokens: 1200,
-            temperature: 0.6,
+            temperature: 0.2,
           }),
           signal: controller.signal,
         });
@@ -272,9 +292,9 @@ Regras:
         clearTimeout(timeout);
         if (!res.ok) continue;
 
-        const data = await res.json() as { choices?: Array<{ message?: { content?: string } }> };
+        const data = await res.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string } }> };
         const text = data.choices?.[0]?.message?.content?.trim() ?? "";
-        if (text) return { policy: text };
+        if (text && text.length <= 10000 && data.choices?.[0]?.finish_reason !== "length") return { policy: text };
       } catch {
         continue;
       }
@@ -321,4 +341,14 @@ Regras:
       createdAt: feedback.createdAt.toISOString(),
     };
   }
+}
+
+function authenticatedPrincipal(request: { user?: AuthenticatedPrincipal }): AuthenticatedPrincipal {
+  if (!request.user) throw new ForbiddenException("merchant_store_authentication_required");
+  return request.user;
+}
+
+function authenticatedMerchantActor(request: { user?: AuthenticatedPrincipal }) {
+  const user = authenticatedPrincipal(request);
+  return { userId: user.userId, merchantId: user.merchantId, role: user.role };
 }

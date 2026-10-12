@@ -26,6 +26,7 @@ export interface SendStoreMessageInput {
   cart_id?: string;
   global_user_id?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
+  attachment_context?: string;
   device_type?: "mobile" | "tablet" | "desktop";
   one_buy_click?: OneBuyClickConversationContext;
 }
@@ -189,6 +190,7 @@ export class SendStoreMessageUseCase {
       merchantId: input.merchant_id,
       sessionId: input.conversation_id,
       history,
+      attachmentContext: input.attachment_context,
       merchantName: merchant.name,
       storeCategory: merchant.storeCategory || "others",
       storeSettings,

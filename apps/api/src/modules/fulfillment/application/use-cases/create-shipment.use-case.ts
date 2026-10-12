@@ -1,4 +1,7 @@
-import { Injectable, Inject, BadRequestException , Logger} from "@nestjs/common";
+import { Injectable, Inject, BadRequestException, Optional, Logger } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { readFulfillment } from "../../../operations/domain/order-fulfillment.js";
 import { ShipmentEntity } from "../../domain/entities/shipment.entity.js";
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../domain/ports/shipment-repository.port.js";
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
@@ -11,7 +14,8 @@ export class CreateShipmentUseCase {
 
   constructor(
     @Inject(SHIPMENT_REPOSITORY) private readonly repo: ShipmentRepository,
-    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository
+    @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) {}
 
   async execute(input: { merchant_id: string; order_id: string; carrier_key: string }) {
@@ -21,6 +25,12 @@ export class CreateShipmentUseCase {
     }
     if (!input.order_id?.trim()) {
       throw new BadRequestException("order_id_required");
+    }
+    if (this.prisma) {
+      const order = await this.prisma.completedOrder.findFirst({ where: { merchantId: input.merchant_id, externalOrderId: input.order_id } });
+      if (order && (order.fulfillmentJson || Array.isArray(order.lineItemsJson) && order.lineItemsJson.some(line => line && typeof line === "object" && !Array.isArray(line) && line.snapshotVersion === 2))) {
+        if (!readFulfillment(order.fulfillmentJson)?.units.some(unit => unit.strategy === "carrier")) throw new BadRequestException("order_carrier_fulfillment_required");
+      }
     }
 
     // P1 fix: check for an existing shipment for this order before creating.

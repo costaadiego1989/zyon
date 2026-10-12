@@ -22,9 +22,10 @@ export class SendOrderConfirmationUseCase {
       const html = renderOrderConfirmationTemplate(event);
       await this.emailSender.send({
         to: event.buyerEmail,
+        merchantId: event.merchantId,
         subject: event.merchantName
-          ? `✅ ${event.merchantName} — pedido confirmado, estamos preparando!`
-          : `✅ Pedido #${event.orderNumber} confirmado — estamos preparando!`,
+          ? `${event.merchantName} | Pedido #${event.orderNumber} confirmado`.replace(/[\r\n]/g, " ")
+          : `Zyon | Pedido #${event.orderNumber} confirmado`.replace(/[\r\n]/g, " "),
         html,
         requireDelivery: true,
       });
@@ -39,7 +40,7 @@ export class SendOrderConfirmationUseCase {
       if (this.sendWhatsApp) {
         await this.sendWhatsApp.execute({
           merchantId: event.merchantId,
-          type: "order_confirmation",
+          type: event.items.length && event.items.every(item => item.productType === "digital" || item.productType === "service") ? "order_nonphysical_confirmation" : "order_confirmation",
           toPhone: event.buyerPhone,
           variables: { buyerName: event.buyerName, orderId: event.orderNumber },
           freeformText,

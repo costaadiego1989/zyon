@@ -1,8 +1,11 @@
+import { CancelPaymentIntentUseCase } from "../../../payment/application/cancel-payment-intent.use-case.js";
 import {
   BadRequestException,
   Body,
   Controller,
+  ForbiddenException,
   Get,
+  Header,
   Inject,
   Injectable,
   Logger,
@@ -11,6 +14,7 @@ import {
   Query,
   Req,
   Param,
+  ServiceUnavailableException,
   UnauthorizedException,
   UseGuards
 } from "@nestjs/common";
@@ -18,18 +22,24 @@ import type {
   ApplyOfferRequest,
   ApplyOfferResponse,
   ChatMessageRequest,
+  ChatMessageReference,
   StartCheckoutRequest,
   TrackEventRequest,
   UpdateCartRequest
 } from "@zyon/shared-types";
 import { ApplyOfferUseCase } from "../../../checkout/application/use-cases/apply-offer.use-case.js";
 import { StartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.use-case.js";
+import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/send-chat-message.use-case.js";
+import { ReconcileChatMessageUseCase } from "../../../checkout/application/use-cases/reconcile-chat-message.use-case.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
 import { ConfirmCryptoPaymentUseCase } from "../../../payment/application/confirm-crypto-payment.use-case.js";
 import { ConfirmStripePaymentUseCase } from "../../../payment/application/confirm-stripe-payment.use-case.js";
 import { GetPaymentIntentStatusUseCase } from "../../../payment/application/get-payment-intent-status.use-case.js";
+import { GetMarketplacePaymentCapabilityService } from "../../../payment/application/get-marketplace-payment-capability.service.js";
+import { GetCurrentMarketplacePaymentService } from "../../../payment/application/get-current-marketplace-payment.service.js";
+import { MarketplacePaymentResumeService } from "../../../payment/application/marketplace-payment-resume.service.js";
 import { UpdateCartUseCase } from "../../../checkout/application/use-cases/update-cart.use-case.js";
 import {
   CHECKOUT_REPOSITORY,
@@ -39,9 +49,15 @@ import type { EmbedTokenClaims } from "../../domain/embed-token.service.js";
 import { EmbedAuthGuard } from "./embed-auth.guard.js";
 import { RequireEmbedScope } from "./embed-scope.decorator.js";
 import { UpdateEmbedCustomerUseCase } from "../../application/update-embed-customer.use-case.js";
+import { UpdateMarketplaceCheckoutAddressService } from "../../application/update-marketplace-checkout-address.service.js";
 import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
+import { authorizedEmbedPaymentResume } from "../../domain/embed-payment-resume.js";
 import { ResolveEmbedBuyerService } from "../../application/resolve-embed-buyer.service.js";
 import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
+import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
+import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
+import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
+import { ReopenEmbedCheckoutUseCase } from "../../application/reopen-embed-checkout.use-case.js";
 
 export type EmbedHttpRequest = {
   embedClaims?: EmbedTokenClaims;
@@ -105,9 +121,47 @@ export class EmbedCheckoutController {
     private readonly updateCart: UpdateCartUseCase,
     private readonly updateEmbedCustomer: UpdateEmbedCustomerUseCase,
     @Optional() private readonly resolveBuyer?: ResolveEmbedBuyerService,
+    @Inject(GetMarketplacePaymentCapabilityService) private readonly marketplacePaymentCapability?: GetMarketplacePaymentCapabilityService,
+    @Inject(GetCurrentMarketplacePaymentService) private readonly currentMarketplacePayment?: GetCurrentMarketplacePaymentService,
+    @Inject(UpdateMarketplaceCheckoutAddressService) private readonly marketplaceAddress?: UpdateMarketplaceCheckoutAddressService,
+    @Inject(MarketplacePaymentResumeService) private readonly marketplacePaymentResume?: MarketplacePaymentResumeService,
+    @Optional() private readonly reconcileChat?: ReconcileChatMessageUseCase,
+    @Optional() private readonly reopenCheckout?: ReopenEmbedCheckoutUseCase,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
+    @Inject(CancelPaymentIntentUseCase) private readonly cancelPaymentIntent?: CancelPaymentIntentUseCase,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
+
+  @Get("service-slot-hold")
+  @RequireEmbedScope("checkout:start")
+  async serviceSlotHold(@Req() request: EmbedHttpRequest, @Query("session_id") sessionId: string) {
+    if (!sessionId?.trim()) throw new BadRequestException("session_id_required");
+    const embed = request.embedClaims!;
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
+    const session = await this.embedGuards.loadSession(embed.merchantId, sessionId);
+    if (!session) throw new BadRequestException("checkout_session_not_found");
+    if (!this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
+    return this.serviceSlots.state(session);
+  }
+
+  @Post("checkout/edit")
+  @RequireEmbedScope("payment:intents:create")
+  async editCheckout(@Req() request: EmbedHttpRequest,
+    @Body() body: { session_id: string; section: import("@zyon/shared-types").CheckoutEditSection; buyer_access_token?: unknown }) {
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).some(key => !["session_id", "section", "buyer_access_token"].includes(key)) ||
+      typeof body.session_id !== "string" || !["payment", "shipping", "address", "coupon"].includes(body.section)) {
+      throw new BadRequestException("checkout_edit_invalid");
+    }
+    const embed = request.embedClaims!;
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    if (!this.resolveBuyer) throw new UnauthorizedException("embed_buyer_authentication_unavailable");
+    const buyer = await this.resolveBuyer.resolve(embed.merchantId, body.buyer_access_token);
+    if (!buyer) throw new UnauthorizedException("embed_buyer_token_invalid");
+    if (!this.reopenCheckout) throw new ServiceUnavailableException("checkout_edit_unavailable");
+    return this.reopenCheckout.execute(embed.merchantId, body.session_id, body.section, buyer);
+  }
 
   @Post("start")
   @RequireEmbedScope("checkout:start")
@@ -138,18 +192,25 @@ export class EmbedCheckoutController {
       if (!existing?.customer?.phone || existing.customer.phone_verified !== true) throw new UnauthorizedException("whatsapp_checkout_buyer_proof_required");
       trustedPhoneBuyer = { globalUserId: existing.globalUserId, phone: existing.customer.phone, fullName: existing.customer.fullName, email: existing.customer.email };
     }
+    const recovered = embed.recoveredCheckoutSessionId ? await this.embedGuards.loadSession(embed.merchantId, sessionId) : undefined;
+    if (embed.recoveredCheckoutSessionId && (!recovered || !trustedBuyer || recovered.globalUserId !== trustedBuyer.globalUserId)) {
+      throw new UnauthorizedException("checkout_buyer_proof_required");
+    }
     const { merchant_id: _discard, merchantId: _d2, cart_ref: _ref, buyer_access_token: _buyerToken, global_user_id: _buyerId, ...rest } = body as StartCheckoutRequest & {
       merchantId?: string;
       cart_ref?: unknown;
       buyer_access_token?: unknown;
       global_user_id?: unknown;
     };
-    return this.startCheckout.execute({
+    const result = await this.startCheckout.execute({
       ...(rest as Omit<StartCheckoutRequest, "merchant_id">),
       merchant_id: embed.merchantId,
       session_id: sessionId,
-      cart: embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart,
-    }, { storefrontCartRef: embed.storefrontCartRef, trustedBuyer, trustedPhoneBuyer, requireBuyerProof: true });
+      cart: recovered?.cart ?? (embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart),
+    }, { storefrontCartRef: recovered ? (recovered.cart as { cart_ref?: string }).cart_ref : embed.storefrontCartRef, trustedBuyer, trustedPhoneBuyer, requireBuyerProof: true, refreshCart: !!recovered });
+    const chatState = await this.reconcileChat?.readState(embed.merchantId, result.session_id);
+    // start scope advertises capability only; reading history still requires chat scope.
+    return { ...result, ...(chatState?.protocol === "durable_v2" ? { chat_protocol: "durable_v2" as const } : {}) };
   }
 
   @Post("track")
@@ -170,17 +231,72 @@ export class EmbedCheckoutController {
   @Post("chat")
   @RateLimit(120)
   @RequireEmbedScope("checkout:chat")
-  async chat(@Req() request: EmbedHttpRequest, @Body() body: ChatMessageRequest) {
+  async chat(@Req() request: EmbedHttpRequest, @Body() body: ChatMessageRequest & { voice_turn_token?: string }) {
     const embed = request.embedClaims!;
     if (typeof body.session_id !== "string") {
       throw new BadRequestException("session_id_required");
     }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
-    const { merchant_id: _m, ...rest } = body;
+    const trustedSession = await this.embedGuards.loadSession(embed.merchantId, body.session_id);
+    const userId = trustedSession?.globalUserId && trustedSession.customer?.email_verified
+      ? `buyer:${trustedSession.globalUserId}` : embed.aiUserId ?? `visitor:${embed.nonce}`;
+    const admittedVoice = await this.aiUserLimiter?.consumeVoicePermit(body.voice_turn_token, { userId, merchantId: embed.merchantId, resourceId: body.session_id, origin: typeof request.headers?.origin === "string" ? request.headers.origin : undefined });
+    if (body.voice_turn_token && !admittedVoice) throw new UnauthorizedException("invalid_voice_turn_token");
+    const { merchant_id: _m, voice_turn_token: _voiceProof, ...rest } = body;
     return this.sendChat.execute({
       ...(rest as Omit<ChatMessageRequest, "merchant_id">),
-      merchant_id: embed.merchantId
-    });
+      merchant_id: embed.merchantId,
+    }, { aiUserId: userId, voiceAdmitted: !!admittedVoice });
+  }
+
+  @Post("chat/reconcile")
+  @RateLimit(120)
+  @RequireEmbedScope("checkout:chat")
+  async reconcileMessage(@Req() request: EmbedHttpRequest, @Body() body: ChatMessageReference) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.execute({ merchant_id: embed.merchantId, session_id: body.session_id,
+      conversation_id: body.conversation_id, message_id: body.message_id });
+  }
+
+  @Post("chat/display")
+  @RateLimit(120)
+  @RequireEmbedScope("checkout:chat")
+  async chatDisplay(@Req() request: EmbedHttpRequest, @Body() body: import("@zyon/shared-types").ChatDisplayReport) {
+    const embed = request.embedClaims!;
+    if (typeof body.session_id !== "string") throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.recordDisplay(embed.merchantId, { session_id: body.session_id,
+      conversation_id: body.conversation_id, display_ref: body.display_ref, definition: body.definition });
+  }
+
+  @Get("chat/state")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(120)
+  @RequireEmbedScope("checkout:chat")
+  async chatState(@Req() request: EmbedHttpRequest, @Query("session_id") sessionId: string,
+    @Query("message_id") messageId?: string) {
+    const embed = request.embedClaims!;
+    if (typeof sessionId !== "string") throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.readState(embed.merchantId, sessionId, messageId);
+  }
+
+  @Get("chat/payment")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(120)
+  @RequireEmbedScope("payment:intents:create")
+  async chatPayment(@Req() request: EmbedHttpRequest, @Query("session_id") sessionId: string,
+    @Query("intent_id") intentId: string) {
+    const embed = request.embedClaims!;
+    if (typeof sessionId !== "string" || typeof intentId !== "string") throw new BadRequestException("session_and_intent_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
+    if (!this.reconcileChat) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    return this.reconcileChat.readPayment(embed.merchantId, sessionId, intentId);
   }
 
   @Post("offers/apply")
@@ -261,6 +377,69 @@ export class EmbedCheckoutController {
     });
   }
 
+  @Post("customer/address")
+  @RateLimit(30)
+  @RequireEmbedScope("checkout:track")
+  async addressFromEmbed(@Req() request: EmbedHttpRequest, @Body() body: unknown) {
+    const embed = request.embedClaims!;
+    if (!embed.allowedOrigin?.trim()) throw new ForbiddenException("embed_marketplace_address_origin_binding_required");
+    if (!body || typeof body !== "object" || Array.isArray(body) ||
+      Object.keys(body).some(key => !["session_id", "address"].includes(key))) throw new BadRequestException("marketplace_address_invalid");
+    const input = body as { session_id?: unknown; address?: unknown };
+    if (typeof input.session_id !== "string" || !input.session_id.trim()) throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, input.session_id.trim());
+    if (!this.marketplaceAddress) throw new ServiceUnavailableException("marketplace_address_update_unavailable");
+    return this.marketplaceAddress.execute({ merchantId: embed.merchantId, sessionId: input.session_id.trim(), address: input.address });
+  }
+
+  @Get("payment/current")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(60)
+  @RequireEmbedScope("payment:intents:read")
+  async currentPaymentFromEmbed(@Req() request: EmbedHttpRequest) {
+    const embed = request.embedClaims!;
+    if (!this.currentMarketplacePayment) throw new ServiceUnavailableException("marketplace_payment_recovery_unavailable");
+    // Discovery also works before /start. Both identities come exclusively from
+    // the authenticated token; absence of an existing session returns no payment.
+    return this.currentMarketplacePayment.execute({ merchantId: embed.merchantId, sessionId: embedCheckoutSessionId(embed) });
+  }
+
+  @Get("payment/intents/:intentId/action")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(30)
+  @RequireEmbedScope("payment:intents:resume")
+  async paymentActionFromEmbed(@Req() request: EmbedHttpRequest, @Param("intentId") intentId: string) {
+    const scope = authorizedEmbedPaymentResume(request.embedClaims!, intentId);
+    if (!this.marketplacePaymentResume) throw new ServiceUnavailableException("marketplace_payment_resume_unavailable");
+    return this.marketplacePaymentResume.read(scope);
+  }
+
+  @Post("payment/intents/:intentId/action/confirm")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(30)
+  @RequireEmbedScope("payment:intents:resume")
+  async confirmPaymentActionFromEmbed(@Req() request: EmbedHttpRequest, @Param("intentId") intentId: string, @Body() body: unknown) {
+    const scope = authorizedEmbedPaymentResume(request.embedClaims!, intentId);
+    if (!body || typeof body !== "object" || Array.isArray(body) || Object.keys(body).length !== 0) {
+      throw new BadRequestException("marketplace_payment_resume_body_invalid");
+    }
+    if (!this.marketplacePaymentResume) throw new ServiceUnavailableException("marketplace_payment_resume_unavailable");
+    return this.marketplacePaymentResume.confirm(scope);
+  }
+
+  @Get("payment/capability")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(60)
+  @RequireEmbedScope("payment:intents:create")
+  async paymentCapabilityFromEmbed(@Req() request: EmbedHttpRequest, @Query("session_id") sessionId: string) {
+    const embed = request.embedClaims!;
+    if (typeof sessionId !== "string" || !sessionId.trim()) throw new BadRequestException("session_id_required");
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId.trim());
+    if (!this.marketplacePaymentCapability) return { version: 1, session_id: sessionId.trim(), marketplace: true,
+      allowed: false, payment_methods: [], sandbox: false, reason: "marketplace_checkout_not_ready" };
+    return this.marketplacePaymentCapability.execute({ merchantId: embed.merchantId, sessionId: sessionId.trim() });
+  }
+
   @Post("payment/intents")
   @RequireEmbedScope("payment:intents:create")
   async intentFromEmbed(
@@ -271,6 +450,7 @@ export class EmbedCheckoutController {
       idempotency_key: string;
       method?: "pix" | "card" | "boleto" | "crypto";
       accepted_offer_id?: string;
+      confirmed_cart_fingerprint?: string;
       preferred_chain?: "polygon" | "base";
       credit_card?: {
         holderName: string;
@@ -294,11 +474,12 @@ export class EmbedCheckoutController {
       ? forwarded.split(",")[0]?.trim()
       : Array.isArray(forwarded) ? forwarded[0]?.trim() : undefined;
 
-    return this.createPaymentIntent.execute({
+    const intent = await this.createPaymentIntent.execute({
       merchant_id: embed.merchantId,
       session_id: body.session_id.trim(),
       idempotency_key: body.idempotency_key.trim(),
       method: body.method,
+      confirmed_cart_fingerprint: body.confirmed_cart_fingerprint,
       accepted_offer_id:
         typeof body.accepted_offer_id === "string" ? body.accepted_offer_id.trim() || undefined : undefined,
       preferred_chain:
@@ -307,7 +488,17 @@ export class EmbedCheckoutController {
           : undefined,
       credit_card: body.credit_card,
       remote_ip: remoteIp
-    });
+    }, { marketplaceSurface: "embed" });
+    const session = await this.embedGuards.loadSession(embed.merchantId, body.session_id.trim());
+    const breakdown = intent.amountBreakdown;
+    // Render the same finalized financial snapshot that the provider charged.
+    if (!session || !breakdown || breakdown.cartFingerprint !== paymentCartFingerprint(session)) return intent;
+    const experience = buildExperienceFromSession(session, { serviceFee: breakdown.platformFeeCents / 100 });
+    return { ...intent, experience: {
+      items: experience.items, shipping: experience.shipping,
+      commercial_nudge: experience.commercial_nudge, applied_benefits: experience.applied_benefits,
+      totals: experience.totals,
+    } };
   }
 
   @Post("payment/intents/:intentId/crypto/confirm")
@@ -360,6 +551,24 @@ export class EmbedCheckoutController {
       session_id: body.session_id.trim(),
       intent_id: intentId.trim()
     });
+  }
+
+  @Post("payment/intents/:intentId/cancel")
+  @Header("Cache-Control", "no-store")
+  @RateLimit(10)
+  @RequireEmbedScope("payment:intents:confirm")
+  async cancelPaymentFromEmbed(@Req() request: EmbedHttpRequest, @Param("intentId") intentId: string, @Body() body: unknown) {
+    if (!body || typeof body !== "object" || Array.isArray(body) ||
+        Object.keys(body).some(key => !["session_id", "idempotency_key", "buyer_access_token"].includes(key))) throw new BadRequestException("payment_cancellation_body_invalid");
+    const input = body as { session_id?: unknown; idempotency_key?: unknown; buyer_access_token?: unknown };
+    if (typeof input.session_id !== "string" || typeof input.idempotency_key !== "string" || !input.buyer_access_token) throw new BadRequestException("payment_cancellation_fields_required");
+    const embed = request.embedClaims!;
+    await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, input.session_id);
+    if (!this.resolveBuyer) throw new UnauthorizedException("embed_buyer_authentication_unavailable");
+    const buyer = await this.resolveBuyer.resolve(embed.merchantId, input.buyer_access_token);
+    if (!buyer) throw new UnauthorizedException("embed_buyer_token_invalid");
+    if (!this.cancelPaymentIntent) throw new ServiceUnavailableException("payment_cancellation_unavailable");
+    return this.cancelPaymentIntent.execute({ merchantId: embed.merchantId, sessionId: input.session_id, intentId, idempotencyKey: input.idempotency_key, buyer });
   }
 
   @Get("payment/intents/:intentId/status")

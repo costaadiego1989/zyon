@@ -11,13 +11,15 @@ import type {
   RuleCondition
 } from "@zyon/shared-types";
 import { CheckoutSettingsValidationError } from "../checkout-settings.errors.js";
+import { DEFAULT_CHECKOUT_ASSISTANCE } from "@zyon/shared-types";
 
 const ALLOWED_TRIGGERS: CheckoutTriggerName[] = [
   "shipping_objection_detected",
   "coupon_field_clicked",
   "payment_failed",
   "exit_intent_detected",
-  "idle_30_seconds"
+  "idle_30_seconds",
+  "checkout_abandoned"
 ];
 
 const COMMERCIAL_KEYS = [
@@ -81,6 +83,8 @@ export class CheckoutSettingsEntity {
         cartPresentationMode: "floating"
       },
       interventionPolicy: {
+        idleSeconds: 180,
+        assistance: { ...DEFAULT_CHECKOUT_ASSISTANCE },
         minimumAbandonmentScore: 0.7,
         cooldownSeconds: 120,
         maxInterventionsPerSession: 3,
@@ -91,7 +95,10 @@ export class CheckoutSettingsEntity {
         { trigger: "coupon_field_clicked", enabled: true, priority: 80 },
         { trigger: "idle_30_seconds", enabled: true, priority: 60 },
         { trigger: "payment_failed", enabled: true, priority: 90 },
-        { trigger: "exit_intent_detected", enabled: true, priority: 70 }
+        { trigger: "exit_intent_detected", enabled: true, priority: 70 },
+        // This terminal signal launches the asynchronous recovery flow after
+        // its quiet period; it does not open an additional checkout prompt.
+        { trigger: "checkout_abandoned", enabled: true, priority: 95 }
       ],
       suppressionRules: {
         suppressedSteps: [],
@@ -157,7 +164,7 @@ export class CheckoutSettingsEntity {
         minimum_abandonment_score: this.props.interventionPolicy.minimumAbandonmentScore,
         cooldown_seconds: this.props.interventionPolicy.cooldownSeconds,
         max_interventions_per_session: this.props.interventionPolicy.maxInterventionsPerSession,
-        enabled_triggers: this.props.triggerRules.filter((rule) => rule.enabled).map((rule) => rule.trigger),
+        enabled_triggers: this.enabledTriggers(),
         handoff_enabled: this.props.handoff.enabled,
         handoff_message: this.props.handoff.message,
         handoff_channels: this.props.handoff.channels,
@@ -181,7 +188,8 @@ export class CheckoutSettingsEntity {
     return {
       ...this.props,
       widgetBehavior: { ...this.props.widgetBehavior },
-      interventionPolicy: { ...this.props.interventionPolicy },
+      interventionPolicy: { ...this.props.interventionPolicy,
+        ...(this.props.interventionPolicy.assistance ? { assistance: { ...this.props.interventionPolicy.assistance } } : {}) },
       triggerRules: this.props.triggerRules.map((rule) => ({ ...rule })),
       suppressionRules: {
         ...this.props.suppressionRules,
@@ -196,8 +204,31 @@ export class CheckoutSettingsEntity {
     };
   }
 
+  private enabledTriggers(): CheckoutTriggerName[] {
+    const enabled = this.props.triggerRules
+      .filter((rule) => rule.enabled)
+      .map((rule) => rule.trigger);
+
+    // Existing merchants have persisted settings from before cart recovery
+    // became a first-class checkout trigger. Treat an absent rule as the new
+    // safe default, while an explicit disabled rule remains an opt-out.
+    const abandonmentConfigured = this.props.triggerRules
+      .some((rule) => rule.trigger === "checkout_abandoned");
+    if (!abandonmentConfigured) enabled.push("checkout_abandoned");
+    return enabled;
+  }
+
   private validate(): void {
     if (!this.props.merchantId) throw new CheckoutSettingsValidationError("merchant_id_required");
+    const idleSeconds = this.props.interventionPolicy.idleSeconds;
+    const assistance = this.props.interventionPolicy.assistance;
+    if (assistance && Object.entries(assistance).some(([key, value]) =>
+      !Object.prototype.hasOwnProperty.call(DEFAULT_CHECKOUT_ASSISTANCE, key) || typeof value !== "boolean")) {
+      throw new CheckoutSettingsValidationError("checkout_assistance_invalid");
+    }
+    if (idleSeconds !== undefined && (!Number.isInteger(idleSeconds) || idleSeconds < 10 || idleSeconds > 3600)) {
+      throw new CheckoutSettingsValidationError("idle_seconds_out_of_range");
+    }
     if (this.props.interventionPolicy.cooldownSeconds < 30) throw new CheckoutSettingsValidationError("cooldown_too_low");
     if (this.props.interventionPolicy.maxInterventionsPerSession < 1) throw new CheckoutSettingsValidationError("max_interventions_too_low");
     if (this.props.interventionPolicy.maxInterventionsPerSession > 10) throw new CheckoutSettingsValidationError("max_interventions_too_high");
@@ -278,7 +309,11 @@ function mergeInterventionPolicy(
   const progressivePatch = patch?.progressiveDiscount;
   return {
     ...current,
-    ...patch,
+    ...Object.fromEntries(Object.entries(patch ?? {}).filter(([, value]) => value !== undefined)),
+    assistance: patch?.assistance
+      ? { ...DEFAULT_CHECKOUT_ASSISTANCE, ...current.assistance,
+          ...Object.fromEntries(Object.entries(patch.assistance).filter(([, value]) => value !== undefined)) }
+      : current.assistance,
     progressiveDiscount: progressivePatch
       ? {
           enabled: progressivePatch.enabled ?? current.progressiveDiscount?.enabled ?? false,

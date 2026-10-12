@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional, ServiceUnavailableException } from "@nestjs/common";
 import {
   CAPTCHA_VERIFIER,
   type CaptchaVerifier,
@@ -11,18 +11,9 @@ export interface VerifyCaptchaResult {
 }
 
 /**
- * Verifies a captcha token for auth flows (login + register).
- *
- * Policy:
- * - When TURNSTILE_SECRET_KEY is unset (adapter returns "not-configured"), the
- *   use-case ALLOWS the request. This keeps local dev and CI working without a
- *   Cloudflare account. In production the secret MUST be set, which flips this
- *   to enforcing.
- * - When configured, a missing or invalid token is BLOCKED.
- *
- * The verifier port is @Optional so the module still boots (and tests that
- * don't wire a verifier still pass) — a missing verifier is treated as
- * "captcha disabled".
+ * Enforces CAPTCHA on authentication and recovery. Only unconfigured local/CI
+ * environments may skip verification; production and configured development
+ * environments fail closed on missing, expired, reused or invalid tokens.
  */
 @Injectable()
 export class VerifyCaptchaUseCase {
@@ -30,21 +21,29 @@ export class VerifyCaptchaUseCase {
     @Optional() @Inject(CAPTCHA_VERIFIER) private readonly verifier?: CaptchaVerifier,
   ) {}
 
-  async execute(input: { token?: string; remoteIp?: string }): Promise<VerifyCaptchaResult> {
+  async execute(input: { token?: string; remoteIp?: string; action?: string }): Promise<VerifyCaptchaResult> {
     if (!this.verifier) {
-      return { allowed: true, reason: "no-verifier" };
+      return { allowed: process.env.NODE_ENV !== "production", reason: "no-verifier" };
     }
 
     const result = await this.verifier.verify({
       token: input.token ?? "",
       remoteIp: input.remoteIp,
+      action: input.action,
     });
 
-    // Captcha not configured on the server → allow (paired with front-end that
-    // also has no site key). Any other failure → block.
     if (!result.success && result.reason === "not-configured") {
-      return { allowed: true, reason: "not-configured" };
+      return { allowed: process.env.NODE_ENV !== "production", reason: "not-configured" };
     }
     return { allowed: result.success, reason: result.reason };
+  }
+
+  async assertAllowed(input: { token?: string; remoteIp?: string; action?: string }): Promise<void> {
+    const result = await this.execute(input);
+    if (result.allowed) return;
+    if (["not-configured", "no-verifier", "verification-error", "verification-http-error"].includes(result.reason ?? "")) {
+      throw new ServiceUnavailableException({ code: "captcha_unavailable", message: "A verificação de segurança está indisponível. Tente novamente em instantes." });
+    }
+    throw new BadRequestException({ code: "captcha_invalid", message: "Conclua a verificação de segurança e tente novamente." });
   }
 }

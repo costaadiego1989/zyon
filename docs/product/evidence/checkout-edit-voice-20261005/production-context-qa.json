@@ -1,0 +1,12 @@
+{
+    "actualHttp":  true,
+    "environment":  "production",
+    "syntheticSessionFixture":  true,
+    "pendingPixPrompt":  true,
+    "paymentEditPrompt":  true,
+    "addressEditPrompt":  true,
+    "addressLabelMigrationAvailable":  true,
+    "foreignSessionDenied":  401,
+    "providerSecretCreated":  false,
+    "realPaymentSubmitted":  false
+}

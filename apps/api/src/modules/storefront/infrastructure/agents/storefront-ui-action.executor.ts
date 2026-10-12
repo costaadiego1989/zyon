@@ -14,11 +14,14 @@ export async function executeStorefrontUiAction(handlers: StoreToolHandlers, act
     case "add_item_to_cart": {
       const quantity = Number(a.quantity ?? 1);
       if (!str("variantId") || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error("store_ui_variant_or_quantity_invalid");
-      result = await handlers.addItemToCart({ cartId, variantId: str("variantId"), quantity, selectedOptionItemIds: Array.isArray(a.selectedOptionItemIds) ? a.selectedOptionItemIds.filter((id): id is string => typeof id === "string") : undefined });
+      result = await handlers.addItemToCart({ cartId, variantId: str("variantId"), quantity, selectedServiceSlotId: str("selectedServiceSlotId") || undefined, selectedOptionItemIds: Array.isArray(a.selectedOptionItemIds) ? a.selectedOptionItemIds.filter((id): id is string => typeof id === "string") : undefined });
       message = result?.success === false || result?.error ? "Não foi possível adicionar este item. Confira as opções disponíveis." : "Confira o resultado da inclusão no carrinho:";
       break;
     }
     case "get_cart": result = await handlers.getCart({ cartId }); message = "Este é o seu carrinho:"; break;
+    case "get_wishlist": result = await handlers.getWishlist(); message = "Sua lista de desejos:"; break;
+    case "add_to_wishlist": result = await handlers.addToWishlist({ productId: str("productId") }); message = "Confira sua lista de desejos:"; break;
+    case "remove_from_wishlist": result = await handlers.removeFromWishlist({ productId: str("productId") }); message = "Confira sua lista de desejos:"; break;
     case "remove_cart_item": result = await handlers.removeCartItem({ cartId, variantId: str("variantId") }); message = "Confira seu carrinho atualizado:"; break;
     case "update_cart_item": {
       const quantity = Number(a.quantity);

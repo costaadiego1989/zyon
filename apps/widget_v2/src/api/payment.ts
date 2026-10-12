@@ -38,7 +38,7 @@ export async function confirmCryptoPayment(
   req: CryptoConfirmRequest
 ): Promise<ApiResult> {
   const res = await fetch(
-    `${api.apiBaseUrl}/embed/payment/intents/${req.paymentIntentId}/crypto/confirm`,
+    `${api.embedApiBaseUrl}/embed/payment/intents/${req.paymentIntentId}/crypto/confirm`,
     {
       method: "POST",
       headers: authHeaders(api),

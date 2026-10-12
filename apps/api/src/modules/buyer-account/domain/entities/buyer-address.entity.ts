@@ -1,4 +1,5 @@
 export interface BuyerAddressProps {
+  label?: string;
   id: string;
   globalUserId: string;
   zip: string; // normalized, 8 digits
@@ -18,6 +19,7 @@ const MAX_CEP_LENGTH = 8;
 const CEP_REGEX = /^\d{8}$/;
 
 export class BuyerAddress {
+  readonly label?: string;
   readonly id: string;
   readonly globalUserId: string;
   readonly zip: string;
@@ -47,6 +49,7 @@ export class BuyerAddress {
     }
 
     this.id = props.id;
+    this.label = props.label?.trim().slice(0, 40) || undefined;
     this.globalUserId = props.globalUserId;
     this.zip = props.zip;
     this.zipFormatted = formatCep(props.zip);
@@ -76,6 +79,7 @@ export class BuyerAddress {
       street: input.street ?? this.street,
       number: input.number ?? this.number,
       complement: input.complement ?? this.complement,
+      label: input.label ?? this.label,
       neighborhood: input.neighborhood ?? this.neighborhood,
       city: input.city ?? this.city,
       state: input.state ?? this.state,
@@ -84,6 +88,7 @@ export class BuyerAddress {
   }
 
   static create(input: {
+    label?: string;
     id: string;
     globalUserId: string;
     zip: string;

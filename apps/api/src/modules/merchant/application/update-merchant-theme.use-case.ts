@@ -39,6 +39,7 @@ export class UpdateMerchantThemeUseCase {
     const patch = Object.fromEntries(Object.entries(theme).filter(([, value]) => value !== undefined));
     const next: MerchantTheme = {
       ...DEFAULT_MERCHANT_THEME,
+      ...((profile.plan === "BOTH" || profile.plan === "STORE_ONLY") ? profile.storeSettings?.styles ?? {} : {}),
       ...(profile.theme ?? {}),
       ...patch
     };
@@ -61,6 +62,28 @@ export class UpdateMerchantThemeUseCase {
   }
 
   async updateStoreSettings(merchantId: string, settings: Record<string, unknown>) {
+    if (!settings || typeof settings !== "object" || Array.isArray(settings)) throw new BadRequestException("invalid_store_settings");
+    if (settings.policies !== undefined) {
+      const policies = settings.policies as Record<string, unknown>;
+      if (!policies || typeof policies !== "object" || Array.isArray(policies)) throw new BadRequestException("invalid_store_policies");
+      for (const [field, value] of Object.entries(policies)) {
+        if (!["privacy", "returns", "terms", "shipping"].includes(field) || typeof value !== "string" || value.length > 10000) throw new BadRequestException("invalid_store_policy");
+      }
+      settings = { ...settings, policies: Object.fromEntries(Object.entries(policies).map(([key, value]) => [key, (value as string).trim()])) };
+    }
+    if (settings.budget !== undefined) {
+      const budget = settings.budget as Record<string, unknown>;
+      if (!budget || typeof budget !== "object" || Array.isArray(budget) || typeof budget.enabled !== "boolean") {
+        throw new BadRequestException("invalid_budget_settings");
+      }
+      if (budget.email !== undefined && (typeof budget.email !== "string" || budget.email.length > 254 || (budget.email.trim() && !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(budget.email.trim())))) throw new BadRequestException("invalid_budget_email");
+      if (budget.whatsapp !== undefined && (typeof budget.whatsapp !== "string" || budget.whatsapp.length > 32 || (budget.whatsapp.trim() && !/^\d{10,15}$/.test(budget.whatsapp.replace(/\D/g, ""))))) throw new BadRequestException("invalid_budget_whatsapp");
+      settings = { ...settings, budget: {
+        enabled: budget.enabled,
+        ...(typeof budget.email === "string" ? { email: budget.email.trim() } : {}),
+        ...(typeof budget.whatsapp === "string" ? { whatsapp: budget.whatsapp.replace(/\D/g, "") } : {}),
+      } };
+    }
     return this.repo.updateStoreSettings(merchantId, settings as any);
   }
 }

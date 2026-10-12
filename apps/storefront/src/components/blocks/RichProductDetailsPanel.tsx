@@ -1,42 +1,53 @@
 "use client";
+import { productShareUrl } from "@/lib/storefront-navigation";
 
-import { useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { FiArrowLeft, FiX } from "react-icons/fi";
 import type { ConversationBlock } from "@/lib/types";
 import ProductContentBlock, { type ProductNarrationDetails } from "./ProductContentBlock";
 import ProductNarration from "./ProductNarration";
 import { ProductCopyLink } from "./ProductCopyLink";
 import styles from "./RichProductDetailsPanel.module.css";
+import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
 
 /** The official rich product surface: narration, reviews and editorial details. */
 export default function RichProductDetailsPanel({
   productId,
   merchantSlug,
+  crossSell = null,
+  onAddCrossSell,
   suspended = false,
   onClose,
+  onProductResolved,
 }: {
   productId: string;
   merchantSlug?: string;
+  crossSell?: CrossSellInterstitialData | null;
+  onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
   suspended?: boolean;
   onClose: (result: { productId: string; productName?: string; defaultVariantId?: string | null; cartAdded: boolean }) => void;
+  onProductResolved?: (product: { productId: string; name: string; defaultVariantId: string | null }) => void;
 }) {
   const panel = useRef<HTMLDivElement>(null);
   const closeCallback = useRef(onClose);
   closeCallback.current = onClose;
+  const resolvedCallback = useRef(onProductResolved);
+  resolvedCallback.current = onProductResolved;
   const [closing, setClosing] = useState(false);
   const [shareUrl, setShareUrl] = useState("");
   const [narration, setNarration] = useState<ProductNarrationDetails | null>(null);
   const [product, setProduct] = useState<{ name: string; defaultVariantId: string | null } | null>(null);
   const [cartAdded, setCartAdded] = useState(false);
 
+  const handleProductResolved = useCallback((resolved: { name: string; defaultVariantId: string | null }) => {
+    setProduct(resolved);
+    resolvedCallback.current?.({ productId, ...resolved });
+  }, [productId]);
   const close = () => setClosing(true);
 
   useEffect(() => {
     if (!merchantSlug || typeof window === "undefined") return;
-    const url = new URL("/store/" + encodeURIComponent(merchantSlug), window.location.origin);
-    url.searchParams.set("show", "content");
-    url.searchParams.set("product", productId);
-    setShareUrl(url.toString());
+    setShareUrl(productShareUrl(window.location.origin, merchantSlug, productId));
   }, [merchantSlug, productId]);
 
   useEffect(() => {
@@ -111,8 +122,10 @@ export default function RichProductDetailsPanel({
         narrationEnabled={!closing && !suspended}
         shareUrl={shareUrl}
         onNarrationChange={setNarration}
-        onProductResolved={setProduct}
+        onProductResolved={handleProductResolved}
         onCartAdded={() => setCartAdded(true)}
+        crossSell={crossSell}
+        onAddCrossSell={onAddCrossSell}
       />
     </div>
   );

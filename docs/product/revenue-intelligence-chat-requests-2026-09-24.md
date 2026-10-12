@@ -1,0 +1,45 @@
+**Décima entrega local: identidade durável da mensagem no chat real**
+
+24/09/2026. Continuação de `9f80374`, na branch `feat/revenue-intelligence-weekly`. Avança RI-09 na entrada de `SendChatMessageUseCase`. O despachante de estratégias permanece interno; esta entrega não libera aprovação, ferramentas experimentais ou exposição ao comprador.
+
+**Comportamento implementado.** `CheckoutChatRequestService`, registrado em `CheckoutModule`, envolve o fluxo real antes de cadastro, OTP, frete, ofertas, IA e pagamento. O protocolo exige `message_id` estável de 16–128 caracteres e vincula loja, sessão, conversa, texto exato e seleção de agente. O hash usa os campos efetivamente consumidos; o serviço copia e congela a entrada antes do primeiro await. Loja e sessão são conferidas no banco, e a conversa deve corresponder à sessão na admissão.
+
+A transação de admissão trava a sessão e cria um único registro. Ela termina antes de qualquer chamada externa. Reenvios da mesma chave não repetem o fluxo, nem consomem novamente os controles internos de quota/rate limit. A mesma chave com outro conteúdo conflita. Outra chave também é bloqueada enquanto houver processamento ou efeito incerto na mesma sessão. A garantia cobre a entrada no fluxo: não elimina tentativas/fallbacks que um adaptador legado faça internamente e não deduplica mensagens enviadas sob novas chaves após uma conclusão.
+
+Os estados persistidos são `processing`, `completed`, `rejected` e `unknown`. Somente os controles iniciais de quota/rate limit podem encerrar como `rejected`, antes do processamento comercial. Essa mensagem não é executada novamente; uma nova mensagem pode ser admitida. Falha depois de entrar no processamento é conservadoramente `unknown`, pois pode ter ocorrido efeito parcial ou aceite externo. Falha ao registrar essa incerteza mantém o registro inicial bloqueando reexecução. Não há lease expirável, retomada automática ou troca de proprietário. Um processo interrompido pode deixar `processing` pendente; sua reconciliação continua necessária.
+
+O primeiro sucesso devolve a resposta normal com `chat_request: { message_id, status: "completed" }`, após persistir o hash da resposta. O registro não copia o texto, os dados pessoais ou as ofertas da resposta. Conclusão significa que o fluxo retornou e o recibo foi registrado; não prova publicação atômica, entrega HTTP, exibição no navegador ou exposição experimental. Se o commit ocorreu e sua confirmação se perdeu, o registro concluído permanece; uma nova tentativa consulta esse registro e não repete o fluxo.
+
+**Contrato HTTP.** O corpo compartilhado de chat e o DTO público aceitam `message_id`. A rota pública v1 repassa a chave e o recibo, preserva o texto `message` que antes era descartado pelo mapper e inclui sessão/conversa no formato esperado. A loja continua derivada da autenticação e a sessão do parâmetro da rota; campos correspondentes enviados no corpo não prevalecem. A rota embed já repassa o corpo após conferir sessão/loja e substituir a loja pelas credenciais do embed.
+
+Reenvios recebem HTTP 409 com código de estado e recibo. Após erro durante processamento, a primeira resposta é HTTP 503 de reconciliação. O filtro global normaliza os códigos para minúsculas e agora preserva somente `message_id`, `status` e `next_action: "refresh_session"`, para os códigos específicos desse protocolo. Não repassa o payload arbitrário de exceções, o texto antigo ou ofertas antigas. O contrato Zod e a documentação OpenAPI incluem essa projeção.
+
+| Código HTTP do protocolo | Interpretação |
+| --- | --- |
+| `chat_message_in_progress` | A mensagem já foi admitida; nenhuma nova execução foi iniciada. |
+| `chat_message_already_completed` | O fluxo já concluiu; atualizar a sessão em vez de reapresentar ofertas antigas. |
+| `chat_message_reconciliation_required` | Pode haver efeito parcial; não criar outra chave para tentar repetir. |
+| `chat_message_rejected` | Os controles iniciais recusaram a entrada no processamento. |
+| `chat_message_key_conflict` | A chave já está vinculada a outro conteúdo. |
+
+O retorno 409 não contém uma cópia da resposta comercial anterior. `refresh_session` orienta consultar o estado atual, mas não resolve automaticamente efeitos incertos. O frontend ainda precisa implementar retenção da chave, tratamento dos recibos e recuperação da experiência. O WhatsApp ainda não fornece a identidade da mensagem ao adaptador de checkout; não habilitar o protocolo para uma loja com chamadas incompatíveis.
+
+**Persistência e implantação futura.** Migration aditiva `20260924233000_checkout_chat_requests`, com chave composta por loja/sessão/mensagem, FK de sessão, índice parcial de uma mensagem não resolvida por sessão, checks de estado/hash/data e trigger de transições. Identidade é imutável, estados finais não são reabertos e registros não são apagados por operações normais. Retenção e reconciliação precisam de fluxo explícito posterior; não apagar recibos para liberar um checkout.
+
+`CHECKOUT_CHAT_REQUESTS_ENABLED=false` e `CHECKOUT_CHAT_REQUEST_MERCHANT_IDS=` continuam desabilitados/vazios. Exige lista explícita; `*` não habilita lojas. Uma sessão com recibo permanece no protocolo mesmo após desligar a flag, remover a loja da lista ou omitir a chave. Lojas sem recibos e fora do piloto seguem o fluxo legado. Aplicar a migration antes do código, pois o serviço consulta propriedade durável mesmo com a flag desligada. Reverter para código anterior a este protocolo não preserva essa proteção; reversão de configuração e reversão de binário são situações diferentes.
+
+Antes do piloto, atualizar todos os chamadores relevantes e drenar chamadas legadas em andamento: uma chamada iniciada antes da adoção não recebe uma admissão retroativa. A opção de configuração deste lote não é uma liberação operacional. As flags de estratégia e os limites de análise semanal permanecem como antes.
+
+**Validação local.** As três suítes principais somam 432 testes aprovados, sem falhas ou skips. A suíte adicional manteve 18 aprovados, oito falhas anteriores e um skip, confirmados pela comparação com o commit anterior. Evidências em `.audit/revenue-weekly/`:
+
+- `chat-requests-regression.log`: 404 testes aprovados de Revenue Manager, Experiments, bootstrap, repositório, baseline, gateways e controllers público/embed.
+- `chat-requests-http-integration-final.log`: três testes de identidade e 18 com PostgreSQL, incluindo concorrência, conflitos, isolamento, incerteza, rollback de configuração, falha de gravação, confirmação perdida após commit e passagem pelo caso de uso real. Um cenário usa HTTP real em loopback, Nest, o caso de uso de chat, PostgreSQL e o filtro global. O controller desse cenário é uma fixture; não comprova autenticação ou a aplicação completa em execução.
+- `chat-requests-http-contract-final.log`: sete testes de contrato de erros, projeção restrita de recibos e documentação pública.
+- `chat-requests-typecheck-contract-final.log` e `chat-requests-typecheck-exit.txt`: verificação da API aprovada (exit 0), com Prisma isolado e tipos dos pacotes locais, sem rebuild do cliente ou dist compartilhados.
+- `chat-requests-send-current.log` e `chat-requests-send-head.log`: suíte adicional de chat/rate limit comparada ao código de `9f80374` para os dois arquivos alterados do caso de uso/fixture. Mesmos 18 aprovados, oito falhas de cadastro/OTP e um skip; nenhum nome de falha novo. O loader de comparação substitui somente esses arquivos pelo conteúdo do commit anterior.
+
+Schema aplicado em `revenue_chat_requests_0924`, cópia do banco final da nona entrega. Diff estrutural vazio. Constraints/triggers também exercitados pela integração, pois o diff sozinho não os verifica. O pacote `contracts` recebeu um vínculo local para suas dependências já instaladas, sem instalar ou modificar dependências compartilhadas. Fixtures artificiais e provedores bloqueados; as requisições do cenário HTTP são para `127.0.0.1`. PostgreSQL dedicado encerrado após os testes; Redis permaneceu parado. Não houve chamada paga, mensagem externa, implantação ou teste comercial. Não foi executada a suíte global da API nem a jornada completa no navegador.
+
+**Continuação.** O próximo passo permanece a publicação transacional da resposta/ferramentas da estratégia, com nova validação de sessão, pausa, prazo, configuração e consentimento no ponto de efeito. O builder atual ainda grava comprador/agente separadamente e pode executar efeitos antes da finalização deste recibo. A integração prova que uma falha parcial não repete a mensagem; não torna esses efeitos atômicos. É necessário resolver também a persistência da conversa diante de outras atualizações da sessão, inclusive seleção de pagamento, que hoje usa um snapshot anterior ao registro dos turnos.
+
+Depois: recuperação dos estados incertos, integração dos chamadores, cobertura de criação de sessão por canal, encerramento periódico ao atingir o horizonte, outbox de aprovação/ativação e métricas sobre todos os participantes. RI-09 e aprovação no dashboard permanecem incompletos. Não confundir recibo de processamento com evidência de exposição ou resultado comercial.

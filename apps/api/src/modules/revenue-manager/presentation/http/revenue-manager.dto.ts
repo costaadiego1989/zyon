@@ -50,6 +50,8 @@ export class ObservationResponseDto {
 }
 
 export class HypothesisResponseDto {
+  @ApiPropertyOptional({ description: "Current immutable strategy summary when this hypothesis belongs to a weekly versioned proposal" })
+  strategy_review?: { version: number; status: string; title?: string; expires_at?: Date; expected_lift_percent?: number };
   @ApiProperty() id!: string;
   @ApiProperty() merchant_id!: string;
   @ApiProperty() observation_id!: string;

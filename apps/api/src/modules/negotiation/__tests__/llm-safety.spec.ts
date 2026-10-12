@@ -319,17 +319,16 @@ describe("LLM Safety Tests — Core Invariant Validation", () => {
       assert.equal(evaluation.reason, "minimum_margin_violation", "Reason should cite margin");
     });
 
-    test("18. Item missing cost → defaults to 50% of price, margin still checked", () => {
+    test("18. Item missing cost → incentive rejected without inventing a cost", () => {
       const cart = makeCart({
         total: 100,
         items: [{ sku: "item-1", name: "Product A", price: 100, quantity: 1 }], // cost undefined
       });
 
-      // Default cost = 50% of 100 = 50
-      // With 10% discount: gross = 90, payFee = 3.6, margin = (90 - 50 - 3.6) / 90 = 0.404 > 0.38
       const evaluation = evaluateDiscountOffer(cart, baseRules, 10);
 
-      assert.equal(evaluation.approved, true, "Should approve when default cost passes margin");
+      assert.equal(evaluation.approved, false);
+      assert.equal(evaluation.reason, "product_cost_missing");
     });
   });
 

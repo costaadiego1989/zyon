@@ -13,6 +13,7 @@ export interface InlineCheckoutProps {
   embedToken: string;
   merchantId: string;
   apiBaseUrl: string;
+  embedApiBaseUrl?: string;
   cartRef?: string;
   globalUserId?: string;
   buyerAccessToken?: string;
@@ -20,6 +21,7 @@ export interface InlineCheckoutProps {
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
   };
+  initialChannel?: "chat" | "voice";
   theme?: "dark" | "light";
   onClose?: () => void;
 }
@@ -38,11 +40,13 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       merchantId: props.merchantId,
       cartRef: props.cartRef,
       apiBaseUrl: props.apiBaseUrl,
+      embedApiBaseUrl: props.embedApiBaseUrl,
       globalUserId: props.globalUserId,
       buyerAccessToken: props.buyerAccessToken,
       oneBuyClickPreferences: props.oneBuyClickPreferences,
+      initialChannel: props.initialChannel,
     });
-  }, [init, props.embedToken, props.merchantId, props.buyerAccessToken, props.oneBuyClickPreferences]);
+  }, [init, props.embedToken, props.merchantId, props.apiBaseUrl, props.embedApiBaseUrl, props.cartRef, props.globalUserId, props.buyerAccessToken, props.oneBuyClickPreferences, props.initialChannel]);
 
   useEffect(() => {
     if (props.theme === "light") {
@@ -112,5 +116,5 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     );
   }
 
-  return <CheckoutLayout forcedTheme={props.theme} />;
+  return <CheckoutLayout forcedTheme={props.theme} onClose={props.onClose} />;
 }

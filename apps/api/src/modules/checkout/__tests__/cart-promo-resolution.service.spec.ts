@@ -84,6 +84,7 @@ test("CartPromoResolutionService: applies percent discount", async () => {
   const resolved = await service.resolveCartPromos(cart, "mrc_1", now);
 
   assert.equal(resolved.items[0]?.price, 80, "should apply 20% discount (100 → 80)");
+  assert.equal(resolved.items[0]?.originalPrice, 100, "the server base price describes the already-applied saving");
 });
 
 test("CartPromoResolutionService: merchant boundary isolation", async () => {

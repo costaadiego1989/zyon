@@ -1,4 +1,5 @@
 import "reflect-metadata";
+import { WhatsAppDeliveryService } from "../../application/services/whatsapp-delivery.service.js";
 import { after, before, beforeEach, describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { createRequire } from "node:module";
@@ -149,11 +150,13 @@ describe("BubbleWhats durable inbox (PostgreSQL)", { skip: !clientPath || !datab
   it("a real incoming/send pipeline failure survives worker restart and succeeds on retry", async () => {
     await accept.message(config.webhookSecret, message());
     let sends = 0;
+    const sender = { sendText: async () => ({ status: ++sends === 1 ? "failed" as const : "sent" as const, messageId: "provider-reference" }) };
+    const delivery = new WhatsAppDeliveryService(prisma, sender);
     const incoming = new HandleIncomingMessageUseCase({
       execute: async () => ({ whatsappSession: { id: "session-1", checkoutSessionId: "checkout-1", currentOptions: [], previousOptions: [], currentPage: 0 } }),
-    } as any, new SendWhatsAppResponseUseCase({ sendText: async () => ({ status: ++sends === 1 ? "failed" : "sent", messageId: "provider-reference" }) }),
+    } as any, new SendWhatsAppResponseUseCase(sender, delivery),
     { updateMenuState: async () => {} } as any, { respond: async () => ({ agentMessage: "Resposta do checkout", quickReplies: [] }) });
-    const worker = () => new WhatsAppWebhookWorker(new PrismaWhatsAppWebhookInbox(prisma), { findById: async () => config } as any, incoming, {} as any);
+    const worker = () => new WhatsAppWebhookWorker(new PrismaWhatsAppWebhookInbox(prisma), { findById: async () => config } as any, incoming, {} as any, delivery);
     await worker().drain();
     let stored = (await rows())[0];
     assert.equal(stored.status, "pending");
@@ -172,7 +175,7 @@ describe("BubbleWhats durable inbox (PostgreSQL)", { skip: !clientPath || !datab
     let enabled = false;
     let messages = 0;
     const worker = new WhatsAppWebhookWorker(repository, { findById: async () => ({ ...config, enabled }) } as any,
-      { execute: async () => { messages++; } } as any, {} as any);
+      { execute: async () => { messages++; } } as any, {} as any, { process: async (_claim: unknown, run: () => Promise<void>) => run() } as any);
     await worker.drain();
     const stored = (await rows())[0];
     assert.equal(stored.status, "pending");

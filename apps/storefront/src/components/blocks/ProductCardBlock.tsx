@@ -14,9 +14,11 @@ type OptionGroup = NonNullable<ProductCardBlockType["data"]["optionGroups"]>[num
 
 export default function ProductCardBlock({
   block,
+  merchantSlug,
   onQuickReply,
 }: {
   block: ProductCardBlockType;
+  merchantSlug?: string;
   onQuickReply?: (option: string) => void;
 }) {
   const { data } = block;
@@ -102,6 +104,7 @@ export default function ProductCardBlock({
     `Calcular frete para ${data.name}`,
     `Ver variações de ${data.name}`,
     `Comparar ${data.name} com similar`,
+    `Adicionar ${data.name} à lista de desejos`,
     `Ver avaliações de ${data.name}`,
     `Tirar dúvida sobre ${data.name}`,
   ];
@@ -155,6 +158,7 @@ export default function ProductCardBlock({
       `}</style>
 
       <ProductCardMedia
+        merchantSlug={merchantSlug}
         data={data}
         hasDiscount={hasDiscount}
         onQuickReply={onQuickReply}

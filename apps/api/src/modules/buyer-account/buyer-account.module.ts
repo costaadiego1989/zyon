@@ -2,6 +2,7 @@ import { RedisWebAuthnChallengePersistence } from "./infrastructure/redis-webaut
 import { Module, forwardRef, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import type { Redis } from "ioredis";
+import { AuthModule } from "../auth/auth.module.js";
 import { PasswordHasher } from "../auth/domain/services/password-hasher.service.js";
 import { SMS_PROVIDER } from "./domain/ports/sms.port.js";
 import { EMAIL_OTP_PROVIDER } from "./domain/ports/email-otp.port.js";
@@ -46,6 +47,7 @@ import { BuyerHubController } from "./presentation/http/buyer-hub.controller.js"
 import { BuyerWebAuthnController } from "./presentation/http/buyer-webauthn.controller.js";
 import { BuyerPreferencesController } from "./presentation/http/buyer-preferences.controller.js";
 import { BuyerIntentController } from "./presentation/http/buyer-intent.controller.js";
+import { BuyerPrivacyController } from "./presentation/http/buyer-privacy.controller.js";
 import { BuyerReviewsController } from "./presentation/http/buyer-reviews.controller.js";
 import { BuyerAddressesController } from "./presentation/http/buyer-addresses.controller.js";
 import {
@@ -76,8 +78,8 @@ import { RedisOtpStore } from "./infrastructure/redis-otp-store.js";
 import { PrismaWebAuthnCredentialRepository } from "./infrastructure/prisma-webauthn-credential.repository.js";
 
 @Module({
-  imports: [BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule],
-  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerReviewsController, BuyerAddressesController],
+  imports: [AuthModule, BuyerAccountRepositoryModule, BuyerPurchaseHistoryModule, forwardRef(() => CheckoutModule), IntegrationsModule, SelfCheckoutModule, MerchantModule],
+  controllers: [BuyerAccountController, BuyerAgentController, BuyerHubController, BuyerWebAuthnController, BuyerPreferencesController, BuyerIntentController, BuyerPrivacyController, BuyerReviewsController, BuyerAddressesController],
   providers: [
     RegisterBuyerUseCase,
     RegisterBuyerWithRateLimitUseCase,

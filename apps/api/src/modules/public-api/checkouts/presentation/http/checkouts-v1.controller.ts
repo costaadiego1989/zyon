@@ -10,6 +10,8 @@ import {
   UseInterceptors,
   HttpCode,
   HttpStatus,
+  Optional,
+  ServiceUnavailableException,
 } from '@nestjs/common';
 import {
   ApiTags,
@@ -30,6 +32,7 @@ import type {
   UpdateCartRequest,
 } from '@zyon/shared-types';
 
+import { AiUserIdentityService } from '../../../../../shared/http/ai-user-identity.service.js';
 import { TenantCredentialGuard } from '../../../../integrations/presentation/http/tenant-credential.guard.js';
 import { TenantAccessGuard } from '../../../../integrations/presentation/http/tenant-access.guard.js';
 import { RequireTenantAccess } from '../../../../integrations/presentation/http/tenant-access.decorator.js';
@@ -39,6 +42,7 @@ import { StartCheckoutUseCase } from '../../../../checkout/application/use-cases
 import { TrackCheckoutEventUseCase } from '../../../../checkout/application/use-cases/track-checkout-event.use-case.js';
 import { GetCheckoutSessionUseCase } from '../../../../checkout/application/use-cases/get-checkout-session.use-case.js';
 import { SendChatMessageUseCase } from '../../../../checkout/application/use-cases/send-chat-message.use-case.js';
+import { ReconcileChatMessageUseCase } from '../../../../checkout/application/use-cases/reconcile-chat-message.use-case.js';
 import { EvaluateShippingUseCase } from '../../../../checkout/application/use-cases/evaluate-shipping.use-case.js';
 import { ApplyOfferUseCase } from '../../../../checkout/application/use-cases/apply-offer.use-case.js';
 import { CompleteOrderUseCase } from '../../../../checkout/application/use-cases/complete-order.use-case.js';
@@ -60,6 +64,8 @@ import {
   ApplyOfferResponse,
   CompleteOrderResponse,
   UpdateCartResponse,
+  ReconcileCheckoutMessageDto,
+  ChatMessageRecoveryResponseDto,
 } from './dtos/checkout.dtos.js';
 
 /**
@@ -88,6 +94,7 @@ export class CheckoutsV1Controller {
     private readonly applyOfferUseCase: ApplyOfferUseCase,
     private readonly completeOrderUseCase: CompleteOrderUseCase,
     private readonly updateCartUseCase: UpdateCartUseCase,
+    @Optional() private readonly reconcileChatUseCase?: ReconcileChatMessageUseCase,
   ) {}
 
   /**
@@ -194,10 +201,26 @@ export class CheckoutsV1Controller {
       conversation_id: body.conversation_id,
       user_message: body.user_message,
       agent_id: body.agent_id,
+      message_id: body.message_id,
     };
 
-    const result = await this.sendMessageUseCase.execute(input);
-    return CheckoutEntityMapper.toChatMessageResponse(result);
+    const visitorToken = req.headers?.['x-ai-user-token'];
+    const buyerToken = req.headers?.['x-buyer-authorization']?.match(/^Bearer (\S+)$/i)?.[1];
+    const identity = visitorToken || buyerToken ? new AiUserIdentityService().resolve({ merchantId, visitorToken, buyerToken }) : undefined;
+    const result = await this.sendMessageUseCase.execute(input, identity ? { aiUserId: identity.userId } : undefined);
+    return CheckoutEntityMapper.toChatMessageResponse(result, { conversation_id: input.conversation_id, session_id: checkoutId });
+  }
+
+  @Post(':checkoutId/messages/:messageId/reconcile')
+  @HttpCode(HttpStatus.OK)
+  @ApiOperation({ summary: 'Reconcile a durably published text message without resending it' })
+  @ApiBody({ type: ReconcileCheckoutMessageDto })
+  @ApiOkResponse({ type: ChatMessageRecoveryResponseDto })
+  async reconcileMessage(@Req() req: any, @Param('checkoutId') checkoutId: string,
+    @Param('messageId') messageId: string, @Body() body: ReconcileCheckoutMessageDto) {
+    if (!this.reconcileChatUseCase) throw new ServiceUnavailableException({ code: 'CHAT_MESSAGE_STORE_UNAVAILABLE' });
+    return this.reconcileChatUseCase.execute({ merchant_id: req.tenantPrincipal?.tenantId, session_id: checkoutId,
+      message_id: messageId, conversation_id: body.conversation_id });
   }
 
   /**

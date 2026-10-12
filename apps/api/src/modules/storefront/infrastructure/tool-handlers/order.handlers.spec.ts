@@ -9,6 +9,31 @@ const buyerContext = {
   buyer: { globalUserId: "buyer_1" },
 };
 
+test("policy lookup reads only the current store and prioritizes published edits", async () => {
+  const calls: any[] = [];
+  const prisma = {
+    merchant: { findUnique: async (q: any) => { calls.push(q.where); return { storeSettings: { policies: { returns: "Condições vigentes", shipping: "" } } }; } },
+    merchantPolicy: { findUnique: async (q: any) => { calls.push(q.where); return { returns: "Texto antigo", shipping: "Prazo antigo", warranty: "Garantia cadastrada" }; } },
+  } as unknown as PrismaClient;
+  const result = await createOrderHandlers({ prisma }, buyerContext).getStorePolicies({ policyType: "all" }) as any;
+  assert.deepEqual(result.policies, { returns: "Condições vigentes", exchanges: "Condições vigentes", warranty: "Garantia cadastrada" });
+  assert.deepEqual(calls, [{ id: "merchant_1" }, { merchantId: "merchant_1" }]);
+});
+
+test("unpublished policy results contain no default exchange, delivery or warranty promises", async () => {
+  const prisma = { merchant: { findUnique: async () => ({ storeSettings: {} }) }, merchantPolicy: { findUnique: async () => null }, merchantRule: { findUnique: async () => null } } as unknown as PrismaClient;
+  const result = await createOrderHandlers({ prisma }, buyerContext).getStorePolicies({ policyType: "warranty" }) as any;
+  assert.equal(result.configured, false);
+  assert.equal(result.policy, null);
+  assert.match(result.message, /direitos legais/);
+  assert.doesNotMatch(JSON.stringify(result), /12 meses|30 dias|2 a 10/);
+});
+
+test("policy lookup propagates database failure instead of inventing a fallback", async () => {
+  const prisma = { merchant: { findUnique: async () => { throw new Error("database unavailable"); } }, merchantPolicy: { findUnique: async () => null }, merchantRule: { findUnique: async () => null } } as unknown as PrismaClient;
+  await assert.rejects(createOrderHandlers({ prisma }, buyerContext).getStorePolicies({}), /database unavailable/);
+});
+
 test("trackOrder returns the buyer-scoped persisted shipment instead of placeholder data", async () => {
   const completedOrderQueries: any[] = [];
   const shipmentQueries: any[] = [];

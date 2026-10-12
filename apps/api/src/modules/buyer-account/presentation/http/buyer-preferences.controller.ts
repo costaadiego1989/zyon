@@ -31,6 +31,7 @@ export class BuyerPreferencesController {
       one_buy_click_enabled?: boolean;
       shipping_preference?: "fastest" | "cheapest";
       payment_preference?: "pix" | "card";
+      purchase_preferences_configured?: boolean;
     },
   ) {
     this.validatePurchasePreferences(body);
@@ -46,6 +47,7 @@ export class BuyerPreferencesController {
       oneBuyClickEnabled: body.one_buy_click_enabled,
       shippingPreference: body.shipping_preference,
       paymentPreference: body.payment_preference,
+      purchasePreferencesConfigured: body.purchase_preferences_configured,
     });
   }
 
@@ -53,6 +55,7 @@ export class BuyerPreferencesController {
     one_buy_click_enabled?: unknown;
     shipping_preference?: unknown;
     payment_preference?: unknown;
+    purchase_preferences_configured?: unknown;
   }): void {
     if (body.one_buy_click_enabled !== undefined && typeof body.one_buy_click_enabled !== "boolean") {
       throw new BadRequestException("one_buy_click_enabled_must_be_boolean");
@@ -62,6 +65,12 @@ export class BuyerPreferencesController {
     }
     if (body.payment_preference !== undefined && body.payment_preference !== "pix" && body.payment_preference !== "card") {
       throw new BadRequestException("payment_preference_invalid");
+    }
+    if (body.purchase_preferences_configured !== undefined && body.purchase_preferences_configured !== true) {
+      throw new BadRequestException("purchase_preferences_configured_must_be_true");
+    }
+    if (body.purchase_preferences_configured === true && (body.shipping_preference === undefined || body.payment_preference === undefined)) {
+      throw new BadRequestException("purchase_preferences_require_shipping_and_payment");
     }
   }
 }

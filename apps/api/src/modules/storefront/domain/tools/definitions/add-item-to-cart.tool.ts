@@ -8,6 +8,10 @@ export const ADD_ITEM_TO_CART: ToolDefinition = {
   parameters: {
     type: "object",
     properties: {
+      selectedServiceSlotId: {
+        type: "string",
+        description: "Service time explicitly chosen by the buyer in [serviceSlotId:xxx]. Never choose a time on their behalf. The server validates and stores the canonical schedule."
+      },
       cartId: {
         type: "string",
         description: "Existing cart ID (optional; omit to use session cart)"

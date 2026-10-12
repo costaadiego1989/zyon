@@ -33,7 +33,7 @@ export default function ProductComparisonBlock({
   block: ProductComparisonBlockType;
   onQuickReply?: (text: string) => void;
 }) {
-  const { products } = block.data;
+  const { products, missingProductNames = [] } = block.data;
 
   const attrKeys = Array.from(
     products.reduce((set, p) => {
@@ -43,7 +43,7 @@ export default function ProductComparisonBlock({
   );
 
   return (
-    <div data-neu="surface"
+    <div data-neu="surface" role="region" aria-label="Comparação de produtos"
       style={{
         borderRadius: "var(--aacp-radius-md)",
         background: "var(--aacp-surface)",
@@ -57,7 +57,7 @@ export default function ProductComparisonBlock({
           overflowX: "auto",
         }}
       >
-        <table
+        <table aria-label="Tabela comparativa de produtos"
           style={{
             width: "100%",
             borderCollapse: "collapse",
@@ -78,7 +78,7 @@ export default function ProductComparisonBlock({
                 style={{
                   padding: "12px 14px",
                   textAlign: "left",
-                  background: "var(--aacp-surface-2)",
+                  background: "var(--aacp-surface)",
                   borderBottom: "1px solid var(--aacp-line-strong)",
                   fontSize: 10,
                   fontWeight: 600,
@@ -89,7 +89,8 @@ export default function ProductComparisonBlock({
                   width: 110,
                   position: "sticky",
                   left: 0,
-                  zIndex: 1,
+                  zIndex: 3,
+                  boxShadow: "1px 0 0 var(--aacp-line)",
                 }}
               >
                 Comparar
@@ -147,6 +148,8 @@ export default function ProductComparisonBlock({
                   background: "var(--aacp-surface)",
                   position: "sticky",
                   left: 0,
+                  zIndex: 2,
+                  boxShadow: "1px 0 0 var(--aacp-line)",
                 }}
               >
                 Preco
@@ -184,6 +187,8 @@ export default function ProductComparisonBlock({
                     background: "var(--aacp-surface)",
                     position: "sticky",
                     left: 0,
+                    zIndex: 2,
+                    boxShadow: "1px 0 0 var(--aacp-line)",
                   }}
                 >
                   Avaliacao
@@ -218,6 +223,8 @@ export default function ProductComparisonBlock({
                   background: "var(--aacp-surface)",
                   position: "sticky",
                   left: 0,
+                  zIndex: 2,
+                  boxShadow: "1px 0 0 var(--aacp-line)",
                 }}
               >
                 Estoque
@@ -273,9 +280,11 @@ export default function ProductComparisonBlock({
                     textTransform: "uppercase",
                     letterSpacing: 0.8,
                     fontFamily: "var(--aacp-font-mono)",
-                    background: "var(--aacp-surface)",
-                    position: "sticky",
-                    left: 0,
+                  background: "var(--aacp-surface)",
+                  position: "sticky",
+                  left: 0,
+                  zIndex: 2,
+                  boxShadow: "1px 0 0 var(--aacp-line)",
                   }}
                 >
                   {key}
@@ -301,6 +310,11 @@ export default function ProductComparisonBlock({
       </div>
 
       {}
+      {missingProductNames.length > 0 && (
+        <p role="status" style={{ margin: 0, padding: "10px 12px", borderTop: "1px solid var(--aacp-line)", color: "var(--aacp-muted)", background: "var(--aacp-surface-2)", fontSize: "12px", lineHeight: 1.4 }}>
+          Não foi possível incluir: {missingProductNames.join(", ")}.
+        </p>
+      )}
       <div
         style={{
           display: "flex",
@@ -318,8 +332,8 @@ export default function ProductComparisonBlock({
             onClick={() => onQuickReply?.(`Adicionar ${p.name}`)}
             disabled={!p.inStock}
             style={{
-              flex: 1,
-              minWidth: 0,
+              flex: "0 0 auto",
+              minWidth: 154,
               padding: "10px 14px",
               borderRadius: "10px",
               border: "none",

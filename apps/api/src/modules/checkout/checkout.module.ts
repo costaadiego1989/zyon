@@ -9,6 +9,7 @@ import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.m
 import { MerchantModule } from "../merchant/merchant.module.js";
 import { ShippingModule } from "../shipping/shipping.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { ListBuyerAddressesUseCase } from "../buyer-account/application/use-cases/list-buyer-addresses.use-case.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { RevenueLiftModule } from "../revenue-lift/revenue-lift.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
@@ -27,8 +28,10 @@ import { EvaluateShippingUseCase } from "./application/use-cases/evaluate-shippi
 import { GetDecisionUseCase } from "./application/use-cases/get-decision.use-case.js";
 import { GetCheckoutSessionUseCase } from "./application/use-cases/get-checkout-session.use-case.js";
 import { SendChatMessageUseCase } from "./application/use-cases/send-chat-message.use-case.js";
+import { ReconcileChatMessageUseCase } from "./application/use-cases/reconcile-chat-message.use-case.js";
 import { ChatToolExecutorService } from "./application/services/chat-tool-executor.service.js";
 import { ChatLlmGatewayService } from "./application/services/chat-llm-gateway.service.js";
+import { StrategyCheckoutChatService } from "./application/services/strategy-checkout-chat.service.js";
 import { StartCheckoutUseCase } from "./application/use-cases/start-checkout.use-case.js";
 import { TrackCheckoutEventUseCase } from "./application/use-cases/track-checkout-event.use-case.js";
 import { UpdateOrderTrackingUseCase } from "./application/use-cases/update-order-tracking.use-case.js";
@@ -37,12 +40,15 @@ import { UpdateCrossStoreCartUseCase } from "./application/use-cases/update-cros
 import { GetFunnelUseCase } from "./application/use-cases/get-funnel.use-case.js";
 import { GetFunnelSessionsUseCase } from "./application/use-cases/get-funnel-sessions.use-case.js";
 import { CheckoutCustomerService } from "./application/services/checkout-customer.service.js";
+import { CheckoutSavedAddressService } from "./application/services/checkout-saved-address.service.js";
 import { CheckoutShippingService } from "./application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "./application/services/checkout-offer.service.js";
 import { BuyerResolutionService } from "./application/services/buyer-resolution.service.js";
 import { BuyerContextService } from "./application/services/buyer-context.service.js";
 import { CheckoutBootstrapService } from "./application/services/checkout-bootstrap.service.js";
 import { CartPromoResolutionService } from "./application/services/cart-promo-resolution.service.js";
+import { CheckoutBenefitsService } from "./application/services/checkout-benefits.service.js";
+import { CouponsExecutionModule } from "../coupons/coupons-execution.module.js";
 import { InterventionRuleTextBuilder } from "./application/services/intervention-rule-text.builder.js";
 import { ChatContextService } from "./application/services/chat-context.service.js";
 import { ChatResponseBuilder } from "./application/services/chat-response.builder.js";
@@ -74,6 +80,7 @@ import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.noti
 import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkout.repository.js";
+import { CheckoutChatRequestService } from "./infrastructure/prisma/checkout-chat-request.service.js";
 import { PRODUCT_SEARCH_PORT } from "./domain/ports/product-search.port.js";
 import { LocalCatalogFallbackAdapter } from "../catalog/infrastructure/local-catalog-fallback.adapter.js";
 import { PrismaStoreOverviewRepository } from "./infrastructure/prisma/prisma-store-overview.repository.js";
@@ -92,9 +99,12 @@ import { PAYMENT_APPROVAL_READER } from "./domain/ports/payment-approval.port.js
 import { PrismaPaymentApprovalReader } from "./infrastructure/adapters/prisma-payment-approval.reader.js";
 import { OrderQuotaService } from "../payment/application/services/order-quota.service.js";
 import { ConversationRateLimitService } from "./application/services/conversation-rate-limit.service.js";
+import { NotificationsModule } from "../notifications/notifications.module.js";
+import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
 
 @Module({
   imports: [
+    CouponsExecutionModule,
     CommerceModule,
     AgentRulesModule,
     CheckoutSettingsModule,
@@ -107,16 +117,21 @@ import { ConversationRateLimitService } from "./application/services/conversatio
     BuyerAccountRepositoryModule,
     ExperimentsModule,
     RevenueLiftModule,
-    IntentMemoryModule
+    IntentMemoryModule,
+    NotificationsModule,
+    WhatsAppTemplatesModule,
   ],
   controllers: [CheckoutController],
   providers: [
+    ListBuyerAddressesUseCase,
+    CheckoutSavedAddressService,
     {
       provide: PAYMENT_APPROVAL_READER,
       useFactory: (prisma: PrismaClient) => new PrismaPaymentApprovalReader(prisma),
       inject: [PRISMA_CLIENT]
     },
     CheckoutCartAuthorityService,
+    CheckoutBenefitsService,
     StartCheckoutUseCase,
     TrackCheckoutEventUseCase,
     GetCheckoutSessionUseCase,
@@ -124,6 +139,12 @@ import { ConversationRateLimitService } from "./application/services/conversatio
     ChatToolExecutorService,
     ChatLlmGatewayService,
     SendChatMessageUseCase,
+    ReconcileChatMessageUseCase,
+    {
+      provide: CheckoutChatRequestService,
+      useFactory: (prisma: PrismaClient) => new CheckoutChatRequestService(prisma),
+      inject: [PRISMA_CLIENT]
+    },
     ConversationRateLimitService,
     CheckoutCustomerService,
     CheckoutShippingService,
@@ -134,6 +155,11 @@ import { ConversationRateLimitService } from "./application/services/conversatio
     CartPromoResolutionService,
     InterventionRuleTextBuilder,
     ChatContextService,
+    {
+      provide: StrategyCheckoutChatService,
+      useFactory: (prisma: PrismaClient, gateway: ChatLlmGatewayService) => new StrategyCheckoutChatService(prisma, gateway),
+      inject: [PRISMA_CLIENT, ChatLlmGatewayService]
+    },
     ChatResponseBuilder,
     OtpService,
     BuyerRecognitionService,
@@ -209,6 +235,7 @@ import { ConversationRateLimitService } from "./application/services/conversatio
   ],
   exports: [
     CheckoutCartAuthorityService,
+    CheckoutBenefitsService,
     CHECKOUT_REPOSITORY,
     CHECKOUT_SESSION_REPOSITORY,
     Symbol.for("CheckoutExperienceConfig"),
@@ -221,6 +248,7 @@ import { ConversationRateLimitService } from "./application/services/conversatio
     StartCheckoutUseCase,
     TrackCheckoutEventUseCase,
     SendChatMessageUseCase,
+    ReconcileChatMessageUseCase,
     ApplyOfferUseCase,
     AcceptCheckoutOfferUseCase,
     GetCheckoutSessionUseCase,

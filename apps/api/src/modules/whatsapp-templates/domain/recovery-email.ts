@@ -1,7 +1,9 @@
+import { MERCHANT_EMAIL_FOOTER_SLOT, MERCHANT_EMAIL_HEADER_SLOT } from "../../../shared/email/merchant-email-branding.js";
+
 const escape = (value: string) => value.replace(/[&<>"']/g, char => ({ "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" })[char]!);
 
 /** Email-client compatible layout. Merchant copy is always plain text, never HTML. */
-export function renderRecoveryEmail(text: string, storeName: string, rawLink?: string): string {
+export function renderRecoveryEmail(text: string, _storeName: string, rawLink?: string): string {
   let link: string | undefined;
   try {
     const url = new URL(rawLink ?? "");
@@ -14,5 +16,5 @@ export function renderRecoveryEmail(text: string, storeName: string, rawLink?: s
     if (link && part === rawLink && !buttonPlaced) { buttonPlaced = true; return button; }
     return `<p style="margin:0 0 20px;font:16px/1.7 Arial,sans-serif;color:#39433e">${escape(part).replace(/\n/g, "<br>")}</p>`;
   }).join("");
-  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f3f5f4"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff"><tr><td style="padding:28px 32px;border-bottom:1px solid #e5e9e6;font:600 20px Arial,sans-serif;color:#202b27">${escape(storeName)}</td></tr><tr><td style="padding:36px 32px"><h1 style="margin:0 0 24px;font:600 28px/1.25 Arial,sans-serif;color:#202b27">Continue de onde parou.</h1>${content}${buttonPlaced ? "" : button}${link ? `<p style="margin:28px 0 0;font:12px/1.6 Arial,sans-serif;color:#59645e;overflow-wrap:anywhere">Se preferir, acesse pelo link:<br><a href="${escape(link)}" style="color:#39433e;word-break:break-all">${escape(link)}</a></p>` : ""}</td></tr></table></td></tr></table></body></html>`;
+  return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"></head><body style="margin:0;background:#f3f5f4"><table role="presentation" width="100%" cellspacing="0" cellpadding="0"><tr><td align="center" style="padding:32px 16px"><table role="presentation" width="100%" cellspacing="0" cellpadding="0" style="max-width:600px;background:#ffffff"><tr><td style="padding:28px 32px;border-bottom:1px solid #e5e9e6">${MERCHANT_EMAIL_HEADER_SLOT}</td></tr><tr><td style="padding:36px 32px"><h1 style="margin:0 0 24px;font:600 28px/1.25 Arial,sans-serif;color:#202b27">Continue de onde parou.</h1>${content}${buttonPlaced ? "" : button}${link ? `<p style="margin:28px 0 0;font:12px/1.6 Arial,sans-serif;color:#59645e;overflow-wrap:anywhere">Se preferir, acesse pelo link:<br><a href="${escape(link)}" style="color:#39433e;word-break:break-all">${escape(link)}</a></p>` : ""}</td></tr><tr><td style="padding:0 32px 28px">${MERCHANT_EMAIL_FOOTER_SLOT}</td></tr></table></td></tr></table></body></html>`;
 }

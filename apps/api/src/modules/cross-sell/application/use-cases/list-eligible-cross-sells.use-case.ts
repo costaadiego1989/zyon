@@ -1,5 +1,6 @@
 import { Injectable, Inject , Logger, Optional} from "@nestjs/common";
 import type { Cart, CrossSellStrategy } from "@zyon/shared-types";
+import { normalizeCrossSellStrategies } from "@zyon/shared-types";
 import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../domain/ports/cross-sell-promotion-repository.port.js";
 import { CROSS_SELL_SUGGESTION_REPOSITORY, type CrossSellSuggestionRepository } from "../../domain/ports/cross-sell-suggestion-repository.port.js";
 import { CROSS_SELL_CO_OCCURRENCE, type CrossSellCoOccurrencePort } from "../../domain/ports/co-occurrence.port.js";
@@ -39,12 +40,14 @@ export class ListEligibleCrossSellsUseCase {
   ) {}
 
   async execute(input: ListEligibleCrossSellsInput) {
+    const strategies = input.enabled_strategies === undefined ? undefined : normalizeCrossSellStrategies(input.enabled_strategies);
+    if (strategies?.length === 0) return [];
     const active = await this.promotions.findActiveByMerchant(input.merchant_id);
 
     // Strategy filtering: only keep promotions whose trigger type matches enabled strategies.
     // Mapping: same_category → category_in_cart, bought_together/complementary → sku_in_cart,
     //          cart_value_upgrade → cart_total_above, ai_personalized → pass-through (no filter).
-    const filtered = this.filterByStrategy(active, input.enabled_strategies);
+    const filtered = this.filterByStrategy(active, strategies);
 
     let historyBias: PurchaseHistoryBias | undefined;
     if (this.getBuyerContext && input.global_user_id) {
@@ -71,15 +74,13 @@ export class ListEligibleCrossSellsUseCase {
     // Strategy fallback: when no manually-configured promotion matched, generate
     // suggestions directly from the enabled strategies (catalog + purchase
     // history), so a merchant that only toggled strategies in the dashboard
-    // (without creating promotions) still gets cross-sell. Strategies are tried
-    // in the merchant's configured order; the first non-empty result wins. This
-    // preserves the chain: prioritized promotion → strategies → co-occurrence.
+    // (without creating promotions) still gets cross-sell. Only the selected
+    // source runs; an empty result must not switch to another source.
     if (ranked.length === 0) {
-      const strategies = input.enabled_strategies ?? [];
       const cartSkus = input.cart.items.map((i) => i.sku);
       const cartTotal = input.cart.total ?? input.cart.items.reduce((s, i) => s + i.price * i.quantity, 0);
 
-      for (const strategy of strategies) {
+      for (const strategy of strategies ?? []) {
         let skus: string[] = [];
         let copy = input.agent_copy ?? "";
         try {
@@ -180,8 +181,8 @@ export class ListEligibleCrossSellsUseCase {
    *  - cart_value_upgrade          → trigger.cart_total_above present
    *  - ai_personalized             → no structural constraint (buyer-history bias handles it)
    *
-   * A promotion passes if it matches ANY enabled strategy. When no strategies are provided
-   * (undefined/empty), filtering is skipped to preserve existing behavior.
+   * A promotion must match the single selected source. Calls without merchant
+   * configuration (undefined) retain promotion-only behavior.
    */
   private filterByStrategy(
     promotions: CrossSellPromotionEntity[],

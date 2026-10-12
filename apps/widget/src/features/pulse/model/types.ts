@@ -47,6 +47,7 @@ export interface Order {
 }
 
 export interface Cart {
+  reviewedTotal?: { amount: number; cartKey: string };
   product: Product | null;
   qty: number;
   bundle: Bundle | null;

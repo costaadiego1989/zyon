@@ -29,6 +29,8 @@ export interface StorefrontConversationInput {
   merchantId: string;
   sessionId: string;
   history: Array<{ role: "user" | "assistant"; content: string }>;
+  /** Bounded attachment analysis. Never contains the original image/blob. */
+  attachmentContext?: string;
   merchantName?: string;
   storeCategory: string;
   storeSettings?: Record<string, any>;

@@ -31,6 +31,7 @@ export class UpdateMarketplaceFulfillmentUseCase {
       input.sellerMerchantId,
     );
     if (!item) throw new NotFoundException("marketplace_line_item_not_found");
+    if (!item.orderId) throw new ConflictException("marketplace_order_not_purchased");
 
     const expectedStatus = input.action === "ship" ? "pending" : "shipped";
     const status = input.action === "ship" ? "shipped" : "delivered";

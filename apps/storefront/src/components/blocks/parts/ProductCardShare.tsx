@@ -19,7 +19,8 @@ const iconWrap: React.CSSProperties = {
 };
 
 export function ProductCardShare({ productName, shareUrl }: { productName: string; shareUrl?: string }) {
-  const url = shareUrl ?? (typeof window !== "undefined" ? window.location.href : "");
+  const url = shareUrl;
+  if (!url) return null;
   return (
     <div
       style={{

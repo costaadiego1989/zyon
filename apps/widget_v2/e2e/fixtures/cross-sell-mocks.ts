@@ -28,6 +28,12 @@ export interface CrossSellMockConfig {
   chatBlocks?: Array<{ type: string; data?: Record<string, unknown> }>;
   /** Whitelabel branding badge visibility (experience.rules.showBranding) */
   showBranding?: boolean;
+  paymentMethods?: { pix: boolean; boleto: boolean; card: boolean };
+  cryptoPaymentsEnabled?: boolean;
+  buyer?: Record<string, unknown>;
+  shipping?: Record<string, unknown>;
+  chatQuickReplies?: string[];
+  chatStage?: string;
 }
 
 const DEFAULT_CART = [
@@ -51,11 +57,14 @@ function buildStartResponse(config: CrossSellMockConfig) {
     experience: {
       brand: { ...DEFAULT_BRAND, ...config.brand },
       agent: { name: "Zyon IA", greeting: "Olá! Vamos finalizar?" },
-      buyer: { name: "Diego", email: "test@zyon.dev" },
+      buyer: config.buyer ?? { name: "Diego", email: "test@zyon.dev" },
       items: (config.cartItems ?? DEFAULT_CART).map((i) => ({ sku: i.variantId, name: i.productName, unit_price: i.price, quantity: i.quantity })),
       totals: { subtotal: (config.cartItems ?? DEFAULT_CART).reduce((sum, i) => sum + i.price * i.quantity, 0), discount: 0, total: (config.cartItems ?? DEFAULT_CART).reduce((sum, i) => sum + i.price * i.quantity, 0) },
       stage: "payment",
       stripeEnabled: true,
+      paymentMethods: config.paymentMethods,
+      cryptoPaymentsEnabled: config.cryptoPaymentsEnabled,
+      shipping: config.shipping,
       suggestedProducts: config.startProducts,
       rules: config.showBranding !== undefined ? { showBranding: config.showBranding } : undefined,
     },
@@ -69,11 +78,11 @@ function buildChatResponse(config: CrossSellMockConfig) {
   return {
     message: config.chatMessage ?? "Perfeito! Aqui estão as opções de pagamento.",
     blocks: config.chatBlocks ?? [],
-    quick_replies: ["PIX", "Cartão de crédito"],
+    quick_replies: config.chatQuickReplies ?? ["PIX", "Cart\\u00e3o de cr\\u00e9dito"],
     experience: config.chatProducts?.length
       ? { suggestedProducts: config.chatProducts }
       : undefined,
-    stage: config.chatBlocks?.some(b => b.type === "payment_methods") ? "payment" : undefined,
+    stage: config.chatStage ?? (config.chatBlocks?.some(b => b.type === "payment_methods") ? "payment" : undefined),
   };
 }
 
@@ -162,8 +171,8 @@ export async function waitForChannelGate(page: Page) {
  */
 export async function selectChatChannel(page: Page) {
   const chatBtn = page.locator("button", { hasText: "Por chat" });
-  await chatBtn.waitFor({ state: "visible", timeout: 15_000 });
-  await chatBtn.click();
+  if (await chatBtn.first().isVisible().catch(() => false)) await chatBtn.first().click();
+  await page.getByRole("log", { name: "Mensagens do chat" }).waitFor({ state: "visible", timeout: 10_000 });
   // Wait for the chat thread to become active (welcome message rendered)
   await page.locator("text=/carrinho|Olá|produto ideal/i").first().waitFor({ state: "visible", timeout: 10_000 });
 }

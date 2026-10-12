@@ -1,6 +1,7 @@
 import type { StoreToolHandlers } from "../../domain/tools/types.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import type { PrismaClient } from "@prisma/client";
+import { resolveStorePolicies } from "../../../../shared/legal/store-policies.js";
 
 export interface OrderHandlerDeps {
   prisma: PrismaClient;
@@ -126,16 +127,18 @@ export function createOrderHandlers(deps: OrderHandlerDeps, ctx: ToolRequestCont
     },
 
     getStorePolicies: async (args: any) => {
-      const policies: Record<string, string> = {
-        returns: "Aceitamos devoluções em até 7 dias após o recebimento. O produto deve estar em sua embalagem original.",
-        exchanges: "Trocas podem ser solicitadas em até 30 dias. Produtos com defeito são trocados sem custo adicional.",
-        shipping: "Enviamos para todo o Brasil. Prazo de entrega varia de 2 a 10 dias úteis dependendo da região.",
-        warranty: "Todos os produtos possuem garantia de 12 meses contra defeitos de fabricação."
-      };
+      const [merchant, legacy] = await Promise.all([
+        deps.prisma.merchant.findUnique({ where: { id: ctx.merchantId }, select: { storeSettings: true } }),
+        deps.prisma.merchantPolicy.findUnique({ where: { merchantId: ctx.merchantId } }),
+      ]);
+      const policies = resolveStorePolicies(merchant?.storeSettings, legacy);
+      if (policies.returns) policies.exchanges = policies.returns;
+      const message = "A loja ainda não publicou essa política. Consulte o atendimento da loja; isso não afasta seus direitos legais. Não há prazo ou garantia comercial confirmado nesta consulta.";
       if (args.policyType && args.policyType !== "all") {
-        return { policy: policies[args.policyType] ?? "Política não encontrada." };
+        const policy = policies[args.policyType];
+        return policy ? { configured: true, policy } : { configured: false, policy: null, message };
       }
-      return { policies };
+      return { configured: Object.keys(policies).length > 0, policies, ...(Object.keys(policies).length ? {} : { message }) };
     },
 
     getBuyerProfile: async () => {

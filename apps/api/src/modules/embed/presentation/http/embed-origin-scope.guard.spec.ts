@@ -5,6 +5,7 @@ import { Reflector } from "@nestjs/core";
 import { EmbedTokenService, type EmbedScope, type EmbedTokenClaims } from "../../domain/embed-token.service.js";
 import { EmbedAuthGuard } from "./embed-auth.guard.js";
 import { EMBED_REQUIRED_SCOPE_KEY } from "./embed-scope.decorator.js";
+import { EmbedCheckoutController } from "./embed-checkout.controller.js";
 
 const SECRET = Buffer.from("embed-origin-scope-secret-32-chars!!");
 
@@ -56,6 +57,40 @@ describe("EmbedAuthGuard origin binding", () => {
     );
   });
 
+  it("accepts a verified storefront proxy origin", () => {
+    const previousServiceToken = process.env.INTERNAL_SERVICE_TOKEN;
+    process.env.INTERNAL_SERVICE_TOKEN = "unit-test-service-token";
+    try {
+      const { svc, token } = tokenFor({ allowedOrigin: "https://store.example" });
+      const guard = new EmbedAuthGuard(svc);
+      assert.equal(
+        guard.canActivate(ctx({
+          "x-aacp-embed-token": token,
+          origin: "https://gateway.example",
+          "x-internal-service-token": "unit-test-service-token",
+          "x-trusted-storefront-origin": "https://store.example",
+        })),
+        true,
+      );
+    } finally {
+      if (previousServiceToken === undefined) delete process.env.INTERNAL_SERVICE_TOKEN;
+      else process.env.INTERNAL_SERVICE_TOKEN = previousServiceToken;
+    }
+  });
+
+  it("rejects a forwarded origin without service authentication", () => {
+    const { svc, token } = tokenFor({ allowedOrigin: "https://store.example" });
+    const guard = new EmbedAuthGuard(svc);
+    assert.throws(
+      () => guard.canActivate(ctx({
+        "x-aacp-embed-token": token,
+        origin: "https://gateway.example",
+        "x-trusted-storefront-origin": "https://store.example",
+      })),
+      ForbiddenException,
+    );
+  });
+
   it("falls back to Referer when Origin is absent", () => {
     const { svc, token } = tokenFor({ allowedOrigin: "https://store.example" });
     const guard = new EmbedAuthGuard(svc);
@@ -82,6 +117,27 @@ describe("EmbedAuthGuard origin binding", () => {
 });
 
 describe("EmbedAuthGuard scope enforcement", () => {
+  it("chat payment credentials require financial scope, never just chat or status access", () => {
+    const handler = EmbedCheckoutController.prototype.chatPayment as unknown as () => void;
+    for (const scope of ["checkout:chat", "payment:intents:read", "payment:intents:create"] as const) {
+      const signed = tokenFor({ scopes: [scope], allowedOrigin: "https://shop.example" });
+      const guard = new EmbedAuthGuard(signed.svc, new Reflector());
+      const request = ctx({ "x-aacp-embed-token": signed.token, origin: "https://shop.example" }, handler);
+      if (scope === "payment:intents:create") assert.equal(guard.canActivate(request), true);
+      else assert.throws(() => guard.canActivate(request), ForbiddenException);
+    }
+  });
+  it("actual history and recovery routes reject a start-only token and require chat scope", () => {
+    const start = tokenFor({ scopes: ["checkout:start"] });
+    const chat = tokenFor({ scopes: ["checkout:chat"] });
+    for (const method of ["chatState", "reconcileMessage", "chatDisplay"] as const) {
+      const handler = EmbedCheckoutController.prototype[method] as unknown as () => void;
+      assert.throws(() => new EmbedAuthGuard(start.svc, new Reflector()).canActivate(ctx({ "x-aacp-embed-token": start.token }, handler)), ForbiddenException);
+      assert.equal(new EmbedAuthGuard(chat.svc, new Reflector()).canActivate(ctx({ "x-aacp-embed-token": chat.token }, handler)), true);
+      assert.throws(() => new EmbedAuthGuard(chat.svc, new Reflector()).canActivate(ctx({}, handler)), UnauthorizedException);
+    }
+  });
+
   it("allows when the token grants the required scope", () => {
     const { svc, token } = tokenFor({ scopes: ["checkout:start"] });
     const { reflector, handler } = reflectorWithScope("checkout:start");

@@ -1,4 +1,4 @@
-import type { ConversationBlock, MarketplaceProductBlockData, MarketplaceProductsBlock } from "../../domain/types/conversation-block.js";
+import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 
 export interface BuildBlocksInput {
   toolResults: Record<string, unknown>;
@@ -32,39 +32,13 @@ function presentedVariant(variant: any, productType?: string) {
     priceFormatted: typeof price === "number" ? new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(price / 100) : undefined };
 }
 
-function marketplaceProductsBlock(products: MarketplaceProductBlockData[], query: string): MarketplaceProductsBlock {
-  return {
-    type: "marketplace_products",
-    data: {
-      query,
-      // Keep the authenticated catalog IDs, prices and availability. Selection belongs to the buyer's card.
-      products: products.map(product => ({
-        id: product.id,
-        name: product.name,
-        price: product.price,
-        priceFormatted: product.priceFormatted,
-        image: product.image,
-        sellerName: product.sellerName,
-        sellerId: product.sellerId,
-        inStock: product.inStock,
-        variants: product.variants.map(variant => ({
-          id: variant.id,
-          label: variant.label,
-          price: variant.price,
-          priceFormatted: variant.priceFormatted,
-          inStock: variant.inStock,
-        })),
-      })),
-    },
-  };
-}
-
 export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksResult {
   const blocks: ConversationBlock[] = [];
   let finalContent = input.finalContent;
   const toolResults = input.toolResults;
-  const userMessage = input.userMessage;
   const addItemResult = toolResults["add_item_to_cart"] as any;
+  const userMessage = input.userMessage;
+
   if (typeof addItemResult?.error === "string" && /^service_(?:slot|schedule)_/.test(addItemResult.error)) {
     return { blocks: [], finalContent: "Não foi possível adicionar esse horário. Revise a data e o horário oferecidos antes de tentar novamente." };
   }
@@ -81,26 +55,11 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   if (addItemResult?.error === "digital_content_unavailable" || addItemResult?.error === "product_unavailable") {
     return { blocks: [], finalContent: "Este produto está indisponível no momento. Escolha outro produto." };
   }
-  if (addItemResult?.error === "marketplace_tool_binding_invalid") {
-    // A model-supplied binding cannot identify a canonical product or authorize prior checkout results.
-    return { blocks: [], finalContent: "Não consegui identificar esse produto. Busque novamente e escolha uma opção no catálogo." };
-  }
-  if (addItemResult?.error === "marketplace_variant_selection_required") {
-    // A refusal owns this turn. Old cart/coupon/checkout results cannot confirm the addition or prepare OneBuyClick.
-    return {
-      blocks: addItemResult.marketplaceProduct ? [marketplaceProductsBlock([addItemResult.marketplaceProduct], userMessage)] : [],
-      finalContent: addItemResult.marketplaceProduct
-        ? "Escolha uma opção do produto e clique em Adicionar ao carrinho."
-        : "Não consegui carregar as opções do produto. Tente buscar novamente.",
-    };
-  }
 
   const skipProductCarousel = !!toolResults["add_item_to_cart"] || !!toolResults["get_product_details"];
   const isDetailIntent = /detalh|saber mais|informa[cç]|especifica|mais sobre|me fale|conte.*sobre/i.test(userMessage);
   const searchData = toolResults["search_products"] as any;
-  const marketplaceSearchProducts = Array.isArray(searchData?.marketplaceProducts) ? searchData.marketplaceProducts : [];
-  const singleSearchAsDetail = !toolResults["get_product_details"] && isDetailIntent
-    && searchData?.products?.length === 1 && marketplaceSearchProducts.length === 0;
+  const singleSearchAsDetail = !toolResults["get_product_details"] && isDetailIntent && searchData?.products?.length === 1;
 
   if (singleSearchAsDetail) {
     const p = searchData.products[0];
@@ -121,12 +80,11 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         rating: productRating(p),
         reviewCount: p.reviewCount ?? 0,
         detailed: true,
-        productType: p.type ?? p.productType,
-        serviceSchedule: p.serviceSchedule,
         stock: p.inStock ? undefined : 0,
         sku: p.variants?.[0]?.sku ?? p.variants?.[0]?.id,
         variants: p.variants?.map((v: any) => presentedVariant(v, p.type ?? p.productType)),
         optionGroups: Array.isArray(p.optionGroups) && p.optionGroups.length > 0 ? p.optionGroups : undefined,
+        productType: p.type ?? p.productType, serviceSchedule: p.serviceSchedule,
       }
     } as any);
     if ((p.type ?? p.productType) === "digital" && typeof p.inStock === "boolean") {
@@ -139,6 +97,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     const searchData = toolResults["search_products"] as any;
     if (searchData?.products?.length > 0) {
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+      const isMarketplaceSource = searchData.source === "marketplace" || searchData.source === "mixed";
       blocks.push({
         type: "product_carousel",
         data: {
@@ -158,7 +117,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             optionGroups: Array.isArray(p.optionGroups) && p.optionGroups.length > 0 ? p.optionGroups : undefined,
             productType: p.type ?? p.productType,
             serviceSchedule: p.serviceSchedule,
-            source: p.source ?? "local",
+            source: p.source ?? (isMarketplaceSource ? "marketplace" : "local"),
             sellerName: p.sellerName ?? undefined,
             sellerMerchantId: p.sellerMerchantId,
           })),
@@ -170,21 +129,13 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
       });
     }
   }
-  if (marketplaceSearchProducts.length > 0 && !skipProductCarousel) {
-    blocks.push(marketplaceProductsBlock(marketplaceSearchProducts, userMessage));
-  }
   const skipProductCard = !!toolResults["get_similar_products"] || !!toolResults["compare_products"];
-  const detailData = toolResults["get_product_details"] as any;
-  if (detailData?.marketplaceProduct) {
-    blocks.push(marketplaceProductsBlock([detailData.marketplaceProduct], userMessage));
-    if (!finalContent || finalContent.trim().length === 0) {
-      finalContent = "Confira as opções deste produto da loja parceira:";
-    }
-  } else if (toolResults["get_product_details"] && !skipProductCard) {
+  if (toolResults["get_product_details"] && !skipProductCard) {
+    const detailData = toolResults["get_product_details"] as any;
     if (detailData?.product) {
       const p = detailData.product;
-      const variants = Array.isArray(p.variants) ? p.variants.filter((variant: any) => variant.isActive !== false) : [];
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+      const variants = (p.variants ?? []).filter((variant: any) => variant.isActive !== false);
       const price = variants[0]?.basePriceInCents ?? p.price ?? 0;
       const isDigitalOrService = p.type === "digital" || p.type === "service";
       blocks.push({
@@ -239,9 +190,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           quantity: i.quantity,
           price: i.unitPrice,
           subtotal: i.lineTotal ?? i.unitPrice * i.quantity,
-          imageUrl: i.imageUrl,
-          selectedOptions: i.selectedOptions,
-          selectedServiceSlotId: i.selectedServiceSlot?.slotId,
+          imageUrl: i.imageUrl, selectedOptions: i.selectedOptions, selectedServiceSlotId: i.selectedServiceSlot?.slotId,
         })),
         itemCount: couponResult.itemCount,
         subtotal: couponResult.total,
@@ -283,7 +232,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
   if (latestCart) {
     const cartData = latestCart as any;
-    if (!cartData?.error && Array.isArray(cartData?.items) && !couponResult?.applied) {
+    if (Array.isArray(cartData?.items) && !couponResult?.applied) {
       blocks.push({
         type: "cart_summary",
         data: {
@@ -294,12 +243,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             quantity: i.quantity,
             price: i.unitPrice,
             subtotal: i.lineTotal ?? i.unitPrice * i.quantity,
-            imageUrl: i.imageUrl,
-            selectedOptions: i.selectedOptions,
-            selectedServiceSlotId: i.selectedServiceSlot?.slotId,
+            imageUrl: i.imageUrl, selectedOptions: i.selectedOptions, selectedServiceSlotId: i.selectedServiceSlot?.slotId,
           })),
           itemCount: cartData.itemCount,
-          confirmedAddition: latestCart === toolResults["add_item_to_cart"],
           subtotal: cartData.total,
           discount: cartData.discount ?? 0,
           freeShipping: cartData.freeShipping ?? false,
@@ -355,7 +301,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
   if (toolResults["compare_products"]) {
     const compareData = toolResults["compare_products"] as any;
-    if (compareData?.comparison?.length > 1) {
+    if (compareData?.comparison?.length >= 2) {
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
       blocks.push({
         type: "product_comparison",
@@ -369,38 +315,19 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             inStock: p.type === "digital" || p.type === "service" || (p.stock ?? 0) > 0,
             attributes: p.attributes ?? {},
           })),
-          missingProductNames: Array.isArray(compareData.missingProductNames)
-            ? compareData.missingProductNames
-            : undefined,
+          missingProductNames: Array.isArray(compareData.missingProductNames) ? compareData.missingProductNames : undefined,
         }
       });
-    } else if (compareData?.requiresProductNames && !finalContent.trim()) {
-      finalContent = "Não encontrei produtos semelhantes suficientes. Diga os nomes dos produtos que deseja comparar.";
+    } else if ((!finalContent || finalContent.trim().length === 0) && compareData?.requiresProductNames) {
+      finalContent = "Para comparar, informe os nomes de pelo menos dois produtos.";
     }
   }
-  const wishlistData = (
-    toolResults["add_to_wishlist"]
-    ?? toolResults["get_wishlist"]
-    ?? toolResults["remove_from_wishlist"]
-  ) as any;
+
+  const wishlistData = (toolResults["remove_from_wishlist"] ?? toolResults["add_to_wishlist"] ?? toolResults["get_wishlist"]) as any;
   if (wishlistData && Array.isArray(wishlistData.items)) {
-    const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
     blocks.push({
       type: "wishlist",
-      data: {
-        items: wishlistData.items.map((item: any) => ({
-          id: item.id,
-          name: item.name,
-          description: item.description,
-          price: item.price ?? 0,
-          priceFormatted: item.priceFormatted ?? formatPrice(item.price ?? 0),
-          image: item.image,
-          images: item.images,
-          inStock: item.inStock !== false,
-          rating: item.rating,
-          reviewCount: item.reviewCount ?? 0,
-        })),
-      },
+      data: { items: wishlistData.items },
     });
   }
   const skipCategoryCarousel = !!toolResults["search_products"];
@@ -488,7 +415,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
   if (toolResults["create_checkout_session"]) {
     const checkoutData = toolResults["create_checkout_session"] as any;
-    if (checkoutData?.checkoutPrepared) {
+    if (checkoutData?.budgetRequired) {
+      blocks.push({ type: "quick_replies", data: { options: ["Solicitar orçamento"] } } as any);
+    } else if (checkoutData?.checkoutPrepared) {
       blocks.push({
         type: "checkout_prepared",
         data: {

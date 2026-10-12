@@ -10,6 +10,7 @@ import { AgenticProtocolController } from './agentic-protocol.controller.js';
 import { ProductFeedService } from './product-feed.service.js';
 import { AcpBearerGuard } from './acp-bearer.guard.js';
 import { AcpCheckoutLifecycleService } from './acp-checkout-lifecycle.service.js';
+import { AcpCheckoutUpdateService } from './acp-checkout-update.service.js';
 import { AcpStatusPolicy } from './acp-status.policy.js';
 import { AcpMutabilityPolicy } from './acp-mutability.policy.js';
 import { AcpLineItemsResolver } from './acp-line-items.resolver.js';
@@ -34,6 +35,7 @@ import { AcpStoreDomainService } from './acp-store-domain.service.js';
     ProductFeedService,
     AcpBearerGuard,
     AcpCheckoutLifecycleService,
+    AcpCheckoutUpdateService,
     AcpStatusPolicy,
     AcpMutabilityPolicy,
     AcpLineItemsResolver,

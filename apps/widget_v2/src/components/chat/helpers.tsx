@@ -62,7 +62,7 @@ function blockToNarration(block: ChatBlock): string | null {
 
 export function messageToSpeech(msg: { text?: string; blocks?: ChatBlock[] }): string | null {
   const parts: string[] = [];
-  if (msg.text) parts.push(msg.text);
+  if (msg.text) parts.push(msg.text.replace(/^(?:Zion|Zyon)\s*:\s*/i, ""));
   if (msg.blocks) {
     for (const block of msg.blocks) {
       const narration = blockToNarration(block);

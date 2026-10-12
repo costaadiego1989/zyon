@@ -25,7 +25,7 @@ export class InMemoryStrategyPreferencesRepository implements StrategyPreference
 
   async getConfig(merchantId: string): Promise<StrategyConfig> {
     return this.config.get(merchantId) ?? {
-      active_strategy: "offer_coupon",
+      active_strategy: "personalized_cross_sell",
       coupon_code: undefined,
       rule_id: undefined,
     };

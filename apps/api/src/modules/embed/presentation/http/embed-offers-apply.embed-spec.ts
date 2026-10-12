@@ -1,3 +1,4 @@
+import { embedCheckoutSessionId } from "../../domain/embed-checkout-session.js";
 import { randomUUID } from "node:crypto";
 import test from "node:test";
 import assert from "node:assert/strict";
@@ -22,11 +23,12 @@ test("embed offers apply uses merchant from token and ignores body merchant_id",
     })
   );
 
+  const sessionId = embedCheckoutSessionId(claims);
   const checkout = new InMemoryCheckoutRepository();
   checkout.saveSession(
     checkoutSession({
       merchantId: "m_embed",
-      sessionId: "s1",
+      sessionId,
       cart: {
         currency: "BRL",
         total: 100,
@@ -38,7 +40,7 @@ test("embed offers apply uses merchant from token and ignores body merchant_id",
   checkout.saveOffer(
     authorizedOffer({
       merchantId: "m_embed",
-      sessionId: "s1",
+      sessionId,
       id: "off_z",
       approved: true,
       expiresAt: new Date(Date.now() + 3_600_000).toISOString()
@@ -58,7 +60,7 @@ test("embed offers apply uses merchant from token and ignores body merchant_id",
 
   await c.applyOffer(
     { embedClaims: claims },
-    { merchant_id: "m_evil_body", session_id: "s1", offer_id: "off_z" }
+    { merchant_id: "m_evil_body", session_id: sessionId, offer_id: "off_z" }
   );
 
   assert.equal(seen?.merchant_id, "m_embed");

@@ -22,7 +22,7 @@ test("strategy configuration on disposable PostgreSQL", { skip: process.env.CART
     await t.test("concurrent initial links both survive serializable retry", async () => {
       const id = prefix + "-new";
       await Promise.all([repo.saveConfig(id, { coupon_code: "NEW" }), repo.saveConfig(id, { rule_id: "new-rule" })]);
-      assert.deepEqual(await repo.getConfig(id), { active_strategy: "offer_coupon", coupon_code: "NEW", rule_id: "new-rule" });
+      assert.deepEqual(await repo.getConfig(id), { active_strategy: "personalized_cross_sell", coupon_code: "NEW", rule_id: "new-rule" });
     });
     await t.test("concurrent strategy and coupon edits do not overwrite each other", async () => {
       for (let i = 0; i < 5; i++) {

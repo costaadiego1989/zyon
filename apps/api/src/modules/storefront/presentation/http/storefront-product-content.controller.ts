@@ -1,3 +1,4 @@
+import { PublicProductCrossSellPreview } from "../../application/services/public-product-cross-sell-preview.js";
 import {
   Controller,
   Get,
@@ -19,6 +20,8 @@ import {
 } from "../../../catalog/domain/entities/product-content-block.entity.js";
 import { loadProductNoticeRules, productRuleNotices } from "../../infrastructure/product-rule-notices.js";
 import { extractOptionGroups, toBlockOptionGroups } from "../../domain/food-options.js";
+import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
+import { type PublicCrossSellPreview } from "../../application/services/pre-cart-cross-sell-preview.js";
 
 export const SUPPORTED_PRODUCT_CONTENT_LOCALES = ["pt-BR", "en", "es"] as const;
 
@@ -103,22 +106,32 @@ export class StorefrontProductContentController {
     private readonly billing: BillingPlanMeteringService,
   ) {}
 
+  @Get(":slug/products/:productId/share")
+  async getSharedProduct(@Param("slug") slug: string, @Param("productId") productId: string, @Headers("accept-language") language?: string) {
+    return this.getRepresentation(slug, productId, language, true);
+  }
+
   @Get(":slug/products/:productId/content")
   async getContent(
     @Param("slug") slug: string,
     @Param("productId") productId: string,
     @Headers("accept-language") acceptLanguage?: string,
   ) {
+    return this.getRepresentation(slug, productId, acceptLanguage, false);
+  }
+
+  private async getRepresentation(slug: string, productId: string, acceptLanguage: string | undefined, allowBasic: boolean) {
     const merchant = await this.prisma.merchant.findFirst({
       where: { storeSlug: slug },
-      select: { id: true, storeSlug: true },
+      select: { id: true, storeSlug: true, storeSettings: true },
     });
     if (!merchant || !merchant.storeSlug) {
       throw new NotFoundException({ code: "store_not_found" });
     }
 
     const plan = await this.billing.getEffectivePlan(merchant.id);
-    if (!BILLING_PLANS[plan].features.advancedProductLayout) {
+    const advanced = BILLING_PLANS[plan].features.advancedProductLayout;
+    if (!advanced && !allowBasic) {
       throw new NotFoundException({ code: "product_content_not_found" });
     }
 
@@ -137,6 +150,8 @@ export class StorefrontProductContentController {
         ogDescription: true,
         twitterCard: true,
         keywords: true,
+        categoryId: true,
+        category: { select: { name: true } },
         variants: {
           where: { isActive: true },
           orderBy: { createdAt: "asc" },
@@ -164,21 +179,24 @@ export class StorefrontProductContentController {
       resolveLocaleFromAcceptLanguage(acceptLanguage)
     );
 
-    const content = await this.getProductContent.execute({
+    const content = advanced ? await this.getProductContent.execute({
       merchantId: merchant.id,
       productId: product.id,
       locale,
-    });
+    }) : { locale, blocks: [], faqs: [], testimonials: [], videos: [] };
 
     // Rich-content CTAs carry only a server-selected variant identifier. The
     // conversation/cart path still rechecks price, stock and checkout rules;
     // no amount or discount is trusted from the browser.
+    const schedules = new Map(await Promise.all(product.variants.map(async variant => [variant.id,
+      product.type === "service" ? await new ServiceSlotHoldsService(this.prisma).availability(merchant.id, variant.id, product.metadata) : undefined] as const)));
     const variants = product.variants.map((variant) => {
       const availableQuantity = variant.stock.reduce(
         (available, stock) => available + stock.quantity - stock.reserved,
         0,
       );
-      const isAvailable = Boolean(variant.price) && (product.type !== "physical" || availableQuantity > 0);
+      const schedule = schedules.get(variant.id);
+      const isAvailable = Boolean(variant.price) && (!["physical", "food"].includes(product.type) || availableQuantity > 0) && (!schedule || schedule.slots.some(slot => slot.selectable));
       const attributes = Object.fromEntries(
         Object.entries((variant.attributes ?? {}) as Record<string, unknown>)
           .filter(([key, value]) => key.trim().length > 0 && (typeof value === "string" || typeof value === "number" || typeof value === "boolean"))
@@ -187,6 +205,7 @@ export class StorefrontProductContentController {
       );
       return {
         id: variant.id,
+        ...(schedule ? { serviceSchedule: schedule } : {}),
         attributes,
         available: isAvailable,
         priceReais: variant.price ? variant.price.basePriceInCents / 100 : null,
@@ -206,12 +225,20 @@ export class StorefrontProductContentController {
       product.twitterCard ||
       keywords.length,
     );
+    const crossSell = await this.getPreCartCrossSell(
+      merchant.id,
+      merchant.storeSettings,
+      product.variants.map((variant) => variant.sku),
+      product.category?.name ?? product.categoryId,
+    );
 
     return {
       merchantId: merchant.id,
       productId: product.id,
       purchase: {
             productName: product.name,
+            productType: product.type,
+            ...(schedules.get(purchasableVariant?.id ?? variants[0]?.id ?? "") ? { serviceSchedule: schedules.get(purchasableVariant?.id ?? variants[0]?.id ?? "") } : {}),
             ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
             description: product.description,
             defaultVariantId: purchasableVariant?.id ?? null,
@@ -237,8 +264,19 @@ export class StorefrontProductContentController {
             // The cart validates every selected id again and recomputes its
             // amount from the catalog before the order can proceed.
             optionGroups: toBlockOptionGroups(extractOptionGroups(product.metadata)),
-          },
+      },
+      ...(crossSell ? { crossSell } : {}),
       ...content,
     };
   }
+
+  private async getPreCartCrossSell(
+    merchantId: string,
+    storeSettings: unknown,
+    viewedSkus: string[],
+    viewedCategory?: string | null,
+  ): Promise<PublicCrossSellPreview | undefined> {
+    return new PublicProductCrossSellPreview(this.prisma).suggest(merchantId, storeSettings, viewedSkus, viewedCategory);
+  }
+
 }

@@ -188,6 +188,9 @@ export class CouponsV1Controller {
     }
 
     const snap = coupon.snapshot();
+    if (snap.strategy_incentive_execution_id) {
+      return CouponEntityMapper.toValidationResponse(false, 'COUPON_STRATEGY_CHECKOUT_REQUIRED');
+    }
     const now = new Date().toISOString();
 
     // Check validity

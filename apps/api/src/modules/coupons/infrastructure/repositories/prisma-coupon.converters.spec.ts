@@ -35,6 +35,7 @@ describe("prisma-coupon converters", () => {
     const rehydrated = toCouponEntity({
       id: create.id,
       merchantId: create.merchantId,
+      strategyIncentiveExecutionId: null,
       code: create.code,
       discountType: create.discountType,
       discountValue: create.discountValue,
@@ -74,6 +75,7 @@ describe("prisma-coupon converters", () => {
     const rehydrated = toCouponEntity({
       id: "coup_1",
       merchantId: "mrc_1",
+      strategyIncentiveExecutionId: null,
       code: "SAVE10",
       discountType: "fixed",
       discountValue: 20,

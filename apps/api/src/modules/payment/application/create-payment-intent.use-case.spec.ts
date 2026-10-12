@@ -20,7 +20,7 @@ test("Mercado Pago receives the Free fee after expiry without adding it to the b
   try {
     for (const expired of [false, true]) {
       const checkout = new InMemoryCheckoutRepository();
-      await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com" } }));
+      await checkout.saveSession(checkoutSession({ customer: { email: "buyer@example.com", fullName: "Cliente Teste", cpf: "529.982.247-25" } }));
       const connections = new InMemoryPaymentPlatformRepository();
       await connections.saveConnection({ merchantId: "mrc_1", provider: "mercadopago", environment: "live", status: "active" });
       const provider = new CapturingPaymentProvider();
@@ -28,9 +28,11 @@ test("Mercado Pago receives the Free fee after expiry without adding it to the b
       const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider, undefined, undefined, undefined, connections, undefined, undefined, billing);
       const intent = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
       assert.equal(provider.inputs[0]?.provider, "mercadopago");
-      assert.equal(provider.inputs[0]?.platformFeeCents, expired ? 398 : 99);
+      assert.equal(provider.inputs[0]?.platformFeeCents, expired ? 298 : 99);
       assert.equal(provider.inputs[0]?.asaasCustomerId, undefined);
       assert.equal(provider.inputs[0]?.payerEmail, "buyer@example.com");
+      assert.equal(provider.inputs[0]?.payerName, "Cliente Teste");
+      assert.deepEqual(provider.inputs[0]?.payerIdentification, { type: "CPF", number: "52998224725" });
       assert.equal(intent.amountCents, 33599); // R$300 cart + R$35 shipping + R$0.99 buyer fee.
       await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-test", method: "pix" });
       assert.equal(provider.inputs.length, 1);
@@ -56,6 +58,36 @@ class CapturingPaymentProvider implements PaymentProviderPort {
     };
   }
 }
+
+test("payment description identifies the store and purchased products without internal IDs", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  checkout.getProfile = async merchantId => ({ id: merchantId, name: "Athom Technologies", plan: "BOTH" });
+  await checkout.saveSession(checkoutSession({
+    customer: { email: "buyer@example.test", asaasCustomerId: "customer" },
+    cart: { currency: "BRL", total: 120, items: [
+      { sku: "sku_1", name: "Sérum", quantity: 1, price: 80 },
+      { sku: "sku_2", name: "Bruma", quantity: 2, price: 20 },
+    ] },
+  }));
+  const provider = new CapturingPaymentProvider();
+  const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), provider);
+  await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "description", method: "pix" });
+  assert.equal(provider.inputs[0].description, "Athom Technologies — 1x Sérum, 2x Bruma");
+});
+
+test("uncertain Pix retries never return an empty successful intent or repeat the creation POST", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  await checkout.saveSession(checkoutSession({ customer: { asaasCustomerId: "customer" } }));
+  let posts = 0;
+  const provider: PaymentProviderPort = {
+    createPayment: async () => { posts++; throw new Error("request_timeout"); },
+    recoverPayment: async () => null,
+  };
+  const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(), provider);
+  const request = { merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "uncertain", method: "pix" as const };
+  for (let i = 0; i < 3; i++) await assert.rejects(useCase.execute(request), /payment_creation_uncertain/);
+  assert.equal(posts, 1);
+});
 
 test("CreatePaymentIntentUseCase applies enabled Pix fallback before sending a provider request", async () => {
   const checkout = new InMemoryCheckoutRepository();
@@ -467,7 +499,8 @@ test("CreatePaymentIntentUseCase validates commerce cart and creates pending ord
   assert.equal(createCalls, 1);
   assert.equal(provider.inputs.length, 1);
   assert.equal(first.commerceOrderId, "draft_123");
-  assert.match(provider.inputs[0]?.description ?? "", /commerce_order:draft_123/);
+  assert.doesNotMatch(provider.inputs[0]?.description ?? "", /commerce_order:|mrc_1|chk_1/);
+  assert.match(provider.inputs[0]?.description ?? "", /Loja — /);
   assert.equal(checkout.listOutbox("mrc_1").at(-1)?.payload.commerce_order_id, "draft_123");
 });
 
@@ -608,7 +641,7 @@ test("Asaas and crypto receive buyer fee plus merchant fee exactly once", async 
     const billing = { getSubscription: async () => ({ status: "starter", planKey: "starter" }) } as unknown as BillingPlanMeteringService;
     const uc = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider, undefined, undefined, undefined, undefined, undefined, undefined, billing);
     const result = await uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-" + method, method });
-    assert.equal(provider.inputs[0].platformFeeCents, 398);
+    assert.equal(provider.inputs[0].platformFeeCents, 298);
     assert.equal(result.amountCents, 33599);
     await uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "fee-" + method, method });
     assert.equal(provider.inputs.length, 1);

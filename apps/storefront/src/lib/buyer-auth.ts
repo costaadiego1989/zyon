@@ -42,4 +42,5 @@ export function clearBuyerSession(): void {
     localStorage.removeItem(SESSION_KEY);
     localStorage.removeItem("aacp_buyer_auth_session");
   } catch {}
+  window.dispatchEvent(new StorageEvent("storage", { key: TOKEN_KEY }));
 }

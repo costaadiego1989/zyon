@@ -24,6 +24,7 @@ export interface ExperienceInputs {
 }
 
 export interface ExperienceDeps {
+  policies?: MerchantRules["policies"];
   merchantName?: string;
   theme?: MerchantTheme;
   agent?: AgentContext;
@@ -140,7 +141,7 @@ export function quickRepliesForStage(
       if (next === "email")
         return ["Vão me mandar SPAM?", "Posso usar outro e-mail?", "Vocês enviam a nota por e-mail?"];
       if (next === "código de verificação")
-        return ["Reenviar código de e-mail", "Não recebi o código", "Qual e-mail foi usado?"];
+        return ["Corrigir e-mail", "Reenviar código de e-mail", "Qual e-mail foi usado?"];
       if (next === "código de verificação do celular")
         return ["Reenviar código SMS", "Não recebi o SMS", "Posso usar outro número?"];
       if (next === "CPF")
@@ -261,7 +262,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       showBranding: deps.showBranding ?? false,
       voiceEnabled: deps.voiceEnabled ?? false,
     },
-    policies: deps.rules?.policies,
+    policies: deps.policies ?? deps.rules?.policies,
     items,
     totals: {
       currency: input.cart.currency,
@@ -273,6 +274,11 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       total
     },
     commercial_nudge: publicCommercialNudge(input.cart.commercialNudge),
+    applied_benefits: input.cart.appliedBenefits?.filter(benefit =>
+      (benefit.kind === "discount" || benefit.kind === "shipping") && typeof benefit.label === "string"
+      && Number.isFinite(benefit.amount) && benefit.amount > 0
+      && (benefit.kind === "discount" ? discount > 0 : input.shipping != null)
+    ).map(benefit => ({ kind: benefit.kind, label: benefit.label.slice(0, 160), amount: roundMoney(benefit.amount) })),
     shipping: input.shipping,
     shippingOptions: undefined,
     suggestedProducts: deps.suggestedProducts?.length ? deps.suggestedProducts : undefined,
@@ -374,11 +380,14 @@ function toItemSnapshot(item: Cart["items"][number]): CheckoutItemSnapshot {
     name: item.name,
     quantity: item.quantity,
     unit_price: roundMoney(item.price),
+    ...(typeof item.originalPrice === "number" && Number.isFinite(item.originalPrice) && item.originalPrice > item.price
+      ? { original_unit_price: roundMoney(item.originalPrice) } : {}),
     line_total: roundMoney(item.price * item.quantity),
     image_url: item.imageUrl,
     product_url: item.productUrl,
     category: item.category,
     variant: item.variant,
+    variant_label: item.variantLabel,
     description: item.description?.slice(0, 100)
   };
 }

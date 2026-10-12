@@ -23,7 +23,10 @@
     "test:prisma": "pnpm --filter @zyon/api test:prisma",
     "test:e2e:db": "pnpm db:up && pnpm db:migrate && pnpm test:prisma",
     "typecheck": "pnpm -r build && pnpm -r typecheck",
-    "docker:diag": "docker version && docker context ls"
+    "docker:diag": "docker version && docker context ls",
+    "verify:voice-release": "node scripts/verify-realtime-release.mjs",
+    "release:homolog:preflight": "node scripts/verify-production-release.mjs homolog",
+    "release:production:preflight": "node scripts/verify-production-release.mjs master"
   },
   "packageManager": "pnpm@9.15.0",
   "devDependencies": {

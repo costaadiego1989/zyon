@@ -3,6 +3,7 @@ import { createHash, randomInt } from "node:crypto";
 import { OTP_STORE, type OtpStore } from "../../domain/ports/otp-store.port.js";
 import { EMAIL_OTP_PROVIDER, type EmailOtpSender } from "../../domain/ports/email-otp.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { resolveMerchantEmailBranding } from "../../../../shared/email/merchant-email-branding.js";
 
 export interface SendBuyerEmailCodeRequest {
   email: string;
@@ -23,6 +24,7 @@ export class SendBuyerEmailCodeUseCase {
     const email = typeof input.email === "string" ? input.email.trim().toLowerCase() : "";
     if (!email || !email.includes("@")) throw new BadRequestException("email_invalid");
     let merchantName: string | undefined;
+    let merchantBranding: ReturnType<typeof resolveMerchantEmailBranding> | undefined;
     if (input.merchantId !== undefined) {
       if (typeof input.merchantId !== "string" || !/^[A-Za-z0-9_-]{1,191}$/.test(input.merchantId.trim())) {
         throw new BadRequestException("otp_merchant_id_invalid");
@@ -31,12 +33,13 @@ export class SendBuyerEmailCodeUseCase {
       const merchant = await this.merchants.getProfile(input.merchantId.trim());
       if (!merchant) throw new NotFoundException("otp_merchant_not_found");
       merchantName = merchant.name;
+      merchantBranding = resolveMerchantEmailBranding(merchant);
     }
     if (!this.sender) throw new ServiceUnavailableException("otp_email_unavailable");
 
     const code = String(randomInt(100000, 1000000));
     try {
-      await this.sender.send(email, code, merchantName ? { merchantName } : undefined);
+      await this.sender.send(email, code, merchantName ? { merchantName, merchantBranding } : undefined);
     } catch (error) {
       const unavailable = error instanceof ServiceUnavailableException && error.message === "otp_email_unavailable";
       throw new ServiceUnavailableException(unavailable ? "otp_email_unavailable" : "otp_email_delivery_failed");

@@ -1,0 +1,8 @@
+{
+    "sandbox":  true,
+    "realPaymentSubmitted":  false,
+    "providerIntentId":  "pi_3UNJkRPvEQVo3vcN21BIIy7Z",
+    "cancellationConfirmed":  true,
+    "retryIdempotent":  true,
+    "customerCreated":  false
+}

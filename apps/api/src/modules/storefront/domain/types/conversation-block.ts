@@ -1,5 +1,4 @@
 import type { PublicServiceSchedule } from "../../../catalog/domain/services/service-schedule.js";
-
 export interface ProductCardBlock {
   type: "product_card";
   data: {
@@ -28,8 +27,6 @@ export interface ProductCardBlock {
       name: string;
       required: boolean;
       selectionType: "single" | "multiple";
-      minSelections?: number;
-      maxSelections?: number;
       items: Array<{ id: string; name: string; priceModifierInCents: number }>;
     }>;
   };
@@ -43,33 +40,6 @@ export interface ProductCarouselBlock {
     merchantId?: string;
     query?: string;
     categoryId?: string;
-  };
-}
-
-/** Public, seller-scoped catalog data. Prices are in BRL, unlike local product tool prices. */
-export interface MarketplaceProductBlockData {
-  id: string;
-  name: string;
-  price: number;
-  priceFormatted: string;
-  image?: string;
-  sellerName: string;
-  sellerId: string;
-  inStock: boolean;
-  variants: Array<{
-    id: string;
-    label: string;
-    price: number;
-    priceFormatted: string;
-    inStock: boolean;
-  }>;
-}
-
-export interface MarketplaceProductsBlock {
-  type: "marketplace_products";
-  data: {
-    query?: string;
-    products: MarketplaceProductBlockData[];
   };
 }
 
@@ -103,7 +73,6 @@ export interface CartSummaryBlock {
       selectedServiceSlotId?: string;
     }>;
     itemCount: number;
-    confirmedAddition?: boolean;
     subtotal: number;
     discount?: number;
     couponCode?: string | null;
@@ -274,12 +243,11 @@ export interface CouponListBlock {
 }
 
 export type ConversationBlock =
+  | { type: "cart_add_result"; data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string } }
   | ProductCardBlock
   | ProductCarouselBlock
-  | MarketplaceProductsBlock
   | ComparisonTableBlock
   | CartSummaryBlock
-  | CartAddResultBlock
   | ShippingOptionsBlock
   | QuickRepliesBlock
   | CheckoutRedirectBlock

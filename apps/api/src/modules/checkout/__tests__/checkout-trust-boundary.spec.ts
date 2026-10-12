@@ -61,10 +61,11 @@ function buyerServices(repo: InMemoryCheckoutRepository) {
     async findByEmail() { lookups += 1; return account; },
   } as never);
   const sentCodes: string[] = [];
-  const service = new CheckoutCustomerService(repo, {
-    notifyCaptured() {},
-    sendOtpCode(input: { otpCode: string }) { sentCodes.push(input.otpCode); },
-  } as never, new OtpService(), recognition);
+  const service = new CheckoutCustomerService(repo, { notifyCaptured() {} } as never,
+    new OtpService(), recognition, undefined, { async send(input: { subject: string }) {
+      sentCodes.push(input.subject.split(" ")[0]);
+      return { status: "sent", messageId: "fixture-otp-accepted" };
+    } } as never);
   return { service, recognition, sentCodes, lookups: () => lookups };
 }
 

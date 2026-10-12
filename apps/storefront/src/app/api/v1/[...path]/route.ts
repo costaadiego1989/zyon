@@ -1,4 +1,5 @@
 import { NextRequest, NextResponse } from "next/server";
+import { storefrontRequestOrigin } from "@/lib/platform-hostname";
 
 const API_BASE_URL = process.env.AACP_API_URL || "http://localhost:3009";
 const API_KEY = process.env.AACP_SERVICE_API_KEY || "";
@@ -75,6 +76,17 @@ async function proxyRequest(
   if (authorization) headers.Authorization = authorization;
   else if (API_KEY) headers.Authorization = `Bearer ${API_KEY}`;
 
+  const origin = request.headers.get("Origin");
+  if (origin) headers.Origin = origin;
+  // Preserve a verified browser origin when the public API gateway removes Origin.
+  if (/^storefront\/[^/]+\/recovery$/.test(path)) {
+    if (!origin || origin !== storefrontRequestOrigin(request)) return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
+    const serviceToken = process.env.INTERNAL_SERVICE_TOKEN;
+    if (serviceToken) {
+      headers["X-Internal-Service-Token"] = serviceToken;
+      headers["X-Trusted-Storefront-Origin"] = origin;
+    }
+  }
   const idempotencyKey = request.headers.get("Idempotency-Key");
   if (idempotencyKey) {
     headers["Idempotency-Key"] = idempotencyKey;
@@ -98,6 +110,8 @@ async function proxyRequest(
       status: response.status,
       headers: {
         "Content-Type": response.headers.get("Content-Type") || "application/json",
+        "Cache-Control": "no-store",
+        "Referrer-Policy": "no-referrer",
         ...(response.headers.get("X-RateLimit-Limit") && {
           "X-RateLimit-Limit": response.headers.get("X-RateLimit-Limit")!,
         }),

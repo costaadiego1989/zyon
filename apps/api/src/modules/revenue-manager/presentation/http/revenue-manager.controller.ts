@@ -2,11 +2,13 @@ import {
   BadRequestException,
   Body,
   Controller,
+  ConflictException,
   Get,
   HttpCode,
   HttpStatus,
   Inject,
   NotFoundException,
+  Optional,
   Param,
   Post,
   Query,
@@ -31,6 +33,9 @@ import { OBSERVATION_REPOSITORY_PORT, type ObservationRepositoryPort } from "../
 import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
 import { STRATEGY_LESSON_REPOSITORY_PORT, type StrategyLessonRepositoryPort } from "../../domain/ports/strategy-lesson-repository.port.js";
 import { DailyObservationScheduler, REVENUE_MANAGER_QUEUE_UNAVAILABLE } from "../../infrastructure/jobs/daily-observation.job.js";
+import { WeeklyAnalysisService } from "../../infrastructure/weekly-analysis.service.js";
+import { weeklyAnalysisEnabled } from "../../domain/weekly-analysis-policy.js";
+import { StrategyReviewService } from "../../application/strategy-review.service.js";
 import {
   ApproveHypothesisDto,
   RejectHypothesisDto,
@@ -54,6 +59,8 @@ export class RevenueManagerController {
     @Inject(HYPOTHESIS_REPOSITORY_PORT) private readonly hypothesisRepo: HypothesisRepositoryPort,
     @Inject(STRATEGY_LESSON_REPOSITORY_PORT) private readonly lessonRepo: StrategyLessonRepositoryPort,
     private readonly dailyObservationScheduler: DailyObservationScheduler,
+    @Optional() private readonly weeklyAnalysis?: WeeklyAnalysisService,
+    @Optional() private readonly strategies?: StrategyReviewService,
   ) {}
 
   // ===== Observations =====
@@ -103,10 +110,12 @@ export class RevenueManagerController {
       status,
       limit: limit ? parseInt(limit, 10) : undefined,
     });
+    const reviews = await this.strategies?.summaries(user.merchantId, hypotheses.map(h => h.snapshot().id));
     return hypotheses.map((h) => {
       const snap = h.snapshot();
       return {
         id: snap.id,
+        ...(reviews?.has(snap.id) ? { strategy_review: reviews.get(snap.id) } : {}),
         merchant_id: snap.merchant_id,
         observation_id: snap.observation_id,
         hypothesis_text: snap.hypothesis_text,
@@ -114,7 +123,8 @@ export class RevenueManagerController {
         expected_lift_percent: snap.expected_lift_percent,
         risk_level: snap.risk_level,
         template: { ...snap.template, hypothesis_type: snap.hypothesis_type ?? "prompt",
-          ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}) },
+          ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}),
+          ...(snap.discount_simulation ? { discount_simulation: snap.discount_simulation } : {}) },
         status: snap.status,
         approval_strategy: snap.approval_strategy,
         merchant_approved_at: snap.merchant_approved_at,
@@ -135,7 +145,8 @@ export class RevenueManagerController {
     if (!hypothesis) throw new NotFoundException("Hypothesis not found");
     const snap = hypothesis.snapshot();
     return { ...snap, template: { ...snap.template, hypothesis_type: snap.hypothesis_type ?? "prompt",
-      ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}) } };
+      ...(snap.discount_rule_json ? { discount_rule_json: snap.discount_rule_json } : {}),
+      ...(snap.discount_simulation ? { discount_simulation: snap.discount_simulation } : {}) } };
   }
 
   // ===== Approve/Reject =====
@@ -161,6 +172,7 @@ export class RevenueManagerController {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg === "HYPOTHESIS_NOT_FOUND") throw new NotFoundException("Hypothesis not found");
       if (msg === "HYPOTHESIS_NOT_PENDING_REVIEW") throw new BadRequestException("Hypothesis is not pending review");
+      if (msg === "STRATEGY_VERSIONED_REVIEW_REQUIRED") throw new ConflictException({ code: msg, strategy_id: id });
       throw err;
     }
   }
@@ -184,6 +196,7 @@ export class RevenueManagerController {
       const msg = err instanceof Error ? err.message : String(err);
       if (msg === "HYPOTHESIS_NOT_FOUND") throw new NotFoundException("Hypothesis not found");
       if (msg === "HYPOTHESIS_NOT_PENDING_REVIEW") throw new BadRequestException("Hypothesis is not pending review");
+      if (msg === "STRATEGY_VERSIONED_REVIEW_REQUIRED") throw new ConflictException({ code: msg, strategy_id: id });
       throw err;
     }
   }
@@ -221,14 +234,28 @@ export class RevenueManagerController {
 
   // ===== Manual Trigger =====
 
+  @Get("analysis-status")
+  @ApiOperation({ summary: "Weekly analysis status for the authenticated merchant" })
+  async analysisStatus(@Req() req: any) {
+    return this.weeklyAnalysis!.status(currentUser(req).merchantId);
+  }
+
   @Post("trigger")
   @HttpCode(HttpStatus.ACCEPTED)
   @ApiOperation({ summary: "Queue a strategy observation for the authenticated merchant" })
   @ApiAcceptedResponse({ description: "Strategy observation queued successfully" })
   @ApiServiceUnavailableResponse({ description: "The strategy queue is temporarily unavailable" })
-  async triggerObservation(@Req() req: any): Promise<{ job_id: string; message: string }> {
+  async triggerObservation(@Req() req: any) {
     const merchantId = currentUser(req).merchantId;
     try {
+      if (this.weeklyAnalysis && (weeklyAnalysisEnabled() || await this.weeklyAnalysis.owns(merchantId))) {
+        if (!process.env.REDIS_URL || process.env.REDIS_ENABLED === "false") throw new Error(REVENUE_MANAGER_QUEUE_UNAVAILABLE);
+        const status = await this.weeklyAnalysis.request(merchantId);
+        return { ...status, job_id: status.run?.id ?? null,
+          message: status.run && ["queued", "running"].includes(status.run.status)
+            ? "A análise está na fila semanal. Você receberá uma notificação quando houver uma atualização."
+            : "O calendário semanal foi mantido. Consulte a próxima análise e o resultado mais recente." };
+      }
       const jobId = await this.dailyObservationScheduler.enqueueMerchantRun(merchantId);
       return {
         job_id: jobId,

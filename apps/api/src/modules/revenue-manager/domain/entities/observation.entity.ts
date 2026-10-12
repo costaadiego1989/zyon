@@ -52,6 +52,14 @@ export type ObservationSnapshot = {
   };
   ai_costs_cents: number;
   data_quality: {
+    metric_definition_version?: string;
+    as_of?: string;
+    conversion_window_hours?: number;
+    mature_sessions?: number;
+    pending_sessions?: number;
+    provisional_converted_sessions?: number;
+    revenue_currency?: string;
+    order_state_basis?: string;
     status: "ready" | "insufficient_data";
     sample_size: number;
     observation_window_start: string;
@@ -92,6 +100,10 @@ export class ObservationEntity {
           cross_sell: input.cross_sell,
           data_quality: input.data_quality,
           revenue: input.revenue,
+          cohorts: input.cohorts,
+          current_experiment: input.current_experiment,
+          ai_costs_cents: input.ai_costs_cents,
+          observation_window_end: input.observation_window_end.toISOString(),
         })
       )
       .digest("hex");

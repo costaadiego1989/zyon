@@ -51,6 +51,8 @@ export class PrismaMerchantNotificationInboxRepository implements MerchantNotifi
       merchantName: merchant.name,
       ownerEmail: merchant.users[0]?.email ?? undefined,
       supportEmail: settings.company?.email ?? merchant.budgetEmail ?? undefined,
+      budgetEmail: merchant.budgetEmail ?? undefined,
+      budgetWhatsapp: merchant.budgetWhatsapp ?? undefined,
       whatsappPhone: connected ? (config?.whatsappNumber ?? config?.phoneNumber ?? settings.company?.phone ?? merchant.budgetWhatsapp ?? undefined) : undefined,
       whatsappConnected: connected,
     };

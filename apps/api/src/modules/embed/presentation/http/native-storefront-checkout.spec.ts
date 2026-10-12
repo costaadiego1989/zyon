@@ -27,6 +27,7 @@ function fixture() {
     ],
   };
   const variant = {
+    attributes: { tamanho: "Grande" }, media: [],
     id: "variant", productId: "product", sku: "sku", product: { merchantId: "merchant", name: "Sanduíche", type: "physical",
       metadata: { optionGroups: [{ id: "extras", name: "Extras", selectionType: "multiple", items: [{ id: "cheese", name: "Queijo", priceModifierInCents: 500 }] }] } },
     price: { currency: "BRL", costInCents: 1000 }, stock: [{ quantity: 10, reserved: 0 }],
@@ -68,6 +69,8 @@ test("native conversation capability issues a cart-bound token without requiring
   assert.notEqual(session.cart.items[0]!.variant, session.cart.items[1]!.variant);
   assert.equal(session.cart.items[0]!.variantId, "variant");
   assert.equal(session.cart.items[1]!.variantId, "variant");
+  assert.equal(response.experience.items[0]!.variant_label, "Grande");
+  assert.equal(response.experience.items[1]!.variant_label, "Grande · Queijo");
 
   const update = new UpdateCartUseCase(repo, repo);
   await assert.rejects(update.execute({ merchant_id: "merchant", session_id: response.session_id, items: [{ sku: "sku", quantity: 3 }] }), /update_cart_variant_required/);
@@ -76,6 +79,7 @@ test("native conversation capability issues a cart-bound token without requiring
   assert.deepEqual(changed.experience.items.map(item => item.quantity), [1, 1]);
   assert.equal(changed.experience.totals.subtotal, 40.5);
   assert.equal(changed.experience.totals.discount, 0);
+  assert.equal(changed.experience.items[1]!.variant_label, "Grande · Queijo");
 });
 
 test("borrowed, cross-merchant, cross-origin, expired and forged conversation proofs fail closed", () => {

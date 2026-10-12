@@ -18,17 +18,17 @@ test("domain registration rejects malformed hosts and normalizes valid domains",
 });
 
 test("domain revalidation is tenant scoped, persists mismatches, and preserves state on outages", async () => {
-  const record = { id: "d1", domain: "shop.example.com", verified: true, verifiedAt: new Date(), cnameTarget: "stores.example.com" };
+  const record = { merchantId: "m1", id: "d1", domain: "shop.example.com", verified: true, verifiedAt: new Date(), cnameTarget: "stores.example.com" };
   const writes: any[] = [];
   const prisma = { merchantDomain: {
     findFirst: async ({ where }: any) => where.merchantId === "m1" && where.id === "d1" ? record : null,
     update: async ({ data }: any) => { writes.push(data); return { ...record, ...data }; },
   } } as any;
-  const useCase = new VerifyDomainUseCase(prisma, { verifyCname: async () => false } as any);
+  const useCase = new VerifyDomainUseCase(prisma, { verifyCname: async () => false, verifyTxt: async () => false } as any);
   await assert.rejects(useCase.execute({ merchant_id: "other", domain_id: "d1" }), /domain_not_found/);
   assert.equal(writes.length, 0);
   assert.equal((await useCase.execute({ merchant_id: "m1", domain_id: "d1" })).verified, false);
-  assert.deepEqual(writes, [{ verified: false, verifiedAt: null }]);
+  assert.deepEqual(writes, [{ verified: false, verifiedAt: null, ownershipVerifiedAt: null }]);
   await assert.rejects(new VerifyDomainUseCase(prisma, { verifyCname: async () => { throw new Error("unavailable"); } } as any).execute({ merchant_id: "m1", domain_id: "d1" }), /unavailable/);
   assert.equal(writes.length, 1);
 });

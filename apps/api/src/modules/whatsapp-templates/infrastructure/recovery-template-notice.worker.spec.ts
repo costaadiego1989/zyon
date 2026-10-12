@@ -53,6 +53,7 @@ test("notice worker claims once across concurrent instances and repeated scans",
   assert.equal(h.sent.length, 1);
   assert.equal(h.contactReads(), 1);
   assert.equal(h.sent[0].to, "owner@example.test");
+  assert.equal(h.sent[0].merchantId, "merchant-1");
   assert.equal(h.sent[0].requireDelivery, true);
   assert.equal(h.row.metadata.emailStatus, "sent");
   assert.equal(h.row.metadata.emailMessageId, "email-1");

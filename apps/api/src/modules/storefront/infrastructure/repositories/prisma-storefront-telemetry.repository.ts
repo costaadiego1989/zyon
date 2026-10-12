@@ -1,11 +1,14 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { CheckoutAbandonmentService } from "../../../checkout/domain/services/checkout-abandonment.service.js";
+import type { CheckoutEventName } from "@zyon/shared-types";
 import type {
   StorefrontLiveSession,
   StorefrontTelemetryEvent,
   StorefrontTelemetryPort,
 } from "../../domain/ports/storefront-telemetry.port.js";
+import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 
 const FUNNEL_EVENTS = new Set([
   "checkout_started",
@@ -13,7 +16,18 @@ const FUNNEL_EVENTS = new Set([
   "auth_registration_completed", "login_completed", "product_viewed", "cart_viewed",
   "cross_sell_accepted", "cross_sell_added",
   "shipping_option_selected", "coupon_applied", "payment_method_selected",
+  "idle_30_seconds", "exit_intent_detected", "checkout_abandoned",
 ]);
+
+const SCORED_CHECKOUT_EVENTS = new Set<CheckoutEventName>([
+  "checkout_started",
+  "auth_phone_submitted", "auth_phone_verified", "auth_identity_confirmed",
+  "auth_registration_completed", "login_completed", "product_viewed", "cart_viewed",
+  "cross_sell_accepted", "cross_sell_added", "shipping_option_selected", "coupon_applied",
+  "payment_method_selected", "idle_30_seconds", "exit_intent_detected", "checkout_abandoned",
+]);
+
+const PRESERVES_LAST_ACTIVITY = new Set(["idle_30_seconds", "checkout_abandoned"]);
 
 const EXPERIMENT_STAGE_UPDATES: Record<string, Record<string, unknown>> = {
   conversation_started: { conversationStarted: true },
@@ -29,19 +43,35 @@ const EXPERIMENT_STAGE_UPDATES: Record<string, Record<string, unknown>> = {
 
 @Injectable()
 export class PrismaStorefrontTelemetryRepository implements StorefrontTelemetryPort {
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Inject(STOREFRONT_CART_PORT) private readonly carts: StorefrontCartPort,
+  ) {}
 
   async recordEvent(input: StorefrontTelemetryEvent): Promise<void> {
     const { merchantId, conversationId, event, metadata } = input;
     if (FUNNEL_EVENTS.has(event)) {
-      await this.prisma.checkoutSession.upsert({
+      const cart = await this.carts.getOrCreate(merchantId, input.cartId ?? conversationId);
+      const recoveryCart = {
+        items: cart.items,
+        couponCode: cart.couponCode,
+        discount: cart.discount,
+        freeShipping: cart.freeShipping,
+        total: cart.total,
+      };
+      const now = new Date();
+      const session = await this.prisma.checkoutSession.upsert({
         where: { merchantId_sessionId: { merchantId, sessionId: conversationId } },
         create: {
-          merchantId, sessionId: conversationId, globalUserId: conversationId,
-          conversationId, cart: {}, abandonmentScore: 0, triggerAgent: false,
-          chatHistory: [], createdAt: new Date(), updatedAt: new Date(),
+          merchantId, sessionId: conversationId, globalUserId: input.globalUserId ?? conversationId,
+          conversationId, cart: recoveryCart as any, abandonmentScore: 0, triggerAgent: false,
+          chatHistory: [], createdAt: now, updatedAt: now,
         },
-        update: { updatedAt: new Date() },
+        update: {
+          cart: recoveryCart as any,
+          ...(input.globalUserId ? { globalUserId: input.globalUserId } : {}),
+          ...(PRESERVES_LAST_ACTIVITY.has(event) ? {} : { updatedAt: now }),
+        },
       });
       const existing = await this.prisma.checkoutEvent.findFirst({
         where: { merchantId, sessionId: conversationId, eventName: event },
@@ -50,6 +80,17 @@ export class PrismaStorefrontTelemetryRepository implements StorefrontTelemetryP
         await this.prisma.checkoutEvent.create({
           data: { merchantId, sessionId: conversationId, eventName: event, occurredAt: new Date(), metadata: metadata as any },
         });
+        if (SCORED_CHECKOUT_EVENTS.has(event as CheckoutEventName)) {
+          const score = CheckoutAbandonmentService.applyEvent(session.abandonmentScore, event as CheckoutEventName);
+          await this.prisma.checkoutSession.update({
+            where: { merchantId_sessionId: { merchantId, sessionId: conversationId } },
+            data: {
+              abandonmentScore: score.nextScore,
+              triggerAgent: score.triggerAgent,
+              ...(PRESERVES_LAST_ACTIVITY.has(event) ? {} : { updatedAt: now }),
+            },
+          });
+        }
       }
     }
 

@@ -1,7 +1,11 @@
-import { BadRequestException, Inject, Injectable, NotFoundException } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { createHash } from "node:crypto";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { SHIPMENT_REPOSITORY, type ShipmentRepository } from "../../../fulfillment/domain/ports/shipment-repository.port.js";
 import { SHIPPING_CARRIER_ADAPTER, type ShippingCarrierPort, type LabelPurchaseInput } from "../../domain/ports/shipping-carrier.port.js";
 import { ORDER_TRACKING_UPDATER, type OrderTrackingUpdater } from "../../domain/ports/order-tracking-updater.port.js";
+import { MarketplaceLabelPurchaseGuard } from "./marketplace-label-purchase.guard.js";
 
 export type PurchaseShippingLabelInput = {
   merchantId: string;
@@ -20,6 +24,8 @@ export class PurchaseShippingLabelUseCase {
   constructor(
     @Inject(SHIPPING_CARRIER_ADAPTER) private readonly melhorEnvio: ShippingCarrierPort,
     @Inject(ORDER_TRACKING_UPDATER) private readonly updateTracking: OrderTrackingUpdater,
+    @Inject(MarketplaceLabelPurchaseGuard) private readonly marketplaceGuard: Pick<MarketplaceLabelPurchaseGuard, "assertOrdinaryOrder">,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) {}
 
   async execute(input: PurchaseShippingLabelInput) {
@@ -29,6 +35,7 @@ export class PurchaseShippingLabelUseCase {
     // A carrier purchase is an irreversible external charge. Verify that the
     // order belongs to this tenant before asking the carrier to issue a label.
     await this.updateTracking.assertOrderExists({ merchantId, externalOrderId });
+    await this.marketplaceGuard.assertOrdinaryOrder({ merchantId, externalOrderId });
 
     const label = await this.melhorEnvio.purchaseLabel({
       merchantId,
@@ -57,6 +64,18 @@ export class PurchaseShippingLabelUseCase {
         }],
       },
     });
+
+    // This id namespace is written only by native label purchases. Generic
+    // tracking integrations generate their own ids and cannot supply this id.
+    if (this.prisma && label.carrierOrderId && label.accountIdentity) {
+      const shipment = await this.prisma.shipment.findFirst({ where: { merchantId, externalOrderId, trackingCode: label.trackingCode } });
+      if (!shipment) throw new BadRequestException("shipping_label_original_shipment_missing");
+      const id = `shipping_label_purchase_${createHash("sha256").update(JSON.stringify([merchantId, shipment.id, label.carrierOrderId])).digest("hex")}`;
+      await this.prisma.trackingEvent.upsert({ where: { id }, update: {}, create: { id, merchantId, shipmentId: shipment.id,
+        trackingCode: label.trackingCode, status: "label_generated", description: "Etiqueta comprada na conta Melhor Envio da loja",
+        occurredAt: new Date(), carrierRaw: { kind: "zyon_native_label_purchase", carrier_order_id: label.carrierOrderId,
+          account_identity: label.accountIdentity, purchase_id: label.purchaseId, external_order_id: externalOrderId } } });
+    }
 
     return {
       purchase_id: label.purchaseId,

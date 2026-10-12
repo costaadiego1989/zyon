@@ -1,6 +1,6 @@
 import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import type { StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
-import type { ConversationBlock } from "../../domain/types/conversation-block.js";
+import type { CartAddResultBlock, ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { AgentCopyService } from "../copy/agent-copy.service.js";
 import { productGallery } from "../product-gallery.js";
 
@@ -9,11 +9,147 @@ export interface DeterministicShortcutDeps {
   copyService: AgentCopyService;
   emitFunnelEvent: (merchantId: string, sessionId: string, event: string) => Promise<void>;
   applyCoupon?: (args: { cartId?: string; couponCode: string }) => Promise<any>;
+  addItemToCart?: (args: { cartId?: string; variantId: string; quantity: number; selectedOptionItemIds?: string[] }) => Promise<any>;
   getCartBlock?: (cartId: string) => Promise<ConversationBlock | null>;
 }
 
 const formatPrice = (cents: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
+function productVariants(product: any) {
+  const isDigitalOrService = product.type === "digital" || product.type === "service";
+  return (product.variants ?? []).filter((variant: any) => variant.isActive).map((variant: any) => {
+    const attributes = (variant.attributes ?? {}) as Record<string, string>;
+    const attributeKeys = Object.keys(attributes);
+    const attributeValues = Object.values(attributes);
+    const stock = isDigitalOrService ? 999 : Math.max(0, (variant.stockQuantity ?? 0) - (variant.stockReserved ?? 0));
+    return {
+      id: variant.id,
+      name: variant.name || attributeKeys.join(" / ") || "Opção",
+      value: attributeValues.length > 0 ? attributeValues.join(", ") : (variant.sku ?? variant.name ?? ""),
+      sku: variant.sku,
+      stock,
+      price: variant.basePriceInCents,
+      priceFormatted: variant.basePriceInCents ? formatPrice(variant.basePriceInCents) : undefined,
+    };
+  });
+}
+
+function cartSummaryBlock(cart: any): ConversationBlock | null {
+  if (!Array.isArray(cart?.items)) return null;
+  const total = typeof cart.total === "number" ? cart.total : 0;
+  const discount = typeof cart.discount === "number" ? cart.discount : 0;
+  return {
+    type: "cart_summary",
+    data: {
+      cartId: typeof cart.cartId === "string" ? cart.cartId : undefined,
+      items: cart.items.map((item: any) => ({
+        variantId: item.variantId,
+        productName: item.name,
+        quantity: item.quantity,
+        price: item.unitPrice,
+        subtotal: item.lineTotal ?? item.unitPrice * item.quantity,
+        imageUrl: item.imageUrl,
+      })),
+      itemCount: typeof cart.itemCount === "number" ? cart.itemCount : cart.items.reduce((sum: number, item: any) => sum + (item.quantity ?? 0), 0),
+      subtotal: total,
+      discount,
+      freeShipping: cart.freeShipping === true,
+      total: total - discount,
+      nextNudge: cart.nextNudge ?? undefined,
+      activeRules: cart.activeRules ?? undefined,
+    },
+  } as ConversationBlock;
+}
+
+const CART_ADD_REFUSALS = new Set([
+  "variant_out_of_stock", "stock_validation_unavailable", "variant_not_resolved", "variant_selection_required",
+  "product_unavailable", "digital_content_unavailable", "cart_quantity_invalid", "cart_item_limit",
+  "cart_option_line_selection_required", "option_required", "unknown_option_item", "single_selection_exceeded",
+  "required_group_missing", "single_group_multiple_selected",
+]);
+
+function sameOptionIds(actual: unknown, expected: string[]): boolean {
+  if (actual === undefined) return expected.length === 0;
+  if (!Array.isArray(actual) || !actual.every(id => typeof id === "string")) return false;
+  const sorted = [...actual].sort();
+  const expectedSorted = [...expected].sort();
+  return sorted.length === expectedSorted.length && sorted.every((id, index) => id === expectedSorted[index]);
+}
+
+function savedOptionsMatch(selectedOptions: unknown, expected: string[]): boolean {
+  if (selectedOptions === undefined) return expected.length === 0;
+  if (!Array.isArray(selectedOptions) || selectedOptions.length !== expected.length) return false;
+  const ids = selectedOptions.map(option => option?.itemId);
+  if (ids.some(id => id !== undefined)) return sameOptionIds(ids, expected);
+  // The native public DTO omits option IDs. addedItem carries the exact IDs
+  // admitted by the server; the saved line must still contain that composition.
+  return selectedOptions.every(option => option && typeof option.groupName === "string"
+    && typeof option.itemName === "string" && Number.isFinite(option.priceModifier));
+}
+
+/** A cart snapshot alone cannot acknowledge this command: it may predate the add. */
+function cartAddResult(cart: any, cartId: string, variantId: string, optionItemIds: string[]): CartAddResultBlock {
+  const data: CartAddResultBlock["data"] = { cartId, variantId, optionItemIds, status: "unknown" };
+  const code = typeof cart?.error === "string" ? cart.error : typeof cart?.code === "string" ? cart.code : undefined;
+  if (code || cart?.error) {
+    if (code && (CART_ADD_REFUSALS.has(code) || code.startsWith("food_option_") || code.startsWith("service_slot_") || code.startsWith("service_schedule_"))) {
+      data.status = "rejected";
+      data.code = code;
+    }
+    return { type: "cart_add_result", data };
+  }
+  const added = cart?.addedItem;
+  const savedSelection = Array.isArray(cart?.items) && cart.items.some((item: any) => item?.variantId === variantId
+    && Number.isSafeInteger(item.quantity) && item.quantity > 0 && (item.selectedServiceSlot?.slotId ?? undefined) === undefined
+    && savedOptionsMatch(item.selectedOptions, optionItemIds));
+  if (cart?.cartId === cartId && added?.variantId === variantId && (added.serviceSlotId ?? undefined) === undefined
+    && sameOptionIds(added.optionItemIds, optionItemIds) && savedSelection) {
+    data.status = "succeeded";
+    data.optionItemIds = added.optionItemIds ?? [];
+  }
+  return { type: "cart_add_result", data };
+}
+
+async function resolveAddToCartShortcut(
+  deps: DeterministicShortcutDeps,
+  input: StorefrontConversationInput,
+): Promise<StorefrontConversationOutput | null> {
+  const match = input.userMessage.trim().match(/^adicionar(?:\s+.+?)?\s+ao carrinho\s+\[variantId:([A-Za-z0-9_-]{1,191})\](?:\s+\[optionItemIds:([A-Za-z0-9_,-]+)\])?\s*$/i);
+  if (!match || !deps.addItemToCart) return null;
+  const optionItemIds = (match[2] ?? "").split(",").filter((id) => /^[A-Za-z0-9_-]{1,191}$/.test(id));
+  const cartId = input.cartId ?? input.sessionId;
+  try {
+    const cart = await deps.addItemToCart({
+      cartId,
+      variantId: match[1],
+      quantity: 1,
+      ...(optionItemIds.length ? { selectedOptionItemIds: optionItemIds } : {}),
+    });
+    const result = cartAddResult(cart, cartId, match[1], optionItemIds);
+    const block = cartSummaryBlock(cart);
+    if (result.data.status !== "succeeded" || !block) {
+      return {
+        message: result.data.status === "rejected"
+          ? typeof cart?.detail === "string" ? cart.detail : "Não consegui adicionar este produto agora. Revise sua escolha."
+          : "Não consegui confirmar se o produto foi adicionado. Confira o carrinho antes de tentar novamente.",
+        blocks: [result],
+        suggestedNext: ["Ver Carrinho", "Continuar Comprando"],
+      };
+    }
+    deps.emitFunnelEvent(input.merchantId, input.sessionId, "cart_viewed").catch(() => {});
+    return {
+      message: "Produto adicionado ao carrinho.",
+      blocks: [result, block],
+      suggestedNext: ["Ver Carrinho", "Continuar Comprando", "Finalizar Compra"],
+    };
+  } catch {
+    return {
+      message: "Não consegui confirmar se o produto foi adicionado. Confira o carrinho antes de tentar novamente.",
+      blocks: [cartAddResult(undefined, cartId, match[1], optionItemIds)],
+      suggestedNext: ["Ver Carrinho", "Continuar Comprando"],
+    };
+  }
+}
 
 async function resolveOffersShortcut(
   deps: DeterministicShortcutDeps,
@@ -49,6 +185,7 @@ async function resolveOffersShortcut(
           priceFormatted: formatPrice(p.defaultVariant?.basePriceInCents ?? 0),
           ...productGallery(p),
           inStock: p.hasStock,
+          variants: productVariants(p),
         })),
         nextCursor: result.nextCursor,
         merchantId: input.merchantId,
@@ -201,8 +338,12 @@ export async function resolveDeterministicShortcut(
   deps: DeterministicShortcutDeps,
   input: StorefrontConversationInput,
 ): Promise<StorefrontConversationOutput | null> {
+  // An attachment needs catalog matching and buyer confirmation from the agent,
+  // even when the accompanying text would normally trigger a shortcut.
+  if (input.attachmentContext) return null;
   const normalizedMsg = input.userMessage.trim().toLowerCase();
   return (
+    (await resolveAddToCartShortcut(deps, input)) ??
     (await resolveOffersShortcut(deps, input, normalizedMsg)) ??
     (await resolveDetailsShortcut(deps, input, normalizedMsg)) ??
     (await resolveCouponShortcut(deps, input, normalizedMsg))

@@ -12,6 +12,7 @@ const cart = {
 test("OneBuyClick prepares only its own checkout path and leaves the legacy path intact", async () => {
   const calls: unknown[] = [];
   const deps = {
+    merchantRepo: { getProfile: async () => ({ id: "merchant", budgetModeEnabled: false }) },
     cartRepo: { getOrCreate: async () => cart },
     oneBuyClick: {
       prepareCheckout: async (input: unknown) => {

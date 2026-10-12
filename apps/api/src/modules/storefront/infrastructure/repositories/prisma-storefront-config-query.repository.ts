@@ -4,6 +4,7 @@ import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { isBillingFeatureEnabled } from "../../../payment/domain/billing-plans.js";
 import type { StorefrontConfigQueryPort, StorefrontConfigSnapshot } from "../../domain/ports/storefront-config-query.port.js";
+import { resolveStorePolicies } from "../../../../shared/legal/store-policies.js";
 
 @Injectable()
 export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQueryPort {
@@ -20,9 +21,9 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
     if (identifier.includes(".")) {
       const domain = await this.prisma.merchantDomain.findUnique({
         where: { domain: identifier },
-        select: { merchantId: true, verified: true },
+        select: { merchantId: true, verified: true, ownershipVerifiedAt: true },
       });
-      if (domain?.verified) {
+      if (domain?.verified && domain.ownershipVerifiedAt) {
         resolvedSubscription = await this.prisma.merchantBillingSubscription.findUnique({
           where: { merchantId: domain.merchantId },
           select: { status: true, trialEndsAt: true, stripePriceId: true, planKey: true },
@@ -35,7 +36,7 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
     if (!merchant) merchant = await this.prisma.merchant.findUnique({ where: { storeSlug: identifier } });
     if (!merchant) return null;
 
-    const [subscription, agentRule, merchantRules, stories, checkoutSettings] = await Promise.allSettled([
+    const [subscription, agentRule, merchantRules, stories, checkoutSettings, legacyPolicies] = await Promise.allSettled([
       resolvedSubscription === undefined
         ? this.prisma.merchantBillingSubscription.findUnique({
           where: { merchantId: merchant.id },
@@ -50,10 +51,13 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
         orderBy: { sortOrder: "asc" },
       }),
       this.prisma.checkoutSetting.findUnique({ where: { merchantId: merchant.id }, select: { mode: true } }),
+      this.prisma.merchantPolicy.findUnique({ where: { merchantId: merchant.id } }),
     ]);
 
     return {
-      merchant: { id: merchant.id, name: merchant.name, theme: merchant.theme, storeCategory: merchant.storeCategory, storeSettings: merchant.storeSettings },
+      publishedPolicies: resolveStorePolicies(merchant.storeSettings, settledValue(legacyPolicies)),
+      policiesAvailable: legacyPolicies.status === "fulfilled",
+      merchant: { id: merchant.id, name: merchant.name, theme: merchant.theme, storeCategory: merchant.storeCategory, storeSettings: merchant.storeSettings, budgetModeEnabled: merchant.budgetModeEnabled },
       subscriptionStatus: settledValue(subscription)?.status,
       checkoutMode: settledValue(checkoutSettings)?.mode,
       agentRule: settledValue(agentRule) ?? undefined,

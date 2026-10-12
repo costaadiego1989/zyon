@@ -264,7 +264,7 @@ test("F0-T06: No matching rule → standard flow", async () => {
   const matchResult = evaluator.evaluate([rule], ctx);
   assert.equal(matchResult.matched, false, "Rule should not match (cart too low)");
 
-  const cart = createCart({ total: 250, items: [] });
+  const cart = createCart({ total: 250, items: [{ sku: "ITEM-001", name: "Product", price: 250, cost: 100, quantity: 1 }] });
   const rules = createMerchantRules({ maxDiscountPercent: 15 });
 
   const evaluation = evaluateDiscountOffer(cart, rules, 15);

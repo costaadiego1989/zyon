@@ -4,6 +4,7 @@ import type { MerchantProfile, MerchantRules } from "../domain/merchant.types.js
 import { normalizeMerchantCryptoPayments } from "../domain/services/merchant-crypto.validation.js";
 import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../shared/events/domain-event-bus.port.js";
 import { type TenantPrincipal, type TenantRole } from "../../../shared/auth/tenant-principal.js";
+import { publicPolicyUrl } from "../../../shared/legal/store-policies.js";
 
 export interface MerchantProfileWithActor extends MerchantProfile {
   role: TenantRole;
@@ -59,6 +60,17 @@ export class UpdateMerchantRulesUseCase {
 
   async execute(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {
     const patch = { ...rules };
+    if (patch.policies !== undefined) {
+      if (!patch.policies || typeof patch.policies !== "object" || Array.isArray(patch.policies)) throw new BadRequestException("invalid_policy_links");
+      const links: NonNullable<MerchantRules["policies"]> = {};
+      for (const [field, value] of Object.entries(patch.policies)) {
+        if (!["privacyUrl", "termsUrl", "refundUrl", "shippingUrl"].includes(field) || typeof value !== "string" || value.length > 2048) throw new BadRequestException("invalid_policy_links");
+        const url = value.trim() ? publicPolicyUrl(value) : "";
+        if (url === undefined) throw new BadRequestException("invalid_policy_links");
+        links[field as keyof typeof links] = url;
+      }
+      patch.policies = links;
+    }
 
     if (patch.minimumMarginPercent !== undefined && patch.minimumMarginPercent < 5) {
       throw new BadRequestException("minimum_margin_percent_below_floor");

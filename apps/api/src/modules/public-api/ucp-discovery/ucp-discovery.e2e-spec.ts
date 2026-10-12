@@ -1,8 +1,18 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { NestFactory } from "@nestjs/core";
-import type { INestApplication } from "@nestjs/common";
-import { AppModule } from "../../../app.module.js";
+import { Module, type INestApplication } from "@nestjs/common";
+import { APP_GUARD } from "@nestjs/core";
+import { UcpDiscoveryController } from "./ucp-discovery.controller.js";
+import { MERCHANT_REPOSITORY } from "../../merchant/domain/ports/merchant-repository.port.js";
+import { InMemoryMerchantRepository } from "../../merchant/infrastructure/in-memory-merchant.repository.js";
+import { TenantGuard } from "../../../shared/tenant/tenant.guard.js";
+
+@Module({
+  controllers: [UcpDiscoveryController],
+  providers: [{ provide: MERCHANT_REPOSITORY, useClass: InMemoryMerchantRepository }, { provide: APP_GUARD, useClass: TenantGuard }],
+})
+class DiscoveryHttpTestModule {}
 
 async function httpFetch(
   url: string,
@@ -31,18 +41,18 @@ async function httpFetch(
   return { status: res.status, data };
 }
 
-test.describe("UCP Discovery E2E", async () => {
+test.describe("UCP Discovery HTTP integration", async () => {
   let app: INestApplication;
   let baseUrl: string;
 
   test.before(async () => {
-    app = await NestFactory.create(AppModule, { logger: false });
+    app = await NestFactory.create(DiscoveryHttpTestModule, { logger: false, abortOnError: false });
     await app.listen(0);
     baseUrl = await app.getUrl();
   });
 
   test.after(async () => {
-    await app.close();
+    await app?.close();
   });
 
   test("GET /.well-known/ucp returns 200 with discovery metadata (no auth required)", async () => {

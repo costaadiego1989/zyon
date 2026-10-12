@@ -6,6 +6,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import { EXPERIMENT_REPOSITORY_PORT, type ExperimentRepositoryPort } from "../../domain/ports/experiment-repository.port.js";
 import { SignificanceCalculator, type VariantStats } from "../../domain/services/significance-calculator.service.js";
 import { PromoteWinnerUseCase } from "../../application/use-cases/promote-winner.use-case.js";
+import { requiresWeeklyReview } from "../../application/weekly-experiment-governance.js";
 
 export const EXPERIMENTS_AUTO_PROMOTE_QUEUE = "experiments-auto-promote";
 const JOB_NAME = "auto-promote-winners";
@@ -146,6 +147,10 @@ export class AutoPromoteWorker implements OnModuleInit, OnModuleDestroy {
         const experimentId = exp.id;
 
         try {
+          if (await requiresWeeklyReview(this.prisma, merchantId)) {
+            this.logger.debug(`Experiment ${experimentId} requires weekly evidence and merchant review`);
+            continue;
+          }
           const variantStats: VariantStats[] = exp.variants.map((v) => ({
             variantId: v.id,
             name: v.name,

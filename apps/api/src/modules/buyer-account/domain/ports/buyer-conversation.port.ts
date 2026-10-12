@@ -17,12 +17,14 @@ export interface BuyerConversation {
   startedAt: Date;
   lastMessageAt: Date;
   messages: BuyerConversationMessage[];
+  merchantName?: string;
+  status?: "in_progress" | "completed" | "expired" | "history";
 }
 
 export const BUYER_CONVERSATION_REPOSITORY = Symbol("BUYER_CONVERSATION_REPOSITORY");
 
 export interface BuyerConversationRepository {
-  listByBuyer(globalUserId: string, options?: { maxAgeDays?: number }): Promise<BuyerConversation[]>;
+  listByBuyer(globalUserId: string, options?: { maxAgeDays?: number; merchantId?: string }): Promise<BuyerConversation[]>;
   listByBuyerSince(globalUserId: string, since: Date): Promise<BuyerConversation[]>;
   findById(globalUserId: string, id: string): Promise<BuyerConversation | null>;
   findBySession(merchantId: string, sessionId: string): Promise<BuyerConversation | null>;

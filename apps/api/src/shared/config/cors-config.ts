@@ -35,6 +35,8 @@ export function resolveCorsConfig(env: NodeJS.ProcessEnv = process.env): CorsCon
   const allowedHeaders = [
     "Content-Type",
     "Authorization",
+    "X-Buyer-Authorization",
+    "X-AI-User-Token",
     "Idempotency-Key",
     "If-Match",
     "If-None-Match",
@@ -48,14 +50,14 @@ export function resolveCorsConfig(env: NodeJS.ProcessEnv = process.env): CorsCon
   ];
 
   if (configured.length > 0) {
-    return { origin: configured, credentials: true, allowedHeaders, exposedHeaders: ["ETag", "Idempotency-Replayed"] };
+    return { origin: configured, credentials: true, allowedHeaders, exposedHeaders: ["ETag", "Idempotency-Replayed", "Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"] };
   }
 
   if (isProduction(env.NODE_ENV)) {
-    return { origin: false, credentials: true, allowedHeaders, exposedHeaders: ["ETag", "Idempotency-Replayed"] };
+    return { origin: false, credentials: true, allowedHeaders, exposedHeaders: ["ETag", "Idempotency-Replayed", "Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"] };
   }
 
-  return { origin: DEV_ORIGIN_PATTERN, credentials: true, allowedHeaders, exposedHeaders: ["ETag", "Idempotency-Replayed"] };
+  return { origin: DEV_ORIGIN_PATTERN, credentials: true, allowedHeaders, exposedHeaders: ["ETag", "Idempotency-Replayed", "Retry-After", "X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset"] };
 }
 
 function parseOrigins(raw: string | undefined): string[] {

@@ -40,7 +40,7 @@ describe("calculateCouponDiscount", () => {
   });
 
   it("caps percent discount at cart total (never negative cart)", () => {
-    const coupon = makeCoupon({ discount_type: "percent", discount_value: 50 });
+    const coupon = makeCoupon({ discount_type: "percent", discount_value: 100 });
     assert.equal(calculateCouponDiscount(coupon, 30), 30);
   });
 

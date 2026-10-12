@@ -12,7 +12,7 @@ import type {
 import type { AsaasPaymentAdapter } from "./asaas-payment.adapter.js";
 import type { StripePaymentAdapter } from "./stripe-payment.adapter.js";
 import type { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
-import type { MercadoPagoPaymentAdapter } from "./mercadopago-payment.adapter.js";
+import { MercadoPagoPaymentAdapter } from "./mercadopago-payment.adapter.js";
 
 class FakeStripe implements Pick<PaymentProviderPort, "createPayment" | "fetchPaymentStatus"> {
   calls: CreateProviderPaymentInput[] = [];
@@ -95,6 +95,31 @@ function baseInput(overrides?: Partial<CreateProviderPaymentInput>): CreateProvi
     ...overrides
   };
 }
+
+test("JSON access token alone is not proof of a seller OAuth connection", async () => {
+  const repo = new InMemoryPaymentPlatformRepository();
+  await repo.saveConnection({merchantId:"mrc_1",provider:"mercadopago",status:"active",environment:"live",secret:JSON.stringify({accessToken:"raw-token"})});
+  const adapter = new RoutingPaymentAdapter(null,null,null,new FakeCrypto() as unknown as EvmCryptoPaymentAdapter,repo,undefined,"https://mp.test",(async () => { throw new Error("network_must_not_run"); }) as typeof fetch);
+  await assert.rejects(adapter.preparePayment(baseInput({provider:"mercadopago",platformFeeCents:99})), /mercadopago_oauth_required_for_platform_fee/);
+});
+
+test("routing freezes the authenticated same-account decision with the seller credential fingerprint", async () => {
+  const repo = new InMemoryPaymentPlatformRepository();
+  await repo.saveConnection({merchantId:"mrc_1",provider:"mercadopago",status:"active",environment:"live",secret:JSON.stringify({accessToken:"oauth-seller",refreshToken:"oauth-refresh"})});
+  const tokens: string[] = [];
+  const fetcher = (async (url, init) => {
+    assert.equal(String(url), "https://mp.test/users/me");
+    tokens.push(new Headers(init?.headers).get("authorization")!);
+    return Response.json({id:123});
+  }) as typeof fetch;
+  const platform = new MercadoPagoPaymentAdapter("https://mp.test","platform","",fetcher);
+  const adapter = new RoutingPaymentAdapter(null,null,platform,new FakeCrypto() as unknown as EvmCryptoPaymentAdapter,repo,undefined,"https://mp.test",fetcher);
+  const prepared = await adapter.preparePayment(baseInput({provider:"mercadopago",platformFeeCents:99}));
+  assert.equal(prepared.mercadoPagoFeeMode,"same_account");
+  assert.equal(prepared.platformFeeCents,99);
+  assert.equal(prepared.providerAccountFingerprint,new MercadoPagoPaymentAdapter("https://mp.test","oauth-seller","",fetcher).creationAccountFingerprint());
+  assert.deepEqual(tokens.sort(),["Bearer oauth-seller","Bearer platform"]);
+});
 
 test("RoutingPaymentAdapter: routes crypto to EvmCryptoPaymentAdapter", async () => {
   const crypto = new FakeCrypto();

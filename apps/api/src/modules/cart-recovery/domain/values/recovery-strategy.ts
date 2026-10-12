@@ -46,8 +46,10 @@ export type StrategyPreferences = Record<ToggleableStrategyKey, boolean>;
 export function defaultStrategyPreferences(): StrategyPreferences {
   return {
     offer_free_shipping: false,
-    personalized_cross_sell: false,
-    offer_coupon: true,
+    // The safe first-run strategy is a reminder without a discount. A coupon
+    // selection cannot dispatch until the merchant provides a coupon code.
+    personalized_cross_sell: true,
+    offer_coupon: false,
     advanced_rule: false,
   };
 }
@@ -81,7 +83,7 @@ export function normalizeStrategyPreferences(
   }
 
   if (!found) {
-    result.offer_coupon = true;
+    result.personalized_cross_sell = true;
   }
 
   return result;

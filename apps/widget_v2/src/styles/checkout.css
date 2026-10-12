@@ -1010,6 +1010,9 @@
   align-items: center;
   gap: 8px;
   background: var(--aacp-bg, #f7f8fa);
+  box-sizing: border-box;
+  min-width: 0;
+  max-width: 100%;
   border-radius: 8px;
   padding: 12px;
   margin: 16px 0;
@@ -1017,6 +1020,7 @@
 
 .pix-payment__code-text {
   flex: 1;
+  min-width: 0;
   font-size: 11px;
   word-break: break-all;
   text-align: left;
@@ -1049,6 +1053,11 @@
 
 .pix-payment__copy-btn--copied {
   background: var(--aacp-success, #047857);
+}
+
+@media (max-width: 480px) {
+  .pix-payment__code { align-items: stretch; flex-direction: column; }
+  .pix-payment__copy-btn { box-sizing: border-box; width: 100%; }
 }
 
 .pix-payment__status {

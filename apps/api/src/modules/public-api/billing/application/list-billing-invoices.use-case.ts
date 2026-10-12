@@ -21,8 +21,13 @@ export class ListBillingInvoicesUseCase {
   ) {}
 
   async execute(merchantId: string): Promise<BillingInvoice[]> {
+    const scopedMerchantId = merchantId.trim();
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: scopedMerchantId },
+      select: { billingAccountMerchantId: true },
+    });
     const subscription = await this.prisma.merchantBillingSubscription.findUnique({
-      where: { merchantId: merchantId.trim() },
+      where: { merchantId: merchant?.billingAccountMerchantId ?? scopedMerchantId },
     });
 
     if (!subscription?.stripeCustomerId) {

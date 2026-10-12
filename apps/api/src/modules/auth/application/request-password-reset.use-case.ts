@@ -3,6 +3,7 @@ import { randomBytes } from "node:crypto";
 import { AUTH_REPOSITORY, type AuthRepository } from "../domain/ports/auth-repository.port.js";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../notifications/domain/ports/email-sender.port.js";
 import { normalizeEmail } from "../domain/validators.js";
+import { escapeEmailHtml } from "../../../shared/messaging/email-content.js";
 
 /**
  * Generates a time-limited password reset token, stores it, and sends
@@ -39,7 +40,8 @@ export class RequestPasswordResetUseCase {
   }
 
   private async sendResetEmail(email: string, token: string): Promise<void> {
-    const resetUrl = `${process.env.DASHBOARD_URL || "http://localhost:5175"}/reset-password?token=${token}`;
+    const resetUrl = new URL("/reset-password", process.env.DASHBOARD_PUBLIC_URL || process.env.DASHBOARD_URL || "https://app.zyon-payments.com.br");
+    resetUrl.searchParams.set("token", token);
     const fromEmail = process.env.RESEND_NOREPLY_EMAIL || process.env.RESEND_FROM_EMAIL || "noreply@zyon-payments.com.br";
     const year = new Date().getFullYear();
 
@@ -77,7 +79,7 @@ export class RequestPasswordResetUseCase {
 
               <!-- CTA Button -->
               <div style="text-align: center; margin: 32px 0;">
-                <a href="${resetUrl}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; letter-spacing: 0.2px;">Redefinir Minha Senha</a>
+                <a href="${escapeEmailHtml(resetUrl.toString())}" style="display: inline-block; background-color: #4f46e5; color: #ffffff; padding: 14px 40px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; letter-spacing: 0.2px;">Redefinir minha senha</a>
               </div>
 
               <!-- Security notice -->

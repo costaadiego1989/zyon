@@ -9,10 +9,10 @@ import {
   merchantTransactionFeeCentsFor,
 } from "./billing-plans.js";
 
-test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$599", () => {
+test("BILLING_PLANS matches Free R$1,99 after trial, Growth R$449 and Scale R$749", () => {
   // Starter
   assert.equal(BILLING_PLANS.starter.monthlyPriceBrl, 0);
-  assert.equal(BILLING_PLANS.starter.transactionFeeCents, 299);
+  assert.equal(BILLING_PLANS.starter.transactionFeeCents, 199);
   assert.equal(BILLING_PLANS.starter.limits.ordersPerMonth, 100);
   assert.equal(BILLING_PLANS.starter.limits.webhookEndpoints, null);
   assert.equal(BILLING_PLANS.starter.limits.crossSellPromotions, 1);
@@ -28,7 +28,7 @@ test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$59
 
   // Growth
   assert.equal(BILLING_PLANS.growth.limits.ordersPerMonth, 500);
-  assert.equal(BILLING_PLANS.growth.monthlyPriceBrl, 349);
+  assert.equal(BILLING_PLANS.growth.monthlyPriceBrl, 449);
   assert.equal(BILLING_PLANS.growth.transactionFeeCents, 149);
   assert.equal(BILLING_PLANS.growth.limits.commerceConnections, 2);
   assert.equal(BILLING_PLANS.growth.features.whiteLabel, true); // paga = remove badge
@@ -37,7 +37,7 @@ test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$59
   assert.equal(BILLING_PLANS.growth.features.abTests, false);
 
   // Scale
-  assert.equal(BILLING_PLANS.scale.monthlyPriceBrl, 599);
+  assert.equal(BILLING_PLANS.scale.monthlyPriceBrl, 749);
   assert.equal(BILLING_PLANS.scale.transactionFeeCents, 99);
   assert.equal(BILLING_PLANS.scale.limits.ordersPerMonth, null);
   assert.equal(BILLING_PLANS.scale.features.whiteLabel, true);
@@ -46,18 +46,19 @@ test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$59
   assert.equal(BILLING_PLANS.scale.features.marketplace, true);
   assert.equal(BILLING_PLANS.scale.features.intentMemory, true);
   assert.equal(BILLING_PLANS.scale.features.revenueLift, true);
+  assert.equal(BILLING_PLANS.scale.features.voiceCheckout, true);
 });
 
 test("legacy Stripe prices keep the same entitlement during a price migration", () => {
-  const current = { growth: "price_growth_349", scale: "price_scale_599" };
+  const current = { growth: "price_growth_449", scale: "price_scale_749" };
   const legacy = { growth: " price_growth_249, price_growth_199 " };
   assert.equal(planFromPriceId("price_growth_249", current, legacy), "growth");
   assert.equal(planFromPriceId("price_growth_199", current, legacy), "growth");
-  assert.equal(planFromPriceId("price_growth_349", current, legacy), "growth");
-  assert.equal(planFromPriceId("price_scale_599", current, legacy), "scale");
+  assert.equal(planFromPriceId("price_growth_449", current, legacy), "growth");
+  assert.equal(planFromPriceId("price_scale_749", current, legacy), "scale");
   assert.equal(planFromPriceId("price_unknown", current, legacy), undefined);
   assert.equal(planFromPriceId(undefined, current, legacy), undefined);
-  assert.equal(planFromPriceId("price_scale_599", current, { growth: "price_scale_599" }), "scale");
+  assert.equal(planFromPriceId("price_scale_749", current, { growth: "price_scale_749" }), "scale");
 });
 
 test("buyer service fee é fixo, independe do plano", () => {
@@ -77,7 +78,7 @@ test("trial usa Free sem taxa de transação do lojista", () => {
 test("expired or inactive subscriptions fall back to Starter", () => {
   assert.equal(effectiveBillingPlan({ status: "cancelled", stripePriceId: undefined }), "starter");
   assert.equal(effectiveBillingPlan({ status: "trialing", trialEndsAt: "2020-01-01T00:00:00.000Z", stripePriceId: undefined }), "starter");
-  assert.equal(merchantTransactionFeeCentsFor({ status: "cancelled", stripePriceId: undefined }), 299);
+  assert.equal(merchantTransactionFeeCentsFor({ status: "cancelled", stripePriceId: undefined }), 199);
 });
 
 test("custom domain entitlement requires an active Growth or Scale subscription", () => {

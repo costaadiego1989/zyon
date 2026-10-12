@@ -9,11 +9,9 @@ const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverif
 /**
  * Cloudflare Turnstile siteverify adapter.
  *
- * Required env: TURNSTILE_SECRET_KEY. When unset the adapter is in DISABLED
- * mode — `verify` returns `{ success: false, reason: "not-configured" }` so
- * the caller can decide whether to allow or block the request. The auth
- * controller treats "not-configured" as "captcha not required" (skips) when
- * the front-end also has no site key (paired behaviour for local dev).
+ * Required env: TURNSTILE_SECRET_KEY. The use case rejects missing configuration
+ * in production. Siteverify validates expiry and single use; expected action and
+ * optional TURNSTILE_ALLOWED_HOSTNAMES bind tokens to their intended form/site.
  *
  * Reference: https://developers.cloudflare.com/turnstile/get-started/server-side-validation/
  */
@@ -21,20 +19,15 @@ const SITEVERIFY_URL = "https://challenges.cloudflare.com/turnstile/v0/siteverif
 export class CloudflareTurnstileAdapter implements CaptchaVerifier {
   private readonly logger = new Logger(CloudflareTurnstileAdapter.name);
 
-  async verify(input: { token: string; remoteIp?: string }): Promise<CaptchaVerificationResult> {
-    const secret = process.env.TURNSTILE_SECRET_KEY;
+  async verify(input: { token: string; remoteIp?: string; action?: string }): Promise<CaptchaVerificationResult> {
+    const secret = process.env.TURNSTILE_SECRET_KEY?.trim();
     if (!secret) {
       return { success: false, reason: "not-configured" };
     }
-    const isProd = process.env.NODE_ENV === "production";
-    if (!input.token) {
-      // Outside production, allow missing token (paired with frontend env-based
-      // captcha gate). In production the token is required.
-      if (!isProd) {
-        return { success: false, reason: "not-configured" };
-      }
+    if (typeof input.token !== "string" || !input.token.trim()) {
       return { success: false, reason: "missing-token" };
     }
+    if (input.token.length > 2048) return { success: false, reason: "invalid-token" };
 
     try {
       const body = new URLSearchParams();
@@ -66,6 +59,7 @@ export class CloudflareTurnstileAdapter implements CaptchaVerifier {
         "error-codes"?: string[];
         action?: string;
         cdata?: string;
+        hostname?: string;
       };
 
       if (data.success !== true) {
@@ -75,6 +69,14 @@ export class CloudflareTurnstileAdapter implements CaptchaVerifier {
         return { success: false, reason: "verification-failed" };
       }
 
+      if (input.action && data.action !== input.action) {
+        return { success: false, reason: "action-mismatch" };
+      }
+      const hostnames = (process.env.TURNSTILE_ALLOWED_HOSTNAMES ?? "")
+        .split(",").map(host => host.trim().toLowerCase()).filter(Boolean);
+      if (hostnames.length && !hostnames.includes(data.hostname?.toLowerCase() ?? "")) {
+        return { success: false, reason: "hostname-mismatch" };
+      }
       return { success: true };
     } catch (err) {
       this.logger.error(`Turnstile verification error: ${(err as Error).message}`);

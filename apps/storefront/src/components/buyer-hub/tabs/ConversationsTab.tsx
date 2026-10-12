@@ -1,12 +1,17 @@
 "use client";
 
-import { useState, useCallback, useId, useEffect } from "react";
+import { useState, useCallback, useId } from "react";
 import { FiMessageSquare, FiThumbsUp, FiThumbsDown, FiChevronRight } from "react-icons/fi";
 import type { BuyerConversation, ConversationMessage } from "@/lib/viewmodels/useBuyerHub";
 
 export interface ConversationsTabProps {
   conversations: BuyerConversation[];
   loading: boolean;
+  error?: string | null;
+  merchantId?: string;
+  currentSessionId?: string | null;
+  onRetry?: () => void;
+  onResume?: (conversation: BuyerConversation) => Promise<void>;
   onRate: (conversationId: string, messageId: string, rating: "up" | "down") => Promise<void>;
 }
 
@@ -36,67 +41,12 @@ function truncate(text: string, max = 60): string {
   return `${t.slice(0, max - 1).trimEnd()}…`;
 }
 
-function lastAssistantOrUserPreview(msgs: ConversationMessage[]): string {
-  if (!msgs || msgs.length === 0) return "";
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].role === "assistant" || msgs[i].role === "agent") {
-      return msgs[i].content;
-    }
-  }
-  for (let i = msgs.length - 1; i >= 0; i--) {
-    if (msgs[i].role === "user") {
-      return msgs[i].content;
-    }
-  }
-  return msgs[msgs.length - 1].content;
-}
-
 function isAssistant(role: ConversationMessage["role"]): boolean {
   return role === "assistant" || role === "agent";
 }
 
-const SUPPORT_MESSAGES_KEY = "zyon_support_messages";
-const SUPPORT_TICKET_KEY = "zyon_support_ticket";
-
-interface SupportState {
-  hasMessages: boolean;
-  messageCount: number;
-  closed: boolean;
-}
-
-function readSupportState(): SupportState | null {
-  if (typeof window === "undefined") return null;
-  try {
-    const raw = window.sessionStorage.getItem(SUPPORT_MESSAGES_KEY);
-    if (!raw) return null;
-    let messageCount = 0;
-    try {
-      const parsed = JSON.parse(raw);
-      messageCount = Array.isArray(parsed) ? parsed.length : 0;
-    } catch {
-      messageCount = 0;
-    }
-    if (messageCount === 0) return null;
-
-    let closed = false;
-    const ticketRaw = window.sessionStorage.getItem(SUPPORT_TICKET_KEY);
-    if (ticketRaw) {
-      try {
-        const ticket = JSON.parse(ticketRaw);
-        const status = String(ticket?.status ?? "").toLowerCase();
-        closed = status === "closed" || status === "resolved" || status === "fechado";
-      } catch {
-        closed = false;
-      }
-    }
-    return { hasMessages: true, messageCount, closed };
-  } catch {
-    return null;
-  }
-}
-
 function RoleBadge({ role }: { role: ConversationMessage["role"] }) {
-  const isUser = role === "user";
+  const isUser = role === "user" || role === "buyer";
   const isAsst = isAssistant(role);
   const bg = isUser ? "var(--aacp-accent)" : isAsst ? "var(--aacp-success)" : "var(--aacp-surface-3)";
   const fg = isUser ? "var(--aacp-panel-bg)" : isAsst ? "var(--aacp-panel-bg)" : "var(--aacp-fg)";
@@ -274,318 +224,80 @@ function MessageBubble({
   );
 }
 
-function ConversationCard({
-  conv,
-  onRate,
-}: {
+function ConversationRow({ conv, current, onRate, onResume }: {
   conv: BuyerConversation;
+  current: boolean;
   onRate: ConversationsTabProps["onRate"];
+  onResume: ConversationsTabProps["onResume"];
 }) {
   const [expanded, setExpanded] = useState(false);
-  const baseId = useId();
-  const panelId = `${baseId}-panel`;
-  const buttonId = `${baseId}-button`;
-  const preview = truncate(lastAssistantOrUserPreview(conv.messages || []), 60);
-  const msgCount = conv.messages?.length ?? 0;
-
-  const cardStyle: React.CSSProperties = {
-    background: "var(--aacp-card)",
-    border: "1px solid var(--aacp-line)",
-    borderRadius: 12,
-    overflow: "hidden",
+  const [resuming, setResuming] = useState(false);
+  const [resumeError, setResumeError] = useState<string | null>(null);
+  const panelId = useId();
+  const title = truncate(conv.messages.find((message) => message.role === "buyer" || message.role === "user")?.content || `Conversa com ${conv.merchant_name || "a loja"}`, 80);
+  const finished = conv.status === "completed" || conv.status === "expired";
+  const ongoing = !finished && (conv.status === "in_progress" || current);
+  const canResume = current && !finished && Boolean(onResume);
+  const badge = finished ? "Finalizada" : ongoing ? "Em andamento" : "Histórico";
+  const count = conv.messages.length;
+  const resume = async () => {
+    if (!onResume || resuming) return;
+    setResuming(true);
+    setResumeError(null);
+    try { await onResume(conv); }
+    catch { setResumeError("Não foi possível retomar esta conversa. Atualize a lista e tente novamente."); }
+    finally { setResuming(false); }
   };
-
-  const headerStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    justifyContent: "space-between",
-    gap: 12,
-    padding: "12px 14px",
-    width: "100%",
-    background: "transparent",
-    border: "none",
-    color: "var(--aacp-fg)",
-    textAlign: "left",
-    cursor: "pointer",
-    font: "inherit",
-  };
-
-  const metaRowStyle: React.CSSProperties = {
-    display: "flex",
-    alignItems: "center",
-    gap: 8,
-    marginTop: 4,
-    fontSize: 12,
-    color: "var(--aacp-muted)",
-  };
-
-  const previewStyle: React.CSSProperties = {
-    margin: "6px 0 0 0",
-    fontSize: 13,
-    color: "var(--aacp-muted)",
-    lineHeight: 1.4,
-  };
-
-  const panelStyle: React.CSSProperties = {
-    padding: expanded ? "0 14px 14px 14px" : "0 14px",
-    maxHeight: expanded ? "1200px" : "0",
-    overflow: "hidden",
-    transition: "max-height 220ms ease, padding 220ms ease",
-    borderTop: expanded ? "1px solid var(--aacp-line)" : "1px solid transparent",
-  };
-
-  const listStyle: React.CSSProperties = {
-    listStyle: "none",
-    margin: "12px 0 0 0",
-    padding: 0,
-    display: "flex",
-    flexDirection: "column",
-    gap: 10,
-  };
-
-  return (
-    <li style={cardStyle} aria-label={`Conversa com ${conv.merchant_id}`}>
-      <button data-neu="control"
-        id={buttonId}
-        type="button"
-        aria-expanded={expanded}
-        aria-controls={panelId}
-        onClick={() => setExpanded((v) => !v)}
-        style={headerStyle}
-      >
-        <div style={{ flex: 1, minWidth: 0 }}>
-          <div
-            style={{
-              fontSize: 14,
-              fontWeight: 600,
-              color: "var(--aacp-fg)",
-              overflow: "hidden",
-              textOverflow: "ellipsis",
-              whiteSpace: "nowrap",
-            }}
-            title={conv.merchant_id}
-          >
-            {conv.merchant_id}
-          </div>
-          <div style={metaRowStyle}>
-            <span>Iniciada em {formatDate(conv.started_at)}</span>
-            <span aria-hidden="true">·</span>
-            <span>
-              {msgCount} {msgCount === 1 ? "mensagem" : "mensagens"}
-            </span>
-          </div>
-          {preview ? <p style={previewStyle}>{preview}</p> : null}
-        </div>
-        <FiChevronRight
-          size={16}
-          aria-hidden="true"
-          style={{
-            transform: expanded ? "rotate(90deg)" : "rotate(0deg)",
-            transition: "transform 150ms ease",
-            flexShrink: 0,
-          }}
-        />
+  return <li className="buyer-conversation-row" aria-label={title}>
+    <div style={{ display: "flex", alignItems: "flex-start", justifyContent: "space-between", gap: 12 }}>
+      <h3 style={{ margin: 0, minWidth: 0, fontSize: 14, fontWeight: 600, lineHeight: 1.5, overflowWrap: "anywhere" }}>{title}</h3>
+      <span style={{ flexShrink: 0, padding: "3px 7px", borderRadius: 5, fontSize: 11, lineHeight: 1.5,
+        color: ongoing ? "var(--aacp-accent-text, var(--aacp-fg))" : "var(--aacp-muted)",
+        background: ongoing ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--aacp-surface-2)" }}>{badge}</span>
+    </div>
+    <p style={{ margin: "6px 0 0", fontSize: 12, lineHeight: 1.6, color: "var(--aacp-muted)" }}>
+      {conv.merchant_name || "Loja"} · {formatDate(conv.last_message_at || conv.started_at)} · {count} {count === 1 ? "mensagem" : "mensagens"}
+      {current && !finished ? " · Conversa atual" : ""}
+    </p>
+    <div style={{ display: "flex", gap: 12, alignItems: "center", flexWrap: "wrap", marginTop: 6 }}>
+      {canResume && <button type="button" className="buyer-conversation-action" onClick={resume} disabled={resuming}>
+        {resuming ? "Abrindo conversa…" : "Continuar conversa"}<FiChevronRight aria-hidden="true" size={14} />
+      </button>}
+      <button type="button" className="buyer-conversation-action" aria-expanded={expanded} aria-controls={panelId} onClick={() => setExpanded(!expanded)}>
+        {expanded ? "Ocultar mensagens" : "Ver mensagens"}
       </button>
-      <div
-        id={panelId}
-        role="region"
-        aria-labelledby={buttonId}
-        style={panelStyle}
-      >
-        {msgCount > 0 ? (
-          <ul style={listStyle}>
-            {conv.messages.map((m) => (
-              <MessageBubble
-                key={m.id}
-                msg={m}
-                conversationId={conv.id}
-                onRate={onRate}
-              />
-            ))}
-          </ul>
-        ) : (
-          <p
-            style={{
-              margin: "12px 0 0 0",
-              fontSize: 13,
-              color: "var(--aacp-muted)",
-            }}
-          >
-            Sem mensagens nesta conversa.
-          </p>
-        )}
-      </div>
-    </li>
-  );
+    </div>
+    {resumeError && <p role="alert" style={{ fontSize: 13, margin: "8px 0 0", color: "var(--aacp-muted)" }}>{resumeError}</p>}
+    {expanded && <div id={panelId} role="region" aria-label={`Mensagens de ${title}`} style={{ paddingTop: 10 }}>
+      {finished && <p style={{ margin: "0 0 12px", fontSize: 12, color: "var(--aacp-muted)" }}>
+        {conv.status === "completed" ? "A compra desta conversa foi encerrada. As mensagens continuam disponíveis para consulta." : "Esta sessão expirou. As mensagens continuam disponíveis para consulta."}
+      </p>}
+      {count ? <ul style={{ listStyle: "none", padding: 0, margin: 0, display: "flex", flexDirection: "column", gap: 8 }}>
+        {conv.messages.map((message) => <MessageBubble key={message.id} msg={message} conversationId={conv.id} onRate={onRate} />)}
+      </ul> : <p style={{ color: "var(--aacp-muted)", fontSize: 13 }}>Sem mensagens nesta conversa.</p>}
+    </div>}
+  </li>;
 }
 
-function SupportTicketCard({ support }: { support: SupportState }) {
-  const reopen = useCallback(() => {
-    if (typeof window === "undefined") return;
-    window.dispatchEvent(new CustomEvent("zyon:open-support"));
-  }, []);
-
-  const closed = support.closed;
-
-  return (
-    <li
-      aria-label={closed ? "Suporte — Fechado" : "Suporte ativo"}
-      style={{
-        display: "flex",
-        alignItems: "center",
-        gap: 12,
-        padding: "12px 14px",
-        borderRadius: 12,
-        border: "1px solid var(--aacp-line)",
-        background: closed ? "var(--aacp-surface-3)" : "var(--aacp-card)",
-        opacity: closed ? 0.7 : 1,
-      }}
-    >
-      <div
-        aria-hidden="true"
-        style={{
-          display: "flex",
-          alignItems: "center",
-          justifyContent: "center",
-          width: 36,
-          height: 36,
-          borderRadius: "50%",
-          background: closed ? "var(--aacp-surface-2)" : "color-mix(in srgb, var(--aacp-accent) 14%, transparent)",
-          color: closed ? "var(--aacp-muted)" : "var(--aacp-accent-text, var(--aacp-accent))",
-          flexShrink: 0,
-        }}
-      >
-        <FiMessageSquare size={18} />
-      </div>
-      <div style={{ flex: 1, minWidth: 0 }}>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--aacp-fg)" }}>
-          {closed ? "Suporte — Fechado" : "Suporte ativo"}
-        </div>
-        <div style={{ fontSize: 12, color: "var(--aacp-muted)", marginTop: 2 }}>
-          {support.messageCount} {support.messageCount === 1 ? "mensagem" : "mensagens"}
-        </div>
-      </div>
-      {!closed && (
-        <button data-neu="primary"
-          type="button"
-          onClick={reopen}
-          aria-label="Reabrir suporte"
-          style={{
-            padding: "8px 14px",
-            borderRadius: 8,
-            border: "1px solid var(--aacp-accent)",
-            background: "var(--aacp-accent)",
-            color: "var(--aacp-panel-bg)",
-            fontSize: 12,
-            fontWeight: 600,
-            cursor: "pointer",
-            flexShrink: 0,
-          }}
-        >
-          Reabrir
-        </button>
-      )}
-    </li>
-  );
-}
-
-export default function ConversationsTab({
-  conversations,
-  loading,
-  onRate,
-}: ConversationsTabProps) {
-  const [support, setSupport] = useState<SupportState | null>(null);
-
-  useEffect(() => {
-    setSupport(readSupportState());
-    const onStorage = () => setSupport(readSupportState());
-    window.addEventListener("storage", onStorage);
-    return () => window.removeEventListener("storage", onStorage);
-  }, []);
-
-  if (loading) {
-    return (
-      <div
-        role="status"
-        aria-live="polite"
-        aria-busy="true"
-        style={{
-          padding: 24,
-          color: "var(--aacp-muted)",
-          fontSize: 14,
-          textAlign: "center",
-        }}
-      >
-        Carregando conversas…
-      </div>
-    );
-  }
-
-  const hasConversations = Boolean(conversations && conversations.length > 0);
-
-  if (!hasConversations && !support) {
-    return (
-      <div
-        role="status"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: 12,
-          padding: "48px 16px",
-          textAlign: "center",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: 56,
-            height: 56,
-            borderRadius: "50%",
-            background: "var(--aacp-surface-3)",
-            color: "var(--aacp-muted)",
-          }}
-        >
-          <FiMessageSquare size={26} />
-        </div>
-        <div style={{ fontSize: 14, fontWeight: 600, color: "var(--aacp-fg)" }}>
-          Nenhuma conversa
-        </div>
-        <div style={{ fontSize: 12, color: "var(--aacp-muted)", maxWidth: 260 }}>
-          Suas conversas com a assistente e tickets de suporte aparecerão aqui.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <section
-      aria-label="Histórico de conversas"
-      style={{
-        display: "flex",
-        flexDirection: "column",
-        gap: 12,
-      }}
-    >
-      <ul
-        style={{
-          listStyle: "none",
-          margin: 0,
-          padding: 0,
-          display: "flex",
-          flexDirection: "column",
-          gap: 12,
-        }}
-      >
-        {support && <SupportTicketCard support={support} />}
-        {conversations.map((c) => (
-          <ConversationCard key={c.id} conv={c} onRate={onRate} />
-        ))}
-      </ul>
-    </section>
-  );
+export default function ConversationsTab({ conversations, loading, error, merchantId, currentSessionId, onRate, onRetry, onResume }: ConversationsTabProps) {
+  const scoped = merchantId ? conversations.filter((conversation) => conversation.merchant_id === merchantId) : conversations;
+  const ordered = [...scoped].sort((a, b) => Number(b.session_id === currentSessionId) - Number(a.session_id === currentSessionId));
+  return <section aria-label="Histórico de conversas">
+    <style>{`
+      .buyer-conversation-row { padding:16px 0; border-bottom:1px solid var(--aacp-line); color:var(--aacp-fg) }
+      .buyer-conversation-action { display:inline-flex; gap:5px; align-items:center; min-height:44px; padding:4px 0 !important; border:0 !important; border-radius:4px !important; box-shadow:none !important; background:transparent !important; color:var(--aacp-fg); font:inherit; font-size:13px; font-weight:600; cursor:pointer }
+      .buyer-conversation-action:focus-visible { outline:2px solid var(--aacp-accent); outline-offset:3px }
+      .buyer-conversation-action:disabled { opacity:.6; cursor:wait }
+      .buyer-conversation-action:hover:not(:disabled) { text-decoration:underline }
+    `}</style>
+    <p style={{ margin: "0 0 4px", fontSize: 13, lineHeight: 1.5, color: "var(--aacp-muted)" }}>Consulte suas mensagens ou continue a conversa atual.</p>
+    {loading ? <p role="status" aria-live="polite" style={{ padding: "20px 0", color: "var(--aacp-muted)" }}>Carregando conversas…</p>
+      : error ? <div role="alert"><p>{error}</p><button type="button" className="buyer-conversation-action" onClick={onRetry}>Tentar novamente</button></div>
+      : ordered.length ? <ul style={{ listStyle: "none", margin: 0, padding: 0 }}>
+        {ordered.map((conv) => <ConversationRow key={conv.id} conv={conv} current={Boolean(currentSessionId && conv.session_id === currentSessionId && conv.merchant_id === merchantId)} onRate={onRate} onResume={onResume} />)}
+      </ul> : <div role="status" style={{ padding: "32px 0", color: "var(--aacp-muted)", fontSize: 14 }}>
+        <FiMessageSquare size={24} aria-hidden="true" /><p style={{ color: "var(--aacp-fg)", fontWeight: 600 }}>Nenhuma conversa salva</p>
+        <p>Suas conversas com a assistente nesta loja aparecerão aqui.</p>
+      </div>}
+  </section>;
 }

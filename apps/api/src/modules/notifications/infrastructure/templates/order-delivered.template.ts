@@ -1,7 +1,7 @@
 import { OrderDeliveredEvent } from "../../domain/events/notification.events.js";
+import { escapeEmailHtml } from "../../../../shared/messaging/email-content.js";
 
 export function renderOrderDeliveredTemplate(event: OrderDeliveredEvent): string {
-  const baseUrl = process.env.STOREFRONT_URL || "https://app.zyon.com.br";
   const brandColor = "#10b981";
   const year = new Date().getFullYear();
 
@@ -31,10 +31,10 @@ export function renderOrderDeliveredTemplate(event: OrderDeliveredEvent): string
           <tr>
             <td style="padding: 32px 32px 0;">
               <p style="margin: 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
-                Olá${event.buyerName ? ` <strong>${event.buyerName}</strong>` : ""},
+                Olá${event.buyerName ? ` <strong>${escapeEmailHtml(event.buyerName)}</strong>` : ""},
               </p>
               <p style="margin: 8px 0 0; color: #4b5563; font-size: 14px; line-height: 1.6;">
-                Seu pedido foi entregue com sucesso! Esperamos que esteja tudo perfeito. Caso tenha algum problema, entre em contato conosco.
+                A entrega do pedido <strong>#${escapeEmailHtml(event.orderId)}</strong> foi registrada. Se você não recebeu o pedido ou precisa de ajuda, use o atendimento disponível na loja.
               </p>
             </td>
           </tr>
@@ -46,7 +46,7 @@ export function renderOrderDeliveredTemplate(event: OrderDeliveredEvent): string
                 <tr>
                   <td style="padding: 20px 24px; text-align: center;">
                     <p style="margin: 0 0 8px; color: #065f46; font-size: 15px; font-weight: 600;">Sua compra foi concluída!</p>
-                    <p style="margin: 0; color: #047857; font-size: 13px;">Gostou da experiência? Nos avalie para ajudar outros compradores.</p>
+                    <p style="margin: 0; color: #047857; font-size: 13px;">Obrigado pela compra. Sua opinião ajuda a melhorar a experiência na loja.</p>
                   </td>
                 </tr>
               </table>
@@ -78,8 +78,7 @@ export function renderOrderDeliveredTemplate(event: OrderDeliveredEvent): string
           <!-- CTA Buttons -->
           <tr>
             <td style="padding: 0 32px 32px; text-align: center;">
-              <a href="${baseUrl}/orders/${event.orderId}/review" style="display: inline-block; background-color: ${brandColor}; color: #ffffff; padding: 14px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; margin-right: 8px;">⭐ Avaliar Compra</a>
-              <a href="${baseUrl}/orders/${event.orderId}" style="display: inline-block; background-color: #f3f4f6; color: #374151; padding: 14px 28px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none;">Ver Pedido</a>
+              <p style="margin:0;color:#4b5563;font-size:14px;line-height:1.6;">Para consultar o pedido, volte à loja e abra sua área de compras.</p>
             </td>
           </tr>
 
@@ -87,7 +86,7 @@ export function renderOrderDeliveredTemplate(event: OrderDeliveredEvent): string
           <tr>
             <td style="padding: 24px 32px; background: #f9fafb; border-top: 1px solid #f3f4f6; text-align: center;">
               <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.5;">Este é um e-mail automático. Não responda.</p>
-              <p style="margin: 6px 0 0; color: #9ca3af; font-size: 12px;">© ${year} • Powered by Zyon</p>
+              <p style="margin: 6px 0 0; color: #9ca3af; font-size: 12px;">© ${year} · Enviado pela Zyon</p>
             </td>
           </tr>
         </table>

@@ -1,5 +1,52 @@
 (function () {
   "use strict";
+  var language = document.documentElement.lang.toLowerCase().slice(0, 2);
+  var copy = {
+    pt: {
+      demoReady: "Athom conectada",
+      demoError: "Conexão indisponível",
+      demoLoading: "Conectando à loja",
+      marginAllowed: "Condição permitida: margem de {margin}%, respeitando o mínimo de 25%.",
+      marginBlocked: "Condição bloqueada: margem de {margin}%, abaixo do mínimo de 25%.",
+      decisionSteps: [
+        ["“Gostei. Tem alguma condição melhor?”", "O motor identifica uma objeção de preço e considera o produto e o carrinho antes de propor uma condição.", "“"],
+        ["A condição passa pelas regras da loja.", "Desconto máximo, margem mínima, estoque e frete são verificados. Uma sugestão da IA só vira oferta quando os limites permitem.", "✓"],
+        ["Uma proposta com o próximo passo claro.", "Com a condição validada, a Zyon apresenta a oferta e conduz o cliente ao checkout. Se não houver margem, explica as opções disponíveis.", "↗"]
+      ]
+    },
+    es: {
+      demoReady: "Athom conectada",
+      demoError: "Conexión no disponible",
+      demoLoading: "Conectando la tienda",
+      marginAllowed: "Condición permitida: margen de {margin}%, por encima del mínimo de 25%.",
+      marginBlocked: "Condición bloqueada: margen de {margin}%, por debajo del mínimo de 25%.",
+      decisionSteps: [
+        ["“Me gusta. ¿Hay alguna condición mejor?”", "El motor identifica una objeción de precio y considera el producto y el carrito antes de proponer una condición.", "“"],
+        ["La condición pasa por las reglas de la tienda.", "Se verifican el descuento máximo, el margen mínimo, el inventario y el envío. Una sugerencia de IA solo se convierte en oferta cuando los límites lo permiten.", "✓"],
+        ["Una propuesta con un siguiente paso claro.", "Con la condición validada, Zyon presenta la oferta y guía al cliente al checkout. Si no hay margen, explica las opciones disponibles.", "↗"]
+      ]
+    },
+    en: {
+      demoReady: "Athom connected",
+      demoError: "Connection unavailable",
+      demoLoading: "Connecting the store",
+      marginAllowed: "Condition allowed: {margin}% margin, above the 25% minimum.",
+      marginBlocked: "Condition blocked: {margin}% margin, below the 25% minimum.",
+      decisionSteps: [
+        ["“I like it. Is there a better offer?”", "The engine identifies a price objection and considers the product and cart before proposing a condition.", "“"],
+        ["The condition passes through the store rules.", "Maximum discount, minimum margin, inventory, and shipping are checked. An AI suggestion only becomes an offer when the limits allow it.", "✓"],
+        ["A proposal with a clear next step.", "With the condition validated, Zyon presents the offer and guides the customer to checkout. If there is no margin, it explains the available options.", "↗"]
+      ]
+    }
+  }[language] || null;
+  if (!copy) copy = {
+    demoReady: "Athom conectada",
+    demoError: "Conexão indisponível",
+    demoLoading: "Conectando à loja",
+    marginAllowed: "Condição permitida: margem de {margin}%, respeitando o mínimo de 25%.",
+    marginBlocked: "Condição bloqueada: margem de {margin}%, abaixo do mínimo de 25%.",
+    decisionSteps: []
+  };
   var year = document.getElementById("year");
   if (year) year.textContent = String(new Date().getFullYear());
 
@@ -39,6 +86,31 @@
     window.matchMedia("(min-width: 1051px)").addEventListener("change", function () { closeMenu(false); });
   }
 
+  var languagePicker = document.querySelector(".language-picker");
+  var languageTrigger = languagePicker && languagePicker.querySelector(".language-picker__trigger");
+  var languageMenu = languagePicker && languagePicker.querySelector(".language-picker__menu");
+  if (languagePicker && languageTrigger && languageMenu) {
+    function closeLanguagePicker(restoreFocus) {
+      languageTrigger.setAttribute("aria-expanded", "false");
+      languageMenu.hidden = true;
+      if (restoreFocus) languageTrigger.focus();
+    }
+    languageTrigger.addEventListener("click", function () {
+      var isOpen = languageTrigger.getAttribute("aria-expanded") === "true";
+      languageTrigger.setAttribute("aria-expanded", String(!isOpen));
+      languageMenu.hidden = isOpen;
+    });
+    document.addEventListener("keydown", function (event) {
+      if (event.key === "Escape" && !languageMenu.hidden) closeLanguagePicker(true);
+    });
+    document.addEventListener("click", function (event) {
+      if (!languagePicker.contains(event.target) && !languageMenu.hidden) closeLanguagePicker(false);
+    });
+    languagePicker.addEventListener("focusout", function (event) {
+      if (!languagePicker.contains(event.relatedTarget)) closeLanguagePicker(false);
+    });
+  }
+
   // Instalar o listener antes de navegar evita perder o handshake de uma página em cache.
   var frame = document.getElementById("demo-store");
   var state = document.getElementById("demo-state");
@@ -55,7 +127,7 @@
       container.dataset.ready = String(status === "ready");
       container.setAttribute("aria-busy", String(status === "loading"));
       state.dataset.status = status;
-      state.querySelector("span").textContent = status === "ready" ? "Athom conectada" : status === "error" ? "Conexão indisponível" : "Conectando à loja";
+      state.querySelector("span").textContent = status === "ready" ? copy.demoReady : status === "error" ? copy.demoError : copy.demoLoading;
       fallback.dataset.visible = String(status === "error");
       frame.tabIndex = status === "ready" ? 0 : -1;
       if (status !== "loading") clearTimeout(timer);
@@ -85,11 +157,7 @@
     connectDemo();
   }
 
-  var steps = [
-    ["“Gostei. Tem alguma condição melhor?”", "O motor identifica uma objeção de preço e considera o produto e o carrinho antes de propor uma condição.", "“"],
-    ["A condição passa pelas regras da loja.", "Desconto máximo, margem mínima, estoque e frete são verificados. Uma sugestão da IA só vira oferta quando os limites permitem.", "✓"],
-    ["Uma proposta com o próximo passo claro.", "Com a condição validada, a Zyon apresenta a oferta e conduz o cliente ao checkout. Se não houver margem, explica as opções disponíveis.", "↗"]
-  ];
+  var steps = copy.decisionSteps;
   var tabs = Array.from(document.querySelectorAll("[data-step]"));
   function selectStep(index, focus) {
     tabs.forEach(function (tab, i) { tab.setAttribute("aria-selected", String(i === index)); tab.tabIndex = i === index ? 0 : -1; });
@@ -121,9 +189,8 @@
     document.querySelector(".margin-discount").style.transform = "scaleX(" + value / 100 + ")";
     document.querySelector(".margin-profit").style.transform = "scaleX(" + (40 - value) / 100 + ")";
     discount.closest(".margin-demo").dataset.allowed = String(margin >= 25);
-    document.getElementById("margin-result").textContent = margin >= 25
-      ? "Condição permitida: margem de " + margin.toFixed(1).replace(".", ",") + "%, respeitando o mínimo de 25%."
-      : "Condição bloqueada: margem de " + margin.toFixed(1).replace(".", ",") + "%, abaixo do mínimo de 25%.";
+    var formattedMargin = margin.toFixed(1).replace(".", language === "en" ? "." : ",");
+    document.getElementById("margin-result").textContent = (margin >= 25 ? copy.marginAllowed : copy.marginBlocked).replace("{margin}", formattedMargin);
   });
 
   // As linhas acompanham a identidade da marca e pausam fora da tela.

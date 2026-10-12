@@ -122,4 +122,18 @@ describe("MerchantCouponsController", () => {
       { message: "coupon_not_found" }
     );
   });
+
+  it("a strategy code cannot be edited or archived independently of its approved execution", async () => {
+    const { controller, couponRepo, toggleUseCase } = setup();
+    const request = makeAuthRequest("mrc_auth");
+    const created = await controller.create(request, { code: "LINKED", discount_type: "percent",
+      discount_value: 5, starts_at: new Date().toISOString() } as never);
+    await couponRepo.save(CouponEntity.rehydrate({ ...created, strategy_incentive_execution_id: "execution-1" }));
+    await assert.rejects(controller.archive(request, created.id), /COUPON_MANAGED_BY_STRATEGY/);
+    for (const active of [false, true]) {
+      await assert.rejects(toggleUseCase.execute({ id: created.id, merchant_id: "mrc_auth", is_active: active }),
+        /COUPON_MANAGED_BY_STRATEGY/);
+    }
+    assert.equal((await couponRepo.findById(created.id, "mrc_auth"))?.status, "active");
+  });
 });

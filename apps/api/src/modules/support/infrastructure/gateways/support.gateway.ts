@@ -8,6 +8,7 @@ import { AuthCookieService } from "../../../auth/domain/services/auth-cookie.ser
 import { AUTH_REPOSITORY, type AuthRepository } from "../../../auth/domain/ports/auth-repository.port.js";
 import { SUPPORT_TICKET_REPOSITORY, type SupportTicketRepository } from "../../domain/ports/support-ticket-repository.port.js";
 import { SendTicketMessageUseCase } from "../../application/send-ticket-message.use-case.js";
+import { SupportRealtimePublisher } from "../../application/support-realtime.publisher.js";
 
 type Credential = { kind: "buyer" | "merchant"; token: string };
 interface Connection extends Credential {
@@ -31,7 +32,10 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
     @Inject(RealtimeCapabilityService) private readonly capabilities: RealtimeCapabilityService,
     @Inject(SUPPORT_TICKET_REPOSITORY) private readonly tickets: SupportTicketRepository,
     @Inject(AUTH_REPOSITORY) private readonly users: AuthRepository,
+    private readonly publisher: SupportRealtimePublisher,
   ) {}
+
+  afterInit(server: Server) { this.publisher.server = server; }
 
   async handleConnection(client: Socket) {
     try {
@@ -118,7 +122,6 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
       if (connection.rooms.size >= 32 && !connection.rooms.has(room)) return { success: false, error: "room_limit" };
       connection.rooms.add(room);
       await client.join(room);
-      if (principal.kind === "merchant") this.server.to(room).emit("agent_joined", { ticketId: ticket.id, agentName: "Atendente" });
       return { joined: room };
     } catch { return { success: false, error: "unauthorized" }; }
   }
@@ -136,7 +139,7 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
   }
 
   @SubscribeMessage("send_message")
-  async handleSendMessage(@ConnectedSocket() client: Socket, @MessageBody() data: { ticketId: string; merchantId?: string; content: string; senderName?: string }) {
+  async handleSendMessage(@ConnectedSocket() client: Socket, @MessageBody() data: { ticketId: string; merchantId?: string; content: string; senderName?: string; clientMessageId?: string }) {
     try {
       const principal = await this.authorize(client);
       if (data?.merchantId !== undefined && data.merchantId !== principal.merchantId) throw new Error("forbidden");
@@ -147,10 +150,8 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
       const ticket = await this.requireTicket(principal, data.ticketId);
       const message = await this.sendMessage.execute({
         ticketId: ticket.id, merchantId: principal.merchantId,
-        senderType: principal.kind, content: data.content.trim(),
+        senderType: principal.kind, content: data.content.trim(), clientMessageId: data.clientMessageId,
       });
-      const enriched = { ...message, senderName: principal.kind === "merchant" ? "Atendente" : undefined };
-      this.server.to(realtimeRoom("ticket", principal.merchantId, ticket.id)).emit("new_message", enriched);
       return { success: true, message };
     } catch {
       this.logger.debug("Support socket message rejected or failed");
@@ -177,7 +178,7 @@ export class SupportGateway implements OnGatewayConnection, OnGatewayDisconnect 
       toStoreName: string;
     },
   ) {
-    this.server.to(`merchant:${fromMerchantId}`).emit("ticket_transferred", payload);
-    this.server.to(`merchant:${toMerchantId}`).emit("ticket_transferred", payload);
+    this.server.to(realtimeRoom("merchant", fromMerchantId)).emit("ticket_transferred", payload);
+    this.server.to(realtimeRoom("merchant", toMerchantId)).emit("ticket_transferred", payload);
   }
 }

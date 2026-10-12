@@ -1,44 +1,36 @@
-# Zyon — Plataforma de E-commerce Agêntico e Checkout com IA
+# Zyon
 
-> Zyon é a infraestrutura completa de e-commerce agêntico (Agentic Commerce, Agentic Shop e Checkout Autônomo com IA) que transforma lojas virtuais em operações autônomas capazes de negociar, recomendar, atender e fechar vendas 24/7 sem intervenção manual.
+Zyon é uma plataforma de IA especialista em vendas para lojas virtuais.
 
-## O que é a Zyon?
+## O que a plataforma faz
 
-A Zyon combina inteligência artificial conversacional, checkout invisível/autônomo e motores determinísticos de decisão comercial (regras de margem, frete, cupons e estoque). Diferente de chatbots tradicionais ou gateways convencionais, a Zyon atua como um agente de vendas ativo e seguro.
+- Usa catálogo e informações da loja para responder dúvidas e recomendar produtos.
+- Conduz a jornada do cliente até o checkout, por texto e, nos planos elegíveis, por voz.
+- Aplica regras comerciais configuradas pela loja a preço, desconto, margem e frete antes de apresentar uma condição.
+- Mantém catálogo, pedidos, clientes e regras visíveis no dashboard.
 
-## Principais Capacidades
+## Posicionamento
 
-- **Agentic Commerce (E-commerce Agêntico)**: IA autônoma que interpreta intenção de compra, navega o catálogo dinâmico, tira dúvidas técnicas de produtos e conduz o comprador até o pagamento.
-- **Agentic Shop**: Vitrine viva e conversacional onde cada interação adapta o contexto, produtos recomendados e ofertas em tempo real.
-- **Checkout Autônomo & Machine-to-Machine (M2M)**: Negociação e finalização de compra diretamente na conversa ou via protocolo agêntico (ACP / Agentic Commerce Protocol), integrável a outros agentes de compra e assistentes pessoais.
-- **Motores Determinísticos de Proteção**:
-  - *Rules Engine*: Garante que a IA jamais conceda descontos acima da margem mínima ou fora das regras da loja.
-  - *Shipping Engine*: Subsídio inteligente e seguro de frete por faixa de CEP e ticket médio.
-  - *Conversation Engine*: Classificação de objeções (preço, confiança, prazo) e geração de respostas seguras validadas por guardrails.
-- **Integrações de Plataforma**: Compatível com Shopify, WooCommerce, Nuvemshop, Tray, VTEX e Magento, além de APIs headless e SDK storefront.
+Zyon descreve sua abordagem como e-commerce agêntico: uma IA de vendas que trabalha com contexto comercial e regras definidas pelo lojista. A IA não substitui as políticas comerciais da loja.
 
-## Arquitetura e Segurança
+## Idiomas
 
-- **LLM Safe Guards**: O modelo de linguagem gera mensagens e recomendações, mas NUNCA autoriza transações ou descontos sem a validação do motor determinístico.
-- **Isolamento Multitenant**: Separação estrita por `merchant_id` em cada consulta e transação.
-- **Proteção contra Alucinações**: Fallback determinístico caso qualquer mensagem gerada viole as políticas comerciais pré-estabelecidas.
+- Português do Brasil: https://www.zyon-payments.com.br/
+- Español: https://www.zyon-payments.com.br/es
+- English: https://www.zyon-payments.com.br/en
 
-## Planos e Modelos de Precificação
+## Páginas oficiais
 
-- **Starter / Free**: R$ 0/mês. Ideal para validar lojas em crescimento. Primeiros 14 dias sem taxa Zyon para novas lojas cadastradas.
-- **Growth**: Para operações em aceleração com suporte a voz, base de conhecimento expandida e regras comerciais avançadas.
-- **Scale**: Para marcas enterprise com alto volume, domínio customizado, testes A/B de conversão, Revenue Manager e suporte a protocolos agênticos M2M.
+- Site: https://www.zyon-payments.com.br/
+- Demonstração: https://storefront.zyon-payments.com.br/store/athom-technologies
+- Biblioteca: https://www.zyon-payments.com.br/recursos
+- IA para vendas e e-commerce agêntico: https://www.zyon-payments.com.br/ecommerce-agentico
+- Regras comerciais para atendimento com IA: https://www.zyon-payments.com.br/governanca-de-ia-no-ecommerce
+- Agentes de compra: https://www.zyon-payments.com.br/agentes-de-compra
+- Painel: https://app.zyon-payments.com.br/
+- Termos: https://www.zyon-payments.com.br/termos
+- Privacidade: https://www.zyon-payments.com.br/privacidade
 
-## Links Oficiais
+## Limites de afirmações
 
-- Site Oficial: https://www.zyon-payments.com.br/
-- Biblioteca Zyon: https://www.zyon-payments.com.br/recursos
-- Guia — E-commerce Agêntico: https://www.zyon-payments.com.br/ecommerce-agentico
-- Guia — Governança de IA no E-commerce: https://www.zyon-payments.com.br/governanca-de-ia-no-ecommerce
-- Guia — Agentes de Compra: https://www.zyon-payments.com.br/agentes-de-compra
-- Painel / Dashboard: https://app.zyon-payments.com.br/
-- Storefront Demo: https://storefront.zyon-payments.com.br/store/athom-technologies
-- Termos de Uso: https://www.zyon-payments.com.br/termos
-- Política de Privacidade: https://www.zyon-payments.com.br/privacidade
-- Exclusão de Dados: https://www.zyon-payments.com.br/exclusao-de-dados
-- Contato & Parcerias: contato@zyon-payments.com.br
+Não interpretar esta descrição como garantia de conversão, prazo de pagamento, disponibilidade de canal externo ou desconto automático. Recursos, integrações e condições comerciais dependem do plano, da configuração e da operação de cada loja.

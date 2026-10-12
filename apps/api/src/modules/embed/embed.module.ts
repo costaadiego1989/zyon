@@ -1,3 +1,4 @@
+import { UpdateMarketplaceCheckoutAddressService } from "./application/update-marketplace-checkout-address.service.js";
 import { Module } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
 import { AuthorizeStorefrontCartService } from "./application/authorize-storefront-cart.service.js";
@@ -32,6 +33,9 @@ import { InstallationsModule } from "../installations/installations.module.js";
 import { PrismaProtocolSessionRepository, PROTOCOL_SESSION_REPOSITORY } from "./infrastructure/protocol-session.repository.js";
 import { ProtocolWebhookPublisher } from "./infrastructure/protocol-webhook-publisher.js";
 import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-expiry-reaper.js";
+import { OpenAIRealtimeVoiceService } from "../../shared/openai/openai-realtime-voice.service.js";
+import { EmbedRealtimeVoiceController } from "./presentation/http/embed-realtime-voice.controller.js";
+import { ReopenEmbedCheckoutUseCase } from "./application/reopen-embed-checkout.use-case.js";
 
 @Module({
   imports: [
@@ -50,20 +54,24 @@ import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-e
   controllers: [
     EmbedSessionsController,
     EmbedCheckoutController,
+    EmbedRealtimeVoiceController,
     EmbedConsentController,
     ProtocolAgentController,
     WidgetCatalogController,
   ],
   providers: [
+    UpdateMarketplaceCheckoutAddressService,
     { provide: RealtimeCapabilityService, useFactory: () => new RealtimeCapabilityService() },
     AuthorizeStorefrontCartService,
     ResolveEmbedBuyerService,
+    OpenAIRealtimeVoiceService,
     { provide: BuyerJwtService, useFactory: () => new BuyerJwtService() },
     EmbedTokenService,
     AgentSessionTokenService,
     AgentCheckoutStateService,
     IssueEmbedSessionUseCase,
     UpdateEmbedCustomerUseCase,
+    ReopenEmbedCheckoutUseCase,
     StartProtocolSessionUseCase,
     TransitionProtocolStateUseCase,
     GetProtocolStateUseCase,
@@ -78,6 +86,8 @@ import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-e
     ProtocolSessionExpiryReaper,
   ],
   exports: [
+    IssueEmbedSessionUseCase,
+    ResolveEmbedBuyerService,
     EmbedTokenService,
     AgentSessionTokenService,
     EmbedAuthGuard,

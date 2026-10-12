@@ -5,6 +5,8 @@ export type StoreUiAction =
   | { kind: "tool"; tool: string; args: Record<string, unknown> }
   | { kind: "variant"; productId: string; variantId: string }
   | { kind: "option"; productId: string; groupId: string; itemId: string }
+  | { kind: "slot"; productId: string; slotId: string }
+  | { kind: "option_group"; productId: string; groupId?: string }
   | { kind: "page"; page: number }
   | { kind: "back" }
   | { kind: "menu" };
@@ -49,6 +51,9 @@ export interface WhatsAppConversationState {
   selectedProductId?: string;
   selectedVariantId?: string;
   selectedOptionItemIds?: string[];
+  selectedOptionGroupId?: string;
+  selectedServiceSlotId?: string;
+  pendingFlow?: { token: string; field: "fullName" | "email" | "cpf" | "zip" | "number" | "complement"; checkoutSessionId: string; expiresAt: number };
   catalogId?: string;
   catalogRetailerIds?: Record<string, string>;
   flowIds?: Record<string, string>;

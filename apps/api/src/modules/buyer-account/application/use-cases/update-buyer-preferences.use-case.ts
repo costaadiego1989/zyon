@@ -14,6 +14,7 @@ export interface UpdateBuyerPreferencesRequest {
   oneBuyClickEnabled?: boolean;
   shippingPreference?: "fastest" | "cheapest";
   paymentPreference?: "pix" | "card";
+  purchasePreferencesConfigured?: boolean;
 }
 
 @Injectable()
@@ -56,6 +57,7 @@ export class UpdateBuyerPreferencesUseCase {
       one_buy_click_enabled: row.oneBuyClickEnabled === true,
       shipping_preference: row.shippingPreference === "cheapest" ? "cheapest" : "fastest",
       payment_preference: row.paymentPreference === "card" ? "card" : "pix",
+      purchase_preferences_configured: row.purchasePreferencesConfigured === true,
     };
   }
 }

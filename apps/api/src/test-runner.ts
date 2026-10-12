@@ -11,7 +11,11 @@ import "./modules/auth/presentation/tenant-role.guard.spec.js";
 import "./modules/auth/presentation/staff-readable.spec.js";
 import "./modules/merchant/presentation/merchant.controller.spec.js";
 import "./modules/merchant/application/merchant-theme.use-cases.spec.js";
+import "./modules/merchant/application/merchant-store.service.spec.js";
+import "./modules/merchant/application/activate-merchant-store.use-case.spec.js";
+import "./modules/merchant/infrastructure/prisma-merchant-store.repository.spec.js";
 import "./modules/merchant/domain/services/merchant-crypto.validation.spec.js";
+import "./modules/auth/infrastructure/prisma-auth.repository.multistore.spec.js";
 import "./modules/auth/presentation/auth-merchant.prisma-e2e-spec.js";
 import "./modules/auth/presentation/auth-me.prisma-e2e-spec.js";
 import "./modules/agent-rules/domain/entities/agent-rules.entity.spec.js";
@@ -34,6 +38,7 @@ import "./modules/commerce/presentation/http/vtex-webhook.controller.spec.js";
 import "./modules/payment/domain/payment-intent.entity.spec.js";
 import "./modules/payment/infrastructure/in-memory-payment.repository.spec.js";
 import "./modules/payment/application/create-payment-intent.use-case.spec.js";
+import "./modules/checkout/__tests__/checkout-benefits.spec.js";
 import "./modules/payment/application/confirm-stripe-payment.use-case.spec.js";
 import "./modules/payment/application/confirm-crypto-payment.use-case.spec.js";
 import "./modules/payment/application/reconcile-payment-intents.use-case.spec.js";
@@ -76,6 +81,7 @@ import "./modules/checkout/domain/domain-boundary.spec.js";
 import "./modules/checkout/infrastructure/repositories/in-memory-checkout.repository.spec.js";
 import "./modules/checkout/infrastructure/in-memory-intervention-ledger.spec.js";
 import "./modules/checkout/application/use-cases/dashboard.use-cases.spec.js";
+import "./modules/store-analytics/infrastructure/repositories/prisma-analytics.repository.spec.js";
 import "./modules/checkout/__tests__/start-checkout.use-case.spec.js";
 import "./modules/checkout/__tests__/track-checkout-event.use-case.spec.js";
 import "./modules/checkout/__tests__/get-checkout-session.use-case.spec.js";
@@ -203,6 +209,7 @@ import "./shared/config/security-headers-config.spec.js";
 import "./shared/crypto/pii-cipher.service.spec.js";
 import "./shared/messaging/outbox-dispatcher.service.spec.js";
 import "./modules/cross-sell/domain/policies/cross-sell-policies.spec.js";
+import "./modules/cross-sell/application/use-cases/cross-sell.use-cases.spec.js";
 import "./modules/coupons/domain/policies/coupon-policies.spec.js";
 import "./modules/self-checkout/domain/policies/self-checkout-policies.spec.js";
 import "./modules/fulfillment/domain/entities/shipment.entity.spec.js";
@@ -311,10 +318,21 @@ import "./modules/catalog/application/use-cases/upsert-product-advanced-rules.us
 import "./modules/catalog/domain/services/product-rule-scoping.service.spec.js";
 
 import "./modules/payment/infrastructure/payment-fees.spec.js";
+import "./modules/payment/infrastructure/prisma-payment-platform.repository.multistore.spec.js";
 import "./shared/config/platform-fee.config.spec.js";
 
 import "./modules/payment/infrastructure/routing-payment.adapter.spec.js";
 
 import "./modules/storefront/infrastructure/tool-handlers/commerce-rules-flow.spec.js";
+import "./modules/storefront/infrastructure/tool-handlers/one-buy-click-cart-flow.spec.js";
+import "./modules/storefront/infrastructure/one-buy-click/one-buy-click-checkout-preparation.spec.js";
+import "./modules/storefront/application/services/one-buy-click-session.service.spec.js";
 
 import "./modules/storefront/presentation/http/storefront-product-content.controller.spec.js";
+import "./modules/storefront/application/services/storefront-attachment-interpreter.service.spec.js";
+import "./modules/storefront/presentation/http/storefront-attachments.spec.js";
+import "./modules/storefront/infrastructure/agents/store-langgraph-attachments.spec.js";
+import "./shared/openai/openai-realtime-voice.service.spec.js";
+import "./modules/checkout/__tests__/checkout-customer-correction.spec.js";
+import "./modules/embed/presentation/http/embed-realtime-voice.spec.js";
+import "./modules/embed/presentation/http/storefront-embed-proxy.spec.js";

@@ -12,13 +12,16 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import type { RecoveryStrategy } from "../../domain/values/recovery-strategy.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 
-const SCAN_INTERVAL_MS = 15 * 60 * 1000; // 15 minutes
-const QUIET_PERIOD_MS = 30 * 60 * 1000;
+// Recovery is promised after five minutes of real inactivity. Scan once a
+// minute so a qualified cart is dispatched within about one minute of that
+// threshold, rather than waiting for a fifteen-minute polling window.
+const SCAN_INTERVAL_MS = 60 * 1000;
+const QUIET_PERIOD_MS = 5 * 60 * 1000;
 
 /**
  * RecoveryScannerJob
  *
- * Runs every 15 min: loads candidate sessions and delegates attempts to the
+ * Runs every minute: loads candidate sessions and delegates attempts to the
  * module's shared recovery use case, including connection/template routing.
  * Delivery is revalidated against the current checkout, order and payment
  * state immediately before delegating to the channel router.
@@ -27,6 +30,7 @@ const QUIET_PERIOD_MS = 30 * 60 * 1000;
 export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(RecoveryScannerJob.name);
   private intervalHandle: ReturnType<typeof setInterval> | null = null;
+  private initialHandle: ReturnType<typeof setTimeout> | null = null;
 
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
@@ -41,12 +45,23 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
 
   /**
    * Start the interval on module init (NestJS lifecycle hook).
-   * Runs every 15 min.
+   * Runs every minute.
    */
   onModuleInit(): void {
+    this.start();
+  }
+
+  /**
+   * Starts the scanner once.  The API bootstrap resolves this provider as a
+   * production liveness guard, while Nest lifecycle initialization remains a
+   * supported startup path for tests and local development.
+   */
+  start(): void {
+    if (this.intervalHandle || this.initialHandle) return;
     // Run an initial scan shortly after boot so recovery doesn't wait a full
     // interval after a restart, then schedule the recurring scan.
-    setTimeout(() => {
+    this.initialHandle = setTimeout(() => {
+      this.initialHandle = null;
       this.scan().catch((err) => {
         this.logger.error("recovery-scanner: initial scan failed", { error: err instanceof Error ? err.message : String(err) });
       });
@@ -59,27 +74,33 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
         );
       });
     }, SCAN_INTERVAL_MS);
-    this.logger.log("recovery-scanner: scheduled for every 15 minutes (initial scan in 5s)", { intervalMs: SCAN_INTERVAL_MS });
+    this.logger.log("recovery-scanner: scheduled for every minute (initial scan in 5s)", { intervalMs: SCAN_INTERVAL_MS });
   }
 
   /**
    * Clean up interval on module destroy (NestJS lifecycle hook).
    */
   onModuleDestroy(): void {
+    if (this.initialHandle) {
+      clearTimeout(this.initialHandle);
+      this.initialHandle = null;
+    }
     if (this.intervalHandle) {
       clearInterval(this.intervalHandle);
+      this.intervalHandle = null;
       this.logger.log("recovery-scanner: interval cleared");
     }
   }
 
   /**
-   * Main scan loop. Called by job scheduler (every 15 min).
+   * Main scan loop. Called by job scheduler every minute.
    * Isolated: each session is processed independently; failures are logged, not fatal.
-   * Multi-instance safety: use random jitter (0-30s) to minimize collision probability.
+   * Multi-instance safety: use a short random jitter to minimize collision probability.
    */
   async scan(): Promise<{ scanned: number; attempted: number; errors: number }> {
-    // Apply random jitter to minimize multi-instance collisions
-    const jitter = Math.random() * 30 * 1000; // 0-30s
+    // Apply a short jitter to minimize multi-instance collisions without
+    // turning the five-minute recovery promise into a multi-minute delay.
+    const jitter = Math.random() * 5 * 1000;
     await new Promise(resolve => setTimeout(resolve, jitter));
 
     const stats = { scanned: 0, attempted: 0, errors: 0 };
@@ -88,6 +109,14 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       // Query sessions with triggerAgent=true
       const candidates = await this.sessions.findSessionsWithTrigger();
       stats.scanned = candidates.length;
+
+      // Keep the asynchronous recovery path observable in production without
+      // exposing contact or cart data.  A scan with no candidates is expected
+      // most of the time, but recording it at debug level makes it possible to
+      // distinguish an empty queue from a scheduler that never ran.
+      this.logger.debug("recovery-scanner: scan completed", {
+        candidates: stats.scanned,
+      });
 
       for (const session of candidates) {
         try {
@@ -129,6 +158,10 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     // Threshold check
     const MINIMUM_SCORE = 0.55;
     if (session.abandonmentScore < MINIMUM_SCORE) {
+      this.logger.debug("recovery-scanner: abandonment score below threshold", {
+        merchantId: session.merchantId,
+        sessionId: session.sessionId,
+      });
       return;
     }
 
@@ -201,8 +234,20 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
       this.logger.warn("recovery-scanner: strategy configuration unavailable", { merchantId: session.merchantId });
       return;
     }
-    if (forcedStrategy?.type === "no_action") return;
-    if (forcedStrategy?.type === "offer_free_shipping" && !merchantPolicy.allowFreeShipping) return;
+    if (forcedStrategy?.type === "no_action") {
+      this.logger.debug("recovery-scanner: configured strategy cannot dispatch", {
+        merchantId: session.merchantId,
+        sessionId: session.sessionId,
+      });
+      return;
+    }
+    if (forcedStrategy?.type === "offer_free_shipping" && !merchantPolicy.allowFreeShipping) {
+      this.logger.debug("recovery-scanner: free shipping strategy disabled by merchant policy", {
+        merchantId: session.merchantId,
+        sessionId: session.sessionId,
+      });
+      return;
+    }
 
     // The shared router selects WhatsApp or email from the available contacts.
     let buyerPhone: string | undefined;
@@ -252,6 +297,10 @@ export class RecoveryScannerJob implements OnModuleInit, OnModuleDestroy {
     });
 
     if (!result.created) {
+      this.logger.debug("recovery-scanner: recovery attempt not created", {
+        merchantId: session.merchantId,
+        sessionId: session.sessionId,
+      });
       return;
     }
 

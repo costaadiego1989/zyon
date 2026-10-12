@@ -1,4 +1,4 @@
-
+import { hasOptionalCookieConsent } from "./storefront-consent";
 type GtagFn = (
   command: "event",
   name: string,
@@ -13,6 +13,7 @@ declare global {
 
 function safeGtag(name: string, params?: Record<string, unknown>): void {
   if (typeof window === "undefined") return;
+  if (!hasOptionalCookieConsent()) return;
   if (typeof window.gtag !== "function") return;
   try {
     window.gtag("event", name, params);

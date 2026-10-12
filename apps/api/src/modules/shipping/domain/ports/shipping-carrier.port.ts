@@ -18,6 +18,9 @@ export interface LabelPurchaseResult {
   purchaseId: string;
   trackingCode: string;
   labelUrl?: string;
+  /** Native label id, distinct from the checkout purchase id. */
+  carrierOrderId?: string;
+  accountIdentity?: import("../marketplace-shipping-account-identity.js").MarketplaceShippingAccountIdentity;
 }
 
 export interface TrackingResult {

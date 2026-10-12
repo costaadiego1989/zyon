@@ -1,8 +1,8 @@
 import type { BuyerNegotiationPreferences, MerchantNegotiationPolicy } from "@zyon/negotiation-engine";
 
 export const DEFAULT_MERCHANT_NEGOTIATION_POLICY: MerchantNegotiationPolicy = {
-  enabled: false,
-  global: { minOfferDiscountPercent: 0, maxDiscountPercent: 10 },
+  enabled: true,
+  global: { minOfferDiscountPercent: 5, maxDiscountPercent: 10 },
   maxRounds: 1,
   estimatedCostPerAiCallCents: 1
 };

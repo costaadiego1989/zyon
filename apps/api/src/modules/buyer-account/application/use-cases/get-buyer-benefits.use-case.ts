@@ -1,6 +1,8 @@
 import { Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
+import { readBuyerIncentiveBenefits, type BuyerIncentiveBenefit } from "../../../revenue-manager/infrastructure/buyer-incentive-benefits.reader.js";
 import { BUYER_ACCOUNT_PRISMA_CLIENT } from "../../buyer-account.tokens.js";
+import { conditionNotice } from "../../../storefront/domain/services/advanced-rule-notices.js";
 import {
   BUYER_EARNED_BENEFIT_REPOSITORY,
   type BuyerEarnedBenefitRepositoryPort,
@@ -37,6 +39,15 @@ export interface AvailableBenefitDto {
   condition: string;
 }
 
+/** Informational rule terms only; neither qualification nor a granted benefit. */
+export interface ConditionalBenefitDto {
+  description: string;
+  ruleId: string;
+  discountPercent?: number;
+  maxReais?: number;
+  condition: string;
+}
+
 export interface EarnedBenefitDto {
   description: string;
   value: number;
@@ -55,6 +66,8 @@ export interface BuyerBenefitsResult {
   available: AvailableBenefitDto[];
   earned: EarnedBenefitDto[];
   progress: ProgressBenefitDto[];
+  conditions?: ConditionalBenefitDto[];
+  offers?: BuyerIncentiveBenefit[];
 }
 
 const VALUE_ACTIONS = new Set(["offer_discount", "offer_free_shipping", "offer_coupon"]);
@@ -90,13 +103,18 @@ export class GetBuyerBenefitsUseCase {
     // Tenant boundary (INV-06): scope everything to the consented merchant.
     const merchantId: string = input.merchantId ?? consent.merchantId;
 
-    const [earned, available, progress] = await Promise.all([
+    const [earned, rules, progress, offers] = await Promise.all([
       this.buildEarned(merchantId, globalUserId),
-      this.buildAvailable(merchantId, input.cart),
+      this.loadAdvancedRules(merchantId),
       this.buildProgress(merchantId, input.cart),
+      // Personalized offers require an authenticated buyer and an explicitly
+      // selected tenant with consent. A lookup must not choose another store.
+      input.merchantId ? readBuyerIncentiveBenefits(this.prisma, input.merchantId, globalUserId) : Promise.resolve([]),
     ]);
 
-    return { available, earned, progress };
+    const available = this.buildAvailable(rules, input.cart);
+    const conditions = this.buildConditions(rules);
+    return { available, earned, progress, ...(conditions.length ? { conditions } : {}), ...(offers.length ? { offers } : {}) };
   }
 
   private async buildEarned(
@@ -112,11 +130,10 @@ export class GetBuyerBenefitsUseCase {
     }));
   }
 
-  private async buildAvailable(
-    merchantId: string,
+  private buildAvailable(
+    rules: AdvancedRule[],
     cart?: BuyerBenefitCartContext
-  ): Promise<AvailableBenefitDto[]> {
-    const rules = await this.loadAdvancedRules(merchantId);
+  ): AvailableBenefitDto[] {
     if (rules.length === 0) return [];
 
     const ctx = this.toMatchContext(cart);
@@ -143,6 +160,31 @@ export class GetBuyerBenefitsUseCase {
     }
 
     return out;
+  }
+
+  private buildConditions(rules: AdvancedRule[]): ConditionalBenefitDto[] {
+    return rules.filter((rule) => rule.enabled && VALUE_ACTIONS.has(rule.action?.type)).flatMap((rule) => {
+      const params = rule.action.params ?? {};
+      const percent = params.percent;
+      const discountPercent = typeof percent === "number" && Number.isFinite(percent) && percent > 0 && percent <= 100
+        ? percent : undefined;
+      const cap = params.maxDiscountReais;
+      const maxReais = typeof cap === "number" && Number.isFinite(cap) && cap > 0 ? cap : undefined;
+      // A disabled-by-value discount must not be advertised as an attainable offer.
+      if (rule.action.type === "offer_discount" && (discountPercent === undefined || (cap !== undefined && maxReais === undefined))) return [];
+      const description = rule.action.type === "offer_discount"
+        ? `Até ${discountPercent!.toLocaleString("pt-BR", { maximumFractionDigits: 20 })}% de desconto nos produtos`
+        : rule.action.type === "offer_free_shipping"
+          ? "Frete grátis"
+          : "Cupom conforme as condições da oferta";
+      return [{
+        ruleId: rule.id ?? "",
+        description,
+        ...(rule.action.type === "offer_discount" ? { discountPercent } : {}),
+        ...(maxReais !== undefined ? { maxReais } : {}),
+        condition: describeConditions(rule),
+      }];
+    });
   }
 
   private async buildProgress(
@@ -210,10 +252,8 @@ function describeAction(type: string, percent?: number): string {
 }
 
 function describeConditions(rule: AdvancedRule): string {
-  if (!rule.conditions || rule.conditions.length === 0) return "sempre";
-  return rule.conditions
-    .map((c) => `${c.field} ${c.operator} ${String(c.value)}`)
-    .join(" e ");
+  if (!rule.conditions || rule.conditions.length === 0) return "Conforme os limites comerciais da loja.";
+  return rule.conditions.map(conditionNotice).join(" e ");
 }
 
 function round2(n: number): number {

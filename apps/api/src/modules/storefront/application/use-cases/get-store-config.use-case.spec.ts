@@ -33,9 +33,21 @@ test("projects the public store config from the query port", async () => {
   assert.equal(config.agentGreeting, "Olá");
   assert.deepEqual(config.quickReplies, ["Ver novidades"]);
   assert.equal(config.showBranding, false);
+  assert.equal(config.voiceCheckoutEnabled, false);
   assert.equal(config.agentMode, "proactive");
   assert.equal(config.agentInitialDelaySeconds, 9);
   assert.deepEqual(config.stories, [{ id: "story_a" }]);
+});
+
+test("exposes the Growth voice entitlement as a UI hint while the voice route enforces it again", async () => {
+  const calls: unknown[] = [];
+  const useCase = new GetStoreConfigUseCase(
+    { findPublicConfig: async () => ({ merchant: { id: "merchant_growth", name: "Store", theme: {}, storeCategory: null, storeSettings: {} }, stories: [] }) },
+    { assertAllowed: async (...input: unknown[]) => { calls.push(input); } } as never,
+  );
+  const config = await useCase.execute("growth-store");
+  assert.equal(config.voiceCheckoutEnabled, true);
+  assert.deepEqual(calls, [["merchant_growth", { kind: "feature", key: "voiceCheckout" }]]);
 });
 
 test("returns not found only when the query port cannot resolve a public identifier", async () => {

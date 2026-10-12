@@ -1,3 +1,10 @@
+import { PrepareMarketplaceCheckoutService } from "./application/prepare-marketplace-checkout.service.js";
+import { CreateMarketplacePaymentService } from "./application/create-marketplace-payment.service.js";
+import { MarketplacePublicPaymentAdmissionService } from "./application/marketplace-public-payment-admission.service.js";
+import { GetMarketplacePaymentCapabilityService } from "./application/get-marketplace-payment-capability.service.js";
+import { GetCurrentMarketplacePaymentService } from "./application/get-current-marketplace-payment.service.js";
+import { MarketplacePaymentResumeService } from "./application/marketplace-payment-resume.service.js";
+import { CancelPaymentIntentUseCase } from "./application/cancel-payment-intent.use-case.js";
 import { forwardRef, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
@@ -7,8 +14,9 @@ import { MerchantModule } from "../merchant/merchant.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
-import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CreatePaymentIntentUseCase } from "./application/create-payment-intent.use-case.js";
+import { CancelCheckoutPaymentUseCase } from "./application/cancel-checkout-payment.use-case.js";
 import { RefundPaymentService } from "./application/services/refund-payment.service.js";
 import { ConfirmCryptoPaymentUseCase } from "./application/confirm-crypto-payment.use-case.js";
 import { ConfirmStripePaymentUseCase } from "./application/confirm-stripe-payment.use-case.js";
@@ -54,7 +62,7 @@ import { CRYPTO_VERIFIER } from "./domain/ports/crypto-verifier.port.js";
 import { EvmCryptoVerifier } from "./infrastructure/evm-crypto-verifier.js";
 import { BullMqCryptoVerifyQueue, BullMqCryptoVerifyWorker } from "./infrastructure/bullmq-crypto-verify.queue.js";
 import { HttpClientService } from "../../shared/http/http-client.service.js";
-import { readAsaasConnection, isAsaasConfigured } from "./infrastructure/asaas-env.js";
+import { readAsaasConnection, isAsaasConfigured, readAsaasPlatformMerchantId } from "./infrastructure/asaas-env.js";
 import { readStripeConnection, isStripeConfigured } from "./infrastructure/stripe-env.js";
 import { ReconcilePaymentIntentsScheduler, ReconcilePaymentIntentsWorker } from "./infrastructure/reconciliation-payment-intents.job.js";
 import { PaymentHoldPayoutReadinessJob } from "./infrastructure/payment-hold-release.job.js";
@@ -152,6 +160,14 @@ import {
     MerchantMercadoPagoController,
   ],
   providers: [
+    PrepareMarketplaceCheckoutService,
+    CreateMarketplacePaymentService,
+    MarketplacePublicPaymentAdmissionService,
+    GetMarketplacePaymentCapabilityService,
+    GetCurrentMarketplacePaymentService,
+    MarketplacePaymentResumeService,
+    CancelCheckoutPaymentUseCase,
+    CancelPaymentIntentUseCase,
     RefundPaymentService,
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,
@@ -301,9 +317,9 @@ import {
     },
     {
       provide: PAYMENT_PLATFORM_REPOSITORY,
-      useFactory: (prisma: PrismaClient) =>
-        new PrismaPaymentPlatformRepository(prisma),
-      inject: [PRISMA_CLIENT],
+      useFactory: (prisma: PrismaClient, billingPrisma: PrismaClient) =>
+        new PrismaPaymentPlatformRepository(prisma, billingPrisma),
+      inject: [PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT],
     },
     {
       provide: STRIPE_PLATFORM_PORT,
@@ -320,7 +336,7 @@ import {
           baseUrl,
           apiKey ?? "__missing__",
           http.toFetch(),
-          process.env.ASAAS_PLATFORM_MERCHANT_ID?.trim() || undefined,
+          readAsaasPlatformMerchantId(),
         );
       },
       inject: [HttpClientService],
@@ -352,6 +368,11 @@ import {
     },
   ],
   exports: [
+    GetMarketplacePaymentCapabilityService,
+    GetCurrentMarketplacePaymentService,
+    MarketplacePaymentResumeService,
+    CancelCheckoutPaymentUseCase,
+    CancelPaymentIntentUseCase,
     RefundPaymentService,
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,

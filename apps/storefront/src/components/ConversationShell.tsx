@@ -1,10 +1,15 @@
 "use client";
 
-import { type ReactNode, useEffect, useRef, useState } from "react";
+import type { MerchantThemeAppearance } from "@zyon/shared-types";
+
+import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
 import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
+import { useWidgetConfig } from "@/lib/widget-config";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
+import { ATTACHMENT_WELCOME_NOTICE } from "@/lib/services/conversation.service";
+import { validateCurrentBuyerConversation } from "@/lib/services/resume-buyer-conversation.service";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import BlockRenderer from "./blocks/BlockRenderer";
 import RichProductDetailsPanel from "./blocks/RichProductDetailsPanel";
@@ -14,6 +19,8 @@ import SupportPanel from "./SupportPanel";
 import StoriesRow from "./StoriesRow";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
 import CheckoutPanel from "./CheckoutPanel";
+import RecoveryCheckoutPanel from "./RecoveryCheckoutPanel";
+import { useStorefrontNavigation } from "@/lib/hooks/useStorefrontNavigation";
 import WhitelabelBadge from "./WhitelabelBadge";
 import BuyerAuthGate from "./BuyerAuthGate";
 import CrossSellInterstitial from "./CrossSellInterstitial";
@@ -22,6 +29,13 @@ import { THEME_TOKENS, type Theme } from "./conversation/theme-tokens";
 import { redirectToCheckout } from "./conversation/checkout-redirect";
 import { conversationFetch } from "@/lib/conversation-access";
 import { checkoutApi } from "@/lib/api/api-client";
+import { useRealtimeProductNarration, type ProductNarrationProgress } from "@/lib/voice/use-realtime-product-narration";
+import { useRealtimeVoiceCheckout } from "@/lib/voice/use-realtime-voice-checkout";
+import { RealtimeVoiceComposer } from "./conversation/RealtimeVoiceComposer";
+import { VoiceChannelButton } from "./conversation/VoiceChannelButton";
+import QuickPurchasePreferencesDialog, { type QuickPurchasePreferences } from "./QuickPurchasePreferencesDialog";
+import { AttachmentPicker } from "./conversation/AttachmentPicker";
+import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 
 type Channel = "chat" | "voice";
 type OneBuyClickState = {
@@ -29,6 +43,7 @@ type OneBuyClickState = {
   status: string;
   shippingPreference: "fastest" | "cheapest";
   paymentPreference: "pix" | "card";
+  preferencesConfigured: boolean;
 };
 
 type StoreSocialSettings = {
@@ -107,10 +122,16 @@ function resolvePresentedVariantId(messages: Message[], buyerText: string): stri
 
   if (!latestCatalogMessage) return undefined;
 
-  const matches = collectProductVariants(latestCatalogMessage.blocks ?? [])
+  const variants = collectProductVariants(latestCatalogMessage.blocks ?? []);
+  const matches = variants
     .filter((variant) => containsVariantValue(buyerText, variant.value));
 
-  return matches.length === 1 ? matches[0].id : undefined;
+  if (matches.length === 1) return matches[0].id;
+
+  // "Este produto" is unambiguous only when the latest presentation exposes
+  // a single sellable variant. Multiple variants always require a choice.
+  const implicitReference = /\b(este|esse|essa|isto|isso|produto|item)\b/i.test(buyerText);
+  return implicitReference && variants.length === 1 ? variants[0].id : undefined;
 }
 
 function attachPresentedVariantId(text: string, variantId: string | undefined): string {
@@ -212,10 +233,14 @@ export default function ConversationShell({
   agentAvatarUrl,
   initialStories,
   themeMode,
+  merchantTheme,
+  budgetModeEnabled: initialBudgetMode = false,
   showBranding,
+  voiceCheckoutEnabled,
   agentMode,
   agentInitialDelaySeconds,
   initialRichProductId,
+  initialSearch = "",
 }: {
   storeName: string;
   logo?: string;
@@ -227,17 +252,23 @@ export default function ConversationShell({
   merchantId?: string;
   merchantSlug?: string;
   initialStories?: any[];
+  merchantTheme?: MerchantThemeAppearance;
+  budgetModeEnabled?: boolean;
   themeMode?: "dark" | "light" | "grey";
   showBranding?: boolean;
+  voiceCheckoutEnabled?: boolean;
   agentMode?: "silent_until_trigger" | "proactive" | "manual_only";
   agentInitialDelaySeconds?: number;
   initialRichProductId?: string;
+  initialSearch?: string;
   storeSettings?: {
     social?: StoreSocialSettings;
     company?: { cnpj?: string; razaoSocial?: string; email?: string; phone?: string; businessHours?: string; address?: { city?: string; state?: string } };
     policies?: { privacy?: string; returns?: string; terms?: string; shipping?: string };
   };
 }) {
+  const { config: widgetConfig } = useWidgetConfig();
+  const budgetModeEnabled = widgetConfig?.budgetModeEnabled ?? initialBudgetMode;
   const vm = useConversationViewModel({
     storeName,
     merchantId,
@@ -247,89 +278,251 @@ export default function ConversationShell({
     quickReplies,
     returnOrderId,
     themeMode,
+    merchantTheme,
+    budgetModeEnabled,
     agentMode,
     agentInitialDelaySeconds,
   });
   const {
-    mode, channel, theme, messages, input, isLoading, listening,
+    mode, channel, theme, messages, input, isLoading,
     conversationId, supportOpen, buyerHubOpen, cartDrawerForceOpen,
-    showBuyerAuth, checkoutIntent, policyModal, crossSellPending, preparedCheckout,
-    selectChannel, toggleChannel, toggleTheme, sendMessage,
+    showBuyerAuth, checkoutIntent, policyModal, crossSellPending, productCrossSell, preparedCheckout,
+    selectChannel, toggleChannel, toggleTheme, ensureConversation, sendMessage,
     handleQuickReply, appendAgentMessage, handleUpdateQuantity, setInput,
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
-    setCartDrawerForceOpen, dismissCrossSell, clearPreparedCheckout, startListening, stopListening,
+    setCartDrawerForceOpen, dismissCrossSell, dismissProductCrossSell, clearPreparedCheckout,
   } = vm;
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
+  const presentedProductVariantRef = useRef<string | undefined>(undefined);
   const agent = agentName || "Assistente";
   const { cart } = useCart();
-  const [checkoutOpen, setCheckoutOpen] = useState(false);
+  const [pendingAttachment, setPendingAttachment] = useState<ConversationAttachment | null>(null);
+  const [readingAttachment, setReadingAttachment] = useState(false);
+  const navigation = useStorefrontNavigation(initialSearch || (initialRichProductId ? `?show=content&product=${encodeURIComponent(initialRichProductId)}` : ""));
+  const checkoutOpen = navigation.view.checkout;
+  const setCheckoutOpen = navigation.setCheckout;
+  const realtimeVoice = useRealtimeVoiceCheckout({
+    // This session is reserved for the explicit purchase-voice composer control.
+    enabled: voiceCheckoutEnabled === true && !checkoutOpen,
+    createSession: async () => {
+      const activeConversationId = await ensureConversation();
+      if (!activeConversationId) throw new Error("conversation_not_ready");
+      const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/session`, { method: "POST" });
+      if (!response.ok) {
+        const error = new Error("realtime_voice_session_failed") as Error & { status?: number };
+        error.status = response.status;
+        throw error;
+      }
+      const data = await response.json() as { value?: unknown; expires_at?: unknown };
+      if (typeof data.value !== "string") throw new Error("invalid_realtime_voice_session");
+      return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+    },
+    onCommerceTurn: async (buyerMessage, action) => {
+      const selectedVariantId = action === "add_item_to_cart"
+        ? presentedProductVariantRef.current ?? resolvePresentedVariantId(messages, buyerMessage)
+        : undefined;
+      const commerceMessage = action === "add_item_to_cart"
+        ? attachPresentedVariantId(`Adicionar ao carrinho: ${buyerMessage}`, selectedVariantId)
+        : buyerMessage;
+      const result = await sendMessage(commerceMessage);
+      return { agentMessage: result?.agentMessage ?? "Não consegui concluir este pedido agora. Pode repetir?", cart: { itemCount: cart.itemCount, total: cart.total } };
+    },
+    onBeginCheckout: async () => beginCheckout(),
+  });
+  const narrationRequestIdRef = useRef<string | null>(null);
+  const publishNarrationProgress = useCallback((progress: ProductNarrationProgress) => {
+    const requestId = narrationRequestIdRef.current;
+    if (!requestId) return;
+    window.dispatchEvent(new CustomEvent("zyon:realtime-product-narration-progress", { detail: { requestId, ...progress } }));
+  }, []);
+  const narrationVoice = useRealtimeProductNarration({
+    enabled: voiceCheckoutEnabled === true && !checkoutOpen,
+    onProgress: publishNarrationProgress,
+    createSession: async (summary) => {
+      const activeConversationId = await ensureConversation();
+      if (!activeConversationId) throw new Error("conversation_not_ready");
+      const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/narration`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ summary }),
+      });
+      if (!response.ok) {
+        const error = new Error("realtime_narration_session_failed") as Error & { status?: number };
+        error.status = response.status;
+        throw error;
+      }
+      const data = await response.json() as { value?: unknown; expires_at?: unknown };
+      if (typeof data.value !== "string") throw new Error("invalid_realtime_narration_session");
+      return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+    },
+  });
+
+  // Every checkout entry point must honor the same buyer preference and auth gate.
+  async function beginCheckout() {
+      if (budgetModeEnabled) {
+        setShowBuyerAuth(false);
+        navigation.setCart(true);
+        return { agentMessage: "Abri o carrinho para você enviar sua solicitação de orçamento." };
+      }
+      const buyer = getValidBuyer();
+      if (!buyer) {
+        setBuyerAuthIntent("checkout");
+        setShowBuyerAuth(true);
+        return { agentMessage: "Para finalizar com segurança, confirme seu e-mail. Depois seguiremos para o checkout." };
+      }
+      let quickPurchase = oneBuyClick;
+      try {
+        quickPurchase = await reloadOneBuyClick();
+      } catch {
+        // A standard authenticated checkout remains available if the optional
+        // preference lookup is temporarily unavailable.
+      }
+      if (quickPurchase?.enabled && quickPurchase.preferencesConfigured) {
+        setCheckoutUserId(buyer?.globalUserId ?? "");
+        setCheckoutCartRef(cart.cartId ?? undefined);
+        setCheckoutPreferences({
+          shippingPreference: quickPurchase.shippingPreference,
+          paymentPreference: quickPurchase.paymentPreference,
+        });
+        setCheckoutOpen(true);
+        return { agentMessage: "Aplicando suas preferências de compra rápida no checkout." };
+      }
+      setCheckoutUserId(buyer.globalUserId);
+      setCheckoutCartRef(cart.cartId ?? undefined);
+      setCheckoutPreferences(undefined);
+      setCheckoutOpen(true);
+      return { agentMessage: "Seu checkout foi aberto. Revise os dados e confirme visualmente antes de pagar." };
+  }
   const [checkoutCartRef, setCheckoutCartRef] = useState<string | undefined>(undefined);
   const [checkoutPreferences, setCheckoutPreferences] = useState<Pick<OneBuyClickState, "shippingPreference" | "paymentPreference"> | undefined>(undefined);
   const [oneBuyClick, setOneBuyClick] = useState<OneBuyClickState | null>(null);
   const [oneBuyClickPending, setOneBuyClickPending] = useState(false);
+  const [quickPurchasePreferencesOpen, setQuickPurchasePreferencesOpen] = useState(false);
+  const [buyerAuthIntent, setBuyerAuthIntent] = useState<"checkout" | "enable_quick_purchase" | null>(null);
   const [storeMenuOpen, setStoreMenuOpen] = useState(false);
   const [logoError, setLogoError] = useState(false);
   const [checkoutUserId, setCheckoutUserId] = useState("");
   const [mounted, setMounted] = useState(false);
-  const [richProduct, setRichProduct] = useState<{ productId: string } | null>(() =>
-    typeof initialRichProductId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(initialRichProductId)
-      ? { productId: initialRichProductId }
-      : null,
-  );
+  const [welcomeVoiceRequested, setWelcomeVoiceRequested] = useState(false);
+  const richProduct = useMemo(() => navigation.view.productId ? { productId: navigation.view.productId } : null, [navigation.view.productId]);
+  const setRichProduct = navigation.setProduct;
+  useEffect(() => {
+    if (cartDrawerForceOpen) { navigation.setCart(true); setCartDrawerForceOpen(false); }
+  }, [cartDrawerForceOpen, navigation.setCart, setCartDrawerForceOpen]);
   const openedInitialRichProduct = useRef(false);
   const openedProductMessages = useRef(new Set<string>());
   const promptedProductClose = useRef(new Set<string>());
   const pendingProductCart = useRef<{ variantId: string } | null>(null);
   const openedPreparedActions = useRef(new Set<string>());
   const oneBuyClickEnabled = useRef(false);
-  useEffect(() => { setMounted(true); }, []);
-  const effectiveMode = mounted ? mode : "intro";
   useEffect(() => {
-    if (!conversationId) return;
-    let active = true;
-    const buyer = getValidBuyer();
-    const preferenceKey = merchantId ? `zyon-one-buy-click:${merchantId}` : null;
-    void checkoutApi.getOneBuyClick(conversationId, buyer?.token).then(async (state) => {
-      if (!active) return;
-      let visitorChoice: boolean | null = null;
-      if (!buyer && preferenceKey) {
-        try {
-          const saved = localStorage.getItem(preferenceKey);
-          visitorChoice = saved === "true" ? true : saved === "false" ? false : null;
-        } catch {}
-      }
-      if (visitorChoice !== null && visitorChoice !== state.enabled) {
-        const configured = await checkoutApi.configureOneBuyClick(conversationId, visitorChoice, buyer?.token);
-        if (active) setOneBuyClick(configured);
+    presentedProductVariantRef.current = undefined;
+  }, [richProduct?.productId]);
+  useEffect(() => { setMounted(true); }, []);
+  const supportsVoice = voiceCheckoutEnabled === true;
+  const effectiveMode = !mounted ? "intro" : supportsVoice ? mode : "chat";
+  useEffect(() => {
+    if (!mounted || supportsVoice || mode !== "intro") return;
+    selectChannel("chat");
+  }, [mode, mounted, selectChannel, supportsVoice]);
+  useEffect(() => {
+    const requestSummary = (event: Event) => {
+      const detail = (event as CustomEvent<{ summary?: unknown; requestId?: unknown }>).detail;
+      const summary = detail?.summary;
+      if (typeof summary !== "string" || !summary.trim()) return;
+      narrationRequestIdRef.current = typeof detail?.requestId === "string" ? detail.requestId : null;
+      if (voiceCheckoutEnabled !== true || checkoutOpen) {
+        publishNarrationProgress({
+          status: "error",
+          hint: checkoutOpen
+            ? "Feche o checkout para ouvir este resumo."
+            : "O resumo em áudio está disponível a partir do plano Growth.",
+          transcript: "",
+        });
         return;
       }
-      if (active) setOneBuyClick(state);
+      narrationVoice.play(summary);
+    };
+    window.addEventListener("zyon:realtime-product-summary", requestSummary);
+    return () => window.removeEventListener("zyon:realtime-product-summary", requestSummary);
+  }, [checkoutOpen, narrationVoice.play, publishNarrationProgress, voiceCheckoutEnabled]);
+  useEffect(() => {
+    if (voiceCheckoutEnabled !== true && channel === "voice") toggleChannel();
+  }, [voiceCheckoutEnabled, channel, toggleChannel]);
+
+  const toggleVoiceChannel = () => {
+    if (channel === "voice") {
+      realtimeVoice.stop();
+      selectChannel("chat");
+      return;
+    }
+    narrationVoice.stop();
+    selectChannel("voice");
+    realtimeVoice.start();
+  };
+  const reloadOneBuyClick = useCallback(async (): Promise<OneBuyClickState | null> => {
+    if (!conversationId || budgetModeEnabled) return null;
+    const buyer = getValidBuyer();
+    const state = await checkoutApi.getOneBuyClick(conversationId, buyer?.token);
+    setOneBuyClick(state);
+    return state;
+  }, [budgetModeEnabled, conversationId]);
+  useEffect(() => {
+    if (!conversationId || budgetModeEnabled) return;
+    let active = true;
+    void reloadOneBuyClick().then((state) => {
+      if (active && state) setOneBuyClick(state);
     }).catch(() => {
       if (active) setOneBuyClick(null);
     });
     return () => { active = false; };
-  }, [conversationId, merchantId]);
+  }, [budgetModeEnabled, conversationId, reloadOneBuyClick]);
   useEffect(() => {
     oneBuyClickEnabled.current = oneBuyClick?.enabled === true;
   }, [oneBuyClick]);
   const toggleOneBuyClick = async () => {
     if (!conversationId || !oneBuyClick || oneBuyClickPending) return;
+    const buyer = getValidBuyer();
+    if (!buyer) {
+      setBuyerAuthIntent("enable_quick_purchase");
+      setShowBuyerAuth(true);
+      return;
+    }
     const nextEnabled = !oneBuyClick.enabled;
+    if (nextEnabled && !oneBuyClick.preferencesConfigured) {
+      setQuickPurchasePreferencesOpen(true);
+      return;
+    }
     oneBuyClickEnabled.current = nextEnabled;
     setOneBuyClickPending(true);
     try {
-      const buyer = getValidBuyer();
       const next = await checkoutApi.configureOneBuyClick(conversationId, nextEnabled, buyer?.token);
       setOneBuyClick(next);
-      if (!buyer && merchantId) {
-        try { localStorage.setItem(`zyon-one-buy-click:${merchantId}`, String(next.enabled)); } catch {}
-      }
     } finally {
       setOneBuyClickPending(false);
     }
   };
+  const saveQuickPurchasePreferences = async (preferences: QuickPurchasePreferences) => {
+    const buyer = getValidBuyer();
+    if (!buyer || !conversationId) {
+      setQuickPurchasePreferencesOpen(false);
+      setBuyerAuthIntent("enable_quick_purchase");
+      setShowBuyerAuth(true);
+      return;
+    }
+    await checkoutApi.saveQuickPurchasePreferences(preferences);
+    const state = await checkoutApi.configureOneBuyClick(conversationId, true, buyer.token);
+    setOneBuyClick(state);
+    oneBuyClickEnabled.current = state.enabled;
+    setQuickPurchasePreferencesOpen(false);
+  };
   useEffect(() => {
+    if (budgetModeEnabled && preparedCheckout) {
+      setCartDrawerForceOpen(true);
+      clearPreparedCheckout();
+      return;
+    }
     if (!preparedCheckout || openedPreparedActions.current.has(preparedCheckout.actionId)) return;
     if (!oneBuyClick) return;
     if (!oneBuyClickEnabled.current) {
@@ -338,6 +531,17 @@ export default function ConversationShell({
     }
     openedPreparedActions.current.add(preparedCheckout.actionId);
     const buyer = getValidBuyer();
+    if (!buyer) {
+      setBuyerAuthIntent("enable_quick_purchase");
+      setShowBuyerAuth(true);
+      clearPreparedCheckout();
+      return;
+    }
+    if (!oneBuyClick.preferencesConfigured) {
+      setQuickPurchasePreferencesOpen(true);
+      clearPreparedCheckout();
+      return;
+    }
     setCheckoutUserId(buyer?.globalUserId ?? "");
     setCheckoutCartRef(preparedCheckout.cartId);
     setCheckoutPreferences({
@@ -346,13 +550,14 @@ export default function ConversationShell({
     });
     setCheckoutOpen(true);
     clearPreparedCheckout();
-  }, [preparedCheckout, oneBuyClick, clearPreparedCheckout]);
+  }, [preparedCheckout, oneBuyClick, clearPreparedCheckout, budgetModeEnabled]);
   useEffect(() => {
-    if (!richProduct || openedInitialRichProduct.current) return;
+    if ((!richProduct && !checkoutOpen && !navigation.view.cart) || openedInitialRichProduct.current) return;
     openedInitialRichProduct.current = true;
     selectChannel("chat");
-  }, [richProduct, selectChannel]);
+  }, [richProduct, checkoutOpen, navigation.view.cart, selectChannel]);
   useEffect(() => {
+    if (checkoutOpen || navigation.view.cart) return;
     const latest = messages.at(-1);
     if (!latest || latest.role !== "agent") return;
     const block = latest.blocks?.find((item) => item.type === "product_content")
@@ -391,6 +596,17 @@ export default function ConversationShell({
     return () => window.removeEventListener("zyon:open-support", onOpenSupport);
   }, []);
   useEffect(() => {
+    const onVariantSelected = (event: Event) => {
+      const detail = (event as CustomEvent<{ productId?: unknown; variantId?: unknown }>).detail;
+      if (detail?.productId !== richProduct?.productId) return;
+      if (typeof detail?.variantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(detail.variantId)) {
+        presentedProductVariantRef.current = detail.variantId;
+      }
+    };
+    window.addEventListener("aacp:rich-product-variant-selected", onVariantSelected);
+    return () => window.removeEventListener("aacp:rich-product-variant-selected", onVariantSelected);
+  }, [richProduct?.productId]);
+  useEffect(() => {
     const onOpenBuyerHub = () => setBuyerHubOpen(true);
     window.addEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
     return () => window.removeEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
@@ -409,7 +625,7 @@ export default function ConversationShell({
       handleQuickReply(`Adicionar produto ao carrinho [variantId:${variantId}]${optionTag}`);
     };
     window.addEventListener("aacp:add-rich-product-to-cart", onRichProductAdd);
-    const onRichProductCart = () => { setRichProduct(null); handleQuickReply("Ver carrinho"); };
+    const onRichProductCart = () => { navigation.setCart(true); };
     window.addEventListener("aacp:open-rich-product-cart", onRichProductCart);
     const onOpenRichProduct = (event: Event) => {
       const productId = (event as CustomEvent<{ productId?: unknown }>).detail?.productId;
@@ -424,6 +640,12 @@ export default function ConversationShell({
     };
   }, [handleQuickReply]);
   useEffect(() => {
+    if (checkoutIntent && budgetModeEnabled) {
+      setShowBuyerAuth(false);
+      setCartDrawerForceOpen(true);
+      setCheckoutIntent(null);
+      return;
+    }
     if (checkoutIntent) {
       setCheckoutUserId(checkoutIntent);
       setCheckoutCartRef(cart.cartId ?? undefined);
@@ -431,7 +653,7 @@ export default function ConversationShell({
       setCheckoutOpen(true);
       setCheckoutIntent(null);
     }
-  }, [checkoutIntent, setCheckoutIntent]);
+  }, [checkoutIntent, setCheckoutIntent, budgetModeEnabled]);
   useEffect(() => {
     const buyerToken = localStorage.getItem("zyon_buyer_token");
     if (buyerToken && !showBuyerAuth && !checkoutUserId) {
@@ -494,10 +716,19 @@ export default function ConversationShell({
   }, []);
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
+    if (isLoading || readingAttachment) return;
+    const attachment = pendingAttachment;
+    const text = input.trim() || (attachment
+      ? "Analise este anexo, encontre produtos iguais ou semelhantes disponíveis e me pergunte antes de adicionar qualquer item ao carrinho."
+      : "");
+    if (!text) return;
     const selectedVariantId = oneBuyClickEnabled.current
-      ? resolvePresentedVariantId(messages, input)
+      ? resolvePresentedVariantId(messages, text)
       : undefined;
-    void sendMessage(attachPresentedVariantId(input, selectedVariantId));
+    void sendMessage(attachPresentedVariantId(text, selectedVariantId), attachment ?? undefined).then((result) => {
+      // Keep the selected file available for another attempt when the request fails.
+      if (result) setPendingAttachment(null);
+    });
     scrollToBottom();
     setTimeout(() => inputRef.current?.focus(), 100);
   };
@@ -522,10 +753,10 @@ export default function ConversationShell({
     handleQuickReply(option);
   };
   return (
-    <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "19px", padding: "1px" }}>
-      <PerimeterBorder radius="19px" />
+    <div id="storefront-chat" className="pulse-widget-shell" style={{ display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", position: "relative", borderRadius: "var(--aacp-radius, 19px)", padding: "1px" }}>
+      <PerimeterBorder radius="var(--aacp-radius, 19px)" />
       {/* Content */}
-      <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "18px", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
+      <div data-aacp-chat-content style={{ position: "relative", display: "flex", flexDirection: "column", flex: 1, minHeight: 0, width: "100%", borderRadius: "max(0px, calc(var(--aacp-radius, 19px) - 1px))", overflow: "hidden", background: "var(--aacp-bg, #08080c)", zIndex: 2 }}>
       <h1 style={{ position: "absolute", width: "1px", height: "1px", padding: 0, margin: "-1px", overflow: "hidden", clip: "rect(0,0,0,0)", whiteSpace: "nowrap", border: 0 }}>
         {storeName} - Loja Online
       </h1>
@@ -559,10 +790,6 @@ export default function ConversationShell({
             </div>
           )}
           <div style={{ flex: 1, minWidth: 0, display: "flex", alignItems: "center", gap: "6px" }}>
-            <div data-neu="status" className="conversation-header__status" style={{ display: "flex", alignItems: "center", gap: "6px", minHeight: "30px", padding: "4px 10px", borderRadius: "999px", background: "var(--aacp-card)", border: "1px solid var(--aacp-line)" }}>
-              <span style={{ width: "5px", height: "5px", borderRadius: "50%", background: "var(--aacp-success)", animation: "pulseDot 2.2s ease-in-out infinite", flex: "none" }} />
-              <span className="conversation-header__status-label" style={{ fontSize: "11px", fontWeight: 600, color: "var(--aacp-muted)" }}>Online</span>
-            </div>
             {conversationId && (
               <>
                 <OneBuyClickToggle
@@ -582,13 +809,6 @@ export default function ConversationShell({
               </>
             )}
           </div>
-          <button data-neu="control" type="button" onClick={toggleChannel} title={channel === "voice" ? "Mudar para chat" : "Mudar para voz"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${channel === "voice" ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: channel === "voice" ? "color-mix(in srgb, var(--aacp-accent) 15%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
-            {channel === "voice" ? (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
-            ) : (
-              <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-            )}
-          </button>
           <button data-neu="control" type="button" onClick={toggleTheme} title={theme === "dark" ? "Modo claro" : "Modo escuro"} style={{ width: "30px", height: "30px", borderRadius: "50%", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--aacp-muted)" strokeWidth="1.8" /><path d="M12 3a9 9 0 0 0 0 18z" fill="var(--aacp-muted)" /></svg>
           </button>
@@ -683,23 +903,15 @@ export default function ConversationShell({
               Eu cuido da sua compra do início ao fim. Acho a melhor opção, aplico promoções, organizo a entrega e finalizo o pagamento com você, passo a passo.
             </div>
             <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-muted)", marginBottom: "11px" }}>
-              Como você prefere comprar?
+              {voiceCheckoutEnabled ? "Comece pelo chat. Para falar, use o microfone ao lado da mensagem." : "Como você prefere comprar?"}
             </div>
             <div style={{ display: "flex", gap: "10px", width: "100%" }}>
-              <button data-neu="choice" type="button" onClick={() => selectChannel("chat")} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
+              <button data-neu="choice" type="button" onClick={() => { realtimeVoice.stop(); selectChannel("chat"); }} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-line)", background: "var(--aacp-card)", borderRadius: "var(--aacp-radius, 16px)", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", color: "var(--aacp-fg)" }}>
                 <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
                   <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 11.5a8.38 8.38 0 0 1-8.5 8.5 8.5 8.5 0 0 1-3.9-.9L3 21l1.9-5.6A8.5 8.5 0 0 1 12.5 3 8.38 8.38 0 0 1 21 11.5z" /></svg>
                 </span>
                 <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Por chat</span>
                 <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", lineHeight: 1.3 }}>Converse digitando</span>
-              </button>
-              <button data-neu="choice" type="button" onClick={() => selectChannel("voice")} style={{ flex: 1, cursor: "pointer", fontFamily: "inherit", border: "1px solid var(--aacp-accent)", background: "color-mix(in srgb, var(--aacp-accent) 8%, transparent)", borderRadius: "16px", padding: "15px 12px", display: "flex", flexDirection: "column", alignItems: "center", gap: "9px", position: "relative", overflow: "hidden", color: "var(--aacp-fg)" }}>
-                <span style={{ position: "absolute", top: "9px", right: "9px", fontFamily: "'Space Mono', monospace", fontSize: "7.5px", letterSpacing: ".5px", color: "var(--aacp-accent-text, var(--aacp-accent))", border: "1px solid var(--aacp-accent)", borderRadius: "5px", padding: "1px 4px" }}>IA</span>
-                <span style={{ width: "38px", height: "38px", borderRadius: "11px", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none" }}>
-                  <svg width="19" height="19" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-                </span>
-                <span style={{ fontSize: "13.5px", fontWeight: 600 }}>Por voz</span>
-                <span style={{ fontSize: "10.5px", color: "var(--aacp-muted)", lineHeight: 1.3 }}>Fale com a {agent}</span>
               </button>
             </div>
           </div>
@@ -715,6 +927,7 @@ export default function ConversationShell({
                   <div style={{ fontSize: "20px", fontWeight: 700, color: "var(--aacp-fg)", lineHeight: 1.3, letterSpacing: "-0.3px", fontFamily: "var(--aacp-font-display, var(--aacp-font))" }}>Olá! Sou {agent} 👋</div>
                   <div style={{ fontSize: "13px", color: "var(--aacp-muted)", marginTop: "8px", lineHeight: 1.5, maxWidth: "380px", marginLeft: "auto", marginRight: "auto", fontFamily: "var(--aacp-font)", whiteSpace: "pre-line" }}>
                     {agentGreeting || "A partir de agora serei sua assistente de vendas e irei te ajudar a encontrar produtos, aplicar cupons, calcular frete e finalizar sua compra. Vamos começar!"}
+                    {"\n\n"}{ATTACHMENT_WELCOME_NOTICE}
                   </div>
                   <div style={{ fontFamily: "'Space Mono', monospace", fontSize: "9px", letterSpacing: "1.5px", textTransform: "uppercase", color: "var(--aacp-accent-text, var(--aacp-accent, #0f766e))", marginTop: "14px" }}>
                     Selecione uma opção abaixo ou digite algo
@@ -741,6 +954,8 @@ export default function ConversationShell({
                   b.type === "coupon_list" ||
                   b.type === "category_carousel" ||
                   b.type === "marketplace_products" ||
+                  b.type === "product_comparison" ||
+                  b.type === "wishlist" ||
                   b.type === "product_content"
                 );
                 const isFullWidth = hasOnlyBlocks || hasProductCard || hasWideBlock;
@@ -787,6 +1002,7 @@ export default function ConversationShell({
               } else {
                 return (
                   <div key={m.id} style={{ display: "flex", flexDirection: "column", gap: "6px", maxWidth: "min(76%, 480px)", alignSelf: "flex-end", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }}>
+                    {m.attachment && <div data-neu="message" data-speaker="buyer" style={{ padding: "7px 10px", borderRadius: "12px", background: "var(--aacp-card)", color: "var(--aacp-fg)", fontSize: "12px", overflowWrap: "anywhere" }}>{m.attachment.kind === "image" ? "Imagem: " : "Lista: "}{m.attachment.name}</div>}
                     {m.text && <div data-neu="message" data-speaker="buyer" style={{ padding: "11px 14px", borderRadius: "18px", fontSize: "13.5px", lineHeight: 1.5, fontWeight: 500, whiteSpace: "pre-wrap", background: "var(--aacp-accent)", color: "#fff", boxShadow: "var(--aacp-neu-message)", wordWrap: "break-word" }}>{renderBuyerMessage(m.text)}</div>}
                   </div>
                 );
@@ -815,30 +1031,20 @@ export default function ConversationShell({
             )}
           </main>
           {/* Composer / Voice indicator */}
-          <div style={{ padding: "9px 14px 14px", flex: "none" }}>
-            {channel === "voice" && listening ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "18px" }}>
-                <button data-neu="control" type="button" onClick={stopListening} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "#ff4c6c", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", animation: "micPulse 1.2s infinite" }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-                </button>
-                <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Escutando… toque para parar</span>
-              </div>
-            ) : channel === "voice" && !listening ? (
-              <div style={{ display: "flex", flexDirection: "column", alignItems: "center", gap: "12px", padding: "18px" }}>
-                <button data-neu="primary" type="button" onClick={startListening} disabled={isLoading} style={{ width: "56px", height: "56px", borderRadius: "50%", background: "var(--aacp-accent)", border: "none", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", opacity: isLoading ? 0.4 : 1 }}>
-                  <svg width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="#fff" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><rect x="9" y="3" width="6" height="11" rx="3" /><path d="M5 11a7 7 0 0 0 14 0M12 18v3" /></svg>
-                </button>
-                <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Toque para falar</span>
-              </div>
-            ) : (
-              <form data-neu="inset" data-aacp-composer-frame onSubmit={handleSubmit} style={{ display: "flex", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}>
+          <div data-aacp-composer-controls style={{ padding: "9px 14px 14px", flex: "none", display: "flex", alignItems: "center", gap: "9px" }}>
+            {voiceCheckoutEnabled && <VoiceChannelButton active={channel === "voice"} onToggle={toggleVoiceChannel} />}
+            <div style={{ flex: 1, minWidth: 0 }}>
+            {channel === "voice" ? <RealtimeVoiceComposer voice={realtimeVoice} /> : (
+              <form data-neu="inset" data-aacp-composer-frame onSubmit={handleSubmit} style={{ display: "flex", flexWrap: "wrap", alignItems: "center", gap: "9px", padding: "9px 9px 9px 15px", background: "var(--aacp-inset-bg)", border: "1px solid var(--aacp-line)", borderRadius: "14px", transition: "border-color 0.2s ease, box-shadow 0.2s ease" }}>
                 <PerimeterBorder radius="14px" variant="input" />
+                <AttachmentPicker attachment={pendingAttachment} onChange={setPendingAttachment} onReadingChange={setReadingAttachment} disabled={isLoading} />
                 <input ref={inputRef} type="text" value={input} onChange={(e) => setInput(e.target.value)} placeholder={isLoading ? "Aguarde..." : "Escreva sua mensagem…"} aria-label="Mensagem" disabled={isLoading} style={{ flex: 1, minWidth: 0, background: "transparent", border: "none", outline: "none", color: "var(--aacp-fg)", fontSize: "13px", padding: 0, fontFamily: "inherit" }} />
-                <button data-neu="send" type="submit" disabled={!input.trim() || isLoading} aria-label="Enviar mensagem" style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: !input.trim() || isLoading ? "not-allowed" : "pointer", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
+                <button data-neu="send" type="submit" disabled={(!input.trim() && !pendingAttachment) || isLoading || readingAttachment} aria-label="Enviar mensagem" style={{ width: "36px", height: "36px", borderRadius: "10px", border: "none", cursor: ((!input.trim() && !pendingAttachment) || isLoading || readingAttachment) ? "not-allowed" : "pointer", background: "var(--aacp-accent)", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
                   <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.4" strokeLinecap="round" strokeLinejoin="round"><path d="M5 12h14M13 6l6 6-6 6" /></svg>
                 </button>
               </form>
             )}
+            </div>
           </div>
         </>
       )}
@@ -867,7 +1073,7 @@ export default function ConversationShell({
       {/* Policy Modal */}
       {policyModal && (
         <div style={{ position: "fixed", inset: 0, background: "rgba(0, 0, 0, 0.7)", display: "flex", alignItems: "center", justifyContent: "center", zIndex: 9999, padding: "20px" }} onClick={() => setPolicyModal(null)}>
-          <div data-neu="surface" style={{ background: "var(--aacp-panel-bg)", borderRadius: "16px", border: "1px solid var(--aacp-line)", maxWidth: "520px", width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }} onClick={(e) => e.stopPropagation()}>
+          <div data-neu="surface" style={{ background: "var(--aacp-panel-bg)", borderRadius: "var(--aacp-radius, 16px)", border: "1px solid var(--aacp-line)", maxWidth: "520px", width: "100%", maxHeight: "80vh", display: "flex", flexDirection: "column", animation: "bubble-in 0.28s cubic-bezier(0.22, 1, 0.36, 1) both" }} onClick={(e) => e.stopPropagation()}>
             {/* Header */}
             <div style={{ display: "flex", alignItems: "center", justifyContent: "space-between", padding: "16px 20px", borderBottom: "1px solid var(--aacp-line)", flex: "none" }}>
               <h2 style={{ fontSize: "16px", fontWeight: 700, margin: 0, color: "var(--aacp-fg)" }}>{policyModal.title}</h2>
@@ -896,22 +1102,17 @@ export default function ConversationShell({
       {effectiveMode === "chat" && (
         <CheckoutWidgetPanel
           merchantId={merchantId}
+          budgetModeEnabled={budgetModeEnabled}
           onCheckout={async () => {
-            const buyer = getValidBuyer();
-            if (!buyer) {
-              setShowBuyerAuth(true);
-              return;
-            }
-            setCheckoutUserId(buyer.globalUserId);
-            setCheckoutCartRef(cart.cartId ?? undefined);
-            setCheckoutPreferences(undefined);
-            setCheckoutOpen(true);
+            beginCheckout();
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={handleUpdateQuantity}
           onRemoveItem={(variantId) => handleUpdateQuantity(variantId, 0)}
-          forceOpen={cartDrawerForceOpen}
-          suppressAutoOpen={Boolean(crossSellPending) || Boolean(richProduct)}
+          forceOpen={navigation.view.cart}
+          onOpen={() => navigation.setCart(true)}
+          onClose={() => navigation.setCart(false)}
+          suppressAutoOpen={Boolean(crossSellPending) || Boolean(richProduct) || checkoutOpen}
         />
       )}
       {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}
@@ -923,6 +1124,10 @@ export default function ConversationShell({
           setCartDrawerForceOpen(true);
         }}
         onAddItem={(id, name, promoId, couponCode) => {
+          // The product-details panel can open from the same product-detail
+          // response. Close it before accepting an upsell so it cannot cover
+          // the cross-sell action or the resulting cart update.
+          setRichProduct(null);
           dismissCrossSell();
           const tags = `[variantId:${id}]${promoId ? `[crossSellPromoId:${promoId}]` : ""}`;
           handleQuickReply(`Adicionar ${name} ao carrinho ${tags}`);
@@ -932,14 +1137,34 @@ export default function ConversationShell({
         }}
       />
       {/* Buyer Hub Panel */}
-      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} onToggleTheme={toggleTheme} />
+      <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} merchantSlug={merchantSlug} onToggleTheme={toggleTheme}
+        currentSessionId={conversationId}
+        onResumeConversation={async (conversation) => {
+          if (!merchantId || !conversationId) throw new Error("conversation_not_available");
+          await validateCurrentBuyerConversation(conversation, merchantId, conversationId);
+          realtimeVoice.stop();
+          narrationVoice.stop();
+          vm.returnToCurrentConversation();
+          setTimeout(() => inputRef.current?.focus(), 0);
+        }} />
+      <QuickPurchasePreferencesDialog
+        open={quickPurchasePreferencesOpen}
+        initialValue={oneBuyClick ? {
+          shippingPreference: oneBuyClick.shippingPreference,
+          paymentPreference: oneBuyClick.paymentPreference,
+        } : undefined}
+        onSave={saveQuickPurchasePreferences}
+        onCancel={() => setQuickPurchasePreferencesOpen(false)}
+      />
       {/* Buyer Auth Gate */}
-      {showBuyerAuth && (
+      {showBuyerAuth && !budgetModeEnabled && (
         <BuyerAuthGate
           merchantId={merchantId}
           merchantName={storeName}
           onComplete={async (globalUserId) => {
             setShowBuyerAuth(false);
+            const intent = buyerAuthIntent;
+            setBuyerAuthIntent(null);
             if (merchantId && conversationId) {
               const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
               conversationFetch(conversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/events`, {
@@ -948,28 +1173,57 @@ export default function ConversationShell({
                 body: JSON.stringify({ merchant_id: merchantId, event: "login_completed", metadata: { timestamp: new Date().toISOString() } }),
               }).catch(() => {});
             }
+            if (intent === "enable_quick_purchase") {
+              const state = await reloadOneBuyClick().catch(() => null);
+              if (!state?.preferencesConfigured) {
+                setQuickPurchasePreferencesOpen(true);
+                return;
+              }
+              if (conversationId) {
+                const buyer = getValidBuyer();
+                if (buyer) {
+                  const enabled = await checkoutApi.configureOneBuyClick(conversationId, true, buyer.token);
+                  setOneBuyClick(enabled);
+                  oneBuyClickEnabled.current = enabled.enabled;
+                }
+              }
+              return;
+            }
             setCheckoutUserId(globalUserId);
             setCheckoutCartRef(cart.cartId ?? undefined);
             setCheckoutPreferences(undefined);
             setCheckoutOpen(true);
           }}
-          onCancel={() => setShowBuyerAuth(false)}
+          onCancel={() => { setShowBuyerAuth(false); setBuyerAuthIntent(null); }}
         />
       )}
       {/* Inline Checkout Panel — replaces redirect to widget app */}
-      {checkoutOpen && merchantId && (
-        <CheckoutPanel
+      {checkoutOpen && merchantId && !budgetModeEnabled && (
+        navigation.view.recovery && merchantSlug ? <RecoveryCheckoutPanel
+          token={navigation.view.recovery} slug={merchantSlug} merchantId={merchantId} storeName={storeName}
+          theme={theme} onClose={() => setCheckoutOpen(false)}
+        /> : <CheckoutPanel
           merchantId={merchantId}
           globalUserId={checkoutUserId}
-          cartRef={checkoutCartRef}
+          cartRef={checkoutCartRef ?? cart.cartId ?? undefined}
           oneBuyClickPreferences={checkoutPreferences}
           theme={theme}
           onClose={() => setCheckoutOpen(false)}
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} suspended={buyerHubOpen || cartDrawerForceOpen || showBuyerAuth || checkoutOpen} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
+      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} crossSell={productCrossSell?.productId === richProduct.productId ? productCrossSell.data : null} onAddCrossSell={(product) => {
+        dismissProductCrossSell();
+        const tags = `[variantId:${product.id}]${product.promoId ? `[crossSellPromoId:${product.promoId}]` : ""}`;
+        handleQuickReply(`Adicionar ${product.name} ao carrinho ${tags}`);
+        if (product.couponCode) setTimeout(() => handleQuickReply(`Aplicar cupom ${product.couponCode}`), 400);
+      }} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || Boolean(crossSellPending)} onProductResolved={({ productId, defaultVariantId }) => {
+        if (richProduct.productId === productId && typeof defaultVariantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(defaultVariantId)) {
+          presentedProductVariantRef.current = defaultVariantId;
+        }
+      }} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
         setRichProduct(null);
+        if (productCrossSell?.productId === productId) dismissProductCrossSell();
         if (cartAdded || !productName || !defaultVariantId || promptedProductClose.current.has(productId)) return;
         promptedProductClose.current.add(productId);
         pendingProductCart.current = { variantId: defaultVariantId };

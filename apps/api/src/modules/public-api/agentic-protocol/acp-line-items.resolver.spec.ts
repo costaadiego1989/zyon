@@ -1,3 +1,4 @@
+import { simulateCommercialMutation } from "../../checkout/__tests__/checkout-test-fixtures.js";
 import test from "node:test";
 import assert from "node:assert/strict";
 import { BadRequestException } from "@nestjs/common";
@@ -34,6 +35,7 @@ function createSessionRepo(): CheckoutSessionRepository & {
   const saved: CheckoutSession[] = [];
   return {
     saved,
+    async commitCommercialMutation(input) { return simulateCommercialMutation(this, input); },
     async saveSession(s) {
       saved.push(s);
     },
@@ -43,6 +45,7 @@ function createSessionRepo(): CheckoutSessionRepository & {
     async findSessionsByEmail() {
       return [];
     },
+    async appendChatExchange() { throw new Error("Chat exchange is outside this fixture"); },
     async appendChatTurn(_m, _s, t) {
       return t as unknown as CheckoutSession;
     },
@@ -193,4 +196,32 @@ test("line-items: clears shipping when new SKUs are merged", async () => {
   session.shipping = { customerPrice: 10, carrier: "C", method: "M" };
   await resolver.resolveAndApply("mrc_test", session, [{ id: "sku_new", quantity: 1 }]);
   assert.equal(repo.saved[0].shipping, undefined);
+});
+
+for (const sku of ["sku_1", "new-sku"]) for (const quantity of [1.5, -1, 100, NaN, Infinity]) {
+  test(`line-items: rejects invalid quantity ${quantity} for ${sku} before any persistence`, async () => {
+    const repo = createSessionRepo();
+    const calls: unknown[] = [];
+    const resolver = new AcpLineItemsResolver(createUpdateCartSpy(calls), repo, createVariantLookup(new Map()));
+    await assert.rejects(resolver.resolveAndApply("mrc_test", buildSession(), [{ id: sku, quantity }]), BadRequestException);
+    assert.equal(repo.saved.length, 0); assert.equal(calls.length, 0);
+  });
+}
+
+test("line-items: rejects an ambiguous SKU already present with two variants", async () => {
+  const repo = createSessionRepo();
+  const session = buildSession();
+  session.cart.items.push({ ...session.cart.items[0], variant: "other" });
+  const resolver = new AcpLineItemsResolver(createUpdateCartSpy([]), repo);
+  await assert.rejects(resolver.resolveAndApply("mrc_test", session, [{ id: "sku_1", quantity: 1 }]), /acp_line_item_variant_required/);
+  assert.equal(repo.saved.length, 0);
+});
+
+test("line-items: refuses a new catalogue item in another currency", async () => {
+  const repo = createSessionRepo();
+  const resolver = new AcpLineItemsResolver(createUpdateCartSpy([]), repo, {
+    async findBySku() { return { name: "Foreign currency", price: 10, currency: "USD" }; },
+  });
+  await assert.rejects(resolver.resolveAndApply("mrc_test", buildSession(), [{ id: "new-sku", quantity: 1 }]), /acp_sku_currency_mismatch/);
+  assert.equal(repo.saved.length, 0);
 });

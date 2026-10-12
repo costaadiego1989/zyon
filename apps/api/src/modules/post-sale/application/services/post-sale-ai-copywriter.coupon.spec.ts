@@ -88,3 +88,23 @@ test("follow_up (no coupon type) never shows a coupon block", async () => {
   assert.doesNotMatch(msg, /\{\{/);
   assert.match(msg, /Mouse/);
 });
+
+test("email feedback directs buyers to support while WhatsApp retains its supported rating scale", async () => {
+  const svc = makeService();
+  const input = { buyerName: "Ana", productName: "Mouse", merchantId: "m1", buyerId: "b1", storeName: "Loja" };
+  for (const type of ["follow_up", "review_request", "nps"] as const) {
+    const email = await svc.generate({ ...input, type, channel: "email" });
+    assert.doesNotMatch(email, /responda|responder aqui|aqui mesmo|\{\{/i);
+    assert.match(email, /atendimento/);
+  }
+  assert.match(await svc.generate({ ...input, type: "nps", channel: "whatsapp" }), /1 a 5/);
+});
+
+test("campaigns without coupons never promise an exclusive or prepared benefit", async () => {
+  for (const type of ["loyalty", "win_back"] as const) {
+    for (const channel of ["email", "whatsapp"] as const) {
+      const text = await makeService().generate({ type, channel, buyerName: "Ana", productName: "Mouse", merchantId: "m1", buyerId: "b1" });
+      assert.doesNotMatch(text, /benefício exclusivo|algo especial|cupom|desconto/i);
+    }
+  }
+});

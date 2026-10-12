@@ -4,7 +4,7 @@ import { wrapHandler } from "../types.js";
 export const COMPARE_PRODUCTS: ToolDefinition = {
   name: "compare_products",
   description:
-    "Compare multiple products side-by-side. Returns table with id, name, attributes, price, stock, and rating.",
+    "Compare named products or a current product with same-category alternatives. Returns confirmed products only.",
   parameters: {
     type: "object",
     properties: {
@@ -12,9 +12,12 @@ export const COMPARE_PRODUCTS: ToolDefinition = {
         type: "array",
         items: { type: "string" },
         description: "Array of product IDs (max 5)"
-      }
+      },
+      productId: { type: "string", description: "Current product ID when comparing its similar products" },
+      productNames: { type: "array", items: { type: "string" }, description: "Exact product names when IDs are unavailable" },
+      productName: { type: "string", description: "Current product name when its ID is unavailable" },
+      includeSimilar: { type: "boolean", description: "When one product is supplied, include same-category alternatives" },
     },
-    required: ["productIds"]
   }
 };
 

@@ -40,34 +40,29 @@ function makeBuyerJwt(globalUserId: string): string {
 const BENEFITS_FIXTURE = {
   available: [
     {
-      id: 'ben_avail_1',
-      name: 'Cupom de boas-vindas',
+      ruleId: 'ben_avail_1',
       description: '10% de desconto na próxima compra acima de R$ 200.',
       condition: 'Válido para pedidos acima de R$ 200',
     },
     {
-      id: 'ben_avail_2',
-      name: 'Frete grátis regional',
+      ruleId: 'ben_avail_2',
       description: 'Frete grátis para a sua região.',
       condition: 'Entrega na região Sudeste',
     },
   ],
   earned: [
     {
-      id: 'ben_earned_1',
-      name: 'Cliente Ouro',
-      description: 'Benefício de fidelidade desbloqueado.',
+      description: 'Condição concedida na sua última compra.',
+      value: 5,
       origin: 'Histórico de compras',
     },
   ],
   progress: [
     {
-      id: 'ben_prog_1',
-      name: 'Cliente Diamante',
-      description: 'Gaste mais para desbloquear o próximo nível.',
-      current_value: 600,
-      target_value: 1000,
-      remaining_value: 400,
+      description: 'Faltam R$200.00 para frete grátis',
+      current: 0,
+      target: 200,
+      remaining: 200,
     },
   ],
 };
@@ -166,7 +161,7 @@ test.describe('Buyer Hub - Loyalty benefits', () => {
 
     const available = page.locator('[role="list"][aria-label="Descontos disponíveis para você"]');
     const earned = page.locator('[role="list"][aria-label="Benefícios conquistados"]');
-    const progress = page.locator('[role="list"][aria-label="Progresso de benefícios"]');
+    const progress = page.getByRole('region', { name: 'Como aproveitar mais benefícios' });
 
     // Section containers are present.
     await expect(available).toBeVisible({ timeout: 10000 });
@@ -179,23 +174,19 @@ test.describe('Buyer Hub - Loyalty benefits', () => {
     // Each section is populated with the fixture rows.
     await expect(available.getByRole('listitem')).toHaveCount(2);
     await expect(earned.getByRole('listitem')).toHaveCount(1);
-    await expect(progress.getByRole('listitem')).toHaveCount(1);
+    await expect(progress.getByText('Pedidos a partir de R$ 200,00, sujeitos às condições de entrega.')).toBeVisible();
   });
 
-  test('shows benefit content and progress bar values', async ({ page }) => {
+  test('shows real benefit conditions without inventing progress for an unknown cart', async ({ page }) => {
     await openLoyaltyTab(page);
 
     // Available benefit copy.
-    await expect(page.getByText('Cupom de boas-vindas')).toBeVisible({ timeout: 10000 });
+    await expect(page.getByText('10% de desconto na próxima compra acima de R$ 200.')).toBeVisible({ timeout: 10000 });
     await expect(page.getByText('Válido para pedidos acima de R$ 200')).toBeVisible();
 
-    // Earned benefit copy + origin.
-    await expect(page.getByText('Cliente Ouro')).toBeVisible();
-    await expect(page.getByText('Histórico de compras')).toBeVisible();
-
-    // Progress section: 600/1000 -> 60% progressbar.
-    const bar = page.getByRole('progressbar');
-    await expect(bar).toBeVisible();
-    await expect(bar).toHaveAttribute('aria-valuenow', '60');
+    await expect(page.getByText('Condição concedida na sua última compra.')).toBeVisible();
+    await expect(page.getByText('Pedidos a partir de R$ 200,00, sujeitos às condições de entrega.')).toBeVisible();
+    await expect(page.getByRole('progressbar')).toHaveCount(0);
+    await expect(page.getByText(/Faltam R\$/)).toHaveCount(0);
   });
 });

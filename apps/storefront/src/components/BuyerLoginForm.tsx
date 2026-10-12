@@ -69,6 +69,7 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
         if (token) {
           localStorage.setItem("zyon_buyer_token", token);
           localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token, email: verifiedEmail }));
+          window.dispatchEvent(new StorageEvent("storage", { key: "zyon_buyer_token" }));
         }
 
         await onComplete(globalUserId);

@@ -1,11 +1,31 @@
 import { test, expect } from "@playwright/test";
-import { conversationFetch, rememberConversationAccess, ConversationSessionExpiredError } from "../src/lib/conversation-access";
+import {
+  conversationAccessMatchesCurrentOrigin,
+  conversationFetch,
+  forgetConversationAccess,
+  rememberConversationAccess,
+  ConversationSessionExpiredError,
+} from "../src/lib/conversation-access";
 
-const token = (expiresAt: number) => `${Buffer.from(JSON.stringify({ expiresAt })).toString("base64url")}.test-signature`;
+const token = (expiresAt: number, origin?: string) => `${Buffer.from(JSON.stringify({ expiresAt, ...(origin ? { origin } : {}) })).toString("base64url")}.test-signature`;
+
+test("only restores a conversation capability that belongs to this storefront origin", () => {
+  Object.defineProperty(globalThis, "window", { value: { location: { origin: "https://store.example" } }, configurable: true });
+  try {
+    rememberConversationAccess("bound", token(Date.now() / 1000 + 3600, "https://store.example"));
+    rememberConversationAccess("legacy", token(Date.now() / 1000 + 3600));
+    expect(conversationAccessMatchesCurrentOrigin("bound")).toBe(true);
+    expect(conversationAccessMatchesCurrentOrigin("legacy")).toBe(false);
+  } finally {
+    forgetConversationAccess("bound");
+    forgetConversationAccess("legacy");
+    Reflect.deleteProperty(globalThis, "window");
+  }
+});
 
 test("expired chat and cart access renew once and preserve the resource", async () => {
   const originalFetch = globalThis.fetch;
-  Object.defineProperty(globalThis, "window", { value: {}, configurable: true });
+  Object.defineProperty(globalThis, "window", { value: { location: { origin: "http://localhost:3001" } }, configurable: true });
   const old = token(Date.now() / 1000 - 10);
   const fresh = token(Date.now() / 1000 + 3600);
   const id = "expired_cart";
@@ -47,7 +67,7 @@ test("expired chat and cart access renew once and preserve the resource", async 
 
 test("authentication is retried once after renewal; invalid renewal stops", async () => {
   const originalFetch = globalThis.fetch;
-  Object.defineProperty(globalThis, "window", { value: {}, configurable: true });
+  Object.defineProperty(globalThis, "window", { value: { location: { origin: "http://localhost:3001" } }, configurable: true });
   const id = "rejected_cart";
   rememberConversationAccess(id, token(Date.now() / 1000 + 3600));
   let calls = 0;
@@ -57,6 +77,14 @@ test("authentication is retried once after renewal; invalid renewal stops", asyn
     return Response.json({}, { status: calls === 1 ? 401 : 200 });
   };
   try {
+    expect((await conversationFetch(id, "/cart/rejected_cart", { method: "PATCH" })).status).toBe(200);
+    expect(calls).toBe(3);
+    calls = 0;
+    globalThis.fetch = async (url) => {
+      calls++;
+      if (String(url).endsWith("/access")) return Response.json({ conversation_id: id, conversation_token: token(Date.now() / 1000 + 3700) });
+      return Response.json({}, { status: calls === 1 ? 403 : 200 });
+    };
     expect((await conversationFetch(id, "/cart/rejected_cart", { method: "PATCH" })).status).toBe(200);
     expect(calls).toBe(3);
     calls = 0;

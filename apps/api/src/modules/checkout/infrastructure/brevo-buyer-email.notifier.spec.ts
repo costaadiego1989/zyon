@@ -59,3 +59,24 @@ test("BrevoBuyerEmailNotifier com env chama SMTP e erro HTTP não lança", async
     delete process.env.BREVO_SENDER_EMAIL;
   }
 });
+
+test("capture notice describes the event without asking for confirmation or exposing internal IDs", async () => {
+  const oldKey = process.env.BREVO_API_KEY, oldSender = process.env.BREVO_SENDER_EMAIL;
+  process.env.BREVO_API_KEY = "fake-test-key";
+  process.env.BREVO_SENDER_EMAIL = "noreply@example.test";
+  let request: any;
+  const notifier = new BrevoBuyerEmailNotifier({ fetch: async (_url: string, options: any) => {
+    request = JSON.parse(options.body);
+    return new Response("{}", { status: 201 });
+  } } as any);
+  try {
+    await (notifier as any).trySend({ ...payload(), merchantName: "Loja <Teste>", buyerFirstNameHint: "<script>Ana</script>" });
+    assert.equal(request.subject, "Loja <Teste> | Email informado na compra");
+    assert.doesNotMatch(request.htmlContent, /chk_t|mrc_t|<script>|Confirme o uso/);
+    assert.match(request.htmlContent, /Loja &lt;Teste&gt;/);
+    assert.match(request.htmlContent, /não confirma um pedido nem um pagamento/);
+  } finally {
+    if (oldKey === undefined) delete process.env.BREVO_API_KEY; else process.env.BREVO_API_KEY = oldKey;
+    if (oldSender === undefined) delete process.env.BREVO_SENDER_EMAIL; else process.env.BREVO_SENDER_EMAIL = oldSender;
+  }
+});

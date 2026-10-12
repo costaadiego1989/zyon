@@ -9,7 +9,7 @@ export const NOTIFICATION_WHATSAPP_SENDER = Symbol("NOTIFICATION_WHATSAPP_SENDER
 export interface NotificationWhatsAppSender {
   execute(input: {
     merchantId: string;
-    type: "order_confirmation" | "order_shipped" | "order_delivered";
+    type: "order_confirmation" | "order_nonphysical_confirmation" | "order_shipped" | "order_delivered";
     toPhone?: string;
     variables?: Record<string, string | number | undefined>;
     freeformText?: string;

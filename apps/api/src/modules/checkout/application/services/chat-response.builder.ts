@@ -7,7 +7,7 @@ import type {
   ChatStage
 } from "@zyon/shared-types";
 import type { Objection } from "@zyon/conversation-engine";
-import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository, type ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
 import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";
 import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort } from "../../domain/ports/cross-sell-recommender.port.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
@@ -17,7 +17,6 @@ import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../..
 import { resolveCrossSellProduct } from "../../../cross-sell/application/services/cross-sell-product-resolver.js";
 import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
-import { randomUUID } from "node:crypto";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
 export interface ChatReplyInput {
@@ -33,6 +32,8 @@ export interface ChatReplyInput {
   missingFields: string[];
   isHoldout: boolean;
   preSearchedProducts: SuggestedProduct[];
+  suppressPaymentActions?: boolean;
+  chatRequest?: ChatExchangeClaim;
 }
 
 @Injectable()
@@ -42,7 +43,10 @@ export class ChatResponseBuilder {
   constructor(
     @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
-    @Optional() private readonly createPaymentIntent?: CreatePaymentIntentUseCase,
+    // Kept in the constructor to preserve the existing Nest dependency shape.
+    // Chat no longer creates payment intents; that is exclusively the signed
+    // visual payment action in the embedded checkout.
+    @Optional() private readonly _createPaymentIntent?: CreatePaymentIntentUseCase,
     @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
     @Optional() @Inject("ProductRepositoryPort") private readonly productRepo?: ProductRepositoryPort
@@ -50,16 +54,20 @@ export class ChatResponseBuilder {
 
   async build(input: ChatReplyInput & { merchantId: string; sessionId: string }): Promise<ChatMessageResponse> {
     const now = new Date().toISOString();
-    await this.sessions.appendChatTurn(input.merchantId, input.sessionId, {
-      role: "buyer",
-      text: input.userMessage,
-      occurredAt: now
-    });
-    const updated = await this.sessions.appendChatTurn(input.merchantId, input.sessionId, {
-      role: "agent",
-      text: input.safeMessage,
-      occurredAt: new Date().toISOString(),
-      authorizedOfferId: input.offer.approved ? input.offer.id : undefined
+    const updated = await this.sessions.appendChatExchange({
+      merchantId: input.merchantId, sessionId: input.sessionId,
+      expectedSession: input.session, claim: input.chatRequest,
+      buyer: {
+        role: "buyer",
+        text: input.userMessage,
+        occurredAt: now
+      },
+      agent: {
+        role: "agent",
+        text: input.safeMessage.replace(/^(?:Zion|Zyon)\s*:\s*/i, ""),
+        occurredAt: now,
+        authorizedOfferId: input.offer.approved ? input.offer.id : undefined
+      }
     });
 
     const experience = buildExperienceFromSession(updated, {
@@ -70,10 +78,6 @@ export class ChatResponseBuilder {
       serviceFee: this.experienceConfig.platformFeeBrl
     });
 
-    const wantsPix = /\b(pix|qr code)\b/i.test(input.userMessage) && input.stage === "payment";
-    const wantsCard = /\b(cartão|cartao|credito|crédito)\b/i.test(input.userMessage) && input.stage === "payment";
-    const wantsBoleto = /\bboleto\b/i.test(input.userMessage) && input.stage === "payment";
-    const wantsCrypto = /\b(crypto|cripto|usdc|usdt|polygon|base|carteira|wallet|metamask)\b/i.test(input.userMessage) && input.stage === "payment";
 
     let suggestedProducts: SuggestedProduct[] = [];
     if (!input.isHoldout && input.stage === "payment" && input.previousStage === "shipping" && this.crossSellRecommender) {
@@ -104,32 +108,6 @@ export class ChatResponseBuilder {
       suggestedProducts = input.preSearchedProducts;
     }
 
-    let selectedPaymentMethod: import("@zyon/shared-types").PaymentMethod | undefined;
-    if (wantsPix) selectedPaymentMethod = "pix";
-    else if (wantsCard) selectedPaymentMethod = "credit_card";
-    else if (wantsBoleto) selectedPaymentMethod = "boleto";
-    else if (wantsCrypto) selectedPaymentMethod = "crypto";
-
-    let workingSession = input.session;
-    if (selectedPaymentMethod && !input.session.paymentMethod) {
-      workingSession = {
-        ...input.session,
-        paymentMethod: selectedPaymentMethod,
-        updatedAt: new Date().toISOString()
-      } as typeof input.session;
-      await this.sessions.saveSession(workingSession);
-      this.logger.log(`[chat] payment.method.selected ${selectedPaymentMethod} session=${input.sessionId}`);
-      // Record the funnel event with the chosen method so the "por pagamento"
-      // breakdown reports real segments (pix / credit_card / boleto / crypto).
-      // Deterministic + idempotent (recordEvent no-ops on duplicates per session).
-      try {
-        await this.sessions.recordEvent(input.merchantId, input.sessionId, "payment_method_selected", {
-          payment_method: selectedPaymentMethod,
-        });
-      } catch {
-        /* funnel telemetry is best-effort — never block the checkout reply */
-      }
-    }
 
     const responseExperience: typeof experience = suggestedProducts.length > 0
       ? {
@@ -138,50 +116,11 @@ export class ChatResponseBuilder {
       }
       : experience;
 
-    if (selectedPaymentMethod && this.createPaymentIntent) {
-      const intentMethod = selectedPaymentMethod === "credit_card" ? "card" : selectedPaymentMethod;
-      const offerApplied =
-        input.offer.approved &&
-        ((workingSession.cart.currentDiscount ?? 0) > 0 ||
-          (workingSession.shipping?.customerPrice === 0));
-      try {
-        const intent = await this.createPaymentIntent.execute({
-          merchant_id: input.merchantId,
-          session_id: input.sessionId,
-          idempotency_key: randomUUID(),
-          method: intentMethod as any,
-          ...(offerApplied ? { accepted_offer_id: input.offer.id } : {})
-        });
-        responseExperience.payment_intent = {
-          id: intent.id,
-          status: intent.status,
-          method: selectedPaymentMethod,
-          amount_cents: intent.amountCents,
-          currency: intent.currency,
-          expires_at: intent.buyerFacing?.quoteExpiresAt,
-          qr_code: intent.buyerFacing?.qrCodeCopyPaste,
-          qr_code_image: intent.buyerFacing?.encodedQrImage,
-          copy_paste: intent.buyerFacing?.qrCodeCopyPaste,
-          ticket_url: intent.buyerFacing?.invoiceUrl
-        };
-        this.logger.log(`[chat] payment.intent.created ${intent.id} status=${intent.status} method=${intentMethod}`);
-      } catch (payErr) {
-        const errMsg = payErr instanceof Error ? payErr.message : String(payErr);
-        const errStack = payErr instanceof Error ? payErr.stack : '';
-        this.logger.error(`[chat] payment.intent.FAILED session=${input.sessionId} method=${intentMethod} error="${errMsg}"`, errStack);
-        this.logger.error(`[chat] payment.intent.FAILED detail:`, { merchant_id: input.merchantId, session_id: input.sessionId, method: intentMethod, offerApplied, errorMessage: errMsg });
-        responseExperience.payment_intent = undefined;
-      }
-    }
 
     const chatActions: any[] = [];
-    if (wantsPix) {
-      chatActions.push({ label: "Gerar PIX", type: "continue_checkout" });
-    } else if (wantsCard) {
-      chatActions.push({ label: "Pagar com Cartão", type: "continue_checkout" });
-    } else if (input.offer.approved && input.stage === "payment") {
-      const alreadyHasDiscount = input.offer.type.includes("discount") && workingSession.cart.currentDiscount && workingSession.cart.currentDiscount > 0;
-      const alreadyHasFreeShipping = input.offer.type.includes("shipping") && workingSession.shipping?.customerPrice === 0;
+    if (input.offer.approved && input.stage === "payment") {
+      const alreadyHasDiscount = input.offer.type.includes("discount") && (input.session.cart.currentDiscount ?? 0) > 0;
+      const alreadyHasFreeShipping = input.offer.type.includes("shipping") && input.session.shipping?.customerPrice === 0;
       if (!alreadyHasDiscount && !alreadyHasFreeShipping) {
         chatActions.push({ label: "Aplicar oferta", type: "apply_offer", offer_id: input.offer.id });
       }
@@ -208,15 +147,11 @@ export class ChatResponseBuilder {
       }
     }
 
-    const finalStage = selectedPaymentMethod && workingSession.paymentMethod
-      ? "payment_pending"
-      : input.stage;
-    const finalMissingFields = finalStage === "payment_pending" || finalStage === "completed"
-      ? []
-      : input.missingFields;
+    const finalStage = input.stage;
+    const finalMissingFields = input.missingFields;
 
     return {
-      message: input.safeMessage,
+      message: input.safeMessage.replace(/^(?:Zion|Zyon)\s*:\s*/i, ""),
       objection: input.reply.objection,
       authorized_offer: authorizedOfferResponse,
       actions: chatActions,

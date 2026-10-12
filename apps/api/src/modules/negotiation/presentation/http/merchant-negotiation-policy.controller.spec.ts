@@ -8,6 +8,35 @@ import {
 import { InMemoryNegotiationStore } from "../../infrastructure/in-memory-negotiation.store.js";
 
 describe("MerchantNegotiationPolicyController", () => {
+  it("enables the 5–10% default only for merchants without a saved policy", async () => {
+    const store = new InMemoryNegotiationStore();
+    const getPolicy = new GetMerchantNegotiationPolicyUseCase(store);
+    const controller = new MerchantNegotiationPolicyController(getPolicy, new UpsertMerchantNegotiationPolicyUseCase(store));
+    const request = { user: { merchantId: "new-merchant", userId: "u", email: "e", role: "owner" } };
+    const result = await controller.get(request);
+    assert.equal(result.has_custom_policy, false);
+    assert.equal(result.policy.enabled, true);
+    assert.deepEqual(result.policy.global, { minOfferDiscountPercent: 5, maxDiscountPercent: 10 });
+    assert.deepEqual(await getPolicy.executeResolved("new-merchant"), result.policy);
+    assert.equal(await store.getMerchantPolicy("new-merchant"), null, "reading the default must not create or update a policy");
+  });
+
+  it("preserves explicitly disabled policies and custom saved limits", async () => {
+    const store = new InMemoryNegotiationStore();
+    const getPolicy = new GetMerchantNegotiationPolicyUseCase(store);
+    const controller = new MerchantNegotiationPolicyController(getPolicy, new UpsertMerchantNegotiationPolicyUseCase(store));
+    for (const enabled of [false, true]) {
+      const merchantId = `saved-${enabled}`;
+      const policy = { enabled, global: { minOfferDiscountPercent: 2, maxDiscountPercent: 25 }, maxRounds: 3, estimatedCostPerAiCallCents: 5 };
+      await store.upsertMerchantPolicy(merchantId, policy);
+      const result = await controller.get({ user: { merchantId, userId: "u", email: "e", role: "owner" } });
+      assert.equal(result.has_custom_policy, true);
+      assert.deepEqual(result.policy, policy);
+      assert.deepEqual(await getPolicy.executeResolved(merchantId), policy);
+      assert.deepEqual(await store.getMerchantPolicy(merchantId), policy);
+    }
+  });
+
   it("scopes upsert to JWT merchant", async () => {
     const store = new InMemoryNegotiationStore();
     const getPolicy = new GetMerchantNegotiationPolicyUseCase(store);

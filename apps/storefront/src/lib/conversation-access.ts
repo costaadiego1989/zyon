@@ -23,21 +23,46 @@ export function rememberConversationAccess(conversationId: string, token: string
   try { sessionStorage.setItem(`${prefix}${conversationId}`, token); } catch { /* Private browsing may disable storage. */ }
 }
 
-export function conversationAccessHeaders(conversationId: string, explicitToken?: string): Record<string, string> {
-  let token = explicitToken ?? access.get(conversationId);
+export function forgetConversationAccess(conversationId: string): void {
+  access.delete(conversationId);
+  if (typeof window === "undefined") return;
+  try { sessionStorage.removeItem(`${prefix}${conversationId}`); } catch { /* Private browsing may disable storage. */ }
+}
+
+function storedConversationAccess(conversationId: string): string | undefined {
+  let token = access.get(conversationId);
   if (!token && typeof window !== "undefined") {
     try { token = sessionStorage.getItem(`${prefix}${conversationId}`) ?? undefined; } catch { /* Use in-memory credentials. */ }
   }
+  return token;
+}
+
+function capabilityClaims(token: string): { origin?: unknown; expiresAt?: unknown } | null {
+  try {
+    const payload = token.replace(/^Bearer /, "").split(".")[0];
+    return JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
+  } catch {
+    return null;
+  }
+}
+
+export function conversationAccessHeaders(conversationId: string, explicitToken?: string): Record<string, string> {
+  const token = explicitToken ?? storedConversationAccess(conversationId);
   return token ? { Authorization: `Bearer ${token}` } : {};
+}
+
+/** Old sessions predate origin-bound capabilities and cannot be safely resumed. */
+export function conversationAccessMatchesCurrentOrigin(conversationId: string): boolean {
+  if (typeof window === "undefined" || !window.location?.origin) return false;
+  const token = storedConversationAccess(conversationId);
+  return Boolean(token && capabilityClaims(token)?.origin === window.location.origin);
 }
 
 /** The payload is only a scheduling hint. The API always verifies its signature and scope. */
 function expiresSoon(token: string): boolean {
-  try {
-    const payload = token.replace(/^Bearer /, "").split(".")[0];
-    const claims = JSON.parse(atob(payload.replace(/-/g, "+").replace(/_/g, "/")));
-    return !Number.isFinite(claims.expiresAt) || claims.expiresAt <= Date.now() / 1000 + 60;
-  } catch { return true; }
+  const claims = capabilityClaims(token);
+  const expiresAt = claims?.expiresAt;
+  return typeof expiresAt !== "number" || !Number.isFinite(expiresAt) || expiresAt <= Date.now() / 1000 + 60;
 }
 
 export async function ensureConversationAccess(conversationId: string, force = false): Promise<void> {
@@ -62,7 +87,7 @@ export async function ensureConversationAccess(conversationId: string, force = f
   try { await renewal; } finally { renewals.delete(conversationId); }
 }
 
-/** Retry only an authentication rejection, before any cart/message mutation took place. */
+/** Retry only an authorization rejection, before any cart/message mutation took place. */
 export async function conversationFetch(conversationId: string, url: string, options: RequestInit = {}): Promise<Response> {
   await ensureConversationAccess(conversationId);
   const request = () => {
@@ -72,12 +97,12 @@ export async function conversationFetch(conversationId: string, url: string, opt
   };
   const usedAuthorization = conversationAccessHeaders(conversationId).Authorization;
   const response = await request();
-  if (response.status !== 401) return response;
+  if (response.status !== 401 && response.status !== 403) return response;
   // Another request may already have renewed while this one was in flight.
   if (conversationAccessHeaders(conversationId).Authorization === usedAuthorization) {
     await ensureConversationAccess(conversationId, true);
   }
   const retried = await request();
-  if (retried.status === 401) throw new ConversationSessionExpiredError();
+  if (retried.status === 401 || retried.status === 403) throw new ConversationSessionExpiredError();
   return retried;
 }

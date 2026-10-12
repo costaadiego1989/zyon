@@ -10,7 +10,7 @@ import type { IncomingMessageInput } from "./handle-incoming-message.use-case.js
 import type { RouteResult } from "./route-to-session.use-case.js";
 import { MetaUiCapabilitiesAdapter } from "../../infrastructure/adapters/meta-ui-capabilities.adapter.js";
 
-interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
+interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
 @Injectable()
 export class HandleMetaConversationUseCase {
@@ -38,7 +38,7 @@ export class HandleMetaConversationUseCase {
       if (input.interactiveId) {
         action = state.selections?.[input.interactiveId];
         invalidSelection = !action;
-      } else if (input.body.trim() === "0" && state.previousViews.length) action = { kind: "back" };
+      } else if (!state.expectsFreeInput && input.body.trim() === "0" && state.previousViews.length) action = { kind: "back" };
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
       else if (/^(menu|in[ií]cio)$/i.test(input.body.trim())) action = { kind: "menu" };
 
@@ -47,13 +47,31 @@ export class HandleMetaConversationUseCase {
       let includeMedia = true;
       if (invalidSelection && view) { view = { ...view, body: "Essa opção pertence a uma etapa anterior. Escolha uma das opções atuais ou escreva sua pergunta." }; includeMedia = false; }
       else if (action?.kind === "page" && view) { state = { ...state, page: action.page }; includeMedia = false; }
-      else if (action?.kind === "back" && state.previousViews.length) { view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) }; }
-      else if ((action?.kind === "variant" || action?.kind === "option") && view) {
+      else if (action?.kind === "back" && state.previousViews.length) {
+        view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
+        const product = view?.blocks.find(b => b.type === "product_card");
+        const refresh = view?.blocks.some(b => b.type === "cart_summary") ? { kind: "tool" as const, tool: "get_cart", args: {} }
+          : product ? { kind: "tool" as const, tool: "get_product_details", args: { productId: (product.data as any).id } } : undefined;
+        if (refresh) { const response = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData, message: "Voltar", state, action: refresh }); state = response.state; view = buildMetaUiView(response); }
+      }
+      else if ((action?.kind === "variant" || action?.kind === "option" || action?.kind === "slot" || action?.kind === "option_group") && view) {
+        let selectedOptionItemIds = state.selectedOptionItemIds;
+        if (action.kind === "option") {
+          const selectedAction = action;
+          const product = view.blocks.find(b => b.type === "product_card" && (b.data as any).id === selectedAction.productId);
+          const group = (product?.data as any)?.optionGroups?.find((g: any) => g.id === selectedAction.groupId);
+          const groupIds = new Set<string>(group?.items?.map((i: any) => i.id) ?? []);
+          const chosen = state.selectedOptionItemIds ?? [];
+          selectedOptionItemIds = group?.selectionType === "single" ? [...chosen.filter(id => !groupIds.has(id)), action.itemId]
+            : chosen.includes(action.itemId) ? chosen.filter(id => id !== selectedAction.itemId) : [...chosen, action.itemId];
+        }
         state = { ...state, selectedProductId: action.productId, selectedVariantId: action.kind === "variant" ? action.variantId : state.selectedVariantId,
-          selectedOptionItemIds: action.kind === "option" ? [...new Set([...(state.selectedOptionItemIds ?? []), action.itemId])] : state.selectedOptionItemIds, page: 0 };
+          selectedOptionItemIds, selectedServiceSlotId: action.kind === "slot" ? action.slotId : state.selectedServiceSlotId,
+          selectedOptionGroupId: action.kind === "option_group" ? action.groupId : state.selectedOptionGroupId, page: 0, expectsFreeInput: false };
         view = buildMetaUiView({ agentMessage: "Confira sua seleção e continue:", blocks: view.blocks, quickReplies: view.quickReplies, merchantName: view.title, state });
-      } else if (action?.kind === "tool" && ["show_content", "product_gallery", "edit_cart_item"].includes(action.tool)) {
+      } else if (action?.kind === "tool" && ["show_content", "product_gallery", "media_page", "edit_cart_item"].includes(action.tool)) {
         if (action.tool === "show_content") view = { title: state.view?.title || "Sua loja", body: String(action.args.text || ""), choices: [], media: [], blocks: [], quickReplies: [] };
+        else if (action.tool === "media_page") view = { title: "Mídias do produto", body: "Continue explorando o produto:", choices: [], media: action.args.media as any[], blocks: [], quickReplies: [] };
         else if (action.tool === "product_gallery") {
           const images = Array.isArray(action.args.images) ? action.args.images.filter((url): url is string => typeof url === "string" && url.startsWith("https://")) : [];
           const galleryPage = Number(action.args.page || 0);
@@ -80,10 +98,17 @@ export class HandleMetaConversationUseCase {
       if (!view) throw new Error("whatsapp_ui_view_missing");
       const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0, includeMedia });
       state = { ...state, revision, view, page: presentation.page, selections: presentation.selections, numericSelections: presentation.numericSelections };
-      saved = { phase: "prepared", presentation, state, sessionId: route.whatsappSession.id, sent: [] };
+      saved = { phase: "prepared", presentation, state, sessionId: route.whatsappSession.id, previousRevision: route.whatsappSession.conversationState?.revision ?? "", sent: [] };
       await this.save(claim, saved);
     }
-    await this.sessions.update(saved.sessionId!, { conversationState: saved.state, lastActivityAt: new Date() });
+    if (!saved.sessionApplied) {
+      const current = route.whatsappSession.conversationState?.revision ?? "";
+      // A late receipt can resume an earlier turn after a newer buyer message.
+      if (current === (saved.previousRevision ?? "") || current === saved.state?.revision) {
+        await this.sessions.update(saved.sessionId!, { conversationState: saved.state, checkoutSessionId: saved.state?.checkoutSessionId, lastActivityAt: new Date() });
+      }
+      saved.sessionApplied = true; await this.save(claim, saved);
+    }
     const sent = saved.sent ?? [];
     for (let index = 0; index < saved.presentation!.messages.length; index++) {
       if (sent.some(item => item.index === index)) continue;

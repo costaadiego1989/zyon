@@ -1,6 +1,10 @@
+import { cleanEmailSubject } from "../../../../shared/messaging/email-content.js";
 import { EmailProviderRejection } from "../../domain/ports/email-provider-rejection.js";
-import { Logger } from "@nestjs/common";
+import { Inject, Logger, Optional } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import type { EmailSenderPort, SendEmailInput, SendEmailOutput } from "../../domain/ports/email-sender.port.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { applyMerchantEmailBranding, resolveMerchantEmailBranding } from "../../../../shared/email/merchant-email-branding.js";
 
 const logger = new Logger("ResendEmailAdapter");
 
@@ -27,7 +31,18 @@ export class ResendEmailAdapter implements EmailSenderPort {
   private readonly fromEmail = process.env.RESEND_FROM_EMAIL || "noreply@zyon.com.br";
   private readonly resendApiUrl = "https://api.resend.com/emails";
 
+  constructor(
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+  ) {}
+
   async send(input: SendEmailInput): Promise<SendEmailOutput> {
+    input = { ...input, subject: cleanEmailSubject(input.subject) };
+    // A sandbox can use the configured provider while dispatching only to approved test contacts.
+    const allowed = process.env.NOTIFICATION_EMAIL_ALLOWED_RECIPIENTS;
+    if (allowed !== undefined) {
+      const recipients = allowed.split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+      if (!recipients.includes(input.to.trim().toLowerCase())) return { messageId: "", status: "skipped" };
+    }
     // Fallback: console log if no API key (dev mode)
     if (!this.apiKey) {
       if (input.requireDelivery) return { messageId: "", status: "skipped" };
@@ -44,7 +59,7 @@ export class ResendEmailAdapter implements EmailSenderPort {
       from: input.from || this.fromEmail,
       to: input.to,
       subject: input.subject,
-      html: input.html,
+      html: await this.applyMerchantBranding(input),
     };
 
     try {
@@ -61,8 +76,8 @@ export class ResendEmailAdapter implements EmailSenderPort {
 
       if (!response.ok) {
         const error = (await response.json()) as ResendResponse;
-        logger.error(
-          `Resend API error (${response.status}): ${error.error || "Unknown error"}`,
+        if (!input.requireDelivery) logger.error(
+          `Resend API request failed (HTTP ${response.status})`,
         );
         if (response.status >= 400 && response.status < 500 && ![408,409].includes(response.status)) {
           throw new EmailProviderRejection(`resend_http_${response.status}`, [401,403,429].includes(response.status), `Resend API error: ${error.error || response.statusText}`);
@@ -81,8 +96,27 @@ export class ResendEmailAdapter implements EmailSenderPort {
         status: "sent",
       };
     } catch (err) {
-      logger.error(`Failed to send email to ${input.to}:`, err);
+      if (input.requireDelivery) logger.error(err instanceof EmailProviderRejection
+        ? "strict_email_provider_rejected" : "strict_email_acceptance_unknown");
+      else logger.error(`Email dispatch failed: ${err instanceof EmailProviderRejection ? err.code : "transport_error"}`);
       throw err;
+    }
+  }
+
+  private async applyMerchantBranding(input: SendEmailInput): Promise<string> {
+    if (!input.merchantId || !this.prisma) return input.html;
+    try {
+      const merchant = await this.prisma.merchant.findUnique({
+        where: { id: input.merchantId },
+        select: { name: true, theme: true, storeSettings: true },
+      });
+      return merchant
+        ? applyMerchantEmailBranding(input.html, resolveMerchantEmailBranding(merchant))
+        : input.html;
+    } catch {
+      // A branding lookup must never prevent a transactionally valid email.
+      logger.warn("Merchant email branding unavailable; sending unbranded message.");
+      return input.html;
     }
   }
 }

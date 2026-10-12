@@ -1,3 +1,4 @@
+import { GenerateRecoveryLinkUseCase } from "../../application/use-cases/generate-recovery-link.use-case.js";
 import {
   Body,
   Controller,
@@ -20,13 +21,6 @@ import { GetStrategyPreferencesUseCase } from "../../application/use-cases/get-s
 import { UpdateStrategyPreferencesUseCase } from "../../application/use-cases/update-strategy-preferences.use-case.js";
 import { SendWhatsAppMessageUseCase } from "../../../whatsapp-templates/application/use-cases/send-whatsapp-message.use-case.js";
 
-function buildRecoveryLink(checkoutReturnUrl?: string | null, sessionId?: string): string {
-  const base = checkoutReturnUrl || process.env.PUBLIC_WIDGET_URL || "https://widget.aacp.com/checkout";
-  if (!sessionId) return base;
-  const params = new URLSearchParams({ sessionId });
-  return `${base}?${params.toString()}`;
-}
-
 @ApiTags("Cart Recovery")
 @Controller("cart-recovery")
 @UseGuards(AuthGuard)
@@ -37,6 +31,7 @@ export class CartRecoveryController {
     private readonly getStrategyPreferences: GetStrategyPreferencesUseCase,
     private readonly updateStrategyPreferences: UpdateStrategyPreferencesUseCase,
     private readonly sendWhatsAppMessage: SendWhatsAppMessageUseCase,
+    private readonly recoveryLinks: GenerateRecoveryLinkUseCase,
   ) {}
 
   @Get("metrics")
@@ -119,7 +114,7 @@ export class CartRecoveryController {
     },
   ) {
     const user = currentUser(req);
-    const recoveryLink = buildRecoveryLink(null, body.session_id);
+    const recoveryLink = await this.recoveryLinks.execute({ merchantId: user.merchantId, sessionId: body.session_id ?? "" });
     const result = await this.sendWhatsAppMessage.execute({
       merchantId: user.merchantId,
       type: "cart_recovery",

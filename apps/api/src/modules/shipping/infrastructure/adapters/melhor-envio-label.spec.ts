@@ -18,14 +18,14 @@ const BASE_ENV = {
   MELHOR_ENVIO_FROM_ZIP: "01000000"
 };
 
-function withEnv<T>(overrides: Record<string, string | undefined>, fn: () => T): T {
+async function withEnv<T>(overrides: Record<string, string | undefined>, fn: () => Promise<T>): Promise<T> {
   const prev: Record<string, string | undefined> = {};
   for (const key of Object.keys(overrides)) {
     prev[key] = process.env[key];
     if (overrides[key] === undefined) delete process.env[key];
     else process.env[key] = overrides[key];
   }
-  try { return fn(); }
+  try { return await fn(); }
   finally {
     for (const key of Object.keys(overrides)) {
       if (prev[key] === undefined) delete process.env[key];
@@ -47,6 +47,8 @@ describe("MelhorEnvioCarrierAdapter.purchaseLabel", () => {
     const restore = mockFetch(async (url, opts) => {
       const body = opts.body ? JSON.parse(opts.body as string) : null;
       calls.push({ url, body });
+
+      if (url.endsWith('/api/v2/me')) return new Response(JSON.stringify({ id: '11111111-1111-4111-8111-111111111111' }), { status: 200 });
 
       if (url.includes("/cart")) {
         return new Response(JSON.stringify({ id: "cart_item_1" }), { status: 200 });
@@ -77,12 +79,15 @@ describe("MelhorEnvioCarrierAdapter.purchaseLabel", () => {
         invoiceKey: "NFE_KEY_123",
       }));
 
-      assert.equal(calls.length, 3);
-      assert.ok(calls[0]!.url.includes("/api/v2/me/cart"));
-      assert.ok(calls[1]!.url.includes("/api/v2/me/shipment/checkout"));
-      assert.ok(calls[2]!.url.includes("/api/v2/me/shipment/generate"));
+      assert.equal(calls.length, 4);
+      assert.ok(calls[0]!.url.endsWith('/api/v2/me'));
+      assert.ok(calls[1]!.url.includes("/api/v2/me/cart"));
+      assert.ok(calls[2]!.url.includes("/api/v2/me/shipment/checkout"));
+      assert.ok(calls[3]!.url.includes("/api/v2/me/shipment/generate"));
       assert.equal(result.trackingCode, "ME123456789BR");
       assert.equal(result.purchaseId, "purchase_1");
+      assert.equal(result.carrierOrderId, 'cart_item_1');
+      assert.equal(result.accountIdentity?.providerUserId, '11111111-1111-4111-8111-111111111111');
     } finally {
       restore();
     }
@@ -107,7 +112,8 @@ describe("MelhorEnvioCarrierAdapter.purchaseLabel", () => {
   });
 
   it("throws when cart API fails", async () => {
-    const restore = mockFetch(async () => new Response("error", { status: 422 }));
+    const restore = mockFetch(async url => url.endsWith('/api/v2/me')
+      ? new Response(JSON.stringify({ id: '11111111-1111-4111-8111-111111111111' }), { status: 200 }) : new Response("error", { status: 422 }));
     try {
       const adapter = makeAdapter();
       await assert.rejects(

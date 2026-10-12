@@ -1,18 +1,26 @@
 "use client";
 
+import { useEffect, useState } from "react";
+import { productShareUrl } from "@/lib/storefront-navigation";
 import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types";
 import { getInitial } from "./util";
 import { ProductCardShare } from "./ProductCardShare";
 
 export function ProductCardMedia({
   data,
+  merchantSlug,
   hasDiscount,
   onQuickReply,
 }: {
   data: ProductCardBlockType["data"];
+  merchantSlug?: string;
   hasDiscount: boolean;
   onQuickReply?: (option: string) => void;
 }) {
+  const [shareUrl, setShareUrl] = useState("");
+  useEffect(() => {
+    if (merchantSlug && data.id) setShareUrl(productShareUrl(window.location.origin, merchantSlug, data.id));
+  }, [merchantSlug, data.id]);
   return (
     <div
       style={{
@@ -85,7 +93,7 @@ export function ProductCardMedia({
             -{data.discountPercent}%
           </span>
         )}
-        <ProductCardShare productName={data.name} />
+        <ProductCardShare productName={data.name} shareUrl={shareUrl} />
       </div>
 
       <button data-neu="control"

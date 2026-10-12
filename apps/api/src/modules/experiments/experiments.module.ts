@@ -1,4 +1,6 @@
 import { Module } from "@nestjs/common";
+import { ExperimentMeasurementService } from "./application/experiment-measurement.service.js";
+import { ExperimentMeasurementController } from "./presentation/http/experiment-measurement.controller.js";
 import type { PrismaClient } from "@prisma/client";
 import { PersistenceModule, PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { RedisModule } from "../../shared/cache/redis.module.js";
@@ -28,8 +30,9 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
 
 @Module({
   imports: [PersistenceModule, RedisModule, MessagingModule, IntegrationsModule],
-  controllers: [ExperimentsController, ExperimentsDashboardController],
+  controllers: [ExperimentsController, ExperimentsDashboardController, ExperimentMeasurementController],
   providers: [
+    ExperimentMeasurementService,
     SignificanceCalculator,
     ExperimentRouterService,
     BillingPlanMeteringService,
@@ -58,6 +61,7 @@ import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/bi
     AutoPromoteWorker,
   ],
   exports: [
+    ExperimentMeasurementService,
     EXPERIMENT_REPOSITORY_PORT,
     ExperimentRouterService,
     SignificanceCalculator,

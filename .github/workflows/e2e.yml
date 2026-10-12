@@ -5,16 +5,23 @@ on:
     branches: [main, master]
   pull_request:
 
+# Keep only the latest test run for a ref. This stops a stuck browser suite
+# from consuming a runner after a corrective commit has already superseded it.
+concurrency:
+  group: e2e-${{ github.ref }}
+  cancel-in-progress: true
+
 jobs:
   # ── Widget v2 mocked e2e (no real API needed) ───────────────────────────────
   widget-v2-e2e-mocked:
     runs-on: ubuntu-latest
+    timeout-minutes: 25
     steps:
       - uses: actions/checkout@v4
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 9.15.0
 
       - uses: actions/setup-node@v4
         with:
@@ -23,6 +30,9 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+
+      - name: Build widget workspace dependency
+        run: pnpm --filter @zyon/shared-types build
 
       - name: Install Playwright browsers
         run: pnpm --filter @zyon/widget-v2 exec playwright install --with-deps chromium
@@ -49,6 +59,7 @@ jobs:
   # ── API integration suite ───────────────────────────────────────────────────
   api-integration-suite:
     runs-on: ubuntu-latest
+    timeout-minutes: 20
     env:
       NODE_ENV: test
       E2E_SEED_ENABLED: "true"
@@ -59,7 +70,7 @@ jobs:
 
       - uses: pnpm/action-setup@v4
         with:
-          version: 9
+          version: 9.15.0
 
       - uses: actions/setup-node@v4
         with:

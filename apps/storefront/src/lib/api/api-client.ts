@@ -19,6 +19,8 @@
  */
 
 import { conversationFetch, rememberConversationAccess } from "../conversation-access";
+import { apiCall } from "@/lib/services/http";
+import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 export interface Product {
@@ -142,6 +144,7 @@ export const checkoutApi = {
     cartId?: string;
     history?: any[];
     variantId?: string;
+    attachment?: ConversationAttachment;
   }): Promise<any> {
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
       method: "POST",
@@ -152,6 +155,7 @@ export const checkoutApi = {
         cart_id: checkoutId,
         history: options?.history,
         variant_id: options?.variantId || undefined,
+        attachment: options?.attachment,
       }),
     }, checkoutId);
   },
@@ -161,6 +165,7 @@ export const checkoutApi = {
     status: string;
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
+    preferencesConfigured: boolean;
   }> {
     return safeFetch(
       `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/one-buy-click`,
@@ -174,6 +179,7 @@ export const checkoutApi = {
     status: string;
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
+    preferencesConfigured: boolean;
   }> {
     return safeFetch(
       `${API_BASE}/storefront/conversations/${encodeURIComponent(conversationId)}/one-buy-click`,
@@ -185,8 +191,29 @@ export const checkoutApi = {
       conversationId,
     );
   },
+
+  async saveQuickPurchasePreferences(input: {
+    shippingPreference: "fastest" | "cheapest";
+    paymentPreference: "pix" | "card";
+  }): Promise<void> {
+    await apiCall("/buyer/me/preferences", {
+      method: "PATCH",
+      body: JSON.stringify({
+        one_buy_click_enabled: true,
+        shipping_preference: input.shippingPreference,
+        payment_preference: input.paymentPreference,
+        purchase_preferences_configured: true,
+      }),
+    });
+  },
 };
 export const cartApi = {
+  async requestBudget(cartId: string, merchantId: string, data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }): Promise<{ id: string; status: string }> {
+    return safeFetch(`${API_BASE}/storefront/budget-requests`, {
+      method: "POST",
+      body: JSON.stringify({ cart_id: cartId, merchant_id: merchantId, customer_name: data.customerName, customer_email: data.customerEmail, customer_phone: data.customerPhone, note: data.note }),
+    }, cartId);
+  },
   async get(cartId: string, merchantId: string): Promise<any> {
     return safeFetch(
       `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}?merchantId=${encodeURIComponent(merchantId)}`,
@@ -219,7 +246,7 @@ export const intentMemoryApi = {
   async getConsent(buyerToken: string): Promise<any> {
     return safeFetch(`${API_BASE}/buyer/consent/intent-memory`, {
       headers: { Authorization: `Bearer ${buyerToken}` },
-    }).catch(() => null);
+    });
   },
   async deleteConsent(buyerToken: string): Promise<boolean> {
     try {

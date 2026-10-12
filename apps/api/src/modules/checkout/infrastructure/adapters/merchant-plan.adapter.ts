@@ -28,6 +28,7 @@ export class MerchantPlanAdapter implements MerchantPlanPort {
         status: sub.status,
         trialEndsAt: sub.trialEndsAt,
         stripePriceId: sub.stripePriceId ?? undefined,
+        planKey: sub.planKey,
       });
 
       return {

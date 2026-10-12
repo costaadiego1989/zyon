@@ -79,6 +79,7 @@ describe("P1 — cart.total is always gross after update-cart", () => {
   it("stores gross total (no discount embedded) so experience does not double-subtract", async () => {
     const repo = new InMemoryCheckoutRepository();
     const session = checkoutSession({
+      shipping: undefined,
       cart: testCart({
         total: 200,
         currentDiscount: 20,

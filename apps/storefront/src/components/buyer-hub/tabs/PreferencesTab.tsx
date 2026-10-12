@@ -642,7 +642,7 @@ export default function PreferencesTab({
               value={preferences.one_buy_click_enabled}
               onChange={() => handleToggle("one_buy_click_enabled")}
               label="Compra rápida"
-              description="No chat, avance ao checkout depois de confirmar produto e variação"
+              description="Para compras com login: aplica seus padrões de frete e pagamento. Você sempre pode alterá-los abaixo."
             />
             <div style={{ height: "1px", background: "var(--aacp-line)" }} />
             <PreferenceSelect
@@ -659,6 +659,9 @@ export default function PreferencesTab({
               options={[{ value: "pix", label: "Pix" }, { value: "card", label: "Cartão" }]}
               onChange={(value) => handlePurchasePreferenceChange("payment_preference", value)}
             />
+            <p style={{ margin: "6px 2px 2px", color: "var(--aacp-muted)", fontSize: "11px", lineHeight: 1.5 }}>
+              Na primeira compra rápida, você confirma os dois padrões. Depois, Pix gera o código de pagamento e cartão abre o ambiente seguro do provedor.
+            </p>
             </>
           ) : (
             <div style={{ padding: "12px", color: "var(--aacp-muted)", fontSize: "13px" }}>

@@ -11,6 +11,10 @@ export type CouponStatus = "active" | "paused" | "expired" | "archived";
 export type CouponSnapshot = {
   id: string;
   merchant_id: string;
+  /** Strategy coupons are granted exclusively by the approved incentive ledger. */
+  strategy_incentive_execution_id?: string | null;
+  /** Read-only list projection; the grant authority remains the incentive ledger. */
+  strategy_incentive_state?: "active" | "scheduled" | "capacity_reached" | "ended" | "closed" | "paused" | "unavailable";
   code: string;
   discount_type: CouponDiscountType;
   discount_value: number;

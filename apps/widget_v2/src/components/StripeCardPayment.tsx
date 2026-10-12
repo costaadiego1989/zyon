@@ -9,9 +9,14 @@ const STRIPE_PK = (typeof window !== "undefined" && window.__STRIPE_PK__)
   || import.meta.env.VITE_STRIPE_PUBLISHABLE_KEY
   || "pk_test_placeholder";
 
-let stripePromise: Promise<Stripe | null> | null = null;
-function getStripe() {
-  if (!stripePromise) stripePromise = loadStripe(STRIPE_PK);
+const stripePromiseCache = new Map<string, Promise<Stripe | null>>();
+function getStripe(publishableKey: string, stripeAccountId?: string) {
+  const cacheKey = `${publishableKey}:${stripeAccountId ?? "platform"}`;
+  let stripePromise = stripePromiseCache.get(cacheKey);
+  if (!stripePromise) {
+    stripePromise = loadStripe(publishableKey, stripeAccountId ? { stripeAccount: stripeAccountId } : undefined);
+    stripePromiseCache.set(cacheKey, stripePromise);
+  }
   return stripePromise;
 }
 
@@ -128,7 +133,7 @@ export function StripeCardPayment() {
   }
 
   return (
-    <Elements stripe={getStripe()} options={{ clientSecret: paymentIntent.stripe_client_secret }}>
+    <Elements stripe={getStripe(paymentIntent.stripe_publishable_key || STRIPE_PK, paymentIntent.stripe_account_id)} options={{ clientSecret: paymentIntent.stripe_client_secret }}>
       <CardForm />
     </Elements>
   );

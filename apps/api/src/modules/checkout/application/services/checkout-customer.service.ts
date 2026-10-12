@@ -1,4 +1,6 @@
 import { Inject, Injectable, Optional } from "@nestjs/common";
+import { randomUUID } from "node:crypto";
+import { customerCorrection, type CustomerCorrection } from "../../domain/services/customer-correction.js";
 import type { CheckoutSession, CustomerHints } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
@@ -11,9 +13,14 @@ import {
   extractPhone,
   isBrazilianMobilePhone
 } from "../../domain/services/customer-extraction.service.js";
-import { OtpService, OtpValidationError } from "./otp.service.js";
+import { OtpDeliveryError, OtpService, OtpValidationError } from "./otp.service.js";
 import { BuyerRecognitionService } from "./buyer-recognition.service.js";
 import { BuyerAccountPersistenceService } from "./buyer-account-persistence.service.js";
+import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
+import { WHATSAPP_TEMPLATE_REPOSITORY, type WhatsAppTemplateRepositoryPort } from "../../../whatsapp-templates/domain/ports/whatsapp-template-repository.port.js";
+import { WHATSAPP_TEMPLATE_SENDER, type WhatsAppTemplateSenderPort } from "../../../whatsapp-templates/domain/ports/whatsapp-template-sender.port.js";
+import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
+import { CheckoutSavedAddressService } from "./checkout-saved-address.service.js";
 
 // Re-export for backwards compatibility
 export { OtpValidationError } from "./otp.service.js";
@@ -34,7 +41,11 @@ export class CheckoutCustomerService {
     @Optional() private readonly buyerEmailNotifier?: BrevoBuyerEmailNotifier,
     private readonly otpService?: OtpService,
     private readonly recognitionService?: BuyerRecognitionService,
-    private readonly persistenceService?: BuyerAccountPersistenceService
+    private readonly persistenceService?: BuyerAccountPersistenceService,
+    @Optional() @Inject(EMAIL_SENDER_PORT) private readonly emailSender?: EmailSenderPort,
+    @Optional() @Inject(WHATSAPP_TEMPLATE_REPOSITORY) private readonly templates?: WhatsAppTemplateRepositoryPort,
+    @Optional() @Inject(WHATSAPP_TEMPLATE_SENDER) private readonly whatsappTemplates?: WhatsAppTemplateSenderPort,
+    @Optional() private readonly savedAddresses?: CheckoutSavedAddressService,
   ) {}
 
   async processCustomerInput(
@@ -43,12 +54,23 @@ export class CheckoutCustomerService {
     lastAgentTurn: string | undefined,
     merchantName: string | undefined
   ): Promise<CheckoutSession> {
+    session = structuredClone(session);
     const patch = this.buildCustomerPatch(userMessage, session.customer, lastAgentTurn);
     if (!patch) return session;
 
     const hadEmailAlready = Boolean(session.customer?.email?.trim());
     let working = this.mergeCustomers(session, patch);
-    await this.repository.saveSession(working);
+
+    if (patch.otp_code) {
+      await this.deliverEmailOtp({
+        session,
+        email: patch.email ?? session.customer?.email,
+        code: patch.otp_code,
+        merchantName,
+      });
+    }
+
+    working = await commitCheckoutMutation(this.repository, { expected: session, next: working });
 
     if (patch.email && !hadEmailAlready && this.buyerEmailNotifier) {
       const merged = this.mergeHints(session.customer, patch);
@@ -62,24 +84,8 @@ export class CheckoutCustomerService {
       });
     }
 
-    if (patch.otp_code && this.buyerEmailNotifier) {
-      const email = patch.email ?? session.customer?.email;
-      if (email) {
-        const merged = this.mergeHints(session.customer, patch);
-        const buyerFirstHint = merged.fullName?.trim().split(/\s+/).filter(Boolean)[0];
-        this.buyerEmailNotifier.sendOtpCode({
-          buyerEmail: email.toLowerCase(),
-          otpCode: patch.otp_code,
-          merchantId: session.merchantId,
-          merchantName,
-          buyerFirstNameHint: buyerFirstHint
-        });
-      }
-    }
-
     if (patch.email_verified) {
       working = await this.recognizeAndPersistVerifiedBuyer(working);
-      await this.repository.saveSession(working);
       await this.persistenceService?.ensureBuyerAccountPersisted(working, true);
     }
 
@@ -95,6 +101,49 @@ export class CheckoutCustomerService {
     // Recognition is only performed after this session's OTP has been validated.
     if (!session.customer?.email_verified) return session;
     return this.recognizeAndPersistVerifiedBuyer(session);
+  }
+
+  async correctCustomerInput(session: CheckoutSession, text: string, lastAgentTurn?: string, merchantName?: string): Promise<(CustomerCorrection & { session: CheckoutSession; message?: string; needsInput?: boolean; blocked?: boolean }) | null> {
+    session = structuredClone(session);
+    const savedAddress = await this.savedAddresses?.resolve(session, text);
+    if (savedAddress?.message) {
+      const working = await commitCheckoutMutation(this.repository, { expected: session, next: savedAddress.session });
+      return { field: "zip", question: "", session: working, message: savedAddress.message };
+    }
+    if (savedAddress) {
+      session = await commitCheckoutMutation(this.repository, { expected: session, next: savedAddress.session });
+      text = "Alterar endereço";
+    }
+    const correction = customerCorrection(session, text, lastAgentTurn);
+    if (!correction) return null;
+    if (correction.cancelled) return { ...correction, session };
+    if (session.paymentMethod) {
+      return { ...correction, session, message: "O pagamento já foi iniciado. Volte ao checkout antes de alterar os dados do pedido.", blocked: true };
+    }
+    if (!correction.patch) return { ...correction, session, message: correction.question, needsInput: true };
+    const previous = session.customer ?? {};
+    let working: CheckoutSession = { ...session, customer: { ...previous, ...correction.patch }, updatedAt: new Date().toISOString() };
+    if (correction.field === "email" && correction.patch.email !== previous.email?.toLowerCase()) {
+      // Changing identity must not carry a prior account or its proof to a new email.
+      working = {
+        ...working, globalUserId: `usr_${randomUUID()}`, shipping: undefined, shippingOptions: undefined,
+        customer: {
+          ...working.customer, email_verified: false, otp_code: "", recognized_buyer: false, isReturning: false,
+          externalCustomerId: undefined, asaasCustomerId: undefined, phone_verified: false, phone_otp_code: "",
+          ...(previous.email_verified ? { fullName: undefined, cpf: undefined, phone: undefined, address: undefined, address_verified: false } : {}),
+        },
+      };
+      // Revoke the old code before attempting delivery, including delivery failure.
+      working = await commitCheckoutMutation(this.repository, { expected: session, next: working });
+      working = await this.processCustomerInput(working, correction.patch.email!, undefined, merchantName);
+      return { ...correction, session: working };
+    }
+    working = await commitCheckoutMutation(this.repository, { expected: session, next: working });
+    return { ...correction, session: working };
+  }
+
+  async saveDeliveryAddress(session: CheckoutSession): Promise<void> {
+    await this.savedAddresses?.saveComplete(session);
   }
 
   private buildCustomerPatch(
@@ -134,7 +183,12 @@ export class CheckoutCustomerService {
     }
 
     // An 11-digit mobile reply is not a CPF, even though both share a length.
-    const answeringPhone = /\b(celular|telefone|DDD)\b/i.test(lastAgentTurn ?? "");
+    const phone = extractPhone(userMessage);
+    const explicitCpf = /\bCPF\b|\b\d{3}\.\d{3}\.\d{3}-\d{2}\b/i.test(userMessage);
+    // The first message has no previous agent turn. A valid mobile supplied
+    // there must not be consumed as CPF just because both contain 11 digits.
+    const answeringPhone = /\b(celular|telefone|DDD)\b/i.test(lastAgentTurn ?? "")
+      || (!existing?.phone && !!phone && isBrazilianMobilePhone(phone) && !explicitCpf);
     if (!existing?.cpf && !answeringPhone) {
       const cpf = extractCpf(userMessage);
       if (cpf) patch.cpf = cpf;
@@ -142,7 +196,6 @@ export class CheckoutCustomerService {
 
     const currentPhone = existing?.phone;
     if (!currentPhone || !isBrazilianMobilePhone(currentPhone)) {
-      const phone = extractPhone(userMessage);
       const cpfInThisTurn = patch.cpf ?? existing?.cpf;
       if (phone && phone !== cpfInThisTurn) {
         if (this.otpService) {
@@ -200,6 +253,7 @@ export class CheckoutCustomerService {
 
   private async recognizeAndPersistVerifiedBuyer(session: CheckoutSession): Promise<CheckoutSession> {
     if (!this.recognitionService) return session;
+    session = structuredClone(session);
 
     const result = await this.recognitionService.recognizeVerifiedBuyer(
       session,
@@ -214,8 +268,82 @@ export class CheckoutCustomerService {
         updatedAt: new Date().toISOString()
       };
     }
-    await this.repository.saveSession(next);
+    next = await commitCheckoutMutation(this.repository, { expected: session, next });
     await this.persistenceService?.ensureBuyerAccountPersisted(next);
     return next;
   }
+
+  private async deliverEmailOtp(input: {
+    session: CheckoutSession;
+    email?: string;
+    code: string;
+    merchantName?: string;
+  }): Promise<void> {
+    const email = input.email?.trim().toLowerCase();
+    if (!email) throw new OtpDeliveryError();
+
+    try {
+      const result = await this.emailSender?.send({
+        to: email,
+        merchantId: input.session.merchantId,
+        from: process.env.RESEND_NOREPLY_EMAIL || process.env.RESEND_FROM_EMAIL,
+        subject: `${input.code} é seu código de confirmação`,
+        html: this.otpEmailHtml(input.code, input.merchantName),
+        requireDelivery: true,
+        idempotencyKey: `checkout-otp:${input.session.merchantId}:${input.session.sessionId}:${input.code}`,
+      });
+      if (result?.status === "sent" && result.messageId.trim()) return;
+    } catch {
+      // The transactional WhatsApp fallback below is available only after a
+      // concrete Resend failure. It is not a second send on an accepted email.
+    }
+
+    if (await this.deliverWhatsAppOtp(input)) return;
+    throw new OtpDeliveryError();
+  }
+
+  private async deliverWhatsAppOtp(input: {
+    session: CheckoutSession;
+    code: string;
+  }): Promise<boolean> {
+    const phone = input.session.customer?.phone;
+    if (!phone || !isBrazilianMobilePhone(phone)) return false;
+
+    const template = await this.templates
+      ?.findByMerchantAndType(input.session.merchantId, "checkout_otp", "whatsapp")
+      .catch(() => null);
+    if (!template?.isActive || template.metaStatus !== "approved" || !template.twilioContentSid || !template.metaVariableMap) return false;
+
+    const variables: Record<string, string> = {};
+    for (const [position, name] of Object.entries(template.metaVariableMap)) {
+      if (name !== "otpCode") return false;
+      variables[position] = input.code;
+    }
+    if (!Object.keys(variables).length) return false;
+
+    const result = await this.whatsappTemplates?.sendTemplate({
+      merchantId: input.session.merchantId,
+      type: "checkout_otp",
+      toNumber: phone,
+      contentSid: template.twilioContentSid,
+      language: template.metaLanguage ?? "pt_BR",
+      contentVariables: variables,
+    }).catch(() => null);
+    return result?.status === "sent" && Boolean(result.messageId.trim());
+  }
+
+  private otpEmailHtml(code: string, merchantName?: string): string {
+    const name = escapeHtml(merchantName?.trim() || "a loja");
+    return `<div style="font-family:Arial,sans-serif;max-width:480px;margin:0 auto;padding:24px"><p>Use este código para confirmar seu e-mail no checkout de <strong>${name}</strong>:</p><p style="font-size:32px;font-weight:700;letter-spacing:8px;text-align:center">${code}</p><p style="color:#667085;font-size:13px">O código expira em 10 minutos. Se você não iniciou esta compra, ignore este e-mail.</p></div>`;
+  }
+}
+
+function escapeHtml(value: string): string {
+  return value.replace(/[&<>"']/g, (character) => ({
+    "&": "&amp;",
+    "<": "&lt;",
+    ">": "&gt;",
+    '"': "&quot;",
+    "'": "&#39;",
+  })[character] ?? character);
 }

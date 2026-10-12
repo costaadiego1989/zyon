@@ -27,7 +27,14 @@ test("OTP merchant identity comes from the repository and activation keeps the d
   assert.deepEqual(lookups, ["merchant_1"]);
   assert.equal(deliveries.length, 1);
   assert.equal(deliveries[0]!.email, "buyer@example.test");
-  assert.deepEqual(deliveries[0]!.context, { merchantName: "Loja do Catálogo" });
+  assert.equal(deliveries[0]!.context?.merchantName, "Loja do Catálogo");
+  assert.deepEqual(deliveries[0]!.context?.merchantBranding, {
+    merchantName: "Loja do Catálogo",
+    logoUrl: undefined,
+    cnpj: undefined,
+    accentColor: undefined,
+    social: { instagram: undefined, facebook: undefined, linkedin: undefined, youtube: undefined },
+  });
   const active = await store.findActive("email:buyer@example.test");
   assert.equal(active?.codeHash, createHash("sha256").update(deliveries[0]!.code).digest("hex"));
   assert.ok(active!.expiresAt.getTime() >= before + 600000);

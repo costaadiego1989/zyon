@@ -3,6 +3,7 @@ import { EMAIL_SENDER_PORT } from "./domain/ports/email-sender.port.js";
 import { WHATSAPP_SENDER_PORT } from "./domain/ports/whatsapp-sender.port.js";
 import { ResendEmailAdapter } from "./infrastructure/adapters/resend-email.adapter.js";
 import { BubbleWhatsAdapter } from "./infrastructure/adapters/bubblewhats.adapter.js";
+import { PersistenceModule } from "../../shared/persistence/persistence.module.js";
 
 /**
  * Base transport module: raw email (Resend) + legacy WhatsApp (BubbleWhats)
@@ -14,6 +15,7 @@ import { BubbleWhatsAdapter } from "./infrastructure/adapters/bubblewhats.adapte
  *   NotificationsModule → WhatsAppTemplatesModule → MessagingChannelsModule
  */
 @Module({
+  imports: [PersistenceModule],
   providers: [
     { provide: EMAIL_SENDER_PORT, useClass: ResendEmailAdapter },
     { provide: WHATSAPP_SENDER_PORT, useClass: BubbleWhatsAdapter },

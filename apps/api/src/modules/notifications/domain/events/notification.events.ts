@@ -15,6 +15,7 @@ export interface OrderConfirmationEvent {
   buyerPhone?: string;
   orderNumber: string;
   items: Array<{
+    productType?: "physical" | "digital" | "service" | "food";
     name: string;
     quantity: number;
     price: string;

@@ -19,6 +19,7 @@ function toDto(addr: BuyerAddress) {
     state: addr.state,
     is_default: addr.isDefault,
     created_at: addr.createdAt.toISOString(),
+    label: addr.label,
   };
 }
 
@@ -46,6 +47,7 @@ export class BuyerAddressesController {
     @Req() req: { user?: unknown },
     @Body()
     body: {
+      label?: string;
       zip: string;
       street: string;
       number: string;
@@ -59,6 +61,7 @@ export class BuyerAddressesController {
     const buyer = currentBuyer(req);
     const addr = await this.addAddress.execute({
       globalUserId: buyer.globalUserId,
+      label: body.label,
       id: randomUUID(),
       zip: body.zip,
       street: body.street,
@@ -78,6 +81,7 @@ export class BuyerAddressesController {
     @Param("id") id: string,
     @Body()
     body: {
+      label?: string;
       zip?: string;
       street?: string;
       number?: string;
@@ -91,6 +95,7 @@ export class BuyerAddressesController {
     const buyer = currentBuyer(req);
     const addr = await this.updateAddress.execute({
       globalUserId: buyer.globalUserId,
+      label: body.label,
       id,
       zip: body.zip,
       street: body.street,

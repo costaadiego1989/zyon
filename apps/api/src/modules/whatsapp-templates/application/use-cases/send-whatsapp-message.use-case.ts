@@ -1,3 +1,4 @@
+import { resolveTemplateEmailSubject, resolveTemplateEmailBody } from "../../domain/email-template-copy.js";
 import { Injectable, Inject, Optional } from "@nestjs/common";
 import {
   WHATSAPP_TEMPLATE_REPOSITORY,
@@ -71,6 +72,12 @@ export class SendWhatsAppMessageUseCase {
   ) {}
 
   async execute(input: SendWhatsAppMessageInput): Promise<SendWhatsAppMessageResult> {
+    if (input.type === "cart_recovery") {
+      try {
+        const link = new URL(String(input.variables?.link ?? ""));
+        if (link.protocol !== "https:" || link.username || link.password) throw new Error();
+      } catch { return { channel: "none", status: "skipped", reason: "recovery_link_invalid" }; }
+    }
     return this.sendSalesMessage(input);
   }
 
@@ -82,7 +89,8 @@ export class SendWhatsAppMessageUseCase {
         const template = await this.templates
           .findByMerchantAndType(input.merchantId, input.type, "whatsapp")
           .catch(() => null);
-        if (isApprovedSalesTemplate(template, input.merchantId, input.type, connection.wabaId)) {
+        if (isApprovedSalesTemplate(template, input.merchantId, input.type, connection.wabaId)
+          && (input.type !== "cart_recovery" || hasRecoveryLinkSlot(template))) {
           try {
             const result = await this.templateSender.sendTemplate({
               merchantId: input.merchantId,
@@ -122,8 +130,8 @@ export class SendWhatsAppMessageUseCase {
       catch { return { channel: "none", status: "skipped", reason: "email_template_unavailable" }; }
       if (template?.merchantId === input.merchantId && template.type === input.type && template.channel === "email") {
         if (!template.isActive) return { channel: "none", status: "skipped", reason: "email_template_disabled" };
-        input = { ...input, freeformText: this.renderText(template.body, input.variables ?? {}),
-          emailSubject: this.renderText(template.subject ?? "Mensagem da loja", input.variables ?? {}).replace(/[\r\n]/g, " ") };
+        input = { ...input, freeformText: this.renderText(resolveTemplateEmailBody(input.type, template.body), input.variables ?? {}),
+          emailSubject: resolveTemplateEmailSubject(input.type, template.subject, input.variables) };
       }
     }
     if (input.fallbackEmail && this.email && input.freeformText) {
@@ -133,7 +141,8 @@ export class SendWhatsAppMessageUseCase {
       try {
         result = await this.email.send({
           to: input.fallbackEmail,
-          subject: input.emailSubject || "Mensagem da loja",
+          merchantId: input.merchantId,
+          subject: resolveTemplateEmailSubject(input.type, input.emailSubject, input.variables),
           html: input.type === "cart_recovery"
             ? renderRecoveryEmail(input.freeformText, String(input.variables?.storeName ?? "Sua loja"), input.variables?.link == null ? undefined : String(input.variables.link))
             : `<p>${html}</p>`,
@@ -181,4 +190,11 @@ export class SendWhatsAppMessageUseCase {
     for (const [pos, name] of Object.entries(map)) out[pos] = values[name] ?? "";
     return out;
   }
+}
+
+/** The approved BODY must contain the positional slot receiving the actual recovery URL. */
+export function hasRecoveryLinkSlot(template: Pick<WhatsAppTemplateRecord, "metaVariableMap" | "metaTemplateBody">): boolean {
+  return Object.entries(template.metaVariableMap ?? {}).some(([position, name]) =>
+    name === "link" && /^[1-9][0-9]*$/.test(position) && template.metaTemplateBody?.includes(`{{${position}}}`),
+  );
 }

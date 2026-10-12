@@ -26,7 +26,12 @@ export class AbandonmentReasonClassifier {
     }
 
     // Check for hesitation pattern: exit_intent or idle in recent events
-    const hesitationSignals = ["exit_intent_detected", "idle_30s", "idle_30_seconds"];
+    // `checkout_abandoned` is the terminal browser lifecycle signal emitted
+    // when a buyer closes or leaves the checkout. It is as actionable as the
+    // softer idle/exit-intent signals; treating it as unknown otherwise sends
+    // a sub-0.7 score into the 60-minute wait-and-retry branch rather than
+    // the configured cart-recovery flow.
+    const hesitationSignals = ["checkout_abandoned", "exit_intent_detected", "idle_30s", "idle_30_seconds"];
     const hasHesitation = events.some((e) => hesitationSignals.includes(e));
     if (hasHesitation) {
       return "hesitation";

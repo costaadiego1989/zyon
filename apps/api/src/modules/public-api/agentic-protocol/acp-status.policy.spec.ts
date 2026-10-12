@@ -29,6 +29,7 @@ function createRepo(events: CheckoutEventName[] = []): CheckoutSessionRepository
     async findSessionsByEmail() {
       return [];
     },
+    async appendChatExchange() { throw new Error("Chat exchange is outside this fixture"); },
     async appendChatTurn(_m, _s, t) {
       return t as unknown as CheckoutSession;
     },

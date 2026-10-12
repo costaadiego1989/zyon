@@ -1,605 +1,143 @@
-"use client";
+﻿"use client";
 
-import { FiTruck, FiCheckCircle, FiMapPin, FiExternalLink } from "react-icons/fi";
+import { useState } from "react";
+import { FiTruck, FiCheckCircle, FiPackage, FiCopy, FiCheck, FiExternalLink } from "react-icons/fi";
 import type { BuyerPurchase, TrackingEvent } from "@/lib/viewmodels/useBuyerHub";
+import styles from "./TrackingTab.module.css";
 
 export interface TrackingTabProps {
   purchases: BuyerPurchase[];
+  loading?: boolean;
+  error?: string | null;
+  onRetry?: () => void;
 }
 
-
-const TRACKING_STATUS_LABEL: Record<string, string> = {
-  pending: "Aguardando envio",
-  created: "Criado",
-  label_generated: "Etiqueta gerada",
-  dispatched: "Despachado",
-  in_transit: "Em transporte",
-  out_for_delivery: "Saiu para entrega",
-  delivered: "Entregue",
-  returned: "Devolvido",
-  cancelled: "Cancelado",
-  "flat-rate": "Frete fixo",
-  flat_rate: "Frete fixo",
-  free_shipping: "Entrega grátis",
+const labels: Record<string, string> = {
+  pending: "Aguardando postagem", pendente: "Aguardando postagem", created: "Aguardando postagem",
+  label_generated: "Etiqueta emitida", etiqueta_gerada: "Etiqueta emitida", processing: "Em preparação",
+  dispatched: "Enviado", shipped: "Enviado", enviado: "Enviado", posted: "Postado",
+  in_transit: "Em transporte", em_transito: "Em transporte", "in transit": "Em transporte",
+  out_for_delivery: "Saiu para entrega", saiu_para_entrega: "Saiu para entrega",
+  delivered: "Entregue", entregue: "Entregue", returned: "Devolvido", devolvido: "Devolvido",
+  failed_attempt: "Tentativa de entrega", tentativa_falhou: "Tentativa de entrega",
+  delivery_failed: "Entrega não concluída", exception: "Entrega com ocorrência",
 };
+const uuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+const cancelled = (status?: string | null) => /^(cancelled|canceled|cancelado)$/i.test(status?.trim() ?? "");
+const delivered = (status?: string | null) => /^(delivered|entregue)$/i.test(status?.trim() ?? "");
+const returned = (status?: string | null) => /^(returned|devolvido)$/i.test(status?.trim() ?? "");
+const statusLabel = (status?: string | null, fallback = "Rastreamento disponível") => labels[status?.trim().toLowerCase() ?? ""] ?? fallback;
+const date = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short" });
+const dateTime = new Intl.DateTimeFormat("pt-BR", { dateStyle: "short", timeStyle: "short" });
+const validDate = (value: unknown): value is string => typeof value === "string" && Number.isFinite(Date.parse(value));
 
-const CARRIER_LABELS: Record<string, string> = {
-  "flat-rate": "Frete fixo",
-  flat_rate: "Frete fixo",
-  free_shipping: "Entrega grátis",
-  "melhor-envio": "Melhor Envio",
-  melhor_envio: "Melhor Envio",
-  correios: "Correios",
-};
-
-function trackingStatusLabel(status?: string | null): string {
-  if (!status) return "Aguardando envio";
-  const key = status.toLowerCase();
-  return TRACKING_STATUS_LABEL[key] ?? status.replace(/_/g, " ");
+function hasRealCode(value?: string | null): value is string {
+  if (typeof value !== "string") return false;
+  const code = value.trim();
+  return /^[A-Za-z0-9][A-Za-z0-9 -]{3,99}$/.test(code) && !uuid.test(code) && !/^pending\b/i.test(code);
 }
 
-function fmtDate(iso: string): string {
-  return new Intl.DateTimeFormat("pt-BR", {
-    day: "numeric",
-    month: "short",
-    year: "numeric",
-  }).format(new Date(iso));
+function carrierName(value?: string | null): string | null {
+  const carrier = value?.trim();
+  if (!carrier || uuid.test(carrier) || /^(flat[-_ ]rate|free[-_ ]shipping|frete[-_ ]fixo|entrega[-_ ]gr[aá]tis|internal|pending|manual|pickup|retirada)(\b|:)/i.test(carrier)) return null;
+  const known: Record<string, string> = { correios: "Correios", "melhor-envio": "Melhor Envio", melhor_envio: "Melhor Envio", jadlog: "Jadlog", loggi: "Loggi", dhl: "DHL", fedex: "FedEx", ups: "UPS" };
+  return known[carrier.toLowerCase()] ?? (/^[\p{L}\p{N} .&+-]{2,80}$/u.test(carrier) ? carrier : null);
 }
 
-function correiosTrackingUrl(code: string): string {
-  return `https://rastreamento.correios.com.br/app/index.php?objeto=${encodeURIComponent(code)}`;
+function trackingLink(value?: string | null): URL | null {
+  if (typeof value !== "string" || !/^https?:\/\//i.test(value.trim())) return null;
+  try {
+    const url = new URL(value.trim());
+    const host = url.hostname.toLowerCase().replace(/\.$/, "");
+    if (url.username || url.password || !host.includes(".") || host.includes(":") ||
+      /^(?:\d{1,3}\.){3}\d{1,3}$/.test(host) || /(?:^|\.)(localhost|local|internal)$/.test(host)) return null;
+    return url;
+  } catch { return null; }
 }
 
-const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
-const BR_CODE_RE = /^[A-Z]{2}\d{9}[A-Z]{2}$/i;
-
-function isRealTrackingCode(code?: string | null): boolean {
-  if (!code) return false;
-  const c = code.trim();
-  if (!c) return false;
-  if (/^pending:/i.test(c)) return false;
-  if (UUID_RE.test(c)) return false;
-  return true;
+function Timeline({ events }: { events: TrackingEvent[] }) {
+  return <ol className={styles.timeline} aria-label="Histórico da entrega">{events.map((event, index) => <li className={styles.event} key={`${event.occurred_at}-${index}`}>
+    <h5>{statusLabel(event.status, "Atualização registrada")}</h5>
+    <time dateTime={event.occurred_at}>{dateTime.format(new Date(event.occurred_at))}</time>
+    {event.location && <p>{event.location}</p>}
+    {event.description && event.description !== statusLabel(event.status) && <p>{event.description}</p>}
+  </li>)}</ol>;
 }
 
-function isDirectDelivery(carrier?: string | null): boolean {
-  const c = (carrier ?? "").toLowerCase();
-  return c.includes("flat") || c.includes("free") || c.includes("grátis") || c.includes("gratis");
-}
-
-function resolveTracking(
-  code: string,
-  carrier?: string | null,
-  trackingUrl?: string | null,
-): { url: string; label: string } | null {
-  const carrierLc = (carrier ?? "").toLowerCase();
-  const urlLc = (trackingUrl ?? "").toLowerCase();
-
-  if (carrierLc.includes("melhor") || urlLc.includes("melhorenvio")) {
-    if (trackingUrl) {
-      const href = trackingUrl.startsWith("http") ? trackingUrl : `https://${trackingUrl}`;
-      return { url: href, label: "Rastrear no Melhor Envio" };
-    }
-    return null;
+function Shipment({ purchase }: { purchase: BuyerPurchase }) {
+  const [copied, setCopied] = useState<"success" | "failed" | null>(null);
+  const code = purchase.tracking_code!.trim();
+  const merchant = purchase.merchant_name?.trim() && !uuid.test(purchase.merchant_name.trim()) ? purchase.merchant_name.trim() : "Loja";
+  const carrier = carrierName(purchase.carrier);
+  const link = trackingLink(purchase.tracking_url);
+  const events = (purchase.tracking_events ?? []).filter((event) => event && validDate(event.occurred_at))
+    .slice().sort((a, b) => Date.parse(b.occurred_at) - Date.parse(a.occurred_at));
+  const isDelivered = delivered(purchase.tracking_status);
+  async function copyCode() {
+    try { await navigator.clipboard.writeText(code); setCopied("success"); }
+    catch { setCopied("failed"); }
   }
-
-  if (trackingUrl && trackingUrl.startsWith("http")) {
-    return { url: trackingUrl, label: "Rastrear" };
-  }
-
-  if (carrierLc.includes("correios") || BR_CODE_RE.test(code)) {
-    return { url: correiosTrackingUrl(code), label: "Rastrear nos Correios" };
-  }
-
-  return null;
-}
-
-
-function TimelineDot() {
-  return (
-    <svg
-      width="12"
-      height="12"
-      viewBox="0 0 12 12"
-      fill="none"
-      xmlns="http://www.w3.org/2000/svg"
-      style={{
-        flexShrink: 0,
-        color: "var(--aacp-accent-text, var(--aacp-accent))",
-      }}
-      aria-hidden="true"
-    >
-      <circle cx="6" cy="6" r="4" fill="currentColor" />
-    </svg>
-  );
-}
-
-
-function TimelineLine() {
-  return (
-    <div
-      style={{
-        width: "1px",
-        height: "16px",
-        background: "var(--aacp-line)",
-        margin: "0 5.5px",
-      }}
-      aria-hidden="true"
-    />
-  );
-}
-
-
-function TrackingEventItem({
-  event,
-  isLast,
-}: {
-  event: TrackingEvent;
-  isLast: boolean;
-}) {
-  const status = trackingStatusLabel(event.status);
-  const date = fmtDate(event.occurred_at);
-  const location = event.location || "";
-  const description = event.description || "";
-
-  return (
-    <div style={{ display: "flex", gap: "8px" }}>
-      {/* Timeline track */}
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center" }}>
-        <TimelineDot />
-        {!isLast && <TimelineLine />}
-      </div>
-
-      {/* Event content */}
-      <div style={{ flex: 1, paddingBottom: isLast ? "0" : "8px" }}>
-        <div style={{ fontSize: "12px", fontWeight: 600, color: "var(--aacp-fg)" }}>
-          {status}
-        </div>
-        <div style={{ fontSize: "11px", color: "var(--aacp-muted)", marginTop: "2px" }}>
-          {date}
-          {location && ` • ${location}`}
-        </div>
-        {description && (
-          <div style={{ fontSize: "11px", color: "var(--aacp-muted)", marginTop: "4px", lineHeight: 1.4 }}>
-            {description}
-          </div>
-        )}
-      </div>
+  return <article className={styles.shipment} aria-label={`Entrega de ${merchant}`}>
+    <div className={styles.topline}>
+      <span className={styles.merchant}>{merchant}</span>
+      {validDate(purchase.created_at) && <span className={styles.date}>Compra em <time dateTime={purchase.created_at}>{date.format(new Date(purchase.created_at))}</time></span>}
     </div>
-  );
+    <h4 className={`${styles.status} ${isDelivered ? styles.delivered : ""}`}>
+      {isDelivered ? <FiCheckCircle size={19} aria-hidden="true" /> : <FiTruck size={19} aria-hidden="true" />}
+      {statusLabel(purchase.tracking_status)}
+    </h4>
+    <ul className={styles.items} aria-label="Itens desta entrega">{purchase.tracking_items!.map((item, index) => <li key={index}>
+      {item.quantity} × {item.name}
+    </li>)}</ul>
+    <div className={styles.codeRow}>
+      <div className={styles.codeLabel}><span>Código de rastreio</span><code className={styles.code}>{code}</code></div>
+      <button type="button" className={styles.button} data-neu="control" onClick={copyCode} aria-label={`Copiar código de rastreio ${code}`}>
+        {copied === "success" ? <FiCheck size={14} aria-hidden="true" /> : <FiCopy size={14} aria-hidden="true" />}
+        {copied === "success" ? "Copiado" : "Copiar"}
+      </button>
+    </div>
+    <p className={styles.copyStatus} role="status">{copied === "success" ? "Código copiado." : copied === "failed" ? "Não foi possível copiar. Selecione o código para copiá-lo." : null}</p>
+    {carrier && <p className={styles.carrier}>Transportadora: {carrier}</p>}
+    {events.length > 0 ? events.length <= 3 ? <Timeline events={events} /> : <>
+      <Timeline events={events.slice(0, 1)} />
+      <details className={styles.details}><summary>Ver histórico completo</summary><Timeline events={events.slice(1)} /></details>
+    </> : <p className={styles.note} style={{ marginTop: 16 }}>Ainda não há atualizações de transporte para este código.</p>}
+    {link && <>
+      <a className={styles.link} href={link.href} target="_blank" rel="noopener noreferrer">
+        Acompanhar entrega <FiExternalLink size={14} aria-hidden="true" />
+      </a>
+      <span className={styles.externalHost}>Abre em {link.hostname}</span>
+    </>}
+  </article>;
 }
 
-
-export function TrackingTab({ purchases }: TrackingTabProps) {
-  const allNonCancelled = purchases.filter(
-    (p) => p.tracking_status !== "cancelled" && p.tracking_status !== "cancelado",
-  );
-
-  const active = allNonCancelled.filter((p) => p.tracking_status !== "delivered" && p.tracking_status !== "entregue");
-  const delivered = allNonCancelled.filter((p) => p.tracking_status === "delivered" || p.tracking_status === "entregue");
-
-  if (allNonCancelled.length === 0) {
-    return (
-      <div
-        role="status"
-        style={{
-          display: "flex",
-          flexDirection: "column",
-          alignItems: "center",
-          justifyContent: "center",
-          gap: "12px",
-          padding: "48px 16px",
-          textAlign: "center",
-        }}
-      >
-        <div
-          aria-hidden="true"
-          style={{
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            width: "56px",
-            height: "56px",
-            borderRadius: "50%",
-            background: "var(--aacp-surface-3)",
-            color: "var(--aacp-muted)",
-          }}
-        >
-          <FiTruck size={26} />
-        </div>
-        <div style={{ fontSize: "14px", fontWeight: 600, color: "var(--aacp-fg)" }}>
-          Nenhuma entrega
-        </div>
-        <div style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>
-          Quando você fizer um pedido com envio, ele aparecerá aqui.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div style={{ display: "flex", flexDirection: "column", gap: "20px" }}>
-      {/* Active tracking section */}
-      {active.length > 0 && (
-        <fieldset
-          style={{
-            border: "none",
-            padding: 0,
-            margin: 0,
-          }}
-        >
-          <legend
-            style={{
-              fontSize: "12px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              color: "var(--aacp-muted)",
-              marginBottom: "10px",
-            }}
-          >
-            Em andamento
-          </legend>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {active.map((purchase) => (
-              <TrackingCard key={purchase.id} purchase={purchase} />
-            ))}
-          </div>
-        </fieldset>
-      )}
-
-      {/* Delivered section */}
-      {delivered.length > 0 && (
-        <fieldset
-          style={{
-            border: "none",
-            padding: 0,
-            margin: 0,
-          }}
-        >
-          <legend
-            style={{
-              fontSize: "12px",
-              fontWeight: 700,
-              textTransform: "uppercase",
-              letterSpacing: "0.5px",
-              color: "var(--aacp-muted)",
-              marginBottom: "10px",
-            }}
-          >
-            Entregues
-          </legend>
-          <div style={{ display: "flex", flexDirection: "column", gap: "12px" }}>
-            {delivered.map((purchase) => (
-              <TrackingCard key={purchase.id} purchase={purchase} />
-            ))}
-          </div>
-        </fieldset>
-      )}
-    </div>
-  );
-}
-
-
-function TrackingCard({ purchase }: { purchase: BuyerPurchase }) {
-  const events = purchase.tracking_events || [];
-  const status = trackingStatusLabel(purchase.tracking_status);
-  const carrier = purchase.carrier || "Correios";
-  const carrierLabel = CARRIER_LABELS[carrier.toLowerCase()] ?? carrier;
-  const rawCode = purchase.tracking_code || "";
-  const isDelivered = purchase.tracking_status === "delivered" || purchase.tracking_status === "entregue";
-  const isFlatRate = isDirectDelivery(carrier);
-  const hasRealCode = isRealTrackingCode(rawCode);
-  const tracking = hasRealCode ? resolveTracking(rawCode, carrier, purchase.tracking_url) : null;
-
-  if (isDelivered) {
-    return (
-      <div data-neu="surface"
-        style={{
-          padding: "14px",
-          borderRadius: "10px",
-          border: "1px solid var(--aacp-line)",
-          background: "var(--aacp-surface-2)",
-        }}
-        role="region"
-        aria-label={`Rastreamento entregue - ${purchase.merchant_name}`}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "12px",
-            justifyContent: "space-between",
-          }}
-        >
-          <div style={{ flex: 1 }}>
-            <div
-              style={{
-                fontSize: "12px",
-                fontWeight: 600,
-                color: "var(--aacp-fg)",
-              }}
-            >
-              {purchase.merchant_name}
-            </div>
-            {hasRealCode && (
-              <div style={{ fontSize: "10px", color: "var(--aacp-muted)", marginTop: "4px" }}>
-                {rawCode}
-              </div>
-            )}
-          </div>
-          <div
-            aria-label="Entregue"
-            style={{
-              flexShrink: 0,
-              color: "var(--aacp-success)",
-            }}
-          >
-            <FiCheckCircle size={24} />
-          </div>
-        </div>
-      </div>
-    );
-  }
-
-  if (isFlatRate && !hasRealCode) {
-    return (
-      <div data-neu="surface"
-        style={{
-          padding: "14px",
-          borderRadius: "10px",
-          border: "1px solid var(--aacp-line)",
-          background: "var(--aacp-surface-2)",
-        }}
-        role="region"
-        aria-label={`Sem rastreio - ${purchase.merchant_name}`}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            marginBottom: "8px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "var(--aacp-fg)",
-            }}
-          >
-            {purchase.merchant_name}
-          </div>
-          <div
-            style={{
-              fontSize: "10px",
-              fontWeight: 600,
-              color: "var(--aacp-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.3px",
-            }}
-          >
-            {carrierLabel}
-          </div>
-        </div>
-        <div
-          style={{
-            padding: "10px 12px",
-            borderRadius: "8px",
-            background: "color-mix(in srgb, var(--aacp-muted) 8%, transparent)",
-            fontSize: "12px",
-            color: "var(--aacp-muted)",
-            borderLeft: "3px solid var(--aacp-muted)",
-          }}
-          role="status"
-        >
-          Sem rastreio — entrega direta
-        </div>
-      </div>
-    );
-  }
-
-  if (!hasRealCode) {
-    return (
-      <div data-neu="surface"
-        style={{
-          padding: "14px",
-          borderRadius: "10px",
-          border: "1px solid var(--aacp-line)",
-          background: "var(--aacp-surface-2)",
-        }}
-        role="region"
-        aria-label={`Aguardando código - ${purchase.merchant_name}`}
-      >
-        <div
-          style={{
-            display: "flex",
-            justifyContent: "space-between",
-            alignItems: "baseline",
-            marginBottom: "8px",
-          }}
-        >
-          <div
-            style={{
-              fontSize: "12px",
-              fontWeight: 600,
-              color: "var(--aacp-fg)",
-            }}
-          >
-            {purchase.merchant_name}
-          </div>
-          <div
-            style={{
-              fontSize: "10px",
-              fontWeight: 600,
-              color: "var(--aacp-muted)",
-              textTransform: "uppercase",
-              letterSpacing: "0.3px",
-            }}
-          >
-            {carrierLabel}
-          </div>
-        </div>
-        <div
-          style={{
-            padding: "10px 12px",
-            borderRadius: "8px",
-            background: "color-mix(in srgb, var(--aacp-muted) 8%, transparent)",
-            fontSize: "12px",
-            color: "var(--aacp-muted)",
-            borderLeft: "3px solid var(--aacp-muted)",
-          }}
-          role="status"
-        >
-          Aguardando código
-        </div>
-        <div style={{ fontSize: "11px", color: "var(--aacp-muted)", marginTop: "8px" }}>
-          Este pedido ainda não possui código de rastreio. Atualize em breve.
-        </div>
-      </div>
-    );
-  }
-
-  return (
-    <div data-neu="surface"
-      style={{
-        padding: "14px",
-        borderRadius: "10px",
-        border: "1px solid var(--aacp-line)",
-        background: "var(--aacp-surface-2)",
-      }}
-      role="region"
-      aria-label={`Rastreamento - ${purchase.merchant_name}`}
-    >
-      {/* Header: merchant + carrier badge */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "baseline",
-          marginBottom: "10px",
-        }}
-      >
-        <div
-          style={{
-            fontSize: "12px",
-            fontWeight: 600,
-            color: "var(--aacp-fg)",
-          }}
-        >
-          {purchase.merchant_name}
-        </div>
-        <div
-          style={{
-            fontSize: "10px",
-            fontWeight: 600,
-            color: "var(--aacp-muted)",
-            textTransform: "uppercase",
-            letterSpacing: "0.3px",
-          }}
-        >
-          {carrierLabel}
-        </div>
-      </div>
-
-      {/* Tracking code + status badge */}
-      <div
-        style={{
-          display: "flex",
-          justifyContent: "space-between",
-          alignItems: "center",
-          paddingBottom: "10px",
-          borderBottom: "1px solid var(--aacp-line)",
-          marginBottom: "10px",
-        }}
-      >
-        <div
-          style={{
-            display: "flex",
-            alignItems: "center",
-            gap: "6px",
-            fontSize: "11px",
-            color: "var(--aacp-muted)",
-          }}
-        >
-          <FiMapPin size={12} aria-hidden="true" />
-          <span>{rawCode}</span>
-        </div>
-        <div
-          style={{
-            padding: "3px 8px",
-            borderRadius: "4px",
-            background: "color-mix(in srgb, var(--aacp-accent) 12%, transparent)",
-            color: "var(--aacp-accent-text, var(--aacp-accent))",
-            fontSize: "10px",
-            fontWeight: 600,
-          }}
-        >
-          {status}
-        </div>
-      </div>
-
-      {/* Timeline of events */}
-      {events.length > 0 ? (
-        <div
-          style={{
-            display: "flex",
-            flexDirection: "column",
-            gap: "2px",
-            marginBottom: "10px",
-          }}
-        >
-          {events.map((event, idx) => (
-            <TrackingEventItem
-              key={idx}
-              event={event}
-              isLast={idx === events.length - 1}
-            />
-          ))}
-        </div>
-      ) : (
-        <div
-          style={{
-            fontSize: "11px",
-            color: "var(--aacp-muted)",
-            marginBottom: "10px",
-            fontStyle: "italic",
-          }}
-        >
-          Rastreamento não disponível ainda.
-        </div>
-      )}
-
-      {/* Link to tracking service */}
-      {tracking && (
-        <a
-          href={tracking.url}
-          target="_blank"
-          rel="noopener noreferrer"
-          style={{
-            display: "inline-flex",
-            alignItems: "center",
-            gap: "4px",
-            fontSize: "11px",
-            color: "var(--aacp-accent-text, var(--aacp-accent))",
-            textDecoration: "none",
-            fontWeight: 600,
-            transition: "opacity 0.15s ease",
-            cursor: "pointer",
-          }}
-          onMouseEnter={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.opacity = "0.8";
-          }}
-          onMouseLeave={(e) => {
-            (e.currentTarget as HTMLAnchorElement).style.opacity = "1";
-          }}
-          aria-label={`${tracking.label} ${rawCode}`}
-        >
-          <span>{tracking.label}</span>
-          <FiExternalLink size={10} />
-        </a>
-      )}
-    </div>
-  );
+export function TrackingTab({ purchases, loading = false, error, onRetry }: TrackingTabProps) {
+  // Presence of a code is not proof of physical fulfillment. The authenticated
+  // API must explicitly confirm this delivery and its physical item projection.
+  const eligible = purchases.filter((purchase) => purchase.has_tracking === true && !cancelled(purchase.tracking_status) &&
+    hasRealCode(purchase.tracking_code) && Array.isArray(purchase.tracking_items) && purchase.tracking_items.length > 0 &&
+    purchase.tracking_items.every((item) => typeof item.name === "string" && item.name.trim() && Number.isSafeInteger(item.quantity) && item.quantity > 0));
+  const sections = [
+    { title: "Em andamento", items: eligible.filter((purchase) => !delivered(purchase.tracking_status) && !returned(purchase.tracking_status)) },
+    { title: "Entregues", items: eligible.filter((purchase) => delivered(purchase.tracking_status)) },
+    { title: "Devolvidas", items: eligible.filter((purchase) => returned(purchase.tracking_status)) },
+  ];
+  return <div className={styles.root}>
+    <header className={styles.header}><h2>Suas entregas</h2><p className={styles.note}>Acompanhe o envio e as atualizações da transportadora.</p></header>
+    {loading ? <div className={styles.loading} role="status" aria-busy="true">
+      <p className={styles.note}>Carregando suas entregas…</p>
+      {[0, 1, 2].map((value) => <div className={styles.skeleton} key={value} aria-hidden="true" />)}
+    </div> : error ? <div className={styles.error} role="alert">
+      <h3>Não foi possível carregar suas entregas.</h3>
+      <p className={styles.note}>Tente atualizar para consultar o rastreamento.</p>
+      {onRetry && <button type="button" className={styles.button} data-neu="control" onClick={onRetry}>Tentar novamente</button>}
+    </div> : eligible.length === 0 ? <div className={styles.empty} role="status">
+      <FiPackage size={25} aria-hidden="true" />
+      <h3>Nenhuma entrega com rastreio</h3>
+      <p className={styles.note}>Envios físicos aparecem aqui quando há um código de rastreio válido. Consulte os demais pedidos na aba Pedidos.</p>
+    </div> : sections.filter((section) => section.items.length > 0).map((section) => <section className={styles.section} key={section.title} aria-label={section.title}>
+      <h3>{section.title}</h3>
+      {section.items.map((purchase) => <Shipment key={`${purchase.id}-${purchase.tracking_code}`} purchase={purchase} />)}
+    </section>)}
+  </div>;
 }

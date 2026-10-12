@@ -124,7 +124,9 @@ const scenarios: SafetyScenario[] = [
   },
   {
     name: "blocks payment status claims from AI output",
-    buyerMessage: "Meu pix ja caiu?",
+    // Keep this on the generated-response path. A named payment method is
+    // deliberately routed straight to the signed visual chooser.
+    buyerMessage: "Meu pagamento ja foi confirmado?",
     providerMessage: "Seu pagamento foi aprovado e confirmado.",
     event: "payment_failed",
     assertResponse(response) {

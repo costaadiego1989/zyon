@@ -26,7 +26,7 @@ test("Asaas fixed split guard uses a complete account-specific fee override", ()
   }), 285);
 });
 
-test("Asaas splits R$2.99 merchant fee plus existing buyer fee only on the created payment", async () => {
+test("Asaas splits R$1.99 merchant fee plus existing buyer fee only on the created payment", async () => {
   let body: any;
   const fetcher = (async (url: string, init?: RequestInit) => {
     if (url.endsWith("/payments")) { body = JSON.parse(String(init?.body)); return new Response(JSON.stringify({ id: "pay_test", status: "PENDING" })); }
@@ -34,7 +34,7 @@ test("Asaas splits R$2.99 merchant fee plus existing buyer fee only on the creat
   }) as typeof fetch;
   const adapter = new AsaasPaymentAdapter("https://asaas.example.test", "fake-key", fetcher, "platform-wallet", false, maximumPixProviderFeeCents);
   await adapter.createPayment(input);
-  assert.deepEqual(body.split, [{ walletId: "platform-wallet", fixedValue: 3.98 }]);
+  assert.deepEqual(body.split, [{ walletId: "platform-wallet", fixedValue: 2.98 }]);
   assert.equal(body.value, 100.99);
 });
 
@@ -43,10 +43,10 @@ test("Mercado Pago seller OAuth payment carries application fee and stable idemp
   let headers: Headers;
   const fetcher = (async (_url: string, init?: RequestInit) => {
     body = JSON.parse(String(init?.body)); headers = new Headers(init?.headers);
-    return new Response(JSON.stringify({ id: 123, status: "pending" }));
+    return new Response(JSON.stringify({ id: 123, status: "pending", point_of_interaction: { transaction_data: { qr_code: "pix-code", qr_code_base64: "png" } } }));
   }) as typeof fetch;
   await new MercadoPagoPaymentAdapter("https://mp.example.test", "seller-token", "", fetcher, true).createPayment(input);
-  assert.equal(body.application_fee, 3.98);
+  assert.equal(body.application_fee, 2.98);
   assert.equal(body.transaction_amount, 100.99);
   assert.equal(headers!.get("X-Idempotency-Key"), "stable-key");
 });
@@ -73,7 +73,7 @@ test("Mercado Pago card uses a hosted Checkout Pro preference with marketplace f
   ).createPayment({ ...input, method: "card" });
 
   assert.equal(url, "https://mp.example.test/checkout/preferences");
-  assert.equal(body.marketplace_fee, 3.98);
+  assert.equal(body.marketplace_fee, 2.98);
   assert.deepEqual(body.payment_methods.excluded_payment_types, [
     { id: "ticket" },
     { id: "bank_transfer" },
@@ -102,7 +102,7 @@ test("Mercado Pago hosted card recovery rejects a preference for another checkou
 
 test("Mercado Pago platform-owned credentials do not create a seller OAuth split", async () => {
   let body: any;
-  const fetcher = (async (_url: string, init?: RequestInit) => { body = JSON.parse(String(init?.body)); return new Response(JSON.stringify({ id: 123 })); }) as typeof fetch;
+  const fetcher = (async (_url: string, init?: RequestInit) => { body = JSON.parse(String(init?.body)); return new Response(JSON.stringify({ id: 123, point_of_interaction: { transaction_data: { qr_code: "pix-code", qr_code_base64: "png" } } })); }) as typeof fetch;
   await new MercadoPagoPaymentAdapter("https://mp.example.test", "platform-token", "", fetcher).createPayment(input);
   assert.equal(body.application_fee, undefined);
 });
@@ -131,7 +131,7 @@ test("Asaas fixed split fails before network when the maximum provider deduction
     (() => { throw new Error("network must not run"); }) as typeof fetch,
     "platform-wallet",
     true,
-    () => 9_800,
+    () => 9_802,
   );
   await assert.rejects(() => adapter.createPayment(input), /asaas_platform_split_may_exceed_net_value/);
 });

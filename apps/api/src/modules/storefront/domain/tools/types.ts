@@ -27,7 +27,13 @@ export interface StoreToolHandlers {
     cursor?: string;
   }) => Promise<unknown>;
   getProductDetails: (args: { productId: string }) => Promise<unknown>;
-  compareProducts: (args: { productIds: string[] }) => Promise<unknown>;
+  compareProducts: (args: {
+    productIds?: string[];
+    productId?: string;
+    productNames?: string[];
+    productName?: string;
+    includeSimilar?: boolean;
+  }) => Promise<unknown>;
   getProductAvailability: (args: { variantId: string }) => Promise<unknown>;
   addItemToCart: (args: {
     cartId?: string;
@@ -39,6 +45,7 @@ export interface StoreToolHandlers {
      * the authoritative unit price — the client price is never trusted.
      */
     selectedOptionItemIds?: string[];
+    selectedServiceSlotId?: string;
     /**
      * Cross-sell promotion id when the buyer accepted a cross-sell suggestion.
      * The server validates the sku is in the promo's recommended_skus and applies
@@ -84,7 +91,7 @@ export interface StoreToolHandlers {
   removeFromWishlist: (args: { productId: string }) => Promise<unknown>;
   trackOrder: (args: { orderId: string }) => Promise<unknown>;
   getStorePolicies: (args: {
-    policyType?: "returns" | "exchanges" | "shipping" | "warranty" | "all";
+    policyType?: "privacy" | "terms" | "returns" | "exchanges" | "shipping" | "warranty" | "payment" | "general" | "all";
   }) => Promise<unknown>;
   getBuyerProfile: () => Promise<unknown>;
   getDailyDeals: (args: { limit?: number }) => Promise<unknown>;

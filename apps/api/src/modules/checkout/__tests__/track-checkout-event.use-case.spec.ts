@@ -7,6 +7,71 @@ import { checkoutSession } from "./checkout-test-fixtures.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { InMemoryInterventionLedger } from "../infrastructure/in-memory-intervention-ledger.js";
 import { TrackCheckoutEventUseCase } from "../application/use-cases/track-checkout-event.use-case.js";
+import { InMemoryPaymentRepository } from "../../payment/infrastructure/in-memory-payment.repository.js";
+import { PrismaPaymentRepository } from "../../payment/infrastructure/prisma-payment.repository.js";
+import { PaymentIntentEntity, type PaymentIntentStatus } from "../../payment/domain/payment-intent.entity.js";
+import { paymentCartFingerprint } from "../domain/services/payment-cart-fingerprint.js";
+import { CheckoutSettingsEntity } from "../../checkout-settings/domain/entities/checkout-settings.entity.js";
+
+test("browser telemetry cannot fabricate an experimental progressive grant event", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  repository.saveSession(checkoutSession());
+  let recorded = false;
+  repository.recordEvent = () => { recorded = true; };
+  const useCase = new TrackCheckoutEventUseCase(repository, repository);
+  await assert.rejects(useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1",
+    event: "strategy_incentive_stage" as never, metadata: { source: "revenue_engine", stageIndex: 1 } }), /checkout_event_server_only/);
+  assert.equal(recorded, false);
+});
+
+for (const status of ["pending", "requires_action", "approved", "refunded", "failed", "cancelled"] as PaymentIntentStatus[]) {
+  test(`automatic discounts preserve a committed ${status} payment quote`, async () => {
+    const repository = new InMemoryCheckoutRepository();
+    const session = checkoutSession({ customer: { phone: "11999998888" } });
+    session.cart.currentDiscount = 15;
+    repository.saveSession(session);
+    repository.setRules("mrc_1", { maxDiscountPercent: 15, couponBoxEnabled: true });
+    const payments = new InMemoryPaymentRepository();
+    const intent = PaymentIntentEntity.create({
+      merchantId: "mrc_1", sessionId: "chk_1", idempotencyKey: "pix-once",
+      method: "pix", amountCents: 32000, currency: "BRL",
+    });
+    // Pending also covers an in-flight or uncertain provider response.
+    await payments.saveIntent({ intent: PaymentIntentEntity.rehydrate({ ...intent.snapshot(), status }) });
+    const useCase = new TrackCheckoutEventUseCase(
+      repository, repository, new ProgressiveDiscountSettingsPort(), repository, undefined, undefined, payments,
+    );
+    const frozen = paymentCartFingerprint(session);
+    const response = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", event: "checkout_abandoned" });
+    const persisted = repository.getSession("mrc_1", "chk_1")!;
+    const committed = status !== "failed" && status !== "cancelled";
+    assert.equal(paymentCartFingerprint(persisted) === frozen, committed);
+    assert.equal(response.progressive_offer === undefined, committed);
+    assert.equal(repository.listOutbox("mrc_1").some(e => e.event_type === "whatsapp.message.requested"), !committed);
+    // Repeated payment-selection/failure telemetry must not invalidate retries either.
+    await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", event: "payment_method_selected" });
+    if (committed) assert.equal(paymentCartFingerprint(repository.getSession("mrc_1", "chk_1")!), frozen);
+  });
+}
+
+test("payment quote guard is scoped to merchant and session", async () => {
+  const payments = new InMemoryPaymentRepository();
+  await payments.saveIntent({ intent: PaymentIntentEntity.create({
+    merchantId: "mrc_1", sessionId: "chk_1", idempotencyKey: "pix",
+    method: "pix", amountCents: 1000, currency: "BRL",
+  }) });
+  assert.equal(await payments.hasCommittedPaymentForSession("mrc_1", "chk_1"), true);
+  assert.equal(await payments.hasCommittedPaymentForSession("mrc_2", "chk_1"), false);
+  assert.equal(await payments.hasCommittedPaymentForSession("mrc_1", "chk_2"), false);
+  let query: unknown;
+  const prisma = { paymentIntent: { async findFirst(input: unknown) { query = input; return null; } } };
+  const repository = new PrismaPaymentRepository(prisma as any);
+  assert.equal(await repository.hasCommittedPaymentForSession("mrc_1", "chk_1"), false);
+  assert.deepEqual(query, {
+    where: { merchantId: "mrc_1", sessionId: "chk_1", status: { notIn: ["failed", "cancelled"] } },
+    select: { id: true },
+  });
+});
 
 class PaymentOnlyCheckoutSettingsPort implements CheckoutSettingsPort {
   async getContext(merchantId: string) {
@@ -221,6 +286,27 @@ test("TrackCheckoutEventUseCase suppresses trigger when checkout-settings disabl
   assert.equal(response.abandonment_score, 0.85);
   assert.equal(response.trigger_agent, false);
   assert.equal(persisted?.triggerAgent, false);
+});
+
+test("TrackCheckoutEventUseCase makes a closed checkout a recovery candidate for legacy settings", async () => {
+  const repository = new InMemoryCheckoutRepository();
+  repository.saveSession(checkoutSession());
+  const legacy = CheckoutSettingsEntity.createDefault({ merchantId: "mrc_1" }).snapshot();
+  legacy.triggerRules = legacy.triggerRules.filter((rule) => rule.trigger !== "checkout_abandoned");
+  const settings: CheckoutSettingsPort = {
+    getContext: async () => CheckoutSettingsEntity.rehydrate(legacy).toContext(),
+    getInterventionConfig: async () => ({ advancedRules: null, interventionPolicy: null }),
+  };
+  const useCase = new TrackCheckoutEventUseCase(repository, repository, settings);
+
+  const response = await useCase.execute({
+    merchant_id: "mrc_1",
+    session_id: "chk_1",
+    event: "checkout_abandoned",
+  });
+
+  assert.equal(response.trigger_agent, true);
+  assert.equal((await repository.getSession("mrc_1", "chk_1"))?.triggerAgent, true);
 });
 
 const TRACK_LEDGER_TRIGGERS: CheckoutTriggerName[] = [

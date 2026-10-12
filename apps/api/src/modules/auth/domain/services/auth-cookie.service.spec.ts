@@ -18,6 +18,26 @@ test("AuthCookieService creates HttpOnly SameSite=Lax cookies and reads them", (
   assert.equal(service.clear(), "aacp_access_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
 });
 
+test("AuthCookieService enables Secure SameSite=None cookies when configured", () => {
+  const previous = process.env.AUTH_COOKIE_SAME_SITE;
+  process.env.AUTH_COOKIE_SAME_SITE = "none";
+  try {
+    const cookie = new AuthCookieService().create({
+      merchant_id: "mrc_1",
+      user_id: "usr_1",
+      email: "owner@example.com",
+      access_token: "jwt-token",
+      token_type: "Bearer",
+      expires_in: 3600
+    });
+    assert.ok(cookie.includes("SameSite=None"));
+    assert.ok(cookie.includes("Secure"));
+  } finally {
+    if (previous === undefined) delete process.env.AUTH_COOKIE_SAME_SITE;
+    else process.env.AUTH_COOKIE_SAME_SITE = previous;
+  }
+});
+
 // H7: CookieConfig support
 test("AuthCookieService accepts CookieConfig object", () => {
   const service = new AuthCookieService({

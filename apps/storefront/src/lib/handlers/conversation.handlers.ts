@@ -1,4 +1,4 @@
-import type { Message, CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel/types";
+import type { CommerceTurnResult, Message, CrossSellInterstitialData, ProductCrossSellPlacement, ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
 import { narrateStorefrontBlock, trackFunnelEvent } from "@/lib/services/conversation.service";
 import { checkoutApi } from "@/lib/api/api-client";
 import { getValidBuyer } from "@/lib/buyer-auth";
@@ -6,6 +6,7 @@ import { ConversationSessionExpiredError } from "@/lib/conversation-access";
 
 export interface SendMessageParams {
   trimmed: string;
+  attachment?: ConversationAttachment;
   conversationId: string | null;
   setConversationId: (id: string) => void;
   clearCart: () => void;
@@ -18,6 +19,7 @@ export interface SendMessageParams {
   setIsLoading: (value: boolean) => void;
   setInput: (value: string) => void;
   setCrossSellPending: (data: CrossSellInterstitialData | null) => void;
+  setProductCrossSell: (data: ProductCrossSellPlacement | null) => void;
   updateFromBlocks: (blocks: any[]) => void;
   noteActivity: (merchantId: string) => void;
   onCheckoutPrepared: (action: {
@@ -28,9 +30,10 @@ export interface SendMessageParams {
   }) => void;
 }
 
-export async function handleSendMessage(params: SendMessageParams) {
+export async function handleSendMessage(params: SendMessageParams): Promise<CommerceTurnResult | null> {
   const {
     trimmed,
+    attachment,
     conversationId,
     merchantId,
     history,
@@ -41,14 +44,20 @@ export async function handleSendMessage(params: SendMessageParams) {
     setIsLoading,
     setInput,
     setCrossSellPending,
+    setProductCrossSell,
     updateFromBlocks,
     noteActivity,
   } = params;
 
-  if (!trimmed) return;
+  if (!trimmed && !attachment) return null;
   if (merchantId) noteActivity(merchantId);
 
-  const userMsg: Message = { id: `u-${Date.now()}`, role: "user", text: trimmed };
+  const userMsg: Message = {
+    id: `u-${Date.now()}`,
+    role: "user",
+    text: trimmed,
+    attachment: attachment ? { kind: attachment.kind, name: attachment.name } : undefined,
+  };
   setMessages((prev) => [...prev, userMsg]);
   setInput("");
   setIsLoading(true);
@@ -70,6 +79,7 @@ export async function handleSendMessage(params: SendMessageParams) {
         cartId: cartId || undefined,
         history: newHistory,
         variantId: variantId || undefined,
+        attachment,
         token: getValidBuyer()?.token,
       };
       let data;
@@ -107,13 +117,24 @@ export async function handleSendMessage(params: SendMessageParams) {
 
         const crossSellBlock = blocks.find((b: any) => b.type === "cross_sell" && b.data?.products?.length);
         const cartGrew = blocks.some((b: any) => b.type === "cart_summary");
-        if (crossSellBlock && cartGrew) {
+        const crossSellMode = (crossSellBlock?.data as any)?.displayMode ?? "interstitial";
+        const productBlock = blocks.find((b: any) => b.type === "product_content" || b.type === "product_card");
+        const productId = productBlock?.type === "product_content" ? productBlock.data?.productId : productBlock?.data?.id;
+        const isProductDetailOffer = typeof productId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(productId);
+        if (crossSellBlock && isProductDetailOffer) {
+          // `pre_cart` is the product-detail touchpoint. Keep its offer with
+          // the product instead of covering the details with a global sheet.
+          setProductCrossSell({ productId, data: crossSellBlock.data as CrossSellInterstitialData });
+          const idx = blocks.indexOf(crossSellBlock);
+          if (idx !== -1) blocks.splice(idx, 1);
+        } else if (crossSellBlock && (cartGrew || crossSellMode === "modal")) {
           // Gap B fix: honor the merchant's configured display mode.
+          // Cart and checkout offers use the configured overlay when appropriate.
+          // Product-detail offers are rendered in the product panel above.
           // interstitial/modal -> overlay sheet (setCrossSellPending, remove inline block).
           // inline/banner -> keep the block in the thread so BlockRenderer renders
           // it inline (the CrossSellBlock reads displayMode to style banner vs inline).
-          const mode = (crossSellBlock.data as any)?.displayMode ?? "interstitial";
-          if (mode === "interstitial" || mode === "modal") {
+          if (crossSellMode === "interstitial" || crossSellMode === "modal") {
             setCrossSellPending(crossSellBlock.data as CrossSellInterstitialData);
             const idx = blocks.indexOf(crossSellBlock);
             if (idx !== -1) blocks.splice(idx, 1);
@@ -130,12 +151,12 @@ export async function handleSendMessage(params: SendMessageParams) {
           }
         }
         const hasVisualBlock = blocks.some((b: any) =>
-          ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "shipping_options", "marketplace_products"].includes(b.type)
+          ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "wishlist", "shipping_options", "marketplace_products"].includes(b.type)
         );
         let agentText = data.message || undefined;
         if (!agentText && hasVisualBlock) {
           const firstVisual = blocks.find((b: any) =>
-            ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "shipping_options", "marketplace_products", "cross_sell"].includes(b.type)
+            ["product_carousel", "product_card", "cart_summary", "category_carousel", "product_comparison", "wishlist", "shipping_options", "marketplace_products", "cross_sell"].includes(b.type)
           );
           agentText = narrateStorefrontBlock(firstVisual?.type);
         }
@@ -147,6 +168,8 @@ export async function handleSendMessage(params: SendMessageParams) {
         };
         setMessages((prev) => [...prev, agentMsg]);
         setHistory((prev) => [...prev, { role: "assistant", content: data.message }]);
+        setIsLoading(false);
+        return { agentMessage: agentText || "Atualizei sua compra. Posso continuar?", blocks };
       } else {
         setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Desculpe, houve um erro. Tente novamente." }]);
       }
@@ -157,14 +180,16 @@ export async function handleSendMessage(params: SendMessageParams) {
     setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Não consegui concluir sua solicitação agora. Tente novamente em instantes." }]);
   }
   setIsLoading(false);
+  return null;
 }
 
 export interface QuickReplyParams {
+  budgetModeEnabled?: boolean;
   option: string;
   cartItemCount: number;
   merchantId: string | null;
   conversationId: string | null;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string) => Promise<CommerceTurnResult | null>;
   setCartDrawerForceOpen: (value: boolean) => void;
   setCheckoutIntent: (value: string | null) => void;
   setShowBuyerAuth: (value: boolean) => void;
@@ -175,6 +200,11 @@ export function handleQuickReply(params: QuickReplyParams) {
 
   const lower = option.toLowerCase();
   if (lower === "ver carrinho" || lower === "ver meu carrinho") {
+    setCartDrawerForceOpen(true);
+    setTimeout(() => setCartDrawerForceOpen(false), 100);
+    return;
+  }
+  if (lower === "solicitar orçamento" || lower === "solicitar cotação" || (params.budgetModeEnabled && (lower === "finalizar compra" || lower === "finalizar pedido"))) {
     setCartDrawerForceOpen(true);
     setTimeout(() => setCartDrawerForceOpen(false), 100);
     return;
@@ -256,42 +286,6 @@ export async function initConversation(params: InitConversationParams) {
       })
       .catch(() => {});
   } catch {}
-}
-
-export interface StartListeningParams {
-  recognitionRef: { current: any };
-  setListening: (value: boolean) => void;
-  sendMessage: (text: string) => Promise<void>;
-}
-
-export function startVoiceRecognition(params: StartListeningParams) {
-  const { recognitionRef, setListening, sendMessage } = params;
-  if (typeof window === "undefined") return;
-  const SR = (window as any).SpeechRecognition ?? (window as any).webkitSpeechRecognition;
-  if (!SR) return;
-  const r = new SR();
-  r.lang = "pt-BR";
-  r.continuous = false;
-  r.maxAlternatives = 1;
-  recognitionRef.current = r;
-  r.onresult = (e: any) => {
-    const transcript = e.results[0]?.[0]?.transcript;
-    if (transcript) {
-      setListening(false);
-      void sendMessage(transcript).catch((err) => {
-        console.error("[conversation] voice sendMessage failed:", err);
-      });
-    }
-  };
-  r.onerror = () => setListening(false);
-  r.onend = () => setListening(false);
-  r.start();
-  setListening(true);
-}
-
-export function stopVoiceRecognition(recognitionRef: { current: any }, setListening: (value: boolean) => void) {
-  recognitionRef.current?.abort();
-  setListening(false);
 }
 
 export { handleFireNudge } from "./conversation-nudge.handlers";

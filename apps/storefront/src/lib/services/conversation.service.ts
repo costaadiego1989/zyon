@@ -1,3 +1,4 @@
+import { merchantThemeTokens, type MerchantThemeAppearance } from "@zyon/shared-types";
 import { THEME_TOKENS } from "@/components/conversation/theme-tokens";
 export { THEME_TOKENS } from "@/components/conversation/theme-tokens";
 
@@ -59,6 +60,7 @@ export function saveConversationState(merchantId: string, stateKey: (mid: string
 }
 
 const DEFAULT_QUICK_REPLIES = ["Ver Produtos", "Encontrar Produto", "Categorias", "Prazo de Entrega", "Trocas e Devoluções", "Rastrear Pedido", "Meus Dados", "Ofertas"];
+export const ATTACHMENT_WELCOME_NOTICE = "Também entendo imagens e listas de compras. Envie uma foto para encontrar produtos semelhantes ou uma lista para eu ajudar a montar seu pedido.";
 
 export function buildWelcomeMessage(params: {
   agent: string;
@@ -75,7 +77,7 @@ export function buildWelcomeMessage(params: {
   return {
     id: "welcome",
     role: "agent",
-    text: greeting,
+    text: `${greeting}\n\n${ATTACHMENT_WELCOME_NOTICE}`,
     blocks: [{ type: "quick_replies", data: { options: replies } }],
   };
 }
@@ -89,6 +91,8 @@ export function narrateStorefrontBlock(type: string | undefined): string | undef
       return "Encontrei este produto:";
     case "product_comparison":
       return "Aqui está a comparação entre os produtos:";
+    case "wishlist":
+      return "Aqui estão os produtos salvos na sua lista de desejos:";
     case "category_carousel":
       return "Estas são as categorias disponíveis:";
     case "cart_summary":
@@ -103,10 +107,10 @@ export function narrateStorefrontBlock(type: string | undefined): string | undef
 }
 
 
-export function applyThemeToDOM(theme: "dark" | "light") {
+export function applyThemeToDOM(theme: "dark" | "light", merchantTheme?: MerchantThemeAppearance) {
   if (typeof document === "undefined") return;
   document.documentElement.dataset.neuTheme = theme;
-  const tokens = THEME_TOKENS[theme];
+  const tokens = merchantTheme ? merchantThemeTokens(merchantTheme, theme === "dark" && merchantTheme.mode === "grey" ? "grey" : theme) : THEME_TOKENS[theme];
   for (const [key, val] of Object.entries(tokens)) {
     document.documentElement.style.setProperty(key, val);
   }

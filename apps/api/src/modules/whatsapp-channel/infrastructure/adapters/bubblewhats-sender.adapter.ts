@@ -56,10 +56,10 @@ export class BubbleWhatsSenderAdapter implements WhatsAppSenderPort {
 
       await response.body?.cancel();
       this.logger.error(`bubblewhats_send_failed status=${response.status}`);
-      return { messageId: "", status: "failed" };
+      return { messageId: "", status: response.status >= 500 || response.status === 408 ? "unknown" : "failed" };
     } catch (error) {
       this.logger.error("bubblewhats_network_error");
-      return { messageId: "", status: "failed" };
+      return { messageId: "", status: "unknown" };
     }
   }
 

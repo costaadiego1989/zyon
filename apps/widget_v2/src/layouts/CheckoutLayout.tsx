@@ -1,4 +1,4 @@
-import { NEUMORPHIC_THEME } from "../design-system/neumorphism";
+import { merchantThemeTokens } from "@zyon/shared-types";
 
 import { useCallback, useEffect, useRef, useState } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
@@ -7,12 +7,17 @@ import { ChatPanel } from "@/components/ChatPanel";
 import { SmartCart } from "@/components/SmartCart";
 import { DiscountBanner } from "@/components/DiscountBanner";
 import { PulseAgentOrb } from "@/components/PulseAgentOrb";
-import SupportFAB from "@/components/SupportFAB";
 import SupportPanel from "@/components/SupportPanel";
 import { ShimmerBorder } from "@/components/ShimmerBorder";
-import { CampaignContactPreferences } from "@/components/CampaignContactPreferences";
+import { CheckoutPolicies } from "@/components/CheckoutPolicies";
 
-export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light" } = {}) {
+interface CheckoutLayoutProps {
+  forcedTheme?: "dark" | "light";
+  onClose?: () => void;
+}
+
+export function CheckoutLayout({ forcedTheme, onClose }: CheckoutLayoutProps = {}) {
+  const shellRef = useRef<HTMLDivElement>(null);
   const chatColumnRef = useRef<HTMLDivElement>(null);
   const [composerOffset, setComposerOffset] = useState<number | null>(null);
   const channel = useCheckoutStore((s) => s.channel);
@@ -38,10 +43,8 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   const dismissDiscount = useCheckoutStore((s) => s.dismissDiscount);
   const resetSession = useCheckoutStore((s) => s.resetSession);
   const showBranding = useCheckoutStore((s) => s.showBranding);
-  const api = useCheckoutStore((s) => s.api);
-  const sessionId = useCheckoutStore((s) => s.sessionId);
 
-  // Follow the actual composer when consent details, voice controls or the
+  // Follow the actual composer when voice controls or the
   // viewport change height. Fixed estimates let the FAB cover the send action.
   useEffect(() => {
     const column = chatColumnRef.current;
@@ -63,7 +66,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   const mobileActionOffset = composerOffset ?? 72 + (showBranding ? 40 : 0);
 
   const storeName = brand.name || "Loja";
-  const agentName = agent.name || "Assistente";
+  const agentName = showBranding ? (agent.name || "Assistente") : "Assistente da loja";
   let merchantLogoUrl: string | null = null;
   if (brand.logoUrl) {
     try {
@@ -74,7 +77,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
   }
 
   const THEME_KEY = "zyon-theme";
-  const merchantDefault = brand.mode === "dark" ? "dark" : "light";
+  const merchantDefault = brand.mode === "dark" || brand.mode === "grey" ? "dark" : "light";
   const [theme, setTheme] = useState<"dark" | "light">(() => {
     if (forcedTheme === "dark" || forcedTheme === "light") return forcedTheme;
     try {
@@ -88,14 +91,21 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     if (forcedTheme === "dark" || forcedTheme === "light") {
       setTheme(forcedTheme);
     }
-  }, [forcedTheme]);
+    else {
+      let saved: string | null = null;
+      try { saved = localStorage.getItem(THEME_KEY); } catch {}
+      if (saved !== "dark" && saved !== "light") setTheme(merchantDefault);
+    }
+  }, [forcedTheme, merchantDefault]);
 
   useEffect(() => {
     if (typeof window === "undefined") return;
-    const onResize = () => setIsMobile(window.innerWidth < 640);
+    const onResize = () => setIsMobile((shellRef.current?.clientWidth || window.innerWidth) < 640);
+    const observer = new ResizeObserver(onResize);
+    if (shellRef.current) observer.observe(shellRef.current);
     onResize();
     window.addEventListener("resize", onResize);
-    return () => window.removeEventListener("resize", onResize);
+    return () => { observer.disconnect(); window.removeEventListener("resize", onResize); };
   }, []);
 
   const toggleTheme = useCallback(() => {
@@ -104,12 +114,29 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     try { localStorage.setItem(THEME_KEY, next); } catch {}
   }, [theme]);
 
+  const handleBack = useCallback(() => {
+    if (onClose) {
+      onClose();
+      return;
+    }
+
+    if (typeof window === "undefined") return;
+    if (window.history.length > 1) {
+      window.history.back();
+      return;
+    }
+    window.location.assign(document.referrer || "/");
+  }, [onClose]);
+
   const themeAttr = theme;
+  const effectiveMode = theme === "dark" && brand.mode === "grey" ? "grey" : theme;
+  const themePalette = merchantThemeTokens(brand, effectiveMode);
 
   useEffect(() => {
-    const bodyBg = theme === "dark" ? "#0d1117" : "#e7e5df";
-    document.body.style.background = bodyBg;
-  }, [theme]);
+    const previous = document.body.style.background;
+    document.body.style.background = themePalette["--aacp-bg"];
+    return () => { document.body.style.background = previous; };
+  }, [themePalette["--aacp-bg"]]);
 
   const widgetStyle: React.CSSProperties = {
     width: "100%",
@@ -120,14 +147,13 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
     flexDirection: "column",
     backgroundColor: "var(--aacp-bg, #F7F8FA)",
     color: "var(--aacp-fg, #111827)",
-    fontFamily: "inherit",
+    fontFamily: "var(--aacp-font, inherit)",
     overflow: "hidden",
   };
 
-  const themePalette: Record<string, string> = NEUMORPHIC_THEME[theme];
-
   return (
     <div
+      ref={shellRef}
       className="pulse-widget-shell"
       data-skin="pulse"
       data-theme={themeAttr}
@@ -161,7 +187,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
       >
         <button data-neu="control"
           type="button"
-          onClick={() => window.history.back()}
+          onClick={handleBack}
           title="Voltar para o site"
           style={{
             width: "32px",
@@ -183,37 +209,30 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
           </svg>
         </button>
 
-        <div
-          style={{
-            width: "34px",
-            height: "34px",
-            borderRadius: "12px",
-            border: "1px solid var(--bd)",
-            background: "var(--chip)",
-            color: "var(--tx)",
-            display: "flex",
-            alignItems: "center",
-            justifyContent: "center",
-            flex: "none",
-            overflow: "hidden",
-            fontSize: "13px",
-            fontWeight: 800,
-            letterSpacing: "-.2px",
-          }}
-        >
-          {merchantLogoUrl ? (
-            <img src={merchantLogoUrl} alt="" style={{ width: "100%", height: "100%", objectFit: "cover" }} />
-          ) : (
-            storeName.charAt(0).toUpperCase()
-          )}
-        </div>
+        {merchantLogoUrl ? (
+          <img
+            src={merchantLogoUrl}
+            alt={storeName}
+            style={{ width: "34px", height: "34px", objectFit: "contain", flex: "none" }}
+          />
+        ) : (
+          <div
+            aria-hidden="true"
+            style={{
+              width: "34px", height: "34px", borderRadius: "50%", background: "var(--chip)",
+              color: "var(--tx)", display: "flex", alignItems: "center", justifyContent: "center",
+              flex: "none", fontSize: "13px", fontWeight: 800,
+            }}
+          >
+            {storeName.charAt(0).toUpperCase()}
+          </div>
+        )}
 
         <div style={{ flex: 1, minWidth: 0 }}>
           <div style={{ fontSize: "13.5px", fontWeight: 700, lineHeight: 1.2, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
             {storeName}
           </div>
           <div style={{ display: "flex", alignItems: "center", gap: "6px", fontSize: "10.5px", color: "var(--mut)", marginTop: "1px", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>
-            <span style={{ width: "6px", height: "6px", borderRadius: "50%", background: "var(--dot)", animation: "pulseDot 2.2s ease-in-out infinite", flex: "none" }} />
             {agentName} · Checkout
           </div>
         </div>
@@ -241,11 +260,36 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
             <path d="M12 3a9 9 0 0 0 0 18z" fill="var(--mut)" />
           </svg>
         </button>
+
+        <button data-neu="control"
+          type="button"
+          onClick={() => setSupportOpen((open) => !open)}
+          title="Suporte"
+          aria-label={supportOpen ? "Fechar suporte" : "Abrir suporte"}
+          aria-pressed={supportOpen}
+          style={{
+            width: "30px",
+            height: "30px",
+            borderRadius: "50%",
+            border: `1px solid ${supportOpen ? "var(--aacp-accent)" : "var(--bd)"}`,
+            background: supportOpen ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--chip)",
+            cursor: "pointer",
+            display: "flex",
+            alignItems: "center",
+            justifyContent: "center",
+            flex: "none",
+            padding: 0,
+          }}
+        >
+          <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--mut)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" />
+          </svg>
+        </button>
       </div>
 
       {/* Channel Gate: FULL screen, no sidebar */}
       {status === "channel_gate" && (
-        <ShimmerBorder radius={brand.borderRadius ? `${brand.borderRadius}px` : "19px"}>
+        <ShimmerBorder radius={brand.borderRadius != null ? `${brand.borderRadius}px` : "19px"}>
           <div style={{ width: "100%", height: "100%", overflow: "hidden", background: "var(--bg)" }}>
             <ChannelGate />
           </div>
@@ -254,7 +298,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
 
       {/* Payment success — dedicated confirmation screen */}
       {status === "completed" && (
-        <ShimmerBorder radius={brand.borderRadius ? `${brand.borderRadius}px` : "19px"}>
+        <ShimmerBorder radius={brand.borderRadius != null ? `${brand.borderRadius}px` : "19px"}>
           <div
             style={{
               width: "100%",
@@ -311,7 +355,7 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
 
       {/* Active: split layout — chat left + smart cart right */}
       {status === "active" && (
-        <ShimmerBorder radius={brand.borderRadius ? `${brand.borderRadius}px` : "19px"}>
+        <ShimmerBorder radius={brand.borderRadius != null ? `${brand.borderRadius}px` : "19px"}>
           <div
             style={{
               position: "relative",
@@ -353,7 +397,6 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
 
                 {/* ChatPanel is the MAIN UI */}
                 <ChatPanel />
-                <CampaignContactPreferences api={api} sessionId={sessionId} />
               </div>
 
               {/* SmartCart sidebar - desktop only */}
@@ -361,13 +404,13 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
                 <aside
                   className="smart-cart-sidebar"
                   style={{
-                    width: "280px",
+                    width: "clamp(304px, 28vw, 360px)",
                     flex: "none",
                     display: "flex",
                     flexDirection: "column",
                     overflow: "hidden",
                     borderLeft: "1px solid var(--bd)",
-                    paddingLeft: "14px",
+                    paddingLeft: "18px",
                   }}
                 >
                   <SmartCart />
@@ -443,12 +486,13 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
               bottom: 0,
               left: 0,
               right: 0,
-              maxHeight: "70vh",
-              overflowY: "auto",
+              height: "clamp(420px, 64dvh, 560px)",
+              maxHeight: "calc(100dvh - 16px)",
+              overflow: "hidden",
               background: "var(--aacp-surface, #0f0f16)",
               borderTop: "1px solid var(--aacp-line, rgba(255,255,255,0.1))",
               borderRadius: "20px 20px 0 0",
-              padding: "0 18px 20px",
+              padding: "0 16px calc(16px + env(safe-area-inset-bottom))",
               zIndex: 1001,
               boxShadow: "0 -8px 40px rgba(0,0,0,0.3)",
               display: "flex",
@@ -475,14 +519,10 @@ export function CheckoutLayout({ forcedTheme }: { forcedTheme?: "dark" | "light"
         </>
       )}
 
-      {/* Support FAB and Panel — lift above chat input + whitelabel badge on mobile */}
-      {!cartDrawerOpen && <SupportFAB
-        open={supportOpen}
-        onToggle={() => setSupportOpen(!supportOpen)}
-        bottomOffset={isMobile && status === "active" && !supportOpen ? mobileActionOffset : (showBranding ? 40 : 0)}
-      />}
+      {/* Support uses the header control; its panel remains available throughout checkout. */}
       <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} />
 
+      <CheckoutPolicies />
       {/* Whitelabel badge — free-plan merchants only. Accent background per brand. */}
       {showBranding && (
         <div

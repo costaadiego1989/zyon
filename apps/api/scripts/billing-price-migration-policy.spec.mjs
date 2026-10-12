@@ -13,9 +13,9 @@ test('Stripe special terms, lifecycle changes and already migrated prices are sk
 });
 test('Asaas requires DB ownership/plan agreement and preserves issued pending invoices',()=>{
  const sub={id:'sub_1',status:'ACTIVE',value:249,cycle:'MONTHLY'},db={provider:'asaas',status:'active',planKey:'growth',asaasSubscriptionId:'sub_1'};
- assert.deepEqual(asaasMigrationDecision(sub,db,349).patch,{value:349,updatePendingPayments:false});
- assert.equal(asaasMigrationDecision(sub,{...db,planKey:'scale'},349).skip,'database_mismatch');
- assert.equal(asaasMigrationDecision({...sub,value:349},db,349).skip,'already_current');
- assert.equal(asaasMigrationDecision({...sub,value:199},db,349).skip,'nonstandard_terms');
- assert.equal(asaasMigrationDecision(sub,{...db,pendingPlanKey:'scale'},349).skip,'pending_lifecycle_change');
+ assert.deepEqual(asaasMigrationDecision(sub,db,449).patch,{value:449,updatePendingPayments:false});
+ assert.equal(asaasMigrationDecision(sub,{...db,planKey:'scale'},449).skip,'database_mismatch');
+ assert.equal(asaasMigrationDecision({...sub,value:449},db,449).skip,'already_current');
+ assert.equal(asaasMigrationDecision({...sub,value:199},db,449).skip,'nonstandard_terms');
+ assert.equal(asaasMigrationDecision(sub,{...db,pendingPlanKey:'scale'},449).skip,'pending_lifecycle_change');
 });

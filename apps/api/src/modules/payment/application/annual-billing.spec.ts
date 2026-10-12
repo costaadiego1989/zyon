@@ -12,9 +12,9 @@ import { AsaasBillingProvider } from "../infrastructure/asaas-billing.provider.j
 import { BillingEntityMapper } from "../../public-api/billing/application/mappers/billing-entity.mapper.js";
 
 test("annual quote uses integer cents and only discounts the subscription", () => {
-  assert.deepEqual(billingOffer(34900, "annual", 15), { cycle: "annual", amountCents: 355980, equivalentMonthlyCents: 29665, discountPercent: 15, savingsCents: 62820 });
-  assert.deepEqual(billingOffer(59900, "annual", 15), { cycle: "annual", amountCents: 610980, equivalentMonthlyCents: 50915, discountPercent: 15, savingsCents: 107820 });
-  assert.equal(billingOffer(34900, "monthly", 15).amountCents, 34900);
+  assert.deepEqual(billingOffer(44900, "annual", 15), { cycle: "annual", amountCents: 457980, equivalentMonthlyCents: 38165, discountPercent: 15, savingsCents: 80820 });
+  assert.deepEqual(billingOffer(74900, "annual", 15), { cycle: "annual", amountCents: 763980, equivalentMonthlyCents: 63665, discountPercent: 15, savingsCents: 134820 });
+  assert.equal(billingOffer(44900, "monthly", 15).amountCents, 44900);
   assert.equal(BILLING_PLANS.growth.transactionFeeCents, 149);
   assert.equal(BILLING_PLANS.growth.features.customDomain, true);
   assert.equal("sessionsPerMonth" in BILLING_PLANS.growth.limits, false);
@@ -46,9 +46,9 @@ test("annual is opt-in and invalid env never breaks monthly billing", () => {
     const env = { BILLING_ANNUAL_ENABLED: "true", BILLING_ANNUAL_DISCOUNT_PERCENT: discount };
     assert.equal(annualBillingConfig(env).enabled, false);
     assert.throws(() => quoteBilling("growth", "annual", env));
-    assert.equal(quoteBilling("growth", "monthly", env).amountCents, 34900);
+    assert.equal(quoteBilling("growth", "monthly", env).amountCents, 44900);
   }
-  assert.equal(quoteBilling("growth", "annual", { BILLING_ANNUAL_ENABLED: "true" }).amountCents, 355980);
+  assert.equal(quoteBilling("growth", "annual", { BILLING_ANNUAL_ENABLED: "true" }).amountCents, 457980);
   assert.throws(() => quoteBilling("starter", "annual", { BILLING_ANNUAL_ENABLED: "true" }));
 });
 
@@ -60,10 +60,10 @@ test("calendar periods handle leap years and month ends", () => {
 test("annual paid webhook requires exact charge and due date, is idempotent across event ids, and retains contract on renewal", async () => {
   const repo = new InMemoryPaymentPlatformRepository();
   await repo.saveBilling({ merchantId: "annual", provider: "asaas", asaasSubscriptionId: "sub_annual", status: "trialing", planKey: "starter",
-    billingCycle: "annual", billingAmountCents: 355980, billingDiscountPercent: 15, pendingUpgradePlanKey: "growth", pendingUpgradeAmountCents: 355980 });
+    billingCycle: "annual", billingAmountCents: 457980, billingDiscountPercent: 15, pendingUpgradePlanKey: "growth", pendingUpgradeAmountCents: 457980 });
   const useCase = new HandleAsaasBillingWebhookUseCase(repo);
-  const payment = { subscriptionId: "sub_annual", paymentId: "pay_1", paymentValueCents: 355980, paymentDueAt: "2026-10-01T00:00:00Z", occurredAt: "2026-10-01T12:00:00Z", event: "PAYMENT_CONFIRMED" };
-  assert.equal((await useCase.execute({ ...payment, eventId: "underpaid", paymentValueCents: 34900 })).outcome, "ignored");
+  const payment = { subscriptionId: "sub_annual", paymentId: "pay_1", paymentValueCents: 457980, paymentDueAt: "2026-10-01T00:00:00Z", occurredAt: "2026-10-01T12:00:00Z", event: "PAYMENT_CONFIRMED" };
+  assert.equal((await useCase.execute({ ...payment, eventId: "underpaid", paymentValueCents: 44900 })).outcome, "ignored");
   assert.equal((await useCase.execute({ ...payment, eventId: "undated", paymentDueAt: undefined })).outcome, "ignored");
   assert.equal((await useCase.execute({ ...payment, eventId: "first" })).outcome, "processed");
   assert.equal((await repo.getBilling("annual"))?.currentPeriodEnd, "2027-10-01T00:00:00.000Z");
@@ -78,7 +78,7 @@ test("annual paid webhook requires exact charge and due date, is idempotent acro
   assert.equal(snapshot?.billingDiscountPercent, 15);
   const response = BillingEntityMapper.toSubscriptionResponse(await new GetBillingSubscriptionUseCase(repo).execute("annual"));
   assert.equal(response.billing_cycle, "annual");
-  assert.equal(response.billing_amount_cents, 355980);
+  assert.equal(response.billing_amount_cents, 457980);
   assert.equal(response.limits.ordersPerMonth, 500);
 });
 
@@ -88,17 +88,17 @@ test("monthly to annual transition preserves access until its confirmed renewal"
   try {
     const repo = new InMemoryPaymentPlatformRepository();
     await repo.saveBilling({ merchantId: "transition", provider: "asaas", asaasSubscriptionId: "sub_change", status: "active", planKey: "growth",
-      billingCycle: "monthly", billingAmountCents: 34900, currentPeriodEnd: "2030-10-01T12:00:00.000Z" });
+      billingCycle: "monthly", billingAmountCents: 44900, currentPeriodEnd: "2030-10-01T12:00:00.000Z" });
     const calls: any[] = [];
     const change = new ChangeSubscriptionPlanUseCase(repo, { async updateSubscription(input: unknown) { calls.push(input); } } as any);
     await change.execute({ merchantId: "transition", targetPlanKey: "scale", billingCycle: "annual" });
     const pending = await repo.getBilling("transition");
     assert.equal(pending?.planKey, "growth"); assert.equal(pending?.billingCycle, "monthly");
-    assert.equal(pending?.pendingBillingAmountCents, 610980);
+    assert.equal(pending?.pendingBillingAmountCents, 763980);
     assert.equal(calls[0].nextDueDate, "2030-10-01");
     await assert.rejects(() => change.execute({ merchantId: "transition", targetPlanKey: "scale", billingCycle: "annual" }));
     await new HandleAsaasBillingWebhookUseCase(repo).execute({ event: "PAYMENT_CONFIRMED", eventId: "change_paid", subscriptionId: "sub_change",
-      paymentId: "new_charge", paymentValueCents: 610980, paymentDueAt: "2030-10-01T00:00:00Z", occurredAt: "2030-10-01T12:00:00Z" });
+      paymentId: "new_charge", paymentValueCents: 763980, paymentDueAt: "2030-10-01T00:00:00Z", occurredAt: "2030-10-01T12:00:00Z" });
     const active = await repo.getBilling("transition");
     assert.equal(active?.planKey, "scale"); assert.equal(active?.billingCycle, "annual");
     assert.equal(active?.currentPeriodEnd, "2031-10-01T00:00:00.000Z");
@@ -109,13 +109,13 @@ test("monthly to annual transition preserves access until its confirmed renewal"
 test("Stripe validates price amount, currency and interval before opening checkout", async () => {
   const adapter = new StripePlatformAdapter("test-key");
   let opened = 0;
-  const price = { active: true, currency: "brl", unit_amount: 355980, recurring: { interval: "year", interval_count: 1, usage_type: "licensed" } };
+  const price = { active: true, currency: "brl", unit_amount: 457980, recurring: { interval: "year", interval_count: 1, usage_type: "licensed" } };
   Object.assign(adapter, { stripe: { prices: { retrieve: async () => price }, checkout: { sessions: { list: async () => ({ data: [] }), create: async (input: any) => {
     opened++; assert.equal(input.allow_promotion_codes, false); return { id: "cs_1", url: "https://checkout.example.test" };
   } } } } });
-  const input = { merchantId: "m", customerId: "cus", priceId: "annual_price", offer: billingOffer(34900, "annual", 15), successUrl: "https://example.test/success", cancelUrl: "https://example.test/cancel" };
+  const input = { merchantId: "m", customerId: "cus", priceId: "annual_price", offer: billingOffer(44900, "annual", 15), successUrl: "https://example.test/success", cancelUrl: "https://example.test/cancel" };
   await adapter.createSubscriptionCheckout(input); assert.equal(opened, 1);
-  for (const [key, value] of [["unit_amount", 34900], ["currency", "usd"], ["active", false]] as const) {
+  for (const [key, value] of [["unit_amount", 44900], ["currency", "usd"], ["active", false]] as const) {
     const saved = (price as any)[key]; (price as any)[key] = value;
     await assert.rejects(() => adapter.createSubscriptionCheckout(input)); (price as any)[key] = saved;
   }
@@ -130,14 +130,14 @@ test("Asaas sends YEARLY with the full annual amount and refuses generated invoi
     if (!init.method) return Response.json({ data: [{ id: "pending_1" }], totalCount: 1 });
     throw new Error("Should not mutate existing invoices");
   }) as any);
-  await provider.createSubscription({ customerId: "cus", planKey: "growth", valueBrl: 3559.8, billingCycle: "annual", creditCardToken: "test_token" });
-  assert.equal(bodies[0].cycle, "YEARLY"); assert.equal(bodies[0].value, 3559.8);
-  await assert.rejects(() => provider.updateSubscription({ subscriptionId: "sub_1", valueBrl: 3559.8, billingCycle: "annual", nextDueDate: "2030-10-01" }));
+  await provider.createSubscription({ customerId: "cus", planKey: "growth", valueBrl: 4579.8, billingCycle: "annual", creditCardToken: "test_token" });
+  assert.equal(bodies[0].cycle, "YEARLY"); assert.equal(bodies[0].value, 4579.8);
+  await assert.rejects(() => provider.updateSubscription({ subscriptionId: "sub_1", valueBrl: 4579.8, billingCycle: "annual", nextDueDate: "2030-10-01" }));
 });
 
 test("Stripe schedules annual and monthly changes for renewal without proration", async () => {
   for (const cycle of ["annual", "monthly"] as const) {
-    const offer = billingOffer(34900, cycle, 15);
+    const offer = billingOffer(44900, cycle, 15);
     const adapter = new StripePlatformAdapter("test-key");
     const phaseStart = 1900000000, phaseEnd = 1902592000;
     const mutations: any[] = [];
@@ -171,13 +171,13 @@ test("selecting annual expires an older monthly checkout owned by the same merch
   const adapter = new StripePlatformAdapter("test-key");
   const expired: string[] = [];
   Object.assign(adapter, { stripe: {
-    prices: { retrieve: async () => ({ active: true, currency: "brl", unit_amount: 355980, recurring: { interval: "year", interval_count: 1, usage_type: "licensed" } }) },
+    prices: { retrieve: async () => ({ active: true, currency: "brl", unit_amount: 457980, recurring: { interval: "year", interval_count: 1, usage_type: "licensed" } }) },
     checkout: { sessions: {
       list: async () => ({ data: [{ id: "cs_old", mode: "subscription", metadata: { merchant_id: "m", price_id: "monthly" } }, { id: "cs_foreign", mode: "subscription", metadata: { merchant_id: "other", price_id: "monthly" } }] }),
       expire: async (id: string) => { expired.push(id); },
       create: async () => ({ id: "cs_new", url: "https://checkout.example.test" }),
     } },
   } });
-  await adapter.createSubscriptionCheckout({ merchantId: "m", customerId: "cus", priceId: "annual", offer: billingOffer(34900, "annual", 15), successUrl: "https://example.test", cancelUrl: "https://example.test" });
+  await adapter.createSubscriptionCheckout({ merchantId: "m", customerId: "cus", priceId: "annual", offer: billingOffer(44900, "annual", 15), successUrl: "https://example.test", cancelUrl: "https://example.test" });
   assert.deepEqual(expired, ["cs_old"]);
 });
