@@ -21,7 +21,11 @@ export class MetaSignupAuthorizationAdapter implements WhatsAppSignupAuthorizati
     try {
       const response = await fetch(url, { redirect: "error", signal: AbortSignal.timeout(10_000),
         headers: token ? { Authorization: `Bearer ${token}` } : {} });
-      if (!response.ok) throw new TwilioOnboardingError("META_AUTHORIZATION_FAILED");
+      if (!response.ok) {
+        const body = await response.json().catch(() => null) as { error?: { code?: number } } | null;
+        if (response.status === 429 || body?.error?.code === 80008) throw new TwilioOnboardingError("META_RATE_LIMITED", true);
+        throw new TwilioOnboardingError("META_AUTHORIZATION_FAILED");
+      }
       return await response.json() as any;
     } catch (error) {
       if (error instanceof TwilioOnboardingError) throw error;
@@ -51,7 +55,7 @@ export class MetaSignupAuthorizationAdapter implements WhatsAppSignupAuthorizati
       throw new TwilioOnboardingError("META_ASSET_NOT_AUTHORIZED");
     }
     const phones = new URL(`${this.graph}/${input.wabaId}/phone_numbers`);
-    phones.searchParams.set("fields", "id,display_phone_number");
+    phones.searchParams.set("fields", "id,display_phone_number,status,platform_type");
     phones.searchParams.set("limit", "100");
     for (let page = 0; page < 3; page++) {
       const result = await this.get(phones, token);
@@ -61,7 +65,8 @@ export class MetaSignupAuthorizationAdapter implements WhatsAppSignupAuthorizati
         const expiresIn = typeof exchangeResult.expires_in === "number" && exchangeResult.expires_in > 0
           ? new Date(Date.now() + exchangeResult.expires_in * 1000) : undefined;
         return { accessToken: token, tokenExpiresAt: expiresIn, wabaId: input.wabaId,
-          phoneNumberId: input.phoneNumberId, whatsappNumber: displayPhone };
+          phoneNumberId: input.phoneNumberId, whatsappNumber: displayPhone,
+          phoneRegistered: phone.status === "CONNECTED" && phone.platform_type === "CLOUD_API" };
       }
       const after = result.paging?.next && result.paging?.cursors?.after;
       if (typeof after !== "string") break;
@@ -87,8 +92,32 @@ export class MetaSignupAuthorizationAdapter implements WhatsAppSignupAuthorizati
 
   async isSubscribed(input: Pick<MetaCloudAuthorizedAssets, "accessToken" | "wabaId">): Promise<boolean> {
     const url = new URL(`${this.graph}/${input.wabaId}/subscribed_apps`);
-    url.searchParams.set("fields", "id");
     const result = await this.get(url, input.accessToken);
-    return Array.isArray(result.data) && result.data.some((app: any) => String(app.id) === this.appId());
+    return Array.isArray(result.data) && result.data.some((app: any) => String(app.whatsapp_business_api_data?.id ?? app.id) === this.appId());
+  }
+
+  async isPhoneRegistered(input: Pick<MetaCloudAuthorizedAssets, "accessToken" | "phoneNumberId">): Promise<boolean> {
+    const url = new URL(`${this.graph}/${input.phoneNumberId}`);
+    url.searchParams.set("fields", "status,platform_type");
+    const phone = await this.get(url, input.accessToken);
+    return phone.status === "CONNECTED" && phone.platform_type === "CLOUD_API";
+  }
+
+  async registerPhone(input: Pick<MetaCloudAuthorizedAssets, "accessToken" | "phoneNumberId">, pin: string): Promise<void> {
+    if (!/^\d{6}$/.test(pin)) throw new TwilioOnboardingError("META_REGISTRATION_PIN_INVALID");
+    try {
+      const response = await fetch(`${this.graph}/${input.phoneNumberId}/register`, {
+        method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
+        headers: { Authorization: `Bearer ${input.accessToken}`, "Content-Type": "application/json" },
+        body: JSON.stringify({ messaging_product: "whatsapp", pin }),
+      });
+      const body = await response.json().catch(() => null) as { success?: boolean; error?: { code?: number } } | null;
+      if (response.status === 429 || body?.error?.code === 80008) throw new TwilioOnboardingError("META_RATE_LIMITED", true);
+      if (!response.ok) throw new TwilioOnboardingError(response.status >= 500 ? "META_REGISTRATION_UNKNOWN" : "META_REGISTRATION_FAILED", response.status >= 500);
+      if (body?.success !== true) throw new TwilioOnboardingError("META_REGISTRATION_UNKNOWN", true);
+    } catch (error) {
+      if (error instanceof TwilioOnboardingError) throw error;
+      throw new TwilioOnboardingError("META_REGISTRATION_UNKNOWN", true);
+    }
   }
 }

@@ -3,6 +3,7 @@ import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppChannelConfigEntity, type What
 import { WHATSAPP_ONBOARDING_STORE, TwilioOnboardingError, type OnboardingLease, type WhatsAppOnboardingStore } from "../../domain/ports/whatsapp-onboarding.port.js";
 import { TEMPLATE_PACKAGE_SUBMITTER, type TemplatePackageSubmitter } from "../../domain/ports/template-package-submitter.port.js";
 import { WHATSAPP_SIGNUP_AUTHORIZATION, type MetaCloudAuthorizedAssets, type WhatsAppSignupAuthorization } from "../../domain/ports/whatsapp-signup-authorization.port.js";
+import { randomInt } from "node:crypto";
 
 export interface ConnectViaEmbeddedSignupInput {
   merchantId: string;
@@ -32,10 +33,11 @@ export class ConfigureWhatsAppUseCase {
   async connection(merchantId: string) { return this.view(await this.configRepo.findByMerchantId(merchantId)); }
 
   private view(config: WhatsAppChannelConfigEntity | null) {
+    const missingRegistration = config?.provider === "META_CLOUD" && config.status === "ACTIVE" && config.credentials.registrationStatus !== "REGISTERED";
     return {
       provider: config?.provider ?? "META_CLOUD",
-      status: config?.status.toLowerCase() ?? "disconnected",
-      enabled: config?.enabled ?? false,
+      status: missingRegistration ? "provisioning" : config?.status.toLowerCase() ?? "disconnected",
+      enabled: missingRegistration ? false : config?.enabled ?? false,
       whatsappNumber: config?.whatsappNumber ?? null,
       connectedAt: config?.connectedAt ?? null,
       onboardingError: config?.credentials.onboardingError ?? null,
@@ -52,7 +54,7 @@ export class ConfigureWhatsAppUseCase {
       if (!(error instanceof TwilioOnboardingError)) throw error;
       await this.store.save(lease, {
         enabled: false,
-        status: error.code === "META_SUBSCRIPTION_UNKNOWN" ? "PROVISIONING" : "ERROR",
+        status: error.uncertain ? "PROVISIONING" : "ERROR",
         credentials: { ...lease.config.credentials, onboardingError: error.code },
       });
       this.logger.warn(`Meta Cloud onboarding: ${error.code}`);
@@ -101,6 +103,7 @@ export class ConfigureWhatsAppUseCase {
         accessToken: authorized.accessToken,
         ...(authorized.tokenExpiresAt ? { tokenExpiresAt: authorized.tokenExpiresAt.toISOString() } : {}),
         subscriptionStatus: "PENDING",
+        registrationStatus: authorized.phoneRegistered ? "REGISTERED" : "PENDING",
         desiredEnabled: true,
         onboardingError: null,
       },
@@ -121,12 +124,40 @@ export class ConfigureWhatsAppUseCase {
 
   private async subscribe(lease: OnboardingLease) {
     await this.authorization.subscribe(this.assets(lease.config));
+    await this.store.save(lease, {
+      credentials: { ...lease.config.credentials, subscriptionStatus: "SUBSCRIBED" },
+    });
+    await this.activateRegisteredPhone(lease, lease.config.credentials.registrationStatus === "REGISTERED");
+  }
+
+  private async activateRegisteredPhone(lease: OnboardingLease, registered: boolean) {
     const activateTemplates = lease.config.status !== "ACTIVE";
+    if (!registered) {
+      if (lease.config.credentials.registrationStatus === "REGISTERING") {
+        // An interrupted POST is reconciled with a provider read before any retry.
+        throw new TwilioOnboardingError("META_REGISTRATION_UNKNOWN", true);
+      }
+      const storedPin = lease.config.credentials.registrationPin;
+      const pin = typeof storedPin === "string" && /^\d{6}$/.test(storedPin)
+        ? storedPin : String(randomInt(0, 1_000_000)).padStart(6, "0");
+      await this.store.save(lease, {
+        status: "PROVISIONING", enabled: false,
+        credentials: { ...lease.config.credentials, registrationPin: pin, registrationStatus: "REGISTERING" },
+      });
+      try {
+        await this.authorization.registerPhone(this.assets(lease.config), pin);
+      } catch (error) {
+        if (error instanceof TwilioOnboardingError && error.code !== "META_REGISTRATION_UNKNOWN") {
+          await this.store.save(lease, { credentials: { ...lease.config.credentials, registrationStatus: "PENDING" } });
+        }
+        throw error;
+      }
+    }
     await this.store.save(lease, {
       status: "ACTIVE",
       enabled: lease.config.credentials.desiredEnabled !== false,
       ...(lease.config.connectedAt ? {} : { connectedAt: new Date() }),
-      credentials: { ...lease.config.credentials, subscriptionStatus: "SUBSCRIBED", onboardingError: null },
+      credentials: { ...lease.config.credentials, registrationStatus: "REGISTERED", subscriptionStatus: "SUBSCRIBED", onboardingError: null },
     });
     if (activateTemplates && this.templatePackage) {
       void this.registerTemplatePackage(lease.config.merchantId);
@@ -142,16 +173,8 @@ export class ConfigureWhatsAppUseCase {
       if (!await this.authorization.isSubscribed(this.assets(lease.config))) {
         throw new TwilioOnboardingError("META_SUBSCRIPTION_NOT_CONFIRMED");
       }
-      const activateTemplates = lease.config.status !== "ACTIVE";
-      await this.store.save(lease, {
-        status: "ACTIVE",
-        enabled: lease.config.credentials.desiredEnabled !== false,
-        ...(lease.config.connectedAt ? {} : { connectedAt: new Date() }),
-        credentials: { ...lease.config.credentials, subscriptionStatus: "SUBSCRIBED", onboardingError: null },
-      });
-      if (activateTemplates && this.templatePackage) {
-        void this.registerTemplatePackage(lease.config.merchantId);
-      }
+      const registered = await this.authorization.isPhoneRegistered(this.assets(lease.config));
+      await this.activateRegisteredPhone(lease, registered);
     });
   }
 
@@ -186,6 +209,7 @@ export class ConfigureWhatsAppUseCase {
         return;
       }
       if (lease.config.provider !== "META_CLOUD") throw new TwilioOnboardingError("WHATSAPP_CONNECTION_REVIEW_REQUIRED");
+      if (enabled && lease.config.credentials.registrationStatus !== "REGISTERED") throw new TwilioOnboardingError("META_PHONE_NOT_REGISTERED");
       await this.store.save(lease, { enabled, credentials: { ...lease.config.credentials, desiredEnabled: enabled } });
     });
   }

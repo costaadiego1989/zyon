@@ -120,7 +120,7 @@ export class RecoveryTemplateLifecycleUseCase implements RecoveryTemplateInitial
           await this.repo.complete(row, {
             status: state, wabaId: connection.wabaId, contentSid: result.contentSid || null, reason: result.rejectionReason ?? null,
             checkedAt: result.status === "approved" ? clock() : undefined,
-            nextCheckAt: uncertain && !result.contentSid ? null : new Date(clock().getTime() + 60_000),
+            nextCheckAt: uncertain && !result.contentSid ? null : new Date(clock().getTime() + (result.retryAfterMs ?? 60_000)),
           }, true);
         } else if (row.twilioContentSid) {
           const result = await this.submission.syncStatus(row.merchantId, row.twilioContentSid, { language: row.metaLanguage ?? "pt_BR", body: row.metaTemplateBody ?? "" });
@@ -130,7 +130,7 @@ export class RecoveryTemplateLifecycleUseCase implements RecoveryTemplateInitial
           await this.repo.complete(row, {
             status: valid ? result.status : row.metaStatus ?? "draft", wabaId: valid ? connection.wabaId : undefined,
             reason: valid ? result.rejectionReason ?? null : undefined,
-            checkedAt: valid ? clock() : undefined, nextCheckAt: new Date(clock().getTime() + 60_000),
+            checkedAt: valid ? clock() : undefined, nextCheckAt: new Date(clock().getTime() + (result.retryAfterMs ?? 60_000)),
           }, false);
         } else {
           await this.repo.complete(row, { status: row.metaStatus ?? "draft", nextCheckAt: null }, false);

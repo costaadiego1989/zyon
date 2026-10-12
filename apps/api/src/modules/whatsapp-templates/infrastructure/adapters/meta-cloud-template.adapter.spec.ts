@@ -43,6 +43,30 @@ describe("Meta Cloud template submission", () => {
     });
   });
 
+  test("one WABA snapshot serves different template names and concurrent reads", async () => {
+    let reads = 0;
+    globalThis.fetch = (async () => { reads++; return Response.json({ data: [{ name: "one", status: "APPROVED" }, { name: "two", status: "PENDING" }] }); }) as typeof fetch;
+    const adapter = new MetaCloudTemplateAdapter(configs);
+    const [one, two] = await Promise.all([adapter.syncStatus(input.merchantId, "one"), adapter.syncStatus(input.merchantId, "two")]);
+    assert.equal(one.status, "approved");
+    assert.equal(two.status, "submitted");
+    assert.equal(reads, 1);
+  });
+
+  test("80008 stops WABA polling and creation for an hour without overwriting approval", async () => {
+    let reads = 0;
+    globalThis.fetch = (async () => { reads++; return Response.json({ error: { code: 80008 } }, { status: 400 }); }) as typeof fetch;
+    const adapter = new MetaCloudTemplateAdapter(configs);
+    const first = await adapter.syncStatus(input.merchantId, "one");
+    const second = await adapter.syncStatus(input.merchantId, "two");
+    const create = await adapter.createAndSubmit(input);
+    assert.equal(first.status, "unknown");
+    assert.equal(second.status, "unknown");
+    assert.equal(create.status, "draft");
+    assert.ok((first.retryAfterMs ?? 0) >= 59 * 60_000);
+    assert.equal(reads, 1);
+  });
+
   test("an uncertain create keeps its deterministic identifier for reconciliation", async () => {
     globalThis.fetch = (async () => { throw new Error("timeout"); }) as typeof fetch;
     const result = await new MetaCloudTemplateAdapter(configs).createAndSubmit(input);

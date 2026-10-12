@@ -19,7 +19,7 @@ function setup() {
   };
   let locked = false;
   const writes: ChannelPatch[] = [];
-  const calls = { authorize: 0, subscribe: 0, subscribed: 0, templates: 0 };
+  const calls = { authorize: 0, subscribe: 0, subscribed: 0, templates: 0, register: 0, registered: 0 };
   const store: WhatsAppOnboardingStore = {
     claim: async () => { if (locked) return null; locked = true; return { token: "lease", config: structuredClone(config) }; },
     save: async (lease: OnboardingLease, patch) => {
@@ -34,6 +34,8 @@ function setup() {
     authorize: async (received: typeof input) => { calls.authorize++; assert.deepEqual(received, input); return structuredClone(assets); },
     subscribe: async () => { calls.subscribe++; },
     isSubscribed: async () => { calls.subscribed++; return true; },
+    registerPhone: async (_assets: unknown, pin: string) => { calls.register++; assert.match(pin, /^\d{6}$/); },
+    isPhoneRegistered: async () => { calls.registered++; return true; },
   };
   const repo = { findByMerchantId: async () => structuredClone(config) } as any;
   const useCase = new ConfigureWhatsAppUseCase(repo, store, authorization, { execute: async () => { calls.templates++; } } as any);
@@ -44,7 +46,7 @@ function setup() {
   };
 }
 
-test("authorizes Meta assets server-side, subscribes the WABA, and activates only after subscription", async () => {
+test("authorizes Meta assets, subscribes the WABA, and activates only after phone registration", async () => {
   const previous = { ...process.env };
   Object.assign(process.env, { META_EMBEDDED_SIGNUP_APP_ID: "123456", META_EMBEDDED_SIGNUP_CONFIGURATION_ID: "234567", META_APP_SECRET: "secret", META_WEBHOOK_VERIFY_TOKEN: "verify-token" });
   try {
@@ -52,6 +54,7 @@ test("authorizes Meta assets server-side, subscribes the WABA, and activates onl
     assert.equal((await s.useCase.connectViaEmbeddedSignup(input)).status, "active");
     assert.equal(s.calls.authorize, 1);
     assert.equal(s.calls.subscribe, 1);
+    assert.equal(s.calls.register, 1);
     assert.equal(s.calls.templates, 1);
     assert.equal(s.config().provider, "META_CLOUD");
     assert.equal(s.config().status, "ACTIVE");
@@ -59,6 +62,7 @@ test("authorizes Meta assets server-side, subscribes the WABA, and activates onl
     assert.deepEqual(s.config().credentials.accessToken, assets.accessToken);
     const publicData = JSON.stringify(await s.useCase.connection(input.merchantId));
     assert.ok(!publicData.includes(assets.accessToken));
+    assert.ok(!publicData.includes(String(s.config().credentials.registrationPin)));
   } finally { for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key]; Object.assign(process.env, previous); }
 });
 
@@ -73,6 +77,7 @@ test("unknown subscription preserves the authorized connection for reconciliatio
     assert.equal(result.error, "META_SUBSCRIPTION_UNKNOWN");
     assert.equal(s.config().enabled, false);
     assert.equal(s.config().credentials.accessToken, assets.accessToken);
+    assert.equal(s.calls.register, 0);
   } finally { for (const key of Object.keys(process.env)) if (!(key in previous)) delete process.env[key]; Object.assign(process.env, previous); }
 });
 
@@ -84,7 +89,47 @@ test("refresh only reads subscription state and never issues a second subscripti
   assert.equal((await s.useCase.refresh(input.merchantId)).status, "active");
   assert.equal(s.calls.subscribed, 1);
   assert.equal(s.calls.subscribe, 0);
+  assert.equal(s.calls.registered, 1);
+  assert.equal(s.calls.register, 0);
   assert.equal(s.calls.templates, 1);
+});
+
+test("registration failure cannot enable the channel or submit templates", async () => {
+  const s = setup();
+  s.setConfig({ status: "PROVISIONING", whatsappNumber: "5511999999999", credentials: { onboardingVersion: 3, ...assets } });
+  s.authorization.isPhoneRegistered = async () => false;
+  s.authorization.registerPhone = async () => { throw new TwilioOnboardingError("META_REGISTRATION_FAILED"); };
+  const result: any = await s.useCase.refresh(input.merchantId);
+  assert.equal(result.status, "error");
+  assert.equal(result.error, "META_REGISTRATION_FAILED");
+  assert.equal(s.config().enabled, false);
+  assert.equal(s.calls.templates, 0);
+  assert.equal(s.config().credentials.registrationStatus, "PENDING");
+});
+
+test("registration timeout retains the PIN and reconciles before another POST", async () => {
+  const s = setup();
+  let posts = 0;
+  s.setConfig({ status: "PROVISIONING", whatsappNumber: "5511999999999", credentials: { onboardingVersion: 3, ...assets } });
+  s.authorization.isPhoneRegistered = async () => false;
+  s.authorization.registerPhone = async () => { posts++; throw new TwilioOnboardingError("META_REGISTRATION_UNKNOWN", true); };
+  assert.equal((await s.useCase.refresh(input.merchantId)).status, "provisioning");
+  const pin = s.config().credentials.registrationPin;
+  assert.equal(s.config().credentials.registrationStatus, "REGISTERING");
+  await s.useCase.refresh(input.merchantId);
+  assert.equal(posts, 1);
+  assert.equal(s.config().credentials.registrationPin, pin);
+  s.authorization.isPhoneRegistered = async () => true;
+  assert.equal((await s.useCase.refresh(input.merchantId)).status, "active");
+  assert.equal(posts, 1);
+  assert.equal(s.calls.templates, 1);
+});
+
+test("an old active row without registration proof is shown as provisioning", async () => {
+  const s = setup();
+  s.setConfig({ status: "ACTIVE", enabled: true, credentials: { onboardingVersion: 3, ...assets, subscriptionStatus: "SUBSCRIBED" } });
+  assert.equal((await s.useCase.connection(input.merchantId)).status, "provisioning");
+  assert.equal((await s.useCase.connection(input.merchantId)).enabled, false);
 });
 
 test("connection identity cannot silently switch to a different WABA", async () => {
