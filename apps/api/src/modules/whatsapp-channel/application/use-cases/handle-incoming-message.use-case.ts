@@ -16,6 +16,7 @@ import {
   buildMenuState,
 } from "../services/whatsapp-menu-renderer.service.js";
 import { renderNumberedMenu } from "../../domain/templates/whatsapp-templates.js";
+import { HandleMetaConversationUseCase } from "./handle-meta-conversation.use-case.js";
 import {
   WHATSAPP_SESSION_REPOSITORY,
   type WhatsAppSessionRepository,
@@ -27,6 +28,8 @@ import {
 } from "../../../post-sale/domain/ports/post-sale-reply-handler.port.js";
 
 export interface IncomingMessageInput {
+  interactiveId?: string;
+  inboxClaim?: import("../../domain/ports/whatsapp-webhook-inbox.port.js").WhatsAppInboxClaim;
   merchantId: string;
   deviceId: string;
   fromNumber: string;
@@ -52,6 +55,7 @@ export class HandleIncomingMessageUseCase {
     private readonly conversation: WhatsAppConversationPort,
     @Optional() @Inject(POST_SALE_REPLY_HANDLER_PORT)
     private readonly postSaleReply?: PostSaleReplyHandlerPort,
+    @Optional() private readonly metaConversation?: HandleMetaConversationUseCase,
   ) {}
 
   async execute(input: IncomingMessageInput): Promise<void> {
@@ -75,6 +79,12 @@ export class HandleIncomingMessageUseCase {
         if (handled) return; // reply captured; don't fall through to checkout
       }
       // ────────────────────────────────────────────────────────────────────
+
+      if (input.provider === "META_CLOUD") {
+        if (!this.metaConversation) throw new Error("whatsapp_native_conversation_unavailable");
+        await this.metaConversation.execute(input, route);
+        return;
+      }
 
       // Resolve numbered input
       const menuState = buildMenuState(

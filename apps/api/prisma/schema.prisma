@@ -2596,6 +2596,19 @@ model WhatsAppChannelConfig {
   @@map("whatsapp_channel_configs")
 }
 
+model StorefrontWishlistItem {
+  id         String   @id @default(cuid())
+  merchantId String   @map("merchant_id")
+  ownerKey   String   @map("owner_key")
+  productId  String   @map("product_id")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@unique([merchantId, ownerKey, productId])
+  @@index([merchantId, ownerKey, createdAt])
+  @@map("storefront_wishlist_items")
+}
+
 model WhatsAppSession {
   id                String   @id @default(uuid())
   merchantId        String   @map("merchant_id")
@@ -2609,6 +2622,7 @@ model WhatsAppSession {
   lastActivityAt    DateTime @default(now()) @updatedAt @map("last_activity_at")
   status            String   @default("active")
   postSaleContext   Json?    @map("post_sale_context")
+  conversationState Json?    @map("conversation_state")
   createdAt         DateTime @default(now()) @map("created_at")
 
   @@unique([merchantId, buyerPhone, deviceId])
@@ -3193,6 +3207,7 @@ model WhatsAppWebhookInbox {
   streamKey      String    @map("stream_key")
   payload        Json
   payloadHash    String    @map("payload_hash")
+  responseState  Json?     @map("response_state")
   status         String    @default("pending")
   attempts       Int       @default(0)
   availableAt    DateTime  @default(now()) @map("available_at")

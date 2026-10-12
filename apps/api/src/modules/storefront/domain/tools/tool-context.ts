@@ -1,6 +1,7 @@
 export interface ToolRequestContext {
   merchantId: string;
   sessionId: string;
+  conversationId?: string;
   buyer?: {
     globalUserId: string;
     name?: string;

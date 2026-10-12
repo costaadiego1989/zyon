@@ -11,6 +11,7 @@ interface ClaimRow {
   id: string; dedup_key: string; event_id: string; kind: "message" | "status";
   merchant_id: string; config_id: string; device_id: string; stream_key: string;
   payload: WhatsAppInboxEvent["payload"]; payload_hash: string; lease_token: string; attempts: number;
+  response_state?: Record<string, unknown>;
 }
 
 @Injectable()
@@ -77,6 +78,7 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
         merchantId: row.merchant_id, configId: row.config_id, deviceId: row.device_id,
         streamKey: row.stream_key, payload: row.payload, payloadHash: row.payload_hash,
         leaseToken: row.lease_token, attempts: row.attempts,
+        responseState: row.response_state ?? undefined,
       } : null;
     });
   }
@@ -90,6 +92,31 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
     `)) === 1;
   }
 
+  async saveResponse(claim: WhatsAppInboxClaim, response: Record<string, unknown>): Promise<boolean> {
+    return this.prisma.$transaction(async tx => {
+      // Receipts can arrive while Graph's response is still in flight. Never
+      // overwrite their durable acceptance proof with the worker's older copy.
+      const rows = await tx.$queryRaw<Array<{ response_state: Record<string, any> | null }>>(Prisma.sql`
+        SELECT "response_state" FROM "whatsapp_webhook_inbox"
+        WHERE "id" = ${claim.id} AND "merchant_id" = ${claim.merchantId}
+          AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken} AND "lease_expires_at" > NOW()
+        FOR UPDATE
+      `);
+      if (!rows.length) return false;
+      const previous = rows[0].response_state ?? {};
+      const sent = new Map<number, unknown>();
+      for (const item of [...((response.sent as any[]) ?? []), ...(previous.sent ?? [])]) sent.set(item.index, item);
+      const merged = { ...response, ...(previous.receipts ? { receipts: previous.receipts } : {}),
+        ...(response.presentation ? { sent: [...sent.values()] } : {}) };
+      if (response.phase === "dispatching" && sent.has(Number(response.dispatchingIndex))) merged.phase = "prepared";
+      return (await tx.$executeRaw(Prisma.sql`
+        UPDATE "whatsapp_webhook_inbox" SET "response_state" = ${JSON.stringify(merged)}::jsonb, "updated_at" = NOW()
+        WHERE "id" = ${claim.id} AND "merchant_id" = ${claim.merchantId}
+          AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken} AND "lease_expires_at" > NOW()
+      `)) === 1;
+    });
+  }
+
   async complete(claim: WhatsAppInboxClaim): Promise<boolean> {
     return (await this.prisma.$executeRaw(Prisma.sql`
       UPDATE "whatsapp_webhook_inbox" SET "status" = 'processed', "processed_at" = NOW(),
@@ -100,10 +127,13 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
   }
 
   async fail(claim: WhatsAppInboxClaim, errorCode: string): Promise<boolean> {
-    const dead = claim.attempts >= INBOX_MAX_ATTEMPTS;
+    const dead = claim.attempts >= INBOX_MAX_ATTEMPTS || ["whatsapp_turn_result_unknown", "whatsapp_send_result_unknown", "whatsapp_service_window_expired"].includes(errorCode);
     const backoffMs = Math.min(30 * 60_000, 5_000 * 2 ** (claim.attempts - 1));
     return (await this.prisma.$executeRaw(Prisma.sql`
-      UPDATE "whatsapp_webhook_inbox" SET "status" = ${dead ? "dead" : "pending"},
+      UPDATE "whatsapp_webhook_inbox" SET "status" = CASE
+          WHEN ${errorCode === "whatsapp_send_result_unknown"} AND "response_state"->>'phase' = 'prepared'
+            AND "response_state" ? 'receipts' THEN 'pending'
+          ELSE ${dead ? "dead" : "pending"} END,
         "available_at" = NOW() + ${backoffMs} * INTERVAL '1 millisecond',
         "lease_token" = NULL, "lease_expires_at" = NULL, "last_error" = ${errorCode}, "updated_at" = NOW()
       WHERE "id" = ${claim.id} AND "status" = 'processing' AND "lease_token" = ${claim.leaseToken}

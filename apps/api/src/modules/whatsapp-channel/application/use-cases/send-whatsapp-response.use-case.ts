@@ -24,6 +24,10 @@ export class SendWhatsAppResponseUseCase {
     private readonly sender: WhatsAppSenderPort,
   ) {}
 
+  async sendUi(input: SendResponseInput & { uiMessage: import("../../domain/ui/meta-ui.types.js").MetaUiMessage; correlationId?: string }) {
+    return this.sender.sendText({ ...input, uiMessage: input.uiMessage });
+  }
+
   async execute(input: SendResponseInput): Promise<void> {
     try {
       const result = await this.sender.sendText({

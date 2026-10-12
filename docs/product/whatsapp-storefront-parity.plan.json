@@ -1,0 +1,163 @@
+{
+  "title": "Zyon: mesma jornada conversacional no storefront e no WhatsApp",
+  "date": "2026-10-12",
+  "status": "planned",
+  "implementationStarted": false,
+  "baselineRelease": "5fa9ea7d37846c32b6984d7a7d7c8b1716d2d3a0",
+  "objective": "Compartilhar agente, identidade da loja, regras, atalhos, catalogo, carrinho e jornada de checkout. Adaptar a apresentacao dos componentes ao canal Meta, priorizando os controles nativos.",
+  "sourceOfTruth": {
+    "storeConversation": "apps/api/src/modules/storefront/application/use-cases/send-store-message.use-case.ts",
+    "storeBlocks": "apps/storefront/src/components/blocks/BlockRenderer.tsx",
+    "productContent": "apps/storefront/src/components/blocks/ContentBlocks/types.ts",
+    "quickReplies": "apps/api/src/modules/storefront/domain/defaults/store-quick-replies.defaults.ts",
+    "merchantConfiguration": "As configuracoes efetivas de cada empresa prevalecem sobre os atalhos e a identidade padrao.",
+    "baselineIntegration": "Antes de implementar, reconciliar a revisao publicada, a master e os ajustes locais pertinentes. Preservar as correcoes de conexao, templates e dashboard. O inventario local deve ser confrontado com o storefront em producao."
+  },
+  "currentGaps": [
+    "O adaptador WhatsApp chama diretamente o fluxo de checkout, sem a jornada completa de navegacao da loja.",
+    "A resposta WhatsApp conserva texto e atalhos, mas perde os blocos estruturados.",
+    "O adaptador corta os atalhos em nove opcoes.",
+    "O webhook de interacoes conserva o titulo da selecao, sem seu ID.",
+    "O remetente Meta envia texto; sendMedia ainda delega a sendText.",
+    "O estado de menu atual guarda textos e pagina, sem referencias completas de produto, variante, cursor e acao."
+  ],
+  "architecture": {
+    "conversation": "Reutilizar os casos de uso e a orquestracao storefront -> checkout, com historico persistido, identidade do agente e regras da empresa. A entrada do canal informa texto livre ou uma acao estruturada validada.",
+    "responseContract": "Resposta compartilhada com texto, blocos, acoes, contexto e referencias autoritativas. Os contratos sao independentes de React e dos payloads Graph API.",
+    "renderers": "O storefront apresenta os blocos existentes. MetaUiRenderer produz mensagens Meta e um mapa persistido de acoes a partir dos mesmos dados.",
+    "state": "Persistir merchantId, identidade verificada do comprador, conversa, carrinho, etapa de checkout, produto e variante selecionados, filtros, cursores e historico de navegacao."
+  },
+  "interactionPolicy": {
+    "primary": "Usar reply buttons para poucas acoes que caibam nos limites da Meta; usar list messages para conjuntos maiores de opcoes.",
+    "allQuickReplies": "Conservar todos os atalhos habilitados da etapa, incluindo os personalizados. Paginar em vez de descartar opcoes. Titulos abreviados mantem a referencia para a acao e a pergunta original.",
+    "pagination": "Usar os cursores e filtros reais do catalogo. Reservar espaco para avancar, voltar e acessar o menu. O tamanho da pagina considera os controles de navegacao e os limites do formato.",
+    "freeText": "Texto livre continua disponivel em qualquer etapa. A Zyon usa o mesmo contexto e as mesmas ferramentas da loja.",
+    "numericAlternative": "Opcoes numeradas referenciam o mesmo mapa de acoes dos controles nativos. Interpretar numeros apenas no contexto adequado, preservando campos como CEP, CPF e quantidade.",
+    "actionIdentity": "Validar IDs de botoes e linhas pelo merchant, comprador, turno e contexto persistido. Preservar messageId e context.message_id quando fornecidos. Texto exibido nao identifica sozinho um produto ou variante.",
+    "oldSelections": "Revalidar acoes de menus anteriores. Selecoes incompatíveis com o estado atual recebem explicacao e opcoes atualizadas; nunca executam silenciosamente outra acao.",
+    "returningBuyer": "Retomar contexto valido e dados confirmados. Vincular contas entre canais apenas com identidade comprovada. Preservar o wa_id recebido separadamente do telefone de exibicao.",
+    "serviceWindow": "Aplicar a janela vigente de atendimento da Meta. Fora dela, usar somente templates aprovados e elegiveis, respeitando consentimento e finalidade."
+  },
+  "componentMatrix": [
+    {"source": "welcome", "component": "MetaWelcomeUi", "presentation": "Saudacao, nome do agente, empresa e menu nativo com a mesma configuracao da loja."},
+    {"source": "quick_replies", "component": "MetaQuickRepliesUi", "presentation": "Botoes ou lista paginada; alternativa numerica preserva as mesmas acoes."},
+    {"source": "product_card", "component": "MetaProductDetailsUi", "presentation": "Imagem, nome, preco, disponibilidade e acoes. Mensagem nativa de produto quando o catalogo estiver vinculado e o item for elegivel."},
+    {"source": "product_carousel", "component": "MetaProductListUi", "presentation": "Selecao de itens em lista paginada, fotos sob demanda e detalhes. Usar mensagens de produtos nativas quando disponiveis."},
+    {"source": "category_carousel", "component": "MetaCategoryListUi", "presentation": "Lista de categorias com quantidade de produtos e navegacao contextual."},
+    {"source": "marketplace_products", "component": "MetaMarketplaceListUi", "presentation": "Lista com produto, preco e vendedor; preservar a identidade do vendedor e as regras do carrinho marketplace."},
+    {"source": "comparison_table", "component": "MetaComparisonUi", "presentation": "Comparacao legivel por atributo, paginada quando extensa."},
+    {"source": "product_comparison", "component": "MetaComparisonUi", "presentation": "Mesmos produtos e atributos, com selecao nativa para detalhes e compra."},
+    {"source": "variant_selector", "component": "MetaVariantSelectorUi", "presentation": "Listas ou botoes por grupo, com IDs de variante e disponibilidade revalidada."},
+    {"source": "cart_summary", "component": "MetaCartUi", "presentation": "Itens, variantes, adicionais, quantidades e totais; controles para editar, remover, continuar e finalizar."},
+    {"source": "cart_add_result", "component": "MetaCartResultUi", "presentation": "Confirmar apenas a inclusao autoritativa; apresentar rejeicao ou resultado incerto sem afirmar sucesso."},
+    {"source": "shipping_quote_input", "component": "MetaAddressUi", "presentation": "Solicitar CEP e dados necessarios na mesma etapa da loja; permitir formulario nativo quando habilitado."},
+    {"source": "shipping_options", "component": "MetaShippingUi", "presentation": "Lista de modalidades com prazo e custo, mantendo a escolha no carrinho e no checkout."},
+    {"source": "checkout_redirect", "component": "MetaCheckoutUi", "presentation": "Acao para abrir o checkout seguro associado ao mesmo carrinho e contexto."},
+    {"source": "checkout_prepared", "component": "MetaCheckoutUi", "presentation": "Apresentar resumo, preferencias e acoes existentes, respeitando a confirmacao exigida pelo motor."},
+    {"source": "order_confirmation", "component": "MetaOrderConfirmationUi", "presentation": "Identificador, itens, total e proximas acoes somente apos a confirmacao autoritativa correspondente."},
+    {"source": "reviews", "component": "MetaReviewsUi", "presentation": "Nota, total e avaliacoes paginadas, com os mesmos filtros e acoes."},
+    {"source": "add_review", "component": "MetaReviewSubmissionUi", "presentation": "Coleta de nota e comentario com as mesmas regras de elegibilidade e validacao."},
+    {"source": "wishlist", "component": "MetaWishlistUi", "presentation": "Lista de favoritos com detalhes, remocao e selecao para adicionar ao carrinho."},
+    {"source": "cross_sell", "component": "MetaCrossSellUi", "presentation": "Sugestoes aprovadas pelas regras da loja com selecao para detalhes e inclusao."},
+    {"source": "coupon_list", "component": "MetaCouponsUi", "presentation": "Lista de cupons e condicoes; aplicar pelo mesmo servico e atualizar os totais autoritativos."},
+    {"source": "product_content", "component": "MetaProductContentUi", "presentation": "Resolver o mesmo conteudo publicado e apresentar seus sub-blocos em ordem, sem enviar HTML como mensagem."}
+  ],
+  "productContentMatrix": [
+    {"source": "paragraph", "presentation": "Texto dividido em mensagens por unidade de leitura."},
+    {"source": "heading", "presentation": "Titulo com formatacao suportada pelo WhatsApp."},
+    {"source": "list", "presentation": "Lista textual preservando ordem e conteudo."},
+    {"source": "image", "presentation": "Imagem com legenda e descricao textual pertinente."},
+    {"source": "image_text_split", "presentation": "Imagem e texto associado, preservando a sequencia."},
+    {"source": "callout", "presentation": "Aviso com titulo, texto e significado explicito."},
+    {"source": "table", "presentation": "Valores agrupados por linha ou atributo, com pagina para conteudo longo."},
+    {"source": "faq", "presentation": "Lista nativa de perguntas; selecionar apresenta a resposta correspondente."},
+    {"source": "video", "presentation": "Video compativel como midia; provedores de embed mantem link para o conteudo publicado."},
+    {"source": "carousel", "presentation": "Galeria navegavel por selecao, com envio de imagens em lotes limitados."},
+    {"source": "banner", "presentation": "Imagem, legenda e a mesma acao configurada."},
+    {"source": "button", "presentation": "Acao nativa ou link seguro, mantendo destino e referencia do produto ou carrinho."}
+  ],
+  "additionalSurfaces": [
+    {"source": "agent_identity_and_merchant_header", "presentation": "Identidade da mesma empresa e agente; preservar as configuracoes de branding."},
+    {"source": "stories", "presentation": "Selecao de conteudos publicados, exibidos como midia e acoes dentro da conversa."},
+    {"source": "product_gallery", "presentation": "Consultar fotos sem inundar a conversa; anterior, proxima e retorno ao produto."},
+    {"source": "food_option_groups", "presentation": "Grupos obrigatorios e opcionais com limites de selecao e adicionais autoritativos."},
+    {"source": "service_schedule", "presentation": "Datas e horarios reais, com disponibilidade revalidada na selecao."},
+    {"source": "buyer_identity_and_profile", "presentation": "Mesmas etapas e dados permitidos, com verificacao apropriada antes de expor informacoes privadas."},
+    {"source": "payment_methods_and_pix", "presentation": "Metodos habilitados, total e vencimento; Pix copia e cola em mensagem propria; cartao no checkout seguro existente."},
+    {"source": "orders_tracking_support_and_returns", "presentation": "Listas e acoes para pedidos, rastreio, atendimento humano, trocas e devolucoes usando os mesmos servicos."},
+    {"source": "attachments_and_voice", "presentation": "Receber imagens e audio quando suportados, submetendo-os ao mesmo processamento disponivel na loja."},
+    {"source": "empty_error_processing_and_expired_states", "presentation": "Mensagens claras de vazio, erro, processamento, expiracao e retomada, com acoes adequadas."}
+  ],
+  "quickReplyStages": [
+    "welcome", "browsing", "filter", "categories", "product_detail", "more_info", "reviews",
+    "review_card", "questions", "compare", "wishlist", "added_to_cart", "post_purchase", "support"
+  ],
+  "nativeCapabilities": {
+    "replyButtonsAndLists": "Prioridade da primeira entrega. Ampliar o sender para enviar payloads interativos e processar IDs no webhook.",
+    "media": "Implementar envio real de imagens e formatos suportados, com URLs confiaveis ou upload apropriado e controle de expiração.",
+    "catalogProducts": "Verificar catalogo vinculado e permissoes por WABA. Sincronizar referencias de produtos e variantes, preco e disponibilidade antes de usar mensagens nativas de produto. Validar itens de mensagens order no servidor; o carrinho da Meta nao comprova pagamento.",
+    "flows": "Usar Flows em formularios equivalentes de identificacao, endereco ou agendamento quando habilitados. Prever criacao, validacao, publicacao e versionamento por conta, endpoint seguro quando houver troca dinamica de dados e tratamento das respostas.",
+    "capabilityAlternative": "Quando um recurso nativo nao estiver habilitado ou nao cobrir o componente, manter a mesma acao por midia, texto e selecao numerica. Usar alternativa somente quando nao houver risco de duplicar um envio com resultado incerto."
+  },
+  "deliveryReliability": [
+    "Persistir a resposta estruturada de cada turno antes de iniciar sua sequencia de envios.",
+    "Manter registro duravel por mensagem e indice da sequencia, com ID retornado pela Meta e correlacao com a conversa.",
+    "Distinguir resposta aceita pela API, entrega, leitura e falha pelos eventos de status.",
+    "Reconciliar resultados incertos sem repetir automaticamente a conversa, uma mutacao de carrinho ou um pagamento.",
+    "Retomar apenas os envios pendentes de uma resposta parcialmente enviada.",
+    "Preservar assinatura da empresa, isolamento entre lojas, consentimento e as regras comerciais atuais."
+  ],
+  "phases": [
+    {
+      "id": "P1", "title": "Base e contrato compartilhado", "dependsOn": [],
+      "tasks": ["Reconciliar as revisoes pertinentes e conferir o storefront ativo.", "Conectar o canal ao fluxo de loja e sua transicao para checkout.", "Compartilhar blocos, acoes e configuracoes; persistir contexto e vinculos de conversa e carrinho."],
+      "doneWhen": "Texto livre no WhatsApp executa a mesma jornada da loja e retorna os mesmos dados e acoes sem perdas."
+    },
+    {
+      "id": "P2", "title": "Menus nativos e navegacao", "dependsOn": ["P1"],
+      "tasks": ["Implementar reply buttons e list messages.", "Receber IDs e validar referencias de selecao.", "Cobrir os 14 grupos de atalhos e configuracoes personalizadas.", "Implementar voltar, menu, mais resultados e alternativa numerica."],
+      "doneWhen": "Clique nativo, resposta numerica e texto correspondente acionam a mesma operacao e preservam o contexto."
+    },
+    {
+      "id": "P3", "title": "Catalogo e conteudo dos produtos", "dependsOn": ["P2"],
+      "tasks": ["Implementar os componentes da matriz para navegacao e produtos.", "Enviar midia real e preservar todos os sub-blocos de conteudo.", "Cobrir variantes, alimentos, servicos, favoritos, avaliacoes, comparacoes e marketplace."],
+      "doneWhen": "Todo bloco de produto tem representacao funcional e paginação; selecionar um item conserva seu ID e configuracoes."
+    },
+    {
+      "id": "P4", "title": "Carrinho, checkout e pos-compra", "dependsOn": ["P3"],
+      "tasks": ["Implementar resumo e edicao do carrinho, cupons, frete e dados do comprador.", "Apresentar metodos de pagamento e Pix; manter checkout seguro contextual para cartao.", "Cobrir confirmacao, entrega, pedidos, suporte e devolucoes.", "Implementar persistencia da sequencia de envios e reconciliacao de status."],
+      "doneWhen": "A compra segue as mesmas regras de valores, autorizacao e confirmacao; retries nao duplicam operacoes nem mensagens ja confirmadas."
+    },
+    {
+      "id": "P5", "title": "Catalogo Meta e formularios nativos", "dependsOn": ["P3", "P4"],
+      "tasks": ["Verificar e habilitar os recursos disponiveis para cada WABA.", "Sincronizar o catalogo elegivel e tratar selecoes e pedidos nativos.", "Implementar Flows equivalentes aos formularios existentes quando viaveis."],
+      "doneWhen": "Cada recurso nativo habilitado apresenta e executa a mesma funcionalidade; a jornada continua funcional quando o recurso nao estiver disponivel."
+    },
+    {
+      "id": "P6", "title": "Homologacao comparativa", "dependsOn": ["P4", "P5"],
+      "tasks": ["Executar testes de equivalencia dos blocos e acoes.", "Validar um canal Meta real em homologacao sem reutilizar indevidamente o webhook de producao.", "Concluir jornadas por tipo de produto e validar retomada, isolamento, janela de atendimento e falhas."],
+      "doneWhen": "Evidencias distinguem testes locais, homologacao, recursos habilitados na Meta e envio ou entrega reais."
+    },
+    {
+      "id": "P7", "title": "Publicacao e verificacao real", "dependsOn": ["P6"],
+      "tasks": ["Publicar a revisao validada preservando as correcoes ja entregues.", "Verificar as rotas e os componentes efetivamente publicados.", "Validar a jornada no numero real e no dashboard com transacoes autorizadas."],
+      "doneWhen": "A jornada real esta comprovada; aprovacao de templates e dependencias externas permanecem identificadas separadamente."
+    }
+  ],
+  "acceptance": [
+    "Todos os tipos de blocos do storefront e todos os sub-blocos de produto aparecem na matriz e possuem uma apresentacao implementada.",
+    "Todos os atalhos habilitados de cada etapa permanecem acessiveis, com ordem, semantica e contexto equivalentes.",
+    "Mudancas comerciais da loja refletem nos dois canais sem editar um segundo conjunto de regras.",
+    "Navegacao, selecao de variante, adicionais, agendamento, carrinho, frete e pagamento respeitam os dados autoritativos.",
+    "Textos livres, selecoes nativas e numeros podem se alternar sem perder o contexto.",
+    "Menus antigos, links expirados, estoque alterado, pagamento pendente, retries e envios parciais possuem tratamento verificavel.",
+    "Nenhum registro de pedido ou recebimento de item pela Meta e tratado como pagamento confirmado sem prova do gateway."
+  ],
+  "references": [
+    "https://www.postman.com/meta/whatsapp-business-platform/request/x0kd1at/send-reply-button",
+    "https://www.postman.com/meta/whatsapp-business-platform/request/jze7gxt/send-reply-to-list-message",
+    "https://www.postman.com/meta/whatsapp-business-platform/request/ymlgtvy/send-single-product-message",
+    "https://www.postman.com/meta/whatsapp-business-platform/folder/1dtuocp/messages-object",
+    "https://www.postman.com/meta/whatsapp-business-platform/request/a1g0zfr/list-flows"
+  ]
+}

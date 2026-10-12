@@ -153,9 +153,9 @@ export function storefrontQuickReplies(
 
   // Find stage configuration
   const stageConfig = cfg.stages.find(s => s.stage === stage);
-  if (!stageConfig) return cfg.fallback.slice(0, 5);
+  if (!stageConfig) return [...cfg.fallback];
 
-  return stageConfig.replies.slice(0, 8);
+  return [...stageConfig.replies];
 }
 
 /**

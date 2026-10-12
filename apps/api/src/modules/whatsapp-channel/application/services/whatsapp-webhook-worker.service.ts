@@ -118,14 +118,15 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
         if (leaseLost) throw new Error("whatsapp_inbox_lease_lost");
         if (claim.kind === "message") {
           const payload = claim.payload as IncomingMessageInput & { ignored?: boolean };
-          if (!payload.ignored) await this.handleMessage.execute(payload);
+          if (!payload.ignored) await this.handleMessage.execute({ ...payload, inboxClaim: claim });
         } else {
           await this.handleStatus.execute(claim.payload as StatusUpdateInput);
         }
         if (leaseLost || !await this.inbox.complete(claim)) {
           this.logger.warn(`whatsapp_inbox_completion_lease_lost id=${claim.id}`);
         }
-      } catch {
+      } catch (error) {
+        if (error instanceof Error && ["whatsapp_turn_result_unknown", "whatsapp_send_result_unknown", "whatsapp_service_window_expired"].includes(error.message)) errorCode = error.message;
         if (!leaseLost) await this.inbox.fail(claim, errorCode);
         this.logger.warn(`whatsapp_inbox_attempt_failed id=${claim.id} attempt=${claim.attempts} code=${errorCode}`);
       } finally {

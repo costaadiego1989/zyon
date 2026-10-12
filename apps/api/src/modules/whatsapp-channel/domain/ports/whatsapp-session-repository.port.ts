@@ -25,6 +25,7 @@ export interface WhatsAppSessionEntity {
   lastActivityAt: Date;
   status: "active" | "expired" | "handoff";
   postSaleContext?: PostSaleContextData;
+  conversationState?: import("../ui/meta-ui.types.js").WhatsAppConversationState;
   createdAt: Date;
 }
 

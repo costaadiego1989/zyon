@@ -33,6 +33,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         maxPriceCents: args.maxPrice,
         inStockOnly: args.inStockOnly,
         isActiveOnly: true,
+        cursor: args.cursor,
         limit: Math.min(args.limit ?? 10, 20)
       });
 

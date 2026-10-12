@@ -19,12 +19,14 @@ import {
   Inject,
   Req,
   ServiceUnavailableException,
+  Optional,
 } from "@nestjs/common";
 import { ApiExcludeController } from "@nestjs/swagger";
 import { createHmac, timingSafeEqual } from "node:crypto";
 import type { Request, Response } from "express";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../domain/ports/whatsapp-config-repository.port.js";
 import { AcceptBubbleWhatsWebhookUseCase } from "../../application/use-cases/accept-bubblewhats-webhook.use-case.js";
+import { HandleStatusUpdateUseCase } from "../../application/use-cases/handle-status-update.use-case.js";
 import { validateTwilioSignature } from "../../domain/services/twilio-signature-validator.js";
 import { parseTwilioInbound } from "../../infrastructure/adapters/twilio-webhook-parser.js";
 import { twilioWhatsAppCallbackUrl } from "../../domain/services/public-url.js";
@@ -64,7 +66,7 @@ interface MetaInboundMessage {
   type?: string;
   text?: { body?: string };
   button?: { text?: string };
-  interactive?: { button_reply?: { title?: string }; list_reply?: { title?: string } };
+  interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } };
 }
 
 interface MetaWebhookPayload {
@@ -75,6 +77,7 @@ interface MetaWebhookPayload {
         metadata?: { phone_number_id?: string };
         contacts?: Array<{ profile?: { name?: string } }>;
         messages?: MetaInboundMessage[];
+        statuses?: Array<{ id?: string; status?: string; timestamp?: string; biz_opaque_callback_data?: string }>;
       };
     }>;
   }>;
@@ -87,6 +90,7 @@ export class WhatsAppWebhookController {
     @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo: WhatsAppConfigRepository,
     private readonly acceptBubbleWhats: AcceptBubbleWhatsWebhookUseCase,
+    @Optional() private readonly metaStatus?: HandleStatusUpdateUseCase,
   ) {}
 
   @Get("meta")
@@ -130,6 +134,13 @@ export class WhatsAppWebhookController {
         const config = await this.configRepo.findByMetaPhoneNumberId(phoneNumberId);
         if (!config || !config.enabled) continue;
 
+        for (const status of change.value?.statuses ?? []) {
+          if (!status.id || !status.status) continue;
+          if (!this.metaStatus) throw new ServiceUnavailableException("whatsapp_receipt_store_unavailable");
+          await this.metaStatus.receiveMetaReceipt({ merchantId: config.merchantId, configId: config.id, messageId: status.id,
+            status: status.status, timestamp: status.timestamp, correlationId: status.biz_opaque_callback_data });
+        }
+
         const senderName = change.value?.contacts?.[0]?.profile?.name;
         for (const message of change.value?.messages ?? []) {
           if (!message.id || !message.from) continue;
@@ -143,6 +154,7 @@ export class WhatsAppWebhookController {
             fromNumber: message.from.startsWith("+") ? message.from : `+${message.from}`,
             fromAlias: senderName,
             body,
+            ...((message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id) ? { interactiveId: message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id } : {}),
             messageType: message.type ?? "text",
             timestamp: Number(message.timestamp ?? 0) * 1000 || Date.now(),
           });

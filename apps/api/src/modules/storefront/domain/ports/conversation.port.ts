@@ -39,6 +39,7 @@ export interface StorefrontConversationInput {
   buyerContext?: BuyerContext;
   oneBuyClick?: OneBuyClickConversationContext;
   deviceType?: "mobile" | "tablet" | "desktop";
+  uiAction?: import("../types/storefront-ui-action.js").StorefrontUiAction;
 }
 
 export interface StorefrontConversationOutput {

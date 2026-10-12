@@ -26,6 +26,8 @@ export type EmbedTokenClaims = {
   scopes?: EmbedScope[];
   cartRef?: string;
   storefrontCartRef?: string;
+  /** Server-issued handoff for a WhatsApp buyer's existing checkout only. */
+  whatsappCheckoutSessionId?: string;
 };
 
 const EMBED_TOKEN_SECRET_DEV_FALLBACK = "dev_embed_token_secret_32_characters_min!!";

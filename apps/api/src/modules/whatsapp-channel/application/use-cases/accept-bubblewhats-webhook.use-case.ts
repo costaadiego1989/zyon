@@ -121,6 +121,7 @@ export class AcceptBubbleWhatsWebhookUseCase {
       fromNumber,
       fromAlias: boundedString(input.fromAlias, 256, false),
       body: boundedString(input.body, 16_000, false) ?? "",
+      interactiveId: boundedString(input.interactiveId, 256, false),
       messageType: boundedString(input.messageType, 64)!,
       mediaUrl: boundedString(input.mediaUrl, 2048, false),
       mimetype: boundedString(input.mimetype, 128, false),

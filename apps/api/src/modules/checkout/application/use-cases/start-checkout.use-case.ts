@@ -57,7 +57,8 @@ export class StartCheckoutUseCase {
     @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,
   ) { }
 
-  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean }): Promise<StartCheckoutResponse> {
+  async execute(input: StartCheckoutRequest, trustedContext?: { storefrontCartRef?: string; trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean;
+    trustedPhoneBuyer?: { globalUserId: string; phone: string; fullName?: string; email?: string } }): Promise<StartCheckoutResponse> {
     if (typeof input.merchant_id !== "string" || !input.merchant_id.trim()) {
       throw new BadRequestException("checkout_merchant_required");
     }
@@ -70,7 +71,9 @@ export class StartCheckoutUseCase {
       cart: trustedContext?.storefrontCartRef
         ? await this.cartAuthority.resolveStorefront(input.merchant_id.trim(), trustedContext.storefrontCartRef)
         : await this.cartAuthority.resolve(input.merchant_id.trim(), input.cart),
-      customer: trustedContext?.trustedBuyer?.customer ?? unverifiedCustomerHints(input.customer),
+      customer: trustedContext?.trustedBuyer?.customer ?? (trustedContext?.trustedPhoneBuyer
+        ? { ...unverifiedCustomerHints(trustedContext.trustedPhoneBuyer), phone: trustedContext.trustedPhoneBuyer.phone, phone_verified: true, email_verified: false }
+        : unverifiedCustomerHints(input.customer)),
       shipping: undefined,
     };
     const settings = await this.checkoutSettings?.getContext(input.merchant_id);
@@ -89,7 +92,7 @@ export class StartCheckoutUseCase {
     const merchantRules = await this.merchantRepository?.getRules(input.merchant_id);
     // Only application-verified proof may provide the buyer identity. Browser
     // hints stay anonymous until this bridge or checkout OTP authenticates them.
-    const globalUserId = trustedContext?.trustedBuyer?.globalUserId ?? (await this.buyerResolution.resolve({
+    const globalUserId = trustedContext?.trustedBuyer?.globalUserId ?? trustedContext?.trustedPhoneBuyer?.globalUserId ?? (await this.buyerResolution.resolve({
       ...input,
       customer: undefined
     })).globalUserId;
@@ -101,6 +104,7 @@ export class StartCheckoutUseCase {
     // Phase 3: Checkout Bootstrap
     let { session } = await this.bootstrap.bootstrap(enrichedInput, globalUserId, true, {
       trustedBuyer: trustedContext?.trustedBuyer,
+      trustedPhoneBuyer: trustedContext?.trustedPhoneBuyer,
       requireBuyerProof: trustedContext?.requireBuyerProof,
     });
     session = await this.assignExperimentVariant(input.merchant_id, session);

@@ -31,7 +31,7 @@ export class CheckoutBootstrapService {
   ) {}
 
   async bootstrap(input: StartCheckoutRequest, globalUserId: string, cartValidated = false,
-    identity?: { trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean },
+    identity?: { trustedBuyer?: TrustedCheckoutBuyer; requireBuyerProof?: boolean; trustedPhoneBuyer?: { globalUserId: string; phone: string } },
   ): Promise<BootstrapResult> {
     let enrichedInput = input;
 
@@ -104,7 +104,7 @@ export class CheckoutBootstrapService {
         session = result.session;
         if (result.created) await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
       } else {
-        if (identity?.requireBuyerProof || identity?.trustedBuyer) {
+        if (identity?.requireBuyerProof || identity?.trustedBuyer || identity?.trustedPhoneBuyer) {
           throw new ServiceUnavailableException("checkout_session_binding_unavailable");
         }
         await this.sessions.saveSession(session);
@@ -115,7 +115,11 @@ export class CheckoutBootstrapService {
     // The embed capability remains bound to its first checkout buyer. A new
     // authenticated buyer (including login after an anonymous start) needs a
     // fresh embed token, so concurrent starts cannot replace someone else's PII.
-    if (identity?.trustedBuyer) {
+    if (identity?.trustedPhoneBuyer) {
+      if (session.globalUserId !== identity.trustedPhoneBuyer.globalUserId || session.customer?.phone?.replace(/\D/g, "") !== identity.trustedPhoneBuyer.phone.replace(/\D/g, "")) {
+        throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+      }
+    } else if (identity?.trustedBuyer) {
       if (session.globalUserId !== identity.trustedBuyer.globalUserId ||
         session.customer?.email?.trim().toLowerCase() !== identity.trustedBuyer.customer.email) {
         throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");

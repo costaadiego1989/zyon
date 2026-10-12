@@ -18,6 +18,8 @@ import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.s
 import type { OneBuyClickConversationContext } from "../../domain/ports/conversation.port.js";
 
 export interface SendStoreMessageInput {
+  ui_action?: import("../../domain/types/storefront-ui-action.js").StorefrontUiAction;
+  trusted_buyer_context?: { globalUserId: string; name?: string; phone?: string; email?: string };
   merchant_id: string;
   conversation_id: string;
   user_message: string;
@@ -179,8 +181,10 @@ export class SendStoreMessageUseCase {
       }
     }
 
+    if (input.trusted_buyer_context && input.trusted_buyer_context.globalUserId === input.global_user_id) buyerContext = input.trusted_buyer_context;
     const result = await this.conversation.reply({
       userMessage: input.user_message,
+      uiAction: input.ui_action,
       cartId: input.cart_id,
       merchantId: input.merchant_id,
       sessionId: input.conversation_id,

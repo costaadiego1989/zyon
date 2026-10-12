@@ -1,3 +1,5 @@
+import type { PublicServiceSchedule } from "../../../catalog/domain/services/service-schedule.js";
+
 export interface ProductCardBlock {
   type: "product_card";
   data: {
@@ -19,11 +21,15 @@ export interface ProductCardBlock {
     stock?: number;
     sku?: string;
     detailed?: boolean;
+    productType?: "physical" | "digital" | "service" | "food";
+    serviceSchedule?: PublicServiceSchedule;
     optionGroups?: Array<{
       id: string;
       name: string;
       required: boolean;
       selectionType: "single" | "multiple";
+      minSelections?: number;
+      maxSelections?: number;
       items: Array<{ id: string; name: string; priceModifierInCents: number }>;
     }>;
   };
@@ -37,6 +43,33 @@ export interface ProductCarouselBlock {
     merchantId?: string;
     query?: string;
     categoryId?: string;
+  };
+}
+
+/** Public, seller-scoped catalog data. Prices are in BRL, unlike local product tool prices. */
+export interface MarketplaceProductBlockData {
+  id: string;
+  name: string;
+  price: number;
+  priceFormatted: string;
+  image?: string;
+  sellerName: string;
+  sellerId: string;
+  inStock: boolean;
+  variants: Array<{
+    id: string;
+    label: string;
+    price: number;
+    priceFormatted: string;
+    inStock: boolean;
+  }>;
+}
+
+export interface MarketplaceProductsBlock {
+  type: "marketplace_products";
+  data: {
+    query?: string;
+    products: MarketplaceProductBlockData[];
   };
 }
 
@@ -66,8 +99,11 @@ export interface CartSummaryBlock {
       price: number;
       subtotal: number;
       imageUrl?: string;
+      selectedOptions?: Array<{ groupName: string; itemName: string; priceModifier: number }>;
+      selectedServiceSlotId?: string;
     }>;
     itemCount: number;
+    confirmedAddition?: boolean;
     subtotal: number;
     discount?: number;
     couponCode?: string | null;
@@ -76,6 +112,12 @@ export interface CartSummaryBlock {
     nextNudge?: { kind: string; gap?: number; message: string; reachable: boolean; ruleId?: string };
     activeRules?: Array<{ ruleId?: string; message: string }>;
   };
+}
+
+/** Admission result for the exact buyer add command; it never authorizes payment. */
+export interface CartAddResultBlock {
+  type: "cart_add_result";
+  data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string };
 }
 
 export interface ShippingOptionsBlock {
@@ -155,6 +197,25 @@ export interface ProductComparisonBlock {
       inStock: boolean;
       attributes: Record<string, string>;
     }>;
+    missingProductNames?: string[];
+  };
+}
+
+export interface WishlistBlock {
+  type: "wishlist";
+  data: {
+    items: Array<{
+      id: string;
+      name: string;
+      description?: string;
+      price: number;
+      priceFormatted: string;
+      image?: string;
+      images?: string[];
+      inStock: boolean;
+      rating?: number;
+      reviewCount?: number;
+    }>;
   };
 }
 
@@ -215,8 +276,10 @@ export interface CouponListBlock {
 export type ConversationBlock =
   | ProductCardBlock
   | ProductCarouselBlock
+  | MarketplaceProductsBlock
   | ComparisonTableBlock
   | CartSummaryBlock
+  | CartAddResultBlock
   | ShippingOptionsBlock
   | QuickRepliesBlock
   | CheckoutRedirectBlock
@@ -225,6 +288,7 @@ export type ConversationBlock =
   | ShippingQuoteInputBlock
   | VariantSelectorBlock
   | ProductComparisonBlock
+  | WishlistBlock
   | ReviewsBlock
   | AddReviewBlock
   | CrossSellBlock

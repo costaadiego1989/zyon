@@ -24,6 +24,7 @@ export interface StoreToolHandlers {
     maxPrice?: number;
     inStockOnly?: boolean;
     limit?: number;
+    cursor?: string;
   }) => Promise<unknown>;
   getProductDetails: (args: { productId: string }) => Promise<unknown>;
   compareProducts: (args: { productIds: string[] }) => Promise<unknown>;
@@ -56,6 +57,7 @@ export interface StoreToolHandlers {
   removeCoupon: (args: { cartId: string }) => Promise<unknown>;
   createCheckoutSession: (args: { cartId: string }) => Promise<unknown>;
   getReviews: (args: {
+    cursor?: string;
     productId: string;
     filter?: "positive" | "negative" | "recent";
     limit?: number;

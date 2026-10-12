@@ -1,10 +1,14 @@
 import { CheckoutModule } from "../checkout/checkout.module.js";
+import { StorefrontModule } from "../storefront/storefront.module.js";
+import { EmbedModule } from "../embed/embed.module.js";
+import { CatalogModule } from "../catalog/catalog.module.js";
 import { WHATSAPP_CONVERSATION_PORT } from "./domain/ports/whatsapp-conversation.port.js";
 import { CheckoutWhatsAppConversationAdapter } from "./infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
 import { Module, forwardRef } from "@nestjs/common";
 import { WhatsAppWebhookController } from "./presentation/http/whatsapp-webhook.controller.js";
 import { WhatsAppConfigController } from "./presentation/http/whatsapp-config.controller.js";
 import { HandleIncomingMessageUseCase } from "./application/use-cases/handle-incoming-message.use-case.js";
+import { HandleMetaConversationUseCase } from "./application/use-cases/handle-meta-conversation.use-case.js";
 import { HandleStatusUpdateUseCase } from "./application/use-cases/handle-status-update.use-case.js";
 import { RouteToSessionUseCase } from "./application/use-cases/route-to-session.use-case.js";
 import { SendWhatsAppResponseUseCase } from "./application/use-cases/send-whatsapp-response.use-case.js";
@@ -13,6 +17,7 @@ import { MessageDebouncerService } from "./application/services/message-debounce
 import { BubbleWhatsSenderAdapter } from "./infrastructure/adapters/bubblewhats-sender.adapter.js";
 import { TwilioSenderAdapter } from "./infrastructure/adapters/twilio-sender.adapter.js";
 import { MetaCloudSenderAdapter } from "./infrastructure/adapters/meta-cloud-sender.adapter.js";
+import { MetaUiCapabilitiesAdapter } from "./infrastructure/adapters/meta-ui-capabilities.adapter.js";
 import { TwilioDeduplicatorService } from "./infrastructure/services/twilio-deduplicator.service.js";
 import { WHATSAPP_SENDER_PORT } from "./domain/ports/whatsapp-sender.port.js";
 import { WHATSAPP_SESSION_REPOSITORY, type WhatsAppSessionRepository } from "./domain/ports/whatsapp-session-repository.port.js";
@@ -60,10 +65,11 @@ export class MultiProviderSenderAdapter {
 }
 
 @Module({
-  imports: [forwardRef(() => CheckoutModule), PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, forwardRef(() => PostSaleModule)],
+  imports: [forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, forwardRef(() => PostSaleModule)],
   controllers: [WhatsAppWebhookController, WhatsAppConfigController],
   providers: [
     HandleIncomingMessageUseCase,
+    HandleMetaConversationUseCase,
     { provide: WHATSAPP_CONVERSATION_PORT, useClass: CheckoutWhatsAppConversationAdapter },
     HandleStatusUpdateUseCase,
     RouteToSessionUseCase,
@@ -81,6 +87,7 @@ export class MultiProviderSenderAdapter {
     BubbleWhatsSenderAdapter,
     TwilioSenderAdapter,
     MetaCloudSenderAdapter,
+    MetaUiCapabilitiesAdapter,
     {
       provide: WHATSAPP_SENDER_PORT,
       useFactory: (bw: BubbleWhatsSenderAdapter, tw: TwilioSenderAdapter, meta: MetaCloudSenderAdapter) => {

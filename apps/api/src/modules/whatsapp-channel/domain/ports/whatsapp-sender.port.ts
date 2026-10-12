@@ -12,11 +12,13 @@ export interface WhatsAppOutboundMessage {
   text: string;
   mediaUrl?: string;
   mimetype?: string;
+  uiMessage?: import("../ui/meta-ui.types.js").MetaUiMessage;
+  correlationId?: string;
 }
 
 export interface WhatsAppSendResult {
   messageId: string;
-  status: "sent" | "queued" | "failed";
+  status: "sent" | "queued" | "failed" | "unknown";
 }
 
 export interface WhatsAppSenderPort {

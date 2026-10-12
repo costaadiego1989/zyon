@@ -21,6 +21,7 @@ export interface WhatsAppInboxClaim extends WhatsAppInboxEvent {
   id: string;
   leaseToken: string;
   attempts: number;
+  responseState?: Record<string, unknown>;
 }
 
 export interface WhatsAppWebhookInbox {
@@ -30,4 +31,5 @@ export interface WhatsAppWebhookInbox {
   renew(claim: WhatsAppInboxClaim): Promise<boolean>;
   complete(claim: WhatsAppInboxClaim): Promise<boolean>;
   fail(claim: WhatsAppInboxClaim, errorCode: string): Promise<boolean>;
+  saveResponse?(claim: WhatsAppInboxClaim, response: Record<string, unknown>): Promise<boolean>;
 }

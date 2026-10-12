@@ -20,7 +20,7 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
       const response = await fetch(`${this.graph}/${credentials.phoneNumberId}/messages`, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), type: "text", text: { body: msg.text } }),
+        body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), ...(msg.correlationId ? { biz_opaque_callback_data: msg.correlationId } : {}), ...this.messagePayload(msg) }),
       });
       if (!response.ok) {
         this.logger.error(`Meta Cloud text send failed: HTTP ${response.status}`);
@@ -28,15 +28,26 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
       }
       const payload = await response.json().catch(() => ({})) as { messages?: Array<{ id?: unknown }> };
       const messageId = typeof payload.messages?.[0]?.id === "string" ? payload.messages[0].id : "";
-      return messageId ? { messageId, status: "sent" } : { messageId: "", status: "failed" };
+      return messageId ? { messageId, status: "sent" } : { messageId: "", status: "unknown" };
     } catch {
       this.logger.error("Meta Cloud text transport failed");
-      return { messageId: "", status: "failed" };
+      return { messageId: "", status: "unknown" };
     }
   }
 
   async sendMedia(msg: WhatsAppOutboundMessage & { mediaUrl: string; mimetype: string }): Promise<WhatsAppSendResult> {
-    return this.sendText(msg);
+    const type = msg.mimetype.startsWith("image/") ? "image" : msg.mimetype.startsWith("video/") ? "video" : "document";
+    return this.sendText({ ...msg, uiMessage: { type, media: { link: msg.mediaUrl, caption: msg.text || undefined } } });
+  }
+
+  private messagePayload(msg: WhatsAppOutboundMessage): Record<string, unknown> {
+    const ui = msg.uiMessage;
+    if (!ui) return { type: "text", text: { body: msg.text } };
+    if (ui.type === "text") return { type: "text", text: ui.text };
+    if (ui.type === "interactive") return { type: "interactive", interactive: ui.interactive };
+    const link = new URL(ui.media.link);
+    if (link.protocol !== "https:" || link.username || link.password) throw new Error("whatsapp_media_url_invalid");
+    return { type: ui.type, [ui.type]: ui.media };
   }
 
   private async findConfig(deviceId: string) {

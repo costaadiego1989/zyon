@@ -23,6 +23,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 import { AgentCopyService } from "../copy/agent-copy.service.js";
 import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
+import { executeStorefrontUiAction } from "../agents/storefront-ui-action.executor.js";
 import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { appendOneBuyClickCheckout } from "../one-buy-click/one-buy-click-checkout-preparation.js";
@@ -108,6 +109,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   }
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
     const ctx: ToolRequestContext = {
+      conversationId: input.sessionId,
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
       buyer: input.buyerContext,
@@ -120,6 +122,12 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const deviceMeta = input.deviceType ? { device: input.deviceType } : undefined;
     this.emitFunnelEvent(input.merchantId, input.sessionId, "checkout_started", deviceMeta).catch(() => {});
     const shortcutHandlers = composeStoreToolHandlers(this.handlerDeps, ctx);
+    if (input.uiAction) {
+      const output = await executeStorefrontUiAction(shortcutHandlers, input.uiAction, input.merchantId, input.cartId || input.sessionId);
+      const configured = (input.storeSettings?.quick_replies ?? null) as StoreQuickRepliesConfig | null;
+      return { ...output, cartId: input.cartId || input.sessionId,
+        suggestedNext: storefrontQuickReplies(input.uiAction.tool, configured) };
+    }
     const shortcut = await resolveDeterministicShortcut(
       {
         productRepo: this.productRepo,

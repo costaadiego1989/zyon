@@ -131,6 +131,13 @@ export class EmbedCheckoutController {
       throw new UnauthorizedException("embed_buyer_authentication_unavailable");
     }
     const trustedBuyer = await this.resolveBuyer?.resolve(embed.merchantId, body.buyer_access_token);
+    let trustedPhoneBuyer: { globalUserId: string; phone: string; fullName?: string; email?: string } | undefined;
+    if (embed.whatsappCheckoutSessionId) {
+      await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, sessionId);
+      const existing = await this.embedGuards.loadSession(embed.merchantId, sessionId);
+      if (!existing?.customer?.phone || existing.customer.phone_verified !== true) throw new UnauthorizedException("whatsapp_checkout_buyer_proof_required");
+      trustedPhoneBuyer = { globalUserId: existing.globalUserId, phone: existing.customer.phone, fullName: existing.customer.fullName, email: existing.customer.email };
+    }
     const { merchant_id: _discard, merchantId: _d2, cart_ref: _ref, buyer_access_token: _buyerToken, global_user_id: _buyerId, ...rest } = body as StartCheckoutRequest & {
       merchantId?: string;
       cart_ref?: unknown;
@@ -142,7 +149,7 @@ export class EmbedCheckoutController {
       merchant_id: embed.merchantId,
       session_id: sessionId,
       cart: embed.cartRef ? { ...body.cart, commerceCartRef: embed.cartRef } : body.cart,
-    }, { storefrontCartRef: embed.storefrontCartRef, trustedBuyer, requireBuyerProof: true });
+    }, { storefrontCartRef: embed.storefrontCartRef, trustedBuyer, trustedPhoneBuyer, requireBuyerProof: true });
   }
 
   @Post("track")

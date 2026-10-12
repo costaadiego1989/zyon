@@ -208,6 +208,7 @@ import { ConversationRateLimitService } from "./application/services/conversatio
     PaymentApprovedHandler
   ],
   exports: [
+    CheckoutCartAuthorityService,
     CHECKOUT_REPOSITORY,
     CHECKOUT_SESSION_REPOSITORY,
     Symbol.for("CheckoutExperienceConfig"),

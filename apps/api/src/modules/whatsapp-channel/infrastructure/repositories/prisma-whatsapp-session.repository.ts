@@ -32,6 +32,7 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
         currentPage: data.currentPage,
         lastActivityAt: data.lastActivityAt,
         status: data.status,
+        conversationState: data.conversationState,
       },
     });
     return this.toDomain(row);
@@ -43,6 +44,7 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
     if (data.status) updateData.status = data.status;
     if (data.checkoutSessionId) updateData.checkoutSessionId = data.checkoutSessionId;
     if (data.buyerAlias !== undefined) updateData.buyerAlias = data.buyerAlias;
+    if (data.conversationState !== undefined) updateData.conversationState = data.conversationState;
 
     const row = await (this.prisma as any).whatsAppSession.update({
       where: { id },
@@ -102,6 +104,7 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
       lastActivityAt: new Date(row.lastActivityAt),
       status: row.status,
       postSaleContext,
+      conversationState: row.conversationState ?? undefined,
       createdAt: new Date(row.createdAt),
     };
   }

@@ -24,17 +24,17 @@ test("WhatsApp invokes the checkout engine using the tenant session and renders 
   assert.equal(request, undefined);
 });
 
-test("checkout response and numbered choices propagate through the real incoming pipeline", async () => {
+test("legacy checkout response and numbered choices propagate through the real incoming pipeline", async () => {
   const sent: any[] = [], prompts: any[] = [];
   const session = { id: "wa", checkoutSessionId: "s1", currentOptions: ["Meu carrinho"], previousOptions: [], currentPage: 0 };
   const incoming = new HandleIncomingMessageUseCase({ execute: async () => ({ whatsappSession: session }) } as any,
     { execute: async (input: any) => sent.push(input) } as any, { updateMenuState: async () => {} } as any,
     { respond: async input => { prompts.push(input); return { agentMessage: "Seu carrinho tem dois itens", quickReplies: ["Finalizar"] }; } });
-  await incoming.execute({ merchantId: "m1", deviceId: "device", fromNumber: "5511999999999", body: "1", messageType: "text", timestamp: 1, provider: "META_CLOUD" });
+  await incoming.execute({ merchantId: "m1", deviceId: "device", fromNumber: "5511999999999", body: "1", messageType: "text", timestamp: 1, provider: "TWILIO" });
   assert.equal(prompts[0].message, "Meu carrinho");
   assert.equal(prompts[0].merchantId, "m1");
   assert.match(sent[0].text, /dois itens/);
-  assert.equal(sent[0].provider, "META_CLOUD");
+  assert.equal(sent[0].provider, "TWILIO");
   assert.equal(resolveNumberedInput("1 camiseta", { currentOptions: ["Comprar"], previousOptions: [], page: 0, context: "menu" }).action, "freetext");
 });
 

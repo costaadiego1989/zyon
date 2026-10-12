@@ -23,7 +23,7 @@ const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
 
 export interface RouteResult {
   whatsappSession: WhatsAppSessionEntity;
-  checkoutSessionId: string;
+  checkoutSessionId?: string;
   isNew: boolean;
   buyerData: {
     globalUserId: string;
@@ -70,7 +70,8 @@ export class RouteToSessionUseCase {
 
     // 4. Create new session if needed
     if (!waSession) {
-      const checkoutSessionId = await this.createCheckoutSession(input.merchantId, buyerData.globalUserId, buyerData);
+      const meta = input.deviceId.startsWith("META_CLOUD:");
+      const checkoutSessionId = meta ? undefined : await this.createCheckoutSession(input.merchantId, buyerData.globalUserId, buyerData);
 
       waSession = await this.sessionRepo.create({
         merchantId: input.merchantId,
@@ -83,6 +84,7 @@ export class RouteToSessionUseCase {
         currentPage: 0,
         lastActivityAt: new Date(),
         status: "active",
+        conversationState: meta ? { version: 1, conversationId: crypto.randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] } : undefined,
       });
 
       this.logger.log(`whatsapp_session_created merchant=${input.merchantId}`);
