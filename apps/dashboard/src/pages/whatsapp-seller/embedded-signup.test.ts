@@ -36,8 +36,8 @@ describe("Embedded Signup authorization", () => {
       auth_type: "rerequest",
       response_type: "code",
       override_default_response_type: true,
+      extras: { setup: {}, sessionInfoVersion: "3" },
     });
-    expect(login.mock.calls[0][1]).not.toHaveProperty("extras");
     if (order === "finish-first") message();
     callback({ authResponse: { code: "oauth-code" } });
     if (order === "code-first") message();

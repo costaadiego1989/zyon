@@ -5,6 +5,7 @@ interface FacebookSdk {
   init(options: { appId: string; version: string; cookie: boolean; xfbml: boolean }): void;
   login(callback: (response: { authResponse?: { code?: string }; status?: string }) => void, options: {
     config_id: string; auth_type: string; response_type: string; override_default_response_type: boolean;
+    extras: { setup: Record<string, never>; sessionInfoVersion: string };
   }): void;
 }
 declare global { interface Window { FB: FacebookSdk; fbAsyncInit: () => void } }
@@ -115,7 +116,13 @@ export function launchEmbeddedSignup(settings: EmbeddedSignupSettings, signal: A
           complete();
         } else fail("A autorização não foi concluída. Tente novamente quando estiver com o número disponível.");
       }, {
-        config_id: settings.configId, auth_type: "rerequest", response_type: "code", override_default_response_type: true,
+        config_id: settings.configId,
+        auth_type: "rerequest",
+        response_type: "code",
+        override_default_response_type: true,
+        // Required by the Meta configuration used in production: it makes the
+        // popup return WA_EMBEDDED_SIGNUP data to the dashboard window.
+        extras: { setup: {}, sessionInfoVersion: "3" },
       });
     } catch { fail("Não foi possível abrir a autorização. Permita pop-ups do dashboard e tente novamente."); }
   });
