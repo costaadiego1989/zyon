@@ -18,9 +18,19 @@ export class EmbedRealtimeVoiceController {
 
   @Post("session")
   @RequireEmbedScope("checkout:chat")
-  async createSession(@Req() request: EmbedHttpRequest, @Body() body: { session_id?: unknown }) {
+  async createSession(@Req() request: EmbedHttpRequest, @Body() body: { session_id?: unknown; sdp?: unknown }) {
+    if (typeof body.sdp !== "string" || body.sdp.length > 200_000 || !body.sdp.trim().startsWith("v=0")) throw new BadRequestException("voice_sdp_offer_required");
     const session = await this.voiceSession(request, body);
-    return this.realtime.createClientSecret(voiceSessionInput(session));
+    const embed = request.embedClaims!;
+    const userId = session.globalUserId && session.customer?.email_verified ? `buyer:${session.globalUserId}` : embed.aiUserId ?? `visitor:${embed.nonce}`;
+    return this.realtime.createCall({ ...voiceSessionInput(session), sdp: body.sdp.trim(), aiUserId: userId,
+      resolveAiUserId: async () => {
+        const current = await this.checkoutGuards.loadSession(embed.merchantId, session.sessionId);
+        if (!current || current.merchantId !== embed.merchantId) throw new UnauthorizedException("embed_unknown_checkout_session");
+        return current.globalUserId && current.customer?.email_verified
+          ? `buyer:${current.globalUserId}` : embed.aiUserId ?? `visitor:${embed.nonce}`;
+      },
+      origin: typeof request.headers?.origin === "string" ? request.headers.origin : undefined });
   }
 
   @Post("context")

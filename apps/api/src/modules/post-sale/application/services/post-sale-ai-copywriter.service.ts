@@ -3,6 +3,8 @@ import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
 import { BadRequestException } from "@nestjs/common";
 import { isSafeGeneratedMessage } from "../../../checkout/domain/types/safe-generated-message.js";
 import { POST_SALE_TEMPLATE_REPOSITORY, type PostSaleTemplateRepositoryPort } from "../../domain/ports/post-sale-template-repository.port.js";
+import { salesDefaults } from "../../../whatsapp-templates/domain/sales-template-content.js";
+import { resolveTemplateEmailBody } from "../../../whatsapp-templates/domain/email-template-copy.js";
 
 export interface GenerateMessageInput {
   type: "follow_up" | "review_request" | "nps" | "cross_sell" | "win_back" | "loyalty" | "reorder";
@@ -43,7 +45,7 @@ export class PostSaleAiCopywriterService {
       try {
         const customTemplate = await this.templateRepo.findByMerchantAndType(input.merchantId, input.type, channel);
         if (customTemplate?.isActive) {
-          return this.interpolateTemplate(customTemplate.body, input);
+          return this.interpolateTemplate(channel === "email" ? resolveTemplateEmailBody(input.type, customTemplate.body) : customTemplate.body, input);
         }
       } catch (err) {
         this.logger.warn(`Failed to fetch merchant template: ${err instanceof Error ? err.message : String(err)}`);
@@ -51,7 +53,7 @@ export class PostSaleAiCopywriterService {
     }
 
     // Use rich platform default
-    const template = this.getDefaultTemplate(input.type);
+    const template = this.getDefaultTemplate(input.type, channel);
     return this.interpolateTemplate(template, input);
   }
 
@@ -102,72 +104,12 @@ export class PostSaleAiCopywriterService {
     return parts.join("\n");
   }
 
-  private getDefaultTemplate(type: string): string {
-    const templates: Record<string, string> = {
-      follow_up: `Oi {{buyerName}}! 😊 Aqui é da {{storeName}}.
-
-Seu {{productName}} já chegou? Queremos saber se está tudo certo com o pedido!
-
-Se precisar de algo, é só responder aqui. Estamos à disposição! 💬`,
-
-      review_request: `Oi {{buyerName}}! ⭐
-
-Você recebeu o {{productName}} há alguns dias. O que achou?
-
-De 1 a 5 estrelas, que nota você dá? Responda com o número (1 a 5) e, se quiser, um comentário sobre o produto!
-
-Sua opinião ajuda demais outros clientes. Obrigado! 🙏`,
-
-      nps: `Oi {{buyerName}}! 😊
-
-Aqui é da {{storeName}}. Seu pedido do {{productName}} chegou faz uns dias.
-
-De 1 a 5 estrelas, o quanto você recomendaria a gente? ⭐
-
-É só responder com o número (1 a 5) aqui mesmo! 🙏`,
-
-      cross_sell: `{{buyerName}}, tudo bem? 🎁
-
-Como você comprou o {{productName}}, separamos algumas opções que combinam perfeitamente!
-
-{{couponBlock}}
-
-Estamos à disposição! 💛`,
-
-      win_back: `Oi {{buyerName}}! Sentimos sua falta! 💜
-
-Faz um tempo que você não aparece por aqui. A {{storeName}} preparou algo especial pra você voltar.
-
-{{couponBlock}}
-
-Te esperamos! 🙌`,
-
-      loyalty: `Parabéns, {{buyerName}}! 🎉🎊
-
-Você acaba de completar mais uma compra conosco na {{storeName}}!
-
-Como agradecimento pela sua fidelidade, preparamos um benefício exclusivo:
-
-{{couponBlock}}
-
-Obrigado por fazer parte! 💛`,
-
-      reorder: `{{buyerName}}, tudo bem? 🔔
-
-Lembra do {{productName}} que você comprou? Pelo tempo de uso, pode ser que esteja na hora de repor!
-
-{{couponBlock}}
-
-Confira as opções e condições de entrega na loja.`,
-    };
-
-    return templates[type] || `Oi {{buyerName}}! Tudo bem?`;
+  private getDefaultTemplate(type: GenerateMessageInput["type"], channel: "email" | "whatsapp" = "whatsapp"): string {
+    return salesDefaults(type)[channel].body;
   }
 
   /**
-   * Category Meta assigns to each campaign type. Transactional post-sale
-   * (delivery follow-up, review, NPS, loyalty, win-back, reorder) is UTILITY;
-   * cross-sell is MARKETING. Getting this right speeds Meta approval.
+   * Use the catalog category consistently for campaign submission.
    */
   metaCategoryFor(type: GenerateMessageInput["type"]): "UTILITY" | "MARKETING" {
     return categoryFor(type);

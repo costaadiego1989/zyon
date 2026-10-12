@@ -51,6 +51,7 @@ export function prepareCommercialMutation(input: CheckoutCommercialMutation) {
   next.updatedAt = new Date().toISOString();
   const event = cartChanged ? createCheckoutEventEnvelope({ eventType: "checkout.cart.updated", merchantId: next.merchantId,
     causationId: next.sessionId, payload: { session_id: next.sessionId, currency: next.cart.currency,
-      total: next.cart.total, item_count: next.cart.items.reduce((sum, item) => sum + item.quantity, 0) } }) : undefined;
+      total: next.cart.total, item_count: next.cart.items.reduce((sum, item) => sum + item.quantity, 0),
+      ...(expected.cart.items.some(item => item.fulfillmentStrategy === "scheduled_service") ? { previous_service_slots: expected.cart.items.filter(item => item.fulfillmentStrategy === "scheduled_service" && item.fulfillmentSchedule).map(item => ({ resourceId: item.variantId, slotId: item.fulfillmentSchedule!.slotId, startsAt: item.fulfillmentSchedule!.startsAt, endsAt: item.fulfillmentSchedule!.endsAt })) } : {}) } }) : undefined;
   return { session: next, invalidated, event };
 }

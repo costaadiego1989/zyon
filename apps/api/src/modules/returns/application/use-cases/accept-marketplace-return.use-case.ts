@@ -1,11 +1,16 @@
-import { Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
+import { ConflictException, Inject, Injectable, Logger, NotFoundException, Optional } from "@nestjs/common";
 import { RETURN_REPOSITORY_PORT } from "../../domain/ports/return-repository.port.js";
 import type { ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
 import { RegisterMarketplaceReturnUseCase } from "../../../marketplace/application/use-cases/register-marketplace-return.use-case.js";
+import { MarketplaceReturnWorkflowService } from "../marketplace-return-workflow.service.js";
+import type { MarketplaceRefundComponents } from "../../../marketplace/domain/services/marketplace-refund-allocation.js";
+import { ProcessRefundUseCase } from "./process-refund.use-case.js";
+import type { ReturnRefundProps } from "../../domain/entities/return.entity.js";
 
 export interface AcceptMarketplaceReturnInput {
   merchantId: string;
   returnId: string;
+  components?: MarketplaceRefundComponents;
 }
 
 export interface AcceptMarketplaceReturnOutput {
@@ -13,24 +18,15 @@ export interface AcceptMarketplaceReturnOutput {
   status: string;
   marketplaceSettlementsCancelled: number;
   marketplaceSkipped: number;
+  marketplaceRefundPlanId?: string;
+  marketplaceRefundStatus?: string;
+  marketplaceRefundAmountCents?: number;
+  refund?: ReturnRefundProps;
 }
 
-/**
- * Accepts a buyer return and, when the returned items are cross-store, cancels
- * the corresponding marketplace settlement(s) so the seller repasse is not paid.
- *
- * This is the seller/host approval step in the support flow: the buyer opens a
- * return from the order's support panel, the host handles it and routes the
- * ticket to the product owner (seller), and the seller accepting the return
- * lands here. The Return moves to REFUND_PROCESSING (money going back to the
- * buyer) and, for the cross-store items, RegisterMarketplaceReturn transitions
- * their settlements awaiting_return_window → return_cancelled. Own-store items
- * carry no marketplace settlement and are simply not matched — mixed orders are
- * handled item-by-item via the return's variant ids.
- *
- * RegisterMarketplaceReturn is optional (marketplace module may be absent); when
- * missing, the return is still accepted, just with no settlement side effect.
- */
+/** Marketplace acceptance prepares an immutable allocation after inspection.
+ * Its journal holds payouts and owns the later processing/completion states.
+ * Ordinary returns continue through the existing acceptance workflow. */
 @Injectable()
 export class AcceptMarketplaceReturnUseCase {
   private readonly logger = new Logger(AcceptMarketplaceReturnUseCase.name);
@@ -38,6 +34,8 @@ export class AcceptMarketplaceReturnUseCase {
   constructor(
     @Inject(RETURN_REPOSITORY_PORT) private readonly returnRepo: ReturnRepositoryPort,
     @Optional() private readonly registerMarketplaceReturn?: RegisterMarketplaceReturnUseCase,
+    @Inject(MarketplaceReturnWorkflowService) private readonly marketplace?: MarketplaceReturnWorkflowService,
+    @Optional() @Inject(ProcessRefundUseCase) private readonly refund?: ProcessRefundUseCase,
   ) {}
 
   async execute(
@@ -45,9 +43,17 @@ export class AcceptMarketplaceReturnUseCase {
   ): Promise<AcceptMarketplaceReturnOutput> {
     const ret = await this.returnRepo.findById(input.merchantId, input.returnId);
     if (!ret) throw new NotFoundException("return_not_found");
-
-    // Accept the return: money is going back to the buyer.
-    await this.returnRepo.updateStatus(ret.id, "REFUND_PROCESSING");
+    // Preparing a journal holds payouts atomically, but money has not been sent.
+    // Keep INSPECTED_PASS until the journal's one-time claim moves it forward.
+    const planned = await this.marketplace?.prepare(input.merchantId, input.returnId, input.components);
+    if (planned) return planned;
+    if (!["REQUESTED", "RECEIVED", "INSPECTED_PASS", "REFUND_PROCESSING"].includes(ret.status)) {
+      throw new ConflictException("return_cannot_be_accepted_in_current_status");
+    }
+    if (!this.refund) throw new ConflictException("return_refund_service_unavailable");
+    // Approval is a financial action: prove the original payment before changing
+    // status, then use the same durable refund path as inspected returns.
+    if (!ret.refund) await this.refund.preview(input.merchantId, input.returnId);
 
     let cancelled = 0;
     let skipped = 0;
@@ -56,11 +62,15 @@ export class AcceptMarketplaceReturnUseCase {
       try {
         const variantIds = ret.items.map((it) => it.variantId);
         const result = await this.registerMarketplaceReturn.execute({
+          merchantId: input.merchantId,
           orderId: ret.orderId,
           variantIds,
+          items: ret.items.map(item => ({ variantId: item.variantId, quantity: item.quantity })),
+          requestedAt: ret.createdAt,
         });
         cancelled = result.updated.length;
         skipped = result.skipped.length;
+        if (skipped) throw new ConflictException("marketplace_return_cancellation_incomplete");
         this.logger.log(
           `Marketplace return applied for return ${ret.id} (order ${ret.orderId}): ${cancelled} settlement(s) cancelled, ${skipped} skipped`,
         );
@@ -70,13 +80,20 @@ export class AcceptMarketplaceReturnUseCase {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg !== "no_marketplace_settlement_for_return") {
           this.logger.warn(`marketplace_return_side_effect_failed: ${msg}`);
+          throw err;
         }
       }
     }
 
+    // Do not acknowledge approval while its financial cancellation failed.
+    // Cancellation is idempotent, so a failed return write can be retried safely.
+    await this.returnRepo.updateStatus(ret.id, "REFUND_PROCESSING", ret.status);
+    const refunded = await this.refund.execute(input.merchantId, input.returnId);
+
     return {
       returnId: ret.id,
-      status: "REFUND_PROCESSING",
+      status: refunded.status,
+      refund: refunded.refund,
       marketplaceSettlementsCancelled: cancelled,
       marketplaceSkipped: skipped,
     };

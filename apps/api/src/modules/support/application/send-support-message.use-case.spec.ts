@@ -20,6 +20,30 @@ function buildUseCase(tickets: InMemorySupportTicketRepository) {
   return new SendSupportMessageUseCase(chat, handoff);
 }
 
+test("explicit human request creates a real ticket before FAQ or AI can answer it", async () => {
+  const tickets = new InMemorySupportTicketRepository();
+  const handoff = new SupportHandoffService(tickets, new SupportTicketEventPublisher());
+  const useCase = new SendSupportMessageUseCase({ complete: async () => { throw Error("AI must not handle the human request"); } }, handoff);
+  const message = "Preciso falar com um atendente humano para concluir minha compra.";
+  const output = await useCase.execute({ merchant_id: "merchant", session_id: "checkout", message }, {
+    faqItems: [{ id: "faq", question: message, answer: "FAQ cannot replace the requested handoff" }],
+  });
+  const stored = await tickets.list("merchant");
+  assert.equal(stored.length, 1);
+  assert.equal(stored[0].id, output.handoff?.ticketId);
+  assert.equal(stored[0].sessionId, "checkout");
+  assert.match(output.reply, /Referência:/);
+});
+
+test("declining a human agent does not create a ticket", async () => {
+  const tickets = new InMemorySupportTicketRepository();
+  const useCase = new SendSupportMessageUseCase({ complete: async () => "Você pode continuar pelo checkout." },
+    new SupportHandoffService(tickets, new SupportTicketEventPublisher()));
+  const output = await useCase.execute({ merchant_id: "merchant", message: "Não quero atendente humano." });
+  assert.equal(output.handoff, undefined);
+  assert.deepEqual(await tickets.list("merchant"), []);
+});
+
 test("SendSupportMessageUseCase answers matching FAQ without creating ticket", async () => {
   const tickets = new InMemorySupportTicketRepository();
   const useCase = buildUseCase(tickets);

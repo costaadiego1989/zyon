@@ -1,5 +1,6 @@
-import { Injectable, Logger } from "@nestjs/common";
+import { ConflictException, Injectable, Logger } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
+import { lockMarketplaceOrder } from "../../../marketplace/infrastructure/repositories/prisma-marketplace-funding.repository.js";
 import {
   ReturnRepositoryPort,
   CreateReturnInput,
@@ -26,7 +27,20 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
   constructor(private readonly prisma: PrismaClient) {}
 
   async create(input: CreateReturnInput): Promise<ReturnEntity> {
-    const row = await this.prisma.return.create({
+    const row = await this.prisma.$transaction(async tx => {
+      const completed = await tx.completedOrder.findMany({ where: { merchantId: input.merchantId,
+        OR: [{ id: input.orderId }, { externalOrderId: input.orderId }] }, select: { externalOrderId: true } });
+      const aliases = [...new Set([input.orderId, ...completed.map(row => row.externalOrderId)])];
+      const payments = await tx.paymentIntent.findMany({ where: { merchantId: input.merchantId,
+        OR: [{ providerPaymentId: { in: aliases } }, { commerceOrderId: { in: aliases } }] }, select: { providerPaymentId: true } });
+      const orders = [...new Set([...aliases, ...payments.flatMap(row => row.providerPaymentId ? [row.providerPaymentId] : [])])].sort();
+      // Same order lock as payout admission: a persisted return is visible
+      // before any later worker can reserve a financial submission.
+      for (const order of orders) await lockMarketplaceOrder(tx, input.merchantId, order);
+      const active = await tx.return.findFirst({ where: { merchantId: input.merchantId, orderId: { in: orders },
+        status: { notIn: ["CANCELLED", "REJECTED"] } }, select: { id: true } });
+      if (active) throw new ConflictException("active_return_already_exists_for_order");
+      return tx.return.create({
       data: {
         merchantId: input.merchantId,
         orderId: input.orderId,
@@ -43,6 +57,7 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
         },
       },
       include: { items: true, label: true, inspection: true, refund: true },
+      });
     });
     return this.toEntity(row);
   }
@@ -118,11 +133,23 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
     };
   }
 
-  async updateStatus(returnId: string, status: ReturnStatus): Promise<void> {
-    await this.prisma.return.update({
-      where: { id: returnId },
+  async updateStatus(returnId: string, status: ReturnStatus, expectedStatus?: ReturnStatus): Promise<void> {
+    if (status === "REFUND_PROCESSING" && expectedStatus === "REQUESTED") {
+      await this.prisma.$transaction(async tx => {
+        await tx.$queryRaw`SELECT id FROM returns WHERE id = ${returnId} FOR UPDATE`;
+        const attempts = await tx.trackingEvent.count({ where: { id: { startsWith: "return_reverse_" }, carrierRaw: { path: ["returnId"], equals: returnId },
+          status: { notIn: ["reverse_cart_ready", "reverse_cart_unknown"] } } });
+        if (attempts) throw new ConflictException("return_reverse_purchase_requires_review_before_cancellation");
+        const result = await tx.return.updateMany({ where: { id: returnId, status: expectedStatus }, data: { status } });
+        if (result.count !== 1) throw new ConflictException("return_status_changed");
+      });
+      return;
+    }
+    const result = await this.prisma.return.updateMany({
+      where: { id: returnId, ...(expectedStatus ? { status: expectedStatus as any } : {}) },
       data: { status: status as any },
     });
+    if (result.count !== 1) throw new ConflictException("return_status_changed");
   }
 
   async saveLabel(input: SaveLabelInput): Promise<ReturnLabelProps> {
@@ -144,6 +171,19 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
       expiresAt: row.expiresAt,
       createdAt: row.createdAt,
     };
+  }
+
+  async registerManualLabel(merchantId: string, input: SaveLabelInput): Promise<void> {
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM returns WHERE id = ${input.returnId} AND merchant_id = ${merchantId} FOR UPDATE`;
+      const current = await tx.return.findFirst({ where: { id: input.returnId, merchantId }, include: { label: true } });
+      if (!current || current.status !== "REQUESTED" || current.label) throw new ConflictException("return_status_changed");
+      const automatic = await tx.trackingEvent.count({ where: { merchantId, id: { startsWith: "return_reverse_" },
+        carrierRaw: { path: ["returnId"], equals: input.returnId } } });
+      if (automatic) throw new ConflictException("return_reverse_attempt_already_exists");
+      await tx.returnLabel.create({ data: input });
+      await tx.return.update({ where: { id: input.returnId }, data: { status: "LABEL_GENERATED" } });
+    });
   }
 
   async saveInspection(input: SaveInspectionInput): Promise<ReturnInspectionProps> {
@@ -187,7 +227,15 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
   }
 
   async saveRefund(input: SaveRefundInput): Promise<ReturnRefundProps> {
-    const row = await this.prisma.returnRefund.upsert({
+    // The financial reservation exists before the PSP call. A late pending
+    // response must not overwrite a completion observed by reconciliation.
+    const persisted = await this.prisma.returnRefund.findUnique({ where: { returnId: input.returnId } });
+    if (persisted) {
+      if (persisted.amountInCents > 0 && input.amountInCents !== persisted.amountInCents) throw new Error("refund_amount_requires_reconciliation");
+      await this.prisma.returnRefund.updateMany({ where: { returnId: input.returnId, status: { notIn: input.status === "PENDING" ? ["COMPLETED", "FAILED"] : input.status === "FAILED" ? ["COMPLETED"] : [] } },
+        data: { paymentIntentId: input.paymentIntentId, providerRefundId: input.providerRefundId, amountInCents: persisted.amountInCents || input.amountInCents, status: input.status } });
+    }
+    const row = persisted ? await this.prisma.returnRefund.findUniqueOrThrow({ where: { returnId: input.returnId } }) : await this.prisma.returnRefund.upsert({
       where: { returnId: input.returnId },
       create: {
         returnId: input.returnId,
@@ -216,8 +264,8 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
   }
 
   async updateRefundStatus(returnId: string, status: string, processedAt?: Date): Promise<void> {
-    await this.prisma.returnRefund.update({
-      where: { returnId },
+    await this.prisma.returnRefund.updateMany({
+      where: { returnId, ...(status !== "COMPLETED" ? { status: { not: "COMPLETED" } } : {}) },
       data: { status, ...(processedAt ? { processedAt } : {}) },
     });
   }
@@ -232,6 +280,7 @@ export class PrismaReturnRepository implements ReturnRepositoryPort {
       notes: row.notes ?? undefined,
       imageUrls: row.imageUrls ?? [],
       status: row.status,
+      returnAuthorized: Boolean(row.resolution?.returnAuthorizedAt || row.status === "LABEL_GENERATED" || row.label),
       createdAt: row.createdAt,
       updatedAt: row.updatedAt,
       items: row.items.map((i: any) => ({

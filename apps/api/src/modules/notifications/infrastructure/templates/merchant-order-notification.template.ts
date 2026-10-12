@@ -10,7 +10,7 @@ export function renderMerchantOrderEmail(event: MerchantOrderEvent): string {
     <tr>
       <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#111827;font-size:14px;line-height:1.45;"><strong>${escapeHtml(item.name)}</strong></td>
       <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#4b5563;font-size:13px;text-align:center;">x${item.quantity}</td>
-      <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#111827;font-size:13px;text-align:right;font-weight:700;white-space:nowrap;">${formatCurrency(item.price, event.currency)}</td>
+      <td style="padding:12px 0;border-bottom:1px solid #e5e7eb;color:#111827;font-size:13px;text-align:right;font-weight:700;white-space:nowrap;">${escapeHtml(formatCurrency(item.price, event.currency))}</td>
     </tr>`).join("");
 
   return `<!doctype html>
@@ -29,7 +29,7 @@ export function renderMerchantOrderEmail(event: MerchantOrderEvent): string {
           <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;background:#f8faf9;border:1px solid #e3ebe6;border-radius:10px;">
             <tr>
               <td style="padding:18px 20px;"><span style="display:block;color:#64746b;font-size:12px;">Cliente</span><strong style="display:block;margin-top:4px;font-size:15px;">${escapeHtml(buyer)}</strong></td>
-              <td style="padding:18px 20px;text-align:right;"><span style="display:block;color:#64746b;font-size:12px;">Total aprovado</span><strong style="display:block;margin-top:4px;font-size:20px;">${total}</strong></td>
+              <td style="padding:18px 20px;text-align:right;"><span style="display:block;color:#64746b;font-size:12px;">Total aprovado</span><strong style="display:block;margin-top:4px;font-size:20px;">${escapeHtml(total)}</strong></td>
             </tr>
           </table>
         </td></tr>
@@ -38,9 +38,9 @@ export function renderMerchantOrderEmail(event: MerchantOrderEvent): string {
           <table role="presentation" cellpadding="0" cellspacing="0" style="width:100%;">${items}</table>
         </td></tr>
         <tr><td style="padding:22px 30px 30px;">
-          <p style="margin:0;color:#4b5563;font-size:13px;line-height:1.6;">O pedido tambem aparece nas notificacoes do dashboard. Se o WhatsApp da loja estiver conectado, o aviso tambem e enviado por la.</p>
+          <p style="margin:0;color:#4b5563;font-size:13px;line-height:1.6;">Consulte os detalhes do pedido no painel da loja para acompanhar as próximas etapas.</p>
         </td></tr>
-        <tr><td style="padding:18px 30px;background:#f8faf9;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px;">${year} Zyon - notificacao transacional automatica.</td></tr>
+        <tr><td style="padding:18px 30px;background:#f8faf9;border-top:1px solid #e5e7eb;color:#6b7280;font-size:12px;">${year} Zyon · Aviso automático sobre sua loja.</td></tr>
       </table>
     </td></tr>
   </table>
@@ -60,7 +60,7 @@ export function renderMerchantOrderWhatsApp(event: MerchantOrderEvent): string {
     "*Itens*",
     items,
     "",
-    "O pedido tambem foi registrado nas notificacoes do dashboard.",
+    "Consulte os detalhes do pedido no painel da loja.",
   ].join("\n");
 }
 

@@ -6,11 +6,13 @@ import { resolveCorsConfig } from "../../../../shared/config/cors-config.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
 import { GetConversationHistoryUseCase } from "../../application/use-cases/get-conversation-history.use-case.js";
 import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
+import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
 
 interface Connection {
   token: string;
   timer: ReturnType<typeof setTimeout>;
   processing: boolean;
+  userId?: string;
 }
 
 @WebSocketGateway({ namespace: "/storefront", cors: resolveCorsConfig(), maxHttpBufferSize: 16384 })
@@ -33,7 +35,9 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
       const claims = this.capabilities.verify(token, "storefront-conversation", socket.handshake.headers.origin);
       const timer = setTimeout(() => socket.disconnect(true), Math.max(0, claims.expiresAt * 1000 - Date.now()));
       timer.unref();
-      this.connections.set(socket, { token, timer, processing: false });
+      const buyerToken = socket.handshake.auth?.buyerToken;
+      const userId = buyerToken ? new AiUserIdentityService().resolve({ merchantId: claims.merchantId, buyerToken }).userId : claims.aiUserId;
+      this.connections.set(socket, { token, timer, processing: false, userId });
     } catch {
       socket.emit("error", { message: "unauthorized" });
       socket.disconnect(true);
@@ -81,6 +85,7 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
   async handleMessage(@ConnectedSocket() socket: Socket, @MessageBody() data: { conversationId: string; text: string; cartId?: string }) {
     let room: string | undefined;
     let connection: Connection | undefined;
+    let acquired = false;
     try {
       const claims = this.authorize(socket, data?.conversationId);
       if (typeof data.text !== "string" || !data.text.trim() || data.text.length > 4000) {
@@ -91,7 +96,10 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
       }
       connection = this.connections.get(socket)!;
       if (connection.processing) return { success: false, error: "message_in_progress" };
-      const rateLimit = this.conversationRateLimiter.consume(claims.merchantId, claims.resourceId);
+      // Acquire before the Redis await so overlapping messages cannot enter.
+      connection.processing = true;
+      acquired = true;
+      const rateLimit = await this.conversationRateLimiter.consume(claims.merchantId, claims.resourceId, connection.userId);
       if (!rateLimit.allowed) {
         return {
           success: false,
@@ -99,7 +107,6 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
           retry_after_seconds: Math.max(Math.ceil(rateLimit.retryAfterMs / 1000), 1),
         };
       }
-      connection.processing = true;
       room = realtimeRoom("conversation", claims.merchantId, claims.resourceId);
       this.server.to(room).emit("typing", { conversationId: claims.resourceId, isTyping: true });
       const history = await this.getConversationHistoryUseCase.execute({ merchant_id: claims.merchantId, conversation_id: claims.resourceId });
@@ -118,8 +125,8 @@ export class StorefrontConversationGateway implements OnGatewayConnection, OnGat
       return { success: false, error: "message_failed" };
     } finally {
       // Only the call that acquired the processing slot may release it.
-      if (room && connection) {
-        connection.processing = false;
+      if (acquired && connection) connection.processing = false;
+      if (room) {
         this.server.to(room).emit("typing", { conversationId: data.conversationId, isTyping: false });
       }
     }

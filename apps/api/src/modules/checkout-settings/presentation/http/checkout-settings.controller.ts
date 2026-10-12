@@ -118,9 +118,9 @@ export class CheckoutSettingsPublicController {
       cooldownSeconds: settings.interventionPolicy.cooldownSeconds,
       maxInterventionsPerSession:
         settings.interventionPolicy.maxInterventionsPerSession,
-      // The event key remains idle_30_seconds for backward-compatible stored
-      // trigger rules, but new/default checkout behavior waits five minutes.
-      idleSeconds: (settings.interventionPolicy as any).idleSeconds ?? 300,
+      idleSeconds: settings.interventionPolicy.idleSeconds ?? 180,
+      assistance: { pix: true, installments: true, unavailableProduct: true, humanHandoff: true,
+        ...settings.interventionPolicy.assistance },
       progressiveDiscount: settings.interventionPolicy.progressiveDiscount
         ? {
             enabled: settings.interventionPolicy.progressiveDiscount.enabled,

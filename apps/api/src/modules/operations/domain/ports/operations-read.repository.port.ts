@@ -8,6 +8,7 @@ export interface OperationsCursor {
 }
 
 export interface OrderSummary {
+  fulfillment?: import("@zyon/shared-types").OrderFulfillmentSummary;
   id: string;
   sessionId: string;
   externalOrderId: string;

@@ -60,39 +60,23 @@ test("BrevoBuyerEmailNotifier com env chama SMTP e erro HTTP não lança", async
   }
 });
 
-test("BrevoBuyerEmailNotifier adds the merchant logo, CNPJ and social links", async () => {
-  process.env.BREVO_API_KEY = "x";
-  process.env.BREVO_SENDER_EMAIL = "noreply@test.com";
-  let delivered: Record<string, string> | undefined;
-  let resolveDelivery!: () => void;
-  const completed = new Promise<void>((resolve) => { resolveDelivery = resolve; });
-  const http = {
-    fetch: async (_url: string, options: { body?: unknown }) => {
-      delivered = JSON.parse(String(options.body));
-      resolveDelivery();
-      return new Response("{}", { status: 202 });
-    },
-  };
-  const prisma = {
-    merchant: {
-      findUnique: async () => ({
-        name: "Loja Alfa",
-        theme: { logoUrl: "https://cdn.example.test/brevo-logo.png" },
-        storeSettings: {
-          company: { cnpj: "12.345.678/0001-90" },
-          social: { instagram: "https://instagram.com/lojaalfa" },
-        },
-      }),
-    },
-  } as never;
+test("capture notice describes the event without asking for confirmation or exposing internal IDs", async () => {
+  const oldKey = process.env.BREVO_API_KEY, oldSender = process.env.BREVO_SENDER_EMAIL;
+  process.env.BREVO_API_KEY = "fake-test-key";
+  process.env.BREVO_SENDER_EMAIL = "noreply@example.test";
+  let request: any;
+  const notifier = new BrevoBuyerEmailNotifier({ fetch: async (_url: string, options: any) => {
+    request = JSON.parse(options.body);
+    return new Response("{}", { status: 201 });
+  } } as any);
   try {
-    new BrevoBuyerEmailNotifier(http as never, prisma).notifyCaptured(payload());
-    await completed;
-    assert.match(delivered?.htmlContent ?? "", /brevo-logo\.png/);
-    assert.match(delivered?.htmlContent ?? "", /CNPJ: 12\.345\.678\/0001-90/);
-    assert.match(delivered?.htmlContent ?? "", /instagram\.com\/lojaalfa/);
+    await (notifier as any).trySend({ ...payload(), merchantName: "Loja <Teste>", buyerFirstNameHint: "<script>Ana</script>" });
+    assert.equal(request.subject, "Loja <Teste> | Email informado na compra");
+    assert.doesNotMatch(request.htmlContent, /chk_t|mrc_t|<script>|Confirme o uso/);
+    assert.match(request.htmlContent, /Loja &lt;Teste&gt;/);
+    assert.match(request.htmlContent, /não confirma um pedido nem um pagamento/);
   } finally {
-    delete process.env.BREVO_API_KEY;
-    delete process.env.BREVO_SENDER_EMAIL;
+    if (oldKey === undefined) delete process.env.BREVO_API_KEY; else process.env.BREVO_API_KEY = oldKey;
+    if (oldSender === undefined) delete process.env.BREVO_SENDER_EMAIL; else process.env.BREVO_SENDER_EMAIL = oldSender;
   }
 });

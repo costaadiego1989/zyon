@@ -1,7 +1,16 @@
 import { OrderConfirmationEvent } from "../../domain/events/notification.events.js";
 
+const escapeHtml = (value: string) => value.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;").replace(/"/g, "&quot;").replace(/'/g, "&#39;");
+
+export function orderConfirmationInstructions(event: OrderConfirmationEvent): string {
+  const messages: string[] = [];
+  if (event.items.some(item => item.productType === "digital")) messages.push("O acesso aos produtos digitais será enviado em uma mensagem separada.");
+  if (event.items.some(item => item.productType === "service")) messages.push("Consulte as informações do serviço para combinar o atendimento com a loja.");
+  if (!event.items.length || event.items.some(item => !item.productType || ["physical", "food"].includes(item.productType))) messages.push("Acompanhe as próximas etapas de entrega ou retirada na sua área de compras.");
+  return messages.join(" ");
+}
+
 export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): string {
-  const baseUrl = process.env.STOREFRONT_URL || "https://app.zyon.com.br";
   const brandColor = "#10b981";
   const year = new Date().getFullYear();
   const cur = event.currency === "USD" ? "US$" : event.currency === "EUR" ? "€" : "R$";
@@ -11,10 +20,10 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
       (item) => `
     <tr>
       <td style="padding: 14px 0; border-bottom: 1px solid #f3f4f6; color: #1f2937; font-size: 14px; line-height: 1.4;">
-        <strong>${item.name}</strong>
+        <strong>${escapeHtml(item.name)}</strong>
       </td>
       <td style="padding: 14px 0; border-bottom: 1px solid #f3f4f6; color: #6b7280; font-size: 14px; text-align: center; width: 60px;">×${item.quantity}</td>
-      <td style="padding: 14px 0; border-bottom: 1px solid #f3f4f6; color: #1f2937; font-size: 14px; text-align: right; font-weight: 600; white-space: nowrap;">${cur} ${item.price}</td>
+      <td style="padding: 14px 0; border-bottom: 1px solid #f3f4f6; color: #1f2937; font-size: 14px; text-align: right; font-weight: 600; white-space: nowrap;">${cur} ${escapeHtml(item.price)}</td>
     </tr>`,
     )
     .join("");
@@ -37,7 +46,7 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
             <td style="background: linear-gradient(135deg, ${brandColor}, #059669); padding: 40px 32px; text-align: center;">
               <div style="width: 56px; height: 56px; background: rgba(255,255,255,0.2); border-radius: 50%; margin: 0 auto 16px; line-height: 56px; font-size: 28px;">✓</div>
               <h1 style="margin: 0; color: #ffffff; font-size: 22px; font-weight: 700; letter-spacing: -0.3px;">Pedido Confirmado!</h1>
-              <p style="margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">${event.merchantName ? `Recebemos seu pagamento na ${event.merchantName}` : "Recebemos seu pagamento com sucesso"}</p>
+              <p style="margin: 8px 0 0; color: rgba(255,255,255,0.85); font-size: 14px;">${event.merchantName ? `Recebemos seu pagamento na ${escapeHtml(event.merchantName)}` : "Recebemos seu pagamento com sucesso"}</p>
             </td>
           </tr>
 
@@ -45,10 +54,10 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
           <tr>
             <td style="padding: 32px 32px 0;">
               <p style="margin: 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
-                Olá${event.buyerName ? ` <strong>${event.buyerName}</strong>` : ""},
+                Olá${event.buyerName ? ` <strong>${escapeHtml(event.buyerName)}</strong>` : ""},
               </p>
               <p style="margin: 8px 0 0; color: #4b5563; font-size: 14px; line-height: 1.6;">
-                Seu pedido <strong>#${event.orderNumber}</strong> foi confirmado e já está sendo preparado. Você receberá uma notificação quando ele for enviado.
+                Seu pedido <strong>#${escapeHtml(event.orderNumber)}</strong> foi confirmado. ${orderConfirmationInstructions(event)}
               </p>
             </td>
           </tr>
@@ -70,7 +79,7 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
                 <tr>
                   <td style="padding: 16px; text-align: right;">
                     <span style="color: #6b7280; font-size: 14px; margin-right: 16px;">Total:</span>
-                    <span style="color: #1f2937; font-size: 24px; font-weight: 700;">${cur} ${event.total}</span>
+                    <span style="color: #1f2937; font-size: 24px; font-weight: 700;">${cur} ${escapeHtml(event.total)}</span>
                   </td>
                 </tr>
               </table>
@@ -80,7 +89,7 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
           <!-- CTA -->
           <tr>
             <td style="padding: 0 32px 32px; text-align: center;">
-              <a href="${baseUrl}/orders/${event.orderId}" style="display: inline-block; background-color: ${brandColor}; color: #ffffff; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; letter-spacing: 0.2px;">Acompanhar Pedido</a>
+              <p style="margin:0;color:#4b5563;font-size:14px;line-height:1.6;">Para acompanhar o pedido, volte à loja e abra sua área de compras. Se precisar de ajuda, use o atendimento da loja.</p>
             </td>
           </tr>
 
@@ -88,7 +97,7 @@ export function renderOrderConfirmationTemplate(event: OrderConfirmationEvent): 
           <tr>
             <td style="padding: 24px 32px; background: #f9fafb; border-top: 1px solid #f3f4f6; text-align: center;">
               <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.5;">Este é um e-mail automático. Não responda.</p>
-              <p style="margin: 6px 0 0; color: #9ca3af; font-size: 12px;">© ${year} • Powered by Zyon</p>
+              <p style="margin: 6px 0 0; color: #9ca3af; font-size: 12px;">© ${year} · Enviado pela Zyon</p>
             </td>
           </tr>
         </table>
@@ -118,7 +127,7 @@ export function renderOrderConfirmationWhatsApp(event: OrderConfirmationEvent & 
     ``,
     `💰 *Total: ${cur} ${event.total}*`,
     ``,
-    `Estamos preparando seu pedido. Você receberá uma notificação quando for enviado.`,
+    orderConfirmationInstructions(event),
     ``,
     `Qualquer dúvida, estamos à disposição! 🙏`,
   ].join("\n");

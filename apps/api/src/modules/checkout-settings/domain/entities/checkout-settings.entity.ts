@@ -11,6 +11,7 @@ import type {
   RuleCondition
 } from "@zyon/shared-types";
 import { CheckoutSettingsValidationError } from "../checkout-settings.errors.js";
+import { DEFAULT_CHECKOUT_ASSISTANCE } from "@zyon/shared-types";
 
 const ALLOWED_TRIGGERS: CheckoutTriggerName[] = [
   "shipping_objection_detected",
@@ -82,6 +83,8 @@ export class CheckoutSettingsEntity {
         cartPresentationMode: "floating"
       },
       interventionPolicy: {
+        idleSeconds: 180,
+        assistance: { ...DEFAULT_CHECKOUT_ASSISTANCE },
         minimumAbandonmentScore: 0.7,
         cooldownSeconds: 120,
         maxInterventionsPerSession: 3,
@@ -185,7 +188,8 @@ export class CheckoutSettingsEntity {
     return {
       ...this.props,
       widgetBehavior: { ...this.props.widgetBehavior },
-      interventionPolicy: { ...this.props.interventionPolicy },
+      interventionPolicy: { ...this.props.interventionPolicy,
+        ...(this.props.interventionPolicy.assistance ? { assistance: { ...this.props.interventionPolicy.assistance } } : {}) },
       triggerRules: this.props.triggerRules.map((rule) => ({ ...rule })),
       suppressionRules: {
         ...this.props.suppressionRules,
@@ -216,6 +220,15 @@ export class CheckoutSettingsEntity {
 
   private validate(): void {
     if (!this.props.merchantId) throw new CheckoutSettingsValidationError("merchant_id_required");
+    const idleSeconds = this.props.interventionPolicy.idleSeconds;
+    const assistance = this.props.interventionPolicy.assistance;
+    if (assistance && Object.entries(assistance).some(([key, value]) =>
+      !Object.prototype.hasOwnProperty.call(DEFAULT_CHECKOUT_ASSISTANCE, key) || typeof value !== "boolean")) {
+      throw new CheckoutSettingsValidationError("checkout_assistance_invalid");
+    }
+    if (idleSeconds !== undefined && (!Number.isInteger(idleSeconds) || idleSeconds < 10 || idleSeconds > 3600)) {
+      throw new CheckoutSettingsValidationError("idle_seconds_out_of_range");
+    }
     if (this.props.interventionPolicy.cooldownSeconds < 30) throw new CheckoutSettingsValidationError("cooldown_too_low");
     if (this.props.interventionPolicy.maxInterventionsPerSession < 1) throw new CheckoutSettingsValidationError("max_interventions_too_low");
     if (this.props.interventionPolicy.maxInterventionsPerSession > 10) throw new CheckoutSettingsValidationError("max_interventions_too_high");
@@ -296,7 +309,11 @@ function mergeInterventionPolicy(
   const progressivePatch = patch?.progressiveDiscount;
   return {
     ...current,
-    ...patch,
+    ...Object.fromEntries(Object.entries(patch ?? {}).filter(([, value]) => value !== undefined)),
+    assistance: patch?.assistance
+      ? { ...DEFAULT_CHECKOUT_ASSISTANCE, ...current.assistance,
+          ...Object.fromEntries(Object.entries(patch.assistance).filter(([, value]) => value !== undefined)) }
+      : current.assistance,
     progressiveDiscount: progressivePatch
       ? {
           enabled: progressivePatch.enabled ?? current.progressiveDiscount?.enabled ?? false,

@@ -1,13 +1,16 @@
+import type { PendingPaymentCancellationInput, PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
 import { Injectable } from "@nestjs/common";
 import type {
   CreateProviderPaymentInput,
   CreateProviderPaymentOutput,
   FetchPaymentStatusInput,
   FetchPaymentStatusOutput,
+  ReadMarketplacePaymentActionOutput,
   FetchRefundStatusInput,
   FetchRefundStatusOutput,
   RefundPaymentInput,
   RefundPaymentOutput,
+  MarketplaceCaptureAccount,
   PaymentProviderPort
 } from "../domain/ports/payment-provider.port.js";
 import { StripePaymentAdapter } from "./stripe-payment.adapter.js";
@@ -17,6 +20,7 @@ import { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
 import type {
   PaymentPlatformRepository,
 } from "../domain/ports/payment-platform-repository.port.js";
+import { buildMarketplaceFundingBudget } from "../../marketplace/domain/services/marketplace-funding-budget.js";
 
 @Injectable()
 export class RoutingPaymentAdapter implements PaymentProviderPort {
@@ -32,6 +36,10 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
   ) {}
 
   async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
+    if (input.marketplaceFunding) {
+      await this.marketplaceCreationRoute(input);
+      return { ...input, providerAccountFingerprint: input.marketplaceFunding.accountFingerprint };
+    }
     const route = await this.creationRoute(input);
     if (route.name === "asaas" || route.name === "mercadopago") (route.adapter as AsaasPaymentAdapter | MercadoPagoPaymentAdapter).validatePlatformFee?.(input);
     const prepared = route.name === "mercadopago" && route.adapter.preparePayment
@@ -41,7 +49,7 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
 
   async recoverPayment(input: CreateProviderPaymentInput, firstAttemptAt: string): Promise<CreateProviderPaymentOutput | null> {
     const { adapter } = await this.creationRoute(input);
-    this.assertAccount(adapter, input.providerAccountFingerprint);
+    if (!input.marketplaceFunding) this.assertAccount(adapter, input.providerAccountFingerprint);
     return adapter.recoverPayment ? adapter.recoverPayment(input, firstAttemptAt) : null;
   }
 
@@ -49,7 +57,63 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     if (fingerprint && adapter.creationAccountFingerprint?.() !== fingerprint) throw new Error("payment_provider_account_changed");
   }
 
-  private async creationRoute(input: Pick<CreateProviderPaymentInput, "merchantId" | "method" | "provider" | "settlementMode">): Promise<{ name: NonNullable<CreateProviderPaymentInput["provider"]>; adapter: PaymentProviderPort }> {
+  private async cancellationRoute(input: PendingPaymentCancellationInput): Promise<PaymentProviderPort | null> {
+    const p = input.payment;
+    const scope = p as { marketplaceFunding?: unknown; marketplacePublicAdmission?: unknown };
+    if (!p?.provider || !p.providerAccountFingerprint || scope.marketplaceFunding !== undefined || scope.marketplacePublicAdmission !== undefined) return null;
+    const { adapter } = await this.creationRoute(p);
+    // Unlike legacy reads, cancellation never guesses another account/provider.
+    this.assertAccount(adapter, p.providerAccountFingerprint);
+    return adapter;
+  }
+
+  async readCancellationStatus(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    const adapter = await this.cancellationRoute(input);
+    return adapter?.readCancellationStatus ? adapter.readCancellationStatus(input) : { state: "unsupported" };
+  }
+
+  async cancelPendingPayment(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    const adapter = await this.cancellationRoute(input);
+    return adapter?.cancelPendingPayment ? adapter.cancelPendingPayment(input) : { state: "unsupported" };
+  }
+
+  async prepareMarketplaceAccount(input: Pick<MarketplaceCaptureAccount, "provider" | "environment">): Promise<MarketplaceCaptureAccount> {
+    const adapter = input.provider === "stripe" ? this.stripe : input.provider === "asaas" ? this.asaas : null;
+    if (!adapter?.prepareMarketplaceAccount) throw new Error("marketplace_capture_account_not_configured");
+    return adapter.prepareMarketplaceAccount(input);
+  }
+
+  private async marketplaceRoute(account: MarketplaceCaptureAccount, provider: CreateProviderPaymentInput["provider"], fingerprint?: string) {
+    if (!account || account.provider !== provider || !account.accountFingerprint ||
+        (fingerprint && fingerprint !== account.accountFingerprint)) throw new Error("marketplace_capture_account_mismatch");
+    const actual = await this.prepareMarketplaceAccount(account);
+    if (actual.accountFingerprint !== account.accountFingerprint) throw new Error("marketplace_capture_account_mismatch");
+    return { name: account.provider, adapter: (account.provider === "stripe" ? this.stripe : this.asaas)! };
+  }
+
+  private async marketplaceCreationRoute(input: CreateProviderPaymentInput) {
+    const funding = input.marketplaceFunding!;
+    if (funding.hostMerchantId !== input.merchantId || funding.amountCents !== input.amountCents || funding.currency !== input.currency ||
+        !input.provider || input.settlementMode || input.stripeConnectAccountId || input.merchantPayoutDestination ||
+        input.merchantPayoutHoldDays !== undefined || (input.platformFeeCents ?? 0) !== 0 || input.creditCard || input.creditCardHolderInfo ||
+        (input.provider === "stripe" ? input.method !== "card" : !["pix", "boleto", "card"].includes(input.method))) {
+      throw new Error("marketplace_capture_creation_invalid");
+    }
+    buildMarketplaceFundingBudget(funding, { ...funding, providerPaymentId: "preflight", sourceId: "preflight",
+      providerFeeCents: 0, netAmountCents: input.amountCents });
+    const route = await this.marketplaceRoute(funding, input.provider, input.providerAccountFingerprint);
+    await route.adapter.preparePayment?.(input);
+    return route;
+  }
+
+  private async creationRoute(input: Pick<CreateProviderPaymentInput, "merchantId" | "method" | "provider" | "settlementMode"> & {
+    marketplaceAccount?: MarketplaceCaptureAccount; providerAccountFingerprint?: string;
+  }): Promise<{ name: NonNullable<CreateProviderPaymentInput["provider"]>; adapter: PaymentProviderPort }> {
+    if ("marketplaceFunding" in input && input.marketplaceFunding) return this.marketplaceCreationRoute(input as CreateProviderPaymentInput);
+    if (input.marketplaceAccount) {
+      if (input.settlementMode) throw new Error("marketplace_capture_creation_invalid");
+      return this.marketplaceRoute(input.marketplaceAccount, input.provider, input.providerAccountFingerprint);
+    }
     // A delayed merchant payout must be charged by the platform. Resolving a
     // tenant credential here would put the money in the merchant account at
     // capture time and make the configured return window fictional.
@@ -85,6 +149,11 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
   async createPayment(
     input: CreateProviderPaymentInput,
   ): Promise<CreateProviderPaymentOutput> {
+    if (!["pix", "card", "crypto"].includes(input.method)) throw new Error("payment_method_not_supported");
+    if (input.marketplaceFunding) {
+      const { adapter } = await this.marketplaceCreationRoute(input);
+      return adapter.createPayment(input);
+    }
     if (input.provider) {
       if (input.provider === "mercadopago" && !mercadoPagoWebhookConfigured()) {
         throw new Error("mercadopago_webhook_not_configured");
@@ -120,17 +189,33 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     throw new Error("payment_provider_not_configured");
   }
 
+  async readMarketplacePaymentAction(input: FetchPaymentStatusInput): Promise<ReadMarketplacePaymentActionOutput> {
+    if (!input.marketplaceAccount || !["stripe", "asaas"].includes(input.provider ?? "") || input.marketplaceAccount.provider !== input.provider ||
+      !["test", "live"].includes(input.marketplaceAccount.environment) || !input.marketplacePayment || input.settlementMode ||
+      input.providerAccountFingerprint !== input.marketplaceAccount.accountFingerprint) {
+      throw new Error("marketplace_payment_resume_identity_invalid");
+    }
+    const { adapter } = await this.marketplaceRoute(input.marketplaceAccount, input.provider, input.providerAccountFingerprint);
+    const reader: PaymentProviderPort = adapter;
+    if (!reader.readMarketplacePaymentAction) throw new Error("marketplace_payment_resume_unavailable");
+    return reader.readMarketplacePaymentAction(input);
+  }
+
   async fetchPaymentStatus(
     input: FetchPaymentStatusInput,
   ): Promise<FetchPaymentStatusOutput> {
-    if (input.provider) {
+    if (input.marketplaceAccount !== undefined && !input.marketplaceAccount) throw new Error("marketplace_payment_identity_invalid");
+    if (input.marketplacePayment !== undefined && !input.marketplaceAccount) throw new Error("marketplace_payment_identity_invalid");
+    if (input.provider || input.marketplaceAccount) {
       const { adapter } = await this.creationRoute({
         merchantId: input.merchantId,
         provider: input.provider,
         method: "",
         settlementMode: input.settlementMode,
+        marketplaceAccount: input.marketplaceAccount,
+        providerAccountFingerprint: input.providerAccountFingerprint,
       });
-      this.assertAccount(adapter, input.providerAccountFingerprint);
+      if (!input.marketplaceAccount) this.assertAccount(adapter, input.providerAccountFingerprint);
       if (!adapter.fetchPaymentStatus) return { state: "unknown" };
       return adapter.fetchPaymentStatus(input);
     }
@@ -166,12 +251,14 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
   }
 
   async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
-    if (input.provider) {
+    if (input.provider || input.marketplaceAccount) {
       const { adapter } = await this.creationRoute({
         merchantId: input.merchantId,
         provider: input.provider,
         method: "",
         settlementMode: input.settlementMode,
+        marketplaceAccount: input.marketplaceAccount,
+        providerAccountFingerprint: input.providerAccountFingerprint,
       });
       this.assertAccount(adapter, input.providerAccountFingerprint);
       return adapter.fetchRefundStatus ? adapter.fetchRefundStatus(input) : { state: "unknown" };
@@ -185,7 +272,16 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     return asaas?.fetchRefundStatus ? asaas.fetchRefundStatus(input) : { state: "unknown" };
   }
 
+  async readRefundRecoveryEligibility(input: RefundPaymentInput): Promise<boolean> {
+    if (input.provider !== "stripe" || input.marketplaceAccount || input.stripeChargeMode !== "direct_v2") return false;
+    const { adapter } = await this.creationRoute({ merchantId: input.merchantId, provider: input.provider,
+      method: "", settlementMode: input.settlementMode, providerAccountFingerprint: input.providerAccountFingerprint });
+    this.assertAccount(adapter, input.providerAccountFingerprint);
+    return adapter.readRefundRecoveryEligibility ? adapter.readRefundRecoveryEligibility(input) : false;
+  }
+
   async createCustomer(input: {
+    marketplaceAccount?: MarketplaceCaptureAccount;
     merchantId: string;
     name: string;
     email: string;
@@ -193,6 +289,11 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     phone?: string;
     settlementMode?: CreateProviderPaymentInput["settlementMode"];
   }): Promise<string> {
+    if (input.marketplaceAccount) {
+      if (input.marketplaceAccount.provider !== "asaas" || input.settlementMode) throw new Error("marketplace_capture_creation_invalid");
+      const { adapter } = await this.marketplaceRoute(input.marketplaceAccount, "asaas");
+      return (adapter as AsaasPaymentAdapter).createCustomer(input);
+    }
     if (input.settlementMode === "delayed_merchant_payout") {
       if (!this.asaas) throw new Error("asaas_platform_account_not_configured");
       return this.asaas.createCustomer(input);
@@ -215,12 +316,14 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     // Prefer the immutable route captured when the payment was created. In
     // delayed-payout mode this selects the platform account, which is the
     // account that actually owns the charge until the return window closes.
-    if (input.provider) {
+    if (input.provider || input.marketplaceAccount) {
       const { adapter } = await this.creationRoute({
         merchantId: input.merchantId,
         provider: input.provider,
         method: "",
         settlementMode: input.settlementMode,
+        marketplaceAccount: input.marketplaceAccount,
+        providerAccountFingerprint: input.providerAccountFingerprint,
       });
       this.assertAccount(adapter, input.providerAccountFingerprint);
       if (!adapter.refundPayment) throw new Error("payment_provider_refund_unsupported");

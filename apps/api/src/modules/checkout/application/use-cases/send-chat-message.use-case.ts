@@ -73,19 +73,24 @@ export class SendChatMessageUseCase {
     @Optional() private readonly strategyChat?: StrategyCheckoutChatService,
   ) {}
 
-  async execute(input: ChatMessageRequest): Promise<ChatMessageResponse> {
+  async execute(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean }): Promise<ChatMessageResponse> {
     if (this.chatRequests) return this.chatRequests.run(input,
-      request => this.preflight(request), (request, claim) => this.processMessage(request, claim));
+      request => this.preflight(request, authority), (request, claim) => this.processMessage(request, claim));
     if (chatRequestsEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
-    await this.preflight(input);
+    await this.preflight(input, authority);
     return this.processMessage(input);
   }
 
-  private async preflight(input: ChatMessageRequest): Promise<void> {
+  private async preflight(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean }): Promise<void> {
     await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
-    await this.conversationRateLimit?.assertAllowed({
+    const storedSession = !authority?.aiUserId && this.conversationRateLimit
+      ? await this.sessions.getSession(input.merchant_id, input.session_id) : undefined;
+    const userId = authority?.aiUserId ?? (storedSession?.globalUserId && storedSession.customer?.email_verified
+      ? `buyer:${storedSession.globalUserId}` : storedSession ? `visitor:${storedSession.sessionId}` : undefined);
+    if (!authority?.voiceAdmitted) await this.conversationRateLimit?.assertAllowed({
       merchantId: input.merchant_id,
       sessionId: input.session_id,
+      userId,
     });
   }
 

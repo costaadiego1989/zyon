@@ -1,4 +1,4 @@
-import { Injectable } from "@nestjs/common";
+import { BadRequestException, Injectable } from "@nestjs/common";
 import { MARKETPLACE_SETTLEMENT_REPOSITORY } from "../../domain/ports/marketplace-settlement-repository.port.js";
 import type {
   MarketplaceSettlementRepository,
@@ -39,23 +39,42 @@ export class ListMarketplaceEventsUseCase {
   async execute(
     input: ListMarketplaceEventsInput,
   ): Promise<ListMarketplaceEventsOutput> {
+    if (!Number.isFinite(input.since.getTime()) || (input.limit !== undefined &&
+        (!Number.isInteger(input.limit) || input.limit < 1 || input.limit > 200))) {
+      throw new BadRequestException("invalid_marketplace_events_query");
+    }
     const settlements = await this.settlementRepository.findBySellerMerchantId(
       input.sellerMerchantId,
     );
 
-    // Filter settlements updated after 'since' — these are recent state changes
-    const recentlyChanged = settlements.filter(
-      (s) => s.updatedAt > input.since,
-    );
-
-    // Convert to events based on current status
-    const events: MarketplaceEvent[] = recentlyChanged
-      .map((s) => this.toEvent(s))
-      .filter((e): e is MarketplaceEvent => e !== null)
+    // Lifecycle timestamps retain earlier transitions after the status advances.
+    const events: MarketplaceEvent[] = settlements
+      .flatMap((s) => this.toEvents(s))
+      .filter((e) => new Date(e.createdAt) > input.since)
       .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime())
       .slice(0, input.limit ?? 50);
 
     return { events };
+  }
+
+  private toEvents(settlement: MarketplaceSettlementSnapshot): MarketplaceEvent[] {
+    const events: MarketplaceEvent[] = [];
+    const append = (type: MarketplaceEventType, suffix: string, at: Date | null) => {
+      if (at) events.push({ id: `evt_${settlement.id}_${suffix}`, type, settlementId: settlement.id,
+        amountCents: settlement.sellerNetCents, createdAt: at.toISOString() });
+    };
+    append("settlement_transferred", "transferred", settlement.transferredAt);
+    append("settlement_finalized", "finalized", settlement.finalizedAt);
+    append("return_cancelled", "return_cancelled", settlement.returnAt);
+    if (settlement.chargebackAt) {
+      const debt = settlement.status === "chargeback_debt";
+      append(debt ? "chargeback_debt_created" : "chargeback_received",
+        debt ? "chargeback_debt" : "chargeback_cancelled", settlement.chargebackAt);
+    }
+    // Preserve the current event for legacy rows without lifecycle timestamps.
+    const current = this.toEvent(settlement);
+    if (current && !events.some((e) => e.id === current.id)) events.push(current);
+    return events;
   }
 
   private toEvent(settlement: MarketplaceSettlementSnapshot): MarketplaceEvent | null {

@@ -46,8 +46,14 @@ export function planName(key: string) {
 export function planNoticeContent(notice: Pick<PlanNotice,"planKey"|"endsAt"|"milestone">) {
   const date = notice.endsAt.toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", dateStyle: "short", timeStyle: "short" });
   const expired = notice.milestone === "expired";
+  const trial = notice.planKey === "trial";
   const deadline = ({ "7d": "7 dias", "3d": "3 dias", "24h": "24 horas" } as Record<string,string>)[notice.milestone];
-  return { title: expired ? "Seu plano encerrou sem renovação confirmada" : `Seu plano vence em até ${deadline}`,
-    body: expired ? `O plano ${planName(notice.planKey)} terminou em ${date} (horário de Brasília). Ainda não identificamos a renovação. Acesse seus planos para consultar a assinatura e regularizar o acesso.`
+  if (trial) return {
+    title: expired ? "Seu período de avaliação terminou" : `Seu período de avaliação termina em até ${deadline}`,
+    body: expired ? `Seu período de avaliação na Zyon terminou em ${date} (horário de Brasília). Consulte os planos disponíveis no painel para continuar usando a plataforma.`
+      : `Seu período de avaliação na Zyon termina em ${date} (horário de Brasília). Consulte os planos e as condições de assinatura no painel.`,
+  };
+  return { title: expired ? "Renovação do plano ainda não confirmada" : `Renovação do plano: vencimento em até ${deadline}`,
+    body: expired ? `O período atual do plano ${planName(notice.planKey)} terminou em ${date} (horário de Brasília). Ainda não identificamos a renovação. Acesse seus planos para consultar a assinatura e regularizar o acesso.`
       : `O período atual do plano ${planName(notice.planKey)} termina em ${date} (horário de Brasília). Confira a renovação e a forma de pagamento na área de planos da Zyon.` };
 }

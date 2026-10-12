@@ -5,6 +5,11 @@ import { RealtimeCapabilityService } from "../../../shared/auth/realtime-capabil
 export class AuthorizeStorefrontCartService {
   constructor(private readonly capabilities: RealtimeCapabilityService) {}
 
+  userIdentity(input: { token: unknown; merchantId: string; cartRef: string; origin: string }): string | undefined {
+    this.authorize(input);
+    return this.capabilities.verify(input.token, "storefront-conversation", input.origin).aiUserId;
+  }
+
   authorize(input: { token: unknown; merchantId: string; cartRef: string; origin: string }): string {
     try {
       const claims = this.capabilities.verify(input.token, "storefront-conversation", input.origin);

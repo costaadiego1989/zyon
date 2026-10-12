@@ -1,3 +1,6 @@
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { assertCartStock } from "../../catalog/application/services/cart-stock-authority.js";
 import {
   BadGatewayException,
   BadRequestException,
@@ -5,9 +8,11 @@ import {
   Inject,
   Injectable,
   NotFoundException,
+  ServiceUnavailableException,
   Optional
 , Logger} from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { requiresPhysicalDelivery } from "../../checkout/domain/services/cart-fulfillment.js";
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
 import { PaymentIntentConflictError } from "../domain/payment-persistence.js";
@@ -41,7 +46,10 @@ import { OrderQuotaService } from "./services/order-quota.service.js";
 import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
 import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
 import { resolveCheckoutPaymentCapabilities } from "../domain/checkout-payment-routing.js";
+import { hasMarketplaceCheckout } from "../../checkout/infrastructure/marketplace-checkout-scope.js";
+import { CreateMarketplacePaymentService } from "./create-marketplace-payment.service.js";
 import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
+import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../shared/bookings/service-slot-holds.service.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -131,7 +139,7 @@ function resolveAsaasCustomerForProvider(asaasCustomer: string | undefined): str
 }
 
 function assertCheckoutReadyForPayment(session: CheckoutSession): void {
-  if (session.cart.items.length > 0 && !session.shipping) {
+  if (session.cart.items.length > 0 && requiresPhysicalDelivery(session.cart) && !session.shipping) {
     throw new BadRequestException("shipping_method_required_before_payment");
   }
 }
@@ -270,28 +278,52 @@ export class CreatePaymentIntentUseCase {
     private readonly buyerAccount?: BuyerAccountRepository,
     @Optional() private readonly billingMetering?: BillingPlanMeteringService,
     private readonly orderQuota?: OrderQuotaService,
+    @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Inject(CreateMarketplacePaymentService) private readonly marketplacePayments?: CreateMarketplacePaymentService,
     @Optional() private readonly benefits?: CheckoutBenefitsService,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
   ) { }
 
-  async execute(body: CreatePaymentIntentRequest): Promise<CreatePaymentIntentResponseBody> {
+  async execute(body: CreatePaymentIntentRequest, context?: { marketplaceSurface: "embed" | "v1" }): Promise<CreatePaymentIntentResponseBody> {
     const merchantId = body.merchant_id.trim();
     const sessionId = body.session_id.trim();
     const idempotencyKey = body.idempotency_key.trim();
     if (!merchantId || !sessionId || !idempotencyKey) throw new BadRequestException("payment_intent_scope_invalid");
+    if (!["pix", "card", "crypto"].includes(body.method ?? "pix")) {
+      throw new BadRequestException("payment_method_not_supported");
+    }
 
     let session = await this.checkout.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+    // Check the persisted scope before either legacy creation or retry. A
+    // stale snapshot can omit line markers or the original storefront cart.
+    if (!this.prisma) throw new ServiceUnavailableException("marketplace_checkout_scope_unavailable");
+    if (await hasMarketplaceCheckout(this.prisma, { merchantId, sessionId, session })) {
+      if (!context || !["embed", "v1"].includes(context.marketplaceSurface)) throw new ServiceUnavailableException("marketplace_checkout_not_ready");
+      if (!this.marketplacePayments) throw new ServiceUnavailableException("marketplace_checkout_not_ready");
+      return this.marketplacePayments.executePublic({ ...body, merchant_id: merchantId, session_id: sessionId, idempotency_key: idempotencyKey });
+    }
     assertCheckoutReadyForPayment(session);
+
+    const sessionAttempts = await this.payments.listForSession?.(merchantId, sessionId) ?? [];
+    if (sessionAttempts.some(row => ["pending", "requires_action"].includes(row.status) &&
+        ["in_flight", "uncertain"].includes(row.snapshot().creation?.cancellation?.state ?? ""))) {
+      throw new ConflictException("payment_cancellation_pending");
+    }
 
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
     if (existing) {
       assertSameRequest(existing.snapshot(), body, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(existing));
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(existing, () => this.assertStock(session!)));
     }
 
     // An existing idempotency key is an admission made before a later block.
     // Only a brand-new provider/payment attempt must pass the commercial gate.
+    if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
+    await assertCartStock(this.prisma, merchantId, session.cart.items);
     await this.orderQuota?.assertCanAcceptNewSales(merchantId);
+    if (sessionSlotRequests(session).length && !this.serviceSlots) throw new ServiceUnavailableException("service_schedule_temporarily_unavailable");
+    await this.serviceSlots?.assertBeforePayment(session);
 
     const method: PaymentMethod = body.method ?? "pix";
     // Interactive and quick-purchase intents share this server guard.
@@ -305,7 +337,7 @@ export class CreatePaymentIntentUseCase {
     const commerceOrderId = await this.ensurePendingCommerceOrder(merchantId, sessionId, session);
 
     const itemsSubtotalCents = session.cart.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
-    const shippingCents = Math.round((session.shipping?.customerPrice ?? 0) * 100);
+    const shippingCents = requiresPhysicalDelivery(session.cart) ? Math.round((session.shipping?.customerPrice ?? 0) * 100) : 0;
     const discountCents = Math.round((session.cart.currentDiscount ?? 0) * 100);
     const orderAmountCents = itemsSubtotalCents + shippingCents - discountCents;
     if (orderAmountCents <= 0) throw new BadRequestException("payment_intent_amount_invalid");
@@ -576,7 +608,7 @@ export class CreatePaymentIntentUseCase {
           : await this.checkout.reviseIncentiveForPaymentReview?.(merchantId, sessionId);
         if (revised) {
           const subtotal = Math.round(revised.cart.total * 100), discount = Math.round((revised.cart.currentDiscount ?? 0) * 100);
-          const shipping = Math.round((revised.shipping?.customerPrice ?? 0) * 100), orderTotal = subtotal - discount + shipping;
+          const shipping = requiresPhysicalDelivery(revised.cart) ? Math.round((revised.shipping?.customerPrice ?? 0) * 100) : 0, orderTotal = subtotal - discount + shipping;
           throw new ConflictException({ code: "checkout_review_required",
           message: progressed ? "Seu desconto aumentou. Confira o novo total e confirme o pedido novamente antes de pagar."
             : "O desconto deixou de estar disponível. Confira o novo total e confirme o pedido novamente antes de pagar.",
@@ -592,9 +624,14 @@ export class CreatePaymentIntentUseCase {
       const winner = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
       if (!winner) throw new ConflictException("payment_creation_concurrent_change");
       assertSameRequest(winner.snapshot(), { ...body, method }, session);
-      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(winner));
+      return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(winner, () => this.assertStock(session)));
     }
-    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider).execute(intent));
+    return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(intent, () => this.assertStock(session)));
+  }
+
+  private async assertStock(session: CheckoutSession): Promise<void> {
+    if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
+    await assertCartStock(this.prisma, session.merchantId, session.cart.items);
   }
 
   private async validateAcceptedOffer(

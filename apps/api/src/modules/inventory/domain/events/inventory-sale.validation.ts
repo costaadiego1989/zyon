@@ -7,12 +7,13 @@ export function validateInventorySale(event: SaleCompletedEvent): SaleCompletedE
     typeof event.timestamp !== "string" || !Number.isFinite(Date.parse(event.timestamp))) throw new Error("inventory_sale_invalid");
   const items = new Map<string, SaleCompletedEvent["items"][number]>();
   for (const item of event.items) {
+    if (item?.productType !== undefined && !["physical", "food", "service", "digital"].includes(item.productType)) throw new Error("inventory_sale_item_type_invalid");
     if (!item || !validId(item.sku) || !Number.isSafeInteger(item.quantity) || item.quantity <= 0 ||
       (item.locationId !== undefined && !validId(item.locationId)) || (item.variantId !== undefined && !validId(item.variantId))) throw new Error("inventory_sale_item_invalid");
-    const key = JSON.stringify([item.sku, item.locationId ?? null, item.variantId ?? null]);
+    const key = JSON.stringify([item.sku, item.locationId ?? null, item.variantId ?? null, ...(item.productType ? [item.productType] : [])]);
     const quantity = (items.get(key)?.quantity ?? 0) + item.quantity;
     if (!Number.isSafeInteger(quantity) || quantity > 2147483647) throw new Error("inventory_sale_quantity_invalid");
-    items.set(key, { sku: item.sku, quantity, ...(item.variantId ? { variantId: item.variantId } : {}), ...(item.locationId ? { locationId: item.locationId } : {}) });
+    items.set(key, { sku: item.sku, quantity, ...(item.productType ? { productType: item.productType } : {}), ...(item.variantId ? { variantId: item.variantId } : {}), ...(item.locationId ? { locationId: item.locationId } : {}) });
   }
   return { merchantId: event.merchantId, orderId: event.orderId, items: [...items.entries()].sort(([a], [b]) => a < b ? -1 : a > b ? 1 : 0).map(([, item]) => item),
     totalCents: event.totalCents, timestamp: new Date(event.timestamp).toISOString(),

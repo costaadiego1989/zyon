@@ -1,5 +1,5 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { S3Client, PutObjectCommand, DeleteObjectCommand } from "@aws-sdk/client-s3";
+import { S3Client, PutObjectCommand, DeleteObjectCommand, GetObjectCommand } from "@aws-sdk/client-s3";
 import { createPresignedPost } from "@aws-sdk/s3-presigned-post";
 import { randomUUID } from "node:crypto";
 
@@ -122,6 +122,22 @@ export class S3UploadService {
 
   isConfigured(): boolean {
     return this.client !== null;
+  }
+
+  async uploadPrivate(buffer: Buffer, key: string): Promise<void> {
+    if (!this.client) throw new Error("s3_not_configured");
+    await this.client.send(new PutObjectCommand({ Bucket: this.bucket, Key: key, Body: buffer, ContentType: "application/octet-stream", CacheControl: "private, no-store" }));
+  }
+
+  async readPrivate(key: string): Promise<Buffer> {
+    if (!this.client) throw new Error("s3_not_configured");
+    const response = await this.client.send(new GetObjectCommand({ Bucket: this.bucket, Key: key }));
+    if (!response.Body) throw new Error("attachment_not_found");
+    return Buffer.from(await response.Body.transformToByteArray());
+  }
+  async deletePrivate(key: string): Promise<void> {
+    if (!this.client || !key.startsWith("private-support/") || !key.endsWith(".enc")) throw new Error("invalid_private_attachment_key");
+    await this.client.send(new DeleteObjectCommand({ Bucket: this.bucket, Key: key }));
   }
 
   /** True only when the URL is an object in this configured bucket and folder. */

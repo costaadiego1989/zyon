@@ -7,6 +7,7 @@ export interface StorefrontCartSelectedOption {
 }
 
 export interface StorefrontCartItem {
+  selectedServiceSlot?: import("../../../catalog/domain/services/service-schedule.js").SelectedServiceSlot;
   variantId: string;
   productId: string;
   /** Product category captured from the merchant catalog for rule evaluation. */
@@ -19,6 +20,8 @@ export interface StorefrontCartItem {
   imageUrl?: string;
   /** Chosen food options (size, add-ons) composing this line, when applicable. */
   selectedOptions?: StorefrontCartSelectedOption[];
+
+marketplace?: { lineItemId: string; sellerMerchantId: string; sellerName?: string; federatedProductId: string };
 }
 
 export interface StorefrontCart {
@@ -56,3 +59,5 @@ export interface StorefrontCartPort {
     outcome: { discountCents: number; freeShipping: boolean },
   ): Promise<StorefrontCart>;
 }
+
+

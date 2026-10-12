@@ -1,3 +1,4 @@
+import type { PublicServiceSchedule } from "../../../catalog/domain/services/service-schedule.js";
 export interface ProductCardBlock {
   type: "product_card";
   data: {
@@ -19,6 +20,8 @@ export interface ProductCardBlock {
     stock?: number;
     sku?: string;
     detailed?: boolean;
+    productType?: "physical" | "digital" | "service" | "food";
+    serviceSchedule?: PublicServiceSchedule;
     optionGroups?: Array<{
       id: string;
       name: string;
@@ -66,6 +69,8 @@ export interface CartSummaryBlock {
       price: number;
       subtotal: number;
       imageUrl?: string;
+      selectedOptions?: Array<{ groupName: string; itemName: string; priceModifier: number }>;
+      selectedServiceSlotId?: string;
     }>;
     itemCount: number;
     subtotal: number;
@@ -76,6 +81,12 @@ export interface CartSummaryBlock {
     nextNudge?: { kind: string; gap?: number; message: string; reachable: boolean; ruleId?: string };
     activeRules?: Array<{ ruleId?: string; message: string }>;
   };
+}
+
+/** Admission result for the exact buyer add command; it never authorizes payment. */
+export interface CartAddResultBlock {
+  type: "cart_add_result";
+  data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string };
 }
 
 export interface ShippingOptionsBlock {
@@ -232,6 +243,7 @@ export interface CouponListBlock {
 }
 
 export type ConversationBlock =
+  | { type: "cart_add_result"; data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string } }
   | ProductCardBlock
   | ProductCarouselBlock
   | ComparisonTableBlock

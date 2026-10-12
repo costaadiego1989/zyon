@@ -19,12 +19,12 @@ export function planLink() {
 export function renderPlanNoticeEmail(notice: PlanNotice, merchantName: string) {
   const { title, body } = planNoticeContent(notice);
   return { subject: `Zyon | ${title}`.replace(/[\r\n]/g, " "),
-    html: `<!doctype html><html lang="pt-BR"><meta charset="utf-8"><body style="margin:0;background:#f5f7f6;color:#22332d;font-family:Arial,sans-serif">
+    html: `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>${escape(title)}</title></head><body style="margin:0;background:#f5f7f6;color:#22332d;font-family:Arial,sans-serif">
       <main style="max-width:580px;margin:24px auto;padding:32px;background:#fdfefd;border:1px solid #dce4df;border-radius:12px">
-      <p style="font-size:13px;color:#50685b">ZYON · SUA ASSINATURA</p><h1 style="font-size:24px;line-height:1.3">${escape(title)}</h1>
+      <p style="font-size:13px;color:#50685b">ZYON · ${notice.planKey === "trial" ? "SUA AVALIAÇÃO" : "SUA ASSINATURA"}</p><h1 style="font-size:24px;line-height:1.3">${escape(title)}</h1>
       <p style="line-height:1.7">Olá, ${escape(merchantName)}.</p><p style="line-height:1.7">${escape(body)}</p>
       <p style="margin:28px 0"><a href="${escape(planLink())}" style="display:inline-block;padding:14px 22px;border-radius:8px;background:#246445;color:#f5faf7;text-decoration:none;font-weight:bold">Consultar meu plano</a></p>
-      <p style="font-size:12px;line-height:1.6;color:#50685b">Este é um aviso sobre sua assinatura. Você pode conferir o estado atualizado no painel.</p></main></body></html>` };
+      <p style="font-size:12px;line-height:1.6;color:#50685b">Este é um aviso sobre ${notice.planKey === "trial" ? "seu período de avaliação" : "sua assinatura"}. Consulte a situação atualizada no painel.</p></main></body></html>` };
 }
 
 @Injectable()

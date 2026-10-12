@@ -1,3 +1,5 @@
+import type { MarketplaceCarrierQuote } from "../marketplace-shipment-journal.js";
+import type { MarketplaceShippingContract } from "../marketplace-shipping-contract.js";
 import { randomUUID } from "node:crypto";
 import { computeQuoteExpiry, isQuoteExpired } from "@zyon/shipping-engine";
 import type { DomainEventEnvelope } from "@zyon/shared-types";
@@ -9,6 +11,10 @@ export type ShippingQuoteResult = {
   price: number;
   eta_days: number;
   is_free: boolean;
+
+currency?: string;
+marketplaceShipmentContract?: MarketplaceShippingContract;
+marketplaceCarrierQuote?: MarketplaceCarrierQuote;
 };
 
 export type ShippingQuoteSnapshot = {

@@ -16,7 +16,7 @@ export class SendReturnApprovedUseCase {
     await this.emailSender.send({
       to: event.buyerEmail,
       merchantId: event.merchantId,
-      subject: `Sua Devolução Foi Aprovada`,
+      subject: `Zyon | Devolução do pedido #${event.orderId} aprovada`,
       html,
       requireDelivery: true,
     });

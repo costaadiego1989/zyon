@@ -237,7 +237,7 @@ export class HandleMercadoPagoWebhookUseCase {
       );
       const after = intentEntity.snapshot();
       if (before.status === "approved" && after.status.startsWith("chargeback_")) {
-        await this.propagateMarketplaceChargeback(after.commerceOrderId ?? after.sessionId);
+        await this.propagateMarketplaceChargeback(after.providerPaymentId ?? after.commerceOrderId ?? after.sessionId, after.merchantId);
       }
       return `chargeback_${chargebackStatus}`;
     }
@@ -246,10 +246,10 @@ export class HandleMercadoPagoWebhookUseCase {
     return "noop_payment_pending_or_unknown";
   }
 
-  private async propagateMarketplaceChargeback(orderId: string | undefined): Promise<void> {
+  private async propagateMarketplaceChargeback(orderId: string | undefined, merchantId: string): Promise<void> {
     if (!this.marketplaceChargeback || !orderId) return;
     try {
-      const results = await this.marketplaceChargeback.executeForOrder(orderId);
+      const results = await this.marketplaceChargeback.executeForOrder(orderId, merchantId);
       if (results.length > 0) {
         this.logger.log(`Marketplace chargeback processed for order ${orderId}: ${results.length} settlement(s)`);
       }

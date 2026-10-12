@@ -8,6 +8,12 @@ export const REDACTED_LOG_PATHS = [
   "req.headers['asaas-access-token']",
   "req.headers['stripe-signature']",
   "req.body.password",
+  "req.body.images",
+  "req.body.imageUrls",
+  "req.body.notes",
+  "req.body.content",
+  "req.body.description",
+  "req.query.access_token",
   "req.body.code",
   "req.body.otp",
   "req.body.token",
@@ -35,3 +41,8 @@ export const REDACTED_LOG_PATHS = [
   "res.body.phone",
   "res.body.customer",
 ];
+
+// pino supplies a serialized copy. Never change the URL used by the router.
+export function redactRequestUrl<T extends { url?: string; [key: string]: unknown }>(req: T) {
+  return { ...req, url: req.url?.replace(/([?&](?:access_token|token|buyer_access_token)=)[^&#]*/gi, "$1[redacted]") };
+}

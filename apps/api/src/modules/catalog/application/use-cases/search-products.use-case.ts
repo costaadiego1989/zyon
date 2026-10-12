@@ -21,10 +21,13 @@ export class SearchProductsUseCase {
   ) {}
 
   async execute(input: SearchProductsInput): Promise<SearchProductsResult> {
-    const limit = Math.min(input.limit ?? 20, 100);
+    const limit = Math.max(1, Math.min(Number.isSafeInteger(input.limit) ? input.limit! : 20, 100));
+    if (input.offset !== undefined && (!Number.isSafeInteger(input.offset) || input.offset < 0)) input = { ...input, offset: 0 };
 
     // If no query or embeddings unavailable, use standard ILIKE search
-    if (!input.query || !this.embeddingService.isAvailable()) {
+    // Availability search owns its filtering, count and pagination. Semantic
+    // IDs must not reintroduce unavailable products after those filters.
+    if (input.status !== undefined || input.inStockOnly || !input.query || !this.embeddingService.isAvailable()) {
       return this.productRepo.search({ ...input, limit });
     }
 

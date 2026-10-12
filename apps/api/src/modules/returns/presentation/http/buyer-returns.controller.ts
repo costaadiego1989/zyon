@@ -1,123 +1,61 @@
-import { Body, Controller, Get, Post, Req, UseGuards, BadRequestException, Inject, Logger } from "@nestjs/common";
+import { BadRequestException, Body, Controller, Delete, Get, Post, Req, UseGuards, NotFoundException, Inject, Query } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
 import { BuyerJwtAuthGuard, currentBuyer } from "../../../buyer-account/presentation/http/buyer-jwt-auth.guard.js";
-import { RequestReturnUseCase } from "../../application/use-cases/request-return.use-case.js";
-import { UploadReturnImageUseCase } from "../../application/use-cases/upload-return-image.use-case.js";
-import { RETURN_REPOSITORY_PORT, type ReturnRepositoryPort } from "../../domain/ports/return-repository.port.js";
-import { S3UploadService } from "../../../../shared/storage/s3-upload.service.js";
-import { CreateSupportTicketUseCase } from "../../../support/application/create-support-ticket.use-case.js";
-
-const RETURN_REASON_LABELS: Record<string, string> = {
-  DEFECTIVE: "Produto com defeito",
-  WRONG_ITEM: "Recebi item errado",
-  NOT_AS_DESCRIBED: "Diferente do anúncio",
-  CHANGED_MIND: "Mudei de ideia",
-  DAMAGED_IN_TRANSIT: "Danificado no transporte",
-  OTHER: "Outro motivo",
-};
-
-const MAX_RETURN_IMAGES = 3;
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { ReturnCaseService, type OpenReturnCaseInput } from "../../application/return-case.service.js";
+import { ReturnOrderService } from "../../application/return-order.service.js";
 
 @Controller("buyer/returns")
 @UseGuards(BuyerJwtAuthGuard)
 export class BuyerReturnsController {
-  private readonly logger = new Logger(BuyerReturnsController.name);
-
-  constructor(
-    private readonly requestReturn: RequestReturnUseCase,
-    private readonly uploadReturnImage: UploadReturnImageUseCase,
-    @Inject(RETURN_REPOSITORY_PORT) private readonly returnRepo: ReturnRepositoryPort,
-    private readonly s3: S3UploadService,
-    private readonly createSupportTicket: CreateSupportTicketUseCase,
-  ) {}
-
+  constructor(private readonly cases: ReturnCaseService, private readonly orders: ReturnOrderService,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  private draftScope(req: any, merchantId: string) {
+    const buyer = currentBuyer(req);
+    if (typeof merchantId !== "string" || !merchantId || (buyer.merchantId && buyer.merchantId !== merchantId)) throw new BadRequestException("merchant_not_allowed");
+    return { merchantId, buyerId: buyer.globalUserId };
+  }
+  @Get("draft")
+  async draft(@Req() req: any, @Query("merchantId") merchantId: string) {
+    const row = await this.prisma.returnDraft.findUnique({ where: { merchantId_buyerId: this.draftScope(req, merchantId) } });
+    return { data: row && row.updatedAt.getTime() > Date.now() - 30 * 86400000 ? row.data : null };
+  }
+  @Post("draft")
+  async saveDraft(@Req() req: any, @Body() body: { merchantId: string; data: { orderId?: string; step?: number; kind?: string; reason?: string; notes?: string; items?: unknown; requestKey?: string } }) {
+    const scope = this.draftScope(req, body.merchantId);
+    if (!body.data || JSON.stringify(body.data).length > 12000) throw new BadRequestException("invalid_return_draft");
+    const { orderId, step, kind, reason, notes, items, requestKey } = body.data;
+    const data = JSON.parse(JSON.stringify({ orderId, step, kind, reason, notes, items, requestKey }));
+    if (JSON.stringify(data).includes("data:image")) throw new BadRequestException("invalid_return_draft");
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${`return-order:${scope.merchantId}:${orderId}`},0))::text`;
+      const opened = typeof requestKey === "string" ? await tx.return.findFirst({ where: { ...scope, requestKey } }) : null;
+      if (!opened) await tx.returnDraft.upsert({ where: { merchantId_buyerId: scope }, create: { ...scope, data }, update: { data } });
+    });
+    return { success: true };
+  }
+  @Delete("draft")
+  async clearDraft(@Req() req: any, @Query("merchantId") merchantId: string) {
+    await this.prisma.returnDraft.deleteMany({ where: this.draftScope(req, merchantId) });
+    return { success: true };
+  }
   @Post("request")
-  async createReturnRequest(@Req() req: any, @Body() body: {
-    orderId: string;
-    merchantId: string;
-    reason: string;
-    title?: string;
-    description?: string;
-    items: Array<{ variantId: string; quantity: number; reason?: string }>;
-    images?: string[];
-  }) {
+  createReturnRequest(@Req() req: any, @Body() body: Omit<OpenReturnCaseInput, "buyerId"> & { title?: string; description?: string }) {
     const buyer = currentBuyer(req);
-    const buyerId = buyer.globalUserId;
-    if (!body.merchantId?.trim()) throw new BadRequestException("merchant_id_required");
-
-    // Upload buyer-supplied photos to S3 (best-effort). uploadBase64 validates the
-    // data:image/ prefix and rejects anything else, so non-image payloads are skipped.
-    // A single failed upload must not sink the whole return request — we keep the
-    // URLs that succeeded and log the rest.
-    const imageUrls: string[] = [];
-    const images = (body.images ?? []).slice(0, MAX_RETURN_IMAGES);
-    for (const img of images) {
-      try {
-        const { url } = await this.s3.uploadBase64(img, `returns/${body.merchantId}`);
-        imageUrls.push(url);
-      } catch (err) {
-        this.logger.warn(`[returns] image upload skipped: ${err instanceof Error ? err.message : "unknown"}`);
-      }
-    }
-
-    const returnEntry = await this.requestReturn.execute({
-      merchantId: body.merchantId,
-      orderId: body.orderId,
-      buyerId,
-      reason: body.reason,
-      notes: [body.title, body.description].filter(Boolean).join(" — "),
-      imageUrls,
-      items: body.items,
-    });
-
-    // Surface the return in the merchant support inbox. Best-effort: a ticket
-    // failure must not sink the already-persisted return.
-    let ticketId: string | null = null;
-    try {
-      const reasonLabel = RETURN_REASON_LABELS[body.reason] ?? body.reason;
-      const orderRef = body.orderId?.trim() ? `Pedido ${body.orderId.trim()}` : "Pedido não informado";
-      const detail = [body.title, body.description].filter(Boolean).join(" — ");
-      const buyerMessage = [
-        `[Devolução/Troca] ${reasonLabel}`,
-        orderRef,
-        detail,
-      ].filter(Boolean).join("\n");
-      const ticket = await this.createSupportTicket.execute({
-        merchantId: body.merchantId,
-        sessionId: returnEntry.id,
-        message: buyerMessage,
-        source: "return_request",
-      });
-      ticketId = ticket.id;
-    } catch (err) {
-      this.logger.warn(`[returns] support ticket creation failed: ${err instanceof Error ? err.message : "unknown"}`);
-    }
-
-    return {
-      returnId: returnEntry.id,
-      status: returnEntry.status,
-      imageCount: imageUrls.length,
-      ticketId,
-      message: "Solicitação de devolução criada com sucesso. O merchant será notificado.",
-    };
+    if (buyer.merchantId && buyer.merchantId !== body.merchantId) throw new NotFoundException("buyer_order_not_found");
+    return this.cases.open({ ...body, buyerId: buyer.globalUserId, notes: body.notes ?? [body.title, body.description].filter(Boolean).join(" — ") });
   }
-
+  @Get("orders")
+  async eligibleOrders(@Req() req: any, @Query("merchantId") merchantId?: string) {
+    const buyer = currentBuyer(req);
+    const scope = buyer.merchantId ?? merchantId;
+    const purchases = await this.prisma.buyerPurchaseRecord.findMany({ where: { globalUserId: buyer.globalUserId, ...(scope ? { merchantId: scope } : {}) }, orderBy: { completedAt: "desc" }, take: 100 });
+    const items = await Promise.all(purchases.map(p => this.orders.load(p.merchantId, p.orderId, buyer.globalUserId).catch(() => null)));
+    return { items: items.filter(Boolean) };
+  }
   @Get()
-  async listMyReturns(@Req() req: any) {
+  async listMyReturns(@Req() req: any, @Query("merchantId") merchantId?: string) {
     const buyer = currentBuyer(req);
-    const returns = await this.returnRepo.findByBuyerId(buyer.globalUserId);
-    return { returns };
-  }
-
-  @Post("upload-image")
-  async uploadImage(@Req() req: any, @Body() body: { dataUri: string; merchantId: string }) {
-    const buyer = currentBuyer(req);
-    if (!body.merchantId?.trim()) throw new BadRequestException("merchant_id_required");
-
-    const result = await this.uploadReturnImage.execute({
-      dataUri: body.dataUri,
-      merchantId: body.merchantId,
-    });
-
-    return { url: result.url };
+    return this.cases.list(buyer.globalUserId, buyer.merchantId ?? merchantId);
   }
 }

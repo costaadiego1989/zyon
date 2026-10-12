@@ -1,3 +1,10 @@
+import { PrepareMarketplaceCheckoutService } from "./application/prepare-marketplace-checkout.service.js";
+import { CreateMarketplacePaymentService } from "./application/create-marketplace-payment.service.js";
+import { MarketplacePublicPaymentAdmissionService } from "./application/marketplace-public-payment-admission.service.js";
+import { GetMarketplacePaymentCapabilityService } from "./application/get-marketplace-payment-capability.service.js";
+import { GetCurrentMarketplacePaymentService } from "./application/get-current-marketplace-payment.service.js";
+import { MarketplacePaymentResumeService } from "./application/marketplace-payment-resume.service.js";
+import { CancelPaymentIntentUseCase } from "./application/cancel-payment-intent.use-case.js";
 import { forwardRef, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
@@ -153,7 +160,14 @@ import {
     MerchantMercadoPagoController,
   ],
   providers: [
+    PrepareMarketplaceCheckoutService,
+    CreateMarketplacePaymentService,
+    MarketplacePublicPaymentAdmissionService,
+    GetMarketplacePaymentCapabilityService,
+    GetCurrentMarketplacePaymentService,
+    MarketplacePaymentResumeService,
     CancelCheckoutPaymentUseCase,
+    CancelPaymentIntentUseCase,
     RefundPaymentService,
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,
@@ -354,7 +368,11 @@ import {
     },
   ],
   exports: [
+    GetMarketplacePaymentCapabilityService,
+    GetCurrentMarketplacePaymentService,
+    MarketplacePaymentResumeService,
     CancelCheckoutPaymentUseCase,
+    CancelPaymentIntentUseCase,
     RefundPaymentService,
     CreatePaymentIntentUseCase,
     ConfirmCryptoPaymentUseCase,

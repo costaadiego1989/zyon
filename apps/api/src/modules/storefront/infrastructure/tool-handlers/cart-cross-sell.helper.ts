@@ -1,6 +1,7 @@
 import type { ProductRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import type { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
 import type { PrismaClient } from "@prisma/client";
+import { normalizeCrossSellStrategies } from "@zyon/shared-types";
 
 export interface CrossSellConfig {
   enabled: boolean;
@@ -47,16 +48,20 @@ export async function buildCrossSellSuggestions(
   cart: CartSnapshot,
   crossSellConfig: CrossSellConfig,
   productName: string,
+  referenceItem?: CartLineItem,
 ): Promise<CrossSellSuggestion[]> {
   let crossSellSuggestions: CrossSellSuggestion[] = [];
   const maxSuggestions = crossSellConfig.limits.maxSuggestionsPerSession ?? 3;
-  if (maxSuggestions <= 0 || !crossSellConfig.strategies.length) return [];
+  const strategies = normalizeCrossSellStrategies(crossSellConfig.strategies);
+  if (maxSuggestions <= 0 || !strategies.length || !deps.listEligibleCrossSells) return [];
   const cartVariantIds = cart.items.map((i) => i.variantId);
+  // Product details supply recommendation context without changing the saved cart.
+  const contextItems = referenceItem && !cartVariantIds.includes(referenceItem.variantId) ? [...cart.items, referenceItem] : cart.items;
   const variantToSku = new Map<string, string>();
   const variantToCategory = new Map<string, string>();
   try {
     const variants = await deps.prisma.productVariant.findMany({
-      where: { id: { in: cartVariantIds }, product: { merchantId } },
+      where: { id: { in: contextItems.map(item => item.variantId) }, product: { merchantId } },
       select: {
         id: true,
         sku: true,
@@ -72,8 +77,8 @@ export async function buildCrossSellSuggestions(
 
   const engineCart = {
     currency: "BRL" as const,
-    total: cart.total / 100,
-    items: cart.items.map((i) => {
+    total: contextItems.reduce((sum, item) => sum + item.unitPriceCents * item.quantity, 0) / 100,
+    items: contextItems.map((i) => {
       const variantId = i.variantId;
       return {
         sku: i.sku ?? variantToSku.get(variantId) ?? variantId,
@@ -91,7 +96,7 @@ export async function buildCrossSellSuggestions(
       session_id: cart.sessionId || `sf_${Date.now()}`,
       merchant_id: merchantId,
       cart: engineCart,
-      enabled_strategies: crossSellConfig.strategies as import("@zyon/shared-types").CrossSellStrategy[],
+      enabled_strategies: strategies,
     });
 
     if (suggestions.length > 0) {
@@ -122,21 +127,6 @@ export async function buildCrossSellSuggestions(
         }
       }
     }
-  }
-
-  if (crossSellSuggestions.length === 0) {
-    const products = await deps.productRepo.search({ merchantId, limit: 10, isActiveOnly: true });
-    crossSellSuggestions = products.products
-      .filter((p) => p.name !== productName && p.hasStock && !p.variants.some((v) => cartVariantIds.includes(v.id)))
-      .slice(0, maxSuggestions)
-      .map((p) => ({
-        name: p.name,
-        sku: p.variants[0]?.id ?? p.id,
-        price: (p.variants[0]?.basePriceInCents ?? 0) / 100,
-        imageUrl: p.variants[0]?.media?.[0]?.url,
-        // Fallback products have no authorized promotion; do not advertise a discount.
-        couponCode: crossSellConfig.discount.enabled && crossSellConfig.discount.mode === "coupon" ? crossSellConfig.discount.couponCode : undefined,
-      }));
   }
 
   return crossSellSuggestions;

@@ -14,6 +14,7 @@ import type { PrismaClient } from "@prisma/client";
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import type { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { Logger } from "@nestjs/common";
+import { resolveSelectedServiceSlot, ServiceSlotError, type SelectedServiceSlot } from "../../../catalog/domain/services/service-schedule.js";
 import { buildCrossSellSuggestions, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import { CartRulesEngine, buildCartRuleContext, toEngineCart } from "../../domain/services/cart-rules-engine.service.js";
 import { RuleProximityEngine, type RuleNudge, type ActiveRuleBadge } from "../../domain/services/rule-proximity.service.js";
@@ -132,6 +133,7 @@ function toCartLineDto(
     unitPriceCents: number;
     imageUrl?: string;
     selectedOptions?: StorefrontCartSelectedOption[];
+    selectedServiceSlot?: SelectedServiceSlot;
   },
   meta?: ProductPromoMeta,
 ) {
@@ -143,6 +145,7 @@ function toCartLineDto(
     unitPrice: i.unitPriceCents / 100,
     lineTotal: (i.unitPriceCents * i.quantity) / 100,
     imageUrl: i.imageUrl,
+    selectedServiceSlot: i.selectedServiceSlot,
     // Promo badge metadata (present only when an active product promotion applied).
     ...(badge
       ? {
@@ -340,9 +343,12 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
 
       if (resolvedProduct?.type !== "digital" && resolvedProduct?.type !== "service") {
         try {
+          const existingCart = await deps.cartRepo.getOrCreate(ctx.merchantId, sessionId);
+          const requestedQuantity = args.quantity + existingCart.items.filter(i => i.variantId === resolvedVariantId).reduce((n, i) => n + i.quantity, 0);
           const stock = await deps.stockRepo.getAvailableStock(resolvedVariantId);
-          if (stock.quantity < Math.max(1, args.quantity)) {
-            logger.warn("cart.stock.insufficient", { variantId: resolvedVariantId, requestedQuantity: args.quantity, availableQuantity: stock.quantity });
+          const availableQuantity = Math.max(0, stock.quantity - stock.reserved);
+          if (!Number.isFinite(availableQuantity) || availableQuantity < requestedQuantity) {
+            logger.warn("cart.stock.insufficient", { variantId: resolvedVariantId, requestedQuantity, availableQuantity });
             return { error: "variant_out_of_stock", detail: "A variacao escolhida nao possui estoque suficiente." };
           }
         } catch {
@@ -355,6 +361,14 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       // never dictates price (deterministic offer-math). A missing required
       // group, an unknown item id, or multiple picks in a single-select group is
       // rejected rather than silently priced wrong.
+      let selectedServiceSlot: SelectedServiceSlot | undefined;
+      try {
+        if (resolvedProduct?.type === "service") selectedServiceSlot = resolveSelectedServiceSlot(resolvedProduct.metadata, args.selectedServiceSlotId);
+        else if (args.selectedServiceSlotId) return { error: "service_slot_unknown" };
+      } catch (error) {
+        if (error instanceof ServiceSlotError) return { error: error.code };
+        throw error;
+      }
       let selectedOptions: StorefrontCartSelectedOption[] | undefined;
       const optionGroups = extractOptionGroups(resolvedProduct?.metadata);
       const requestedItemIds = Array.isArray(args.selectedOptionItemIds) ? args.selectedOptionItemIds : [];
@@ -442,6 +456,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         imageUrl,
         quantity: args.quantity,
         selectedOptions,
+        ...(selectedServiceSlot ? { selectedServiceSlot } : {}),
       });
 
       // Cross-store: mirror the federated item into cross_store_line_items with
@@ -490,6 +505,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       return {
         cartId: cart.sessionId,
         items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
+        addedItem: { variantId: resolvedVariantId, serviceSlotId: selectedServiceSlot?.slotId,
+          optionItemIds: (selectedOptions ?? []).map(option => option.itemId) },
         total: cart.total / 100,
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
@@ -533,6 +550,20 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     updateCartItem: async (args) => {
+      if (!Number.isSafeInteger(args.quantity) || args.quantity < 0 || args.quantity > 99) return { error: "cart_quantity_invalid" };
+      const current = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
+      const lines = current.items.filter(i => i.variantId === args.variantId);
+      if (!lines.length) return { error: "cart_item_not_found" };
+      if (args.quantity > 0 && lines.length > 1) return { error: "cart_option_line_selection_required" };
+      const product = args.quantity > 0 ? await deps.productRepo.findById(ctx.merchantId, lines[0]!.productId) : null;
+      if (args.quantity > 0 && (!product || !product.isActive || !product.variants.some(v => v.id === args.variantId && v.isActive))) return { error: "product_unavailable" };
+      if (args.quantity > 0 && product && product.type !== "digital" && product.type !== "service") {
+        try {
+          const stock = await deps.stockRepo.getAvailableStock(args.variantId);
+          const available = Math.max(0, stock.quantity - stock.reserved);
+          if (!Number.isFinite(available) || args.quantity > available) return { error: "variant_out_of_stock", detail: "A variação escolhida não possui estoque suficiente." };
+        } catch { return { error: "stock_validation_unavailable", detail: "Não foi possível validar o estoque agora." }; }
+      }
       const updated = await deps.cartRepo.updateItemQuantity(ctx.merchantId, ctx.sessionId, args.variantId, args.quantity);
       const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, ctx.sessionId, updated);
       return {

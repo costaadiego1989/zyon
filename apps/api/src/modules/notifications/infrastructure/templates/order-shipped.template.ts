@@ -1,11 +1,11 @@
 import { OrderShippedEvent } from "../../domain/events/notification.events.js";
+import { escapeEmailHtml } from "../../../../shared/messaging/email-content.js";
 
 export function renderOrderShippedTemplate(event: OrderShippedEvent): string {
-  const baseUrl = process.env.STOREFRONT_URL || "https://app.zyon.com.br";
   const brandColor = "#2563eb";
   const year = new Date().getFullYear();
   const trackingUrl = event.trackingNumber
-    ? `https://melhorrastreio.com.br/rastreio/${event.trackingNumber}`
+    ? `https://melhorrastreio.com.br/rastreio/${encodeURIComponent(event.trackingNumber)}`
     : null;
 
   return `<!DOCTYPE html>
@@ -34,10 +34,10 @@ export function renderOrderShippedTemplate(event: OrderShippedEvent): string {
           <tr>
             <td style="padding: 32px 32px 0;">
               <p style="margin: 0; color: #1f2937; font-size: 15px; line-height: 1.6;">
-                Olá${event.buyerName ? ` <strong>${event.buyerName}</strong>` : ""},
+                Olá${event.buyerName ? ` <strong>${escapeEmailHtml(event.buyerName)}</strong>` : ""},
               </p>
               <p style="margin: 8px 0 0; color: #4b5563; font-size: 14px; line-height: 1.6;">
-                Ótima notícia! Seu pedido foi despachado e está a caminho do endereço de entrega.
+                O envio do pedido <strong>#${escapeEmailHtml(event.orderId)}</strong> foi registrado. Consulte as informações disponíveis abaixo para acompanhar a entrega.
               </p>
             </td>
           </tr>
@@ -50,18 +50,18 @@ export function renderOrderShippedTemplate(event: OrderShippedEvent): string {
                   <td style="padding: 20px 24px;">
                     ${event.trackingNumber ? `
                     <p style="margin: 0 0 4px; color: #6b7280; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Código de Rastreio</p>
-                    <p style="margin: 0 0 16px; color: #1e40af; font-size: 18px; font-weight: 700; font-family: 'Courier New', monospace; letter-spacing: 1px;">${event.trackingNumber}</p>
+                    <p style="margin: 0 0 16px; color: #1e40af; font-size: 18px; font-weight: 700; font-family: 'Courier New', monospace; letter-spacing: 1px;">${escapeEmailHtml(event.trackingNumber)}</p>
                     ` : ""}
                     ${event.carrier ? `
                     <p style="margin: 0 0 4px; color: #6b7280; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Transportadora</p>
-                    <p style="margin: 0 0 16px; color: #1f2937; font-size: 14px;">${event.carrier}</p>
+                    <p style="margin: 0 0 16px; color: #1f2937; font-size: 14px;">${escapeEmailHtml(event.carrier)}</p>
                     ` : ""}
                     ${event.estimatedDelivery ? `
                     <p style="margin: 0 0 4px; color: #6b7280; font-size: 11px; font-weight: 600; text-transform: uppercase; letter-spacing: 0.5px;">Previsão de Entrega</p>
-                    <p style="margin: 0; color: #1f2937; font-size: 14px; font-weight: 600;">${event.estimatedDelivery}</p>
+                    <p style="margin: 0; color: #1f2937; font-size: 14px; font-weight: 600;">${escapeEmailHtml(event.estimatedDelivery)}</p>
                     ` : ""}
                     ${!event.trackingNumber && !event.carrier && !event.estimatedDelivery ? `
-                    <p style="margin: 0; color: #4b5563; font-size: 14px;">Em breve você receberá o código de rastreio para acompanhar a entrega.</p>
+                    <p style="margin: 0; color: #4b5563; font-size: 14px;">Não há informações de rastreamento neste aviso. Consulte o atendimento da loja para acompanhar a entrega.</p>
                     ` : ""}
                   </td>
                 </tr>
@@ -73,9 +73,9 @@ export function renderOrderShippedTemplate(event: OrderShippedEvent): string {
           <tr>
             <td style="padding: 0 32px 32px; text-align: center;">
               ${trackingUrl ? `
-              <a href="${trackingUrl}" style="display: inline-block; background-color: ${brandColor}; color: #ffffff; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; letter-spacing: 0.2px;">Rastrear Entrega</a>
+              <a href="${escapeEmailHtml(trackingUrl)}" style="display: inline-block; background-color: ${brandColor}; color: #ffffff; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; letter-spacing: 0.2px;">Rastrear entrega</a>
               ` : `
-              <a href="${baseUrl}/orders/${event.orderId}" style="display: inline-block; background-color: ${brandColor}; color: #ffffff; padding: 14px 36px; border-radius: 8px; font-weight: 600; font-size: 14px; text-decoration: none; letter-spacing: 0.2px;">Ver Pedido</a>
+              <p style="margin:0;color:#4b5563;font-size:14px;line-height:1.6;">Para consultar o pedido, volte à loja e abra sua área de compras.</p>
               `}
             </td>
           </tr>
@@ -106,7 +106,7 @@ export function renderOrderShippedTemplate(event: OrderShippedEvent): string {
           <tr>
             <td style="padding: 24px 32px; background: #f9fafb; border-top: 1px solid #f3f4f6; text-align: center;">
               <p style="margin: 0; color: #9ca3af; font-size: 12px; line-height: 1.5;">Este é um e-mail automático. Não responda.</p>
-              <p style="margin: 6px 0 0; color: #9ca3af; font-size: 12px;">© ${year} • Powered by Zyon</p>
+              <p style="margin: 6px 0 0; color: #9ca3af; font-size: 12px;">© ${year} · Enviado pela Zyon</p>
             </td>
           </tr>
         </table>
@@ -123,7 +123,7 @@ export function renderOrderShippedWhatsApp(event: OrderShippedEvent & { merchant
   const storeName = event.merchantName || "nossa loja";
   // Melhor Rastreio works for all carriers contracted via Melhor Envio
   const trackingUrl = event.trackingNumber
-    ? `https://melhorrastreio.com.br/rastreio/${event.trackingNumber}`
+    ? `https://melhorrastreio.com.br/rastreio/${encodeURIComponent(event.trackingNumber)}`
     : null;
 
   const lines = [
@@ -140,7 +140,7 @@ export function renderOrderShippedWhatsApp(event: OrderShippedEvent & { merchant
     }
   } else {
     lines.push(``);
-    lines.push(`📦 Em breve você receberá o código de rastreio.`);
+    lines.push(`📦 O código de rastreio não foi informado neste aviso. Consulte o atendimento da loja.`);
   }
 
   if (event.carrier) {

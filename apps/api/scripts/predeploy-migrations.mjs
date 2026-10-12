@@ -314,3 +314,7 @@ if (reservedCatalogMerchantSlug) {
     throw new Error(`Reserved showroom catalog seed failed${result.error ? `: ${result.error.message}` : ""}`);
   }
 }
+
+if (process.env.RETURNS_QA_SEED_MERCHANT_ID) {
+  await import('./seed-conversational-returns-qa.mjs');
+}

@@ -1,3 +1,6 @@
+import { resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
+import { createDigitalOrderFulfillment } from "../../../../shared/persistence/digital-order-fulfillment.js";
+import { initializeOrderFulfillment } from "../../../../shared/persistence/order-fulfillment.js";
 import { toCheckoutSession } from "./checkout-session.mapper.js";
 import { ConflictException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
@@ -491,6 +494,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> {
+    if (!this.inTransaction) return this.transaction(async (repository) => repository.saveCompletedOrder(order));
     // ON CONFLICT keeps the surrounding order/outbox transaction usable when a
     // concurrent delivery wins. Catching a unique violation would leave PostgreSQL aborted.
     const inserted = await this.prisma.completedOrder.createMany({
@@ -500,6 +504,11 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     if (!saved) throw new Error("completed_order_persistence_failed");
     if (saved.orderTotal !== order.orderTotal || saved.currency !== order.currency || saved.acceptedOfferId !== order.acceptedOfferId) {
       throw new Error("completed_order_idempotency_conflict");
+    }
+    if (inserted.count === 1) {
+      const persisted = await this.prisma.completedOrder.findUniqueOrThrow({ where: { merchantId_sessionId_externalOrderId: { merchantId: order.merchantId, sessionId: order.sessionId, externalOrderId: order.externalOrderId } } });
+      await createDigitalOrderFulfillment(this.prisma as Prisma.TransactionClient, persisted.id, order.merchantId);
+      await initializeOrderFulfillment(this.prisma as Prisma.TransactionClient, persisted.id, order.merchantId);
     }
     return { order: saved, idempotent: inserted.count === 0 };
   }
@@ -518,6 +527,12 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     });
     return row ? toCompletedOrder(row) : undefined;
   }
+
+  async findCompletedOrderById(merchantId: string, orderId: string): Promise<CompletedOrder | undefined> {
+    const row = await this.prisma.completedOrder.findFirst({ where: { merchantId, id: orderId } });
+    return row ? toCompletedOrder(row) : undefined;
+  }
+
 
   async findCompletedOrderByExternalOrderId(merchantId: string, externalOrderId: string): Promise<CompletedOrder | undefined> {
     const row = await this.prisma.completedOrder.findFirst({
@@ -778,12 +793,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
 }
 
 function resolveOverviewDateRange(period: StorePeriod): { from: Date; to: Date } {
-  const to = new Date();
-  const from = new Date(to);
-  if (period === "today") from.setHours(0, 0, 0, 0);
-  else if (period === "30d") from.setDate(from.getDate() - 30);
-  else if (period === "90d") from.setDate(from.getDate() - 90);
-  else from.setDate(from.getDate() - 7);
+  const { from, to } = resolveBusinessPeriod(period);
   return { from, to };
 }
 

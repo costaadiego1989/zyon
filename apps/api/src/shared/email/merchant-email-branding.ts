@@ -70,10 +70,10 @@ export function resolveMerchantEmailBranding(input: {
 
 function header(brand: MerchantEmailBranding): string {
   const logo = brand.logoUrl
-    ? `<img src="${escapeHtml(brand.logoUrl)}" width="148" alt="${escapeHtml(brand.merchantName)}" style="display:block;max-width:148px;height:auto;margin:0 auto 12px;border:0;outline:none;text-decoration:none">`
+    ? `<img src="${escapeHtml(brand.logoUrl)}" width="148" alt="${escapeHtml(brand.merchantName)}" style="display:block;max-width:148px;height:auto;margin:0 0 12px;border:0;outline:none;text-decoration:none">`
     : "";
   const accent = brand.accentColor ?? "#205c45";
-  return `<div style="text-align:center;padding:4px 0 20px">${logo}<p style="margin:0;color:${accent};font:700 13px/1.4 Arial,sans-serif;letter-spacing:.02em">${escapeHtml(brand.merchantName)}</p></div>`;
+  return `<div style="text-align:left;padding:4px 0 20px">${logo}<p style="margin:0;color:${accent};font:700 13px/1.4 Arial,sans-serif;letter-spacing:.02em">${escapeHtml(brand.merchantName)}</p></div>`;
 }
 
 function footer(brand: MerchantEmailBranding): string {
@@ -85,7 +85,7 @@ function footer(brand: MerchantEmailBranding): string {
   ].flatMap(([label, href]) => href ? [`<a href="${escapeHtml(href)}" style="color:#52665b;text-decoration:underline">${label}</a>`] : []);
   const cnpj = brand.cnpj ? `<p style="margin:6px 0 0">CNPJ: ${escapeHtml(brand.cnpj)}</p>` : "";
   const social = links.length ? `<p style="margin:10px 0 0">${links.join(" &nbsp;&middot;&nbsp; ")}</p>` : "";
-  return `<div style="margin-top:28px;padding-top:20px;border-top:1px solid #dce5df;text-align:center;color:#66756d;font:12px/1.55 Arial,sans-serif"><p style="margin:0">&copy; ${new Date().getFullYear()} ${escapeHtml(brand.merchantName)}</p>${cnpj}${social}<p style="margin:10px 0 0">Mensagem transacional da loja.</p></div>`;
+  return `<div style="margin-top:28px;padding-top:20px;border-top:1px solid #dce5df;text-align:left;color:#66756d;font:12px/1.55 Arial,sans-serif"><p style="margin:0">&copy; ${new Date().getFullYear()} ${escapeHtml(brand.merchantName)}</p>${cnpj}${social}<p style="margin:10px 0 0">Mensagem transacional da loja.</p></div>`;
 }
 
 /**

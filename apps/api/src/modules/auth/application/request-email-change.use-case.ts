@@ -103,7 +103,7 @@ export class RequestEmailChangeUseCase {
           Válido por <strong>10 minutos</strong>. Você tem até 5 tentativas.
         </p>
         <p style="font-size:12px;color:#94a3b8;line-height:1.5;margin:16px 0 0;">
-          Se você não solicitou esta alteração, ignore este email — sua conta permanece segura.
+          Se você não solicitou esta alteração, ignore este email e não compartilhe o código. O email só será alterado após a confirmação.
         </p>
       </div>
       <div style="border-top:1px solid #e2e8f0;padding:16px 32px;text-align:center;">

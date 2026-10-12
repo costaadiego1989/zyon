@@ -1,3 +1,4 @@
+import { cleanEmailSubject } from "../../../../shared/messaging/email-content.js";
 import { EmailProviderRejection } from "../../domain/ports/email-provider-rejection.js";
 import { Inject, Logger, Optional } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
@@ -35,6 +36,13 @@ export class ResendEmailAdapter implements EmailSenderPort {
   ) {}
 
   async send(input: SendEmailInput): Promise<SendEmailOutput> {
+    input = { ...input, subject: cleanEmailSubject(input.subject) };
+    // A sandbox can use the configured provider while dispatching only to approved test contacts.
+    const allowed = process.env.NOTIFICATION_EMAIL_ALLOWED_RECIPIENTS;
+    if (allowed !== undefined) {
+      const recipients = allowed.split(",").map(value => value.trim().toLowerCase()).filter(Boolean);
+      if (!recipients.includes(input.to.trim().toLowerCase())) return { messageId: "", status: "skipped" };
+    }
     // Fallback: console log if no API key (dev mode)
     if (!this.apiKey) {
       if (input.requireDelivery) return { messageId: "", status: "skipped" };
@@ -68,8 +76,8 @@ export class ResendEmailAdapter implements EmailSenderPort {
 
       if (!response.ok) {
         const error = (await response.json()) as ResendResponse;
-        logger.error(
-          `Resend API error (${response.status}): ${error.error || "Unknown error"}`,
+        if (!input.requireDelivery) logger.error(
+          `Resend API request failed (HTTP ${response.status})`,
         );
         if (response.status >= 400 && response.status < 500 && ![408,409].includes(response.status)) {
           throw new EmailProviderRejection(`resend_http_${response.status}`, [401,403,429].includes(response.status), `Resend API error: ${error.error || response.statusText}`);
@@ -88,7 +96,9 @@ export class ResendEmailAdapter implements EmailSenderPort {
         status: "sent",
       };
     } catch (err) {
-      logger.error(`Failed to send email to ${input.to}:`, err);
+      if (input.requireDelivery) logger.error(err instanceof EmailProviderRejection
+        ? "strict_email_provider_rejected" : "strict_email_acceptance_unknown");
+      else logger.error(`Email dispatch failed: ${err instanceof EmailProviderRejection ? err.code : "transport_error"}`);
       throw err;
     }
   }

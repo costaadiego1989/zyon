@@ -42,6 +42,7 @@ export class IssueEmbedSessionUseCase {
     cartRef?: string;
     storefrontCartRef?: string;
     recoveredCheckoutSessionId?: string;
+    aiUserId?: string;
   }): {
     embed_session_token: string;
     expires_at_unix: number;
@@ -72,7 +73,8 @@ export class IssueEmbedSessionUseCase {
       scopes,
       cartRef: sanitizeCartRef(input.cartRef),
       storefrontCartRef: sanitizeCartRef(input.storefrontCartRef),
-      recoveredCheckoutSessionId: input.recoveredCheckoutSessionId
+      recoveredCheckoutSessionId: input.recoveredCheckoutSessionId,
+      aiUserId: input.aiUserId ?? `visitor:${crypto.randomUUID()}`
     };
 
     const token = this.tokens.sign(claims);

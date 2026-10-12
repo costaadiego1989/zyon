@@ -12,6 +12,11 @@ export class PaymentIntentConflictError extends Error {
 }
 
 export function assertSamePaymentIdentity(current: PaymentIntentSnapshot, next: PaymentIntentSnapshot): void {
+  const cancellation = current.creation?.cancellation;
+  if (cancellation && (["operationId", "buyerId", "idempotencyKey", "providerPaymentId", "startedAt"] as const).some(key => cancellation[key] !== next.creation?.cancellation?.[key]) ||
+      cancellation?.mutationAttemptedAt && cancellation.mutationAttemptedAt !== next.creation?.cancellation?.mutationAttemptedAt) {
+    throw new Error("payment_cancellation_immutable_fields_changed");
+  }
   const fields = ["id", "merchantId", "sessionId", "idempotencyKey", "amountCents", "currency", "method", "acceptedOfferId", "commerceOrderId"] as const;
   const canReplaceProviderPaymentId =
     // Crypto starts with a deterministic quote reference and later stores the

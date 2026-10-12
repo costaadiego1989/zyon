@@ -27,6 +27,7 @@ import { OpenAIChatAdapter } from "./infrastructure/openai-chat.adapter.js";
 import { SupportController } from "./presentation/http/support.controller.js";
 import { SupportMessagesController } from "./presentation/http/support-messages.controller.js";
 import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
+import { SupportRealtimePublisher } from "./application/support-realtime.publisher.js";
 
 /**
  * SUPP-H1/H2: SendSupportMessageUseCase split across cohesive files.
@@ -52,6 +53,7 @@ import { SupportGateway } from "./infrastructure/gateways/support.gateway.js";
     SupportTicketEventPublisher,
     SupportHandoffService,
     SupportGateway,
+    SupportRealtimePublisher,
     {
       provide: SUPPORT_SETTINGS_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaSupportSettingsRepository(prisma),

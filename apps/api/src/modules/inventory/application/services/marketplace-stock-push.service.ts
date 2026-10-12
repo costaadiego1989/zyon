@@ -4,6 +4,8 @@ import type { ErpRepositoryPort } from "../../domain/ports/erp-repository.port.j
 import type { InventoryRepositoryPort } from "../../domain/ports/inventory-repository.port.js";
 import { ERP_REPOSITORY } from "../../domain/ports/erp-repository.port.js";
 import { INVENTORY_REPOSITORY } from "../../domain/ports/inventory-repository.port.js";
+import { TIKTOKSHOP_TOKEN_PORT, type TikTokShopTokenPort } from "../../domain/ports/tiktokshop-token.port.js";
+import { SHOPEE_TOKEN_PORT, type ShopeeTokenPort } from "../../domain/ports/shopee-token.port.js";
 import { createMarketplaceAdapter, isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
 import { decryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
 
@@ -25,6 +27,8 @@ export class MarketplaceStockPushService {
   constructor(
     @Inject(ERP_REPOSITORY) private readonly erpRepo: ErpRepositoryPort,
     @Inject(INVENTORY_REPOSITORY) private readonly inventoryRepo: InventoryRepositoryPort,
+    @Inject(TIKTOKSHOP_TOKEN_PORT) private readonly tiktokTokens: TikTokShopTokenPort,
+    @Inject(SHOPEE_TOKEN_PORT) private readonly shopeeTokens?: ShopeeTokenPort,
   ) {}
 
   async pushAfterSale(event: SaleCompletedEvent): Promise<void> {
@@ -38,12 +42,16 @@ export class MarketplaceStockPushService {
       if (marketplaceConnections.length === 0) return;
 
       for (const conn of marketplaceConnections) {
-        const adapter = createMarketplaceAdapter(conn.provider);
+        const adapter = createMarketplaceAdapter(conn.provider, conn.config ?? {});
         if (!adapter) continue;
 
         let accessToken: string;
         try {
-          accessToken = decryptErpSecret(conn.accessTokenCipher!);
+          accessToken = conn.provider === "tiktokshop"
+            ? await this.tiktokTokens.getValidAccessToken(event.merchantId, conn.id)
+            : conn.provider === "shopee" && this.shopeeTokens
+              ? await this.shopeeTokens.getValidAccessToken(event.merchantId, conn.id)
+            : decryptErpSecret(conn.accessTokenCipher!);
         } catch {
           this.logger.warn(`marketplace.push.decrypt_failed`, { merchantId: event.merchantId, provider: conn.provider });
           continue;
@@ -52,12 +60,17 @@ export class MarketplaceStockPushService {
         for (const item of event.items) {
           try {
             // Get current inventory quantity (after decrement already happened)
-            const invItem = await this.inventoryRepo.findBySku(event.merchantId, item.sku, conn.id);
+            const managed = conn.provider === "tiktokshop" || conn.provider === "shopee";
+            const locationId = managed ? conn.config?.inventoryLocationId : conn.id;
+            if (typeof locationId !== "string" || !locationId) throw new Error("marketplace_inventory_location_missing");
+            const invItem = await this.inventoryRepo.findBySku(event.merchantId, item.sku, locationId);
+            if (managed && !invItem) throw new Error(`${conn.provider}_inventory_sku_missing`);
             // Try default location too
-            const currentQty = invItem?.quantity ?? 0;
+            const currentQty = (invItem?.quantity ?? 0) - (managed ? invItem?.reserved ?? 0 : 0);
 
             // Push new stock level to marketplace
-            await adapter.updateStock(accessToken, item.sku, Math.max(0, currentQty));
+            const pushed = await adapter.updateStock(accessToken, item.sku, Math.max(0, currentQty));
+            if (!pushed) throw new Error("marketplace_stock_update_rejected");
 
             this.logger.debug(`marketplace.push.ok`, {
               provider: conn.provider,
@@ -65,6 +78,7 @@ export class MarketplaceStockPushService {
               newQty: currentQty,
             });
           } catch (err) {
+            if (conn.provider === "shopee") await this.erpRepo.markError(event.merchantId, conn.id, "shopee_stock_push_failed");
             this.logger.warn(`marketplace.push.item_failed`, {
               provider: conn.provider,
               sku: item.sku,

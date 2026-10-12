@@ -1,3 +1,17 @@
+import { MarketplaceOperationalAlertService } from "./application/services/marketplace-operational-alert.service.js";
+import { MarketplaceOperationalAlertJob } from "./application/services/marketplace-operational-alert.job.js";
+import { MarketplaceOperationalAlertSender } from "./infrastructure/adapters/marketplace-operational-alert.sender.js";
+import { MarketplaceOperationalAlertMetrics } from "./infrastructure/marketplace-operational-alert.metrics.js";
+import { PrismaMarketplaceOperationalAlertRepository } from "./infrastructure/repositories/prisma-marketplace-operational-alert.repository.js";
+import { MarketplaceOperationalAlertController } from "./presentation/http/marketplace-operational-alert.controller.js";
+import { DigitalFulfillmentService } from "./application/services/digital-fulfillment.service.js";
+import { DigitalDownloadLinkService } from "./domain/services/digital-download-link.service.js";
+import { DigitalDeliveryListener } from "./presentation/listeners/digital-delivery.listener.js";
+import { DigitalDownloadController } from "./presentation/http/digital-download.controller.js";
+import { AuthModule } from "../auth/auth.module.js";
+import { ReturnNoticeJob } from "./application/services/return-notice.job.js";
+import { ReturnNoticeSender } from "./infrastructure/adapters/return-notice.sender.js";
+import { PrismaReturnNoticeRepository } from "./infrastructure/repositories/prisma-return-notice.repository.js";
 import { PlanNoticeJob } from "./application/services/plan-notice.job.js";
 import { PlanNoticeSender } from "./infrastructure/adapters/plan-notice.sender.js";
 import { PrismaPlanNoticeRepository } from "./infrastructure/repositories/prisma-plan-notice.repository.js";
@@ -35,9 +49,17 @@ import { BudgetRequestNotificationSender } from "./infrastructure/adapters/budge
 import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repositories/prisma-budget-request-notification.repository.js";
 
 @Module({
-  imports: [PersistenceModule, PaymentModule, WhatsAppTemplatesModule],
-  controllers: [MerchantNotificationController],
+  imports: [PersistenceModule, PaymentModule, WhatsAppTemplatesModule, AuthModule],
+  controllers: [MerchantNotificationController, DigitalDownloadController, MarketplaceOperationalAlertController],
   providers: [
+    MarketplaceOperationalAlertService,
+    MarketplaceOperationalAlertJob,
+    MarketplaceOperationalAlertSender,
+    MarketplaceOperationalAlertMetrics,
+    PrismaMarketplaceOperationalAlertRepository,
+    { provide: DigitalDownloadLinkService, useFactory: () => new DigitalDownloadLinkService() },
+    DigitalFulfillmentService,
+    DigitalDeliveryListener,
     {
       provide: EMAIL_SENDER_PORT,
       useClass: ResendEmailAdapter,
@@ -63,6 +85,7 @@ import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repo
     PrismaBudgetRequestNotificationRepository,
     BudgetRequestNotificationSender,
     BudgetRequestNotificationJob,
+    PrismaReturnNoticeRepository, ReturnNoticeSender, ReturnNoticeJob,
     PlanNoticeJob, PlanNoticeSender, PrismaPlanNoticeRepository,
     { provide: MERCHANT_NOTIFICATION_INBOX_PORT, useClass: PrismaMerchantNotificationInboxRepository },
   ],

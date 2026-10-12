@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { Cart, CartItem, CheckoutSession, UpdateCartRequest, UpdateCartResponse } from "@zyon/shared-types";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
@@ -9,6 +9,10 @@ import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../..
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 
 import { commitCheckoutMutation } from "../services/commit-checkout-mutation.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
+import { assertCartStock } from "../../../catalog/application/services/cart-stock-authority.js";
+import { isMarketplaceCheckoutSession } from "../../infrastructure/marketplace-checkout-scope.js";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -32,6 +36,7 @@ export class UpdateCartUseCase {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Partial<Pick<PrismaClient, "couponRedemption" | "productVariant">>
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {
@@ -44,6 +49,7 @@ export class UpdateCartUseCase {
 
     const session = await this.sessions.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+    if (isMarketplaceCheckoutSession(session)) throw new ConflictException("marketplace_cart_update_requires_crossstore");
 
     // Server is the price authority: requests only carry sku + quantity, never price.
     const bySku = new Map<string, CartItem>();
@@ -70,6 +76,7 @@ export class UpdateCartUseCase {
     }
 
     const items = Array.from(bySku.values());
+    if (this.prisma?.productVariant) await assertCartStock(this.prisma as Pick<PrismaClient, "productVariant">, merchantId, items);
     const nextCart: Cart = {
       ...session.cart,
       items,

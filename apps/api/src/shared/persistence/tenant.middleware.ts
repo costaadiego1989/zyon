@@ -11,6 +11,10 @@ export type { TenantContext } from "../tenant/tenant-context.service.js";
 // and where-mutations pinned to the caller's merchant. Composite-key targeting
 // is handled by injectMerchantId (pins the tenant inside the compound object).
 export const TENANT_SCOPED_MODELS = [
+  "OrderFulfillmentAction",
+  "ServiceReservation",
+  "DigitalEntitlement",
+  "DigitalDelivery",
   "AcceptedOffer",
   "AgentRule",
   "AiUsageEvent",
@@ -117,6 +121,7 @@ export const TENANT_SCOPED_MODELS = [
   "RecoveryAttempt",
   "RecoveryAttemptClaim",
   "Return",
+  "ReturnDraft",
   "RevenueAiReservation",
   "RevenueAnalysisRun",
   "RevenueAnalysisSchedule",
@@ -139,6 +144,8 @@ export const TENANT_SCOPED_MODELS = [
   "StoreProductMetric",
   "StorefrontCart",
   "StorefrontWishlistItem",
+  "SupportAttachment",
+  "ReturnNoticeDelivery",
   "Story",
   "StoryCategory",
   "StrategyAssignment",
@@ -152,6 +159,7 @@ export const TENANT_SCOPED_MODELS = [
   "StrategyIncentiveReservation",
   "StrategyIncentiveReview",
   "StrategyIncentiveReviewHead",
+  "StrategyIncentiveStageGrant",
   "StrategyTurn",
   "StrategyTurnCompletion",
   "StrategyTurnOutcome",

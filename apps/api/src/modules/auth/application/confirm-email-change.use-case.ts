@@ -17,6 +17,7 @@ import {
 import { EmailChangeRateLimiter } from "../domain/services/email-change-rate-limiter.service.js";
 import { Prisma } from "@prisma/client";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../notifications/domain/ports/email-sender.port.js";
+import { escapeEmailHtml } from "../../../shared/messaging/email-content.js";
 
 export interface ConfirmEmailChangeInput {
   merchantId: string;
@@ -88,7 +89,7 @@ export class ConfirmEmailChangeUseCase {
   private async notifyOldEmail(oldEmail: string, newEmail: string): Promise<void> {
     const fromEmail =
       process.env.RESEND_NOREPLY_EMAIL || process.env.RESEND_FROM_EMAIL || "noreply@zyon.com.br";
-    const supportUrl = `${process.env.DASHBOARD_URL || "http://localhost:5175"}/support`;
+    const dashboardUrl = process.env.DASHBOARD_PUBLIC_URL || process.env.DASHBOARD_URL || "https://app.zyon-payments.com.br";
     const html = `<!DOCTYPE html>
 <html lang="pt-BR">
 <head><meta charset="UTF-8"></head>
@@ -97,12 +98,12 @@ export class ConfirmEmailChangeUseCase {
     <div style="background:#fff;border:1px solid #e2e8f0;border-radius:12px;padding:32px;">
       <h1 style="font-size:18px;color:#0f172a;margin:0 0 12px;">Email da sua conta foi alterado</h1>
       <p style="font-size:14px;color:#475569;line-height:1.6;margin:0 0 12px;">
-        O email da sua conta Zyon foi alterado de <strong>${oldEmail}</strong> para <strong>${newEmail}</strong>.
+        O email da sua conta Zyon foi alterado de <strong>${escapeEmailHtml(oldEmail)}</strong> para <strong>${escapeEmailHtml(newEmail)}</strong>.
       </p>
       <p style="font-size:13px;color:#64748b;line-height:1.5;margin:0 0 16px;">
-        Se você não fez esta alteração, entre em contato conosco imediatamente.
+        Se você não reconhece esta alteração, redefina sua senha e entre em contato com o suporte da Zyon.
       </p>
-      <a href="${supportUrl}" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">Não fui eu — abrir suporte</a>
+      <a href="${escapeEmailHtml(dashboardUrl)}" style="display:inline-block;background:#dc2626;color:#fff;padding:10px 20px;border-radius:8px;text-decoration:none;font-size:13px;font-weight:600;">Acessar painel Zyon</a>
     </div>
   </div>
 </body>

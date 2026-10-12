@@ -175,6 +175,7 @@ export class EmbedSessionsController {
       scopes: body.scopes,
       cartRef: issuer.type === "internal_service" ? undefined : body.cart_ref,
       storefrontCartRef,
+      aiUserId: storefrontCartRef ? this.storefrontCartAccess?.userIdentity({ token: body.conversation_token, merchantId: issuer.merchantId, cartRef: storefrontCartRef, origin: body.allowed_origin! }) : undefined,
     });
 
     const profile = await this.merchants.getProfile(issuer.merchantId);

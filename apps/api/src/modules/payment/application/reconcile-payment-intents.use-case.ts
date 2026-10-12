@@ -1,3 +1,8 @@
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../checkout/domain/ports/checkout-session.repository.port.js";
+import { assertCartStock } from "../../catalog/application/services/cart-stock-authority.js";
+import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
 import { savePaymentTransition } from "./services/save-payment-transition.js";
 import { Inject, Injectable, Optional , Logger} from "@nestjs/common";
@@ -46,7 +51,9 @@ export class ReconcilePaymentIntentsUseCase {
     @Inject(PAYMENT_PROVIDER_PORT) private readonly provider: PaymentProviderPort,
     @Inject(CHECKOUT_PAYMENT_PORT) private readonly checkoutPayment: CheckoutPaymentPort,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase
+    @Optional() private readonly markCommerceOrderPaid?: MarkCommerceOrderPaidUseCase,
+    @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkout?: CheckoutSessionRepository,
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
   ) {}
 
   async execute(input: ReconcilePaymentIntentsInput = {}): Promise<ReconcilePaymentIntentsResult> {
@@ -64,7 +71,12 @@ export class ReconcilePaymentIntentsUseCase {
     for (const intent of candidates) {
       let snap = intent.snapshot();
       if (!snap.providerPaymentId) {
-        try { snap = await new ResumePaymentCreationService(this.payments, this.provider).execute(intent); }
+        try { snap = await new ResumePaymentCreationService(this.payments, this.provider).execute(intent, async () => {
+          if (!this.checkout || !this.prisma) throw new Error("payment_stock_authority_unavailable");
+          const session = await this.checkout.getSession(snap.merchantId, snap.sessionId);
+          if (!session || !snap.amountBreakdown?.cartFingerprint || snap.amountBreakdown.cartFingerprint !== paymentCartFingerprint(session)) throw new Error("payment_cart_changed");
+          await assertCartStock(this.prisma, snap.merchantId, session.cart.items);
+        }); }
         catch { reconciled.push({ paymentIntentId: snap.id, outcome: "unknown" }); continue; }
         if (!snap.providerPaymentId) { reconciled.push({ paymentIntentId: snap.id, outcome: "unknown" }); continue; }
       }

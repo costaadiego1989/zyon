@@ -77,6 +77,7 @@ export class MarketplaceController {
       returnWindowDays: body.return_window_days,
       payoutDelayDays: body.payout_delay_days,
       chargebackWindowDays: body.chargeback_window_days,
+      allowedCategories: body.allowed_categories,
       blockedMerchants: body.blocked_merchants,
     });
     return MarketplaceEntityMapper.toConfigResponse(result.config);
@@ -117,6 +118,7 @@ export class MarketplaceController {
     @Body() body: { order_id?: string; settlement_id?: string; variant_ids?: string[] },
   ) {
     return this.registerReturn.execute({
+      merchantId: currentUser(request).merchantId,
       orderId: body.order_id,
       settlementId: body.settlement_id,
       variantIds: body.variant_ids,

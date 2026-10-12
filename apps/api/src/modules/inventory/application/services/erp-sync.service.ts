@@ -116,13 +116,15 @@ export class ErpSyncService {
   }
 
   async enqueueSale(sale: AppliedInventorySale): Promise<void> {
+    const eligibleSkus = await this.physicalSaleSkus(sale.event.merchantId, sale.event.items);
+    if (!eligibleSkus.length) return;
     const connections = await this.prisma.erpConnection.findMany({
       where: {
         merchantId: sale.event.merchantId,
         status: "connected",
         provider: { in: [...SUPPORTED] },
         directionMode: { in: ["bidirectional", "zyon_source_of_truth"] },
-        productMappings: { some: { merchantId: sale.event.merchantId, sku: { in: sale.items.map((item) => item.sku) } } },
+        productMappings: { some: { merchantId: sale.event.merchantId, sku: { in: eligibleSkus } } },
       },
       select: { id: true },
     });
@@ -135,6 +137,13 @@ export class ErpSyncService {
       payload: { receiptId: sale.receiptId },
     })));
     this.kick();
+  }
+
+  private async physicalSaleSkus(merchantId: string, lines: AppliedInventorySale["event"]["items"]): Promise<string[]> {
+    const candidates = lines.filter(line => !line.productType || line.productType === "physical");
+    if (!candidates.length) return [];
+    const variants = await this.prisma.productVariant.findMany({ where: { sku: { in: candidates.map(line => line.sku) }, product: { merchantId, type: "physical" } }, select: { id: true, sku: true } });
+    return candidates.filter(line => variants.some(variant => variant.sku === line.sku && (!line.variantId || line.variantId === variant.id))).map(line => line.sku);
   }
 
   async enqueuePeriodic(): Promise<void> {
@@ -296,9 +305,13 @@ export class ErpSyncService {
     if (!receipt) throw new Error("erp_sale_receipt_not_found");
     const result = receipt.result as unknown as AppliedInventorySale;
     if (!Array.isArray(result?.items)) throw new Error("erp_sale_receipt_invalid");
+    const event = receipt.payload as unknown as AppliedInventorySale["event"];
+    if (!Array.isArray(event?.items)) throw new Error("erp_sale_receipt_invalid");
+    const eligibleSkus = await this.physicalSaleSkus(merchantId, event.items);
     let blingStockWriter: { token: string; depositId: number } | null = null;
 
     for (const item of result.items) {
+      if (!eligibleSkus.includes(item.sku)) continue;
       const mapping = await this.prisma.erpProductMapping.findFirst({
         where: { merchantId, connectionId: connection.id, sku: item.sku, externalLocationId: "0" },
       });
@@ -365,6 +378,7 @@ export class ErpSyncService {
         if (matches.length > 1) throw new Error("erp_sku_ambiguous");
         variant = matches[0] ?? null;
       }
+      if (variant && variant.product.type !== "physical") return;
 
       if (!variant) {
         const product = await tx.product.create({ data: { merchantId: connection.merchantId, name: snapshot.productName, type: "physical", isActive: false } });

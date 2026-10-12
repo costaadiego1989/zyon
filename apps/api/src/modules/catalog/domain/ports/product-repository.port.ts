@@ -39,6 +39,7 @@ export interface SearchProductsInput {
   maxPriceCents?: number;
   inStockOnly?: boolean;
   isActiveOnly?: boolean;
+  status?: "all" | "active" | "inactive";
   limit?: number;
   cursor?: string;
   offset?: number;
@@ -48,6 +49,7 @@ export interface SearchProductsResult {
   products: ProductEntity[];
   nextCursor?: string;
   total: number;
+  totals?: { total: number; inStock: number; inactive: number };
 }
 
 export interface ReserveStockInput {
@@ -77,7 +79,7 @@ export interface ProductRepositoryPort {
    * canonical ids. Kept here (vs. a separate CategoryRepositoryPort) because
    * categories are conceptually a denormalized view of products.
    */
-  listCategories(merchantId: string): Promise<Array<{ id: string; name: string; slug: string; productCount: number }>>;
+  listCategories(merchantId: string, options?: { publicOnly?: boolean }): Promise<Array<{ id: string; name: string; slug: string; productCount: number }>>;
   /**
    * Update an existing variant (and its owning product's basic fields) matched by
    * SKU, merchant-scoped. Used by idempotent spreadsheet re-imports so re-uploading
