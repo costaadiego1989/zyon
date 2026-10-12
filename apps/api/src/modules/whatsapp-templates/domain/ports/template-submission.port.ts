@@ -24,6 +24,7 @@ export interface TemplateSubmissionStatus {
    */
   status: "draft" | "submitted" | "approved" | "rejected" | "paused" | "disabled" | "unknown" | "submission_unknown";
   rejectionReason?: string;
+  retryAfterMs?: number;
 }
 
 export interface TemplateSubmissionPort {

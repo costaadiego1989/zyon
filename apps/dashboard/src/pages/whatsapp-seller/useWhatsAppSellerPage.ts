@@ -9,6 +9,10 @@ export interface WhatsAppConfig {
   status: string; senderStatus?: string | null; onboardingError?: string | null; error?: string;
 }
 const metaErrors: Record<`META_${string}`, string> = {
+  META_REGISTRATION_FAILED: "A Meta ainda não registrou o número para receber mensagens. Confira o número e a verificação em duas etapas no WhatsApp Manager e atualize a conexão.",
+  META_REGISTRATION_UNKNOWN: "O registro do número está sendo confirmado. Atualize a conexão antes de tentar novamente.",
+  META_PHONE_NOT_REGISTERED: "O número ainda precisa ser registrado na Meta. Atualize a conexão para concluir a ativação.",
+  META_RATE_LIMITED: "A Meta limitou temporariamente as consultas desta conta. Aguarde até uma hora e atualize a conexão.",
   META_AUTHORIZATION_FAILED: "Não foi possível confirmar sua autorização com a Meta. Inicie a conexão novamente.",
   META_ASSET_NOT_AUTHORIZED: "A conta Business ou o número escolhido não foi autorizado para esta loja. Revise a seleção na Meta e tente novamente.",
   META_SUBSCRIPTION_FAILED: "A Meta não confirmou a ativação do canal. Atualize o estado para consultar a conexão.",

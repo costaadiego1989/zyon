@@ -13,6 +13,9 @@ import type {
 
 const GRAPH = "https://graph.facebook.com/v23.0";
 const TIMEOUT_MS = 15_000;
+const SNAPSHOT_TTL_MS = 5 * 60_000;
+const RATE_LIMIT_BACKOFF_MS = 60 * 60_000;
+type MetaTemplate = { name?: string; status?: string; rejected_reason?: string; language?: string; components?: Array<{ type: string; text?: string }> };
 
 function status(value: unknown): TemplateSubmissionStatus["status"] {
   switch (String(value ?? "").toUpperCase()) {
@@ -48,6 +51,8 @@ function bodyComponent(input: SubmitTemplateInput) {
 /** Official Cloud API implementation. `contentSid` stores the opaque Meta template name. */
 @Injectable()
 export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
+  private readonly snapshots = new Map<string, { expiresAt: number; result: Promise<MetaTemplate[] | null> }>();
+  private readonly rateLimitedUntil = new Map<string, number>();
   constructor(
     @Optional() @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo?: WhatsAppConfigRepository,
@@ -57,6 +62,8 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
     const credentials = await this.credentials(input.merchantId);
     if (!credentials) return { contentSid: "", status: "draft", rejectionReason: "connection_unavailable" };
     const name = templateName(input);
+    const retryAfterMs = this.retryAfter(credentials.wabaId);
+    if (retryAfterMs) return { contentSid: "", status: "draft", rejectionReason: "provider_rate_limited", retryAfterMs };
     let response: Response;
     try {
       response = await fetch(`${GRAPH}/${credentials.wabaId}/message_templates`, {
@@ -68,6 +75,7 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
       return { contentSid: name, status: "submission_unknown", rejectionReason: "create_outcome_unknown" };
     }
     if (!response.ok) {
+      if (await this.markRateLimit(response, credentials.wabaId)) return { contentSid: "", status: "draft", rejectionReason: "provider_rate_limited", retryAfterMs: this.retryAfter(credentials.wabaId) };
       if (response.status >= 400 && response.status < 500 && response.status !== 408) {
         const existing = await this.findByName(credentials.accessToken, credentials.wabaId, name, { language: input.language, body: input.metaBody });
         if (existing) return existing;
@@ -76,6 +84,7 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
       return { contentSid: name, status: "submission_unknown", rejectionReason: `create_failed_${response.status}` };
     }
     const result = await response.json().catch(() => null) as { status?: unknown; rejected_reason?: unknown } | null;
+    this.snapshots.delete(credentials.wabaId);
     const resultStatus = status(result?.status);
     return {
       contentSid: name,
@@ -88,20 +97,15 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
     if (!contentSid.trim()) return { contentSid, status: "unknown", rejectionReason: "template_identifier_missing" };
     const credentials = await this.credentials(merchantId);
     if (!credentials) return { contentSid, status: "unknown", rejectionReason: "connection_unavailable" };
-    return (await this.findByName(credentials.accessToken, credentials.wabaId, contentSid, expected))
-      ?? { contentSid, status: "unknown", rejectionReason: "template_not_found" };
+    const result = await this.findByName(credentials.accessToken, credentials.wabaId, contentSid, expected);
+    const retryAfterMs = this.retryAfter(credentials.wabaId);
+    return result ?? { contentSid, status: "unknown", rejectionReason: retryAfterMs ? "provider_rate_limited" : "template_not_found", ...(retryAfterMs ? { retryAfterMs } : {}) };
   }
 
   private async findByName(accessToken: string, wabaId: string, name: string, expected?: { language: string; body: string }): Promise<TemplateSubmissionStatus | null> {
     try {
-      const url = new URL(`${GRAPH}/${wabaId}/message_templates`);
-      url.searchParams.set("name", name);
-      url.searchParams.set("fields", "name,status,rejected_reason,language,components");
-      url.searchParams.set("limit", "100");
-      const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` }, redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS) });
-      if (!response.ok) return null;
-      const payload = await response.json().catch(() => null) as { data?: Array<{ name?: unknown; status?: unknown; rejected_reason?: unknown; language?: string; components?: Array<{ type: string; text?: string }> }> } | null;
-      const item = payload?.data?.find(template => template.name === name && (!expected || template.language === expected.language));
+      const templates = await this.templates(accessToken, wabaId);
+      const item = templates?.find(template => template.name === name && (!expected || template.language === expected.language));
       if (!item) return null;
       if (expected && item.components?.find(c => c.type === "BODY")?.text !== expected.body) return { contentSid: name, status: "disabled", rejectionReason: "template_content_mismatch" };
       return {
@@ -110,6 +114,44 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
         ...(typeof item.rejected_reason === "string" && item.rejected_reason ? { rejectionReason: item.rejected_reason } : {}),
       };
     } catch { return null; }
+  }
+
+  private retryAfter(wabaId: string) { return Math.max(0, (this.rateLimitedUntil.get(wabaId) ?? 0) - Date.now()); }
+
+  private async markRateLimit(response: Response, wabaId: string) {
+    const body = await response.clone().json().catch(() => null) as { error?: { code?: number } } | null;
+    if (response.status !== 429 && ![4, 17, 80007, 80008].includes(body?.error?.code ?? 0)) return false;
+    this.rateLimitedUntil.set(wabaId, Date.now() + RATE_LIMIT_BACKOFF_MS);
+    this.snapshots.delete(wabaId);
+    return true;
+  }
+
+  private async templates(accessToken: string, wabaId: string): Promise<MetaTemplate[] | null> {
+    if (this.retryAfter(wabaId)) return null;
+    const cached = this.snapshots.get(wabaId);
+    if (cached && cached.expiresAt > Date.now()) return cached.result;
+    // One WABA snapshot serves every template in the poll, including concurrent reads.
+    const result = this.readTemplates(accessToken, wabaId).catch(() => null);
+    this.snapshots.set(wabaId, { expiresAt: Date.now() + SNAPSHOT_TTL_MS, result });
+    return result;
+  }
+
+  private async readTemplates(accessToken: string, wabaId: string): Promise<MetaTemplate[] | null> {
+    const url = new URL(`${GRAPH}/${wabaId}/message_templates`);
+    url.searchParams.set("fields", "name,status,rejected_reason,language,components");
+    url.searchParams.set("limit", "100");
+    const templates: MetaTemplate[] = [];
+    for (let page = 0; page < 10; page++) {
+      const response = await fetch(url, { headers: { Authorization: `Bearer ${accessToken}` }, redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS) });
+      if (!response.ok) { await this.markRateLimit(response, wabaId); return null; }
+      const payload = await response.json().catch(() => null) as { data?: MetaTemplate[]; paging?: { next?: string; cursors?: { after?: string } } } | null;
+      if (!Array.isArray(payload?.data)) return null;
+      templates.push(...payload.data);
+      const after = payload.paging?.next && payload.paging.cursors?.after;
+      if (!after) return templates;
+      url.searchParams.set("after", after);
+    }
+    return templates;
   }
 
   private async credentials(merchantId: string) {
