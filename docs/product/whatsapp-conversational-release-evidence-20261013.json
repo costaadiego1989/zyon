@@ -1,0 +1,133 @@
+{
+  "candidateCommit": "783fa07",
+  "checkedAt": "2026-10-13T18:11:02.916Z",
+  "localTests": {
+    "passed": 207,
+    "failed": 0,
+    "skipped": 1
+  },
+  "sandbox": {
+    "runtime": {
+      "deploymentId": "25b79250-92ce-4176-8c17-9bb95f9a8e5a",
+      "environment": "sandbox",
+      "matchingSourceFiles": 21,
+      "migrationApplied": true,
+      "encryptedPhoneLookupAvailable": true,
+      "enforcedOtpExpiry": true,
+      "emailOwnershipFence": true,
+      "nativeCartActionRegressionFixed": true,
+      "flowJsonVersion": "7.3",
+      "widgetOrigin": "https://widget-v2-sandbox.up.railway.app",
+      "apiOrigin": "https://api-sandbox-8146.up.railway.app",
+      "providerMessagesSent": 0
+    },
+    "navigation": {
+      "environment": "sandbox",
+      "deploymentId": "25b79250-92ce-4176-8c17-9bb95f9a8e5a",
+      "synthetic": true,
+      "financial": false,
+      "providerMessagesSent": 0,
+      "runId": "f4905fef-60df-447b-8013-e9fad307c5f2",
+      "checks": [
+        "native_welcome_and_quick_replies_persisted",
+        "native_product_selection_uses_shared_authoritative_details",
+        "rich_ctas_and_typed_add_cannot_guess_variant_or_bypass_sold_out_stock",
+        "more_information_preserves_selected_variant_and_displays_real_rich_content",
+        "stale_menu_cannot_mutate_cart",
+        "native_add_persists_same_storefront_cart",
+        "view_cart_keeps_native_checkout_and_continue_shopping_reachable",
+        "quantity_and_native_cart_summary_match_persisted_values",
+        "back_refreshes_live_cart_instead_of_replaying_stale_quantity",
+        "native_decrement_and_remove_persist_and_empty_cart_is_displayed",
+        "continue_shopping_and_typed_add_share_authoritative_native_actions",
+        "new_buyer_conversational_registration_uses_email_otp_and_rejects_invalid_code",
+        "registered_encrypted_phone_is_found_through_keyed_index",
+        "returning_buyer_email_challenge_precedes_profile_hydration_and_identity_binding",
+        "email_authenticated_identity_survives_return_to_actual_storefront_cart",
+        "fresh_signed_handoff_passes_real_widget_bootstrap_guard_and_controller",
+        "handoff_rejects_foreign_origin_and_checkout_session",
+        "encrypted_fixture_handoff_available_for_hosted_browser_validation",
+        "checkout_preserves_buyer_phone_cart_and_email_verification",
+        "signed_handoff_points_to_sandbox_widget_and_api",
+        "no_payment_intent_created"
+      ],
+      "cleanup": {
+        "inbox": 26,
+        "whatsappSession": 1,
+        "cart": 1,
+        "checkout": 2,
+        "fixtureProduct": 1,
+        "buyer": 1
+      },
+      "externalMutationAttempts": 0,
+      "fixture": "rich_product_with_two_available_variants_one_sold_out_and_duplicate_content_ctas",
+      "messagesCaptured": 60,
+      "turnsPersisted": 26,
+      "blockTypes": [
+        "text",
+        "interactive",
+        "image"
+      ],
+      "ok": true
+    },
+    "browser": {
+      "runId": "f4905fef-60df-447b-8013-e9fad307c5f2",
+      "synthetic": true,
+      "realHttp": true,
+      "results": [
+        {
+          "viewport": {
+            "width": 390,
+            "height": 844
+          },
+          "responses": [
+            {
+              "path": "/v1/embed/start",
+              "status": 201,
+              "items": 1,
+              "quantity": 2
+            }
+          ],
+          "tokenError": false,
+          "channelGate": false,
+          "forbiddenPayments": 0
+        },
+        {
+          "viewport": {
+            "width": 1440,
+            "height": 900
+          },
+          "responses": [
+            {
+              "path": "/v1/embed/start",
+              "status": 201,
+              "items": 1,
+              "quantity": 2
+            }
+          ],
+          "tokenError": false,
+          "channelGate": false,
+          "forbiddenPayments": 0
+        }
+      ],
+      "financial": false
+    }
+  },
+  "meta": {
+    "checkedAt": "2026-10-13T17:59:02.407Z",
+    "ownCounts": {
+      "APPROVED": 20,
+      "PENDING": 5,
+      "NOT_CREATED": 1
+    },
+    "providerCounts": {
+      "PENDING": 5,
+      "APPROVED": 44,
+      "REJECTED": 2
+    }
+  },
+  "production": {
+    "status": "publication_pending"
+  },
+  "realPurchase": false
+}
