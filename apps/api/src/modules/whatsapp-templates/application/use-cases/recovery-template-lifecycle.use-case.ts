@@ -60,10 +60,11 @@ export class RecoveryTemplateLifecycleUseCase implements RecoveryTemplateInitial
     if (current.metaRevision !== expectedRevision || current.metaStatus === "submitting" || current.metaClaimToken) throw new ConflictException("template_revision_conflict");
     const version = current.metaApprovedVersions?.find(v => v.revision === revision);
     if (!version || !this.repo.restore) throw new BadRequestException("approved_version_not_found");
+    if (type === "checkout_otp" && version.metaCategory !== "AUTHENTICATION") throw new BadRequestException("authentication_template_required");
     const config = await this.configs.findByMerchantId(merchantId);
     const connection = connectedMetaCloudRecoveryCredentials(config, merchantId);
     if (!connection || connection.wabaId !== version.wabaId) throw new BadRequestException("template_account_mismatch");
-    const status = await this.submission.syncStatus(merchantId, version.contentSid, { language: version.metaLanguage, body: version.metaTemplateBody });
+    const status = await this.submission.syncStatus(merchantId, version.contentSid, { language: version.metaLanguage, body: version.metaTemplateBody, category: version.metaCategory });
     if (status.status !== "approved" || status.contentSid !== version.contentSid) throw new BadRequestException("previous_template_not_approved");
     const latest = connectedMetaCloudRecoveryCredentials(await this.configs.findByMerchantId(merchantId), merchantId);
     if (!latest || latest.wabaId !== connection.wabaId) throw new ConflictException("template_connection_changed");
@@ -123,7 +124,7 @@ export class RecoveryTemplateLifecycleUseCase implements RecoveryTemplateInitial
             nextCheckAt: uncertain && !result.contentSid ? null : new Date(clock().getTime() + (result.retryAfterMs ?? 60_000)),
           }, true);
         } else if (row.twilioContentSid) {
-          const result = await this.submission.syncStatus(row.merchantId, row.twilioContentSid, { language: row.metaLanguage ?? "pt_BR", body: row.metaTemplateBody ?? "" });
+          const result = await this.submission.syncStatus(row.merchantId, row.twilioContentSid, { language: row.metaLanguage ?? "pt_BR", body: row.metaTemplateBody ?? "", category: row.metaCategory ?? undefined });
           const known = ["approved", "submitted", "rejected", "paused", "disabled"].includes(result.status);
           // Never apply a response for another content revision.
           const valid = known && result.contentSid === row.twilioContentSid;

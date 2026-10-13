@@ -15,7 +15,23 @@ const GRAPH = "https://graph.facebook.com/v23.0";
 const TIMEOUT_MS = 15_000;
 const SNAPSHOT_TTL_MS = 5 * 60_000;
 const RATE_LIMIT_BACKOFF_MS = 60 * 60_000;
-type MetaTemplate = { name?: string; status?: string; rejected_reason?: string; language?: string; components?: Array<{ type: string; text?: string }> };
+type MetaTemplate = { name?: string; status?: string; category?: string; rejected_reason?: string; language?: string; components?: Array<{ type: string; text?: string; buttons?: Array<{ type?: string; otp_type?: string; url?: string }> }> };
+type ExpectedTemplate = { language: string; body: string; category?: string };
+
+function authenticationComponents() {
+  return [{ type: "BODY", add_security_recommendation: true }, { type: "FOOTER", code_expiration_minutes: 10 },
+    { type: "BUTTONS", buttons: [{ type: "OTP", otp_type: "COPY_CODE", text: "Copiar código" }] }];
+}
+
+function matchesAuthenticationPreset(template: MetaTemplate): boolean {
+  const body = template.components?.find(c => c.type === "BODY")?.text ?? "";
+  if (!body.includes("{{1}}") || body.replace(/\{\{1\}\}/g, "").includes("{{")) return false;
+  return !!template.components?.some(c => c.type === "BUTTONS" && c.buttons?.some(button => {
+    if (button.type === "OTP") return button.otp_type === "COPY_CODE";
+    try { const url = new URL(button.url ?? ""); return button.type === "URL" && url.protocol === "https:" && url.hostname === "www.whatsapp.com"
+      && url.pathname === "/otp/code/" && url.searchParams.get("otp_type") === "COPY_CODE"; } catch { return false; }
+  }));
+}
 
 function status(value: unknown): TemplateSubmissionStatus["status"] {
   switch (String(value ?? "").toUpperCase()) {
@@ -69,7 +85,8 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
       response = await fetch(`${GRAPH}/${credentials.wabaId}/message_templates`, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(TIMEOUT_MS),
         headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ name, language: input.language, category: String(input.category || "UTILITY").toUpperCase(), components: [bodyComponent(input)] }),
+        body: JSON.stringify({ name, language: input.language, category: String(input.category || "UTILITY").toUpperCase(),
+          components: input.category === "AUTHENTICATION" ? authenticationComponents() : [bodyComponent(input)] }),
       });
     } catch {
       return { contentSid: name, status: "submission_unknown", rejectionReason: "create_outcome_unknown" };
@@ -77,7 +94,7 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
     if (!response.ok) {
       if (await this.markRateLimit(response, credentials.wabaId)) return { contentSid: "", status: "draft", rejectionReason: "provider_rate_limited", retryAfterMs: this.retryAfter(credentials.wabaId) };
       if (response.status >= 400 && response.status < 500 && response.status !== 408) {
-        const existing = await this.findByName(credentials.accessToken, credentials.wabaId, name, { language: input.language, body: input.metaBody });
+        const existing = await this.findByName(credentials.accessToken, credentials.wabaId, name, { language: input.language, body: input.metaBody, category: input.category });
         if (existing) return existing;
         return { contentSid: "", status: "draft", rejectionReason: `create_failed_${response.status}` };
       }
@@ -93,7 +110,7 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
     };
   }
 
-  async syncStatus(merchantId: string, contentSid: string, expected?: { language: string; body: string }): Promise<TemplateSubmissionStatus> {
+  async syncStatus(merchantId: string, contentSid: string, expected?: ExpectedTemplate): Promise<TemplateSubmissionStatus> {
     if (!contentSid.trim()) return { contentSid, status: "unknown", rejectionReason: "template_identifier_missing" };
     const credentials = await this.credentials(merchantId);
     if (!credentials) return { contentSid, status: "unknown", rejectionReason: "connection_unavailable" };
@@ -102,12 +119,14 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
     return result ?? { contentSid, status: "unknown", rejectionReason: retryAfterMs ? "provider_rate_limited" : "template_not_found", ...(retryAfterMs ? { retryAfterMs } : {}) };
   }
 
-  private async findByName(accessToken: string, wabaId: string, name: string, expected?: { language: string; body: string }): Promise<TemplateSubmissionStatus | null> {
+  private async findByName(accessToken: string, wabaId: string, name: string, expected?: ExpectedTemplate): Promise<TemplateSubmissionStatus | null> {
     try {
       const templates = await this.templates(accessToken, wabaId);
       const item = templates?.find(template => template.name === name && (!expected || template.language === expected.language));
       if (!item) return null;
-      if (expected && item.components?.find(c => c.type === "BODY")?.text !== expected.body) return { contentSid: name, status: "disabled", rejectionReason: "template_content_mismatch" };
+      if (expected?.category && item.category !== expected.category) return { contentSid: name, status: "disabled", rejectionReason: "template_category_mismatch" };
+      if (expected && !(expected.category === "AUTHENTICATION" ? matchesAuthenticationPreset(item)
+        : item.components?.find(c => c.type === "BODY")?.text === expected.body)) return { contentSid: name, status: "disabled", rejectionReason: "template_content_mismatch" };
       return {
         contentSid: name,
         status: status(item.status),
@@ -138,7 +157,7 @@ export class MetaCloudTemplateAdapter implements TemplateSubmissionPort {
 
   private async readTemplates(accessToken: string, wabaId: string): Promise<MetaTemplate[] | null> {
     const url = new URL(`${GRAPH}/${wabaId}/message_templates`);
-    url.searchParams.set("fields", "name,status,rejected_reason,language,components");
+    url.searchParams.set("fields", "name,status,category,rejected_reason,language,components");
     url.searchParams.set("limit", "100");
     const templates: MetaTemplate[] = [];
     for (let page = 0; page < 10; page++) {

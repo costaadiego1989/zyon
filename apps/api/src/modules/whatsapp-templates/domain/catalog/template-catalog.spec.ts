@@ -32,7 +32,7 @@ test("categories: only cross_sell/win_back/cart_recovery are MARKETING", () => {
   assert.equal(categoryFor("follow_up"), "UTILITY");
   assert.equal(categoryFor("order_confirmation"), "UTILITY");
   assert.equal(categoryFor("nps"), "UTILITY");
-  assert.equal(categoryFor("checkout_otp"), "UTILITY");
+  assert.equal(categoryFor("checkout_otp"), "AUTHENTICATION");
 });
 
 test("coupon-bearing types expose a couponBlock variable", () => {

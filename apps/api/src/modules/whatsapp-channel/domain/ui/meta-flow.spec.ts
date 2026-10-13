@@ -3,6 +3,10 @@ import assert from "node:assert/strict";
 import { metaFieldFlowJson, resolveMetaFieldFlow } from "./meta-flow.js";
 import type { WhatsAppConversationState } from "./meta-ui.types.js";
 
+test("an old CPF form cannot collect a full personal identifier through WhatsApp", () => {
+  assert.equal(resolveMetaFieldFlow({ ...state, pendingFlow: { ...state.pendingFlow!, field: "cpf" } }, { flow_token: "bound-to-this-buyer", value: "52998224725" }, 1000), undefined);
+});
+
 const state: WhatsAppConversationState = { version: 1, stage: "checkout", conversationId: "conversation", checkoutSessionId: "checkout", history: [], revision: "turn", previousViews: [], page: 0,
   pendingFlow: { token: "bound-to-this-buyer", checkoutSessionId: "checkout", field: "email", expiresAt: 2000 } };
 test("native forms are bound to buyer session, purpose and expiry and cannot assert verification", () => {

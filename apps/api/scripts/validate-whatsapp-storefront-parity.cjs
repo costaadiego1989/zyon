@@ -10,13 +10,14 @@
     return originalFetch(url, init);
   };
   const { NestFactory } = await import('@nestjs/core');
-  const { AppModule } = await import('./dist/app.module.js');
-  const { PRISMA_CROSS_MERCHANT_CLIENT } = await import('./dist/shared/persistence/persistence.module.js');
-  const { TenantContextService } = await import('./dist/shared/tenant/tenant-context.service.js');
-  const { WHATSAPP_CONVERSATION_PORT } = await import('./dist/modules/whatsapp-channel/domain/ports/whatsapp-conversation.port.js');
-  const { WHATSAPP_SESSION_REPOSITORY } = await import('./dist/modules/whatsapp-channel/domain/ports/whatsapp-session-repository.port.js');
-  const { WHATSAPP_WEBHOOK_INBOX } = await import('./dist/modules/whatsapp-channel/domain/ports/whatsapp-webhook-inbox.port.js');
-  const { HandleMetaConversationUseCase } = await import('./dist/modules/whatsapp-channel/application/use-cases/handle-meta-conversation.use-case.js');
+  const loadDist = relative => import(require('node:url').pathToFileURL(require('node:path').resolve('dist', relative)).href);
+  const { AppModule } = await loadDist('app.module.js');
+  const { PRISMA_CROSS_MERCHANT_CLIENT } = await loadDist('shared/persistence/persistence.module.js');
+  const { TenantContextService } = await loadDist('shared/tenant/tenant-context.service.js');
+  const { WHATSAPP_CONVERSATION_PORT } = await loadDist('modules/whatsapp-channel/domain/ports/whatsapp-conversation.port.js');
+  const { WHATSAPP_SESSION_REPOSITORY } = await loadDist('modules/whatsapp-channel/domain/ports/whatsapp-session-repository.port.js');
+  const { WHATSAPP_WEBHOOK_INBOX } = await loadDist('modules/whatsapp-channel/domain/ports/whatsapp-webhook-inbox.port.js');
+  const { HandleMetaConversationUseCase } = await loadDist('modules/whatsapp-channel/application/use-cases/handle-meta-conversation.use-case.js');
   const app = await NestFactory.create(AppModule, { logger: false, abortOnError: false });
   // Do not call init/listen: no scheduler or webhook worker is started here.
   const prisma = app.get(PRISMA_CROSS_MERCHANT_CLIENT);

@@ -36,6 +36,28 @@ describe("Meta Cloud template submission", () => {
     assert.deepEqual(body.components, [{ type: "BODY", text: input.metaBody, example: { body_text: [["Ana", "https://store.test/recover"]] } }]);
   });
 
+  test("authentication uses Meta's preset, expiration and copy-code button instead of a utility text body", async () => {
+    let sent: any;
+    globalThis.fetch = (async (_url, init) => { sent = JSON.parse(String(init?.body)); return Response.json({ status: "PENDING" }); }) as typeof fetch;
+    await new MetaCloudTemplateAdapter(configs).createAndSubmit({ ...input, category: "AUTHENTICATION", metaBody: "{{1}} é seu código de verificação.", sampleVariables: { "1": "123456" } });
+    assert.equal(sent.category, "AUTHENTICATION");
+    assert.deepEqual(sent.components, [{ type: "BODY", add_security_recommendation: true }, { type: "FOOTER", code_expiration_minutes: 10 },
+      { type: "BUTTONS", buttons: [{ type: "OTP", otp_type: "COPY_CODE", text: "Copiar código" }] }]);
+  });
+
+  test("authentication reconciliation accepts provider-generated wording but fences category and OTP button", async () => {
+    const native = { name: "zyon_auth", status: "APPROVED", language: "pt_BR", category: "AUTHENTICATION", components: [
+      { type: "BODY", text: "{{1}} é seu código de verificação. Não compartilhe este código." },
+      { type: "BUTTONS", buttons: [{ type: "URL", url: "https://www.whatsapp.com/otp/code/?otp_type=COPY_CODE&code=otp{{1}}" }] } ] };
+    const expected = { language: "pt_BR", category: "AUTHENTICATION", body: "Texto local para prévia {{1}}" };
+    globalThis.fetch = (async () => Response.json({ data: [native] })) as typeof fetch;
+    assert.equal((await new MetaCloudTemplateAdapter(configs).syncStatus(input.merchantId, "zyon_auth", expected)).status, "approved");
+    globalThis.fetch = (async () => Response.json({ data: [{ ...native, category: "UTILITY" }] })) as typeof fetch;
+    assert.equal((await new MetaCloudTemplateAdapter(configs).syncStatus(input.merchantId, "zyon_auth", expected)).rejectionReason, "template_category_mismatch");
+    globalThis.fetch = (async () => Response.json({ data: [{ ...native, components: [{ type: "BODY", text: "{{1}} código" }] }] })) as typeof fetch;
+    assert.equal((await new MetaCloudTemplateAdapter(configs).syncStatus(input.merchantId, "zyon_auth", expected)).rejectionReason, "template_content_mismatch");
+  });
+
   test("polls an exact name and maps Meta approval states", async () => {
     globalThis.fetch = (async () => Response.json({ data: [{ name: "zyon_test", status: "APPROVED" }] })) as typeof fetch;
     assert.deepEqual(await new MetaCloudTemplateAdapter(configs).syncStatus(input.merchantId, "zyon_test"), {

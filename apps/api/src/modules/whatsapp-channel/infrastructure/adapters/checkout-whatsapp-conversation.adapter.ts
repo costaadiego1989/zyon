@@ -83,6 +83,14 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       const sessionId = state.checkoutSessionId || state.conversationId + ":checkout";
       const checkout = await this.sessions.getSession(input.merchantId, sessionId);
       if (!checkout || checkout.merchantId !== input.merchantId) throw new NotFoundException("checkout_session_not_found");
+      const missing = missingFieldsForStage(checkout, deriveChatStage(checkout));
+      if (missing[0] === "CPF") {
+        // Meta prohibits requesting full personal identifiers in WhatsApp. The
+        // same checkout continues in the signed web surface for this field.
+        return this.checkoutUi({ session_id: checkout.sessionId, conversation_id: checkout.conversationId, missing_fields: missing,
+          message: "Para proteger seus dados, preencha seu CPF no checkout seguro. Depois, você pode continuar por aqui.", actions: [] },
+          state, config.name, "Continuar no checkout seguro", input.merchantId);
+      }
       if (paymentAction) {
         if (!this.createPayment || input.action?.kind !== "tool" || input.action.args.method !== "pix") throw new Error("whatsapp_payment_action_unavailable");
         if (input.action.args.fingerprint !== paymentCartFingerprint(checkout)) return this.checkoutUi({ message: "O pedido mudou. Confira o resumo atualizado antes de gerar o Pix." }, state, config.name, input.message, input.merchantId);
@@ -179,12 +187,15 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     }
     if (session?.paymentMethod === "pix" && !state.payment && ["payment", "payment_pending"].includes(deriveChatStage(session))) blocks.push({ type: "payment_actions", data: { fingerprint: paymentCartFingerprint(session) } });
     const nextField = response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
+    const secureIdentifier = nextField === "CPF";
+    if (secureIdentifier) message = "Para proteger seus dados, preencha seu CPF no checkout seguro. Depois, você pode continuar por aqui.";
+    if (secureIdentifier) for (let i = blocks.length - 1; i >= 0; i--) if (["form_field", "checkout_form"].includes(blocks[i].type)) blocks.splice(i, 1);
     const fields: Record<string, NonNullable<WhatsAppConversationState["pendingFlow"]>["field"]> = { nome: "fullName", email: "email", CPF: "cpf", CEP: "zip", número: "number", "complemento (ou responda que não tem)": "complement" };
     const field = fields[nextField ?? ""];
     const flowName = ["zip", "number", "complement"].includes(field) ? META_FIELD_FLOW_NAMES.address : META_FIELD_FLOW_NAMES.registration;
     const flowId = state.flowIds?.[flowName];
     let pendingFlow: WhatsAppConversationState["pendingFlow"];
-    if (field && flowId && checkoutSessionId) {
+    if (field && field !== "cpf" && flowId && checkoutSessionId) {
       pendingFlow = { token: randomUUID(), field, checkoutSessionId, expiresAt: Date.now() + 30 * 60_000 };
       blocks.push({ type: "checkout_form", data: { flowId, token: pendingFlow.token, label: META_FIELD_LABELS[field] } });
     }
@@ -201,9 +212,9 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       blocks.push({ type: "checkout_redirect", data: { url: widget.href, sessionId: checkoutSessionId } } as any);
     }
     return { agentMessage: message, merchantName, blocks,
-      quickReplies: [...new Set<string>([...(exp?.copy?.quick_replies || []), ...(response.actions || []).map((a: any) => a.label)])],
+      quickReplies: secureIdentifier ? ["Ver Carrinho", "Continuar Comprando"] : [...new Set<string>([...(exp?.copy?.quick_replies || []), ...(response.actions || []).map((a: any) => a.label)])],
       state: { ...state, checkoutSessionId: response.session_id || state.checkoutSessionId, checkoutConversationId: response.conversation_id || state.checkoutConversationId,
-        pendingFlow, expectsFreeInput: !!nextField && /^(telefone|email|nome|CPF|CEP|número|complemento|código de verificação)/i.test(nextField),
+        pendingFlow, expectsFreeInput: !secureIdentifier && !!nextField && /^(telefone|email|nome|CPF|CEP|número|complemento|código de verificação)/i.test(nextField),
         history: [...state.history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: message }].slice(-24) } };
   }
 }

@@ -31,7 +31,7 @@ export const WHATSAPP_TEMPLATE_TYPES = [
 
 export type WhatsAppTemplateType = (typeof WHATSAPP_TEMPLATE_TYPES)[number];
 
-export type WhatsAppTemplateCategory = "UTILITY" | "MARKETING";
+export type WhatsAppTemplateCategory = "UTILITY" | "MARKETING" | "AUTHENTICATION";
 
 export const WHATSAPP_TEMPLATE_CHANNELS = ["whatsapp", "email"] as const;
 export type WhatsAppTemplateChannel = (typeof WHATSAPP_TEMPLATE_CHANNELS)[number];

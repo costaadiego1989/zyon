@@ -51,6 +51,18 @@ describe("Meta Cloud template sender", () => {
     });
   });
 
+  test("authentication sends the identical bound code in body and copy-code button and refuses a utility OTP", async () => {
+    const otp = { ...input, type: "checkout_otp" as const, contentVariables: { "1": "123456" } };
+    const h = harness({ template: { type: "checkout_otp", metaCategory: "AUTHENTICATION", metaVariableMap: { "1": "otpCode" } } });
+    assert.equal((await h.adapter.sendTemplate(otp)).status, "sent");
+    const sent = JSON.parse(String(h.requests[0].init?.body));
+    assert.deepEqual(sent.template.components, [{ type: "body", parameters: [{ type: "text", text: "123456" }] },
+      { type: "button", sub_type: "url", index: "0", parameters: [{ type: "text", text: "123456" }] }]);
+    const old = harness({ template: { type: "checkout_otp", metaCategory: "UTILITY" } });
+    assert.equal((await old.adapter.sendTemplate(otp)).reason, "authentication_template_required");
+    assert.equal(old.requests.length, 0);
+  });
+
   for (const invalid of [null, { enabled: false }, { status: "DISCONNECTED" }, { provider: "TWILIO" }, { credentials: {} }]) {
     test("never falls back to platform credentials for an unavailable connection", async () => {
       const h = harness({ config: invalid as any });

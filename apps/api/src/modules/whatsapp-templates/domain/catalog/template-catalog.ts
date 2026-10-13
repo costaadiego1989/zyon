@@ -121,7 +121,7 @@ Consulte as informações da sua compra. O acesso a produtos digitais é enviado
   exchange_completed: `Olá, {{buyerName}}. A {{storeName}} concluiu a troca dos itens {{productName}} do pedido {{orderId}} e confirmou a entrega. Detalhes: {{decisionReason}}. Consulte a conversa em {{link}}. O histórico continua disponível na sua conta.`,
   return_posting_code: `Olá, {{buyerName}}. A {{storeName}} disponibilizou o código de devolução dos itens {{productName}} do pedido {{orderId}}. Instruções: {{decisionReason}}. Consulte os documentos em {{link}}.`,
   return_declaration_ready: `Olá, {{buyerName}}. A declaração de conteúdo para devolver os itens {{productName}} do pedido {{orderId}} à {{storeName}} está disponível. Instruções: {{decisionReason}}. Imprima o documento na conversa: {{link}}.`,
-  checkout_otp: `Seu código de confirmação é {{otpCode}}. Ele expira em 10 minutos.`,
+  checkout_otp: `{{otpCode}} é seu código de verificação. Para sua segurança, não compartilhe este código.`,
 };
 
 const HAS_COUPON: Record<WhatsAppTemplateType, boolean> = {
@@ -176,6 +176,7 @@ marketplace_operational_alert: "Marketplace: alerta operacional",
 const MARKETING = new Set<WhatsAppTemplateType>(["cross_sell", "win_back", "loyalty", "reorder", "cart_recovery"]);
 
 export function categoryFor(type: WhatsAppTemplateType): WhatsAppTemplateCategory {
+  if (type === "checkout_otp") return "AUTHENTICATION";
   return MARKETING.has(type) ? "MARKETING" : "UTILITY";
 }
 

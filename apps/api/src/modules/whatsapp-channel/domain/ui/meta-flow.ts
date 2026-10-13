@@ -18,17 +18,15 @@ export function metaFieldFlowJson(address: boolean) {
 /** Called only with a signed Meta webhook, already routed by merchant and wa_id. */
 export function resolveMetaFieldFlow(state: WhatsAppConversationState, reply: Record<string, unknown>, now = Date.now()): string | undefined {
   const pending = state.pendingFlow;
-  if (!pending || pending.expiresAt < now || pending.checkoutSessionId !== state.checkoutSessionId || state.stage !== "checkout") return undefined;
+  if (!pending || pending.field === "cpf" || pending.expiresAt < now || pending.checkoutSessionId !== state.checkoutSessionId || state.stage !== "checkout") return undefined;
   if (typeof reply.flow_token !== "string" || typeof reply.value !== "string" || reply.value.length > 160 || !reply.value.trim()) return undefined;
   const received = Buffer.from(reply.flow_token), expected = Buffer.from(pending.token);
   if (received.length !== expected.length || !timingSafeEqual(received, expected)) return undefined;
   const input = reply.value.trim().replace(/[\r\n]/g, " ");
   if (pending.field === "email" && !/^[^\s@]+@[^\s@]+\.[A-Za-z]{2,}$/.test(input)) return undefined;
-  if (pending.field === "cpf" && input.replace(/\D/g, "").length !== 11) return undefined;
   if (pending.field === "zip" && input.replace(/\D/g, "").length !== 8) return undefined;
   if (pending.field === "number" && !/^(?:[\dA-Za-z /-]{1,30}|S\/N)$/i.test(input)) return undefined;
   if (pending.field === "fullName") return `Meu nome completo é ${input}`;
-  if (pending.field === "cpf") return `CPF: ${input}`;
   if (pending.field === "zip") return `CEP: ${input}`;
   // The shared checkout validates/normalizes the value and still performs OTP.
   return input;

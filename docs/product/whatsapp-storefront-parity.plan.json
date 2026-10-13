@@ -1,4 +1,4 @@
-{
+﻿{
     "title":  "Zyon: mesma jornada conversacional no storefront e no WhatsApp",
     "date":  "2026-10-12",
     "status":  "implemented_local_validation_passed",
@@ -384,15 +384,17 @@
                        "https://www.postman.com/meta/whatsapp-business-platform/request/jze7gxt/send-reply-to-list-message",
                        "https://www.postman.com/meta/whatsapp-business-platform/request/ymlgtvy/send-single-product-message",
                        "https://www.postman.com/meta/whatsapp-business-platform/folder/1dtuocp/messages-object",
-                       "https://www.postman.com/meta/whatsapp-business-platform/request/a1g0zfr/list-flows"
+                       "https://www.postman.com/meta/whatsapp-business-platform/request/a1g0zfr/list-flows",
+                       "https://whatsappbusiness.com/policy/",
+                       "https://www.postman.com/meta/whatsapp-business-platform/request/6vkv46u/create-authentication-template-w-otp-copy-code-button"
                    ],
     "implementation":  {
-                           "updatedAt":  "2026-10-13T13:25:09.8353329Z",
+                           "updatedAt":  "2026-10-13T14:19:17.9834625Z",
                            "incorporatedProductionDeployment":  "858000db-94c6-4640-b36c-e81adee3c7ad",
                            "localBuild":  "passed",
                            "compiledAppModuleImport":  "passed",
                            "latestFocusedTests":  {
-                                                      "passed":  57,
+                                                      "passed":  66,
                                                       "failed":  0
                                                   },
                            "sharedFlow":  "implemented",
@@ -401,8 +403,17 @@
                            "durableDispatchAndReceipts":  "implemented",
                            "nativeFlows":  "implemented_provider_validation_pending",
                            "linkedCatalogSync":  "implemented_requires_authorized_linked_catalog",
-                           "sandbox":  "pending_deployment",
+                           "sandbox":  "shared_cart_checkout_and_durable_turns_validated_without_provider_sends; policy_correction_release_pending",
                            "production":  "pending_sandbox_validation",
                            "realPurchase":  "not_validated"
+                       },
+    "templatePolicy":  {
+                           "analyzedAt":  "2026-10-13",
+                           "actualRejection":  "INCORRECT_CATEGORY",
+                           "rejectedType":  "checkout_otp",
+                           "correction":  "AUTHENTICATION preset with COPY_CODE button and ten-minute expiry; both message and button receive the same validated six-digit code",
+                           "otherCategories":  "Order and service context: UTILITY; promotions and abandoned cart: MARKETING",
+                           "sensitiveIdentifiers":  "CPF and payment card details stay in scoped secure checkout, never requested by native WhatsApp forms",
+                           "submission":  "pending_corrected_release"
                        }
 }

@@ -112,7 +112,8 @@ export class PostSaleAiCopywriterService {
    * Use the catalog category consistently for campaign submission.
    */
   metaCategoryFor(type: GenerateMessageInput["type"]): "UTILITY" | "MARKETING" {
-    return categoryFor(type);
+    // This service only handles post-sale messages, never authentication codes.
+    return categoryFor(type) === "MARKETING" ? "MARKETING" : "UTILITY";
   }
 
   /**

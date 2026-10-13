@@ -38,6 +38,7 @@ export function validateSalesEdit(type: string, value: unknown): RecoveryTemplat
   if (type === "cart_recovery") return validateRecoveryTemplateEdit(value);
   if (!value || typeof value !== "object") throw new BadRequestException("invalid_template");
   const input = value as RecoveryTemplateEdit;
+  if (type === "checkout_otp" && input.whatsapp?.body?.trim() !== salesDefaults(type).whatsapp.body) throw new BadRequestException("authentication_template_fixed");
   const text = (value: unknown, max: number) => {
     if (typeof value !== "string" || !value.trim() || value.length > max) throw new BadRequestException("invalid_template_text");
     prepareSalesWhatsApp(type, value);

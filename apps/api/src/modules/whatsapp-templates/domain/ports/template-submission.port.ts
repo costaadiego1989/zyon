@@ -12,7 +12,7 @@ export interface SubmitTemplateInput {
   metaBody: string;
   /** position → sample value for the Meta review. */
   sampleVariables: Record<string, string>;
-  category: string; // UTILITY | MARKETING
+  category: string; // UTILITY | MARKETING | AUTHENTICATION
 }
 
 export interface TemplateSubmissionStatus {
@@ -29,5 +29,5 @@ export interface TemplateSubmissionStatus {
 
 export interface TemplateSubmissionPort {
   createAndSubmit(input: SubmitTemplateInput): Promise<TemplateSubmissionStatus>;
-  syncStatus(merchantId: string, contentSid: string, expected?: { language: string; body: string }): Promise<TemplateSubmissionStatus>;
+  syncStatus(merchantId: string, contentSid: string, expected?: { language: string; body: string; category?: string }): Promise<TemplateSubmissionStatus>;
 }

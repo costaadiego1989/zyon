@@ -63,3 +63,14 @@ test("a cart that became unavailable before checkout keeps the shopper in a reco
   assert.match(response.agentMessage, /disponibilidade/); assert.equal(response.state.stage, "store");
   assert.deepEqual(response.quickReplies, ["Ver Carrinho", "Continuar Comprando"]);
 });
+
+test("full personal identifiers continue in the same secure checkout instead of chat or Meta forms", async () => {
+  const withoutCpf = { ...session, customer: { ...session.customer, cpf: undefined } };
+  const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => { assert.fail("CPF must not be collected in WhatsApp chat"); } } as any,
+    { getSession: async () => withoutCpf } as any, {} as any, { executeForMerchant: async () => ({ name: "Empresa" }) } as any);
+  const response = await adapter.respondStore({ merchantId: "merchant", buyer, message: "52998224725",
+    state: { ...initial, stage: "checkout", checkoutSessionId: "checkout", flowIds: { zyon_registration_v1: "flow" } } });
+  assert.match(response.agentMessage, /checkout seguro/); assert.equal(response.state.pendingFlow, undefined);
+  assert.equal(response.state.expectsFreeInput, false); assert.equal(JSON.stringify(response).includes("52998224725"), false);
+  assert.equal(response.blocks.some(block => block.type === "checkout_form"), false);
+});
