@@ -8,6 +8,7 @@
 
 import {
   Body,
+  BadRequestException,
   Controller,
   Get,
   HttpCode,
@@ -67,8 +68,12 @@ interface MetaInboundMessage {
   timestamp?: string;
   type?: string;
   text?: { body?: string };
+  order?: import("../../infrastructure/adapters/meta-catalog-order.adapter.js").MetaCatalogOrder;
+  image?: { id?: string; mime_type?: string; caption?: string };
+  document?: { id?: string; mime_type?: string; filename?: string; caption?: string };
+  audio?: { id?: string; mime_type?: string };
   button?: { text?: string };
-  interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string } };
+  interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string }; nfm_reply?: { response_json?: string; body?: string } };
 }
 
 interface MetaWebhookPayload {
@@ -92,8 +97,8 @@ export class WhatsAppWebhookController {
     @Inject(WHATSAPP_CONFIG_REPOSITORY)
     private readonly configRepo: WhatsAppConfigRepository,
     private readonly acceptBubbleWhats: AcceptBubbleWhatsWebhookUseCase,
-    @Optional() private readonly metaStatus?: HandleStatusUpdateUseCase,
     @Optional() private readonly delivery?: WhatsAppDeliveryService,
+    @Optional() private readonly metaStatus?: HandleStatusUpdateUseCase,
   ) {}
 
   @Get("meta")
@@ -140,14 +145,13 @@ export class WhatsAppWebhookController {
           if (!this.delivery) throw new ServiceUnavailableException("whatsapp_delivery_not_configured");
           await this.delivery.reconcileMeta(config.merchantId, config.id, status);
         }
-        if (!config.enabled) continue;
-
         for (const status of change.value?.statuses ?? []) {
           if (!status.id || !status.status) continue;
           if (!this.metaStatus) throw new ServiceUnavailableException("whatsapp_receipt_store_unavailable");
           await this.metaStatus.receiveMetaReceipt({ merchantId: config.merchantId, configId: config.id, messageId: status.id,
             status: status.status, timestamp: status.timestamp, correlationId: status.biz_opaque_callback_data });
         }
+        if (!config.enabled) continue;
 
         const senderName = change.value?.contacts?.[0]?.profile?.name;
         for (const message of change.value?.messages ?? []) {
@@ -162,7 +166,13 @@ export class WhatsAppWebhookController {
             fromNumber: message.from.startsWith("+") ? message.from : `+${message.from}`,
             fromAlias: senderName,
             body,
+            ...(message.order ? { catalogOrder: message.order } : {}),
+            ...((message.image?.id ?? message.document?.id ?? message.audio?.id) ? { metaMedia: {
+              id: (message.image?.id ?? message.document?.id ?? message.audio?.id)!, mimeType: message.image?.mime_type ?? message.document?.mime_type ?? message.audio?.mime_type,
+              name: message.document?.filename,
+            } } : {}),
             ...((message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id) ? { interactiveId: message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id } : {}),
+            ...(message.interactive?.nfm_reply?.response_json ? { flowResponse: this.metaFlowResponse(message.interactive.nfm_reply.response_json) } : {}),
             messageType: message.type ?? "text",
             timestamp: Number(message.timestamp ?? 0) * 1000 || Date.now(),
           });
@@ -185,10 +195,20 @@ export class WhatsAppWebhookController {
 
   private metaMessageBody(message: MetaInboundMessage): string {
     return message.text?.body
+      ?? (message.order ? "Escolhi produtos no catálogo do WhatsApp" : undefined)
+      ?? message.image?.caption ?? message.document?.caption
+      ?? ((message.image || message.document || message.audio) ? "Enviei um anexo para ajudar na compra" : undefined)
       ?? message.button?.text
       ?? message.interactive?.button_reply?.title
       ?? message.interactive?.list_reply?.title
+      ?? (message.interactive?.nfm_reply ? "Dados do formulário" : undefined)
       ?? "";
+  }
+
+  private metaFlowResponse(raw: string): Record<string, unknown> {
+    if (raw.length > 4096) throw new BadRequestException("whatsapp_flow_response_invalid");
+    try { const reply = JSON.parse(raw); if (reply && typeof reply === "object" && !Array.isArray(reply)) return reply; } catch {}
+    throw new BadRequestException("whatsapp_flow_response_invalid");
   }
 
   /**

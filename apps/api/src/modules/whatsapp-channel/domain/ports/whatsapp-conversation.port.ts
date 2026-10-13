@@ -6,6 +6,8 @@ export interface WhatsAppConversationPort {
   respondStore?(input: {
     merchantId: string; buyer: { globalUserId: string; phone: string; fullName?: string; email?: string };
     message: string; state: import("../ui/meta-ui.types.js").WhatsAppConversationState;
+    attachmentContext?: string;
+    messageId?: string;
     action?: import("../ui/meta-ui.types.js").StoreUiAction;
   }): Promise<import("../ui/meta-ui.types.js").WhatsAppStructuredResponse>;
 }

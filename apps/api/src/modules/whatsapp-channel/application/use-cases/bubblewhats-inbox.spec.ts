@@ -143,6 +143,24 @@ describe("BubbleWhats authenticated durable acceptance", () => {
     await assert.rejects(controller.receiveMetaWebhook("sha256=invalid", payload, { rawBody } as any), UnauthorizedException);
   });
 
+  it("processes native and legacy Meta receipts while the channel is paused", async t => {
+    const previousSecret = process.env.META_APP_SECRET;
+    process.env.META_APP_SECRET = "meta-webhook-secret";
+    t.after(() => { if (previousSecret === undefined) delete process.env.META_APP_SECRET; else process.env.META_APP_SECRET = previousSecret; });
+    let nativeReceipts = 0; let legacyReceipts = 0;
+    const controller = new WhatsAppWebhookController({ findByMetaPhoneNumberId: async () => ({ ...config(), enabled: false, provider: "META_CLOUD" }) } as any,
+      { messageForAuthenticatedConfig: async () => { assert.fail("paused channel cannot accept a new conversation"); } } as any,
+      { reconcileMeta: async () => { legacyReceipts++; } } as any,
+      { receiveMetaReceipt: async () => { nativeReceipts++; } } as any);
+    const payload = { entry: [{ changes: [{ field: "messages", value: { metadata: { phone_number_id: "987654321" },
+      statuses: [{ id: "wamid-delivered", status: "delivered", biz_opaque_callback_data: "zyon:turn1:0" }],
+      messages: [{ id: "wamid-in", from: "5511988888888", text: { body: "Oi" } }] } }] }] };
+    const rawBody = Buffer.from(JSON.stringify(payload));
+    const signature = `sha256=${createHmac("sha256", process.env.META_APP_SECRET).update(rawBody).digest("hex")}`;
+    await controller.receiveMetaWebhook(signature, payload, { rawBody } as any);
+    assert.equal(nativeReceipts, 1); assert.equal(legacyReceipts, 1);
+  });
+
   it("keeps Meta and Twilio acknowledgements behind durable inbox acceptance", async t => {
     const previousUrl = process.env.API_PUBLIC_URL;
     process.env.API_PUBLIC_URL = "https://api.example.test";

@@ -13,6 +13,7 @@ import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port
 import type { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 import type { PrismaClient } from "@prisma/client";
 import type { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
+import type { SubmitCustomerTestimonialUseCase } from "../../../catalog/application/use-cases/submit-customer-testimonial.use-case.js";
 import { createProductHandlers, type ProductHandlerDeps } from "./product.handlers.js";
 import { createCartHandlers, type CartHandlerDeps } from "./cart.handlers.js";
 import type { CrossSellConfig } from "./cart-cross-sell.helper.js";
@@ -37,6 +38,7 @@ export interface AllHandlerDeps {
   couponRepo?: CouponRepository;
   productPromotionRepo?: ProductPromotionRepositoryPort;
   oneBuyClick?: OneBuyClickSessionService;
+  submitTestimonial?: SubmitCustomerTestimonialUseCase;
 }
 
 export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestContext): StoreToolHandlers {
@@ -70,6 +72,7 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
 
   const reviewDeps: ReviewHandlerDeps = {
     prisma: deps.prisma,
+    submitTestimonial: deps.submitTestimonial, supportHandoff: deps.supportHandoff,
   };
 
   const wishlistDeps: WishlistHandlerDeps = {

@@ -2859,17 +2859,22 @@ model WhatsAppChannelConfig {
   @@map("whatsapp_channel_configs")
 }
 
-model StorefrontWishlistItem {
+model WhatsAppNativeAsset {
   id         String   @id @default(cuid())
   merchantId String   @map("merchant_id")
-  ownerKey   String   @map("owner_key")
-  productId  String   @map("product_id")
+  configId   String   @map("config_id")
+  name       String
+  kind       String
+  sourceHash String   @map("source_hash")
+  providerId String?  @map("provider_id")
+  status     String   @default("pending")
+  lastError  String?  @map("last_error")
+  retryAfter DateTime? @map("retry_after")
   createdAt  DateTime @default(now()) @map("created_at")
   updatedAt  DateTime @updatedAt @map("updated_at")
-
-  @@unique([merchantId, ownerKey, productId])
-  @@index([merchantId, ownerKey, createdAt])
-  @@map("storefront_wishlist_items")
+  @@unique([configId, kind, name])
+  @@index([merchantId, configId])
+  @@map("whatsapp_native_assets")
 }
 
 model WhatsAppSession {

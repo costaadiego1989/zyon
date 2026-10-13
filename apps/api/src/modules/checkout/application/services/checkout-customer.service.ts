@@ -11,7 +11,8 @@ import {
   extractName,
   extractStandaloneName,
   extractPhone,
-  isBrazilianMobilePhone
+  isBrazilianMobilePhone,
+  hasValidContactPhone,
 } from "../../domain/services/customer-extraction.service.js";
 import { OtpDeliveryError, OtpService, OtpValidationError } from "./otp.service.js";
 import { BuyerRecognitionService } from "./buyer-recognition.service.js";
@@ -195,7 +196,7 @@ export class CheckoutCustomerService {
     }
 
     const currentPhone = existing?.phone;
-    if (!currentPhone || !isBrazilianMobilePhone(currentPhone)) {
+    if (!currentPhone || (!isBrazilianMobilePhone(currentPhone) && !(existing?.phone_verified === true && /^\+?\d{10,15}$/.test(currentPhone)))) {
       const cpfInThisTurn = patch.cpf ?? existing?.cpf;
       if (phone && phone !== cpfInThisTurn) {
         if (this.otpService) {
@@ -307,7 +308,7 @@ export class CheckoutCustomerService {
     code: string;
   }): Promise<boolean> {
     const phone = input.session.customer?.phone;
-    if (!phone || !isBrazilianMobilePhone(phone)) return false;
+    if (!phone || !hasValidContactPhone(input.session.customer)) return false;
 
     const template = await this.templates
       ?.findByMerchantAndType(input.session.merchantId, "checkout_otp", "whatsapp")

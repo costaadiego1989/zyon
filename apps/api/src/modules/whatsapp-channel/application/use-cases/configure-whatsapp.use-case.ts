@@ -4,6 +4,7 @@ import { WHATSAPP_ONBOARDING_STORE, TwilioOnboardingError, type OnboardingLease,
 import { TEMPLATE_PACKAGE_SUBMITTER, type TemplatePackageSubmitter } from "../../domain/ports/template-package-submitter.port.js";
 import { WHATSAPP_SIGNUP_AUTHORIZATION, type MetaCloudAuthorizedAssets, type WhatsAppSignupAuthorization } from "../../domain/ports/whatsapp-signup-authorization.port.js";
 import { randomInt } from "node:crypto";
+import { MetaNativeAssetsService } from "../services/meta-native-assets.service.js";
 
 export interface ConnectViaEmbeddedSignupInput {
   merchantId: string;
@@ -22,6 +23,7 @@ export class ConfigureWhatsAppUseCase {
     @Inject(WHATSAPP_ONBOARDING_STORE) private readonly store: WhatsAppOnboardingStore,
     @Inject(WHATSAPP_SIGNUP_AUTHORIZATION) private readonly authorization: WhatsAppSignupAuthorization,
     @Optional() @Inject(TEMPLATE_PACKAGE_SUBMITTER) private readonly templatePackage?: TemplatePackageSubmitter,
+    @Optional() private readonly nativeAssets?: MetaNativeAssetsService,
   ) {}
 
   settings() {
@@ -162,6 +164,7 @@ export class ConfigureWhatsAppUseCase {
     if (activateTemplates && this.templatePackage) {
       void this.registerTemplatePackage(lease.config.merchantId);
     }
+    this.nativeAssets?.enqueue(lease.config.merchantId, lease.config.id);
   }
 
   async refresh(merchantId: string) {

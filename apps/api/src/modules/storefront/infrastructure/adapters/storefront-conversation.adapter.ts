@@ -24,6 +24,7 @@ import { SupportHandoffService } from "../../../support/application/support-hand
 import { AgentCopyService } from "../copy/agent-copy.service.js";
 import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
 import { executeStorefrontUiAction } from "../agents/storefront-ui-action.executor.js";
+import { SubmitCustomerTestimonialUseCase } from "../../../catalog/application/use-cases/submit-customer-testimonial.use-case.js";
 import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { appendOneBuyClickCheckout } from "../one-buy-click/one-buy-click-checkout-preparation.js";
@@ -56,6 +57,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Optional() private readonly queryKnowledge?: QueryKnowledgeUseCase,
     @Optional() private readonly oneBuyClick?: OneBuyClickSessionService,
     @Optional() @Inject(STOREFRONT_TELEMETRY_PORT) private readonly telemetry?: StorefrontTelemetryPort,
+    @Optional() private readonly submitTestimonial?: SubmitCustomerTestimonialUseCase,
   ) {
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
@@ -92,6 +94,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       couponRepo: this.couponRepo,
       productPromotionRepo: this.productPromotionRepo,
       oneBuyClick: this.oneBuyClick,
+      submitTestimonial: this.submitTestimonial,
     };
 
     const placeholderHandlers: StoreToolHandlers = {} as any;
@@ -111,7 +114,6 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   }
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
     const ctx: ToolRequestContext = {
-      conversationId: input.sessionId,
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
       conversationId: input.sessionId,

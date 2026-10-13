@@ -16,7 +16,7 @@ describe("EmbedCheckoutController", () => {
     const seen: unknown[] = [];
     const controller = new EmbedCheckoutController({} as never, {} as never, {} as never, new EmbedCheckoutGuardHelper(repo),
       {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, undefined,
-      { recordDisplay(...args: unknown[]) { seen.push(args); return { status: "recorded" }; } } as never);
+      undefined, undefined, undefined, undefined, { recordDisplay(...args: unknown[]) { seen.push(args); return { status: "recorded" }; } } as never);
     const report = { session_id: sessionId, conversation_id: "conversation", definition: "widget-visible-text-v1" as const,
       display_ref: { turn_id: "turn", text_hash: "a".repeat(64) } };
     await assert.rejects(controller.chatDisplay({ embedClaims: claims }, { ...report, session_id: "foreign" }), /binding_mismatch/);
@@ -31,7 +31,7 @@ describe("EmbedCheckoutController", () => {
     const seen: unknown[] = [];
     const controller = new EmbedCheckoutController({} as never, {} as never, {} as never, new EmbedCheckoutGuardHelper(repo),
       {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, undefined,
-      { readPayment(...args: unknown[]) { seen.push(args); return { id: "intent" }; } } as never);
+      undefined, undefined, undefined, undefined, { readPayment(...args: unknown[]) { seen.push(args); return { id: "intent" }; } } as never);
     await assert.rejects(controller.chatPayment({ embedClaims: claims }, "foreign", "intent"), /binding_mismatch/);
     assert.equal(seen.length, 0);
     assert.deepEqual(await controller.chatPayment({ embedClaims: claims }, sessionId, "intent"), { id: "intent" });
@@ -46,7 +46,7 @@ describe("EmbedCheckoutController", () => {
     const controller = new EmbedCheckoutController({ execute() { return { session_id: sessionId }; } } as never,
       {} as never, {} as never, new EmbedCheckoutGuardHelper(repo), {} as never, {} as never, {} as never,
       {} as never, {} as never, {} as never, {} as never, undefined,
-      { readState(...args: unknown[]) { seen.push(args); return state; } } as never);
+      undefined, undefined, undefined, undefined, { readState(...args: unknown[]) { seen.push(args); return state; } } as never);
     await assert.rejects(controller.chatState({ embedClaims: claims }, "foreign"), /binding_mismatch/);
     assert.equal(seen.length, 0);
     assert.deepEqual(await controller.chatState({ embedClaims: claims }, sessionId, "message_00000001"), state);
@@ -62,7 +62,7 @@ describe("EmbedCheckoutController", () => {
     const seen: any[] = [];
     const controller = new EmbedCheckoutController({} as never, {} as never, {} as never, new EmbedCheckoutGuardHelper(repo),
       {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, {} as never, undefined,
-      { execute(input: unknown) { seen.push(input); return { chat_request: { message_id: "message_00000001", status: "reconciled", next_action: "refresh_session" } }; } } as never);
+      undefined, undefined, undefined, undefined, { execute(input: unknown) { seen.push(input); return { chat_request: { message_id: "message_00000001", status: "reconciled", next_action: "refresh_session" } }; } } as never);
     const input = { merchant_id: "forged", session_id: sessionId, conversation_id: "conversation", message_id: "message_00000001" };
     await assert.rejects(controller.reconcileMessage({ embedClaims: claims }, { ...input, session_id: "other" }), /binding_mismatch/);
     assert.equal(seen.length, 0);

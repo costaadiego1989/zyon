@@ -71,4 +71,15 @@ export class SearchFederatedProductsUseCase {
       products: products.filter((p) => p !== undefined),
     };
   }
+
+  async getAuthorizedById(hostMerchantId: string, productId: string): Promise<FederatedProductSnapshot | undefined> {
+    const product = await this.federatedProductRepository.getById(productId);
+    if (!product) return undefined;
+    const [host, seller, connection] = await Promise.all([
+      this.configRepository.get(hostMerchantId), this.configRepository.get(product.sourceMerchantId),
+      this.prisma.marketplaceConnection.findFirst({ where: { buyerMerchantId: hostMerchantId, sellerMerchantId: product.sourceMerchantId, status: "active" }, select: { id: true } }),
+    ]);
+    return host?.enabled && seller?.enabled && connection && !host.blockedMerchants?.includes(product.sourceMerchantId)
+      && !seller.blockedMerchants?.includes(hostMerchantId) ? product : undefined;
+  }
 }

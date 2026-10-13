@@ -40,6 +40,8 @@ export interface WhatsAppConversationState {
   stage: "store" | "checkout";
   checkoutSessionId?: string;
   checkoutConversationId?: string;
+  checkoutGeneration?: number;
+  payment?: { intentId: string; sessionId: string; amount_cents: number; status: string; copy_paste?: string; ticket_url?: string };
   expectsFreeInput?: boolean;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   revision: string;
@@ -56,6 +58,7 @@ export interface WhatsAppConversationState {
   pendingFlow?: { token: string; field: "fullName" | "email" | "cpf" | "zip" | "number" | "complement"; checkoutSessionId: string; expiresAt: number };
   catalogId?: string;
   catalogRetailerIds?: Record<string, string>;
+  catalogPrices?: Record<string, number>;
   flowIds?: Record<string, string>;
 }
 

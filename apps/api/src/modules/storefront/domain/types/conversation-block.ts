@@ -19,6 +19,9 @@ export interface ProductCardBlock {
     discountPercent?: number;
     stock?: number;
     sku?: string;
+    source?: "local" | "marketplace";
+    sellerName?: string;
+    sellerMerchantId?: string;
     detailed?: boolean;
     productType?: "physical" | "digital" | "service" | "food";
     serviceSchedule?: PublicServiceSchedule;

@@ -33,19 +33,37 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
   for (const block of response.blocks) {
     const d = object(block.data);
     switch (block.type) {
+      case "text": case "message": text.push(value(d.text || d.content)); break;
+      case "form_field": text.push(`Informe ${value(d.label || d.field)}:`); break;
+      case "address_confirmation": text.push(`Confirme seu endereço:\n${value(d.formatted)}`); add("Sim", { kind: "message", message: "Sim" }); add("Corrigir endereço", { kind: "message", message: "Não" }); break;
+      case "payment_methods": items(d.methods).forEach(m => add(value(m.label), { kind: "message", message: value(m.label) }, value(m.sub))); break;
+      case "payment_actions": add("Gerar Pix", tool("create_payment", { method: "pix", fingerprint: d.fingerprint })); break;
+      case "coupon_input": text.push("Qual é o código do cupom?"); break;
+      case "offer_coupon": text.push(value(d.message || d.description || d.label)); add("Aplicar oferta", { kind: "message", message: "Aplicar oferta" }); break;
+      case "stripe_card": case "hosted_card_payment": text.push("Pague com cartão pelo checkout seguro da loja."); break;
+      case "boleto_payment": if (safeLink(d.ticket_url || d.url)) text.push(`Boleto: ${safeLink(d.ticket_url || d.url)}`); break;
+      case "pix_payment": if (d.copy_paste || d.qrCodeCopyPaste) view.media.push({ type: "text", text: { body: value(d.copy_paste || d.qrCodeCopyPaste) } }); break;
+      case "crypto_chain_select": add("Polygon", { kind: "message", message: "Polygon" }); add("Base", { kind: "message", message: "Base" }); break;
+      case "crypto_payment": text.push("Conecte sua carteira pelo checkout seguro para concluir o pagamento."); break;
+      case "checkout_price_review": text.push("Os valores do pedido mudaram. Confira e confirme o novo total no checkout seguro."); break;
+      case "lead_capture": text.push("Informe seus dados para continuar. Você também pode usar o formulário no checkout seguro."); break;
+      case "order_summary": text.push(items(d.items).map(i => `${value(i.quantity)}× ${value(i.name)} — ${money(i.line_total ?? i.price)}`).join("\n")); break;
       case "product_carousel": case "marketplace_products": case "cross_sell": case "wishlist":
         items(d.products ?? d.items).forEach(productChoice);
         if (d.nextCursor) add("Mais produtos", tool("search_products", { query: d.query || "*", categoryId: d.categoryId, cursor: d.nextCursor }));
         break;
       case "product_card": {
+        if (d.sellerName) text.push(`Vendido por: ${value(d.sellerName)}`);
         text.push(`*${value(d.name)}*\n${d.priceFormatted || money(Number(d.price) / 100)}${d.inStock === false ? " · Indisponível" : ""}`, value(d.description));
-        const retailerId = response.state.catalogRetailerIds?.[value(d.sku ?? d.variants?.[0]?.sku)];
-        if (response.state.catalogId && retailerId && items(d.variants).length <= 1) view.media.push({ type: "interactive", interactive: {
+        const retailerId = response.state.catalogRetailerIds?.[value(d.variants?.[0]?.id)] ?? response.state.catalogRetailerIds?.[value(d.sku ?? d.variants?.[0]?.sku)];
+        if (response.state.catalogId && retailerId && response.state.catalogPrices?.[retailerId] === Number(d.variants?.[0]?.price ?? d.price) && items(d.variants).length <= 1 && !items(d.optionGroups).length && !d.serviceSchedule) view.media.push({ type: "interactive", interactive: {
           type: "product", body: { text: value(d.name) }, action: { catalog_id: response.state.catalogId, product_retailer_id: retailerId } } });
         else photo(d.image ?? d.images?.[0], value(d.name));
         const variants = items(d.variants).filter(v => ["digital", "service"].includes(d.productType) || v.stock !== 0);
         const selected = response.state.selectedProductId === d.id ? response.state.selectedVariantId : undefined;
         const variantId = selected || (variants.length === 1 ? value(variants[0].id) : undefined);
+        const selectedVariant = variants.find(v => v.id === variantId);
+        if (selectedVariant && selected) text.push(`Selecionado: ${value(selectedVariant.value || selectedVariant.sku)} — ${selectedVariant.priceFormatted || money(Number(selectedVariant.price) / 100)}`);
         const groups = items(d.optionGroups); const chosen = response.state.selectedOptionItemIds ?? [];
         const pending = groups.find(g => (g.required || Number(g.minSelections) > 0) && items(g.items).filter(i => chosen.includes(value(i.id))).length < Number(g.minSelections ?? 1));
         const editing = groups.find(g => g.id === response.state.selectedOptionGroupId) ?? pending;
@@ -88,7 +106,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
       case "cart_add_result":
         text.push(d.status === "succeeded" ? "Item adicionado ao carrinho." : d.status === "unknown" ? "A inclusão está sendo verificada." : "Não foi possível adicionar este item."); break;
       case "shipping_options":
-        items(d.options).forEach(o => add(value(o.name || o.carrier), { kind: "message", message: `Escolho o frete ${value(o.name)} da ${value(o.carrier)}` }, `${o.priceFormatted || money(o.price)} · ${o.days} dias`)); break;
+        items(d.options).forEach(o => add(value(o.name || o.carrier), { kind: "message", message: value(o.responseLabel) || `Escolho o frete ${value(o.name)} da ${value(o.carrier)}` }, `${o.priceFormatted || money(o.price)}${o.days != null ? ` · ${o.days} dias` : ""}`)); break;
       case "shipping_quote_input": text.push("Qual é o CEP para calcular a entrega?"); break;
       case "checkout_redirect":
         if (safeLink(d.url)) text.push(`Continue no checkout seguro:\n${safeLink(d.url)}`); break;
@@ -119,10 +137,10 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
             case "image_text_split": photo(c.imageSrc, c.imageAlt); text.push(value(c.heading), value(c.text)); break;
             case "table": text.push(value(c.caption), (Array.isArray(c.rows) ? c.rows : []).map((r: unknown[]) => r.map((v, i) => `${value(c.headers?.[i])}: ${value(v)}`).join(" · ")).join("\n")); break;
             case "faq": items(c.items).forEach(f => add(value(f.question), { kind: "tool", tool: "show_content", args: { text: f.answer } })); break;
-            case "video": { const link = safeLink(c.provider === "mp4" ? c.ref : c.provider === "youtube" ? `https://www.youtube.com/watch?v=${encodeURIComponent(value(c.ref))}` : `https://vimeo.com/${encodeURIComponent(value(c.ref))}`); if (link) { if (c.provider === "mp4") view.media.push({ type: "video", media: { link, caption: c.caption } }); else text.push(`${value(c.caption)}\n${link}`); } break; }
+            case "video": { const link = safeLink(["mp4", "url"].includes(c.provider) ? c.ref : c.provider === "youtube" ? `https://www.youtube.com/watch?v=${encodeURIComponent(value(c.ref))}` : `https://vimeo.com/${encodeURIComponent(value(c.ref))}`); if (link) { if (c.provider === "mp4") view.media.push({ type: "video", media: { link, caption: c.caption } }); else text.push(`${value(c.caption)}\n${link}`); } break; }
             case "carousel": items(c.images).forEach(i => photo(i.src, i.alt)); break;
-            case "banner": photo(c.imageSrc, c.caption || c.alt); if (safeLink(c.linkUrl)) text.push(`${value(c.ctaLabel)}: ${safeLink(c.linkUrl)}`); break;
-            case "button": if (safeLink(c.href)) text.push(`${value(c.label)}: ${safeLink(c.href)}`); else if (c.linkType === "product") add(value(c.label), tool("get_product_details", { productId: c.productId })); break;
+            case "banner": photo(c.imageSrc, c.caption || c.alt); if (c.ctaAction === "add_to_cart") add(value(c.ctaLabel || "Escolher produto"), tool("get_product_details", { productId: d.productId || response.state.selectedProductId })); else if (safeLink(c.linkUrl)) text.push(`${value(c.ctaLabel)}: ${safeLink(c.linkUrl)}`); break;
+            case "button": if (c.linkType === "product" || c.linkType === "add_to_cart") add(value(c.label), tool("get_product_details", { productId: c.productId || d.productId || response.state.selectedProductId })); else if (safeLink(c.href)) text.push(`${value(c.label)}: ${safeLink(c.href)}`); break;
           }
         }); break;
       case "payment_intent":
@@ -132,8 +150,12 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         break;
       case "checkout_summary":
         items(d.items).forEach(i => text.push(`${value(i.quantity)}× ${value(i.name)} — ${money(i.line_total ?? Number(i.unit_price) * Number(i.quantity))}`));
-        text.push(`Subtotal: ${money(d.totals?.subtotal)}\nFrete: ${money(d.totals?.shipping)}${d.totals?.discount ? `\nDescontos: ${money(d.totals.discount)}` : ""}${d.totals?.service_fee ? `\nTaxa de serviço: ${money(d.totals.service_fee)}` : ""}\n*Total a pagar: ${money(d.totals?.total_to_pay ?? d.totals?.total)}*`);
+        text.push(`Subtotal: ${money(d.totals?.subtotal)}\nFrete: ${d.shippingPending ? "A calcular" : money(d.totals?.shipping)}${d.totals?.discount ? `\nDescontos: ${money(d.totals.discount)}` : ""}${d.totals?.service_fee ? `\nTaxa de serviço: ${money(d.totals.service_fee)}` : ""}\n*${d.shippingPending ? "Total parcial" : "Total a pagar"}: ${money(d.totals?.total_to_pay ?? d.totals?.total)}*`);
         break;
+      case "checkout_form":
+        view.media.push({ type: "interactive", interactive: { type: "flow", body: { text: `Preencha ${value(d.label).toLowerCase()} ou responda aqui na conversa.` }, action: {
+          name: "flow", parameters: { flow_message_version: "3", flow_token: d.token, flow_id: d.flowId, flow_cta: "Preencher dados", flow_action: "navigate",
+            flow_action_payload: { screen: "DETAILS", data: { label: d.label } } } } } }); break;
       default: throw new Error(`whatsapp_ui_block_unsupported:${block.type}`);
     }
   }

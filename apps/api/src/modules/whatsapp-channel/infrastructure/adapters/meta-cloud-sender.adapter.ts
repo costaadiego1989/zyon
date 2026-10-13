@@ -16,11 +16,17 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
     const credentials = config && connectedMetaCloudCredentials(config, config.merchantId);
     const recipient = whatsappE164(msg.toNumber);
     if (!credentials || !recipient) return { messageId: "", status: "failed" };
+    let body: string;
+    try {
+      body = JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), ...(msg.correlationId ? { biz_opaque_callback_data: msg.correlationId } : {}), ...this.messagePayload(msg) });
+    } catch {
+      return { messageId: "", status: "failed" };
+    }
     try {
       const response = await fetch(`${this.graph}/${credentials.phoneNumberId}/messages`, {
         method: "POST", redirect: "error", signal: AbortSignal.timeout(15_000),
         headers: { Authorization: `Bearer ${credentials.accessToken}`, "Content-Type": "application/json" },
-        body: JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), ...(msg.correlationId ? { biz_opaque_callback_data: msg.correlationId } : {}), ...this.messagePayload(msg) }),
+        body,
       });
       if (!response.ok) {
         this.logger.error(`Meta Cloud text send failed: HTTP ${response.status}`);

@@ -28,6 +28,9 @@ import {
 } from "../../../post-sale/domain/ports/post-sale-reply-handler.port.js";
 
 export interface IncomingMessageInput {
+  catalogOrder?: import("../../infrastructure/adapters/meta-catalog-order.adapter.js").MetaCatalogOrder;
+  metaMedia?: { id: string; mimeType?: string; name?: string };
+  flowResponse?: Record<string, unknown>;
   interactiveId?: string;
   inboxClaim?: import("../../domain/ports/whatsapp-webhook-inbox.port.js").WhatsAppInboxClaim;
   merchantId: string;
@@ -75,6 +78,18 @@ export class HandleIncomingMessageUseCase {
       // If the buyer was asked for NPS/review via post-sale, capture reply
       // before routing to the checkout engine.
       if (session.postSaleContext && this.postSaleReply) {
+        if (input.provider === "META_CLOUD" && this.metaConversation) {
+          await this.metaConversation.execute(input, route, async () => {
+            let text = "";
+            const handled = await this.handlePostSaleReply(session, input, async response => { text = response.text; });
+            if (!handled) throw new Error("whatsapp_post_sale_context_invalid");
+            return { agentMessage: text, blocks: [], quickReplies: [], state: {
+              ...(session.conversationState ?? { version: 1, conversationId: crypto.randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] }),
+              expectsFreeInput: true,
+            } };
+          });
+          return;
+        }
         const handled = await this.handlePostSaleReply(session, input);
         if (handled) return; // reply captured; don't fall through to checkout
       }
@@ -144,11 +159,13 @@ export class HandleIncomingMessageUseCase {
   private async handlePostSaleReply(
     session: WhatsAppSessionEntity,
     input: IncomingMessageInput,
+    capturedSend?: (response: import("./send-whatsapp-response.use-case.js").SendResponseInput) => Promise<void>,
   ): Promise<boolean> {
     const ctx = session.postSaleContext;
     if (!ctx || !this.postSaleReply) return false;
 
     const reply = input.body.trim();
+    const send = capturedSend ?? ((response: import("./send-whatsapp-response.use-case.js").SendResponseInput) => this.sendResponse.execute(response));
 
     if (ctx.stage === "awaiting_nps") {
       // Parse a 1–5 star rating from the reply.
@@ -156,7 +173,7 @@ export class HandleIncomingMessageUseCase {
       const rating = match ? Number(match[1]) : NaN;
 
       if (Number.isNaN(rating) || rating < 1 || rating > 5) {
-        await this.sendResponse.execute({
+        await send({
           merchantId: input.merchantId,
           deviceId: input.deviceId,
           toNumber: input.fromNumber,
@@ -193,7 +210,7 @@ export class HandleIncomingMessageUseCase {
           ? `Valeu pelas ${rating} estrelas! 🙏 Vamos trabalhar pra chegar nas 5 na próxima! ⭐`
           : `Obrigado pela sinceridade — ${rating} estrela${rating > 1 ? "s" : ""} anotada${rating > 1 ? "s" : ""}. Vamos melhorar pra você! 💪`;
 
-      await this.sendResponse.execute({
+      await send({
         merchantId: input.merchantId,
         deviceId: input.deviceId,
         toNumber: input.fromNumber,
@@ -230,7 +247,7 @@ export class HandleIncomingMessageUseCase {
 
       await this.sessionRepo.clearPostSaleContext(session.id);
 
-      await this.sendResponse.execute({
+      await send({
         merchantId: input.merchantId,
         deviceId: input.deviceId,
         toNumber: input.fromNumber,

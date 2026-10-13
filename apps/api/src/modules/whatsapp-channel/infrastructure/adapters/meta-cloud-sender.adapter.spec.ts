@@ -40,3 +40,25 @@ test("does not use platform credentials when the Meta connection is unavailable"
   }), { messageId: "", status: "failed" });
   mock.mock.restore();
 });
+
+test("invalid media is rejected before any provider request", async t => {
+  t.mock.method(globalThis, "fetch", async () => { assert.fail("invalid payload must not reach Meta"); });
+  const adapter = new MetaCloudSenderAdapter({ findById: async () => activeConfig } as any);
+  const result = await adapter.sendMedia({ deviceId: "META_CLOUD:config-meta", toNumber: "552171191446", text: "", mediaUrl: "http://example.com/image.jpg", mimetype: "image/jpeg" });
+  assert.deepEqual(result, { messageId: "", status: "failed" });
+});
+
+test("native lists, media and correlation are sent as Meta payloads and transport uncertainty is not a rejection", async t => {
+  let request: any;
+  const mock = t.mock.method(globalThis, "fetch", async (_url: unknown, init?: RequestInit) => { request = JSON.parse(String(init?.body)); return Response.json({ messages: [{ id: "wamid.native" }] }); });
+  const adapter = new MetaCloudSenderAdapter({ findById: async () => activeConfig } as any);
+  const base = { deviceId: "META_CLOUD:config-meta", toNumber: "552171191446", text: "", correlationId: "zyon:turn:0" };
+  const interactive = { type: "list", body: { text: "Produtos" }, action: { button: "Ver", sections: [{ rows: [{ id: "exact-product-id", title: "Produto" }] }] } };
+  await adapter.sendText({ ...base, uiMessage: { type: "interactive", interactive } });
+  assert.deepEqual(request.interactive, interactive); assert.equal(request.biz_opaque_callback_data, base.correlationId);
+  assert.equal(request.to, "552171191446");
+  await adapter.sendMedia({ ...base, mediaUrl: "https://example.com/product.jpg", mimetype: "image/jpeg" });
+  assert.equal(request.type, "image"); assert.equal(request.image.link, "https://example.com/product.jpg");
+  mock.mock.mockImplementation(async () => { throw new Error("connection lost after submission"); });
+  assert.equal((await adapter.sendText(base)).status, "unknown");
+});

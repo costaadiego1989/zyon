@@ -122,11 +122,16 @@ export class AcceptBubbleWhatsWebhookUseCase {
       fromAlias: boundedString(input.fromAlias, 256, false),
       body: boundedString(input.body, 16_000, false) ?? "",
       interactiveId: boundedString(input.interactiveId, 256, false),
+      ...(input.flowResponse && typeof input.flowResponse === "object" && !Array.isArray(input.flowResponse) && JSON.stringify(input.flowResponse).length <= 4096 ? { flowResponse: input.flowResponse } : {}),
       messageType: boundedString(input.messageType, 64)!,
       mediaUrl: boundedString(input.mediaUrl, 2048, false),
       mimetype: boundedString(input.mimetype, 128, false),
       timestamp: input.timestamp,
       provider,
+      ...(input.catalogOrder && JSON.stringify(input.catalogOrder).length <= 12_000 ? { catalogOrder: input.catalogOrder } : {}),
+      ...(input.metaMedia && /^\d{1,80}$/.test(input.metaMedia.id) ? { metaMedia: {
+        id: input.metaMedia.id, mimeType: boundedString(input.metaMedia.mimeType, 128, false), name: boundedString(input.metaMedia.name, 200, false),
+      } } : {}),
     };
     const event: WhatsAppInboxEvent = {
       dedupKey: digest(JSON.stringify([source, config.merchantId, config.id, "message", stableEventId])),

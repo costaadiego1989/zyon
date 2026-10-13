@@ -14,7 +14,6 @@ export interface WhatsAppOutboundMessage {
   mediaUrl?: string;
   mimetype?: string;
   uiMessage?: import("../ui/meta-ui.types.js").MetaUiMessage;
-  correlationId?: string;
 }
 
 export interface WhatsAppSendResult {

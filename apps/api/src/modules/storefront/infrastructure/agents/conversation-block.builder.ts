@@ -123,8 +123,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           })),
           nextCursor: searchData.nextCursor,
           merchantId: input.merchantId,
-          query: undefined,
-          categoryId: undefined,
+          query: searchData.query,
+          categoryId: searchData.categoryId,
         }
       });
     }
@@ -156,7 +156,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           stock: isDigitalOrService ? undefined : (p.stock ?? 0),
           productType: p.type,
           serviceSchedule: p.serviceSchedule,
-          sku: variants[0]?.sku,
+          sku: variants[0]?.sku, source: p.source, sellerName: p.sellerName, sellerMerchantId: p.sellerMerchantId,
           variants: variants.map((v: any) => presentedVariant(v, p.type)),
           optionGroups: Array.isArray(p.optionGroups) && p.optionGroups.length > 0 ? p.optionGroups : undefined,
         }
@@ -353,9 +353,10 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
       blocks.push({
         type: "reviews",
         data: {
-          productId: "",
-          productName: "",
-          averageRating: reviewsData.averageRating ?? 4.5,
+          productId: reviewsData.productId ?? "",
+          productName: reviewsData.productName ?? "",
+          nextCursor: reviewsData.nextCursor,
+          averageRating: reviewsData.averageRating ?? 0,
           totalReviews: reviewsData.totalCount ?? reviewsData.reviews.length,
           reviews: reviewsData.reviews.map((r: any) => ({
             id: r.id,

@@ -7,6 +7,15 @@ export async function executeStorefrontUiAction(handlers: StoreToolHandlers, act
   const a = action.args; const str = (key: string) => typeof a[key] === "string" ? a[key] as string : "";
   let result: any; let message: string;
   switch (action.tool) {
+    case "add_catalog_items": {
+      const lines = Array.isArray(a.lines) ? a.lines : [];
+      if (!lines.length || lines.length > 30 || lines.some(line => typeof line?.variantId !== "string" || !Number.isInteger(line.quantity) || line.quantity < 1 || line.quantity > 99)) throw new Error("store_ui_catalog_order_invalid");
+      const results = [];
+      for (const line of lines) results.push(await handlers.addItemToCart({ cartId, variantId: line.variantId, quantity: line.quantity }));
+      result = { success: results.every(r => !(r as any)?.error && (r as any)?.success !== false) };
+      message = result.success ? "Confira os itens do catálogo no seu carrinho. A compra será confirmada após o pagamento." : "Alguns itens não puderam ser adicionados. Confira o carrinho e as opções disponíveis.";
+      break;
+    }
     case "get_product_details": result = await handlers.getProductDetails({ productId: str("productId") }); message = "Aqui estão os detalhes do produto:"; break;
     case "search_products": result = await handlers.searchProducts({ query: str("query") || "*", categoryId: str("categoryId") || undefined, cursor: str("cursor") || undefined }); message = "Estes são os produtos disponíveis:"; break;
     case "list_categories": result = await handlers.listCategories(); message = "Escolha uma categoria:"; break;
@@ -33,7 +42,7 @@ export async function executeStorefrontUiAction(handlers: StoreToolHandlers, act
     default: throw new Error("store_ui_action_unsupported");
   }
   const toolResults: Record<string, unknown> = { [action.tool]: result };
-  if (["get_cart", "remove_cart_item", "update_cart_item", "apply_coupon", "add_item_to_cart"].includes(action.tool)) toolResults.get_cart = await handlers.getCart({ cartId });
+  if (["get_cart", "remove_cart_item", "update_cart_item", "apply_coupon", "add_item_to_cart", "add_catalog_items"].includes(action.tool)) toolResults.get_cart = await handlers.getCart({ cartId });
   const built = buildConversationBlocks({ toolResults, userMessage: action.tool === "get_product_details" ? "Detalhes do produto" : message, finalContent: message, merchantId });
   const blocks: ConversationBlock[] = built.blocks;
   if (action.tool === "list_categories" && !blocks.some(b => b.type === "category_carousel" as string)) blocks.push({ type: "category_carousel", data: { categories: Array.isArray(result) ? result : result?.categories ?? [] } } as unknown as ConversationBlock);

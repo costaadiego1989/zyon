@@ -9,6 +9,9 @@ import { SendWhatsAppResponseUseCase } from "./send-whatsapp-response.use-case.j
 import type { IncomingMessageInput } from "./handle-incoming-message.use-case.js";
 import type { RouteResult } from "./route-to-session.use-case.js";
 import { MetaUiCapabilitiesAdapter } from "../../infrastructure/adapters/meta-ui-capabilities.adapter.js";
+import { resolveMetaFieldFlow } from "../../domain/ui/meta-flow.js";
+import { MetaInboundMediaAdapter } from "../../infrastructure/adapters/meta-inbound-media.adapter.js";
+import { MetaCatalogOrderAdapter } from "../../infrastructure/adapters/meta-catalog-order.adapter.js";
 
 interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
@@ -20,9 +23,11 @@ export class HandleMetaConversationUseCase {
     @Inject(WHATSAPP_WEBHOOK_INBOX) private readonly inbox: WhatsAppWebhookInbox,
     private readonly sender: SendWhatsAppResponseUseCase,
     @Optional() private readonly capabilities?: MetaUiCapabilitiesAdapter,
+    @Optional() private readonly inboundMedia?: MetaInboundMediaAdapter,
+    @Optional() private readonly catalogOrders?: MetaCatalogOrderAdapter,
   ) {}
 
-  async execute(input: IncomingMessageInput, route: RouteResult): Promise<void> {
+  async execute(input: IncomingMessageInput, route: RouteResult, responseProducer?: () => Promise<WhatsAppStructuredResponse>): Promise<void> {
     if (Date.now() - input.timestamp > 24 * 60 * 60 * 1000) throw new Error("whatsapp_service_window_expired");
     const claim = input.inboxClaim;
     if (!claim || !this.inbox.saveResponse || !this.conversation.respondStore) throw new Error("whatsapp_durable_ui_unavailable");
@@ -35,7 +40,16 @@ export class HandleMetaConversationUseCase {
       let action: StoreUiAction | undefined;
       const numeric = /^\d{1,2}$/.test(input.body.trim()) ? Number(input.body.trim()) : NaN;
       let invalidSelection = false;
-      if (input.interactiveId) {
+      if (responseProducer) { /* The post-sale handler owns its numeric input. */ }
+      else if (input.catalogOrder) {
+        const lines = await this.catalogOrders?.resolve(input.merchantId, state.catalogId, input.catalogOrder);
+        invalidSelection = !lines;
+        if (lines) action = { kind: "tool", tool: "add_catalog_items", args: { lines } };
+      } else if (input.flowResponse) {
+        const message = resolveMetaFieldFlow(state, input.flowResponse);
+        invalidSelection = !message;
+        if (message) { action = { kind: "message", message }; state = { ...state, pendingFlow: undefined }; }
+      } else if (input.interactiveId) {
         action = state.selections?.[input.interactiveId];
         invalidSelection = !action;
       } else if (!state.expectsFreeInput && input.body.trim() === "0" && state.previousViews.length) action = { kind: "back" };
@@ -45,7 +59,7 @@ export class HandleMetaConversationUseCase {
       const revision = claim.id;
       let view = state.view;
       let includeMedia = true;
-      if (invalidSelection && view) { view = { ...view, body: "Essa opção pertence a uma etapa anterior. Escolha uma das opções atuais ou escreva sua pergunta." }; includeMedia = false; }
+      if (invalidSelection) { view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Não consegui validar essa seleção. Escolha uma das opções atuais ou escreva sua pergunta." }; includeMedia = false; }
       else if (action?.kind === "page" && view) { state = { ...state, page: action.page }; includeMedia = false; }
       else if (action?.kind === "back" && state.previousViews.length) {
         view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
@@ -88,9 +102,13 @@ export class HandleMetaConversationUseCase {
         }
         if (state.view) state = { ...state, previousViews: [...state.previousViews, state.view].slice(-6), page: 0 };
       } else {
-        const response: WhatsAppStructuredResponse = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData,
+        const attachmentContext = input.metaMedia ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia) : undefined;
+        const response: WhatsAppStructuredResponse = responseProducer ? await responseProducer() : await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData,
           message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : input.body, state,
+          attachmentContext,
+          messageId: claim.id,
           action: action?.kind === "tool" ? action : undefined });
+        if (input.metaMedia && !attachmentContext) response.agentMessage = "Não consegui ler esse anexo. Envie uma foto (JPG, PNG ou WebP) de até 3 MB, uma lista TXT/CSV ou escreva o que procura.\n\n" + response.agentMessage;
         state = response.state;
         if (view) state = { ...state, previousViews: [...state.previousViews, view].slice(-6) };
         view = buildMetaUiView(response); state.page = 0;
@@ -117,6 +135,19 @@ export class HandleMetaConversationUseCase {
         text: "", uiMessage: saved.presentation!.messages[index], correlationId: `zyon:${claim.id}:${index}` });
       if (result.status === "unknown") throw new Error("whatsapp_send_result_unknown");
       if (!result.messageId || !["sent", "queued"].includes(result.status)) {
+        const message = saved.presentation!.messages[index];
+        // A definite rejection of an optional surface must not hide the rest of
+        // the response. Persist its text replacement before attempting delivery.
+        const fallback = message.type === "image" || message.type === "video" || message.type === "document"
+          ? `Não consegui exibir esta mídia.${message.media.caption ? `\n\n${message.media.caption}` : ""}`
+          : message.type === "interactive" && message.interactive.type === "flow"
+            ? `Não consegui abrir o formulário. Responda aqui na conversa:\n\n${(message.interactive.body as { text?: string } | undefined)?.text ?? "Informe o dado solicitado."}` : undefined;
+        if (fallback) {
+          saved.presentation!.messages[index] = { type: "text", text: { body: fallback.slice(0, 4096) } };
+          saved = { ...saved, phase: "prepared", sent };
+          await this.save(claim, saved);
+          index--; continue;
+        }
         await this.save(claim, { ...saved, phase: "prepared", sent });
         throw new Error("whatsapp_send_failed");
       }

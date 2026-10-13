@@ -106,7 +106,7 @@ export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
       const previous = rows[0].response_state ?? {};
       const sent = new Map<number, unknown>();
       for (const item of [...((response.sent as any[]) ?? []), ...(previous.sent ?? [])]) sent.set(item.index, item);
-      const merged = { ...response, ...(previous.receipts ? { receipts: previous.receipts } : {}),
+      const merged: Record<string, unknown> = { ...response, ...(previous.receipts ? { receipts: previous.receipts } : {}),
         ...(response.presentation ? { sent: [...sent.values()] } : {}) };
       if (response.phase === "dispatching" && sent.has(Number(response.dispatchingIndex))) merged.phase = "prepared";
       return (await tx.$executeRaw(Prisma.sql`

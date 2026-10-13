@@ -145,6 +145,7 @@ import { StorefrontConsentController } from "./presentation/http/storefront-cons
     AddMarketplaceItemToCartStorefrontUseCase
   ],
   exports: [
+    StorefrontAttachmentInterpreter,
     StartStoreConversationUseCase,
     SendStoreMessageUseCase,
     GetConversationHistoryUseCase,

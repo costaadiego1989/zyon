@@ -119,13 +119,23 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
 
       return {
         products: localProducts,
-        nextCursor: result.nextCursor
+        nextCursor: result.nextCursor, query: args.query, categoryId: args.categoryId,
       };
     },
 
     getProductDetails: async (args) => {
       const product = await deps.productRepo.findById(ctx.merchantId, args.productId);
-      if (!product) return { error: "product_not_found" };
+      if (!product) {
+        const federated = await deps.searchFederatedProducts?.getAuthorizedById(ctx.merchantId, args.productId);
+        if (!federated) return { error: "product_not_found" };
+        const seller = await deps.merchantRepo.getProfile(federated.sourceMerchantId);
+        return { product: { id: federated.id, name: federated.name, description: federated.description, price: federated.priceCents,
+          image: federated.imageUrl, images: federated.imageUrl ? [federated.imageUrl] : [], inStock: federated.stockAvailable,
+          source: "marketplace", sellerName: seller?.name ?? "Loja parceira", sellerMerchantId: federated.sourceMerchantId,
+          variants: [{ id: federated.id, sku: federated.sourceProductId, basePriceInCents: federated.priceCents,
+            stockQuantity: federated.stockAvailable ? undefined : 0, isActive: true }],
+        } };
+      }
       const serviceSchedule = product.type === "service" && product.defaultVariant ? await new ServiceSlotHoldsService(deps.prisma).availability(ctx.merchantId, product.defaultVariant.id, product.metadata) : undefined;
       const noticeRules = await loadProductNoticeRules(deps.prisma, ctx.merchantId);
       const ruleNotices = productRuleNotices(

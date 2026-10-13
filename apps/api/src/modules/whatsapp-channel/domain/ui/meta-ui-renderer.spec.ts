@@ -83,3 +83,38 @@ test("numeric presentation preserves the same actions as a native menu", () => {
   assert.deepEqual(numeric.numericSelections, nativeMenu.numericSelections);
   assert.equal(native(numeric).length, 0);
 });
+
+test("long content and every media remain accessible without flooding the conversation", () => {
+  const text = "Detalhes do produto. ".repeat(900);
+  const view = buildMetaUiView(response({ blocks: [{ type: "product_content", data: { blocks: [
+    { type: "paragraph", text }, ...Array.from({ length: 9 }, (_, i) => ({ type: "image", src: `https://example.com/${i}.jpg` })),
+  ] } }] }));
+  const shown = presentMetaUi(view, "turn");
+  assert.equal(shown.messages.filter(m => m.type === "image").length, 3);
+  assert.ok(Object.values(shown.selections).some(a => a.kind === "tool" && a.tool === "media_page" && (a.args.media as unknown[]).length === 6));
+  assert.ok(Object.values(shown.selections).some(a => a.kind === "tool" && a.tool === "show_content" && String(a.args.text).length > 7000));
+  assert.ok(shown.messages.filter(m => m.type === "text").length <= 2);
+});
+
+test("checkout uses the payable total including the fee and real shipping selection", () => {
+  const view = buildMetaUiView(response({ blocks: [
+    { type: "checkout_summary", data: { items: [{ name: "Item", quantity: 2, line_total: 100 }], totals: { subtotal: 100, shipping: 10, discount: 5, service_fee: 0.99, total: 105, total_to_pay: 105.99 } } },
+    { type: "shipping_options", data: { options: [{ name: "PAC", price: 10, days: 5, responseLabel: "Correios PAC (5 dias) - R$ 10,00" }] } },
+  ] }));
+  assert.match(view.body, /105,99/); assert.match(view.body, /Taxa de serviço/);
+  assert.deepEqual(view.choices[0].action, { kind: "message", message: "Correios PAC (5 dias) - R$ 10,00" });
+});
+
+test("a scheduled service cannot be added before a selectable slot is chosen", () => {
+  const base = response({ blocks: [{ type: "product_card", data: { id: "service", name: "Consulta", price: 10000, priceFormatted: "R$ 100,00", inStock: true, productType: "service",
+    variants: [{ id: "v1", value: "Consulta", stock: 0 }], serviceSchedule: { slots: [
+      { slotId: "past", date: "2026-01-01", startTime: "10:00", durationMinutes: 30, timeZone: "America/Sao_Paulo", selectable: false },
+      { slotId: "future", date: "2026-12-01", startTime: "10:00", durationMinutes: 30, timeZone: "America/Sao_Paulo", selectable: true },
+    ] } } } as any] });
+  const before = buildMetaUiView(base);
+  assert.equal(before.choices.some(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart"), false);
+  assert.deepEqual(before.choices.find(c => c.action.kind === "slot")?.action, { kind: "slot", productId: "service", slotId: "future" });
+  const after = buildMetaUiView({ ...base, state: { ...base.state, selectedServiceSlotId: "future" } });
+  const add = after.choices.find(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart");
+  assert.equal(add?.action.kind === "tool" ? add.action.args.selectedServiceSlotId : null, "future");
+});

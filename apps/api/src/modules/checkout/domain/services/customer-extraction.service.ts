@@ -56,6 +56,11 @@ export function isBrazilianMobilePhone(phone: string): boolean {
   const digits = phone.replace(/\D/g, "");
   return digits.length === 11 && digits[2] === "9";
 }
+/** A provider-verified wa_id may use Meta's canonical Brazilian eight-digit form. */
+export function hasValidContactPhone(customer: { phone?: string; phone_verified?: boolean } | undefined): boolean {
+  return Boolean(customer?.phone && (isBrazilianMobilePhone(customer.phone)
+    || (customer.phone_verified === true && /^\+?\d{10,15}$/.test(customer.phone))));
+}
 
 const NAME_FILLERS = ["é", "e", "sou", "meu", "nome", "me", "chamo", "o", "a"];
 const NAME_STOPWORDS = new Set([
@@ -159,7 +164,7 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
   if (completed) return "completed";
   if (pendingCustomerCorrection(session)) return "data_collection";
   const c = session.customer ?? {};
-  if (!c.fullName || !c.email || !c.email_verified || !c.cpf || !c.phone || !isBrazilianMobilePhone(c.phone)) return "data_collection";
+  if (!c.fullName || !c.email || !c.email_verified || !c.cpf || !hasValidContactPhone(c)) return "data_collection";
   const addr = c.address ?? {};
   if (requiresPhysicalDelivery(session.cart) && (
     !addr.zip ||
@@ -181,7 +186,7 @@ export function deriveChatStage(session: CheckoutSession, completed = false): Ch
 const DATA_FIELD_ORDER: Array<{ label: string; has: (s: CheckoutSession) => boolean }> = [
   // A valid WhatsApp is collected before email verification so a merchant's
   // approved Meta template can recover an unavailable e-mail delivery.
-  { label: "telefone", has: (s) => Boolean(s.customer?.phone && isBrazilianMobilePhone(s.customer.phone)) },
+  { label: "telefone", has: (s) => hasValidContactPhone(s.customer) },
   { label: "email", has: (s) => Boolean(s.customer?.email && (s.customer?.otp_code || s.customer?.email_verified)) },
   { label: "código de verificação", has: (s) => Boolean(s.customer?.email_verified) },
   { label: "nome", has: (s) => Boolean(s.customer?.fullName) },
