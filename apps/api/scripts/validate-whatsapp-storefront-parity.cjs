@@ -211,8 +211,19 @@
       assert.equal(recognized.customer.fullName, account.displayName);
       assert.equal(recognized.globalUserId, account.globalUserId);
       results.checks.push('returning_buyer_email_challenge_precedes_profile_hydration_and_identity_binding');
+      const { SendStoreMessageUseCase } = await loadDist('modules/storefront/application/use-cases/send-store-message.use-case.js');
+      const store = app.get(SendStoreMessageUseCase), originalStoreExecute = store.execute;
+      let shopper;
+      store.execute = async function (input) { shopper = input.trusted_buyer_context; return originalStoreExecute.call(this, input); };
+      try {
+        const browsing = await conversation.respondStore({ merchantId, buyer: repeatBuyer, message: 'Ver carrinho', state: repeat.state, action: { kind: 'tool', tool: 'get_cart', args: {} } });
+        assert.equal(browsing.state.stage, 'store');
+        assert.equal(shopper.globalUserId, account.globalUserId);
+        assert.equal(shopper.email, qaEmail);
+      } finally { store.execute = originalStoreExecute; }
+      results.checks.push('email_authenticated_identity_survives_return_to_actual_storefront_cart');
       const redirect = session.conversationState.view.blocks.find(block => block.type === 'checkout_redirect');
-      assert.ok(redirect); const url = new URL(redirect.data.url);
+      assert.ok(redirect, JSON.stringify({ stage: session.conversationState.stage, viewTypes: session.conversationState.view.blocks.map(block => block.type), hasCpf: !!verified.customer.cpf, hasName: !!verified.customer.fullName, emailVerified: verified.customer.email_verified, phoneVerified: verified.customer.phone_verified, viewBody: session.conversationState.view.body.replace(/https:\/\/\S+/g, '[url]').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]').slice(0,300) })); const url = new URL(redirect.data.url);
       assert.equal(url.origin, 'https://widget-v2-sandbox.up.railway.app'); assert.ok(url.searchParams.get('embedToken'));
       assert.equal(url.searchParams.get('apiBaseUrl'), 'https://api-sandbox-8146.up.railway.app/v1');
       assert.equal(url.searchParams.get('channel'), 'chat');

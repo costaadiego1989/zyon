@@ -22,6 +22,7 @@ const specs = [
   "post-sale/application/services/post-sale-ai-copywriter.meta.spec.ts",
   "checkout/application/services/otp.service.spec.ts",
   "checkout/application/services/begin-email-verification.spec.ts",
+  "checkout/domain/services/customer-extraction-email.spec.ts",
   "checkout/__tests__/checkout-trust-boundary.spec.ts",
   "checkout/__tests__/checkout-customer-correction.spec.ts",
   "checkout/__tests__/send-chat-message.use-case.spec.ts",

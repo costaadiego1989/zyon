@@ -15,13 +15,11 @@ export function extractEmail(text: string | undefined | null): string | undefine
 }
 
 export function extractCpf(text: string): string | undefined {
-  const digitsOnly = text.replace(/\D+/g, "");
-  if (digitsOnly.length < 11) return undefined;
-  for (let i = 0; i + 11 <= digitsOnly.length; i++) {
-    const candidate = digitsOnly.slice(i, i + 11);
-    if (/^\d{11}$/.test(candidate)) return candidate;
-  }
-  return undefined;
+  // Email addresses and unrelated numbers never constitute a document.
+  const input = text.replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, " ");
+  const formatted = input.match(/\b\d{3}[.\s]\d{3}[.\s]\d{3}[-\s]\d{2}\b/);
+  if (formatted) return formatted[0].replace(/\D/g, "");
+  return input.match(/\b\d{11}\b/)?.[0];
 }
 
 export function extractCep(text: string): string | undefined {
