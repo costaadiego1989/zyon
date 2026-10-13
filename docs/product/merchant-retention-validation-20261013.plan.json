@@ -1,5 +1,5 @@
 {
-  "status": "local_validation_passed_awaiting_sandbox",
+  "status": "sandbox_validated_awaiting_production",
   "authorizedProduct": {
     "merchantId": "mrc_696a583b-e0b8-4956-aea7-4f15037de32b",
     "productId": "cmv757wry0000pd4k27kuav84",
@@ -39,17 +39,17 @@
     "scope": "Opt in the owned test store without changing other merchants or reinterpreting already-created payment intents.",
     "capture": "Stripe platform-owned payment, with no immediate destination transfer or application fee. Preserve the existing secure widget and payment intent lifecycle.",
     "allocation": "Freeze buyer fee, merchant fee, recipient, account identity and window before provider creation. Read actual provider fees and conserve every cent across platform, merchant and provider.",
-    "retention": "Payment approval creates awaiting_fulfillment. Proven CompletedOrder.fulfilledAt starts exactly seven days; incomplete, cancelled, refunded or disputed orders cannot release. No other marketplace or bank days are added.",
+    "retention": "Approval waits for fulfillment. Seven days start at actual linked carrier delivery or the final registered service/local/digital completion. A delayed webhook does not add processing days. Return and dispute block admission.",
     "payout": "One durable claim and source-bound provider transfer. Unknown submissions are reconciled by GET without a second POST; a pending source reservation is not marked released.",
     "rails": "Stripe card implemented. The existing Asaas platform-transfer executor is reused when captured funds are available. Current Mercado Pago split is immediate and cannot be advertised as honoring this policy.",
-    "activation": "Validate persisted sandbox states and current provider eligibility before activating the owned test store. Other merchants and old payment intents retain their frozen routes."
+    "activation": "Enable only the owned native test store after production source/migration/provider GET checks; preserve other merchants and every old immutable intent."
   },
   "validation": {
     "channels": [
       "whatsapp",
       "storefront"
     ],
-    "paidOrders": "customer action required after retention is ready",
+    "paidOrders": "customer action still required: one fresh single-item checkout per channel using the test product and Stripe card",
     "checks": [
       "real charge approval and persisted order",
       "matching original checkout and product",
@@ -71,11 +71,30 @@
     "providerBankSchedule": "unchanged"
   },
   "localValidation": {
-    "financialTestsPassed": 77,
+    "financialTestsPassed": 78,
     "financialTestsFailed": 0,
     "navigationTestsPassed": 213,
     "navigationTestsFailed": 0,
     "navigationTestsSkipped": 1,
     "providerProof": "simulated provider transport; no live charge or transfer"
+  },
+  "sandboxValidation": {
+    "deploymentId": "4856ebbc-67ad-4751-84d1-978bf3327a6f",
+    "sourceFilesVerified": 23,
+    "sourceMatch": true,
+    "compiledLockVerified": true,
+    "migrationsApplied": true,
+    "databaseChecksPassed": 9,
+    "providerSimulation": true,
+    "realCharges": 0,
+    "realTransfers": 0,
+    "externalMutationAttempts": 0,
+    "transactionRolledBack": true,
+    "remainingFixturePayments": 0
+  },
+  "databaseCompatibility": {
+    "migrationScope": "Only the two new split migrations; historical baseline unchanged",
+    "appendOnlyLedger": "Preserved. Sandbox validation runs in a rolled-back transaction.",
+    "initialSandboxFixture": "One failed preliminary synthetic checkout was canceled; its planned ledger remains as audit history, with no real payment or transfer."
   }
 }
