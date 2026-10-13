@@ -9,6 +9,8 @@ export interface MarketplacePayoutRequest {
   reference: string;
   /** Immutable funding evidence; a later fee/source change requires reconciliation. */
   capture?: import("./marketplace-capture-provider.port.js").MarketplaceCaptureEvidence;
+  /** A verified Stripe source can reserve a transfer whose funds are still pending. */
+  reservePendingStripeSource?: boolean;
 }
 export interface MarketplacePayoutObservation {
   state: "confirmed" | "pending" | "failed" | "unknown";

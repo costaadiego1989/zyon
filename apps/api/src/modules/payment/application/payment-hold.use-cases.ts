@@ -1,11 +1,13 @@
 import { Inject, Injectable, Logger } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import type { MarketplaceCaptureEvidence } from "../../marketplace/domain/ports/marketplace-capture-provider.port.js";
 
-export const DEFAULT_PAYMENT_HOLD_DAYS = 14;
+export const DEFAULT_PAYMENT_HOLD_DAYS = 7;
 
 export type PaymentHoldProvider = "asaas" | "stripe";
 export type PaymentHoldStatus =
+  | "awaiting_fulfillment"
   | "held"
   | "payout_ready"
   | "payout_submitted"
@@ -26,6 +28,9 @@ export type CreatePaymentHoldInput = {
   totalAmountCents: number;
   platformFeeCents: number;
   holdDays?: number;
+  holdAnchor?: "fulfillment";
+  providerFeeCents?: number;
+  captureEvidence?: MarketplaceCaptureEvidence;
 };
 
 type PaymentHoldRecord = {
@@ -38,7 +43,11 @@ type PaymentHoldRecord = {
   totalAmountCents: number;
   platformFeeCents: number;
   merchantNetCents: number;
-  holdUntil: Date;
+  holdUntil: Date | null;
+  providerFeeCents?: number;
+  holdDays?: number;
+  holdAnchor?: string;
+  captureEvidence?: MarketplaceCaptureEvidence;
 };
 
 function nonEmpty(value: string | undefined, error: string): string {
@@ -68,7 +77,12 @@ function assertSameImmutableHold(existing: PaymentHoldRecord, expected: Omit<Pay
     existing.payoutDestination !== expected.payoutDestination ||
     existing.totalAmountCents !== expected.totalAmountCents ||
     existing.platformFeeCents !== expected.platformFeeCents ||
-    existing.merchantNetCents !== expected.merchantNetCents
+    existing.merchantNetCents !== expected.merchantNetCents ||
+    (existing.providerFeeCents ?? 0) !== (expected.providerFeeCents ?? 0) ||
+    (existing.holdAnchor ?? "payment") !== (expected.holdAnchor ?? "payment") ||
+    (expected.holdAnchor === "fulfillment" && existing.holdDays !== expected.holdDays) ||
+    (expected.captureEvidence && ["sourceId", "balanceTransactionId", "accountFingerprint", "amountCents", "providerFeeCents", "netAmountCents"].some(
+      field => (existing.captureEvidence as any)?.[field] !== (expected.captureEvidence as any)[field]))
   ) {
     throw new Error("payment_hold_identity_conflict");
   }
@@ -83,7 +97,7 @@ export class CreatePaymentHoldUseCase {
 
   async execute(input: CreatePaymentHoldInput): Promise<{
     holdId: string;
-    holdUntil: Date;
+    holdUntil: Date | null;
     platformFeeCents: number;
     merchantNetCents: number;
   }> {
@@ -95,9 +109,16 @@ export class CreatePaymentHoldUseCase {
 
     const totalAmountCents = nonNegativeCents(input.totalAmountCents, "payment_hold_total_invalid");
     const platformFeeCents = nonNegativeCents(input.platformFeeCents, "payment_hold_platform_fee_invalid");
-    const merchantNetCents = totalAmountCents - platformFeeCents;
+    const providerFeeCents = nonNegativeCents(input.providerFeeCents ?? 0, "payment_hold_provider_fee_invalid");
+    const merchantNetCents = totalAmountCents - platformFeeCents - providerFeeCents;
     if (merchantNetCents < 0) throw new Error("payment_hold_net_invalid");
 
+    const holdDays = input.holdDays ?? DEFAULT_PAYMENT_HOLD_DAYS;
+    holdUntilFrom(new Date(), holdDays);
+    if (input.holdAnchor === "fulfillment" && (holdDays !== 7 || !input.captureEvidence ||
+        input.captureEvidence.provider !== input.provider || input.captureEvidence.providerPaymentId !== providerPaymentId ||
+        input.captureEvidence.amountCents !== totalAmountCents || input.captureEvidence.providerFeeCents !== providerFeeCents ||
+        input.captureEvidence.netAmountCents !== totalAmountCents - providerFeeCents || merchantNetCents <= 0)) throw new Error("payment_hold_capture_invalid");
     const expected = {
       merchantId,
       paymentIntentId,
@@ -107,6 +128,10 @@ export class CreatePaymentHoldUseCase {
       totalAmountCents,
       platformFeeCents,
       merchantNetCents,
+      providerFeeCents,
+      holdDays,
+      holdAnchor: input.holdAnchor ?? "payment",
+      ...(input.captureEvidence ? { captureEvidence: input.captureEvidence } : {}),
     };
     const existing = await (this.prisma as any).paymentHold.findUnique({ where: { paymentIntentId } }) as PaymentHoldRecord | null;
     if (existing) {
@@ -114,12 +139,12 @@ export class CreatePaymentHoldUseCase {
       return { holdId: existing.id, holdUntil: existing.holdUntil, platformFeeCents: existing.platformFeeCents, merchantNetCents: existing.merchantNetCents };
     }
 
-    const holdUntil = holdUntilFrom(new Date(), input.holdDays ?? DEFAULT_PAYMENT_HOLD_DAYS);
+    const holdUntil = input.holdAnchor === "fulfillment" ? null : holdUntilFrom(new Date(), holdDays);
     try {
       const hold = await (this.prisma as any).paymentHold.create({
-        data: { ...expected, orderId: input.orderId?.trim() || null, status: "held", holdUntil },
+        data: { ...expected, orderId: input.orderId?.trim() || null, status: input.holdAnchor === "fulfillment" ? "awaiting_fulfillment" : "held", holdUntil },
       }) as PaymentHoldRecord;
-      this.logger.log(`Payment hold ${hold.id} created for merchant ${merchantId}; eligible at ${holdUntil.toISOString()}`);
+      this.logger.log(`Payment hold ${hold.id} created; ${holdUntil ? `eligible at ${holdUntil.toISOString()}` : "awaiting fulfillment"}`);
       return { holdId: hold.id, holdUntil, platformFeeCents, merchantNetCents };
     } catch (error) {
       // Concurrent webhook deliveries may race on the unique intent id. Only an

@@ -49,6 +49,10 @@ export class StripePaymentAdapter implements PaymentProviderPort {
   }
 
   async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
+    if (input.settlementMode === "delayed_merchant_payout" && (input.merchantPayoutAnchor !== "fulfillment" || input.merchantPayoutHoldDays !== 7 ||
+        !input.merchantPayoutDestination || input.stripeConnectAccountId || input.stripeChargeMode || input.marketplaceFunding)) {
+      throw new Error("stripe_delayed_payout_snapshot_invalid");
+    }
     if (input.marketplaceFunding && !this.publishableKey?.startsWith(input.marketplaceFunding.environment === "test" ? "pk_test_" : "pk_live_")) {
       throw new Error("marketplace_capture_publishable_key_mismatch");
     }

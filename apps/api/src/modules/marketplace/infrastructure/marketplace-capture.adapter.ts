@@ -18,7 +18,7 @@ export class MarketplaceCaptureAdapter implements MarketplaceCaptureProvider {
       httpClient: Stripe.createFetchHttpClient(request), timeout: 15_000, maxNetworkRetries: 0 });
   }
 
-  async readCapture(input: MarketplaceCaptureRequest): Promise<MarketplaceCaptureEvidence> {
+  async readCapture(input: MarketplaceCaptureRequest, options: { allowPendingStripeBalance?: boolean; expectedExternalReference?: string } = {}): Promise<MarketplaceCaptureEvidence> {
     if (!["stripe", "asaas"].includes(input.provider) || !["test", "live"].includes(input.environment) ||
         input.currency !== "BRL" || !Number.isSafeInteger(input.amountCents) || input.amountCents <= 0 || input.amountCents > 2_147_483_647 ||
         !input.providerPaymentId?.trim()) throw new Error("marketplace_capture_request_invalid");
@@ -42,9 +42,11 @@ export class MarketplaceCaptureAdapter implements MarketplaceCaptureProvider {
       const balance = await this.stripe!.balanceTransactions.retrieve(transactionId);
       const source = typeof balance.source === "string" ? balance.source : balance.source?.id;
       if (balance.id !== transactionId || source !== charge.id || balance.amount !== input.amountCents || balance.currency !== "brl" ||
-          balance.type !== "charge" || balance.status !== "available" || balance.exchange_rate || !Number.isSafeInteger(balance.fee) ||
+          balance.type !== "charge" || !(balance.status === "available" || options.allowPendingStripeBalance && balance.status === "pending") || balance.exchange_rate || !Number.isSafeInteger(balance.fee) ||
           balance.fee < 0 || balance.fee >= balance.amount || balance.net !== balance.amount - balance.fee) throw new Error("marketplace_capture_balance_not_available");
-      return { ...input, sourceId, balanceTransactionId: balance.id, providerFeeCents: balance.fee, netAmountCents: balance.net };
+      if (options.allowPendingStripeBalance && (!Number.isSafeInteger(balance.available_on) || balance.available_on <= 0)) throw new Error("retained_payment_availability_unknown");
+      return { ...input, sourceId, balanceTransactionId: balance.id, providerFeeCents: balance.fee, netAmountCents: balance.net,
+        ...(options.allowPendingStripeBalance ? { availableAt: new Date(balance.available_on * 1000).toISOString(), fundsAvailable: balance.status === "available" } : {}) };
     }
     const origin = new URL(this.config.asaasOrigin);
     const expectedHost = input.environment === "test" ? "api-sandbox.asaas.com" : "api.asaas.com";
@@ -57,6 +59,7 @@ export class MarketplaceCaptureAdapter implements MarketplaceCaptureProvider {
     });
     if (!response.ok) throw new Error(`marketplace_capture_http_${response.status}`);
     const payment = await response.json() as Record<string, any>;
+    if (options.expectedExternalReference && payment.externalReference !== options.expectedExternalReference) throw new Error("scheduled_split_capture_scope_mismatch");
     if (payment.id !== input.providerPaymentId || payment.status !== "RECEIVED" || payment.deleted || payment.anticipated || payment.chargeback ||
         (payment.split != null && (!Array.isArray(payment.split) || payment.split.length > 0)) ||
         (payment.refundedValue != null && cents(payment.refundedValue) !== 0) ||

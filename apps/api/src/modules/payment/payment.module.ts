@@ -38,6 +38,9 @@ import { PAYMENT_REPOSITORY } from "./domain/ports/payment-repository.port.js";
 import { PAYMENT_SETTLEMENT_LEDGER } from "./domain/ports/payment-settlement-ledger.port.js";
 import { PAYMENT_PROVIDER_PORT } from "./domain/ports/payment-provider.port.js";
 import { PAYMENT_PAYOUT_PROVIDER } from "./domain/ports/payment-payout-provider.port.js";
+import { RETAINED_MERCHANT_PAYMENT_PROVIDER } from "./domain/ports/retained-merchant-payment.port.js";
+import { RetainedMerchantPaymentAdapter } from "./infrastructure/retained-merchant-payment.adapter.js";
+import { ScheduledMerchantSplitService } from "./application/scheduled-merchant-split.service.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
 import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
 import { PrismaPaymentSettlementLedgerRepository } from "./infrastructure/prisma-payment-settlement-ledger.repository.js";
@@ -185,6 +188,7 @@ import {
     ChargebackPaymentHoldUseCase,
     SubmitReadyPaymentHoldsUseCase,
     PaymentHoldLifecycleService,
+    ScheduledMerchantSplitService,
     PaymentHoldPayoutReadinessJob,
     PaymentDispatchService,
     BillingPlanMeteringService,
@@ -252,6 +256,14 @@ import {
         return new AsaasPayoutAdapter(baseUrl, apiKey ?? "__missing_api_key__", http.toFetch());
       },
       inject: [HttpClientService],
+    },
+    {
+      provide: RETAINED_MERCHANT_PAYMENT_PROVIDER,
+      useFactory: () => {
+        const stripe = readStripeConnection();
+        const asaas = readAsaasConnection();
+        return new RetainedMerchantPaymentAdapter({ stripeSecret: stripe.secretKey, asaasKey: asaas.apiKey, asaasOrigin: asaas.baseUrl });
+      },
     },
     {
       provide: StripePaymentAdapter,

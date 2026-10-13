@@ -50,6 +50,8 @@ import { hasMarketplaceCheckout } from "../../checkout/infrastructure/marketplac
 import { CreateMarketplacePaymentService } from "./create-marketplace-payment.service.js";
 import { CheckoutBenefitsService } from "../../checkout/application/services/checkout-benefits.service.js";
 import { ServiceSlotHoldsService, sessionSlotRequests } from "../../../shared/bookings/service-slot-holds.service.js";
+import { readMerchantRetentionPolicy } from "../domain/merchant-retention-policy.js";
+import { RETAINED_MERCHANT_PAYMENT_PROVIDER, type RetainedMerchantPaymentProvider } from "../domain/ports/retained-merchant-payment.port.js";
 
 export type CreatePaymentIntentRequest = {
   merchant_id: string;
@@ -108,7 +110,7 @@ function delayedMerchantPayoutEnabled(env: NodeJS.ProcessEnv = process.env): boo
 
 function delayedMerchantPayoutHoldDays(env: NodeJS.ProcessEnv = process.env): number {
   const raw = env.PAYMENT_MERCHANT_PAYOUT_HOLD_DAYS?.trim();
-  if (!raw) return 14;
+  if (!raw) return 7;
   if (!/^\d+$/.test(raw)) throw new BadRequestException("payment_hold_window_invalid");
   const days = Number(raw);
   if (!Number.isSafeInteger(days) || days < 1 || days > 90) throw new BadRequestException("payment_hold_window_invalid");
@@ -282,6 +284,7 @@ export class CreatePaymentIntentUseCase {
     @Inject(CreateMarketplacePaymentService) private readonly marketplacePayments?: CreateMarketplacePaymentService,
     @Optional() private readonly benefits?: CheckoutBenefitsService,
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() @Inject(RETAINED_MERCHANT_PAYMENT_PROVIDER) private readonly retained?: RetainedMerchantPaymentProvider,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest, context?: { marketplaceSurface: "embed" | "v1" }): Promise<CreatePaymentIntentResponseBody> {
@@ -346,6 +349,7 @@ export class CreatePaymentIntentUseCase {
     // endpoint is the authority: a client cannot switch an order to a gateway
     // merely by changing a browser request.
     const merchant = await this.merchants.getProfile(merchantId);
+    const retentionPolicy = readMerchantRetentionPolicy(merchant?.storeSettings);
     const [asaasConnection, mercadoPagoConnection, stripeConnection] = await Promise.all([
       this.platformConnections?.getConnection(merchantId, "asaas"),
       this.platformConnections?.getConnection(merchantId, "mercadopago"),
@@ -361,8 +365,8 @@ export class CreatePaymentIntentUseCase {
       merchant?.storeSettings?.paymentRouting,
       {
         asaas: asaasActive,
-        mercadoPagoPix: mercadoPagoActive && mercadoPagoWebhookConfigured,
-        mercadoPagoHostedCard: mercadoPagoActive && mercadoPagoWebhookConfigured,
+        mercadoPagoPix: !retentionPolicy && mercadoPagoActive && mercadoPagoWebhookConfigured,
+        mercadoPagoHostedCard: !retentionPolicy && mercadoPagoActive && mercadoPagoWebhookConfigured,
         stripeCard: stripeCardActive,
         // Asaas returns its HTTPS invoice page for card collection. Raw card
         // data remains prohibited in this API.
@@ -385,9 +389,9 @@ export class CreatePaymentIntentUseCase {
     const isStripeCard = method === "card" && selectedProvider === "stripe";
     const usesMercadoPago = selectedProvider === "mercadopago";
     const usesAsaas = selectedProvider === "asaas";
-    const delayedMerchantPayout = delayedMerchantPayoutEnabled();
-    const merchantPayoutHoldDays = delayedMerchantPayout ? delayedMerchantPayoutHoldDays() : undefined;
-    if (delayedMerchantPayout && !usesAsaas) {
+    const delayedMerchantPayout = Boolean(retentionPolicy) || delayedMerchantPayoutEnabled();
+    const merchantPayoutHoldDays = retentionPolicy ? 7 : delayedMerchantPayout ? delayedMerchantPayoutHoldDays() : undefined;
+    if (delayedMerchantPayout && !usesAsaas && !(retentionPolicy && isStripeCard)) {
       // This rollout implements and reconciles the linked-wallet Asaas path.
       // Stripe, Mercado Pago and crypto remain fail-closed until each has its
       // own transfer executor and provider-receipt contract.
@@ -557,8 +561,12 @@ export class CreatePaymentIntentUseCase {
       description: paymentDescription(merchant?.name === merchantId ? undefined : merchant?.name, session),
         ...(isStripeCard ? {
           provider: "stripe" as const,
-          stripeConnectAccountId,
-          stripeChargeMode: "direct_v2" as const,
+          ...(retentionPolicy ? {
+            settlementMode: "delayed_merchant_payout" as const,
+            merchantPayoutDestination: stripeConnectAccountId,
+            merchantPayoutHoldDays: 7,
+            merchantPayoutAnchor: "fulfillment" as const,
+          } : { stripeConnectAccountId, stripeChargeMode: "direct_v2" as const }),
           platformFeeCents: stripeApplicationFeeCents,
         }
         : usesMercadoPago ? {
@@ -577,6 +585,7 @@ export class CreatePaymentIntentUseCase {
                     settlementMode: "delayed_merchant_payout" as const,
                     merchantPayoutDestination: asaasPayoutDestination,
                     merchantPayoutHoldDays,
+                    ...(retentionPolicy ? { merchantPayoutAnchor: "fulfillment" as const } : {}),
                   }
                 : {}),
               asaasCustomerId: resolveAsaasCustomerForProvider(asaasCustomer),
@@ -584,6 +593,12 @@ export class CreatePaymentIntentUseCase {
             }
             : { platformFeeCents: assertProviderFeeCap(buyerServiceFeeCents + merchantFeeCents, amountCents) }),
     };
+    // No remote charge exists yet. Prove the account and recipient using GETs.
+    if (retentionPolicy) {
+      if (!this.retained || !this.provider.preparePayment) throw new BadRequestException("scheduled_split_provider_not_configured");
+      providerInput = await this.provider.preparePayment(providerInput);
+      await this.retained.preflight(providerInput);
+    }
     try {
       if (this.provider.preparePayment) providerInput = await this.provider.preparePayment(providerInput);
     } catch (error) {

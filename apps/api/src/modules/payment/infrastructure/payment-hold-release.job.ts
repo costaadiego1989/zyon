@@ -1,6 +1,7 @@
 import { Injectable, Logger, OnModuleInit, OnModuleDestroy } from "@nestjs/common";
 import { MakePaymentHoldsPayoutReadyUseCase } from "../application/payment-hold.use-cases.js";
 import { SubmitReadyPaymentHoldsUseCase } from "../application/payment-hold-payout.use-case.js";
+import { ScheduledMerchantSplitService } from "../application/scheduled-merchant-split.service.js";
 
 const PAYOUT_READINESS_INTERVAL_MS = 60_000 * 15;
 
@@ -12,6 +13,7 @@ export class PaymentHoldPayoutReadinessJob implements OnModuleInit, OnModuleDest
   constructor(
     private readonly makePayoutReady: MakePaymentHoldsPayoutReadyUseCase,
     private readonly submitReadyPayouts: SubmitReadyPaymentHoldsUseCase,
+    private readonly scheduledSplits: ScheduledMerchantSplitService,
   ) {}
 
   onModuleInit(): void {
@@ -25,6 +27,7 @@ export class PaymentHoldPayoutReadinessJob implements OnModuleInit, OnModuleDest
 
   private async run(): Promise<void> {
     try {
+      await this.scheduledSplits.execute();
       const { payoutReady } = await this.makePayoutReady.execute();
       if (payoutReady > 0) this.logger.log(`${payoutReady} hold(s) became payout-ready this cycle`);
       const result = await this.submitReadyPayouts.execute();

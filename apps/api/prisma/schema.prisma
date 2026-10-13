@@ -2948,10 +2948,15 @@ model PaymentHold {
   totalAmountCents          Int       @map("total_amount_cents")
   platformFeeCents          Int       @map("platform_fee_cents")
   merchantNetCents          Int       @map("merchant_net_cents")
-  // held | payout_ready | payout_submitted | released | payout_failed |
+  providerFeeCents          Int       @default(0) @map("provider_fee_cents")
+  captureEvidence          Json?     @map("capture_evidence")
+  holdDays                 Int       @default(7) @map("hold_days")
+  holdAnchor               String    @default("payment") @map("hold_anchor")
+  fulfilledAt              DateTime? @map("fulfilled_at")
+  // awaiting_fulfillment | held | payout_ready | payout_submitted | released | payout_failed |
   // refunded | refund_reversal_required | chargebacked | chargeback_debt
   status                    String    @default("held")
-  holdUntil                 DateTime  @map("hold_until")
+  holdUntil                 DateTime? @map("hold_until")
   payoutReference            String?   @map("payout_reference")
   payoutProviderTransferId  String?   @map("payout_provider_transfer_id")
   payoutAttemptedAt          DateTime? @map("payout_attempted_at")

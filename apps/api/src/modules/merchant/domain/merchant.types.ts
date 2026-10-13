@@ -1,6 +1,8 @@
 import type { MerchantRules, MerchantTheme, SeoSettings, GtmSettings } from "@zyon/shared-types";
 
 export interface MerchantStoreSettings {
+  /** Server-activated scheduled split. The clock starts at proven fulfillment. */
+  paymentRetention?: { mode: "delayed_merchant_payout"; holdDays: 7; startsAt: "fulfillment"; providerFeePayer: "merchant" };
   budget?: { enabled: boolean; email?: string; whatsapp?: string };
   /**
    * Gateway selected by the merchant for each buyer-facing checkout method.

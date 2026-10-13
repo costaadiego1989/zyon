@@ -42,7 +42,8 @@ export class MarketplacePayoutAdapter implements MarketplacePayoutProvider {
         if (payment.status !== "succeeded" || payment.amount_received < input.amountCents || payment.currency.toUpperCase() !== input.currency || !payment.latest_charge ||
           payment.transfer_data?.destination) throw new Error("marketplace_payment_not_platform_capture");
         const capture = await this.captures.readCapture({ provider: "stripe", environment: payment.livemode ? "live" : "test",
-          accountFingerprint: input.accountFingerprint, providerPaymentId: input.providerPaymentId, amountCents: payment.amount, currency: input.currency });
+          accountFingerprint: input.accountFingerprint, providerPaymentId: input.providerPaymentId, amountCents: payment.amount, currency: input.currency },
+        { allowPendingStripeBalance: input.reservePendingStripeSource === true });
         if (capture.netAmountCents < input.amountCents) throw new Error("marketplace_capture_net_insufficient");
         this.assertFrozenCapture(input, capture);
         postAttempted = true;

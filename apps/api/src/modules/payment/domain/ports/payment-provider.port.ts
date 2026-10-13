@@ -58,6 +58,7 @@ export type CreateProviderPaymentInput = {
   settlementMode?: MerchantSettlementMode;
   merchantPayoutDestination?: string;
   merchantPayoutHoldDays?: number;
+  merchantPayoutAnchor?: "fulfillment";
   /**
    * Crypto-only: buyer-selected chain override. When set (and valid for the
    * merchant's crypto config), the crypto quote is built on this chain instead

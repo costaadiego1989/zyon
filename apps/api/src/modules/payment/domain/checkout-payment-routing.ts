@@ -67,3 +67,12 @@ export function resolveCheckoutPaymentCapabilities(
     ...(Object.keys(providers).length ? { providers } : {}),
   };
 }
+
+/** Never advertise immediate rails as honoring a store's scheduled split. */
+export function constrainScheduledSplitCapabilities(capabilities: CheckoutPaymentCapabilities, settings?: MerchantStoreSettings): CheckoutPaymentCapabilities {
+  if (!settings?.paymentRetention) return capabilities;
+  const supported = (method: CheckoutPaymentMethod) => capabilities[method] && ["stripe", "asaas"].includes(capabilities.providers?.[method] ?? "");
+  const providers: CheckoutPaymentCapabilities["providers"] = {};
+  for (const method of ["pix", "boleto", "card"] as const) if (supported(method)) providers[method] = capabilities.providers![method];
+  return { pix: Boolean(supported("pix")), boleto: Boolean(supported("boleto")), card: Boolean(supported("card")), providers };
+}

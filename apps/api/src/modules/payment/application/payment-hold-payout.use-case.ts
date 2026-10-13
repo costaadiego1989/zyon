@@ -48,7 +48,7 @@ export class SubmitReadyPaymentHoldsUseCase {
     unresolved: number;
   }> {
     const holds = await (this.prisma as any).paymentHold.findMany({
-      where: { status: "payout_ready", holdUntil: { lte: now } },
+      where: { status: "payout_ready", holdAnchor: { not: "fulfillment" }, holdUntil: { lte: now } },
       orderBy: { holdUntil: "asc" },
       take: PAYOUT_BATCH_SIZE,
       select: {

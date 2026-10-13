@@ -254,9 +254,20 @@ test("RoutingPaymentAdapter: rejects delayed Stripe before it can settle a conne
       provider: "stripe",
       settlementMode: "delayed_merchant_payout",
     })),
-    /stripe_delayed_payout_not_supported/,
+    /stripe_delayed_payout_snapshot_invalid/,
   );
   assert.equal(stripe.calls.length, 0);
+});
+
+test("RoutingPaymentAdapter: seven-day fulfillment split uses the platform charge without immediate connected-account settlement", async () => {
+  const stripe = new FakeStripe();
+  const adapter = new RoutingPaymentAdapter(stripe as unknown as StripePaymentAdapter, null, null,
+    new FakeCrypto() as unknown as EvmCryptoPaymentAdapter);
+  await adapter.createPayment(baseInput({ method: "card", provider: "stripe", settlementMode: "delayed_merchant_payout",
+    merchantPayoutDestination: "acct_store", merchantPayoutHoldDays: 7, merchantPayoutAnchor: "fulfillment" }));
+  assert.equal(stripe.calls.length, 1);
+  assert.equal(stripe.calls[0].stripeConnectAccountId, undefined);
+  assert.equal(stripe.calls[0].stripeChargeMode, undefined);
 });
 
 test("RoutingPaymentAdapter: delayed Asaas refund uses the platform account that captured the charge", async () => {

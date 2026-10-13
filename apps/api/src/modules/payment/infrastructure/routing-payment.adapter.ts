@@ -120,11 +120,12 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
     if (input.settlementMode === "delayed_merchant_payout") {
       if (input.provider === "mercadopago") throw new Error("mercadopago_delayed_payout_not_supported");
       if (input.provider === "crypto" || input.method === "crypto") throw new Error("crypto_delayed_payout_not_supported");
-      // Stripe destination charges settle the connected account at payment
-      // time. Do not pretend they honour the return-window hold until the
-      // separate-charge-and-transfer executor and receipt reconciliation ship.
       if (input.provider === "stripe" || (!input.provider && input.method === "card")) {
-        throw new Error("stripe_delayed_payout_not_supported");
+        const creation = input as CreateProviderPaymentInput;
+        if ("intentId" in input && (creation.merchantPayoutAnchor !== "fulfillment" || creation.merchantPayoutHoldDays !== 7 ||
+            !creation.merchantPayoutDestination || creation.stripeChargeMode || creation.stripeConnectAccountId)) throw new Error("stripe_delayed_payout_snapshot_invalid");
+        if (!this.stripe) throw new Error("stripe_platform_account_not_configured");
+        return { name: "stripe", adapter: this.stripe };
       }
       if (!this.asaas) throw new Error("asaas_platform_account_not_configured");
       return { name: "asaas", adapter: this.asaas };

@@ -1,7 +1,7 @@
 import { BadRequestException, ConflictException } from "@nestjs/common";
 import test from "node:test";
 import assert from "node:assert/strict";
-import { CreatePaymentIntentUseCase } from "./create-payment-intent.use-case.js";
+import { CreatePaymentIntentUseCase as AuthoritativeCreatePaymentIntentUseCase } from "./create-payment-intent.use-case.js";
 import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { checkoutSession } from "../../checkout/__tests__/checkout-test-fixtures.js";
 import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.repository.js";
@@ -13,6 +13,55 @@ import { SyncPendingOrderUseCase } from "../../commerce/application/sync-pending
 import { InMemoryPendingCommerceOrderIndex } from "../../commerce/infrastructure/in-memory-pending-commerce-order-index.js";
 import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
 import type { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
+
+/** These fixtures contain external-adapter SKU lines and no federated lines.
+ * Read the same stored checkout that each test changes; retain production's
+ * mandatory marketplace and stock fences rather than bypassing them. */
+class CreatePaymentIntentUseCase extends AuthoritativeCreatePaymentIntentUseCase {
+  constructor(...args: ConstructorParameters<typeof AuthoritativeCreatePaymentIntentUseCase>) {
+    const checkout = args[0];
+    args[12] ??= {
+      checkoutSession: { findUnique: async ({ where }: any) => checkout.getSession(where.merchantId_sessionId.merchantId, where.merchantId_sessionId.sessionId) },
+      crossStoreLineItem: { findFirst: async () => null },
+      productVariant: { findMany: async () => [] },
+    } as any;
+    super(...args);
+  }
+}
+
+test("scheduled split freezes seven days after fulfillment while the existing checkout keeps direct settlement", async () => {
+  const previousKey = process.env.STRIPE_SECRET_KEY_TEST;
+  process.env.STRIPE_SECRET_KEY_TEST = "sk_test_owned";
+  try {
+    for (const scheduled of [false, true]) {
+      const checkout = new InMemoryCheckoutRepository();
+      const policy = { mode: "delayed_merchant_payout" as const, holdDays: 7 as const, startsAt: "fulfillment" as const, providerFeePayer: "merchant" as const };
+      checkout.getProfile = async id => ({ id, name: "Owned store", plan: "BOTH", ...(scheduled ? { storeSettings: { paymentRetention: policy } } : {}) });
+      await checkout.saveSession(checkoutSession({ cart: { currency: "BRL", total: 5,
+        items: [{ sku: "test-service", name: "Teste de pagamento", price: 5, cost: 1, quantity: 1, productType: "service" }] }, shipping: undefined }));
+      const connections = new InMemoryPaymentPlatformRepository();
+      await connections.saveConnection({ merchantId: "mrc_1", provider: "stripe", environment: "test", status: "active", externalAccountId: "acct_owned", payoutsEnabled: true, chargesEnabled: true });
+      const provider = new CapturingPaymentProvider();
+      (provider as any).preparePayment = async (input: CreateProviderPaymentInput) => ({ ...input, providerAccountFingerprint: "original-account" });
+      const preflight: CreateProviderPaymentInput[] = [];
+      const retained: any = { preflight: async (input: CreateProviderPaymentInput) => { preflight.push(input); } };
+      const billing: any = { getSubscription: async () => ({ status: "active", planKey: "starter" }) };
+      const useCase = new CreatePaymentIntentUseCase(checkout, checkout, new InMemoryPaymentRepository(checkout), provider,
+        undefined, undefined, undefined, connections, undefined, undefined, billing, undefined, undefined, undefined, undefined, undefined, retained);
+      const request = { merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "scheduled-test", method: "card" as const };
+      const payment = await useCase.execute(request);
+      assert.equal(payment.amountCents, 599); assert.equal(provider.inputs.length, 1);
+      const input = provider.inputs[0];
+      assert.equal(input.platformFeeCents, 298);
+      if (scheduled) {
+        assert.equal(preflight.length, 1); assert.equal(input.merchantPayoutHoldDays, 7); assert.equal(input.merchantPayoutAnchor, "fulfillment");
+        assert.equal(input.merchantPayoutDestination, "acct_owned"); assert.equal(input.stripeChargeMode, undefined); assert.equal(input.stripeConnectAccountId, undefined);
+      } else { assert.equal(preflight.length, 0); assert.equal(input.stripeChargeMode, "direct_v2"); assert.equal(input.stripeConnectAccountId, "acct_owned"); }
+      await useCase.execute(request);
+      assert.equal(provider.inputs.length, 1); assert.equal(preflight.length, scheduled ? 1 : 0);
+    }
+  } finally { if (previousKey === undefined) delete process.env.STRIPE_SECRET_KEY_TEST; else process.env.STRIPE_SECRET_KEY_TEST = previousKey; }
+});
 
 test("Mercado Pago receives the Free fee after expiry without adding it to the buyer total or requiring Asaas", async () => {
   const previousWebhookSecret = process.env.MERCADOPAGO_WEBHOOK_SECRET;

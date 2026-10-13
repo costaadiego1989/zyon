@@ -1,5 +1,5 @@
 {
-  "status": "implementation_required_before_real_payment",
+  "status": "local_validation_passed_awaiting_sandbox",
   "authorizedProduct": {
     "merchantId": "mrc_696a583b-e0b8-4956-aea7-4f15037de32b",
     "productId": "cmv757wry0000pd4k27kuav84",
@@ -16,24 +16,66 @@
     "apiCommit": "9d798723c594700d88db669b3157560cd869c5fd",
     "apiDeploymentId": "41322f51-df9f-4d36-8a40-4eeca52db217",
     "currentMode": "immediate_split",
-    "connectedProviders": ["stripe", "mercadopago"],
+    "connectedProviders": [
+      "stripe",
+      "mercadopago"
+    ],
     "stripeRecipientTransferCapability": "active",
-    "stripePlatformPayoutSchedule": {"interval": "daily", "delayDays": 30},
-    "stripeRecipientPayoutSchedule": {"interval": "daily", "delayDays": 30},
-    "existingMarketplaceWindows": {"returnWindowDays": 7, "payoutDelayDays": 14, "chargebackWindowDays": 30}
+    "stripePlatformPayoutSchedule": {
+      "interval": "daily",
+      "delayDays": 30
+    },
+    "stripeRecipientPayoutSchedule": {
+      "interval": "daily",
+      "delayDays": 30
+    },
+    "existingMarketplaceWindows": {
+      "returnWindowDays": 7,
+      "payoutDelayDays": 14,
+      "chargebackWindowDays": 30
+    }
   },
   "implementation": {
     "scope": "Opt in the owned test store without changing other merchants or reinterpreting already-created payment intents.",
     "capture": "Stripe platform-owned payment, with no immediate destination transfer or application fee. Preserve the existing secure widget and payment intent lifecycle.",
     "allocation": "Freeze buyer fee, merchant fee, recipient, account identity and window before provider creation. Read actual provider fees and conserve every cent across platform, merchant and provider.",
-    "retention": "Reuse payment holds and the existing Stripe marketplace capture/transfer verification. A planned entry is not provider confirmation. Schedule only after the configured return window and payout delay, and never before provider availability.",
-    "payout": "Persist a single submission and stable reference before remote mutation. Reconcile uncertain results by GET. Require an exact provider receipt before marking release; refuse refunded, disputed, foreign or insufficient captures.",
-    "rails": "Stripe card first. Keep existing connections; do not advertise Mercado Pago Pix as retained without its commercial capture/transfer contract.",
-    "activation": "Local tests, persisted sandbox validation, provider eligibility and bank payout reserve checks must pass before enabling the owned store for the two real payments."
+    "retention": "Payment approval creates awaiting_fulfillment. Proven CompletedOrder.fulfilledAt starts exactly seven days; incomplete, cancelled, refunded or disputed orders cannot release. No other marketplace or bank days are added.",
+    "payout": "One durable claim and source-bound provider transfer. Unknown submissions are reconciled by GET without a second POST; a pending source reservation is not marked released.",
+    "rails": "Stripe card implemented. The existing Asaas platform-transfer executor is reused when captured funds are available. Current Mercado Pago split is immediate and cannot be advertised as honoring this policy.",
+    "activation": "Validate persisted sandbox states and current provider eligibility before activating the owned test store. Other merchants and old payment intents retain their frozen routes."
   },
   "validation": {
-    "channels": ["whatsapp", "storefront"],
+    "channels": [
+      "whatsapp",
+      "storefront"
+    ],
     "paidOrders": "customer action required after retention is ready",
-    "checks": ["real charge approval and persisted order", "matching original checkout and product", "one inventory receipt per order", "buyer and merchant fees", "actual provider fee", "exact retained and merchant allocations", "return and transfer dates", "no early or duplicate transfer", "refund and dispute stop release", "bank payout distinct from platform-to-merchant transfer"]
+    "checks": [
+      "real charge approval and persisted order",
+      "matching original checkout and product",
+      "one inventory receipt per order",
+      "buyer and merchant fees",
+      "actual provider fee",
+      "exact retained and merchant allocations",
+      "return and transfer dates",
+      "no early or duplicate transfer",
+      "refund and dispute stop release",
+      "bank payout distinct from platform-to-merchant transfer"
+    ]
+  },
+  "objective": "Schedule the merchant split exactly seven days after product receipt or service completion, then validate the two customer payments.",
+  "requestedPolicy": {
+    "holdDays": 7,
+    "startsAt": "fulfillment",
+    "additionalPayoutDelayDays": 0,
+    "providerBankSchedule": "unchanged"
+  },
+  "localValidation": {
+    "financialTestsPassed": 77,
+    "financialTestsFailed": 0,
+    "navigationTestsPassed": 213,
+    "navigationTestsFailed": 0,
+    "navigationTestsSkipped": 1,
+    "providerProof": "simulated provider transport; no live charge or transfer"
   }
 }

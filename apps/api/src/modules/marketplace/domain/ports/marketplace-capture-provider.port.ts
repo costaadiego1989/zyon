@@ -13,6 +13,9 @@ export interface MarketplaceCaptureEvidence extends MarketplaceCaptureRequest {
   balanceTransactionId?: string;
   providerFeeCents: number;
   netAmountCents: number;
+  /** Present only for the ordinary Stripe retention verifier. */
+  availableAt?: string;
+  fundsAvailable?: boolean;
 }
 
 export interface MarketplaceCaptureProvider {
