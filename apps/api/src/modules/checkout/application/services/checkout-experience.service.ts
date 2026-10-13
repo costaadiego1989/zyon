@@ -15,6 +15,7 @@ import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
 import { deriveChatStage, missingFieldsForStage } from "../../domain/services/customer-extraction.service.js";
 import type { MerchantRules } from "@zyon/shared-types";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { checkoutShippingLabel } from "../../domain/services/checkout-shipping-label.js";
 
 export interface ExperienceInputs {
   merchant_id: string;
@@ -337,7 +338,7 @@ export function buildExperienceFromSession(session: CheckoutSession, deps: Exper
   );
   const shippingOptionReplies =
     chatStage === "shipping" && missingFieldsPreview[0] === "frete" && session.shippingOptions?.length
-      ? session.shippingOptions.map(shippingOptionLabel)
+      ? session.shippingOptions.map(checkoutShippingLabel)
       : undefined;
   const readyForFrete = missingFieldsPreview[0] === "frete";
   return {
@@ -361,17 +362,6 @@ function publicCustomerHints(customer: CustomerHints | undefined): CustomerHints
   if (!customer) return undefined;
   const { otp_code: _otpCode, phone_otp_code: _phoneOtpCode, ...safe } = customer;
   return safe;
-}
-
-function shippingOptionLabel(option: ShippingQuote): string {
-  const carrier = option.carrier?.trim();
-  const method = option.method?.trim();
-  const methodLabel = carrier && method && !method.toLowerCase().includes(carrier.toLowerCase())
-    ? `${carrier} ${method}`
-    : method ?? carrier ?? "Frete";
-  const price = formatMoney(option.customerPrice, "BRL");
-  const eta = typeof option.deliveryDays === "number" ? ` (${option.deliveryDays} dias)` : "";
-  return `${methodLabel}${eta} - ${price}`;
 }
 
 function toItemSnapshot(item: Cart["items"][number]): CheckoutItemSnapshot {

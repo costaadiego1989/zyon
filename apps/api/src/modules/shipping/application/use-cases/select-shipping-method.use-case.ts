@@ -71,7 +71,7 @@ function toCheckoutShippingQuote(snapshot: ShippingQuoteSnapshot, result: Shippi
   const price = centsToMajorUnits(result.price);
   return {
     customerPrice: price,
-    realCost: result.is_free ? 0 : price,
+    realCost: centsToMajorUnits(result.original_price ?? result.price),
     carrier: result.carrier_key,
     method: result.label,
     deliveryDays: result.eta_days,

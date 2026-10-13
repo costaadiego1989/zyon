@@ -8,6 +8,7 @@ import { HttpClientService } from "../../../../shared/http/http-client.service.j
 import { QuoteShippingUseCase } from "../../../shipping/application/use-cases/quote-shipping.use-case.js";
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
+import { checkoutShippingLabel } from "../../domain/services/checkout-shipping-label.js";
 
 @Injectable()
 export class CheckoutShippingService {
@@ -159,6 +160,7 @@ export class CheckoutShippingService {
               label: r.label,
               carrierKey: r.carrier_key,
               priceInCents: r.price,
+              realCostInCents: r.original_price ?? r.price,
               isFree: r.is_free,
               etaDays: r.eta_days,
               destinationZip: addr.zip ?? ""
@@ -270,6 +272,11 @@ export class CheckoutShippingService {
     }
 
     const normalized = normalize(text);
+    const exact = options.filter(option => normalize(checkoutShippingLabel(option)) === normalized);
+    if (exact.length) return exact.length === 1 ? exact[0]! : null;
+    // A priced quick reply must never fall through to the first PAC/Sedex.
+    // Reject a stale label after a quote/price change instead of changing its cost.
+    if (/R\$|\(\d+\s+dias\)/i.test(text)) return null;
     if (/\b(mais barato|mais barata|mais economico|mais economica)\b/.test(normalized)) {
       return [...options].sort((a, b) => a.customerPrice - b.customerPrice
         || (a.deliveryDays ?? Infinity) - (b.deliveryDays ?? Infinity))[0] ?? null;
@@ -278,22 +285,22 @@ export class CheckoutShippingService {
       return [...options].filter(quote => Number.isFinite(quote.deliveryDays)).sort((a, b) => a.deliveryDays! - b.deliveryDays!
         || a.customerPrice - b.customerPrice)[0] ?? null;
     }
-    if (/(?<!\d)\b(1|primeir[ao]|pac|economi[ac]|barat[ao])\b(?!\d)/.test(normalized)) {
-      return this.findOption(options, /pac|econom/i) ?? options[0] ?? null;
+    if (/^(?:opcao\s+)?(?:1|primeir[ao])$/.test(normalized)) {
+      return options[0] ?? null;
     }
-    if (/(?<!\d)\b(2|segund[ao]|sedex|express|rapid[ao])\b(?!\d)/.test(normalized)) {
-      return this.findOption(options, /sedex|express|rapid/i) ?? options[1] ?? options[0] ?? null;
+    if (/^(?:opcao\s+)?(?:2|segund[ao])$/.test(normalized)) {
+      return options[1] ?? null;
     }
 
-    for (const option of options) {
+    const methodMatches = options.filter(option => {
       const method = this.normalizeShippingToken(option.method);
+      return method && normalized.includes(method);
+    });
+    const matches = methodMatches.length ? methodMatches : options.filter(option => {
       const carrier = this.normalizeShippingToken(option.carrier);
-      if ((method && normalized.includes(method)) || (carrier && normalized.includes(carrier))) {
-        return option;
-      }
-    }
-
-    return null;
+      return carrier && normalized.includes(carrier);
+    });
+    return matches.length === 1 ? matches[0]! : null;
   }
 
   private looksLikeAddressComplement(text: string): boolean {
@@ -304,10 +311,6 @@ export class CheckoutShippingService {
       .trim();
     // Matches common address complement patterns: "Apto 204", "Bloco B", "Casa 3", etc.
     return /\b(apto|apartamento|bloco|bl|casa|sala|loja|andar|fundos|cobertura|sobrado)\b/.test(normalized);
-  }
-
-  private findOption(options: ShippingQuote[], pattern: RegExp): ShippingQuote | null {
-    return options.find((option) => pattern.test(`${option.method ?? ""} ${option.carrier ?? ""}`)) ?? null;
   }
 
   private normalizeShippingToken(value: string | undefined): string {
@@ -340,6 +343,7 @@ function toCheckoutShippingQuote(input: {
   label: string;
   carrierKey: string;
   priceInCents: number;
+  realCostInCents: number;
   isFree: boolean;
   etaDays: number;
   destinationZip: string;
@@ -349,7 +353,7 @@ function toCheckoutShippingQuote(input: {
   const price = input.priceInCents / 100;
   return {
     customerPrice: price,
-    realCost: input.isFree ? 0 : price,
+    realCost: input.realCostInCents / 100,
     carrier: inferred.carrier,
     method: inferred.method,
     deliveryDays: input.etaDays,

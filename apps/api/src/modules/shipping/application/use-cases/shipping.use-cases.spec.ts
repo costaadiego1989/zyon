@@ -153,7 +153,7 @@ describe("QuoteShippingUseCase", () => {
     assert.deepEqual(labels, ["Correios PAC", "Transportadora Parceira", "Correios Sedex"]);
   });
 
-  it("keeps real carrier quotes and appends fallback options", async () => {
+  it("keeps real carrier quotes without advertising estimated services alongside them", async () => {
     const carriers = [
       makeStubCarrier("melhor-envio", [
         { carrier_key: "jadlog", label: "Jadlog Package", price: 2200, eta_days: 4, is_free: false }
@@ -165,9 +165,21 @@ describe("QuoteShippingUseCase", () => {
 
     const labels = snap.results.map((r) => r.label);
     assert.ok(labels.includes("Jadlog Package"));
-    assert.ok(labels.includes("Correios PAC"));
-    assert.ok(labels.includes("Correios Sedex"));
-    assert.ok(labels.includes("Transportadora Parceira"));
+    assert.deepEqual(labels, ["Jadlog Package"]);
+  });
+
+  it("subsidizes the real PAC quote once and preserves the carrier cost when live PAC and Sedex are available", async () => {
+    const { useCase } = makeSetupWithRules([
+      makeStubCarrier("melhor-envio", [
+        { carrier_key: "melhor-envio-1", label: "Correios PAC", price: 2208, eta_days: 6, is_free: false },
+        { carrier_key: "melhor-envio-2", label: "Correios SEDEX", price: 3462, eta_days: 2, is_free: false },
+      ]), new FlatRateCarrierAdapter(),
+    ], "mrc_1", { allowFreeShipping: true, freeShippingMinCartValue: 250 });
+    const snap = await useCase.execute({ ...BASE_INPUT, cart_total: 289.8 });
+    assert.equal(snap.results.length, 2);
+    assert.deepEqual(snap.results.map(r => [r.label, r.price]), [["Correios PAC", 0], ["Correios SEDEX", 3462]]);
+    assert.equal(snap.results[0]!.original_price, 2208);
+    assert.equal(snap.results[0]!.eta_days, 6);
   });
 
   // P2 regression: free-shipping policy must not add duplicate free entries.
@@ -342,7 +354,11 @@ describe("SelectShippingMethodUseCase", () => {
       checkoutRepo,
       checkoutRepo,
       new InMemoryPaymentRepository(checkoutRepo),
-      new FakePaymentProvider()
+      new FakePaymentProvider(),
+      undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+      { checkoutSession: { findUnique: async () => session }, crossStoreLineItem: { findFirst: async () => null },
+        productVariant: { findMany: async () => [{ id: "native-free-variant", sku: "sku_free", isActive: true,
+          product: { isActive: true, type: "physical", deletedAt: null }, stock: [{ quantity: 10, reserved: 0 }] }] } } as any,
     ).execute({
       merchant_id: "mrc_1",
       session_id: "sess_free",

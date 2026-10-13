@@ -63,7 +63,7 @@ export class QuoteShippingUseCase {
       ? await this.merchantRules.getRules(input.merchant_id)
       : null;
     const rulesHash = rules ? computeRulesHash(rules) : "none";
-    const quoteKey = `${baseKey}:rules:${rulesHash}`;
+    const quoteKey = `${baseKey}:rules:${rulesHash}:live-first-v2`;
 
     const reusable = await this.quotes.findValidByKey(quoteKey, input.merchant_id);
     if (reusable) {
@@ -126,7 +126,9 @@ export class QuoteShippingUseCase {
       }
     }
 
-    const resultsToAdd = dedupeQuoteResults([...liveResults, ...fallbackResults]);
+    // Estimates are a fallback for a failed/unconfigured carrier integration,
+    // never competing delivery services when a real quote is available.
+    const resultsToAdd = dedupeQuoteResults(liveResults.length ? liveResults : fallbackResults);
     quote = quote.addResults(resultsToAdd);
 
     // P0 fix: always derive the free-shipping threshold from merchant rules,

@@ -40,5 +40,5 @@ export function applyFreeShippingPolicy(
   // C3 fix: return ONLY the free variant (single cheapest carrier).
   // The caller (mergeFreeShipping) merges this over the paid set.
   // This prevents confusing the contract: "exactly ONE recommended option".
-  return [{ ...cheapest, price: 0, is_free: true }];
+  return [{ ...cheapest, original_price: cheapest.original_price ?? cheapest.price, price: 0, is_free: true }];
 }

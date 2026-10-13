@@ -9,6 +9,8 @@ export type ShippingQuoteResult = {
   carrier_key: string;
   label: string;
   price: number;
+  /** Original carrier cost before a merchant-funded free-shipping benefit. */
+  original_price?: number;
   eta_days: number;
   is_free: boolean;
 
