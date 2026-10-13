@@ -75,7 +75,7 @@ export class ScheduledMerchantSplitService {
         const reference = `zyon:payment-hold:${hold.id}`;
         // Share the return-opening lock, then journal one submission before POST.
         const claimed = await this.prisma.$transaction(async tx => {
-          await tx.$queryRawUnsafe("SELECT pg_advisory_xact_lock(hashtextextended($1, 0))", `return-order:${hold.merchantId}:${hold.providerPaymentId}`);
+          await tx.$queryRawUnsafe("SELECT 1 FROM pg_advisory_xact_lock(hashtextextended($1, 0))", `return-order:${hold.merchantId}:${hold.providerPaymentId}`);
           if (await tx.return.findFirst({ where: activeReturn(hold) as any, select: { id: true } })) return false;
           const payment = await tx.paymentIntent.findFirst({ where: { id: hold.paymentIntentId, merchantId: hold.merchantId, status: "approved" }, select: { id: true } });
           if (!payment) return false;
