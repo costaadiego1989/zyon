@@ -1,6 +1,7 @@
 import {
   createCipheriv,
   createDecipheriv,
+  createHmac,
   randomBytes,
   scryptSync,
 } from "node:crypto";
@@ -68,4 +69,16 @@ export function decryptPii(
 
 export function isPiiEncrypted(value: string): boolean {
   return value.startsWith(`${VERSION}:`);
+}
+
+/** Domain-separated blind index; the database cannot enumerate plain phone hashes. */
+export function buyerPhoneLookupHash(phone: string | undefined | null, env: NodeJS.ProcessEnv = process.env): string | null {
+  if (!phone) return null;
+  let digits = phone.replace(/\D/g, "");
+  if ([10, 11].includes(digits.length)) digits = "55" + digits;
+  if (!/^\d{10,15}$/.test(digits)) return null;
+  // WhatsApp's Brazilian identity may omit the ninth mobile digit.
+  if (digits.startsWith("55") && digits.length === 13 && digits[4] === "9") digits = digits.slice(0, 4) + digits.slice(5);
+  return createHmac("sha256", keyFrom(env, Buffer.from("zyon:buyer-phone-lookup:v1")))
+    .update("buyer-phone:v1:" + digits).digest("hex");
 }

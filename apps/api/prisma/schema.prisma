@@ -1139,6 +1139,7 @@ model BuyerAccount {
   passwordHash    String?   @map("password_hash")
   displayName     String    @map("display_name")
   phone           String?
+  phoneLookupHash String?   @map("phone_lookup_hash") @db.VarChar(64)
   cpf             String?
   dateOfBirth     DateTime? @map("date_of_birth")
   gender          String?
@@ -1154,6 +1155,7 @@ model BuyerAccount {
   campaignContactConsents CampaignContactConsent[]
   webauthnCredentials WebAuthnCredential[]
 
+  @@index([phoneLookupHash])
   @@map("buyer_accounts")
 }
 

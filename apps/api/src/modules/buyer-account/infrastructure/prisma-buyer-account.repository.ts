@@ -5,6 +5,7 @@ import {
   decryptPii,
   encryptPii,
   isPiiEncrypted,
+  buyerPhoneLookupHash,
 } from "../../../shared/crypto/pii-cipher.service.js";
 import { toNumber, toNumberOrNull } from "../../../shared/persistence/decimal.util.js";
 import { BuyerAccount } from "../domain/entities/buyer-account.entity.js";
@@ -27,6 +28,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
           passwordHash: account.passwordHash,
           displayName: account.displayName,
           phone: pii.phone,
+          phoneLookupHash: buyerPhoneLookupHash(account.phone),
           cpf: pii.cpf,
           dateOfBirth: account.dateOfBirth ?? null,
           gender: account.gender ?? null,
@@ -38,6 +40,7 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
           passwordHash: account.passwordHash,
           displayName: account.displayName,
           phone: pii.phone,
+          phoneLookupHash: buyerPhoneLookupHash(account.phone),
           cpf: pii.cpf,
           dateOfBirth: account.dateOfBirth ?? null,
           gender: account.gender ?? null,
@@ -63,6 +66,13 @@ export class PrismaBuyerAccountRepository implements BuyerAccountRepository {
 
   async findByPhone(phone: string): Promise<BuyerAccount | null> {
     const normalized = phone.replace(/\D/g, "");
+    const hash = buyerPhoneLookupHash(phone);
+    if (hash) {
+      const matches = await (this.prisma as any).buyerAccount.findMany({ where: { phoneLookupHash: hash }, take: 2 });
+      // A reused/shared number does not authorize picking an arbitrary account.
+      if (matches.length > 1) return null;
+      if (matches.length === 1) return toDomainAccount(matches[0]);
+    }
     // Primary: try direct phone field match (works for unencrypted phones)
     const row = await (this.prisma as any).buyerAccount.findFirst({ where: { phone: normalized } });
     if (row) return toDomainAccount(row);

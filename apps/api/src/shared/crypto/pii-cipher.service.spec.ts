@@ -4,12 +4,23 @@ import {
   decryptPii,
   encryptPii,
   isPiiEncrypted,
+  buyerPhoneLookupHash,
 } from "./pii-cipher.service.js";
 
 const testEnv = {
   NODE_ENV: "test",
   AACP_PII_ENC_KEY: "pii-test-key",
 } as NodeJS.ProcessEnv;
+
+test("phone lookup unifies Brazil's canonical WhatsApp identity without storing a public hash", () => {
+  const canonical = buyerPhoneLookupHash("+55 21 7119-1446", testEnv);
+  assert.equal(canonical, buyerPhoneLookupHash("21971191446", testEnv));
+  assert.equal(canonical, buyerPhoneLookupHash("5521971191446", testEnv));
+  assert.notEqual(canonical, buyerPhoneLookupHash("5521971191447", testEnv));
+  assert.notEqual(canonical, buyerPhoneLookupHash("5521971191446", { ...testEnv, AACP_PII_ENC_KEY: "another-key" }));
+  assert.equal(buyerPhoneLookupHash("invalid", testEnv), null);
+  assert.throws(() => buyerPhoneLookupHash("5521971191446", { NODE_ENV: "production" }), /missing_required_secret/);
+});
 
 test("PII cipher encrypts and decrypts round-trip", () => {
   const cipher = encryptPii("12345678901", testEnv);
