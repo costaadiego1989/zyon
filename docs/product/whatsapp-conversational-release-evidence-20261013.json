@@ -1,30 +1,17 @@
 {
-  "candidateCommit": "c31e5c0cd78bf9ae5b8584e5072eb60d65914f7c",
-  "checkedAt": "2026-10-13T19:39:29.996Z",
+  "candidateCommit": "9d798723c594700d88db669b3157560cd869c5fd",
+  "checkedAt": "2026-10-13T20:43:49.837Z",
   "localTests": {
-    "passed": 214,
+    "passed": 213,
     "failed": 0,
     "skipped": 1,
-    "composition": "202 current WhatsApp parity checks plus 12 distinct shared payment/cancellation regression checks; eight checkout-edit cases overlap the 20-case cancellation suite and are counted once",
-    "browser": {
-      "paymentHandoffPassed": 4,
-      "viewports": [
-        390,
-        1440
-      ],
-      "paymentRevisions": [
-        0,
-        42
-      ],
-      "providerResponses": "simulated; no external charge"
-    },
+    "composition": "Fresh current WhatsApp/storefront parity suite, including eleven navigation regression cases. Earlier shared cancellation and widget-browser results are retained under previousPaymentEditingRelease.",
     "productionSourceTypecheck": "passed",
-    "widgetTypecheck": "passed",
     "fullWorkspaceTypecheck": "pre-existing type errors in unrelated spec fixtures; production build configuration and changed tests passed"
   },
   "sandbox": {
     "runtime": {
-      "deploymentId": "51ff4a5d-7c0c-4724-83a4-a491b11d267d",
+      "deploymentId": "2ea4a7bb-740c-40da-ad17-432f88826403",
       "environment": "sandbox",
       "matchingSourceFiles": 36,
       "migrationApplied": true,
@@ -39,13 +26,15 @@
     },
     "navigation": {
       "environment": "sandbox",
-      "deploymentId": "8384755e-0dc1-4c04-b03c-459567ed44be",
+      "deploymentId": "2ea4a7bb-740c-40da-ad17-432f88826403",
       "synthetic": true,
       "financial": false,
       "providerMessagesSent": 0,
-      "runId": "04e27cc2-6706-4656-a9f8-7daec9d71e47",
+      "runId": "b9f229a6-2216-4fea-9b38-b2420819559f",
       "checks": [
         "native_welcome_and_quick_replies_persisted",
+        "all_configured_welcome_actions_remain_reachable_across_persisted_native_pages",
+        "categories_offers_back_and_menu_use_the_shared_storefront_navigation",
         "native_product_selection_uses_shared_authoritative_details",
         "rich_ctas_and_typed_add_cannot_guess_variant_or_bypass_sold_out_stock",
         "more_information_preserves_selected_variant_and_displays_real_rich_content",
@@ -56,10 +45,12 @@
         "back_refreshes_live_cart_instead_of_replaying_stale_quantity",
         "native_decrement_and_remove_persist_and_empty_cart_is_displayed",
         "continue_shopping_and_typed_add_share_authoritative_native_actions",
+        "menu_back_resumes_authoritative_checkout_data_entry_and_keeps_its_binding",
         "new_buyer_conversational_registration_uses_email_otp_and_rejects_invalid_code",
         "registered_encrypted_phone_is_found_through_keyed_index",
         "returning_buyer_email_challenge_precedes_profile_hydration_and_identity_binding",
         "email_authenticated_identity_survives_return_to_actual_storefront_cart",
+        "cart_back_resumes_verified_checkout_without_losing_items_or_restarting_registration",
         "fresh_signed_handoff_passes_real_widget_bootstrap_guard_and_controller",
         "handoff_rejects_foreign_origin_and_checkout_session",
         "checkout_preserves_buyer_phone_cart_and_email_verification",
@@ -67,7 +58,7 @@
         "no_payment_intent_created"
       ],
       "cleanup": {
-        "inbox": 26,
+        "inbox": 35,
         "whatsappSession": 1,
         "cart": 1,
         "checkout": 2,
@@ -76,8 +67,8 @@
       },
       "externalMutationAttempts": 0,
       "fixture": "rich_product_with_two_available_variants_one_sold_out_and_duplicate_content_ctas",
-      "messagesCaptured": 60,
-      "turnsPersisted": 26,
+      "messagesCaptured": 79,
+      "turnsPersisted": 35,
       "blockTypes": [
         "text",
         "interactive",
@@ -168,9 +159,9 @@
   },
   "production": {
     "status": "published_and_verified",
-    "sourceCommit": "c31e5c0cd78bf9ae5b8584e5072eb60d65914f7c",
+    "sourceCommit": "9d798723c594700d88db669b3157560cd869c5fd",
     "api": {
-      "deploymentId": "25dfce4f-5860-4567-9c47-e519697e535a",
+      "deploymentId": "41322f51-df9f-4d36-8a40-4eeca52db217",
       "environment": "production",
       "matchingSourceFiles": 36,
       "migrationApplied": true,
@@ -191,7 +182,8 @@
       "httpStatus": 200,
       "asset": "/assets/index-B1Ulw3mo.js",
       "initialPaymentMethodPresent": true,
-      "paymentRevisionPresent": true
+      "paymentRevisionPresent": true,
+      "sourceChangedSincePaymentEditingRelease": false
     },
     "dashboard": {
       "httpStatus": 200,
@@ -289,47 +281,154 @@
       ]
     },
     "currentPendingPayment": {
-      "deploymentId": "25dfce4f-5860-4567-9c47-e519697e535a",
+      "checkedAt": "2026-10-13T20:09:43.813Z",
       "readOnly": true,
-      "providerMutations": 0,
-      "buyerEmailVerified": true,
-      "canonicalPhoneMatches": true,
+      "operatorProviderMutations": 0,
       "payments": [
         {
-          "intentId": "pay_int_7e1d41d9-9d2e-42e9-8ca4-85cc945c9908",
+          "status": "cancelled",
           "method": "pix",
-          "databaseStatus": "requires_action",
+          "amountCents": 29079,
+          "provider": "mercadopago",
           "creationState": "complete",
-          "providerState": "pending"
+          "cancellation": "cancelled",
+          "cancellationAttemptRecorded": true,
+          "createdAt": "2026-10-13T19:06:41.762Z"
+        },
+        {
+          "status": "requires_action",
+          "method": "card",
+          "amountCents": 29079,
+          "provider": "stripe",
+          "creationState": "complete",
+          "cancellationAttemptRecorded": false,
+          "createdAt": "2026-10-13T20:04:33.559Z"
         }
       ],
-      "customerTriggered": true,
-      "provider": "mercadopago",
-      "customerReportedHostedCheckoutOpened": true,
-      "liveCancellationPerformed": false
+      "customerReportedCardFormOpened": true
+    },
+    "realCustomerPaymentSwitch": {
+      "deploymentId": "25dfce4f-5860-4567-9c47-e519697e535a",
+      "checkedAt": "2026-10-13T20:09:43.813Z",
+      "readOnly": true,
+      "providerMutations": 0,
+      "payments": [
+        {
+          "status": "cancelled",
+          "method": "pix",
+          "amountCents": 29079,
+          "provider": "mercadopago",
+          "creationState": "complete",
+          "cancellation": "cancelled",
+          "cancellationAttemptRecorded": true,
+          "createdAt": "2026-10-13T19:06:41.762Z"
+        },
+        {
+          "status": "requires_action",
+          "method": "card",
+          "amountCents": 29079,
+          "provider": "stripe",
+          "creationState": "complete",
+          "cancellationAttemptRecorded": false,
+          "createdAt": "2026-10-13T20:04:33.559Z"
+        }
+      ],
+      "customerTurns": [
+        {
+          "id": "0173602c-afd6-4354-bb3d-db63e4a53e41",
+          "status": "processed",
+          "phase": "complete",
+          "at": "2026-10-13T20:04:01.735Z",
+          "providerAccepted": 2,
+          "receiptStatuses": [
+            "read",
+            "read"
+          ],
+          "blockTypes": [
+            "checkout_edit_confirmation"
+          ],
+          "choiceLabels": [
+            "Confirmar troca",
+            "Manter pagamento"
+          ],
+          "checkoutStillBound": true
+        },
+        {
+          "id": "d841510c-40e8-4b61-b519-91e667f69b11",
+          "status": "processed",
+          "phase": "complete",
+          "at": "2026-10-13T20:04:10.749Z",
+          "providerAccepted": 2,
+          "receiptStatuses": [
+            "read",
+            "read"
+          ],
+          "blockTypes": [
+            "payment_methods"
+          ],
+          "choiceLabels": [
+            "Pix",
+            "Cartão de crédito",
+            "Ver Carrinho",
+            "Continuar Comprando"
+          ],
+          "checkoutStillBound": true
+        },
+        {
+          "id": "27b1fdc0-9ad8-447f-b790-531dde69c843",
+          "status": "processed",
+          "phase": "complete",
+          "at": "2026-10-13T20:04:22.952Z",
+          "providerAccepted": 3,
+          "receiptStatuses": [
+            "read",
+            "read",
+            "read"
+          ],
+          "blockTypes": [
+            "stripe_card",
+            "checkout_redirect"
+          ],
+          "choiceLabels": [
+            "Ver Carrinho",
+            "Continuar Comprando"
+          ],
+          "checkoutStillBound": true
+        }
+      ],
+      "completedOrders": 0
     }
   },
   "realPurchase": {
     "customerEmailOtpVerified": true,
     "shippingChosenFromLiveQuotes": true,
     "currentTotalToPay": 290.79,
-    "paymentIntents": 1,
+    "paymentIntents": 2,
     "paymentStatuses": [
       {
-        "status": "requires_action",
         "method": "pix",
-        "amountCents": 29079
+        "status": "cancelled",
+        "amountCents": 29079,
+        "provider": "mercadopago"
+      },
+      {
+        "method": "card",
+        "status": "requires_action",
+        "amountCents": 29079,
+        "provider": "stripe"
       }
     ],
     "completedOrders": 0,
-    "status": "awaiting_customer_payment_edit_confirmation_and_card_test"
+    "status": "card_checkout_verified_purchase_unpaid",
+    "paymentMethodSwitchVerifiedReal": true
   },
   "corrections": {
     "shipping": "Prefer real carrier quotes over estimates; subsidize exactly one real service under merchant rules and preserve original carrier cost; full price/time labels select exactly or reject stale/ambiguous choices.",
     "payment": "Native choices bind method and current cart fingerprint to the action; free text remains navigation. Read the same provider capabilities as storefront. Pix displays the provider checkout URL and code. Stripe opens its card form through the same signed secure widget, retaining the checkout and shipping. Hosted card providers return their own invoice URL. Pending provider responses never trigger a second payment.",
     "presentation": "Advertise only supported configured Pix/card routes; remove duplicate payment quick replies and repeat the full summary only when its values change.",
     "paymentEditing": "Native edit asks for explicit confirmation before invoking the existing storefront cancellation/reopen service. Keep payment retains the pending quote. Uncertain or already paid cancellation cannot clear the current payment or issue a replacement. Confirmed cancellation advances generation/revision so another method does not reuse the canceled intent key. Back refreshes authoritative checkout state.",
-    "coupon": "Use the short native label Usar cupom, preserve numeric codes as free input, and invoke the existing checkout coupon transaction using server scope/version. Invalid codes retain input; success uses shared totals and one reservation."
+    "coupon": "Use the short native label Usar cupom, preserve numeric codes as free input, and invoke the existing checkout coupon transaction using server scope/version. Invalid codes retain input; success uses shared totals and one reservation.",
+    "navigation": "Restore the saved view stage; refresh the authoritative checkout on Back; dismiss transient coupon/confirmation/field input on Back or Menu; preserve numeric field inputs and explicit provider cancellation rules."
   },
   "previousShippingPaymentRelease": {
     "sourceCommit": "d72c2578068d4b8a2a12e4c1c8765fd6e1ef72cf",
@@ -401,5 +500,64 @@
     "paymentCancellationImplementationChanged": false,
     "couponImplementationChanged": false,
     "proof": "Same injected Nest instances and actual database repositories were exercised in isolated sandbox fixtures; only the provider cancellation result was simulated; no real charge or external message was created by the probe."
+  },
+  "previousPaymentEditingRelease": {
+    "sourceCommit": "c31e5c0cd78bf9ae5b8584e5072eb60d65914f7c",
+    "apiDeploymentId": "25dfce4f-5860-4567-9c47-e519697e535a",
+    "widgetDeploymentId": "dpl_HPGuNVCG7jhEuF6rMQzuQro4m1F9",
+    "localTests": {
+      "passed": 214,
+      "failed": 0,
+      "skipped": 1,
+      "composition": "202 current WhatsApp parity checks plus 12 distinct shared payment/cancellation regression checks; eight checkout-edit cases overlap the 20-case cancellation suite and are counted once",
+      "browser": {
+        "paymentHandoffPassed": 4,
+        "viewports": [
+          390,
+          1440
+        ],
+        "paymentRevisions": [
+          0,
+          42
+        ],
+        "providerResponses": "simulated; no external charge"
+      },
+      "productionSourceTypecheck": "passed",
+      "widgetTypecheck": "passed",
+      "fullWorkspaceTypecheck": "pre-existing type errors in unrelated spec fixtures; production build configuration and changed tests passed"
+    }
+  },
+  "navigationClosure": {
+    "status": "navigation_verified_and_published",
+    "sourceCommit": "9d798723c594700d88db669b3157560cd869c5fd",
+    "localChecks": 213,
+    "skipped": 1,
+    "sandboxChecks": 24,
+    "persistedTurns": 35,
+    "capturedMessages": 79,
+    "realProviderMessagesSentByNavigationProbe": 0,
+    "realPaymentIntentsCreatedByNavigationProbe": 0,
+    "verifiedFlows": [
+      "all configured welcome quick replies across native pages",
+      "categories and offers",
+      "catalog and authoritative product/variant selection",
+      "stale menu rejection",
+      "native and typed add to cart",
+      "quantity increase/decrease/remove and empty cart",
+      "back and continue shopping",
+      "menu back to checkout data entry",
+      "email OTP for new and returning buyers",
+      "cart back to verified checkout",
+      "signed checkout handoff and origin/session fences",
+      "real customer Pix-to-card switch"
+    ],
+    "corrections": [
+      "Save the store/checkout stage with each view, including text-only data entry.",
+      "Back reads the actual checkout state rather than replaying old controls.",
+      "Back dismisses coupon and payment-confirmation overlays without financial mutation.",
+      "Menu dismisses incomplete field/coupon/confirmation input while retaining cart and pending payment.",
+      "Typed Voltar shares native Back outside free data entry."
+    ],
+    "realPaidOrderValidated": false
   }
 }

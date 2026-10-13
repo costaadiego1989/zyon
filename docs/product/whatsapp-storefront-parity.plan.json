@@ -1,7 +1,7 @@
 {
   "title": "Zyon: mesma jornada conversacional no storefront e no WhatsApp",
   "date": "2026-10-12",
-  "status": "production_published_payment_edit_and_coupon_customer_test_pending",
+  "status": "navigation_verified_and_published_real_card_checkout_verified_purchase_unpaid",
   "implementationStarted": true,
   "baselineRelease": "68663bd1f247a8cf48eb31a1008b367d6460e4c9",
   "objective": "Compartilhar agente, identidade da loja, regras, atalhos, catalogo, carrinho e jornada de checkout. Adaptar a apresentacao dos componentes ao canal Meta, priorizando os controles nativos.",
@@ -455,11 +455,11 @@
       }
     },
     "production": {
-      "sourceCommit": "c31e5c0cd78bf9ae5b8584e5072eb60d65914f7c",
-      "apiDeploymentId": "25dfce4f-5860-4567-9c47-e519697e535a",
+      "sourceCommit": "9d798723c594700d88db669b3157560cd869c5fd",
+      "apiDeploymentId": "41322f51-df9f-4d36-8a40-4eeca52db217",
       "widgetDeploymentId": "dpl_HPGuNVCG7jhEuF6rMQzuQro4m1F9",
       "publicArtifact": {
-        "checkedAt": "2026-10-13T19:38:33.161Z",
+        "checkedAt": "2026-10-13T20:39:07.599Z",
         "widget": {
           "httpStatus": 200,
           "asset": "/assets/index-B1Ulw3mo.js",
@@ -480,7 +480,7 @@
       },
       "status": "published_and_verified"
     },
-    "realMenu": "A real customer selected Pix and reported the Mercado Pago checkout opened. The pending payment is preserved; the refreshed native menu offers Trocar pagamento and Usar cupom. Changing methods requires the customer to confirm cancellation through the existing storefront service.",
+    "realMenu": "Customer-confirmed Pix cancellation and native card selection were processed with READ receipts, preserving the bound checkout and R$ 290.79. Stripe created the customer-requested card intent and the customer confirmed the form opened. No paid purchase is claimed.",
     "navigationRegression": {
       "fix": "Product-card admission is the sole Add action. Recommendations preserve their existing storefront variant ID and also provide the authoritative product ID for Meta navigation.",
       "coverage": [
@@ -505,7 +505,7 @@
       "command": "pnpm --filter @zyon/api test:whatsapp-storefront-parity",
       "sandboxProbe": "apps/api/scripts/validate-whatsapp-storefront-parity.cjs",
       "testResults": {
-        "passed": 194,
+        "passed": 213,
         "failed": 0,
         "skipped": 1
       },
@@ -574,7 +574,40 @@
       },
       "localChecks": 214,
       "browserChecks": 4,
-      "realProviderCancellation": "awaiting explicit customer confirmation"
+      "realProviderCancellation": "verified from the real customer-confirmed operation; Pix cancelled, card requires_action, zero operator financial mutations"
+    },
+    "navigationClosure": {
+      "status": "navigation_verified_and_published",
+      "sourceCommit": "9d798723c594700d88db669b3157560cd869c5fd",
+      "localChecks": 213,
+      "skipped": 1,
+      "sandboxChecks": 24,
+      "persistedTurns": 35,
+      "capturedMessages": 79,
+      "realProviderMessagesSentByNavigationProbe": 0,
+      "realPaymentIntentsCreatedByNavigationProbe": 0,
+      "verifiedFlows": [
+        "all configured welcome quick replies across native pages",
+        "categories and offers",
+        "catalog and authoritative product/variant selection",
+        "stale menu rejection",
+        "native and typed add to cart",
+        "quantity increase/decrease/remove and empty cart",
+        "back and continue shopping",
+        "menu back to checkout data entry",
+        "email OTP for new and returning buyers",
+        "cart back to verified checkout",
+        "signed checkout handoff and origin/session fences",
+        "real customer Pix-to-card switch"
+      ],
+      "corrections": [
+        "Save the store/checkout stage with each view, including text-only data entry.",
+        "Back reads the actual checkout state rather than replaying old controls.",
+        "Back dismisses coupon and payment-confirmation overlays without financial mutation.",
+        "Menu dismisses incomplete field/coupon/confirmation input while retaining cart and pending payment.",
+        "Typed Voltar shares native Back outside free data entry."
+      ],
+      "realPaidOrderValidated": false
     }
   },
   "templatePolicy": {

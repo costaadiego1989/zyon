@@ -1,0 +1,39 @@
+{
+  "status": "implementation_required_before_real_payment",
+  "authorizedProduct": {
+    "merchantId": "mrc_696a583b-e0b8-4956-aea7-4f15037de32b",
+    "productId": "cmv757wry0000pd4k27kuav84",
+    "variantId": "cmv757wry0001pd4k4od009q1",
+    "sku": "ZYON-TEST-PAYMENT-20261013",
+    "priceCents": 500,
+    "requiresShipping": false,
+    "buyerFeeCents": 99,
+    "merchantFeeCents": 99,
+    "providerFeeCents": "must be read from the captured provider transaction",
+    "realPaymentsPerformedByOperator": 0
+  },
+  "baseline": {
+    "apiCommit": "9d798723c594700d88db669b3157560cd869c5fd",
+    "apiDeploymentId": "41322f51-df9f-4d36-8a40-4eeca52db217",
+    "currentMode": "immediate_split",
+    "connectedProviders": ["stripe", "mercadopago"],
+    "stripeRecipientTransferCapability": "active",
+    "stripePlatformPayoutSchedule": {"interval": "daily", "delayDays": 30},
+    "stripeRecipientPayoutSchedule": {"interval": "daily", "delayDays": 30},
+    "existingMarketplaceWindows": {"returnWindowDays": 7, "payoutDelayDays": 14, "chargebackWindowDays": 30}
+  },
+  "implementation": {
+    "scope": "Opt in the owned test store without changing other merchants or reinterpreting already-created payment intents.",
+    "capture": "Stripe platform-owned payment, with no immediate destination transfer or application fee. Preserve the existing secure widget and payment intent lifecycle.",
+    "allocation": "Freeze buyer fee, merchant fee, recipient, account identity and window before provider creation. Read actual provider fees and conserve every cent across platform, merchant and provider.",
+    "retention": "Reuse payment holds and the existing Stripe marketplace capture/transfer verification. A planned entry is not provider confirmation. Schedule only after the configured return window and payout delay, and never before provider availability.",
+    "payout": "Persist a single submission and stable reference before remote mutation. Reconcile uncertain results by GET. Require an exact provider receipt before marking release; refuse refunded, disputed, foreign or insufficient captures.",
+    "rails": "Stripe card first. Keep existing connections; do not advertise Mercado Pago Pix as retained without its commercial capture/transfer contract.",
+    "activation": "Local tests, persisted sandbox validation, provider eligibility and bank payout reserve checks must pass before enabling the owned store for the two real payments."
+  },
+  "validation": {
+    "channels": ["whatsapp", "storefront"],
+    "paidOrders": "customer action required after retention is ready",
+    "checks": ["real charge approval and persisted order", "matching original checkout and product", "one inventory receipt per order", "buyer and merchant fees", "actual provider fee", "exact retained and merchant allocations", "return and transfer dates", "no early or duplicate transfer", "refund and dispute stop release", "bank payout distinct from platform-to-merchant transfer"]
+  }
+}
