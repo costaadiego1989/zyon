@@ -125,6 +125,11 @@ test("stripped browser freight cannot turn a physical checkout into a free-shipp
   let providerCalled = false;
   const payment = new CreatePaymentIntentUseCase(repo, {} as never, {} as never, {
     async createPayment() { providerCalled = true; throw new Error("must_not_charge"); },
+  } as never, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, {
+    checkoutSession: { async findUnique({ where }: any) {
+      return repo.getSession(where.merchantId_sessionId.merchantId, where.merchantId_sessionId.sessionId);
+    } },
+    crossStoreLineItem: { async findFirst() { return null; } },
   } as never);
   await assert.rejects(payment.execute({ merchant_id: "merchant-1", session_id: started.session_id, idempotency_key: "attempt", method: "pix" }), /shipping_method_required_before_payment/);
   assert.equal(providerCalled, false);

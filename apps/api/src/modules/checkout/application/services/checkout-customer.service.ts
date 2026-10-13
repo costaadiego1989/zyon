@@ -129,7 +129,7 @@ export class CheckoutCustomerService {
       working = {
         ...working, globalUserId: `usr_${randomUUID()}`, shipping: undefined, shippingOptions: undefined,
         customer: {
-          ...working.customer, email_verified: false, otp_code: "", recognized_buyer: false, isReturning: false,
+          ...working.customer, email_verified: false, otp_code: "", otp_expires_at: "", recognized_buyer: false, isReturning: false,
           externalCustomerId: undefined, asaasCustomerId: undefined, phone_verified: false, phone_otp_code: "",
           ...(previous.email_verified ? { fullName: undefined, cpf: undefined, phone: undefined, address: undefined, address_verified: false } : {}),
         },

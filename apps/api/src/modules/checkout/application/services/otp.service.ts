@@ -72,7 +72,7 @@ export class OtpService {
     // Resend flow
     if (resendEmail && existing?.otp_code) {
       const code = this.generateCode();
-      return { otp_code: code };
+      return { otp_code: code, otp_expires_at: this.emailCodeDeadline() };
     }
 
     // Generation flow: trigger on new email or kickoff intent
@@ -80,7 +80,7 @@ export class OtpService {
       const kickoff = /iniciar\s+cadastro|come[cç]ar\s+cadastro|quero\s+cadastrar/i.test(userMessage.trim());
       if (isNewEmail || kickoff || resendEmail) {
         const code = this.generateCode();
-        return { otp_code: code, email: currentEmail.toLowerCase() };
+        return { otp_code: code, otp_expires_at: this.emailCodeDeadline(), email: currentEmail.toLowerCase() };
       }
       return null;
     }
@@ -88,10 +88,17 @@ export class OtpService {
     // Validation flow
     if (existing.otp_code && !resendEmail) {
       const extracted = extractOtp(userMessage);
+      if (extracted && (extracted === existing.otp_code || this.looksLikeOtpAttempt(userMessage))) {
+        const deadline = Date.parse(existing.otp_expires_at ?? "");
+        if (!Number.isFinite(deadline) || deadline <= Date.now()) throw new OtpValidationError(
+          "Esse código de confirmação expirou. Peça para reenviar o código e use o novo código para continuar."
+        );
+      }
       if (extracted === existing.otp_code) {
         return {
           email_verified: true,
           otp_code: "",
+          otp_expires_at: "",
           email: currentEmail.toLowerCase()
         };
       } else if (extracted && this.looksLikeOtpAttempt(userMessage)) {
@@ -102,6 +109,10 @@ export class OtpService {
     }
 
     return null;
+  }
+
+  private emailCodeDeadline(): string {
+    return new Date(Date.now() + 10 * 60_000).toISOString();
   }
 
   /**

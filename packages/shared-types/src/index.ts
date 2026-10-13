@@ -137,6 +137,8 @@ export interface CustomerHints {
   email?: string;
   email_verified?: boolean;
   otp_code?: string;
+  /** Server-issued email verification challenge deadline, in ISO 8601. */
+  otp_expires_at?: string;
   recognized_buyer?: boolean;
   phone?: string;
   phone_verified?: boolean;

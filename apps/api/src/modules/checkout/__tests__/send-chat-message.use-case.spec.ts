@@ -1,4 +1,4 @@
-import test, { beforeEach, afterEach, describe } from "node:test";
+﻿import test, { beforeEach, afterEach, describe } from "node:test";
 import assert from "node:assert/strict";
 import type { AgentContext } from "@zyon/shared-types";
 import type { AgentContextPort } from "../domain/ports/agent-context.port.js";
@@ -902,7 +902,7 @@ test("SendChatMessageUseCase skips cadastro after OTP when older session has com
   if (newSession) {
     newSession.customer = {
       email: "costaadiego1989@gmail.com",
-      otp_code: "778899",
+      otp_code: "778899", otp_expires_at: new Date(Date.now() + 60_000).toISOString(),
       email_verified: false
     };
     newSession.updatedAt = "2026-06-01T10:00:00.000Z";
@@ -958,7 +958,7 @@ test("SendChatMessageUseCase rechecks existing buyer after OTP even when email t
     session.customer = {
       fullName: "Diego Costa",
       email: "costaadiego1989@gmail.com",
-      otp_code: "410597",
+      otp_code: "410597", otp_expires_at: new Date(Date.now() + 60_000).toISOString(),
       email_verified: false
     };
     await repository.saveSession(session);
@@ -990,7 +990,7 @@ test("SendChatMessageUseCase blocks mismatched email OTP validation and returns 
   await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp" }));
   const session = await repository.getSession("mrc_1", "chk_otp");
   if (session) {
-    session.customer = { email: "user@aacp.io", fullName: "User Test", otp_code: "123456", email_verified: false };
+    session.customer = { email: "user@aacp.io", fullName: "User Test", otp_code: "123456", otp_expires_at: new Date(Date.now() + 60_000).toISOString(), email_verified: false };
     await repository.saveSession(session);
   }
 
@@ -1014,7 +1014,7 @@ test("SendChatMessageUseCase does not treat a non-code reply as invalid email OT
   await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_text" }));
   const session = await repository.getSession("mrc_1", "chk_otp_text");
   if (session) {
-    session.customer = { email: "user@aacp.io", otp_code: "123456", email_verified: false };
+    session.customer = { email: "user@aacp.io", otp_code: "123456", otp_expires_at: new Date(Date.now() + 60_000).toISOString(), email_verified: false };
     await repository.saveSession(session);
   }
   await repository.appendChatTurn("mrc_1", "chk_otp_text", {
@@ -1048,7 +1048,7 @@ test("SendChatMessageUseCase keeps email OTP error active even when phone was al
     session.customer = {
       email: "recognized@aacp.io",
       fullName: "User Test",
-      otp_code: "123456",
+      otp_code: "123456", otp_expires_at: new Date(Date.now() + 60_000).toISOString(),
       email_verified: false,
       phone: "21999998888",
       phone_verified: true
@@ -1076,7 +1076,7 @@ test("SendChatMessageUseCase accepts email OTP pasted with API log metadata", as
   await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_otp_log" }));
   const session = await repository.getSession("mrc_1", "chk_otp_log");
   if (session) {
-    session.customer = { email: "user@aacp.io", fullName: "User Test", otp_code: "776655", email_verified: false };
+    session.customer = { email: "user@aacp.io", fullName: "User Test", otp_code: "776655", otp_expires_at: new Date(Date.now() + 60_000).toISOString(), email_verified: false };
     await repository.saveSession(session);
   }
 
