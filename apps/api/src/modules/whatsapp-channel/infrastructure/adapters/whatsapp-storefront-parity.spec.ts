@@ -55,6 +55,25 @@ test("an invalid OTP reply keeps its error feedback instead of claiming another 
   assert.equal(result.agentMessage.includes("Enviamos"), false);
 });
 
+test("email login persists when returning to the store, while unverified or foreign-phone sessions stay anonymous", async () => {
+  let context: any;
+  let stored: any = { ...session, globalUserId: "registered-buyer", cart: { ...session.cart, cart_ref: initial.conversationId } };
+  const adapter = new CheckoutWhatsAppConversationAdapter({} as any, { getSession: async () => stored } as any,
+    { execute: async (input: any) => { context = input.trusted_buyer_context; return { message: "Produtos", suggested_next: [], blocks: [] }; } } as any,
+    { executeForMerchant: async () => ({ name: "Empresa" }) } as any);
+  const state: any = { ...initial, stage: "checkout", checkoutSessionId: "checkout", history: [{ role: "user", content: "Email confirmado" }] };
+  const action: any = { kind: "tool", tool: "search_products", args: { query: "*" } };
+  await adapter.respondStore({ merchantId: "merchant", buyer, message: "Continuar comprando", state, action });
+  assert.equal(context.globalUserId, "registered-buyer");
+  assert.equal(context.email, "buyer@example.com");
+  stored = { ...stored, customer: { ...stored.customer, email_verified: false } };
+  await adapter.respondStore({ merchantId: "merchant", buyer, message: "Continuar comprando", state, action });
+  assert.equal(context.globalUserId, buyer.globalUserId); assert.equal(context.email, undefined);
+  stored = { ...stored, customer: { ...stored.customer, email_verified: true, phone: "5511988887777" } };
+  await adapter.respondStore({ merchantId: "merchant", buyer, message: "Continuar comprando", state, action });
+  assert.equal(context.globalUserId, buyer.globalUserId); assert.equal(context.email, undefined);
+});
+
 test("store actions use the shared storefront use case and retain the verified buyer and full quick replies", async () => {
   let seen: any;
   const adapter = new CheckoutWhatsAppConversationAdapter({} as any, {} as any,

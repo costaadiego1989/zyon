@@ -72,6 +72,12 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     if (!this.store || !this.storeConfig) throw new Error("whatsapp_storefront_adapter_unavailable");
     const config = await this.storeConfig.executeForMerchant(input.merchantId);
     let state = { ...input.state };
+    const identitySession = state.checkoutSessionId ? await this.sessions.getSession(input.merchantId, state.checkoutSessionId) : undefined;
+    const verifiedBuyer = identitySession?.merchantId === input.merchantId && identitySession.customer?.email_verified === true &&
+      identitySession.customer.phone_verified === true && identitySession.customer.phone?.replace(/\D/g, "") === input.buyer.phone.replace(/\D/g, "") &&
+      (identitySession.cart as { cart_ref?: string }).cart_ref === state.conversationId
+      ? { globalUserId: identitySession.globalUserId, customer: identitySession.customer } : undefined;
+    const shopper = verifiedBuyer ? { ...input.buyer, globalUserId: verifiedBuyer.globalUserId, fullName: verifiedBuyer.customer.fullName, email: verifiedBuyer.customer.email } : input.buyer;
     const firstTurn = state.history.length === 0;
     const greeting = config.agentGreeting || `Oi! Sou ${config.agentName || "Zyon"}, sua vendedora pessoal aqui na ${config.name}. 💚 Me conta o que você procura — eu encontro o produto ideal, garanto o melhor preço com cupons, calculo o frete e fecho seu pedido em segundos, tudo por aqui. Bora começar?`;
     state.pendingFlow = undefined;
@@ -117,8 +123,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const canonicalAction = action?.tool === "checkout" ? { tool: "create_checkout_session", args: {} } : action ? { tool: action.tool, args: action.args } : undefined;
     const response = await this.store.execute({
       merchant_id: input.merchantId, conversation_id: state.conversationId, cart_id: state.conversationId,
-      user_message: input.message, global_user_id: input.buyer.globalUserId,
-      trusted_buyer_context: { globalUserId: input.buyer.globalUserId, name: input.buyer.fullName, phone: input.buyer.phone, email: input.buyer.email },
+      user_message: input.message, global_user_id: shopper.globalUserId,
+      trusted_buyer_context: { globalUserId: shopper.globalUserId, name: shopper.fullName, phone: shopper.phone, email: shopper.email },
       history: state.history, ui_action: canonicalAction,
       attachment_context: input.attachmentContext,
     });
@@ -129,12 +135,12 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         const cart = await this.cartAuthority.resolveStorefront(input.merchantId, state.conversationId);
         if (state.checkoutSessionId && await this.prisma?.completedOrder.findFirst({ where: { merchantId: input.merchantId, sessionId: state.checkoutSessionId }, select: { id: true } })) state.checkoutGeneration = (state.checkoutGeneration ?? 0) + 1;
         const fingerprint = createHash("sha256").update(JSON.stringify([input.merchantId, state.conversationId, state.checkoutGeneration ?? 0, cart])).digest("hex").slice(0, 32);
-        const emailHint = await this.checkoutIdentity?.emailHint(input.merchantId, input.buyer);
-        const checkoutBuyer = { globalUserId: input.buyer.globalUserId, phone: input.buyer.phone, email: emailHint };
+        const emailHint = verifiedBuyer?.customer.email ?? await this.checkoutIdentity?.emailHint(input.merchantId, input.buyer);
+        const checkoutBuyer = { globalUserId: shopper.globalUserId, phone: shopper.phone, email: emailHint };
         const checkout = await this.startCheckout.execute({
           merchant_id: input.merchantId, session_id: `wa_checkout_${fingerprint}`,
           customer: { phone: checkoutBuyer.phone, email: checkoutBuyer.email },
-        } as any, { storefrontCartRef: state.conversationId, trustedPhoneBuyer: checkoutBuyer });
+        } as any, { storefrontCartRef: state.conversationId, ...(verifiedBuyer ? { trustedBuyer: verifiedBuyer } : { trustedPhoneBuyer: checkoutBuyer }) });
         state.stage = "checkout";
         let session = await this.sessions.getSession(input.merchantId, checkout.session_id);
         let message: string | undefined;
