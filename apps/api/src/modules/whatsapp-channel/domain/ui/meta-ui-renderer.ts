@@ -53,7 +53,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
       case "text": case "message": text.push(value(d.text || d.content)); break;
       case "form_field": text.push(`Informe ${value(d.label || d.field)}:`); break;
       case "address_confirmation": text.push(`*Confira a entrega*\n${value(d.formatted)}\n\n_O endereço está correto?_`); add("Sim", { kind: "message", message: "Sim" }); add("Corrigir endereço", { kind: "message", message: "Não" }); break;
-      case "payment_methods": items(d.methods).forEach(m => add(value(m.label), { kind: "message", message: value(m.label) }, value(m.sub))); break;
+      case "payment_methods": items(d.methods).forEach(m => add(value(m.label), d.nativePayment && d.fingerprint
+        ? tool("create_payment", { method: m.key, fingerprint: d.fingerprint }) : { kind: "message", message: value(m.label) }, value(m.sub))); break;
       case "payment_actions": add("Gerar Pix", tool("create_payment", { method: "pix", fingerprint: d.fingerprint })); break;
       case "coupon_input": text.push("Qual é o código do cupom?"); break;
       case "offer_coupon": text.push(value(d.message || d.description || d.label)); add("Aplicar oferta", { kind: "message", message: "Aplicar oferta" }); break;
@@ -128,7 +129,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
       case "cart_add_result":
         text.push(d.status === "succeeded" ? "✅ *Item adicionado ao carrinho*" : d.status === "unknown" ? "_A inclusão está sendo verificada._" : "Não foi possível adicionar este item."); break;
       case "shipping_options":
-        items(d.options).forEach(o => add(value(o.name || o.carrier), { kind: "message", message: value(o.responseLabel) || `Escolho o frete ${value(o.name)} da ${value(o.carrier)}` }, `${o.priceFormatted || money(o.price)}${o.days != null ? ` · ${o.days} dias` : ""}`)); break;
+        items(d.options).forEach(o => add([o.carrier, o.name].filter(Boolean).join(" ") || "Frete", { kind: "message", message: value(o.responseLabel) || `Escolho o frete ${value(o.name)} da ${value(o.carrier)}` }, `${Number(o.price) === 0 ? "Grátis · benefício da loja" : o.priceFormatted || money(o.price)}${o.days != null ? ` · ${o.days} dias úteis` : ""}`)); break;
       case "shipping_quote_input": text.push("Qual é o CEP para calcular a entrega?"); break;
       case "checkout_redirect":
         if (safeLink(d.url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "*Continue sua compra com segurança*\nPreencha os dados protegidos na página da loja. Seu carrinho será mantido." }, action: { name: "cta_url", parameters: { display_text: "Continuar compra", url: safeLink(d.url) } } } }); break;
@@ -168,9 +169,9 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
           }
         }); break;
       case "payment_intent":
-        text.push(d.amount_cents != null ? `*Pagamento por Pix*\nTotal: *${money(Number(d.amount_cents) / 100)}*\n\n_Copie o código abaixo e pague no app do seu banco. O pedido será confirmado após a aprovação do pagamento._` : "_Pagamento pendente de confirmação._");
+        text.push(d.amount_cents != null ? `*Total do pagamento: ${money(Number(d.amount_cents) / 100)}*\n\n_O pedido será confirmado após a aprovação do pagamento._` : "_Pagamento pendente de confirmação._");
         if (d.copy_paste) view.media.push({ type: "text", text: { body: value(d.copy_paste) } });
-        if (safeLink(d.ticket_url)) text.push(`Link de pagamento: ${safeLink(d.ticket_url)}`);
+        if (safeLink(d.ticket_url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "Conclua o pagamento no checkout seguro do provedor." }, action: { name: "cta_url", parameters: { display_text: "Pagar pedido", url: safeLink(d.ticket_url) } } } });
         break;
       case "checkout_summary":
         text.push("*Resumo da compra*");

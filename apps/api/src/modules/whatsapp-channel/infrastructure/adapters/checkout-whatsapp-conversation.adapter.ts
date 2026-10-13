@@ -1,4 +1,4 @@
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadGatewayException, BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/send-chat-message.use-case.js";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import type { WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
@@ -19,6 +19,8 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import type { PrismaClient } from "@prisma/client";
 import { WhatsAppCheckoutIdentityService } from "../../application/services/whatsapp-checkout-identity.service.js";
 import { CheckoutCustomerService, OtpValidationError } from "../../../checkout/application/services/checkout-customer.service.js";
+import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
+import { checkoutShippingLabel } from "../../../checkout/domain/services/checkout-shipping-label.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -86,7 +88,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       state.history = [{ role: "user", content: input.message }, { role: "assistant", content: greeting }];
       return { agentMessage: greeting, quickReplies: config.quickReplies || [], blocks: [], merchantName: config.name, state };
     }
-    const paymentAction = input.action?.kind === "tool" && input.action.tool === "create_payment";
+    const paymentAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout"].includes(input.action.tool);
     const browsing = (input.action?.kind === "tool" && !paymentAction) || /^(continuar comprando|ver produtos|encontrar produto|categorias|ofertas|ver carrinho)$/i.test(input.message.trim());
     if (state.stage === "checkout" && browsing) state.stage = "store";
     if (state.stage === "checkout") {
@@ -102,17 +104,36 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
           state, config.name, "Continuar no checkout seguro", input.merchantId);
       }
       if (paymentAction) {
-        if (!this.createPayment || input.action?.kind !== "tool" || input.action.args.method !== "pix") throw new Error("whatsapp_payment_action_unavailable");
-        if (input.action.args.fingerprint !== paymentCartFingerprint(checkout)) return this.checkoutUi({ message: "O pedido mudou. Confira o resumo atualizado antes de gerar o Pix." }, state, config.name, input.message, input.merchantId);
+        if (input.action?.kind !== "tool" || !["pix", "card", "boleto"].includes(String(input.action.args.method))) throw new Error("whatsapp_payment_action_unavailable");
+        if (!["payment", "payment_pending"].includes(deriveChatStage(checkout))) return this.checkoutUi({ message: "Confirme os dados e a entrega antes de pagar." }, state, config.name, input.message, input.merchantId);
+        if (input.action.args.fingerprint !== paymentCartFingerprint(checkout)) return this.checkoutUi({ message: "O pedido mudou. Confira o resumo atualizado antes de preparar o pagamento." }, state, config.name, input.message, input.merchantId);
+        const method = input.action.args.method as "pix" | "card" | "boleto";
+        if (state.payment && ["pending", "requires_action", "approved"].includes(state.payment.status)) return this.checkoutUi({ message: "Já existe um pagamento para este pedido. Confira o pagamento atual antes de gerar outro." }, state, config.name, input.message, input.merchantId);
+        const capabilities = await this.startCheckout?.getPaymentCapabilities?.(input.merchantId);
+        if (method === "boleto" || capabilities && !capabilities[method]) return this.checkoutUi({ message: "Essa forma de pagamento não está disponível nesta loja. Escolha uma das opções atuais." }, state, config.name, input.message, input.merchantId);
+        // Stripe collects card details in its embedded form on our secure page.
+        // Opening it does not change the merchant's selected payment provider.
+        if (method === "card" && capabilities?.providers?.card === "stripe") return this.checkoutUi({ message: "*Pagamento seguro com cartão*\n\nAbra o botão abaixo para concluir com o formulário da Stripe. Seu pedido e o frete escolhido serão mantidos.",
+          blocks: [{ type: "stripe_card", data: {} }], initialPaymentMethod: "card" }, state, config.name, input.message, input.merchantId);
+        if (!this.createPayment) throw new Error("whatsapp_payment_action_unavailable");
+        const idempotencyKey = `wa_${method}_` + createHash("sha256").update(`${sessionId}:${paymentCartFingerprint(checkout)}`).digest("hex");
         try {
-          const payment = await this.createPayment.execute({ merchant_id: input.merchantId, session_id: sessionId, method: "pix",
-            idempotency_key: "wa_pix_" + createHash("sha256").update(`${sessionId}:${paymentCartFingerprint(checkout)}`).digest("hex") }, { marketplaceSurface: "v1" });
-          state.payment = { intentId: payment.id, sessionId, status: payment.status, amount_cents: payment.amountCents,
+          const payment = await this.createPayment.execute({ merchant_id: input.merchantId, session_id: sessionId, method,
+            idempotency_key: idempotencyKey }, { marketplaceSurface: "v1" });
+          state.payment = { intentId: payment.id, sessionId, method, status: payment.status, amount_cents: payment.amountCents,
             copy_paste: payment.buyerFacing?.qrCodeCopyPaste, ticket_url: payment.buyerFacing?.invoiceUrl };
-          return this.checkoutUi({ message: "Use o Pix abaixo para pagar. A confirmação depende do banco; você pode pedir para verificar o pagamento." }, state, config.name, input.message, input.merchantId);
+          const updated = await this.sessions.getSession(input.merchantId, sessionId);
+          return this.checkoutUi({ message: method === "pix" ? "*Pagamento por Pix*\n\nAbra o checkout do provedor ou copie o código abaixo para pagar. A confirmação será automática após a aprovação."
+            : "*Pagamento seguro*\n\nAbra o checkout do provedor no botão abaixo para concluir seu pedido.",
+            ...(updated ? { experience: buildExperienceFromSession(updated, { merchantName: config.name, serviceFee: payment.amountBreakdown ? payment.amountBreakdown.platformFeeCents / 100 : undefined }) } : {}) }, state, config.name, input.message, input.merchantId);
         } catch (error) {
+          if (error instanceof BadGatewayException) {
+            const pending = await this.prisma?.paymentIntent.findUnique({ where: { merchantId_sessionId_idempotencyKey: { merchantId: input.merchantId, sessionId, idempotencyKey } }, select: { id: true, status: true, amountCents: true } });
+            if (pending) state.payment = { intentId: pending.id, sessionId, method, status: pending.status, amount_cents: pending.amountCents };
+            return this.checkoutUi({ message: "Estamos verificando a resposta do provedor. Não faça outro pagamento enquanto essa verificação estiver pendente." }, state, config.name, input.message, input.merchantId);
+          }
           if (!(error instanceof BadRequestException || error instanceof ConflictException)) throw error;
-          return this.checkoutUi({ message: "Não foi possível gerar o Pix com os dados atuais. Confira os dados e valores do pedido no checkout seguro antes de continuar." }, state, config.name, input.message, input.merchantId);
+          return this.checkoutUi({ message: "Não foi possível preparar o pagamento com os dados atuais. Confira os dados e valores do pedido no checkout seguro antes de continuar.", blocks: [{ type: "hosted_card_payment", data: {} }] }, state, config.name, input.message, input.merchantId);
         }
       }
       const response = await this.chat.execute({ merchant_id: input.merchantId, session_id: sessionId, conversation_id: checkout.conversationId,
@@ -188,12 +209,18 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const blocks: WhatsAppStructuredResponse["blocks"] = [];
     for (const block of response.blocks ?? []) {
       if (block.type === "shipping_options" && exp?.shippingOptions?.length) continue;
+      if (block.type === "payment_methods") continue;
       blocks.push({ type: block.type, data: block.data ?? {} });
     }
     if (exp?.suggestedProducts?.length) blocks.push({ type: "product_carousel", data: { products: exp.suggestedProducts.map((p: any) => ({ id: p.product_id || p.variant_id, name: p.name, price: p.unit_price, priceFormatted: p.unit_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), image: p.image_url })) } } as any);
     if (exp?.payment_intent && ["created", "pending", "requires_action"].includes(exp.payment_intent.status)) blocks.push({ type: "payment_intent", data: exp.payment_intent });
-    if (exp?.items?.length && (!state.checkoutSessionId || ["payment", "payment_pending", "completed"].includes(exp.stage))) blocks.push({ type: "checkout_summary", data: { items: exp.items, totals: exp.totals, shippingPending: ["data_collection", "shipping"].includes(exp.stage) && !exp.shipping } });
-    if (exp?.shippingOptions?.length) blocks.push({ type: "shipping_options", data: { options: exp.shippingOptions.map((o: any, index: number) => ({ carrier: o.carrier, name: o.method, price: o.customerPrice, days: o.deliveryDays, responseLabel: exp.copy.quick_replies?.[index] })) } } as any);
+    let summaryFingerprint = state.checkoutSummaryFingerprint;
+    if (exp?.items?.length && (!state.checkoutSessionId || ["payment", "payment_pending", "completed"].includes(exp.stage))) {
+      const fingerprint = createHash("sha256").update(JSON.stringify([exp.items, exp.totals, exp.shipping])).digest("hex");
+      if (fingerprint !== summaryFingerprint) blocks.push({ type: "checkout_summary", data: { items: exp.items, totals: exp.totals, shippingPending: ["data_collection", "shipping"].includes(exp.stage) && !exp.shipping } });
+      summaryFingerprint = fingerprint;
+    }
+    if (exp?.shippingOptions?.length) blocks.push({ type: "shipping_options", data: { options: exp.shippingOptions.map((o: any) => ({ carrier: o.carrier, name: o.method, price: o.customerPrice, days: o.deliveryDays, responseLabel: checkoutShippingLabel(o) })) } } as any);
     const checkoutSessionId = response.session_id || state.checkoutSessionId;
     const session = checkoutSessionId ? await this.sessions.getSession(merchantId, checkoutSessionId) : undefined;
     if (state.payment && state.payment.sessionId !== checkoutSessionId) state.payment = undefined;
@@ -207,7 +234,14 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       } else if (["pending", "requires_action"].includes(status.status)) blocks.push({ type: "payment_intent", data: state.payment });
       else message = "Esse pagamento não está mais disponível. Confira o estado do pedido no checkout seguro.";
     }
-    if (session?.paymentMethod === "pix" && !state.payment && ["payment", "payment_pending"].includes(deriveChatStage(session))) blocks.push({ type: "payment_actions", data: { fingerprint: paymentCartFingerprint(session) } });
+    if (session && !state.payment && ["payment", "payment_pending"].includes(deriveChatStage(session)) && !response.initialPaymentMethod) {
+      const capabilities = await this.startCheckout?.getPaymentCapabilities?.(merchantId) ?? exp?.paymentMethods;
+      const methods = [
+        ...(capabilities?.pix ? [{ key: "pix", label: "Pix", sub: "Checkout seguro · pagamento instantâneo" }] : []),
+        ...(capabilities?.card ? [{ key: "card", label: "Cartão de crédito", sub: "Checkout seguro do cartão" }] : []),
+      ];
+      blocks.push({ type: "payment_methods", data: { methods, fingerprint: paymentCartFingerprint(session), nativePayment: true } });
+    }
     const nextField = response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
     // Ask the next field explicitly. Starting a checkout must not stop at its greeting.
     if (nextField === "email") message = "*Vamos finalizar sua compra*\n\nQual é seu email? Vamos enviar um código para confirmar sua conta.\n\n_Seu telefone já foi confirmado pelo WhatsApp._";
@@ -238,13 +272,18 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         scopes: ["checkout:start", "checkout:track", "checkout:chat", "payment:intents:create", "payment:intents:read", "payment:intents:confirm", "offers:apply", "coupons:apply"] });
       widget.searchParams.set("embedToken", token); widget.searchParams.set("merchantId", merchantId);
       widget.searchParams.set("channel", "chat");
+      if (response.initialPaymentMethod === "card") widget.searchParams.set("paymentMethod", "card");
       const api = process.env.PUBLIC_API_BASE_URL || process.env.API_PUBLIC_URL;
       if (api) widget.searchParams.set("apiBaseUrl", api.endsWith("/v1") ? api : api.replace(/\/$/, "") + "/v1");
       blocks.push({ type: "checkout_redirect", data: { url: widget.href, sessionId: checkoutSessionId } } as any);
     }
+    const paymentSurface = blocks.some(block => block.type === "payment_methods") || !!state.payment || !!response.initialPaymentMethod;
+    const replies = [...new Set<string>([...(nextField === "código de verificação" || message?.includes("Reenviar código") ? ["Reenviar código", "Alterar email"] : []), ...(exp?.copy?.quick_replies || []), ...(response.actions || []).map((a: any) => a.label)])]
+      .filter(label => !paymentSurface || !/^(pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito)|remover item)$/i.test(label.trim()));
     return { agentMessage: message, merchantName, blocks,
-      quickReplies: secureIdentifier ? ["Ver Carrinho", "Continuar Comprando"] : [...new Set<string>([...(nextField === "código de verificação" || message?.includes("Reenviar código") ? ["Reenviar código", "Alterar email"] : []), ...(exp?.copy?.quick_replies || []), ...(response.actions || []).map((a: any) => a.label)])],
+      quickReplies: secureIdentifier ? ["Ver Carrinho", "Continuar Comprando"] : paymentSurface ? [...replies, ...(state.payment ? ["Verificar pagamento"] : []), "Ver Carrinho", "Continuar Comprando"] : replies,
       state: { ...state, checkoutSessionId: response.session_id || state.checkoutSessionId, checkoutConversationId: response.conversation_id || state.checkoutConversationId,
+        checkoutSummaryFingerprint: summaryFingerprint,
         pendingFlow, expectsFreeInput: !secureIdentifier && !!nextField && /^(telefone|email|nome|CPF|CEP|número|complemento|código de verificação)/i.test(nextField),
         history: [...state.history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: message }].slice(-24) } };
   }

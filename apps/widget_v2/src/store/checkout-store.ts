@@ -282,7 +282,7 @@ interface CheckoutState {
   leadRegistered: boolean;
   pendingPayment: PendingPayment | null;
 
-  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" }; initialChannel?: "chat" | "voice" }) => Promise<void>;
+  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" }; initialChannel?: "chat" | "voice"; initialPaymentMethod?: "card" }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   startQuickPurchase: () => Promise<void>;
   completeFormField: (field: string) => void;
@@ -534,7 +534,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   leadRegistered: false,
   pendingPayment: null,
 
-  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences, initialChannel }) => {
+  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences, initialChannel, initialPaymentMethod }) => {
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
       get().stopPolling();
@@ -627,6 +627,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         get().selectChannel(initialChannel === "voice" && voiceAvailable ? "voice" : "chat");
       }
       if (oneBuyClickPreferences) void get().startQuickPurchase();
+      // The buyer selected card in the native WhatsApp menu and opened its
+      // secure CTA. Keep the current checkout and use the normal provider API.
+      // PAN/CVV collection and actual payment confirmation remain with Stripe.
+      else if (initialChannel === "chat" && initialPaymentMethod === "card") await get().pay("credito");
 
       try {
         const settingsRes = await fetch(

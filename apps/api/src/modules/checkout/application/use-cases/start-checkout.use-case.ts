@@ -179,6 +179,12 @@ export class StartCheckoutUseCase {
     };
   }
 
+  /** Read the same authoritative provider routes used by storefront checkout. */
+  async getPaymentCapabilities(merchantId: string): Promise<CheckoutPaymentCapabilities> {
+    const merchant = await this.merchantRepository?.getProfile(merchantId);
+    return this.resolvePaymentMethods(merchantId, merchant?.stripeConnectAccountId, merchant?.storeSettings);
+  }
+
   private async resolvePaymentMethods(
     merchantId: string,
     stripeConnectAccountId: string | null | undefined,

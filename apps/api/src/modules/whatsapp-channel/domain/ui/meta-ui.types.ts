@@ -41,7 +41,8 @@ export interface WhatsAppConversationState {
   checkoutSessionId?: string;
   checkoutConversationId?: string;
   checkoutGeneration?: number;
-  payment?: { intentId: string; sessionId: string; amount_cents: number; status: string; copy_paste?: string; ticket_url?: string };
+  payment?: { intentId: string; sessionId: string; method?: "pix" | "card" | "boleto"; amount_cents: number; status: string; copy_paste?: string; ticket_url?: string };
+  checkoutSummaryFingerprint?: string;
   expectsFreeInput?: boolean;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   revision: string;

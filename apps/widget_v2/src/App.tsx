@@ -23,6 +23,7 @@ function readUrlParams() {
   let apiBaseUrl = params.get("apiBaseUrl") || params.get("api_base_url") || DEFAULT_API_BASE;
   let globalUserId = params.get("globalUserId") || params.get("global_user_id") || undefined;
   let initialChannel = params.get("channel") === "chat" ? "chat" as const : undefined;
+  let initialPaymentMethod = initialChannel === "chat" && params.get("paymentMethod") === "card" ? "card" as const : undefined;
 
   const isLocalhost = apiBaseUrl.includes("localhost") || apiBaseUrl.includes("127.0.0.1");
   if (!isLocalhost && apiBaseUrl.startsWith("http://")) {
@@ -31,7 +32,7 @@ function readUrlParams() {
 
   if (embedToken && merchantId) {
     try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel }));
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel, initialPaymentMethod }));
     } catch { /* quota */ }
   } else {
     try {
@@ -44,6 +45,7 @@ function readUrlParams() {
         apiBaseUrl = parsed.apiBaseUrl || DEFAULT_API_BASE;
         globalUserId = parsed.globalUserId || undefined;
         initialChannel = parsed.initialChannel === "chat" ? "chat" : undefined;
+        initialPaymentMethod = initialChannel === "chat" && parsed.initialPaymentMethod === "card" ? "card" : undefined;
       }
     } catch { /* corrupted */ }
   }
@@ -62,7 +64,7 @@ function readUrlParams() {
     window.history.replaceState(null, "", newUrl);
   }
 
-  return { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel };
+  return { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel, initialPaymentMethod };
 }
 
 export function App() {
@@ -125,7 +127,7 @@ export function App() {
   }, [triggerConfig, triggerMessages, status]);
 
   useEffect(() => {
-    const { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel } = readUrlParams();
+    const { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel, initialPaymentMethod } = readUrlParams();
     if (!embedToken || !merchantId) {
       const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
       if (isLocalhost && cartRef) {
@@ -141,7 +143,7 @@ export function App() {
       }
       return;
     }
-    void init({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel });
+    void init({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel, initialPaymentMethod });
   }, [init]);
 
   useEffect(() => {

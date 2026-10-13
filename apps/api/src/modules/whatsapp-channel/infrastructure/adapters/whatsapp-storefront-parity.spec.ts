@@ -105,6 +105,70 @@ test("ordinary chat cannot create a charge; a bound native Pix action uses stabl
   await assert.rejects(adapter.respondStore({ ...input, merchantId: "foreign" }), /checkout_session_not_found/);
 });
 
+test("native checkout advertises only configured methods and binds each payment selection to the current total", async () => {
+  const ready = { ...session, paymentMethod: undefined };
+  let creates = 0;
+  const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => ({ message: "Escolha como pagar", actions: [],
+    blocks: [{ type: "payment_methods", data: { methods: [{ key: "boleto", label: "Boleto" }] } }],
+    experience: { copy: { quick_replies: ["PIX", "Cartão de crédito", "Cartão de débito", "Boleto"] } } }) } as any,
+    { getSession: async () => ready } as any, {} as any, { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
+    { getPaymentCapabilities: async () => ({ pix: true, card: true, boleto: false, providers: { pix: "mercadopago", card: "stripe" } }) } as any,
+    undefined, undefined, undefined, { execute: async () => { creates++; } } as any);
+  const state: any = { ...initial, stage: "checkout", checkoutSessionId: "checkout", history: [{ role: "user", content: "Sim" }] };
+  const view = buildMetaUiView(await adapter.respondStore({ merchantId: "merchant", buyer, message: "Cartão de crédito", state }));
+  assert.equal(creates, 0, "text is navigation, never payment authority");
+  const methods = view.choices.filter(c => c.action.kind === "tool" && c.action.tool === "create_payment");
+  assert.deepEqual(methods.map(c => c.label), ["Pix", "Cartão de crédito"]);
+  assert.ok(methods.every(c => c.action.kind === "tool" && c.action.args.fingerprint === paymentCartFingerprint(ready)));
+  assert.equal(view.choices.some(c => /boleto|débito|^PIX$/u.test(c.label)), false);
+});
+
+test("Stripe card selection emits the secure handoff once instead of returning the payment chooser", async () => {
+  const ready = { ...session, paymentMethod: undefined };
+  const previousWidget = process.env.WIDGET_BASE_URL;
+  process.env.WIDGET_BASE_URL = "https://widget.example.com";
+  try {
+    const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => { assert.fail("native selection must not become chat text"); } } as any,
+      { getSession: async () => ready } as any, {} as any, { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
+      { getPaymentCapabilities: async () => ({ pix: true, card: true, boleto: false, providers: { card: "stripe" } }) } as any,
+      { sign: () => "signed.opaque_token" } as any, undefined, undefined, { execute: async () => { assert.fail("Stripe intent is created by the secure widget"); } } as any);
+    const output = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Cartão de crédito", state: { ...initial, stage: "checkout", checkoutSessionId: "checkout" },
+      action: { kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: paymentCartFingerprint(ready) } } });
+    const redirect = output.blocks.find(b => b.type === "checkout_redirect")!;
+    assert.equal(new URL((redirect.data as any).url).searchParams.get("paymentMethod"), "card");
+    assert.equal(output.blocks.some(b => b.type === "payment_methods"), false);
+    assert.match(output.agentMessage, /Stripe/);
+  } finally { if (previousWidget === undefined) delete process.env.WIDGET_BASE_URL; else process.env.WIDGET_BASE_URL = previousWidget; }
+});
+
+test("hosted card provider selection returns its payment URL and never exposes raw provider secrets", async () => {
+  const ready = { ...session, paymentMethod: undefined };
+  const adapter = new CheckoutWhatsAppConversationAdapter({} as any, { getSession: async () => ready } as any, {} as any,
+    { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
+    { getPaymentCapabilities: async () => ({ card: true, pix: false, boleto: false, providers: { card: "asaas" } }) } as any,
+    undefined, undefined, undefined,
+    { execute: async (input: any) => { assert.equal(input.method, "card"); return { id: "card-intent", amountCents: 1099, status: "requires_action", buyerFacing: { invoiceUrl: "https://www.asaas.com/i/invoice", clientSecret: "NEVER-IN-CHAT" } }; } } as any,
+    { execute: async () => ({ status: "requires_action" }) } as any);
+  const output = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Cartão", state: { ...initial, stage: "checkout", checkoutSessionId: "checkout" },
+    action: { kind: "tool", tool: "create_payment", args: { method: "card", fingerprint: paymentCartFingerprint(ready) } } });
+  const view = buildMetaUiView(output);
+  assert.ok(view.media.some(m => m.type === "interactive" && m.interactive.type === "cta_url" && (m.interactive.action as any).parameters.url === "https://www.asaas.com/i/invoice"));
+  assert.equal(JSON.stringify(output).includes("NEVER-IN-CHAT"), false);
+});
+
+test("native payment cannot use a stale cart total or an unavailable method", async () => {
+  const ready = { ...session, paymentMethod: undefined };
+  const adapter = new CheckoutWhatsAppConversationAdapter({} as any, { getSession: async () => ready } as any, {} as any,
+    { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
+    { getPaymentCapabilities: async () => ({ pix: true, card: false, boleto: false }) } as any,
+    undefined, undefined, undefined, { execute: async () => { assert.fail("stale/unavailable action must not create a charge"); } } as any);
+  const input: any = { merchantId: "merchant", buyer, message: "Pagar", state: { ...initial, stage: "checkout", checkoutSessionId: "checkout" },
+    action: { kind: "tool", tool: "create_payment", args: { method: "pix", fingerprint: "stale" } } };
+  assert.match((await adapter.respondStore(input)).agentMessage, /pedido mudou/i);
+  input.action.args = { method: "boleto", fingerprint: paymentCartFingerprint(ready) };
+  assert.match((await adapter.respondStore(input)).agentMessage, /não está disponível/);
+});
+
 test("Meta's canonical phone is accepted only with provider proof and does not bypass email verification", () => {
   assert.equal(deriveChatStage(session), "payment_pending");
   assert.ok(!missingFieldsForStage(session, "data_collection").includes("telefone"));
