@@ -6,7 +6,7 @@ import { OtpService } from "./otp.service.js";
 test("automatic email challenge changes only challenge fields and never invents a buyer name", async () => {
   let stored: any; let delivered: any;
   const session: any = { merchantId: "merchant", sessionId: "checkout", customer: { email: "known@example.com", email_verified: false, phone: "552171191446", phone_verified: true } };
-  const service = new CheckoutCustomerService({ saveSession: async (input: any) => { stored = input; } } as any, undefined, new OtpService(), undefined, undefined,
+  const service = new CheckoutCustomerService({ commitCommercialMutation: async ({ next }: any) => { stored = next; return stored; } } as any, undefined, new OtpService(), undefined, undefined,
     { send: async input => { delivered = input; return { status: "sent", messageId: "accepted-email" }; } } as any);
   const result = await service.beginEmailVerification(session, "Empresa");
   assert.equal(stored.customer.fullName, undefined);
