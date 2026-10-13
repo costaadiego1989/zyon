@@ -1,7 +1,7 @@
 {
   "title": "Zyon: mesma jornada conversacional no storefront e no WhatsApp",
   "date": "2026-10-12",
-  "status": "conversational_identity_and_ui_validated_in_sandbox_ready_for_production",
+  "status": "production_published_provider_checkout_customer_payment_test_pending",
   "implementationStarted": true,
   "baselineRelease": "68663bd1f247a8cf48eb31a1008b367d6460e4c9",
   "objective": "Compartilhar agente, identidade da loja, regras, atalhos, catalogo, carrinho e jornada de checkout. Adaptar a apresentacao dos componentes ao canal Meta, priorizando os controles nativos.",
@@ -454,8 +454,19 @@
         "financial": false
       }
     },
-    "production": "7bfa943 active; this validated candidate is ready for publication",
-    "realMenu": "Meta READ receipts confirmed the previous menu; real user added Serum 50 ml and Bruma to the persisted cart. No real paid order recorded.",
+    "production": {
+      "sourceCommit": "d72c2578068d4b8a2a12e4c1c8765fd6e1ef72cf",
+      "apiDeploymentId": "083e84c1-bdd2-4bb5-826d-cc75d7b7cc8d",
+      "widgetDeploymentId": "dpl_BrpNZAUjL5r5ugv4rC1X6BE56TyY",
+      "publicArtifact": {
+        "api": "ready",
+        "widgetStatus": 200,
+        "widgetAsset": "/assets/index-ChHsmfPE.js",
+        "hasPaymentHandoff": true
+      },
+      "status": "published_and_verified"
+    },
+    "realMenu": "New native Pix/card menu accepted by Meta with two READ receipts. The existing checkout has verified email identity, two live shipping choices and no payment intent/order yet.",
     "navigationRegression": {
       "fix": "Product-card admission is the sole Add action. Recommendations preserve their existing storefront variant ID and also provide the authoritative product ID for Meta navigation.",
       "coverage": [
@@ -480,7 +491,7 @@
       "command": "pnpm --filter @zyon/api test:whatsapp-storefront-parity",
       "sandboxProbe": "apps/api/scripts/validate-whatsapp-storefront-parity.cjs",
       "testResults": {
-        "passed": 190,
+        "passed": 194,
         "failed": 0,
         "skipped": 1
       },
@@ -491,10 +502,28 @@
       "passed": 17,
       "failed": 0
     },
-    "localApiTypecheck": "passed",
+    "localApiTypecheck": "production source configuration passed; unrelated legacy spec type errors remain in full workspace typecheck",
     "localWidgetTypecheckAndBuild": "passed",
     "conversationalIdentity": "Phone locates the email challenge through a keyed encrypted-phone index; private account fields and identity are hydrated only after the shared email OTP is validated. Authentication persists across store navigation.",
-    "channelPresentation": "Native bold and italic hierarchy, product photos by page, selected-variant pricing, structured cart and totals, native secure-checkout button. CPF and card data remain in the secure storefront surface."
+    "channelPresentation": "Native bold and italic hierarchy, product photos by page, selected-variant pricing, structured cart and totals, native secure-checkout button. CPF and card data remain in the secure storefront surface.",
+    "shippingAndPaymentCorrections": {
+      "shipping": "Prefer real carrier quotes over estimates; subsidize exactly one real service under merchant rules and preserve original carrier cost; full price/time labels select exactly or reject stale/ambiguous choices.",
+      "payment": "Native choices bind method and current cart fingerprint to the action; free text remains navigation. Read the same provider capabilities as storefront. Pix displays the provider checkout URL and code. Stripe opens its card form through the same signed secure widget, retaining the checkout and shipping. Hosted card providers return their own invoice URL. Pending provider responses never trigger a second payment.",
+      "presentation": "Advertise only supported configured Pix/card routes; remove duplicate payment quick replies and repeat the full summary only when its values change."
+    },
+    "shippingRegressionTests": {
+      "passed": 32,
+      "failed": 0
+    },
+    "paymentBrowserRegression": {
+      "paymentHandoffPassed": 2,
+      "addressRegressionPassed": 2,
+      "viewports": [
+        390,
+        1440
+      ],
+      "providerResponses": "simulated; no external charge"
+    }
   },
   "templatePolicy": {
     "analyzedAt": "2026-10-13",
@@ -525,7 +554,7 @@
     "O estado de menu atual guarda textos e pagina, sem referencias completas de produto, variante, cursor e acao."
   ],
   "remainingGaps": [
-    "Real customer email OTP and real paid order still require customer action; synthetic proof is not delivery or payment proof.",
+    "A real paid order and provider payment completion still require customer action; provider simulation is not payment proof.",
     "Meta native forms require provider integrity eligibility; linked catalog messages require an authorized catalog.",
     "Five current notification models remain in Meta review; the authentication model cannot yet be created on this WABA."
   ]

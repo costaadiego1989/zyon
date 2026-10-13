@@ -1,16 +1,27 @@
 {
-  "candidateCommit": "783fa07",
-  "checkedAt": "2026-10-13T18:11:02.916Z",
+  "candidateCommit": "d72c2578068d4b8a2a12e4c1c8765fd6e1ef72cf",
+  "checkedAt": "2026-10-13T19:03:55.025Z",
   "localTests": {
-    "passed": 207,
+    "passed": 226,
     "failed": 0,
-    "skipped": 1
+    "skipped": 1,
+    "browser": {
+      "paymentHandoffPassed": 2,
+      "addressRegressionPassed": 2,
+      "viewports": [
+        390,
+        1440
+      ],
+      "providerResponses": "simulated; no external charge"
+    },
+    "productionSourceTypecheck": "passed",
+    "fullWorkspaceTypecheck": "pre-existing type errors in unrelated spec fixtures; production build configuration and changed tests passed"
   },
   "sandbox": {
     "runtime": {
-      "deploymentId": "25b79250-92ce-4176-8c17-9bb95f9a8e5a",
+      "deploymentId": "8384755e-0dc1-4c04-b03c-459567ed44be",
       "environment": "sandbox",
-      "matchingSourceFiles": 21,
+      "matchingSourceFiles": 29,
       "migrationApplied": true,
       "encryptedPhoneLookupAvailable": true,
       "enforcedOtpExpiry": true,
@@ -23,11 +34,11 @@
     },
     "navigation": {
       "environment": "sandbox",
-      "deploymentId": "25b79250-92ce-4176-8c17-9bb95f9a8e5a",
+      "deploymentId": "8384755e-0dc1-4c04-b03c-459567ed44be",
       "synthetic": true,
       "financial": false,
       "providerMessagesSent": 0,
-      "runId": "f4905fef-60df-447b-8013-e9fad307c5f2",
+      "runId": "04e27cc2-6706-4656-a9f8-7daec9d71e47",
       "checks": [
         "native_welcome_and_quick_replies_persisted",
         "native_product_selection_uses_shared_authoritative_details",
@@ -46,7 +57,6 @@
         "email_authenticated_identity_survives_return_to_actual_storefront_cart",
         "fresh_signed_handoff_passes_real_widget_bootstrap_guard_and_controller",
         "handoff_rejects_foreign_origin_and_checkout_session",
-        "encrypted_fixture_handoff_available_for_hosted_browser_validation",
         "checkout_preserves_buyer_phone_cart_and_email_verification",
         "signed_handoff_points_to_sandbox_widget_and_api",
         "no_payment_intent_created"
@@ -111,6 +121,12 @@
         }
       ],
       "financial": false
+    },
+    "widget": {
+      "deploymentId": "01155124-beb4-4ebe-b77a-ba78f0c6ecb0",
+      "status": "SUCCESS",
+      "asset": "/assets/index-BZHdNrgC.js",
+      "initialPaymentMethodPresent": true
     }
   },
   "meta": {
@@ -127,7 +143,142 @@
     }
   },
   "production": {
-    "status": "publication_pending"
+    "status": "published_and_verified",
+    "sourceCommit": "d72c2578068d4b8a2a12e4c1c8765fd6e1ef72cf",
+    "api": {
+      "deploymentId": "083e84c1-bdd2-4bb5-826d-cc75d7b7cc8d",
+      "environment": "production",
+      "matchingSourceFiles": 29,
+      "migrationApplied": true,
+      "encryptedPhoneLookupAvailable": true,
+      "enforcedOtpExpiry": true,
+      "emailOwnershipFence": true,
+      "nativeCartActionRegressionFixed": true,
+      "flowJsonVersion": "7.3",
+      "widgetOrigin": "https://widget.zyon-payments.com.br",
+      "apiOrigin": "https://api.zyon-payments.com.br",
+      "providerMessagesSent": 0,
+      "status": "SUCCESS"
+    },
+    "widget": {
+      "deploymentId": "dpl_BrpNZAUjL5r5ugv4rC1X6BE56TyY",
+      "gitDeploymentId": "dpl_68YA8Kkd68CC5BJ1hqneFtsoSJ4e",
+      "status": "READY",
+      "url": "https://widget.zyon-payments.com.br",
+      "api": "ready",
+      "widgetStatus": 200,
+      "widgetAsset": "/assets/index-ChHsmfPE.js",
+      "hasPaymentHandoff": true
+    },
+    "dashboard": {
+      "httpStatus": 200,
+      "asset": "/assets/index-CoYe4jJp.js",
+      "sourceChanged": false
+    },
+    "providerHealth": {
+      "deploymentId": "cb327912-4059-4c16-a9cb-26c05a1726da",
+      "readOnly": true,
+      "paymentIntentsCreated": 0,
+      "mercadoPago": {
+        "connected": true,
+        "oauthSeller": true,
+        "feePreparationPassed": true,
+        "feeMode": "same_account"
+      },
+      "stripe": {
+        "status": "active",
+        "environment": "live",
+        "accountReadPassed": true,
+        "chargesEnabled": true,
+        "payoutsEnabled": true,
+        "requirementsCount": 0
+      }
+    },
+    "ownedCheckoutShippingRefresh": {
+      "deploymentId": "083e84c1-bdd2-4bb5-826d-cc75d7b7cc8d",
+      "sessionId": "wa_checkout_9b4dd7a9b95caaba71c64fc6f597a336",
+      "liveOptions": [
+        {
+          "carrier": "Correios",
+          "method": "PAC",
+          "customerPrice": 0,
+          "realCost": 22.08,
+          "days": 6
+        },
+        {
+          "carrier": "Correios",
+          "method": "SEDEX",
+          "customerPrice": 34.62,
+          "realCost": 34.62,
+          "days": 2
+        }
+      ],
+      "selected": {
+        "carrier": "Correios",
+        "method": "PAC",
+        "price": 0,
+        "realCost": 22.08,
+        "days": 6
+      },
+      "freeShippingMinimum": 250,
+      "subtotal": 289.8,
+      "paymentIntentsCreated": 0,
+      "customerUnchanged": true
+    },
+    "realNativePaymentMenu": {
+      "deploymentId": "083e84c1-bdd2-4bb5-826d-cc75d7b7cc8d",
+      "operatorInitiated": true,
+      "financial": false,
+      "sourceInboundAt": "2026-10-13T18:25:07.000Z",
+      "turnId": "7464036d-b170-4081-9061-8ca6d7fc2739",
+      "status": "processed",
+      "phase": "complete",
+      "providerAccepted": 2,
+      "messageTypes": [
+        "text",
+        "interactive"
+      ],
+      "nativeControls": [
+        "list"
+      ],
+      "persistedSelections": 6,
+      "paymentMethods": [
+        {
+          "label": "Pix",
+          "method": "pix"
+        },
+        {
+          "label": "Cartão de crédito",
+          "method": "card"
+        }
+      ],
+      "receiptCount": 0,
+      "receiptStatuses": [
+        "read",
+        "read"
+      ],
+      "totals": {
+        "total": 289.8,
+        "currency": "BRL",
+        "discount": 0,
+        "shipping": 0,
+        "subtotal": 289.8,
+        "service_fee": 0.99,
+        "total_to_pay": 290.79
+      }
+    }
   },
-  "realPurchase": false
+  "realPurchase": {
+    "customerEmailOtpVerified": true,
+    "shippingChosenFromLiveQuotes": true,
+    "currentTotalToPay": 290.79,
+    "paymentIntents": 0,
+    "completedOrders": 0,
+    "status": "awaiting_customer_payment_from_the_updated_native_menu"
+  },
+  "corrections": {
+    "shipping": "Prefer real carrier quotes over estimates; subsidize exactly one real service under merchant rules and preserve original carrier cost; full price/time labels select exactly or reject stale/ambiguous choices.",
+    "payment": "Native choices bind method and current cart fingerprint to the action; free text remains navigation. Read the same provider capabilities as storefront. Pix displays the provider checkout URL and code. Stripe opens its card form through the same signed secure widget, retaining the checkout and shipping. Hosted card providers return their own invoice URL. Pending provider responses never trigger a second payment.",
+    "presentation": "Advertise only supported configured Pix/card routes; remove duplicate payment quick replies and repeat the full summary only when its values change."
+  }
 }
