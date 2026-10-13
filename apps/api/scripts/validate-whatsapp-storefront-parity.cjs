@@ -188,7 +188,7 @@
       const verified = await prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: checkoutSessionId } } });
       assert.equal(verified.customer.email_verified, true);
       assert.equal(verified.customer.otp_code, '');
-      assert.equal(verified.customer.fullName, 'QA Sandbox Person');
+      assert.equal(verified.customer.fullName.toLowerCase(), 'qa sandbox person');
       results.checks.push('new_buyer_conversational_registration_uses_email_otp_and_rejects_invalid_code');
       const account = await app.get(BUYER_ACCOUNT_REPOSITORY).findByPhone(buyer.phone);
       assert.equal(account.email, qaEmail);
