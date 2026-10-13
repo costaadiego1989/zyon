@@ -56,6 +56,12 @@ export class MetaNativeAssetsService {
         // must retain the uncertain create even if the advisory lock rolls back.
         let row = await this.prisma.whatsAppNativeAsset.upsert({ where: { configId_kind_name: { configId, kind: "flow", name } },
           create: { merchantId, configId, kind: "flow", name, sourceHash: hash }, update: {} });
+        // A new schema may repair a known draft. Reuse its ID and keep unknown
+        // creations held; a schema upgrade never authorizes a second create.
+        if (row.providerId && row.sourceHash !== hash && ["draft", "unavailable"].includes(row.status)) {
+          row = await this.prisma.whatsAppNativeAsset.update({ where: { id: row.id },
+            data: { sourceHash: hash, status: "draft", retryAfter: null, lastError: null } });
+        }
         if (row.merchantId !== merchantId || row.sourceHash !== hash) throw new Error("meta_native_asset_version_mismatch");
         if (row.retryAfter && row.retryAfter > new Date()) continue;
         const found = flows.filter(f => f.name === name);

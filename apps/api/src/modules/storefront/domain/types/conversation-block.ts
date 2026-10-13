@@ -220,6 +220,7 @@ export interface CrossSellBlock {
     trigger: string;
     products: Array<{
       id: string;
+      productId?: string;
       name: string;
       price: number;
       priceFormatted: string;

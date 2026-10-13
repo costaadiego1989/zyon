@@ -34,14 +34,23 @@
   let session; let fixtureProductId;
   try {
     const fixture = await prisma.product.create({ data: { merchantId, name: 'Native QA ' + runId, type: 'physical',
-      description: 'Isolated nonfinancial WhatsApp validation fixture', variants: { create: [
+      description: 'Isolated nonfinancial WhatsApp validation fixture', contentBlocks: { create: [
+        { type: 'button', props: { label: 'Adicionar ao carrinho', linkType: 'add_to_cart' }, order: 1 },
+        { type: 'banner', props: { ctaLabel: 'Adicionar ao carrinho', ctaAction: 'add_to_cart' }, order: 2 },
+        { type: 'paragraph', props: { text: 'Detalhes completos do produto de teste' }, order: 0 },
+      ] }, variants: { create: [
         { sku: 'QA_BLUE_' + runId, attributes: { Cor: 'Azul' }, weightGrams: 100, lengthCm: 10, widthCm: 10, heightCm: 2,
           price: { create: { basePriceInCents: 1234 } }, stock: { create: { quantity: 10 } }, media: { create: { url: 'https://example.com/qa-product.jpg', type: 'IMAGE' } } },
         { sku: 'QA_RED_' + runId, attributes: { Cor: 'Vermelho' }, weightGrams: 100, lengthCm: 10, widthCm: 10, heightCm: 2,
           price: { create: { basePriceInCents: 1500 } }, stock: { create: { quantity: 10 } } },
+        { sku: 'QA_EMPTY_' + runId, attributes: { Cor: 'Indisponível' }, weightGrams: 100, lengthCm: 10, widthCm: 10, heightCm: 2,
+          price: { create: { basePriceInCents: 1900 } }, stock: { create: { quantity: 0 } } },
       ] } } });
     fixtureProductId = fixture.id;
-    results.fixture = 'isolated_physical_product_with_two_variants';
+    results.fixture = 'rich_product_with_two_available_variants_one_sold_out_and_duplicate_content_ctas';
+    const fixtureVariants = await prisma.productVariant.findMany({ where: { productId: fixtureProductId, product: { merchantId } }, select: { id: true, sku: true } });
+    const targetVariant = fixtureVariants.find(variant => variant.sku === 'QA_RED_' + runId);
+    const soldOutVariant = fixtureVariants.find(variant => variant.sku === 'QA_EMPTY_' + runId);
     await app.get(TenantContextService).run({ merchantId, userId: globalUserId, role: 'buyer', buyerGlobalUserId: globalUserId }, async () => {
       const sessions = app.get(WHATSAPP_SESSION_REPOSITORY);
       const inbox = app.get(WHATSAPP_WEBHOOK_INBOX);
@@ -74,6 +83,20 @@
         const selected = Object.entries(session.conversationState.selections ?? {}).find(([, action]) => predicate(action));
         assert.ok(selected, 'native_selection_required'); return selected[0];
       };
+      const choose = async predicate => {
+        while (session.conversationState.page > 0) await turn('Página anterior', { interactiveId: pick(action => action.kind === 'page' && action.page === session.conversationState.page - 1) });
+        for (let page = 0; page < 40; page++) {
+          const selected = Object.entries(session.conversationState.selections ?? {}).find(([, action]) => predicate(action));
+          if (selected) return selected[0];
+          const next = Object.entries(session.conversationState.selections ?? {}).find(([, action]) => action.kind === 'page' && action.page > session.conversationState.page)
+            ?? Object.entries(session.conversationState.selections ?? {}).find(([, action]) => action.kind === 'tool' && action.tool === 'search_products' && action.args.cursor);
+          assert.ok(next, 'requested_native_action_must_be_reachable');
+          await turn('Mais opções', { interactiveId: next[0] });
+        }
+        throw new Error('native_navigation_page_limit');
+      };
+      const cartRead = () => prisma.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: conversationId } } });
+      const storeTool = name => action => action.kind === 'tool' && action.tool === name;
       await turn('Oi');
       assert.ok(emitted.some(message => message.type === 'interactive'));
       results.checks.push('native_welcome_and_quick_replies_persisted');
@@ -81,20 +104,56 @@
       const productChoice = pick(action => action.kind === 'tool' && action.tool === 'get_product_details');
       await turn('Ver produto', { interactiveId: productChoice });
       results.checks.push('native_product_selection_uses_shared_authoritative_details');
-      let choices = Object.entries(session.conversationState.selections ?? {});
-      const variantChoice = choices.find(([, action]) => action.kind === 'variant');
-      if (variantChoice) await turn('Escolher opção', { interactiveId: variantChoice[0] });
-      await turn('Adicionar ao carrinho', { interactiveId: pick(action => action.kind === 'tool' && action.tool === 'add_item_to_cart') });
-      const cart = await prisma.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: conversationId } } });
-      assert.equal(cart.items.length, 1); assert.equal(cart.items[0].quantity, 1);
+      assert.ok(session.conversationState.view.blocks.some(block => block.type === 'product_content'));
+      assert.equal(session.conversationState.view.choices.some(choice => /^adicionar.*carrinho$/i.test(choice.label)), false);
+      assert.equal(session.conversationState.view.choices.some(choice => choice.action.kind === 'variant' && choice.action.variantId === soldOutVariant.id), false);
+      await turn('Adicionar ao carrinho');
+      assert.equal((await cartRead())?.items?.length ?? 0, 0);
+      results.checks.push('rich_ctas_and_typed_add_cannot_guess_variant_or_bypass_sold_out_stock');
+      await turn('Escolher Vermelho', { interactiveId: await choose(action => action.kind === 'variant' && action.variantId === targetVariant.id) });
+      const addChoices = session.conversationState.view.choices.filter(choice => /^adicionar.*carrinho$/i.test(choice.label));
+      assert.equal(addChoices.length, 1); assert.equal(addChoices[0].action.tool, 'add_item_to_cart');
+      const oldAddId = await choose(storeTool('add_item_to_cart'));
+      await turn('Mais Informações');
+      assert.ok(session.conversationState.view.body.includes('Detalhes completos do produto de teste'));
+      assert.equal(session.conversationState.selectedVariantId, targetVariant.id);
+      results.checks.push('more_information_preserves_selected_variant_and_displays_real_rich_content');
+      await turn('Seleção antiga', { interactiveId: oldAddId });
+      assert.equal((await cartRead())?.items?.length ?? 0, 0);
+      assert.ok(session.conversationState.view.body.includes('Não consegui validar'));
+      results.checks.push('stale_menu_cannot_mutate_cart');
+      await turn('Adicionar ao carrinho', { interactiveId: await choose(storeTool('add_item_to_cart')) });
+      const cart = await cartRead();
+      assert.equal(cart.items.length, 1); assert.equal(cart.items[0].quantity, 1); assert.equal(cart.items[0].variantId, targetVariant.id);
+      assert.equal(cart.items[0].unitPriceCents, 1500);
       results.checks.push('native_add_persists_same_storefront_cart');
       const item = cart.items[0];
-      await turn('Alterar quantidade', { action: { kind: 'tool', tool: 'update_cart_item', args: { variantId: item.variantId, quantity: 2 } } });
-      const edited = await prisma.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: conversationId } } });
+      await turn('Ver Carrinho');
+      await turn('Editar item', { interactiveId: await choose(storeTool('edit_cart_item')) });
+      await turn('Adicionar uma unidade', { interactiveId: await choose(action => action.kind === 'tool' && action.tool === 'update_cart_item' && action.args.quantity === 2) });
+      const edited = await cartRead();
       assert.equal(edited.items[0].quantity, 2);
       assert.ok(session.conversationState.view.blocks.some(block => block.type === 'cart_summary'));
       results.checks.push('quantity_and_native_cart_summary_match_persisted_values');
-      await turn('Finalizar compra', { action: { kind: 'tool', tool: 'create_checkout_session', args: {} } });
+      await turn('Voltar', { interactiveId: await choose(action => action.kind === 'back') });
+      assert.ok(session.conversationState.view.blocks.some(block => block.type === 'cart_summary' && block.data.items[0].quantity === 2));
+      results.checks.push('back_refreshes_live_cart_instead_of_replaying_stale_quantity');
+      await turn('Editar item', { interactiveId: await choose(storeTool('edit_cart_item')) });
+      await turn('Retirar uma unidade', { interactiveId: await choose(action => action.kind === 'tool' && action.tool === 'update_cart_item' && action.args.quantity === 1) });
+      assert.equal((await cartRead()).items[0].quantity, 1);
+      await turn('Remover item', { interactiveId: await choose(storeTool('remove_cart_item')) });
+      assert.equal((await cartRead()).items.length, 0);
+      results.checks.push('native_decrement_and_remove_persist_and_empty_cart_is_displayed');
+      await turn('Continuar Comprando');
+      await turn('Ver produto', { interactiveId: await choose(action => action.kind === 'tool' && action.tool === 'get_product_details' && action.args.productId === fixtureProductId) });
+      if (!session.conversationState.selectedVariantId) await turn('Escolher Vermelho', { interactiveId: await choose(action => action.kind === 'variant' && action.variantId === targetVariant.id) });
+      await turn('Adicionar ao Carrinho');
+      assert.equal((await cartRead()).items[0].variantId, targetVariant.id);
+      results.checks.push('continue_shopping_and_typed_add_share_authoritative_native_actions');
+      await turn('Ver Carrinho');
+      await turn('Editar item', { interactiveId: await choose(storeTool('edit_cart_item')) });
+      await turn('Adicionar uma unidade', { interactiveId: await choose(action => action.kind === 'tool' && action.tool === 'update_cart_item' && action.args.quantity === 2) });
+      await turn('Finalizar compra', { interactiveId: await choose(action => action.kind === 'tool' && ['checkout', 'create_checkout_session'].includes(action.tool)) });
       const checkoutSessionId = session.conversationState.checkoutSessionId;
       assert.equal(session.conversationState.stage, 'checkout'); assert.ok(checkoutSessionId);
       const checkout = await prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: checkoutSessionId } } });

@@ -25,7 +25,7 @@ test("short choices use native buttons and IDs remain bound to the original acti
   const shown = presentMetaUi(view, "turn-a");
   const button = native(shown)[0].action.buttons[0].reply;
   assert.equal(native(shown)[0].type, "button");
-  assert.deepEqual(shown.selections[button.id], { kind: "message", message: "Ver produtos" });
+  assert.deepEqual(shown.selections[button.id], { kind: "tool", tool: "search_products", args: { query: "*" } });
   assert.notEqual(button.id, native(presentMetaUi(view, "turn-b"))[0].action.buttons[0].reply.id);
 });
 
@@ -117,4 +117,52 @@ test("a scheduled service cannot be added before a selectable slot is chosen", (
   const after = buildMetaUiView({ ...base, state: { ...base.state, selectedServiceSlotId: "future" } });
   const add = after.choices.find(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart");
   assert.equal(add?.action.kind === "tool" ? add.action.args.selectedServiceSlotId : null, "future");
+});
+
+test("every rich-content add CTA uses the selected variant instead of reopening details", () => {
+  const base = response({ blocks: [
+    { type: "product_card", data: { id: "serum", name: "Serum", inStock: true, variants: [
+      { id: "small", value: "30 ml", stock: 4 }, { id: "large", value: "50 ml", stock: 24 },
+    ] } },
+    { type: "product_content", data: { productId: "serum", blocks: [
+      { type: "banner", ctaAction: "add_to_cart", ctaLabel: "Adicionar ao carrinho" },
+      { type: "button", linkType: "add_to_cart", label: "Adicionar ao carrinho" },
+    ] } },
+  ] as any, quickReplies: ["Adicionar ao Carrinho", "Mais Informações"] });
+  const view = buildMetaUiView({ ...base, state: { ...base.state, selectedProductId: "serum", selectedVariantId: "large" } });
+  const adds = view.choices.filter(c => /^adicionar.*carrinho$/i.test(c.label));
+  assert.equal(adds.length, 1, "the shopper must never see competing Add actions");
+  assert.equal(adds[0].action.kind === "tool" && adds[0].action.tool, "add_item_to_cart");
+  assert.equal(adds[0].action.kind === "tool" && adds[0].action.args.variantId, "large");
+});
+
+test("rich CTAs cannot bypass missing variants, required options or unavailable stock", () => {
+  for (const patch of [
+    { variants: [{ id: "v1", stock: 2 }, { id: "v2", stock: 2 }] },
+    { variants: [{ id: "v1", stock: 2 }], optionGroups: [{ id: "size", name: "Tamanho", required: true, items: [{ id: "large", name: "Grande" }] }] },
+    { inStock: false, variants: [{ id: "v1", stock: 0 }] },
+  ]) {
+    const view = buildMetaUiView(response({ blocks: [
+      { type: "product_card", data: { id: "p1", name: "Produto", inStock: true, ...patch } },
+      { type: "product_content", data: { productId: "p1", blocks: [{ type: "button", linkType: "add_to_cart", label: "Adicionar ao carrinho" }] } },
+    ] as any }));
+    assert.equal(view.choices.some(c => /^adicionar.*carrinho$/i.test(c.label)), false);
+  }
+});
+
+test("a remembered sold-out or foreign variant never produces an Add action", () => {
+  for (const selectedVariantId of ["sold-out", "foreign"]) {
+    const base = response({ blocks: [{ type: "product_card", data: { id: "p1", name: "Produto", inStock: true,
+      variants: [{ id: "available", stock: 2 }, { id: "sold-out", stock: 0 }] } }] as any });
+    const view = buildMetaUiView({ ...base, state: { ...base.state, selectedProductId: "p1", selectedVariantId } });
+    assert.equal(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart"), false);
+    assert.ok(view.choices.some(c => c.action.kind === "variant" && c.action.variantId === "available"));
+  }
+});
+
+test("a cross-sell opens its authoritative product ID while preserving the storefront variant reference", () => {
+  const view = buildMetaUiView(response({ blocks: [{ type: "cross_sell", data: { products: [
+    { id: "variant-creme", productId: "product-creme", name: "Creme", priceFormatted: "R$ 10,00" },
+  ] } }] as any }));
+  assert.deepEqual(view.choices[0].action, { kind: "tool", tool: "get_product_details", args: { productId: "product-creme" } });
 });

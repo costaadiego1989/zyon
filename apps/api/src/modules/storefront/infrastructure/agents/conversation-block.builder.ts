@@ -268,6 +268,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           displayMode: cartData.crossSellDisplayMode ?? "interstitial",
           products: cartData.crossSellSuggestions.map((p: any) => ({
             id: p.sku,
+            productId: p.productId,
             name: p.name,
             price: p.price,
             priceFormatted: formatPrice(p.price),

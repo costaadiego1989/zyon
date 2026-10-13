@@ -1,6 +1,7 @@
 import { createHash } from "node:crypto";
 import type { MetaUiChoice, MetaUiMessage, MetaUiPresentation, MetaUiView, StoreUiAction, WhatsAppStructuredResponse } from "./meta-ui.types.js";
 import { serviceSlotLabel } from "../../../catalog/domain/services/service-schedule.js";
+import { metaStoreQuickReplyAction } from "./meta-store-actions.js";
 
 const object = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const items = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
@@ -29,7 +30,14 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
   const text: string[] = [response.agentMessage];
   const add = (label: string, action: StoreUiAction, description?: string) => view.choices.push({ label, action, description });
   const photo = (url: unknown, caption?: string) => { const link = safeLink(url); if (link) view.media.push({ type: "image", media: { link, caption: caption ? concise(caption, 1024) : undefined } }); };
-  const productChoice = (p: Record<string, any>) => add(value(p.name), tool("get_product_details", { productId: p.id }), [p.priceFormatted || money(Number(p.price) / 100), p.sellerName, p.inStock === false ? "Indisponível" : ""].filter(Boolean).join(" · "));
+  const productChoice = (p: Record<string, any>) => add(value(p.name), tool("get_product_details", { productId: p.productId || p.id }), [p.priceFormatted || money(Number(p.price) / 100), p.sellerName, p.inStock === false ? "Indisponível" : ""].filter(Boolean).join(" · "));
+  const contentProductLink = (productId: unknown, label: unknown, adding: boolean) => {
+    const id = value(productId);
+    // The product card owns admission, variants, options and schedule. A rich
+    // content CTA for that product must not create a competing shopping action.
+    if (adding && response.blocks.some(b => b.type === "product_card" && object(b.data).id === id)) return;
+    if (id) add(adding ? "Escolher produto" : value(label || "Ver produto"), tool("get_product_details", { productId: id }));
+  };
   for (const block of response.blocks) {
     const d = object(block.data);
     switch (block.type) {
@@ -60,8 +68,9 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
           type: "product", body: { text: value(d.name) }, action: { catalog_id: response.state.catalogId, product_retailer_id: retailerId } } });
         else photo(d.image ?? d.images?.[0], value(d.name));
         const variants = items(d.variants).filter(v => ["digital", "service"].includes(d.productType) || v.stock !== 0);
-        const selected = response.state.selectedProductId === d.id ? response.state.selectedVariantId : undefined;
-        const variantId = selected || (variants.length === 1 ? value(variants[0].id) : undefined);
+        const remembered = response.state.selectedProductId === d.id ? response.state.selectedVariantId : undefined;
+        const selected = variants.find(v => v.id === remembered)?.id;
+        const variantId = remembered ? selected : (variants.length === 1 ? value(variants[0].id) : undefined);
         const selectedVariant = variants.find(v => v.id === variantId);
         if (selectedVariant && selected) text.push(`Selecionado: ${value(selectedVariant.value || selectedVariant.sku)} — ${selectedVariant.priceFormatted || money(Number(selectedVariant.price) / 100)}`);
         const groups = items(d.optionGroups); const chosen = response.state.selectedOptionItemIds ?? [];
@@ -81,7 +90,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         groups.forEach(g => { if (g.id !== editing?.id) add(`Personalizar ${value(g.name)}`, { kind: "option_group", productId: value(d.id), groupId: value(g.id) }); });
         const selectedOptions = groups.flatMap(g => items(g.items).filter(i => chosen.includes(value(i.id))).map(i => `${value(g.name)}: ${value(i.name)}${i.priceModifierInCents ? ` (+${money(Number(i.priceModifierInCents) / 100)})` : ""}`));
         if (selectedOptions.length) text.push(selectedOptions.join("\n"));
-        if (!selected && variants.length > 1) variants.forEach(v => add(value(v.value || v.name || v.sku), { kind: "variant", productId: value(d.id), variantId: value(v.id) }, v.priceFormatted));
+        if (!selected && (variants.length > 1 || remembered)) variants.forEach(v => add(value(v.value || v.name || v.sku || v.id), { kind: "variant", productId: value(d.id), variantId: value(v.id) }, v.priceFormatted));
         if (Array.isArray(d.images) && d.images.length > 1) add("Ver fotos", tool("product_gallery", { productId: d.id, images: d.images }));
         add("Salvar nos favoritos", tool("add_to_wishlist", { productId: d.id }));
         items(d.ruleNotices).forEach(n => text.push(value(n.message)));
@@ -139,8 +148,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
             case "faq": items(c.items).forEach(f => add(value(f.question), { kind: "tool", tool: "show_content", args: { text: f.answer } })); break;
             case "video": { const link = safeLink(["mp4", "url"].includes(c.provider) ? c.ref : c.provider === "youtube" ? `https://www.youtube.com/watch?v=${encodeURIComponent(value(c.ref))}` : `https://vimeo.com/${encodeURIComponent(value(c.ref))}`); if (link) { if (c.provider === "mp4") view.media.push({ type: "video", media: { link, caption: c.caption } }); else text.push(`${value(c.caption)}\n${link}`); } break; }
             case "carousel": items(c.images).forEach(i => photo(i.src, i.alt)); break;
-            case "banner": photo(c.imageSrc, c.caption || c.alt); if (c.ctaAction === "add_to_cart") add(value(c.ctaLabel || "Escolher produto"), tool("get_product_details", { productId: d.productId || response.state.selectedProductId })); else if (safeLink(c.linkUrl)) text.push(`${value(c.ctaLabel)}: ${safeLink(c.linkUrl)}`); break;
-            case "button": if (c.linkType === "product" || c.linkType === "add_to_cart") add(value(c.label), tool("get_product_details", { productId: c.productId || d.productId || response.state.selectedProductId })); else if (safeLink(c.href)) text.push(`${value(c.label)}: ${safeLink(c.href)}`); break;
+            case "banner": photo(c.imageSrc, c.caption || c.alt); if (c.ctaAction === "add_to_cart") contentProductLink(d.productId || response.state.selectedProductId, c.ctaLabel, true); else if (safeLink(c.linkUrl)) text.push(`${value(c.ctaLabel)}: ${safeLink(c.linkUrl)}`); break;
+            case "button": if (c.linkType === "product" || c.linkType === "add_to_cart") contentProductLink(c.productId || d.productId || response.state.selectedProductId, c.label, c.linkType === "add_to_cart"); else if (safeLink(c.href)) text.push(`${value(c.label)}: ${safeLink(c.href)}`); break;
           }
         }); break;
       case "payment_intent":
@@ -162,9 +171,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
   response.quickReplies.forEach(label => {
     if (/^adicionar.*carrinho$/i.test(label) && view.choices.some(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart")) return;
     if (/^adicionar.*carrinho$/i.test(label) && response.blocks.some(b => b.type === "product_card")) return;
-    if (/^ver carrinho$/i.test(label)) add(label, tool("get_cart", {}));
-    else if (/^finalizar compra$/i.test(label) && response.state.stage === "store") add(label, tool("checkout", {}));
-    else add(label, { kind: "message", message: label });
+    add(label, metaStoreQuickReplyAction(label, response.state) ?? { kind: "message", message: label });
   });
   const seen = new Set<string>();
   view.choices = view.choices.filter(c => { const key = JSON.stringify(c.action); if (!c.label.trim() || seen.has(key)) return false; seen.add(key); return true; });

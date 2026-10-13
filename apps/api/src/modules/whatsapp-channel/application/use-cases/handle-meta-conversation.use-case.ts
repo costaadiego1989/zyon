@@ -12,6 +12,7 @@ import { MetaUiCapabilitiesAdapter } from "../../infrastructure/adapters/meta-ui
 import { resolveMetaFieldFlow } from "../../domain/ui/meta-flow.js";
 import { MetaInboundMediaAdapter } from "../../infrastructure/adapters/meta-inbound-media.adapter.js";
 import { MetaCatalogOrderAdapter } from "../../infrastructure/adapters/meta-catalog-order.adapter.js";
+import { resolveMetaStoreTextAction } from "../../domain/ui/meta-store-actions.js";
 
 interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
@@ -55,6 +56,7 @@ export class HandleMetaConversationUseCase {
       } else if (!state.expectsFreeInput && input.body.trim() === "0" && state.previousViews.length) action = { kind: "back" };
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
       else if (/^(menu|in[ií]cio)$/i.test(input.body.trim())) action = { kind: "menu" };
+      else action = resolveMetaStoreTextAction(input.body, state);
 
       const revision = claim.id;
       let view = state.view;
@@ -64,7 +66,8 @@ export class HandleMetaConversationUseCase {
       else if (action?.kind === "back" && state.previousViews.length) {
         view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
         const product = view?.blocks.find(b => b.type === "product_card");
-        const refresh = view?.blocks.some(b => b.type === "cart_summary") ? { kind: "tool" as const, tool: "get_cart", args: {} }
+        const cartView = view?.blocks.some(b => b.type === "cart_summary") || view?.choices.some(c => c.action.kind === "tool" && ["update_cart_item", "remove_cart_item", "edit_cart_item"].includes(c.action.tool));
+        const refresh = cartView ? { kind: "tool" as const, tool: "get_cart", args: {} }
           : product ? { kind: "tool" as const, tool: "get_product_details", args: { productId: (product.data as any).id } } : undefined;
         if (refresh) { const response = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData, message: "Voltar", state, action: refresh }); state = response.state; view = buildMetaUiView(response); }
       }

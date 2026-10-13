@@ -23,7 +23,7 @@ function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, 
   const recompute = () => { base.total = base.items.reduce((n, i) => n + i.unitPriceCents * i.quantity, 0); return fresh(); };
   const deps = {
     productRepo: { search: async () => ({ products }), findById: async (_m: string, id: string) => products.find((p) => p.id === id) ?? null },
-    stockRepo: { getAvailableStock: async () => ({ quantity: 10 }) },
+    stockRepo: { getAvailableStock: async () => ({ quantity: 10, reserved: 0 }) },
     prisma: { checkoutSetting: { findUnique: async () => ({ advancedRules: rules }) }, productVariant: { findMany: async () => [] },
       productPrice: { findMany: async (query: any) => {
         assert.equal(query.where.variant.product.merchantId, ctx.merchantId);
@@ -32,7 +32,7 @@ function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, 
       } } },
     merchantRepo: { getRules: async () => ({ maxDiscountPercent: 20, minimumMarginPercent: 0, allowFreeShipping: true }) },
     productPromotionRepo: promotion ? { findActiveBySku: async () => [{ discountType: "percent", discountValue: 20 }] } : undefined,
-    listEligibleCrossSells: eligibleCrossSell ? {
+    listEligibleCrossSells: {
       execute: async (input: any) => {
         assert.equal(input.cart.items.some((item: any) => item.sku === "sku-one"), true);
         return [{
@@ -42,13 +42,13 @@ function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, 
           promo_id: "promo",
           ranked_items: ["sku-two"],
           agent_copy: "",
-          computed_discount: 10,
+          computed_discount: eligibleCrossSell ? 10 : 0,
           status: "pending",
           suggested_at: new Date().toISOString(),
           resolved_at: null,
         }];
       },
-    } : undefined,
+    },
     loadCrossSellConfig: async () => ({ enabled: true, touchpoints: { browsing: false, pre_cart: preCart, post_cart: postCart, pre_payment: false, post_purchase: false },
       strategies: ["same_category"], limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 0 },
       discount: { enabled: true, mode: "percent", percent: 15 }, display: { mode: "modal" } }),
@@ -89,7 +89,7 @@ test("global rule nudges reach chat, then confirm the capped amount and clear af
   assert.equal(added.nextNudge.gap, 1);
   assert.match(added.nextNudge.message, /20%/);
   const blocks = buildConversationBlocks({ merchantId: ctx.merchantId, userMessage: "", finalContent: "", toolResults: { add_item_to_cart: added } }).blocks;
-  assert.equal((blocks[0] as any).data.nextNudge.gap, 1);
+  assert.equal((blocks.find(block => block.type === "cart_summary") as any).data.nextNudge.gap, 1);
   const updated = await handlers.updateCartItem({ cartId: ctx.sessionId, variantId: "v-one", quantity: 2 }) as any;
   assert.equal(updated.discount, 10);
   assert.match(updated.activeRules[0].message, /10,00/);
@@ -111,8 +111,9 @@ test("post_cart independently enables suggestions only after a successful add; f
       assert.equal(result.crossSellSuggestions[0].sku, "v-two");
       assert.equal(result.crossSellSuggestions[0].discountPercent, undefined);
       const blocks = buildConversationBlocks({ merchantId: ctx.merchantId, userMessage: "", finalContent: "", toolResults: { add_item_to_cart: result } }).blocks;
-      assert.equal(blocks[1].type, "cross_sell");
-      assert.equal((blocks[1] as any).data.displayMode, "modal");
+      const suggestions = blocks.find(block => block.type === "cross_sell");
+      assert.ok(suggestions);
+      assert.equal((suggestions as any).data.displayMode, "modal");
     }
     const failed = await handlers.addItemToCart({ variantId: "missing", quantity: 1 }) as any;
     assert.equal(failed.error, "variant_not_resolved");
@@ -141,6 +142,8 @@ test("pre_cart suggestions appear with product details and can coexist with post
   const blocks = buildConversationBlocks({ merchantId: ctx.merchantId, userMessage: "", finalContent: "", toolResults: { get_product_details: detail } }).blocks;
   assert.equal(blocks[0].type, "product_card");
   assert.equal(blocks[1].type, "cross_sell");
+  assert.equal((blocks[1].data as any).products[0].id, "v-two");
+  assert.equal((blocks[1].data as any).products[0].productId, "two");
 });
 
 test("pre_cart evaluates the viewed product without persisting it, preserving the authorized cross-sell discount", async () => {

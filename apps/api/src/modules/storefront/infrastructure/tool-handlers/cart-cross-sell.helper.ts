@@ -15,6 +15,7 @@ export interface CrossSellConfig {
 export interface CrossSellSuggestion {
   name: string;
   sku: string;
+  productId: string;
   price: number;
   imageUrl?: string;
   discountPercent?: number;
@@ -117,6 +118,7 @@ export async function buildCrossSellSuggestions(
             crossSellSuggestions.push({
               name: p.name,
               sku: p.variants?.[0]?.id ?? p.id,
+              productId: p.id,
               price: (p.variants?.[0]?.basePriceInCents ?? 0) / 100,
               imageUrl: p.variants?.[0]?.media?.[0]?.url,
               discountPercent: suggestion.computed_discount > 0 ? suggestion.computed_discount : undefined,

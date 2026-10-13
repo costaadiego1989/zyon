@@ -1,7 +1,7 @@
 ﻿{
     "title":  "Zyon: mesma jornada conversacional no storefront e no WhatsApp",
     "date":  "2026-10-12",
-    "status":  "implemented_local_validation_passed",
+    "status":  "navigation_regression_fixed_locally_extended_staging_validation_pending",
     "implementationStarted":  true,
     "baselineRelease":  "68663bd1f247a8cf48eb31a1008b367d6460e4c9",
     "objective":  "Compartilhar agente, identidade da loja, regras, atalhos, catalogo, carrinho e jornada de checkout. Adaptar a apresentacao dos componentes ao canal Meta, priorizando os controles nativos.",
@@ -394,17 +394,26 @@
                            "localBuild":  "passed",
                            "compiledAppModuleImport":  "passed",
                            "latestFocusedTests":  {
-                                                      "passed":  66,
+                           "passed":  164,
                                                       "failed":  0
                                                   },
                            "sharedFlow":  "implemented",
                            "nativeMenusAndNumericAlternatives":  "implemented",
                            "authoritativeProductsCartAndCheckout":  "implemented",
                            "durableDispatchAndReceipts":  "implemented",
-                           "nativeFlows":  "implemented_provider_validation_pending",
+                           "nativeFlows":  "Meta accepted JSON 7.3 with no validation errors; publishing blocked by provider integrity requirements, code 139000/subcode 4233020. Native menus and the secure checkout remain available.",
                            "linkedCatalogSync":  "implemented_requires_authorized_linked_catalog",
-                           "sandbox":  "shared_cart_checkout_and_durable_turns_validated_without_provider_sends; policy_correction_release_pending",
-                           "production":  "pending_sandbox_validation",
+                           "sandbox":  "7 durable turns and shared cart/checkout validated on release 487a413; richer navigation regression probe pending publication",
+                           "production":  "487a413 active; extended navigation fixes await staging validation",
+                           "realMenu": "Signed Meta receipts confirmed delivery; buyer tested real product and variant navigation. Duplicate rich-content Add CTA reopened details instead of adding.",
+                           "navigationRegression": {
+                             "fix": "Product-card admission is the sole Add action. Recommendations preserve their existing storefront variant ID and also provide the authoritative product ID for Meta navigation.",
+                             "coverage": ["native and typed shortcuts", "rich duplicate CTAs", "variant choice and sold-out variant", "stale selection", "contextual details", "cart add", "quantity increase and decrease", "remove", "continue shopping", "back refresh", "same secure checkout", "email ownership and OTP expiry"],
+                             "command": "node --loader ./tests/ready-prod-loader.mjs --test --test-force-exit <focused specs>",
+                             "sandboxProbe": "apps/api/scripts/validate-whatsapp-storefront-parity.cjs",
+                             "testResults": { "passed": 164, "failed": 0, "skipped": 1 },
+                             "providerOrFinancialProof": false
+                           },
                            "realPurchase":  "not_validated"
                        },
     "templatePolicy":  {

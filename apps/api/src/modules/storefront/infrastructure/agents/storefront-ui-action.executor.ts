@@ -30,6 +30,9 @@ async function executeAction(handlers: StoreToolHandlers, action: StorefrontUiAc
     case "search_products": result = await handlers.searchProducts({ query: str("query") || "*", categoryId: str("categoryId") || undefined, cursor: str("cursor") || undefined }); message = "Estes são os produtos disponíveis:"; break;
     case "list_categories": result = await handlers.listCategories(); message = "Escolha uma categoria:"; break;
     case "get_reviews": result = await handlers.getReviews({ productId: str("productId"), cursor: str("cursor") || undefined }); message = "Veja as avaliações:"; break;
+    case "get_similar_products": result = await handlers.getSimilarProducts({ productId: str("productId") }); message = "Veja os produtos semelhantes:"; break;
+    case "compare_products": result = await handlers.compareProducts({ productId: str("productId"), includeSimilar: true }); message = "Compare os produtos:"; break;
+    case "get_daily_deals": result = await handlers.getDailyDeals({}); message = "Confira as ofertas disponíveis:"; break;
     case "add_item_to_cart": {
       const quantity = Number(a.quantity ?? 1);
       if (!str("variantId") || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error("store_ui_variant_or_quantity_invalid");

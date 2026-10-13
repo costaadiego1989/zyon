@@ -6,7 +6,7 @@ export const META_FIELD_LABELS = { fullName: "Nome completo", email: "Email", cp
 
 /** No remote data endpoint, hidden verification flags or payment inputs. */
 export function metaFieldFlowJson(address: boolean) {
-  return { version: "3.1", screens: [{ id: "DETAILS", title: address ? "Entrega do pedido" : "Dados do pedido", terminal: true,
+  return { version: "7.3", screens: [{ id: "DETAILS", title: address ? "Entrega do pedido" : "Dados do pedido", terminal: true,
     data: { label: { type: "string", __example__: "Nome completo" } },
     layout: { type: "SingleColumnLayout", children: [{ type: "Form", name: "form", children: [
       { type: "TextCaption", text: "Preencha o dado solicitado para continuar sua compra." },

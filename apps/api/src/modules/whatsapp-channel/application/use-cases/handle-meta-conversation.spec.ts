@@ -68,3 +68,53 @@ test("definite media rejection keeps the menu reachable and persists the fallbac
   assert.equal(f.claim.responseState.sent.length, 2);
   assert.equal(f.emitted.at(-1).text.body, "Menu de compra");
 });
+
+test("the buyer's rich-product route adds the selected variant by both native and typed controls", async () => {
+  const f = fixture(); const cart: any[] = []; const engineActions: any[] = [];
+  const product = { type: "product_card", data: { id: "serum", name: "Serum", inStock: true, variants: [
+    { id: "small", value: "30 ml", stock: 4 }, { id: "large", value: "50 ml", stock: 24 },
+  ] } };
+  f.conversation.respondStore = async (call: any) => {
+    engineActions.push(call.action);
+    if (call.action?.tool === "add_item_to_cart") {
+      cart.push({ variantId: call.action.args.variantId, quantity: call.action.args.quantity });
+      return { agentMessage: "Item adicionado", quickReplies: ["Ver Carrinho"], blocks: [], state: call.state };
+    }
+    return { agentMessage: "Confira", quickReplies: ["Adicionar ao Carrinho", "Mais Informações"], blocks: [product,
+      { type: "product_content", data: { productId: "serum", blocks: [{ type: "button", linkType: "add_to_cart", label: "Adicionar ao carrinho" }] } },
+    ], state: { ...call.state, selectedProductId: "serum" } };
+  };
+  let turnNumber = 0;
+  const turn = async (body: string, predicate?: (action: any) => boolean) => {
+    f.input.body = body;
+    f.input.interactiveId = predicate ? Object.entries(f.route.whatsappSession.conversationState.selections).find(([, action]) => predicate(action))?.[0] : undefined;
+    if (predicate) assert.ok(f.input.interactiveId, "the native choice must be reachable");
+    f.claim.id = `turn${++turnNumber}`; f.claim.responseState = undefined;
+    await f.execute();
+  };
+  await turn("Detalhes");
+  await turn("Adicionar ao carrinho");
+  assert.equal(cart.length, 0, "typed add before variant selection cannot mutate the cart");
+  await turn("50 ml", action => action.kind === "variant" && action.variantId === "large");
+  const adds = f.route.whatsappSession.conversationState.view.choices.filter((choice: any) => /^adicionar.*carrinho$/i.test(choice.label));
+  assert.equal(adds.length, 1);
+  await turn("Mais Informações");
+  assert.equal(engineActions.at(-1).tool, "get_product_details");
+  await turn("Adicionar ao carrinho", action => action.kind === "tool" && action.tool === "add_item_to_cart");
+  assert.deepEqual(cart, [{ variantId: "large", quantity: 1 }]);
+  await turn("Mais Informações");
+  await turn("Adicionar ao carrinho");
+  assert.deepEqual(cart, [{ variantId: "large", quantity: 1 }, { variantId: "large", quantity: 1 }]);
+});
+
+test("back from a quantity editor reloads the actual cart instead of replaying old quantities", async () => {
+  const f = fixture(); let action: any;
+  f.route.whatsappSession.conversationState.previousViews = [{ title: "Editar quantidade", body: "Quantidade atual: 1", blocks: [], media: [], quickReplies: [],
+    choices: [{ label: "Adicionar uma unidade", action: { kind: "tool", tool: "update_cart_item", args: { variantId: "v1", quantity: 2 } } }] }];
+  f.conversation.respondStore = async (call: any) => { action = call.action; return { agentMessage: "Carrinho atualizado", quickReplies: [],
+    blocks: [{ type: "cart_summary", data: { items: [{ variantId: "v1", productName: "Produto", quantity: 3, subtotal: 30 }], total: 30 } }], state: call.state }; };
+  f.input.body = "0";
+  await f.execute();
+  assert.equal(action.tool, "get_cart");
+  assert.ok(f.emitted.some(message => message.type === "text" && message.text.body.includes("3× Produto")));
+});
