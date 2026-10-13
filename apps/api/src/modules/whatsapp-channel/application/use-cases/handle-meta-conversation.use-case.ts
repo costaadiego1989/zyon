@@ -53,7 +53,7 @@ export class HandleMetaConversationUseCase {
       } else if (input.interactiveId) {
         action = state.selections?.[input.interactiveId];
         invalidSelection = !action;
-      } else if (!state.expectsFreeInput && input.body.trim() === "0" && state.previousViews.length) action = { kind: "back" };
+      } else if (!state.expectsFreeInput && /^(0|voltar)$/i.test(input.body.trim()) && state.previousViews.length) action = { kind: "back" };
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
       else if (/^(menu|in[ií]cio)$/i.test(input.body.trim())) action = { kind: "menu" };
       else action = resolveMetaStoreTextAction(input.body, state);
@@ -108,6 +108,7 @@ export class HandleMetaConversationUseCase {
         }
         if (state.view) state = { ...state, previousViews: [...state.previousViews, state.view].slice(-6), page: 0 };
       } else {
+        if (action?.kind === "menu") state = { ...state, pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
         const attachmentContext = input.metaMedia ? await this.inboundMedia?.interpret(input.merchantId, input.deviceId, input.metaMedia) : undefined;
         const response: WhatsAppStructuredResponse = responseProducer ? await responseProducer() : await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData,
           message: action?.kind === "message" ? action.message : action?.kind === "menu" ? "Menu" : input.body, state,

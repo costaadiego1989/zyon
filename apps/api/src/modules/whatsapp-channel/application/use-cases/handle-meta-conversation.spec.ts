@@ -125,11 +125,28 @@ test("back from the store menu resumes the current checkout instead of replaying
   state.checkoutSessionId = "checkout1";
   state.previousViews = [{ title: "Pagamento", body: "Escolha como pagar", blocks: [{ type: "payment_methods", data: {} }], media: [], quickReplies: [], choices: [] }];
   f.conversation.respondStore = async (call: any) => { actual = call; return { agentMessage: "Pagamento atualizado", quickReplies: [], blocks: [], state: call.state }; };
-  f.input.body = "0";
+  f.input.body = "Voltar";
   await f.execute();
   assert.equal(actual?.action.tool, "show_checkout");
   assert.equal(actual.state.stage, "checkout");
   assert.equal(actual.state.checkoutSessionId, "checkout1");
+});
+
+test("menu dismisses unfinished checkout input while preserving the cart and pending payment", async () => {
+  const f = fixture(); let actual: any;
+  const state = f.route.whatsappSession.conversationState;
+  Object.assign(state, { stage: "checkout", checkoutSessionId: "checkout1", expectsFreeInput: true,
+    pendingCoupon: { sessionId: "checkout1", fingerprint: "current" },
+    pendingCheckoutEdit: { section: "payment", fingerprint: "current", intentId: "pix1" },
+    pendingFlow: { token: "field-token", field: "zip", checkoutSessionId: "checkout1", expiresAt: Date.now() + 60000 },
+    payment: { intentId: "pix1", sessionId: "checkout1", method: "pix", status: "requires_action", amount_cents: 10000 } });
+  f.conversation.respondStore = async (call: any) => { actual = call; return { agentMessage: "Menu da loja", quickReplies: ["Ver produtos"], blocks: [], state: { ...call.state, stage: "store" } }; };
+  f.input.body = "Menu"; await f.execute();
+  assert.equal(actual.message, "Menu"); assert.equal(actual.action, undefined);
+  assert.equal(actual.state.pendingCoupon, undefined); assert.equal(actual.state.pendingCheckoutEdit, undefined);
+  assert.equal(actual.state.pendingFlow, undefined); assert.equal(actual.state.expectsFreeInput, false);
+  assert.equal(actual.state.payment.intentId, "pix1"); assert.equal(actual.state.conversationId, "conv1");
+  assert.equal(f.route.whatsappSession.conversationState.stage, "store");
 });
 
 test("back resumes a checkout data-entry view through its saved stage even without payment blocks", async () => {
