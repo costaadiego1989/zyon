@@ -61,3 +61,13 @@ test("checkout OTP template has one code variable", () => {
   assert.deepEqual(def.variableMap, { "1": "otpCode" });
   assert.match(def.metaBody, /\{\{1\}\}/);
 });
+
+test("customer notifications identify their company and retain a literal ending after positional conversion", async () => {
+  const { prepareSalesWhatsApp } = await import("../sales-template-content.js");
+  for (const def of Object.values(buildCatalog())) {
+    if (def.type === "checkout_otp" || def.type.startsWith("plan_expiry_") || def.type === "marketplace_operational_alert") continue;
+    assert.ok(def.freeformBody.includes("{{storeName}}"), def.type);
+    const prepared = prepareSalesWhatsApp(def.type, def.freeformBody);
+    assert.doesNotMatch(prepared.metaBody, /\{\{\d+\}\}[^\p{L}\p{N}]*$/u, def.type);
+  }
+});

@@ -188,7 +188,13 @@ export function categoryFor(type: WhatsAppTemplateType): WhatsAppTemplateCategor
 export function buildCatalog(storeName = "sua loja"): Record<WhatsAppTemplateType, WhatsAppTemplateDefinition> {
   const out = {} as Record<WhatsAppTemplateType, WhatsAppTemplateDefinition>;
   for (const type of Object.keys(FREEFORM) as WhatsAppTemplateType[]) {
-    const freeformBody = FREEFORM[type];
+    const platformNotice = type.startsWith("plan_expiry_") || type === "marketplace_operational_alert";
+    const source = FREEFORM[type];
+    // Meta forbids a variable at the end of a normal template. The company
+    // signature must still end in literal text when storeName is positional.
+    const freeformBody = type === "checkout_otp" || platformNotice ? source
+      : /\{\{storeName\}\}\s*$/.test(source) ? `${source}.\nEstamos à disposição.`
+        : `${source}\n\nEquipe {{storeName}}. Estamos à disposição.`;
     const { metaBody, variableMap, sampleVariables } = toPositional(freeformBody, storeName);
     out[type] = {
       type,

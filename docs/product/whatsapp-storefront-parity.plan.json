@@ -389,7 +389,7 @@
                        "https://www.postman.com/meta/whatsapp-business-platform/request/6vkv46u/create-authentication-template-w-otp-copy-code-button"
                    ],
     "implementation":  {
-                           "updatedAt":  "2026-10-13T14:19:17.9834625Z",
+                           "updatedAt":  "2026-10-13T14:29:51.9397475Z",
                            "incorporatedProductionDeployment":  "858000db-94c6-4640-b36c-e81adee3c7ad",
                            "localBuild":  "passed",
                            "compiledAppModuleImport":  "passed",
@@ -414,6 +414,16 @@
                            "correction":  "AUTHENTICATION preset with COPY_CODE button and ten-minute expiry; both message and button receive the same validated six-digit code",
                            "otherCategories":  "Order and service context: UTILITY; promotions and abandoned cart: MARKETING",
                            "sensitiveIdentifiers":  "CPF and payment card details stay in scoped secure checkout, never requested by native WhatsApp forms",
-                           "submission":  "pending_corrected_release"
+                           "submission":  "pending_corrected_release",
+                           "creationFailures":  {
+                                                    "types":  [
+                                                                  "return_posting_code",
+                                                                  "return_declaration_ready"
+                                                              ],
+                                                    "metaCode":  100,
+                                                    "metaSubcode":  2388299,
+                                                    "reason":  "Variables cannot begin or end a template",
+                                                    "correction":  "Company signature with literal closing after the link and company variables"
+                                                }
                        }
 }
