@@ -1,5 +1,5 @@
 {
-  "status": "sandbox_validated_awaiting_production",
+  "status": "production_active_waiting_customer_payments",
   "authorizedProduct": {
     "merchantId": "mrc_696a583b-e0b8-4956-aea7-4f15037de32b",
     "productId": "cmv757wry0000pd4k27kuav84",
@@ -49,7 +49,7 @@
       "whatsapp",
       "storefront"
     ],
-    "paidOrders": "customer action still required: one fresh single-item checkout per channel using the test product and Stripe card",
+    "paidOrders": "Waiting for customer: fresh single-item cart, one Stripe-card purchase in WhatsApp, one in storefront. A scheduled split is not proof of future transfer execution.",
     "checks": [
       "real charge approval and persisted order",
       "matching original checkout and product",
@@ -96,5 +96,31 @@
     "migrationScope": "Only the two new split migrations; historical baseline unchanged",
     "appendOnlyLedger": "Preserved. Sandbox validation runs in a rolled-back transaction.",
     "initialSandboxFixture": "One failed preliminary synthetic checkout was canceled; its planned ledger remains as audit history, with no real payment or transfer."
+  },
+  "productionValidation": {
+    "deploymentId": "c871c942-bfb5-4046-9af8-ce51c71f19da",
+    "commit": "e8df0abf2bb5f64f695d398b01787f5480b0f76b",
+    "sourceFilesVerified": 23,
+    "sourceMatch": true,
+    "compiled": true,
+    "migrationsApplied": true,
+    "providerReadOnlyPreflightPassed": true,
+    "providerMutationsByOperator": 0,
+    "ownedStorePolicy": {
+      "mode": "delayed_merchant_payout",
+      "holdDays": 7,
+      "startsAt": "fulfillment",
+      "providerFeePayer": "merchant"
+    },
+    "configured": true,
+    "availableMethods": {
+      "card": "stripe"
+    },
+    "currentMercadoPagoRail": "unsupported for scheduled split; not offered in opted-in store",
+    "buyerFeeCents": 99,
+    "merchantFeeCents": 99,
+    "testProductCents": 500,
+    "testGrossCents": 599,
+    "actualPaidTests": 0
   }
 }
