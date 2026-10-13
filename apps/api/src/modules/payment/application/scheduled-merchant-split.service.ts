@@ -58,9 +58,11 @@ export class ScheduledMerchantSplitService {
       if (!order?.fulfilledAt || !state || ["cancelled", "refunded", "returned", "failed"].includes(order.status) ||
           order.fulfilledAt < order.completedAt || order.fulfilledAt > now ||
           state.units.some(unit => unit.completedQuantity !== unit.quantity || !["delivered", "collected", "completed", "available"].includes(unit.status))) continue;
+      const receivedAt = await this.receivedAt(this.prisma, hold, order);
+      if (!receivedAt || receivedAt > now) continue;
       const changed = await this.prisma.paymentHold.updateMany({ where: { id: hold.id, merchantId: hold.merchantId, status: "awaiting_fulfillment",
         holdAnchor: "fulfillment", holdDays: 7, holdUntil: null },
-      data: { orderId: order.id, fulfilledAt: order.fulfilledAt, holdUntil: new Date(order.fulfilledAt.getTime() + 7 * 86_400_000), status: "held" } });
+      data: { orderId: order.id, fulfilledAt: receivedAt, holdUntil: new Date(receivedAt.getTime() + 7 * 86_400_000), status: "held" } });
       result.scheduled += changed.count;
     }
 
@@ -81,7 +83,7 @@ export class ScheduledMerchantSplitService {
           if (!payment) return false;
           const order = await tx.completedOrder.findFirst({ where: { merchantId: hold.merchantId, externalOrderId: hold.providerPaymentId },
             select: { fulfilledAt: true, fulfillmentJson: true, status: true } });
-          if (!this.fulfillmentMatches(hold, order)) return false;
+          if (!await this.fulfillmentMatches(hold, order, tx)) return false;
           const changed = await tx.paymentHold.updateMany({ where: { id: hold.id, merchantId: hold.merchantId, status: { in: ["held", "payout_ready"] },
             holdAnchor: "fulfillment", holdDays: 7, holdUntil: { lte: now }, fulfilledAt: { not: null } },
           data: { status: "payout_submitted", payoutReference: reference, payoutAttemptedAt: now, failureCode: null } });
@@ -140,14 +142,38 @@ export class ScheduledMerchantSplitService {
       this.prisma.completedOrder.findFirst({ where: { merchantId: hold.merchantId, externalOrderId: hold.providerPaymentId }, select: { status: true, fulfilledAt: true, fulfillmentJson: true } }),
       this.prisma.return.findFirst({ where: activeReturn(hold) as any, select: { id: true } }),
     ]);
-    return Boolean(payment && this.fulfillmentMatches(hold, order) && !ret);
+    return Boolean(payment && await this.fulfillmentMatches(hold, order, this.prisma) && !ret);
   }
 
-  private fulfillmentMatches(hold: Hold, order: { status: string; fulfilledAt: Date | null; fulfillmentJson: unknown } | null): boolean {
+  private async fulfillmentMatches(hold: Hold, order: { status: string; fulfilledAt: Date | null; fulfillmentJson: unknown } | null,
+    db: Pick<PrismaClient, "shipment">): Promise<boolean> {
+    if (!order) return false;
     const state = readFulfillment(order?.fulfillmentJson);
-    return Boolean(order?.fulfilledAt && hold.fulfilledAt && order.fulfilledAt.getTime() === hold.fulfilledAt.getTime() && state &&
+    const receivedAt = await this.receivedAt(db, hold, order);
+    return Boolean(receivedAt && hold.fulfilledAt && receivedAt.getTime() === hold.fulfilledAt.getTime() && state &&
       !["cancelled", "refunded", "returned", "failed"].includes(order.status) &&
       state.units.every(unit => unit.completedQuantity === unit.quantity && ["delivered", "collected", "completed", "available"].includes(unit.status)));
+  }
+
+  private async receivedAt(db: Pick<PrismaClient, "shipment">, hold: Hold,
+    order: { fulfilledAt: Date | null; fulfillmentJson: unknown }): Promise<Date | undefined> {
+    const state = readFulfillment(order.fulfillmentJson);
+    if (!order.fulfilledAt || !state) return;
+    const carrierUnits = state.units.filter(unit => unit.strategy === "carrier");
+    if (!carrierUnits.length) return order.fulfilledAt;
+    if (carrierUnits.some(unit => !unit.shipmentId)) return;
+    const shipments = await db.shipment.findMany({ where: { merchantId: hold.merchantId, externalOrderId: hold.providerPaymentId,
+      id: { in: carrierUnits.map(unit => unit.shipmentId!) }, status: "delivered" }, select: { id: true, deliveredAt: true } });
+    const dates: Date[] = [];
+    for (const unit of carrierUnits) {
+      const date = shipments.find(shipment => shipment.id === unit.shipmentId)?.deliveredAt;
+      if (!date || date > order.fulfilledAt || !Number.isFinite(date.getTime())) return;
+      dates.push(date);
+    }
+    // Receipt can precede webhook processing. Use the carrier's actual date;
+    // mixed orders wait for the last service/digital/local-delivery completion.
+    if (carrierUnits.length !== state.units.length) dates.push(order.fulfilledAt);
+    return new Date(Math.max(...dates.map(date => date.getTime())));
   }
 
   private async creationInput(hold: Hold): Promise<CreateProviderPaymentInput> {

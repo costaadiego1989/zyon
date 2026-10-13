@@ -101,6 +101,29 @@
     results.checks.push('provider_receipt_records_immutable_conserved_allocation');
     await service.execute(new Date(due.getTime() + 180_000)); assert.equal(simulatedSubmissions, 1);
     results.checks.push('released_split_is_never_repeated');
+    const carrierIntent = `${id}_carrier`, carrierPayment = `${providerPaymentId}_carrier`, carrierSession = `${sessionId}_carrier`;
+    const carrierInput = { ...input, intentId: carrierIntent, sessionId: carrierSession };
+    const carrierCapture = { ...capture, providerPaymentId: carrierPayment, sourceId: `${capture.sourceId}_carrier`, balanceTransactionId: `${capture.balanceTransactionId}_carrier` };
+    await prisma.checkoutSession.create({ data: { merchantId, sessionId: carrierSession, globalUserId: `qa_split_buyer_${run}`,
+      conversationId: carrierSession, cart: { currency: 'BRL', total: 5, items: [] }, createdAt: base, updatedAt: base } });
+    await prisma.paymentIntent.create({ data: { id: carrierIntent, merchantId, sessionId: carrierSession, idempotencyKey: carrierIntent,
+      amountCents: 599, approvedAmountCents: 599, currency: 'BRL', method: 'card', status: 'approved', providerPaymentId: carrierPayment, creation: { input: carrierInput } } });
+    const receivedAt = new Date(base.getTime() - 2 * 86_400_000);
+    const shipment = await prisma.shipment.create({ data: { id: `qa_split_shipment_${run}`, merchantId, sessionId: carrierSession,
+      externalOrderId: carrierPayment, carrier: 'qa', trackingCode: `QA_SPLIT_${run}`, status: 'delivered',
+      createdAt: new Date(receivedAt.getTime() - 86_400_000), updatedAt: base, deliveredAt: receivedAt } });
+    await prisma.completedOrder.create({ data: { merchantId, sessionId: carrierSession, externalOrderId: carrierPayment, orderTotal: 5,
+      currency: 'BRL', completedAt: new Date(receivedAt.getTime() - 60_000), fulfilledAt: base, fulfillmentJson: { schemaVersion: 1,
+        units: [{ ...unit, completedQuantity: 1, productType: 'physical', strategy: 'carrier', status: 'delivered', shipmentId: shipment.id }] } } });
+    const carrierProvider = { ...provider, readCapture: async () => carrierCapture };
+    await new PaymentHoldLifecycleService(new CreatePaymentHoldUseCase(prisma), carrierProvider).createForApprovedPayment({
+      id: carrierIntent, merchantId, status: 'approved', amountCents: 599, providerPaymentId: carrierPayment, creation: { input: carrierInput } });
+    holdId = (await prisma.paymentHold.findUniqueOrThrow({ where: { paymentIntentId: carrierIntent } })).id;
+    await new ScheduledMerchantSplitService(restricted, carrierProvider, ledger).execute(base);
+    const carrierHold = await prisma.paymentHold.findUniqueOrThrow({ where: { paymentIntentId: carrierIntent } });
+    assert.equal(carrierHold.fulfilledAt.toISOString(), receivedAt.toISOString());
+    assert.equal(carrierHold.holdUntil.toISOString(), new Date(receivedAt.getTime() + 7 * 86_400_000).toISOString());
+    results.checks.push('delayed_carrier_webhook_uses_actual_receipt_plus_seven_days');
     results.ok = true;
       } catch (error) { results.ok = false; results.error = { name: error.name, message: error.message, code: error.code,
     stack: String(error.stack).split('\n').slice(0, 4) }; }
@@ -112,7 +135,7 @@
   } finally {
     results.externalMutationAttempts = externalMutationAttempts; results.simulatedSubmissions = simulatedSubmissions;
     globalThis.fetch = originalFetch;
-    results.cleanup.remainingFixturePayments = await rootPrisma.paymentIntent.count({ where: { id, merchantId } });
+    results.cleanup.remainingFixturePayments = await rootPrisma.paymentIntent.count({ where: { id: { startsWith: id }, merchantId } });
     assert.equal(results.cleanup.remainingFixturePayments, 0);
     await rootPrisma.$disconnect(); await app.close();
     console.log('ZYON_SCHEDULED_SPLIT_PROOF=' + JSON.stringify(results)); process.exit(results.ok ? 0 : 1);

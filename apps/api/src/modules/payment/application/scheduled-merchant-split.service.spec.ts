@@ -28,6 +28,7 @@ function fixture() {
     completedOrder: { findFirst: async () => order },
     paymentIntent: { findFirst: async ({ where }: any) => where.status && payment.status !== where.status ? null : payment },
     return: { findFirst: async () => state.returnOpened ? { id: "return_owned" } : null },
+    shipment: { findMany: async () => [{ id: "shipment_owned", deliveredAt: new Date("2026-10-12T20:00:00Z") }] },
     $queryRawUnsafe: async (sql: string) => sql.includes("SELECT h.id") ? [{ id: hold.id }] : [], $transaction: async (fn: any) => fn(prisma),
   };
   const provider: any = {
@@ -119,4 +120,14 @@ test("rescheduling or removing fulfilled quantities blocks an already scheduled 
   f.order.fulfillmentJson.units[0].completedQuantity = 0;
   await f.service.execute(new Date("2026-10-21T20:00:00Z"));
   assert.equal(f.state.submissions, 0);
+});
+
+test("a delayed carrier webhook uses actual receipt plus seven days, not its processing date", async () => {
+  const f = fixture();
+  Object.assign(f.order.fulfillmentJson.units[0], { productType: "physical", strategy: "carrier", status: "delivered", shipmentId: "shipment_owned" });
+  await f.service.execute(new Date("2026-10-13T20:00:00Z"));
+  assert.equal(f.hold.fulfilledAt.toISOString(), "2026-10-12T20:00:00.000Z");
+  assert.equal(f.hold.holdUntil.toISOString(), "2026-10-19T20:00:00.000Z");
+  await f.service.execute(new Date("2026-10-19T20:00:00Z"));
+  assert.equal(f.state.submissions, 1);
 });
