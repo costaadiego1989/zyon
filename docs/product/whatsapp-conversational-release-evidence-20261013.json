@@ -1,27 +1,32 @@
 {
-  "candidateCommit": "d72c2578068d4b8a2a12e4c1c8765fd6e1ef72cf",
-  "checkedAt": "2026-10-13T19:03:55.025Z",
+  "candidateCommit": "c31e5c0cd78bf9ae5b8584e5072eb60d65914f7c",
+  "checkedAt": "2026-10-13T19:39:29.996Z",
   "localTests": {
-    "passed": 226,
+    "passed": 214,
     "failed": 0,
     "skipped": 1,
+    "composition": "202 current WhatsApp parity checks plus 12 distinct shared payment/cancellation regression checks; eight checkout-edit cases overlap the 20-case cancellation suite and are counted once",
     "browser": {
-      "paymentHandoffPassed": 2,
-      "addressRegressionPassed": 2,
+      "paymentHandoffPassed": 4,
       "viewports": [
         390,
         1440
       ],
+      "paymentRevisions": [
+        0,
+        42
+      ],
       "providerResponses": "simulated; no external charge"
     },
     "productionSourceTypecheck": "passed",
+    "widgetTypecheck": "passed",
     "fullWorkspaceTypecheck": "pre-existing type errors in unrelated spec fixtures; production build configuration and changed tests passed"
   },
   "sandbox": {
     "runtime": {
-      "deploymentId": "8384755e-0dc1-4c04-b03c-459567ed44be",
+      "deploymentId": "51ff4a5d-7c0c-4724-83a4-a491b11d267d",
       "environment": "sandbox",
-      "matchingSourceFiles": 29,
+      "matchingSourceFiles": 36,
       "migrationApplied": true,
       "encryptedPhoneLookupAvailable": true,
       "enforcedOtpExpiry": true,
@@ -123,10 +128,29 @@
       "financial": false
     },
     "widget": {
-      "deploymentId": "01155124-beb4-4ebe-b77a-ba78f0c6ecb0",
+      "deploymentId": "bd18bda9-c381-4623-a912-db29f4c470af",
       "status": "SUCCESS",
-      "asset": "/assets/index-BZHdNrgC.js",
-      "initialPaymentMethodPresent": true
+      "sourceCommit": "c31e5c0cd78bf9ae5b8584e5072eb60d65914f7c"
+    },
+    "sharedCheckoutEditing": {
+      "environment": "sandbox",
+      "deploymentId": "51ff4a5d-7c0c-4724-83a4-a491b11d267d",
+      "synthetic": true,
+      "realCheckoutPersistence": true,
+      "realCouponPersistence": true,
+      "providerCancellation": "simulated",
+      "externalMutations": 0,
+      "checks": [
+        "Nest_module_injects_existing_storefront_services",
+        "native_switch_requires_confirmation_before_provider_mutation",
+        "keep_payment_retains_real_pending_intent",
+        "existing_cancel_service_and_repository_reopen_persist_and_preserve_customer_shipping",
+        "numeric_invalid_coupon_uses_existing_validation_and_keeps_input",
+        "existing_coupon_transaction_persists_single_reservation_and_authoritative_total_without_new_charge"
+      ],
+      "cleanup": {
+        "remainingFixtures": 0
+      }
     }
   },
   "meta": {
@@ -144,11 +168,11 @@
   },
   "production": {
     "status": "published_and_verified",
-    "sourceCommit": "d72c2578068d4b8a2a12e4c1c8765fd6e1ef72cf",
+    "sourceCommit": "c31e5c0cd78bf9ae5b8584e5072eb60d65914f7c",
     "api": {
-      "deploymentId": "083e84c1-bdd2-4bb5-826d-cc75d7b7cc8d",
+      "deploymentId": "25dfce4f-5860-4567-9c47-e519697e535a",
       "environment": "production",
-      "matchingSourceFiles": 29,
+      "matchingSourceFiles": 36,
       "migrationApplied": true,
       "encryptedPhoneLookupAvailable": true,
       "enforcedOtpExpiry": true,
@@ -161,14 +185,13 @@
       "status": "SUCCESS"
     },
     "widget": {
-      "deploymentId": "dpl_BrpNZAUjL5r5ugv4rC1X6BE56TyY",
-      "gitDeploymentId": "dpl_68YA8Kkd68CC5BJ1hqneFtsoSJ4e",
+      "deploymentId": "dpl_HPGuNVCG7jhEuF6rMQzuQro4m1F9",
       "status": "READY",
       "url": "https://widget.zyon-payments.com.br",
-      "api": "ready",
-      "widgetStatus": 200,
-      "widgetAsset": "/assets/index-ChHsmfPE.js",
-      "hasPaymentHandoff": true
+      "httpStatus": 200,
+      "asset": "/assets/index-B1Ulw3mo.js",
+      "initialPaymentMethodPresent": true,
+      "paymentRevisionPresent": true
     },
     "dashboard": {
       "httpStatus": 200,
@@ -226,6 +249,109 @@
       "customerUnchanged": true
     },
     "realNativePaymentMenu": {
+      "deploymentId": "25dfce4f-5860-4567-9c47-e519697e535a",
+      "operatorInitiated": true,
+      "financial": false,
+      "sourceInboundAt": "2026-10-13T19:11:43.000Z",
+      "turnId": "57de5362-1fda-48a9-88ee-84bbadeb356e",
+      "status": "processed",
+      "phase": "complete",
+      "providerAccepted": 4,
+      "messageTypes": [
+        "text",
+        "interactive",
+        "text",
+        "interactive"
+      ],
+      "nativeControls": [
+        "cta_url",
+        "list"
+      ],
+      "persistedSelections": 6,
+      "paymentMethods": [],
+      "editActions": [
+        {
+          "label": "Trocar pagamento",
+          "section": "payment"
+        },
+        {
+          "label": "Usar cupom",
+          "section": "coupon"
+        }
+      ],
+      "paymentStatus": "requires_action",
+      "receiptCount": 0,
+      "receiptStatuses": [
+        "delivered",
+        "delivered",
+        "delivered",
+        "delivered"
+      ]
+    },
+    "currentPendingPayment": {
+      "deploymentId": "25dfce4f-5860-4567-9c47-e519697e535a",
+      "readOnly": true,
+      "providerMutations": 0,
+      "buyerEmailVerified": true,
+      "canonicalPhoneMatches": true,
+      "payments": [
+        {
+          "intentId": "pay_int_7e1d41d9-9d2e-42e9-8ca4-85cc945c9908",
+          "method": "pix",
+          "databaseStatus": "requires_action",
+          "creationState": "complete",
+          "providerState": "pending"
+        }
+      ],
+      "customerTriggered": true,
+      "provider": "mercadopago",
+      "customerReportedHostedCheckoutOpened": true,
+      "liveCancellationPerformed": false
+    }
+  },
+  "realPurchase": {
+    "customerEmailOtpVerified": true,
+    "shippingChosenFromLiveQuotes": true,
+    "currentTotalToPay": 290.79,
+    "paymentIntents": 1,
+    "paymentStatuses": [
+      {
+        "status": "requires_action",
+        "method": "pix",
+        "amountCents": 29079
+      }
+    ],
+    "completedOrders": 0,
+    "status": "awaiting_customer_payment_edit_confirmation_and_card_test"
+  },
+  "corrections": {
+    "shipping": "Prefer real carrier quotes over estimates; subsidize exactly one real service under merchant rules and preserve original carrier cost; full price/time labels select exactly or reject stale/ambiguous choices.",
+    "payment": "Native choices bind method and current cart fingerprint to the action; free text remains navigation. Read the same provider capabilities as storefront. Pix displays the provider checkout URL and code. Stripe opens its card form through the same signed secure widget, retaining the checkout and shipping. Hosted card providers return their own invoice URL. Pending provider responses never trigger a second payment.",
+    "presentation": "Advertise only supported configured Pix/card routes; remove duplicate payment quick replies and repeat the full summary only when its values change.",
+    "paymentEditing": "Native edit asks for explicit confirmation before invoking the existing storefront cancellation/reopen service. Keep payment retains the pending quote. Uncertain or already paid cancellation cannot clear the current payment or issue a replacement. Confirmed cancellation advances generation/revision so another method does not reuse the canceled intent key. Back refreshes authoritative checkout state.",
+    "coupon": "Use the short native label Usar cupom, preserve numeric codes as free input, and invoke the existing checkout coupon transaction using server scope/version. Invalid codes retain input; success uses shared totals and one reservation."
+  },
+  "previousShippingPaymentRelease": {
+    "sourceCommit": "d72c2578068d4b8a2a12e4c1c8765fd6e1ef72cf",
+    "apiDeploymentId": "083e84c1-bdd2-4bb5-826d-cc75d7b7cc8d",
+    "widgetDeploymentId": "dpl_BrpNZAUjL5r5ugv4rC1X6BE56TyY",
+    "localTests": {
+      "passed": 226,
+      "failed": 0,
+      "skipped": 1,
+      "browser": {
+        "paymentHandoffPassed": 2,
+        "addressRegressionPassed": 2,
+        "viewports": [
+          390,
+          1440
+        ],
+        "providerResponses": "simulated; no external charge"
+      },
+      "productionSourceTypecheck": "passed",
+      "fullWorkspaceTypecheck": "pre-existing type errors in unrelated spec fixtures; production build configuration and changed tests passed"
+    },
+    "realNativePaymentMenu": {
       "deploymentId": "083e84c1-bdd2-4bb5-826d-cc75d7b7cc8d",
       "operatorInitiated": true,
       "financial": false,
@@ -268,17 +394,12 @@
       }
     }
   },
-  "realPurchase": {
-    "customerEmailOtpVerified": true,
-    "shippingChosenFromLiveQuotes": true,
-    "currentTotalToPay": 290.79,
-    "paymentIntents": 0,
-    "completedOrders": 0,
-    "status": "awaiting_customer_payment_from_the_updated_native_menu"
-  },
-  "corrections": {
-    "shipping": "Prefer real carrier quotes over estimates; subsidize exactly one real service under merchant rules and preserve original carrier cost; full price/time labels select exactly or reject stale/ambiguous choices.",
-    "payment": "Native choices bind method and current cart fingerprint to the action; free text remains navigation. Read the same provider capabilities as storefront. Pix displays the provider checkout URL and code. Stripe opens its card form through the same signed secure widget, retaining the checkout and shipping. Hosted card providers return their own invoice URL. Pending provider responses never trigger a second payment.",
-    "presentation": "Advertise only supported configured Pix/card routes; remove duplicate payment quick replies and repeat the full summary only when its values change."
+  "reusedStorefrontServices": {
+    "checkoutReopen": "ReopenEmbedCheckoutUseCase",
+    "pendingCancellation": "CancelCheckoutPaymentUseCase -> CancelPaymentIntentUseCase",
+    "couponApplication": "ApplyCouponUseCase.executeForCheckout",
+    "paymentCancellationImplementationChanged": false,
+    "couponImplementationChanged": false,
+    "proof": "Same injected Nest instances and actual database repositories were exercised in isolated sandbox fixtures; only the provider cancellation result was simulated; no real charge or external message was created by the probe."
   }
 }

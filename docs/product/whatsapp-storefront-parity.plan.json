@@ -1,7 +1,7 @@
 {
   "title": "Zyon: mesma jornada conversacional no storefront e no WhatsApp",
   "date": "2026-10-12",
-  "status": "production_published_provider_checkout_customer_payment_test_pending",
+  "status": "production_published_payment_edit_and_coupon_customer_test_pending",
   "implementationStarted": true,
   "baselineRelease": "68663bd1f247a8cf48eb31a1008b367d6460e4c9",
   "objective": "Compartilhar agente, identidade da loja, regras, atalhos, catalogo, carrinho e jornada de checkout. Adaptar a apresentacao dos componentes ao canal Meta, priorizando os controles nativos.",
@@ -455,18 +455,32 @@
       }
     },
     "production": {
-      "sourceCommit": "d72c2578068d4b8a2a12e4c1c8765fd6e1ef72cf",
-      "apiDeploymentId": "083e84c1-bdd2-4bb5-826d-cc75d7b7cc8d",
-      "widgetDeploymentId": "dpl_BrpNZAUjL5r5ugv4rC1X6BE56TyY",
+      "sourceCommit": "c31e5c0cd78bf9ae5b8584e5072eb60d65914f7c",
+      "apiDeploymentId": "25dfce4f-5860-4567-9c47-e519697e535a",
+      "widgetDeploymentId": "dpl_HPGuNVCG7jhEuF6rMQzuQro4m1F9",
       "publicArtifact": {
-        "api": "ready",
-        "widgetStatus": 200,
-        "widgetAsset": "/assets/index-ChHsmfPE.js",
-        "hasPaymentHandoff": true
+        "checkedAt": "2026-10-13T19:38:33.161Z",
+        "widget": {
+          "httpStatus": 200,
+          "asset": "/assets/index-B1Ulw3mo.js",
+          "initialPaymentMethodPresent": true,
+          "paymentRevisionPresent": true
+        },
+        "dashboard": {
+          "httpStatus": 200,
+          "asset": "/assets/index-CoYe4jJp.js"
+        },
+        "api": {
+          "httpStatus": 200,
+          "ready": {
+            "status": "ready",
+            "db": "connected"
+          }
+        }
       },
       "status": "published_and_verified"
     },
-    "realMenu": "New native Pix/card menu accepted by Meta with two READ receipts. The existing checkout has verified email identity, two live shipping choices and no payment intent/order yet.",
+    "realMenu": "A real customer selected Pix and reported the Mercado Pago checkout opened. The pending payment is preserved; the refreshed native menu offers Trocar pagamento and Usar cupom. Changing methods requires the customer to confirm cancellation through the existing storefront service.",
     "navigationRegression": {
       "fix": "Product-card admission is the sole Add action. Recommendations preserve their existing storefront variant ID and also provide the authoritative product ID for Meta navigation.",
       "coverage": [
@@ -509,20 +523,58 @@
     "shippingAndPaymentCorrections": {
       "shipping": "Prefer real carrier quotes over estimates; subsidize exactly one real service under merchant rules and preserve original carrier cost; full price/time labels select exactly or reject stale/ambiguous choices.",
       "payment": "Native choices bind method and current cart fingerprint to the action; free text remains navigation. Read the same provider capabilities as storefront. Pix displays the provider checkout URL and code. Stripe opens its card form through the same signed secure widget, retaining the checkout and shipping. Hosted card providers return their own invoice URL. Pending provider responses never trigger a second payment.",
-      "presentation": "Advertise only supported configured Pix/card routes; remove duplicate payment quick replies and repeat the full summary only when its values change."
+      "presentation": "Advertise only supported configured Pix/card routes; remove duplicate payment quick replies and repeat the full summary only when its values change.",
+      "paymentEditing": "Native edit asks for explicit confirmation before invoking the existing storefront cancellation/reopen service. Keep payment retains the pending quote. Uncertain or already paid cancellation cannot clear the current payment or issue a replacement. Confirmed cancellation advances generation/revision so another method does not reuse the canceled intent key. Back refreshes authoritative checkout state.",
+      "coupon": "Use the short native label Usar cupom, preserve numeric codes as free input, and invoke the existing checkout coupon transaction using server scope/version. Invalid codes retain input; success uses shared totals and one reservation."
     },
     "shippingRegressionTests": {
       "passed": 32,
       "failed": 0
     },
     "paymentBrowserRegression": {
-      "paymentHandoffPassed": 2,
-      "addressRegressionPassed": 2,
+      "paymentHandoffPassed": 4,
       "viewports": [
         390,
         1440
       ],
+      "paymentRevisions": [
+        0,
+        42
+      ],
       "providerResponses": "simulated; no external charge"
+    },
+    "paymentEditingAndCoupon": {
+      "reusedServices": {
+        "checkoutReopen": "ReopenEmbedCheckoutUseCase",
+        "pendingCancellation": "CancelCheckoutPaymentUseCase -> CancelPaymentIntentUseCase",
+        "couponApplication": "ApplyCouponUseCase.executeForCheckout",
+        "paymentCancellationImplementationChanged": false,
+        "couponImplementationChanged": false,
+        "proof": "Same injected Nest instances and actual database repositories were exercised in isolated sandbox fixtures; only the provider cancellation result was simulated; no real charge or external message was created by the probe."
+      },
+      "sandboxProof": {
+        "environment": "sandbox",
+        "deploymentId": "51ff4a5d-7c0c-4724-83a4-a491b11d267d",
+        "synthetic": true,
+        "realCheckoutPersistence": true,
+        "realCouponPersistence": true,
+        "providerCancellation": "simulated",
+        "externalMutations": 0,
+        "checks": [
+          "Nest_module_injects_existing_storefront_services",
+          "native_switch_requires_confirmation_before_provider_mutation",
+          "keep_payment_retains_real_pending_intent",
+          "existing_cancel_service_and_repository_reopen_persist_and_preserve_customer_shipping",
+          "numeric_invalid_coupon_uses_existing_validation_and_keeps_input",
+          "existing_coupon_transaction_persists_single_reservation_and_authoritative_total_without_new_charge"
+        ],
+        "cleanup": {
+          "remainingFixtures": 0
+        }
+      },
+      "localChecks": 214,
+      "browserChecks": 4,
+      "realProviderCancellation": "awaiting explicit customer confirmation"
     }
   },
   "templatePolicy": {
