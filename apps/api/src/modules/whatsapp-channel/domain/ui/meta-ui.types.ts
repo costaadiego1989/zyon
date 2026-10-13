@@ -43,6 +43,10 @@ export interface WhatsAppConversationState {
   checkoutGeneration?: number;
   payment?: { intentId: string; sessionId: string; method?: "pix" | "card" | "boleto"; amount_cents: number; status: string; copy_paste?: string; ticket_url?: string };
   checkoutSummaryFingerprint?: string;
+  paymentGeneration?: number;
+  paymentRevision?: number;
+  pendingCheckoutEdit?: { section: "payment" | "coupon"; fingerprint: string; intentId: string; method?: "pix" | "card" };
+  pendingCoupon?: { sessionId: string; fingerprint: string };
   expectsFreeInput?: boolean;
   history: Array<{ role: "user" | "assistant"; content: string }>;
   revision: string;

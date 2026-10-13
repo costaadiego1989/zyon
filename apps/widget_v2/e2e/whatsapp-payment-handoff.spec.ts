@@ -1,7 +1,8 @@
 import { expect, test } from "@playwright/test";
 
 for (const width of [390, 1440]) {
-  test(`WhatsApp card handoff retains the order and opens the configured secure payment at ${width}px`, async ({ page }) => {
+  for (const revision of [0, 42]) {
+  test(`WhatsApp card handoff retains the order and opens the configured secure payment at ${width}px, revision ${revision}`, async ({ page }) => {
     await page.setViewportSize({ width, height: 900 });
     const calls: string[] = [];
     const address = { zip: "01310100", street: "Avenida Paulista", number: "100", complement: "", city: "São Paulo", state: "SP" };
@@ -20,7 +21,7 @@ for (const width of [390, 1440]) {
       if (path === "/embed/payment/intents") {
         const body = route.request().postDataJSON();
         expect(body.session_id).toBe("whatsapp-checkout"); expect(body.method).toBe("card");
-        expect(body.idempotency_key).toBe("pay_whatsapp-checkout_card_0");
+        expect(body.idempotency_key).toBe(`pay_whatsapp-checkout_card_${revision}`);
         // Browser/presentation proof only. No external provider or charge.
         return route.fulfill({ json: { id: "qa-card", method: "card", status: "requires_action", amountCents: 29079,
           buyerFacing: { invoiceUrl: "https://www.asaas.com/i/qa-only" }, experience } });
@@ -29,10 +30,11 @@ for (const width of [390, 1440]) {
       return route.fulfill({ json: {} });
     });
     await page.route("**/checkout-settings/widget-config**", route => route.fulfill({ json: { enabledTriggers: [], advancedRules: [] } }));
-    await page.goto("/?embedToken=fixture&merchantId=qa-merchant&apiBaseUrl=http://127.0.0.1:5174&channel=chat&paymentMethod=card");
+    await page.goto(`/?embedToken=fixture&merchantId=qa-merchant&apiBaseUrl=http://127.0.0.1:5174&channel=chat&paymentMethod=card&paymentRevision=${revision}`);
     await expect(page.getByRole("link", { name: "Continuar para o pagamento seguro" })).toHaveAttribute("href", "https://www.asaas.com/i/qa-only");
     expect(calls.filter(path => path === "/embed/payment/intents")).toHaveLength(1);
     expect(calls.some(path => /shipping\/select|embed\/chat$/.test(path))).toBe(false);
     await expect(page.getByText(/290,79/).first()).toBeVisible();
   });
+  }
 }

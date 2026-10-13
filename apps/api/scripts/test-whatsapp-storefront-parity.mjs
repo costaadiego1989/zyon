@@ -12,6 +12,7 @@ const specs = [
   "whatsapp-channel/application/services/whatsapp-checkout-identity.spec.ts",
   "buyer-account/infrastructure/prisma-buyer-phone-lookup.spec.ts",
   "whatsapp-channel/infrastructure/adapters/whatsapp-storefront-parity.spec.ts",
+  "whatsapp-channel/infrastructure/adapters/whatsapp-checkout-edit.spec.ts",
   "whatsapp-channel/infrastructure/adapters/checkout-whatsapp-conversation.adapter.spec.ts",
   "whatsapp-channel/infrastructure/adapters/meta-cloud-sender.adapter.spec.ts",
   "whatsapp-channel/infrastructure/adapters/meta-catalog-order.adapter.spec.ts",

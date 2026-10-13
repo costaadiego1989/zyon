@@ -86,6 +86,7 @@ import { ReopenEmbedCheckoutUseCase } from "./application/reopen-embed-checkout.
     ProtocolSessionExpiryReaper,
   ],
   exports: [
+    ReopenEmbedCheckoutUseCase,
     IssueEmbedSessionUseCase,
     ResolveEmbedBuyerService,
     EmbedTokenService,

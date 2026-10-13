@@ -53,8 +53,20 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
       case "text": case "message": text.push(value(d.text || d.content)); break;
       case "form_field": text.push(`Informe ${value(d.label || d.field)}:`); break;
       case "address_confirmation": text.push(`*Confira a entrega*\n${value(d.formatted)}\n\n_O endereço está correto?_`); add("Sim", { kind: "message", message: "Sim" }); add("Corrigir endereço", { kind: "message", message: "Não" }); break;
-      case "payment_methods": items(d.methods).forEach(m => add(value(m.label), d.nativePayment && d.fingerprint
-        ? tool("create_payment", { method: m.key, fingerprint: d.fingerprint }) : { kind: "message", message: value(m.label) }, value(m.sub))); break;
+      case "payment_methods":
+        items(d.methods).forEach(m => add(value(m.label), d.nativePayment && d.fingerprint
+          ? tool("create_payment", { method: m.key, fingerprint: d.fingerprint }) : { kind: "message", message: value(m.label) }, value(m.sub)));
+        if (d.nativePayment && d.couponAllowed) add("Usar cupom", tool("edit_checkout", { section: "coupon", fingerprint: d.fingerprint }));
+        break;
+      case "checkout_edit_actions":
+        add("Trocar pagamento", tool("edit_checkout", { section: "payment", fingerprint: d.fingerprint }));
+        if (d.couponAllowed) add("Usar cupom", tool("edit_checkout", { section: "coupon", fingerprint: d.fingerprint }));
+        break;
+      case "checkout_edit_confirmation":
+        add("Confirmar troca", tool("confirm_checkout_edit", { section: d.section, fingerprint: d.fingerprint, intentId: d.intentId }));
+        add("Manter pagamento", tool("cancel_checkout_edit", {}));
+        break;
+      case "coupon_entry": add("Cancelar cupom", tool("cancel_coupon_entry", {})); break;
       case "payment_actions": add("Gerar Pix", tool("create_payment", { method: "pix", fingerprint: d.fingerprint })); break;
       case "coupon_input": text.push("Qual é o código do cupom?"); break;
       case "offer_coupon": text.push(value(d.message || d.description || d.label)); add("Aplicar oferta", { kind: "message", message: "Aplicar oferta" }); break;
@@ -189,7 +201,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
     if (/^adicionar.*carrinho$/i.test(label) && view.choices.some(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart")) return;
     if (/^adicionar.*carrinho$/i.test(label) && response.blocks.some(b => b.type === "product_card")) return;
     if (/^finalizar compra$/i.test(label) && response.blocks.some(b => b.type === "cart_summary" && !items(object(b.data).items).length)) return;
-    add(label, metaStoreQuickReplyAction(label, response.state) ?? { kind: "message", message: label });
+    if (/^tenho um cupom de desconto$/i.test(label.trim()) && view.choices.some(c => c.label === "Usar cupom")) return;
+    add(/^tenho um cupom de desconto$/i.test(label.trim()) ? "Usar cupom" : label, metaStoreQuickReplyAction(label, response.state) ?? { kind: "message", message: label });
   });
   const seen = new Set<string>();
   view.choices = view.choices.filter(c => { const key = JSON.stringify(c.action); if (!c.label.trim() || seen.has(key)) return false; seen.add(key); return true; });

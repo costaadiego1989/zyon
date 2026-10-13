@@ -282,7 +282,7 @@ interface CheckoutState {
   leadRegistered: boolean;
   pendingPayment: PendingPayment | null;
 
-  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" }; initialChannel?: "chat" | "voice"; initialPaymentMethod?: "card" }) => Promise<void>;
+  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" }; initialChannel?: "chat" | "voice"; initialPaymentMethod?: "card"; paymentRevision?: number }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   startQuickPurchase: () => Promise<void>;
   completeFormField: (field: string) => void;
@@ -534,9 +534,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   leadRegistered: false,
   pendingPayment: null,
 
-  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences, initialChannel, initialPaymentMethod }) => {
+  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences, initialChannel, initialPaymentMethod, paymentRevision }) => {
     try {
-      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken });
+      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, paymentRevision });
       get().stopPolling();
       set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
         pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false, quickPurchaseApplying: false });

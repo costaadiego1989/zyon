@@ -21,6 +21,10 @@ export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversa
 
 /** A typed label may reuse only one action from the current persisted view. */
 export function resolveMetaStoreTextAction(message: string, state: WhatsAppConversationState): StoreUiAction | undefined {
+  if (state.stage === "checkout" && !state.expectsFreeInput && /^(trocar pagamento|usar cupom|confirmar troca|manter pagamento)$/i.test(message.trim())) {
+    const matches = state.view?.choices.filter(c => c.label.trim().toLocaleLowerCase("pt-BR") === message.trim().toLocaleLowerCase("pt-BR")) ?? [];
+    return matches.length === 1 ? matches[0].action : undefined;
+  }
   if (state.expectsFreeInput || state.stage !== "store") return;
   const sameLabel = state.view?.choices.filter(c => c.label.trim().toLocaleLowerCase("pt-BR") === message.trim().toLocaleLowerCase("pt-BR")) ?? [];
   if (sameLabel.length === 1) return sameLabel[0].action;

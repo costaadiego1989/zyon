@@ -15,6 +15,7 @@ export interface CheckoutSessionConfig {
   embedApiBaseUrl?: string;
   globalUserId?: string;
   buyerAccessToken?: string;
+  paymentRevision?: number;
 }
 
 export interface BrandConfig {
@@ -301,6 +302,7 @@ export class CheckoutSession {
     this.embedBaseUrl = (config.embedApiBaseUrl ?? config.apiBaseUrl).replace(/\/$/, "");
     this.globalUserId = config.globalUserId;
     this.buyerAccessToken = config.buyerAccessToken;
+    if (Number.isSafeInteger(config.paymentRevision) && config.paymentRevision! >= 0) this.paymentRevision = config.paymentRevision!;
   }
 
   get currentSessionId(): string | null {

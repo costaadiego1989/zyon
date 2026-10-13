@@ -67,7 +67,8 @@ export class HandleMetaConversationUseCase {
         view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
         const product = view?.blocks.find(b => b.type === "product_card");
         const cartView = view?.blocks.some(b => b.type === "cart_summary") || view?.choices.some(c => c.action.kind === "tool" && ["update_cart_item", "remove_cart_item", "edit_cart_item"].includes(c.action.tool));
-        const refresh = cartView ? { kind: "tool" as const, tool: "get_cart", args: {} }
+        const checkoutView = state.stage === "checkout" && view?.blocks.some(b => ["checkout_summary", "payment_methods", "payment_intent", "checkout_edit_actions", "coupon_entry"].includes(b.type));
+        const refresh = checkoutView ? { kind: "tool" as const, tool: "show_checkout", args: {} } : cartView ? { kind: "tool" as const, tool: "get_cart", args: {} }
           : product ? { kind: "tool" as const, tool: "get_product_details", args: { productId: (product.data as any).id } } : undefined;
         if (refresh) { const response = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData, message: "Voltar", state, action: refresh }); state = response.state; view = buildMetaUiView(response); }
       }
