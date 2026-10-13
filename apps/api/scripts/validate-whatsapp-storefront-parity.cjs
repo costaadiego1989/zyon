@@ -129,6 +129,8 @@
       results.checks.push('native_add_persists_same_storefront_cart');
       const item = cart.items[0];
       await turn('Ver Carrinho');
+      assert.ok(session.conversationState.view.choices.some(choice => choice.action.kind === 'tool' && choice.action.tool === 'checkout'));
+      results.checks.push('view_cart_keeps_native_checkout_and_continue_shopping_reachable');
       await turn('Editar item', { interactiveId: await choose(storeTool('edit_cart_item')) });
       await turn('Adicionar uma unidade', { interactiveId: await choose(action => action.kind === 'tool' && action.tool === 'update_cart_item' && action.args.quantity === 2) });
       const edited = await cartRead();
@@ -143,6 +145,7 @@
       assert.equal((await cartRead()).items[0].quantity, 1);
       await turn('Remover item', { interactiveId: await choose(storeTool('remove_cart_item')) });
       assert.equal((await cartRead()).items.length, 0);
+      assert.equal(session.conversationState.view.choices.some(choice => choice.action.kind === 'tool' && choice.action.tool === 'checkout'), false);
       results.checks.push('native_decrement_and_remove_persist_and_empty_cart_is_displayed');
       await turn('Continuar Comprando');
       await turn('Ver produto', { interactiveId: await choose(action => action.kind === 'tool' && action.tool === 'get_product_details' && action.args.productId === fixtureProductId) });

@@ -111,6 +111,8 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         });
         text.push(`Subtotal: ${money(d.subtotal)}${d.discount ? `\nDescontos: ${money(d.discount)}` : ""}\nTotal: *${money(d.total)}*`);
         if (d.freeShipping) text.push("Frete grátis aplicado.");
+        if (items(d.items).length) add("Finalizar compra", tool("checkout", {}));
+        add("Continuar comprando", tool("search_products", { query: "*" }));
         break;
       case "cart_add_result":
         text.push(d.status === "succeeded" ? "Item adicionado ao carrinho." : d.status === "unknown" ? "A inclusão está sendo verificada." : "Não foi possível adicionar este item."); break;
@@ -171,6 +173,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
   response.quickReplies.forEach(label => {
     if (/^adicionar.*carrinho$/i.test(label) && view.choices.some(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart")) return;
     if (/^adicionar.*carrinho$/i.test(label) && response.blocks.some(b => b.type === "product_card")) return;
+    if (/^finalizar compra$/i.test(label) && response.blocks.some(b => b.type === "cart_summary" && !items(object(b.data).items).length)) return;
     add(label, metaStoreQuickReplyAction(label, response.state) ?? { kind: "message", message: label });
   });
   const seen = new Set<string>();

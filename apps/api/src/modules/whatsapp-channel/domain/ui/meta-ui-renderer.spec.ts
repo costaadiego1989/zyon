@@ -166,3 +166,18 @@ test("a cross-sell opens its authoritative product ID while preserving the store
   ] } }] as any }));
   assert.deepEqual(view.choices[0].action, { kind: "tool", tool: "get_product_details", args: { productId: "product-creme" } });
 });
+
+test("an actual cart always offers checkout and shopping navigation even with welcome-only shortcuts", () => {
+  const view = buildMetaUiView(response({ blocks: [{ type: "cart_summary", data: { items: [
+    { variantId: "large", productName: "Serum 50 ml", quantity: 1, subtotal: 189.90 },
+  ], total: 189.90 } }] as any, quickReplies: ["Ver Produtos", "Categorias"] }));
+  assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "checkout"));
+  assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "search_products"));
+});
+
+test("an empty cart offers shopping navigation and cannot expose a checkout control", () => {
+  const view = buildMetaUiView(response({ blocks: [{ type: "cart_summary", data: { items: [], total: 0 } }] as any,
+    quickReplies: ["Finalizar Compra", "Continuar Comprando"] }));
+  assert.ok(!view.choices.some(c => c.action.kind === "tool" && c.action.tool === "checkout"));
+  assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "search_products"));
+});

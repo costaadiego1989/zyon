@@ -394,7 +394,7 @@
                            "localBuild":  "passed",
                            "compiledAppModuleImport":  "passed",
                            "latestFocusedTests":  {
-                           "passed":  164,
+                           "passed":  166,
                                                       "failed":  0
                                                   },
                            "sharedFlow":  "implemented",
@@ -409,9 +409,9 @@
                            "navigationRegression": {
                              "fix": "Product-card admission is the sole Add action. Recommendations preserve their existing storefront variant ID and also provide the authoritative product ID for Meta navigation.",
                              "coverage": ["native and typed shortcuts", "rich duplicate CTAs", "variant choice and sold-out variant", "stale selection", "contextual details", "cart add", "quantity increase and decrease", "remove", "continue shopping", "back refresh", "same secure checkout", "email ownership and OTP expiry"],
-                             "command": "node --loader ./tests/ready-prod-loader.mjs --test --test-force-exit <focused specs>",
+                             "command": "pnpm --filter @zyon/api test:whatsapp-storefront-parity",
                              "sandboxProbe": "apps/api/scripts/validate-whatsapp-storefront-parity.cjs",
-                             "testResults": { "passed": 164, "failed": 0, "skipped": 1 },
+                             "testResults": { "passed": 166, "failed": 0, "skipped": 1 },
                              "providerOrFinancialProof": false
                            },
                            "realPurchase":  "not_validated"
