@@ -30,7 +30,7 @@ export const formatMetaText = (text: string): string => text
 
 /** Channel presentation only: all commercial values and actions come from the store. */
 export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiView {
-  const view: MetaUiView = { title: response.merchantName || "Sua loja", body: response.agentMessage, choices: [], media: [], blocks: response.blocks, quickReplies: response.quickReplies };
+  const view: MetaUiView = { stage: response.state.stage, title: response.merchantName || "Sua loja", body: response.agentMessage, choices: [], media: [], blocks: response.blocks, quickReplies: response.quickReplies };
   const text: string[] = [response.agentMessage];
   const add = (label: string, action: StoreUiAction, description?: string) => view.choices.push({ label, action, description });
   const photo = (url: unknown, caption?: string) => { const link = safeLink(url); if (link) view.media.push({ type: "image", media: { link, caption: caption ? concise(caption, 1024) : undefined } }); };

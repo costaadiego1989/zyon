@@ -4,7 +4,7 @@ import { WHATSAPP_CONVERSATION_PORT, type WhatsAppConversationPort } from "../..
 import { WHATSAPP_SESSION_REPOSITORY, type WhatsAppSessionRepository } from "../../domain/ports/whatsapp-session-repository.port.js";
 import { WHATSAPP_WEBHOOK_INBOX, type WhatsAppWebhookInbox, type WhatsAppInboxClaim } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
 import { buildMetaUiView, presentMetaUi } from "../../domain/ui/meta-ui-renderer.js";
-import type { MetaUiPresentation, StoreUiAction, WhatsAppConversationState, WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
+import type { MetaUiPresentation, MetaUiView, StoreUiAction, WhatsAppConversationState, WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
 import { SendWhatsAppResponseUseCase } from "./send-whatsapp-response.use-case.js";
 import type { IncomingMessageInput } from "./handle-incoming-message.use-case.js";
 import type { RouteResult } from "./route-to-session.use-case.js";
@@ -59,7 +59,7 @@ export class HandleMetaConversationUseCase {
       else action = resolveMetaStoreTextAction(input.body, state);
 
       const revision = claim.id;
-      let view = state.view;
+      let view: MetaUiView | undefined = state.view ? { ...state.view, stage: state.view.stage ?? state.stage } : undefined;
       let includeMedia = true;
       if (invalidSelection) { view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Não consegui validar essa seleção. Escolha uma das opções atuais ou escreva sua pergunta." }; includeMedia = false; }
       else if (action?.kind === "page" && view) { state = { ...state, page: action.page }; includeMedia = false; }
@@ -67,7 +67,9 @@ export class HandleMetaConversationUseCase {
         view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
         const product = view?.blocks.find(b => b.type === "product_card");
         const cartView = view?.blocks.some(b => b.type === "cart_summary") || view?.choices.some(c => c.action.kind === "tool" && ["update_cart_item", "remove_cart_item", "edit_cart_item"].includes(c.action.tool));
-        const checkoutView = state.stage === "checkout" && view?.blocks.some(b => ["checkout_summary", "payment_methods", "payment_intent", "checkout_edit_actions", "coupon_entry"].includes(b.type));
+        const checkoutView = !!state.checkoutSessionId && (view?.stage === "checkout" || !view?.stage && view?.blocks.some(b => ["checkout_summary", "payment_methods", "payment_intent", "checkout_edit_actions", "checkout_edit_confirmation", "coupon_entry", "checkout_redirect", "checkout_form", "shipping_options"].includes(b.type)));
+        state = { ...state, stage: checkoutView ? "checkout" : view?.stage ?? (cartView || product ? "store" : state.stage),
+          pendingCheckoutEdit: undefined, pendingCoupon: undefined, pendingFlow: undefined, expectsFreeInput: false };
         const refresh = checkoutView ? { kind: "tool" as const, tool: "show_checkout", args: {} } : cartView ? { kind: "tool" as const, tool: "get_cart", args: {} }
           : product ? { kind: "tool" as const, tool: "get_product_details", args: { productId: (product.data as any).id } } : undefined;
         if (refresh) { const response = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData, message: "Voltar", state, action: refresh }); state = response.state; view = buildMetaUiView(response); }
@@ -118,6 +120,7 @@ export class HandleMetaConversationUseCase {
         view = buildMetaUiView(response); state.page = 0;
       }
       if (!view) throw new Error("whatsapp_ui_view_missing");
+      view = { ...view, stage: view.stage ?? state.stage };
       const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0, includeMedia });
       state = { ...state, revision, view, page: presentation.page, selections: presentation.selections, numericSelections: presentation.numericSelections };
       saved = { phase: "prepared", presentation, state, sessionId: route.whatsappSession.id, previousRevision: route.whatsappSession.conversationState?.revision ?? "", sent: [] };

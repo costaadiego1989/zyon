@@ -18,6 +18,7 @@ export type MetaUiMessage =
   | { type: "interactive"; interactive: Record<string, unknown> };
 
 export interface MetaUiView {
+  stage?: "store" | "checkout";
   title: string;
   body: string;
   choices: MetaUiChoice[];

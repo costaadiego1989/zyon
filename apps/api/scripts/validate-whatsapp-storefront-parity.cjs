@@ -115,6 +115,25 @@
       await turn('Oi');
       assert.ok(emitted.some(message => message.type === 'interactive'));
       results.checks.push('native_welcome_and_quick_replies_persisted');
+      const expectedWelcome = session.conversationState.view.choices.map(choice => JSON.stringify(choice.action)).sort();
+      const visitedWelcome = [];
+      for (let page = 0; page < 20; page++) {
+        visitedWelcome.push(...Object.values(session.conversationState.selections).filter(action => !['page', 'back'].includes(action.kind)).map(action => JSON.stringify(action)));
+        const next = Object.entries(session.conversationState.selections).find(([, action]) => action.kind === 'page' && action.page > session.conversationState.page);
+        if (!next) break;
+        await turn('Mais opções', { interactiveId: next[0] });
+      }
+      assert.deepEqual(visitedWelcome.sort(), expectedWelcome);
+      results.checks.push('all_configured_welcome_actions_remain_reachable_across_persisted_native_pages');
+      await turn('Categorias', { action: { kind: 'tool', tool: 'list_categories', args: {} } });
+      assert.ok(session.conversationState.view.blocks.some(block => block.type === 'category_carousel'));
+      await turn('Voltar', { interactiveId: await choose(action => action.kind === 'back') });
+      assert.equal(session.conversationState.stage, 'store');
+      await turn('Ofertas', { action: { kind: 'tool', tool: 'get_daily_deals', args: {} } });
+      assert.equal(session.conversationState.stage, 'store');
+      await turn('Menu');
+      assert.ok(session.conversationState.view.choices.length);
+      results.checks.push('categories_offers_back_and_menu_use_the_shared_storefront_navigation');
       await turn('Ver produtos', { action: { kind: 'tool', tool: 'search_products', args: { query: runId } } });
       const productChoice = pick(action => action.kind === 'tool' && action.tool === 'get_product_details');
       await turn('Ver produto', { interactiveId: productChoice });
@@ -179,6 +198,13 @@
       assert.equal(checkout.customer.email_verified === true, false); assert.equal(checkout.cart.items[0].quantity, 2);
       assert.match(session.conversationState.view.body, /Qual é seu email/);
       assert.equal(session.conversationState.view.blocks.some(block => block.type === 'checkout_redirect'), false);
+      await turn('Menu');
+      assert.equal(session.conversationState.stage, 'store');
+      await turn('Voltar', { interactiveId: await choose(action => action.kind === 'back') });
+      assert.equal(session.conversationState.stage, 'checkout');
+      assert.equal(session.conversationState.checkoutSessionId, checkoutSessionId);
+      assert.match(session.conversationState.view.body, /Qual é seu email/);
+      results.checks.push('menu_back_resumes_authoritative_checkout_data_entry_and_keeps_its_binding');
       await turn(qaEmail);
       const wrongCode = capturedCode === '000000' ? '111111' : '000000';
       await turn(wrongCode);
@@ -222,6 +248,16 @@
         assert.equal(shopper.email, qaEmail);
       } finally { store.execute = originalStoreExecute; }
       results.checks.push('email_authenticated_identity_survives_return_to_actual_storefront_cart');
+      await turn('Ver carrinho');
+      assert.equal(session.conversationState.stage, 'store');
+      assert.equal((await cartRead()).items[0].quantity, 2);
+      await turn('Voltar', { interactiveId: await choose(action => action.kind === 'back') });
+      assert.equal(session.conversationState.stage, 'checkout');
+      assert.equal(session.conversationState.checkoutSessionId, checkoutSessionId);
+      const returnedCheckout = await prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: checkoutSessionId } } });
+      assert.equal(returnedCheckout.globalUserId, globalUserId);
+      assert.equal(returnedCheckout.customer.email_verified, true);
+      results.checks.push('cart_back_resumes_verified_checkout_without_losing_items_or_restarting_registration');
       const redirect = session.conversationState.view.blocks.find(block => block.type === 'checkout_redirect');
       assert.ok(redirect, JSON.stringify({ stage: session.conversationState.stage, viewTypes: session.conversationState.view.blocks.map(block => block.type), hasCpf: !!verified.customer.cpf, hasName: !!verified.customer.fullName, emailVerified: verified.customer.email_verified, phoneVerified: verified.customer.phone_verified, viewBody: session.conversationState.view.body.replace(/https:\/\/\S+/g, '[url]').replace(/[A-Z0-9._%+-]+@[A-Z0-9.-]+\.[A-Z]{2,}/gi, '[email]').slice(0,300) })); const url = new URL(redirect.data.url);
       assert.equal(url.origin, 'https://widget-v2-sandbox.up.railway.app'); assert.ok(url.searchParams.get('embedToken'));

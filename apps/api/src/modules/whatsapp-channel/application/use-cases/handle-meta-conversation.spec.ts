@@ -118,3 +118,85 @@ test("back from a quantity editor reloads the actual cart instead of replaying o
   assert.equal(action.tool, "get_cart");
   assert.ok(f.emitted.some(message => message.type === "text" && /\*Produto\*[\s\S]*Quantidade: 3/.test(message.text.body)));
 });
+
+test("back from the store menu resumes the current checkout instead of replaying its old payment controls", async () => {
+  const f = fixture(); let actual: any;
+  const state = f.route.whatsappSession.conversationState;
+  state.checkoutSessionId = "checkout1";
+  state.previousViews = [{ title: "Pagamento", body: "Escolha como pagar", blocks: [{ type: "payment_methods", data: {} }], media: [], quickReplies: [], choices: [] }];
+  f.conversation.respondStore = async (call: any) => { actual = call; return { agentMessage: "Pagamento atualizado", quickReplies: [], blocks: [], state: call.state }; };
+  f.input.body = "0";
+  await f.execute();
+  assert.equal(actual?.action.tool, "show_checkout");
+  assert.equal(actual.state.stage, "checkout");
+  assert.equal(actual.state.checkoutSessionId, "checkout1");
+});
+
+test("back resumes a checkout data-entry view through its saved stage even without payment blocks", async () => {
+  const f = fixture(); let actual: any;
+  const state = f.route.whatsappSession.conversationState;
+  state.checkoutSessionId = "checkout1";
+  state.previousViews = [{ stage: "checkout", title: "Cadastro", body: "Qual é seu email?", blocks: [], media: [], quickReplies: [], choices: [] }];
+  f.conversation.respondStore = async (call: any) => { actual = call; return { agentMessage: "Qual é seu email?", quickReplies: [], blocks: [], state: { ...call.state, expectsFreeInput: true } }; };
+  f.input.body = "0"; await f.execute();
+  assert.equal(actual.action.tool, "show_checkout"); assert.equal(actual.state.stage, "checkout");
+  assert.equal(f.route.whatsappSession.conversationState.expectsFreeInput, true);
+});
+
+test("back from checkout restores the store menu stage and its authoritative typed shortcuts", async () => {
+  const f = fixture(); const state = f.route.whatsappSession.conversationState;
+  state.stage = "checkout"; state.checkoutSessionId = "checkout1";
+  state.previousViews = [{ stage: "store", title: "Loja", body: "Como posso ajudar?", blocks: [], media: [], quickReplies: ["Ver produtos"],
+    choices: [{ label: "Ver produtos", action: { kind: "tool", tool: "search_products", args: { query: "*" } } }] }];
+  f.input.body = "0"; await f.execute();
+  assert.equal(f.route.whatsappSession.conversationState.stage, "store"); assert.equal(f.calls(), 0);
+  f.claim.id = "return-to-store"; f.claim.responseState = undefined; f.input.body = "Ver produtos"; let actual: any;
+  f.conversation.respondStore = async (call: any) => { actual = call; return { agentMessage: "Produtos", quickReplies: [], blocks: [], state: call.state }; };
+  await f.execute(); assert.equal(actual.action.tool, "search_products"); assert.equal(actual.state.stage, "store");
+});
+
+for (const overlay of ["coupon_entry", "checkout_edit_confirmation"]) test(`back dismisses ${overlay} without applying a coupon or canceling a payment`, async () => {
+  const f = fixture(); let actual: any;
+  const state = f.route.whatsappSession.conversationState;
+  Object.assign(state, { stage: "checkout", checkoutSessionId: "checkout1", expectsFreeInput: overlay === "coupon_entry",
+    pendingCoupon: overlay === "coupon_entry" ? { sessionId: "checkout1", fingerprint: "current" } : undefined,
+    pendingCheckoutEdit: overlay === "checkout_edit_confirmation" ? { section: "payment", fingerprint: "current", intentId: "pix1" } : undefined,
+    payment: { intentId: "pix1", sessionId: "checkout1", method: "pix", status: "requires_action", amount_cents: 10000 },
+    selections: { back: { kind: "back" } },
+    previousViews: [{ title: "Pagamento", body: "Pagamento atual", blocks: [{ type: "payment_intent", data: {} }], media: [], quickReplies: [], choices: [] }],
+  });
+  f.conversation.respondStore = async (call: any) => { actual = call; return { agentMessage: "Pedido mantido", quickReplies: [], blocks: [], state: call.state }; };
+  f.input.interactiveId = "back";
+  await f.execute();
+  assert.equal(actual.action.tool, "show_checkout");
+  assert.equal(actual.state.pendingCoupon, undefined);
+  assert.equal(actual.state.pendingCheckoutEdit, undefined);
+  assert.equal(actual.state.expectsFreeInput, false);
+  assert.equal(actual.state.payment.intentId, "pix1");
+});
+
+test("native pagination persists each configured question and numeric selection invokes the original question", async () => {
+  const f = fixture(); const labels = Array.from({ length: 31 }, (_, index) => `Pergunta completa ${index + 1}`); const calls: any[] = [];
+  f.conversation.respondStore = async (call: any) => { calls.push(call); return { agentMessage: "Escolha", quickReplies: labels, blocks: [], state: call.state }; };
+  const turn = async (body: string, interactiveId?: string) => {
+    f.claim.id = `page-turn-${f.emitted.length}`; f.claim.responseState = undefined;
+    f.input.body = body; f.input.interactiveId = interactiveId;
+    await f.execute();
+  };
+  await turn("Oi");
+  const seen: string[] = [];
+  for (let page = 0; page < 5; page++) {
+    const state = f.route.whatsappSession.conversationState;
+    assert.equal(state.page, page);
+    seen.push(...Object.values(state.selections).filter((action: any) => action.kind === "message").map((action: any) => action.message));
+    if (page < 4) {
+      const next = Object.entries(state.selections).find(([, action]: any) => action.kind === "page" && action.page === page + 1);
+      assert.ok(next); await turn("Próxima página", next[0]);
+    }
+  }
+  assert.deepEqual(seen, labels); assert.equal(calls.length, 1);
+  const last = f.route.whatsappSession.conversationState;
+  const original = last.numericSelections[0].message;
+  await turn("1");
+  assert.equal(calls.length, 2); assert.equal(calls[1].message, original);
+});
