@@ -1,9 +1,19 @@
 import type { StoreToolHandlers } from "../../domain/tools/types.js";
+import { BadRequestException, ConflictException, NotFoundException } from "@nestjs/common";
 import type { StorefrontUiAction } from "../../domain/types/storefront-ui-action.js";
 import { buildConversationBlocks } from "./conversation-block.builder.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 
 export async function executeStorefrontUiAction(handlers: StoreToolHandlers, action: StorefrontUiAction, merchantId: string, cartId: string) {
+  try {
+    return await executeAction(handlers, action, merchantId, cartId);
+  } catch (error) {
+    if (!(error instanceof BadRequestException || error instanceof ConflictException || error instanceof NotFoundException)) throw error;
+    return { message: "Não consegui concluir essa seleção. O produto pode estar indisponível ou suas condições ter mudado. Escolha outra opção ou consulte seu carrinho.", blocks: [] as ConversationBlock[] };
+  }
+}
+
+async function executeAction(handlers: StoreToolHandlers, action: StorefrontUiAction, merchantId: string, cartId: string) {
   const a = action.args; const str = (key: string) => typeof a[key] === "string" ? a[key] as string : "";
   let result: any; let message: string;
   switch (action.tool) {

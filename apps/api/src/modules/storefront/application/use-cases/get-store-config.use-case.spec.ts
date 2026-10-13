@@ -39,6 +39,17 @@ test("projects the public store config from the query port", async () => {
   assert.deepEqual(config.stories, [{ id: "story_a" }]);
 });
 
+test("a connected channel resolves merchant identity without treating its ID as a public slug", async () => {
+  const snapshot: any = { merchant: { id: "Merchant_ID", name: "Empresa", theme: {}, storeCategory: null, storeSettings: {} },
+    agentRule: { identity: { agentName: "Lia", greeting: "Saudação da empresa" }, checkoutSettings: {} }, quickReplies: { welcome: ["Meu atalho"] }, stories: [] };
+  const useCase = new GetStoreConfigUseCase({ findPublicConfig: async () => { assert.fail("merchant ID is not a storefront slug"); },
+    findMerchantConfig: async id => { assert.equal(id, "Merchant_ID"); return snapshot; } });
+  const output = await useCase.executeForMerchant("Merchant_ID");
+  assert.equal(output.agentGreeting, "Saudação da empresa"); assert.deepEqual(output.quickReplies, ["Meu atalho"]);
+  snapshot.merchant.id = "foreign_merchant";
+  await assert.rejects(useCase.executeForMerchant("Merchant_ID"), NotFoundException);
+});
+
 test("exposes the Growth voice entitlement as a UI hint while the voice route enforces it again", async () => {
   const calls: unknown[] = [];
   const useCase = new GetStoreConfigUseCase(

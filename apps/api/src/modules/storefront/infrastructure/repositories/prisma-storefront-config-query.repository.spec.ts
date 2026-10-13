@@ -37,6 +37,19 @@ test("does not resolve an unverified domain as a store", async () => {
   assert.equal(await repository.findPublicConfig("loja.exemplo.com"), null);
 });
 
+test("merchant-channel config uses the immutable ID and the same public configuration projection", async () => {
+  const calls: any[] = [];
+  const repository = new PrismaStorefrontConfigQueryRepository({
+    merchant: { findUnique: async input => { calls.push(input); return { id: "merchant_a", name: "Empresa", theme: {}, storeCategory: null, storeSettings: {} }; } },
+    merchantBillingSubscription: { findUnique: async () => null }, agentRule: { findFirst: async () => null },
+    merchantRule: { findUnique: async () => ({ quickReplies: { welcome: ["Atalho"] } }) },
+    storyCategory: { findMany: async () => [] }, checkoutSetting: { findUnique: async () => null }, merchantPolicy: { findUnique: async () => null },
+  } as any);
+  const config = await repository.findMerchantConfig("merchant_a");
+  assert.deepEqual(calls, [{ where: { id: "merchant_a" } }]);
+  assert.deepEqual(config?.quickReplies, { welcome: ["Atalho"] });
+});
+
 test("does not resolve a verified custom domain after its Growth entitlement ends", async () => {
   const repository = new PrismaStorefrontConfigQueryRepository({
     merchantDomain: { findUnique: async () => ({ merchantId: "merchant_a", verified: true, ownershipVerifiedAt: new Date() }) },

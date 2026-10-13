@@ -35,6 +35,15 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
     }
     if (!merchant) merchant = await this.prisma.merchant.findUnique({ where: { storeSlug: identifier } });
     if (!merchant) return null;
+    return this.snapshot(merchant, resolvedSubscription);
+  }
+
+  async findMerchantConfig(merchantId: string): Promise<StorefrontConfigSnapshot | null> {
+    const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId } });
+    return merchant ? this.snapshot(merchant) : null;
+  }
+
+  private async snapshot(merchant: any, resolvedSubscription?: { status: string; trialEndsAt: Date | null; stripePriceId: string | null; planKey: string | null } | null): Promise<StorefrontConfigSnapshot> {
 
     const [subscription, agentRule, merchantRules, stories, checkoutSettings, legacyPolicies] = await Promise.allSettled([
       resolvedSubscription === undefined

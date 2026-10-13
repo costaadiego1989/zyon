@@ -30,8 +30,17 @@
   const results = { environment: 'sandbox', deploymentId: process.env.RAILWAY_DEPLOYMENT_ID, synthetic: true, financial: false, providerMessagesSent: 0,
     runId, checks: [], cleanup: {}, externalMutationAttempts: 0 };
   const turnIds = []; const checkoutIds = new Set(); const emitted = [];
-  let session;
+  let session; let fixtureProductId;
   try {
+    const fixture = await prisma.product.create({ data: { merchantId, name: 'Native QA ' + runId, type: 'physical',
+      description: 'Isolated nonfinancial WhatsApp validation fixture', variants: { create: [
+        { sku: 'QA_BLUE_' + runId, attributes: { Cor: 'Azul' }, weightGrams: 100, lengthCm: 10, widthCm: 10, heightCm: 2,
+          price: { create: { basePriceInCents: 1234 } }, stock: { create: { quantity: 10 } }, media: { create: { url: 'https://example.com/qa-product.jpg', type: 'IMAGE' } } },
+        { sku: 'QA_RED_' + runId, attributes: { Cor: 'Vermelho' }, weightGrams: 100, lengthCm: 10, widthCm: 10, heightCm: 2,
+          price: { create: { basePriceInCents: 1500 } }, stock: { create: { quantity: 10 } } },
+      ] } } });
+    fixtureProductId = fixture.id;
+    results.fixture = 'isolated_physical_product_with_two_variants';
     await app.get(TenantContextService).run({ merchantId, userId: globalUserId, role: 'buyer', buyerGlobalUserId: globalUserId }, async () => {
       const sessions = app.get(WHATSAPP_SESSION_REPOSITORY);
       const inbox = app.get(WHATSAPP_WEBHOOK_INBOX);
@@ -67,7 +76,7 @@
       await turn('Oi');
       assert.ok(emitted.some(message => message.type === 'interactive'));
       results.checks.push('native_welcome_and_quick_replies_persisted');
-      await turn('Ver produtos', { action: { kind: 'tool', tool: 'search_products', args: { query: '*' } } });
+      await turn('Ver produtos', { action: { kind: 'tool', tool: 'search_products', args: { query: runId } } });
       const productChoice = pick(action => action.kind === 'tool' && action.tool === 'get_product_details');
       await turn('Ver produto', { interactiveId: productChoice });
       results.checks.push('native_product_selection_uses_shared_authoritative_details');
@@ -114,6 +123,7 @@
     results.cleanup.cart = (await prisma.storefrontCart.deleteMany({ where: { merchantId, sessionId: conversationId } })).count;
     try { results.cleanup.checkout = (await prisma.checkoutSession.deleteMany({ where: { merchantId, globalUserId, sessionId: { in: [...checkoutIds] } } })).count; }
     catch (error) { results.cleanup.checkoutError = error.code || error.name; }
+    if (fixtureProductId) results.cleanup.fixtureProduct = (await prisma.product.deleteMany({ where: { merchantId, id: fixtureProductId } })).count;
     await prisma.$disconnect(); await app.close();
     console.log('ZYON_NATIVE_PROOF=' + JSON.stringify(results));
     process.exit(results.ok ? 0 : 1);

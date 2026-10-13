@@ -66,7 +66,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     messageId?: string;
   }): Promise<WhatsAppStructuredResponse> {
     if (!this.store || !this.storeConfig) throw new Error("whatsapp_storefront_adapter_unavailable");
-    const config = await this.storeConfig.execute(input.merchantId);
+    const config = await this.storeConfig.executeForMerchant(input.merchantId);
     let state = { ...input.state };
     const firstTurn = state.history.length === 0;
     const greeting = config.agentGreeting || `Oi! Sou ${config.agentName || "Zyon"}, sua vendedora pessoal aqui na ${config.name}. 💚 Me conta o que você procura — eu encontro o produto ideal, garanto o melhor preço com cupons, calculo o frete e fecho seu pedido em segundos, tudo por aqui. Bora começar?`;
@@ -111,17 +111,25 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       attachment_context: input.attachmentContext,
     });
     if (response.blocks.some(b => ["checkout_prepared", "checkout_redirect"].includes(b.type))) {
-      if (!this.startCheckout) throw new Error("whatsapp_checkout_start_unavailable");
-      if (!this.cartAuthority) throw new Error("whatsapp_cart_authority_unavailable");
-      const cart = await this.cartAuthority.resolveStorefront(input.merchantId, state.conversationId);
-      if (state.checkoutSessionId && await this.prisma?.completedOrder.findFirst({ where: { merchantId: input.merchantId, sessionId: state.checkoutSessionId }, select: { id: true } })) state.checkoutGeneration = (state.checkoutGeneration ?? 0) + 1;
-      const fingerprint = createHash("sha256").update(JSON.stringify([input.merchantId, state.conversationId, state.checkoutGeneration ?? 0, cart])).digest("hex").slice(0, 32);
-      const checkout = await this.startCheckout.execute({
-        merchant_id: input.merchantId, session_id: `wa_checkout_${fingerprint}`,
-        customer: { phone: input.buyer.phone, fullName: input.buyer.fullName, email: input.buyer.email },
-      } as any, { storefrontCartRef: state.conversationId, trustedPhoneBuyer: input.buyer });
-      state.stage = "checkout";
-      return this.checkoutUi(checkout, state, config.name, input.message, input.merchantId);
+      try {
+        if (!this.startCheckout) throw new Error("whatsapp_checkout_start_unavailable");
+        if (!this.cartAuthority) throw new Error("whatsapp_cart_authority_unavailable");
+        const cart = await this.cartAuthority.resolveStorefront(input.merchantId, state.conversationId);
+        if (state.checkoutSessionId && await this.prisma?.completedOrder.findFirst({ where: { merchantId: input.merchantId, sessionId: state.checkoutSessionId }, select: { id: true } })) state.checkoutGeneration = (state.checkoutGeneration ?? 0) + 1;
+        const fingerprint = createHash("sha256").update(JSON.stringify([input.merchantId, state.conversationId, state.checkoutGeneration ?? 0, cart])).digest("hex").slice(0, 32);
+        const checkout = await this.startCheckout.execute({
+          merchant_id: input.merchantId, session_id: `wa_checkout_${fingerprint}`,
+          customer: { phone: input.buyer.phone, fullName: input.buyer.fullName, email: input.buyer.email },
+        } as any, { storefrontCartRef: state.conversationId, trustedPhoneBuyer: input.buyer });
+        state.stage = "checkout";
+        return await this.checkoutUi(checkout, state, config.name, input.message, input.merchantId);
+      } catch (error) {
+        if (!(error instanceof BadRequestException || error instanceof ConflictException || error instanceof NotFoundException)) throw error;
+        const message = "Não consegui preparar a finalização. Confira a disponibilidade dos itens e as condições no carrinho antes de continuar.";
+        return { agentMessage: message, quickReplies: ["Ver Carrinho", "Continuar Comprando"], blocks: [], merchantName: config.name,
+          state: { ...state, stage: "store", expectsFreeInput: false,
+            history: [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: message }].slice(-24) } };
+      }
     }
     state.history = [...state.history, { role: "user" as const, content: input.message }, { role: "assistant" as const, content: response.message }].slice(-24);
     const product = response.blocks.find(b => b.type === "product_card");

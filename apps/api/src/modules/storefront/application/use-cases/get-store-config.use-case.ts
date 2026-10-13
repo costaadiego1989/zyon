@@ -1,6 +1,6 @@
 import { Injectable, Inject, NotFoundException } from "@nestjs/common";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
-import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort } from "../../domain/ports/storefront-config-query.port.js";
+import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort, type StorefrontConfigSnapshot } from "../../domain/ports/storefront-config-query.port.js";
 import { BillingPlanMeteringService } from "../../../payment/infrastructure/billing/billing-plan-guard.js";
 
 export interface StoreConfigOutput {
@@ -54,7 +54,16 @@ export class GetStoreConfigUseCase {
   async execute(slug: string): Promise<StoreConfigOutput> {
     const config = await this.configQuery.findPublicConfig(slug.trim().toLowerCase());
     if (!config) throw new NotFoundException("store_not_found");
+    return this.present(config);
+  }
 
+  async executeForMerchant(merchantId: string): Promise<StoreConfigOutput> {
+    const config = await this.configQuery.findMerchantConfig?.(merchantId);
+    if (!config || config.merchant.id !== merchantId) throw new NotFoundException("store_not_found");
+    return this.present(config);
+  }
+
+  private async present(config: StorefrontConfigSnapshot): Promise<StoreConfigOutput> {
     const row = config.merchant;
     const theme = decodePersistedTheme(row.theme);
     const identity = config.agentRule?.identity as { agentName?: string; greeting?: string } | null;

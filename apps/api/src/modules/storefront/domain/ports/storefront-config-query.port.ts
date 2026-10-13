@@ -22,4 +22,5 @@ export interface StorefrontConfigSnapshot {
 
 export interface StorefrontConfigQueryPort {
   findPublicConfig(identifier: string): Promise<StorefrontConfigSnapshot | null>;
+  findMerchantConfig?(merchantId: string): Promise<StorefrontConfigSnapshot | null>;
 }

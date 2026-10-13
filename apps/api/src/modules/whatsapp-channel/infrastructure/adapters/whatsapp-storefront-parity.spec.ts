@@ -4,6 +4,7 @@ import { CheckoutWhatsAppConversationAdapter } from "./checkout-whatsapp-convers
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
 import { deriveChatStage, missingFieldsForStage } from "../../../checkout/domain/services/customer-extraction.service.js";
 import { buildMetaUiView } from "../../domain/ui/meta-ui-renderer.js";
+import { BadRequestException } from "@nestjs/common";
 
 const initial: any = { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "", page: 0, previousViews: [] };
 const buyer = { globalUserId: "buyer", phone: "552171191446", fullName: "Nome Comprador" };
@@ -16,7 +17,7 @@ test("store actions use the shared storefront use case and retain the verified b
   let seen: any;
   const adapter = new CheckoutWhatsAppConversationAdapter({} as any, {} as any,
     { execute: async (request: any) => { seen = request; return { message: "Produtos", suggested_next: Array.from({ length: 20 }, (_, i) => `Opção ${i}`), blocks: [] }; } } as any,
-    { execute: async () => ({ name: "Empresa", agentName: "Zyon", agentGreeting: "Saudação da empresa", quickReplies: ["Atalho da empresa"] }) } as any);
+    { executeForMerchant: async () => ({ name: "Empresa", agentName: "Zyon", agentGreeting: "Saudação da empresa", quickReplies: ["Atalho da empresa"] }) } as any);
   const greeting = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Oi", state: initial });
   assert.equal(greeting.agentMessage, "Saudação da empresa"); assert.deepEqual(greeting.quickReplies, ["Atalho da empresa"]);
   const output = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Ver produtos", state: greeting.state,
@@ -28,7 +29,7 @@ test("store actions use the shared storefront use case and retain the verified b
 test("ordinary chat cannot create a charge; a bound native Pix action uses stable provider idempotency", async () => {
   let creates = 0; const keys: string[] = [];
   const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => ({ message: "Confira as opções", actions: [], experience: { copy: { quick_replies: [] } } }) } as any,
-    { getSession: async (m: string) => m === "merchant" ? session : undefined } as any, {} as any, { execute: async () => ({ name: "Empresa" }) } as any,
+    { getSession: async (m: string) => m === "merchant" ? session : undefined } as any, {} as any, { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
     undefined, undefined, undefined, undefined,
     { execute: async (input: any) => { creates++; keys.push(input.idempotency_key); return { id: "intent", amountCents: 1099, status: "pending", buyerFacing: { qrCodeCopyPaste: "RAW-PIX", clientSecret: "NEVER-ON-WHATSAPP" } }; } } as any,
     { execute: async () => ({ status: "pending" }) } as any);
@@ -50,4 +51,15 @@ test("Meta's canonical phone is accepted only with provider proof and does not b
   assert.equal(deriveChatStage(unverified), "data_collection");
   assert.ok(missingFieldsForStage(unverified, "data_collection").includes("telefone"));
   assert.equal(deriveChatStage({ ...session, customer: { ...session.customer, email_verified: false } }), "data_collection");
+});
+
+test("a cart that became unavailable before checkout keeps the shopper in a recoverable store conversation", async () => {
+  const adapter = new CheckoutWhatsAppConversationAdapter({} as any, {} as any,
+    { execute: async () => ({ message: "Finalizar", blocks: [{ type: "checkout_prepared", data: {} }], suggested_next: [] }) } as any,
+    { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
+    { execute: async () => { assert.fail("rejected cart must not start checkout"); } } as any, undefined, undefined,
+    { resolveStorefront: async () => { throw new BadRequestException("insufficient_stock"); } } as any);
+  const response = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Finalizar compra", state: initial });
+  assert.match(response.agentMessage, /disponibilidade/); assert.equal(response.state.stage, "store");
+  assert.deepEqual(response.quickReplies, ["Ver Carrinho", "Continuar Comprando"]);
 });
