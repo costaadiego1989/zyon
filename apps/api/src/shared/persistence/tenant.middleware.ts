@@ -168,6 +168,7 @@ export const TENANT_SCOPED_MODELS = [
   "SupportTicket",
   "TrackingEvent",
   "WhatsAppChannelConfig",
+  "WhatsAppNativeAsset",
   "WhatsAppDelivery",
   "WhatsAppSession",
   "WhatsAppWebhookInbox",
