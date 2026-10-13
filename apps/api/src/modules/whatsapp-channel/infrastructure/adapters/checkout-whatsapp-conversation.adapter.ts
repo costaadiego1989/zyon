@@ -17,6 +17,8 @@ import { GetPaymentIntentStatusUseCase } from "../../../payment/application/get-
 import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
+import { WhatsAppCheckoutIdentityService } from "../../application/services/whatsapp-checkout-identity.service.js";
+import { CheckoutCustomerService, OtpValidationError } from "../../../checkout/application/services/checkout-customer.service.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -32,6 +34,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     @Optional() private readonly createPayment?: CreatePaymentIntentUseCase,
     @Optional() private readonly paymentStatus?: GetPaymentIntentStatusUseCase,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Optional() private readonly checkoutIdentity?: WhatsAppCheckoutIdentityService,
+    @Optional() private readonly checkoutCustomer?: CheckoutCustomerService,
   ) {}
 
   async respond(input: { merchantId: string; checkoutSessionId: string; message: string }) {
@@ -125,12 +129,24 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         const cart = await this.cartAuthority.resolveStorefront(input.merchantId, state.conversationId);
         if (state.checkoutSessionId && await this.prisma?.completedOrder.findFirst({ where: { merchantId: input.merchantId, sessionId: state.checkoutSessionId }, select: { id: true } })) state.checkoutGeneration = (state.checkoutGeneration ?? 0) + 1;
         const fingerprint = createHash("sha256").update(JSON.stringify([input.merchantId, state.conversationId, state.checkoutGeneration ?? 0, cart])).digest("hex").slice(0, 32);
+        const emailHint = await this.checkoutIdentity?.emailHint(input.merchantId, input.buyer);
+        const checkoutBuyer = { globalUserId: input.buyer.globalUserId, phone: input.buyer.phone, email: emailHint };
         const checkout = await this.startCheckout.execute({
           merchant_id: input.merchantId, session_id: `wa_checkout_${fingerprint}`,
-          customer: { phone: input.buyer.phone, fullName: input.buyer.fullName, email: input.buyer.email },
-        } as any, { storefrontCartRef: state.conversationId, trustedPhoneBuyer: input.buyer });
+          customer: { phone: checkoutBuyer.phone, email: checkoutBuyer.email },
+        } as any, { storefrontCartRef: state.conversationId, trustedPhoneBuyer: checkoutBuyer });
         state.stage = "checkout";
-        return await this.checkoutUi(checkout, state, config.name, input.message, input.merchantId);
+        let session = await this.sessions.getSession(input.merchantId, checkout.session_id);
+        let message: string | undefined;
+        if (session?.customer?.email && !session.customer.email_verified && !session.customer.otp_code && this.checkoutCustomer) {
+          try { session = await this.checkoutCustomer.processCustomerInput(session, "Iniciar cadastro", undefined, config.name); }
+          catch (error) {
+            if (!(error instanceof OtpValidationError)) throw error;
+            message = "Não consegui enviar o código por email agora. Escolha *Reenviar código* para tentar novamente.";
+          }
+        }
+        const missing = session ? missingFieldsForStage(session, deriveChatStage(session)) : undefined;
+        return await this.checkoutUi({ ...checkout, missing_fields: missing, ...(message ? { message } : {}) }, state, config.name, input.message, input.merchantId);
       } catch (error) {
         if (!(error instanceof BadRequestException || error instanceof ConflictException || error instanceof NotFoundException)) throw error;
         const message = "Não consegui preparar a finalização. Confira a disponibilidade dos itens e as condições no carrinho antes de continuar.";
@@ -170,7 +186,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     }
     if (exp?.suggestedProducts?.length) blocks.push({ type: "product_carousel", data: { products: exp.suggestedProducts.map((p: any) => ({ id: p.product_id || p.variant_id, name: p.name, price: p.unit_price, priceFormatted: p.unit_price.toLocaleString("pt-BR", { style: "currency", currency: "BRL" }), image: p.image_url })) } } as any);
     if (exp?.payment_intent && ["created", "pending", "requires_action"].includes(exp.payment_intent.status)) blocks.push({ type: "payment_intent", data: exp.payment_intent });
-    if (exp?.items?.length) blocks.push({ type: "checkout_summary", data: { items: exp.items, totals: exp.totals, shippingPending: ["data_collection", "shipping"].includes(exp.stage) && !exp.shipping } });
+    if (exp?.items?.length && (!state.checkoutSessionId || ["payment", "payment_pending", "completed"].includes(exp.stage))) blocks.push({ type: "checkout_summary", data: { items: exp.items, totals: exp.totals, shippingPending: ["data_collection", "shipping"].includes(exp.stage) && !exp.shipping } });
     if (exp?.shippingOptions?.length) blocks.push({ type: "shipping_options", data: { options: exp.shippingOptions.map((o: any, index: number) => ({ carrier: o.carrier, name: o.method, price: o.customerPrice, days: o.deliveryDays, responseLabel: exp.copy.quick_replies?.[index] })) } } as any);
     const checkoutSessionId = response.session_id || state.checkoutSessionId;
     const session = checkoutSessionId ? await this.sessions.getSession(merchantId, checkoutSessionId) : undefined;
@@ -187,6 +203,13 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     }
     if (session?.paymentMethod === "pix" && !state.payment && ["payment", "payment_pending"].includes(deriveChatStage(session))) blocks.push({ type: "payment_actions", data: { fingerprint: paymentCartFingerprint(session) } });
     const nextField = response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
+    // Ask the next field explicitly. Starting a checkout must not stop at its greeting.
+    if (nextField === "email") message = "*Vamos finalizar sua compra*\n\nQual é seu email? Vamos enviar um código para confirmar sua conta.\n\n_Seu telefone já foi confirmado pelo WhatsApp._";
+    if (nextField === "código de verificação" && session?.customer?.otp_code && !/inválido|expirou|não foi possível|não consegui/i.test(message)) {
+      const email = session.customer.email?.replace(/(^.).*(@.*$)/, "$1***$2") || "seu email";
+      message = `*Confirme sua conta*\n\nEnviamos um código para *${email}*. Responda aqui com os *6 dígitos*.\n\n_O código vale por 10 minutos. Seus dados salvos serão usados após a confirmação._`;
+    }
+    if (nextField === "nome") message = "*Seu cadastro*\n\nEmail confirmado. Qual é seu nome completo para o pedido?";
     const secureIdentifier = nextField === "CPF";
     if (secureIdentifier) message = "Para proteger seus dados, preencha seu CPF no checkout seguro. Depois, você pode continuar por aqui.";
     if (secureIdentifier) for (let i = blocks.length - 1; i >= 0; i--) if (["form_field", "checkout_form"].includes(blocks[i].type)) blocks.splice(i, 1);
@@ -199,7 +222,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       pendingFlow = { token: randomUUID(), field, checkoutSessionId, expiresAt: Date.now() + 30 * 60_000 };
       blocks.push({ type: "checkout_form", data: { flowId, token: pendingFlow.token, label: META_FIELD_LABELS[field] } });
     }
-    if (checkoutSessionId && this.embedTokens && process.env.WIDGET_BASE_URL) {
+    const needsSecureCheckout = secureIdentifier || blocks.some(block => ["stripe_card", "hosted_card_payment", "crypto_payment"].includes(block.type));
+    if (needsSecureCheckout && checkoutSessionId && this.embedTokens && process.env.WIDGET_BASE_URL) {
       const widget = new URL(process.env.WIDGET_BASE_URL);
       if (widget.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(widget.hostname)) throw new Error("whatsapp_checkout_origin_invalid");
       const now = Math.floor(Date.now() / 1000);
@@ -207,12 +231,13 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         nonce: randomUUID(), allowedOrigin: widget.origin, storefrontCartRef: state.conversationId, whatsappCheckoutSessionId: checkoutSessionId,
         scopes: ["checkout:start", "checkout:track", "checkout:chat", "payment:intents:create", "payment:intents:read", "payment:intents:confirm", "offers:apply", "coupons:apply"] });
       widget.searchParams.set("embedToken", token); widget.searchParams.set("merchantId", merchantId);
+      widget.searchParams.set("channel", "chat");
       const api = process.env.PUBLIC_API_BASE_URL || process.env.API_PUBLIC_URL;
       if (api) widget.searchParams.set("apiBaseUrl", api.endsWith("/v1") ? api : api.replace(/\/$/, "") + "/v1");
       blocks.push({ type: "checkout_redirect", data: { url: widget.href, sessionId: checkoutSessionId } } as any);
     }
     return { agentMessage: message, merchantName, blocks,
-      quickReplies: secureIdentifier ? ["Ver Carrinho", "Continuar Comprando"] : [...new Set<string>([...(exp?.copy?.quick_replies || []), ...(response.actions || []).map((a: any) => a.label)])],
+      quickReplies: secureIdentifier ? ["Ver Carrinho", "Continuar Comprando"] : [...new Set<string>([...(nextField === "código de verificação" || message?.includes("Reenviar código") ? ["Reenviar código", "Alterar email"] : []), ...(exp?.copy?.quick_replies || []), ...(response.actions || []).map((a: any) => a.label)])],
       state: { ...state, checkoutSessionId: response.session_id || state.checkoutSessionId, checkoutConversationId: response.conversation_id || state.checkoutConversationId,
         pendingFlow, expectsFreeInput: !secureIdentifier && !!nextField && /^(telefone|email|nome|CPF|CEP|número|complemento|código de verificação)/i.test(nextField),
         history: [...state.history, { role: "user" as const, content: userMessage }, { role: "assistant" as const, content: message }].slice(-24) } };

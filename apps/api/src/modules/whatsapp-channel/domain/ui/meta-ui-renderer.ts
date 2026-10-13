@@ -19,10 +19,14 @@ const paragraphs = (text: string, max = 3500): string[] => {
 };
 export const formatMetaText = (text: string): string => text
   .replace(/<\s*(script|style)\b[^>]*>[\s\S]*?<\/\s*\1\s*>/gi, "")
+  .replace(/<\s*(strong|b)\b[^>]*>([\s\S]*?)<\/\s*\1\s*>/gi, "*$2*")
+  .replace(/<\s*(em|i)\b[^>]*>([\s\S]*?)<\/\s*\1\s*>/gi, "_$2_")
   .replace(/<\s*br\s*\/?\s*>/gi, "\n").replace(/<\/\s*(p|div|h[1-6]|li)\s*>/gi, "\n")
   .replace(/<[^>]+>/g, "").replace(/&nbsp;/g, " ").replace(/&amp;/g, "&")
   .replace(/&lt;/g, "<").replace(/&gt;/g, ">").replace(/&quot;/g, '"')
-  .replace(/\*\*([^*]+)\*\*/g, "*$1*").replace(/\[([^\]]+)\]\((https:\/\/[^)]+)\)/g, "$1: $2");
+  .replace(/\*\*([^*]+)\*\*/g, "*$1*").replace(/__([^_]+)__/g, "*$1*")
+  .replace(/^#{1,6}\s+(.+)$/gm, "*$1*").replace(/~~([^~]+)~~/g, "~$1~")
+  .replace(/\[([^\]]+)\]\((https:\/\/[^)]+)\)/g, "$1: $2");
 
 /** Channel presentation only: all commercial values and actions come from the store. */
 export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiView {
@@ -30,7 +34,12 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
   const text: string[] = [response.agentMessage];
   const add = (label: string, action: StoreUiAction, description?: string) => view.choices.push({ label, action, description });
   const photo = (url: unknown, caption?: string) => { const link = safeLink(url); if (link) view.media.push({ type: "image", media: { link, caption: caption ? concise(caption, 1024) : undefined } }); };
-  const productChoice = (p: Record<string, any>) => add(value(p.name), tool("get_product_details", { productId: p.productId || p.id }), [p.priceFormatted || money(Number(p.price) / 100), p.sellerName, p.inStock === false ? "Indisponível" : ""].filter(Boolean).join(" · "));
+  const productChoice = (p: Record<string, any>) => {
+    const price = p.priceFormatted || money(Number(p.price) / 100);
+    add(value(p.name), tool("get_product_details", { productId: p.productId || p.id }), [price, p.sellerName, p.inStock === false ? "Indisponível" : ""].filter(Boolean).join(" · "));
+    const link = safeLink(p.image || p.imageUrl || p.image_url || p.images?.[0]);
+    if (link) view.choices.at(-1)!.image = { link, caption: concise(`*${value(p.name)}*\n*${price}*${p.inStock === false ? "\n_Indisponível_" : "\n_Escolha o produto no menu para ver detalhes._"}`, 1024) };
+  };
   const contentProductLink = (productId: unknown, label: unknown, adding: boolean) => {
     const id = value(productId);
     // The product card owns admission, variants, options and schedule. A rich
@@ -43,7 +52,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
     switch (block.type) {
       case "text": case "message": text.push(value(d.text || d.content)); break;
       case "form_field": text.push(`Informe ${value(d.label || d.field)}:`); break;
-      case "address_confirmation": text.push(`Confirme seu endereço:\n${value(d.formatted)}`); add("Sim", { kind: "message", message: "Sim" }); add("Corrigir endereço", { kind: "message", message: "Não" }); break;
+      case "address_confirmation": text.push(`*Confira a entrega*\n${value(d.formatted)}\n\n_O endereço está correto?_`); add("Sim", { kind: "message", message: "Sim" }); add("Corrigir endereço", { kind: "message", message: "Não" }); break;
       case "payment_methods": items(d.methods).forEach(m => add(value(m.label), { kind: "message", message: value(m.label) }, value(m.sub))); break;
       case "payment_actions": add("Gerar Pix", tool("create_payment", { method: "pix", fingerprint: d.fingerprint })); break;
       case "coupon_input": text.push("Qual é o código do cupom?"); break;
@@ -62,17 +71,18 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         break;
       case "product_card": {
         if (d.sellerName) text.push(`Vendido por: ${value(d.sellerName)}`);
-        text.push(`*${value(d.name)}*\n${d.priceFormatted || money(Number(d.price) / 100)}${d.inStock === false ? " · Indisponível" : ""}`, value(d.description));
         const retailerId = response.state.catalogRetailerIds?.[value(d.variants?.[0]?.id)] ?? response.state.catalogRetailerIds?.[value(d.sku ?? d.variants?.[0]?.sku)];
         if (response.state.catalogId && retailerId && response.state.catalogPrices?.[retailerId] === Number(d.variants?.[0]?.price ?? d.price) && items(d.variants).length <= 1 && !items(d.optionGroups).length && !d.serviceSchedule) view.media.push({ type: "interactive", interactive: {
           type: "product", body: { text: value(d.name) }, action: { catalog_id: response.state.catalogId, product_retailer_id: retailerId } } });
-        else photo(d.image ?? d.images?.[0], value(d.name));
         const variants = items(d.variants).filter(v => ["digital", "service"].includes(d.productType) || v.stock !== 0);
         const remembered = response.state.selectedProductId === d.id ? response.state.selectedVariantId : undefined;
         const selected = variants.find(v => v.id === remembered)?.id;
         const variantId = remembered ? selected : (variants.length === 1 ? value(variants[0].id) : undefined);
         const selectedVariant = variants.find(v => v.id === variantId);
-        if (selectedVariant && selected) text.push(`Selecionado: ${value(selectedVariant.value || selectedVariant.sku)} — ${selectedVariant.priceFormatted || money(Number(selectedVariant.price) / 100)}`);
+        const price = selectedVariant?.priceFormatted || (selectedVariant?.price != null ? money(Number(selectedVariant.price) / 100) : d.priceFormatted || money(Number(d.price) / 100));
+        text.push(`*${value(d.name)}*\n*${price}*${d.inStock === false ? "\n_Indisponível_" : ""}`, value(d.description));
+        if (!(response.state.catalogId && retailerId && response.state.catalogPrices?.[retailerId] === Number(d.variants?.[0]?.price ?? d.price) && items(d.variants).length <= 1 && !items(d.optionGroups).length && !d.serviceSchedule)) photo(selectedVariant?.image || d.image || d.images?.[0], `*${value(d.name)}*\n*${price}*`);
+        if (selectedVariant && selected) text.push(`_Selecionado: ${value(selectedVariant.value || selectedVariant.sku)}_`);
         const groups = items(d.optionGroups); const chosen = response.state.selectedOptionItemIds ?? [];
         const pending = groups.find(g => (g.required || Number(g.minSelections) > 0) && items(g.items).filter(i => chosen.includes(value(i.id))).length < Number(g.minSelections ?? 1));
         const editing = groups.find(g => g.id === response.state.selectedOptionGroupId) ?? pending;
@@ -101,26 +111,27 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
       case "variant_selector":
         items(d.groups).forEach(g => items(g.options).filter(o => o.available !== false).forEach(o => add(`${value(g.name)}: ${value(o.value)}`, { kind: "variant", productId: value(d.productId), variantId: value(o.id) }))); break;
       case "cart_summary":
-        if (!items(d.items).length) text.push("Seu carrinho está vazio.");
-        items(d.items).forEach(i => {
-          text.push(`${i.quantity}× ${value(i.productName || i.name)} — ${money(i.subtotal)}`);
+        text.push("*Seu carrinho*");
+        if (!items(d.items).length) text.push("Seu carrinho está vazio. Escolha um produto para começar.");
+        items(d.items).forEach((i, index) => {
+          text.push(`${index + 1}. *${value(i.productName || i.name)}*\nQuantidade: ${i.quantity} · ${money(i.subtotal)}`);
           items(i.selectedOptions).forEach(o => text.push(`${value(o.groupName)}: ${value(o.itemName)}`));
           if (i.selectedServiceSlotId) text.push(`Agendamento: ${value(i.selectedServiceSlotId)}`);
           add(`Editar ${value(i.productName || i.name)}`, tool("edit_cart_item", { variantId: i.variantId, quantity: i.quantity }));
           add(`Remover ${value(i.productName || i.name)}`, tool("remove_cart_item", { variantId: i.variantId }));
         });
-        text.push(`Subtotal: ${money(d.subtotal)}${d.discount ? `\nDescontos: ${money(d.discount)}` : ""}\nTotal: *${money(d.total)}*`);
+        text.push(`Subtotal: ${money(d.subtotal)}${d.discount ? `\nDescontos: −${money(d.discount)}` : ""}\n*Total dos itens: ${money(d.total)}*\n\n_Frete e eventuais taxas aparecem no resumo antes do pagamento._`);
         if (d.freeShipping) text.push("Frete grátis aplicado.");
         if (items(d.items).length) add("Finalizar compra", tool("checkout", {}));
         add("Continuar comprando", tool("search_products", { query: "*" }));
         break;
       case "cart_add_result":
-        text.push(d.status === "succeeded" ? "Item adicionado ao carrinho." : d.status === "unknown" ? "A inclusão está sendo verificada." : "Não foi possível adicionar este item."); break;
+        text.push(d.status === "succeeded" ? "✅ *Item adicionado ao carrinho*" : d.status === "unknown" ? "_A inclusão está sendo verificada._" : "Não foi possível adicionar este item."); break;
       case "shipping_options":
         items(d.options).forEach(o => add(value(o.name || o.carrier), { kind: "message", message: value(o.responseLabel) || `Escolho o frete ${value(o.name)} da ${value(o.carrier)}` }, `${o.priceFormatted || money(o.price)}${o.days != null ? ` · ${o.days} dias` : ""}`)); break;
       case "shipping_quote_input": text.push("Qual é o CEP para calcular a entrega?"); break;
       case "checkout_redirect":
-        if (safeLink(d.url)) text.push(`Continue no checkout seguro:\n${safeLink(d.url)}`); break;
+        if (safeLink(d.url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "*Continue sua compra com segurança*\nPreencha os dados protegidos na página da loja. Seu carrinho será mantido." }, action: { name: "cta_url", parameters: { display_text: "Continuar compra", url: safeLink(d.url) } } } }); break;
       case "checkout_prepared": add("Continuar checkout", tool("checkout", { actionId: d.actionId, cartId: d.cartId })); break;
       case "order_confirmation":
         text.push(`*Pedido ${value(d.orderId)}*\nTotal: ${money(d.total)}`);
@@ -142,7 +153,9 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         items(d.blocks).sort((a, b) => Number(a.order ?? 0) - Number(b.order ?? 0)).forEach(content => {
           const c = object(content.data ?? content);
           switch (content.type) {
-            case "paragraph": case "heading": case "callout": text.push([c.title || c.heading, c.text].filter(Boolean).join("\n")); break;
+            case "paragraph": text.push([c.title ? `*${value(c.title)}*` : c.heading ? `*${value(c.heading)}*` : "", c.text].filter(Boolean).join("\n")); break;
+            case "heading": text.push(`*${value(c.text || c.title || c.heading)}*`); break;
+            case "callout": text.push([c.title || c.heading ? `*${value(c.title || c.heading)}*` : "", c.text ? `_${value(c.text)}_` : ""].filter(Boolean).join("\n")); break;
             case "list": text.push((Array.isArray(c.items) ? c.items : []).map((i: unknown) => `• ${value(i)}`).join("\n")); break;
             case "image": photo(c.src, c.caption || c.alt); break;
             case "image_text_split": photo(c.imageSrc, c.imageAlt); text.push(value(c.heading), value(c.text)); break;
@@ -155,12 +168,13 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
           }
         }); break;
       case "payment_intent":
-        text.push(d.amount_cents != null ? `Pagamento: ${money(Number(d.amount_cents) / 100)}` : "Pagamento pendente de confirmação.");
+        text.push(d.amount_cents != null ? `*Pagamento por Pix*\nTotal: *${money(Number(d.amount_cents) / 100)}*\n\n_Copie o código abaixo e pague no app do seu banco. O pedido será confirmado após a aprovação do pagamento._` : "_Pagamento pendente de confirmação._");
         if (d.copy_paste) view.media.push({ type: "text", text: { body: value(d.copy_paste) } });
         if (safeLink(d.ticket_url)) text.push(`Link de pagamento: ${safeLink(d.ticket_url)}`);
         break;
       case "checkout_summary":
-        items(d.items).forEach(i => text.push(`${value(i.quantity)}× ${value(i.name)} — ${money(i.line_total ?? Number(i.unit_price) * Number(i.quantity))}`));
+        text.push("*Resumo da compra*");
+        items(d.items).forEach((i, index) => text.push(`${index + 1}. *${value(i.name)}*\nQuantidade: ${value(i.quantity)} · ${money(i.line_total ?? Number(i.unit_price) * Number(i.quantity))}`));
         text.push(`Subtotal: ${money(d.totals?.subtotal)}\nFrete: ${d.shippingPending ? "A calcular" : money(d.totals?.shipping)}${d.totals?.discount ? `\nDescontos: ${money(d.totals.discount)}` : ""}${d.totals?.service_fee ? `\nTaxa de serviço: ${money(d.totals.service_fee)}` : ""}\n*${d.shippingPending ? "Total parcial" : "Total a pagar"}: ${money(d.totals?.total_to_pay ?? d.totals?.total)}*`);
         break;
       case "checkout_form":
@@ -189,7 +203,8 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   if (parts.length > 2) allChoices.unshift({ label: "Ler mais", action: tool("show_content", { text: parts.slice(2).join("\n\n") }) });
   const media = view.media.filter(m => m.type !== "text");
   if (media.length > 3) allChoices.unshift({ label: "Ver mais mídias", action: tool("media_page", { media: media.slice(3) }) });
-  const pageSize = 7; const totalPages = Math.max(1, Math.ceil(allChoices.length / pageSize));
+  const pageSize = allChoices.some(choice => choice.image) ? 3 : 7;
+  const totalPages = Math.max(1, Math.ceil(allChoices.length / pageSize));
   const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
   const choices: MetaUiChoice[] = allChoices.slice(page * pageSize, (page + 1) * pageSize);
   if (page > 0) choices.push({ label: "Página anterior", action: { kind: "page", page: page - 1 } });
@@ -203,8 +218,11 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     const description = numbered.length > 24 ? `${choice.label}${choice.description ? ` · ${choice.description}` : ""}` : choice.description;
     return { id, title: concise(numbered, 24), ...(description ? { description: concise(description, 72) } : {}) };
   });
-  const messages: MetaUiMessage[] = options.includeMedia === false ? [] : view.media.filter(m => m.type !== "text").slice(0, 3);
+  const productPhotos: MetaUiMessage[] = choices.filter(choice => choice.image).map(choice => ({ type: "image", media: choice.image! }));
+  const messages: MetaUiMessage[] = [];
   parts.slice(0, 2).forEach(body => messages.push({ type: "text", text: { body } }));
+  if (productPhotos.length) messages.push(...productPhotos.slice(0, 3));
+  else if (options.includeMedia !== false) messages.push(...view.media.filter(m => m.type !== "text").slice(0, 3));
   if (options.includeMedia !== false) messages.push(...view.media.filter(m => m.type === "text"));
   if (choices.length) {
     if (options.native === false) messages.push({ type: "text", text: { body: choices.map((c, i) => `${i + 1}. ${c.label}${c.description ? ` — ${c.description}` : ""}`).join("\n") + "\n\nVocê pode responder pelo número ou escrever sua pergunta." } });

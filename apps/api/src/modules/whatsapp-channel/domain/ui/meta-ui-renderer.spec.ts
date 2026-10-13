@@ -1,10 +1,29 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildMetaUiView, presentMetaUi } from "./meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, formatMetaText } from "./meta-ui-renderer.js";
 import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
 const native = (presentation: ReturnType<typeof presentMetaUi>) => presentation.messages.filter(m => m.type === "interactive").map(m => m.type === "interactive" ? m.interactive as any : null);
+
+test("store rich text retains native bold, italic and heading hierarchy without HTML", () => {
+  assert.equal(formatMetaText('<strong>Resumo</strong>\n<em>Entrega estimada</em>\n## Seu pedido\n**Total** <script>unsafe()</script>'), '*Resumo*\n_Entrega estimada_\n*Seu pedido*\n*Total* ');
+});
+test("product photos follow their selectable native page, including later pages", () => {
+  const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 1000 + i, image: `https://example.com/${i}.jpg` })) } }] }));
+  const first = presentMetaUi(view, "turn", 0);
+  const second = presentMetaUi(view, "turn", 1, { includeMedia: false });
+  assert.deepEqual(first.messages.filter(m => m.type === "image").map(m => m.type === "image" && m.media.link), [0, 1, 2].map(i => `https://example.com/${i}.jpg`));
+  assert.deepEqual(second.messages.filter(m => m.type === "image").map(m => m.type === "image" && m.media.link), [3, 4].map(i => `https://example.com/${i}.jpg`));
+  assert.equal(second.numericSelections[0].kind === "tool" && second.numericSelections[0].args.productId, "p3");
+});
+test("secure checkout button preserves the entire signed URL without text-formatting its credentials", () => {
+  const url = "https://widget.example/?embedToken=signed_token.signature&merchantId=own";
+  const shown = presentMetaUi(buildMetaUiView(response({ blocks: [{ type: "checkout_redirect", data: { url } }] })), "turn");
+  const button = native(shown).find(item => item.type === "cta_url");
+  assert.equal(button.action.parameters.url, url);
+  assert.ok(!shown.messages.some(message => message.type === "text" && message.text.body.includes("signed_token")));
+});
 
 test("all configured quick replies remain selectable across native pages", () => {
   const labels = Array.from({ length: 31 }, (_, i) => `Pergunta completa ${i + 1}`);

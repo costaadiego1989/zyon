@@ -57,7 +57,7 @@ export class RouteToSessionUseCase {
     const globalUserId = this.phoneToGlobalUserId(phone);
 
     // 1. Auto-register buyer if not exists
-    const buyerData = await this.ensureBuyerExists(input.merchantId, phone, globalUserId, input.fromAlias);
+    const buyerData = await this.ensureBuyerExists(input.merchantId, phone, globalUserId, input.fromAlias, input.deviceId.startsWith("META_CLOUD:"));
 
     // 2. Find active WA session
     let waSession = await this.sessionRepo.findActiveByPhone(input.merchantId, phone);
@@ -113,6 +113,7 @@ export class RouteToSessionUseCase {
     phone: string,
     globalUserId: string,
     alias?: string,
+    meta = false,
   ): Promise<RouteResult["buyerData"]> {
     // Check if buyer identity exists for this phone
     const identityKey = `phone:${phone}`;
@@ -134,10 +135,11 @@ export class RouteToSessionUseCase {
         globalUserId: existingIdentity.globalUserId,
         phone,
         phoneVerified: true,
-        fullName: customer.fullName ?? alias ?? undefined,
-        email: customer.email ?? undefined,
-        cpf: customer.cpf ?? undefined,
-        address: customer.address ?? undefined,
+        // Meta checkout hydrates account fields only after its email challenge.
+        fullName: meta ? alias : customer.fullName ?? alias ?? undefined,
+        email: meta ? undefined : customer.email ?? undefined,
+        cpf: meta ? undefined : customer.cpf ?? undefined,
+        address: meta ? undefined : customer.address ?? undefined,
       };
     }
 

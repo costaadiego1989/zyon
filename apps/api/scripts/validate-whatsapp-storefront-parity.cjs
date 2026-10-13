@@ -1,6 +1,6 @@
 (async () => {
   const assert = require('node:assert/strict');
-  const { randomUUID, createHash } = require('node:crypto');
+  const { randomUUID, createHash, randomInt } = require('node:crypto');
   assert.equal(process.env.RAILWAY_ENVIRONMENT_NAME, 'sandbox', 'sandbox_only_probe');
   process.env.WHATSAPP_NATIVE_ASSETS_AUTO_PROVISION = 'false';
   const originalFetch = globalThis.fetch;
@@ -27,11 +27,26 @@
   const runId = randomUUID(); const conversationId = 'qa_native_' + runId;
   const globalUserId = 'qa_native_buyer_' + runId;
   const deviceId = 'META_CLOUD:qa_' + runId;
-  const buyer = { globalUserId, phone: '5521993001883', fullName: 'QA WhatsApp Sandbox' };
+  const buyer = { globalUserId, phone: '551199' + randomInt(1000000, 9999999), fullName: 'QA WhatsApp Sandbox' };
+  const qaEmail = 'qa-native-' + runId + '@example.invalid';
   const results = { environment: 'sandbox', deploymentId: process.env.RAILWAY_DEPLOYMENT_ID, synthetic: true, financial: false, providerMessagesSent: 0,
     runId, checks: [], cleanup: {}, externalMutationAttempts: 0 };
   const turnIds = []; const checkoutIds = new Set(); const emitted = [];
   let session; let fixtureProductId;
+  const { EMAIL_SENDER_PORT } = await loadDist('modules/notifications/domain/ports/email-sender.port.js');
+  const { CheckoutCustomerService } = await loadDist('modules/checkout/application/services/checkout-customer.service.js');
+  const { BUYER_ACCOUNT_REPOSITORY } = await loadDist('modules/buyer-account/domain/ports/buyer-account-repository.port.js');
+  const emailSender = app.get(EMAIL_SENDER_PORT), customerService = app.get(CheckoutCustomerService);
+  const originalSend = emailSender.send, notifier = customerService.buyerEmailNotifier, originalNotify = notifier?.notifyCaptured;
+  let capturedCode;
+  emailSender.send = async input => {
+    assert.equal(input.to, qaEmail, 'only_isolated_fixture_email_may_be_captured');
+    assert.equal(input.requireDelivery, true);
+    capturedCode = input.subject.match(/^\d{6}/)?.[0];
+    assert.ok(capturedCode);
+    return { status: 'sent', messageId: 'email.qa.captured' };
+  };
+  if (notifier) notifier.notifyCaptured = async () => {};
   try {
     const fixture = await prisma.product.create({ data: { merchantId, name: 'Native QA ' + runId, type: 'physical',
       description: 'Isolated nonfinancial WhatsApp validation fixture', contentBlocks: { create: [
@@ -162,10 +177,58 @@
       const checkout = await prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: checkoutSessionId } } });
       assert.equal(checkout.globalUserId, globalUserId); assert.equal(checkout.customer.phone_verified, true);
       assert.equal(checkout.customer.email_verified === true, false); assert.equal(checkout.cart.items[0].quantity, 2);
+      assert.match(session.conversationState.view.body, /Qual é seu email/);
+      assert.equal(session.conversationState.view.blocks.some(block => block.type === 'checkout_redirect'), false);
+      await turn(qaEmail);
+      const wrongCode = capturedCode === '000000' ? '111111' : '000000';
+      await turn(wrongCode);
+      assert.equal((await prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: checkoutSessionId } } })).customer.email_verified, false);
+      await turn(capturedCode);
+      await turn('QA Sandbox Person');
+      const verified = await prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: checkoutSessionId } } });
+      assert.equal(verified.customer.email_verified, true);
+      assert.equal(verified.customer.otp_code, '');
+      assert.equal(verified.customer.fullName, 'QA Sandbox Person');
+      results.checks.push('new_buyer_conversational_registration_uses_email_otp_and_rejects_invalid_code');
+      const account = await app.get(BUYER_ACCOUNT_REPOSITORY).findByPhone(buyer.phone);
+      assert.equal(account.email, qaEmail);
+      const encrypted = await prisma.buyerAccount.findUnique({ where: { globalUserId: account.globalUserId }, select: { phone: true, phoneLookupHash: true } });
+      assert.ok(encrypted.phone.startsWith('pii_v1:'));
+      assert.equal(encrypted.phoneLookupHash.length, 64);
+      results.checks.push('registered_encrypted_phone_is_found_through_keyed_index');
+      const repeatBuyer = { ...buyer, globalUserId: 'qa_native_return_' + runId };
+      let repeat = await conversation.respondStore({ merchantId, buyer: repeatBuyer, message: 'Finalizar compra', action: { kind: 'tool', tool: 'checkout', args: {} },
+        state: { version: 1, conversationId, checkoutGeneration: 1, stage: 'store', history: [], revision: '', page: 0, previousViews: [] } });
+      checkoutIds.add(repeat.state.checkoutSessionId);
+      const pending = await prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: repeat.state.checkoutSessionId } } });
+      assert.equal(pending.customer.email_verified, false);
+      assert.equal(pending.customer.fullName, undefined);
+      assert.equal(pending.globalUserId, repeatBuyer.globalUserId);
+      assert.ok(!repeat.agentMessage.includes(qaEmail));
+      repeat = await conversation.respondStore({ merchantId, buyer: repeatBuyer, message: capturedCode, state: repeat.state, messageId: randomUUID() });
+      const recognized = await prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: repeat.state.checkoutSessionId } } });
+      assert.equal(recognized.customer.email_verified, true);
+      assert.equal(recognized.customer.fullName, account.displayName);
+      assert.equal(recognized.globalUserId, account.globalUserId);
+      results.checks.push('returning_buyer_email_challenge_precedes_profile_hydration_and_identity_binding');
       const redirect = session.conversationState.view.blocks.find(block => block.type === 'checkout_redirect');
       assert.ok(redirect); const url = new URL(redirect.data.url);
       assert.equal(url.origin, 'https://widget-v2-sandbox.up.railway.app'); assert.ok(url.searchParams.get('embedToken'));
       assert.equal(url.searchParams.get('apiBaseUrl'), 'https://api-sandbox-8146.up.railway.app/v1');
+      assert.equal(url.searchParams.get('channel'), 'chat');
+      const { EmbedAuthGuard } = await loadDist('modules/embed/presentation/http/embed-auth.guard.js');
+      const { EmbedCheckoutController } = await loadDist('modules/embed/presentation/http/embed-checkout.controller.js');
+      const controller = app.get(EmbedCheckoutController), guard = app.get(EmbedAuthGuard);
+      const request = { headers: { authorization: 'Bearer ' + url.searchParams.get('embedToken'), origin: url.origin } };
+      const context = req => ({ switchToHttp: () => ({ getRequest: () => req }), getHandler: () => controller.start, getClass: () => EmbedCheckoutController });
+      assert.equal(guard.canActivate(context(request)), true);
+      const resumed = await controller.start(request, { cart: { items: [] } });
+      assert.equal(resumed.session_id, checkoutSessionId);
+      assert.equal(resumed.experience.items[0].quantity, 2);
+      assert.throws(() => guard.canActivate(context({ headers: { ...request.headers, origin: 'https://foreign.example' } })), /embed_origin_not_allowed/);
+      await assert.rejects(controller.start(request, { session_id: 'foreign-checkout', cart: { items: [] } }), /embed_checkout_session_binding_mismatch/);
+      results.checks.push('fresh_signed_handoff_passes_real_widget_bootstrap_guard_and_controller');
+      results.checks.push('handoff_rejects_foreign_origin_and_checkout_session');
       const intents = await prisma.paymentIntent.count({ where: { merchantId, sessionId: checkoutSessionId } });
       assert.equal(intents, 0);
       results.checks.push('checkout_preserves_buyer_phone_cart_and_email_verification');
@@ -179,14 +242,17 @@
     results.ok = false;
     results.error = { name: error.name, message: error.message, code: error.code, stack: String(error.stack).split('\n').slice(0, 5) };
   } finally {
+    emailSender.send = originalSend;
+    if (notifier) notifier.notifyCaptured = originalNotify;
     results.externalMutationAttempts = outboundPosts;
     // Every deletion is constrained to this unique diagnostic namespace.
     results.cleanup.inbox = (await prisma.whatsAppWebhookInbox.deleteMany({ where: { merchantId, id: { in: turnIds } } })).count;
     if (session) results.cleanup.whatsappSession = (await prisma.whatsAppSession.deleteMany({ where: { merchantId, id: session.id, deviceId } })).count;
     results.cleanup.cart = (await prisma.storefrontCart.deleteMany({ where: { merchantId, sessionId: conversationId } })).count;
-    try { results.cleanup.checkout = (await prisma.checkoutSession.deleteMany({ where: { merchantId, globalUserId, sessionId: { in: [...checkoutIds] } } })).count; }
+    try { results.cleanup.checkout = (await prisma.checkoutSession.deleteMany({ where: { merchantId, sessionId: { in: [...checkoutIds] } } })).count; }
     catch (error) { results.cleanup.checkoutError = error.code || error.name; }
     if (fixtureProductId) results.cleanup.fixtureProduct = (await prisma.product.deleteMany({ where: { merchantId, id: fixtureProductId } })).count;
+    results.cleanup.buyer = (await prisma.buyerAccount.deleteMany({ where: { globalUserId, email: qaEmail } })).count;
     await prisma.$disconnect(); await app.close();
     console.log('ZYON_NATIVE_PROOF=' + JSON.stringify(results));
     process.exit(results.ok ? 0 : 1);

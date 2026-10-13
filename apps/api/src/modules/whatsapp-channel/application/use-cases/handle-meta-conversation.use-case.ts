@@ -144,7 +144,9 @@ export class HandleMetaConversationUseCase {
         const fallback = message.type === "image" || message.type === "video" || message.type === "document"
           ? `Não consegui exibir esta mídia.${message.media.caption ? `\n\n${message.media.caption}` : ""}`
           : message.type === "interactive" && message.interactive.type === "flow"
-            ? `Não consegui abrir o formulário. Responda aqui na conversa:\n\n${(message.interactive.body as { text?: string } | undefined)?.text ?? "Informe o dado solicitado."}` : undefined;
+            ? `Não consegui abrir o formulário. Responda aqui na conversa:\n\n${(message.interactive.body as { text?: string } | undefined)?.text ?? "Informe o dado solicitado."}`
+            : message.type === "interactive" && message.interactive.type === "cta_url"
+              ? `Continue sua compra pelo checkout seguro:\n${((message.interactive.action as any)?.parameters)?.url}` : undefined;
         if (fallback) {
           saved.presentation!.messages[index] = { type: "text", text: { body: fallback.slice(0, 4096) } };
           saved = { ...saved, phase: "prepared", sent };

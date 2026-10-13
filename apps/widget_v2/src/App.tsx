@@ -22,6 +22,7 @@ function readUrlParams() {
   let cartRef = params.get("cartId") || params.get("cartRef") || params.get("cart_ref") || undefined;
   let apiBaseUrl = params.get("apiBaseUrl") || params.get("api_base_url") || DEFAULT_API_BASE;
   let globalUserId = params.get("globalUserId") || params.get("global_user_id") || undefined;
+  let initialChannel = params.get("channel") === "chat" ? "chat" as const : undefined;
 
   const isLocalhost = apiBaseUrl.includes("localhost") || apiBaseUrl.includes("127.0.0.1");
   if (!isLocalhost && apiBaseUrl.startsWith("http://")) {
@@ -30,7 +31,7 @@ function readUrlParams() {
 
   if (embedToken && merchantId) {
     try {
-      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId }));
+      sessionStorage.setItem(SESSION_KEY, JSON.stringify({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel }));
     } catch { /* quota */ }
   } else {
     try {
@@ -42,6 +43,7 @@ function readUrlParams() {
         cartRef = parsed.cartRef || undefined;
         apiBaseUrl = parsed.apiBaseUrl || DEFAULT_API_BASE;
         globalUserId = parsed.globalUserId || undefined;
+        initialChannel = parsed.initialChannel === "chat" ? "chat" : undefined;
       }
     } catch { /* corrupted */ }
   }
@@ -60,7 +62,7 @@ function readUrlParams() {
     window.history.replaceState(null, "", newUrl);
   }
 
-  return { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId };
+  return { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel };
 }
 
 export function App() {
@@ -123,7 +125,7 @@ export function App() {
   }, [triggerConfig, triggerMessages, status]);
 
   useEffect(() => {
-    const { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId } = readUrlParams();
+    const { embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel } = readUrlParams();
     if (!embedToken || !merchantId) {
       const isLocalhost = window.location.hostname === "localhost" || window.location.hostname === "127.0.0.1";
       if (isLocalhost && cartRef) {
@@ -134,12 +136,12 @@ export function App() {
       } else {
         useCheckoutStore.setState({
           status: "error",
-          error: "Token de sessão ou merchant inválido. Verifique o link.",
+          error: "Este link está incompleto. Volte à conversa e peça para continuar a compra. Seu carrinho continua salvo.",
         });
       }
       return;
     }
-    void init({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId });
+    void init({ embedToken, merchantId, cartRef, apiBaseUrl, globalUserId, initialChannel });
   }, [init]);
 
   useEffect(() => {

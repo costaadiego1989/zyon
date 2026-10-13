@@ -9,6 +9,8 @@ const specs = [
   "whatsapp-channel/domain/ui/meta-flow.spec.ts",
   "whatsapp-channel/application/use-cases/handle-meta-conversation.spec.ts",
   "whatsapp-channel/application/services/meta-native-assets.spec.ts",
+  "whatsapp-channel/application/services/whatsapp-checkout-identity.spec.ts",
+  "buyer-account/infrastructure/prisma-buyer-phone-lookup.spec.ts",
   "whatsapp-channel/infrastructure/adapters/whatsapp-storefront-parity.spec.ts",
   "whatsapp-channel/infrastructure/adapters/checkout-whatsapp-conversation.adapter.spec.ts",
   "whatsapp-channel/infrastructure/adapters/meta-cloud-sender.adapter.spec.ts",
@@ -25,6 +27,7 @@ const specs = [
   "storefront/infrastructure/tool-handlers/commerce-rules-flow.spec.ts",
   "storefront/infrastructure/agents/storefront-ui-action.executor.spec.ts",
 ].map(path => `./src/modules/${path}`);
+specs.push("./src/shared/crypto/pii-cipher.service.spec.ts");
 
 const result = spawnSync(process.execPath, ["--loader", "./tests/ready-prod-loader.mjs", "--test", "--test-force-exit", ...specs], {
   cwd: fileURLToPath(new URL("../", import.meta.url)), stdio: "inherit", env: process.env,

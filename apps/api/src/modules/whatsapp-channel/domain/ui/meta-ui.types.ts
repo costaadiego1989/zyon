@@ -11,7 +11,7 @@ export type StoreUiAction =
   | { kind: "back" }
   | { kind: "menu" };
 
-export interface MetaUiChoice { label: string; description?: string; action: StoreUiAction }
+export interface MetaUiChoice { label: string; description?: string; action: StoreUiAction; image?: { link: string; caption: string } }
 export type MetaUiMessage =
   | { type: "text"; text: { body: string; preview_url?: boolean } }
   | { type: "image" | "video" | "document"; media: { link: string; caption?: string } }

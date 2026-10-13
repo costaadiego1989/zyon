@@ -4,6 +4,8 @@ import { CheckoutModule } from "../checkout/checkout.module.js";
 import { StorefrontModule } from "../storefront/storefront.module.js";
 import { EmbedModule } from "../embed/embed.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
+import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { WhatsAppCheckoutIdentityService } from "./application/services/whatsapp-checkout-identity.service.js";
 import { PaymentModule } from "../payment/payment.module.js";
 import { WHATSAPP_CONVERSATION_PORT } from "./domain/ports/whatsapp-conversation.port.js";
 import { CheckoutWhatsAppConversationAdapter } from "./infrastructure/adapters/checkout-whatsapp-conversation.adapter.js";
@@ -71,12 +73,13 @@ export class MultiProviderSenderAdapter {
 }
 
 @Module({
-  imports: [forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, forwardRef(() => PostSaleModule)],
+  imports: [forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, forwardRef(() => PostSaleModule)],
   controllers: [WhatsAppWebhookController, WhatsAppConfigController, WhatsAppDeliveryController],
   providers: [
     WhatsAppDeliveryService,
     HandleIncomingMessageUseCase,
     HandleMetaConversationUseCase,
+    WhatsAppCheckoutIdentityService,
     { provide: WHATSAPP_CONVERSATION_PORT, useClass: CheckoutWhatsAppConversationAdapter },
     HandleStatusUpdateUseCase,
     RouteToSessionUseCase,

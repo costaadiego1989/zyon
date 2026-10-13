@@ -116,5 +116,5 @@ test("back from a quantity editor reloads the actual cart instead of replaying o
   f.input.body = "0";
   await f.execute();
   assert.equal(action.tool, "get_cart");
-  assert.ok(f.emitted.some(message => message.type === "text" && message.text.body.includes("3× Produto")));
+  assert.ok(f.emitted.some(message => message.type === "text" && /\*Produto\*[\s\S]*Quantidade: 3/.test(message.text.body)));
 });

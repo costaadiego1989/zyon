@@ -13,6 +13,48 @@ const session: any = { merchantId: "merchant", sessionId: "checkout", conversati
   paymentMethod: "pix", customer: { phone: buyer.phone, phone_verified: true, fullName: "Nome Comprador", email: "buyer@example.com", email_verified: true, cpf: "12345678901" },
   cart: { currency: "BRL", total: 10, items: [{ sku: "one", name: "Item", price: 10, quantity: 1, productType: "digital", fulfillmentStrategy: "digital_entitlement" }] } };
 
+test("starting a new buyer checkout asks for email in WhatsApp and does not trust the WhatsApp alias as registration", async () => {
+  let proof: any;
+  const empty = { ...session, paymentMethod: undefined, customer: { phone: buyer.phone, phone_verified: true, email_verified: false } };
+  const adapter = new CheckoutWhatsAppConversationAdapter({} as any, { getSession: async () => empty } as any,
+    { execute: async () => ({ message: "Checkout", blocks: [{ type: "checkout_prepared", data: {} }], suggested_next: [] }) } as any,
+    { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
+    { execute: async (_: any, context: any) => { proof = context; return { session_id: "checkout", conversation_id: "checkout-conversation" }; } } as any,
+    undefined, undefined, { resolveStorefront: async () => session.cart } as any);
+  const result = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Finalizar compra", state: initial });
+  assert.match(result.agentMessage, /Qual é seu email/);
+  assert.equal(result.state.expectsFreeInput, true);
+  assert.equal(proof.trustedPhoneBuyer.fullName, undefined);
+  assert.equal(result.blocks.some(block => block.type === "checkout_redirect"), false);
+});
+
+test("a returning phone starts the shared email challenge without releasing its account profile", async () => {
+  let stored: any = { ...session, customer: { phone: buyer.phone, phone_verified: true, email: "existing@example.com", email_verified: false } };
+  let called = 0;
+  const adapter = new CheckoutWhatsAppConversationAdapter({} as any, { getSession: async () => stored } as any,
+    { execute: async () => ({ message: "Checkout", blocks: [{ type: "checkout_prepared", data: {} }], suggested_next: [] }) } as any,
+    { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
+    { execute: async (_: any, context: any) => { assert.equal(context.trustedPhoneBuyer.email, "existing@example.com"); assert.equal(context.trustedPhoneBuyer.cpf, undefined); return { session_id: "checkout" }; } } as any,
+    undefined, undefined, { resolveStorefront: async () => session.cart } as any, undefined, undefined, undefined,
+    { emailHint: async () => "existing@example.com" } as any,
+    { processCustomerInput: async (input: any, message: string) => { called++; assert.equal(message, "Iniciar cadastro"); stored = { ...input, customer: { ...input.customer, otp_code: "123456", otp_expires_at: new Date(Date.now() + 600000).toISOString() } }; return stored; } } as any);
+  const result = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Finalizar compra", state: initial });
+  assert.equal(called, 1); assert.match(result.agentMessage, /e\*\*\*@example.com/);
+  assert.equal(stored.customer.email_verified, false);
+  assert.equal(result.agentMessage.includes("existing@example.com"), false);
+  assert.equal(result.agentMessage.includes("123456"), false);
+  assert.equal(result.quickReplies.includes("Reenviar código"), true);
+});
+
+test("an invalid OTP reply keeps its error feedback instead of claiming another code was sent", async () => {
+  const pending = { ...session, customer: { ...session.customer, email_verified: false, otp_code: "123456" } };
+  const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => ({ message: "Código de verificação inválido. Confira seu email.", missing_fields: ["código de verificação"], actions: [] }) } as any,
+    { getSession: async () => pending } as any, {} as any, { executeForMerchant: async () => ({ name: "Empresa" }) } as any);
+  const result = await adapter.respondStore({ merchantId: "merchant", buyer, message: "000000", state: { ...initial, stage: "checkout", checkoutSessionId: "checkout" } });
+  assert.match(result.agentMessage, /inválido/);
+  assert.equal(result.agentMessage.includes("Enviamos"), false);
+});
+
 test("store actions use the shared storefront use case and retain the verified buyer and full quick replies", async () => {
   let seen: any;
   const adapter = new CheckoutWhatsAppConversationAdapter({} as any, {} as any,
