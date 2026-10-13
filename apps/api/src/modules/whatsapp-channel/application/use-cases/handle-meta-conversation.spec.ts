@@ -217,3 +217,12 @@ test("native pagination persists each configured question and numeric selection 
   await turn("1");
   assert.equal(calls.length, 2); assert.equal(calls[1].message, original);
 });
+
+test("an already published shopping button uses the shared read action when leaving checkout data entry", async () => {
+  const f = fixture(); let actual: any;
+  Object.assign(f.route.whatsappSession.conversationState, { stage: "checkout", expectsFreeInput: true,
+    selections: { shopping: { kind: "message", message: "Continuar Comprando" } } });
+  f.conversation.respondStore = async (call: any) => { actual = call; return { agentMessage: "Produtos", quickReplies: [], blocks: [], state: { ...call.state, stage: "store" } }; };
+  f.input.interactiveId = "shopping"; await f.execute();
+  assert.equal(actual.action.tool, "search_products"); assert.deepEqual(actual.action.args, { query: "*" });
+});

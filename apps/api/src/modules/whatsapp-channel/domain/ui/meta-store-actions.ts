@@ -2,12 +2,12 @@ import type { StoreUiAction, WhatsAppConversationState } from "./meta-ui.types.j
 
 /** Resolve built-in store shortcuts; custom questions keep the shared agent. */
 export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversationState): StoreUiAction | undefined {
-  if (state.stage !== "store") return /^ver carrinho$/i.test(label.trim()) ? { kind: "tool", tool: "get_cart", args: {} } : undefined;
   const key = label.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const tool = (name: string, args: Record<string, unknown> = {}): StoreUiAction => ({ kind: "tool", tool: name, args });
   if (["ver produtos", "continuar comprando"].includes(key)) return tool("search_products", { query: "*" });
-  if (key === "categorias") return tool("list_categories");
   if (key === "ver carrinho") return tool("get_cart");
+  if (state.stage !== "store") return;
+  if (key === "categorias") return tool("list_categories");
   if (key === "finalizar compra") return tool("checkout");
   if (key === "ofertas") return tool("get_daily_deals");
   if (key === "lista de desejos") return tool("get_wishlist");
@@ -25,6 +25,7 @@ export function resolveMetaStoreTextAction(message: string, state: WhatsAppConve
     const matches = state.view?.choices.filter(c => c.label.trim().toLocaleLowerCase("pt-BR") === message.trim().toLocaleLowerCase("pt-BR")) ?? [];
     return matches.length === 1 ? matches[0].action : undefined;
   }
+  if (state.stage === "checkout" && !state.expectsFreeInput && /^(ver carrinho|continuar comprando|ver produtos)$/i.test(message.trim())) return metaStoreQuickReplyAction(message, state);
   if (state.expectsFreeInput || state.stage !== "store") return;
   const sameLabel = state.view?.choices.filter(c => c.label.trim().toLocaleLowerCase("pt-BR") === message.trim().toLocaleLowerCase("pt-BR")) ?? [];
   if (sameLabel.length === 1) return sameLabel[0].action;

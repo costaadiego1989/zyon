@@ -12,7 +12,7 @@ import { MetaUiCapabilitiesAdapter } from "../../infrastructure/adapters/meta-ui
 import { resolveMetaFieldFlow } from "../../domain/ui/meta-flow.js";
 import { MetaInboundMediaAdapter } from "../../infrastructure/adapters/meta-inbound-media.adapter.js";
 import { MetaCatalogOrderAdapter } from "../../infrastructure/adapters/meta-catalog-order.adapter.js";
-import { resolveMetaStoreTextAction } from "../../domain/ui/meta-store-actions.js";
+import { metaStoreQuickReplyAction, resolveMetaStoreTextAction } from "../../domain/ui/meta-store-actions.js";
 
 interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
@@ -57,6 +57,7 @@ export class HandleMetaConversationUseCase {
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
       else if (/^(menu|in[ií]cio)$/i.test(input.body.trim())) action = { kind: "menu" };
       else action = resolveMetaStoreTextAction(input.body, state);
+      if (action?.kind === "message" && /^(ver carrinho|continuar comprando|ver produtos)$/i.test(action.message.trim())) action = metaStoreQuickReplyAction(action.message, state) ?? action;
 
       const revision = claim.id;
       let view: MetaUiView | undefined = state.view ? { ...state.view, stage: state.view.stage ?? state.stage } : undefined;

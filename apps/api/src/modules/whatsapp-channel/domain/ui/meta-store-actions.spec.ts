@@ -37,3 +37,12 @@ test("checkout fields and custom questions are not interpreted as store commands
   assert.equal(resolveMetaStoreTextAction("É compatível com meu aparelho?", state()), undefined);
   assert.equal(resolveMetaStoreTextAction("Mais Informações", { ...state(), selectedProductId: undefined }), undefined);
 });
+
+for (const [label, tool] of [["Ver carrinho", "get_cart"], ["Continuar comprando", "search_products"], ["Ver produtos", "search_products"]]) test(`checkout navigation ${label} uses the same native and typed read action`, () => {
+  const current = { ...state(), stage: "checkout" as const };
+  const action = metaStoreQuickReplyAction(label, current);
+  assert.equal(action?.kind === "tool" ? action.tool : undefined, tool);
+  assert.deepEqual(resolveMetaStoreTextAction(label, current), action);
+  assert.deepEqual(buildMetaUiView({ agentMessage: "Pagamento", blocks: [], quickReplies: [label], state: current }).choices[0].action, action);
+  assert.equal(resolveMetaStoreTextAction(label, { ...current, expectsFreeInput: true }), undefined);
+});
