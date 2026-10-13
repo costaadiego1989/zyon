@@ -12,7 +12,6 @@ import {
   extractStandaloneName,
   extractPhone,
   isBrazilianMobilePhone,
-  hasValidContactPhone,
 } from "../../domain/services/customer-extraction.service.js";
 import { OtpDeliveryError, OtpService, OtpValidationError } from "./otp.service.js";
 import { BuyerRecognitionService } from "./buyer-recognition.service.js";
@@ -44,8 +43,8 @@ export class CheckoutCustomerService {
     private readonly recognitionService?: BuyerRecognitionService,
     private readonly persistenceService?: BuyerAccountPersistenceService,
     @Optional() @Inject(EMAIL_SENDER_PORT) private readonly emailSender?: EmailSenderPort,
-    @Optional() @Inject(WHATSAPP_TEMPLATE_REPOSITORY) private readonly templates?: WhatsAppTemplateRepositoryPort,
-    @Optional() @Inject(WHATSAPP_TEMPLATE_SENDER) private readonly whatsappTemplates?: WhatsAppTemplateSenderPort,
+    @Optional() @Inject(WHATSAPP_TEMPLATE_REPOSITORY) _templates?: WhatsAppTemplateRepositoryPort,
+    @Optional() @Inject(WHATSAPP_TEMPLATE_SENDER) _whatsappTemplates?: WhatsAppTemplateSenderPort,
     @Optional() private readonly savedAddresses?: CheckoutSavedAddressService,
   ) {}
 
@@ -295,42 +294,10 @@ export class CheckoutCustomerService {
       });
       if (result?.status === "sent" && result.messageId.trim()) return;
     } catch {
-      // The transactional WhatsApp fallback below is available only after a
-      // concrete Resend failure. It is not a second send on an accepted email.
+      // A code delivered to a phone cannot prove possession of this email.
+      // Keep the challenge uncommitted until its own channel accepts delivery.
     }
-
-    if (await this.deliverWhatsAppOtp(input)) return;
     throw new OtpDeliveryError();
-  }
-
-  private async deliverWhatsAppOtp(input: {
-    session: CheckoutSession;
-    code: string;
-  }): Promise<boolean> {
-    const phone = input.session.customer?.phone;
-    if (!phone || !hasValidContactPhone(input.session.customer)) return false;
-
-    const template = await this.templates
-      ?.findByMerchantAndType(input.session.merchantId, "checkout_otp", "whatsapp")
-      .catch(() => null);
-    if (!template?.isActive || template.metaStatus !== "approved" || !template.twilioContentSid || !template.metaVariableMap) return false;
-
-    const variables: Record<string, string> = {};
-    for (const [position, name] of Object.entries(template.metaVariableMap)) {
-      if (name !== "otpCode") return false;
-      variables[position] = input.code;
-    }
-    if (!Object.keys(variables).length) return false;
-
-    const result = await this.whatsappTemplates?.sendTemplate({
-      merchantId: input.session.merchantId,
-      type: "checkout_otp",
-      toNumber: phone,
-      contentSid: template.twilioContentSid,
-      language: template.metaLanguage ?? "pt_BR",
-      contentVariables: variables,
-    }).catch(() => null);
-    return result?.status === "sent" && Boolean(result.messageId.trim());
   }
 
   private otpEmailHtml(code: string, merchantName?: string): string {

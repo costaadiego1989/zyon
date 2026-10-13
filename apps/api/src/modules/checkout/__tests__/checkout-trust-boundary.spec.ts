@@ -77,6 +77,7 @@ test("start reprices native SKUs and strips forged totals, freight and identity 
     customer: {
       email: "victim@example.com", email_verified: true, phone_verified: true, address_verified: true,
       externalCustomerId: "victim-buyer", asaasCustomerId: "provider-victim", otp_code: "123456",
+      otp_expires_at: "2099-01-01T00:00:00Z",
       recognized_buyer: true, isReturning: true,
     },
     shipping: { customerPrice: -100, realCost: 0, region: "SP" },

@@ -53,7 +53,7 @@ test("checkout stores an email OTP only after Resend accepts it", async () => {
   assert.match(result.customer?.otp_code ?? "", /^\d{6}$/);
 });
 
-test("checkout sends the same OTP through an approved Meta template after Resend rejects it", async () => {
+test("even an approved Meta authentication template cannot verify an email through a caller-supplied phone", async () => {
   const repository = new InMemoryCheckoutRepository();
   const emailSender = { async send() { return { status: "skipped" as const, messageId: "" }; } };
   const templates = {
@@ -80,11 +80,10 @@ test("checkout sends the same OTP through an approved Meta template after Resend
   );
   const session = checkoutSession({ customer: { phone: "11999990000" } });
 
-  const result = await service.processCustomerInput(session, "buyer@example.test", "Qual é seu e-mail?", "Loja Teste");
-
-  assert.equal(sent.length, 1);
-  assert.equal(sent[0]?.type, "checkout_otp");
-  assert.equal(sent[0]?.contentVariables["1"], result.customer?.otp_code);
+  await assert.rejects(service.processCustomerInput(session, "victim@example.test", "Qual é seu e-mail?", "Loja Teste"), /Não foi possível enviar o código de confirmação/);
+  assert.equal(sent.length, 0);
+  assert.equal(session.customer?.email_verified, undefined);
+  assert.equal(await repository.getSession(session.merchantId, session.sessionId), undefined);
 });
 
 test("checkout does not persist an OTP when neither transactional channel accepts it", async () => {

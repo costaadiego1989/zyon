@@ -63,11 +63,12 @@ test("checkout OTP template has one code variable", () => {
 });
 
 test("customer notifications identify their company and retain a literal ending after positional conversion", async () => {
-  const { prepareSalesWhatsApp } = await import("../sales-template-content.js");
+  const { prepareSalesWhatsApp, salesDefaults } = await import("../sales-template-content.js");
   for (const def of Object.values(buildCatalog())) {
-    if (def.type === "checkout_otp" || def.type.startsWith("plan_expiry_") || def.type === "marketplace_operational_alert") continue;
-    assert.ok(def.freeformBody.includes("{{storeName}}"), def.type);
-    const prepared = prepareSalesWhatsApp(def.type, def.freeformBody);
+    if (def.type === "checkout_otp") continue;
+    if (!def.type.startsWith("plan_expiry_") && def.type !== "marketplace_operational_alert") assert.ok(def.freeformBody.includes("{{storeName}}"), def.type);
+    const prepared = prepareSalesWhatsApp(def.type, salesDefaults(def.type).whatsapp.body);
+    assert.doesNotMatch(prepared.metaBody, /^\s*\{\{\d+\}\}/u, def.type);
     assert.doesNotMatch(prepared.metaBody, /\{\{\d+\}\}[^\p{L}\p{N}]*$/u, def.type);
   }
 });
