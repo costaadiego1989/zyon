@@ -37,7 +37,7 @@ test("a returning phone starts the shared email challenge without releasing its 
     { execute: async (_: any, context: any) => { assert.equal(context.trustedPhoneBuyer.email, "existing@example.com"); assert.equal(context.trustedPhoneBuyer.cpf, undefined); return { session_id: "checkout" }; } } as any,
     undefined, undefined, { resolveStorefront: async () => session.cart } as any, undefined, undefined, undefined,
     { emailHint: async () => "existing@example.com" } as any,
-    { processCustomerInput: async (input: any, message: string) => { called++; assert.equal(message, "Iniciar cadastro"); stored = { ...input, customer: { ...input.customer, otp_code: "123456", otp_expires_at: new Date(Date.now() + 600000).toISOString() } }; return stored; } } as any);
+    { beginEmailVerification: async (input: any, merchantName: string) => { called++; assert.equal(merchantName, "Empresa"); stored = { ...input, customer: { ...input.customer, otp_code: "123456", otp_expires_at: new Date(Date.now() + 600000).toISOString() } }; return stored; } } as any);
   const result = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Finalizar compra", state: initial });
   assert.equal(called, 1); assert.match(result.agentMessage, /e\*\*\*@example.com/);
   assert.equal(stored.customer.email_verified, false);

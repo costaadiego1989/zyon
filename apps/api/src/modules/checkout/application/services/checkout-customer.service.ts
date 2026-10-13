@@ -48,6 +48,18 @@ export class CheckoutCustomerService {
     @Optional() private readonly savedAddresses?: CheckoutSavedAddressService,
   ) {}
 
+  /** Starts an identity challenge without treating an internal command as buyer data. */
+  async beginEmailVerification(session: CheckoutSession, merchantName?: string): Promise<CheckoutSession> {
+    const email = session.customer?.email?.trim().toLowerCase();
+    if (!email || !this.otpService) throw new OtpDeliveryError();
+    if (session.customer?.email_verified) return session;
+    if (session.customer?.otp_code && Date.parse(session.customer.otp_expires_at ?? "") > Date.now()) return session;
+    const patch = this.otpService.processEmailOtp("Iniciar cadastro", { ...session.customer, otp_code: undefined }, email, false);
+    if (!patch?.otp_code) throw new OtpDeliveryError();
+    await this.deliverEmailOtp({ session, email, code: patch.otp_code, merchantName });
+    return commitCheckoutMutation(this.repository, { expected: session, next: this.mergeCustomers(structuredClone(session), patch) });
+  }
+
   async processCustomerInput(
     session: CheckoutSession,
     userMessage: string,

@@ -145,7 +145,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         let session = await this.sessions.getSession(input.merchantId, checkout.session_id);
         let message: string | undefined;
         if (session?.customer?.email && !session.customer.email_verified && !session.customer.otp_code && this.checkoutCustomer) {
-          try { session = await this.checkoutCustomer.processCustomerInput(session, "Iniciar cadastro", undefined, config.name); }
+          try { session = await this.checkoutCustomer.beginEmailVerification(session, config.name); }
           catch (error) {
             if (!(error instanceof OtpValidationError)) throw error;
             message = "Não consegui enviar o código por email agora. Escolha *Reenviar código* para tentar novamente.";
