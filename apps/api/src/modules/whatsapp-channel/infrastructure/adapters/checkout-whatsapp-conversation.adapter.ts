@@ -73,10 +73,10 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const config = await this.storeConfig.executeForMerchant(input.merchantId);
     let state = { ...input.state };
     const identitySession = state.checkoutSessionId ? await this.sessions.getSession(input.merchantId, state.checkoutSessionId) : undefined;
-    const verifiedBuyer = identitySession?.merchantId === input.merchantId && identitySession.customer?.email_verified === true &&
+    const verifiedBuyer = identitySession?.merchantId === input.merchantId && identitySession.customer?.email_verified === true && identitySession.customer.email?.trim() &&
       identitySession.customer.phone_verified === true && identitySession.customer.phone?.replace(/\D/g, "") === input.buyer.phone.replace(/\D/g, "") &&
       (identitySession.cart as { cart_ref?: string }).cart_ref === state.conversationId
-      ? { globalUserId: identitySession.globalUserId, customer: identitySession.customer } : undefined;
+      ? { globalUserId: identitySession.globalUserId, customer: { ...identitySession.customer, email: identitySession.customer.email, email_verified: true as const } } : undefined;
     const shopper = verifiedBuyer ? { ...input.buyer, globalUserId: verifiedBuyer.globalUserId, fullName: verifiedBuyer.customer.fullName, email: verifiedBuyer.customer.email } : input.buyer;
     const firstTurn = state.history.length === 0;
     const greeting = config.agentGreeting || `Oi! Sou ${config.agentName || "Zyon"}, sua vendedora pessoal aqui na ${config.name}. 💚 Me conta o que você procura — eu encontro o produto ideal, garanto o melhor preço com cupons, calculo o frete e fecho seu pedido em segundos, tudo por aqui. Bora começar?`;

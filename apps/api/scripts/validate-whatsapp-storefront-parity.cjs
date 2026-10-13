@@ -229,6 +229,15 @@
       await assert.rejects(controller.start(request, { session_id: 'foreign-checkout', cart: { items: [] } }), /embed_checkout_session_binding_mismatch/);
       results.checks.push('fresh_signed_handoff_passes_real_widget_bootstrap_guard_and_controller');
       results.checks.push('handoff_rejects_foreign_origin_and_checkout_session');
+      if (process.env.ZYON_QA_BROWSER_PUBLIC_KEY) {
+        const { randomBytes, createCipheriv, publicEncrypt } = require('node:crypto');
+        const key = randomBytes(32), iv = randomBytes(12), cipher = createCipheriv('aes-256-gcm', key, iv);
+        const encrypted = Buffer.concat([cipher.update(JSON.stringify({ url: url.href, runId })), cipher.final()]);
+        console.log('ZYON_QA_BROWSER_HANDOFF=' + JSON.stringify({ key: publicEncrypt(process.env.ZYON_QA_BROWSER_PUBLIC_KEY, key).toString('base64'), iv: iv.toString('base64'), tag: cipher.getAuthTag().toString('base64'), data: encrypted.toString('base64') }));
+        // Gives the real hosted desktop/mobile browser probe time to run before cleanup.
+        await new Promise(resolve => setTimeout(resolve, 45000));
+        results.checks.push('encrypted_fixture_handoff_available_for_hosted_browser_validation');
+      }
       const intents = await prisma.paymentIntent.count({ where: { merchantId, sessionId: checkoutSessionId } });
       assert.equal(intents, 0);
       results.checks.push('checkout_preserves_buyer_phone_cart_and_email_verification');
