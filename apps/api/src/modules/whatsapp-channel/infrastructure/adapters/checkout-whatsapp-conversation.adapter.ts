@@ -396,8 +396,13 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         scopes: ["checkout:start", "checkout:track", "checkout:chat", "payment:intents:create", "payment:intents:read", "payment:intents:confirm", "offers:apply", "coupons:apply"] });
       widget.searchParams.set("embedToken", token); widget.searchParams.set("merchantId", merchantId);
       widget.searchParams.set("channel", "chat");
-      const business = await this.prisma?.whatsAppChannelConfig?.findFirst({ where: { merchantId, enabled: true, provider: "META_CLOUD" }, select: { whatsappNumber: true } });
-      const businessPhone = business?.whatsappNumber?.replace(/\D/g, "");
+      const business = await this.prisma?.whatsAppChannelConfig?.findFirst({ where: { merchantId, enabled: true, provider: "META_CLOUD" }, select: { whatsappNumber: true, credentials: true } });
+      // Some Brazilian accounts have a provider chat address different from
+      // the display number. Use an explicitly verified address when present;
+      // never remove the ninth digit from every merchant's number.
+      const canonicalPhone = (business?.credentials as Record<string, unknown> | undefined)?.canonicalChatNumber;
+      const businessPhone = typeof canonicalPhone === "string" && /^[1-9]\d{7,14}$/.test(canonicalPhone)
+        ? canonicalPhone : business?.whatsappNumber?.replace(/\D/g, "");
       if (businessPhone && /^\d{8,15}$/.test(businessPhone)) widget.searchParams.set("whatsappNumber", businessPhone);
       if (response.initialPaymentMethod === "card" || resumeCard) widget.searchParams.set("paymentMethod", "card");
       if ((response.initialPaymentMethod === "card" || resumeCard) && state.paymentRevision) widget.searchParams.set("paymentRevision", String(state.paymentRevision));
