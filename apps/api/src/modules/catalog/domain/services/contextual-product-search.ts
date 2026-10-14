@@ -1,5 +1,5 @@
 const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
-const browse = new Set(["*", "", "produto", "produtos", "ver produtos", "catalogo", "todos", "tudo", "all", "listar", "mostrar", "ver tudo"]);
+const browse = new Set(["*", "", "produto", "produtos", "ver produtos", "continuar comprando", "catalogo", "todos", "tudo", "all", "listar", "mostrar", "ver tudo"]);
 const stop = new Set("eu quero queria preciso gostaria procura procurar busco buscar encontre encontrar mostrar mostre ver comprar compra produto produtos item itens algum alguma algo um uma uns umas o a os as e de da do das dos para pra por com em no na nos nas minha meu minhas meus sua seu suas seus voce voces favor ajuda ajude loja lojas que qual quais tem temos tenho me mim pelo pela porfavor".split(" "));
 const aliases: Record<string, string[]> = {
   pele: ["pele", "facial", "rosto", "cutane"],
@@ -11,7 +11,11 @@ const aliases: Record<string, string[]> = {
 /** Keep an expressed need when the model issues a generic catalog query.
  * Explicit browse actions have no userMessage and retain the entire catalog. */
 export function contextualProductQuery(query?: string, userMessage?: string): string | undefined {
-  if (!browse.has(normalize(query ?? ""))) return query;
+  if (!browse.has(normalize(query ?? ""))) {
+    const constraints = userMessage ? contextualSearchGroups(userMessage)
+      .map(group => group[0]).filter(term => /^(sem|nao) /.test(term) && !normalize(query ?? "").includes(term)) : [];
+    return constraints.length ? `${query} ${constraints.join(" ")}` : query;
+  }
   return userMessage && contextualSearchGroups(userMessage).length ? userMessage : query;
 }
 
@@ -19,6 +23,7 @@ export function contextualProductQuery(query?: string, userMessage?: string): st
  * group must match; zero matches never broadens into an unrelated catalog.
  * Preserve negated phrases rather than recommending their opposite. */
 export function contextualSearchGroups(query: string): string[][] {
+  if (browse.has(normalize(query))) return [];
   let text = normalize(query).replace(/[^\p{L}\p{N}\s-]/gu, " ");
   const phrases: string[][] = [];
   text = text.replace(/\b(sem|nao)\s+([\p{L}\p{N}-]+)/gu, match => {

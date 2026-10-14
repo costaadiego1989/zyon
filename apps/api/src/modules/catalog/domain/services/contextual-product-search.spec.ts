@@ -6,6 +6,8 @@ test('natural needs survive a wildcard search while explicit catalog navigation 
   assert.equal(contextualProductQuery('*', 'quero um produto para minha pele'), 'quero um produto para minha pele');
   assert.deepEqual(contextualSearchGroups('quero um produto para minha pele'), [['pele', 'facial', 'rosto', 'cutane']]);
   assert.equal(contextualProductQuery('*'), '*');
+  assert.equal(contextualProductQuery('*', 'Continuar comprando'), '*');
+  assert.equal(contextualProductQuery('pele', 'quero um produto para pele sem perfume'), 'pele sem perfume');
   assert.equal(contextualProductQuery('hidratante', 'quero um produto para minha pele'), 'hidratante');
   assert.deepEqual(contextualSearchGroups('quero um hidratante para pele sensível'), [['hidrat'], ['pele', 'facial', 'rosto', 'cutane'], ['sensivel', 'sensiv']]);
 });
