@@ -5,7 +5,7 @@ import { BillingPlanDetails } from "./BillingPlanDetails.js";
 import { Button } from "../../../components/Button.js";
 
 export interface PlanDef {
-  key: "starter" | "growth" | "scale";
+  key: "starter" | "starter179" | "growth" | "scale";
   name: string;
   price: number;
   billingOptions?: BillingOffer[];

@@ -1,18 +1,20 @@
 import type { BillingPlan, BillingSubscriptionSnapshot } from "./payment-platform.types.js";
 
 import { BILLING_PLANS, type BillingPlanFeatureKey } from "@zyon/shared-types";
-export { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS } from "@zyon/shared-types";
+export { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS, BILLING_PLAN_PRESENTATION } from "@zyon/shared-types";
 export type { BillingPlanConfig, BillingPlanLimitKey, BillingPlanFeatureKey, BillingPlanLimits, BillingPlanFeatures } from "@zyon/shared-types";
 
 export function planFromPriceId(
   stripePriceId: string | undefined,
   priceIds: Partial<Record<BillingPlan, string>> = {
     starter: process.env.STRIPE_BILLING_PRICE_STARTER,
+    starter179: process.env.STRIPE_BILLING_PRICE_STARTER_179,
     growth: process.env.STRIPE_BILLING_PRICE_GROWTH,
     scale: process.env.STRIPE_BILLING_PRICE_SCALE,
   },
   legacyPriceIds: Partial<Record<BillingPlan, string>> = {
     starter: process.env.STRIPE_BILLING_PRICE_STARTER_LEGACY,
+    starter179: process.env.STRIPE_BILLING_PRICE_STARTER_179_LEGACY,
     growth: process.env.STRIPE_BILLING_PRICE_GROWTH_LEGACY,
     scale: process.env.STRIPE_BILLING_PRICE_SCALE_LEGACY,
   },
@@ -26,11 +28,10 @@ export function planFromPriceId(
   for (const plan of Object.keys(BILLING_PLANS) as BillingPlan[]) {
     if (legacyPriceIds[plan]?.split(",").some((id) => id.trim() === priceId)) return plan;
   }
-  for (const plan of ["growth", "scale"] as const) {
-    const key = "STRIPE_BILLING_PRICE_" + plan.toUpperCase() + "_ANNUAL";
+  for (const [plan, key] of [["starter179", "STRIPE_BILLING_PRICE_STARTER_179_ANNUAL"], ["growth", "STRIPE_BILLING_PRICE_GROWTH_ANNUAL"], ["scale", "STRIPE_BILLING_PRICE_SCALE_ANNUAL"]] as const) {
     if (process.env[key]?.trim() === priceId || process.env[key + "_LEGACY"]?.split(",").some(id => id.trim() === priceId)) return plan;
   }
-  if (priceId === "starter" || priceId === "growth" || priceId === "scale") return priceId;
+  if (priceId === "starter" || priceId === "starter179" || priceId === "growth" || priceId === "scale") return priceId;
   return undefined;
 }
 
@@ -66,7 +67,7 @@ export function isBillingFeatureEnabled(
   const trialEndsAt = subscription.trialEndsAt instanceof Date
     ? subscription.trialEndsAt.toISOString()
     : subscription.trialEndsAt ?? undefined;
-  const planKey = subscription.planKey === "growth" || subscription.planKey === "scale"
+  const planKey = subscription.planKey === "starter179" || subscription.planKey === "growth" || subscription.planKey === "scale"
     ? subscription.planKey
     : "starter";
   const status = subscription.status === "active" || subscription.status === "trialing"
@@ -108,7 +109,7 @@ export function assertProviderFeeCap(platformFeeCents: number, providerFeeCents:
 }
 
 export function cycleFromPriceId(priceId: string | undefined): "monthly" | "annual" {
-  if (priceId) for (const plan of ["GROWTH", "SCALE"]) {
+  if (priceId) for (const plan of ["STARTER_179", "GROWTH", "SCALE"]) {
     const key = "STRIPE_BILLING_PRICE_" + plan + "_ANNUAL";
     if (process.env[key]?.trim() === priceId || process.env[key + "_LEGACY"]?.split(",").some(id => id.trim() === priceId)) return "annual";
   }

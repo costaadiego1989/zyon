@@ -1,11 +1,12 @@
 import { Injectable, Logger } from "@nestjs/common";
-import { Inject } from "@nestjs/common";
+import { Inject, Optional } from "@nestjs/common";
 import {
   SCHEDULED_MESSAGE_REPOSITORY,
   type ScheduledMessageRepositoryPort,
   type ScheduledMessage,
 } from "../../domain/ports/scheduled-message-repository.port.js";
 import { PostSaleConfigService } from "../services/post-sale-config.service.js";
+import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 
 export interface SchedulePostDeliveryFlowInput {
   merchantId: string;
@@ -26,10 +27,16 @@ export class SchedulePostDeliveryFlowUseCase {
   constructor(
     @Inject(SCHEDULED_MESSAGE_REPOSITORY)
     private readonly messages: ScheduledMessageRepositoryPort,
-    private readonly config: PostSaleConfigService
+    private readonly config: PostSaleConfigService,
+    @Optional() private readonly billing?: BillingPlanMeteringService,
   ) {}
 
   async execute(input: SchedulePostDeliveryFlowInput): Promise<{ scheduled: number; skipped: string[] }> {
+    try {
+      await this.billing?.assertAllowed(input.merchantId, { kind: "feature", key: "postSale" });
+    } catch {
+      return { scheduled: 0, skipped: ["plan_unavailable"] };
+    }
     const now = new Date();
     const cfg = await this.config.getConfig(input.merchantId);
 

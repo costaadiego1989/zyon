@@ -66,6 +66,7 @@ import { InventorySaleIntegrationHandler } from "./infrastructure/event-handlers
 import { ErpSyncService } from "./application/services/erp-sync.service.js";
 import { ErpSyncWorker } from "./infrastructure/jobs/erp-sync.worker.js";
 import { TriggerErpSyncUseCase } from "./application/use-cases/trigger-erp-sync.use-case.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 import { TIKTOKSHOP_OAUTH_PORT } from "./domain/ports/tiktokshop-oauth.port.js";
 import { TikTokShopOAuthAdapter } from "./infrastructure/adapters/tiktokshop-oauth.adapter.js";
@@ -78,6 +79,8 @@ import { ShopeeTokenAdapter } from "./infrastructure/adapters/shopee-token.adapt
   imports: [CatalogModule, CheckoutPersistenceModule, TenantAccessModule, CampaignConsentModule],
   controllers: [InventoryDashboardController, ErpOAuthController, CrmOAuthController, MarketplaceWebhookController],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     { provide: TIKTOKSHOP_OAUTH_PORT, useClass: TikTokShopOAuthAdapter },
     { provide: TIKTOKSHOP_TOKEN_PORT, useClass: TikTokShopTokenAdapter },
     { provide: SHOPEE_TOKEN_PORT, useClass: ShopeeTokenAdapter },

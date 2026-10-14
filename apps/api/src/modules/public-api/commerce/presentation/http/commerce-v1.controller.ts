@@ -28,6 +28,7 @@ import { Idempotent } from '../../../../../shared/http/idempotency/idempotent.de
 import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response-envelope.interceptor.js';
 import { RequireTenantAccess } from '../../../../integrations/presentation/http/tenant-access.decorator.js';
 import { TenantAccessGuard } from '../../../../integrations/presentation/http/tenant-access.guard.js';
+import { PlanLimitGuard, RequirePlanFeature } from '../../../../payment/domain/billing-plan-guard.js';
 import { TenantCredentialGuard } from '../../../../integrations/presentation/http/tenant-credential.guard.js';
 import {
   ConnectCommerceUseCase,
@@ -49,7 +50,8 @@ import {
 @ApiCookieAuth('console_session')
 @Controller('commerce/connections')
 @UseInterceptors(ResponseEnvelopeInterceptor)
-@UseGuards(TenantCredentialGuard, TenantAccessGuard)
+@UseGuards(TenantCredentialGuard, TenantAccessGuard, PlanLimitGuard)
+@RequirePlanFeature('publicApiV1')
 export class CommerceV1Controller {
   constructor(
     private readonly getConnection: GetCommerceConnectionUseCase,

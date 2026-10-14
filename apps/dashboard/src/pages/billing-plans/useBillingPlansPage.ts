@@ -34,7 +34,7 @@ export function useBillingPlansPage() {
     setError(null);
     try {
       const required = subscription?.usage?.required_plan;
-      const order = ["starter", "growth", "scale"];
+      const order = ["starter", "starter179", "growth", "scale"];
       if (plan && required && order.indexOf(plan) < order.indexOf(required)) {
         setError(`O plano ${required === "scale" ? "Scale" : "Growth"} tem a capacidade necessária para o uso deste mês.`);
         return;

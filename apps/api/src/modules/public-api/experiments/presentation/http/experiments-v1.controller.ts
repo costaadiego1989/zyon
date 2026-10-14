@@ -26,6 +26,7 @@ import { ResponseEnvelopeInterceptor } from '../../../../../shared/http/response
 import { Idempotent } from '../../../../../shared/http/idempotency/idempotent.decorator.js';
 import { TenantCredentialGuard } from '../../../../integrations/presentation/http/tenant-credential.guard.js';
 import { TenantAccessGuard } from '../../../../integrations/presentation/http/tenant-access.guard.js';
+import { PlanLimitGuard, RequirePlanFeature } from '../../../../payment/domain/billing-plan-guard.js';
 import { RequireTenantAccess } from '../../../../integrations/presentation/http/tenant-access.decorator.js';
 
 import { CreateExperimentUseCase } from '../../../../experiments/application/use-cases/create-experiment.use-case.js';
@@ -50,7 +51,8 @@ import {
 @ApiCookieAuth('console_session')
 @Controller('experiments')
 @UseInterceptors(ResponseEnvelopeInterceptor)
-@UseGuards(TenantCredentialGuard, TenantAccessGuard)
+@UseGuards(TenantCredentialGuard, TenantAccessGuard, PlanLimitGuard)
+@RequirePlanFeature('abTests')
 export class ExperimentsV1Controller {
   constructor(
     private readonly createExperimentUseCase: CreateExperimentUseCase,

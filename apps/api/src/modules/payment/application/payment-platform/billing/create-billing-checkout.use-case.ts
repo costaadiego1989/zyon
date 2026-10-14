@@ -45,7 +45,7 @@ export class CreateBillingCheckoutUseCase {
     plan: BillingPlan;
     billingCycle?: BillingCycle;
   }): Promise<{ url: string; sessionId: string }> {
-    if (input.plan !== "growth" && input.plan !== "scale") throw new BadRequestException("billing_paid_plan_required");
+    if (input.plan !== "starter179" && input.plan !== "growth" && input.plan !== "scale") throw new BadRequestException("billing_paid_plan_required");
     const offer = quoteBilling(input.plan, input.billingCycle);
     const priceId = this.billingConfig.priceId(input.plan, offer.cycle);
     const profile = await this.merchants.getProfile(input.merchantId);

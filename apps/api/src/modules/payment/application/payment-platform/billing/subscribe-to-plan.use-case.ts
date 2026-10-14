@@ -18,7 +18,7 @@ import type { BillingPlan } from "../../../domain/payment-platform.types.js";
 
 export interface SubscribeToPlanInput {
   merchantId: string;
-  planKey: "growth" | "scale";
+  planKey: "starter179" | "growth" | "scale";
   billingCycle?: BillingCycle;
   card: {
     holderName: string;

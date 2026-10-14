@@ -7,16 +7,22 @@ import type { BillingPlan } from "../domain/payment-platform.types.js";
 
 const PRICE_ENV: Record<BillingPlan, string> = {
   starter: "STRIPE_BILLING_PRICE_STARTER",
+  starter179: "STRIPE_BILLING_PRICE_STARTER_179",
   growth: "STRIPE_BILLING_PRICE_GROWTH",
   scale: "STRIPE_BILLING_PRICE_SCALE",
 };
+
+/** The environment variable name backing a plan price, without reading its value. */
+export function billingPriceEnvironmentKey(plan: BillingPlan, cycle: BillingCycle = "monthly"): string {
+  return PRICE_ENV[plan] + (cycle === "annual" ? "_ANNUAL" : "");
+}
 
 export function billingPriceId(
   plan: BillingPlan,
   env: NodeJS.ProcessEnv = process.env,
   cycle: BillingCycle = "monthly",
 ): string {
-  const priceId = env[PRICE_ENV[plan] + (cycle === "annual" ? "_ANNUAL" : "")]?.trim();
+  const priceId = env[billingPriceEnvironmentKey(plan, cycle)]?.trim();
   if (!priceId) {
     throw new ServiceUnavailableException({
       code: "billing_plan_not_configured",

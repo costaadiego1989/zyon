@@ -22,6 +22,7 @@ export class EmbedRealtimeVoiceController {
     if (typeof body.sdp !== "string" || body.sdp.length > 200_000 || !body.sdp.trim().startsWith("v=0")) throw new BadRequestException("voice_sdp_offer_required");
     const session = await this.voiceSession(request, body);
     const embed = request.embedClaims!;
+    await this.billing.admitVoiceSession(embed.merchantId, session.sessionId);
     const userId = session.globalUserId && session.customer?.email_verified ? `buyer:${session.globalUserId}` : embed.aiUserId ?? `visitor:${embed.nonce}`;
     return this.realtime.createCall({ ...voiceSessionInput(session), sdp: body.sdp.trim(), aiUserId: userId,
       resolveAiUserId: async () => {

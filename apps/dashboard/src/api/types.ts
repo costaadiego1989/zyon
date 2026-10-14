@@ -196,7 +196,7 @@ export type BillingSubscription = {
     grace_expires_at?: string | null;
     usage_period_end?: string | null;
     orders_overage?: number;
-    required_plan?: "starter" | "growth" | "scale" | null;
+      required_plan?: "starter" | "starter179" | "growth" | "scale" | null;
     can_accept_orders?: boolean;
     orders_current?: number | null;
     orders_limit?: number | null;

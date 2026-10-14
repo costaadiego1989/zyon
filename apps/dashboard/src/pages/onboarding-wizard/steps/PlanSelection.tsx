@@ -26,7 +26,7 @@ export function PlanSelection({ merchantName, initialPlan, requirePaidPlan = fal
   const [billingCycle, setBillingCycle] = useBillingCycle();
   const [plans, setPlans] = useState<PlanDef[]>([]);
   const [busy, setBusy] = useState(false);
-  const [selected, setSelected] = useState<PlanDef["key"]>(requirePaidPlan ? "growth" : initialPlan ?? "starter");
+  const [selected, setSelected] = useState<PlanDef["key"]>(requirePaidPlan ? (initialPlan === "starter" ? "starter179" : initialPlan ?? "starter179") : initialPlan ?? "starter");
   const [loading, setLoading] = useState(true);
   const [confirming, setConfirming] = useState(new URLSearchParams(window.location.search).get("billing") === "success");
   const [error, setError] = useState<string | null>(null);
@@ -76,7 +76,7 @@ export function PlanSelection({ merchantName, initialPlan, requirePaidPlan = fal
     setError(null);
     try {
       if (requirePaidPlan && plan === "starter") {
-        setError("O período gratuito terminou. Escolha Growth ou Scale para reativar a loja.");
+        setError("O período gratuito terminou. Escolha Starter, Growth ou Scale para reativar a loja.");
         return;
       }
       const definition = plans.find(p => p.key === plan);
@@ -112,7 +112,7 @@ export function PlanSelection({ merchantName, initialPlan, requirePaidPlan = fal
       <h1 id="plan-selection-title">{initialPlan ? "Tudo pronto para continuar." : "Sua loja pronta para o próximo passo."}</h1>
       <p>{initialPlan ? "Trouxemos sua escolha do site. Confira as condições, confirme a assinatura e volte ao painel com seu acesso preservado." : "Escolha o plano que acompanha sua operação. Compare os limites e confira as taxas."}</p>
     </header>
-    {requirePaidPlan && <p className="plan-selection__message" role="status">Seu período gratuito terminou. Escolha Growth ou Scale para reativar sua loja quando a assinatura for confirmada.</p>}
+    {requirePaidPlan && <p className="plan-selection__message" role="status">Seu período gratuito terminou. Escolha Starter, Growth ou Scale para reativar sua loja quando a assinatura for confirmada.</p>}
     {error && <div role="alert" className="plan-selection__message plan-selection__message--error">{error} {!plans.length && <Button variant="outline" onClick={() => void loadPlans()}>Tentar novamente</Button>}</div>}
     {notice && <div role="status" className="plan-selection__message">{notice}{paymentPending && <Button variant="outline" disabled={confirming} onClick={() => setConfirming(true)}>Atualizar status</Button>}</div>}
     {confirming && <p role="status" className="plan-selection__message"><LoaderCircle size={18} /> Confirmando sua assinatura…</p>}

@@ -2,10 +2,12 @@ import { Controller, Get, Header, Query, Req, Res, UseGuards } from "@nestjs/com
 import { ApiOperation, ApiTags } from "@nestjs/swagger";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { HubSpotOAuthService } from "../../application/services/hubspot-oauth.service.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 
 @ApiTags("Inventory - CRM OAuth")
 @Controller("inventory/crm/oauth/hubspot")
-@UseGuards(AuthGuard)
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("crmIntegrations")
 export class CrmOAuthController {
   constructor(private readonly hubspot: HubSpotOAuthService) {}
 

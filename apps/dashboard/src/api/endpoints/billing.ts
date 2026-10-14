@@ -36,8 +36,9 @@ export function billingEndpoints(base: string, f: typeof fetch) {
       return plans.map(plan => "key" in plan ? plan : ({
         key: plan.plan_id, name: plan.name, priceBrl: plan.monthly_price_brl,
         transactionFeeCents: plan.transaction_fee_cents, limits: plan.limits,
-        billingOptions: plan.billing_options, annualCheckoutAvailable: plan.annual_checkout_available,
-        trialDays: plan.plan_id === "starter" ? 14 : 0,
+        ...(plan.billing_options ? { billingOptions: plan.billing_options } : {}),
+        ...(plan.annual_checkout_available !== undefined ? { annualCheckoutAvailable: plan.annual_checkout_available } : {}),
+        trialDays: plan.plan_id === "starter" ? 7 : 0,
         recommended: plan.plan_id === "growth", ctaLabel: plan.plan_id === "starter" ? "Continuar no Free" : `Escolher ${plan.name}`,
         features: Object.entries(plan.features).filter(([, enabled]) => enabled).map(([key]) => key),
       }));
@@ -46,19 +47,19 @@ export function billingEndpoints(base: string, f: typeof fetch) {
       return billingJson("/billing/subscription/start-trial", { method: "POST" });
     },
     subscribeToPlan(payload: {
-      planKey: "growth" | "scale"; billingCycle?: BillingCycle;
+      planKey: "starter179" | "growth" | "scale"; billingCycle?: BillingCycle;
       card: { holderName: string; number: string; expiryMonth: string; expiryYear: string; ccv: string };
       holderInfo: { name: string; email: string; cpfCnpj: string; postalCode: string; addressNumber: string; phone: string };
     }): Promise<BillingSubscription> {
       return billingJson("/billing/subscription", { method: "POST", jsonBody: payload });
     },
-    changeBillingPlan(payload: { targetPlan: "starter" | "growth" | "scale"; billingCycle?: BillingCycle }): Promise<BillingSubscription> {
+    changeBillingPlan(payload: { targetPlan: "starter" | "starter179" | "growth" | "scale"; billingCycle?: BillingCycle }): Promise<BillingSubscription> {
       return billingJson("/billing/subscription/change", { method: "POST", jsonBody: payload });
     },
     cancelBillingSubscription(payload?: { immediate?: boolean }): Promise<BillingSubscription> {
       return billingJson("/billing/subscription/cancel", { method: "POST", jsonBody: payload ?? {} });
     },
-    createBillingCheckoutSession(payload: { plan?: "growth" | "scale"; billingCycle?: BillingCycle; price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
+    createBillingCheckoutSession(payload: { plan?: "starter179" | "growth" | "scale"; billingCycle?: BillingCycle; price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
       return billingJson("/billing/checkout-session", { method: "POST", jsonBody: payload });
     },
     createBillingPortalSession(payload: { return_url?: string }): Promise<BillingPortalSessionResponse> {

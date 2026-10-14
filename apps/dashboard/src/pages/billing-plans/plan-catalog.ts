@@ -3,7 +3,7 @@ import type { PlanDef } from "./components/PlanCard.js";
 import { billingOffer, type BillingCycle, type BillingOffer, BILLING_FEATURE_LABELS } from "@zyon/shared-types";
 
 export function toPlanDef(plan: BillingPlanCard): PlanDef {
-  if (!["starter", "growth", "scale"].includes(plan.key)) throw new Error("Plano desconhecido no catálogo.");
+  if (!["starter", "starter179", "growth", "scale"].includes(plan.key)) throw new Error("Plano desconhecido no catálogo.");
   const limit = (key: string) => plan.limits?.[key] === null ? -1 : plan.limits?.[key];
   return {
     key: plan.key as PlanDef["key"], name: plan.name, price: plan.priceBrl,

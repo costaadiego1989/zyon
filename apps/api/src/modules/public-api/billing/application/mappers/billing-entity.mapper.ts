@@ -1,4 +1,5 @@
 import { billingOffers } from "../../../../payment/infrastructure/billing-offers.js";
+import { billingPriceEnvironmentKey } from "../../../../payment/infrastructure/billing-env.js";
 import type { BillingPlan } from "../../../../payment/domain/payment-platform.types.js";
 import type { BillingSubscriptionWithPlanSnapshot, BillingUsageSnapshot } from '../../../../payment/domain/payment-platform.types.js';
 import { BILLING_PLANS, BUYER_SERVICE_FEE_CENTS } from '../../../../payment/domain/billing-plans.js';
@@ -12,7 +13,7 @@ export class BillingEntityMapper {
         plan_id: planId,
         billing_options: billingOffers(planId as BillingPlan),
         annual_checkout_available: planId !== "starter" && billingOffers(planId as BillingPlan).some(o => o.cycle === "annual") &&
-          Boolean(process.env["STRIPE_BILLING_PRICE_" + planId.toUpperCase() + "_ANNUAL"]?.trim()),
+          Boolean(process.env[billingPriceEnvironmentKey(planId as BillingPlan, "annual")]?.trim()),
         name: config.name,
         monthly_price_brl: config.monthlyPriceBrl,
         transaction_fee_cents: config.transactionFeeCents,

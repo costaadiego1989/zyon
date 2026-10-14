@@ -8,11 +8,13 @@ import { RemoveMemberUseCase } from "./application/use-cases/remove-member.use-c
 import { TeamController } from "./presentation/http/team.controller.js";
 import { NotificationsModule } from "../notifications/notifications.module.js";
 import { AuthModule } from "../auth/auth.module.js";
+import { BillingPlanMeteringService } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [PersistenceModule, NotificationsModule, AuthModule],
   controllers: [TeamController],
   providers: [
+    BillingPlanMeteringService,
     InviteMemberUseCase,
     AcceptInviteUseCase,
     ListTeamUseCase,

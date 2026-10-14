@@ -14,6 +14,7 @@ import { randomBytes } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { EMAIL_SENDER_PORT, type EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 import { PasswordHasher } from "../../../auth/domain/services/password-hasher.service.js";
+import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 import { cleanEmailSubject, escapeEmailHtml } from "../../../../shared/messaging/email-content.js";
 
 export { EMAIL_SENDER_PORT };
@@ -46,6 +47,7 @@ export class InviteMemberUseCase {
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(EMAIL_SENDER_PORT) private readonly emailSender: EmailSenderPort,
+    private readonly billing: BillingPlanMeteringService,
   ) {}
 
   async execute(input: InviteMemberInput): Promise<InviteMemberOutput> {
@@ -63,6 +65,7 @@ export class InviteMemberUseCase {
       const existing = await tx.merchantUser.findUnique({ where: { email } });
       if (existing && existing.merchantId !== input.merchant_id) throw new BadRequestException("email_belongs_to_another_merchant");
       if (existing && !existing.disabledAt) throw new BadRequestException("user_already_member");
+      await this.billing.assertAllowed(input.merchant_id, { kind: "limit", key: "teamMembers" });
       if (existing) await tx.$queryRaw`SELECT id FROM merchant_users WHERE id = ${existing.id} FOR UPDATE`;
       const user = existing ? await tx.merchantUser.update({ where: { id: existing.id }, data: { disabledAt: null, passwordHash, role: role.toLowerCase(), authVersion: { increment: 1 } } }) :
         await tx.merchantUser.create({ data: { merchantId: input.merchant_id, email, passwordHash, role: role.toLowerCase() } });

@@ -2,6 +2,7 @@ import { Module } from "@nestjs/common";
 import { MarketplaceModule } from "../marketplace/marketplace.module.js";
 import { IntegrationsModule } from "../integrations/integrations.module.js";
 import { MarketplaceV1Controller } from "../public-api/marketplace/presentation/http/marketplace-v1.controller.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 /**
  * Dashboard-specific marketplace module.
@@ -10,5 +11,6 @@ import { MarketplaceV1Controller } from "../public-api/marketplace/presentation/
 @Module({
   imports: [MarketplaceModule, IntegrationsModule],
   controllers: [MarketplaceV1Controller],
+  providers: [BillingPlanMeteringService, PlanLimitGuard],
 })
 export class DashboardMarketplaceModule {}

@@ -32,10 +32,12 @@ import { CheckoutCustomerService } from "../../../checkout/application/services/
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import type { ShippingQuote } from "@zyon/shared-types";
 import { M2MWebhookDispatcherService } from "../../infrastructure/m2m-webhook-dispatcher.service.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 
 @ApiTags("M2M - Machine-to-Machine Protocol")
 @Controller("m2m")
-@UseGuards(M2mDualAuthGuard)
+@UseGuards(M2mDualAuthGuard, PlanLimitGuard)
+@RequirePlanFeature("m2mAgents")
 @ApiBearerAuth("JWT")
 export class M2mController {
   constructor(

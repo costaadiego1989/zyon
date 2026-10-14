@@ -63,14 +63,15 @@ test("PlanLimitGuard blocks unavailable features", async () => {
   });
 });
 
-test("custom domains require Growth, including during the Free trial", async () => {
+test("custom domains require Starter paid or above, including during the Free trial", async () => {
   await withoutBillingBypass(async () => {
     for (const plan of ["starter"] as const) {
       await assert.rejects(
         () => metering(plan, {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" }),
-        (error: unknown) => error instanceof ForbiddenException && (error.getResponse() as { required_plan: string }).required_plan === "growth",
+        (error: unknown) => error instanceof ForbiddenException && (error.getResponse() as { required_plan: string }).required_plan === "starter179",
       );
     }
+    await metering("starter179", {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" });
     await metering("growth", {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" });
     await metering("scale", {}).assertAllowed("mrc_test", { kind: "feature", key: "customDomain" });
   });

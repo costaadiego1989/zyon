@@ -2,7 +2,8 @@ import type { BillingCycle } from "@zyon/shared-types";
 import type { OrderQuotaSnapshot } from "./services/order-quota.types.js";
 
 export type PaymentConnectionProvider = "stripe" | "asaas" | "mercadopago";
-export type BillingPlan = "starter" | "growth" | "scale";
+/** `starter` remains the Free identifier; `starter179` is the paid Starter plan. */
+export type BillingPlan = "starter" | "starter179" | "growth" | "scale";
 export type PaymentConnectionEnvironment = "test" | "live";
 export type PaymentConnectionStatus =
   | "pending"
@@ -72,6 +73,7 @@ export interface BillingSubscriptionSnapshot {
 export interface BillingUsageSnapshot {
   periodStart: string;
   ordersPerMonth: number;
+  voiceSessions: number;
   commerceConnections: number;
   webhookEndpoints: number;
   teamMembers: number;

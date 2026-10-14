@@ -1,11 +1,11 @@
 import type { BillingCycle } from "@zyon/shared-types";
-export type SubscriptionPlan = "starter" | "growth" | "scale";
+export type SubscriptionPlan = "starter" | "starter179" | "growth" | "scale";
 const KEY = "zyon_subscription_intent";
 const CYCLE_KEY = "zyon_billing_cycle";
 const MAX_AGE = 24 * 60 * 60 * 1000;
-export const PLAN_NAMES: Record<SubscriptionPlan, string> = { starter: "Free", growth: "Growth", scale: "Scale" };
+export const PLAN_NAMES: Record<SubscriptionPlan, string> = { starter: "Free", starter179: "Starter", growth: "Growth", scale: "Scale" };
 export function isSubscriptionPlan(value: unknown): value is SubscriptionPlan {
-  return value === "starter" || value === "growth" || value === "scale";
+  return value === "starter" || value === "starter179" || value === "growth" || value === "scale";
 }
 // Stores only a navigation preference. Subscription access always comes from the API.
 export function rememberSubscriptionPlan(plan: SubscriptionPlan, cycle: BillingCycle = readSubscriptionCycle()) {

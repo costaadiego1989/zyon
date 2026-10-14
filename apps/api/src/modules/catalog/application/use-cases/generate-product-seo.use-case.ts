@@ -1,5 +1,6 @@
-import { Injectable, Inject, NotFoundException, BadRequestException, Logger } from "@nestjs/common";
+import { Injectable, Inject, NotFoundException, BadRequestException, Logger, Optional } from "@nestjs/common";
 import { ProductRepositoryPort } from "../../domain/ports/product-repository.port.js";
+import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 
 export interface GenerateProductSeoInput {
   merchantId: string;
@@ -22,9 +23,11 @@ export class GenerateProductSeoUseCase {
 
   constructor(
     @Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort,
+    @Optional() private readonly billing?: BillingPlanMeteringService,
   ) {}
 
   async execute(input: GenerateProductSeoInput): Promise<GenerateProductSeoOutput> {
+    await this.billing?.assertAllowed(input.merchantId, { kind: "feature", key: "advancedAi" });
     const product = await this.productRepo.findById(input.merchantId, input.productId);
     if (!product) throw new NotFoundException("product_not_found");
 

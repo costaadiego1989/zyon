@@ -25,6 +25,7 @@ import { ResponseEnvelopeInterceptor } from "../../../../../shared/http/response
 import { Idempotent } from "../../../../../shared/http/idempotency/idempotent.decorator.js";
 import { TenantCredentialGuard } from "../../../../integrations/presentation/http/tenant-credential.guard.js";
 import { TenantAccessGuard } from "../../../../integrations/presentation/http/tenant-access.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../../payment/domain/billing-plan-guard.js";
 import { RequireTenantAccess } from "../../../../integrations/presentation/http/tenant-access.decorator.js";
 
 import { SearchFederatedProductsUseCase } from "../../../../marketplace/application/use-cases/search-federated-products.use-case.js";
@@ -47,7 +48,8 @@ import {
 @ApiCookieAuth("console_session")
 @Controller("marketplace")
 @UseInterceptors(ResponseEnvelopeInterceptor)
-@UseGuards(TenantCredentialGuard, TenantAccessGuard)
+@UseGuards(TenantCredentialGuard, TenantAccessGuard, PlanLimitGuard)
+@RequirePlanFeature("marketplace")
 export class MarketplaceV1Controller {
   constructor(
     private readonly searchUseCase: SearchFederatedProductsUseCase,
