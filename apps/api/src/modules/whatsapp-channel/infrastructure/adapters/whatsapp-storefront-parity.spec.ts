@@ -234,6 +234,10 @@ test("resuming a pending Stripe checkout issues fresh scoped links without repla
       { execute: async () => assert.fail("resuming a payment must not create a charge") } as any,
       { execute: async () => ({ status: "requires_action" }) } as any);
     (adapter as any).payments = { listForSession: async () => [{ snapshot: () => pending }] };
+    (adapter as any).prisma = {
+      completedOrder: { findFirst: async () => null },
+      whatsAppChannelConfig: { findFirst: async () => ({ whatsappNumber: "5521971191446", credentials: { canonicalChatNumber: "552171191446" } }) },
+    };
     let state = { ...initial, checkoutSessionId: "checkout", paymentRevision: 3 };
     const urls: string[] = [];
     for (let i = 0; i < 2; i++) {
@@ -245,6 +249,7 @@ test("resuming a pending Stripe checkout issues fresh scoped links without repla
       const url = new URL(String(redirect.data.url));
       assert.equal(url.searchParams.get("paymentRevision"), "3");
       assert.equal(url.searchParams.get("paymentMethod"), "card");
+      assert.equal(url.searchParams.get("whatsappNumber"), "552171191446");
       urls.push(url.href);
     }
     assert.notEqual(urls[0], urls[1]);
