@@ -261,9 +261,13 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   });
   const productPhotos: MetaUiMessage[] = choices.filter(choice => choice.image).map(choice => ({ type: "image", media: choice.image! }));
   const messages: MetaUiMessage[] = [];
+  const visibleMedia = productPhotos.length ? productPhotos.slice(0, 3)
+    : options.includeMedia !== false ? view.media.filter(m => m.type !== "text").slice(0, 3) : [];
+  // Product detail starts with its real photo and price, followed by the full
+  // published information. Payment instructions retain their existing order.
+  if (view.blocks.some(b => b.type === "product_card") && visibleMedia[0]?.type === "image") messages.push(visibleMedia.shift()!);
   parts.slice(0, 2).forEach(body => messages.push({ type: "text", text: { body } }));
-  if (productPhotos.length) messages.push(...productPhotos.slice(0, 3));
-  else if (options.includeMedia !== false) messages.push(...view.media.filter(m => m.type !== "text").slice(0, 3));
+  messages.push(...visibleMedia);
   if (options.includeMedia !== false) messages.push(...view.media.filter(m => m.type === "text"));
   if (choices.length) {
     if (options.native === false) messages.push({ type: "text", text: { body: choices.map((c, i) => `${i + 1}. ${c.label}${c.description ? ` — ${c.description}` : ""}`).join("\n") + "\n\nVocê pode responder pelo número ou escrever sua pergunta." } });

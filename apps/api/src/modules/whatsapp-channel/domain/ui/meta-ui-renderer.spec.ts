@@ -6,6 +6,14 @@ import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
 const native = (presentation: ReturnType<typeof presentMetaUi>) => presentation.messages.filter(m => m.type === "interactive").map(m => m.type === "interactive" ? m.interactive as any : null);
 
+test("product details start with the actual hero photo and retain the entire description afterwards", () => {
+  const description = "Informação publicada. ".repeat(100);
+  const shown = presentMetaUi(buildMetaUiView(response({ blocks: [{ type: "product_card", data: { id: "product", name: "Produto", price: 500,
+    description, image: "https://images.unsplash.com/product.jpg", variants: [{ id: "variant", stock: 2 }] } }] })), "turn");
+  assert.equal(shown.messages[0].type, "image");
+  assert.ok(shown.messages.some(m => m.type === "text" && m.text.body.includes(description.trim())));
+});
+
 test("store rich text retains native bold, italic and heading hierarchy without HTML", () => {
   assert.equal(formatMetaText('<strong>Resumo</strong>\n<em>Entrega estimada</em>\n## Seu pedido\n**Total** <script>unsafe()</script>'), '*Resumo*\n_Entrega estimada_\n*Seu pedido*\n*Total* ');
 });
