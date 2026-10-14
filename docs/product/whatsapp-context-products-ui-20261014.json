@@ -1,0 +1,78 @@
+{
+  "codeRevision": "fa458ad",
+  "features": [
+    "contextual shared storefront search preserves shopper needs instead of wildcard catalog",
+    "published full descriptions, gallery, FAQ, testimonials and videos",
+    "Meta-owned image upload with bounded JPEG/PNG downloads and token isolation",
+    "native product discovery controls precede conditional cart and finish controls",
+    "numeric failed-media receipt code without provider message or personal information",
+    "product detail prioritizes its own images and variants over cross-sell suggestions",
+    "older read-only native selections reload current product/catalog data; stale mutation controls stay rejected",
+    "catalog pages contain products and a separate other-options menu",
+    "action identity is independent of JSONB object-key order",
+    "unhandled product discovery requests use the shared deterministic catalog search"
+  ],
+  "validation": {
+    "focusedTests": {
+      "passed": 243,
+      "failed": 0,
+      "skipped": 1
+    },
+    "productionCodeBuild": "passed",
+    "globalTypecheck": "19 errors in unrelated existing specs; production build config passes",
+    "sandbox": {
+      "deployment": "d04a8a57-36b0-4273-a8d1-21d241a4e80c",
+      "sourceFilesMatched": 19,
+      "navigationTurns": 36,
+      "navigationChecks": 29,
+      "externalMutations": 0,
+      "providerMessagesSent": 0,
+      "paymentIntents": 0,
+      "fixturesCleaned": true,
+      "modelResponseReplay": "simulated skipped-tool result, real shared adapter and persisted catalog search"
+    },
+    "production": {
+      "deployment": "97c56ac1-c1dc-473d-a974-f62fb893a96a",
+      "commit": "fa458ada8fad2d3cd4b9528d44cefd8c10264db6",
+      "sourceFilesMatched": 19,
+      "readinessHTTP": 200,
+      "financialSourceFilesPreserved": 23,
+      "financialMigrationsApplied": true,
+      "customerFinalNavigationRetest": "pending"
+    },
+    "actualMetaImageDelivery": {
+      "deploymentBeforeFinalNavigationFix": "02593dfb-c82f-4e52-ad42-11ea0497b527",
+      "images": 2,
+      "signedReceipts": "READ",
+      "finalNavigationClientRetest": "pending"
+    },
+    "actualCustomerPayments": "pending",
+    "sandboxIntermediate": {
+      "deployment": "37c02977-c113-4825-9af0-e8fde68437f9",
+      "navigationTurns": 35,
+      "navigationChecks": 26,
+      "searchChecks": 7,
+      "externalMutations": 0,
+      "paymentIntents": 0,
+      "fixturesCleaned": true
+    }
+  },
+  "financialScope": "no payment route or seven-day fulfillment retention changed",
+  "cost": {
+    "meta": {
+      "at": "2026-10-14T03:40:58.577Z",
+      "messagesAccounted": 132,
+      "cost": 0,
+      "currency": "BRL",
+      "periodStart": "2026-10-01T00:00:00Z",
+      "providerAnalyticsMayLagLatestMessages": true
+    },
+    "aiHistoricalTestCost": "unavailable: no test-attributed persisted ledger; no organization admin usage key configured"
+  },
+  "preview": {
+    "path": "artifacts/whatsapp/mensagens-meta-20261014.png",
+    "source": "corrected renderer with actual published product data",
+    "externalDeliveryProof": false
+  },
+  "testProtocol": "After the customer reported menu interference, automated operator sends stopped; replay and persistence tests ran in sandbox."
+}
