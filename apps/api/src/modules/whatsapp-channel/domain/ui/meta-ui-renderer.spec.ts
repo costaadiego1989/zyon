@@ -284,3 +284,12 @@ test('payment actions remain first within checkout even when the response includ
   assert.ok(!shown.messages.some(m=>m.type==='image'));
   assert.match(native(shown)[0].body.text,/pedido/);
 });
+
+test('persisted JSONB key order cannot duplicate discovery shortcuts on the next menu',()=>{
+  const original=buildMetaUiView(response({quickReplies:['Ver Produtos','Encontrar Produto']}));
+  const persisted={...original,choices:original.choices.map(choice=>({...choice,action:JSON.parse(JSON.stringify(choice.action,(_key,entry)=>entry&&typeof entry==='object'&&!Array.isArray(entry)?Object.fromEntries(Object.entries(entry).sort(([a],[b])=>a.localeCompare(b))):entry))}))};
+  const view=withMetaCartNavigation(persisted,false);
+  assert.equal(view.choices.filter(choice=>choice.label==='Ver produtos').length,1);
+  assert.equal(view.choices.filter(choice=>choice.label==='Encontrar produto').length,1);
+  assert.equal(view.choices.length,2);
+});

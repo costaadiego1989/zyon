@@ -9,6 +9,11 @@ const value = (input: unknown): string => typeof input === "string" ? input : in
 const money = (amount: unknown): string => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(amount) || 0);
 const concise = (text: string, limit: number): string => Array.from(text).slice(0, limit).join("");
 const tool = (name: string, args: Record<string, unknown>): StoreUiAction => ({ kind: "tool", tool: name, args });
+// PostgreSQL JSONB may reorder object keys. Menu identity is defined by action
+// values, so a persisted/reloaded view must not duplicate its fixed shortcuts.
+const actionKey = (action: StoreUiAction): string => JSON.stringify(action, (_key, entry) =>
+  entry && typeof entry === "object" && !Array.isArray(entry)
+    ? Object.fromEntries(Object.entries(entry).sort(([a], [b]) => a.localeCompare(b))) : entry);
 const safeLink = (input: unknown): string | undefined => {
   try { const url = new URL(value(input)); return url.protocol === "https:" && !url.username && !url.password ? url.href : undefined; } catch { return undefined; }
 };
@@ -209,7 +214,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
     add(/^tenho um cupom de desconto$/i.test(label.trim()) ? "Usar cupom" : label, metaStoreQuickReplyAction(label, response.state) ?? { kind: "message", message: label });
   });
   const seen = new Set<string>();
-  view.choices = view.choices.filter(c => { const key = JSON.stringify(c.action); if (!c.label.trim() || seen.has(key)) return false; seen.add(key); return true; });
+  view.choices = view.choices.filter(c => { const key = actionKey(c.action); if (!c.label.trim() || seen.has(key)) return false; seen.add(key); return true; });
   view.body = formatMetaText(text.filter(Boolean).join("\n\n"));
   return view;
 }
@@ -222,7 +227,7 @@ export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): Me
   ];
   const choices = view.choices.filter(choice => {
     if (choice.action.kind === "tool" && ["get_cart", "checkout"].includes(choice.action.tool)) return hasItems === undefined;
-    return !browsing.some(item => JSON.stringify(item.action) === JSON.stringify(choice.action));
+    return !browsing.some(item => actionKey(item.action) === actionKey(choice.action));
   });
   return { ...view, choices: [...browsing, ...(hasItems ? [
     { label: "Ver carrinho", action: tool("get_cart", {}) },

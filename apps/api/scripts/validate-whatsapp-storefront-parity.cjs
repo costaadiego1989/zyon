@@ -103,6 +103,13 @@
         assert.equal(row.responseState.phase, 'complete');
         assert.equal(row.responseState.sent.length, row.responseState.presentation.messages.length);
         session = await sessions.findActiveByPhone(merchantId, buyer.phone);
+        // Injected producers exercise the separate post-sale input contract;
+        // normal customer turns always keep exactly one discovery shortcut.
+        if (!action) {
+          const actions = session.conversationState.numericSelections;
+          assert.equal(actions.filter(action => action.kind === 'tool' && action.tool === 'search_products' && action.args.query === '*' && !action.args.categoryId && !action.args.cursor).length, 1);
+          assert.equal(actions.filter(action => action.kind === 'message' && action.message === 'Encontrar produto').length, 1);
+        }
         if (session.conversationState.checkoutSessionId) checkoutIds.add(session.conversationState.checkoutSessionId);
         return session.conversationState;
       };
