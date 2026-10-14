@@ -1,6 +1,7 @@
 import { CheckoutApiError } from "@/api/checkout-api-error";
 
 export const MERCHANT_SALES_SUSPENDED_MESSAGE = "Esta loja está temporariamente indisponível para novos pedidos. Tente novamente mais tarde.";
+export const CHECKOUT_LINK_EXPIRED_MESSAGE = "Este link expirou. Volte à conversa no WhatsApp e escolha Finalizar pedido para receber um link atualizado.";
 
 export function isMerchantSalesSuspendedError(error: unknown): boolean {
   return error instanceof CheckoutApiError && error.code === "merchant_sales_suspended";
@@ -11,6 +12,8 @@ export function checkoutStartErrorMessage(error: unknown): string {
   if (isMerchantSalesSuspendedError(error)) return MERCHANT_SALES_SUSPENDED_MESSAGE;
   if (error instanceof CheckoutApiError) {
     const messages: Record<string, string> = {
+      embed_session_token_expired: CHECKOUT_LINK_EXPIRED_MESSAGE,
+      invalid_embed_session_token: "Este link de checkout não está mais disponível. Volte à loja ou à conversa no WhatsApp para abrir o pedido novamente.",
       checkout_cart_expired: "Este carrinho expirou. Volte à loja para escolher seus produtos.",
       checkout_cart_items_required: "Seu carrinho está vazio. Volte à loja para adicionar produtos.",
       checkout_product_unavailable: "Um produto deste carrinho não está mais disponível. Volte à loja para revisar os itens.",

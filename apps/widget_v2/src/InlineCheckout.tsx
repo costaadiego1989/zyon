@@ -7,7 +7,7 @@ import { setupAbandonmentTracking, trackEvent } from "./lib/tracking";
 import { onOrderCompleted } from "./lib/lifecycle";
 import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "./lib/triggers";
 import type { DiscountStage } from "./components/DiscountBanner";
-import { MERCHANT_SALES_SUSPENDED_MESSAGE } from "./lib/checkout-error-message";
+import { CheckoutUnavailable } from "./components/CheckoutUnavailable";
 
 export interface InlineCheckoutProps {
   embedToken: string;
@@ -106,14 +106,7 @@ export function InlineCheckout(props: InlineCheckoutProps) {
   }
 
   if (status === "error") {
-    const storefrontUnavailable = error === MERCHANT_SALES_SUSPENDED_MESSAGE;
-    return (
-      <div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", gap: 12, color: "var(--aacp-fg, #f5f5f7)" }}>
-        <h2 style={{ margin: 0 }}>{storefrontUnavailable ? "Loja temporariamente indisponível" : "Checkout indisponível"}</h2>
-        <p style={{ margin: 0, opacity: 0.7, fontSize: 13 }}>{error || "Não foi possível iniciar o checkout."}</p>
-        {props.onClose && <button data-neu="control" onClick={props.onClose} style={{ marginTop: 12, padding: "8px 16px", borderRadius: 8, border: "1px solid var(--aacp-border-color, #333)", background: "transparent", color: "inherit", cursor: "pointer" }}>Voltar</button>}
-      </div>
-    );
+    return <CheckoutUnavailable error={error} onClose={props.onClose} />;
   }
 
   return <CheckoutLayout forcedTheme={props.theme} onClose={props.onClose} />;

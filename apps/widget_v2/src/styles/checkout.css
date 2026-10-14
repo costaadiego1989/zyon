@@ -162,7 +162,41 @@
 }
 
 .checkout-error {
-  color: var(--aacp-warning, #fbbf24);
+  flex-direction: column;
+  gap: 16px;
+  min-height: min(480px, 100dvh);
+  color: var(--aacp-fg);
+}
+.checkout-error h2 {
+  margin: 0;
+  max-width: 30ch;
+  font-size: 22px;
+  line-height: 1.35;
+  font-weight: 600;
+  text-wrap: balance;
+}
+.checkout-error p {
+  margin: 0;
+  max-width: 54ch;
+  font-size: 15px;
+  line-height: 1.65;
+}
+.checkout-error__actions {
+  display: flex;
+  flex-wrap: wrap;
+  justify-content: center;
+  gap: 12px;
+  margin-top: 8px;
+}
+.checkout-error__actions [data-neu="control"] {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-height: 44px;
+  padding: 12px 20px;
+  border-radius: var(--aacp-radius, 12px);
+  color: inherit;
+  text-decoration: none;
 }
 
 /* ============ CHANNEL GATE ============ */

@@ -8,6 +8,7 @@ import { setupIdleTrigger, setupExitIntentTrigger, type TriggerName } from "@/li
 import type { DiscountStage } from "@/components/DiscountBanner";
 import { parseThemePreviewUpdate } from "@/lib/theme-update";
 import { DEFAULT_API_BASE } from "./lib/config";
+import { CheckoutUnavailable } from "./components/CheckoutUnavailable";
 
 const SESSION_KEY = "aacp_checkout_session";
 
@@ -220,13 +221,7 @@ export function App() {
   }
 
   if (status === "error") {
-    return (
-      <div className="checkout-error">
-        <h2>Erro</h2>
-        <p>{error || "Não foi possível iniciar a sessão de checkout."}</p>
-        <button data-neu="control" onClick={() => window.location.reload()}>Tentar novamente</button>
-      </div>
-    );
+    return <CheckoutUnavailable error={error} />;
   }
 
   return <CheckoutLayout />;
