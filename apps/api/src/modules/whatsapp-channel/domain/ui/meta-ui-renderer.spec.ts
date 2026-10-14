@@ -142,6 +142,20 @@ test("a product with multiple variants never authorizes adding the first variant
   assert.equal(add?.action.kind === "tool" ? add.action.args.variantId : undefined, "v2");
 });
 
+test("a shopper can change an available variant after selecting one and its displayed price and add action follow that choice", () => {
+  const base = response({ blocks: [{ type: "product_card", data: { id: "p", name: "Sérum", price: 12990, priceFormatted: "R$ 129,90", inStock: true,
+    variants: [{ id: "small", value: "30 ml", price: 12990, priceFormatted: "R$ 129,90", stock: 4 },
+      { id: "large", value: "50 ml", price: 18990, priceFormatted: "R$ 189,90", stock: 3 }, { id: "sold", value: "100 ml", stock: 0 }] } }] });
+  for (const [selectedVariantId, price] of [["small", "129,90"], ["large", "189,90"]]) {
+    const view = buildMetaUiView({ ...base, state: { ...base.state, selectedProductId: "p", selectedVariantId } });
+    assert.deepEqual(view.choices.filter(c => c.action.kind === "variant").map(c => c.action.kind === "variant" && c.action.variantId), ["small", "large"]);
+    assert.ok(view.choices.some(c => c.label === `✓ ${selectedVariantId === "small" ? "30 ml" : "50 ml"}`));
+    assert.ok(view.body.includes(`*R$ ${price}*`));
+    const add = view.choices.find(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart");
+    assert.equal(add?.action.kind === "tool" && add.action.args.variantId, selectedVariantId);
+  }
+});
+
 test("required food options precede authorization to add the product", () => {
   const block = { type: "product_card", data: { id: "pizza", name: "Pizza", price: 3000, inStock: true, variants: [{ id: "v1", value: "Única", stock: 1 }], optionGroups: [{ id: "size", name: "Tamanho", required: true, items: [{ id: "large", name: "Grande", priceModifierInCents: 1000 }] }] } };
   const before = buildMetaUiView(response({ blocks: [block] as any }));

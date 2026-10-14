@@ -66,6 +66,7 @@
     results.fixture = 'rich_product_with_two_available_variants_one_sold_out_and_duplicate_content_ctas';
     const fixtureVariants = await prisma.productVariant.findMany({ where: { productId: fixtureProductId, product: { merchantId } }, select: { id: true, sku: true } });
     const targetVariant = fixtureVariants.find(variant => variant.sku === 'QA_RED_' + runId);
+    const blueVariant = fixtureVariants.find(variant => variant.sku === 'QA_BLUE_' + runId);
     const soldOutVariant = fixtureVariants.find(variant => variant.sku === 'QA_EMPTY_' + runId);
     await app.get(TenantContextService).run({ merchantId, userId: globalUserId, role: 'buyer', buyerGlobalUserId: globalUserId }, async () => {
       const sessions = app.get(WHATSAPP_SESSION_REPOSITORY);
@@ -186,6 +187,14 @@
       assert.equal((await cartRead())?.items?.length ?? 0, 0);
       results.checks.push('rich_ctas_and_typed_add_cannot_guess_variant_or_bypass_sold_out_stock');
       await turn('Escolher Vermelho', { interactiveId: await choose(action => action.kind === 'variant' && action.variantId === targetVariant.id) });
+      assert.ok(session.conversationState.view.body.includes('15,00'));
+      await turn('Trocar para Azul', { interactiveId: await choose(action => action.kind === 'variant' && action.variantId === blueVariant.id) });
+      assert.equal(session.conversationState.selectedVariantId, blueVariant.id);
+      assert.ok(session.conversationState.view.body.includes('12,34'));
+      await turn('Trocar novamente para Vermelho', { interactiveId: await choose(action => action.kind === 'variant' && action.variantId === targetVariant.id) });
+      assert.equal(session.conversationState.selectedVariantId, targetVariant.id);
+      assert.ok(session.conversationState.view.body.includes('15,00'));
+      results.checks.push('native_variant_can_be_changed_before_add_and_selected_price_follows_its_sku');
       const addChoices = session.conversationState.view.choices.filter(choice => /^adicionar.*carrinho$/i.test(choice.label));
       assert.equal(addChoices.length, 1); assert.equal(addChoices[0].action.tool, 'add_item_to_cart');
       const oldAddId = await choose(storeTool('add_item_to_cart'));

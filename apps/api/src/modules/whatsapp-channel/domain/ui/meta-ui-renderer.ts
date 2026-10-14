@@ -124,7 +124,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         groups.forEach(g => { if (g.id !== editing?.id) add(`Personalizar ${value(g.name)}`, { kind: "option_group", productId: value(d.id), groupId: value(g.id) }); });
         const selectedOptions = groups.flatMap(g => items(g.items).filter(i => chosen.includes(value(i.id))).map(i => `${value(g.name)}: ${value(i.name)}${i.priceModifierInCents ? ` (+${money(Number(i.priceModifierInCents) / 100)})` : ""}`));
         if (selectedOptions.length) text.push(selectedOptions.join("\n"));
-        if (!selected && (variants.length > 1 || remembered)) variants.forEach(v => add(value(v.value || v.name || v.sku || v.id), { kind: "variant", productId: value(d.id), variantId: value(v.id) }, v.priceFormatted));
+        if (variants.length > 1 || remembered && !selected) variants.forEach(v => add(`${v.id === selected ? "✓ " : ""}${value(v.value || v.name || v.sku || v.id)}`, { kind: "variant", productId: value(d.id), variantId: value(v.id) }, v.priceFormatted));
         if (Array.isArray(d.images) && d.images.length > 1) add("Ver fotos", tool("product_gallery", { productId: d.id, images: d.images }));
         add("Salvar nos favoritos", tool("add_to_wishlist", { productId: d.id }));
         items(d.ruleNotices).forEach(n => text.push(value(n.message)));
