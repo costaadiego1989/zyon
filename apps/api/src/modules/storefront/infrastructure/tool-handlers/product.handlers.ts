@@ -10,6 +10,7 @@ import { isServiceOfferAvailable } from "../../../catalog/domain/services/servic
 import { loadProductNoticeRules, productRuleNotices } from "../product-rule-notices.js";
 import { productGallery } from "../product-gallery.js";
 import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
+import { contextualProductQuery, contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
 
 import { buildCrossSellSuggestions, type CartSnapshot, type CrossSellConfig, type CrossSellSuggestion } from "./cart-cross-sell.helper.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
@@ -29,9 +30,12 @@ export interface ProductHandlerDeps {
 export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "searchProducts" | "getProductDetails" | "compareProducts" | "getProductAvailability" | "getSimilarProducts" | "getDailyDeals" | "listCategories"> {
   return {
     searchProducts: async (args) => {
+      const query = contextualProductQuery(args.query, ctx.userMessage);
+      const contextual = !!query && contextualSearchGroups(query).length > 0;
       const result = await deps.productRepo.search({
         merchantId: ctx.merchantId,
-        query: args.query,
+        query,
+        queryMode: contextual ? "contextual" : undefined,
         categoryId: args.categoryId,
         maxPriceCents: args.maxPrice,
         inStockOnly: args.inStockOnly,
@@ -72,11 +76,11 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       }));
 
       const federatedSearch = deps.searchFederatedProducts;
-      const shouldSearchMarketplace = localProducts.length < 3 && federatedSearch && args.query && args.query !== "*";
+      const shouldSearchMarketplace = localProducts.length < 3 && federatedSearch && query && query !== "*";
       if (shouldSearchMarketplace && federatedSearch) {
         try {
           const marketplaceResult = await federatedSearch.execute({
-            query: args.query,
+            query: query!,
             hostMerchantId: ctx.merchantId,
             limit: Math.min(args.limit ?? 5, 10),
           });
@@ -119,7 +123,8 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
 
       return {
         products: localProducts,
-        nextCursor: result.nextCursor, query: args.query, categoryId: args.categoryId,
+        nextCursor: result.nextCursor, query, categoryId: args.categoryId,
+        ...(contextual && !localProducts.length ? { note: "Não encontrei produtos correspondentes. Pode detalhar o que procura?" } : {}),
       };
     },
 

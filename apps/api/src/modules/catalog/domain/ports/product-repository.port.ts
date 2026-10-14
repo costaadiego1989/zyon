@@ -34,6 +34,7 @@ export interface CreateProductInput {
 export interface SearchProductsInput {
   merchantId: string;
   query?: string;
+  queryMode?: "contextual";
   categoryId?: string;
   minPriceCents?: number;
   maxPriceCents?: number;

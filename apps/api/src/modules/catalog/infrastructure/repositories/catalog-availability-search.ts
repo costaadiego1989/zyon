@@ -1,3 +1,4 @@
+import { contextualSearchGroups } from "../../domain/services/contextual-product-search.js";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type { SearchProductsInput } from "../../domain/ports/product-repository.port.js";
 import { isDigitalContentReady } from "../../domain/services/product-type-validation.js";
@@ -34,24 +35,40 @@ export async function searchAvailableCatalog(prisma: PrismaClient, input: Search
     const now = new Date();
     const readyServiceIds = configuredCandidates.filter(p => p.type === "service" && isServiceOfferAvailable(p.metadata, now)).map(p => p.id);
     const category = input.categoryId ? Prisma.sql`AND p.category_id = ${input.categoryId}` : Prisma.empty;
-    const text = normalizedQuery ? Prisma.sql`AND (
-      strpos(lower(regexp_replace(normalize(p.name, NFD), '[̀-ͯ]', '', 'g')), ${normalizedQuery}) > 0
-      OR strpos(lower(regexp_replace(normalize(coalesce(p.description, ''), NFD), '[̀-ͯ]', '', 'g')), ${normalizedQuery}) > 0
+    const searchable = Prisma.sql`lower(regexp_replace(normalize(
+      p.name || ' ' || coalesce(p.description, '') || ' ' || array_to_string(p.keywords, ' ') || ' ' || coalesce((
+        SELECT string_agg(concat_ws(' ', b.props->>'text', b.props->>'heading', b.props->>'title',
+          b.props->>'caption', b.props->>'items', b.props->>'rows'), ' ')
+        FROM product_content_blocks b WHERE b.product_id = p.id AND b.is_enabled AND b.locale = 'pt-BR'
+      ), ''), NFD), '[\u0300-\u036f]', '', 'g'))`;
+    const groups = input.queryMode === "contextual" ? contextualSearchGroups(query) : [];
+    const text = input.queryMode === "contextual"
+      ? groups.length ? Prisma.sql`AND ${Prisma.join(groups.map(group => Prisma.sql`(
+          ${Prisma.join(group.map(term => Prisma.sql`strpos(${searchable}, ${term}) > 0`), " OR ")}
+        )`), " AND ")}` : Prisma.sql`AND FALSE`
+      : normalizedQuery ? Prisma.sql`AND (
+        strpos(lower(regexp_replace(normalize(p.name, NFD), '[\u0300-\u036f]', '', 'g')), ${normalizedQuery}) > 0
+        OR strpos(lower(regexp_replace(normalize(coalesce(p.description, ''), NFD), '[\u0300-\u036f]', '', 'g')), ${normalizedQuery}) > 0
+      )` : Prisma.empty;
+    const active = input.status === "inactive" ? Prisma.sql`AND NOT p.is_active`
+      : input.inStockOnly || input.isActiveOnly || input.status === "active" ? Prisma.sql`AND p.is_active` : Prisma.empty;
+    const price = Prisma.sql`
+      ${input.minPriceCents != null ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND pr.base_price_in_cents >= ${input.minPriceCents})` : Prisma.empty}
+      ${input.maxPriceCents != null ? Prisma.sql`AND EXISTS (SELECT 1 FROM product_prices pr WHERE pr.variant_id = v.id AND pr.base_price_in_cents <= ${input.maxPriceCents})` : Prisma.empty}`;
+    const available = input.inStockOnly ? Prisma.sql`AND (
+      (p.type = 'service' AND p.id = ANY(${readyServiceIds}::text[]))
+      OR (p.type = 'digital' AND p.id = ANY(${readyDigitalIds}::text[]))
+      OR (p.type NOT IN ('digital', 'service') AND (p.type <> 'food' OR p.id = ANY(${readyFoodIds}::text[])) AND (
+        SELECT coalesce(sum(s.quantity::bigint - s.reserved::bigint), 0)
+        FROM product_stock s WHERE s.variant_id = v.id
+      ) > 0)
     )` : Prisma.empty;
     const where = Prisma.sql`
-      p.merchant_id = ${input.merchantId} AND p.deleted_at IS NULL AND p.is_active
+      p.merchant_id = ${input.merchantId} AND p.deleted_at IS NULL ${active}
       ${category} ${text}
       AND EXISTS (
         SELECT 1 FROM product_variants v
-        WHERE v.product_id = p.id AND v.is_active
-          AND (
-            (p.type = 'service' AND p.id = ANY(${readyServiceIds}::text[]))
-            OR (p.type = 'digital' AND p.id = ANY(${readyDigitalIds}::text[]))
-            OR (p.type NOT IN ('digital', 'service') AND (p.type <> 'food' OR p.id = ANY(${readyFoodIds}::text[])) AND (
-              SELECT coalesce(sum(s.quantity::bigint - s.reserved::bigint), 0)
-              FROM product_stock s WHERE s.variant_id = v.id
-            ) > 0)
-          )
+        WHERE v.product_id = p.id AND v.is_active ${price} ${available}
       )`;
     // Use the database timestamp for the cursor, preserving sub-millisecond
     // precision and a stable ID tie-breaker for products created together.

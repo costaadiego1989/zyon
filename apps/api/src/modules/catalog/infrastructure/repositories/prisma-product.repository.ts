@@ -131,7 +131,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
   }
 
   async search(input: SearchProductsInput): Promise<SearchProductsResult> {
-    if (input.inStockOnly) {
+    if (input.inStockOnly || input.queryMode === "contextual") {
       const { rows, total, nextCursor } = await searchAvailableCatalog(this.prisma, input);
       return { products: rows.map(p => this.toEntity(p)), total, nextCursor };
     }

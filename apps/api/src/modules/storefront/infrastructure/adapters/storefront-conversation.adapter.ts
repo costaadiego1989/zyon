@@ -117,6 +117,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
       conversationId: input.sessionId,
+      userMessage: input.uiAction ? undefined : input.userMessage,
       buyer: input.buyerContext,
       oneBuyClick: input.oneBuyClick ? {
         enabled: input.oneBuyClick.enabled,
