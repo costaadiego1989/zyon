@@ -44,7 +44,7 @@ for (const [label, tool] of [["Ver carrinho", "get_cart"], ["Continuar comprando
   assert.equal(action?.kind === "tool" ? action.tool : undefined, tool);
   assert.deepEqual(resolveMetaStoreTextAction(label, current), action);
   assert.deepEqual(buildMetaUiView({ agentMessage: "Pagamento", blocks: [], quickReplies: [label], state: current }).choices[0].action, action);
-  assert.deepEqual(resolveMetaStoreTextAction(label, { ...current, expectsFreeInput: true }), label === "Ver carrinho" ? action : undefined);
+  assert.deepEqual(resolveMetaStoreTextAction(label, { ...current, expectsFreeInput: true }), label !== "Continuar comprando" ? action : undefined);
 });
 
 for (const stage of ["store", "checkout"] as const) for (const expectsFreeInput of [true, false]) {

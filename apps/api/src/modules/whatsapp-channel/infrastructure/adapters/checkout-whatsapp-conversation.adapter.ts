@@ -25,6 +25,7 @@ import { ReopenEmbedCheckoutUseCase } from "../../../embed/application/reopen-em
 import { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../../../payment/domain/ports/payment-repository.port.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../../checkout/domain/checkout-experience.config.js";
+import { metaWelcomeMessage } from "../../domain/ui/meta-ui-renderer.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -106,7 +107,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       ? { globalUserId: identitySession.globalUserId, customer: { ...identitySession.customer, email: identitySession.customer.email, email_verified: true as const } } : undefined;
     const shopper = verifiedBuyer ? { ...input.buyer, globalUserId: verifiedBuyer.globalUserId, fullName: verifiedBuyer.customer.fullName, email: verifiedBuyer.customer.email } : input.buyer;
     const firstTurn = state.history.length === 0;
-    const greeting = config.agentGreeting || `Oi! Sou ${config.agentName || "Zyon"}, sua vendedora pessoal aqui na ${config.name}. 💚 Me conta o que você procura — eu encontro o produto ideal, garanto o melhor preço com cupons, calculo o frete e fecho seu pedido em segundos, tudo por aqui. Bora começar?`;
+    const greeting = metaWelcomeMessage(config.agentGreeting || `Olá! Sou ${config.agentName || "Zyon"}, sua assistente na ${config.name}.\n\nPosso ajudar você a encontrar produtos, conferir as condições da loja e acompanhar seu pedido.`, config.name, config.agentName || "Zyon");
     state.pendingFlow = undefined;
     if ((firstTurn && /^(oi|ol[áa]|bom dia|boa tarde|boa noite)[!.\s]*$/i.test(input.message.trim())) || /^(menu|in[ií]cio)[!.\s]*$/i.test(input.message.trim())) {
       state.stage = "store"; state.expectsFreeInput = false;

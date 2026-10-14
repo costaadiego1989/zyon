@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildMetaUiView, presentMetaUi, formatMetaText, withMetaCartNavigation } from "./meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, formatMetaText, withMetaCartNavigation, metaWelcomeMessage } from "./meta-ui-renderer.js";
 import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
@@ -8,6 +8,33 @@ const native = (presentation: ReturnType<typeof presentMetaUi>) => presentation.
 
 test("store rich text retains native bold, italic and heading hierarchy without HTML", () => {
   assert.equal(formatMetaText('<strong>Resumo</strong>\n<em>Entrega estimada</em>\n## Seu pedido\n**Total** <script>unsafe()</script>'), '*Resumo*\n_Entrega estimada_\n*Seu pedido*\n*Total* ');
+});
+
+test("welcome retains merchant copy and explicitly invites unrestricted conversation", () => {
+  const message = metaWelcomeMessage("Olá! Encontre produtos e confira seu pedido.", "Athom", "Zyon");
+  assert.match(message, /^\*Zyon · Athom\*/);
+  assert.match(message, /\*Converse à vontade\*/);
+  assert.match(message, /Pergunte o que quiser/);
+  assert.ok(message.includes("Olá! Encontre produtos e confira seu pedido."));
+});
+
+test("catalog prioritizes actual photos and retains products without photos on later pages", () => {
+  const view = withMetaCartNavigation(buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: [
+    { id: "test", name: "Teste", price: 500 }, { id: "serum", name: "Sérum", price: 18990, image: "https://cdn.example/serum.jpg" },
+  ] } }] })), true);
+  const shown = presentMetaUi(view, "turn");
+  assert.ok(shown.messages.some(m => m.type === "image" && m.media.link === "https://cdn.example/serum.jpg"));
+  const products = shown.numericSelections.filter(a => a.kind === "tool" && a.tool === "get_product_details");
+  assert.deepEqual(products.map(a => a.kind === "tool" && a.args.productId), ["serum", "test"]);
+  const menu = native(shown).find(m => m.type === "list");
+  assert.equal(menu.footer.text, "Pode perguntar o que quiser.");
+  assert.equal(menu.action.sections[0].rows[0].title, "1. Ver produtos");
+  assert.equal(menu.action.sections[0].rows[1].title, "2. Encontrar produto");
+});
+
+test("cart shows the real product photo alongside its authoritative amount", () => {
+  const view = buildMetaUiView(response({ blocks: [{ type: "cart_summary", data: { items: [{ variantId: "v", name: "Sérum", quantity: 1, subtotal: 189.9, imageUrl: "https://cdn.example/serum.jpg" }], subtotal: 189.9, total: 189.9 } }] as any }));
+  assert.ok(view.media.some(m => m.type === "image" && m.media.caption?.includes("189,90")));
 });
 test("product photos follow their selectable native page, including later pages", () => {
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 1000 + i, image: `https://example.com/${i}.jpg` })) } }] }));
@@ -93,7 +120,7 @@ test("rich content preserves ordered text, real media, tables and FAQ selections
   assert.ok(shown.body.indexOf("Título primeiro") < shown.body.indexOf("Texto depois"));
   assert.ok(shown.body.includes("Peso: 1 kg"));
   assert.equal(shown.media.length, 1);
-  assert.equal(shown.choices[0].action.kind === "tool" ? shown.choices[0].action.args.text : null, "12 meses");
+  assert.equal(shown.choices[0].action.kind === "tool" ? shown.choices[0].action.args.text : null, "*Tem garantia?*\n\n12 meses");
 });
 
 test("numeric presentation preserves the same actions as a native menu", () => {
@@ -208,7 +235,7 @@ test("cart and checkout remain pinned on every native page without losing produc
   const first = presentMetaUi(view, "turn", 0, { canGoBack: true });
   for (let page = 0; page < first.totalPages; page++) {
     const shown = presentMetaUi(view, "turn", page, { canGoBack: true });
-    assert.deepEqual(shown.numericSelections.slice(0, 2).map(a => a.kind === "tool" && a.tool), ["get_cart", "checkout"]);
+    assert.deepEqual(shown.numericSelections.slice(0, 4).map(a => a.kind === "tool" ? a.tool : a.kind === "message" ? a.message : a.kind), ["search_products", "Encontrar produto", "get_cart", "checkout"]);
     assert.ok(shown.numericSelections.length <= 10, "Meta lists accept at most ten rows");
     for (const action of shown.numericSelections) if (action.kind === "tool" && action.tool === "get_product_details") seen.add(String(action.args.productId));
   }

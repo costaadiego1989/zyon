@@ -84,7 +84,7 @@ interface MetaWebhookPayload {
         metadata?: { phone_number_id?: string };
         contacts?: Array<{ profile?: { name?: string } }>;
         messages?: MetaInboundMessage[];
-        statuses?: Array<{ id?: string; status?: string; timestamp?: string; biz_opaque_callback_data?: string }>;
+        statuses?: Array<{ id?: string; status?: string; timestamp?: string; biz_opaque_callback_data?: string; errors?: Array<{ code?: number }> }>;
       };
     }>;
   }>;
@@ -149,7 +149,8 @@ export class WhatsAppWebhookController {
           if (!status.id || !status.status) continue;
           if (!this.metaStatus) throw new ServiceUnavailableException("whatsapp_receipt_store_unavailable");
           await this.metaStatus.receiveMetaReceipt({ merchantId: config.merchantId, configId: config.id, messageId: status.id,
-            status: status.status, timestamp: status.timestamp, correlationId: status.biz_opaque_callback_data });
+            status: status.status, timestamp: status.timestamp, correlationId: status.biz_opaque_callback_data,
+            errorCode: status.errors?.find(error => Number.isSafeInteger(error.code))?.code });
         }
         if (!config.enabled) continue;
 

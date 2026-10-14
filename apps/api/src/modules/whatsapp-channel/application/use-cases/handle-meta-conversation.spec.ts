@@ -30,7 +30,7 @@ test("cart actions persist on local content and pagination views", async () => {
   const f = fixture();
   f.route.whatsappSession.conversationState.cartHasItems = true;
   await f.execute();
-  assert.deepEqual(f.claim.responseState.state.numericSelections.slice(0, 2).map((a: any) => a.tool), ["get_cart", "checkout"]);
+  assert.deepEqual(f.claim.responseState.state.numericSelections.slice(2, 4).map((a: any) => a.tool), ["get_cart", "checkout"]);
   const next = f.claim.responseState.state;
   next.selections["read-content"] = { kind: "tool", tool: "show_content", args: { text: "Detalhes do produto" } };
   f.route.whatsappSession.conversationState = next;
@@ -38,7 +38,7 @@ test("cart actions persist on local content and pagination views", async () => {
   f.input.inboxClaim = f.claim = { id: "content-turn", merchantId: "m1", leaseToken: "lease" } as any;
   f.inbox.saveResponse = async (claim: any, saved: any) => { claim.responseState = structuredClone(saved); return true; };
   await f.execute();
-  assert.deepEqual(f.input.inboxClaim.responseState.state.numericSelections.slice(0, 2).map((a: any) => a.tool), ["get_cart", "checkout"]);
+  assert.deepEqual(f.input.inboxClaim.responseState.state.numericSelections.slice(2, 4).map((a: any) => a.tool), ["get_cart", "checkout"]);
   assert.equal(f.calls(), 1, "reading local product details must not invoke checkout or the agent again");
 });
 
@@ -218,19 +218,20 @@ test("native pagination persists each configured question and numeric selection 
   };
   await turn("Oi");
   const seen: string[] = [];
-  for (let page = 0; page < 5; page++) {
+  for (let page = 0; page < 20; page++) {
     const state = f.route.whatsappSession.conversationState;
     assert.equal(state.page, page);
-    seen.push(...Object.values(state.selections).filter((action: any) => action.kind === "message").map((action: any) => action.message));
-    if (page < 4) {
-      const next = Object.entries(state.selections).find(([, action]: any) => action.kind === "page" && action.page === page + 1);
-      assert.ok(next); await turn("Próxima página", next[0]);
-    }
+    seen.push(...Object.values(state.selections).filter((action: any) => action.kind === "message" && labels.includes(action.message)).map((action: any) => action.message));
+    const next = Object.entries(state.selections).find(([, action]: any) => action.kind === "page" && action.page === page + 1);
+    if (!next) break;
+    await turn("Próxima página", next[0]);
   }
   assert.deepEqual(seen, labels); assert.equal(calls.length, 1);
   const last = f.route.whatsappSession.conversationState;
-  const original = last.numericSelections[0].message;
-  await turn("1");
+  const index = last.numericSelections.findIndex((action: any) => action.kind === "message" && labels.includes(action.message));
+  assert.ok(index >= 0);
+  const original = last.numericSelections[index].message;
+  await turn(String(index + 1));
   assert.equal(calls.length, 2); assert.equal(calls[1].message, original);
 });
 

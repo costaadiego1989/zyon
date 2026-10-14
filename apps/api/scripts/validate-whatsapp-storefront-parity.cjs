@@ -123,7 +123,7 @@
         if (!next) break;
         await turn('Mais opções', { interactiveId: next[0] });
       }
-      assert.deepEqual(visitedWelcome.sort(), expectedWelcome);
+      assert.deepEqual([...new Set(visitedWelcome)].sort(), expectedWelcome);
       results.checks.push('all_configured_welcome_actions_remain_reachable_across_persisted_native_pages');
       await turn('Categorias', { action: { kind: 'tool', tool: 'list_categories', args: {} } });
       assert.ok(session.conversationState.view.blocks.some(block => block.type === 'category_carousel'));
@@ -252,7 +252,8 @@
       assert.equal(session.conversationState.stage, 'store');
       assert.equal((await cartRead()).items[0].quantity, 2);
       assert.equal(session.conversationState.cartHasItems, true);
-      assert.deepEqual(session.conversationState.numericSelections.slice(0, 2).map(action => action.tool), ['get_cart', 'checkout']);
+      assert.deepEqual(session.conversationState.numericSelections.slice(0, 2).map(action => action.kind === 'tool' ? action.tool : action.message), ['search_products', 'Encontrar produto']);
+      assert.deepEqual(session.conversationState.numericSelections.slice(2, 4).map(action => action.tool), ['get_cart', 'checkout']);
       results.checks.push('persisted_nonempty_cart_pins_cart_and_finish_controls');
       await turn('Voltar', { interactiveId: await choose(action => action.kind === 'back') });
       assert.equal(session.conversationState.stage, 'checkout');

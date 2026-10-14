@@ -1,15 +1,17 @@
-import { Inject, Injectable, Logger } from "@nestjs/common";
+import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import type { WhatsAppOutboundMessage, WhatsAppSenderPort, WhatsAppSendResult } from "../../domain/ports/whatsapp-sender.port.js";
 import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../domain/ports/whatsapp-config-repository.port.js";
 import { connectedMetaCloudCredentials } from "../../domain/services/connected-meta-cloud-credentials.js";
 import { whatsappE164 } from "../../domain/services/whatsapp-phone.js";
+import { MetaCloudImageUploadAdapter } from "./meta-cloud-image-upload.adapter.js";
 
 @Injectable()
 export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
   private readonly logger = new Logger(MetaCloudSenderAdapter.name);
   private readonly graph = "https://graph.facebook.com/v23.0";
 
-  constructor(@Inject(WHATSAPP_CONFIG_REPOSITORY) private readonly configRepo: WhatsAppConfigRepository) {}
+  constructor(@Inject(WHATSAPP_CONFIG_REPOSITORY) private readonly configRepo: WhatsAppConfigRepository,
+    @Optional() private readonly images?: MetaCloudImageUploadAdapter) {}
 
   async sendText(msg: WhatsAppOutboundMessage): Promise<WhatsAppSendResult> {
     const config = await this.findConfig(msg.deviceId);
@@ -18,7 +20,7 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
     if (!credentials || !recipient) return { messageId: "", status: "failed" };
     let body: string;
     try {
-      body = JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), ...(msg.correlationId ? { biz_opaque_callback_data: msg.correlationId } : {}), ...this.messagePayload(msg) });
+      body = JSON.stringify({ messaging_product: "whatsapp", to: recipient.slice(1), ...(msg.correlationId ? { biz_opaque_callback_data: msg.correlationId } : {}), ...await this.messagePayload(msg, credentials) });
     } catch {
       return { messageId: "", status: "failed" };
     }
@@ -46,13 +48,17 @@ export class MetaCloudSenderAdapter implements WhatsAppSenderPort {
     return this.sendText({ ...msg, uiMessage: { type, media: { link: msg.mediaUrl, caption: msg.text || undefined } } });
   }
 
-  private messagePayload(msg: WhatsAppOutboundMessage): Record<string, unknown> {
+  private async messagePayload(msg: WhatsAppOutboundMessage, credentials: { phoneNumberId: string; accessToken: string }): Promise<Record<string, unknown>> {
     const ui = msg.uiMessage;
     if (!ui) return { type: "text", text: { body: msg.text } };
     if (ui.type === "text") return { type: "text", text: ui.text };
     if (ui.type === "interactive") return { type: "interactive", interactive: ui.interactive };
     const link = new URL(ui.media.link);
     if (link.protocol !== "https:" || link.username || link.password) throw new Error("whatsapp_media_url_invalid");
+    if (ui.type === "image" && this.images) {
+      const id = await this.images.prepare({ link: link.href, graph: this.graph, ...credentials });
+      if (id) return { type: "image", image: { id, ...(ui.media.caption ? { caption: ui.media.caption } : {}) } };
+    }
     return { type: ui.type, [ui.type]: ui.media };
   }
 

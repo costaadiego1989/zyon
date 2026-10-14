@@ -30,7 +30,7 @@ export class HandleStatusUpdateUseCase {
   private readonly logger = new Logger(HandleStatusUpdateUseCase.name);
   constructor(@Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient) {}
 
-  async receiveMetaReceipt(input: { merchantId: string; configId: string; messageId: string; status: string; correlationId?: string; timestamp?: string }): Promise<void> {
+  async receiveMetaReceipt(input: { merchantId: string; configId: string; messageId: string; status: string; correlationId?: string; timestamp?: string; errorCode?: number }): Promise<void> {
     if (!input.correlationId) return;
     const match = /^zyon:([a-z0-9-]{1,80}):(\d{1,3})$/.exec(input.correlationId);
     if (!match || !["sent", "delivered", "read", "failed"].includes(input.status)) return;
@@ -53,7 +53,8 @@ export class HandleStatusUpdateUseCase {
       const receipts = saved.receipts ?? {};
       const rank: Record<string, number> = { sent: 1, delivered: 2, read: 3, failed: 4 };
       if (rank[receipts[index]?.status ?? ""] > rank[input.status]) return;
-      receipts[index] = { messageId: input.messageId, status: input.status, timestamp: input.timestamp };
+      receipts[index] = { messageId: input.messageId, status: input.status, timestamp: input.timestamp,
+        ...(input.status === "failed" && Number.isSafeInteger(input.errorCode) && input.errorCode! > 0 ? { errorCode: input.errorCode } : {}) };
       if (uncertain && input.status !== "failed") {
         sent.push({ index, messageId: input.messageId }); saved.phase = "prepared";
       }

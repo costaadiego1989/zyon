@@ -4,10 +4,14 @@ import { fileURLToPath } from "node:url";
 // Deterministic navigation and commerce regressions; provider sends are mocked.
 // Real persistence is validated separately by validate-whatsapp-storefront-parity.cjs in sandbox.
 const specs = [
+  "catalog/domain/services/contextual-product-search.spec.ts",
+  "storefront/infrastructure/tool-handlers/contextual-product-search.spec.ts",
+  "whatsapp-channel/infrastructure/adapters/meta-cloud-image-upload.adapter.spec.ts",
   "whatsapp-channel/domain/ui/meta-ui-renderer.spec.ts",
   "whatsapp-channel/domain/ui/meta-store-actions.spec.ts",
   "whatsapp-channel/domain/ui/meta-flow.spec.ts",
   "whatsapp-channel/application/use-cases/handle-meta-conversation.spec.ts",
+  "whatsapp-channel/application/use-cases/handle-status-update.use-case.spec.ts",
   "whatsapp-channel/application/services/meta-native-assets.spec.ts",
   "whatsapp-channel/application/services/whatsapp-checkout-identity.spec.ts",
   "buyer-account/infrastructure/prisma-buyer-phone-lookup.spec.ts",

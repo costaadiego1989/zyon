@@ -80,7 +80,7 @@ test("store actions use the shared storefront use case and retain the verified b
     { execute: async (request: any) => { seen = request; return { message: "Produtos", suggested_next: Array.from({ length: 20 }, (_, i) => `Opção ${i}`), blocks: [] }; } } as any,
     { executeForMerchant: async () => ({ name: "Empresa", agentName: "Zyon", agentGreeting: "Saudação da empresa", quickReplies: ["Atalho da empresa"] }) } as any);
   const greeting = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Oi", state: initial });
-  assert.equal(greeting.agentMessage, "Saudação da empresa"); assert.deepEqual(greeting.quickReplies, ["Atalho da empresa"]);
+  assert.ok(greeting.agentMessage.includes("Saudação da empresa")); assert.match(greeting.agentMessage, /^\*Zyon · Empresa\*/); assert.deepEqual(greeting.quickReplies, ["Atalho da empresa"]);
   const output = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Ver produtos", state: greeting.state,
     action: { kind: "tool", tool: "search_products", args: { categoryId: "category", cursor: "cursor" } } });
   assert.equal(seen.cart_id, initial.conversationId); assert.equal(seen.trusted_buyer_context.globalUserId, buyer.globalUserId);
@@ -255,4 +255,31 @@ test("resuming a pending Stripe checkout issues fresh scoped links without repla
     assert.notEqual(urls[0], urls[1]);
     assert.ok(signed.every(c => c.whatsappCheckoutSessionId === "checkout" && c.storefrontCartRef === "conversation" && c.expiresAtUnix - c.issuedAtUnix === 900));
   } finally { if (previous === undefined) delete process.env.WIDGET_BASE_URL; else process.env.WIDGET_BASE_URL = previous; }
+});
+
+test('opening a product includes its entire published description, gallery, FAQ, testimonials and videos', async () => {
+  const full = 'Descrição longa publicada. '.repeat(200);
+  const adapter = new CheckoutWhatsAppConversationAdapter({} as any, {} as any,
+    { execute: async () => ({ message: 'Detalhes', blocks: [{ type: 'product_card', data: { id:'product', name:'Produto', price:500,
+      description:full, image:'https://images.unsplash.com/product.jpg', images:['https://images.unsplash.com/product.jpg'],
+      variants:[{id:'variant',price:500,stock:2}] } }], suggested_next:[] }) } as any,
+    { executeForMerchant: async () => ({name:'Empresa'}) } as any, undefined, undefined,
+    { execute: async (input: any) => {
+      assert.deepEqual(input,{merchantId:'merchant',productId:'product'});
+      return {blocks:[{type:'paragraph',props:{heading:'Como usar',text:'Instruções completas e publicadas.'},order:0},
+        {type:'image',props:{src:'https://images.unsplash.com/product.jpg'},order:1}],
+        faqs:[{question:'Pode usar diariamente?',answer:'Siga as instruções publicadas.'}],
+        testimonials:[{authorName:'Cliente',rating:5,body:'Depoimento aprovado.'}],
+        videos:[{title:'Apresentação',videoUrl:'https://example.com/watch',thumbnailUrl:null}]};
+    } } as any);
+  const result = await adapter.respondStore({merchantId:'merchant',buyer,message:'Detalhes',state:initial});
+  assert.equal((result.blocks[0].data as any).description, full);
+  const view = buildMetaUiView(result);
+  assert.ok(view.body.includes(full));
+  assert.ok(view.body.includes('*Como usar*'));
+  assert.ok(view.body.includes('Depoimento aprovado.'));
+  assert.ok(view.body.includes('https://example.com/watch'));
+  assert.equal(view.media.filter(m=>m.type==='image').length,1,'same image is not sent twice');
+  assert.ok(view.choices.some(c=>c.action.kind==='tool' && c.action.tool==='show_content' && String(c.action.args.text).includes('Siga as instruções')));
+  assert.ok(view.choices.some(c=>c.action.kind==='tool' && c.action.tool==='add_item_to_cart'));
 });

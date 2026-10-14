@@ -5,6 +5,7 @@ export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversa
   const key = label.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const tool = (name: string, args: Record<string, unknown> = {}): StoreUiAction => ({ kind: "tool", tool: name, args });
   if (["ver produtos", "continuar comprando"].includes(key)) return tool("search_products", { query: "*" });
+  if (key === "encontrar produto") return { kind: "message", message: "Encontrar produto" };
   if (key === "ver carrinho") return tool("get_cart");
   if (["finalizar compra", "finalizar pedido", "continuar checkout"].includes(key)) return tool("checkout");
   if (state.stage !== "store") return;
@@ -21,7 +22,7 @@ export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversa
 
 /** A typed label may reuse only one action from the current persisted view. */
 export function resolveMetaStoreTextAction(message: string, state: WhatsAppConversationState): StoreUiAction | undefined {
-  if (/^(ver carrinho|finalizar compra|finalizar pedido|continuar checkout)$/i.test(message.trim())) return metaStoreQuickReplyAction(message, state);
+  if (/^(ver produtos|encontrar produto|ver carrinho|finalizar compra|finalizar pedido|continuar checkout)$/i.test(message.trim())) return metaStoreQuickReplyAction(message, state);
   if (state.stage === "checkout" && !state.expectsFreeInput && /^(trocar pagamento|usar cupom|confirmar troca|manter pagamento)$/i.test(message.trim())) {
     const matches = state.view?.choices.filter(c => c.label.trim().toLocaleLowerCase("pt-BR") === message.trim().toLocaleLowerCase("pt-BR")) ?? [];
     return matches.length === 1 ? matches[0].action : undefined;

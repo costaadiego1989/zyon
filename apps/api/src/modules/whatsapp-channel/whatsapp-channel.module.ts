@@ -23,6 +23,7 @@ import { MessageDebouncerService } from "./application/services/message-debounce
 import { BubbleWhatsSenderAdapter } from "./infrastructure/adapters/bubblewhats-sender.adapter.js";
 import { TwilioSenderAdapter } from "./infrastructure/adapters/twilio-sender.adapter.js";
 import { MetaCloudSenderAdapter } from "./infrastructure/adapters/meta-cloud-sender.adapter.js";
+import { MetaCloudImageUploadAdapter } from "./infrastructure/adapters/meta-cloud-image-upload.adapter.js";
 import { MetaUiCapabilitiesAdapter } from "./infrastructure/adapters/meta-ui-capabilities.adapter.js";
 import { MetaNativeAssetsService } from "./application/services/meta-native-assets.service.js";
 import { MetaInboundMediaAdapter } from "./infrastructure/adapters/meta-inbound-media.adapter.js";
@@ -98,6 +99,7 @@ export class MultiProviderSenderAdapter {
     BubbleWhatsSenderAdapter,
     TwilioSenderAdapter,
     MetaCloudSenderAdapter,
+    MetaCloudImageUploadAdapter,
     MetaUiCapabilitiesAdapter,
     MetaNativeAssetsService,
     MetaInboundMediaAdapter,
