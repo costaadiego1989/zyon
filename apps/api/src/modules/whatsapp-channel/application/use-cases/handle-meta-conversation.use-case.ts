@@ -3,7 +3,7 @@ import { randomUUID } from "node:crypto";
 import { WHATSAPP_CONVERSATION_PORT, type WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
 import { WHATSAPP_SESSION_REPOSITORY, type WhatsAppSessionRepository } from "../../domain/ports/whatsapp-session-repository.port.js";
 import { WHATSAPP_WEBHOOK_INBOX, type WhatsAppWebhookInbox, type WhatsAppInboxClaim } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
-import { buildMetaUiView, presentMetaUi } from "../../domain/ui/meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, withMetaCartNavigation } from "../../domain/ui/meta-ui-renderer.js";
 import type { MetaUiPresentation, MetaUiView, StoreUiAction, WhatsAppConversationState, WhatsAppStructuredResponse } from "../../domain/ui/meta-ui.types.js";
 import { SendWhatsAppResponseUseCase } from "./send-whatsapp-response.use-case.js";
 import type { IncomingMessageInput } from "./handle-incoming-message.use-case.js";
@@ -57,7 +57,7 @@ export class HandleMetaConversationUseCase {
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
       else if (/^(menu|in[ií]cio)$/i.test(input.body.trim())) action = { kind: "menu" };
       else action = resolveMetaStoreTextAction(input.body, state);
-      if (action?.kind === "message" && /^(ver carrinho|continuar comprando|ver produtos)$/i.test(action.message.trim())) action = metaStoreQuickReplyAction(action.message, state) ?? action;
+      if (action?.kind === "message" && /^(ver carrinho|finalizar compra|finalizar pedido|continuar checkout|continuar comprando|ver produtos)$/i.test(action.message.trim())) action = metaStoreQuickReplyAction(action.message, state) ?? action;
 
       const revision = claim.id;
       let view: MetaUiView | undefined = state.view ? { ...state.view, stage: state.view.stage ?? state.stage } : undefined;
@@ -122,6 +122,7 @@ export class HandleMetaConversationUseCase {
         view = buildMetaUiView(response); state.page = 0;
       }
       if (!view) throw new Error("whatsapp_ui_view_missing");
+      if (!responseProducer) view = withMetaCartNavigation(view, state.cartHasItems);
       view = { ...view, stage: view.stage ?? state.stage };
       const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0, includeMedia });
       state = { ...state, revision, view, page: presentation.page, selections: presentation.selections, numericSelections: presentation.numericSelections };

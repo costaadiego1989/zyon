@@ -251,6 +251,9 @@
       await turn('Ver carrinho');
       assert.equal(session.conversationState.stage, 'store');
       assert.equal((await cartRead()).items[0].quantity, 2);
+      assert.equal(session.conversationState.cartHasItems, true);
+      assert.deepEqual(session.conversationState.numericSelections.slice(0, 2).map(action => action.tool), ['get_cart', 'checkout']);
+      results.checks.push('persisted_nonempty_cart_pins_cart_and_finish_controls');
       await turn('Voltar', { interactiveId: await choose(action => action.kind === 'back') });
       assert.equal(session.conversationState.stage, 'checkout');
       assert.equal(session.conversationState.checkoutSessionId, checkoutSessionId);
@@ -272,6 +275,12 @@
       const resumed = await controller.start(request, { cart: { items: [] } });
       assert.equal(resumed.session_id, checkoutSessionId);
       assert.equal(resumed.experience.items[0].quantity, 2);
+      const { EmbedTokenService } = await loadDist('modules/embed/domain/embed-token.service.js');
+      const tokens = app.get(EmbedTokenService);
+      const expired = tokens.sign({ ...tokens.verify(url.searchParams.get('embedToken')), expiresAtUnix: Math.floor(Date.now() / 1000) - 1 });
+      assert.throws(() => guard.canActivate(context({ headers: { authorization: 'Bearer ' + expired, origin: url.origin } })), /embed_session_token_expired/);
+      assert.throws(() => guard.canActivate(context({ headers: { authorization: 'Bearer ' + expired + 'tampered', origin: url.origin } })), /invalid_embed_session_token/);
+      results.checks.push('expired_link_has_recoverable_error_without_accepting_expired_or_tampered_capabilities');
       assert.throws(() => guard.canActivate(context({ headers: { ...request.headers, origin: 'https://foreign.example' } })), /embed_origin_not_allowed/);
       await assert.rejects(controller.start(request, { session_id: 'foreign-checkout', cart: { items: [] } }), /embed_checkout_session_binding_mismatch/);
       results.checks.push('fresh_signed_handoff_passes_real_widget_bootstrap_guard_and_controller');

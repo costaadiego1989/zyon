@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildMetaUiView, presentMetaUi, formatMetaText } from "./meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, formatMetaText, withMetaCartNavigation } from "./meta-ui-renderer.js";
 import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
@@ -199,4 +199,20 @@ test("an empty cart offers shopping navigation and cannot expose a checkout cont
     quickReplies: ["Finalizar Compra", "Continuar Comprando"] }));
   assert.ok(!view.choices.some(c => c.action.kind === "tool" && c.action.tool === "checkout"));
   assert.ok(view.choices.some(c => c.action.kind === "tool" && c.action.tool === "search_products"));
+});
+
+test("cart and checkout remain pinned on every native page without losing product choices", () => {
+  const base = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: Array.from({ length: 16 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 500, image: `https://img.example/${i}.jpg` })) } }] as any }));
+  const view = withMetaCartNavigation(base, true);
+  const seen = new Set<string>();
+  const first = presentMetaUi(view, "turn", 0, { canGoBack: true });
+  for (let page = 0; page < first.totalPages; page++) {
+    const shown = presentMetaUi(view, "turn", page, { canGoBack: true });
+    assert.deepEqual(shown.numericSelections.slice(0, 2).map(a => a.kind === "tool" && a.tool), ["get_cart", "checkout"]);
+    assert.ok(shown.numericSelections.length <= 10, "Meta lists accept at most ten rows");
+    for (const action of shown.numericSelections) if (action.kind === "tool" && action.tool === "get_product_details") seen.add(String(action.args.productId));
+  }
+  assert.equal(seen.size, 16);
+  const empty = withMetaCartNavigation(view, false);
+  assert.ok(empty.choices.every(c => c.action.kind !== "tool" || !["get_cart", "checkout"].includes(c.action.tool)));
 });

@@ -44,5 +44,14 @@ for (const [label, tool] of [["Ver carrinho", "get_cart"], ["Continuar comprando
   assert.equal(action?.kind === "tool" ? action.tool : undefined, tool);
   assert.deepEqual(resolveMetaStoreTextAction(label, current), action);
   assert.deepEqual(buildMetaUiView({ agentMessage: "Pagamento", blocks: [], quickReplies: [label], state: current }).choices[0].action, action);
-  assert.equal(resolveMetaStoreTextAction(label, { ...current, expectsFreeInput: true }), undefined);
+  assert.deepEqual(resolveMetaStoreTextAction(label, { ...current, expectsFreeInput: true }), label === "Ver carrinho" ? action : undefined);
 });
+
+for (const stage of ["store", "checkout"] as const) for (const expectsFreeInput of [true, false]) {
+  test(`cart and finish commands remain available in ${stage}, field input ${expectsFreeInput}`, () => {
+    const current = { ...state(), stage, expectsFreeInput };
+    assert.deepEqual(resolveMetaStoreTextAction("Ver carrinho", current), { kind: "tool", tool: "get_cart", args: {} });
+    assert.deepEqual(resolveMetaStoreTextAction("Finalizar pedido", current), { kind: "tool", tool: "checkout", args: {} });
+    assert.equal(resolveMetaStoreTextAction("123456", current), undefined, "OTP and numeric field answers must not become navigation");
+  });
+}

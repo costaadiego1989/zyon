@@ -199,3 +199,55 @@ test("full personal identifiers continue in the same secure checkout instead of 
   assert.equal(response.state.expectsFreeInput, false); assert.equal(JSON.stringify(response).includes("52998224725"), false);
   assert.equal(response.blocks.some(block => block.type === "checkout_form"), false);
 });
+
+test("ordinary conversation after creating a charge uses the store agent and preserves the original payment", async () => {
+  const pending = { intentId: "original", sessionId: "checkout", method: "card" as const, status: "requires_action", amount_cents: 1099 };
+  let storeInput: any;
+  const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => assert.fail("ordinary chat must not return to the payment agent") } as any,
+    { getSession: async () => session } as any,
+    { execute: async (input: any) => { storeInput = input; return { message: "Tudo bem! Como posso ajudar?", blocks: [], suggested_next: ["Ver produtos"] }; } } as any,
+    { executeForMerchant: async () => ({ name: "Empresa" }) } as any);
+  (adapter as any).prisma = { storefrontCart: { findUnique: async ({ where }: any) => {
+    assert.deepEqual(where.merchantId_sessionId, { merchantId: "merchant", sessionId: "conversation" });
+    return { items: [{ variantId: "one" }], expiresAt: new Date(Date.now() + 60000) };
+  } } };
+  const result = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Oi, como você está?", state: { ...initial, history: [{ role: "user", content: "Pagar" }], stage: "checkout", checkoutSessionId: "checkout", expectsFreeInput: true, payment: pending } });
+  assert.equal(storeInput.user_message, "Oi, como você está?");
+  assert.equal(result.state.stage, "store");
+  assert.equal(result.state.cartHasItems, true);
+  assert.deepEqual(result.state.payment, pending);
+  assert.equal(result.blocks.some(b => ["payment_intent", "checkout_redirect", "payment_methods"].includes(b.type)), false);
+});
+
+test("resuming a pending Stripe checkout issues fresh scoped links without replacing its payment", async () => {
+  const previous = process.env.WIDGET_BASE_URL;
+  process.env.WIDGET_BASE_URL = "https://widget.example.com";
+  try {
+    const signed: any[] = [];
+    const pending = { id: "original", sessionId: "checkout", method: "card", status: "requires_action", amountCents: 1099, merchantId: "merchant" };
+    const adapter = new CheckoutWhatsAppConversationAdapter({} as any, { getSession: async () => session } as any,
+      { execute: async () => ({ message: "Confira seu pedido", blocks: [{ type: "checkout_prepared", data: {} }], suggested_next: [] }) } as any,
+      { executeForMerchant: async () => ({ name: "Empresa" }) } as any,
+      { execute: async () => ({ session_id: "checkout" }), getPaymentCapabilities: async () => ({ card: true, providers: { card: "stripe" } }) } as any,
+      { sign: (claims: any) => { signed.push(claims); return `${claims.nonce}.signature`; } } as any,
+      undefined, { resolveStorefront: async () => session.cart } as any,
+      { execute: async () => assert.fail("resuming a payment must not create a charge") } as any,
+      { execute: async () => ({ status: "requires_action" }) } as any);
+    (adapter as any).payments = { listForSession: async () => [{ snapshot: () => pending }] };
+    let state = { ...initial, checkoutSessionId: "checkout", paymentRevision: 3 };
+    const urls: string[] = [];
+    for (let i = 0; i < 2; i++) {
+      const output = await adapter.respondStore({ merchantId: "merchant", buyer, message: "Finalizar pedido", state, action: { kind: "tool", tool: "checkout", args: {} } });
+      state = { ...output.state, stage: "store" };
+      assert.equal(output.state.payment?.intentId, "original");
+      const redirect = output.blocks.find(b => b.type === "checkout_redirect");
+      assert.ok(redirect);
+      const url = new URL(String(redirect.data.url));
+      assert.equal(url.searchParams.get("paymentRevision"), "3");
+      assert.equal(url.searchParams.get("paymentMethod"), "card");
+      urls.push(url.href);
+    }
+    assert.notEqual(urls[0], urls[1]);
+    assert.ok(signed.every(c => c.whatsappCheckoutSessionId === "checkout" && c.storefrontCartRef === "conversation" && c.expiresAtUnix - c.issuedAtUnix === 900));
+  } finally { if (previous === undefined) delete process.env.WIDGET_BASE_URL; else process.env.WIDGET_BASE_URL = previous; }
+});

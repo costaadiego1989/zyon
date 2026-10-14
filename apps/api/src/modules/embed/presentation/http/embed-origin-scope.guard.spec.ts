@@ -39,6 +39,11 @@ function reflectorWithScope(scope: EmbedScope): { reflector: Reflector; handler:
 }
 
 describe("EmbedAuthGuard origin binding", () => {
+  it("reports a valid but expired link distinctly while still rejecting it", () => {
+    const { svc, token } = tokenFor({ expiresAtUnix: Math.floor(Date.now() / 1000) - 1 });
+    assert.throws(() => new EmbedAuthGuard(svc).canActivate(ctx({ "x-aacp-embed-token": token })), /embed_session_token_expired/);
+    assert.throws(() => new EmbedAuthGuard(svc).canActivate(ctx({ "x-aacp-embed-token": token + "tampered" })), /invalid_embed_session_token/);
+  });
   it("accepts a request whose Origin matches the token allowedOrigin", () => {
     const { svc, token } = tokenFor({ allowedOrigin: "https://store.example" });
     const guard = new EmbedAuthGuard(svc);

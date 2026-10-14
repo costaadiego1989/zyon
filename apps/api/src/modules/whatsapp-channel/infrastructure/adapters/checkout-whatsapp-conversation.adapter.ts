@@ -79,6 +79,23 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     attachmentContext?: string;
     messageId?: string;
   }): Promise<WhatsAppStructuredResponse> {
+    const response = await this.respondStoreTurn(input);
+    const cartBlock = response.blocks.find(block => block.type === "cart_summary");
+    const stored = await this.prisma?.storefrontCart?.findUnique({
+      where: { merchantId_sessionId: { merchantId: input.merchantId, sessionId: response.state.conversationId } },
+      select: { items: true, expiresAt: true },
+    });
+    const cartHasItems = this.prisma?.storefrontCart
+      ? !!stored && stored.expiresAt.getTime() > Date.now() && Array.isArray(stored.items) && stored.items.length > 0
+      : cartBlock ? Array.isArray((cartBlock.data as any).items) && (cartBlock.data as any).items.length > 0 : response.state.cartHasItems;
+    return { ...response, state: { ...response.state, cartHasItems } };
+  }
+
+  private async respondStoreTurn(input: {
+    merchantId: string; buyer: { globalUserId: string; phone: string; fullName?: string; email?: string };
+    message: string; state: WhatsAppConversationState; action?: StoreUiAction;
+    attachmentContext?: string; messageId?: string;
+  }): Promise<WhatsAppStructuredResponse> {
     if (!this.store || !this.storeConfig) throw new Error("whatsapp_storefront_adapter_unavailable");
     const config = await this.storeConfig.executeForMerchant(input.merchantId);
     let state = { ...input.state };
@@ -99,7 +116,15 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     const paymentAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout"].includes(input.action.tool);
     const checkoutAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry", "show_checkout"].includes(input.action.tool);
     const browsing = (input.action?.kind === "tool" && !checkoutAction) || /^(continuar comprando|ver produtos|encontrar produto|categorias|ofertas|ver carrinho)$/i.test(input.message.trim());
-    if (state.stage === "checkout" && browsing) { state.stage = "store"; state.pendingCoupon = undefined; state.pendingCheckoutEdit = undefined; }
+    if (checkoutAction && state.checkoutSessionId) state.stage = "checkout";
+    // The checkout owns explicit checkout actions and requested field answers.
+    // Ordinary conversation returns to the same storefront agent, retaining
+    // the cart, verified identity and original payment for later resumption.
+    const awaitingField = identitySession ? missingFieldsForStage(identitySession, deriveChatStage(identitySession)).length > 0 : state.expectsFreeInput;
+    const checkoutInput = state.pendingCoupon || awaitingField || /^(verificar pagamento|reenviar c[oó]digo|alterar email|pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito))$/i.test(input.message.trim());
+    if (state.stage === "checkout" && (browsing || !checkoutAction && !checkoutInput)) {
+      state.stage = "store"; state.pendingCoupon = undefined; state.pendingCheckoutEdit = undefined; state.expectsFreeInput = false;
+    }
     if (state.stage === "checkout") {
       const sessionId = state.checkoutSessionId || state.conversationId + ":checkout";
       const checkout = await this.sessions.getSession(input.merchantId, sessionId);
@@ -107,7 +132,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       state = await this.syncPayment(input.merchantId, state);
       const experience = () => buildExperienceFromSession(checkout, { merchantName: config.name, serviceFee: this.experienceConfig?.platformFeeBrl });
       const currentTool = input.action?.kind === "tool" ? input.action.tool : undefined;
-      if (currentTool === "show_checkout") return this.checkoutUi({ message: "Confira seu pedido e as opções atuais.", experience: experience() }, state, config.name, input.message, input.merchantId);
+      if (currentTool === "show_checkout") return this.checkoutUi({ message: "Confira seu pedido e as opções atuais.", experience: experience(), resumePayment: true }, state, config.name, input.message, input.merchantId);
       if (["cancel_checkout_edit", "cancel_coupon_entry"].includes(currentTool ?? "")) {
         state.pendingCheckoutEdit = undefined; state.pendingCoupon = undefined;
         return this.checkoutUi({ message: "Tudo bem. Seu pedido foi mantido.", experience: experience() }, state, config.name, input.message, input.merchantId);
@@ -237,6 +262,10 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
           customer: { phone: checkoutBuyer.phone, email: checkoutBuyer.email },
         } as any, { storefrontCartRef: state.conversationId, ...(verifiedBuyer ? { trustedBuyer: verifiedBuyer } : { trustedPhoneBuyer: checkoutBuyer }) });
         state.stage = "checkout";
+        // Synchronize payments created on the secure web surface before
+        // resuming. Reopening a link must never cancel or create a charge.
+        state.checkoutSessionId = checkout.session_id;
+        state = await this.syncPayment(input.merchantId, state);
         let session = await this.sessions.getSession(input.merchantId, checkout.session_id);
         let message: string | undefined;
         if (session?.customer?.email && !session.customer.email_verified && !session.customer.otp_code && this.checkoutCustomer) {
@@ -247,7 +276,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
           }
         }
         const missing = session ? missingFieldsForStage(session, deriveChatStage(session)) : undefined;
-        return await this.checkoutUi({ ...checkout, missing_fields: missing, ...(message ? { message } : {}) }, state, config.name, input.message, input.merchantId);
+        return await this.checkoutUi({ ...checkout, resumePayment: true, missing_fields: missing, ...(message ? { message } : {}) }, state, config.name, input.message, input.merchantId);
       } catch (error) {
         if (!(error instanceof BadRequestException || error instanceof ConflictException || error instanceof NotFoundException)) throw error;
         const message = "Não consegui preparar a finalização. Confira a disponibilidade dos itens e as condições no carrinho antes de continuar.";
@@ -356,7 +385,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       pendingFlow = { token: randomUUID(), field, checkoutSessionId, expiresAt: Date.now() + 30 * 60_000 };
       blocks.push({ type: "checkout_form", data: { flowId, token: pendingFlow.token, label: META_FIELD_LABELS[field] } });
     }
-    const needsSecureCheckout = secureIdentifier || blocks.some(block => ["stripe_card", "hosted_card_payment", "crypto_payment"].includes(block.type));
+    const resumeCard = response.resumePayment && state.payment?.method === "card" && ["pending", "requires_action"].includes(state.payment.status) && !state.payment.ticket_url;
+    const needsSecureCheckout = secureIdentifier || resumeCard || blocks.some(block => ["stripe_card", "hosted_card_payment", "crypto_payment"].includes(block.type));
     if (needsSecureCheckout && checkoutSessionId && this.embedTokens && process.env.WIDGET_BASE_URL) {
       const widget = new URL(process.env.WIDGET_BASE_URL);
       if (widget.protocol !== "https:" && !["localhost", "127.0.0.1"].includes(widget.hostname)) throw new Error("whatsapp_checkout_origin_invalid");
@@ -366,8 +396,11 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         scopes: ["checkout:start", "checkout:track", "checkout:chat", "payment:intents:create", "payment:intents:read", "payment:intents:confirm", "offers:apply", "coupons:apply"] });
       widget.searchParams.set("embedToken", token); widget.searchParams.set("merchantId", merchantId);
       widget.searchParams.set("channel", "chat");
-      if (response.initialPaymentMethod === "card") widget.searchParams.set("paymentMethod", "card");
-      if (response.initialPaymentMethod === "card" && state.paymentRevision) widget.searchParams.set("paymentRevision", String(state.paymentRevision));
+      const business = await this.prisma?.whatsAppChannelConfig?.findFirst({ where: { merchantId, enabled: true, provider: "META_CLOUD" }, select: { whatsappNumber: true } });
+      const businessPhone = business?.whatsappNumber?.replace(/\D/g, "");
+      if (businessPhone && /^\d{8,15}$/.test(businessPhone)) widget.searchParams.set("whatsappNumber", businessPhone);
+      if (response.initialPaymentMethod === "card" || resumeCard) widget.searchParams.set("paymentMethod", "card");
+      if ((response.initialPaymentMethod === "card" || resumeCard) && state.paymentRevision) widget.searchParams.set("paymentRevision", String(state.paymentRevision));
       const api = process.env.PUBLIC_API_BASE_URL || process.env.API_PUBLIC_URL;
       if (api) widget.searchParams.set("apiBaseUrl", api.endsWith("/v1") ? api : api.replace(/\/$/, "") + "/v1");
       blocks.push({ type: "checkout_redirect", data: { url: widget.href, sessionId: checkoutSessionId } } as any);

@@ -211,16 +211,27 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
 }
 
 /** Native selection IDs are scoped to a persisted turn; labels never authorize actions. */
+export function withMetaCartNavigation(view: MetaUiView, hasItems?: boolean): MetaUiView {
+  if (hasItems === undefined) return view;
+  const choices = view.choices.filter(choice => !(choice.action.kind === "tool" && ["get_cart", "checkout"].includes(choice.action.tool)));
+  return { ...view, choices: hasItems ? [
+    { label: "Ver carrinho", action: tool("get_cart", {}) },
+    { label: "Finalizar pedido", action: tool("checkout", {}) },
+    ...choices,
+  ] : choices };
+}
+
 export function presentMetaUi(view: MetaUiView, revision: string, requestedPage = 0, options: { native?: boolean; includeMedia?: boolean; canGoBack?: boolean } = {}): MetaUiPresentation {
   const parts = paragraphs(formatMetaText(view.body || "Como posso ajudar?"));
-  const allChoices = [...view.choices];
+  const pinned = view.choices.filter(choice => ["Ver carrinho", "Finalizar pedido"].includes(choice.label) && choice.action.kind === "tool" && ["get_cart", "checkout"].includes(choice.action.tool));
+  const allChoices = view.choices.filter(choice => !pinned.includes(choice));
   if (parts.length > 2) allChoices.unshift({ label: "Ler mais", action: tool("show_content", { text: parts.slice(2).join("\n\n") }) });
   const media = view.media.filter(m => m.type !== "text");
   if (media.length > 3) allChoices.unshift({ label: "Ver mais mídias", action: tool("media_page", { media: media.slice(3) }) });
-  const pageSize = allChoices.some(choice => choice.image) ? 3 : 7;
+  const pageSize = allChoices.some(choice => choice.image) ? 3 : 7 - pinned.length;
   const totalPages = Math.max(1, Math.ceil(allChoices.length / pageSize));
   const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
-  const choices: MetaUiChoice[] = allChoices.slice(page * pageSize, (page + 1) * pageSize);
+  const choices: MetaUiChoice[] = [...pinned, ...allChoices.slice(page * pageSize, (page + 1) * pageSize)];
   if (page > 0) choices.push({ label: "Página anterior", action: { kind: "page", page: page - 1 } });
   if (page < totalPages - 1) choices.push({ label: "Mais opções", action: { kind: "page", page: page + 1 } });
   if (options.canGoBack) choices.push({ label: "Voltar", action: { kind: "back" } });

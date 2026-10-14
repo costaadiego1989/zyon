@@ -26,6 +26,22 @@ test("a partial send retries only the unsent message and never repeats commerce"
   assert.equal(f.claim.responseState.sent.length, 2);
 });
 
+test("cart actions persist on local content and pagination views", async () => {
+  const f = fixture();
+  f.route.whatsappSession.conversationState.cartHasItems = true;
+  await f.execute();
+  assert.deepEqual(f.claim.responseState.state.numericSelections.slice(0, 2).map((a: any) => a.tool), ["get_cart", "checkout"]);
+  const next = f.claim.responseState.state;
+  next.selections["read-content"] = { kind: "tool", tool: "show_content", args: { text: "Detalhes do produto" } };
+  f.route.whatsappSession.conversationState = next;
+  f.input.interactiveId = "read-content";
+  f.input.inboxClaim = f.claim = { id: "content-turn", merchantId: "m1", leaseToken: "lease" } as any;
+  f.inbox.saveResponse = async (claim: any, saved: any) => { claim.responseState = structuredClone(saved); return true; };
+  await f.execute();
+  assert.deepEqual(f.input.inboxClaim.responseState.state.numericSelections.slice(0, 2).map((a: any) => a.tool), ["get_cart", "checkout"]);
+  assert.equal(f.calls(), 1, "reading local product details must not invoke checkout or the agent again");
+});
+
 test("an unknown send result is not blindly sent again", async () => {
   const f = fixture(); let calls = 0;
   f.sender.sendUi = async () => { calls++; return { status: "unknown", messageId: "" }; };

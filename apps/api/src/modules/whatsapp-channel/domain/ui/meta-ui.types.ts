@@ -39,6 +39,7 @@ export interface WhatsAppConversationState {
   version: 1;
   conversationId: string;
   stage: "store" | "checkout";
+  cartHasItems?: boolean;
   checkoutSessionId?: string;
   checkoutConversationId?: string;
   checkoutGeneration?: number;

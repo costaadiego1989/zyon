@@ -137,7 +137,8 @@ export class EmbedAuthGuard implements CanActivate {
     let claims: EmbedTokenClaims;
     try {
       claims = this.tokens.verify(token);
-    } catch {
+    } catch (error) {
+      if (error instanceof Error && error.message === "embed_token_expired") throw new UnauthorizedException("embed_session_token_expired");
       throw new UnauthorizedException("invalid_embed_session_token");
     }
 
