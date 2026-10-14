@@ -171,6 +171,10 @@
       assert.ok(!session.conversationState.view.body.includes('Esse menu foi atualizado'));
       results.checks.push('older_owned_read_selection_opens_current_product_details');
       assert.ok(session.conversationState.view.blocks.some(block => block.type === 'product_content'));
+      assert.equal(session.conversationState.numericSelections[0].kind, 'variant');
+      assert.equal(session.conversationState.numericSelections[1].kind, 'variant');
+      assert.ok(session.conversationState.view.choices.filter(choice => choice.action.kind === 'variant').every(choice => choice.label.startsWith('Cor: ')));
+      results.checks.push('product_menu_prioritizes_named_variants_before_secondary_navigation');
       assert.equal(session.conversationState.view.choices.some(choice => /^mais informa/i.test(choice.label)), false);
       const detailBody = session.conversationState.view.body;
       const detailPage = pick(action => action.kind === 'page' && action.page === 1);

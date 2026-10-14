@@ -8,6 +8,12 @@ const items = (value: unknown): Record<string, any>[] => Array.isArray(value) ? 
 const value = (input: unknown): string => typeof input === "string" ? input : input == null ? "" : String(input);
 const money = (amount: unknown): string => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(Number(amount) || 0);
 const concise = (text: string, limit: number): string => Array.from(text).slice(0, limit).join("");
+const variantTitle = (variant: Record<string, any>): string => {
+  const attribute = value(variant.name);
+  const choice = value(variant.value || variant.sku || variant.id);
+  return attribute && attribute !== "SKU" && variant.value
+    ? `${attribute.charAt(0).toLocaleUpperCase("pt-BR")}${attribute.slice(1)}: ${choice}` : choice;
+};
 const tool = (name: string, args: Record<string, unknown>): StoreUiAction => ({ kind: "tool", tool: name, args });
 // PostgreSQL JSONB may reorder object keys. Menu identity is defined by action
 // values, so a persisted/reloaded view must not duplicate its fixed shortcuts.
@@ -103,7 +109,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         if (d.description) text.push(`*Descrição*\n${value(d.description)}`);
         if (Number(d.reviewCount) > 0 && d.rating != null) text.push(`*Avaliações*\n${value(d.rating)} / 5 · ${value(d.reviewCount)} avaliação(ões)`);
         if (!(response.state.catalogId && retailerId && response.state.catalogPrices?.[retailerId] === Number(d.variants?.[0]?.price ?? d.price) && items(d.variants).length <= 1 && !items(d.optionGroups).length && !d.serviceSchedule)) photo(selectedVariant?.image || d.image || d.images?.[0], `*${value(d.name)}*\n*${price}*`);
-        if (selectedVariant && selected) text.push(`_Selecionado: ${value(selectedVariant.value || selectedVariant.sku)}_`);
+        if (selectedVariant && selected) text.push(`_Selecionado: ${variantTitle(selectedVariant)}_`);
         else if (variants.length === 1 && selectedVariant?.name && selectedVariant.name !== "SKU" && selectedVariant.value) {
           text.push(`*${value(selectedVariant.name)}:* ${value(selectedVariant.value)}`);
         }
@@ -124,7 +130,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         groups.forEach(g => { if (g.id !== editing?.id) add(`Personalizar ${value(g.name)}`, { kind: "option_group", productId: value(d.id), groupId: value(g.id) }); });
         const selectedOptions = groups.flatMap(g => items(g.items).filter(i => chosen.includes(value(i.id))).map(i => `${value(g.name)}: ${value(i.name)}${i.priceModifierInCents ? ` (+${money(Number(i.priceModifierInCents) / 100)})` : ""}`));
         if (selectedOptions.length) text.push(selectedOptions.join("\n"));
-        if (variants.length > 1 || remembered && !selected) variants.forEach(v => add(`${v.id === selected ? "✓ " : ""}${value(v.value || v.name || v.sku || v.id)}`, { kind: "variant", productId: value(d.id), variantId: value(v.id) }, v.priceFormatted));
+        if (variants.length > 1 || remembered && !selected) variants.forEach(v => add(`${v.id === selected ? "✓ " : ""}${variantTitle(v)}`, { kind: "variant", productId: value(d.id), variantId: value(v.id) }, v.priceFormatted));
         if (Array.isArray(d.images) && d.images.length > 1) add("Ver fotos", tool("product_gallery", { productId: d.id, images: d.images }));
         add("Salvar nos favoritos", tool("add_to_wishlist", { productId: d.id }));
         items(d.ruleNotices).forEach(n => text.push(value(n.message)));
@@ -267,10 +273,25 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   if (parts.length > 2) allChoices.unshift({ label: "Ler mais", action: tool("show_content", { text: parts.slice(2).join("\n\n") }) });
   const media = view.media.filter(m => m.type !== "text");
   if (media.length > 3) allChoices.unshift({ label: "Ver mais mídias", action: tool("media_page", { media: media.slice(3) }) });
+  if (productDetails) {
+    const priority = (choice: MetaUiChoice): number => {
+      if (choice.action.kind === "variant") return 0;
+      if (["option", "slot", "option_group"].includes(choice.action.kind)) return 1;
+      if (choice.action.kind === "tool") {
+        if (choice.action.tool === "add_item_to_cart") return 2;
+        if (["product_gallery", "media_page"].includes(choice.action.tool)) return 3;
+        if (["show_content", "get_reviews"].includes(choice.action.tool)) return 4;
+        if (choice.action.tool === "get_product_details") return 6;
+      }
+      return 5;
+    };
+    allChoices.sort((a, b) => priority(a) - priority(b));
+  }
   const pageSize = catalog && allChoices.some(choice => choice.image) ? Math.min(3, 7 - pinned.length) : 7 - pinned.length;
   const totalPages = Math.max(1, Math.ceil(allChoices.length / pageSize));
   const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
-  const choices: MetaUiChoice[] = [...pinned, ...allChoices.slice(page * pageSize, (page + 1) * pageSize)];
+  const currentChoices = allChoices.slice(page * pageSize, (page + 1) * pageSize);
+  const choices: MetaUiChoice[] = productDetails ? [...currentChoices, ...pinned] : [...pinned, ...currentChoices];
   if (page > 0) choices.push({ label: catalog ? "Produtos anteriores" : "Página anterior", action: { kind: "page", page: page - 1 } });
   if (page < totalPages - 1) choices.push({ label: catalog ? "Próximos produtos" : "Mais opções", action: { kind: "page", page: page + 1 } });
   if (options.canGoBack) choices.push({ label: "Voltar", action: { kind: "back" } });
@@ -293,14 +314,19 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   messages.push(...visibleMedia);
   if (options.includeMedia !== false && !options.navigationOnly) messages.push(...view.media.filter(m => m.type === "text"));
   if (choices.length) {
+    const selectedVariation = view.choices.find(choice => choice.action.kind === "variant" && choice.label.startsWith("✓ "));
+    const variantPrompt = view.choices.some(choice => choice.action.kind === "variant")
+      ? selectedVariation ? `Selecionado: ${selectedVariation.label.slice(2)}.\nAdicione ao carrinho ou escolha outra variação.`
+        : "Escolha a variação do produto para continuar." : undefined;
     if (options.native === false) messages.push({ type: "text", text: { body: choices.map((c, i) => `${i + 1}. ${c.label}${c.description ? ` — ${c.description}` : ""}`).join("\n") + "\n\nVocê pode responder pelo número ou escrever sua pergunta." } });
     else if (choices.length <= 3 && choices.every(c => Array.from(c.label).length <= 17)) messages.push({ type: "interactive", interactive: { type: "button", body: { text: "Como posso ajudar?" }, footer: { text: "Pode perguntar o que quiser." }, action: { buttons: rows.map(row => ({ type: "reply", reply: { id: row.id, title: concise(row.title, 20) } })) } } });
     else {
       const context = catalog ? "Escolha um produto para ver fotos e informações completas."
-        : productDetails ? "Veja as opções deste produto ou escreva sua dúvida."
+        : productDetails ? variantPrompt || "Veja as opções deste produto ou escreva sua dúvida."
           : view.blocks.some(block => block.type === "cart_summary") ? "Confira os itens e escolha como continuar."
             : view.stage === "checkout" ? "Escolha a próxima etapa do seu pedido." : "Explore a loja ou continue a conversa.";
-      messages.push({ type: "interactive", interactive: { type: "list", header: { type: "text", text: concise(view.title, 60) }, body: { text: `${context}${totalPages > 1 ? `\nPágina ${page + 1} de ${totalPages}` : ""}` }, footer: { text: "Pode perguntar o que quiser." }, action: { button: catalog ? "Ver produtos" : "Explorar opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows }] } } });
+      const productName = productDetails ? value(object(view.blocks.find(block => block.type === "product_card")?.data).name) : "";
+      messages.push({ type: "interactive", interactive: { type: "list", header: { type: "text", text: concise(productName || view.title, 60) }, body: { text: `${context}${totalPages > 1 ? `\nPágina ${page + 1} de ${totalPages}` : ""}` }, footer: { text: "Pode perguntar o que quiser." }, action: { button: catalog ? "Ver produtos" : productDetails && variantPrompt ? "Escolher variação" : "Explorar opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows }] } } });
     }
   }
   return { messages, selections, numericSelections: choices.map(c => c.action), page, totalPages };
