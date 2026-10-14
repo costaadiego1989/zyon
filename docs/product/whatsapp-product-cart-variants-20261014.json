@@ -1,0 +1,117 @@
+{
+  "verifiedAt": "2026-10-14T15:01:16.516Z",
+  "codeRevision": "14c638b8a4cf555068014deba52dc4a913e69fcd",
+  "customerIssue": {
+    "product": "Núcleo — Protetor Diário FPS 50",
+    "publishedDescription": "Protetor facial de uso diário para completar o cuidado da manhã.",
+    "publicContentBlocks": 0,
+    "publicFaqs": 0,
+    "descriptionVerifiedThroughLiveStorefrontContentEndpoint": true,
+    "addedCartWasPersisted": true,
+    "repeatedProductPhotoSource": "cart_summary presentation",
+    "productDetailsNativeMenuDispatchedOnceInObservedTurn": true
+  },
+  "changes": [
+    "successful cart addition confirms cart without repeating product photo",
+    "cart-item photos retain explicit cart captions on deliberate cart reads",
+    "current menu pagination sends new controls without repeating descriptions or images",
+    "complete details do not offer redundant More Information control",
+    "single available variant displays its registered attribute",
+    "available variants remain selectable after a choice and show the selected marker",
+    "named variants precede add, gallery, secondary actions and global shopping controls on product menus",
+    "native list heading identifies the viewed product"
+  ],
+  "validation": {
+    "focusedTests": {
+      "passed": 249,
+      "failed": 0,
+      "skipped": 1
+    },
+    "productionBuild": "passed",
+    "capturedCustomerSnapshotReplay": {
+      "checks": 8,
+      "providerRequests": 0,
+      "databaseWrites": 0,
+      "externalDeliveryProof": false
+    },
+    "sandbox": {
+      "deployment": "87eac7e8-edef-42fc-bdbe-23c1ed4777fb",
+      "turns": 40,
+      "checks": 34,
+      "messagesCaptured": 89,
+      "synthetic": true,
+      "providerMessagesSent": 0,
+      "externalMutations": 0,
+      "paymentIntents": 0,
+      "cleanup": {
+        "inbox": 40,
+        "whatsappSession": 1,
+        "cart": 1,
+        "checkout": 2,
+        "fixtureProduct": 1,
+        "buyer": 1
+      },
+      "scenarios": [
+        "model_no_tool_replay_uses_real_shared_contextual_catalog_without_broadening",
+        "native_welcome_and_quick_replies_persisted",
+        "all_configured_welcome_actions_remain_reachable_across_persisted_native_pages",
+        "categories_offers_back_and_menu_use_the_shared_storefront_navigation",
+        "archived_native_selection_remains_scoped_to_merchant_config_device_stream_and_session",
+        "native_product_selection_uses_shared_authoritative_details",
+        "older_owned_read_selection_opens_current_product_details",
+        "product_menu_prioritizes_named_variants_before_secondary_navigation",
+        "product_menu_pagination_preserves_full_published_content_without_resending_description_or_images",
+        "complete_product_details_do_not_offer_a_duplicate_more_information_action",
+        "rich_ctas_and_typed_add_cannot_guess_variant_or_bypass_sold_out_stock",
+        "native_variant_can_be_changed_before_add_and_selected_price_follows_its_sku",
+        "more_information_preserves_selected_variant_and_displays_real_rich_content",
+        "stale_menu_cannot_mutate_cart",
+        "successful_add_shows_cart_confirmation_without_repeating_product_photo_or_details",
+        "native_add_persists_same_storefront_cart",
+        "view_cart_keeps_native_checkout_and_continue_shopping_reachable",
+        "quantity_and_native_cart_summary_match_persisted_values",
+        "back_refreshes_live_cart_instead_of_replaying_stale_quantity",
+        "native_decrement_and_remove_persist_and_empty_cart_is_displayed",
+        "continue_shopping_and_typed_add_share_authoritative_native_actions",
+        "menu_back_resumes_authoritative_checkout_data_entry_and_keeps_its_binding",
+        "new_buyer_conversational_registration_uses_email_otp_and_rejects_invalid_code",
+        "registered_encrypted_phone_is_found_through_keyed_index",
+        "returning_buyer_email_challenge_precedes_profile_hydration_and_identity_binding",
+        "email_authenticated_identity_survives_return_to_actual_storefront_cart",
+        "persisted_nonempty_cart_pins_cart_and_finish_controls",
+        "cart_back_resumes_verified_checkout_without_losing_items_or_restarting_registration",
+        "expired_link_has_recoverable_error_without_accepting_expired_or_tampered_capabilities",
+        "fresh_signed_handoff_passes_real_widget_bootstrap_guard_and_controller",
+        "handoff_rejects_foreign_origin_and_checkout_session",
+        "checkout_preserves_buyer_phone_cart_and_email_verification",
+        "signed_handoff_points_to_sandbox_widget_and_api",
+        "no_payment_intent_created"
+      ]
+    },
+    "production": {
+      "deployment": "9f7c3719-4102-47a4-ab81-55486033bab9",
+      "sourceFilesMatched": 19,
+      "compiled": true,
+      "readinessHTTP": 200,
+      "financialSourceFilesPreserved": 23,
+      "financialCompiled": true,
+      "financialMigrationsApplied": true,
+      "dashboardAsset": "/assets/index-CoYe4jJp.js",
+      "widgetAsset": "/assets/index-Baf-lWYG.js",
+      "actualWhatsAppClientRetest": "pending",
+      "actualCustomerPayments": "pending"
+    }
+  },
+  "preview": {
+    "images": [
+      "artifacts/whatsapp/produto-carrinho-meta-20261014.png",
+      "artifacts/whatsapp/variacoes-meta-20261014.png"
+    ],
+    "usesRegisteredPublicProductData": true,
+    "source": "current renderer preview",
+    "externalDeliveryProof": false
+  },
+  "operatorProtocol": "no automatic operator WhatsApp QA sends while the customer tests; normal channel replies remain enabled",
+  "financialScope": "no payment route or seven-day retention from fulfillment changed",
+  "knownValidationLimit": "global typecheck was not rerun; previous release records unrelated legacy spec errors"
+}
