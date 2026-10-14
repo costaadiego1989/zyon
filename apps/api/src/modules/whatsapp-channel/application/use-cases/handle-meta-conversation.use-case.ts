@@ -82,8 +82,14 @@ export class HandleMetaConversationUseCase {
         } else view = recoveredView;
       }
       let includeMedia = true;
+      let navigationOnly = false;
       if (invalidSelection) { view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Esse menu foi atualizado. Use as opções abaixo ou escreva o que você quer fazer." }; includeMedia = false; }
-      else if (action?.kind === "page" && view) { state = { ...state, page: action.page }; }
+      else if (action?.kind === "page" && view) {
+        state = { ...state, page: action.page };
+        // A current menu page only changes the controls. Archived navigation
+        // reloads authoritative data and must still present that fresh content.
+        navigationOnly = !recoveredView;
+      }
       else if (action?.kind === "back" && state.previousViews.length) {
         view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
         const product = view?.blocks.find(b => b.type === "product_card");
@@ -144,7 +150,7 @@ export class HandleMetaConversationUseCase {
       if (!view) throw new Error("whatsapp_ui_view_missing");
       if (!responseProducer) view = withMetaCartNavigation(view, state.cartHasItems);
       view = { ...view, stage: view.stage ?? state.stage };
-      const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0, includeMedia });
+      const presentation = presentMetaUi(view, revision, state.page, { canGoBack: state.previousViews.length > 0, includeMedia, navigationOnly });
       state = { ...state, revision, view, page: presentation.page, selections: presentation.selections, numericSelections: presentation.numericSelections };
       saved = { phase: "prepared", presentation, state, sessionId: route.whatsappSession.id, previousRevision: route.whatsappSession.conversationState?.revision ?? "", sent: [] };
       await this.save(claim, saved);

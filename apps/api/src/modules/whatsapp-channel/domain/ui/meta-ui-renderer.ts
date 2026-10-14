@@ -37,6 +37,7 @@ export const formatMetaText = (text: string): string => text
 export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiView {
   const view: MetaUiView = { stage: response.state.stage, title: response.merchantName || "Sua loja", body: response.agentMessage, choices: [], media: [], blocks: response.blocks, quickReplies: response.quickReplies };
   const text: string[] = [response.agentMessage];
+  const cartJustAdded = response.blocks.some(block => block.type === "cart_add_result" && object(block.data).status === "succeeded");
   const add = (label: string, action: StoreUiAction, description?: string) => view.choices.push({ label, action, description });
   const photo = (url: unknown, caption?: string) => { const link = safeLink(url); if (link && !view.media.some(m => m.type === "image" && m.media.link === link)) view.media.push({ type: "image", media: { link, caption: caption ? concise(caption, 1024) : undefined } }); };
   const productChoice = (p: Record<string, any>) => {
@@ -103,6 +104,9 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         if (Number(d.reviewCount) > 0 && d.rating != null) text.push(`*Avaliações*\n${value(d.rating)} / 5 · ${value(d.reviewCount)} avaliação(ões)`);
         if (!(response.state.catalogId && retailerId && response.state.catalogPrices?.[retailerId] === Number(d.variants?.[0]?.price ?? d.price) && items(d.variants).length <= 1 && !items(d.optionGroups).length && !d.serviceSchedule)) photo(selectedVariant?.image || d.image || d.images?.[0], `*${value(d.name)}*\n*${price}*`);
         if (selectedVariant && selected) text.push(`_Selecionado: ${value(selectedVariant.value || selectedVariant.sku)}_`);
+        else if (variants.length === 1 && selectedVariant?.name && selectedVariant.name !== "SKU" && selectedVariant.value) {
+          text.push(`*${value(selectedVariant.name)}:* ${value(selectedVariant.value)}`);
+        }
         const groups = items(d.optionGroups); const chosen = response.state.selectedOptionItemIds ?? [];
         const pending = groups.find(g => (g.required || Number(g.minSelections) > 0) && items(g.items).filter(i => chosen.includes(value(i.id))).length < Number(g.minSelections ?? 1));
         const editing = groups.find(g => g.id === response.state.selectedOptionGroupId) ?? pending;
@@ -135,7 +139,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         if (!items(d.items).length) text.push("Seu carrinho está vazio. Escolha um produto para começar.");
         items(d.items).forEach((i, index) => {
           text.push(`${index + 1}. *${value(i.productName || i.name)}*\nQuantidade: ${i.quantity} · ${money(i.subtotal)}`);
-          photo(i.imageUrl || i.image_url || i.image, `*${value(i.productName || i.name)}*\n${i.quantity} unidade(s) · ${money(i.subtotal)}`);
+          if (!cartJustAdded) photo(i.imageUrl || i.image_url || i.image, `*Item no carrinho*\n${value(i.productName || i.name)}\n${i.quantity} unidade(s) · ${money(i.subtotal)}`);
           items(i.selectedOptions).forEach(o => text.push(`${value(o.groupName)}: ${value(o.itemName)}`));
           if (i.selectedServiceSlotId) text.push(`Agendamento: ${value(i.selectedServiceSlotId)}`);
           add(`Editar ${value(i.productName || i.name)}`, tool("edit_cart_item", { variantId: i.variantId, quantity: i.quantity }));
@@ -207,6 +211,9 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
     }
   }
   response.quickReplies.forEach(label => {
+    // The complete public description is already in this view. Reopening it
+    // under "Mais informações" repeats the same content instead of adding detail.
+    if (/^mais informa[cç][oõ]es$/i.test(label.trim()) && response.blocks.some(b => b.type === "product_card")) return;
     if (/^adicionar.*carrinho$/i.test(label) && view.choices.some(c => c.action.kind === "tool" && c.action.tool === "add_item_to_cart")) return;
     if (/^adicionar.*carrinho$/i.test(label) && response.blocks.some(b => b.type === "product_card")) return;
     if (/^finalizar compra$/i.test(label) && response.blocks.some(b => b.type === "cart_summary" && !items(object(b.data).items).length)) return;
@@ -239,7 +246,7 @@ export function metaWelcomeMessage(greeting: string, merchantName: string, agent
   return `*${formatMetaText(agentName)} · ${formatMetaText(merchantName)}*\n\n${formatMetaText(greeting).trim()}\n\n*Converse à vontade*\nPergunte o que quiser. Eu ajudo com produtos, entrega, pagamento e seu pedido.\n\n_Use o menu ou escreva sua pergunta aqui na conversa._`;
 }
 
-export function presentMetaUi(view: MetaUiView, revision: string, requestedPage = 0, options: { native?: boolean; includeMedia?: boolean; canGoBack?: boolean } = {}): MetaUiPresentation {
+export function presentMetaUi(view: MetaUiView, revision: string, requestedPage = 0, options: { native?: boolean; includeMedia?: boolean; canGoBack?: boolean; navigationOnly?: boolean } = {}): MetaUiPresentation {
   const parts = paragraphs(formatMetaText(view.body || "Como posso ajudar?"));
   const productDetails = view.blocks.some(block => block.type === "product_card");
   const catalog = view.stage !== "checkout" && !productDetails && view.blocks.some(block => ["product_carousel", "marketplace_products", "wishlist", "cross_sell"].includes(block.type));
@@ -278,13 +285,13 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
   const productPhotos: MetaUiMessage[] = catalog && options.includeMedia !== false ? choices.filter(choice => choice.image).map(choice => ({ type: "image", media: choice.image! })) : [];
   const messages: MetaUiMessage[] = [];
   const visibleMedia = productPhotos.length ? productPhotos.slice(0, 3)
-    : options.includeMedia !== false ? view.media.filter(m => m.type !== "text").slice(0, 3) : [];
+    : options.includeMedia !== false && !options.navigationOnly ? view.media.filter(m => m.type !== "text").slice(0, 3) : [];
   // Product detail starts with its real photo and price, followed by the full
   // published information. Payment instructions retain their existing order.
   if (productDetails && visibleMedia[0]?.type === "image") messages.push(visibleMedia.shift()!);
-  if (!catalog || page === 0) parts.slice(0, 2).forEach(body => messages.push({ type: "text", text: { body } }));
+  if (!options.navigationOnly && (!catalog || page === 0)) parts.slice(0, 2).forEach(body => messages.push({ type: "text", text: { body } }));
   messages.push(...visibleMedia);
-  if (options.includeMedia !== false) messages.push(...view.media.filter(m => m.type === "text"));
+  if (options.includeMedia !== false && !options.navigationOnly) messages.push(...view.media.filter(m => m.type === "text"));
   if (choices.length) {
     if (options.native === false) messages.push({ type: "text", text: { body: choices.map((c, i) => `${i + 1}. ${c.label}${c.description ? ` — ${c.description}` : ""}`).join("\n") + "\n\nVocê pode responder pelo número ou escrever sua pergunta." } });
     else if (choices.length <= 3 && choices.every(c => Array.from(c.label).length <= 17)) messages.push({ type: "interactive", interactive: { type: "button", body: { text: "Como posso ajudar?" }, footer: { text: "Pode perguntar o que quiser." }, action: { buttons: rows.map(row => ({ type: "reply", reply: { id: row.id, title: concise(row.title, 20) } })) } } });

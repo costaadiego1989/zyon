@@ -208,6 +208,25 @@ for (const overlay of ["coupon_entry", "checkout_edit_confirmation"]) test(`back
   assert.equal(actual.state.payment.intentId, "pix1");
 });
 
+test("product menu pagination sends only new controls and does not invoke commerce again", async () => {
+  const f = fixture();
+  let calls = 0;
+  f.conversation.respondStore = async (call: any) => { calls++; return { agentMessage: "Detalhes", merchantName: "Loja", state: call.state,
+    quickReplies: Array.from({ length: 8 }, (_, i) => `Pergunta ${i}`), blocks: [{ type: "product_card", data: { id: "p", name: "Protetor", price: 9990,
+      image: "https://example.com/protetor.jpg", description: "Descrição publicada", variants: [{ id: "v", stock: 2 }] } }] }; };
+  await f.execute();
+  const next = Object.entries(f.claim.responseState.state.selections).find(([, a]: any) => a.kind === "page" && a.page === 1);
+  assert.ok(next);
+  f.input.interactiveId = next[0];
+  f.claim.id = "page-turn"; f.claim.responseState = undefined;
+  f.emitted.length = 0;
+  await f.execute();
+  assert.deepEqual(f.emitted.map(m => m.type), ["interactive"]);
+  assert.equal(f.claim.responseState.state.page, 1);
+  assert.equal(calls, 1);
+  assert.ok(f.claim.responseState.state.view.body.includes("Descrição publicada"));
+});
+
 test("native pagination persists each configured question and numeric selection invokes the original question", async () => {
   const f = fixture(); const labels = Array.from({ length: 31 }, (_, index) => `Pergunta completa ${index + 1}`); const calls: any[] = [];
   f.conversation.respondStore = async (call: any) => { calls.push(call); return { agentMessage: "Escolha", quickReplies: labels, blocks: [], state: call.state }; };
@@ -275,4 +294,20 @@ test('an earlier catalog page refreshes its original query instead of paging the
   assert.equal(received.state.payment.intentId,'current-payment');
   assert.equal(f.claim.responseState.state.page,1);
   assert.deepEqual(f.emitted.filter(m=>m.type==='image').map(m=>m.media.link),[3,4,5].map(i=>'https://example.com/'+i+'.jpg'));
+});
+
+test("a page from an older product menu displays refreshed product information before its controls", async () => {
+  const f = fixture(); await f.execute();
+  f.claim.id = "archived-page"; f.claim.responseState = undefined; f.input.interactiveId = "zyon:" + "d".repeat(32);
+  f.inbox.findPriorSelection = async () => ({ action: { kind: "page", page: 1 }, view: { title: "Loja", body: "Antigo", choices: [], media: [], quickReplies: [],
+    blocks: [{ type: "product_card", data: { id: "p" } }] } });
+  let action: any;
+  f.conversation.respondStore = async (call: any) => { action = call.action; return { agentMessage: "Informações atuais", state: call.state,
+    quickReplies: Array.from({ length: 8 }, (_, i) => `Pergunta ${i}`), blocks: [{ type: "product_card", data: { id: "p", name: "Protetor", price: 9990,
+      description: "Descrição atual", image: "https://example.com/current.jpg", variants: [{ id: "v", stock: 2 }] } }] }; };
+  f.emitted.length = 0; await f.execute();
+  assert.deepEqual(action, { kind: "tool", tool: "get_product_details", args: { productId: "p" } });
+  assert.deepEqual(f.emitted.map(m => m.type), ["image", "text", "interactive"]);
+  assert.ok(f.emitted[1].text.body.includes("Descrição atual"));
+  assert.equal(f.claim.responseState.state.page, 1);
 });

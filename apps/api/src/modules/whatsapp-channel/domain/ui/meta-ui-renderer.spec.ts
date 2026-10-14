@@ -43,11 +43,51 @@ test("catalog prioritizes actual photos and retains products without photos on l
 test("cart shows the real product photo alongside its authoritative amount", () => {
   const view = buildMetaUiView(response({ blocks: [{ type: "cart_summary", data: { items: [{ variantId: "v", name: "Sérum", quantity: 1, subtotal: 189.9, imageUrl: "https://cdn.example/serum.jpg" }], subtotal: 189.9, total: 189.9 } }] as any }));
   assert.ok(view.media.some(m => m.type === "image" && m.media.caption?.includes("189,90")));
+  assert.match(view.media[0].type === "image" ? view.media[0].media.caption! : "", /Item no carrinho/);
+});
+
+test("adding a product confirms the authoritative cart without repeating its product photo or details", () => {
+  const shown = presentMetaUi(withMetaCartNavigation(buildMetaUiView(response({ blocks: [
+    { type: "cart_add_result", data: { status: "succeeded" } },
+    { type: "cart_summary", data: { items: [{ variantId: "v", name: "Protetor", quantity: 1, subtotal: 99.9, imageUrl: "https://example.com/protetor.jpg" }], subtotal: 99.9, total: 99.9 } },
+  ] as any })), true), "added");
+  assert.deepEqual(shown.messages.map(m => m.type), ["text", "interactive"]);
+  const body = shown.messages[0].type === "text" ? shown.messages[0].text.body : "";
+  assert.match(body, /Item adicionado ao carrinho/);
+  assert.match(body, /Quantidade: 1 · R\$\s99,90/);
+  assert.ok(!body.includes("Descrição"));
+  assert.ok(shown.numericSelections.some(a => a.kind === "tool" && a.tool === "checkout"));
+});
+
+test("short published descriptions stay honest and the details menu never offers to repeat the same information", () => {
+  const description = "Protetor facial de uso diário para completar o cuidado da manhã.";
+  const view = buildMetaUiView(response({ quickReplies: ["Mais Informações", "Ver Avaliações"], blocks: [
+    { type: "product_card", data: { id: "p", name: "Protetor", price: 9990, description, variants: [{ id: "v", stock: 2, name: "Tamanho", value: "40 g" }] } },
+  ] }));
+  assert.ok(view.body.includes(description));
+  assert.ok(view.body.includes("*Tamanho:* 40 g"));
+  assert.ok(!view.body.includes("Informações do produto"));
+  assert.ok(!view.choices.some(c => c.label === "Mais Informações"));
+  assert.ok(view.choices.some(c => c.label === "Ver Avaliações"));
+});
+
+test("menu pagination preserves rich text and media controls without resending product information", () => {
+  const view = withMetaCartNavigation(buildMetaUiView(response({ blocks: [
+    { type: "product_card", data: { id: "p", name: "Sérum", price: 500, description: "Descrição completa", image: "https://example.com/serum.jpg", variants: [{ id: "v", stock: 2 }] } },
+    { type: "product_content", data: { blocks: Array.from({ length: 7 }, (_, i) => ({ type: "faq", items: [{ question: `Pergunta ${i}`, answer: `Resposta ${i}` }] })) } },
+  ] as any })), true);
+  const first = presentMetaUi(view, "opened", 0);
+  assert.ok(first.totalPages > 1);
+  const next = presentMetaUi(view, "page", 1, { navigationOnly: true });
+  assert.deepEqual(next.messages.map(m => m.type), ["interactive"]);
+  assert.ok(next.numericSelections.some(a => a.kind === "tool" && a.tool === "show_content"));
+  assert.ok(view.body.includes("Descrição completa"));
+  assert.equal(view.media.length, 1);
 });
 test("product photos follow their selectable native page, including later pages", () => {
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 1000 + i, image: `https://example.com/${i}.jpg` })) } }] }));
   const first = presentMetaUi(view, "turn", 0);
-  const second = presentMetaUi(view, "turn", 1, { includeMedia: true });
+  const second = presentMetaUi(view, "turn", 1, { includeMedia: true, navigationOnly: true });
   assert.deepEqual(first.messages.filter(m => m.type === "image").map(m => m.type === "image" && m.media.link), [0, 1, 2].map(i => `https://example.com/${i}.jpg`));
   assert.deepEqual(second.messages.filter(m => m.type === "image").map(m => m.type === "image" && m.media.link), [3, 4].map(i => `https://example.com/${i}.jpg`));
   assert.equal(second.numericSelections[0].kind === "tool" && second.numericSelections[0].args.productId, "p3");
