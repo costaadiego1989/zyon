@@ -41,6 +41,7 @@ import {
   PlaceCrossStoreOrderDto,
   HandleChargebackDto,
 } from "./dtos/marketplace.dtos.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../../payment/domain/billing-plan-guard.js";
 
 @ApiTags("Marketplace")
 @ApiBearerAuth("service_api_key")
@@ -59,6 +60,8 @@ export class MarketplaceV1Controller {
   ) {}
 
   @Get("search")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("marketplace")
   @RequireTenantAccess({ serviceScopes: ["marketplace:read"] })
   @ApiOperation({ summary: "Search federated products" })
   @ApiOkResponse({ description: "Products found" })
@@ -78,6 +81,8 @@ export class MarketplaceV1Controller {
   }
 
   @Get("config")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("marketplace")
   @RequireTenantAccess({ serviceScopes: ["marketplace:read"] })
   @ApiOperation({ summary: "Get marketplace configuration" })
   @ApiOkResponse({ description: "Configuration retrieved" })
@@ -91,6 +96,8 @@ export class MarketplaceV1Controller {
 
   @Patch("config")
   @Idempotent()
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("marketplace")
   @RequireTenantAccess({ serviceScopes: ["marketplace:write"] })
   @ApiOperation({ summary: "Update marketplace configuration" })
   @ApiOkResponse({ description: "Configuration updated" })
@@ -115,6 +122,8 @@ export class MarketplaceV1Controller {
   @Post("items")
   @Idempotent()
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("marketplace")
   @RequireTenantAccess({ serviceScopes: ["marketplace:write"] })
   @ApiOperation({ summary: "Add cross-store item to checkout" })
   @ApiCreatedResponse({ description: "Item added" })
@@ -134,6 +143,8 @@ export class MarketplaceV1Controller {
   @Post("orders")
   @Idempotent()
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("marketplace")
   @RequireTenantAccess({ serviceScopes: ["marketplace:write"] })
   @ApiOperation({ summary: "Place cross-store order" })
   @ApiCreatedResponse({ description: "Order placed" })
@@ -155,6 +166,8 @@ export class MarketplaceV1Controller {
   }
 
   @Get("orders")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("marketplace")
   @RequireTenantAccess({ serviceScopes: ["marketplace:read"] })
   @ApiOperation({ summary: "List seller orders" })
   @ApiOkResponse({ description: "Orders listed" })

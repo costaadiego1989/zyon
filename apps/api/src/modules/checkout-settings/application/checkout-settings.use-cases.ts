@@ -6,6 +6,7 @@ import {
   CHECKOUT_SETTINGS_REPOSITORY,
   type CheckoutSettingsRepository
 } from "../domain/ports/checkout-settings-repository.port.js";
+import { BillingPlanMeteringService } from "../../payment/domain/billing-plan-guard.js";
 
 @Injectable()
 export class GetCheckoutSettingsUseCase {
@@ -20,13 +21,21 @@ export class GetCheckoutSettingsUseCase {
 
 @Injectable()
 export class UpdateCheckoutSettingsUseCase {
-  constructor(@Inject(CHECKOUT_SETTINGS_REPOSITORY) private readonly repository: CheckoutSettingsRepository) {}
+  constructor(
+    @Inject(CHECKOUT_SETTINGS_REPOSITORY) private readonly repository: CheckoutSettingsRepository,
+    private readonly billing: BillingPlanMeteringService,
+  ) {}
 
   async execute(
     merchantId: string,
     patch: CheckoutSettingsPatch,
     expectedUpdatedAt?: string,
   ): Promise<CheckoutSettings> {
+    // Emptying an old configuration remains available after downgrade, but a
+    // merchant cannot create or replace commercial rules without Growth+.
+    if (Array.isArray(patch.advancedRules) && patch.advancedRules.length > 0) {
+      await this.billing.assertAllowed(merchantId, { kind: "feature", key: "advancedRules" });
+    }
     const current = (await this.repository.get(merchantId)) ?? CheckoutSettingsEntity.createDefault({ merchantId }).snapshot();
     try {
       const updated = CheckoutSettingsEntity.rehydrate(current).update(patch).snapshot();

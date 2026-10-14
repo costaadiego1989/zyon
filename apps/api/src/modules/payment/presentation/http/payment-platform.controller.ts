@@ -53,6 +53,9 @@ import { CancelSubscriptionUseCase } from "../../application/payment-platform/bi
 import { BILLING_PLANS } from "../../domain/billing-plans.js";
 import type { BillingPlan } from "../../domain/payment-platform.types.js";
 import { isStripeConfigured } from "../../infrastructure/stripe-env.js";
+import { billingPriceEnvironmentKey } from "../../infrastructure/billing-env.js";
+import { billingOffers } from "../../infrastructure/billing-offers.js";
+import { FREE_TRIAL_DAYS } from "@zyon/shared-types";
 
 import { IsString, IsOptional, IsBoolean, ValidateNested, IsIn } from "class-validator";
 import { Type } from "class-transformer";
@@ -62,7 +65,8 @@ const enabledFeatures = (plan: BillingPlan): string[] =>
   Object.entries(BILLING_PLANS[plan].features).filter(([, on]) => on).map(([k]) => k);
 
 const BILLING_PLAN_CARDS = [
-  { key: "starter", name: BILLING_PLANS.starter.name, priceBrl: BILLING_PLANS.starter.monthlyPriceBrl, trialDays: 14, badge: "14 dias grátis", recommended: false, ctaLabel: "Começar grátis", features: enabledFeatures("starter") },
+  { key: "starter", name: BILLING_PLANS.starter.name, priceBrl: BILLING_PLANS.starter.monthlyPriceBrl, trialDays: FREE_TRIAL_DAYS, badge: `${FREE_TRIAL_DAYS} dias grátis`, recommended: false, ctaLabel: "Começar grátis", features: enabledFeatures("starter") },
+  { key: "starter179", name: BILLING_PLANS.starter179.name, priceBrl: BILLING_PLANS.starter179.monthlyPriceBrl, trialDays: 0, badge: "R$ 179/mês", recommended: false, ctaLabel: "Assinar", features: enabledFeatures("starter179") },
   { key: "growth", name: BILLING_PLANS.growth.name, priceBrl: BILLING_PLANS.growth.monthlyPriceBrl, trialDays: 0, badge: null, recommended: true, ctaLabel: "Assinar", features: enabledFeatures("growth") },
   { key: "scale", name: BILLING_PLANS.scale.name, priceBrl: BILLING_PLANS.scale.monthlyPriceBrl, trialDays: 0, badge: null, recommended: false, ctaLabel: "Assinar", features: enabledFeatures("scale") },
 ];
@@ -83,12 +87,13 @@ class BillingHolderInfoDto {
   @IsString() phone!: string;
 }
 class SubscribeToPlanHttpDto {
-  @IsIn(["growth", "scale"]) planKey!: "growth" | "scale";
+  @IsIn(["starter179", "growth", "scale"]) planKey!: "starter179" | "growth" | "scale";
   @ValidateNested() @Type(() => BillingCardDto) card!: BillingCardDto;
   @ValidateNested() @Type(() => BillingHolderInfoDto) holderInfo!: BillingHolderInfoDto;
 }
 class ChangePlanHttpDto {
-  @IsIn(["starter", "growth", "scale"]) targetPlan!: "starter" | "growth" | "scale";
+  @IsIn(["starter", "starter179", "growth", "scale"]) targetPlan!: BillingPlan;
+  @IsOptional() @IsIn(["monthly", "annual"]) billingCycle?: "monthly" | "annual";
 }
 class CancelSubscriptionHttpDto {
   @IsOptional() @IsBoolean() immediate?: boolean;
@@ -450,10 +455,13 @@ export class BillingController {
       ...card,
       transactionFeeCents: BILLING_PLANS[card.key as BillingPlan].transactionFeeCents,
       limits: BILLING_PLANS[card.key as BillingPlan].limits,
+      billingOptions: billingOffers(card.key as BillingPlan),
+      annualCheckoutAvailable: card.key !== "starter" && billingOffers(card.key as BillingPlan).some((option) => option.cycle === "annual") &&
+        Boolean(process.env[billingPriceEnvironmentKey(card.key as BillingPlan, "annual")]?.trim()),
     }));
   }
 
-  @ApiOperation({ summary: "Start 14-day free trial (Starter)" })
+  @ApiOperation({ summary: "Start Free trial" })
   @Post("subscription/start-trial")
   @Idempotent()
   async startTrialRoute(@Req() request: unknown) {
@@ -482,7 +490,7 @@ export class BillingController {
   @Idempotent()
   async changePlanRoute(@Req() request: unknown, @Body() body: ChangePlanHttpDto) {
     const merchantId = humanPrincipal(request).tenantId;
-    await this.changePlan.execute({ merchantId, targetPlanKey: body.targetPlan });
+    await this.changePlan.execute({ merchantId, targetPlanKey: body.targetPlan, billingCycle: body.billingCycle });
     return toBillingResponse(await this.getSubscription.execute(merchantId));
   }
 
@@ -565,6 +573,7 @@ export class BillingController {
       merchantId: principal.tenantId,
       email: principal.email,
       plan,
+      billingCycle: body.billingCycle,
     });
   }
 
@@ -632,7 +641,7 @@ function checkoutMethodsFor(connection: PaymentConnectionSnapshot): Array<"pix" 
   if (connection.status !== "active") return [];
   switch (connection.provider) {
     case "asaas":
-      return ["pix", "boleto", "card"];
+      return ["pix", "card"];
     case "stripe":
       return isStripeConfigured() ? ["card"] : [];
     case "mercadopago":
@@ -665,11 +674,13 @@ function toBillingResponse(subscription: BillingSubscriptionWithPlanSnapshot) {
     current_period_end: subscription.currentPeriodEnd ?? null,
     cancel_at_period_end: subscription.cancelAtPeriodEnd,
     has_billing_customer: Boolean(subscription.stripeCustomerId),
-    has_subscription: Boolean(subscription.stripeSubscriptionId),
+    has_subscription: Boolean(subscription.stripeSubscriptionId || subscription.asaasSubscriptionId || subscription.mercadoPagoPreapprovalId),
     usage: subscription.usage ? {
       period_start: subscription.usage.periodStart,
       orders_current: subscription.usage.ordersPerMonth,
       orders_limit: subscription.limits.ordersPerMonth ?? null,
+      voice_sessions_current: subscription.usage.voiceSessions,
+      voice_sessions_limit: subscription.limits.voiceSessionsPerMonth ?? null,
       commerce_connections_current: subscription.usage.commerceConnections,
       commerce_connections_limit: subscription.limits.commerceConnections ?? null,
       webhook_endpoints_current: subscription.usage.webhookEndpoints,

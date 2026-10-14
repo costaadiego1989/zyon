@@ -9,6 +9,7 @@ import { Injectable, Inject, BadRequestException, NotFoundException , Logger} fr
 import { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 
 export interface AcceptInviteInput {
   invite_id: string;
@@ -25,7 +26,10 @@ export interface AcceptInviteOutput {
 export class AcceptInviteUseCase {
   private readonly logger = new Logger(AcceptInviteUseCase.name);
 
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly billing: BillingPlanMeteringService,
+  ) {}
 
   async execute(input: AcceptInviteInput): Promise<AcceptInviteOutput> {
     return this.prisma.$transaction(async tx => {
@@ -44,6 +48,7 @@ export class AcceptInviteUseCase {
       // Existing active memberships use the role command so last-owner checks cannot be bypassed.
       const existing = await tx.merchantTeamMember.findUnique({ where: { merchantId_userId: { merchantId: candidate.merchantId, userId: user.id } } });
       if (existing) throw new BadRequestException("user_already_member");
+      await this.billing.assertAllowed(candidate.merchantId, { kind: "limit", key: "teamMembers" });
       const member = await tx.merchantTeamMember.create({ data: { merchantId: candidate.merchantId, userId: user.id, role, invitedBy: candidate.invitedBy } });
       await tx.merchantUser.update({ where: { id: user.id }, data: { role: role.toLowerCase(), authVersion: { increment: 1 } } });
       await revokeUserSessions(tx, user.id);

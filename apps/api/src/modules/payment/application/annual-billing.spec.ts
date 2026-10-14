@@ -12,19 +12,20 @@ import { AsaasBillingProvider } from "../infrastructure/asaas-billing.provider.j
 import { BillingEntityMapper } from "../../public-api/billing/application/mappers/billing-entity.mapper.js";
 
 test("annual quote uses integer cents and only discounts the subscription", () => {
-  assert.deepEqual(billingOffer(34900, "annual", 15), { cycle: "annual", amountCents: 355980, equivalentMonthlyCents: 29665, discountPercent: 15, savingsCents: 62820 });
-  assert.deepEqual(billingOffer(59900, "annual", 15), { cycle: "annual", amountCents: 610980, equivalentMonthlyCents: 50915, discountPercent: 15, savingsCents: 107820 });
-  assert.equal(billingOffer(34900, "monthly", 15).amountCents, 34900);
+  assert.deepEqual(billingOffer(44900, "annual", 15), { cycle: "annual", amountCents: 457980, equivalentMonthlyCents: 38165, discountPercent: 15, savingsCents: 80820 });
+  assert.deepEqual(billingOffer(74900, "annual", 15), { cycle: "annual", amountCents: 763980, equivalentMonthlyCents: 63665, discountPercent: 15, savingsCents: 134820 });
+  assert.equal(billingOffer(44900, "monthly", 15).amountCents, 44900);
   assert.equal(BILLING_PLANS.growth.transactionFeeCents, 149);
   assert.equal(BILLING_PLANS.growth.features.customDomain, true);
   assert.equal("sessionsPerMonth" in BILLING_PLANS.growth.limits, false);
   assert.equal("aiConversationsPerMonth" in BILLING_PLANS.starter.limits, false);
 });
 
-test("billing usage exposes purchases and operational resources, never sessions or AI conversations", () => {
+test("billing usage exposes the separately metered voice sessions without restoring retired generic session limits", () => {
   const usage = BillingEntityMapper.toUsageResponse({
     periodStart: "2026-09-01T00:00:00.000Z",
     ordersPerMonth: 12,
+    voiceSessions: 34,
     commerceConnections: 1,
     webhookEndpoints: 2,
     teamMembers: 3,
@@ -33,6 +34,8 @@ test("billing usage exposes purchases and operational resources, never sessions 
   }, BILLING_PLANS.growth.limits);
 
   assert.equal(usage.orders_per_month, 12);
+  assert.equal(usage.voice_sessions, 34);
+  assert.equal(usage.limits.voiceSessionsPerMonth, 17);
   assert.equal(usage.commerce_connections, 1);
   assert.equal("sessions_per_month" in usage, false);
   assert.equal("ai_conversations_per_month" in usage, false);
@@ -46,9 +49,9 @@ test("annual is opt-in and invalid env never breaks monthly billing", () => {
     const env = { BILLING_ANNUAL_ENABLED: "true", BILLING_ANNUAL_DISCOUNT_PERCENT: discount };
     assert.equal(annualBillingConfig(env).enabled, false);
     assert.throws(() => quoteBilling("growth", "annual", env));
-    assert.equal(quoteBilling("growth", "monthly", env).amountCents, 34900);
+    assert.equal(quoteBilling("growth", "monthly", env).amountCents, 44900);
   }
-  assert.equal(quoteBilling("growth", "annual", { BILLING_ANNUAL_ENABLED: "true" }).amountCents, 355980);
+  assert.equal(quoteBilling("growth", "annual", { BILLING_ANNUAL_ENABLED: "true" }).amountCents, 457980);
   assert.throws(() => quoteBilling("starter", "annual", { BILLING_ANNUAL_ENABLED: "true" }));
 });
 
@@ -63,13 +66,17 @@ test("annual paid webhook requires exact charge and due date, is idempotent acro
     billingCycle: "annual", billingAmountCents: 355980, billingDiscountPercent: 15, pendingUpgradePlanKey: "growth", pendingUpgradeAmountCents: 355980 });
   const useCase = new HandleAsaasBillingWebhookUseCase(repo);
   const payment = { subscriptionId: "sub_annual", paymentId: "pay_1", paymentValueCents: 355980, paymentDueAt: "2026-10-01T00:00:00Z", occurredAt: "2026-10-01T12:00:00Z", event: "PAYMENT_CONFIRMED" };
-  assert.equal((await useCase.execute({ ...payment, eventId: "underpaid", paymentValueCents: 34900 })).outcome, "ignored");
-  assert.equal((await useCase.execute({ ...payment, eventId: "undated", paymentDueAt: undefined })).outcome, "ignored");
+  // We retain a provider receivable for reconciliation, but neither malformed
+  // nor underpaid events may activate the pending annual entitlement.
+  assert.equal((await useCase.execute({ ...payment, eventId: "underpaid", paymentValueCents: 34900 })).outcome, "processed");
+  assert.equal((await repo.getBilling("annual"))?.status, "trialing");
+  assert.equal((await useCase.execute({ ...payment, eventId: "undated", paymentDueAt: undefined })).outcome, "processed");
+  assert.equal((await repo.getBilling("annual"))?.status, "trialing");
   assert.equal((await useCase.execute({ ...payment, eventId: "first" })).outcome, "processed");
   assert.equal((await repo.getBilling("annual"))?.currentPeriodEnd, "2027-10-01T00:00:00.000Z");
   assert.equal((await useCase.execute({ ...payment, eventId: "first" })).outcome, "duplicate");
-  assert.equal((await useCase.execute({ ...payment, eventId: "received", event: "PAYMENT_RECEIVED", occurredAt: "2026-10-03T12:00:00Z" })).outcome, "ignored");
-  assert.equal((await useCase.execute({ ...payment, eventId: "old_due", paymentId: "pay_old", paymentDueAt: "2026-09-01T00:00:00Z" })).outcome, "ignored");
+  assert.equal((await useCase.execute({ ...payment, eventId: "received", event: "PAYMENT_RECEIVED", occurredAt: "2026-10-03T12:00:00Z" })).outcome, "processed");
+  assert.equal((await useCase.execute({ ...payment, eventId: "old_due", paymentId: "pay_old", paymentDueAt: "2026-09-01T00:00:00Z" })).outcome, "processed");
   assert.equal((await useCase.execute({ ...payment, eventId: "old_overdue", event: "PAYMENT_OVERDUE" })).outcome, "ignored");
   // No env lookup at renewal: the saved amount and discount remain authoritative.
   assert.equal((await useCase.execute({ ...payment, eventId: "renewal", paymentId: "pay_2", paymentDueAt: "2027-10-01T00:00:00Z", occurredAt: "2027-10-01T12:00:00Z" })).outcome, "processed");
@@ -94,11 +101,11 @@ test("monthly to annual transition preserves access until its confirmed renewal"
     await change.execute({ merchantId: "transition", targetPlanKey: "scale", billingCycle: "annual" });
     const pending = await repo.getBilling("transition");
     assert.equal(pending?.planKey, "growth"); assert.equal(pending?.billingCycle, "monthly");
-    assert.equal(pending?.pendingBillingAmountCents, 610980);
+    assert.equal(pending?.pendingBillingAmountCents, 763980);
     assert.equal(calls[0].nextDueDate, "2030-10-01");
     await assert.rejects(() => change.execute({ merchantId: "transition", targetPlanKey: "scale", billingCycle: "annual" }));
     await new HandleAsaasBillingWebhookUseCase(repo).execute({ event: "PAYMENT_CONFIRMED", eventId: "change_paid", subscriptionId: "sub_change",
-      paymentId: "new_charge", paymentValueCents: 610980, paymentDueAt: "2030-10-01T00:00:00Z", occurredAt: "2030-10-01T12:00:00Z" });
+      paymentId: "new_charge", paymentValueCents: 763980, paymentDueAt: "2030-10-01T00:00:00Z", occurredAt: "2030-10-01T12:00:00Z" });
     const active = await repo.getBilling("transition");
     assert.equal(active?.planKey, "scale"); assert.equal(active?.billingCycle, "annual");
     assert.equal(active?.currentPeriodEnd, "2031-10-01T00:00:00.000Z");

@@ -1,5 +1,9 @@
+import { PrismaMarketplaceInventoryOrderRouter } from "./infrastructure/repositories/prisma-marketplace-inventory-order.router.js";
+import { PrismaMarketplaceFinancialRepository } from "../marketplace/infrastructure/repositories/prisma-marketplace-financial.repository.js";
+import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { StockAlertMonitorJob } from "./infrastructure/jobs/stock-alert-monitor.job.js";
 import { Module } from "@nestjs/common";
+import { CampaignConsentModule } from "../campaign-consent/campaign-consent.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
@@ -54,6 +58,8 @@ import { InventoryWebhookEmitterService } from "./application/services/inventory
 import { CrmSyncService } from "./application/services/crm-sync.service.js";
 import { InventoryDashboardController } from "./presentation/http/inventory-dashboard.controller.js";
 import { ErpOAuthController } from "./presentation/http/erp-oauth.controller.js";
+import { CrmOAuthController } from "./presentation/http/crm-oauth.controller.js";
+import { HubSpotOAuthService } from "./application/services/hubspot-oauth.service.js";
 import { MarketplaceWebhookController } from "./presentation/http/marketplace-webhook.controller.js";
 import { CheckoutPersistenceModule } from "../checkout/checkout-persistence.module.js";
 import { TenantAccessModule } from "../integrations/tenant-access.module.js";
@@ -63,11 +69,24 @@ import { InventorySaleIntegrationHandler } from "./infrastructure/event-handlers
 import { ErpSyncService } from "./application/services/erp-sync.service.js";
 import { ErpSyncWorker } from "./infrastructure/jobs/erp-sync.worker.js";
 import { TriggerErpSyncUseCase } from "./application/use-cases/trigger-erp-sync.use-case.js";
+import { TIKTOKSHOP_OAUTH_PORT } from "./domain/ports/tiktokshop-oauth.port.js";
+import { TikTokShopOAuthAdapter } from "./infrastructure/adapters/tiktokshop-oauth.adapter.js";
+import { TIKTOKSHOP_TOKEN_PORT } from "./domain/ports/tiktokshop-token.port.js";
+import { TikTokShopTokenAdapter } from "./infrastructure/adapters/tiktokshop-token.adapter.js";
+import { SHOPEE_TOKEN_PORT } from "./domain/ports/shopee-token.port.js";
+import { ShopeeTokenAdapter } from "./infrastructure/adapters/shopee-token.adapter.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
-  imports: [CatalogModule, CheckoutPersistenceModule, TenantAccessModule],
-  controllers: [InventoryDashboardController, ErpOAuthController, MarketplaceWebhookController],
+  imports: [CatalogModule, CheckoutPersistenceModule, TenantAccessModule, CampaignConsentModule],
+  controllers: [InventoryDashboardController, ErpOAuthController, CrmOAuthController, MarketplaceWebhookController],
   providers: [
+    { provide: TIKTOKSHOP_OAUTH_PORT, useClass: TikTokShopOAuthAdapter },
+    { provide: TIKTOKSHOP_TOKEN_PORT, useClass: TikTokShopTokenAdapter },
+    { provide: SHOPEE_TOKEN_PORT, useClass: ShopeeTokenAdapter },
+    { provide: PrismaMarketplaceInventoryOrderRouter,
+      useFactory: (prisma: PrismaClient, tenant: TenantContextService) => new PrismaMarketplaceInventoryOrderRouter(prisma, new PrismaMarketplaceFinancialRepository(prisma, tenant)),
+      inject: [PRISMA_CLIENT, TenantContextService] },
     { provide: INVENTORY_SALE_REPOSITORY, useFactory: (prisma: PrismaClient) => new PrismaInventorySaleRepository(prisma), inject: [PRISMA_CLIENT] },
     {
       provide: INVENTORY_REPOSITORY,
@@ -145,6 +164,9 @@ import { TriggerErpSyncUseCase } from "./application/use-cases/trigger-erp-sync.
     InventoryWebhookEmitterService,
     CrmSyncService,
     CrmAdapterFactory,
+    HubSpotOAuthService,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     HandleSaleCompletedUseCase,
     InventoryOnOrderCompletedHandler,
     InventoryOnCustomerRegisteredHandler,

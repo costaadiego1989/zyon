@@ -43,6 +43,7 @@ import {
   UpdateCommerceDto,
   CommerceConnectionResponse,
 } from './dtos/commerce.dtos.js';
+import { PlanLimitGuard, RequirePlanLimit } from '../../../../payment/domain/billing-plan-guard.js';
 
 @ApiTags('Commerce Connections')
 @ApiBearerAuth('service_api_key')
@@ -76,6 +77,8 @@ export class CommerceV1Controller {
   @Post()
   @Idempotent()
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit('commerceConnections')
   @RequireTenantAccess({ serviceScopes: ['commerce:write'] })
   @ApiOperation({ summary: 'Connect a new commerce store' })
   @ApiBody({ type: ConnectCommerceDto })

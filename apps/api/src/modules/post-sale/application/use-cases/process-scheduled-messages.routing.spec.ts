@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import { ProcessScheduledMessagesUseCase } from "./process-scheduled-messages.use-case.js";
 import { PostSaleAiCopywriterService } from "../services/post-sale-ai-copywriter.service.js";
 
-function harness(result: any, overrides: any = {}, campaignConsent?: any) {
+function harness(result: any, overrides: any = {}, campaignConsent?: any, billing?: any) {
   const updates: any[] = []; const sent: any[] = []; const contexts: any[] = [];
   const msg = { id: "msg1", merchantId: "m1", type: "nps", channel: "whatsapp", buyerId: "b1", orderId: "o1",
     buyerPhone: "+5511999991111", buyerEmail: "buyer@example.test", buyerName: "Ana", metadata: { link: "https://store.example/order/1" }, ...overrides };
@@ -12,7 +12,7 @@ function harness(result: any, overrides: any = {}, campaignConsent?: any) {
   const config = { async getConfig() { return { npsEnabled: overrides.enabled !== false }; } } as any;
   const prisma = { completedOrder: { async findFirst() { return { status: overrides.orderStatus ?? "delivered" }; } }, merchant: { async findUnique() { return { name: "Loja Exemplo" }; } }, buyerAccount: { async findUnique({ where }: any) { assert.equal(where.globalUserId, "b1"); return { phone: "+5511999992222", email: "resolved@example.invalid", displayName: "Comprador" }; } } } as any;
   const context = { async setPostSaleContext(...args: any[]) { contexts.push(args); } } as any;
-  return { updates, sent, contexts, uc: new ProcessScheduledMessagesUseCase(repo, sender, new PostSaleAiCopywriterService(), config, prisma, context, campaignConsent) };
+  return { updates, sent, contexts, uc: new ProcessScheduledMessagesUseCase(repo, sender, new PostSaleAiCopywriterService(), config, prisma, context, campaignConsent, billing) };
 }
 test("email fallback records actual channel and provider ID without WhatsApp reply context", async () => {
   const h = harness({ status: "sent", channel: "email", messageId: "email1" });
@@ -67,4 +67,14 @@ test("dispatch does not expose WhatsApp when only email remains authorized", asy
   await h.uc.execute();
   assert.equal(h.sent[0].toPhone, undefined);
   assert.equal(h.sent[0].fallbackEmail, "buyer@example.test");
+});
+
+test("dispatch cancels an already scheduled message after a plan downgrade", async () => {
+  const h = harness({ status: "sent", channel: "email", messageId: "unexpected" }, {}, undefined, {
+    async assertAllowed() { throw new Error("plan_feature_unavailable"); },
+  });
+  await h.uc.execute();
+  assert.equal(h.sent.length, 0);
+  assert.equal(h.updates[0].status, "cancelled");
+  assert.equal(h.updates[0].failureReason, "plan_unavailable");
 });

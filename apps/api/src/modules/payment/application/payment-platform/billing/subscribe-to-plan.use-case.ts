@@ -18,7 +18,7 @@ import type { BillingPlan } from "../../../domain/payment-platform.types.js";
 
 export interface SubscribeToPlanInput {
   merchantId: string;
-  planKey: "growth" | "scale";
+  planKey: "starter179" | "growth" | "scale";
   billingCycle?: BillingCycle;
   card: {
     holderName: string;
@@ -51,7 +51,7 @@ export class SubscribeToPlanUseCase {
   ) {}
 
   async execute(input: SubscribeToPlanInput) {
-    // planKey is typed to paid plans only ("growth" | "scale"); guard at runtime
+    // planKey is typed to paid plans only; guard at runtime
     // in case a caller bypasses the type (e.g. untyped JSON body).
     if ((input.planKey as string) === "starter") {
       throw new BadRequestException("starter_is_free");
@@ -59,16 +59,12 @@ export class SubscribeToPlanUseCase {
 
     const offer = quoteBilling(input.planKey, input.billingCycle);
     const valueBrl = offer.amountCents / 100;
-    let billing = await this.repository.getBilling(input.merchantId);
+    const billing = await this.repository.getBilling(input.merchantId);
 
-    if (!billing) {
-      billing = await this.repository.getOrCreateTrial(input.merchantId, 14);
-    }
-
-    if ((billing.asaasSubscriptionId || billing.stripeSubscriptionId) && !["cancelled", "starter"].includes(billing.status)) {
+    if ((billing?.asaasSubscriptionId || billing?.stripeSubscriptionId || billing?.mercadoPagoPreapprovalId) && !["cancelled", "starter"].includes(billing.status)) {
       throw new ConflictException("billing_subscription_exists_use_portal");
     }
-    let customerId = billing.asaasCustomerId;
+    let customerId = billing?.asaasCustomerId;
     if (!customerId) {
       const profile = await this.merchants?.getProfile(input.merchantId);
       const customerInput = {
@@ -93,7 +89,7 @@ export class SubscribeToPlanUseCase {
       remoteIp: input.remoteIp,
     });
 
-    const trialIsStillActive = billing.status === "trialing" &&
+    const trialIsStillActive = billing?.status === "trialing" &&
       Boolean(billing.trialEndsAt) && new Date(billing.trialEndsAt!).getTime() > Date.now();
 
     await this.repository.saveBilling({
@@ -101,7 +97,7 @@ export class SubscribeToPlanUseCase {
       provider: "asaas",
       // The paid entitlement remains pending until an authenticated Asaas
       // payment event proves this exact amount was received.
-      planKey: billing.planKey ?? "starter",
+      planKey: billing?.planKey ?? "starter",
       // Asaas validates a card when creating a subscription, but the first
       // charge happens on `nextDueDate`. Paid access must wait for the billing
       // webhook; keep an existing Free trial intact in the meantime.

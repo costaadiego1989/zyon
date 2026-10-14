@@ -20,7 +20,8 @@ import { UpdateCategoryUseCase } from "../../application/use-cases/update-catego
 import { DeleteCategoryUseCase } from "../../application/use-cases/delete-category.use-case.js";
 import { ReorderCategoriesUseCase, type ReorderCategoriesPayload, type ReorderCategoryItem } from "../../application/use-cases/reorder-categories.use-case.js";
 import { GenerateProductSeoUseCase } from "../../application/use-cases/generate-product-seo.use-case.js";
-import { CatalogVariantService } from "../../application/services/catalog-variant.service.js";
+import { CatalogVariantService, type ProductEditorChanges, type VariantReplacement } from "../../application/services/catalog-variant.service.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 
 @UseGuards(AuthGuard, MerchantOwnershipGuard, RequirePlanGuard)
 @Controller("merchants")
@@ -96,7 +97,9 @@ export class StoreBuilderCatalogController {
     @Query("limit") limit?: string,
     @Query("cursor") cursor?: string,
     @Query("offset") offset?: string,
+    @Query("status") status?: string,
   ) {
+    if (status !== undefined && !["all", "active", "inactive"].includes(status)) throw new BadRequestException("invalid_product_status");
     return this.searchProducts.execute({
       merchantId,
       query,
@@ -105,6 +108,7 @@ export class StoreBuilderCatalogController {
       limit: limit ? parseInt(limit, 10) : undefined,
       cursor,
       offset: offset ? parseInt(offset, 10) : undefined,
+      status: status as "all" | "active" | "inactive" | undefined,
     });
   }
 
@@ -157,6 +161,12 @@ export class StoreBuilderCatalogController {
     });
   }
 
+  @Put(":mid/products/:pid/variants")
+  @RequirePlan("STORE_ONLY", "BOTH")
+  async replaceVariants(@Param("mid") merchantId: string, @Param("pid") productId: string, @Body() body: { variants: VariantReplacement[]; product?: ProductEditorChanges }) {
+    return this.variants.replace(merchantId, productId, body.variants, body.product);
+  }
+
   @Put(":mid/products/:pid/variants/:vid")
   @RequirePlan("STORE_ONLY", "BOTH")
   async updateVariant(
@@ -164,6 +174,8 @@ export class StoreBuilderCatalogController {
     @Param("pid") productId: string,
     @Param("vid") variantId: string,
     @Body() body: {
+      sku?: string;
+      attributes?: Record<string, string>;
       basePriceInCents?: number;
       costInCents?: number | null;
       stockQuantity?: number;
@@ -305,6 +317,8 @@ export class StoreBuilderCatalogController {
 
   @Post(":mid/products/:pid/generate-seo")
   @RequirePlan("STORE_ONLY", "BOTH")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("advancedAi")
   async generateSeo(
     @Param("mid") merchantId: string,
     @Param("pid") productId: string,
@@ -315,6 +329,8 @@ export class StoreBuilderCatalogController {
 
   @Post(":mid/products/generate-description")
   @RequirePlan("STORE_ONLY", "BOTH")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("advancedAi")
   async generateDescription(
     @Param("mid") _merchantId: string,
     @Body() body: { name: string; notes?: string; type?: string },

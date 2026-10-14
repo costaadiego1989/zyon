@@ -7,6 +7,7 @@ import { WHATSAPP_POST_SALE_CONTEXT_PORT, type WhatsAppPostSaleContextPort } fro
 import { SendWhatsAppMessageUseCase } from "../../../whatsapp-templates/application/use-cases/send-whatsapp-message.use-case.js";
 import { PostSaleConfigService, type PostSaleCampaignConfig } from "../services/post-sale-config.service.js";
 import { CampaignContactConsentService } from "../../../campaign-consent/campaign-contact-consent.service.js";
+import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 
 const enabledKey: Record<string, keyof PostSaleCampaignConfig> = { follow_up: "followUpEnabled", review_request: "reviewEnabled", nps: "npsEnabled", cross_sell: "crossSellEnabled", win_back: "winBackEnabled", loyalty: "loyaltyEnabled", reorder: "reorderEnabled" };
 
@@ -21,6 +22,7 @@ export class ProcessScheduledMessagesUseCase {
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Optional() @Inject(WHATSAPP_POST_SALE_CONTEXT_PORT) private readonly contextPort?: WhatsAppPostSaleContextPort,
     @Optional() private readonly campaignConsent?: CampaignContactConsentService,
+    @Optional() private readonly billing?: BillingPlanMeteringService,
   ) {}
 
   async execute(): Promise<{ processed: number; sent: number; failed: number }> {
@@ -30,6 +32,14 @@ export class ProcessScheduledMessagesUseCase {
     for (const msg of pending) {
       let dispatchStarted = false;
       try {
+        // Messages can have been scheduled before a downgrade. Never dispatch
+        // them after the merchant loses the Post-sale entitlement.
+        try {
+          await this.billing?.assertAllowed(msg.merchantId, { kind: "feature", key: "postSale" });
+        } catch {
+          await this.messages.update(msg.id, { status: "cancelled", failureReason: "plan_unavailable" });
+          continue;
+        }
         const cfg = await this.config.getConfig(msg.merchantId);
         if (cfg[enabledKey[msg.type]] !== true) {
           await this.messages.update(msg.id, { status: "cancelled", failureReason: "campaign_disabled" });

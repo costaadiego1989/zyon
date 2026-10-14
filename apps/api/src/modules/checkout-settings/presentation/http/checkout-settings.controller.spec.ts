@@ -15,7 +15,7 @@ test("CheckoutSettingsController manages authenticated merchant settings", async
   const repository = new InMemoryCheckoutSettingsRepository();
   const controller = new CheckoutSettingsController(
     new GetCheckoutSettingsUseCase(repository),
-    new UpdateCheckoutSettingsUseCase(repository),
+    new UpdateCheckoutSettingsUseCase(repository, { assertAllowed: async () => {} } as never),
     new ResetCheckoutSettingsUseCase(repository),
     new GetCheckoutSettingsContextUseCase(repository),
     new EntityTagService(),

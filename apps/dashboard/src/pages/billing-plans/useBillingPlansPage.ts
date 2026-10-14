@@ -1,4 +1,4 @@
-import { readSubscriptionCycle } from "../../auth/subscription-intent.js";
+import { useBillingCycle } from "./useBillingCycle.js";
 import type { BillingCycle } from "@zyon/shared-types";
 import { useEffect, useState } from "react";
 import { useApi } from "../../hooks/useApi.js";
@@ -9,7 +9,7 @@ import { toPlanDef, selectedBillingOffer } from "./plan-catalog.js";
 
 export function useBillingPlansPage() {
   const api = useApi();
-  const [billingCycle, setBillingCycle] = useState<BillingCycle>(readSubscriptionCycle);
+  const [billingCycle, setBillingCycle] = useBillingCycle();
   const [pendingChange, setPendingChange] = useState<PlanDef | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
   const [loading, setLoading] = useState(true);
@@ -34,9 +34,9 @@ export function useBillingPlansPage() {
     setError(null);
     try {
       const required = subscription?.usage?.required_plan;
-      const order = ["starter", "growth", "scale"];
+      const order = ["starter", "starter179", "growth", "scale"];
       if (plan && required && order.indexOf(plan) < order.indexOf(required)) {
-        setError(`O plano ${required === "scale" ? "Scale" : "Growth"} tem a capacidade necessária para o uso deste mês.`);
+        setError(`O plano ${required === "starter179" ? "Starter" : required === "scale" ? "Scale" : "Growth"} tem a capacidade necessária para o uso deste mês.`);
         return;
       }
       const hasSubscription = subscription?.has_subscription && !["cancelled", "canceled", "incomplete_expired"].includes(subscription.status);
@@ -85,6 +85,7 @@ export function useBillingPlansPage() {
     daysRemaining: date ? Math.max(0, Math.ceil((new Date(date).getTime() - Date.now()) / 86_400_000)) : null,
     usagePercentages: {
       orders: percentage(usage?.orders_current, usage?.orders_limit),
+      voiceSessions: percentage(usage?.voice_sessions_current, usage?.voice_sessions_limit),
       connections: percentage(usage?.commerce_connections_current, usage?.commerce_connections_limit),
     },
   };

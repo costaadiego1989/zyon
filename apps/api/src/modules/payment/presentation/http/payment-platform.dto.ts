@@ -97,13 +97,13 @@ export class CreateBillingCheckoutDto {
   @IsIn(["monthly", "annual"])
   billingCycle?: "monthly" | "annual";
 
-  @ApiPropertyOptional({ enum: ["starter", "growth", "scale"] })
+  @ApiPropertyOptional({ enum: ["starter179", "growth", "scale"] })
   @IsOptional()
-  @IsIn(["starter", "growth", "scale"])
-  plan?: "starter" | "growth" | "scale";
+  @IsIn(["starter179", "growth", "scale"])
+  plan?: "starter179" | "growth" | "scale";
 
-  @ApiPropertyOptional({ enum: ["starter", "growth", "scale"], description: "Dashboard legacy alias for plan." })
+  @ApiPropertyOptional({ enum: ["starter179", "growth", "scale"], description: "Dashboard legacy alias for plan." })
   @IsOptional()
-  @IsIn(["starter", "growth", "scale"])
-  price_id?: "starter" | "growth" | "scale";
+  @IsIn(["starter179", "growth", "scale"])
+  price_id?: "starter179" | "growth" | "scale";
 }

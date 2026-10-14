@@ -172,6 +172,7 @@ export class PostSaleDashboardController {
   }
 
   @Post("templates/generate")
+  @RequirePlanFeature("advancedAi")
   async generatePostSaleTemplate(
     @Req() req: TenantPrincipalRequest,
     @Body() body: { type: string; channel: string; tone?: string; storeName?: string }

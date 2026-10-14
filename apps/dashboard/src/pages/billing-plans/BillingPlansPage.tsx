@@ -1,3 +1,4 @@
+import { PageHeader } from "../../components/PageHeader.js";
 import { BillingCycleSelector } from "./components/BillingCycleSelector.js";
 import { billingMoney, selectedBillingOffer } from "./plan-catalog.js";
 import React from "react";
@@ -5,11 +6,12 @@ import { useBillingPlansPage } from "./useBillingPlansPage.js";
 import { CurrentPlanCard } from "./components/CurrentPlanCard.js";
 import { UsageMeters, type UsageMeter } from "./components/UsageMeters.js";
 import { PlanCard } from "./components/PlanCard.js";
+import { BillingTerms } from "./components/BillingPlanDetails.js";
 import "./billing-plans-page.css";
 
 
 
-const PLAN_ORDER = ["starter", "growth", "scale"] as const;
+const PLAN_ORDER = ["starter", "starter179", "growth", "scale"] as const;
 
 function getPlanIndex(plan: string | null): number {
   if (!plan) return -1;
@@ -18,13 +20,7 @@ function getPlanIndex(plan: string | null): number {
 
 export function BillingPlansPage() {
   const vm = useBillingPlansPage();
-  const header = <header className="page-head billing-plans__header">
-    <div>
-      <span className="eyebrow">CONTA</span>
-      <h1 className="billing-plans__title">Planos e Assinatura</h1>
-      <p className="page-lead billing-plans__subtitle">Gerencie seu plano e acompanhe o uso dos recursos.</p>
-    </div>
-  </header>;
+  const header = <PageHeader title="Planos e assinatura" description="Gerencie seu plano e acompanhe o uso dos recursos." />;
 
   if (vm.loading && !vm.subscription) {
     return (
@@ -70,6 +66,12 @@ export function BillingPlansPage() {
       limit: sub.usage?.orders_limit ?? null,
       percentage: vm.usagePercentages.orders,
     },
+    ...(sub.usage?.voice_sessions_limit ? [{
+      label: "Sessões por voz",
+      current: sub.usage.voice_sessions_current ?? 0,
+      limit: sub.usage.voice_sessions_limit,
+      percentage: vm.usagePercentages.voiceSessions,
+    }] : []),
     {
       label: "Conexões",
       current: sub.usage?.commerce_connections_current ?? 0,
@@ -147,7 +149,7 @@ export function BillingPlansPage() {
         <p role="status">Pagamento enviado. A assinatura será atualizada após a confirmação. <button type="button" onClick={() => void vm.refresh()}>Atualizar</button></p>
       )}
       {vm.notice && <p role="status">{vm.notice}</p>}
-      {sub.pending_plan && sub.pending_effective_at && <p role="status">Alteração agendada: {sub.pending_plan === "growth" ? "Growth" : sub.pending_plan === "scale" ? "Scale" : "Free"}, {sub.pending_billing_cycle === "annual" ? "anual" : "mensal"}, a partir de {new Date(sub.pending_effective_at).toLocaleDateString("pt-BR")}. {sub.pending_billing_amount_cents != null && <>Próxima cobrança: {billingMoney(sub.pending_billing_amount_cents)}.</>}</p>}
+      {sub.pending_plan && sub.pending_effective_at && <p role="status">Alteração agendada: {sub.pending_plan === "starter179" ? "Starter" : sub.pending_plan === "growth" ? "Growth" : sub.pending_plan === "scale" ? "Scale" : "Free"}, {sub.pending_billing_cycle === "annual" ? "anual" : "mensal"}, a partir de {new Date(sub.pending_effective_at).toLocaleDateString("pt-BR")}. {sub.pending_billing_amount_cents != null && <>Próxima cobrança: {billingMoney(sub.pending_billing_amount_cents)}.</>}</p>}
       {/* Current plan + Usage */}
       <div className="billing-plans__top-grid">
         <CurrentPlanCard
@@ -207,6 +209,7 @@ export function BillingPlansPage() {
             );
           })}
         </div>
+        <p className="billing-plan-terms"><BillingTerms /></p>
       </section>
     </div>
   );

@@ -12,7 +12,7 @@ import { OptimisticConcurrencyError } from "../../../shared/http/http-contract.e
 test("checkout settings use cases create defaults, update partially, and expose safe context", async () => {
   const repository = new InMemoryCheckoutSettingsRepository();
   const getSettings = new GetCheckoutSettingsUseCase(repository);
-  const updateSettings = new UpdateCheckoutSettingsUseCase(repository);
+  const updateSettings = new UpdateCheckoutSettingsUseCase(repository, { assertAllowed: async () => {} } as never);
   const getContext = new GetCheckoutSettingsContextUseCase(repository);
 
   const defaults = await getSettings.execute("mrc_1");
@@ -35,7 +35,7 @@ test("checkout settings use cases create defaults, update partially, and expose 
 
 test("checkout settings reset restores defaults", async () => {
   const repository = new InMemoryCheckoutSettingsRepository();
-  const updateSettings = new UpdateCheckoutSettingsUseCase(repository);
+  const updateSettings = new UpdateCheckoutSettingsUseCase(repository, { assertAllowed: async () => {} } as never);
   const resetSettings = new ResetCheckoutSettingsUseCase(repository);
 
   await updateSettings.execute("mrc_1", { mode: "manual_only" });
@@ -47,7 +47,7 @@ test("checkout settings reset restores defaults", async () => {
 
 test("checkout settings remain isolated by merchant", async () => {
   const repository = new InMemoryCheckoutSettingsRepository();
-  const updateSettings = new UpdateCheckoutSettingsUseCase(repository);
+  const updateSettings = new UpdateCheckoutSettingsUseCase(repository, { assertAllowed: async () => {} } as never);
   const getSettings = new GetCheckoutSettingsUseCase(repository);
 
   await updateSettings.execute("mrc_1", { mode: "manual_only" });
@@ -59,7 +59,7 @@ test("checkout settings remain isolated by merchant", async () => {
 test("checkout settings reject stale optimistic concurrency versions", async () => {
   const repository = new InMemoryCheckoutSettingsRepository();
   const getSettings = new GetCheckoutSettingsUseCase(repository);
-  const updateSettings = new UpdateCheckoutSettingsUseCase(repository);
+  const updateSettings = new UpdateCheckoutSettingsUseCase(repository, { assertAllowed: async () => {} } as never);
 
   await getSettings.execute("mrc_1");
 

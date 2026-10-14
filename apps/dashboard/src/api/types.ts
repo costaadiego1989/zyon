@@ -42,6 +42,13 @@ export type MerchantProfile = {
   user_id: string;
 };
 
+export type ManagedMerchantStore = {
+  id: string;
+  name: string;
+  slug?: string;
+  role: "owner" | "admin" | "staff";
+};
+
 export type NegotiationEvaluateBridgeResponse = Record<string, unknown> & {
   negotiation_session_id?: string;
 };
@@ -91,6 +98,7 @@ export type WebhookDelivery = {
 };
 
 export type TenantOrder = {
+  fulfillment?: import("@zyon/shared-types").OrderFulfillmentSummary | null;
   id: string;
   session_id: string;
   external_order_id: string;
@@ -188,10 +196,12 @@ export type BillingSubscription = {
     grace_expires_at?: string | null;
     usage_period_end?: string | null;
     orders_overage?: number;
-    required_plan?: "starter" | "growth" | "scale" | null;
+    required_plan?: "starter" | "starter179" | "growth" | "scale" | null;
     can_accept_orders?: boolean;
     orders_current?: number | null;
     orders_limit?: number | null;
+    voice_sessions_current?: number | null;
+    voice_sessions_limit?: number | null;
     commerce_connections_current?: number | null;
     commerce_connections_limit?: number | null;
     webhook_endpoints_current?: number | null;

@@ -1,4 +1,4 @@
-import { BadRequestException, Inject, Injectable } from "@nestjs/common";
+import { BadRequestException, Inject, Injectable, Optional } from "@nestjs/common";
 import type { MerchantCryptoPayments } from "@zyon/shared-types";
 import { isAddress } from "viem";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../merchant/domain/ports/merchant-repository.port.js";
@@ -23,12 +23,14 @@ import {
 } from "./evm-crypto.constants.js";
 import { quoteUsdcFromBrlCents } from "./evm-crypto-quote.service.js";
 import { CryptoQuoteService } from "./crypto-quote.service.js";
+import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
 
 @Injectable()
 export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
-    private readonly cryptoQuote: CryptoQuoteService
+    private readonly cryptoQuote: CryptoQuoteService,
+    @Optional() private readonly billing?: BillingPlanMeteringService,
   ) {}
 
   // Quote construction has no external financial effect; retry before its first
@@ -42,6 +44,9 @@ export class EvmCryptoPaymentAdapter implements PaymentProviderPort {
     if (!isCryptoQuoteEnabled()) {
       throw new BadRequestException("crypto_payments_disabled");
     }
+    // The merchant setting can outlive a subscription downgrade. This is the
+    // final buyer-facing admission point, so enforce the plan again here.
+    await this.billing?.assertAllowed(input.merchantId, { kind: "feature", key: "cryptoPayments" });
 
     const rules = await this.merchants.getRules(input.merchantId);
     let config = rules.cryptoPayments;

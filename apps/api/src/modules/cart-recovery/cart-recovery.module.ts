@@ -34,6 +34,7 @@ import { OpenAIChatAdapter } from "../support/infrastructure/openai-chat.adapter
 import { HttpClientService } from "../../shared/http/http-client.service.js";
 import { CampaignConsentModule } from "../campaign-consent/campaign-consent.module.js";
 import { CampaignContactConsentService } from "../campaign-consent/campaign-contact-consent.service.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
 
 // Imported from tokens file (single source) to avoid the module↔handler cycle;
 // re-exported so existing importers of this module keep working.
@@ -60,6 +61,8 @@ export const UPDATE_STRATEGY_CONFIG_USE_CASE = Symbol("UPDATE_STRATEGY_CONFIG_US
   ],
   controllers: [CartRecoveryController, CartRecoveryDashboardController, RecoveryTemplatesController],
   providers: [
+    BillingPlanMeteringService,
+    PlanLimitGuard,
     GenerateRecoveryTemplatesUseCase,
     {
       provide: CHAT_COMPLETION_PORT,

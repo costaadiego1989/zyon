@@ -1,12 +1,17 @@
 import { Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
 import type { ProductEntity } from "../../domain/entities/product.entity.js";
 import type { ProductRepositoryPort } from "../../domain/ports/product-repository.port.js";
+import { isDigitalContentReady } from "../../domain/services/product-type-validation.js";
 
 import { CHECKOUT_SETTINGS_REPOSITORY, type CheckoutSettingsRepository } from "../../../checkout-settings/domain/ports/checkout-settings-repository.port.js";
 import { productRuleNotices } from "../../../storefront/domain/services/advanced-rule-notices.js";
 import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
+import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
+import { publicServiceSchedule, type PublicServiceSchedule } from "../../domain/services/service-schedule.js";
+import type { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 
 export interface PublicStorefrontProduct {
+  serviceSchedule?: PublicServiceSchedule;
   ruleNotices?: Array<{ ruleId?: string; message: string }>;
   id: string;
   name: string;
@@ -34,6 +39,8 @@ export class ListPublicStorefrontProductsUseCase {
   constructor(
     @Inject("ProductRepositoryPort") private readonly products: ProductRepositoryPort,
     @Optional() @Inject(CHECKOUT_SETTINGS_REPOSITORY) private readonly settings?: CheckoutSettingsRepository,
+    @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() private readonly billing?: BillingPlanMeteringService,
   ) {}
 
   async execute(input: {
@@ -53,9 +60,9 @@ export class ListPublicStorefrontProductsUseCase {
       isActiveOnly: true,
     });
 
-    const rules = (await this.settings?.get(input.merchantId))?.advancedRules ?? [];
+    const rules = await this.visibleRules(input.merchantId);
     return {
-      products: page.products.map((product) => this.toPublicProduct(product, rules as AdvancedRule[])),
+      products: await Promise.all(page.products.map((product) => this.toPublicProduct(product, rules as AdvancedRule[]))),
       nextCursor: page.nextCursor,
     };
   }
@@ -63,25 +70,30 @@ export class ListPublicStorefrontProductsUseCase {
   async get(merchantId: string, productId: string): Promise<PublicStorefrontProduct> {
     const product = await this.products.findById(merchantId, productId);
     if (!product || !product.isActive) throw new NotFoundException("storefront_product_not_found");
-    const rules = (await this.settings?.get(merchantId))?.advancedRules ?? [];
+    const rules = await this.visibleRules(merchantId);
     return this.toPublicProduct(product, rules as AdvancedRule[]);
   }
 
-  private toPublicProduct(product: ProductEntity, rules: AdvancedRule[]): PublicStorefrontProduct {
+  private async toPublicProduct(product: ProductEntity, rules: AdvancedRule[]): Promise<PublicStorefrontProduct> {
     const sellableVariants = product.variants.filter((variant) => variant.isActive);
     const firstVariant = sellableVariants[0];
+    const serviceSchedule = product.type === "service" && firstVariant && publicServiceSchedule(product.metadata)
+      ? await this.serviceSlots?.availability(product.merchantId, firstVariant.id, product.metadata) : undefined;
     const images = sellableVariants
       .flatMap((variant) => variant.media)
       .filter((media) => media.type === "IMAGE")
       .sort((a, b) => a.order - b.order)
       .map((media) => media.url);
-    const inStock = product.type === "digital" || product.type === "service"
+    const inStock = product.type === "digital"
+      ? sellableVariants.length > 0 && isDigitalContentReady(product.metadata)
+      : product.type === "service"
       ? sellableVariants.length > 0
       : sellableVariants.some((variant) => variant.stockQuantity > variant.stockReserved);
     const ruleNotices = productRuleNotices(rules, sellableVariants.map((variant) => variant.sku), product.id);
 
     return {
       id: product.id,
+      ...(serviceSchedule ? { serviceSchedule } : {}),
       ...(ruleNotices.length > 0 ? { ruleNotices } : {}),
       name: product.name,
       description: product.description,
@@ -91,7 +103,7 @@ export class ListPublicStorefrontProductsUseCase {
       currency: firstVariant?.currency ?? "BRL",
       image: images[0],
       images: [...new Set(images)],
-      inStock,
+      inStock: inStock && (!serviceSchedule || serviceSchedule.slots.some(slot => slot.selectable)),
       rating: product.averageRating,
       reviewCount: product.reviewCount,
       variants: sellableVariants.map((variant) => ({
@@ -99,5 +111,16 @@ export class ListPublicStorefrontProductsUseCase {
         value: Object.values(variant.attributes).filter(Boolean).join(" / ") || variant.sku,
       })),
     };
+  }
+
+  private async visibleRules(merchantId: string): Promise<unknown[]> {
+    try {
+      await this.billing?.assertAllowed(merchantId, { kind: "feature", key: "advancedRules" });
+      return (await this.settings?.get(merchantId))?.advancedRules ?? [];
+    } catch {
+      // Rules remain stored for a later upgrade, but public catalog notices
+      // must not advertise benefits that the current plan cannot execute.
+      return [];
+    }
   }
 }

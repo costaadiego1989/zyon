@@ -11,11 +11,13 @@ import {
 import { CHECKOUT_SETTINGS_REPOSITORY } from "./domain/ports/checkout-settings-repository.port.js";
 import { PrismaCheckoutSettingsRepository } from "./infrastructure/prisma-checkout-settings.repository.js";
 import { CheckoutSettingsController, CheckoutSettingsPublicController } from "./presentation/http/checkout-settings.controller.js";
+import { BillingPlanMeteringService } from "../payment/domain/billing-plan-guard.js";
 
 @Module({
   imports: [TenantAccessModule],
   controllers: [CheckoutSettingsPublicController, CheckoutSettingsController],
   providers: [
+    BillingPlanMeteringService,
     GetCheckoutSettingsUseCase,
     UpdateCheckoutSettingsUseCase,
     ResetCheckoutSettingsUseCase,

@@ -94,3 +94,24 @@ test("EvmCryptoPaymentAdapter refuses fee-bearing crypto when Zyon treasury is m
     else process.env.ZYON_CRYPTO_TREASURY_ADDRESS = previous;
   }
 });
+
+test("EvmCryptoPaymentAdapter rechecks the crypto entitlement before quoting a payment", async () => {
+  const merchants = new InMemoryMerchantRepository();
+  merchants.seedRules("mrc_crypto", {
+    cryptoPayments: {
+      enabled: true,
+      chain: "polygon",
+      network: "testnet",
+      treasuryAddress: MERCHANT_TREASURY,
+      token: "USDC",
+      brlPerUsdc: 5,
+    },
+  });
+  const billing = { async assertAllowed() { throw new Error("plan_feature_unavailable"); } } as any;
+  const adapter = new EvmCryptoPaymentAdapter(merchants, stubQuote, billing);
+
+  await assert.rejects(
+    () => adapter.createPayment({ merchantId: "mrc_crypto", sessionId: "chk_crypto", intentId: "pi_downgraded", amountCents: 100, currency: "BRL", method: "crypto" }),
+    /plan_feature_unavailable/,
+  );
+});

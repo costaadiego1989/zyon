@@ -1,5 +1,14 @@
-import type { BillingCycle, BillingOffer } from "@zyon/shared-types";
+import { FREE_TRIAL_DAYS, type BillingCycle, type BillingOffer } from "@zyon/shared-types";
 import { dashboardJson } from "../http/client.js";
+export interface BillingInvoice {
+  invoice_id: string;
+  amount_brl: number;
+  period_start: string;
+  period_end: string;
+  status: string;
+  created_at: string;
+  invoice_url?: string;
+}
 import type {
   PaymentConnection,
   PaymentOnboardingLinkResponse,
@@ -18,6 +27,9 @@ export function billingEndpoints(base: string, f: typeof fetch) {
     getBillingSubscription(): Promise<BillingSubscription> {
       return billingJson("/billing/subscription");
     },
+    listBillingInvoices(): Promise<BillingInvoice[]> {
+      return billingJson("/billing/invoices");
+    },
     // Billing catalog and subscription lifecycle
     async listBillingPlans(): Promise<BillingPlanCard[]> {
       const plans = await billingJson<Array<BillingPlanCard | { plan_id: string; name: string; monthly_price_brl: number; billing_options?: BillingOffer[]; annual_checkout_available?: boolean; transaction_fee_cents: number; features: Record<string, boolean>; limits: Record<string, number | null> }>>("/billing/plans");
@@ -25,7 +37,7 @@ export function billingEndpoints(base: string, f: typeof fetch) {
         key: plan.plan_id, name: plan.name, priceBrl: plan.monthly_price_brl,
         transactionFeeCents: plan.transaction_fee_cents, limits: plan.limits,
         billingOptions: plan.billing_options, annualCheckoutAvailable: plan.annual_checkout_available,
-        trialDays: plan.plan_id === "starter" ? 14 : 0,
+        trialDays: plan.plan_id === "starter" ? FREE_TRIAL_DAYS : 0,
         recommended: plan.plan_id === "growth", ctaLabel: plan.plan_id === "starter" ? "Continuar no Free" : `Escolher ${plan.name}`,
         features: Object.entries(plan.features).filter(([, enabled]) => enabled).map(([key]) => key),
       }));
@@ -34,19 +46,19 @@ export function billingEndpoints(base: string, f: typeof fetch) {
       return billingJson("/billing/subscription/start-trial", { method: "POST" });
     },
     subscribeToPlan(payload: {
-      planKey: "growth" | "scale"; billingCycle?: BillingCycle;
+      planKey: "starter179" | "growth" | "scale"; billingCycle?: BillingCycle;
       card: { holderName: string; number: string; expiryMonth: string; expiryYear: string; ccv: string };
       holderInfo: { name: string; email: string; cpfCnpj: string; postalCode: string; addressNumber: string; phone: string };
     }): Promise<BillingSubscription> {
       return billingJson("/billing/subscription", { method: "POST", jsonBody: payload });
     },
-    changeBillingPlan(payload: { targetPlan: "starter" | "growth" | "scale"; billingCycle?: BillingCycle }): Promise<BillingSubscription> {
+    changeBillingPlan(payload: { targetPlan: "starter" | "starter179" | "growth" | "scale"; billingCycle?: BillingCycle }): Promise<BillingSubscription> {
       return billingJson("/billing/subscription/change", { method: "POST", jsonBody: payload });
     },
     cancelBillingSubscription(payload?: { immediate?: boolean }): Promise<BillingSubscription> {
       return billingJson("/billing/subscription/cancel", { method: "POST", jsonBody: payload ?? {} });
     },
-    createBillingCheckoutSession(payload: { plan?: "growth" | "scale"; billingCycle?: BillingCycle; price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
+    createBillingCheckoutSession(payload: { plan?: "starter179" | "growth" | "scale"; billingCycle?: BillingCycle; price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
       return billingJson("/billing/checkout-session", { method: "POST", jsonBody: payload });
     },
     createBillingPortalSession(payload: { return_url?: string }): Promise<BillingPortalSessionResponse> {

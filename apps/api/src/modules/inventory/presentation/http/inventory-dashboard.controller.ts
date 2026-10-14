@@ -26,6 +26,7 @@ import { ConnectTinyUseCase } from "../../application/use-cases/connect-tiny.use
 import { DisconnectErpUseCase } from "../../application/use-cases/disconnect-erp.use-case.js";
 import { TriggerErpSyncUseCase } from "../../application/use-cases/trigger-erp-sync.use-case.js";
 import { GetProductDetailBySkuUseCase } from "../../application/use-cases/get-product-detail-by-sku.use-case.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 
 @ApiTags("Dashboard / Inventory")
 @Controller("dashboard/inventory")
@@ -280,7 +281,7 @@ export class InventoryDashboardController {
     return this.triggerErpSyncUseCase.execute(user.merchantId, id);
   }
 
-  private toSafeErpConnection(connection: { id: string; merchantId: string; provider: string; status: string; directionMode: string; lastSyncAt: Date | null; createdAt: Date }, jobId: string) {
+  private toSafeErpConnection(connection: { id: string; merchantId: string; provider: string; status: string; directionMode: string; lastSyncAt: Date | null; createdAt: Date }, jobId: string | undefined) {
     return {
       id: connection.id,
       merchantId: connection.merchantId,
@@ -296,6 +297,8 @@ export class InventoryDashboardController {
   // CRM Connection Endpoints
 
   @Get("crm-connections")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("crmIntegrations")
   @ApiOperation({ summary: "List CRM connections" })
   @ApiOkResponse({ description: "CRM connections" })
   async listCrmConnectionsAction(@Req() req: any) {
@@ -304,6 +307,8 @@ export class InventoryDashboardController {
   }
 
   @Get("crm-sync-log")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("crmIntegrations")
   @ApiOperation({ summary: "List recent CRM lead/customer syncs" })
   @ApiOkResponse({ description: "CRM sync log entries (leads and customers)" })
   async listCrmSyncLogAction(@Req() req: any, @Query("limit") limit?: string) {
@@ -313,6 +318,8 @@ export class InventoryDashboardController {
   }
 
   @Post("crm-connections/:provider/connect")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("crmIntegrations")
   @ApiOperation({ summary: "Connect a CRM provider" })
   @ApiOkResponse({ description: "CRM provider connected" })
   async connectCrmProvider(
@@ -335,6 +342,8 @@ export class InventoryDashboardController {
   }
 
   @Post("crm-connections/:id/disconnect")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("crmIntegrations")
   @ApiOperation({ summary: "Disconnect a CRM connection" })
   @ApiOkResponse({ description: "CRM connection disconnected" })
   async disconnectCrmConnection(

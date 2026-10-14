@@ -19,6 +19,7 @@ import { IndexProductUseCase } from "../../application/use-cases/index-product.u
 import { IndexFaqUseCase } from "../../application/use-cases/index-faq.use-case.js";
 import { IndexPolicyUseCase } from "../../application/use-cases/index-policy.use-case.js";
 import { POLICY_REPOSITORY, type PolicyRepositoryPort } from "../../domain/ports/policy-repository.port.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 
 function tenantId(request: unknown): string {
   return currentTenantPrincipal(
@@ -47,7 +48,8 @@ export class KnowledgeAdminController {
     description: "Returns chunk counts by source type for the current merchant.",
   })
   @ApiResponse({ status: 200, description: "Status retrieved" })
-  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard, PlanLimitGuard)
+  @RequirePlanFeature("knowledgeBase")
   @RequireTenantAccess({ serviceScopes: ["support:read"] })
   @Get("status")
   async getStatus(@Req() request: unknown) {
@@ -70,7 +72,8 @@ export class KnowledgeAdminController {
     description: "Triggers a full reindex of products, FAQ and policies for the current merchant.",
   })
   @ApiResponse({ status: 200, description: "Reindex started" })
-  @UseGuards(TenantCredentialGuard, TenantAccessGuard)
+  @UseGuards(TenantCredentialGuard, TenantAccessGuard, PlanLimitGuard)
+  @RequirePlanFeature("knowledgeBase")
   @RequireTenantAccess({ serviceScopes: ["support:write"] })
   @Post("reindex")
   async reindex(@Req() request: unknown) {

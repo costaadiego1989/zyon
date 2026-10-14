@@ -1,6 +1,6 @@
 import type { BillingCycle } from "@zyon/shared-types";
 import { quoteBilling } from "../../../infrastructure/billing-offers.js";
-import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional } from "@nestjs/common";
+import { BadRequestException, ConflictException, Inject, Injectable, NotFoundException, Optional, ServiceUnavailableException } from "@nestjs/common";
 import {
   STRIPE_PLATFORM_PORT,
   BILLING_CONFIG_PORT,
@@ -12,16 +12,19 @@ import {
   type PaymentPlatformRepository,
 } from "../../../domain/ports/payment-platform-repository.port.js";
 import {
-  BILLING_TRIAL_JOB_QUEUE,
-  type BillingTrialJobQueue,
-} from "../../../domain/ports/billing-trial-job-queue.port.js";
-import {
   MERCHANT_REPOSITORY,
   type MerchantRepository,
 } from "../../../../merchant/domain/ports/merchant-repository.port.js";
 import type { BillingPlan } from "../../../domain/payment-platform.types.js";
-import { scheduleTrialExpiration } from "../shared.js";
 import { stripeBillingError } from "./stripe-billing-error.js";
+import {
+  MERCADOPAGO_BILLING_PORT,
+  type MercadoPagoBillingPort,
+} from "../../../domain/ports/mercadopago-billing.port.js";
+import {
+  billingCheckoutProvider,
+  isMercadoPagoBillingConfigured,
+} from "../../../infrastructure/mercadopago-billing-env.js";
 
 @Injectable()
 export class CreateBillingCheckoutUseCase {
@@ -35,8 +38,8 @@ export class CreateBillingCheckoutUseCase {
     @Inject(BILLING_CONFIG_PORT)
     private readonly billingConfig: BillingConfigPort,
     @Optional()
-    @Inject(BILLING_TRIAL_JOB_QUEUE)
-    private readonly trialJobs?: BillingTrialJobQueue,
+    @Inject(MERCADOPAGO_BILLING_PORT)
+    private readonly mercadoPago?: MercadoPagoBillingPort,
   ) {}
 
   async execute(input: {
@@ -45,20 +48,48 @@ export class CreateBillingCheckoutUseCase {
     plan: BillingPlan;
     billingCycle?: BillingCycle;
   }): Promise<{ url: string; sessionId: string }> {
-    if (input.plan !== "growth" && input.plan !== "scale") throw new BadRequestException("billing_paid_plan_required");
+    if (!isPaidPlan(input.plan)) throw new BadRequestException("billing_paid_plan_required");
     const offer = quoteBilling(input.plan, input.billingCycle);
+    const billing = await this.repository.getBilling(input.merchantId);
+    if ((billing?.stripeSubscriptionId || billing?.asaasSubscriptionId) && ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(billing.status)) {
+      throw new ConflictException("billing_subscription_exists_use_portal");
+    }
+    if (billingCheckoutProvider() === "mercadopago") {
+      if (!isMercadoPagoBillingConfigured() || !this.mercadoPago) {
+        throw new ServiceUnavailableException("mercadopago_billing_not_configured");
+      }
+      if ((billing?.stripeSubscriptionId || billing?.asaasSubscriptionId || billing?.mercadoPagoPreapprovalId) && ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(billing.status)) {
+        throw new ConflictException("billing_subscription_exists_use_portal");
+      }
+      const result = await this.mercadoPago.createPendingPreapproval({
+        merchantId: input.merchantId,
+        email: input.email,
+        plan: input.plan,
+        billingCycle: offer.cycle,
+        amountCents: offer.amountCents,
+        returnUrl: `${this.billingConfig.consoleUrl()}/?billing=mercadopago#billing-plans`,
+      });
+      await this.repository.saveBilling({
+        merchantId: input.merchantId,
+        provider: "mercadopago",
+        planKey: billing?.planKey ?? "starter",
+        mercadoPagoPreapprovalId: result.preapprovalId,
+        status: billing?.status === "trialing" ? "trialing" : "incomplete",
+        pendingUpgradePlanKey: input.plan,
+        pendingUpgradeAmountCents: offer.amountCents,
+        pendingUpgradeRequestedAt: new Date().toISOString(),
+        billingAmountCents: offer.amountCents,
+        billingCycle: offer.cycle,
+        billingDiscountPercent: offer.discountPercent,
+        cancelAtPeriodEnd: false,
+      });
+      return { url: result.checkoutUrl, sessionId: result.preapprovalId };
+    }
+
     const priceId = this.billingConfig.priceId(input.plan, offer.cycle);
     const profile = await this.merchants.getProfile(input.merchantId);
     if (!profile) throw new NotFoundException("merchant_not_found");
-    const billing = await this.repository.getOrCreateTrial(
-      input.merchantId,
-      14,
-    );
-    await scheduleTrialExpiration(this.trialJobs, billing);
-    if ((billing.stripeSubscriptionId || billing.asaasSubscriptionId) && ["active", "trialing", "past_due", "unpaid", "incomplete", "paused"].includes(billing.status)) {
-      throw new ConflictException("billing_subscription_exists_use_portal");
-    }
-    let customerId = billing.stripeCustomerId;
+    let customerId = billing?.stripeCustomerId;
     if (!customerId) {
       try {
         customerId = (
@@ -73,6 +104,10 @@ export class CreateBillingCheckoutUseCase {
       }
       await this.repository.saveBilling({
         merchantId: input.merchantId,
+        provider: "stripe",
+        planKey: billing?.planKey ?? "starter",
+        status: billing?.status === "trialing" ? "trialing" : "incomplete",
+        cancelAtPeriodEnd: billing?.cancelAtPeriodEnd ?? false,
         stripeCustomerId: customerId,
       });
     }
@@ -90,5 +125,9 @@ export class CreateBillingCheckoutUseCase {
       throw stripeBillingError(error);
     }
   }
+}
+
+function isPaidPlan(plan: BillingPlan): plan is Exclude<BillingPlan, "starter"> {
+  return plan === "starter179" || plan === "growth" || plan === "scale";
 }
 

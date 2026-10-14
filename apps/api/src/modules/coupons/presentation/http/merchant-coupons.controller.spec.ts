@@ -7,6 +7,7 @@ import { CreateCouponUseCase } from "../../application/use-cases/create-coupon.u
 import { ArchiveCouponUseCase } from "../../application/use-cases/archive-coupon.use-case.js";
 import { ToggleCouponActiveUseCase } from "../../application/use-cases/toggle-coupon-active.use-case.js";
 import { MerchantCouponsController } from "./merchant-coupons.controller.js";
+import { ForbiddenException } from "@nestjs/common";
 
 function makeAuthRequest(merchantId: string) {
   return {
@@ -20,7 +21,7 @@ describe("MerchantCouponsController", () => {
     const redemptionRepo = new InMemoryCouponRedemptionRepository();
     const createUseCase = new CreateCouponUseCase(couponRepo);
     const archiveUseCase = new ArchiveCouponUseCase(couponRepo, redemptionRepo);
-    const toggleUseCase = new ToggleCouponActiveUseCase(couponRepo);
+    const toggleUseCase = new ToggleCouponActiveUseCase(couponRepo, { assertAllowed: async () => {} } as never);
     const controller = new MerchantCouponsController(createUseCase, archiveUseCase, toggleUseCase, couponRepo);
     return { couponRepo, redemptionRepo, createUseCase, archiveUseCase, toggleUseCase, controller };
   }
@@ -121,5 +122,25 @@ describe("MerchantCouponsController", () => {
       () => controller.archive(makeAuthRequest("mrc_attacker"), c.id),
       { message: "coupon_not_found" }
     );
+  });
+
+  it("rechecks the active-coupon limit when a paused coupon is reactivated", async () => {
+    const couponRepo = new InMemoryCouponRepository();
+    const coupon = CouponEntity.create({
+      merchant_id: "mrc_auth", code: "PAUSED", discount_type: "percent", discount_value: 10,
+      min_cart_total: null, max_usages: null, max_per_buyer: null, allowed_skus: [], blocked_skus: [],
+      allowed_regions: [], blocked_regions: [], starts_at: new Date().toISOString(), ends_at: null,
+    });
+    await couponRepo.save(coupon);
+    await couponRepo.updateActive("mrc_auth", coupon.id, false);
+    const toggle = new ToggleCouponActiveUseCase(couponRepo, {
+      assertAllowed: async () => { throw new ForbiddenException("plan_limit_exceeded"); },
+    } as never);
+
+    await assert.rejects(
+      () => toggle.execute({ id: coupon.id, merchant_id: "mrc_auth", is_active: true }),
+      /plan_limit_exceeded/,
+    );
+    assert.equal((await couponRepo.findById(coupon.id, "mrc_auth"))?.status, "paused");
   });
 });

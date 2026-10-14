@@ -21,6 +21,7 @@ import type { BillingPlan, BillingSubscriptionSnapshot } from "../../domain/paym
 export type BillingUsageSnapshot = {
   periodStart: string;
   ordersPerMonth: number;
+  voiceSessions: number;
   commerceConnections: number;
   webhookEndpoints: number;
   teamMembers: number;
@@ -52,9 +53,19 @@ export function RequirePlanFeature(
 export class BillingPlanMeteringService {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
+  async resolveBillingAccountMerchantId(merchantId: string): Promise<string> {
+    const scopedMerchantId = merchantId.trim();
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: scopedMerchantId },
+      select: { billingAccountMerchantId: true },
+    });
+    return merchant?.billingAccountMerchantId ?? scopedMerchantId;
+  }
+
   async getSubscription(merchantId: string): Promise<BillingSubscriptionSnapshot | undefined> {
+    const billingMerchantId = await this.resolveBillingAccountMerchantId(merchantId);
     const row = await this.prisma.merchantBillingSubscription.findUnique({
-      where: { merchantId: merchantId.trim() },
+      where: { merchantId: billingMerchantId },
     });
     if (!row) return undefined;
     return {
@@ -62,7 +73,7 @@ export class BillingPlanMeteringService {
       stripeCustomerId: row.stripeCustomerId ?? undefined,
       stripeSubscriptionId: row.stripeSubscriptionId ?? undefined,
       stripePriceId: row.stripePriceId ?? undefined,
-      planKey: row.planKey === "growth" || row.planKey === "scale" ? row.planKey : "starter",
+      planKey: row.planKey === "starter179" || row.planKey === "growth" || row.planKey === "scale" ? row.planKey : "starter",
       status: toBillingStatus(row.status),
       trialEndsAt: row.trialEndsAt?.toISOString(),
       currentPeriodEnd: row.currentPeriodEnd?.toISOString(),
@@ -79,7 +90,7 @@ export class BillingPlanMeteringService {
   async getUsage(merchantId: string, now = new Date()): Promise<BillingUsageSnapshot> {
     const scopedMerchantId = merchantId.trim();
     const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
-    const [orders, connections, endpoints, members, promos, coupons] = await Promise.all([
+    const [orders, voiceQuotaPeriod, connections, endpoints, members, promos, coupons] = await Promise.all([
       this.prisma.completedOrder.count({
         where: {
           merchantId: scopedMerchantId,
@@ -87,14 +98,21 @@ export class BillingPlanMeteringService {
           completedAt: { gte: periodStart },
         },
       }),
+      this.prisma.merchantVoiceSessionQuotaPeriod.findUnique({
+        where: { merchantId_periodStart: { merchantId: scopedMerchantId, periodStart } },
+        select: { usedSessions: true },
+      }),
       this.prisma.merchantCommerceConnection.count({
         where: { merchantId: scopedMerchantId, status: { not: "disconnected" } },
       }),
       this.prisma.merchantWebhookEndpoint.count({
         where: { merchantId: scopedMerchantId },
       }),
-      this.prisma.merchantUser.count({
-        where: { merchantId: scopedMerchantId },
+      this.prisma.merchantTeamMember.count({
+        // A removed member is disabled and its membership is deleted. Counting
+        // MerchantUser records would keep charging a seat forever and prevent
+        // that seat from being reused.
+        where: { merchantId: scopedMerchantId, user: { disabledAt: null } },
       }),
       this.prisma.crossSellPromotion.count({
         where: { merchantId: scopedMerchantId, status: "active" },
@@ -107,6 +125,7 @@ export class BillingPlanMeteringService {
     return {
       periodStart: periodStart.toISOString(),
       ordersPerMonth: orders,
+      voiceSessions: voiceQuotaPeriod?.usedSessions ?? 0,
       commerceConnections: connections,
       webhookEndpoints: endpoints,
       teamMembers: members,
@@ -186,7 +205,7 @@ export class PlanLimitGuard implements CanActivate {
   }
 }
 
-function resolveMerchantId(request: { body?: unknown; tenantPrincipal?: unknown; user?: unknown }): string {
+function resolveMerchantId(request: { body?: unknown; tenantPrincipal?: unknown; user?: unknown; m2mAgent?: unknown }): string {
   try {
     const principal = currentTenantPrincipal(request as Parameters<typeof currentTenantPrincipal>[0]);
     if (principal.tenantId?.trim()) return principal.tenantId.trim();
@@ -195,6 +214,10 @@ function resolveMerchantId(request: { body?: unknown; tenantPrincipal?: unknown;
   }
   const user = request.user as { merchantId?: unknown } | undefined;
   if (typeof user?.merchantId === "string" && user.merchantId.trim()) return user.merchantId.trim();
+  // M2M HMAC authentication has no dashboard user. Its authenticated agent is
+  // nevertheless merchant-scoped and must be metered like a normal tenant.
+  const m2mAgent = request.m2mAgent as { merchantId?: unknown } | undefined;
+  if (typeof m2mAgent?.merchantId === "string" && m2mAgent.merchantId.trim()) return m2mAgent.merchantId.trim();
   const body = request.body as { merchant_id?: unknown; merchantId?: unknown } | undefined;
   const candidate = typeof body?.merchant_id === "string" ? body.merchant_id : typeof body?.merchantId === "string" ? body.merchantId : "";
   if (!candidate.trim()) throw new ForbiddenException({ code: "plan_limit_scope_missing" });
@@ -216,14 +239,14 @@ function toBillingStatus(status: string): BillingSubscriptionSnapshot["status"] 
 }
 
 function requiredPlanForFeature(feature: BillingPlanFeatureKey): BillingPlan {
-  for (const plan of ["starter", "growth", "scale"] as BillingPlan[]) {
+  for (const plan of ["starter", "starter179", "growth", "scale"] as BillingPlan[]) {
     if (BILLING_PLANS[plan].features[feature]) return plan;
   }
   return "scale";
 }
 
 function requiredPlanForLimit(limitKey: BillingPlanLimitKey, attempted: number): BillingPlan {
-  for (const plan of ["starter", "growth", "scale"] as BillingPlan[]) {
+  for (const plan of ["starter", "starter179", "growth", "scale"] as BillingPlan[]) {
     const limit = BILLING_PLANS[plan].limits[limitKey];
     if (limit === null || attempted <= limit) return plan;
   }

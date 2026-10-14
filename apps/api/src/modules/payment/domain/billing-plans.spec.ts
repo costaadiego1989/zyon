@@ -3,16 +3,17 @@ import assert from "node:assert/strict";
 import {
   BILLING_PLANS,
   BUYER_SERVICE_FEE_CENTS,
+  BILLING_PLAN_PRESENTATION,
   effectiveBillingPlan,
   isBillingFeatureEnabled,
   planFromPriceId,
   merchantTransactionFeeCentsFor,
 } from "./billing-plans.js";
 
-test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$599", () => {
+test("BILLING_PLANS matches Free, paid Starter R$179, Growth R$449 and Scale R$749", () => {
   // Starter
   assert.equal(BILLING_PLANS.starter.monthlyPriceBrl, 0);
-  assert.equal(BILLING_PLANS.starter.transactionFeeCents, 299);
+  assert.equal(BILLING_PLANS.starter.transactionFeeCents, 199);
   assert.equal(BILLING_PLANS.starter.limits.ordersPerMonth, 100);
   assert.equal(BILLING_PLANS.starter.limits.webhookEndpoints, null);
   assert.equal(BILLING_PLANS.starter.limits.crossSellPromotions, 1);
@@ -26,18 +27,28 @@ test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$59
     assert.equal("aiConversationsPerMonth" in plan.limits, false);
   }
 
+  // Paid Starter
+  assert.equal(BILLING_PLANS.starter179.monthlyPriceBrl, 179);
+  assert.equal(BILLING_PLANS.starter179.transactionFeeCents, 199);
+  assert.equal(BILLING_PLANS.starter179.limits.teamMembers, 2);
+  assert.equal(BILLING_PLANS.starter179.limits.activeCoupons, 3);
+  assert.equal(BILLING_PLANS.starter179.features.customDomain, true);
+  assert.equal(BILLING_PLANS.starter179.features.postSale, true);
+  assert.equal(BILLING_PLANS.starter179.features.voiceCheckout, false);
+
   // Growth
   assert.equal(BILLING_PLANS.growth.limits.ordersPerMonth, 500);
-  assert.equal(BILLING_PLANS.growth.monthlyPriceBrl, 349);
+  assert.equal(BILLING_PLANS.growth.monthlyPriceBrl, 449);
   assert.equal(BILLING_PLANS.growth.transactionFeeCents, 149);
   assert.equal(BILLING_PLANS.growth.limits.commerceConnections, 2);
+  assert.equal(BILLING_PLANS.growth.limits.voiceSessionsPerMonth, 17);
   assert.equal(BILLING_PLANS.growth.features.whiteLabel, true); // paga = remove badge
   assert.equal(BILLING_PLANS.growth.features.publicApiV1, true);
   assert.equal(BILLING_PLANS.growth.features.voiceCheckout, true);
   assert.equal(BILLING_PLANS.growth.features.abTests, false);
 
   // Scale
-  assert.equal(BILLING_PLANS.scale.monthlyPriceBrl, 599);
+  assert.equal(BILLING_PLANS.scale.monthlyPriceBrl, 749);
   assert.equal(BILLING_PLANS.scale.transactionFeeCents, 99);
   assert.equal(BILLING_PLANS.scale.limits.ordersPerMonth, null);
   assert.equal(BILLING_PLANS.scale.features.whiteLabel, true);
@@ -46,6 +57,17 @@ test("BILLING_PLANS matches Free R$2,99 after trial, Growth R$349 and Scale R$59
   assert.equal(BILLING_PLANS.scale.features.marketplace, true);
   assert.equal(BILLING_PLANS.scale.features.intentMemory, true);
   assert.equal(BILLING_PLANS.scale.features.revenueLift, true);
+  assert.equal(BILLING_PLANS.scale.features.voiceCheckout, true);
+  assert.equal(BILLING_PLANS.scale.limits.voiceSessionsPerMonth, 34);
+});
+
+test("plan presentation shows voice quotas and never promises retired session or commerce-connection limits", () => {
+  assert.ok(BILLING_PLAN_PRESENTATION.growth.highlights.includes("Checkout por voz: 17 sessões por mês"));
+  assert.ok(BILLING_PLAN_PRESENTATION.scale.highlights.includes("Checkout por voz: 34 sessões por mês"));
+  assert.ok(BILLING_PLAN_PRESENTATION.scale.highlights.includes("Até 5 lojas independentes"));
+  for (const plan of Object.values(BILLING_PLAN_PRESENTATION)) {
+    assert.equal(plan.highlights.some((entry) => /conexões de comércio|1\.000 sessões|5\.000 conversas/i.test(entry)), false);
+  }
 });
 
 test("legacy Stripe prices keep the same entitlement during a price migration", () => {
@@ -74,13 +96,14 @@ test("trial usa Free sem taxa de transação do lojista", () => {
   assert.equal(merchantTransactionFeeCentsFor(trial), 0);
 });
 
-test("expired or inactive subscriptions fall back to Starter", () => {
+test("expired or inactive subscriptions fall back to the Free merchant fee", () => {
   assert.equal(effectiveBillingPlan({ status: "cancelled", stripePriceId: undefined }), "starter");
   assert.equal(effectiveBillingPlan({ status: "trialing", trialEndsAt: "2020-01-01T00:00:00.000Z", stripePriceId: undefined }), "starter");
-  assert.equal(merchantTransactionFeeCentsFor({ status: "cancelled", stripePriceId: undefined }), 299);
+  assert.equal(merchantTransactionFeeCentsFor({ status: "cancelled", stripePriceId: undefined }), 199);
 });
 
-test("custom domain entitlement requires an active Growth or Scale subscription", () => {
+test("custom domain entitlement requires an active paid Starter, Growth or Scale subscription", () => {
+  assert.equal(isBillingFeatureEnabled({ status: "active", planKey: "starter179" }, "customDomain"), true);
   assert.equal(isBillingFeatureEnabled({ status: "active", planKey: "growth" }, "customDomain"), true);
   assert.equal(isBillingFeatureEnabled({ status: "active", planKey: "scale" }, "customDomain"), true);
   assert.equal(isBillingFeatureEnabled({ status: "active", planKey: "starter" }, "customDomain"), false);

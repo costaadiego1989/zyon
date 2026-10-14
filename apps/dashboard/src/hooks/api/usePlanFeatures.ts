@@ -4,13 +4,13 @@ import type { BillingSubscription } from "../../api/types.js";
 
 /**
  * Current billing entitlements. Refreshes on mount, focus and every minute.
- * - plan: "starter" | "growth" | "scale"
+ * - plan: "starter" (Free) | "starter179" | "growth" | "scale"
  * - features: Record<string, boolean>
  * - hasFeature(key): checks if feature is enabled in current plan
  * - loading/error states
  */
 export interface PlanFeaturesState {
-  plan: "starter" | "growth" | "scale" | null;
+  plan: "starter" | "starter179" | "growth" | "scale" | null;
   features: Record<string, boolean>;
   transactionFeeCents: number;
   loading: boolean;
@@ -53,7 +53,7 @@ export function usePlanFeatures(): PlanFeaturesState {
     return () => { cancelled = true; window.clearInterval(timer); window.removeEventListener("focus", onFocus); };
   }, [api, revision]);
 
-  const plan = (subscription?.plan ?? null) as "starter" | "growth" | "scale" | null;
+  const plan = (subscription?.plan ?? null) as "starter" | "starter179" | "growth" | "scale" | null;
   const features = (subscription?.features ?? {}) as Record<string, boolean>;
   const transactionFeeCents = subscription?.transaction_fee_cents ?? 0;
 

@@ -44,13 +44,15 @@ import {
   ExperimentDetailResponse,
   ExperimentResultsResponse,
 } from './dtos/experiment-response.dto.js';
+import { PlanLimitGuard, RequirePlanFeature } from '../../../../payment/domain/billing-plan-guard.js';
 
 @ApiTags('Experiments')
 @ApiBearerAuth('service_api_key')
 @ApiCookieAuth('console_session')
 @Controller('experiments')
 @UseInterceptors(ResponseEnvelopeInterceptor)
-@UseGuards(TenantCredentialGuard, TenantAccessGuard)
+@UseGuards(TenantCredentialGuard, TenantAccessGuard, PlanLimitGuard)
+@RequirePlanFeature('abTests')
 export class ExperimentsV1Controller {
   constructor(
     private readonly createExperimentUseCase: CreateExperimentUseCase,

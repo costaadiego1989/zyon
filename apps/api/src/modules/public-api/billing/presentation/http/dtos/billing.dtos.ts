@@ -101,6 +101,9 @@ export class UsageResponse {
   @ApiProperty({ example: 1234 })
   orders_per_month!: number;
 
+  @ApiProperty({ example: 42, description: 'Sessões de voz reservadas no mês-calendário atual' })
+  voice_sessions!: number;
+
   @ApiProperty({ example: 2 })
   commerce_connections!: number;
 
@@ -218,7 +221,7 @@ export class SubscribeToPlanDto {
   @ApiProperty({ example: 'growth', enum: ['growth', 'scale'] })
   @IsEnum(['growth', 'scale'])
   @IsNotEmpty()
-  planKey!: 'growth' | 'scale';
+  planKey!: 'starter179' | 'growth' | 'scale';
 
   @ApiProperty({ type: CreditCardDto })
   @IsNotEmpty()

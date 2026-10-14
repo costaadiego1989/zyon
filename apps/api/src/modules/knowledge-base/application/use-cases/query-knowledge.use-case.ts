@@ -1,10 +1,11 @@
-import { Injectable, Inject, Logger } from "@nestjs/common";
+import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { EMBEDDING_PORT, type EmbeddingPort } from "../../domain/ports/embedding.port.js";
 import {
   KNOWLEDGE_REPOSITORY,
   type KnowledgeRepositoryPort,
   type KnowledgeChunk,
 } from "../../domain/ports/knowledge-repository.port.js";
+import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 
 export interface QueryKnowledgeInput {
   merchantId: string;
@@ -24,9 +25,17 @@ export class QueryKnowledgeUseCase {
   constructor(
     @Inject(EMBEDDING_PORT) private readonly embeddingService: EmbeddingPort,
     @Inject(KNOWLEDGE_REPOSITORY) private readonly knowledgeRepo: KnowledgeRepositoryPort,
+    @Optional() private readonly billing?: BillingPlanMeteringService,
   ) {}
 
   async execute(input: QueryKnowledgeInput): Promise<QueryKnowledgeOutput> {
+    // Queries run from buyer/support conversations, outside dashboard guards.
+    // Keep indexed data for a possible upgrade, but fail closed on the feature.
+    try {
+      await this.billing?.assertAllowed(input.merchantId, { kind: "feature", key: "knowledgeBase" });
+    } catch {
+      return { chunks: [] };
+    }
     // Default: return empty if embedding unavailable
     if (!this.embeddingService.isAvailable()) {
       this.logger.debug("Embedding service unavailable, no knowledge base search");

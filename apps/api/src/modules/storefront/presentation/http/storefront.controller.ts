@@ -7,6 +7,7 @@ import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-owne
 import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
 import { StartStoreConversationUseCase } from "../../application/use-cases/start-store-conversation.use-case.js";
 import { SendStoreMessageUseCase } from "../../application/use-cases/send-store-message.use-case.js";
+import { StorefrontAttachmentInterpreter, type StorefrontConversationAttachment } from "../../application/services/storefront-attachment-interpreter.service.js";
 import { GenerateNudgeUseCase } from "../../application/use-cases/generate-nudge.use-case.js";
 import { GetConversationHistoryUseCase } from "../../application/use-cases/get-conversation-history.use-case.js";
 import { GetStoreConfigUseCase } from "../../application/use-cases/get-store-config.use-case.js";
@@ -32,9 +33,16 @@ import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/
 import { reevaluateCartRules } from "../../infrastructure/tool-handlers/cart.handlers.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
+import { PublicStorefrontAccessService } from "../../application/services/public-storefront-access.service.js";
+import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
+import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
+import { CHECKOUT_CROSS_SELL_RECOMMENDER, type CheckoutCrossSellRecommenderPort } from "../../../checkout/domain/ports/cross-sell-recommender.port.js";
+import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 
 export interface StartConversationRequest {
   merchant_id: string;
+  ai_user_token?: string;
+  buyer_access_token?: string;
   initial_message?: string;
 }
 
@@ -42,6 +50,8 @@ export interface SendMessageRequest {
   user_message: string;
   cart_id?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
+  attachment?: StorefrontConversationAttachment;
+  voice_turn_token?: string;
 }
 
 @Controller("storefront")
@@ -49,6 +59,7 @@ export class StorefrontController {
   constructor(
     private readonly startStoreConversation: StartStoreConversationUseCase,
     private readonly sendStoreMessage: SendStoreMessageUseCase,
+    private readonly attachmentInterpreter: StorefrontAttachmentInterpreter,
     private readonly generateNudge: GenerateNudgeUseCase,
     private readonly getConversationHistory: GetConversationHistoryUseCase,
     private readonly getStoreConfig: GetStoreConfigUseCase,
@@ -70,11 +81,16 @@ export class StorefrontController {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
     @Optional() private readonly buyerJwt?: BuyerJwtService,
     @Optional() private readonly oneBuyClick?: OneBuyClickSessionService,
+    private readonly publicStorefrontAccess?: PublicStorefrontAccessService,
+    private readonly aiIdentity?: AiUserIdentityService,
+    private readonly aiUserLimiter?: AiUserRateLimitService,
+    @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
+    @Optional() private readonly billing?: BillingPlanMeteringService,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
     if (this.prisma && this.merchantRepo) {
-      return reevaluateCartRules({ prisma: this.prisma, merchantRepo: this.merchantRepo, cartRepo: this.cartRepo, productPromotionRepo: this.productPromotionRepo }, merchantId, cartId, cart);
+      return reevaluateCartRules({ prisma: this.prisma, merchantRepo: this.merchantRepo, cartRepo: this.cartRepo, productPromotionRepo: this.productPromotionRepo, billing: this.billing }, merchantId, cartId, cart);
     }
     return { cart, promoMeta: await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart), nextNudge: null, activeRules: [] };
   }
@@ -92,6 +108,7 @@ export class StorefrontController {
     @Query("cursor") cursor?: string,
     @Query("limit") limit?: string,
   ) {
+    await this.publicStorefrontAccess?.assertMerchantCanServe(merchantId);
     const parsedLimit = Number(limit);
     return this.publicCatalog.execute({
       merchantId,
@@ -107,6 +124,7 @@ export class StorefrontController {
     @Param("merchantId") merchantId: string,
     @Param("productId") productId: string,
   ) {
+    await this.publicStorefrontAccess?.assertMerchantCanServe(merchantId);
     return this.publicCatalog.get(merchantId, productId);
   }
 
@@ -147,14 +165,16 @@ export class StorefrontController {
     @Body() body: StartConversationRequest,
     @Req() request: { headers?: { origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[] } },
   ) {
+    const identity = (this.aiIdentity ?? new AiUserIdentityService()).resolve({ visitorToken: body.ai_user_token, buyerToken: body.buyer_access_token, merchantId: body.merchant_id });
     const result = await this.startStoreConversation.execute(body);
     const access = this.capabilities.issue({
       purpose: "storefront-conversation",
       merchantId: result.merchant_id,
       resourceId: result.conversation_id,
       origin: storefrontOrigin(request),
+      aiUserId: identity.userId,
     });
-    return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
+    return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt, ai_user_token: identity.token };
   }
 
   @Post("conversations/:conversationId/messages")
@@ -166,10 +186,17 @@ export class StorefrontController {
   ) {
     const claims = this.conversationAccess(request, conversationId, body.merchant_id);
     if (body.cart_id !== undefined && body.cart_id !== claims.resourceId) throw new ForbiddenException("conversation_cart_mismatch");
-    const rateLimit = this.conversationRateLimiter.consume(claims.merchantId, claims.resourceId);
-    response?.setHeader("X-RateLimit-Limit", String(rateLimit.limit));
-    response?.setHeader("X-RateLimit-Remaining", String(rateLimit.remaining));
-    response?.setHeader("X-RateLimit-Reset", String(Math.ceil(rateLimit.resetAt / 1000)));
+    const globalUserId = this.buyerId(request, claims.merchantId);
+    const userId = globalUserId ? `buyer:${globalUserId}` : claims.aiUserId;
+    const voiceAdmitted = body.voice_turn_token && this.aiUserLimiter
+      ? await this.aiUserLimiter.consumeVoicePermit(body.voice_turn_token, { userId: userId!, merchantId: claims.merchantId, resourceId: claims.resourceId, origin: claims.origin }) : false;
+    const rateLimit = voiceAdmitted ? { allowed: true, remaining: 0, resetAt: Date.now(), retryAfterMs: 0, limit: 10 }
+      : await this.conversationRateLimiter.consume(claims.merchantId, claims.resourceId, userId);
+    if (!voiceAdmitted) {
+      response?.setHeader("X-AI-RateLimit-Limit", String(rateLimit.limit));
+      response?.setHeader("X-AI-RateLimit-Remaining", String(rateLimit.remaining));
+      response?.setHeader("X-AI-RateLimit-Reset", String(Math.ceil(rateLimit.resetAt / 1000)));
+    }
     if (!rateLimit.allowed) {
       const retryAfterSeconds = Math.max(Math.ceil(rateLimit.retryAfterMs / 1000), 1);
       response?.setHeader("Retry-After", String(retryAfterSeconds));
@@ -177,13 +204,15 @@ export class StorefrontController {
         {
           statusCode: HttpStatus.TOO_MANY_REQUESTS,
           error: "Too Many Requests",
-          message: "conversation_rate_limit_exceeded",
+          code: "ai_interaction_rate_limited",
+          message: "Limite de 10 mensagens por minuto atingido. Aguarde para continuar.",
+          retry_after_seconds: retryAfterSeconds,
           retryAfterSeconds,
         },
         HttpStatus.TOO_MANY_REQUESTS,
       );
     }
-    const globalUserId = this.buyerId(request, claims.merchantId);
+    const attachmentContext = await this.attachmentInterpreter.interpret(body.attachment);
     const oneBuyClick = this.oneBuyClick
       ? await this.oneBuyClick.get({
           merchantId: claims.merchantId,
@@ -196,6 +225,7 @@ export class StorefrontController {
       user_message: body.user_message,
       cart_id: claims.resourceId,
       history: body.history,
+      attachment_context: attachmentContext,
       global_user_id: globalUserId,
       one_buy_click: oneBuyClick,
     });
@@ -233,11 +263,18 @@ export class StorefrontController {
   @Post("conversations/:conversationId/access")
   renewConversationAccess(
     @Param("conversationId") conversationId: string,
-    @Req() request: { headers?: { authorization?: string; origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[] } },
+    @Req() request: { headers?: { authorization?: string; origin?: string; "x-trusted-storefront-origin"?: string | string[]; "x-internal-service-token"?: string | string[]; "x-ai-user-token"?: string; "x-buyer-authorization"?: string } },
   ) {
     const token = request.headers?.authorization?.match(/^Bearer (\S+)$/i)?.[1];
     try {
       const access = this.capabilities.renewConversation(token, conversationId, storefrontOrigin(request));
+      const claims = this.capabilities.verify(access.token, "storefront-conversation", storefrontOrigin(request));
+      if (!claims.aiUserId) {
+        const buyerToken = request.headers?.["x-buyer-authorization"]?.match(/^Bearer (\S+)$/i)?.[1];
+        const identity = (this.aiIdentity ?? new AiUserIdentityService()).resolve({ visitorToken: request.headers?.["x-ai-user-token"], buyerToken, merchantId: claims.merchantId });
+        const migrated = this.capabilities.renewConversation(access.token, conversationId, storefrontOrigin(request), Math.floor(Date.now() / 1000), identity.userId);
+        return { conversation_id: conversationId, conversation_token: migrated.token, conversation_token_expires_at: migrated.expiresAt, ai_user_token: identity.token };
+      }
       return { conversation_id: conversationId, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
     } catch {
       throw new UnauthorizedException("invalid_conversation_token");
@@ -250,6 +287,7 @@ export class StorefrontController {
     @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
     const claims = this.conversationAccess(request, body.conversation_id, body.merchant_id);
+    if (this.aiUserLimiter) await this.aiUserLimiter.assertNudgeAllowed(claims.aiUserId!);
     return this.generateNudge.execute({
       merchant_id: claims.merchantId,
       trigger: body.trigger,
@@ -339,10 +377,13 @@ export class StorefrontController {
         return {
           variantId: i.variantId,
           productName: i.name,
+          selectedServiceSlot: i.selectedServiceSlot,
+          selectedServiceSlotId: i.selectedServiceSlot?.slotId,
           quantity: i.quantity,
           price: i.unitPriceCents / 100,
           subtotal: (i.unitPriceCents * i.quantity) / 100,
           imageUrl: i.imageUrl ?? undefined,
+          ...(i.marketplace ? { seller: { merchantId: i.marketplace.sellerMerchantId, name: i.marketplace.sellerName } } : {}),
           ...(badge ? { originalPrice: badge.originalPriceCents / 100, discountPercent: badge.discountPercent, coupon: badge.coupon } : {}),
         };
       }),
@@ -353,6 +394,38 @@ export class StorefrontController {
       freeShipping: cart.freeShipping,
       nextNudge,
       activeRules,
+    };
+  }
+
+  @Get("cart/:cartId/pre-checkout-suggestions")
+  async preCheckoutSuggestions(
+    @Param("cartId") cartId: string,
+    @Query("merchantId") merchantId: string,
+    @Req() request: { headers?: { authorization?: string; origin?: string } },
+  ) {
+    if (!merchantId) throw new BadRequestException("merchantId query param required");
+    this.conversationAccess(request, cartId, merchantId);
+    const cart = await this.cartRepo.getOrCreate(merchantId, cartId);
+    if (!cart.items.length || !this.crossSellRecommender || !this.prisma) return { products: [] };
+    const variants = await this.prisma.productVariant.findMany({
+      where: { id: { in: cart.items.map(item => item.variantId) }, product: { merchantId } },
+      select: { id: true, sku: true, product: { select: { categoryId: true, category: { select: { name: true } } } } },
+    });
+    const byId = new Map(variants.map(variant => [variant.id, variant]));
+    const suggestions = await this.crossSellRecommender.suggest({
+      merchant_id: merchantId, session_id: cartId, touchpoint: "pre_checkout",
+      cart: { currency: "BRL", source: "storefront", total: (cart.total - cart.discount) / 100,
+        items: cart.items.map(item => ({ sku: byId.get(item.variantId)?.sku ?? item.variantId, name: item.name,
+          quantity: item.quantity, price: item.unitPriceCents / 100,
+          category: byId.get(item.variantId)?.product?.category?.name ?? byId.get(item.variantId)?.product?.categoryId ?? undefined })),
+      },
+    });
+    const cartVariantIds = new Set(cart.items.map(item => item.variantId));
+    return { trigger: "Antes de finalizar, quer completar seu pedido?", products: suggestions
+      .filter(product => product.variant_id && product.in_stock && !cartVariantIds.has(product.variant_id))
+      .map(product => ({ id: product.variant_id!, name: product.name, price: product.unit_price,
+        priceFormatted: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(product.unit_price),
+        image: product.image_url, inStock: product.in_stock === true })),
     };
   }
 
@@ -382,6 +455,7 @@ export class StorefrontController {
           price: i.unitPriceCents / 100,
           subtotal: (i.unitPriceCents * i.quantity) / 100,
           imageUrl: i.imageUrl ?? undefined,
+          ...(i.marketplace ? { seller: { merchantId: i.marketplace.sellerMerchantId, name: i.marketplace.sellerName } } : {}),
           ...(badge ? { originalPrice: badge.originalPriceCents / 100, discountPercent: badge.discountPercent, coupon: badge.coupon } : {}),
         };
       }),
@@ -442,9 +516,11 @@ export class StorefrontController {
       session_id: string;
       seller_merchant_id: string;
       federated_product_id: string;
+      source_variant_id?: string;
       quantity: number;
       unit_price_cents: number;
-    }
+    },
+    @Req() request: any,
   ) {
     if (!body.session_id?.trim() || !body.seller_merchant_id?.trim()) {
       throw new BadRequestException("session_id and seller_merchant_id required");
@@ -454,11 +530,15 @@ export class StorefrontController {
       throw new BadRequestException("merchant_id required");
     }
 
+    this.conversationAccess(request, body.session_id, body.merchant_id);
+    await this.publicStorefrontAccess?.assertMerchantCanServe(body.merchant_id);
+
     return this.addMarketplaceItem.execute({
       merchantId: body.merchant_id,
       checkoutSessionId: body.session_id,
       sellerMerchantId: body.seller_merchant_id,
       federatedProductId: body.federated_product_id,
+      sourceVariantId: body.source_variant_id,
       quantity: body.quantity ?? 1,
       unitPriceCents: body.unit_price_cents ?? 0,
     });

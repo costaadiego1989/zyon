@@ -75,7 +75,7 @@ export class BillingV1Controller {
   @RequireTenantAccess({ humanOnly: true, humanRoles: ['owner', 'admin'] })
   async checkout(@Req() req: any, @Body() body: CreateBillingCheckoutDto) {
     const plan = body.plan ?? body.price_id;
-    if (!plan || plan === 'starter') throw new BadRequestException('billing_paid_plan_required');
+    if (!plan) throw new BadRequestException('billing_paid_plan_required');
     return this.createBillingCheckout.execute({ merchantId: req.tenantPrincipal.tenantId, email: req.tenantPrincipal.email, plan, billingCycle: body.billingCycle });
   }
 
@@ -107,7 +107,7 @@ export class BillingV1Controller {
   @Idempotent()
   @HttpCode(HttpStatus.OK)
   @RequireTenantAccess({ humanOnly: true })
-  @ApiOperation({ summary: 'Start a free trial (14 days)' })
+  @ApiOperation({ summary: 'Start a free trial (configured duration)' })
   @ApiOkResponse({ description: 'Trial started' })
   async startTrial(@Req() req: any) {
     const merchantId = req.tenantPrincipal?.tenantId;

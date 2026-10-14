@@ -16,8 +16,9 @@ import type { PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { randomBytes } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { currentUser } from "../../../auth/presentation/auth.guard.js";
 import { M2mDualAuthGuard } from "./m2m-dual-auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 import { EvaluateNegotiationUseCase } from "../../application/evaluate-negotiation.use-case.js";
 import { GetMerchantNegotiationPolicyUseCase } from "../../application/merchant-negotiation-policy.use-cases.js";
 import { GetBuyerAgentPreferencesUseCase } from "../../application/buyer-agent-preferences.use-cases.js";
@@ -35,7 +36,8 @@ import { M2MWebhookDispatcherService } from "../../infrastructure/m2m-webhook-di
 
 @ApiTags("M2M - Machine-to-Machine Protocol")
 @Controller("m2m")
-@UseGuards(M2mDualAuthGuard)
+@UseGuards(M2mDualAuthGuard, PlanLimitGuard)
+@RequirePlanFeature("m2mAgents")
 @ApiBearerAuth("JWT")
 export class M2mController {
   constructor(
@@ -61,7 +63,7 @@ export class M2mController {
     @Req() req: any,
     @Body() body: { agentId: string; globalUserId: string },
   ) {
-    const user = currentUser(req);
+    const merchantId = authenticatedMerchantId(req);
     if (!this.buyerAccounts) {
       throw new BadRequestException("buyer_accounts_unavailable");
     }
@@ -87,7 +89,7 @@ export class M2mController {
       createdAt: new Date().toISOString(),
     };
 
-    void this.webhookDispatcher?.dispatch(user.merchantId, "m2m.agent.registered", { agent_id: body.agentId, global_user_id: body.globalUserId });
+    void this.webhookDispatcher?.dispatch(merchantId, "m2m.agent.registered", { agent_id: body.agentId, global_user_id: body.globalUserId });
 
     return result;
   }
@@ -99,7 +101,7 @@ export class M2mController {
     @Req() req: any,
     @Body() body: { merchantId: string; query?: string; limit?: number },
   ) {
-    const user = currentUser(req);
+    assertM2mMerchant(req, body.merchantId);
     if (!this.searchProducts) {
       return {
         merchantId: body.merchantId,
@@ -147,7 +149,7 @@ export class M2mController {
       cart: { total: number; items: Array<{ sku: string; price: number; quantity: number }> };
     },
   ) {
-    const user = currentUser(req);
+    const merchantId = assertM2mMerchant(req, body.merchantId);
     if (!this.evaluateNegotiation || !this.getMerchantPolicy || !this.getBuyerPreferences) {
       throw new BadRequestException("negotiation_services_unavailable");
     }
@@ -169,7 +171,7 @@ export class M2mController {
         buyerPreferences: preferencesResolved,
       });
 
-      void this.webhookDispatcher?.dispatch(user.merchantId, "m2m.negotiation.completed", {
+      void this.webhookDispatcher?.dispatch(merchantId, "m2m.negotiation.completed", {
         agreement: result.agreement,
         selected_discount_percent: result.selectedDiscountPercent,
         denial_reason: result.denialReason,
@@ -200,7 +202,7 @@ export class M2mController {
       shipping_address?: { cep: string };
     },
   ) {
-    const user = currentUser(req);
+    assertM2mMerchant(req, body.merchantId);
     const subtotalCents = Math.round(body.cart.total * 100);
     const discountPercent = body.discountPercent ?? 0;
     const discountCents = Math.round(subtotalCents * (discountPercent / 100));
@@ -288,7 +290,7 @@ export class M2mController {
       selected_shipping?: { carrier: string; priceInCents: number };
     },
   ) {
-    const user = currentUser(req);
+    assertM2mMerchant(req, body.merchantId);
     if (!this.startCheckout) {
       throw new BadRequestException("checkout_services_unavailable");
     }
@@ -399,7 +401,7 @@ export class M2mController {
     @Req() req: any,
     @Param("orderId") orderId: string,
   ) {
-    const user = currentUser(req);
+    const merchantId = authenticatedMerchantId(req);
 
     try {
       // Query completed order by ID
@@ -421,7 +423,7 @@ export class M2mController {
         throw new NotFoundException("order_not_found");
       }
 
-      if (order.merchantId !== user.merchantId) {
+      if (order.merchantId !== merchantId) {
         throw new BadRequestException("order_merchant_mismatch");
       }
 
@@ -438,4 +440,22 @@ export class M2mController {
       throw new BadRequestException(`track_failed: ${String(error)}`);
     }
   }
+}
+
+function authenticatedMerchantId(req: { user?: unknown; m2mAgent?: unknown }): string {
+  try {
+    return currentUser(req).merchantId;
+  } catch {
+    const merchantId = (req.m2mAgent as { merchantId?: unknown } | undefined)?.merchantId;
+    if (typeof merchantId === "string" && merchantId.trim()) return merchantId.trim();
+    throw new BadRequestException("m2m_merchant_scope_missing");
+  }
+}
+
+function assertM2mMerchant(req: { user?: unknown; m2mAgent?: unknown }, requestedMerchantId: string): string {
+  const merchantId = authenticatedMerchantId(req);
+  if (requestedMerchantId !== merchantId) {
+    throw new BadRequestException("m2m_merchant_scope_mismatch");
+  }
+  return merchantId;
 }

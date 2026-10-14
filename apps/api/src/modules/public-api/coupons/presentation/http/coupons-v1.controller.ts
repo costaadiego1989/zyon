@@ -45,6 +45,7 @@ import {
   CouponValidationResponse,
 } from './dtos/coupon.dtos.js';
 import { CouponEntityMapper } from '../../application/mappers/coupon-entity.mapper.js';
+import { PlanLimitGuard, RequirePlanLimit } from '../../../../payment/domain/billing-plan-guard.js';
 
 @ApiTags('Coupons')
 @ApiBearerAuth('service_api_key')
@@ -81,6 +82,8 @@ export class CouponsV1Controller {
   @Post()
   @Idempotent()
   @HttpCode(HttpStatus.CREATED)
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanLimit('activeCoupons')
   @RequireTenantAccess({ serviceScopes: ['coupons:write'] })
   @ApiOperation({ summary: 'Create a coupon' })
   @ApiBody({ type: CreateCouponDto })

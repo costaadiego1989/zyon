@@ -23,11 +23,8 @@ export class CreateBillingPortalUseCase {
   ) {}
 
   async execute(merchantId: string): Promise<{ url: string }> {
-    const billing = await this.repository.getOrCreateTrial(
-      merchantId,
-      14,
-    );
-    if (!billing.stripeCustomerId) {
+    const billing = await this.repository.getBilling(merchantId);
+    if (!billing?.stripeCustomerId) {
       throw new ConflictException("billing_customer_missing_choose_plan");
     }
     try {

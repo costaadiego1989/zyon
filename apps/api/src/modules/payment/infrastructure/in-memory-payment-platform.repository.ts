@@ -1,8 +1,11 @@
 import { ConflictException } from "@nestjs/common";
+import { FREE_TRIAL_DAYS } from "@zyon/shared-types";
 import type {
   PaymentPlatformRepository,
   BillingMutation,
-  BillingWebhookMutation,
+  BillingReceivableMutation,
+  BillingWebhookDecisionMutation,
+  BillingWebhookEventMutation,
   BillingWebhookOutcome,
   SaveBillingSubscriptionInput,
   SavePaymentConnectionInput,
@@ -21,6 +24,7 @@ export class InMemoryPaymentPlatformRepository
   >();
   private readonly secrets = new Map<string, string>();
   private readonly billingEvents = new Set<string>();
+  private readonly billingReceivables = new Map<string, BillingReceivableMutation>();
   private readonly billing = new Map<
     string,
     BillingSubscriptionSnapshot
@@ -91,7 +95,9 @@ export class InMemoryPaymentPlatformRepository
         existing.status === "trialing" &&
         existing.trialEndsAt &&
         new Date(existing.trialEndsAt).getTime() <= Date.now() &&
-        !existing.stripeSubscriptionId
+        !existing.stripeSubscriptionId &&
+        !existing.asaasSubscriptionId &&
+        !existing.mercadoPagoPreapprovalId
       ) {
         const expired = {
           ...existing,
@@ -125,7 +131,7 @@ export class InMemoryPaymentPlatformRepository
   async saveBilling(input: SaveBillingSubscriptionInput): Promise<void> {
     const current =
       this.billing.get(input.merchantId) ??
-      (await this.getOrCreateTrial(input.merchantId, 14));
+      (await this.getOrCreateTrial(input.merchantId, FREE_TRIAL_DAYS));
     this.writeBilling(current, input);
   }
 
@@ -147,17 +153,43 @@ export class InMemoryPaymentPlatformRepository
     return this.writeBilling(current, update);
   }
 
-  async processBillingWebhook(input: BillingWebhookMutation, decide: BillingMutation): Promise<BillingWebhookOutcome> {
-    if (this.billingEvents.has(input.eventId)) return "duplicate";
+  async processBillingWebhook(input: BillingWebhookEventMutation, decide: BillingWebhookDecisionMutation): Promise<BillingWebhookOutcome> {
+    const eventKey = `${input.provider}:${input.eventId}`;
+    if (this.billingEvents.has(eventKey)) return "duplicate";
     const current = this.billing.get(input.merchantId);
-    const update = current && current.asaasSubscriptionId === input.subscriptionId && current.provider !== "stripe"
+    const ownsSubscription = current && (input.provider === "asaas"
+      ? current.asaasSubscriptionId === input.subscriptionId && current.provider === "asaas"
+      : input.provider === "stripe"
+        ? current.stripeSubscriptionId === input.subscriptionId && current.provider === "stripe"
+        : current.mercadoPagoPreapprovalId === input.subscriptionId && current.provider === "mercadopago");
+    const decision = ownsSubscription
       ? decide({ ...current }) : undefined;
+    const update = decision?.subscription;
     if (update) {
       if (update.merchantId !== input.merchantId) throw new Error("billing_mutation_scope_mismatch");
       this.writeBilling(current!, update);
     }
-    this.billingEvents.add(input.eventId);
-    return update ? "processed" : "ignored";
+    const receivableUpdated = decision?.receivable
+      ? this.upsertBillingReceivable(input.provider, decision.receivable)
+      : false;
+    this.billingEvents.add(eventKey);
+    return update || receivableUpdated ? "processed" : "ignored";
+  }
+
+  private upsertBillingReceivable(provider: "asaas" | "stripe" | "mercadopago", mutation: BillingReceivableMutation): boolean {
+    const key = `${provider}:${mutation.providerPaymentId}`;
+    const existing = this.billingReceivables.get(key);
+    if (
+      existing &&
+      (
+        Date.parse(existing.occurredAt) > Date.parse(mutation.occurredAt) ||
+        (Date.parse(existing.occurredAt) === Date.parse(mutation.occurredAt) &&
+          terminalReceivableStatus(existing.status) &&
+          !terminalReceivableStatus(mutation.status))
+      )
+    ) return false;
+    this.billingReceivables.set(key, { ...mutation });
+    return true;
   }
 
   async getBilling(
@@ -206,6 +238,8 @@ export class InMemoryPaymentPlatformRepository
       !billing ||
       billing.status !== "trialing" ||
       billing.stripeSubscriptionId ||
+      billing.asaasSubscriptionId ||
+      billing.mercadoPagoPreapprovalId ||
       !billing.trialEndsAt ||
       new Date(billing.trialEndsAt).getTime() > now.getTime()
     ) {
@@ -229,6 +263,8 @@ export class InMemoryPaymentPlatformRepository
       if (
         billing.status !== "trialing" ||
         billing.stripeSubscriptionId ||
+        billing.asaasSubscriptionId ||
+        billing.mercadoPagoPreapprovalId ||
         !billing.trialEndsAt ||
         new Date(billing.trialEndsAt).getTime() > now.getTime()
       ) {
@@ -269,6 +305,18 @@ export class InMemoryPaymentPlatformRepository
       (item) => item.asaasSubscriptionId === subscriptionId,
     )?.merchantId;
   }
+
+  async findMerchantByMercadoPagoPreapprovalId(
+    preapprovalId: string,
+  ): Promise<string | undefined> {
+    return [...this.billing.values()].find(
+      (item) => item.mercadoPagoPreapprovalId === preapprovalId,
+    )?.merchantId;
+  }
+}
+
+function terminalReceivableStatus(status: BillingReceivableMutation["status"]): boolean {
+  return status === "paid" || status === "cancelled" || status === "refunded";
 }
 
 function key(merchantId: string, provider: string): string {

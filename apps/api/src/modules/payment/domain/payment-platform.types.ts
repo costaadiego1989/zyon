@@ -2,7 +2,8 @@ import type { BillingCycle } from "@zyon/shared-types";
 import type { OrderQuotaSnapshot } from "./services/order-quota.types.js";
 
 export type PaymentConnectionProvider = "stripe" | "asaas" | "mercadopago";
-export type BillingPlan = "starter" | "growth" | "scale";
+/** `starter` remains the legacy Free identifier; `starter179` is the paid Starter plan. */
+export type BillingPlan = "starter" | "starter179" | "growth" | "scale";
 export type PaymentConnectionEnvironment = "test" | "live";
 export type PaymentConnectionStatus =
   | "pending"
@@ -47,10 +48,12 @@ export interface BillingSubscriptionSnapshot {
   cancelAtPeriodEnd: boolean;
   createdAt: string;
   updatedAt: string;
-  provider?: "asaas" | "stripe";
+  provider?: "asaas" | "stripe" | "mercadopago";
   planKey?: BillingPlan;
   asaasCustomerId?: string;
   asaasSubscriptionId?: string;
+  /** Mercado Pago recurring subscription (`preapproval`) owned by Zyon. */
+  mercadoPagoPreapprovalId?: string;
   pendingPlanKey?: BillingPlan;
   pendingUpgradePlanKey?: BillingPlan;
   pendingUpgradeAmountCents?: number;
@@ -72,6 +75,7 @@ export interface BillingSubscriptionSnapshot {
 export interface BillingUsageSnapshot {
   periodStart: string;
   ordersPerMonth: number;
+  voiceSessions: number;
   commerceConnections: number;
   webhookEndpoints: number;
   teamMembers: number;

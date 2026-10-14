@@ -9,7 +9,7 @@ import type { CrossSellPromotionRepository } from "../../../cross-sell/domain/po
 import type { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
 import type { CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
 import type { Cart } from "@zyon/shared-types";
-import type { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
+import type { SearchMarketplaceProductsStorefrontUseCase, FederatedProductResponse } from "../../application/use-cases/search-marketplace-products-storefront.use-case.js";
 import type { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import type { MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
@@ -21,6 +21,9 @@ import { RuleProximityEngine, type RuleNudge, type ActiveRuleBadge } from "../..
 import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import { applyProductPromoPricing, type ProductPromoMeta } from "../pricing/storefront-cart-promo.pricing.js";
+import { validateFoodOptionGroups } from "../../../catalog/domain/services/food-options-validation.js";
+import { resolveSelectedServiceSlot, ServiceSlotError, serviceSlotLabel, type SelectedServiceSlot } from "../../../catalog/domain/services/service-schedule.js";
+import type { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 
 const logger = new Logger("CartHandlers");
 
@@ -34,8 +37,11 @@ interface CartRulesOutcome {
   promoMeta?: ProductPromoMeta;
 }
 
-async function loadAdvancedRules(prisma: PrismaClient, merchantId: string): Promise<AdvancedRule[]> {
+async function loadAdvancedRules(prisma: PrismaClient, merchantId: string, billing?: BillingPlanMeteringService): Promise<AdvancedRule[]> {
   try {
+    // Rules stay persisted after a downgrade for a future reactivation, but
+    // they must not change price, shipping or buyer messaging while disabled.
+    await billing?.assertAllowed(merchantId, { kind: "feature", key: "advancedRules" });
     const setting = await prisma.checkoutSetting.findUnique({
       where: { merchantId },
       select: { advancedRules: true },
@@ -47,18 +53,22 @@ async function loadAdvancedRules(prisma: PrismaClient, merchantId: string): Prom
 }
 
 export async function reevaluateCartRules(
-  deps: Pick<CartHandlerDeps, "prisma" | "merchantRepo" | "cartRepo" | "productPromotionRepo">,
+  deps: Pick<CartHandlerDeps, "prisma" | "merchantRepo" | "cartRepo" | "productPromotionRepo" | "billing">,
   merchantId: string,
   sessionId: string,
   cart: StorefrontCart,
 ): Promise<CartRulesOutcome> {
+  if (cart.items.some(line => line.marketplace)) {
+    const promoMeta = await applyProductPromoPricing(deps.productPromotionRepo, merchantId, cart);
+    return { cart, promoMeta, nextNudge: null, activeRules: [] };
+  }
   try {
     // Product promotions adjust each LINE price first (from the original base
     // price, idempotently), so the cart-level rules engine evaluates on the
     // promo-adjusted subtotal.
     const initialPromoMeta = await applyProductPromoPricing(deps.productPromotionRepo, merchantId, cart);
 
-    const advancedRules = await loadAdvancedRules(deps.prisma, merchantId);
+    const advancedRules = await loadAdvancedRules(deps.prisma, merchantId, deps.billing);
     const merchantRules = advancedRules.length > 0 ? await deps.merchantRepo.getRules(merchantId) : null;
 
     // No cart-level rules → still return the promo-adjusted cart (+ badge meta).
@@ -117,6 +127,8 @@ function toCartLineDto(
     unitPriceCents: number;
     imageUrl?: string;
     selectedOptions?: StorefrontCartSelectedOption[];
+    selectedServiceSlot?: SelectedServiceSlot;
+    marketplace?: StorefrontCart["items"][number]["marketplace"];
   },
   meta?: ProductPromoMeta,
 ) {
@@ -128,6 +140,7 @@ function toCartLineDto(
     unitPrice: i.unitPriceCents / 100,
     lineTotal: (i.unitPriceCents * i.quantity) / 100,
     imageUrl: i.imageUrl,
+    ...(i.marketplace ? { seller: { merchantId: i.marketplace.sellerMerchantId, name: i.marketplace.sellerName } } : {}),
     // Promo badge metadata (present only when an active product promotion applied).
     ...(badge
       ? {
@@ -136,11 +149,12 @@ function toCartLineDto(
           coupon: badge.coupon,
         }
       : {}),
-    selectedOptions: i.selectedOptions?.map((o) => ({
+    ...(i.selectedServiceSlot ? { selectedServiceSlot: i.selectedServiceSlot } : {}),
+    selectedOptions: i.selectedOptions?.length || i.selectedServiceSlot ? [...(i.selectedOptions ?? []).map((o) => ({
       groupName: o.groupName,
       itemName: o.itemName,
       priceModifier: o.priceModifierInCents / 100,
-    })),
+    })), ...(i.selectedServiceSlot ? [{ groupName: "Horário selecionado", itemName: serviceSlotLabel(i.selectedServiceSlot), priceModifier: 0 }] : [])] : undefined,
   };
 }
 
@@ -150,12 +164,12 @@ export interface CartHandlerDeps {
   cartRepo: StorefrontCartPort;
   prisma: PrismaClient;
   merchantRepo: MerchantRepository;
-  searchFederatedProducts?: SearchFederatedProductsUseCase;
+  searchMarketplaceProducts?: SearchMarketplaceProductsStorefrontUseCase;
   /**
    * Cross-store add: when a federated (other-store) product is added, this
    * use-case creates the cross_store_line_items row with frozen commission so
-   * PlaceCrossStoreOrder can build settlements at checkout. Optional: when
-   * absent, the item still lands in the local cart but no settlement is created.
+   * PlaceCrossStoreOrder can build settlements at checkout. When absent,
+   * marketplace addition fails closed; it never falls into the local writer.
    */
   addMarketplaceItemToCart?: AddMarketplaceItemToCartStorefrontUseCase;
   listEligibleCrossSells?: ListEligibleCrossSellsUseCase;
@@ -173,6 +187,7 @@ export interface CartHandlerDeps {
    * before cart-rules evaluation. Optional: when absent, no product promos apply.
    */
   productPromotionRepo?: ProductPromotionRepositoryPort;
+  billing?: BillingPlanMeteringService;
   oneBuyClick?: OneBuyClickSessionService;
 }
 
@@ -199,6 +214,7 @@ function variantLabel(attributes: Record<string, string>, fallback: string): str
 export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContext): Pick<StoreToolHandlers, "addItemToCart" | "getCart" | "removeCartItem" | "updateCartItem" | "clearCart" | "quoteShipping" | "applyCoupon" | "removeCoupon" | "listPromotions" | "createCheckoutSession"> {
   return {
     addItemToCart: async (args) => {
+      if (!Number.isSafeInteger(args.quantity) || args.quantity < 1 || args.quantity > 99) return { error: "cart_quantity_invalid" };
       const sessionId = ctx.sessionId || `cart_${Date.now()}`;
 
       logger.debug("cart.addItem", { merchantId: ctx.merchantId, sessionId, variantId: args.variantId, qty: args.quantity });
@@ -213,8 +229,12 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       let resolvedProductId: string | undefined;
       let resolvedProduct: Awaited<ReturnType<typeof deps.productRepo.findById>> | null = null;
       // Cross-store: set when the resolved product is federated (another store's).
-      let crossStoreSellerId: string | undefined;
-      let crossStoreFederatedProductId: string | undefined;
+      let marketplaceProduct: FederatedProductResponse | undefined;
+      // The public tool accepts one product binding, not a client-supplied
+      // marketplace tuple. Never ignore a foreign hint and add another item.
+      const supplied = args as unknown as Record<string, unknown>;
+      const unsupportedMarketplaceBinding = ["sourceVariantId", "source_variant_id", "federatedProductId", "federated_product_id",
+        "sellerMerchantId", "seller_merchant_id"].some(key => Object.prototype.hasOwnProperty.call(supplied, key));
 
       try {
         let exactVariant: { productId: string } | null = null;
@@ -305,29 +325,70 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
           }
         }
 
-        if (unitPriceCents === 0 && deps.searchFederatedProducts) {
+        if (unitPriceCents === 0 && deps.searchMarketplaceProducts) {
           try {
-            const fedProduct = await deps.prisma.federatedProduct.findUnique({
-              where: { id: args.variantId },
-            });
-            if (fedProduct) {
-              productName = fedProduct.name;
-              unitPriceCents = fedProduct.priceCents;
-              imageUrl = fedProduct.imageUrl ?? undefined;
-              resolvedVariantId = fedProduct.id;
-              crossStoreSellerId = fedProduct.sourceMerchantId;
-              crossStoreFederatedProductId = fedProduct.id;
-            }
-          } catch { }
+            marketplaceProduct = await deps.searchMarketplaceProducts.resolveById({ merchantId: ctx.merchantId, federatedProductId: args.variantId });
+          } catch { return { error: "marketplace_catalog_unavailable" }; }
         }
       } catch {
       }
 
+      if (marketplaceProduct) {
+        // An LLM-provided variant/tag is not the buyer's selection. Multi-option
+        // products always return the canonical card; its signed REST add is the
+        // only route that accepts the buyer's explicit marketplace choice.
+        if (marketplaceProduct.variants.length !== 1) {
+          ctx.marketplaceVariantSelectionPending = true;
+          return { error: "marketplace_variant_selection_required", marketplaceProduct };
+        }
+        if (unsupportedMarketplaceBinding) {
+          ctx.marketplaceVariantSelectionPending = true;
+          return { error: "marketplace_tool_binding_invalid" };
+        }
+        if (!deps.addMarketplaceItemToCart) return { error: "marketplace_cart_unavailable" };
+        if (args.crossSellPromoId || args.selectedOptionItemIds?.length || args.selectedServiceSlotId) return { error: "marketplace_product_options_required" };
+        if (!marketplaceProduct.inStock || !marketplaceProduct.variants[0].inStock) return { error: "marketplace_insufficient_stock", marketplaceProduct };
+        let result;
+        try {
+          // Retain writer admission for a single active variant. Passing an ID
+          // selected by this stale read could accept a newly ambiguous product.
+          result = await deps.addMarketplaceItemToCart.execute({ merchantId: ctx.merchantId, checkoutSessionId: sessionId,
+            sellerMerchantId: marketplaceProduct.sellerId, federatedProductId: marketplaceProduct.id, quantity: args.quantity });
+        } catch (error) {
+          if (error instanceof Error && error.message === "marketplace_variant_selection_required") {
+            ctx.marketplaceVariantSelectionPending = true;
+            let refreshed: FederatedProductResponse | undefined;
+            try { refreshed = await deps.searchMarketplaceProducts?.resolveById({ merchantId: ctx.merchantId, federatedProductId: marketplaceProduct.id }); }
+            catch { return { error: "marketplace_catalog_unavailable" }; }
+            return refreshed ? { error: "marketplace_variant_selection_required", marketplaceProduct: refreshed }
+              : { error: "marketplace_catalog_unavailable" };
+          }
+          throw error;
+        }
+        const cart = result.cart;
+        return { cartId: cart.sessionId, items: cart.items.map(line => toCartLineDto(line)),
+          addedItem: { variantId: cart.items.find(line => line.marketplace?.federatedProductId === marketplaceProduct.id)?.variantId },
+          total: cart.total / 100, discount: cart.discount / 100, freeShipping: cart.freeShipping,
+          itemCount: cart.items.reduce((sum, line) => sum + line.quantity, 0) };
+      }
+
+      if (unsupportedMarketplaceBinding) {
+        ctx.marketplaceVariantSelectionPending = true;
+        return { error: "marketplace_tool_binding_invalid" };
+      }
+      if (unitPriceCents === 0 && !resolvedProduct) return {
+        error: deps.searchMarketplaceProducts ? "variant_not_resolved" : "marketplace_catalog_unavailable",
+        detail: "Não encontrei uma associação válida de produto para adicionar ao carrinho.",
+      };
+
       if (resolvedProduct?.type !== "digital" && resolvedProduct?.type !== "service") {
         try {
+          const existingCart = await deps.cartRepo.getOrCreate(ctx.merchantId, sessionId);
+          const requestedQuantity = args.quantity + existingCart.items.filter(i => i.variantId === resolvedVariantId).reduce((n, i) => n + i.quantity, 0);
           const stock = await deps.stockRepo.getAvailableStock(resolvedVariantId);
-          if (stock.quantity < Math.max(1, args.quantity)) {
-            logger.warn("cart.stock.insufficient", { variantId: resolvedVariantId, requestedQuantity: args.quantity, availableQuantity: stock.quantity });
+          const availableQuantity = Math.max(0, stock.quantity - stock.reserved);
+          if (!Number.isFinite(availableQuantity) || availableQuantity < requestedQuantity) {
+            logger.warn("cart.stock.insufficient", { variantId: resolvedVariantId, requestedQuantity, availableQuantity });
             return { error: "variant_out_of_stock", detail: "A variacao escolhida nao possui estoque suficiente." };
           }
         } catch {
@@ -341,6 +402,15 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       // group, an unknown item id, or multiple picks in a single-select group is
       // rejected rather than silently priced wrong.
       let selectedOptions: StorefrontCartSelectedOption[] | undefined;
+      let selectedServiceSlot: SelectedServiceSlot | undefined;
+      try {
+        if (resolvedProduct?.type === "service") selectedServiceSlot = resolveSelectedServiceSlot(resolvedProduct.metadata, args.selectedServiceSlotId);
+        else if (args.selectedServiceSlotId) return { error: "service_slot_unknown" };
+      } catch (error) {
+        if (error instanceof ServiceSlotError) return { error: error.code };
+        throw error;
+      }
+      if (validateFoodOptionGroups(resolvedProduct?.metadata?.optionGroups)) return { error: "food_option_configuration_invalid" };
       const optionGroups = extractOptionGroups(resolvedProduct?.metadata);
       const requestedItemIds = Array.isArray(args.selectedOptionItemIds) ? args.selectedOptionItemIds : [];
       if (optionGroups.length > 0 || requestedItemIds.length > 0) {
@@ -427,32 +497,9 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
         imageUrl,
         quantity: args.quantity,
         selectedOptions,
+        ...(selectedServiceSlot ? { selectedServiceSlot } : {}),
       });
 
-      // Cross-store: mirror the federated item into cross_store_line_items with
-      // frozen commission so PlaceCrossStoreOrder can build the seller settlement
-      // at checkout. The local cart item above is what the buyer sees/pays; this
-      // parallel row is the marketplace ledger input. Failure here must not block
-      // the add (graceful degradation) — logged for follow-up.
-      if (crossStoreSellerId && crossStoreFederatedProductId && deps.addMarketplaceItemToCart) {
-        try {
-          const res = await deps.addMarketplaceItemToCart.execute({
-            merchantId: ctx.merchantId,
-            checkoutSessionId: sessionId,
-            sellerMerchantId: crossStoreSellerId,
-            federatedProductId: crossStoreFederatedProductId,
-            quantity: args.quantity,
-            unitPriceCents,
-          });
-          if (!res.success) {
-            logger.warn("cart.addItem.crossStore_failed", { merchantId: ctx.merchantId, sessionId, sellerMerchantId: crossStoreSellerId, message: res.message });
-          } else {
-            logger.log("cart.addItem.crossStore_ok", { merchantId: ctx.merchantId, sessionId, sellerMerchantId: crossStoreSellerId, lineItemId: res.lineItemId });
-          }
-        } catch (err) {
-          logger.error("cart.addItem.crossStore_error", { merchantId: ctx.merchantId, sessionId, error: err instanceof Error ? err.message : String(err) });
-        }
-      }
       const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, sessionId, addedCart);
       logger.debug("cart.afterAdd", { sessionId: cart.sessionId, itemCount: cart.items.length, total: cart.total, discount: cart.discount, freeShipping: cart.freeShipping });
 
@@ -475,6 +522,8 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       return {
         cartId: cart.sessionId,
         items: cart.items.map((i) => toCartLineDto(i, promoMeta)),
+        addedItem: { variantId: resolvedVariantId, serviceSlotId: selectedServiceSlot?.slotId,
+          optionItemIds: (selectedOptions ?? []).map(option => option.itemId) },
         total: cart.total / 100,
         discount: cart.discount / 100,
         freeShipping: cart.freeShipping,
@@ -518,6 +567,20 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     updateCartItem: async (args) => {
+      if (!Number.isSafeInteger(args.quantity) || args.quantity < 0 || args.quantity > 99) return { error: "cart_quantity_invalid" };
+      const current = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
+      const lines = current.items.filter(i => i.variantId === args.variantId);
+      if (!lines.length) return { error: "cart_item_not_found" };
+      if (args.quantity > 0 && lines.length > 1) return { error: "cart_option_line_selection_required" };
+      const product = args.quantity > 0 && !lines[0]!.marketplace ? await deps.productRepo.findById(ctx.merchantId, lines[0]!.productId) : null;
+      if (args.quantity > 0 && !lines[0]!.marketplace && (!product || !product.isActive || !product.variants.some(v => v.id === args.variantId && v.isActive))) return { error: "product_unavailable" };
+      if (args.quantity > 0 && product && product.type !== "digital" && product.type !== "service") {
+        try {
+          const stock = await deps.stockRepo.getAvailableStock(args.variantId);
+          const available = Math.max(0, stock.quantity - stock.reserved);
+          if (!Number.isFinite(available) || args.quantity > available) return { error: "variant_out_of_stock", detail: "A variação escolhida não possui estoque suficiente." };
+        } catch { return { error: "stock_validation_unavailable", detail: "Não foi possível validar o estoque agora." }; }
+      }
       const updated = await deps.cartRepo.updateItemQuantity(ctx.merchantId, ctx.sessionId, args.variantId, args.quantity);
       const { cart, nextNudge, activeRules, promoMeta } = await reevaluateCartRules(deps, ctx.merchantId, ctx.sessionId, updated);
       return {
@@ -539,19 +602,23 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
 
     quoteShipping: async (args) => {
       let totalWeight = 300;
-
-      if (ctx.sessionId) {
-        const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
-        totalWeight = cart.items.length > 0 ? cart.items.length * 300 : 300;
-      }
-
       if ((args as any).productId) {
-        try {
-          const product = await deps.productRepo.findById(ctx.merchantId, (args as any).productId);
-          if (product?.variants?.[0]?.weightGrams) {
-            totalWeight = product.variants[0].weightGrams;
-          }
-        } catch { }
+        const product = await deps.productRepo.findById(ctx.merchantId, (args as any).productId);
+        if (!product?.isActive) return { options: [], reason: "product_unavailable" };
+        if (product.type === "digital" || product.type === "service") return { options: [], reason: "shipping_not_required" };
+        totalWeight = product.variants.find(v => v.isActive)?.weightGrams ?? 300;
+      } else if (ctx.sessionId) {
+        const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
+        if (cart.items.length) {
+          const variants = await deps.prisma.productVariant.findMany({
+            where: { sku: { in: cart.items.map(item => item.sku) }, product: { merchantId: ctx.merchantId, deletedAt: null } },
+            select: { sku: true, weightGrams: true, product: { select: { type: true } } },
+          });
+          const bySku = new Map(variants.map(v => [v.sku, v]));
+          const physical = cart.items.filter(item => !["digital", "service"].includes(bySku.get(item.sku)?.product.type ?? "physical"));
+          if (!physical.length) return { options: [], reason: "shipping_not_required" };
+          totalWeight = physical.reduce((sum, item) => sum + (bySku.get(item.sku)?.weightGrams ?? 300) * item.quantity, 0);
+        }
       }
 
       const sedexPrice = Math.max(1500, Math.round(totalWeight * 0.5) + 800);
@@ -687,7 +754,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
       //    e.g. "compre 2 leve 3", tiered discounts. loadAdvancedRules already filters enabled.
       let advancedRules: Array<{ label: string }> = [];
       try {
-        const rules = await loadAdvancedRules(deps.prisma, ctx.merchantId);
+        const rules = await loadAdvancedRules(deps.prisma, ctx.merchantId, deps.billing);
         advancedRules = rules
           .map((r) => {
             const anyR = r as unknown as { label?: string; name?: string; description?: string };
@@ -714,6 +781,7 @@ export function createCartHandlers(deps: CartHandlerDeps, ctx: ToolRequestContex
     },
 
     createCheckoutSession: async (args) => {
+      if (ctx.marketplaceVariantSelectionPending) return { error: "marketplace_variant_selection_required" };
       if (ctx.oneBuyClick?.enabled && deps.oneBuyClick) {
         const cart = await deps.cartRepo.getOrCreate(ctx.merchantId, ctx.sessionId);
         if (cart.items.length === 0) return { error: "checkout_cart_empty" };

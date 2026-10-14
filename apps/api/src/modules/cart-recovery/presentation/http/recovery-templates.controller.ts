@@ -3,6 +3,7 @@ import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js
 import { RecoveryTemplateLifecycleUseCase } from "../../../whatsapp-templates/application/use-cases/recovery-template-lifecycle.use-case.js";
 import { GenerateRecoveryTemplatesUseCase } from "../../application/use-cases/generate-recovery-templates.use-case.js";
 import { RateLimit } from "../../../../shared/rate-limit/rate-limit.decorators.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
 
 @Controller("cart-recovery/templates")
 @UseGuards(AuthGuard)
@@ -20,6 +21,8 @@ export class RecoveryTemplatesController {
     return this.lifecycle.restore(currentUser(req).merchantId, "cart_recovery", body.revision, body.expectedRevision);
   }
   @Post("generate")
+  @UseGuards(PlanLimitGuard)
+  @RequirePlanFeature("advancedAi")
   @RateLimit(3, 60_000)
   generate(@Req() req: { user?: unknown }) { return this.generator.execute(currentUser(req).merchantId); }
 }

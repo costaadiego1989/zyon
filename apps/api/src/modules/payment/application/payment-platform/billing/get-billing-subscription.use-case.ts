@@ -27,20 +27,32 @@ export class GetBillingSubscriptionUseCase {
   ) {}
 
   async execute(merchantId: string): Promise<BillingSubscriptionWithPlanSnapshot> {
-    const subscription = await this.repository.getOrCreateTrial(merchantId, 14);
-    await scheduleTrialExpiration(this.trialJobs, subscription);
-    const plan = effectiveBillingPlan(subscription);
+    const subscription = await this.repository.getBilling(merchantId);
+    const now = new Date().toISOString();
+    const pendingSelection = subscription === undefined;
+    const snapshot = subscription ?? {
+      merchantId,
+      status: "incomplete" as const,
+      cancelAtPeriodEnd: false,
+      createdAt: now,
+      updatedAt: now,
+      provider: "stripe" as const,
+      planKey: "starter" as const,
+    };
+    if (subscription?.status === "trialing") await scheduleTrialExpiration(this.trialJobs, subscription);
+    const plan = effectiveBillingPlan(snapshot);
     const config = BILLING_PLANS[plan];
-    const trial = freeTrialState(subscription);
+    const trial = freeTrialState(snapshot);
     const usage = await this.metering?.getUsage(merchantId);
     const commercial = await this.orderQuota?.getSnapshot(merchantId);
     return {
-      ...subscription,
+      ...snapshot,
       plan,
       planName: config.name,
       monthlyPriceBrl: config.monthlyPriceBrl,
-      transactionFeeCents: merchantTransactionFeeCentsFor(subscription),
-      trialExpired: trial.expired,
+      transactionFeeCents: merchantTransactionFeeCentsFor(snapshot),
+      // A merchant without a selected plan has not exhausted the Free trial.
+      trialExpired: pendingSelection ? false : trial.expired,
       trialDaysRemaining: trial.daysRemaining,
       buyerServiceFeeCents: readBuyerServiceFeeCents(),
       limits: config.limits,

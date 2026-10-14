@@ -3,6 +3,7 @@ import {
   PAYMENT_PLATFORM_REPOSITORY,
   type PaymentPlatformRepository,
 } from "../../../domain/ports/payment-platform-repository.port.js";
+import { FREE_TRIAL_DAYS } from "@zyon/shared-types";
 
 @Injectable()
 export class StartTrialUseCase {
@@ -12,8 +13,8 @@ export class StartTrialUseCase {
   ) {}
 
   async execute(merchantId: string) {
-    const billing = await this.repository.getOrCreateTrial(merchantId, 14);
-    if (billing.stripeSubscriptionId || billing.asaasSubscriptionId) return billing;
+    const billing = await this.repository.getOrCreateTrial(merchantId, FREE_TRIAL_DAYS);
+    if (billing.stripeSubscriptionId || billing.asaasSubscriptionId || billing.mercadoPagoPreapprovalId) return billing;
     await this.repository.saveBilling({
       merchantId,
       provider: "stripe",

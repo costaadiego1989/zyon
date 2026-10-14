@@ -83,7 +83,7 @@ describe("durable merchant authentication and membership (PostgreSQL)", { skip: 
   it("invite every supported role, login, change role, and removal invalidate credentials across replicas", async () => {
     const f = await fixture();
     const sent: Array<{ html?: string }> = [];
-    const invite = new InviteMemberUseCase(prisma, { send: async (email: any) => { sent.push(email); } } as never);
+    const invite = new InviteMemberUseCase(prisma, { send: async (email: any) => { sent.push(email); } } as never, { assertAllowed: async () => {} } as never);
     for (const role of ["OWNER", "ADMIN", "STAFF"] as const) {
       const email = `${randomUUID()}@example.test`;
       await invite.execute({ merchant_id: f.merchantId, email, role, invited_by: f.user.id });
@@ -103,7 +103,7 @@ describe("durable merchant authentication and membership (PostgreSQL)", { skip: 
   it("admin cannot invite an owner, remove an owner, or spoof requester_role", async () => {
     const f = await fixture();
     const admin = await prisma.merchantUser.create({ data: { merchantId: f.merchantId, email: `${randomUUID()}@example.test`, role: "admin", teamMembers: { create: { merchantId: f.merchantId, role: "ADMIN" } } } });
-    await assert.rejects(new InviteMemberUseCase(prisma, { send: async () => {} } as never).execute({ merchant_id: f.merchantId, email: `${randomUUID()}@example.test`, role: "OWNER", invited_by: admin.id }));
+    await assert.rejects(new InviteMemberUseCase(prisma, { send: async () => {} } as never, { assertAllowed: async () => {} } as never).execute({ merchant_id: f.merchantId, email: `${randomUUID()}@example.test`, role: "OWNER", invited_by: admin.id }));
     await assert.rejects(new RemoveMemberUseCase(prisma).execute({ merchant_id: f.merchantId, user_id: f.user.id, requester_id: admin.id }));
     await assert.rejects(new UpdateRoleUseCase(prisma).execute({ merchant_id: f.merchantId, user_id: admin.id, new_role: "OWNER", requester_role: "OWNER", requester_id: admin.id }));
     await assert.rejects(new UpdateRoleUseCase(prisma).execute({ merchant_id: f.merchantId, user_id: admin.id, new_role: "OWNER", requester_role: "OWNER", requester_id: "" }));
@@ -118,8 +118,8 @@ describe("durable merchant authentication and membership (PostgreSQL)", { skip: 
   it("legacy invites cannot transfer an account between tenants or restore a removed account", async () => {
     const f = await fixture(); const foreign = await fixture();
     const invite = await prisma.merchantInvite.create({ data: { merchantId: f.merchantId, email: foreign.user.email, invitedBy: f.user.id, role: "ADMIN", expiresAt: new Date(Date.now() + 60000) } });
-    await assert.rejects(new AcceptInviteUseCase(prisma).execute({ invite_id: invite.id, user_id: foreign.user.id }));
-    await assert.rejects(new InviteMemberUseCase(prisma, { send: async () => {} } as never).execute({ merchant_id: f.merchantId, email: foreign.user.email, role: "STAFF", invited_by: f.user.id }));
+    await assert.rejects(new AcceptInviteUseCase(prisma, { assertAllowed: async () => {} } as never).execute({ invite_id: invite.id, user_id: foreign.user.id }));
+    await assert.rejects(new InviteMemberUseCase(prisma, { send: async () => {} } as never, { assertAllowed: async () => {} } as never).execute({ merchant_id: f.merchantId, email: foreign.user.email, role: "STAFF", invited_by: f.user.id }));
     assert.equal((await prisma.merchantInvite.findUnique({ where: { id: invite.id } })).status, "PENDING");
     assert.equal((await otherRepo.findUserByEmail(foreign.user.email))!.merchantId, foreign.merchantId);
   });

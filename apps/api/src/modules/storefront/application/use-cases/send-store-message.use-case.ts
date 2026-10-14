@@ -6,7 +6,7 @@ import { findMerchantAgentRule } from "../../../agent-rules/infrastructure/find-
  * returns response message + conversation blocks.
  */
 
-import { Injectable, Inject, NotFoundException, Optional , Logger} from "@nestjs/common";
+import { BadRequestException, Injectable, Inject, NotFoundException, Optional, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../domain/ports/conversation.port.js";
@@ -16,6 +16,10 @@ import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import type { OneBuyClickConversationContext } from "../../domain/ports/conversation.port.js";
+import { STOREFRONT_CONVERSATION_HISTORY_PORT, STOREFRONT_HISTORY_CONTEXT_PAIR_LIMIT, STOREFRONT_HISTORY_USER_TEXT_LIMIT,
+  STOREFRONT_HISTORY_ASSISTANT_TEXT_LIMIT, storefrontTurnMessages, type StorefrontConversationHistoryPort } from "../../domain/ports/storefront-conversation-history.port.js";
+import { storefrontHistoryText } from "../../domain/storefront-history-text.js";
+import type { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
 
 export interface SendStoreMessageInput {
   merchant_id: string;
@@ -24,6 +28,7 @@ export interface SendStoreMessageInput {
   cart_id?: string;
   global_user_id?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
+  attachment_context?: string;
   device_type?: "mobile" | "tablet" | "desktop";
   one_buy_click?: OneBuyClickConversationContext;
 }
@@ -34,6 +39,7 @@ export interface SendStoreMessageOutput {
   cart_id?: string;
   conversation_id: string;
   suggested_next: string[];
+  history_saved: boolean;
 }
 
 @Injectable()
@@ -44,14 +50,29 @@ export class SendStoreMessageUseCase {
     @Inject(MERCHANT_REPOSITORY) private readonly merchant: MerchantRepository,
     @Inject(STOREFRONT_CONVERSATION_PORT) private readonly conversation: StorefrontConversationPort,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
-    @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository
+    @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
+    @Inject(STOREFRONT_CONVERSATION_HISTORY_PORT) private readonly historyRepo: StorefrontConversationHistoryPort = undefined as never,
+    @Optional() private readonly billing?: BillingPlanMeteringService,
   ) {}
 
   async execute(input: SendStoreMessageInput): Promise<SendStoreMessageOutput> {
+    if (typeof input.user_message !== "string" || !input.user_message.trim() || input.user_message.length > STOREFRONT_HISTORY_USER_TEXT_LIMIT) {
+      throw new BadRequestException("invalid_message");
+    }
+    const userAt = new Date();
     const merchant = await this.merchant.getProfile(input.merchant_id);
     if (!merchant) throw new NotFoundException("merchant_not_found");
 
-    const history = input.history ?? [];
+    let history: Array<{ role: "user" | "assistant"; content: string }>;
+    try {
+      const turns = await this.historyRepo.readRecent({ merchantId: input.merchant_id, conversationId: input.conversation_id }, STOREFRONT_HISTORY_CONTEXT_PAIR_LIMIT);
+      // This is the committed server snapshot at generation start. Concurrent
+      // generations may share it; their complete pairs are later ordered by commit.
+      history = turns.slice(-STOREFRONT_HISTORY_CONTEXT_PAIR_LIMIT).flatMap(storefrontTurnMessages).map(({ role, content }) => ({ role, content }));
+    } catch {
+      this.logger.warn("storefront.conversation_history.failed", { operation: "read", outcome: "failure", correlationId: CorrelationIdStorage.get() });
+      throw new ServiceUnavailableException("conversation_history_unavailable");
+    }
     let storeSettings: Record<string, any> | undefined;
     try { storeSettings = await this.merchant.getStoreSettings(input.merchant_id) as any; } catch { /* optional */ }
 
@@ -92,6 +113,7 @@ export class SendStoreMessageUseCase {
     // Load advanced rules from checkout settings
     let advancedRules: string[] = [];
     try {
+      await this.billing?.assertAllowed(input.merchant_id, { kind: "feature", key: "advancedRules" });
       const checkoutSetting = await this.prisma.checkoutSetting.findUnique({
         where: { merchantId: input.merchant_id },
         select: { advancedRules: true },
@@ -185,6 +207,7 @@ export class SendStoreMessageUseCase {
       merchantId: input.merchant_id,
       sessionId: input.conversation_id,
       history,
+      attachmentContext: input.attachment_context,
       merchantName: merchant.name,
       storeCategory: merchant.storeCategory || "others",
       storeSettings,
@@ -197,7 +220,19 @@ export class SendStoreMessageUseCase {
       deviceType: input.device_type,
     });
 
-    // Persist conversation history (non-blocking, best-effort)
+    let historySaved = false;
+    try {
+      await this.historyRepo.appendPair({ merchantId: input.merchant_id, conversationId: input.conversation_id,
+        userText: storefrontHistoryText(input.user_message, STOREFRONT_HISTORY_USER_TEXT_LIMIT),
+        assistantText: storefrontHistoryText(result.message, STOREFRONT_HISTORY_ASSISTANT_TEXT_LIMIT), userAt, assistantAt: new Date() });
+      historySaved = true;
+    } catch {
+      // Commerce tools already ran. Preserve the valid response rather than
+      // encouraging a retry that could repeat their effects.
+      this.logger.warn("storefront.conversation_history.failed", { operation: "append", outcome: "failure", correlationId: CorrelationIdStorage.get() });
+    }
+
+    // Preserve the account buyer-hub projection independently of visitor history.
     if (this.conversationRepo && input.global_user_id) {
       try {
         const now = new Date();
@@ -235,7 +270,8 @@ export class SendStoreMessageUseCase {
       blocks: result.blocks,
       cart_id: result.cartId,
       conversation_id: input.conversation_id,
-      suggested_next: result.suggestedNext ?? []
+      suggested_next: result.suggestedNext ?? [],
+      history_saved: historySaved,
     };
   }
 

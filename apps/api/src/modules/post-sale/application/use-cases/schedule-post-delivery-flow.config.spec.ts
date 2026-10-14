@@ -4,7 +4,7 @@ import { SchedulePostDeliveryFlowUseCase } from "./schedule-post-delivery-flow.u
 import type { ScheduledMessageRepositoryPort, CreateScheduledMessageInput } from "../../domain/ports/scheduled-message-repository.port.js";
 import { DEFAULT_POST_SALE_CONFIG, type PostSaleConfigService, type PostSaleCampaignConfig } from "../services/post-sale-config.service.js";
 
-function makeDeps(configOverride: Partial<PostSaleCampaignConfig>) {
+function makeDeps(configOverride: Partial<PostSaleCampaignConfig>, billing?: { assertAllowed: (merchantId: string, requirement: unknown) => Promise<void> }) {
   const created: CreateScheduledMessageInput[] = [];
   const messages = {
     async create(input: CreateScheduledMessageInput) {
@@ -19,7 +19,7 @@ function makeDeps(configOverride: Partial<PostSaleCampaignConfig>) {
     },
   } as unknown as PostSaleConfigService;
 
-  return { created, uc: new SchedulePostDeliveryFlowUseCase(messages, config) };
+  return { created, uc: new SchedulePostDeliveryFlowUseCase(messages, config, billing as any) };
 }
 
 const baseInput = { merchantId: "m1", orderId: "o1", buyerId: "b1", buyerEmail: "b@test.local", buyerName: "B" };
@@ -73,4 +73,12 @@ test("schedule flow: phone present → whatsapp channel, else email", async () =
   const noPhone = makeDeps({});
   await noPhone.uc.execute(baseInput);
   assert.ok(noPhone.created.every((c) => c.channel === "email"));
+});
+
+test("schedule flow blocks new messages when post-sale is unavailable in the plan", async () => {
+  const { created, uc } = makeDeps({}, { async assertAllowed() { throw new Error("plan_feature_unavailable"); } });
+  const result = await uc.execute(baseInput);
+  assert.equal(result.scheduled, 0);
+  assert.deepEqual(result.skipped, ["plan_unavailable"]);
+  assert.equal(created.length, 0);
 });
