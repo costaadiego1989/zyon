@@ -13,6 +13,7 @@ import { resolveMetaFieldFlow } from "../../domain/ui/meta-flow.js";
 import { MetaInboundMediaAdapter } from "../../infrastructure/adapters/meta-inbound-media.adapter.js";
 import { MetaCatalogOrderAdapter } from "../../infrastructure/adapters/meta-catalog-order.adapter.js";
 import { metaStoreQuickReplyAction, resolveMetaStoreTextAction } from "../../domain/ui/meta-store-actions.js";
+import { isMetaReadNavigation, refreshMetaReadView } from "../../domain/ui/meta-read-navigation.js";
 
 interface SavedTurn { phase: "generating" | "prepared" | "dispatching" | "complete"; presentation?: MetaUiPresentation; state?: WhatsAppConversationState; sessionId?: string; previousRevision?: string; sessionApplied?: boolean; sent?: Array<{ index: number; messageId: string }>; dispatchingIndex?: number }
 
@@ -39,6 +40,7 @@ export class HandleMetaConversationUseCase {
       let state: WhatsAppConversationState = route.whatsappSession.conversationState ?? { version: 1, conversationId: randomUUID(), stage: "store", history: [], revision: "", page: 0, previousViews: [] };
       if (this.capabilities) state = { ...state, ...await this.capabilities.get(input.merchantId, input.deviceId) };
       let action: StoreUiAction | undefined;
+      let recoveredView: MetaUiView | undefined;
       const numeric = /^\d{1,2}$/.test(input.body.trim()) ? Number(input.body.trim()) : NaN;
       let invalidSelection = false;
       if (responseProducer) { /* The post-sale handler owns its numeric input. */ }
@@ -52,6 +54,16 @@ export class HandleMetaConversationUseCase {
         if (message) { action = { kind: "message", message }; state = { ...state, pendingFlow: undefined }; }
       } else if (input.interactiveId) {
         action = state.selections?.[input.interactiveId];
+        if (!action) {
+          const previous = await this.inbox.findPriorSelection?.(claim, route.whatsappSession.id, input.interactiveId);
+          if (previous && isMetaReadNavigation(previous.action)) {
+            action = previous.action;
+            if (action.kind === "page") { recoveredView = previous.view; if (!recoveredView) action = { kind: "menu" }; }
+            else if (action.kind === "back" && previous.previousView) {
+              recoveredView = previous.previousView; action = { kind: "page", page: 0 };
+            } else if (action.kind === "back") action = { kind: "menu" };
+          }
+        }
         invalidSelection = !action;
       } else if (!state.expectsFreeInput && /^(0|voltar)$/i.test(input.body.trim()) && state.previousViews.length) action = { kind: "back" };
       else if (!state.expectsFreeInput && numeric >= 1 && numeric <= (state.numericSelections?.length ?? 0)) action = state.numericSelections?.[numeric - 1];
@@ -61,9 +73,17 @@ export class HandleMetaConversationUseCase {
 
       const revision = claim.id;
       let view: MetaUiView | undefined = state.view ? { ...state.view, stage: state.view.stage ?? state.stage } : undefined;
+      if (recoveredView) {
+        const refresh = refreshMetaReadView(recoveredView);
+        if (refresh) {
+          const response = await this.conversation.respondStore({ merchantId: input.merchantId, buyer: route.buyerData,
+            message: "Continuar navegação", state, action: refresh });
+          state = response.state; view = buildMetaUiView(response);
+        } else view = recoveredView;
+      }
       let includeMedia = true;
-      if (invalidSelection) { view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Não consegui validar essa seleção. Escolha uma das opções atuais ou escreva sua pergunta." }; includeMedia = false; }
-      else if (action?.kind === "page" && view) { state = { ...state, page: action.page }; includeMedia = false; }
+      if (invalidSelection) { view = { ...(view ?? { title: "Sua loja", choices: [{ label: "Menu", action: { kind: "menu" } }], media: [], blocks: [], quickReplies: [] }), body: "Esse menu foi atualizado. Use as opções abaixo ou escreva o que você quer fazer." }; includeMedia = false; }
+      else if (action?.kind === "page" && view) { state = { ...state, page: action.page }; }
       else if (action?.kind === "back" && state.previousViews.length) {
         view = state.previousViews.at(-1); state = { ...state, page: 0, previousViews: state.previousViews.slice(0, -1) };
         const product = view?.blocks.find(b => b.type === "product_card");

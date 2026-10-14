@@ -18,6 +18,7 @@
   const { WHATSAPP_SESSION_REPOSITORY } = await loadDist('modules/whatsapp-channel/domain/ports/whatsapp-session-repository.port.js');
   const { WHATSAPP_WEBHOOK_INBOX } = await loadDist('modules/whatsapp-channel/domain/ports/whatsapp-webhook-inbox.port.js');
   const { HandleMetaConversationUseCase } = await loadDist('modules/whatsapp-channel/application/use-cases/handle-meta-conversation.use-case.js');
+  const { STOREFRONT_CONVERSATION_PORT } = await loadDist('modules/storefront/domain/ports/conversation.port.js');
   const app = await NestFactory.create(AppModule, { logger: false, abortOnError: false });
   // Do not call init/listen: no scheduler or webhook worker is started here.
   const prisma = app.get(PRISMA_CROSS_MERCHANT_CLIENT);
@@ -49,7 +50,7 @@
   if (notifier) notifier.notifyCaptured = async () => {};
   try {
     const fixture = await prisma.product.create({ data: { merchantId, name: 'Native QA ' + runId, type: 'physical',
-      description: 'Isolated nonfinancial WhatsApp validation fixture', contentBlocks: { create: [
+      description: 'Isolated nonfinancial WhatsApp validation fixture: cuidado facial da pele', contentBlocks: { create: [
         { type: 'button', props: { label: 'Adicionar ao carrinho', linkType: 'add_to_cart' }, order: 1 },
         { type: 'banner', props: { ctaLabel: 'Adicionar ao carrinho', ctaAction: 'add_to_cart' }, order: 2 },
         { type: 'paragraph', props: { text: 'Detalhes completos do produto de teste' }, order: 0 },
@@ -70,6 +71,17 @@
       const sessions = app.get(WHATSAPP_SESSION_REPOSITORY);
       const inbox = app.get(WHATSAPP_WEBHOOK_INBOX);
       const conversation = app.get(WHATSAPP_CONVERSATION_PORT);
+      const sharedStore = app.get(STOREFRONT_CONVERSATION_PORT);
+      const originalAgentRun = sharedStore.agent.run;
+      try {
+        sharedStore.agent.run = async () => ({ message: 'Previously viewed product', blocks: [], toolsUsed: [], cartId: conversationId });
+        const discovery = await sharedStore.reply({ merchantId, sessionId: conversationId, cartId: conversationId,
+          userMessage: 'quero um produto para minha pele ' + runId, merchantName: 'Sandbox', history: [] });
+        const products = discovery.blocks.find(block => block.type === 'product_carousel')?.data?.products;
+        assert.deepEqual(products?.map(product => product.id), [fixtureProductId]);
+        assert.ok(discovery.message.includes('relacionadas'));
+        results.checks.push('model_no_tool_replay_uses_real_shared_contextual_catalog_without_broadening');
+      } finally { sharedStore.agent.run = originalAgentRun; }
       session = await sessions.create({ merchantId, buyerPhone: buyer.phone, buyerAlias: buyer.fullName, deviceId,
         currentOptions: [], previousOptions: [], currentPage: 0, lastActivityAt: new Date(), status: 'active',
         conversationState: { version: 1, conversationId, stage: 'store', history: [], revision: '', page: 0, previousViews: [] } });
@@ -136,8 +148,20 @@
       results.checks.push('categories_offers_back_and_menu_use_the_shared_storefront_navigation');
       await turn('Ver produtos', { action: { kind: 'tool', tool: 'search_products', args: { query: runId } } });
       const productChoice = pick(action => action.kind === 'tool' && action.tool === 'get_product_details');
+      const readScope = { id: randomUUID(), merchantId, configId: config.id, deviceId, streamKey: conversationId };
+      assert.ok(await inbox.findPriorSelection(readScope, session.id, productChoice));
+      for (const other of [{merchantId: merchantId + '-other'}, {configId: randomUUID()}, {deviceId: deviceId + '-other'}, {streamKey: conversationId + '-other'}]) {
+        assert.equal(await inbox.findPriorSelection({...readScope, ...other}, session.id, productChoice), null);
+      }
+      assert.equal(await inbox.findPriorSelection(readScope, randomUUID(), productChoice), null);
+      results.checks.push('archived_native_selection_remains_scoped_to_merchant_config_device_stream_and_session');
+
       await turn('Ver produto', { interactiveId: productChoice });
       results.checks.push('native_product_selection_uses_shared_authoritative_details');
+      await turn('Ver o produto pelo menu anterior', { interactiveId: productChoice });
+      assert.ok(session.conversationState.view.blocks.some(block => block.type === 'product_card' && block.data.id === fixtureProductId));
+      assert.ok(!session.conversationState.view.body.includes('Esse menu foi atualizado'));
+      results.checks.push('older_owned_read_selection_opens_current_product_details');
       assert.ok(session.conversationState.view.blocks.some(block => block.type === 'product_content'));
       assert.equal(session.conversationState.view.choices.some(choice => /^adicionar.*carrinho$/i.test(choice.label)), false);
       assert.equal(session.conversationState.view.choices.some(choice => choice.action.kind === 'variant' && choice.action.variantId === soldOutVariant.id), false);
@@ -154,7 +178,7 @@
       results.checks.push('more_information_preserves_selected_variant_and_displays_real_rich_content');
       await turn('Seleção antiga', { interactiveId: oldAddId });
       assert.equal((await cartRead())?.items?.length ?? 0, 0);
-      assert.ok(session.conversationState.view.body.includes('Não consegui validar'));
+      assert.ok(session.conversationState.view.body.includes('Esse menu foi atualizado'));
       results.checks.push('stale_menu_cannot_mutate_cart');
       await turn('Adicionar ao carrinho', { interactiveId: await choose(storeTool('add_item_to_cart')) });
       const cart = await cartRead();

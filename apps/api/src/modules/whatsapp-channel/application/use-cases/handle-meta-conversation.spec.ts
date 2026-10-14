@@ -54,7 +54,7 @@ test("a selection from a stale menu cannot authorize a new action", async () => 
   const f = fixture(); await f.execute();
   f.claim.id = "turn2"; f.claim.responseState = undefined; f.input.interactiveId = "zyon:stale";
   await f.execute(); assert.equal(f.calls(), 1);
-  assert.ok(f.emitted.some(m => m.type === "text" && m.text.body.includes("Não consegui validar")));
+  assert.ok(f.emitted.some(m => m.type === "text" && m.text.body.includes("Esse menu foi atualizado")));
 });
 
 test("a numeric answer during data entry remains free text", async () => {
@@ -242,4 +242,37 @@ test("an already published shopping button uses the shared read action when leav
   f.conversation.respondStore = async (call: any) => { actual = call; return { agentMessage: "Produtos", quickReplies: [], blocks: [], state: { ...call.state, stage: "store" } }; };
   f.input.interactiveId = "shopping"; await f.execute();
   assert.equal(actual.action.tool, "search_products"); assert.deepEqual(actual.action.args, { query: "*" });
+});
+
+test('a product in an older owned native menu reloads current details instead of rejecting or replaying the catalog', async () => {
+  const f=fixture();await f.execute();
+  f.claim.id='turn2';f.claim.responseState=undefined;f.input.interactiveId='zyon:'+ 'a'.repeat(32);
+  let action:any;
+  f.inbox.findPriorSelection=async(claim:any,sessionId:string,id:string)=>{assert.equal(claim.merchantId,'m1');assert.equal(sessionId,'ws1');assert.equal(id,f.input.interactiveId);return {action:{kind:'tool',tool:'get_product_details',args:{productId:'serum'}}};};
+  f.conversation.respondStore=async(call:any)=>{action=call.action;return {agentMessage:'Descrição atual',quickReplies:[],blocks:[{type:'product_card',data:{id:'serum',name:'Sérum',description:'Descrição atual',image:'https://example.com/serum.jpg',price:500,variants:[{id:'v',stock:2}]}}],state:call.state};};
+  f.emitted.length=0;await f.execute();
+  assert.deepEqual(action,{kind:'tool',tool:'get_product_details',args:{productId:'serum'}});
+  assert.ok(!f.emitted.some(m=>m.type==='text'&&m.text.body.includes('Esse menu foi atualizado')));
+  assert.equal(f.emitted[0].type,'image');assert.equal(f.emitted[0].media.link,'https://example.com/serum.jpg');
+});
+
+test('an old known cart mutation stays rejected and its error never repeats product images', async () => {
+  const f=fixture();await f.execute();f.claim.id='turn2';f.claim.responseState=undefined;f.input.interactiveId='zyon:'+'b'.repeat(32);
+  f.inbox.findPriorSelection=async()=>({action:{kind:'tool',tool:'add_item_to_cart',args:{variantId:'old',quantity:1}}});
+  const state=f.route.whatsappSession.conversationState;
+  state.view={title:'Loja',body:'Catálogo',blocks:[{type:'product_carousel',data:{products:[]}}],quickReplies:[],media:[],choices:[{label:'Produto',image:{link:'https://example.com/product.jpg',caption:'Produto'},action:{kind:'tool',tool:'get_product_details',args:{productId:'p'}}}]};
+  f.emitted.length=0;await f.execute();assert.equal(f.calls(),1);assert.equal(f.emitted.filter(m=>m.type==='image').length,0);
+  assert.ok(f.emitted.some(m=>m.type==='text'&&m.text.body.includes('Esse menu foi atualizado')));
+});
+
+test('an earlier catalog page refreshes its original query instead of paging the current product or payment view',async()=>{
+  const f=fixture();await f.execute();f.claim.id='turn2';f.claim.responseState=undefined;f.input.interactiveId='zyon:'+'c'.repeat(32);
+  f.route.whatsappSession.conversationState.payment={intentId:'current-payment'};
+  f.inbox.findPriorSelection=async()=>({action:{kind:'page',page:1},view:{title:'Loja',body:'Busca anterior',choices:[],media:[],quickReplies:[],blocks:[{type:'product_carousel',data:{query:'pele',products:[]}}]}});
+  let received:any;
+  f.conversation.respondStore=async(call:any)=>{received=call;return {agentMessage:'Resultados atuais',quickReplies:[],blocks:[{type:'product_carousel',data:{query:'pele',products:Array.from({length:6},(_,i)=>({id:'p'+i,name:'Produto '+i,price:500,image:'https://example.com/'+i+'.jpg'}))}}],state:call.state};};
+  f.emitted.length=0;await f.execute();assert.equal(received.action.tool,'search_products');assert.equal(received.action.args.query,'pele');
+  assert.equal(received.state.payment.intentId,'current-payment');
+  assert.equal(f.claim.responseState.state.page,1);
+  assert.deepEqual(f.emitted.filter(m=>m.type==='image').map(m=>m.media.link),[3,4,5].map(i=>'https://example.com/'+i+'.jpg'));
 });

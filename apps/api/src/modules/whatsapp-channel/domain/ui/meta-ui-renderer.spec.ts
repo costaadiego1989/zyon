@@ -47,7 +47,7 @@ test("cart shows the real product photo alongside its authoritative amount", () 
 test("product photos follow their selectable native page, including later pages", () => {
   const view = buildMetaUiView(response({ blocks: [{ type: "product_carousel", data: { products: Array.from({ length: 5 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 1000 + i, image: `https://example.com/${i}.jpg` })) } }] }));
   const first = presentMetaUi(view, "turn", 0);
-  const second = presentMetaUi(view, "turn", 1, { includeMedia: false });
+  const second = presentMetaUi(view, "turn", 1, { includeMedia: true });
   assert.deepEqual(first.messages.filter(m => m.type === "image").map(m => m.type === "image" && m.media.link), [0, 1, 2].map(i => `https://example.com/${i}.jpg`));
   assert.deepEqual(second.messages.filter(m => m.type === "image").map(m => m.type === "image" && m.media.link), [3, 4].map(i => `https://example.com/${i}.jpg`));
   assert.equal(second.numericSelections[0].kind === "tool" && second.numericSelections[0].args.productId, "p3");
@@ -89,7 +89,7 @@ test("duplicate or abbreviated titles cannot swap the selected product ID", () =
   const shown = presentMetaUi(view, "turn");
   const actions = Object.values(shown.selections).filter(a => a.kind === "tool");
   assert.deepEqual(actions.map(a => a.kind === "tool" ? a.args.productId : null), ["p1", "p2"]);
-  assert.equal(shown.numericSelections.length, 2);
+  assert.equal(shown.numericSelections.filter(action => action.kind === "tool" && action.tool === "get_product_details").length, 2);
 });
 
 test("a product with multiple variants never authorizes adding the first variant", () => {
@@ -250,4 +250,37 @@ test("cart and checkout remain pinned on every native page without losing produc
   assert.equal(seen.size, 16);
   const empty = withMetaCartNavigation(view, false);
   assert.ok(empty.choices.every(c => c.action.kind !== "tool" || !["get_cart", "checkout"].includes(c.action.tool)));
+});
+
+test('product detail keeps its hero and variation choices ahead of complementary products', () => {
+  const view = withMetaCartNavigation(buildMetaUiView(response({ blocks: [
+    {type:'product_card',data:{id:'serum',name:'Sérum',price:12990,description:'Descrição completa',image:'https://example.com/serum.jpg',images:['https://example.com/serum.jpg'],variants:[{id:'small',value:'30 ml',stock:2},{id:'large',value:'50 ml',stock:3}]}},
+    {type:'cross_sell',data:{products:[{id:'mist',name:'Bruma',price:9990,image:'https://example.com/mist.jpg'},{id:'cream',name:'Creme',price:10990,image:'https://example.com/cream.jpg'}]}}
+  ] })),false);
+  const shown=presentMetaUi(view,'details');
+  assert.deepEqual(shown.messages.filter(m=>m.type==='image').map(m=>m.type==='image'&&m.media.link),['https://example.com/serum.jpg']);
+  assert.equal(shown.numericSelections[2].kind,'variant');assert.equal(shown.numericSelections[3].kind,'variant');
+  assert.match(native(shown)[0].body.text,/opções deste produto/);
+});
+
+test('catalog pagination contains product choices while other shortcuts stay in their own menu', () => {
+  const view=withMetaCartNavigation(buildMetaUiView(response({blocks:[{type:'product_carousel',data:{products:[{id:'only',name:'Produto',price:500,image:'https://example.com/product.jpg'}]}}],quickReplies:['Selecionar Produto','Filtrar Produtos','Categorias','Ofertas do Dia']})),false);
+  const shown=presentMetaUi(view,'catalog');
+  assert.equal(shown.totalPages,1);
+  assert.equal(shown.numericSelections.filter(a=>a.kind==='tool'&&a.tool==='get_product_details').length,1);
+  assert.ok(shown.numericSelections.some(a=>a.kind==='menu'));
+  assert.ok(!shown.numericSelections.some(a=>a.kind==='message'&&a.message==='Selecionar Produto'));
+  const withoutMedia=presentMetaUi(view,'refreshed',0,{includeMedia:false});
+  assert.equal(withoutMedia.messages.filter(m=>m.type==='image').length,0);
+});
+
+test('payment actions remain first within checkout even when the response includes complementary products',()=>{
+  const view=withMetaCartNavigation(buildMetaUiView(response({state:{...response().state,stage:'checkout',cartHasItems:true},blocks:[
+    {type:'product_carousel',data:{products:[{id:'extra',name:'Complemento',price:500,image:'https://example.com/extra.jpg'}]}},
+    {type:'payment_methods',data:{methods:[{key:'card',label:'Cartão de crédito'}],nativePayment:true,fingerprint:'current'}}
+  ]})),true);
+  const shown=presentMetaUi(view,'checkout');
+  assert.equal(shown.numericSelections[4].kind==='tool'&&shown.numericSelections[4].tool,'create_payment');
+  assert.ok(!shown.messages.some(m=>m.type==='image'));
+  assert.match(native(shown)[0].body.text,/pedido/);
 });

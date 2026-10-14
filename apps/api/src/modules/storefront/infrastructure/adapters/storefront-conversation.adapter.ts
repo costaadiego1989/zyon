@@ -4,6 +4,7 @@ import type { StorefrontConversationPort, StorefrontConversationInput, Storefron
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
+import { ensureProductDiscovery } from "../agents/product-discovery-fallback.js";
 import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/index.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
@@ -200,7 +201,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       }
     }
 
-    const result = await this.agent.run({
+    let result = await this.agent.run({
       sessionId: input.sessionId,
       merchantId: input.merchantId,
       userMessage: input.userMessage,
@@ -219,6 +220,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       systemPrompt: input.experimentSystemPrompt,
       toolHandlers: composeStoreToolHandlers(this.handlerDeps, ctx),
     });
+    result = await ensureProductDiscovery(result, { userMessage: input.userMessage, merchantId: input.merchantId, handlers: shortcutHandlers });
     const blocks = await appendOneBuyClickCheckout({
       blocks: result.blocks,
       toolsUsed: result.toolsUsed,

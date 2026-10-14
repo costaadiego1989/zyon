@@ -236,20 +236,31 @@ export function metaWelcomeMessage(greeting: string, merchantName: string, agent
 
 export function presentMetaUi(view: MetaUiView, revision: string, requestedPage = 0, options: { native?: boolean; includeMedia?: boolean; canGoBack?: boolean } = {}): MetaUiPresentation {
   const parts = paragraphs(formatMetaText(view.body || "Como posso ajudar?"));
+  const productDetails = view.blocks.some(block => block.type === "product_card");
+  const catalog = view.stage !== "checkout" && !productDetails && view.blocks.some(block => ["product_carousel", "marketplace_products", "wishlist", "cross_sell"].includes(block.type));
   const pinned = view.choices.filter(choice => ["Ver produtos", "Encontrar produto", "Ver carrinho", "Finalizar pedido"].includes(choice.label));
-  const allChoices = view.choices.filter(choice => !pinned.includes(choice));
+  let allChoices = view.choices.filter(choice => !pinned.includes(choice));
+  if (view.stage === "checkout") {
+    const primary = (choice: MetaUiChoice) => choice.action.kind === "tool" && ["create_payment", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry"].includes(choice.action.tool);
+    allChoices.sort((a, b) => Number(primary(b)) - Number(primary(a)));
+  }
+  if (catalog) {
+    const products = allChoices.filter(choice => choice.action.kind === "tool" &&
+      (choice.action.tool === "get_product_details" || choice.action.tool === "search_products" && !!choice.action.args.cursor));
+    allChoices = [...products, { label: "Outras opções", action: { kind: "menu" } }];
+  }
   // On the visual catalog, show photographed products first while retaining
   // every product and its authorized identity across subsequent pages.
-  if (allChoices.some(choice => choice.image)) allChoices.sort((a, b) => Number(!!b.image) - Number(!!a.image));
+  if (catalog && allChoices.some(choice => choice.image)) allChoices.sort((a, b) => Number(!!b.image) - Number(!!a.image));
   if (parts.length > 2) allChoices.unshift({ label: "Ler mais", action: tool("show_content", { text: parts.slice(2).join("\n\n") }) });
   const media = view.media.filter(m => m.type !== "text");
   if (media.length > 3) allChoices.unshift({ label: "Ver mais mídias", action: tool("media_page", { media: media.slice(3) }) });
-  const pageSize = allChoices.some(choice => choice.image) ? Math.min(3, 7 - pinned.length) : 7 - pinned.length;
+  const pageSize = catalog && allChoices.some(choice => choice.image) ? Math.min(3, 7 - pinned.length) : 7 - pinned.length;
   const totalPages = Math.max(1, Math.ceil(allChoices.length / pageSize));
   const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
   const choices: MetaUiChoice[] = [...pinned, ...allChoices.slice(page * pageSize, (page + 1) * pageSize)];
-  if (page > 0) choices.push({ label: "Página anterior", action: { kind: "page", page: page - 1 } });
-  if (page < totalPages - 1) choices.push({ label: "Mais opções", action: { kind: "page", page: page + 1 } });
+  if (page > 0) choices.push({ label: catalog ? "Produtos anteriores" : "Página anterior", action: { kind: "page", page: page - 1 } });
+  if (page < totalPages - 1) choices.push({ label: catalog ? "Próximos produtos" : "Mais opções", action: { kind: "page", page: page + 1 } });
   if (options.canGoBack) choices.push({ label: "Voltar", action: { kind: "back" } });
   const selections: Record<string, StoreUiAction> = {};
   const rows = choices.map((choice, index) => {
@@ -259,20 +270,26 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     const description = numbered.length > 24 ? `${choice.label}${choice.description ? ` · ${choice.description}` : ""}` : choice.description;
     return { id, title: concise(numbered, 24), ...(description ? { description: concise(description, 72) } : {}) };
   });
-  const productPhotos: MetaUiMessage[] = choices.filter(choice => choice.image).map(choice => ({ type: "image", media: choice.image! }));
+  const productPhotos: MetaUiMessage[] = catalog && options.includeMedia !== false ? choices.filter(choice => choice.image).map(choice => ({ type: "image", media: choice.image! })) : [];
   const messages: MetaUiMessage[] = [];
   const visibleMedia = productPhotos.length ? productPhotos.slice(0, 3)
     : options.includeMedia !== false ? view.media.filter(m => m.type !== "text").slice(0, 3) : [];
   // Product detail starts with its real photo and price, followed by the full
   // published information. Payment instructions retain their existing order.
-  if (view.blocks.some(b => b.type === "product_card") && visibleMedia[0]?.type === "image") messages.push(visibleMedia.shift()!);
-  parts.slice(0, 2).forEach(body => messages.push({ type: "text", text: { body } }));
+  if (productDetails && visibleMedia[0]?.type === "image") messages.push(visibleMedia.shift()!);
+  if (!catalog || page === 0) parts.slice(0, 2).forEach(body => messages.push({ type: "text", text: { body } }));
   messages.push(...visibleMedia);
   if (options.includeMedia !== false) messages.push(...view.media.filter(m => m.type === "text"));
   if (choices.length) {
     if (options.native === false) messages.push({ type: "text", text: { body: choices.map((c, i) => `${i + 1}. ${c.label}${c.description ? ` — ${c.description}` : ""}`).join("\n") + "\n\nVocê pode responder pelo número ou escrever sua pergunta." } });
     else if (choices.length <= 3 && choices.every(c => Array.from(c.label).length <= 17)) messages.push({ type: "interactive", interactive: { type: "button", body: { text: "Como posso ajudar?" }, footer: { text: "Pode perguntar o que quiser." }, action: { buttons: rows.map(row => ({ type: "reply", reply: { id: row.id, title: concise(row.title, 20) } })) } } });
-    else messages.push({ type: "interactive", interactive: { type: "list", header: { type: "text", text: concise(view.title, 60) }, body: { text: `Explore a loja ou continue a conversa.${totalPages > 1 ? `\nPágina ${page + 1} de ${totalPages}` : ""}` }, footer: { text: "Pode perguntar o que quiser." }, action: { button: "Explorar opções", sections: [{ title: "Sua próxima ação", rows }] } } });
+    else {
+      const context = catalog ? "Escolha um produto para ver fotos e informações completas."
+        : productDetails ? "Veja as opções deste produto ou escreva sua dúvida."
+          : view.blocks.some(block => block.type === "cart_summary") ? "Confira os itens e escolha como continuar."
+            : view.stage === "checkout" ? "Escolha a próxima etapa do seu pedido." : "Explore a loja ou continue a conversa.";
+      messages.push({ type: "interactive", interactive: { type: "list", header: { type: "text", text: concise(view.title, 60) }, body: { text: `${context}${totalPages > 1 ? `\nPágina ${page + 1} de ${totalPages}` : ""}` }, footer: { text: "Pode perguntar o que quiser." }, action: { button: catalog ? "Ver produtos" : "Explorar opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows }] } } });
+    }
   }
   return { messages, selections, numericSelections: choices.map(c => c.action), page, totalPages };
 }

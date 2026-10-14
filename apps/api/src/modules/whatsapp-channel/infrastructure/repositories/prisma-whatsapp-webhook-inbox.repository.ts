@@ -2,6 +2,7 @@ import { ConflictException, Inject, Injectable } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import { randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { MetaUiView, StoreUiAction } from "../../domain/ui/meta-ui.types.js";
 import {
   INBOX_LEASE_MS, INBOX_MAX_ATTEMPTS,
   type WhatsAppInboxClaim, type WhatsAppInboxEvent, type WhatsAppWebhookInbox,
@@ -17,6 +18,24 @@ interface ClaimRow {
 @Injectable()
 export class PrismaWhatsAppWebhookInbox implements WhatsAppWebhookInbox {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+
+  async findPriorSelection(claim: WhatsAppInboxClaim, sessionId: string, selectionId: string) {
+    if (!/^zyon:[a-f0-9]{32}$/.test(selectionId)) return null;
+    const rows = await this.prisma.$queryRaw<Array<{ response_state: any }>>(Prisma.sql`
+      SELECT response_state FROM whatsapp_webhook_inbox
+      WHERE merchant_id = ${claim.merchantId} AND config_id = ${claim.configId}
+        AND device_id = ${claim.deviceId} AND stream_key = ${claim.streamKey}
+        AND kind = 'message' AND id <> ${claim.id} AND created_at >= NOW() - INTERVAL '24 hours'
+        AND response_state->>'sessionId' = ${sessionId}
+        AND response_state->>'phase' IN ('prepared', 'dispatching', 'complete')
+        AND response_state->'state'->'selections' ? ${selectionId}
+      ORDER BY created_at DESC, id DESC LIMIT 1
+    `);
+    const saved = rows[0]?.response_state;
+    const action = saved?.state?.selections?.[selectionId] as StoreUiAction | undefined;
+    return action ? { action, view: saved.state.view as MetaUiView | undefined,
+      previousView: saved.state.previousViews?.at(-1) as MetaUiView | undefined, page: saved.state.page as number | undefined } : null;
+  }
 
   async accept(events: WhatsAppInboxEvent[]): Promise<void> {
     await this.prisma.$transaction(async (tx) => {

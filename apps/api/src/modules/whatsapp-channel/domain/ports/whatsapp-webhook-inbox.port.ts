@@ -1,5 +1,6 @@
 import type { IncomingMessageInput } from "../../application/use-cases/handle-incoming-message.use-case.js";
 import type { StatusUpdateInput } from "../../application/use-cases/handle-status-update.use-case.js";
+import type { MetaUiView, StoreUiAction } from "../ui/meta-ui.types.js";
 
 export const WHATSAPP_WEBHOOK_INBOX = Symbol("WhatsAppWebhookInbox");
 export const INBOX_MAX_ATTEMPTS = 10;
@@ -32,4 +33,5 @@ export interface WhatsAppWebhookInbox {
   complete(claim: WhatsAppInboxClaim): Promise<boolean>;
   fail(claim: WhatsAppInboxClaim, errorCode: string): Promise<boolean>;
   saveResponse?(claim: WhatsAppInboxClaim, response: Record<string, unknown>): Promise<boolean>;
+  findPriorSelection?(claim: WhatsAppInboxClaim, sessionId: string, selectionId: string): Promise<{ action: StoreUiAction; view?: MetaUiView; previousView?: MetaUiView; page?: number } | null>;
 }
