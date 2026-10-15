@@ -20,3 +20,22 @@ for (const [app, project] of [["control", "prj_X68tcS3nwLbLemZPPGxut067fWmv"], [
   writeFileSync(path.join(target, ".vercel/project.json"), JSON.stringify({ projectId: project, orgId: team, projectName: `zyon-${app}` }));
   console.log(JSON.stringify({ app, package: target, project, production: false }));
 }
+
+// The existing Railway homolog hostname keeps its established CAPTCHA/OAuth
+// allowlists. Upload this generated, secret-free bundle with --path-as-root.
+const railwayTarget = path.join(root, ".audit/billing-promotions-deploy/20261015/railway-dashboard");
+const appTarget = path.join(railwayTarget, "apps/dashboard");
+mkdirSync(appTarget, { recursive: true });
+cpSync(path.join(root, "apps/dashboard/dist"), path.join(appTarget, "dist"), { recursive: true });
+cpSync(path.join(root, "apps/dashboard/nginx.conf"), path.join(appTarget, "nginx.conf"));
+writeFileSync(path.join(appTarget, "Dockerfile"), [
+  "FROM nginxinc/nginx-unprivileged:1.27-alpine",
+  "USER root",
+  "RUN rm -f /etc/nginx/conf.d/default.conf",
+  "COPY apps/dashboard/nginx.conf /etc/nginx/conf.d/default.conf",
+  "COPY --chown=nginx:nginx apps/dashboard/dist /usr/share/nginx/html",
+  "USER nginx",
+  "EXPOSE 8080",
+  'CMD ["nginx", "-g", "daemon off;"]', "",
+].join("\n"));
+console.log(JSON.stringify({ app: "dashboard", railwayPackage: railwayTarget, production: false }));

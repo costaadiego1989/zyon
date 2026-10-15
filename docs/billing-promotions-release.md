@@ -43,18 +43,27 @@ O worker usa lease e claim com `FOR UPDATE SKIP LOCKED`. Envio exige aceitação
 
 ## Evidências locais (não são prova de integração externa)
 
-- 105 testes focados de política, serviço, permissões, módulos administrativos e aviso/webhook.
+- 106 testes focados de política, serviço, permissões, módulos administrativos e aviso/webhook, incluindo o limite de 40 caracteres do nome do cupom na Stripe.
 - Builds da API, Control e dashboard; schema Prisma validado.
+- 17 testes focados adicionais do dashboard: duração do Free no cadastro/acesso, intenção de assinatura, permissões e guarda de rotas.
 - `apps/control/tests/billing-promotions.browser.mjs`: CRUD e responsividade com respostas interceptadas, zero escritas em provedores.
 - `apps/control/tests/zyon-brand.browser.mjs`: componentes reais, assets e marca, com dados demonstrativos e tráfego externo bloqueado.
 - Prints locais em `.audit/billing-promotions-preview/` da worktree isolada.
 
 ## Homologação aprovada em 15/10/2026
 
-- Admin e dashboard usam pacotes estáticos separados em Preview; nenhum alias de produção foi promovido.
+- Admin publicado em Preview: https://zyon-control-84mfslcp8-diegos-projects-b6fd2a25.vercel.app. Dashboard publicado no hostname de homologação existente: https://dashboard-sandbox-59d9.up.railway.app, preservando as permissões de CAPTCHA/OAuth. Nenhum alias de produção foi promovido.
 - Stripe usa somente chaves de teste da conta `acct_1TVJ9KPvEQVo3vcN`, com preço Starter mensal de R$179 e webhook em `/v1/webhooks/stripe`.
 - O usuário autorizou um admin separado com o mesmo e-mail de produção, sem copiar senha ou hash. Credencial nova criptografada via Windows DPAPI, fora do repositório: `%LOCALAPPDATA%\Zyon\homolog\admin.credential.xml`.
 - Alterar uma variável sem `--skip-deploys` fez o Railway reconstruir `master` (`b0fef37`) em vez do upload local (`00bd8a8`). Não usar isso como publicação desta entrega. A correção exige fonte fixada na versão desta branch **somente no sandbox**; conexão global de fonte também afetaria produção e não é autorizada.
 - `connect_service_source` precisa de `staged: true` e do ID de sandbox, revisão de `get_staged_changes` e confirmação de que somente a fonte da API mudou antes de aplicar o deploy já aprovado pelo usuário.
 - `apps/control/tests/billing-promotions.homolog.mjs` valida a UI publicada com API e Stripe de testes reais e deixa `HOMOLOG1REAL` sem resgatar.
-- `apps/api/scripts/verify-billing-promotions-sandbox.mjs --execute-test-payment` usa outro cupom de QA, cria pagamento simulado de R$1 e verifica evento Stripe real + aviso persistido + aceitação Resend. Cancela somente sua assinatura de teste e desabilita seu cupom de QA. Não é conclusão de checkout via navegador nem confirmação de caixa de entrada pelo usuário.
+- API de homologação fixada no commit `2df83aa95fce4bf90205f2e617011510c8c7984d`; deploy `a08ee2aa-5e54-48c9-a5e2-50e505e57239` concluído. Ajustes posteriores de documentação, scripts de evidência e texto do dashboard não exigem republicar a API.
+- UI publicada: 18 verificações passaram, incluindo CRUD com persistência real, sincronização Stripe TEST, filtros, recarga e responsividade. Guardas HTTP reais: leitura 200 e cinco rotas de escrita 403 para o operador somente leitura temporário, removido depois do teste.
+- `apps/api/scripts/verify-billing-promotions-sandbox.mjs --execute-test-payment` usou outro cupom de QA: pagamento simulado de R$1 na fatura `in_1UQxiIPvEQVo3vcNLTrC08zE`, evento Stripe `evt_1UQxiLPvEQVo3vcNUoLIWBCs`, plano Starter persistido e um único aviso. Replay controlado do evento retornou `duplicate`; não equivale a reentrega originada no provedor. A assinatura de teste foi cancelada e o cupom de QA desabilitado. Não foi conclusão de checkout via navegador.
+- Resend registrou `delivered` para `01a141d0-6581-7345-9989-c20f138dc988`. O usuário confirmou explicitamente o recebimento do e-mail de teste na caixa do admin. Essa confirmação complementa, sem substituir, os registros de aceitação e entrega do provedor.
+- `HOMOLOG1REAL`: criado pelo painel, ativo e não resgatado; somente Starter mensal, R$178 de desconto na primeira fatura, máximo um uso, até 22/10/2026 às 19:54 de Brasília. Primeira mensalidade de teste R$1; seguintes R$179. Apenas modo TEST, sem cobrança real no cartão.
+- O cadastro reutiliza `FREE_TRIAL_DAYS` do catálogo compartilhado (padrão 7), sem a antiga promessa de 14 dias sem taxa. `apps/control/tests/surfaces.homolog.mjs` confere as páginas públicas publicadas, o texto, a API sandbox no bundle e os bytes do logo aprovado; não representa login de lojista autenticado.
+- Dashboard de homologação no deploy `6195fb81-0c8b-40f6-a9ae-78eaf79b1440`, concluído. A verificação das superfícies passou com o bundle `/assets/index-lNCuFQUT.js`: Free 7 dias, páginas de acesso renderizadas sem erros JavaScript e logo idêntico ao aprovado.
+- Evidências separadas em `.audit/billing-promotions-homolog/`: `result.json` corresponde somente ao teste de UI; `payment-result.json` ao pagamento, webhook e confirmação do e-mail; `surfaces-result.json` às páginas e assets publicados.
+- Produção não alterada nesta entrega. A API de produção continua no deploy `da20e9d9-02f6-4f1f-94f4-eb285540d965`, anterior a esta publicação de homologação.
