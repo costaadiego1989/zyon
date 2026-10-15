@@ -24,11 +24,12 @@ assert.ok(localEnv.STRIPE_SECRET_KEY_TEST?.startsWith("sk_test_"));
 const stripe = new Stripe(localEnv.STRIPE_SECRET_KEY_TEST, { timeout: 15000, maxNetworkRetries: 0 });
 assert.equal((await stripe.accounts.retrieve()).id, "acct_1TVJ9KPvEQVo3vcN");
 assert.equal((await fetch(`${api}/ready`)).status, 200);
-assert.equal((await fetch(`${api}/v1/platform/billing/promotions`)).status, 401);
 let corsReady = false;
-for (let attempt = 0; attempt < 24; attempt++) {
+for (let attempt = 0; attempt < 60; attempt++) {
   const preflight = await fetch(`${api}/v1/platform/auth/login`, { method: "OPTIONS", headers: { Origin: adminUrl, "Access-Control-Request-Method": "POST", "Access-Control-Request-Headers": "Content-Type" } });
-  if (preflight.headers.get("access-control-allow-origin") === adminUrl) { corsReady = true; break; }
+  const guard = await fetch(`${api}/v1/platform/billing/promotions`);
+  if (preflight.headers.get("access-control-allow-origin") === adminUrl && guard.status === 401) { corsReady = true; break; }
+  if (attempt % 6 === 0) console.log(JSON.stringify({ waitingForVerifiedApiRoutes: true, currentGuardStatus: guard.status }));
   await new Promise(resolve => setTimeout(resolve, 10000));
 }
 assert.ok(corsReady, "sandbox_cors_not_ready");
@@ -46,7 +47,10 @@ async function request(path, init = {}) {
 }
 async function filter(code) {
   await page.getByLabel("Buscar cupom").fill(code);
+  const loaded = page.waitForResponse(response => response.url().includes("/platform/billing/promotions?") && new URL(response.url()).searchParams.get("search") === code && response.request().method() === "GET");
   await page.getByRole("button", { name: "Filtrar", exact: true }).click();
+  assert.equal((await loaded).status(), 200);
+  await page.locator(".billing-skeleton").waitFor({ state: "hidden" });
   await page.getByRole("button", { name: `Copiar código ${code}`, exact: true }).waitFor();
 }
 const row = code => page.locator(".promotion-row").filter({ hasText: code });

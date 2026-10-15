@@ -67,6 +67,19 @@ test("refuses to publish a promotion if Stripe does not confirm the product scop
   await assert.rejects(() => h.service.create(h.body, h.audit), /billing_promotion_product_restriction_missing/);
   assert.equal(h.codes.size, 0); assert.equal(h.row(h.body.id).provisioned, false);
 });
+
+test("keeps full campaign names locally and respects Stripe's 40-character display limit", async () => {
+  const h = harness();
+  const name = "Campanha Black Friday com desconto especial de lançamento";
+  const create = h.stripe.coupons.create;
+  h.stripe.coupons.create = async (data: any) => {
+    assert.ok(Array.from(data.name).length <= 40);
+    return create(data);
+  };
+  const saved = await h.service.create({ ...h.body, name }, h.audit);
+  assert.equal(saved.name, name);
+  assert.equal(h.calls.find(call => call.type === "coupon.create").data.name, Array.from(name).slice(0, 40).join(""));
+});
 test("fixed amount uses integer cents, and a future campaign is initially disabled in Stripe", async () => {
   const h = harness();
   const saved = await h.service.create({ ...h.body, discountType: "fixed", discountValue: 17800, plans: ["starter179"], startsAt: new Date(Date.now() + 3600000).toISOString() }, h.audit);

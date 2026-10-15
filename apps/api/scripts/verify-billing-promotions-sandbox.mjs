@@ -1,5 +1,5 @@
 import { spawnSync } from "node:child_process";
-import { randomUUID } from "node:crypto";
+import { randomBytes, randomUUID, scryptSync } from "node:crypto";
 import { mkdir, writeFile } from "node:fs/promises";
 import assert from "node:assert/strict";
 import path from "node:path";
@@ -35,14 +35,35 @@ async function admin(path, init = {}) {
   if (!r.ok) throw new Error(`admin_api_status_${r.status}`); return r.json();
 }
 const merchantId = `qa-subscription-${randomUUID()}`;
-const code = `QA-PAGAMENTO-${Date.now().toString(36).toUpperCase()}`;
+let code = `QA-PAGAMENTO-${Date.now().toString(36).toUpperCase()}`;
+const retryId = process.argv[3];
+if (retryId && !/^[a-f0-9-]{36}$/.test(retryId)) throw new Error("invalid_qa_retry_id");
 const output = path.resolve("../../.audit/billing-promotions-homolog"); await mkdir(output, { recursive: true });
 let promotion, subscription;
 try {
+  const operatorId = randomUUID(), operatorEmail = `qa-billing-${operatorId}@example.test`;
+  const operatorPassword = randomBytes(24).toString("base64url"), salt = randomBytes(16).toString("base64url");
+  const operatorHash = `scrypt:${salt}:${scryptSync(operatorPassword, salt, 64).toString("base64url")}`;
+  ssh(`const {Client}=require('pg');const d=JSON.parse(Buffer.from(process.argv[3],'base64'));(async()=>{const c=new Client({connectionString:process.env.DATABASE_URL});await c.connect();try{await c.query("INSERT INTO platform_operators(id,email,password_hash,role,auth_version,created_at,updated_at) VALUES($1,$2,$3,'billing_ops',0,NOW(),NOW())",[d.id,d.email,d.hash]);console.log('RESULT '+JSON.stringify({created:true}));}finally{await c.end()}})().catch(()=>{console.log('RESULT '+JSON.stringify({error:'qa_readonly_identity_failed'}));process.exitCode=1});`, { id: operatorId, email: operatorEmail, hash: operatorHash });
+  try {
+    const readonlyLogin = await fetch(`${api}/v1/platform/auth/login`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ email: operatorEmail, password: operatorPassword }) });
+    assert.equal(readonlyLogin.status, 201); const readonlyToken = (await readonlyLogin.json()).access_token;
+    const headers = { Authorization: `Bearer ${readonlyToken}`, "Content-Type": "application/json" };
+    assert.equal((await fetch(`${api}/v1/platform/billing/promotions`, { headers })).status, 200);
+    for (const [method, suffix] of [["POST", ""], ["PUT", `/${randomUUID()}`], ["PATCH", `/${randomUUID()}`], ["DELETE", `/${randomUUID()}`], ["POST", `/${randomUUID()}/retry`]]) {
+      const denied = await fetch(`${api}/v1/platform/billing/promotions${suffix}`, { method, headers, ...(method === "DELETE" ? {} : { body: "{}" }) });
+      assert.equal(denied.status, 403, `readonly_${method}_must_be_forbidden`);
+    }
+    await fetch(`${api}/v1/platform/auth/logout`, { method: "POST", headers });
+    console.log(JSON.stringify({ readonlyRole: "billing_ops", read: 200, allFiveWriteRoutes: 403 }));
+  } finally {
+    ssh(`const {Client}=require('pg');const d=JSON.parse(Buffer.from(process.argv[3],'base64'));(async()=>{const c=new Client({connectionString:process.env.DATABASE_URL});await c.connect();try{const r=await c.query('DELETE FROM platform_operators WHERE id=$1 AND email=$2',[d.id,d.email]);console.log('RESULT '+JSON.stringify({removed:r.rowCount}));}finally{await c.end()}})().catch(()=>{console.log('RESULT '+JSON.stringify({error:'qa_readonly_identity_cleanup_failed'}));process.exitCode=1});`, { id: operatorId, email: operatorEmail });
+  }
   const seeded = ssh(`const {Client}=require('pg');const d=JSON.parse(Buffer.from(process.argv[3],'base64'));(async()=>{const c=new Client({connectionString:process.env.DATABASE_URL});await c.connect();try{await c.query("INSERT INTO merchants(id,name,plan,created_at,updated_at) VALUES($1,$2,'BOTH',NOW(),NOW())",[d.id,'TESTE AUTOMATICO - assinatura homologacao']);console.log('RESULT '+JSON.stringify({created:true}));}finally{await c.end()}})().catch(()=>{console.log('RESULT '+JSON.stringify({error:'qa_merchant_seed_failed'}));process.exitCode=1});`, { id: merchantId });
   assert.equal(seeded.created, true);
-  promotion = await admin("", { method: "POST", body: JSON.stringify({ id: randomUUID(), code, name: "QA automático pagamento de assinatura - TESTE", discountType: "fixed", discountValue: 17800,
+  promotion = retryId ? await admin(`/${retryId}/retry`, { method: "POST" }) : await admin("", { method: "POST", body: JSON.stringify({ id: randomUUID(), code, name: "QA automático pagamento de assinatura - TESTE", discountType: "fixed", discountValue: 17800,
     duration: "once", durationMonths: null, plans: ["starter179"], startsAt: new Date(Date.now() - 60000).toISOString(), expiresAt: new Date(Date.now() + 86400000).toISOString(), maxRedemptions: 1, firstTimeOnly: false }) });
+  code = promotion.code;
   const providerPromotion = (await stripe.promotionCodes.list({ code, active: true, limit: 10 })).data[0]; assert.ok(providerPromotion); assert.equal(providerPromotion.livemode, false);
   const customer = await stripe.customers.create({ name: "QA assinatura - HOMOLOGAÇÃO", metadata: { merchant_id: merchantId } });
   const paymentMethod = await stripe.paymentMethods.attach("pm_card_visa", { customer: customer.id });
@@ -73,6 +94,7 @@ try {
   const result = { proof: "real_stripe_test_payment_and_provider_webhook", environment: "sandbox", livemode: false,
     amountPaidCents: 100, discountCents: 17800, merchantId, subscriptionId: subscription.id, invoiceId: invoice.id,
     eventId: evidence.notice.event_id, notification: delivery, controlledReplay: "duplicate", userCouponConsumed: false,
+    readonlyRoleGuard: { read: 200, write: 403, testedWriteRoutes: 5, temporaryOperatorRemoved: true },
     inboxConfirmedByUser: false, source: "Stripe API test payment; not a browser checkout completion" };
   await writeFile(path.join(output, "payment-result.json"), JSON.stringify(result, null, 2));
   console.log(JSON.stringify(result));

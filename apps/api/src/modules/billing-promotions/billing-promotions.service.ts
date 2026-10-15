@@ -80,7 +80,9 @@ export class BillingPromotionsService implements OnApplicationBootstrap, OnModul
       catch (error) {
         if (!(error instanceof Stripe.errors.StripeInvalidRequestError) || error.code !== "resource_missing") throw error;
         coupon = await this.requireStripe().coupons.create({
-          id: couponId, name: row.name, duration: row.duration as "once" | "repeating" | "forever",
+          // Stripe's customer-visible coupon name is limited to 40 characters;
+          // retain the full campaign label locally for administration/audit.
+          id: couponId, name: Array.from(row.name).slice(0, 40).join(""), duration: row.duration as "once" | "repeating" | "forever",
           ...(row.durationMonths ? { duration_in_months: row.durationMonths } : {}),
           ...(row.discountType === "percent" ? { percent_off: row.discountValue / 100 } : { amount_off: row.discountValue, currency: "brl" }),
           applies_to: { products }, expand: ["applies_to"],
