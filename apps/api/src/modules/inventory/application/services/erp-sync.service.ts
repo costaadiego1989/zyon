@@ -1,5 +1,7 @@
+import { ErpProviderError, ERP_AUTH_ERROR_CODES, erpCooldownUntil, isErpAuthError, readOmieResponse } from "../../infrastructure/adapters/erp-provider-error.js";
+import { blingClientChanged, blingClientFingerprint } from "../../infrastructure/adapters/bling-token-identity.js";
 import { Inject, Injectable, Logger } from "@nestjs/common";
-import type { ErpConnection, PrismaClient } from "@prisma/client";
+import type { ErpConnection, ErpSyncJob, PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { AppliedInventorySale } from "../../domain/events/sale-completed.event.js";
@@ -86,6 +88,20 @@ export class ErpSyncService {
     if (!connection) throw new Error("erp_connection_not_found");
     if (!isSupported(connection.provider)) throw new Error("erp_provider_not_supported");
     if (connection.status !== "connected") throw new Error("erp_connection_not_connected");
+    if (erpCooldownUntil(connection.config)) throw new Error("erp_provider_cooldown");
+
+    // Validated credentials restore the connection to connected. Preserve sale
+    // identity on resumed work; replace obsolete snapshots with one fresh read.
+    if (source !== "periodic") {
+      await this.prisma.erpSyncJob.updateMany({
+        where: { merchantId, connectionId, status: "blocked", kind: "full", lastErrorCode: { in: [...ERP_AUTH_ERROR_CODES] } },
+        data: { status: "superseded", nextAttemptAt: null },
+      });
+      await this.prisma.erpSyncJob.updateMany({
+        where: { merchantId, connectionId, status: "blocked", kind: { in: ["sale", "catalog_stock"] }, lastErrorCode: { in: [...ERP_AUTH_ERROR_CODES] } },
+        data: { status: "queued", attempts: 0, nextAttemptAt: new Date(), lastErrorCode: null },
+      });
+    }
 
     const bucket = source === "periodic" ? Math.floor(Date.now() / (15 * 60 * 1000)) : Date.now();
     const job = await this.createJob({
@@ -223,11 +239,18 @@ export class ErpSyncService {
     }, JOB_LEASE_HEARTBEAT_MS);
     heartbeat.unref();
 
+    let connection: ErpConnection | null = null;
     try {
-      const connection = await this.prisma.erpConnection.findFirst({
-        where: { id: job.connectionId, merchantId: job.merchantId, status: "connected" },
+      connection = await this.prisma.erpConnection.findFirst({
+        where: { id: job.connectionId, merchantId: job.merchantId },
       });
       if (!connection || !isSupported(connection.provider)) throw new Error("erp_connection_not_available");
+      if (connection.status !== "connected") {
+        if (isErpAuthError(connection.lastErrorCode)) throw new ErpProviderError(connection.lastErrorCode!, true);
+        throw new Error("erp_connection_not_available");
+      }
+      const cooldown = erpCooldownUntil(connection.config);
+      if (cooldown) throw new ErpProviderError(connection.lastErrorCode || "erp_provider_cooldown", false, cooldown.getTime() - Date.now());
 
       if (connection.provider === "bling") {
         // Legacy connections predate the per-company webhook route. Backfilling
@@ -236,6 +259,7 @@ export class ErpSyncService {
         try {
           await this.ensureBlingWebhookRoute(connection);
         } catch (error) {
+          if (error instanceof ErpProviderError && error.requiresReconnect) throw error;
           this.logger.warn("bling.webhook_route.backfill_failed", {
             connectionId: connection.id,
             code: errorCode(error),
@@ -262,9 +286,17 @@ export class ErpSyncService {
 
       await this.prisma.$transaction([
         this.prisma.erpSyncJob.update({ where: { id: job.id }, data: { status: "completed", completedAt: new Date(), lockedUntil: null, lastErrorCode: null } }),
-        this.prisma.erpConnection.update({ where: { id: connection.id }, data: { lastSyncAt: new Date(), lastErrorCode: null } }),
+        this.prisma.erpConnection.updateMany({ where: { id: connection.id, merchantId: connection.merchantId, status: "connected", accessTokenCipher: connection.accessTokenCipher, refreshTokenCipher: connection.refreshTokenCipher, lastErrorCode: connection.lastErrorCode }, data: { lastSyncAt: new Date(), lastErrorCode: null } }),
       ]);
     } catch (error) {
+      if (connection && error instanceof ErpProviderError && error.requiresReconnect) {
+        await this.pauseForReauthorization(connection, job, error.message, false);
+        return;
+      }
+      if (connection && error instanceof ErpProviderError && error.retryAfterMs) {
+        await this.pauseForCooldown(connection, job, error.message, error.retryAfterMs);
+        return;
+      }
       const code = errorCode(error);
       const waitingForSales = code === "erp_snapshot_waiting_for_sales";
       const attempts = job.attempts + (waitingForSales ? 0 : 1);
@@ -281,6 +313,36 @@ export class ErpSyncService {
     } finally {
       clearInterval(heartbeat);
     }
+  }
+
+  private async pauseForReauthorization(connection: ErpConnection, job: ErpSyncJob, code: string, uncertain: boolean): Promise<void> {
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM erp_connections WHERE id = ${connection.id} AND merchant_id = ${connection.merchantId} FOR UPDATE`;
+      const current = await tx.erpConnection.findFirst({ where: { id: connection.id, merchantId: connection.merchantId } });
+      // A delayed response from an old credential must not disable a fresh login.
+      if (!current || current.accessTokenCipher !== connection.accessTokenCipher || current.refreshTokenCipher !== connection.refreshTokenCipher) {
+        await tx.erpSyncJob.updateMany({ where: { id: job.id, merchantId: job.merchantId, status: "running" }, data: { status: uncertain ? "uncertain" : "queued", nextAttemptAt: uncertain ? null : new Date(), lockedUntil: null, lastErrorCode: uncertain ? (job.kind === "catalog_stock" ? "erp_catalog_delivery_uncertain" : "erp_sale_delivery_uncertain") : null } });
+        return;
+      }
+      await tx.erpConnection.updateMany({ where: { id: connection.id, merchantId: connection.merchantId, accessTokenCipher: connection.accessTokenCipher, refreshTokenCipher: connection.refreshTokenCipher }, data: { status: "error", lastErrorCode: code } });
+      await tx.erpSyncJob.updateMany({ where: { connectionId: connection.id, merchantId: connection.merchantId, status: "queued" }, data: { status: "blocked", nextAttemptAt: null, lockedUntil: null, lastErrorCode: code } });
+      await tx.erpSyncJob.updateMany({ where: { id: job.id, merchantId: job.merchantId, status: "running" }, data: { status: uncertain ? "uncertain" : "blocked", nextAttemptAt: null, lockedUntil: null, lastErrorCode: uncertain ? (job.kind === "catalog_stock" ? "erp_catalog_delivery_uncertain" : "erp_sale_delivery_uncertain") : code } });
+    });
+    this.logger.warn("erp.connection.reauthorization_required", { connectionId: connection.id, provider: connection.provider, code });
+  }
+
+  private async pauseForCooldown(connection: ErpConnection, job: ErpSyncJob, code: string, delayMs: number): Promise<void> {
+    await this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM erp_connections WHERE id = ${connection.id} AND merchant_id = ${connection.merchantId} FOR UPDATE`;
+      const current = await tx.erpConnection.findFirst({ where: { id: connection.id, merchantId: connection.merchantId } });
+      if (!current || current.status !== "connected" || current.accessTokenCipher !== connection.accessTokenCipher || current.refreshTokenCipher !== connection.refreshTokenCipher) {
+        await tx.erpSyncJob.updateMany({ where: { id: job.id, merchantId: job.merchantId, status: "running" }, data: { status: "queued", nextAttemptAt: new Date(), lockedUntil: null, lastErrorCode: null } });
+        return;
+      }
+      const nextAttemptAt = new Date(Math.max(Date.now() + delayMs, erpCooldownUntil(current.config)?.getTime() ?? 0));
+      await tx.erpSyncJob.updateMany({ where: { connectionId: connection.id, merchantId: connection.merchantId, OR: [{ status: "queued" }, { id: job.id, status: "running" }] }, data: { status: "queued", nextAttemptAt, lockedUntil: null, lastErrorCode: code } });
+      await tx.erpConnection.update({ where: { id: current.id }, data: { lastErrorCode: code, config: { ...(current.config as object ?? {}), erpRetryAfterAt: nextAttemptAt.toISOString() } } });
+    });
   }
 
   private async requeueExpiredLeases(now: Date): Promise<void> {
@@ -462,12 +524,8 @@ export class ErpSyncService {
   }
 
   private async omieCall(url: string, credentials: { appKey: string; appSecret: string }, call: string, param: Record<string, unknown>): Promise<any> {
-    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ call, app_key: credentials.appKey, app_secret: credentials.appSecret, param: [param] }) });
-    if (!response.ok) throw new Error(`erp_omie_http_${response.status}`);
-    const body = await response.json() as any;
-    if (body.faultcode || body.faultstring || (body.status && body.status !== "OK") ||
-      (body.codigo_status !== undefined && String(body.codigo_status) !== "0")) throw new Error("erp_omie_api_error");
-    return body;
+    const response = await fetch(url, { method: "POST", headers: { "Content-Type": "application/json" }, signal: AbortSignal.timeout(20_000), body: JSON.stringify({ call, app_key: credentials.appKey, app_secret: credentials.appSecret, param: [param] }) });
+    return readOmieResponse(response);
   }
 
   private async pullBling(connection: ErpConnection): Promise<RemoteSnapshot[]> {
@@ -533,18 +591,34 @@ export class ErpSyncService {
 
   private async blingToken(connection: ErpConnection): Promise<string> {
     if (!connection.accessTokenCipher) throw new Error("erp_bling_access_token_missing");
-    if (!connection.tokenExpiresAt || connection.tokenExpiresAt.getTime() > Date.now() + 60_000) return decryptErpSecret(connection.accessTokenCipher);
-    if (!connection.refreshTokenCipher || !process.env.BLING_CLIENT_ID || !process.env.BLING_CLIENT_SECRET) throw new Error("erp_bling_refresh_unavailable");
-    const auth = Buffer.from(`${process.env.BLING_CLIENT_ID}:${process.env.BLING_CLIENT_SECRET}`).toString("base64");
-    const response = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
-      method: "POST", headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded", "enable-jwt": "1" },
-      body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: decryptErpSecret(connection.refreshTokenCipher) }).toString(),
-    });
-    if (!response.ok) throw new Error("erp_bling_token_refresh_failed");
-    const body = await response.json() as any;
-    if (!body.access_token) throw new Error("erp_bling_token_refresh_failed");
-    await this.prisma.erpConnection.update({ where: { id: connection.id }, data: { accessTokenCipher: encryptErpSecret(body.access_token), refreshTokenCipher: body.refresh_token ? encryptErpSecret(body.refresh_token) : connection.refreshTokenCipher, tokenExpiresAt: new Date(Date.now() + Number(body.expires_in ?? 3600) * 1000) } });
-    return body.access_token;
+    if (!process.env.BLING_CLIENT_ID || !process.env.BLING_CLIENT_SECRET) throw new ErpProviderError("erp_bling_app_configuration_invalid", true);
+    if (blingClientChanged(connection.config, decryptErpSecret(connection.accessTokenCipher))) throw new ErpProviderError("erp_bling_app_changed", true);
+    if (connection.tokenExpiresAt && connection.tokenExpiresAt.getTime() > Date.now() + 60_000) return decryptErpSecret(connection.accessTokenCipher);
+    // Refresh tokens rotate. Serialize each merchant connection across API replicas.
+    return this.prisma.$transaction(async tx => {
+      await tx.$queryRaw`SELECT id FROM erp_connections WHERE id = ${connection.id} AND merchant_id = ${connection.merchantId} AND provider = 'bling' FOR UPDATE`;
+      const fresh = await tx.erpConnection.findFirst({ where: { id: connection.id, merchantId: connection.merchantId, provider: "bling" } });
+      if (!fresh || fresh.status !== "connected" || !fresh.accessTokenCipher) throw new ErpProviderError("erp_bling_reauthorization_required", true);
+      Object.assign(connection, fresh);
+      if (blingClientChanged(fresh.config, decryptErpSecret(fresh.accessTokenCipher))) throw new ErpProviderError("erp_bling_app_changed", true);
+      if (fresh.tokenExpiresAt && fresh.tokenExpiresAt.getTime() > Date.now() + 60_000) return decryptErpSecret(fresh.accessTokenCipher);
+      if (!fresh.refreshTokenCipher) throw new ErpProviderError("erp_bling_reauthorization_required", true);
+      const auth = Buffer.from(`${process.env.BLING_CLIENT_ID}:${process.env.BLING_CLIENT_SECRET}`).toString("base64");
+      const response = await fetch("https://api.bling.com.br/Api/v3/oauth/token", {
+        method: "POST", signal: AbortSignal.timeout(20_000), headers: { Authorization: `Basic ${auth}`, "Content-Type": "application/x-www-form-urlencoded", "enable-jwt": "1" },
+        body: new URLSearchParams({ grant_type: "refresh_token", refresh_token: decryptErpSecret(fresh.refreshTokenCipher) }).toString(),
+      });
+      const body = await response.json().catch(() => null) as any;
+      const providerCode = typeof body?.error === "string" ? body.error : body?.error?.type;
+      if (providerCode === "invalid_client") throw new ErpProviderError("erp_bling_app_configuration_invalid", true);
+      if (providerCode === "invalid_grant" || response.status === 401 || response.status === 403) throw new ErpProviderError("erp_bling_reauthorization_required", true);
+      if (!response.ok) throw new ErpProviderError(`erp_bling_token_http_${response.status}`);
+      if (typeof body?.access_token !== "string" || !body.access_token || typeof body?.refresh_token !== "string" || !body.refresh_token || !Number.isSafeInteger(body.expires_in) || body.expires_in <= 0) throw new ErpProviderError("erp_bling_token_response_invalid");
+      const tokens = { accessTokenCipher: encryptErpSecret(body.access_token), refreshTokenCipher: encryptErpSecret(body.refresh_token), tokenExpiresAt: new Date(Date.now() + body.expires_in * 1000), config: { ...(fresh.config as object ?? {}), blingClientFingerprint: blingClientFingerprint() } };
+      await tx.erpConnection.update({ where: { id: fresh.id, merchantId: fresh.merchantId }, data: tokens });
+      Object.assign(connection, tokens);
+      return body.access_token;
+    }, { maxWait: 10_000, timeout: 30_000 });
   }
 
   /** Existing OAuth connections gain the same exact webhook route on their first snapshot. */
@@ -581,6 +655,7 @@ export class ErpSyncService {
         headers: { Authorization: `Bearer ${token}`, "enable-jwt": "1", "Content-Type": "application/json", ...(init?.headers ?? {}) },
       });
       if (response.ok) return response.json();
+      if (response.status === 401) throw new ErpProviderError("erp_bling_reauthorization_required", true);
       if (response.status !== 429) throw new Error(`erp_bling_http_${response.status}`);
 
       const body = await response.json().catch(() => null) as { error?: { period?: unknown } } | null;
