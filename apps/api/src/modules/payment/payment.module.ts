@@ -81,6 +81,8 @@ import {
 import { PAYMENT_PLATFORM_REPOSITORY } from "./domain/ports/payment-platform-repository.port.js";
 import { PrismaPaymentPlatformRepository } from "./infrastructure/prisma-payment-platform.repository.js";
 import { StripePlatformAdapter } from "./infrastructure/stripe-platform.adapter.js";
+import { BILLING_ADMIN_NOTICE_PORT } from "./domain/ports/billing-admin-notice.port.js";
+import { PrismaBillingAdminNoticePublisher } from "./infrastructure/prisma-billing-admin-notice.publisher.js";
 import { AsaasPlatformAdapter } from "./infrastructure/asaas-platform.adapter.js";
 import { EnvironmentBillingConfig } from "./infrastructure/billing-env.js";
 import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
@@ -163,6 +165,7 @@ import {
     MerchantMercadoPagoController,
   ],
   providers: [
+    { provide: BILLING_ADMIN_NOTICE_PORT, useFactory: (prisma: PrismaClient) => new PrismaBillingAdminNoticePublisher(prisma), inject: [PRISMA_CROSS_MERCHANT_CLIENT] },
     PrepareMarketplaceCheckoutService,
     CreateMarketplacePaymentService,
     MarketplacePublicPaymentAdmissionService,

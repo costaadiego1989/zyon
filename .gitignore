@@ -30,6 +30,7 @@ scripts/*
 
 # Exclude generated/WIP docs, but keep architecture decisions versioned.
 /docs/*
+!/docs/billing-promotions-release.md
 !/docs/annual-billing.md
 !/docs/specs/
 /docs/specs/*
@@ -57,6 +58,8 @@ wp-config.php
 .playwright-mcp/
 *.png
 !apps/web/assets/*.png
+!apps/control/public/zyon-z.png
+!apps/dashboard/public/zyon-z.png
 test-pix-flow.mjs
 apps/widget/verify-widget.mjs
 apps/widget/cart-*.png
