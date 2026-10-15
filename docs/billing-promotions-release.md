@@ -43,8 +43,18 @@ O worker usa lease e claim com `FOR UPDATE SKIP LOCKED`. Envio exige aceitação
 
 ## Evidências locais (não são prova de integração externa)
 
-- 43 testes focados de política, serviço, permissões e aviso/webhook.
+- 105 testes focados de política, serviço, permissões, módulos administrativos e aviso/webhook.
 - Builds da API, Control e dashboard; schema Prisma validado.
 - `apps/control/tests/billing-promotions.browser.mjs`: CRUD e responsividade com respostas interceptadas, zero escritas em provedores.
 - `apps/control/tests/zyon-brand.browser.mjs`: componentes reais, assets e marca, com dados demonstrativos e tráfego externo bloqueado.
-- Prints em `.audit/billing-promotions-preview/` da worktree isolada. Nenhuma migration nem publicação foi realizada nesta etapa.
+- Prints locais em `.audit/billing-promotions-preview/` da worktree isolada.
+
+## Homologação aprovada em 15/10/2026
+
+- Admin e dashboard usam pacotes estáticos separados em Preview; nenhum alias de produção foi promovido.
+- Stripe usa somente chaves de teste da conta `acct_1TVJ9KPvEQVo3vcN`, com preço Starter mensal de R$179 e webhook em `/v1/webhooks/stripe`.
+- O usuário autorizou um admin separado com o mesmo e-mail de produção, sem copiar senha ou hash. Credencial nova criptografada via Windows DPAPI, fora do repositório: `%LOCALAPPDATA%\Zyon\homolog\admin.credential.xml`.
+- Alterar uma variável sem `--skip-deploys` fez o Railway reconstruir `master` (`b0fef37`) em vez do upload local (`00bd8a8`). Não usar isso como publicação desta entrega. A correção exige fonte fixada na versão desta branch **somente no sandbox**; conexão global de fonte também afetaria produção e não é autorizada.
+- `connect_service_source` precisa de `staged: true` e do ID de sandbox, revisão de `get_staged_changes` e confirmação de que somente a fonte da API mudou antes de aplicar o deploy já aprovado pelo usuário.
+- `apps/control/tests/billing-promotions.homolog.mjs` valida a UI publicada com API e Stripe de testes reais e deixa `HOMOLOG1REAL` sem resgatar.
+- `apps/api/scripts/verify-billing-promotions-sandbox.mjs --execute-test-payment` usa outro cupom de QA, cria pagamento simulado de R$1 e verifica evento Stripe real + aviso persistido + aceitação Resend. Cancela somente sua assinatura de teste e desabilita seu cupom de QA. Não é conclusão de checkout via navegador nem confirmação de caixa de entrada pelo usuário.
