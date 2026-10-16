@@ -615,12 +615,22 @@ zyon-mask{white-space:nowrap}
 }
 
 </style>
+<link rel="stylesheet" href="/assets/subscription-campaign.css?v=20261015">
+<script src="/assets/subscription-campaign.js?v=20261015" defer></script>
 <noscript><style>.demo-choices,.demo-restart,.widget-launcher,.no-js-only{display:block}.engine-energy{stroke-dasharray:none}</style></noscript>
 </head>
 
 <body>
 <svg width="0" height="0" aria-hidden="true" focusable="false" style="position:absolute"><defs><filter id="zyonOpeningTone" color-interpolation-filters="sRGB"><feFlood flood-color="#B8FFC5"/><feComposite in2="SourceAlpha" operator="in"/></filter></defs></svg>
 <a href="#conteudo" class="skip">Ir para o conteúdo</a>
+<aside class="subscription-promo-top" data-subscription-campaign hidden aria-label="Campanha de assinatura">
+ <div class="shell subscription-promo-top__inner">
+  <p><strong data-subscription-campaign-name></strong><span data-subscription-campaign-discount></span></p>
+  <a class="subscription-promo-copy" data-subscription-campaign-link href="https://app.zyon-payments.com.br/?mode=signup&amp;cycle=monthly">Aproveitar oferta <span aria-hidden="true">↗</span></a>
+  <a href="#planos" class="subscription-promo-top__link">Ver planos <span aria-hidden="true">↘</span></a>
+ </div>
+</aside>
+<p class="subscription-promo-status" data-subscription-coupon-status role="status" aria-live="polite"></p>
 <header class="topbar"><div class="shell topbar-inner">
 <a class="brand" href="#inicio" aria-label="Zyon, início"><svg class="brand-logo" viewBox="290 145 1480 402" aria-hidden="true" focusable="false"><image id="zyonOfficialArtwork" href="/assets/attention-image.cc1f6b7d63bc.png" width="2048" height="682"/></svg></a>
 <nav class="nav-links" aria-label="Navegação principal"><a href="#a-zyon">A Zyon</a><a href="#experimente">Em ação</a><a href="#integracoes">Integrações</a><a href="#recursos">Recursos</a><a href="#controle">Seu controle</a><a href="#planos">Planos</a><a href="#duvidas">Dúvidas</a></nav>
@@ -796,6 +806,11 @@ zyon-mask{white-space:nowrap}
   <div class="plans-connection" aria-hidden="true"><span class="plans-signal"></span><svg viewBox="0 0 1200 95" preserveAspectRatio="none"><g class="plans-route-base"><path d="M600 0V28Q600 42 582 42H218Q200 42 200 62V95"/><path d="M600 0V95"/><path d="M600 0V28Q600 42 618 42H982Q1000 42 1000 62V95"/></g><g class="plans-route-light"><path d="M600 0V28Q600 42 582 42H218Q200 42 200 62V95"/><path d="M600 0V95"/><path d="M600 0V28Q600 42 618 42H982Q1000 42 1000 62V95"/></g></svg></div>
   <div class="plans-toolbar"><p>Uma escolha para cada fase.</p><div class="billing-switch" role="group" aria-label="Período de cobrança" hidden><span class="billing-switch-track" aria-hidden="true"></span><button type="button" data-billing="monthly" aria-pressed="true">Mensal</button><button type="button" data-billing="annual" aria-pressed="false">Anual <span>−15%</span></button></div></div>
   <p class="billing-context" id="billingContext">Assinatura mensal. Você confere todas as condições antes de contratar.</p><p id="billingAnnouncement" class="counter-semantic" role="status"></p>
+  <aside class="subscription-promo-offer" data-subscription-campaign hidden aria-labelledby="subscriptionCampaignTitle">
+   <div class="subscription-promo-offer__copy"><p data-subscription-campaign-name></p><h3 id="subscriptionCampaignTitle" data-subscription-campaign-discount></h3><p data-subscription-campaign-plans></p></div>
+   <div class="subscription-promo-offer__action"><a class="subscription-promo-copy" data-subscription-campaign-link href="https://app.zyon-payments.com.br/?mode=signup&amp;cycle=monthly">Aproveitar oferta <span aria-hidden="true">↗</span></a><p>Desconto automático. Não precisa digitar código.<br>Disponível até <time data-subscription-coupon-expiry></time>.</p></div>
+   <p class="subscription-promo-offer__terms" data-subscription-campaign-terms></p>
+  </aside>
   <div class="plans-ledger">
    <article class="plan-offer" data-offer="starter" aria-labelledby="planFreeTitle">
     <div class="plan-topline"><span>01 / DESCOBRIR</span><span class="plan-flag">7 dias grátis</span></div>
