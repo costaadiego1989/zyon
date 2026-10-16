@@ -5,9 +5,9 @@ import { createRequire } from "node:module";
 import { mkdir, readFile, writeFile } from "node:fs/promises";
 import path from "node:path";
 
-const adminUrl = "https://zyon-control-84mfslcp8-diegos-projects-b6fd2a25.vercel.app";
+const adminUrl = process.env.BILLING_CONTROL_HOMOLOG_URL ?? "https://zyon-control-84mfslcp8-diegos-projects-b6fd2a25.vercel.app";
 const api = "https://api-sandbox-8146.up.railway.app";
-const output = path.resolve("../../.audit/billing-promotions-homolog");
+const output = path.resolve(process.env.BILLING_HOMOLOG_EVIDENCE_DIR ?? "../../.audit/billing-promotions-homolog");
 await mkdir(output, { recursive: true });
 const credential = spawnSync("powershell.exe", ["-NoProfile", "-NonInteractive", "-Command",
   "$c=Import-Clixml -LiteralPath (Join-Path $env:LOCALAPPDATA 'Zyon\\homolog\\admin.credential.xml');[pscustomobject]@{email=$c.UserName;password=$c.GetNetworkCredential().Password}|ConvertTo-Json -Compress"], { encoding: "utf8" });
@@ -64,6 +64,7 @@ async function form(code, type, value, starterOnly = false) {
   await page.getByLabel("Data de início", { exact: true }).fill(dateValue(new Date(Date.now() - 60000)));
   await page.getByLabel("Data final", { exact: true }).fill(dateValue(new Date(Date.now() + 7 * 86400000)));
   if (starterOnly) {
+    await page.getByRole("radio", { name: "Planos específicos", exact: true }).check();
     await page.getByText("Opções da assinatura e limites", { exact: false }).click();
     await page.getByRole("checkbox", { name: /Growth/ }).uncheck(); await page.getByRole("checkbox", { name: /Scale/ }).uncheck();
     await page.getByLabel("Limite total de usos", { exact: true }).fill("1");

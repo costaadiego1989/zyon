@@ -116,7 +116,7 @@ export function PlanSelection({ merchantName, initialPlan, requirePaidPlan = fal
   const annualAvailable = plans.some(plan => plan.annualCheckoutAvailable);
   const discountPercent = plans.flatMap(plan => plan.billingOptions ?? []).find(offer => offer.cycle === "annual")?.discountPercent ?? 0;
   return <section className="plan-selection" aria-labelledby="plan-selection-title">
-    <div className="plan-selection__brand"><a href="https://www.zyon-payments.com.br/" aria-label="Zyon, voltar ao site"><img src="/logo-zyon.png" alt="Zyon" /></a><span><CheckCircle2 size={15} /> Acesso confirmado</span></div>
+    <div className="plan-selection__brand"><a href="https://www.zyon-payments.com.br/" aria-label="Zyon, voltar ao site"><img src="/zyon-z.png" alt="" width="44" height="33" /><span aria-hidden="true">Zyon</span></a><span><CheckCircle2 size={15} /> Acesso confirmado</span></div>
     <header className="plan-selection__header">
       <p className="plan-selection__eyebrow">SEU PLANO · {merchantName}</p>
       <h1 id="plan-selection-title">Sua loja pronta para o próximo passo.</h1>

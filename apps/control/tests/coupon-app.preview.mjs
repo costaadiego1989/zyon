@@ -38,6 +38,11 @@ try {
       }
       await page.locator(view === "signup" ? ".billing-promotion-applied" : '[data-plan-key="growth"]').scrollIntoViewIfNeeded();
       if (view === "signup") { await page.locator(".plan-selection__header").scrollIntoViewIfNeeded(); }
+      if (view === "signup") {
+        await page.locator(".plan-selection__brand img").evaluate(image => image.decode());
+        assert.equal(await page.locator(".plan-selection__brand img").getAttribute("src"), "/zyon-z.png");
+        assert.equal(await page.locator(".plan-selection__brand a").evaluate(link => getComputedStyle(link).backgroundColor), "rgba(0, 0, 0, 0)");
+      }
       await page.screenshot({ path: path.join(output, `blackfriday-app-${view}-${name}-automatico.png`) });
       if (view === "signup" && name === "desktop") {
         await page.locator("[data-plan-key='scale']").scrollIntoViewIfNeeded();

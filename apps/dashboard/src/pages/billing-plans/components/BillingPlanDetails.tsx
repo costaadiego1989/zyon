@@ -1,6 +1,6 @@
 import React from "react";
 import { Check } from "lucide-react";
-import { BILLING_PLAN_PRESENTATION, BUYER_SERVICE_FEE_CENTS, promotionalBillingPrice, billingPromotionDuration, type BillingCycle } from "@zyon/shared-types";
+import { BILLING_PLAN_PRESENTATION, BUYER_SERVICE_FEE_CENTS, FREE_TRIAL_DAYS, promotionalBillingPrice, billingPromotionDuration, type BillingCycle } from "@zyon/shared-types";
 import type { PlanDef } from "./PlanCard.js";
 import { billingMoney, selectedBillingOffer } from "../plan-catalog.js";
 import "./billing-plan-details.css";
@@ -23,7 +23,7 @@ export function BillingPlanDetails({ plan, billingCycle, choice }: {
       <div className="billing-plan-details__price"><strong>{offer ? billingMoney(promotion ? promotionalBillingPrice(offer.amountCents, promotion) : offer.equivalentMonthlyCents) : "Indisponível"}</strong>{offer && <span>/mês</span>}</div>
       {promotion && offer && <p className="billing-promotion-terms">{promotion.name} · {billingPromotionDuration(promotion)}.{promotion.duration !== "forever" && <> Depois, {billingMoney(offer.amountCents)}/mês.</>}{promotion.firstTimeOnly && <> Apenas para clientes sem pagamentos anteriores.</>}</p>}
       <p>{plan.key === "starter"
-        ? `${plan.trialDays ?? 14} dias para conhecer a Zyon, sem taxa Zyon por transação nesse período. Depois, escolha Growth ou Scale para manter a loja publicada.`
+        ? `${plan.trialDays ?? FREE_TRIAL_DAYS} dias para conhecer a Zyon, sem taxa Zyon por transação nesse período. Depois, escolha Starter, Growth ou Scale para manter a loja publicada.`
         : `${plan.fee} por transação. Tarifa fixa por compra.`}</p>
       {plan.key !== "starter" && billingCycle === "annual" && <p>{offer
         ? <>Total anual: <strong>{billingMoney(offer.amountCents)}</strong>, pago de uma vez. Economia de {billingMoney(offer.savingsCents)} ({offer.discountPercent}%).</>

@@ -11,8 +11,9 @@
 .plan-selection * { box-sizing:border-box; }
 .plan-selection .zyn-btn--primary:hover:not(:disabled) { background:oklch(37% .07 155); border-color:transparent; color:oklch(97% .012 155); box-shadow:none; transform:none; }
 .plan-selection__brand { display:flex; align-items:center; justify-content:space-between; gap:20px; padding-bottom:25px; border-bottom:1px solid var(--plan-line); }
-.plan-selection__brand a { display:flex; align-items:center; padding:10px 16px; min-height:44px; background:oklch(22% .03 155); border-radius:8px; }
-.plan-selection__brand img { display:block; width:90px; height:auto; }
+.plan-selection__brand a { display:flex; align-items:center; gap:10px; min-height:44px; color:var(--plan-ink); background:transparent; text-decoration:none; }
+.plan-selection__brand a > span { font:750 32px/1 Manrope,system-ui,sans-serif; letter-spacing:-.035em; }
+.plan-selection__brand img { display:block; width:44px; height:33px; object-fit:contain; filter:brightness(0); }
 .plan-selection__brand > span { display:flex; gap:8px; align-items:center; font-size:12px; color:var(--plan-accent); }
 .plan-selection__header { max-width:780px; padding:44px 0 42px; }
 .plan-selection__eyebrow { margin:0 0 18px; color:var(--plan-accent); font:600 11px/1.7 Manrope,system-ui,sans-serif; letter-spacing:.07em; overflow-wrap:anywhere; }
@@ -68,5 +69,5 @@
 .plan-selection__grid--focused .signup-plan__description { min-height:0; }
 @media(max-width:1050px) { .signup-plans { padding-inline:24px; } .signup-plan { padding:22px; } .signup-plan__description { min-height:152px; } .signup-plan__price strong { font-size:32px; } }
 @media(max-width:850px) { .plan-selection__grid { grid-template-columns:1fr; max-width:620px; margin-inline:auto; } .signup-plan__description,.signup-plan__fee { min-height:0; } .signup-plan__price strong { font-size:38px; } .plan-selection__header h1 { font-size:36px; } }
-@media(max-width:540px) { .signup-plans { padding-inline:16px; } .plan-selection { padding-top:20px; } .plan-selection__brand > span { font-size:10px; } .plan-selection__header { padding-block:30px; } .plan-selection__header h1 { font-size:29px; } .plan-selection__footer { gap:10px; padding-block:14px; } .plan-selection__footer button { width:100%; } .plan-selection__brand a { padding:9px; } .plan-selection__brand img { width:75px; } }
+@media(max-width:540px) { .signup-plans { padding-inline:16px; } .plan-selection { padding-top:20px; } .plan-selection__brand > span { font-size:10px; } .plan-selection__header { padding-block:30px; } .plan-selection__header h1 { font-size:29px; } .plan-selection__footer { gap:10px; padding-block:14px; } .plan-selection__footer button { width:100%; } .plan-selection__brand a { gap:8px; } .plan-selection__brand a > span { font-size:28px; } .plan-selection__brand img { width:38px; height:29px; } }
 @media(prefers-reduced-motion:reduce) { .plan-selection *, .plan-selection *::before,.plan-selection *::after { animation:none!important; transition:none!important; } }
