@@ -22,6 +22,10 @@
 .promotion-plans input, .promotion-checkbox input { flex: 0 0 17px; width: 17px; height: 17px; min-height: 17px; margin: 1px 0 0; accent-color: var(--accent); }
 .promotion-plans small { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 11px; }
 .promotion-checkbox { margin-top: 16px; }
+.promotion-campaign-settings { padding-top: 20px; margin-top: 20px; border-top: 1px solid var(--line); }
+.promotion-plan-scope legend { font-size: 13px; font-weight: 650; }
+.promotion-campaign-settings .promotion-checkbox { margin-top: 6px; }
+.promotion-campaign-settings small { display: block; max-width: 75ch; margin-top: 5px; font-size: 11px; line-height: 1.6; color: var(--ink-muted); }
 .promotion-options { margin: 24px 0; border-top: 1px solid var(--line); border-bottom: 1px solid var(--line); }
 .promotion-options summary { padding: 18px 0; cursor: pointer; color: var(--ink); font-size: 13px; font-weight: 650; }
 .promotion-options summary > span { display: block; margin-top: 6px; color: var(--ink-muted); font-size: 11px; font-weight: 400; }

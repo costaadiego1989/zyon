@@ -237,6 +237,29 @@ test("billing creates a local trial and server-configured Stripe checkout", asyn
   );
 });
 
+test("billing resolves the public campaign code server-side before creating a checkout", async () => {
+  const repository = new InMemoryPaymentPlatformRepository(); const merchants = new InMemoryMerchantRepository();
+  merchants.seedProfile({ id: "mrc_promo", name: "Promo Store" });
+  const stripe = new StubStripePlatform(); let resolved: any; let checkoutInput: any;
+  stripe.createSubscriptionCheckout = async (input: any) => { checkoutInput = input; return { url: "https://billing.stripe.test/session", sessionId: "cs_test" }; };
+  const checkout = new CreateBillingCheckoutUseCase(repository, stripe, merchants, new StubBillingConfig(), undefined, {
+    resolveForCheckout: async input => { resolved = input; return "promo_server_checked"; },
+  });
+  await checkout.execute({ merchantId: "mrc_promo", email: "owner@example.com", plan: "growth", promotionCode: "BLACKFRIDAY" });
+  assert.deepEqual(resolved, { code: "BLACKFRIDAY", plan: "growth", cycle: "monthly" });
+  assert.equal(checkoutInput.promotionCodeId, "promo_server_checked");
+});
+
+test("invalid campaign creates neither a customer nor checkout", async () => {
+  const stripe = new StubStripePlatform(); let calls = 0;
+  stripe.createBillingCustomer = async () => { calls++; return { customerId: "cus_test" }; };
+  const checkout = new CreateBillingCheckoutUseCase(new InMemoryPaymentPlatformRepository(), stripe, new InMemoryMerchantRepository(), new StubBillingConfig(), undefined, {
+    resolveForCheckout: async () => { throw new Error("billing_promotion_invalid"); },
+  });
+  await assert.rejects(() => checkout.execute({ merchantId: "mrc_promo", email: "owner@example.com", plan: "growth", promotionCode: "BAD" }), /billing_promotion_invalid/);
+  assert.equal(calls, 0);
+});
+
 test("a manually provisioned plan without a provider subscription opens Stripe Checkout", async () => {
   const repository = new InMemoryPaymentPlatformRepository();
   const merchants = new InMemoryMerchantRepository();

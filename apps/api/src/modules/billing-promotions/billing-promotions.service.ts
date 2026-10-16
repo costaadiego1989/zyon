@@ -2,7 +2,8 @@ import { BadRequestException, ConflictException, Inject, Injectable, Logger, Not
 import { Prisma, type PrismaClient, type BillingPromotion } from "@prisma/client";
 import Stripe from "stripe";
 import { createHash } from "node:crypto";
-import { BILLING_PLANS } from "@zyon/shared-types";
+import { BILLING_PLANS, type AutomaticBillingPromotion } from "@zyon/shared-types";
+import type { BillingCheckoutPromotionPort } from "../payment/domain/ports/payment-platform-provider.port.js";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { billingPriceId } from "../payment/infrastructure/billing-env.js";
 import { PAID_PROMOTION_PLANS, parsePromotion, parsePromotionQuery, promotionPolicy, promotionShouldBeActive, type PromotionInput, type PromotionPlan } from "./billing-promotion.policy.js";
@@ -11,10 +12,12 @@ export const BILLING_PROMOTIONS_STRIPE = Symbol("BILLING_PROMOTIONS_STRIPE");
 type AuditContext = { operatorId: string; correlationId: string };
 
 @Injectable()
-export class BillingPromotionsService implements OnApplicationBootstrap, OnModuleDestroy {
+export class BillingPromotionsService implements OnApplicationBootstrap, OnModuleDestroy, BillingCheckoutPromotionPort {
   private readonly logger = new Logger(BillingPromotionsService.name);
   private timer?: ReturnType<typeof setInterval>;
   private syncing = false;
+  private automaticCache?: { until: number; items: AutomaticBillingPromotion[] };
+  private automaticLoading?: Promise<AutomaticBillingPromotion[]>;
 
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Inject(BILLING_PROMOTIONS_STRIPE) private readonly stripe: Stripe | null) {}
@@ -27,6 +30,59 @@ export class BillingPromotionsService implements OnApplicationBootstrap, OnModul
     void this.synchronizeScheduled();
   }
   onModuleDestroy() { if (this.timer) clearInterval(this.timer); }
+
+  async automatic(): Promise<AutomaticBillingPromotion[]> {
+    if (!this.stripe || process.env.BILLING_PROMOTIONS_ENABLED === "false") return [];
+    if (this.automaticCache && this.automaticCache.until > Date.now()) return this.automaticCache.items;
+    if (this.automaticLoading) return this.automaticLoading;
+    this.automaticLoading = this.loadAutomatic().then(items => {
+      this.automaticCache = { until: Math.min(Date.now() + 15000, ...items.map(item => Date.parse(item.expiresAt))), items };
+      return items;
+    }).finally(() => { this.automaticLoading = undefined; });
+    return this.automaticLoading;
+  }
+
+  private async loadAutomatic(): Promise<AutomaticBillingPromotion[]> {
+    const now = new Date();
+    const rows = await this.prisma.billingPromotion.findMany({
+      where: { autoApply: true, enabled: true, provisioned: true, deletedAt: null, startsAt: { lte: now }, expiresAt: { gt: now } },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    });
+    const result: AutomaticBillingPromotion[] = [];
+    for (const row of rows) {
+      if (!row.autoApply || !row.enabled || row.deletedAt || !row.provisioned || row.startsAt > now || row.expiresAt <= now) continue;
+      try { await this.resolveForCheckout({ code: row.code, plan: row.plans[0] as PromotionPlan, cycle: "monthly" }); }
+      catch (error) { if (error instanceof BadRequestException) continue; throw error; }
+      result.push({ code: row.code, name: row.name, plans: row.plans, discountType: row.discountType as "percent" | "fixed",
+        discountValue: row.discountValue, duration: row.duration as AutomaticBillingPromotion["duration"], durationMonths: row.durationMonths,
+        startsAt: row.startsAt.toISOString(), expiresAt: row.expiresAt.toISOString(), firstTimeOnly: row.firstTimeOnly });
+    }
+    return result;
+  }
+
+  async resolveForCheckout(input: Parameters<BillingCheckoutPromotionPort["resolveForCheckout"]>[0]): Promise<string> {
+    const stripe = this.requireStripe();
+    if (input.cycle !== "monthly") throw new BadRequestException("billing_promotion_monthly_only");
+    const code = input.code.trim().toUpperCase();
+    if (!/^[A-Z0-9-]{3,40}$/.test(code)) throw new BadRequestException("billing_promotion_invalid");
+    const row = await this.prisma.billingPromotion.findUnique({ where: { code } });
+    const now = new Date();
+    if (!row || row.deletedAt || !row.enabled || !row.provisioned || !row.stripePromotionCodeId || row.startsAt > now || row.expiresAt <= now) {
+      throw new BadRequestException("billing_promotion_invalid");
+    }
+    if (!row.plans.includes(input.plan)) throw new BadRequestException("billing_promotion_plan_not_allowed");
+    let promotion: Stripe.PromotionCode;
+    try { promotion = await stripe.promotionCodes.retrieve(row.stripePromotionCodeId); }
+    catch { throw new ServiceUnavailableException("billing_promotions_unavailable"); }
+    if (!promotion.active || promotion.code.toUpperCase() !== code || promotion.metadata?.zyon_billing_campaign_id !== row.id ||
+      !promotionShouldBeActive(row, promotion.times_redeemed, now) ||
+      (promotion.expires_at !== null && promotion.expires_at !== undefined && promotion.expires_at * 1000 <= now.getTime()) ||
+      (promotion.max_redemptions != null && promotion.times_redeemed >= promotion.max_redemptions)) {
+      throw new BadRequestException("billing_promotion_invalid");
+    }
+    // Pass the promotion, not the coupon: Stripe still enforces its redemption and first-purchase restrictions.
+    return promotion.id;
+  }
 
   async list(query: Record<string, unknown> = {}) {
     this.requireStripe();
@@ -52,6 +108,7 @@ export class BillingPromotionsService implements OnApplicationBootstrap, OnModul
   }
 
   async create(body: Record<string, unknown>, audit: AuditContext) {
+    this.automaticCache = undefined;
     this.requireStripe();
     const input = parsePromotion(body);
     const existing = await this.prisma.billingPromotion.findUnique({ where: { id: input.id } });
@@ -116,6 +173,7 @@ export class BillingPromotionsService implements OnApplicationBootstrap, OnModul
   }
 
   async update(id: string, body: Record<string, unknown>, audit: AuditContext) {
+    this.automaticCache = undefined;
     this.requireStripe();
     const input = parsePromotion({ ...body, id });
     return this.locked(id, async (tx, row) => {
@@ -132,6 +190,7 @@ export class BillingPromotionsService implements OnApplicationBootstrap, OnModul
   }
 
   async remove(id: string, audit: AuditContext) {
+    this.automaticCache = undefined;
     this.requireStripe();
     return this.locked(id, async (tx, row) => {
       if (row.stripePromotionCodeId) await this.requireStripe().promotionCodes.update(row.stripePromotionCodeId, { active: false });
@@ -149,6 +208,7 @@ export class BillingPromotionsService implements OnApplicationBootstrap, OnModul
   }
 
   async setEnabled(id: string, enabled: unknown, audit: AuditContext) {
+    this.automaticCache = undefined;
     this.requireStripe();
     if (typeof enabled !== "boolean") throw new BadRequestException("billing_promotion_invalid_enabled");
     return this.locked(id, async (tx, row) => {
@@ -235,5 +295,5 @@ export class BillingPromotionsService implements OnApplicationBootstrap, OnModul
 }
 
 function sameConfiguration(row: BillingPromotion, input: PromotionInput, explicitStart: boolean): boolean {
-  return row.code === input.code && row.name === input.name && row.discountType === input.discountType && row.discountValue === input.discountValue && row.duration === input.duration && row.durationMonths === input.durationMonths && row.plans.join(",") === input.plans.join(",") && row.expiresAt.getTime() === input.expiresAt.getTime() && (!explicitStart || row.startsAt.getTime() === input.startsAt.getTime()) && row.maxRedemptions === input.maxRedemptions && row.firstTimeOnly === input.firstTimeOnly;
+  return row.code === input.code && row.name === input.name && (row.autoApply ?? false) === input.autoApply && row.discountType === input.discountType && row.discountValue === input.discountValue && row.duration === input.duration && row.durationMonths === input.durationMonths && row.plans.join(",") === input.plans.join(",") && row.expiresAt.getTime() === input.expiresAt.getTime() && (!explicitStart || row.startsAt.getTime() === input.startsAt.getTime()) && row.maxRedemptions === input.maxRedemptions && row.firstTimeOnly === input.firstTimeOnly;
 }

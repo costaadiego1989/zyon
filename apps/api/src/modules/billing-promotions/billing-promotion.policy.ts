@@ -8,7 +8,7 @@ export type PromotionInput = {
   /** Percentage in basis points; fixed discount in BRL cents. */
   discountValue: number; duration: "once" | "repeating" | "forever"; durationMonths: number | null;
   plans: PromotionPlan[]; startsAt: Date; expiresAt: Date;
-  maxRedemptions: number | null; firstTimeOnly: boolean;
+  maxRedemptions: number | null; firstTimeOnly: boolean; autoApply: boolean;
 };
 
 export function promotionPolicy(env = process.env) {
@@ -46,6 +46,7 @@ export function parsePromotion(input: Record<string, unknown>, now = new Date(),
   const maxRedemptions = input.maxRedemptions == null ? null : input.maxRedemptions;
   if (maxRedemptions !== null && (typeof maxRedemptions !== "number" || !Number.isSafeInteger(maxRedemptions) || maxRedemptions < 1)) fail("maxRedemptions");
   if (input.firstTimeOnly !== undefined && typeof input.firstTimeOnly !== "boolean") fail("firstTimeOnly");
+  if (input.autoApply !== undefined && typeof input.autoApply !== "boolean") fail("autoApply");
   for (const plan of plans) {
     const base = Math.round(BILLING_PLANS[plan].monthlyPriceBrl * 100);
     const discount = input.discountType === "percent" ? Math.round(base * (value as number) / 10000) : value as number;
@@ -54,7 +55,7 @@ export function parsePromotion(input: Record<string, unknown>, now = new Date(),
   }
   return { id, code, name, discountType: input.discountType as PromotionInput["discountType"], discountValue: value as number,
     duration: input.duration as PromotionInput["duration"], durationMonths: durationMonths as number | null,
-    plans, startsAt, expiresAt, maxRedemptions: maxRedemptions as number | null, firstTimeOnly: input.firstTimeOnly === true };
+    plans, startsAt, expiresAt, maxRedemptions: maxRedemptions as number | null, firstTimeOnly: input.firstTimeOnly === true, autoApply: input.autoApply === true };
 }
 
 export function promotionShouldBeActive(row: { enabled: boolean; startsAt: Date; expiresAt: Date; maxRedemptions: number | null }, used: number, now: Date): boolean {

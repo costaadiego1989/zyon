@@ -7,12 +7,12 @@ import "./BillingPromotions.css";
 type Form = {
   name: string; code: string; discountType: "percent" | "fixed"; value: string;
   duration: "once" | "repeating" | "forever"; months: string; plans: PromotionPlan[];
-  startsAt: string; expiresAt: string; maxUses: string; firstTimeOnly: boolean;
+  startsAt: string; expiresAt: string; maxUses: string; firstTimeOnly: boolean; autoApply: boolean; planScope: "all" | "specific";
 };
 const brl = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
 const dateTime = (value: string) => new Date(value).toLocaleString("pt-BR", { timeZone: "America/Sao_Paulo", day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit" });
 const localDateTime = (date: Date) => new Date(date.getTime() - 3 * 3600000).toISOString().slice(0, 16);
-const freshForm = (): Form => ({ name: "", code: "", discountType: "percent", value: "", duration: "once", months: "", plans: ["starter179", "growth", "scale"], startsAt: localDateTime(new Date()), expiresAt: "", maxUses: "", firstTimeOnly: false });
+const freshForm = (): Form => ({ name: "", code: "", discountType: "percent", value: "", duration: "once", months: "", plans: ["starter179", "growth", "scale"], startsAt: localDateTime(new Date()), expiresAt: "", maxUses: "", firstTimeOnly: false, autoApply: false, planScope: "all" });
 const initialFilters = { search: "", status: "", discountType: "", plan: "" };
 const statuses: Record<string, string> = { active: "Habilitado", paused: "Desabilitado", scheduled: "Agendado", expired: "Expirado", exhausted: "Esgotado", pending: "Pendente", unverified: "Não verificado", sync_pending: "Sincronizando" };
 
@@ -63,7 +63,8 @@ export function BillingPromotions({ api, token, canWrite, onSessionExpired }: { 
     setForm(row ? { name: row.name, code: row.code, discountType: row.discountType, value: String(row.discountValue / 100),
       duration: row.duration, months: row.durationMonths ? String(row.durationMonths) : "", plans: row.plans,
       startsAt: localDateTime(new Date(row.startsAt)), expiresAt: localDateTime(new Date(row.expiresAt)),
-      maxUses: row.maxRedemptions ? String(row.maxRedemptions) : "", firstTimeOnly: row.firstTimeOnly } : freshForm());
+      maxUses: row.maxRedemptions ? String(row.maxRedemptions) : "", firstTimeOnly: row.firstTimeOnly, autoApply: row.autoApply === true,
+      planScope: row.plans.length === 3 ? "all" : "specific" } : freshForm());
     setShowForm(true);
   }
 
@@ -84,7 +85,7 @@ export function BillingPromotions({ api, token, canWrite, onSessionExpired }: { 
       discountType: form.discountType, discountValue: Math.round(Number(form.value) * 100),
       duration: form.duration, durationMonths: form.duration === "repeating" ? Number(form.months) : null,
       startsAt: new Date(form.startsAt + "-03:00").toISOString(), expiresAt: new Date(form.expiresAt + "-03:00").toISOString(),
-      maxRedemptions: form.maxUses ? Number(form.maxUses) : null, firstTimeOnly: form.firstTimeOnly,
+      maxRedemptions: form.maxUses ? Number(form.maxUses) : null, firstTimeOnly: form.firstTimeOnly, autoApply: form.autoApply,
     };
     setSaving(true);
     try {
@@ -140,6 +141,15 @@ export function BillingPromotions({ api, token, canWrite, onSessionExpired }: { 
             <label><span>Data final</span><input required type="datetime-local" value={form.expiresAt} onChange={e => patch({ expiresAt: e.target.value })} /></label>
           </div>
           <p className="promotion-help">Horário de Brasília. A data final encerra novos usos do código; os descontos já concedidos seguem a duração definida abaixo.</p>
+          <div className="promotion-campaign-settings">
+            <fieldset className="promotion-plan-scope"><legend>Aplicar desconto em</legend>
+              <label className="promotion-checkbox"><input type="radio" name="promotion-plan-scope" checked={form.planScope === "all"} onChange={() => patch({ planScope: "all", plans: ["starter179", "growth", "scale"] })} /><span>Todos os planos pagos<small>Starter, Growth e Scale</small></span></label>
+              <label className="promotion-checkbox"><input type="radio" name="promotion-plan-scope" checked={form.planScope === "specific"} onChange={() => patch({ planScope: "specific" })} /><span>Planos específicos</span></label>
+              {form.planScope === "specific" && <div className="promotion-plans">{data?.plans.map(plan => <label key={plan.id}><input type="checkbox" checked={form.plans.includes(plan.id)} onChange={e => patch({ plans: e.target.checked ? [...form.plans, plan.id] : form.plans.filter(id => id !== plan.id) })} /><span>{plan.name}<small>{brl(plan.monthlyPriceCents)}/mês</small></span></label>)}</div>}
+            </fieldset>
+            <label className="promotion-checkbox"><input type="checkbox" checked={form.autoApply} onChange={e => patch({ autoApply: e.target.checked })} /><span>Divulgar e aplicar automaticamente<small>Mostra a campanha no site e leva o desconto para a contratação dos planos selecionados, sem digitar código. Respeita as datas de início e fim.</small></span></label>
+            <p className="promotion-help">O Free continua gratuito por 7 dias. Campanhas não acumulam: havendo mais de uma para o mesmo plano, vale a cadastrada mais recentemente.</p>
+          </div>
         </fieldset>
         <details className="promotion-options" open={editingId !== null || form.duration !== "once"}>
           <summary>Opções da assinatura e limites<span>Primeira mensalidade, planos elegíveis e limite de usos</span></summary>
@@ -150,13 +160,12 @@ export function BillingPromotions({ api, token, canWrite, onSessionExpired }: { 
               {form.duration === "repeating" && <label><span>Quantidade de meses</span><input required type="number" min="1" step="1" max={data?.policy.maxMonths ?? 36} value={form.months} onChange={e => patch({ months: e.target.value })} /></label>}
               <label><span>Limite total de usos</span><input type="number" min="1" step="1" value={form.maxUses} onChange={e => patch({ maxUses: e.target.value })} placeholder="Sem limite" /></label>
             </div>
-            <p className="promotion-field-title">Planos elegíveis</p><div className="promotion-plans">{data?.plans.map(plan => <label key={plan.id}><input type="checkbox" checked={form.plans.includes(plan.id)} onChange={e => patch({ plans: e.target.checked ? [...form.plans, plan.id] : form.plans.filter(id => id !== plan.id) })} /><span>{plan.name}<small>{brl(plan.monthlyPriceCents)}/mês</small></span></label>)}</div>
             <label className="promotion-checkbox"><input type="checkbox" checked={form.firstTimeOnly} onChange={e => patch({ firstTimeOnly: e.target.checked })} /><span>Apenas clientes sem pagamentos anteriores</span></label>
           </fieldset>
         </details>
         {form.value && <div className="promotion-summary" aria-live="polite"><strong>Com este desconto</strong><span>{preview.map(plan => `${plan.name}: ${brl(Math.max(0, plan.total))}/mês`).join(" · ")}</span><small>{form.duration === "once" ? "Na primeira mensalidade. Depois, valor integral do plano." : form.duration === "repeating" ? `Durante ${form.months || "0"} meses. Depois, valor integral do plano.` : "Em todas as mensalidades da assinatura."} As taxas por compra permanecem iguais.</small></div>}
         {formError && <p className="promotion-feedback" role="alert">{formError}</p>}
-        <div className="promotion-form__actions"><p>O código poderá ser informado no pagamento Stripe.</p><div><button type="button" className="button button--secondary" disabled={saving} onClick={() => setShowForm(false)}>Cancelar</button><button className="button button--primary" type="submit" disabled={saving}>{saving ? "Salvando…" : editingId ? "Salvar alterações" : "Criar cupom"}</button></div></div>
+        <div className="promotion-form__actions"><p>{form.autoApply ? "O desconto será levado automaticamente à Stripe nos planos selecionados." : "Cupom privado: o cliente poderá informá-lo no app antes de abrir a Stripe."}</p><div><button type="button" className="button button--secondary" disabled={saving} onClick={() => setShowForm(false)}>Cancelar</button><button className="button button--primary" type="submit" disabled={saving}>{saving ? "Salvando…" : editingId ? "Salvar alterações" : "Criar cupom"}</button></div></div>
       </form>
     </section> : <section className="promotion-register" aria-labelledby="promotion-register-heading">
       <div className="section-heading"><h2 id="promotion-register-heading">Cupons cadastrados</h2><button className="button button--secondary" disabled={loading} onClick={() => setRefresh(n => n + 1)}><RefreshCw size={14} />Atualizar</button></div>

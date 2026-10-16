@@ -18,7 +18,7 @@ function harness() {
     findUnique: async ({ where }: any) => rows.get(where.id) ?? [...rows.values()].find(row => row.code === where.code),
     create: async ({ data }: any) => { const row = { ...data, revision: 1, enabled: true, provisioned: false, deletedAt: null, stripeCouponId: null, stripePromotionCodeId: null, createdAt: new Date(), updatedAt: new Date() }; rows.set(row.id, row); return row; },
     update: async ({ where, data }: any) => { const row = { ...rows.get(where.id), ...data }; rows.set(row.id, row); return row; },
-    findMany: async (args: any) => { calls.push({ type: "findMany", args }); return [...rows.values()].filter(row => !row.deletedAt).slice(args.skip ?? 0, (args.skip ?? 0) + args.take); },
+    findMany: async (args: any) => { calls.push({ type: "findMany", args }); return [...rows.values()].filter(row => !row.deletedAt).sort((a, b) => b.createdAt.getTime() - a.createdAt.getTime()).slice(args.skip ?? 0, args.take === undefined ? undefined : (args.skip ?? 0) + args.take); },
     count: async () => [...rows.values()].filter(row => !row.deletedAt).length,
   };
   const tx = { billingPromotion: repository, $queryRaw: async () => [], platformAuditEvent: { create: async (args: any) => { audits.push(args.data); return args.data; } } };
@@ -49,6 +49,70 @@ function harness() {
   const audit = { operatorId: "operator-admin", correlationId: randomUUID() };
   return { service, stripe, prisma, body, audit, coupons, codes, calls, audits, row: (id: string) => rows.get(id) };
 }
+
+test("checkout resolves a normalized campaign code to its scoped Stripe promotion", async () => {
+  const h = harness(); const created = await h.service.create(h.body, h.audit);
+  assert.equal(await h.service.resolveForCheckout({ code: "  blackfriday ", plan: "growth", cycle: "monthly" }), created.stripePromotionCodeId);
+  assert.equal(h.codes.get(created.stripePromotionCodeId!).times_redeemed, 0);
+});
+
+test("automatic campaigns expose only explicit public data and preserve the selected plans", async () => {
+  const h = harness(); await h.service.create({ ...h.body, autoApply: true, plans: ["growth", "scale"] }, h.audit);
+  const campaigns = await h.service.automatic(); assert.equal(campaigns.length, 1);
+  assert.deepEqual(campaigns[0].plans, ["growth", "scale"]); assert.equal(campaigns[0].discountValue, 5000);
+  assert.deepEqual(Object.keys(campaigns[0]).sort(), ["code", "name", "plans", "discountType", "discountValue", "duration", "durationMonths", "startsAt", "expiresAt", "firstTimeOnly"].sort());
+  assert.doesNotMatch(JSON.stringify(campaigns), /promo_|stripe|createdBy|operator-admin/);
+});
+for (const state of ["private", "disabled", "deleted", "pending", "scheduled", "expired", "exhausted", "provider-inactive"] as const) {
+  test(`automatic campaigns hide ${state} coupons`, async () => {
+    const h = harness(); const created = await h.service.create({ ...h.body, autoApply: state !== "private" }, h.audit);
+    const row = h.row(created.id); const code = h.codes.get(created.stripePromotionCodeId!);
+    if (state === "disabled") row.enabled = false;
+    if (state === "deleted") row.deletedAt = new Date();
+    if (state === "pending") row.provisioned = false;
+    if (state === "scheduled") row.startsAt = new Date(Date.now() + 60000);
+    if (state === "expired") row.expiresAt = new Date(Date.now() - 1);
+    if (state === "exhausted") code.times_redeemed = row.maxRedemptions;
+    if (state === "provider-inactive") code.active = false;
+    assert.deepEqual(await h.service.automatic(), []);
+  });
+}
+
+test("automatic campaigns are empty when disabled and fail closed on provider outage", async () => {
+  const h = harness(); await h.service.create({ ...h.body, autoApply: true }, h.audit);
+  h.stripe.promotionCodes.retrieve = async () => { throw new Error("private_failure"); };
+  await assert.rejects(() => h.service.automatic(), /billing_promotions_unavailable/);
+  process.env.BILLING_PROMOTIONS_ENABLED = "false";
+  try { assert.deepEqual(await h.service.automatic(), []); } finally { delete process.env.BILLING_PROMOTIONS_ENABLED; }
+});
+
+for (const scenario of ["missing", "malformed", "annual", "wrong-plan", "disabled", "deleted", "pending", "scheduled", "expired", "exhausted", "stripe-inactive", "wrong-owner"] as const) {
+  test(`checkout rejects campaign: ${scenario}`, async () => {
+    const h = harness(); const created = await h.service.create(h.body, h.audit);
+    const row = h.row(created.id); const code = h.codes.get(created.stripePromotionCodeId!);
+    if (scenario === "disabled") row.enabled = false;
+    if (scenario === "deleted") row.deletedAt = new Date();
+    if (scenario === "pending") row.provisioned = false;
+    if (scenario === "scheduled") row.startsAt = new Date(Date.now() + 60000);
+    if (scenario === "expired") row.expiresAt = new Date(Date.now() - 1);
+    if (scenario === "exhausted") code.times_redeemed = row.maxRedemptions;
+    if (scenario === "stripe-inactive") code.active = false;
+    if (scenario === "wrong-owner") code.metadata = { zyon_billing_campaign_id: "another-campaign" };
+    await assert.rejects(() => h.service.resolveForCheckout({
+      code: scenario === "missing" ? "UNKNOWN" : scenario === "malformed" ? "promo_private?" : "BLACKFRIDAY",
+      plan: scenario === "wrong-plan" ? "scale" : "growth", cycle: scenario === "annual" ? "annual" : "monthly",
+    }), /billing_promotion_/);
+  });
+}
+
+test("checkout fails closed if campaigns are disabled or Stripe is unavailable", async () => {
+  const h = harness(); await h.service.create(h.body, h.audit);
+  h.stripe.promotionCodes.retrieve = async () => { throw new Error("provider_private_details"); };
+  await assert.rejects(() => h.service.resolveForCheckout({ code: "BLACKFRIDAY", plan: "growth", cycle: "monthly" }), /billing_promotions_unavailable/);
+  process.env.BILLING_PROMOTIONS_ENABLED = "false";
+  try { await assert.rejects(() => h.service.resolveForCheckout({ code: "BLACKFRIDAY", plan: "growth", cycle: "monthly" }), (error: any) => error.getResponse().code === "billing_promotions_unavailable"); }
+  finally { delete process.env.BILLING_PROMOTIONS_ENABLED; }
+});
 
 test("creates one restricted Stripe coupon and promotion, and retries return the same objects", async () => {
   const h = harness(); const created = await h.service.create(h.body, h.audit);

@@ -4634,6 +4634,7 @@ model BillingPromotion {
   expiresAt             DateTime @map("expires_at")
   maxRedemptions        Int?     @map("max_redemptions")
   firstTimeOnly         Boolean  @default(false) @map("first_time_only")
+  autoApply             Boolean  @default(false) @map("auto_apply")
   enabled               Boolean  @default(true)
   provisioned           Boolean  @default(false)
   revision              Int      @default(1)
@@ -4645,6 +4646,7 @@ model BillingPromotion {
   updatedAt             DateTime @updatedAt @map("updated_at")
 
   @@index([enabled, startsAt])
+  @@index([autoApply, enabled, startsAt])
   @@index([createdAt, id])
   @@map("billing_promotions")
 }

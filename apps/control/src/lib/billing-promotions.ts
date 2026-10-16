@@ -4,6 +4,7 @@ export type BillingPromotionDraft = {
   discountType: "percent" | "fixed"; discountValue: number;
   duration: "once" | "repeating" | "forever"; durationMonths: number | null;
   startsAt: string; expiresAt: string; maxRedemptions: number | null; firstTimeOnly: boolean;
+  autoApply?: boolean;
 };
 export type BillingPromotion = BillingPromotionDraft & {
   enabled: boolean; provisioned: boolean; status: string; timesRedeemed: number | null;

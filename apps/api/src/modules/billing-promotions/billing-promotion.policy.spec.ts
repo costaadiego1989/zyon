@@ -10,6 +10,13 @@ test("missing body is a validation failure", () => {
   for (const body of [null, undefined, []]) assert.throws(() => parsePromotion(body as any, now), BadRequestException);
 });
 
+test("campaign publishing is explicit opt-in and cannot be enabled by string coercion", () => {
+  assert.equal(parsePromotion(input(), now).autoApply, false);
+  assert.equal(parsePromotion({ ...input(), autoApply: true }, now).autoApply, true);
+  assert.throws(() => parsePromotion({ ...input(), autoApply: "true" }, now), BadRequestException);
+  assert.deepEqual(parsePromotion({ ...input(), plans: ["growth", "scale"], autoApply: true }, now).plans, ["growth", "scale"]);
+});
+
 test("malformed environment cannot bypass the minimum charge or month bounds", () => {
   assert.deepEqual(promotionPolicy({ BILLING_PROMOTION_MAX_MONTHS: "invalid", BILLING_PROMOTION_MIN_CHARGE_CENTS: "0" }), { maxMonths: 36, minChargeCents: 50 });
   assert.deepEqual(promotionPolicy({ BILLING_PROMOTION_MAX_MONTHS: "6", BILLING_PROMOTION_MIN_CHARGE_CENTS: "100" }), { maxMonths: 6, minChargeCents: 100 });

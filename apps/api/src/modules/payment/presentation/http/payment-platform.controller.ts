@@ -580,6 +580,7 @@ export class BillingController {
       email: principal.email,
       plan,
       billingCycle: body.billingCycle,
+      promotionCode: body.promotionCode,
     });
   }
 

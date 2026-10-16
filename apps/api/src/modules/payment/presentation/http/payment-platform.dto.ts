@@ -92,6 +92,12 @@ export class CreateAsaasSubaccountDto {
 }
 
 export class CreateBillingCheckoutDto {
+  @ApiPropertyOptional({ description: "Subscription campaign code applied before opening Stripe Checkout." })
+  @IsOptional()
+  @IsString()
+  @MaxLength(40)
+  promotionCode?: string;
+
   @ApiPropertyOptional({ enum: ["monthly", "annual"], default: "monthly" })
   @IsOptional()
   @IsIn(["monthly", "annual"])

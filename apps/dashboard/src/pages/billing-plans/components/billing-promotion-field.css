@@ -1,0 +1,19 @@
+.billing-promotion-field { display: flex; flex-direction: column; gap: 8px; margin: 20px 0; max-width: 520px; }
+.billing-promotion-field label { font: 600 14px var(--font-sans); color: var(--color-text); }
+.billing-promotion-field label span { font-weight: 400; }
+.billing-promotion-field input { box-sizing: border-box; width: 100%; min-height: 44px; padding: 10px 12px; border: 1px solid var(--color-border); border-radius: 8px; background: var(--color-surface, transparent); color: var(--color-text); font: 500 16px var(--font-sans); }
+.billing-promotion-field input::placeholder { color: var(--color-text-muted, var(--color-text)); opacity: 1; }
+.billing-promotion-field input:focus-visible { outline: 2px solid var(--color-brand); outline-offset: 2px; }
+.billing-promotion-field input:disabled { cursor: not-allowed; opacity: .65; }
+.billing-promotion-field p { margin: 0; font: 400 13px/1.5 var(--font-sans); color: var(--color-text-muted, var(--color-text)); }
+.plan-selection .billing-promotion-field label, .plan-selection .billing-promotion-field input { color: var(--plan-ink); }
+.plan-selection .billing-promotion-field input { background: transparent; border-color: var(--plan-line); }
+.plan-selection .billing-promotion-field input::placeholder, .plan-selection .billing-promotion-field p { color: var(--plan-muted); }
+.plan-selection .billing-promotion-field input:focus-visible { outline-color: var(--plan-accent); }
+.billing-promotion-manual summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font: 500 13px var(--font-sans); text-decoration: underline; text-underline-offset: 4px; }
+.billing-promotion-manual[open] { display: grid; gap: 8px; }
+.billing-promotion-applied { display: grid; gap: 6px; padding: 16px; border: 1px solid var(--color-brand); border-radius: 8px; background: var(--color-brand-subtle); }
+.billing-promotion-applied strong { font-size: 14px; }
+.plan-selection .billing-promotion-applied { color: var(--plan-ink); border-color: var(--plan-line); background: oklch(91% .03 155); }
+.billing-promotion-original { font-size: 13px; margin-bottom: 5px; }
+.billing-promotion-terms { font-size: 12px; line-height: 1.6; }

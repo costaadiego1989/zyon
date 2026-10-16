@@ -143,13 +143,15 @@ export class StripePlatformAdapter implements StripePlatformPort {
     customerId: string;
     priceId: string;
     offer?: BillingOffer;
+    promotionCodeId?: string;
     successUrl: string;
     cancelUrl: string;
   }): Promise<{ url: string; sessionId: string }> {
     if (input.offer) await this.validateBillingPrice(input.priceId, input.offer);
     const openSessions = await this.requireStripe().checkout.sessions.list({ customer: input.customerId, status: "open", limit: 20 });
     const ownedSessions = openSessions.data.filter(session => session.mode === "subscription" && session.metadata?.merchant_id === input.merchantId);
-    const open = ownedSessions.find(session => session.metadata?.price_id === input.priceId && session.url);
+    const open = ownedSessions.find(session => session.metadata?.price_id === input.priceId &&
+      (session.metadata?.promotion_code_id || undefined) === input.promotionCodeId && session.url);
     for (const stale of ownedSessions.filter(session => session.id !== open?.id)) {
       await this.requireStripe().checkout.sessions.expire(stale.id);
     }
@@ -159,11 +161,11 @@ export class StripePlatformAdapter implements StripePlatformPort {
         mode: "subscription",
         customer: input.customerId,
         line_items: [{ price: input.priceId, quantity: 1 }],
-        allow_promotion_codes: input.offer?.cycle !== "annual",
+        ...(input.promotionCodeId ? { discounts: [{ promotion_code: input.promotionCodeId }] } : { allow_promotion_codes: false }),
         success_url: input.successUrl,
         cancel_url: input.cancelUrl,
         client_reference_id: input.merchantId,
-        metadata: { merchant_id: input.merchantId, price_id: input.priceId },
+        metadata: { merchant_id: input.merchantId, price_id: input.priceId, promotion_code_id: input.promotionCodeId ?? "" },
         subscription_data: {
           metadata: { merchant_id: input.merchantId },
         },
