@@ -8,7 +8,7 @@ try {
   await page.locator('.subscription-promo-top:not([hidden])').waitFor();
   await page.locator('#planos').scrollIntoViewIfNeeded();
   await page.waitForTimeout(1500);
-  await page.screenshot({ path: path.join(output, 'production-web-plans-1440.png') });
+  await page.screenshot({ path: path.join(output, 'production-web-plans-final-1440.png') });
   await page.setViewportSize({ width: 390, height: 844 });
   await page.locator('[data-offer="starter179"]').scrollIntoViewIfNeeded();
   await page.waitForTimeout(1500);
