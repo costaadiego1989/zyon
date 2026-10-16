@@ -5,7 +5,9 @@ const root = fileURLToPath(new URL('../../../', import.meta.url));
 const env = process.argv[2];
 if (!['sandbox', 'production'].includes(env)) throw Error('explicit_environment_required');
 const source = path.resolve(root, '../AACP-blackfriday-web-20261015/apps/web');
-const target = path.join(root, '.audit/automatic-campaigns-release-20261016', env, 'web');
+const revision = process.argv[3] ?? '';
+if (revision && !/^[a-z0-9-]{1,20}$/.test(revision)) throw Error('invalid_artifact_revision');
+const target = path.join(root, '.audit/automatic-campaigns-release-20261016', env + (revision ? '-' + revision : ''), 'web');
 const output = path.join(target, '.vercel/output');
 if (existsSync(output)) throw Error('artifact_already_exists');
 mkdirSync(path.join(output, 'static'), { recursive: true });
@@ -18,6 +20,6 @@ if (env === 'sandbox') for (const item of ['index.html', 'assets/subscription-ca
   const file = path.join(output, 'static', item);
   writeFileSync(file, readFileSync(file, 'utf8').replaceAll('https://api.zyon-payments.com.br', 'https://api-sandbox-8146.up.railway.app').replaceAll('https://app.zyon-payments.com.br', 'https://dashboard-sandbox-59d9.up.railway.app'));
 }
-writeFileSync(path.join(output, 'config.json'), JSON.stringify({ version: 3, cleanUrls: true, routes: [{ handle: 'filesystem' }] }));
+writeFileSync(path.join(output, 'config.json'), JSON.stringify({ version: 3, routes: [{ handle: 'filesystem' }, { src: '^/([^/.]+)$', dest: '/$1.html' }] }));
 writeFileSync(path.join(target, '.vercel/project.json'), JSON.stringify({ projectId: 'prj_ax9LIrx648ZAPleYDwKCicTS1rn2', orgId: 'team_580RxQPCo0VLxu9vdZdJgb1S' }));
 console.log(JSON.stringify({ env, target, source, published: false }));

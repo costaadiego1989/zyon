@@ -84,7 +84,7 @@ try {
   await page.screenshot({ path: path.join(output, 'production-admin-campaign.png') });
   for (const [name, origin, projectName] of [['control', control, 'control'], ['dashboard', app, 'dashboard'], ['web', web, 'web']]) {
     const response = await fetch(origin); assert.equal(response.status, 200); const html = await response.text();
-    const artifactEnvironment = name === 'dashboard' ? (process.env.BILLING_DASHBOARD_ARTIFACT_ENV ?? 'production') : 'production';
+    const artifactEnvironment = name === 'dashboard' ? (process.env.BILLING_DASHBOARD_ARTIFACT_ENV ?? 'production') : name === 'web' ? (process.env.BILLING_WEB_ARTIFACT_ENV ?? 'production') : 'production';
     const expected = await readFile(path.resolve('../../.audit/automatic-campaigns-release-20261016', artifactEnvironment, projectName, '.vercel/output/static/index.html'), 'utf8');
     assert.equal(html, expected, 'published_exact_artifact_' + name);
     if (name !== 'web') {
