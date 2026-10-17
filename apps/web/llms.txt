@@ -27,6 +27,12 @@ Zyon descreve sua abordagem como e-commerce agêntico: uma IA de vendas que trab
 - IA para vendas e e-commerce agêntico: https://www.zyon-payments.com.br/ecommerce-agentico
 - Regras comerciais para atendimento com IA: https://www.zyon-payments.com.br/governanca-de-ia-no-ecommerce
 - Agentes de compra: https://www.zyon-payments.com.br/agentes-de-compra
+- Guia: Plataforma de e-commerce com IA: https://www.zyon-payments.com.br/plataforma-ecommerce-com-ia
+- Guia: Migrar loja virtual: https://www.zyon-payments.com.br/migrar-loja-virtual
+- Guia: Agente de IA para e-commerce: https://www.zyon-payments.com.br/agente-ia-para-ecommerce
+- Guia: Vender pelo WhatsApp com IA: https://www.zyon-payments.com.br/como-vender-pelo-whatsapp-com-ia
+- Guia: Chatbot para WhatsApp de loja virtual: https://www.zyon-payments.com.br/chatbot-whatsapp-loja-virtual
+- Guia: Integrar WhatsApp à loja virtual: https://www.zyon-payments.com.br/integrar-whatsapp-loja-virtual
 - Painel: https://app.zyon-payments.com.br/
 - Termos: https://www.zyon-payments.com.br/termos
 - Privacidade: https://www.zyon-payments.com.br/privacidade

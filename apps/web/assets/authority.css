@@ -68,6 +68,9 @@
 .authority-nav a:hover, .authority-nav a:focus-visible { color: #fff; }
 
 .authority-header__cta {
+  min-height: 44px;
+  display: inline-flex;
+  align-items: center;
   color: #11221b;
   background: #bce6c9;
   border-radius: 999px;
@@ -112,7 +115,7 @@
   margin: 18px 0 25px;
   font-size: clamp(2.75rem, 5.5vw, 5.7rem);
   line-height: 0.94;
-  letter-spacing: -0.075em;
+  letter-spacing: -0.04em;
   color: var(--authority-deep);
 }
 
