@@ -3,6 +3,7 @@ import type { StorefrontConversationInput, StorefrontConversationOutput } from "
 import type { CartAddResultBlock, ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { AgentCopyService } from "../copy/agent-copy.service.js";
 import { productGallery } from "../product-gallery.js";
+import { isCatalogBrowseQuery } from "../../../catalog/domain/services/contextual-product-search.js";
 
 export interface DeterministicShortcutDeps {
   productRepo: ProductRepositoryPort;
@@ -157,12 +158,14 @@ async function resolveOffersShortcut(
   normalizedMsg: string,
 ): Promise<StorefrontConversationOutput | null> {
   const triggers = ["ofertas", "ofertas do dia", "promoções", "promocoes", "ver produtos"];
-  if (!triggers.includes(normalizedMsg)) return null;
+  const isProducts = isCatalogBrowseQuery(input.userMessage);
+  if (!isProducts && !triggers.includes(normalizedMsg)) return null;
 
   try {
     const result = await deps.productRepo.search({
       merchantId: input.merchantId,
-      query: normalizedMsg === "ver produtos" ? "*" : undefined,
+      query: isProducts ? "*" : undefined,
+      inStockOnly: isProducts && /dispon[ií]ve[il]|estoque/i.test(input.userMessage) ? true : undefined,
       isActiveOnly: true,
       limit: 10,
     });
@@ -192,9 +195,8 @@ async function resolveOffersShortcut(
       },
     } as ConversationBlock];
 
-    const isProducts = normalizedMsg === "ver produtos";
     const introDefault = isProducts ? "Encontrei esses produtos para você:" : "Aqui estão nossas ofertas:";
-    const introMessage = await deps.copyService.generateVariantCopy(
+    const introMessage = isProducts ? introDefault : await deps.copyService.generateVariantCopy(
       input.experimentSystemPrompt,
       isProducts
         ? "Responda em 1 frase curta e amigável que encontrou produtos pra o cliente. Não liste os produtos."

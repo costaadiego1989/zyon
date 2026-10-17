@@ -3,6 +3,28 @@ import assert from "node:assert/strict";
 import { resolveDeterministicShortcut, type DeterministicShortcutDeps } from "./deterministic-shortcuts.service.js";
 import type { CartAddResultBlock } from "../../domain/types/conversation-block.js";
 import type { StorefrontConversationInput, StorefrontConversationOutput } from "../../domain/ports/conversation.port.js";
+import { ProductEntity } from "../../../catalog/domain/entities/product.entity.js";
+
+test("generic catalog questions show actual products without an LLM category guess", async () => {
+  const product = new ProductEntity({ id: "serum", merchantId: "merchant_qa", name: "Sérum de Barreira", isActive: true,
+    createdAt: new Date(), updatedAt: new Date(), variants: [{ id: "serum_30ml", sku: "SERUM", attributes: { Volume: "30 ml" },
+      isActive: true, basePriceInCents: 12990, taxPercent: 0, currency: "BRL", stockQuantity: 4, stockReserved: 0, media: [] }] });
+  const queries: any[] = [];
+  const run = fixture(null);
+  run.deps.productRepo = { search: async (query: any) => { queries.push(query); return { products: [product], total: 1 }; } } as never;
+  for (const question of ["quais produtos você tem a venda", "O que vocês vendem?", "Quero ver os produtos disponíveis"]) {
+    const result = await resolveDeterministicShortcut(run.deps, input(question));
+    assert.ok(result);
+    const carousel = result.blocks.find(block => block.type === "product_carousel");
+    assert.equal(carousel?.data.products[0]?.id, "serum");
+    assert.equal(carousel?.data.products[0]?.price, 12990);
+    assert.doesNotMatch(result.message, /eletrônicos|vazio|não.*produtos/);
+  }
+  assert.ok(queries.every(query => query.query === "*" && query.merchantId === "merchant_qa" && query.isActiveOnly));
+  assert.equal(queries[2].inStockOnly, true);
+  assert.equal(await resolveDeterministicShortcut(run.deps, input("Quero produtos para pele sensível")), null);
+  assert.equal(queries.length, 3, "specific needs must keep the contextual discovery route");
+});
 
 const input = (message = "Adicionar produto ao carrinho [variantId:physical]", cartId: string | undefined = "cart_qa"): StorefrontConversationInput => ({
   userMessage: message, merchantId: "merchant_qa", sessionId: "conversation_qa", cartId, history: [], storeCategory: "test",
