@@ -4,6 +4,9 @@ import { fileURLToPath } from "node:url";
 // Deterministic navigation and commerce regressions; provider sends are mocked.
 // Real persistence is validated separately by validate-whatsapp-storefront-parity.cjs in sandbox.
 const specs = [
+  "storefront/infrastructure/shortcuts/deterministic-shortcuts.service.spec.ts",
+  "storefront/presentation/http/storefront-support-access.spec.ts",
+  "support/application/support-handoff.service.spec.ts",
   "storefront/infrastructure/agents/product-discovery-fallback.spec.ts",
   "catalog/domain/services/contextual-product-search.spec.ts",
   "storefront/infrastructure/tool-handlers/contextual-product-search.spec.ts",

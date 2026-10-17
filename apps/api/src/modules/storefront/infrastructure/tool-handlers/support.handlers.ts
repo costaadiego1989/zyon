@@ -26,6 +26,8 @@ export function createSupportHandlers(deps: SupportHandlerDeps, ctx: ToolRequest
         merchantId: ctx.merchantId,
         sessionId: ctx.sessionId,
         buyerMessage: args.reason || "Solicitação de atendimento humano",
+        buyerId: ctx.buyer?.globalUserId,
+        initialMessage: ctx.userMessage,
       });
       return {
         escalated: true,

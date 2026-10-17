@@ -29,6 +29,7 @@ import { applyProductPromoPricing } from "../../infrastructure/pricing/storefron
 import { ListPublicStorefrontProductsUseCase } from "../../../catalog/application/use-cases/list-public-storefront-products.use-case.js";
 import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
+import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
@@ -84,6 +85,7 @@ export class StorefrontController {
     @Optional() private readonly aiIdentity?: AiUserIdentityService,
     @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
+    @Optional() private readonly supportHandoff?: SupportHandoffService,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -171,6 +173,18 @@ export class StorefrontController {
       aiUserId: identity.userId,
     });
     return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt, ai_user_token: identity.token };
+  }
+
+  @Post("conversations/:conversationId/support/buyer")
+  async linkSupportBuyer(
+    @Param("conversationId") conversationId: string,
+    @Req() request: { headers?: { authorization?: string; origin?: string; "x-buyer-authorization"?: string | string[] } },
+  ) {
+    const claims = this.conversationAccess(request, conversationId);
+    const buyerId = this.buyerId(request, claims.merchantId);
+    if (!buyerId) throw new UnauthorizedException("buyer_identity_required");
+    if (!this.supportHandoff) throw new NotFoundException("support_handoff_unavailable");
+    return this.supportHandoff.linkBuyerConversation(claims.merchantId, claims.resourceId, buyerId);
   }
 
   @Post("conversations/:conversationId/messages")
