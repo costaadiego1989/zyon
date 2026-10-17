@@ -21,7 +21,7 @@ const load = p => import(pathToFileURL(resolve('dist', p)).href);
     let published = 0;
     // No external webhook, email or WhatsApp sender is constructed in this probe.
     const handoff = new SupportHandoffService(repo, { publishCreated: () => { published++; } }, db);
-    const cases = new ReturnCaseService(db, {}, {}, {}, {}, {});
+    const cases = new ReturnCaseService(db, {}, { urls: () => [] }, {}, {}, {});
     const send = new SendTicketMessageUseCase(db);
     const args = { merchantId, sessionId, buyerMessage: 'QA: customer requests human support', initialMessage: 'QA: falar com humano' };
     const openings = await Promise.all(Array.from({ length: 4 }, () => handoff.createHandoff(args)));
