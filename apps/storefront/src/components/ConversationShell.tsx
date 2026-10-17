@@ -15,6 +15,7 @@ import BlockRenderer from "./blocks/BlockRenderer";
 import RichProductDetailsPanel from "./blocks/RichProductDetailsPanel";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
+import { useBuyerSupportInbox } from "@/lib/viewmodels/useBuyerSupportInbox";
 import SupportPanel from "./SupportPanel";
 import StoriesRow from "./StoriesRow";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
@@ -292,6 +293,7 @@ export default function ConversationShell({
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
     setCartDrawerForceOpen, dismissCrossSell, dismissProductCrossSell, clearPreparedCheckout,
   } = vm;
+  const supportInbox = useBuyerSupportInbox(merchantId, conversationId);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const presentedProductVariantRef = useRef<string | undefined>(undefined);
@@ -813,7 +815,7 @@ export default function ConversationShell({
             <svg width="15" height="15" viewBox="0 0 24 24"><circle cx="12" cy="12" r="9" fill="none" stroke="var(--aacp-muted)" strokeWidth="1.8" /><path d="M12 3a9 9 0 0 0 0 18z" fill="var(--aacp-muted)" /></svg>
           </button>
 
-          <BuyerHubTrigger onClick={() => setBuyerHubOpen(!buyerHubOpen)} hasNotifications={false} />
+          <BuyerHubTrigger onClick={() => setBuyerHubOpen(!buyerHubOpen)} unreadCount={supportInbox.unreadCount} />
           <button data-neu="control" type="button" onClick={() => setSupportOpen((v) => !v)} title="Suporte" style={{ width: "30px", height: "30px", borderRadius: "50%", border: `1px solid ${supportOpen ? "var(--aacp-accent)" : "var(--aacp-line)"}`, background: supportOpen ? "color-mix(in srgb, var(--aacp-accent) 12%, transparent)" : "var(--aacp-card)", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", flex: "none", padding: 0 }}>
             <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke={supportOpen ? "var(--aacp-accent)" : "var(--aacp-muted)"} strokeWidth="2" strokeLinecap="round" strokeLinejoin="round"><path d="M21 15a2 2 0 0 1-2 2H7l-4 4V5a2 2 0 0 1 2-2h14a2 2 0 0 1 2 2z" /></svg>
           </button>
@@ -1138,6 +1140,7 @@ export default function ConversationShell({
       />
       {/* Buyer Hub Panel */}
       <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} merchantSlug={merchantSlug} onToggleTheme={toggleTheme}
+        supportInbox={supportInbox}
         currentSessionId={conversationId}
         onResumeConversation={async (conversation) => {
           if (!merchantId || !conversationId) throw new Error("conversation_not_available");

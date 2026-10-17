@@ -38,7 +38,7 @@ function fixture(upstreamStatus = 200) {
   }, { filename: routePath });
   return {
     calls,
-    invoke(method = "GET", overrides = {}, urlOrigin = internalOrigin) {
+    invoke(method = "GET", overrides = {}, urlOrigin = internalOrigin, routePath = ["conversations", "session-1", "one-buy-click"]) {
       const headers = new Headers(edgeHeaders);
       for (const [name, value] of Object.entries(overrides)) {
         if (value === null) headers.delete(name);
@@ -50,11 +50,23 @@ function fixture(upstreamStatus = 200) {
       });
       // Next implements HEAD through GET when there is no explicit HEAD handler.
       return module.exports[method === "HEAD" ? "GET" : method](request, {
-        params: Promise.resolve({ path: ["conversations", "session-1", "one-buy-click"] }),
+        params: Promise.resolve({ path: routePath }),
       });
     },
   };
 }
+
+test("support claim forwards both independent credentials and still rejects cross-origin or arbitrary support paths", async () => {
+  const route = fixture();
+  const path = ["conversations", "session-1", "support", "buyer"];
+  const headers = { origin: publicOrigin, "x-buyer-authorization": "Bearer fixture-buyer" };
+  assert.equal((await route.invoke("POST", headers, internalOrigin, path)).status, 200);
+  assert.equal(route.calls[0].headers.get("Authorization"), authorization);
+  assert.equal(route.calls[0].headers.get("X-Buyer-Authorization"), "Bearer fixture-buyer");
+  assert.equal((await route.invoke("POST", { ...headers, origin: "https://foreign.example" }, internalOrigin, path)).status, 403);
+  assert.equal((await route.invoke("POST", headers, internalOrigin, [...path, "arbitrary"])).status, 404);
+  assert.equal(route.calls.length, 1);
+});
 
 async function expectDenied(method, headers, origin = internalOrigin) {
   const route = fixture();

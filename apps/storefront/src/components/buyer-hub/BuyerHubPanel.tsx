@@ -10,6 +10,8 @@ import ProfileTab from "./tabs/ProfileTab";
 import { OrdersTab } from "./tabs/OrdersTab";
 import { TrackingTab } from "./tabs/TrackingTab";
 import ConversationsTab from "./tabs/ConversationsTab";
+import { BuyerSupportConversations } from "./BuyerSupportConversations";
+import type { BuyerSupportInbox } from "@/lib/viewmodels/useBuyerSupportInbox";
 import type { BuyerConversation } from "@/lib/viewmodels/useBuyerHub/types";
 import PreferencesTab from "./tabs/PreferencesTab";
 import LoyaltyTab from "./tabs/LoyaltyTab";
@@ -28,6 +30,7 @@ export interface BuyerHubPanelProps {
   onToggleTheme?: () => void;
   currentSessionId?: string | null;
   onResumeConversation?: (conversation: BuyerConversation) => Promise<void>;
+  supportInbox?: BuyerSupportInbox;
 }
 
 
@@ -443,7 +446,7 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
 }
 
 
-export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onToggleTheme, currentSessionId, onResumeConversation }: BuyerHubPanelProps) {
+export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onToggleTheme, currentSessionId, onResumeConversation, supportInbox }: BuyerHubPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const vm = useBuyerHub(isOpen, merchantId);
   const cartView = useCart();
@@ -709,7 +712,7 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
                     }}
                   >
                     {tab.icon}
-                    <span style={{ fontSize: "10.5px", fontWeight: isActive ? 600 : 500, whiteSpace: "nowrap", letterSpacing: "0.1px" }}>{tab.label}</span>
+                    <span style={{ fontSize: "10.5px", fontWeight: isActive ? 600 : 500, whiteSpace: "nowrap", letterSpacing: "0.1px" }}>{tab.label}{tab.key === "conversations" && !!supportInbox?.unreadCount && <strong aria-label={`${supportInbox.unreadCount} conversa(s) não lida(s)`} style={{ marginLeft: 5, color: "var(--aacp-accent)" }}>{supportInbox.unreadCount}</strong>}</span>
                   </button>
                 );
               })}
@@ -753,7 +756,9 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
                 />
               )}
               {vm.activeTab === "conversations" && (
-                <ConversationsTab
+                <>
+                {supportInbox && <BuyerSupportConversations inbox={supportInbox} />}
+                {(!supportInbox?.items.length || vm.conversations.loading || vm.conversations.error || !!vm.conversations.data?.length) && <ConversationsTab
                   conversations={vm.conversations.data ?? []}
                   loading={vm.conversations.loading}
                   error={vm.conversations.error}
@@ -762,7 +767,8 @@ export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onTog
                   onRetry={() => { void vm.loadConversations(); }}
                   onResume={onResumeConversation}
                   onRate={vm.rateMessage}
-                />
+                />}
+                </>
               )}
               {vm.activeTab === "preferences" && (
                 <PreferencesTab

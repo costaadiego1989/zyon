@@ -5,9 +5,11 @@ import { useState } from "react";
 export function BuyerHubTrigger({
   onClick,
   hasNotifications = false,
+  unreadCount = 0,
 }: {
   onClick: () => void;
   hasNotifications?: boolean;
+  unreadCount?: number;
 }) {
   const [hovered, setHovered] = useState(false);
 
@@ -33,7 +35,7 @@ export function BuyerHubTrigger({
         position: "relative",
         transition: "all 0.15s ease",
       }}
-      aria-label="Abrir conta"
+      aria-label={`Abrir conta${unreadCount > 0 ? `, ${unreadCount} conversa${unreadCount === 1 ? "" : "s"} não lida${unreadCount === 1 ? "" : "s"}` : ""}`}
     >
       <svg
         width="15"
@@ -49,20 +51,26 @@ export function BuyerHubTrigger({
         <circle cx="12" cy="7" r="4" />
       </svg>
 
-      {}
-      {hasNotifications && (
+      {(hasNotifications || unreadCount > 0) && (
         <div
+          aria-hidden="true"
           style={{
             position: "absolute",
             top: "-2px",
             right: "-2px",
-            width: "8px",
-            height: "8px",
+            minWidth: unreadCount > 0 ? "17px" : "8px",
+            height: unreadCount > 0 ? "17px" : "8px",
+            padding: unreadCount > 9 ? "0 3px" : 0,
+            display: "grid",
+            placeItems: "center",
+            fontSize: "10px",
+            fontWeight: 700,
+            color: "#ffffff",
             borderRadius: "50%",
-            background: "#ff4c6c",
+            background: "#b91c1c",
             border: "1px solid var(--aacp-bg)",
           }}
-        />
+        >{unreadCount > 0 ? unreadCount > 99 ? "99+" : unreadCount : null}</div>
       )}
     </button>
   );
