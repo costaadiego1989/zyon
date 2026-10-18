@@ -1,0 +1,45 @@
+:root { --subscription-promo-offset: 0px; }
+.has-subscription-promo .topbar { top: var(--subscription-promo-offset); }
+.has-subscription-promo .hero { padding-top: calc(var(--header) + var(--subscription-promo-offset)); }
+html:has(.has-subscription-promo) { scroll-padding-top: calc(var(--header) + var(--subscription-promo-offset) + 20px); }
+.subscription-promo-top { position: fixed; inset: 0 0 auto; z-index: var(--z-header); background: var(--green); color: #09220d; }
+.subscription-promo-top__inner { display: flex; justify-content: space-between; align-items: center; gap: 16px 28px; min-height: 58px; }
+.subscription-promo-top p { display: flex; flex-wrap: wrap; gap: 4px 18px; font-size: 12px; line-height: 1.5; }
+.subscription-promo-top p strong { font-weight: 800; }
+.subscription-promo-top__link { display: inline-flex; align-items: center; gap: 14px; min-height: 44px; font-size: 12px; font-weight: 750; white-space: nowrap; }
+.subscription-promo-copy { display: inline-flex; align-items: center; justify-content: center; gap: 14px; flex: none; min-height: 44px; padding: 10px 15px; border: 1px solid currentColor; border-radius: 5px; background: transparent; color: inherit; font-size: 12px; line-height: 1.4; }
+.subscription-promo-copy code { font-family: var(--font-system, monospace); font-size: 12px; font-weight: 600; letter-spacing: .035em; }
+.subscription-promo-copy:hover { background: #09220d; border-color: #09220d; color: var(--green); }
+.subscription-promo-top :is(button, a):focus-visible { outline-color: #09220d; }
+.subscription-promo-offer { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 24px 50px; margin: 28px 0 36px; padding: 30px 34px 22px; border: 1px solid #496f50; border-radius: 8px; background: #13261a; }
+.subscription-promo-offer__copy > p:first-child { margin-bottom: 8px; color: var(--green); font-size: 13px; font-weight: 700; }
+.subscription-promo-offer h3 { font-family: var(--font-ui, Manrope, sans-serif); font-size: clamp(25px, 2.5vw, 36px); line-height: 1.2; letter-spacing: -.025em; }
+.subscription-promo-offer__copy > p:last-child { margin-top: 12px; color: #c5d7c9; font-size: 13px; }
+.subscription-promo-offer__action { display: grid; justify-items: start; gap: 12px; }
+.subscription-promo-offer .subscription-promo-copy { border-color: var(--green); color: var(--green); }
+.subscription-promo-offer .subscription-promo-copy:hover { background: var(--green); color: #09220d; }
+.subscription-promo-offer__action > p { color: #c5d7c9; font-size: 12px; line-height: 1.7; }
+.subscription-promo-offer__terms { grid-column: 1 / -1; padding-top: 18px; border-top: 1px solid #344f3a; color: #b6cbbc; font-size: 11px; line-height: 1.7; }
+.subscription-promo-status { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); white-space: nowrap; }
+.subscription-plan-discount { padding-block: 12px; color: var(--green); }
+.subscription-plan-discount strong { font-size: 25px; font-weight: 650; letter-spacing: -.025em; }
+.subscription-plan-discount p { margin-top: 8px; font-size: 11px; line-height: 1.7; color: #c5d7c9; }
+.has-subscription-campaign .plan-price { opacity: .7; text-decoration: line-through; }
+@media (max-width: 1050px) {
+ .subscription-promo-top p { display: grid; gap: 1px; }
+ .subscription-promo-top__inner { gap: 16px; padding-block: 6px; }
+ .subscription-promo-offer { gap: 22px; padding: 25px; }
+}
+@media (max-width: 650px) {
+ .subscription-promo-top__inner { flex-wrap: wrap; gap: 0 14px; padding-block: 9px; }
+ .subscription-promo-top p { width: 100%; display: flex; gap: 4px 10px; font-size: 10px; margin-bottom: 5px; }
+ .subscription-promo-top p span { flex: 1; min-width: 18ch; }
+ .subscription-promo-top .subscription-promo-copy { flex: 1; padding: 8px 12px; gap: 12px; font-size: 11px; }
+ .subscription-promo-copy code { font-size: 11px; }
+ .subscription-promo-top__link { font-size: 11px; }
+ .subscription-promo-offer { grid-template-columns: 1fr; padding: 24px 20px 20px; margin-top: 25px; gap: 22px; }
+ .subscription-promo-offer__copy > p:last-child { font-size: 12px; }
+ .subscription-promo-offer__action { justify-items: stretch; }
+ .subscription-promo-offer .subscription-promo-copy { justify-self: start; min-height: 48px; }
+ .subscription-promo-offer__terms { font-size: 11px; padding-top: 16px; }
+}

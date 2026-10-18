@@ -59,7 +59,7 @@
     return response.json();
   }).then(payload => {
     plans = Array.isArray(payload) ? payload : payload.data;
-    if (!Array.isArray(plans) || !["starter", "starter179", "growth", "scale"].every(key => plans.some(p => p.plan_id === key && p.billing_options?.some(o => o.cycle === "monthly")))) throw Error("catalog");
+    if (!Array.isArray(plans) || !["starter", "growth", "scale"].every(key => plans.some(p => p.plan_id === key && p.billing_options?.some(o => o.cycle === "monthly")))) throw Error("catalog");
     const paid = plans.filter(p => p.plan_id !== "starter");
     const available = paid.every(p => p.annual_checkout_available && p.billing_options?.some(o => o.cycle === "annual"));
     annualButton.disabled = !available;
