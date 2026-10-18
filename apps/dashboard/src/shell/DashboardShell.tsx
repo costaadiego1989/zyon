@@ -36,6 +36,7 @@ function ShellImportProgressProvider({ children }: { children: React.ReactNode }
 }
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
+const ENVIRONMENT_LABEL = API_BASE_URL.includes("sandbox") ? "SANDBOX" : "PRODUÇÃO";
 
 type DomainRecord = { domain?: unknown; verified?: unknown };
 
@@ -352,7 +353,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </div>
         </div>
         <div style={{ display: "flex", alignItems: "center", gap: 6, padding: "0 10px 14px" }}>
-          <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", padding: "3px 7px", borderRadius: 5, background: "var(--sidebar-active)", color: "var(--color-brand)" }}>PRODUÇÃO</span>
+          <span style={{ font: "600 10px var(--font-mono)", letterSpacing: "0.06em", padding: "3px 7px", borderRadius: 5, background: "var(--sidebar-active)", color: "var(--color-brand)" }}>{ENVIRONMENT_LABEL}</span>
           <span style={{ font: "11px var(--font-mono)", color: "var(--sidebar-muted)" }}>v1.0</span>
         </div>
 

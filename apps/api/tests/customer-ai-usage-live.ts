@@ -25,6 +25,8 @@ const api = "https://api-sandbox-8146.up.railway.app", dashboard = "https://app-
 const tag = "transparency_review_" + randomUUID().replaceAll("-", ""), ids: string[] = [], checks: string[] = [];
 const report: Record<string, unknown> = { environment: "sandbox", fixtureData: true, providerCallExecuted: false, startedAt: new Date().toISOString(), checks };
 let browser: Awaited<ReturnType<typeof chromium.launch>> | undefined;
+let reviewPage: import("playwright").Page | undefined;
+const browserErrors: string[] = [], failedApiRequests: Array<{ path: string; status: number }> = [];
 const today = new Intl.DateTimeFormat("en-CA", { timeZone: "America/Sao_Paulo", year: "numeric", month: "2-digit", day: "2-digit" }).format(new Date());
 const day = (offset: number) => { const d = new Date(today + "T12:00:00Z"); d.setUTCDate(d.getUTCDate() + offset); return d.toISOString().slice(0, 10); };
 const at = new Date(today + "T12:00:00-03:00");
@@ -34,7 +36,7 @@ try {
   for (const name of ["first", "other"]) {
     const id = tag + "_" + name; ids.push(id);
     const { user } = await auth.createMerchantWithOwner({ merchantId: id, merchantName: "Revisão transparência " + name, email: id + "@example.invalid", passwordHash: "temporary-fixture-no-password-login" });
-    await db.merchant.update({ where: { id }, data: { plan: "STORE_ONLY" } });
+    await db.merchant.update({ where: { id }, data: { plan: "STORE_ONLY", storeSettings: { registration_pending: false, owner_name: "Revisão de transparência" } } });
     await db.merchantBillingSubscription.upsert({ where: { merchantId: id }, create: { merchantId: id, planKey: "growth", status: "active" }, update: { planKey: "growth", status: "active" } });
     const steps = { account: { status: "completed" }, checkout_config: { status: "completed" }, whatsapp: { status: "completed" }, ai_engine: { status: "completed" } };
     await db.merchantOnboardingState.upsert({ where: { merchantId: id }, create: { merchantId: id, steps }, update: { steps } });
@@ -71,13 +73,16 @@ try {
   checks.push("Published API matches persisted text/audio fixtures; rejects tenant tampering and anonymous access; excludes platform cost fields");
   browser = await chromium.launch({ headless: true });
   const context = await browser.newContext({ viewport: { width: 1440, height: 1000 }, acceptDownloads: true });
-  await context.addCookies([{ name: vars.AUTH_COOKIE_NAME || "aacp_access_token", value: own.token, url: api, httpOnly: true, secure: true, sameSite: "Lax" }]);
+  await context.addCookies([{ name: vars.AUTH_COOKIE_NAME || "aacp_access_token", value: own.token, url: api, httpOnly: true, secure: true, sameSite: "None" }]);
   const page = await context.newPage(), errors: string[] = [], failedReads: string[] = [];
+  reviewPage = page;
+  page.on("pageerror", e => browserErrors.push(e.message));
+  page.on("response", r => { if (r.url().startsWith(api + "/v1/") && r.status() >= 400) failedApiRequests.push({ path: new URL(r.url()).pathname, status: r.status() }); });
   page.on("pageerror", e => errors.push(e.message));
   page.on("response", r => { if (r.url().includes("/dashboard/finance/ai-usage") && r.status() >= 400) failedReads.push(String(r.status())); });
   await page.goto(dashboard + "/#finance");
   await page.getByRole("heading", { name: "Financeiro", exact: true }).waitFor({ timeout: 30000 });
-  await page.getByRole("button", { name: "Relatórios", exact: true }).click();
+  await page.getByRole("tab", { name: "Relatórios", exact: true }).click();
   const section = page.locator(".ai-usage");
   await section.locator("dd").first().waitFor();
   const todayRead = page.waitForResponse(r => { const u = new URL(r.url()); return u.pathname.endsWith("/finance/ai-usage") && u.searchParams.get("from") === today && u.searchParams.get("to") === today; });
@@ -128,7 +133,13 @@ try {
   assert.equal(exportResponse.status, 403); checks.push("Published API blocks both report and CSV for staff");
   report.passed = true;
 } catch (error) {
-  report.passed = false; report.error = error instanceof Error ? error.message : "validation_failed"; throw error;
+  report.passed = false; report.error = error instanceof Error ? error.message : "validation_failed";
+  report.browserErrors = browserErrors; report.failedApiRequests = failedApiRequests;
+  if (reviewPage) {
+    report.pageText = (await reviewPage.locator("body").innerText().catch(() => "unavailable")).slice(0, 4000);
+    await reviewPage.screenshot({ path: path.join(evidence, "sandbox-failure.png"), fullPage: true }).catch(() => undefined);
+  }
+  throw error;
 } finally {
   await browser?.close();
   if (ids.length) {
