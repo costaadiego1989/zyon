@@ -650,7 +650,24 @@ export function resolvePlatformApiBaseUrl(env: ImportMetaEnv): string {
 import { createPlatformSupportClient } from "@zyon/platform-support-ui";
 
 export class PlatformApi {
-  constructor(private readonly baseUrl: string) {}
+  private sessionToken: string | undefined;
+  private sessionExpiresAt: number | undefined;
+  private sessionVersion = 0;
+  private sessionEnded = false;
+  private refreshing: Promise<string> | undefined;
+
+  constructor(private readonly baseUrl: string, private readonly session: {
+    token?: string;
+    onRefreshed?(response: PlatformAuthResponse): void;
+    onExpired?(): void;
+  } = {}) {
+    this.sessionToken = session.token;
+  }
+
+  /** Also called on focus/resume, when background timers may have been suspended. */
+  async renewSession(): Promise<void> {
+    if (this.sessionToken && !this.sessionEnded) await this.validToken(this.sessionToken);
+  }
   getAiCosts(token: string, filters: import("./ai-costs.js").AiCostFilters) {
     return this.request<import("./ai-costs.js").AiCostsReport>("/platform/ai-costs?"+new URLSearchParams(filters),token);
   }
@@ -658,7 +675,7 @@ export class PlatformApi {
     return this.request<import("./ai-costs.js").AiCostEvents>("/platform/ai-costs/events?"+new URLSearchParams(filters),token);
   }
   async exportAiCosts(token: string, filters: import("./ai-costs.js").AiCostFilters) {
-    const response=await fetch(mergeUrl(this.baseUrl,"/platform/ai-costs/export?"+new URLSearchParams(filters)),{ headers:{Authorization:"Bearer "+token} });
+    const response=await this.authenticatedFetch("/platform/ai-costs/export?"+new URLSearchParams(filters),token);
     if(!response.ok) throw new PlatformApiError(response.status,"ai_costs_export_failed","Não foi possível exportar o consumo.");
     return response.blob();
   }
@@ -696,10 +713,15 @@ export class PlatformApi {
   }
 
   async login(email: string, password: string): Promise<PlatformAuthResponse> {
-    return this.request<PlatformAuthResponse>("/platform/auth/login", undefined, {
+    const response = await this.request<PlatformAuthResponse>("/platform/auth/login", undefined, {
       method: "POST",
       body: JSON.stringify({ email, password }),
     });
+    this.sessionVersion++;
+    this.sessionEnded = false;
+    this.sessionToken = response.access_token;
+    this.sessionExpiresAt = Date.now() + response.expires_in * 1000;
+    return response;
   }
 
   async me(token: string): Promise<PlatformOperator> {
@@ -707,7 +729,15 @@ export class PlatformApi {
   }
 
   async logout(token: string): Promise<void> {
-    await this.request<void>("/platform/auth/logout", token, { method: "POST" });
+    // Finish an in-flight rotation before revoking its replacement session.
+    try { await this.refreshing; } catch { /* Revoke the last known token below. */ }
+    const current = this.sessionToken ?? token;
+    this.sessionVersion++;
+    this.sessionEnded = true;
+    this.sessionToken = undefined;
+    this.sessionExpiresAt = undefined;
+    const response = await this.fetchResponse("/platform/auth/logout", current, { method: "POST" });
+    if (!response.ok) throw new PlatformApiError(response.status, "platform_logout_failed");
   }
 
   async getOverview(token: string): Promise<PlatformOverview> {
@@ -912,7 +942,20 @@ export class PlatformApi {
   }
 
   private async request<T>(path: string, token?: string, options: RequestOptions = {}): Promise<T> {
-    const response = await fetch(mergeUrl(this.baseUrl, path), {
+    const response = token
+      ? await this.authenticatedFetch(path, token, options)
+      : await this.fetchResponse(path, undefined, options);
+
+    if (response.status === 204) return undefined as T;
+    const body = await readBody(response);
+    if (!response.ok) {
+      throw new PlatformApiError(response.status, errorCode(body), errorMessage(body));
+    }
+    return body as T;
+  }
+
+  private fetchResponse(path: string, token?: string, options: RequestOptions = {}): Promise<Response> {
+    return fetch(mergeUrl(this.baseUrl, path), {
       ...options,
       headers: {
         Accept: "application/json",
@@ -921,13 +964,63 @@ export class PlatformApi {
         ...options.headers,
       },
     });
+  }
 
-    if (response.status === 204) return undefined as T;
-    const body = await readBody(response);
-    if (!response.ok) {
-      throw new PlatformApiError(response.status, errorCode(body), errorMessage(body));
-    }
-    return body as T;
+  private async authenticatedFetch(path: string, token: string, options: RequestOptions = {}): Promise<Response> {
+    const current = await this.validToken(token);
+    const response = await this.fetchResponse(path, current, options);
+    if (response.status !== 401) return response;
+    // Another request may already have rotated the token that received this 401.
+    const renewed = await this.validToken(current, true);
+    return this.fetchResponse(path, renewed, options);
+  }
+
+  private async validToken(fallback: string, force = false): Promise<string> {
+    if (this.sessionEnded) throw new PlatformApiError(401, "platform_session_ended");
+    const token = this.sessionToken ?? fallback;
+    if (this.refreshing) return this.refreshing;
+    const needsRenewal = token === this.sessionToken && this.sessionExpiresAt !== undefined
+      ? this.sessionExpiresAt <= Date.now() + 60_000
+      : tokenNeedsRenewal(token);
+    if (!(force && token === fallback) && !needsRenewal) return token;
+    const version = this.sessionVersion;
+    const pending = (async () => {
+      const response = await this.fetchResponse("/platform/auth/refresh", token, {
+        method: "POST", signal: AbortSignal.timeout(20_000),
+      });
+      const body = await readBody(response);
+      if (!response.ok) {
+        if (response.status === 401 && version === this.sessionVersion) {
+          this.sessionEnded = true;
+          this.sessionToken = undefined;
+          this.session.onExpired?.();
+        }
+        throw new PlatformApiError(response.status, errorCode(body), errorMessage(body));
+      }
+      const refreshed = body as PlatformAuthResponse;
+      if (!refreshed?.access_token || !refreshed.operator_id) throw new Error("invalid_platform_refresh_response");
+      if (version !== this.sessionVersion || this.sessionEnded) throw new PlatformApiError(401, "platform_session_changed");
+      this.sessionToken = refreshed.access_token;
+      // Use the server's remaining lifetime so a clock difference does not
+      // immediately expire a freshly rotated token in this browser.
+      this.sessionExpiresAt = Date.now() + refreshed.expires_in * 1000;
+      this.session.onRefreshed?.(refreshed);
+      return refreshed.access_token;
+    })();
+    this.refreshing = pending;
+    try { return await pending; }
+    finally { if (this.refreshing === pending) this.refreshing = undefined; }
+  }
+}
+
+function tokenNeedsRenewal(token: string): boolean {
+  try {
+    const part = token.split(".")[1]!;
+    const claims = JSON.parse(atob(part.replace(/-/g, "+").replace(/_/g, "/")));
+    return typeof claims.exp !== "number" || claims.exp * 1000 <= Date.now() + 60_000;
+  } catch {
+    // Claims are only a scheduling hint. The API always verifies the signature.
+    return true;
   }
 }
 

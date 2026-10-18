@@ -83,10 +83,23 @@ const overviewSourceRows: Array<{ source: PlatformOverviewSourceId; title: strin
 ];
 
 export function ControlApp() {
-  const api = useMemo(() => new PlatformApi(resolvePlatformApiBaseUrl(import.meta.env)), []);
   const [session, setSession] = useState(readPlatformSession);
   const [checkingSession, setCheckingSession] = useState(Boolean(session));
   const [sessionMessage, setSessionMessage] = useState<string | null>(null);
+  const api = useMemo(() => new PlatformApi(resolvePlatformApiBaseUrl(import.meta.env), {
+    token: session?.token,
+    onRefreshed(response) {
+      writePlatformSession(response);
+      setSession({ token: response.access_token, operator: {
+        operator_id: response.operator_id, email: response.email, role: response.role,
+      } });
+    },
+    onExpired() {
+      clearPlatformSession();
+      setSession(null);
+      setSessionMessage("Sua sessão expirou. Entre novamente para continuar.");
+    },
+  }), []);
 
   useEffect(() => {
     if (!session) {
@@ -97,12 +110,18 @@ export function ControlApp() {
     void api.me(session.token)
       .then(operator => {
         if (cancelled) return;
-        const refreshed = { token: session.token, operator };
-        writePlatformSession(refreshed);
-        setSession(refreshed);
+        // /me may have renewed the token. Keep that replacement in state/storage.
+        setSession(current => {
+          if (!current) return null;
+          const verified = { ...current, operator };
+          writePlatformSession(verified);
+          return verified;
+        });
       })
-      .catch(() => {
+      .catch(error => {
         if (cancelled) return;
+        // A timeout, offline connection or 5xx does not invalidate a session.
+        if (!(error instanceof PlatformApiError) || error.status !== 401) return;
         clearPlatformSession();
         setSession(null);
         setSessionMessage("A sessão não está mais válida. Entre novamente.");
@@ -112,6 +131,26 @@ export function ControlApp() {
       });
     return () => { cancelled = true; };
   }, [api]);
+
+  useEffect(() => {
+    if (!session) return;
+    const renew = () => {
+      if (document.visibilityState !== "hidden") void api.renewSession().catch(() => {
+        // Invalid credentials are handled centrally; transient failures retry
+        // on the next interval, request, or return to this tab.
+      });
+    };
+    const interval = window.setInterval(renew, 30_000);
+    window.addEventListener("focus", renew);
+    window.addEventListener("online", renew);
+    document.addEventListener("visibilitychange", renew);
+    return () => {
+      window.clearInterval(interval);
+      window.removeEventListener("focus", renew);
+      window.removeEventListener("online", renew);
+      document.removeEventListener("visibilitychange", renew);
+    };
+  }, [api, session?.operator.operator_id]);
 
   async function handleLogin(email: string, password: string) {
     const response = await api.login(email, password);
