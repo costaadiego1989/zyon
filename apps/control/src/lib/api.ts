@@ -651,6 +651,17 @@ import { createPlatformSupportClient } from "@zyon/platform-support-ui";
 
 export class PlatformApi {
   constructor(private readonly baseUrl: string) {}
+  getAiCosts(token: string, filters: import("./ai-costs.js").AiCostFilters) {
+    return this.request<import("./ai-costs.js").AiCostsReport>("/platform/ai-costs?"+new URLSearchParams(filters),token);
+  }
+  getAiCostEvents(token: string, filters: import("./ai-costs.js").AiCostFilters) {
+    return this.request<import("./ai-costs.js").AiCostEvents>("/platform/ai-costs/events?"+new URLSearchParams(filters),token);
+  }
+  async exportAiCosts(token: string, filters: import("./ai-costs.js").AiCostFilters) {
+    const response=await fetch(mergeUrl(this.baseUrl,"/platform/ai-costs/export?"+new URLSearchParams(filters)),{ headers:{Authorization:"Bearer "+token} });
+    if(!response.ok) throw new PlatformApiError(response.status,"ai_costs_export_failed","Não foi possível exportar o consumo.");
+    return response.blob();
+  }
 
   supportClient(token: string) {
     return createPlatformSupportClient({ baseUrl: this.baseUrl, kind: "operator", token,

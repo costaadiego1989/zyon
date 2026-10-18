@@ -27,7 +27,7 @@ import {
   resolvePlatformApiBaseUrl,
 } from "../lib/api.js";
 import { clearPlatformSession, readPlatformSession, writePlatformSession } from "../lib/session.js";
-import { AiUsageByMerchant } from "./AiUsageByMerchant.js";
+import { AiUsageByMerchant } from "./AiCostsByCompany.js";
 import { AuditTrail } from "./AuditTrail.js";
 import { BillingSubscriptions } from "./BillingSubscriptions.js";
 import { FeedbackQueue } from "./FeedbackQueue.js";
@@ -248,7 +248,7 @@ function ControlShell({
           {view === "orders" ? <OrdersPage api={api} token={token} onSessionExpired={onSessionExpired} /> : null}
           {view === "billing" ? <BillingSubscriptions api={api} token={token} onSessionExpired={onSessionExpired} /> : null}
           {view === "billing-promotions" ? <BillingPromotions api={api} token={token} canWrite={operator.role === "platform_admin"} onSessionExpired={onSessionExpired} /> : null}
-          {view === "ai-usage" ? <AiUsageByMerchant api={api} token={token} onSessionExpired={onSessionExpired} /> : null}
+          {view === "ai-usage" ? <AiUsageByMerchant api={api} token={token} onSessionExpired={onSessionExpired} canExport={operator.role === "platform_admin"} /> : null}
           {view === "infrastructure" ? <InfrastructureReadiness api={api} token={token} onSessionExpired={onSessionExpired} /> : null}
           {view === "audit" ? <AuditTrail api={api} token={token} onSessionExpired={onSessionExpired} /> : null}
         </main>
