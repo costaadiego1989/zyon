@@ -458,7 +458,7 @@ export class FinanceDashboardUseCase {
   }
 }
 
-function normalizePeriod(input: FinancePeriodInput): PeriodBounds {
+export function normalizePeriod(input: FinancePeriodInput): PeriodBounds {
   const today = formatSaoPauloDate(new Date());
   const defaultFrom = subtractCalendarDays(today, 29);
   const from = parseCalendarDate(input.from, "from") ?? defaultFrom;

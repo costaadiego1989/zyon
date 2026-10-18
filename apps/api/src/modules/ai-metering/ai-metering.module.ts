@@ -6,6 +6,8 @@ import { PlatformControlModule } from "../platform-control/platform-control.modu
 import { AiMeteringService } from "./ai-metering.service.js";
 import { AiCostsController } from "./ai-costs.controller.js";
 import { AiCostsReader } from "./ai-costs.reader.js";
+import { MerchantAiUsageReader } from "./merchant-ai-usage.reader.js";
+import { MerchantAiUsageController } from "./merchant-ai-usage.controller.js";
 @Global()
-@Module({ imports: [PersistenceModule, RedisModule, TenantModule, PlatformControlModule], providers: [AiMeteringService, AiCostsReader], controllers: [AiCostsController], exports: [AiMeteringService] })
+@Module({ imports: [PersistenceModule, RedisModule, TenantModule, PlatformControlModule], providers: [AiMeteringService, AiCostsReader, MerchantAiUsageReader], controllers: [AiCostsController, MerchantAiUsageController], exports: [AiMeteringService] })
 export class AiMeteringModule {}
