@@ -1,8 +1,11 @@
 "use client";
 
 import { useState, useCallback, useRef } from "react";
+import { Turnstile } from "@zyon/checkout-ui";
 import { OtpInput } from "./OtpInput";
 import { conversationFetch } from "@/lib/conversation-access";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
@@ -85,6 +88,8 @@ function formatCEP(value: string): string {
 }
 
 export default function BuyerRegistrationForm({ merchantId, onComplete, initialEmail, initialEmailOtp }: Props) {
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const reusingConfirmedOtp = Boolean(initialEmail && initialEmailOtp);
   const [currentStep, setCurrentStep] = useState(reusingConfirmedOtp ? 2 : 1);
   const [loading, setLoading] = useState(false);
@@ -135,7 +140,9 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
     }
   }, []);
 
+  const needsCaptcha = currentStep === 1 || currentStep === 2 || currentStep === 5;
   const handleConfirm = async () => {
+    if (loading || (needsCaptcha && TURNSTILE_SITE_KEY && !captchaToken)) return;
     setError("");
     setLoading(true);
 
@@ -145,11 +152,11 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
           const res = await fetch(`${API_BASE}/buyer/email/send`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, merchant_id: merchantId }),
+            body: JSON.stringify({ email, merchant_id: merchantId, turnstile_token: captchaToken }),
           });
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
-            throw new Error(errData?.message ?? "Erro ao enviar código");
+            throw new Error(errData?.detail ?? errData?.message ?? "Erro ao enviar código");
           }
           if (res.status === 404) throw new Error("Serviço de verificação indisponível");
           setCurrentStep(2);
@@ -160,11 +167,11 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
           const res = await fetch(`${API_BASE}/buyer/email/verify`, {
             method: "POST",
             headers: { "Content-Type": "application/json" },
-            body: JSON.stringify({ email, code: emailOtp, merchant_id: merchantId }),
+            body: JSON.stringify({ email, code: emailOtp, merchant_id: merchantId, turnstile_token: captchaToken }),
           });
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
-            throw new Error(errData?.message ?? "Código inválido");
+            throw new Error(errData?.detail ?? errData?.message ?? "Código inválido");
           }
           if (res.status === 404) throw new Error("Serviço de verificação indisponível");
           const data = res.ok ? await res.json() : null;
@@ -209,6 +216,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
               phone: phoneDigits,
               email,
               email_verification_token: emailVerificationToken,
+              turnstile_token: captchaToken,
               name: name.trim(),
               cpf: cpfDigits,
               ...(dateOfBirth ? { dateOfBirth } : {}),
@@ -227,7 +235,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
 
           if (!res.ok && res.status !== 404) {
             const errData = await res.json().catch(() => null);
-            throw new Error(errData?.message ?? "Erro ao registrar");
+            throw new Error(errData?.detail ?? errData?.message ?? "Erro ao registrar");
           }
 
           let globalUserId: string;
@@ -265,6 +273,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
       setError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
       setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaAttempt(value => value + 1);
     }
   };
 
@@ -275,6 +285,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
     flexDirection: "column",
     gap: "11px",
     background: "var(--aacp-surface, #1a1a1a)",
+    color: "var(--aacp-fg, #f5f5f7)",
     borderRadius: "18px",
     border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))",
   };
@@ -533,6 +544,8 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
         </>
       )}
 
+      {needsCaptcha && <Turnstile siteKey={TURNSTILE_SITE_KEY} theme="auto" action={currentStep === 1 ? "buyer_email_send" : currentStep === 2 ? "buyer_email_verify" : "buyer_signup"} resetKey={`${currentStep}:${captchaAttempt}`} onChange={setCaptchaToken} />}
+
       {/* Error */}
       {error && (
         <p style={{ margin: 0, fontSize: "11.5px", color: "#f87171", padding: "0 2px" }}>{error}</p>
@@ -545,7 +558,7 @@ export default function BuyerRegistrationForm({ merchantId, onComplete, initialE
             Voltar
           </button>
         )}
-        <button data-neu="primary" type="button" onClick={handleConfirm} disabled={loading} style={confirmBtnStyle}>
+        <button data-neu="primary" type="button" onClick={handleConfirm} disabled={loading || (needsCaptcha && Boolean(TURNSTILE_SITE_KEY) && !captchaToken)} style={confirmBtnStyle}>
           {loading ? "..." : "Confirmar"}
         </button>
       </div>

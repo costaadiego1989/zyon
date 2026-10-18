@@ -19,11 +19,13 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml package.json tsconfig.base.json ./
 # 2) Package manifests
 COPY packages/shared-types/package.json     packages/shared-types/package.json
 COPY packages/contracts/package.json        packages/contracts/package.json
+COPY packages/checkout-ui/package.json      packages/checkout-ui/package.json
 COPY apps/storefront/package.json           apps/storefront/package.json
 
 # 3) Full source
 COPY packages/shared-types/ packages/shared-types/
 COPY packages/contracts/    packages/contracts/
+COPY packages/checkout-ui/  packages/checkout-ui/
 COPY apps/storefront/       apps/storefront/
 
 COPY packages/checkout-ui/ packages/checkout-ui/

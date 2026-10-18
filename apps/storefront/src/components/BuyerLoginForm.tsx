@@ -1,6 +1,9 @@
 "use client";
 
 import { useState } from "react";
+import { Turnstile } from "@zyon/checkout-ui";
+
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
@@ -20,6 +23,8 @@ function isAccountNotFound(response: unknown): boolean {
 }
 
 export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFound }: Props) {
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
   const [step, setStep] = useState<1 | 2>(1);
   const [email, setEmail] = useState("");
   const [otp, setOtp] = useState("");
@@ -28,6 +33,7 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
   const [accountNotFound, setAccountNotFound] = useState<{ email: string; otp: string } | null>(null);
 
   const handleConfirm = async () => {
+    if (loading || (TURNSTILE_SITE_KEY && !captchaToken)) return;
     setError("");
     setLoading(true);
 
@@ -36,18 +42,18 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
         const res = await fetch(`${API_BASE}/buyer/email/send`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, merchant_id: merchantId }),
+          body: JSON.stringify({ email, merchant_id: merchantId, turnstile_token: captchaToken }),
         });
         if (!res.ok) {
           const errData = await res.json().catch(() => null);
-          throw new Error(errData?.message ?? "Erro ao enviar código");
+          throw new Error(errData?.detail ?? errData?.message ?? "Erro ao enviar código");
         }
         setStep(2);
       } else {
         const res = await fetch(`${API_BASE}/buyer/email/login/verify`, {
           method: "POST",
           headers: { "Content-Type": "application/json" },
-          body: JSON.stringify({ email, code: otp }),
+          body: JSON.stringify({ email, code: otp, turnstile_token: captchaToken }),
         });
 
         if (!res.ok) {
@@ -56,7 +62,7 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
             setAccountNotFound({ email, otp });
             return;
           }
-          throw new Error(errData?.message ?? "Código inválido");
+          throw new Error(errData?.detail ?? errData?.message ?? "Código inválido");
         }
 
         const data = await res.json();
@@ -78,6 +84,8 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
       setError(err instanceof Error ? err.message : "Erro inesperado");
     } finally {
       setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaAttempt(value => value + 1);
     }
   };
 
@@ -87,6 +95,7 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
     flexDirection: "column",
     gap: "11px",
     background: "var(--aacp-surface, #1a1a1a)",
+    color: "var(--aacp-fg, #f5f5f7)",
     borderRadius: "18px",
     border: "1px solid var(--aacp-line, rgba(255,255,255,0.08))",
   };
@@ -185,6 +194,8 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
         </p>
       )}
 
+      <Turnstile siteKey={TURNSTILE_SITE_KEY} theme="auto" action={step === 1 ? "buyer_email_send" : "buyer_email_login"} resetKey={captchaAttempt} onChange={setCaptchaToken} />
+
       {/* Error */}
       {accountNotFound && (
         <div data-neu="surface"
@@ -245,7 +256,7 @@ export default function BuyerLoginForm({ onComplete, merchantId, onAccountNotFou
             }
             void handleConfirm();
           }}
-          disabled={loading}
+          disabled={loading || (!accountNotFound && Boolean(TURNSTILE_SITE_KEY) && !captchaToken)}
           style={{
             flex: 1,
             border: "none",
