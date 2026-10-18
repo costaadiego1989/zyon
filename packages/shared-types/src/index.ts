@@ -860,6 +860,7 @@ export type RevenueManagerDomainEventType =
   | "revenue_manager.lesson.recorded";
 
 export type DomainEventType =
+  | "platform.support.changed"
   | "support.case.changed"
   | CheckoutDomainEventType
   | CrossSellDomainEventType
@@ -874,6 +875,7 @@ export type DomainEventType =
   | RevenueManagerDomainEventType;
 
 export type DomainEventProducer =
+  | "platform-support"
   | "support"
   | "checkout"
   | "cross-sell"
@@ -1561,3 +1563,5 @@ export { VOICE_MICROPHONE_CONSTRAINTS, RealtimeVoiceInput, RealtimeVoiceResponse
 export * from "./order-fulfillment.js";
 
 
+
+export * from "./platform-support.js";

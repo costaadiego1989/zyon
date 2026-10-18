@@ -9,6 +9,8 @@ export const PLATFORM_OPERATOR_ROLES = [
 export type PlatformOperatorRole = (typeof PLATFORM_OPERATOR_ROLES)[number];
 
 export const PLATFORM_PERMISSIONS = [
+  "platform:support:read",
+  "platform:support:write",
   "platform:operators:read",
   "platform:overview:read",
   "platform:merchants:read",
@@ -52,6 +54,8 @@ const PERMISSIONS_BY_ROLE: Readonly<Record<PlatformOperatorRole, ReadonlySet<Pla
     "platform:ai-usage:read",
   ]),
   support_ops: new Set([
+    "platform:support:read",
+    "platform:support:write",
     "platform:overview:read",
     "platform:merchants:read",
     "platform:feedback:read",

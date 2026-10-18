@@ -15,6 +15,7 @@ enum MerchantPlan {
 }
 
 model Merchant {
+  technicalSupportTickets PlatformSupportTicket[]
   billingReceivables BillingReceivable[]
   id                      String       @id
   // Stores in a Scale account share the platform subscription, never their
@@ -4607,6 +4608,8 @@ model BillingReceivable {
 }
 
 model PlatformOperator {
+  assignedSupportTickets PlatformSupportTicket[] @relation("PlatformSupportAssignee")
+  supportNotes PlatformSupportNote[]
   id           String                @id @default(cuid())
   email        String                @unique
   passwordHash String?               @map("password_hash")
@@ -4744,4 +4747,75 @@ model PlatformFeedbackNote {
   @@index([feedbackId, createdAt])
   @@index([operatorId, createdAt])
   @@map("platform_feedback_notes")
+}
+
+model PlatformSupportTicket {
+  id                   String   @id @default(cuid())
+  merchantId           String   @map("merchant_id")
+  authorUserId         String   @map("author_user_id")
+  clientRequestId      String   @map("client_request_id")
+  subject              String
+  category             String
+  status               String   @default("open")
+  severity             String   @default("normal")
+  assignedOperatorId   String?  @map("assigned_operator_id")
+  lastMessageSequence  Int      @default(0) @map("last_message_sequence")
+  waitingSince         DateTime? @map("waiting_since")
+  firstResponseAt      DateTime? @map("first_response_at")
+  resolvedAt           DateTime? @map("resolved_at")
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+  messages             PlatformSupportMessage[]
+  notes                PlatformSupportNote[]
+  reads                PlatformSupportRead[]
+  merchant             Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+  assignedOperator     PlatformOperator? @relation("PlatformSupportAssignee", fields: [assignedOperatorId], references: [id], onDelete: SetNull)
+
+  @@unique([merchantId, authorUserId, clientRequestId], map: "platform_support_tickets_request_key")
+  @@index([merchantId, createdAt])
+  @@index([status, severity, waitingSince])
+  @@index([assignedOperatorId, status])
+  @@map("platform_support_tickets")
+}
+
+model PlatformSupportMessage {
+  id              String   @id @default(cuid())
+  ticketId        String   @map("ticket_id")
+  sequence        Int
+  authorKey       String   @map("author_key")
+  sender          String
+  content         String   @db.Text
+  clientMessageId String   @map("client_message_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  ticket          PlatformSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@unique([ticketId, sequence], map: "platform_support_message_sequence_key")
+  @@unique([ticketId, authorKey, clientMessageId], map: "platform_support_message_request_key")
+  @@map("platform_support_messages")
+}
+
+model PlatformSupportNote {
+  id              String   @id @default(cuid())
+  ticketId        String   @map("ticket_id")
+  operatorId      String   @map("operator_id")
+  content         String   @db.Text
+  clientRequestId String   @map("client_request_id")
+  createdAt       DateTime @default(now()) @map("created_at")
+  ticket          PlatformSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+  operator        PlatformOperator @relation(fields: [operatorId], references: [id], onDelete: Restrict)
+
+  @@unique([ticketId, operatorId, clientRequestId], map: "platform_support_note_request_key")
+  @@index([ticketId, createdAt])
+  @@map("platform_support_notes")
+}
+
+model PlatformSupportRead {
+  ticketId     String   @map("ticket_id")
+  actorKey     String   @map("actor_key")
+  sequence     Int      @default(0)
+  updatedAt    DateTime @updatedAt @map("updated_at")
+  ticket       PlatformSupportTicket @relation(fields: [ticketId], references: [id], onDelete: Cascade)
+
+  @@id([ticketId, actorKey])
+  @@map("platform_support_reads")
 }

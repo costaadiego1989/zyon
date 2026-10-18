@@ -1,5 +1,7 @@
 import { REDACTED_LOG_PATHS, redactRequestUrl } from "./shared/logger/log-redaction.js";
 import { Module } from "@nestjs/common";
+import { PlatformOperatorDirectoryModule } from "./modules/platform-operator-directory/platform-operator-directory.module.js";
+import { PlatformSupportModule } from "./modules/platform-support/platform-support.module.js";
 import { PlatformControlModule } from "./modules/platform-control/platform-control.module.js";
 import { PlatformOverviewModule } from "./modules/platform-overview/platform-overview.module.js";
 import { PlatformMerchantDirectoryModule } from "./modules/platform-merchant-directory/platform-merchant-directory.module.js";
@@ -143,6 +145,8 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     AgenticProtocolModule,
     PublicApiModule,
     PlatformControlModule,
+    PlatformSupportModule,
+    PlatformOperatorDirectoryModule,
     PlatformOverviewModule,
     PlatformMerchantDirectoryModule,
     PlatformInfrastructureModule,

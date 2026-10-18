@@ -647,8 +647,16 @@ export function resolvePlatformApiBaseUrl(env: ImportMetaEnv): string {
   throw new Error("VITE_PLATFORM_API_BASE_URL is required for control runtime.");
 }
 
+import { createPlatformSupportClient } from "@zyon/platform-support-ui";
+
 export class PlatformApi {
   constructor(private readonly baseUrl: string) {}
+
+  supportClient(token: string) {
+    return createPlatformSupportClient({ baseUrl: this.baseUrl, kind: "operator", token,
+      request: <T>(path: string, options?: RequestOptions) => this.request<T>(path, token, options),
+    });
+  }
 
   async listBillingPromotions(token: string, filters: BillingPromotionsQuery): Promise<BillingPromotionsPage> {
     const query = new URLSearchParams();

@@ -31,23 +31,25 @@ import { AiUsageByMerchant } from "./AiUsageByMerchant.js";
 import { AuditTrail } from "./AuditTrail.js";
 import { BillingSubscriptions } from "./BillingSubscriptions.js";
 import { FeedbackQueue } from "./FeedbackQueue.js";
+import { SupportInbox } from "./SupportInbox.js";
 import { InfrastructureReadiness } from "./InfrastructureReadiness.js";
 import { MerchantDirectory } from "./MerchantDirectory.js";
 import { PlatformMetricsPanel } from "./PlatformMetrics.js";
 import { OrdersPage } from "./OrdersPage.js";
 import { BillingPromotions } from "./BillingPromotions.js";
 
-type ViewId = "overview" | "feedback" | "merchants" | "orders" | "billing" | "billing-promotions" | "ai-usage" | "infrastructure" | "audit";
+type ViewId = "support" | "overview" | "feedback" | "merchants" | "orders" | "billing" | "billing-promotions" | "ai-usage" | "infrastructure" | "audit";
 
 type NavigationItem = {
   id: ViewId;
   label: string;
   icon: LucideIcon;
-  permission?: "feedback" | "merchants" | "orders" | "billing" | "ai-usage" | "infrastructure" | "audit";
+  permission?: "support" | "feedback" | "merchants" | "orders" | "billing" | "ai-usage" | "infrastructure" | "audit";
   source?: "ready" | "pending";
 };
 
 const navigation: NavigationItem[] = [
+  { id: "support", label: "Atendimento técnico", icon: MessageSquareMore, permission: "support", source: "ready" },
   { id: "overview", label: "Visão geral", icon: Activity, source: "ready" },
   { id: "feedback", label: "Feedback", icon: MessageSquareMore, permission: "feedback", source: "ready" },
   { id: "merchants", label: "Empresas", icon: Building2, permission: "merchants", source: "ready" },
@@ -241,6 +243,7 @@ function ControlShell({
           {view === "feedback" ? (
             <FeedbackQueue api={api} token={token} operator={operator} onSessionExpired={onSessionExpired} />
           ) : null}
+          {view === "support" ? <SupportInbox api={api} token={token} operator={operator} onSessionExpired={onSessionExpired} /> : null}
           {view === "merchants" ? <MerchantDirectory api={api} token={token} onSessionExpired={onSessionExpired} /> : null}
           {view === "orders" ? <OrdersPage api={api} token={token} onSessionExpired={onSessionExpired} /> : null}
           {view === "billing" ? <BillingSubscriptions api={api} token={token} onSessionExpired={onSessionExpired} /> : null}
@@ -574,6 +577,7 @@ function canReadAudit(role: PlatformOperatorRole): boolean {
 }
 
 function canReadNavigationItem(item: NavigationItem, role: PlatformOperatorRole): boolean {
+  if (item.permission === "support") return role === "platform_admin" || role === "support_ops";
   if (item.permission === "feedback") return canReadFeedback(role);
   if (item.permission === "merchants") return canReadMerchantDirectory(role);
   if (item.permission === "orders") return canReadOrders(role);

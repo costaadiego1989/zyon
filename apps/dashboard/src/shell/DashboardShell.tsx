@@ -808,7 +808,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
           </PageErrorBoundary>
         </section>
       </main>
-      <PlatformFeedbackFab />
+      <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} />
       <ToastContainer />
       <ImportProgressBanner />
       </div>
