@@ -1,3 +1,4 @@
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject , Logger} from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { ProductRepositoryPort, SearchProductsInput, SearchProductsResult } from "../../domain/ports/product-repository.port.js";
@@ -21,6 +22,7 @@ export class SearchProductsUseCase {
   ) {}
 
   async execute(input: SearchProductsInput): Promise<SearchProductsResult> {
+    return withAiMetering({ merchantId: input.merchantId, source: "catalog_search" }, async () => {
     const limit = Math.max(1, Math.min(Number.isSafeInteger(input.limit) ? input.limit! : 20, 100));
     if (input.offset !== undefined && (!Number.isSafeInteger(input.offset) || input.offset < 0)) input = { ...input, offset: 0 };
 
@@ -73,6 +75,8 @@ export class SearchProductsUseCase {
       nextCursor: ilikeResults.nextCursor,
       total: Math.max(ilikeResults.total, orderedProducts.length),
     };
+
+    });
   }
 
   /**

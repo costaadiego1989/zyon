@@ -1,3 +1,4 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { categoryFor } from "../../../whatsapp-templates/domain/catalog/template-catalog.js";
 import { Injectable, Logger, Inject, Optional } from "@nestjs/common";
 import { BadRequestException } from "@nestjs/common";
@@ -203,7 +204,7 @@ export class PostSaleAiCopywriterService {
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
 
-        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
+        const res = await meteredAiFetch("post_sale_copy")(`${provider.baseUrl}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
           body: JSON.stringify({

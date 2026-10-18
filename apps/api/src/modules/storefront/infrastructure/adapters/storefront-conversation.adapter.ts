@@ -1,3 +1,5 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
 import type { StorefrontConversationScopePort } from "../../domain/ports/conversation-scope.port.js";
@@ -56,7 +58,7 @@ function optionalProviderTransport(factory: StorefrontProviderFetchFactory | und
   if (typeof factory !== "function") throw new Error("storefront_provider_transport_invalid");
   const fetchFn = factory(channel);
   if (typeof fetchFn !== "function") throw new Error("storefront_provider_transport_invalid");
-  return { fetchFn };
+  return { fetchFn: meteredAiFetch("storefront_agent", fetchFn) };
 }
 
 @Injectable()
@@ -113,7 +115,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const localModel = process.env.LOCAL_LLM_MODEL || process.env.OPENROUTER_MODEL || "deepseek-chat";
 
     const provider = new OpenRouterProvider({
-      apiKey: localApiKey,
+      apiKey: localApiKey, fetchFn: meteredAiFetch("storefront_agent"),
       baseUrl: localBaseUrl,
       model: localModel,
       ...optionalProviderTransport(providerFetchFactory, "primary"),
@@ -128,7 +130,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const fallbackBaseUrl = process.env.OPENROUTER_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
     const fallbackModel = process.env.OPENROUTER_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
     const fallbackProvider = fallbackApiKey
-      ? new OpenRouterProvider({ apiKey: fallbackApiKey, baseUrl: fallbackBaseUrl, model: fallbackModel,
+      ? new OpenRouterProvider({ apiKey: fallbackApiKey, fetchFn: meteredAiFetch("storefront_agent"), baseUrl: fallbackBaseUrl, model: fallbackModel,
         ...optionalProviderTransport(providerFetchFactory, "fallback") })
       : undefined;
 
@@ -170,10 +172,12 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   }
 
   async generateNudge(input: NudgeCopyInput): Promise<string> {
-    return this.observer.turn(() => this.copyService.generateNudge(input));
+    return withAiMetering({ merchantId: input.merchantId, source: "storefront_nudge" },
+      () => this.observer.turn(() => this.copyService.generateNudge(input)));
   }
   async reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
-    return this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext)) : this.replyTurn(input, deferredContext);
+    return withAiMetering({ merchantId: input.merchantId, conversationId: input.sessionId, source: "storefront" },
+      () => this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext)) : this.replyTurn(input, deferredContext));
   }
   private async replyTurn(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
     // The decision and every later shortcut/RAG/port must use the same input.

@@ -1,3 +1,4 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 export interface LocalLLMChatMessage {
   role: "system" | "user" | "assistant";
   content: string;
@@ -42,7 +43,7 @@ export class LocalLLMProvider {
   constructor(opts: LocalLLMProviderOptions = {}) {
     this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.model = opts.model ?? DEFAULT_MODEL;
-    this.fetchFn = opts.fetchFn ?? globalThis.fetch;
+    this.fetchFn = meteredAiFetch("storefront_gateway", opts.fetchFn ?? globalThis.fetch);
     this.timeoutMs = opts.timeout ?? DEFAULT_TIMEOUT_MS;
   }
 

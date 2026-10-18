@@ -1,3 +1,5 @@
+import { withAiMetering } from "../../../../shared/ai-metering.js";
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { Injectable, Logger } from "@nestjs/common";
 import { providerRequestOptions } from "../../../../shared/llm/provider-request-options.js";
 import { assertCheckoutChatBaseline, checkoutContractHash, type CheckoutChatBaseline } from "../../domain/services/checkout-chat-baseline.js";
@@ -30,6 +32,7 @@ export class ChatLlmGatewayService {
   /** One attempt against the captured route. Never falls back or retries an
    * uncertain request. This returns provider evidence, not a safe buyer reply. */
   async callPinned(merchantId: string, baseline: CheckoutChatBaseline, messages: LlmMessage[]): Promise<PinnedChatResult> {
+    return withAiMetering({ merchantId, source: "checkout_strategy" }, async () => {
     try { assertCheckoutChatBaseline(baseline, merchantId); }
     catch { return { outcome: "provider_not_dispatched" }; }
     const routes = checkoutChatProviders();
@@ -45,7 +48,7 @@ export class ChatLlmGatewayService {
     // Keep the deadline active through body consumption, not just HTTP headers.
     const timer = setTimeout(() => controller.abort(), route.timeoutMs);
     try {
-      const response = await fetch(route.url, {
+      const response = await meteredAiFetch("checkout_chat")(route.url, {
         method: "POST", redirect: "error",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${route.key}` },
         body: JSON.stringify({ model: route.model, messages, tools: baseline.tools, ...baseline.sampling,
@@ -65,6 +68,8 @@ export class ChatLlmGatewayService {
       // A network error/timeout does not prove the provider did not process it.
       return { outcome: "provider_unknown" };
     } finally { clearTimeout(timer); }
+
+    });
   }
 
   /** Call the same ordered provider routes captured by baseline inspection. */
@@ -94,7 +99,7 @@ export class ChatLlmGatewayService {
       const controller = new AbortController();
       const timer = setTimeout(() => controller.abort(), timeoutMs);
 
-      const res = await fetch(url, {
+      const res = await meteredAiFetch("checkout_chat")(url, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${key}` },
         body: JSON.stringify({ model, messages, tools, ...CHECKOUT_CHAT_SAMPLING, ...providerRequestOptions(url, model) }),

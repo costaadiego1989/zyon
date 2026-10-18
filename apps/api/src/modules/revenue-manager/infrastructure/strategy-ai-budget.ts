@@ -105,7 +105,7 @@ export class StrategyAiBudget {
         && usage.prompt_tokens + usage.completion_tokens === usage.total_tokens;
       const amount = valid ? cost(usage.prompt_tokens, usage.completion_tokens, r.inputRate, r.outputRate) : null;
       const overrun = amount !== null && (amount > r.amountMicros || usage!.prompt_tokens > r.maxInputTokens || usage!.completion_tokens > r.maxOutputTokens);
-      const data = { merchantId, source: "checkout_strategy", channel: "chat", component: "text_generation", provider: r.provider, model: r.model,
+      const data = { merchantId, source: "checkout_strategy", channel: "chat", component: "text_generation", provider: r.provider, model: r.model, measurementOrigin: "budget_reservation",
         executionStatus: released ? "not_dispatched" : provider.outcome === "provider_completed" ? "succeeded" : "unknown",
         promptTokens: valid ? usage.prompt_tokens : null, completionTokens: valid ? usage.completion_tokens : null,
         totalTokens: valid ? usage.total_tokens : null, costMicros: amount, currency: r.currency, pricingVersion: r.priceVersion,

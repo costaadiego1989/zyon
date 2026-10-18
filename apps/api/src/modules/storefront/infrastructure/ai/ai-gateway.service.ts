@@ -1,3 +1,4 @@
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { Injectable, Logger } from "@nestjs/common";
 import { LocalLLMProvider } from "./local-llm-provider.js";
 import {
@@ -56,6 +57,7 @@ export class AIGatewayService {
     messages: AIGatewayMessage[],
     context: AIGatewayContext
   ): Promise<AIGatewayResult> {
+    return withAiMetering({ merchantId: context.merchantId, source: "storefront_gateway" }, async () => {
     const start = Date.now();
     const intent = this.router.detectIntent(context.userMessage);
     const plan = context.plan ?? MerchantPlan.STORE_ONLY;
@@ -85,6 +87,8 @@ export class AIGatewayService {
     );
 
     return result;
+
+    });
   }
 
   private async tryLocalFirst(

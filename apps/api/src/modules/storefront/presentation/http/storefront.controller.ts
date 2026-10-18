@@ -35,6 +35,8 @@ import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jw
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 import { storefrontPublicReadUiActionRequestSchema, storefrontReadUiActionCapability } from "../../domain/contracts/storefront-public-read-ui-action.schemas.js";
+import { AiMeteringService } from "../../../ai-metering/ai-metering.service.js";
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
@@ -94,6 +96,7 @@ export class StorefrontController {
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
     @Optional() private readonly supportHandoff?: SupportHandoffService,
     @Optional() @Inject(STOREFRONT_CROSS_SELL_CART) private readonly crossSellCart?: StorefrontCrossSellCartPort,
+    @Optional() private readonly aiMetering?: AiMeteringService,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -237,7 +240,7 @@ export class StorefrontController {
     }
     const deferredContext = messageSnapshot.attachment !== undefined || this.oneBuyClick ? async () => {
       const attachmentContext = messageSnapshot.attachment === undefined ? undefined
-        : await this.attachmentInterpreter.interpret(messageSnapshot.attachment);
+        : await this.attachmentInterpreter.interpret(messageSnapshot.attachment, { merchantId: claims.merchantId, conversationId: claims.resourceId });
       const state = this.oneBuyClick ? await this.oneBuyClick.get({
         merchantId: claims.merchantId, conversationId: claims.resourceId, globalUserId,
       }) : undefined;
@@ -260,7 +263,9 @@ export class StorefrontController {
       one_buy_click: undefined,
       ...(messageSnapshot.uiAction ? { ui_action: messageSnapshot.uiAction } : {}),
     };
-    return deferredContext ? this.sendStoreMessage.execute(input, deferredContext) : this.sendStoreMessage.execute(input);
+    const voiceContext = admittedVoice && this.aiMetering ? await this.aiMetering.voicePermitContext(body.voice_turn_token!, claims.merchantId, claims.resourceId) : undefined;
+    return withAiMetering({ merchantId: claims.merchantId, conversationId: claims.resourceId, source: "storefront", costCenter: admittedVoice ? "voice" : "text", ...voiceContext },
+      () => deferredContext ? this.sendStoreMessage.execute(input, deferredContext) : this.sendStoreMessage.execute(input));
   }
 
   @Get("conversations/:conversationId/one-buy-click")

@@ -1,3 +1,4 @@
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { Inject, Injectable, Optional, Logger, ServiceUnavailableException } from "@nestjs/common";
 import type {
   ChatMessageRequest,
@@ -74,11 +75,14 @@ export class SendChatMessageUseCase {
   ) {}
 
   async execute(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean }): Promise<ChatMessageResponse> {
+    return withAiMetering({ merchantId: input.merchant_id, conversationId: input.session_id, source: "checkout" }, async () => {
     if (this.chatRequests) return this.chatRequests.run(input,
       request => this.preflight(request, authority), (request, claim) => this.processMessage(request, claim));
     if (chatRequestsEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
     await this.preflight(input, authority);
     return this.processMessage(input);
+
+    });
   }
 
   private async preflight(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean }): Promise<void> {

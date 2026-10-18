@@ -1,3 +1,5 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 /**
  * LangGraph Conversation Adapter — bridges the ConversationPort to LangGraph agent.
  *
@@ -53,7 +55,7 @@ export class LangGraphConversationAdapter implements ConversationPort {
 
     try {
       const provider = new OpenRouterProvider({
-        apiKey: OPENROUTER_API_KEY,
+        apiKey: OPENROUTER_API_KEY, fetchFn: meteredAiFetch("checkout_agent"),
         baseUrl: process.env.OPENROUTER_BASE_URL || "https://openrouter.ai/api/v1",
         model: OPENROUTER_MODEL
       });
@@ -101,6 +103,7 @@ export class LangGraphConversationAdapter implements ConversationPort {
   }
 
   async reply(input: ConversationReplyInput): Promise<{ message: string; objection: Objection }> {
+    return withAiMetering({ merchantId: input.merchantId!, conversationId: input.sessionId, source: "checkout_agent" }, async () => {
     // If LangGraph agent is not configured, use deterministic fallback.
     if (!this.agent || !this.agent) {
       return this.fallback(input);
@@ -136,6 +139,8 @@ export class LangGraphConversationAdapter implements ConversationPort {
       this.logger.warn("agent.error.fallback", { error: error instanceof Error ? error.message : String(error) });
       return this.fallback(input);
     }
+
+    });
   }
 
   private buildSystemPrompt(): string {
