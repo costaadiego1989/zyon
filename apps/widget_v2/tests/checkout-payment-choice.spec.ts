@@ -1,7 +1,7 @@
 import test, { afterEach } from "node:test";
 import assert from "node:assert/strict";
 import { CheckoutSession } from "../src/api/checkout-session.js";
-import { paymentChoicesForConfig, paymentMethodsForConfig, useCheckoutStore } from "../src/store/checkout-store.js";
+import { cartStatusFromExperience, checkoutQuickReplies, paymentChoicesForConfig, paymentMethodsForConfig, useCheckoutStore } from "../src/store/checkout-store.js";
 
 const initial = useCheckoutStore.getInitialState();
 const originalFetch = globalThis.fetch;
@@ -14,24 +14,27 @@ const experience = {
   paymentMethods: { pix: false, card: true, boleto: false },
 };
 
-async function fixture(options: { unavailable?: boolean; cancellationFails?: boolean; waitForCancel?: Promise<void> } = {}) {
+async function fixture(options: { unavailable?: boolean; cancellationFails?: boolean; waitForCancel?: Promise<void>; service?: boolean; needsShipping?: boolean } = {}) {
+  const snapshot = { ...experience, stage: options.needsShipping ? "shipping" : "payment", ...(options.service || options.needsShipping ? { shipping: undefined } : {}) };
   const calls: Array<{ path: string; body: any }> = [];
   globalThis.fetch = async (url, init) => {
     const path = new URL(String(url)).pathname;
     const body = init?.body ? JSON.parse(String(init.body)) : undefined;
-    if (path.endsWith("/embed/start")) return Response.json({ session_id: "choice-session", experience });
+    if (path.endsWith("/embed/start")) return Response.json({ session_id: "choice-session", experience: snapshot });
     calls.push({ path, body });
+    if (path.endsWith("/embed/chat") && options.needsShipping) return Response.json({ experience: snapshot, stage: "shipping", missing_fields: ["frete"],
+      message: "Escolha como receber.", blocks: [{ type: "shipping_options", data: { options: [] } }] });
     if (path.endsWith("/embed/checkout/edit")) {
       await options.waitForCancel;
       return options.cancellationFails
         ? Response.json({ code: "checkout_edit_payment_cancel_pending" }, { status: 409 })
-        : Response.json({ experience, revision: 1 });
+        : Response.json({ experience: snapshot, revision: 1 });
     }
     if (path.endsWith("/embed/payment/intents")) {
       return options.unavailable
         ? Response.json({ code: "payment_provider_not_configured" }, { status: 400 })
-        : Response.json({ id: "new-pix", method: "pix", status: "pending", amountCents: 1099,
-          buyerFacing: { qrCodeCopyPaste: "TEST_ONLY_NOT_A_REAL_PIX" } });
+        : Response.json({ id: body.method === "card" ? "new-card" : "new-pix", method: body.method, status: "pending", amountCents: 1099,
+          buyerFacing: body.method === "card" ? { invoiceUrl: "https://fixture.invalid/card" } : { qrCodeCopyPaste: "TEST_ONLY_NOT_A_REAL_PIX" } });
     }
     throw new Error(`unexpected_endpoint:${path}`);
   };
@@ -54,9 +57,80 @@ test("Pix stays selectable with pix:false, including when the server's choices o
   const config = useCheckoutStore.getState().merchantPaymentConfig;
   assert.equal(paymentMethodsForConfig(config).some((method) => method.key === "pix"), false);
   assert.equal(paymentChoicesForConfig(config).some((method) => method.key === "pix"), true);
+  useCheckoutStore.setState({ paymentIntent: null });
   useCheckoutStore.getState().proceedToPayment([{ key: "credito", label: "Cartão", sub: "" }]);
   const methods = useCheckoutStore.getState().messages.at(-1)?.blocks?.[0].data?.methods as Array<{ key: string }>;
   assert.equal(methods.some((method) => method.key === "pix"), true);
+});
+
+test("quick replies deduplicate Pix aliases and do not repeat methods already visible in a chooser or payment navigation", () => {
+  const config = { paymentMethods: { pix: true, card: true, boleto: false } };
+  const replies = ["PIX", "Pix", "Trocar para Pix", "Cartão de crédito", "Alterar endereço", "Tenho uma dúvida"];
+  assert.deepEqual(checkoutQuickReplies(replies, config), ["PIX", "Cartão de crédito", "Alterar endereço", "Tenho uma dúvida"]);
+  assert.deepEqual(checkoutQuickReplies(replies, config, { paymentControlsVisible: true }), ["Alterar endereço", "Tenho uma dúvida"]);
+  assert.deepEqual(checkoutQuickReplies(replies, config, { paymentControlsVisible: true, editControlsVisible: true }), ["Tenho uma dúvida"]);
+});
+
+test("only the authoritative payment stage permits a service with no shipping to pay", () => {
+  assert.equal(cartStatusFromExperience({ ...experience, shipping: undefined, stage: "payment" }), "ready_to_pay");
+  assert.equal(cartStatusFromExperience({ ...experience, shipping: undefined, stage: "shipping" }), "awaiting");
+  assert.equal(cartStatusFromExperience({ ...experience, shipping: undefined }), "awaiting");
+});
+
+test("saved preference for a payment-ready service never fetches physical shipping", async () => {
+  const { calls } = await fixture({ service: true });
+  useCheckoutStore.setState({ paymentIntent: null, cart: { ...useCheckoutStore.getState().cart, shipping: undefined }, buyer: {} });
+  await useCheckoutStore.getState().startQuickPurchase();
+  assert.deepEqual(calls.map(call => call.path), ["/embed/payment/intents"]);
+  assert.equal(useCheckoutStore.getState().paymentIntent?.intent_id, "new-card");
+});
+
+test("a genuinely invalidated physical quote reopens delivery instead of attempting a payment", async () => {
+  const { calls } = await fixture({ needsShipping: true });
+  await useCheckoutStore.getState().changePaymentMethod("pix");
+  assert.deepEqual(calls.map(call => call.path), ["/embed/checkout/edit", "/embed/chat"]);
+  assert.equal(useCheckoutStore.getState().paymentIntent, null);
+  assert.equal(useCheckoutStore.getState().cart.status, "awaiting");
+  assert.equal(useCheckoutStore.getState().messages.at(-1)?.blocks?.[0].type, "shipping_options");
+});
+
+test("a service can switch Pix to card and back without inventing a shipping prerequisite", async () => {
+  const { calls } = await fixture({ service: true });
+  useCheckoutStore.setState({ paymentIntent: { intent_id: "old-pix", method: "pix", status: "requires_action", amount_cents: 1099 },
+    cart: { ...useCheckoutStore.getState().cart, shipping: undefined },
+    messages: [{ id: "pix", role: "agent", text: "Pix gerado", timestamp: 0, blocks: [{ type: "pix_payment", data: { intent_id: "old-pix" } }] }] });
+  await useCheckoutStore.getState().sendMessage("Cartão de crédito");
+  assert.equal(useCheckoutStore.getState().paymentIntent?.intent_id, "new-card");
+  assert.equal(useCheckoutStore.getState().cart.shipping, undefined);
+  assert.equal(useCheckoutStore.getState().cart.status, "ready_to_pay");
+  await useCheckoutStore.getState().sendMessage("Pix");
+  assert.equal(useCheckoutStore.getState().paymentIntent?.intent_id, "new-pix");
+  assert.deepEqual(calls.map(call => call.path), ["/embed/checkout/edit", "/embed/payment/intents", "/embed/checkout/edit", "/embed/payment/intents"]);
+  assert.equal(useCheckoutStore.getState().messages.some(message => message.text?.includes("Selecione um frete")), false);
+});
+
+test("Voltar cancels the current payment and opens only the method chooser, without a chat round-trip", async () => {
+  const { calls } = await fixture({ service: true });
+  await useCheckoutStore.getState().sendMessage("Voltar");
+  const state = useCheckoutStore.getState();
+  assert.deepEqual(calls.map(call => call.path), ["/embed/checkout/edit"]);
+  assert.equal(state.paymentIntent, null);
+  assert.equal(state.messages.at(-1)?.blocks?.[0].type, "payment_methods");
+  assert.equal(state.messages.some(message => message.blocks?.some(block => block.type === "stripe_card")), false);
+});
+
+test("a stale coupon continuation cannot reopen the chooser over an active payment", async () => {
+  await fixture();
+  const before = useCheckoutStore.getState().messages;
+  useCheckoutStore.getState().proceedToPayment();
+  assert.equal(useCheckoutStore.getState().messages, before);
+});
+
+test("selecting the current payment again does not cancel or recreate it", async () => {
+  const { calls } = await fixture();
+  await useCheckoutStore.getState().changePaymentMethod("credito");
+  assert.equal(calls.length, 0);
+  assert.equal(useCheckoutStore.getState().paymentIntent?.intent_id, "old-card");
 });
 
 test("clicking Pix rechecks it through the API without changing saved card preference or provider snapshot", async () => {
