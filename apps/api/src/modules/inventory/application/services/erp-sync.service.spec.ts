@@ -1,3 +1,5 @@
+process.env.BLING_CLIENT_ID = "a".repeat(40);
+process.env.BLING_CLIENT_SECRET = "test-app-secret";
 import assert from "node:assert/strict";
 import test from "node:test";
 import { ErpSyncService } from "./erp-sync.service.js";
@@ -5,7 +7,7 @@ import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-ciphe
 
 const applied = {
   receiptId: "receipt_a",
-  event: { merchantId: "merchant_a", orderId: "order_a", items: [], totalCents: 0, timestamp: "2026-09-13T00:00:00.000Z" },
+  event: { merchantId: "merchant_a", orderId: "order_a", items: [{ sku: "SKU", quantity: 2, productType: "physical" }], totalCents: 0, timestamp: "2026-09-13T00:00:00.000Z" },
   stockDecrementedCount: 1,
   idempotent: false,
   items: [{ sku: "SKU", itemId: "item_a", locationId: "warehouse_a", quantity: 2, remainingQuantity: 7 }],
@@ -15,6 +17,7 @@ test("ERP sale work is persisted once per connection before any remote request",
   const jobs: any[] = [];
   let creates = 0;
   const prisma = {
+    productVariant: { findMany: async () => [{ id: "variant_a", sku: "SKU" }] },
     erpConnection: {
       findMany: async () => [{ id: "connection_a" }],
     },

@@ -6,6 +6,7 @@ import { GetCurrentMarketplacePaymentService } from "./application/get-current-m
 import { MarketplacePaymentResumeService } from "./application/marketplace-payment-resume.service.js";
 import { CancelPaymentIntentUseCase } from "./application/cancel-payment-intent.use-case.js";
 import { forwardRef, Module } from "@nestjs/common";
+import { BillingPromotionsModule } from "../billing-promotions/billing-promotions.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
@@ -81,6 +82,8 @@ import {
 import { PAYMENT_PLATFORM_REPOSITORY } from "./domain/ports/payment-platform-repository.port.js";
 import { PrismaPaymentPlatformRepository } from "./infrastructure/prisma-payment-platform.repository.js";
 import { StripePlatformAdapter } from "./infrastructure/stripe-platform.adapter.js";
+import { BILLING_ADMIN_NOTICE_PORT } from "./domain/ports/billing-admin-notice.port.js";
+import { PrismaBillingAdminNoticePublisher } from "./infrastructure/prisma-billing-admin-notice.publisher.js";
 import { AsaasPlatformAdapter } from "./infrastructure/asaas-platform.adapter.js";
 import { EnvironmentBillingConfig } from "./infrastructure/billing-env.js";
 import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
@@ -139,6 +142,7 @@ import {
 
 @Module({
   imports: [
+    BillingPromotionsModule,
     forwardRef(() => CheckoutModule),
     CommerceModule,
     MerchantModule,
@@ -163,6 +167,7 @@ import {
     MerchantMercadoPagoController,
   ],
   providers: [
+    { provide: BILLING_ADMIN_NOTICE_PORT, useFactory: (prisma: PrismaClient) => new PrismaBillingAdminNoticePublisher(prisma), inject: [PRISMA_CROSS_MERCHANT_CLIENT] },
     PrepareMarketplaceCheckoutService,
     CreateMarketplacePaymentService,
     MarketplacePublicPaymentAdmissionService,

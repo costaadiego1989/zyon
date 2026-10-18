@@ -11,6 +11,10 @@ export const PAYMENT_PLATFORM_ENVIRONMENT = Symbol(
   "PAYMENT_PLATFORM_ENVIRONMENT",
 );
 export const BILLING_CONFIG_PORT = Symbol("BILLING_CONFIG_PORT");
+export const BILLING_CHECKOUT_PROMOTION_PORT = Symbol("BILLING_CHECKOUT_PROMOTION_PORT");
+export interface BillingCheckoutPromotionPort {
+  resolveForCheckout(input: { code: string; plan: BillingPlan; cycle: BillingCycle }): Promise<string>;
+}
 
 export interface PaymentPlatformEnvironment {
   stripe: "test" | "live";
@@ -57,6 +61,7 @@ export interface StripePlatformPort {
     customerId: string;
     priceId: string;
     offer?: BillingOffer;
+    promotionCodeId?: string;
     successUrl: string;
     cancelUrl: string;
   }): Promise<{ url: string; sessionId: string }>;

@@ -45,6 +45,7 @@ import { OrderQuotaNoticeValidityService } from "./application/services/order-qu
 import { DeliverOrderQuotaNoticeUseCase } from "./application/use-cases/deliver-order-quota-notice.use-case.js";
 import { OrderQuotaNoticeDeliveryJob } from "./application/services/order-quota-notice-delivery.job.js";
 import { BudgetRequestNotificationJob } from "./application/services/budget-request-notification.job.js";
+import { BillingAdminNoticeJob } from "./application/services/billing-admin-notice.job.js";
 import { BudgetRequestNotificationSender } from "./infrastructure/adapters/budget-request-notification.sender.js";
 import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repositories/prisma-budget-request-notification.repository.js";
 
@@ -85,6 +86,7 @@ import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repo
     PrismaBudgetRequestNotificationRepository,
     BudgetRequestNotificationSender,
     BudgetRequestNotificationJob,
+    BillingAdminNoticeJob,
     PrismaReturnNoticeRepository, ReturnNoticeSender, ReturnNoticeJob,
     PlanNoticeJob, PlanNoticeSender, PrismaPlanNoticeRepository,
     { provide: MERCHANT_NOTIFICATION_INBOX_PORT, useClass: PrismaMerchantNotificationInboxRepository },

@@ -1,5 +1,6 @@
 import { PageHeader } from "../../components/PageHeader.js";
 import { BillingCycleSelector } from "./components/BillingCycleSelector.js";
+import { BillingPromotionField } from "./components/BillingPromotionField.js";
 import { billingMoney, selectedBillingOffer } from "./plan-catalog.js";
 import React from "react";
 import { useBillingPlansPage } from "./useBillingPlansPage.js";
@@ -182,6 +183,7 @@ export function BillingPlansPage() {
           PLANOS DISPONÍVEIS
         </div>
         <BillingCycleSelector value={vm.billingCycle} onChange={vm.setBillingCycle} annualAvailable={vm.annualAvailable} discountPercent={vm.discountPercent} />
+        {vm.canUsePromotion && <BillingPromotionField value={vm.promotionCode} onChange={vm.setPromotionCode} disabled={vm.upgrading} cycle={vm.billingCycle} />}
         {vm.pendingChange && <div className="billing-plans__change-review" role="region" aria-label="Revisar alteração">
           <h3>Confira a alteração</h3>
           <p>{vm.pendingChange.name} · {vm.billingCycle === "annual" ? "anual" : "mensal"} · {billingMoney(selectedBillingOffer(vm.pendingChange, vm.billingCycle)!.amountCents)} por período.</p>

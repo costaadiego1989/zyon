@@ -579,6 +579,8 @@ export class BillingController {
       merchantId: principal.tenantId,
       email: principal.email,
       plan,
+      billingCycle: body.billingCycle,
+      promotionCode: body.promotionCode,
     });
   }
 

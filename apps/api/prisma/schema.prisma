@@ -15,6 +15,7 @@ enum MerchantPlan {
 }
 
 model Merchant {
+  billingReceivables BillingReceivable[]
   id                      String       @id
   // Stores in a Scale account share the platform subscription, never their
   // commercial integrations. A root store points to itself after migration.
@@ -3343,6 +3344,7 @@ model MerchantNotification {
 }
 
 model MerchantPlatformFeedback {
+  treatment PlatformFeedbackTreatment?
   id         String   @id @default(cuid())
   merchantId String   @map("merchant_id")
   userId     String   @map("user_id")
@@ -4576,4 +4578,170 @@ model MarketplaceTransferRecoveryCredit {
   @@index([residualOperationId])
   @@index([beneficiaryMerchantId])
   @@map("marketplace_transfer_recovery_credits")
+}
+
+model BillingReceivable {
+  id                     String   @id @default(cuid())
+  merchantId             String   @map("merchant_id")
+  provider               String
+  providerPaymentId      String   @map("provider_payment_id")
+  providerSubscriptionId String   @map("provider_subscription_id")
+  currency               String   @default("BRL")
+  amountCents            Int?     @map("amount_cents")
+  dueAt                  DateTime? @map("due_at")
+  status                 String
+  paidAt                 DateTime? @map("paid_at")
+  firstObservedAt        DateTime @map("first_observed_at")
+  lastProviderEventId    String   @map("last_provider_event_id")
+  lastProviderEventAt    DateTime @map("last_provider_event_at")
+  createdAt              DateTime @default(now()) @map("created_at")
+  updatedAt              DateTime @updatedAt @map("updated_at")
+
+  merchant Merchant @relation(fields: [merchantId], references: [id], onDelete: Cascade)
+
+  @@unique([provider, providerPaymentId])
+  @@index([merchantId, status, dueAt])
+  @@index([provider, status, dueAt])
+  @@index([paidAt])
+  @@map("billing_receivables")
+}
+
+model PlatformOperator {
+  id           String                @id @default(cuid())
+  email        String                @unique
+  passwordHash String?               @map("password_hash")
+  role         String
+  authVersion  Int                   @default(0) @map("auth_version")
+  disabledAt   DateTime?             @map("disabled_at")
+  createdAt    DateTime              @default(now()) @map("created_at")
+  updatedAt    DateTime              @updatedAt @map("updated_at")
+  sessions     PlatformAuthSession[]
+  auditEvents  PlatformAuditEvent[]  @relation("PlatformAuditActor")
+
+  @@map("platform_operators")
+}
+
+model BillingPromotion {
+  id                    String   @id
+  code                  String   @unique
+  name                  String
+  discountType          String   @map("discount_type")
+  discountValue         Int      @map("discount_value")
+  duration              String
+  durationMonths        Int?     @map("duration_months")
+  plans                 String[]
+  startsAt              DateTime @map("starts_at")
+  expiresAt             DateTime @map("expires_at")
+  maxRedemptions        Int?     @map("max_redemptions")
+  firstTimeOnly         Boolean  @default(false) @map("first_time_only")
+  autoApply             Boolean  @default(false) @map("auto_apply")
+  enabled               Boolean  @default(true)
+  provisioned           Boolean  @default(false)
+  revision              Int      @default(1)
+  deletedAt             DateTime? @map("deleted_at")
+  stripeCouponId        String?  @unique @map("stripe_coupon_id")
+  stripePromotionCodeId String?  @unique @map("stripe_promotion_code_id")
+  createdBy             String   @map("created_by")
+  createdAt             DateTime @default(now()) @map("created_at")
+  updatedAt             DateTime @updatedAt @map("updated_at")
+
+  @@index([enabled, startsAt])
+  @@index([autoApply, enabled, startsAt])
+  @@index([createdAt, id])
+  @@map("billing_promotions")
+}
+
+model BillingAdminNotice {
+  id                String   @id
+  provider          String
+  subscriptionId    String   @map("subscription_id")
+  invoiceId         String   @map("invoice_id")
+  eventId           String   @map("event_id")
+  merchantId        String   @map("merchant_id")
+  planKey           String   @map("plan_key")
+  billingCycle      String   @map("billing_cycle")
+  amountPaidCents   Int      @map("amount_paid_cents")
+  discountCents     Int      @map("discount_cents")
+  currency          String
+  occurredAt        DateTime @map("occurred_at")
+  status            String   @default("pending")
+  attempts          Int      @default(0)
+  nextAttemptAt     DateTime @default(now()) @map("next_attempt_at")
+  lockedUntil       DateTime? @map("locked_until")
+  claimToken        String?  @map("claim_token")
+  providerMessageId String?  @map("provider_message_id")
+  lastErrorCode     String?  @map("last_error_code")
+  createdAt         DateTime @default(now()) @map("created_at")
+  updatedAt         DateTime @updatedAt @map("updated_at")
+
+  @@unique([provider, subscriptionId])
+  @@index([status, nextAttemptAt])
+  @@map("billing_admin_notices")
+}
+
+model PlatformAuthSession {
+  id               String           @id
+  familyId         String           @map("family_id")
+  operatorId       String           @map("operator_id")
+  authVersion      Int              @map("auth_version")
+  refreshExpiresAt DateTime         @map("refresh_expires_at")
+  consumedAt       DateTime?        @map("consumed_at")
+  revokedAt        DateTime?        @map("revoked_at")
+  createdAt        DateTime         @default(now()) @map("created_at")
+  operator         PlatformOperator @relation(fields: [operatorId], references: [id], onDelete: Cascade)
+
+  @@index([familyId])
+  @@index([operatorId, revokedAt])
+  @@index([refreshExpiresAt])
+  @@map("platform_auth_sessions")
+}
+
+model PlatformAuditEvent {
+  id              String            @id @default(cuid())
+  actorOperatorId String?           @map("actor_operator_id")
+  action          String
+  permission      String
+  environment     String
+  targetType      String            @map("target_type")
+  targetId        String?           @map("target_id")
+  reason          String?           @db.Text
+  correlationId   String            @map("correlation_id")
+  outcome         String
+  details         Json?
+  createdAt       DateTime          @default(now()) @map("created_at")
+  actor           PlatformOperator? @relation("PlatformAuditActor", fields: [actorOperatorId], references: [id], onDelete: SetNull)
+
+  @@index([actorOperatorId, createdAt])
+  @@index([targetType, targetId, createdAt])
+  @@index([action, createdAt])
+  @@map("platform_audit_events")
+}
+
+model PlatformFeedbackTreatment {
+  feedbackId          String                    @id @map("feedback_id")
+  status              String                    @default("new")
+  priority            String                    @default("normal")
+  assignedOperatorId  String?                   @map("assigned_operator_id")
+  firstReadAt         DateTime?                 @map("first_read_at")
+  resolvedAt          DateTime?                 @map("resolved_at")
+  updatedAt           DateTime                  @updatedAt @map("updated_at")
+  feedback            MerchantPlatformFeedback  @relation(fields: [feedbackId], references: [id], onDelete: Cascade)
+  notes               PlatformFeedbackNote[]
+
+  @@index([status, updatedAt])
+  @@index([assignedOperatorId, updatedAt])
+  @@map("platform_feedback_treatments")
+}
+
+model PlatformFeedbackNote {
+  id         String                    @id @default(cuid())
+  feedbackId String                    @map("feedback_id")
+  operatorId String                    @map("operator_id")
+  message    String                    @db.Text
+  createdAt  DateTime                  @default(now()) @map("created_at")
+  treatment  PlatformFeedbackTreatment @relation(fields: [feedbackId], references: [feedbackId], onDelete: Cascade)
+
+  @@index([feedbackId, createdAt])
+  @@index([operatorId, createdAt])
+  @@map("platform_feedback_notes")
 }

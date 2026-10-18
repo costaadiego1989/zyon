@@ -17,6 +17,8 @@ import { ChargebackPaymentHoldUseCase, RefundPaymentHoldUseCase } from "./paymen
 import { fundingHash, lockMarketplaceOrder } from "../../marketplace/infrastructure/repositories/prisma-marketplace-funding.repository.js";
 import { marketplacePaymentStatusInput } from "../domain/marketplace-payment-status.js";
 import { PAYMENT_PROVIDER_PORT, type PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
+import { BILLING_ADMIN_NOTICE_PORT, type BillingAdminNoticePort } from "../domain/ports/billing-admin-notice.port.js";
+import { planFromPriceId } from "../domain/billing-plans.js";
 
 export type HandleStripeWebhookResult =
   | { outcome: "duplicate" }
@@ -47,6 +49,7 @@ export class HandleStripeWebhookUseCase {
     @Optional() @Inject(STRIPE_PLATFORM_PORT) private readonly billingStripe?: StripePlatformPort,    @Optional() private readonly refundPaymentHold?: RefundPaymentHoldUseCase,
     @Optional() private readonly chargebackPaymentHold?: ChargebackPaymentHoldUseCase,
     @Inject(PAYMENT_PROVIDER_PORT) private readonly paymentProvider?: PaymentProviderPort,
+    @Optional() @Inject(BILLING_ADMIN_NOTICE_PORT) private readonly adminNotices?: BillingAdminNoticePort,
   ) {
     const { secretKey } = readStripeConnection();
     // Stripe is optional: an Asaas-only installation must still boot.
@@ -343,7 +346,16 @@ export class HandleStripeWebhookUseCase {
     if (event.type !== "invoice.paid" && event.type !== "invoice.payment_failed") return "ignored_event_type";
     const subscriptionId = idFrom(invoice.parent?.subscription_details?.subscription ?? invoice.subscription);
     if (!subscriptionId || !this.billingStripe || !this.platformEvents) return "ignored_non_subscription_invoice";
-    await this.platformEvents.subscriptionUpdated(await this.billingStripe.retrieveBillingSubscription(subscriptionId));
+    const current = await this.billingStripe.retrieveBillingSubscription(subscriptionId);
+    await this.platformEvents.subscriptionUpdated(current);
+    const planKey = planFromPriceId(current.priceId);
+    if (event.type === "invoice.paid" && !event.account && invoice.status === "paid" && invoice.billing_reason === "subscription_create" && current.status === "active" && current.merchantId &&
+      current.subscriptionId === subscriptionId && planKey && planKey !== "starter" && this.adminNotices) {
+      await this.adminNotices.enqueue({ provider: "stripe", subscriptionId, invoiceId: invoice.id, eventId: event.id,
+        merchantId: current.merchantId, planKey, billingCycle: current.billingCycle ?? "monthly",
+        amountPaidCents: invoice.amount_paid, discountCents: invoice.total_discount_amounts?.reduce((sum, item) => sum + item.amount, 0) ?? 0,
+        currency: invoice.currency.toUpperCase(), occurredAt: new Date(event.created * 1000).toISOString() });
+    }
     return "billing_invoice_synchronized";
   }
 
