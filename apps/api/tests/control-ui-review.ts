@@ -45,7 +45,16 @@ try {
     const view = views[index]!;
     await page.setViewportSize({ width: 1440, height: 1000 });
     await page.getByRole("button", { name: view, exact: true }).click();
+    await page.getByRole("heading", { name: view, level: 1, exact: true }).waitFor();
     await page.waitForLoadState("networkidle");
+    await page.waitForFunction(() => {
+      const main = document.querySelector("#control-content");
+      return main && !main.querySelector('[aria-busy="true"], [class*="skeleton"], [class*="loading"]');
+    });
+    if (view === "Cobrança") {
+      await page.locator("#billing-facts-heading").waitFor();
+      await page.locator("#receivables-heading").waitFor();
+    }
     const main = page.locator("#control-content");
     assert(await main.innerText(), "page_content_missing:" + view);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "desktop_overflow:" + view);
