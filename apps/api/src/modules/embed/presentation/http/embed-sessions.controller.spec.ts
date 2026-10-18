@@ -102,6 +102,37 @@ describe("EmbedSessionsController", () => {
       /merchant_id_is_credential_derived/,
     );
   });
+
+  it("continues an expired storefront token only after cart ownership is checked again", async () => {
+    const installation = { id: "ins-public", merchantId: "merchant-a", environment: "live", status: "active", allowedOrigins: ["https://a.example"], widgetVersion: "2" };
+    const renewals: any[] = [];
+    const controller = new EmbedSessionsController(
+      {} as IssueEmbedSessionUseCase,
+      { async execute() { return { installation, allowedOrigin: "https://a.example" }; } } as never,
+      { getProfile: async () => undefined } as never,
+      {} as never,
+      undefined,
+      {
+        authorize(input: any) {
+          assert.equal(input.token, "conversation-proof");
+          assert.equal(input.cartRef, "cart-owned");
+          return input.cartRef;
+        },
+        userIdentity: () => "visitor-proof",
+      } as never,
+      { async execute(input: any) { renewals.push(input); return { embed_session_token: "continued", expires_at_unix: 1234, installation_id: "ins-public", environment: "live", widget_version: "2" }; } } as never,
+    );
+    const result = await controller.issueSession(
+      { apiKey: { id: "internal-storefront", merchantId: "merchant-a", environment: "live" } } as never,
+      { allowed_origin: "https://a.example", cart_ref: "cart-owned", conversation_token: "conversation-proof", previous_embed_token: "expired-signed-token", buyer_access_token: "buyer-proof", scopes: ["checkout:start", "payment:intents:read"] },
+    );
+    assert.equal(result.embed_session_token, "continued");
+    assert.deepEqual(renewals[0], {
+      previousToken: "expired-signed-token", merchantId: "merchant-a", storefrontCartRef: "cart-owned",
+      origin: "https://a.example", environment: "live", installationId: undefined,
+      scopes: ["checkout:start", "payment:intents:read"], buyerToken: "buyer-proof", aiUserId: "visitor-proof",
+    });
+  });
 });
 
 it("embed receives current agent identity and full branding from the shared theme reader", async () => {

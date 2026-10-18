@@ -17,6 +17,7 @@ export interface InlineCheckoutProps {
   cartRef?: string;
   globalUserId?: string;
   buyerAccessToken?: string;
+  onRefreshEmbedToken?: (previousEmbedToken: string) => Promise<string | null>;
   oneBuyClickPreferences?: {
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
@@ -43,10 +44,11 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       embedApiBaseUrl: props.embedApiBaseUrl,
       globalUserId: props.globalUserId,
       buyerAccessToken: props.buyerAccessToken,
+      onRefreshEmbedToken: props.onRefreshEmbedToken,
       oneBuyClickPreferences: props.oneBuyClickPreferences,
       initialChannel: props.initialChannel,
     });
-  }, [init, props.embedToken, props.merchantId, props.apiBaseUrl, props.embedApiBaseUrl, props.cartRef, props.globalUserId, props.buyerAccessToken, props.oneBuyClickPreferences, props.initialChannel]);
+  }, [init, props.embedToken, props.merchantId, props.apiBaseUrl, props.embedApiBaseUrl, props.cartRef, props.globalUserId, props.buyerAccessToken, props.onRefreshEmbedToken, props.oneBuyClickPreferences, props.initialChannel]);
 
   useEffect(() => {
     if (props.theme === "light") {

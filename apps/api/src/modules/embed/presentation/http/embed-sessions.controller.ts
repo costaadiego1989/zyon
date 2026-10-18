@@ -29,6 +29,7 @@ import {
 } from "class-validator";
 import { IssueEmbedSessionUseCase } from "../../application/issue-embed-session.use-case.js";
 import { AuthorizeStorefrontCartService } from "../../application/authorize-storefront-cart.service.js";
+import { RenewStorefrontEmbedSessionService } from "../../application/renew-storefront-embed-session.service.js";
 import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
 import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
 import { currentEmbedIssuer, EmbedSessionIssuerGuard } from "./embed-session-issuer.guard.js";
@@ -72,6 +73,19 @@ class IssueEmbedSessionDto {
   @IsString()
   @MaxLength(4096)
   conversation_token?: string;
+
+  /** A signed, possibly expired storefront token. It can only be continued
+   * after the current conversation/cart ownership has been checked again. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(8192)
+  previous_embed_token?: string;
+
+  /** Buyer proof is only used to continue a buyer-bound checkout session. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  buyer_access_token?: string;
 }
 
 @ApiTags("Embed sessions")
@@ -87,6 +101,7 @@ export class EmbedSessionsController {
     private readonly getTheme: GetMerchantThemeUseCase,
     @Optional() private readonly listInstallations?: ListInstallationsUseCase,
     @Optional() private readonly storefrontCartAccess?: AuthorizeStorefrontCartService,
+    @Optional() private readonly renewStorefrontSession?: RenewStorefrontEmbedSessionService,
   ) {}
 
   @Post()
@@ -165,18 +180,36 @@ export class EmbedSessionsController {
           credentialEnvironment: issuer.environment,
         })
       : undefined;
-    const result = this.issue.execute({
-      merchantId: issuer.merchantId,
-      ttlSeconds: ttl,
-      installationId: resolved?.installation.id,
-      environment: resolved?.installation.environment ?? (storefrontCartRef ? issuer.environment : undefined),
-      widgetVersion: resolved?.installation.widgetVersion,
-      allowedOrigin: resolved?.allowedOrigin ?? body.allowed_origin,
-      scopes: body.scopes,
-      cartRef: issuer.type === "internal_service" ? undefined : body.cart_ref,
-      storefrontCartRef,
-      aiUserId: storefrontCartRef ? this.storefrontCartAccess?.userIdentity({ token: body.conversation_token, merchantId: issuer.merchantId, cartRef: storefrontCartRef, origin: body.allowed_origin! }) : undefined,
-    });
+    const allowedOrigin = resolved?.allowedOrigin ?? body.allowed_origin;
+    const environment = resolved?.installation.environment ?? (storefrontCartRef ? issuer.environment : undefined);
+    const aiUserId = storefrontCartRef
+      ? this.storefrontCartAccess?.userIdentity({ token: body.conversation_token, merchantId: issuer.merchantId, cartRef: storefrontCartRef, origin: body.allowed_origin! })
+      : undefined;
+    const result = body.previous_embed_token !== undefined
+      ? await this.continueStorefrontSession({
+          issuerType: issuer.type,
+          previousToken: body.previous_embed_token,
+          merchantId: issuer.merchantId,
+          storefrontCartRef,
+          origin: allowedOrigin,
+          environment,
+          installationId: resolved?.installation.id,
+          scopes: body.scopes,
+          buyerToken: body.buyer_access_token,
+          aiUserId,
+        })
+      : this.issue.execute({
+          merchantId: issuer.merchantId,
+          ttlSeconds: ttl,
+          installationId: resolved?.installation.id,
+          environment,
+          widgetVersion: resolved?.installation.widgetVersion,
+          allowedOrigin,
+          scopes: body.scopes,
+          cartRef: issuer.type === "internal_service" ? undefined : body.cart_ref,
+          storefrontCartRef,
+          aiUserId,
+        });
 
     const profile = await this.merchants.getProfile(issuer.merchantId);
     const merchant = profile ? { ...profile, theme: await this.getTheme.execute(issuer.merchantId) } : undefined;
@@ -214,5 +247,33 @@ export class EmbedSessionsController {
         } : undefined,
       },
     };
+  }
+
+  private async continueStorefrontSession(input: {
+    issuerType: string;
+    previousToken: string;
+    merchantId: string;
+    storefrontCartRef?: string;
+    origin?: string;
+    environment?: "test" | "live";
+    installationId?: string;
+    scopes?: string[];
+    buyerToken?: string;
+    aiUserId?: string;
+  }) {
+    if (input.issuerType !== "internal_service" || !input.storefrontCartRef || !input.origin || !input.environment || !this.renewStorefrontSession) {
+      throw new BadRequestException("public_embed_continuation_unavailable");
+    }
+    return this.renewStorefrontSession.execute({
+      previousToken: input.previousToken,
+      merchantId: input.merchantId,
+      storefrontCartRef: input.storefrontCartRef,
+      origin: input.origin,
+      environment: input.environment,
+      installationId: input.installationId,
+      scopes: input.scopes,
+      buyerToken: input.buyerToken,
+      aiUserId: input.aiUserId,
+    });
   }
 }

@@ -15,6 +15,8 @@ export interface CheckoutSessionConfig {
   embedApiBaseUrl?: string;
   globalUserId?: string;
   buyerAccessToken?: string;
+  /** Obtains a continuation token for this exact storefront checkout. */
+  onRefreshEmbedToken?: (previousEmbedToken: string) => Promise<string | null>;
   paymentRevision?: number;
 }
 
@@ -280,6 +282,8 @@ export class CheckoutSession {
   private embedBaseUrl: string;
   private globalUserId: string | undefined;
   private buyerAccessToken: string | undefined;
+  private readonly onRefreshEmbedToken: ((previousEmbedToken: string) => Promise<string | null>) | undefined;
+  private tokenRefresh: Promise<boolean> | null = null;
   private sessionId: string | null = null;
   private experience?: Experience;
   private paymentRevision = 0;
@@ -302,6 +306,7 @@ export class CheckoutSession {
     this.embedBaseUrl = (config.embedApiBaseUrl ?? config.apiBaseUrl).replace(/\/$/, "");
     this.globalUserId = config.globalUserId;
     this.buyerAccessToken = config.buyerAccessToken;
+    this.onRefreshEmbedToken = config.onRefreshEmbedToken;
     if (Number.isSafeInteger(config.paymentRevision) && config.paymentRevision! >= 0) this.paymentRevision = config.paymentRevision!;
   }
 
@@ -330,6 +335,24 @@ export class CheckoutSession {
       "Content-Type": "application/json",
       Authorization: `Bearer ${this.token}`,
     };
+  }
+
+  /** A 401 from an expired token has not reached a payment provider. Renew the
+   * signed capability once, retain the bound checkout session and retry the
+   * original idempotent request. */
+  private async refreshExpiredEmbedToken(error: CheckoutApiError): Promise<boolean> {
+    if (error.code !== "embed_session_token_expired" || !this.onRefreshEmbedToken) return false;
+    if (!this.tokenRefresh) {
+      this.tokenRefresh = this.onRefreshEmbedToken(this.token)
+        .then((token) => {
+          if (!token) return false;
+          this.token = token;
+          return true;
+        })
+        .catch(() => false)
+        .finally(() => { this.tokenRefresh = null; });
+    }
+    return this.tokenRefresh;
   }
 
   async start(): Promise<StartResponse> {
@@ -413,9 +436,14 @@ export class CheckoutSession {
   async reopenCheckout(section: CheckoutEditSection): Promise<Experience> {
     this.assertSession();
     if (this.pendingMessageId || this.chatInFlight) throw new ChatRecoveryRequired();
-    const response = await fetch(`${this.embedBaseUrl}/embed/checkout/edit`, { method: "POST", headers: this.headers(),
-      body: JSON.stringify({ session_id: this.sessionId, section }) });
-    if (!response.ok) throw await CheckoutApiError.fromResponse("embed_checkout_edit", response);
+    const body = JSON.stringify({ session_id: this.sessionId, section, buyer_access_token: this.buyerAccessToken || undefined });
+    let response = await fetch(`${this.embedBaseUrl}/embed/checkout/edit`, { method: "POST", headers: this.headers(), body });
+    if (!response.ok) {
+      const error = await CheckoutApiError.fromResponse("embed_checkout_edit", response);
+      if (!await this.refreshExpiredEmbedToken(error)) throw error;
+      response = await fetch(`${this.embedBaseUrl}/embed/checkout/edit`, { method: "POST", headers: this.headers(), body });
+      if (!response.ok) throw await CheckoutApiError.fromResponse("embed_checkout_edit", response);
+    }
     const result = await response.json() as { experience: Experience; revision?: number };
     this.experience = result.experience;
     this.paymentRevision = Math.max(this.paymentRevision + 1, result.revision ?? 0);
@@ -635,20 +663,26 @@ export class CheckoutSession {
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
     const idempotencyKey = `pay_${this.sessionId}_${apiMethod}_${this.paymentRevision}`;
     console.log('[WIDGET-DBG] API createPaymentIntent', { method: apiMethod, sessionId: this.sessionId });
-    const res = await fetch(`${this.embedBaseUrl}/embed/payment/intents`, {
+    const body = JSON.stringify({
+      session_id: this.sessionId,
+      idempotency_key: idempotencyKey,
+      method: apiMethod,
+      installments,
+      ...(options?.chain ? { preferred_chain: options.chain } : {}),
+      ...(options?.confirmedCartFingerprint ? { confirmed_cart_fingerprint: options.confirmedCartFingerprint } : {}),
+    });
+    let res = await fetch(`${this.embedBaseUrl}/embed/payment/intents`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({
-        session_id: this.sessionId,
-        idempotency_key: idempotencyKey,
-        method: apiMethod,
-        installments,
-        ...(options?.chain ? { preferred_chain: options.chain } : {}),
-        ...(options?.confirmedCartFingerprint ? { confirmed_cart_fingerprint: options.confirmedCartFingerprint } : {}),
-      }),
+      body,
     });
     if (!res.ok) {
-      const error = await CheckoutApiError.fromResponse("embed_payment", res);
+      let error = await CheckoutApiError.fromResponse("embed_payment", res);
+      if (await this.refreshExpiredEmbedToken(error)) {
+        res = await fetch(`${this.embedBaseUrl}/embed/payment/intents`, { method: "POST", headers: this.headers(), body });
+        if (res.ok) return this.mapPaymentResponse(res, method);
+        error = await CheckoutApiError.fromResponse("embed_payment", res);
+      }
       if (error.checkoutReview) {
         const review = error.checkoutReview;
         this.experience = { ...this.experience, commercial_nudge: undefined,

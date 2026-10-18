@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useEffect, useRef, lazy, Suspense } from "react";
+import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useCart } from "@/lib/cart-store";
 import { cartApi } from "@/lib/api/api-client";
 import { conversationFetch } from "@/lib/conversation-access";
@@ -118,6 +118,25 @@ function CheckoutPanelContent({
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [merchantId, cartRef, initialEmbedToken]);
 
+  const refreshEmbedToken = useCallback(async (previousEmbedToken: string): Promise<string | null> => {
+    const cartRefForToken = cartRef || tokenCartRef.current || undefined;
+    if (!cartRefForToken) return null;
+    const response = await conversationFetch(cartRefForToken, "/api/checkout-token", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({
+        merchant_id: merchantId,
+        cart_ref: cartRefForToken,
+        allowed_origin: typeof window !== "undefined" ? window.location.origin : "",
+        previous_embed_token: previousEmbedToken,
+        buyer_access_token: getValidBuyer()?.token,
+      }),
+    });
+    if (!response.ok) return null;
+    const data = await response.json() as { embed_session_token?: unknown };
+    return typeof data.embed_session_token === "string" && data.embed_session_token ? data.embed_session_token : null;
+  }, [merchantId, cartRef]);
+
   if (error) {
     return (
       <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
@@ -150,6 +169,7 @@ function CheckoutPanelContent({
           cartRef={recovered ? undefined : cartRef || tokenCartRef.current || undefined}
           globalUserId={globalUserId}
           buyerAccessToken={getValidBuyer()?.token}
+          onRefreshEmbedToken={refreshEmbedToken}
           oneBuyClickPreferences={oneBuyClickPreferences}
           initialChannel="chat"
           theme={effectiveTheme}
