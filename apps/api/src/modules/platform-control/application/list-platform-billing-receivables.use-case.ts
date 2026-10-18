@@ -91,19 +91,19 @@ function present(
     sources: {
       asaas_subscription_charges: {
         status: "partial" as const,
-        description: "DiÃ¡rio iniciado por webhooks autenticados do Asaas; eventos anteriores Ã  implantaÃ§Ã£o nÃ£o sÃ£o retropreenchidos.",
+        description: "Cobranças registradas a partir de notificações autenticadas do Asaas. O histórico anterior à implantação não está incluído.",
       },
       stripe_subscription_charges: {
         status: "partial" as const,
-        description: "Journal Stripe iniciado por eventos de fatura assinados; eventos anteriores a implantacao nao sao retropreenchidos.",
+        description: "Cobranças registradas a partir de eventos de fatura autenticados do Stripe. O histórico anterior à implantação não está incluído.",
       },
       mercadopago_subscription_charges: {
         status: "partial" as const,
-        description: "Diario Mercado Pago iniciado por recursos de assinatura buscados no servidor apos notificacao protegida; eventos anteriores a implantacao nao sao retropreenchidos.",
+        description: "Cobranças consultadas no Mercado Pago após notificações autenticadas. O histórico anterior à implantação não está incluído.",
       },
       reconciliation: {
         status: "unavailable" as const,
-        description: "Eventos autenticados registram confirmaÃ§Ã£o do provedor, mas nÃ£o substituem conciliaÃ§Ã£o de extrato, crÃ©ditos, liquidaÃ§Ã£o ou estornos parciais.",
+        description: "Confirmações dos provedores ainda precisam ser conciliadas com extratos, créditos, liquidações e estornos parciais.",
       },
     },
     coverage: {
