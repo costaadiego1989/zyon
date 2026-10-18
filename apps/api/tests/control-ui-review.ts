@@ -86,6 +86,11 @@ try {
 } catch (error) {
   report.passed = false;
   report.error = error instanceof Error ? error.message : "review_failed";
+  const current = browser?.contexts()[0]?.pages()[0];
+  if (current) {
+    await current.screenshot({ path: path.join(evidence, environment + "-failure.png"), fullPage: true }).catch(() => undefined);
+    report.overflow = await current.evaluate(() => [...document.querySelectorAll<HTMLElement>("#control-content *")].filter(node => node.getBoundingClientRect().right > innerWidth + 1).slice(0, 12).map(node => ({ tag: node.tagName, className: node.className, width: node.getBoundingClientRect().width }))).catch(() => []);
+  }
   throw error;
 } finally {
   await browser?.close();
