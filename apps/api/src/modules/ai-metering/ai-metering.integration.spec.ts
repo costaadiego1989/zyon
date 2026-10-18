@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { createServer } from "node:http";
 import { WebSocketServer } from "ws";
 import { OpenAIRealtimeVoiceService } from "../../shared/openai/openai-realtime-voice.service.js";
+import { HttpClientService } from "../../shared/http/http-client.service.js";
 import { createSupportFixture } from "../../../tests/platform-support-fixture.js";
 import { meteredAiFetch, withAiMetering } from "../../shared/ai-metering.js";
 import { AiMeteringService, credentialScope } from "./ai-metering.service.js";
@@ -39,6 +40,12 @@ test("AI cost capture, guarded reports and durable usage run against real Postgr
       await assert.rejects(withAiMetering({merchantId:id,source:"timeout"},()=>meteredAiFetch("timeout",async()=>{throw Error("timeout");})("https://api.openai.com/v1/chat/completions",{body:JSON.stringify({model:"gpt-4o-mini"})})),/timeout/);
       assert.equal(await db.aiUsageEvent.count({where:{merchantId:id,source:"timeout",executionStatus:"unknown"}}),1);
       let dispatched=false;await assert.rejects(withAiMetering({merchantId:"nonexistent",source:"fixture"},()=>meteredAiFetch("fixture",async()=>{dispatched=true;return new Response();})("https://api.openai.com/v1/chat/completions",{body:"{}"})));assert.equal(dispatched,false);
+    });
+    await t.test("existing HTTP retries keep their timeouts and record each physical provider attempt",async()=>{
+      let attempts=0;const transport:typeof fetch=async()=>{attempts++;return attempts===1?new Response("temporary",{status:500}):Response.json({id:randomUUID(),model:"gpt-4o-mini",usage:{input_tokens:10,output_tokens:1,total_tokens:11}});};
+      const http=new HttpClientService({retries:1,timeout:5000});
+      const response=await withAiMetering({merchantId:f.merchants.growth!.id,source:"retry-proof"},()=>http.toFetch(meteredAiFetch("retry-proof",transport))("https://api.openai.com/v1/chat/completions",{method:"POST",body:JSON.stringify({model:"gpt-4o-mini"})}));
+      assert.equal(response.status,200);assert.equal(attempts,2);const rows=await db.aiUsageEvent.findMany({where:{merchantId:f.merchants.growth!.id,source:"retry-proof"}});assert.equal(rows.length,2);assert.equal(rows.filter(x=>x.usageKnown).length,1);
     });
     await t.test("voice text/audio count once; server identity persists session and permit correlation",async()=>{
       const merchantId=f.merchants.scale!.id,session=await meter.openVoiceSession({merchantId,conversationId:"voice-conversation"},"gpt-realtime-2.1-mini","fixture-not-a-secret","voice_checkout");

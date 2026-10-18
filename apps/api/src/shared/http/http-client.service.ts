@@ -48,7 +48,7 @@ export class HttpClientService {
     this.fetchFn = options.fetchFn ?? globalThis.fetch;
   }
 
-  async fetch(url: string, options: HttpRequestOptions = {}): Promise<Response> {
+  async fetch(url: string, options: HttpRequestOptions = {}, transport: typeof fetch = this.fetchFn): Promise<Response> {
     this.checkCircuit();
 
     const headers: Record<string, string> = {
@@ -63,7 +63,7 @@ export class HttpClientService {
       const timer = setTimeout(() => controller.abort(), this.timeout);
 
       try {
-        const response = await this.fetchFn(url, {
+        const response = await transport(url, {
           method: options.method ?? "GET",
           headers,
           body: options.body,
@@ -129,7 +129,7 @@ export class HttpClientService {
   }
 
   /** Returns a function compatible with `typeof fetch` for use with adapters that inject their fetch impl. */
-  toFetch(): typeof fetch {
+  toFetch(transport: typeof fetch = this.fetchFn): typeof fetch {
     return (input: RequestInfo | URL, init?: RequestInit) => {
       const url = typeof input === "string" ? input : input instanceof URL ? input.href : input.url;
       const headers: Record<string, string> = {};
@@ -147,7 +147,7 @@ export class HttpClientService {
         method: init?.method,
         headers,
         body: typeof init?.body === "string" ? init.body : undefined,
-      });
+      }, transport);
     };
   }
 }

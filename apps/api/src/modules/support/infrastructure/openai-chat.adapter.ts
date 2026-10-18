@@ -44,9 +44,9 @@ export class OpenAIChatAdapter implements ChatCompletionPort {
     if (!this.apiKey) return null;
 
     try {
-      // The meter owns each physical attempt; opaque HTTP retries could hide paid calls.
-      const fetchFn = fetch;
-      const response = await meteredAiFetch("buyer_support", fetchFn)(`${this.baseUrl}/chat/completions`, {
+      const transport = meteredAiFetch("buyer_support");
+      const fetchFn = this.http?.toFetch(transport) ?? transport;
+      const response = await fetchFn(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
