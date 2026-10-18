@@ -20,7 +20,7 @@ export class OpenAiConversationAdapter implements ConversationPort {
         ? (process.env.DEEPSEEK_BASE_URL ?? "https://api.deepseek.com/v1")
         : process.env.OPENAI_BASE_URL,
       model: deepSeekApiKey ? (process.env.DEEPSEEK_MODEL ?? "deepseek-chat") : process.env.OPENAI_MODEL,
-      fetchFn: meteredAiFetch("checkout_conversation"),
+      fetchFn: this.http?.toFetch(meteredAiFetch("checkout_conversation")) ?? meteredAiFetch("checkout_conversation"),
     });
     if (!isSafeGeneratedMessage(reply.message, input.authorizedOffer)) {
       return generateDeterministicReply(input);
