@@ -1,6 +1,35 @@
 # Consumo e custos de IA por empresa
 
-Data: 18/10/2026. Estado: mapeamento de código e planejamento; implementação e publicação pendentes.
+Data: 18/10/2026. Estado: implementado e publicado em sandbox e produção; captura real de texto e voz validada nos dois ambientes.
+
+## Entrega implementada
+
+A área **Uso de IA** do Control recebeu totais por empresa e conta de faturamento, tokens de entrada/saída, custos por provedor/modelo/funcionalidade, evolução diária, detalhamento das chamadas e exportação CSV. Os filtros permitem separar texto, automação e jornada de voz. O subtotal **Áudio e transcrição** mostra o componente de áudio sem duplicar o custo da jornada completa.
+
+As chamadas HTTP são medidas no transporte de cada tentativa física, com contexto da empresa mantido pelo servidor. O uso de voz é observado pelo WebSocket auxiliar do servidor, incluindo eventos finais cancelados que tenham consumo. O relatório não aceita a contagem encaminhada pelo navegador como fonte financeira e exclui reservas de orçamento e registros operacionais de admissão de voz.
+
+Os registros preservam modelo efetivo, detalhes de cache/áudio/raciocínio, identidade do evento, tarifa aplicada e estado do custo. O valor usa inteiros em milionésimos da moeda. Uso ausente, tarifa ausente e zero explícito permanecem distintos. As migrações são aditivas e estão presentes nas duas árvores de migração do projeto.
+
+Limites da entrega:
+
+- A captura completa começa com a publicação; dados antigos não foram reconstruídos ou misturados aos novos totais medidos.
+- Tarifas verificadas produzem **estimativas**. Valores informados pelo provedor mantêm essa identificação. Esta entrega não importa nem concilia automaticamente faturas dos provedores.
+- Modelos sem tarifa vigente e sessões sem evento final geram cobertura pendente, sem custo zero presumido. A tarifa promocional DeepSeek cadastrada tem vigência limitada a 2026; é necessário cadastrar a próxima vigência antes do vencimento.
+- As moedas permanecem separadas; não há conversão cambial presumida.
+- Os caminhos legados de credencial efêmera sem observação pelo servidor ficam sinalizados como cobertura incompleta; os fluxos publicados de negociação e narração reutilizam a observação pelo servidor.
+
+O diagnóstico e a sequência abaixo registram o planejamento inicial, anterior à implementação.
+
+## Validação da publicação
+
+- API: revisão `dc47404c46f93a1d276b8b222d8e15fb2416bcc2`, com build Linux concluído e migração aplicada. Railway sandbox `e8722706-b2a3-4c3c-9573-2f8d089010d7`; produção `b314d4e7-677b-48c7-9069-0fe2898e3a5e`, ambos com estado `SUCCESS`.
+- Interface: produção `dpl_24fipG9x72FsHDXQwce2RCr9w7Lq`, em [Zyon Control](https://control.zyon-payments.com.br). Os hashes do JavaScript e CSS servidos conferem com o artefato publicado.
+- Testes focados: 21 testes de medição, persistência, consultas e HTTP passaram na revisão final. A regressão de atendimento passou com 15 testes; builds da API e do Control concluídos. Isso não representa execução de toda a suíte do monorepo.
+- Sandbox e produção: requisição real de geração de catálogo via API e narração por WebRTC, com uso de voz capturado pelo servidor. Foram verificados isolamento entre duas empresas, bloqueio de operador sem permissão, detalhamento, CSV, layout móvel e igualdade exata dos totais com o banco.
+- A prova de produção terminou em `2026-10-18T18:56:28.636Z`: texto estimado em 96 micros de USD e voz em 807 micros de USD, sendo 640 micros de áudio. Total: 903 micros de USD. Os dados eram temporários e foram removidos; a consulta posterior encontrou zero empresas, operadores e lançamentos de teste restantes nos dois ambientes.
+- Evidências locais: `.audit/ai-costs-20261018/{sandbox,production}-live-validation.json`, `production-ui-artifacts.json`, `temporary-data-cleanup.json` e capturas de tela.
+
+A entrega está na branch `feat/ai-costs-by-company-20261018`. As APIs foram publicadas por upload do checkout isolado. A configuração Git preexistente do Railway não foi redirecionada; um novo deploy pela branch antiga precisa primeiro incorporar esta entrega para preservar atendimento e medição de custos.
 
 ## Resultado esperado
 
