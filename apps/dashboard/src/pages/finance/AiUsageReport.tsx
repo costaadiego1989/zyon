@@ -46,6 +46,10 @@ export function AiUsageReport({ api, period, reload }: Props) {
 
   const summary = data?.summary;
   const noMeasurement = summary?.measured_requests === "0" && summary.pending_requests !== "0";
+  const partial = [
+    summary && summary.pending_requests !== "0" ? `${integer(summary.pending_requests)} ${summary.pending_requests === "1" ? "requisição" : "requisições"} sem tokens informados` : null,
+    data && data.coverage.incomplete_voice_sessions !== "0" ? `${integer(data.coverage.incomplete_voice_sessions)} ${data.coverage.incomplete_voice_sessions === "1" ? "sessão de voz com medição incompleta" : "sessões de voz com medição incompleta"}` : null,
+  ].filter(Boolean).join(" e ");
   return <section className="panel ai-usage" aria-labelledby="ai-usage-title" aria-busy={loading}>
     <header className="ai-usage__header">
       <div><h2 id="ai-usage-title">Consumo de IA</h2><p>Voz e tokens utilizados pela sua loja no período selecionado.</p></div>
@@ -58,7 +62,7 @@ export function AiUsageReport({ api, period, reload }: Props) {
         <div><dt>Tokens de saída</dt><dd>{noMeasurement ? "—" : integer(summary.output_tokens)}</dd><p>Conteúdo gerado pela IA</p></div>
       </dl>
       {summary.requests === "0" && summary.voice_sessions === "0" ? <p className="ai-usage__note">Nenhum consumo registrado neste período. Os dados aparecem após o uso de IA na loja.</p> : null}
-      {summary.pending_requests !== "0" || data.coverage.incomplete_voice_sessions !== "0" ? <p className="ai-usage__note" role="status">Medição parcial: {integer(summary.pending_requests)} requisições sem tokens informados e {integer(data.coverage.incomplete_voice_sessions)} sessões de voz com medição incompleta. Os totais incluem apenas os tokens recebidos.</p> : null}
+      {partial ? <p className="ai-usage__note" role="status">Medição parcial: {partial}. Os totais incluem apenas os tokens recebidos.</p> : null}
       <details className="ai-usage__details">
         <summary>Detalhes do consumo e da medição</summary>
         <div className="ai-usage__detail-content">
@@ -68,7 +72,7 @@ export function AiUsageReport({ api, period, reload }: Props) {
             <tr><th scope="row">Áudio</th><td>{noMeasurement ? "—" : integer(summary.audio_input_tokens)}</td><td>{noMeasurement ? "—" : integer(summary.audio_output_tokens)}</td></tr>
             {(BigInt(summary.input_tokens) > BigInt(summary.text_input_tokens) + BigInt(summary.audio_input_tokens) || BigInt(summary.output_tokens) > BigInt(summary.text_output_tokens) + BigInt(summary.audio_output_tokens)) ? <tr><th scope="row">Outros / sem classificação</th><td>{integer(String(BigInt(summary.input_tokens) - BigInt(summary.text_input_tokens) - BigInt(summary.audio_input_tokens)))}</td><td>{integer(String(BigInt(summary.output_tokens) - BigInt(summary.text_output_tokens) - BigInt(summary.audio_output_tokens)))}</td></tr> : null}
           </tbody></table></div>
-          <p>{integer(summary.requests)} requisições registradas · {integer(summary.measured_requests)} com tokens informados · {integer(summary.rejected_requests)} recusadas pelo provedor.</p>
+          <p>Requisições: {integer(summary.requests)} · Com tokens informados: {integer(summary.measured_requests)} · Recusadas pelo provedor: {integer(summary.rejected_requests)}.</p>
           {data.daily.length ? <div className="ai-usage__table-wrap ai-usage__daily"><table><caption>Consumo por dia · horário de Brasília</caption><thead><tr><th>Dia</th><th>Entrada</th><th>Saída</th><th>Sem medição</th></tr></thead><tbody>{data.daily.map(day => <tr key={day.date}><th scope="row">{date(day.date + "T12:00:00-03:00")}</th><td>{day.measured_requests === "0" && day.pending_requests !== "0" ? "—" : integer(day.input_tokens)}</td><td>{day.measured_requests === "0" && day.pending_requests !== "0" ? "—" : integer(day.output_tokens)}</td><td>{integer(day.pending_requests)}</td></tr>)}</tbody></table></div> : null}
           <p>Uso informado pelos provedores e registrado no servidor. {data.coverage.first_recorded_at ? `Primeiro registro da loja em ${date(data.coverage.first_recorded_at)}. ` : ""}Dados anteriores ao início da coleta não são retroativos.</p>
           <p>As sessões de voz mostram atividade observada, sem estimativa de minutos. Esse total ainda não corresponde ao contador de franquia do plano.</p>

@@ -103,9 +103,18 @@ try {
   checks.push("Published dashboard shows correct provider totals, collapsed details and downloads the actual scoped CSV");
   await page.setViewportSize({ width: 390, height: 844 });
   await page.waitForTimeout(200);
+  async function alignMobileReport() {
+    await section.evaluate(element => {
+      let parent = element.parentElement;
+      while (parent && !/(auto|scroll)/.test(getComputedStyle(parent).overflowY)) parent = parent.parentElement;
+      if (parent) parent.scrollTop += element.getBoundingClientRect().top - 128;
+    });
+  }
+  await alignMobileReport();
   assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "mobile_page_overflows");
   await page.screenshot({ path: path.join(evidence, "sandbox-mobile-details.png"), fullPage: true });
   await section.locator("summary").click();
+  await alignMobileReport();
   await page.screenshot({ path: path.join(evidence, "sandbox-mobile.png"), fullPage: true });
   checks.push("Desktop and mobile layouts render without horizontal page overflow or JavaScript errors");
   async function selectDate(value: string) {
