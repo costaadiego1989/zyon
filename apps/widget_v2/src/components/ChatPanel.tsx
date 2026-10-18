@@ -1,7 +1,9 @@
 import { PerimeterBorder } from "./PerimeterBorder";
 import { useState, useRef, useEffect } from "react";
 import {
+  type CheckoutPaymentMethod,
   isEnabledPaymentQuickReply,
+  paymentMethodsForConfig,
   paymentMethodForQuickReply,
   useCheckoutStore,
 } from "@/store/checkout-store";
@@ -38,6 +40,7 @@ export function ChatPanel() {
   const connectionStatus = useChatRecovery();
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const pay = useCheckoutStore((s) => s.pay);
+  const changePaymentMethod = useCheckoutStore((s) => s.changePaymentMethod);
   const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
   const quickPurchaseApplying = useCheckoutStore((s) => s.quickPurchaseApplying);
@@ -117,15 +120,21 @@ export function ChatPanel() {
   const isPaymentChoiceStage = Boolean(
     lastAgentMsg?.checkoutStage === "payment" ||
     lastAgentMsg?.blocks?.some((block) => block.type === "payment_methods") ||
-    cart.status === "ready_to_pay",
+    cart.status === "ready_to_pay" ||
+    paymentIntent,
   );
 
   const handlePaymentChoice = (text: string): boolean => {
     // Server-owned stages must retain the durable chat request and recovery flow.
-    if (lastAgentMsg?.checkoutStage || paymentIntent) return false;
+    if (lastAgentMsg?.checkoutStage) return false;
     const method = paymentMethodForQuickReply(text);
-    if (!method || !isPaymentChoiceStage || !isEnabledPaymentQuickReply(text, merchantPaymentConfig)) return false;
-    void pay(method);
+    if (!method || !isPaymentChoiceStage) return false;
+    // A preference only chooses the first offer. An explicit quick reply or
+    // typed "Pix" can replace a pending card/payment intent only after the
+    // store has authoritatively cancelled that intent on the API.
+    if (paymentIntent) void changePaymentMethod(method);
+    else if (isEnabledPaymentQuickReply(text, merchantPaymentConfig)) void pay(method);
+    else void changePaymentMethod(method);
     return true;
   };
 
@@ -200,6 +209,15 @@ export function ChatPanel() {
                 {label}
               </button>
             ))}
+            {paymentMethodsForConfig(merchantPaymentConfig)
+              .filter((method) => !(paymentIntent.method === "card" && ["credito", "debito"].includes(method.key)) && paymentIntent.method !== method.key)
+              .map((method) => (
+                <button key={`switch-${method.key}`} data-neu="control" type="button" disabled={isTyping || paymentCreating}
+                  onClick={() => void changePaymentMethod(method.key as CheckoutPaymentMethod)} style={{ minHeight: 44, padding: "8px 12px", borderRadius: 14,
+                    border: "1px solid var(--bd)", background: "var(--chip)", color: "var(--tx)", fontSize: 12, cursor: "pointer" }}>
+                  {`Trocar para ${method.label}`}
+                </button>
+              ))}
           </nav>
         )}
 

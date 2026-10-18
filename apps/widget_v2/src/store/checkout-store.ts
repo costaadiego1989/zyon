@@ -136,10 +136,14 @@ export function paymentMethodForQuickReply(text: string): CheckoutPaymentMethod 
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
     .toLowerCase();
-  if (/^(pix|pagar com pix)$/.test(normalized)) return "pix";
-  if (/^(boleto|pagar com boleto)$/.test(normalized)) return "boleto";
-  if (/^(cartao de credito|credito|pagar com cartao)$/.test(normalized)) return "credito";
-  if (/^(cartao de debito|debito)$/.test(normalized)) return "debito";
+  // Treat an explicit typed payment choice exactly like its quick reply. This
+  // keeps a OneBuyClick preference as a starting point, never a lock-in.
+  const requested = /^(?:(?:quero|prefiro|vou|pode ser|trocar|mudar|pagar|usar(?: o)?)(?:\s+(?:para|com|no))?\s+)*/;
+  const choice = normalized.replace(requested, "");
+  if (/^(pix|pagar com pix)$/.test(normalized) || choice === "pix") return "pix";
+  if (/^(boleto|pagar com boleto)$/.test(normalized) || choice === "boleto") return "boleto";
+  if (/^(cartao de credito|credito|pagar com cartao)$/.test(normalized) || /^(cartao de credito|credito)$/.test(choice)) return "credito";
+  if (/^(cartao de debito|debito)$/.test(normalized) || /^(cartao de debito|debito)$/.test(choice)) return "debito";
   if (/^(pagar com )?(crypto|cripto|usdc)$/.test(normalized)) return "crypto";
   return undefined;
 }
@@ -298,6 +302,8 @@ interface CheckoutState {
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
   selectShipping: (option: Pick<ShippingOption, "key" | "label">) => Promise<boolean>;
   pay: (method: CheckoutPaymentMethod, installments?: number, confirmedCartFingerprint?: string) => Promise<void>;
+  /** Cancels the pending intent before creating the buyer's newly chosen method. */
+  changePaymentMethod: (method: CheckoutPaymentMethod) => Promise<void>;
   confirmUpdatedOrder: (fingerprint: string) => Promise<void>;
   registerLead: (input: LeadRegistrationInput) => Promise<{ ok: boolean; error?: string }>;
   selectCryptoChain: (chain: "polygon" | "base", confirmedCartFingerprint?: string) => Promise<void>;
@@ -1562,6 +1568,69 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     // Closing the presentation must never discard a benefit already authorized
     // and persisted by the API; it only hides the local notice.
     set({ activeDiscount: null });
+  },
+
+  changePaymentMethod: async (method) => {
+    const current = get();
+    const available = paymentMethodsForConfig(current.merchantPaymentConfig);
+    const selected = available.find((payment) => payment.key === method);
+    if (!selected) {
+      set((state) => ({ messages: [...state.messages, {
+        id: `payment_unavailable_${Date.now()}`,
+        role: "agent",
+        text: "Essa forma de pagamento não está disponível para esta loja.",
+        timestamp: Date.now(),
+      }] }));
+      return;
+    }
+
+    // No prior intent exists yet: this is a normal first selection.
+    if (!current.paymentIntent) {
+      await get().pay(method);
+      return;
+    }
+    if (!current.api || current.paymentSubmitting || current.paymentCreating || current.cartUpdating || current.chatRecovery) return;
+
+    const buyerChoice: Message = {
+      id: `user_payment_change_${Date.now()}`,
+      role: "user",
+      text: selected.label,
+      timestamp: Date.now(),
+    };
+    set((state) => ({ messages: [...state.messages, buyerChoice], isTyping: true }));
+    try {
+      // `reopenCheckout` is the server-authoritative cancellation barrier. A
+      // new Pix/card intent is never started until it has confirmed that the
+      // old intent is no longer payable.
+      const experience = await current.api.reopenCheckout("payment");
+      if (get().api !== current.api) return;
+      get().stopPolling();
+      set((state) => ({
+        paymentIntent: null,
+        pendingPriceReview: null,
+        pendingPayment: null,
+        activeDiscount: null,
+        isTyping: false,
+        cart: { ...cartFromExperience(experience), status: experience.shipping ? "shipping_calculated" : "awaiting" },
+        messages: state.messages.map((message) => ({
+          ...message,
+          blocks: message.blocks?.filter((block) => ![
+            "pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "crypto_payment", "checkout_price_review",
+          ].includes(block.type)),
+        })),
+      }));
+      await get().pay(method);
+    } catch {
+      set((state) => ({
+        isTyping: false,
+        messages: [...state.messages, {
+          id: `payment_change_error_${Date.now()}`,
+          role: "agent",
+          text: "Ainda não foi possível trocar a forma de pagamento. Confirmei que o pagamento anterior ainda está sendo cancelado; tente novamente em instantes.",
+          timestamp: Date.now(),
+        }],
+      }));
+    }
   },
 
   applyCouponCode: async (code) => {
