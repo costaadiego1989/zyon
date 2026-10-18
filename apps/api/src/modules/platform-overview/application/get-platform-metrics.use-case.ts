@@ -55,7 +55,7 @@ export class GetPlatformMetricsUseCase {
         },
         ai: {
           status: "partial" as const,
-          description: "Chat e capturado no servidor. Voz depende do evento final encaminhado pelo cliente e custos precisam de conciliacao da fatura do provedor.",
+          description: "Chat e capturado no servidor. Voz e capturada no servidor a partir dos eventos do provedor e custos precisam de conciliacao da fatura do provedor.",
         },
         platform_fees: {
           status: "unavailable" as const,

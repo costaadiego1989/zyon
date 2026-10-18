@@ -85,7 +85,7 @@ function filters(q: CostQuery) {
   const from = q.from === undefined && to ? new Date(to.getTime()-30*86400000) : validInstant(q.from) ? new Date(q.from) : undefined;
   if (!to || !from || from >= to || to.getTime()-from.getTime() > 366*86400000) throw new BadRequestException("ai_costs_invalid_period");
   const terms = [Prisma.sql`u.started_at >= ${from} AND u.started_at < ${to}`, Prisma.sql`u.payer = ${q.payer === "merchant" ? "merchant" : "platform"}`,
-    Prisma.sql`u.measurement_origin <> 'budget_reservation' AND u.source <> 'openai_realtime_client_forwarded'`];
+    Prisma.sql`u.measurement_origin IN ('server_http','server_sideband')`];
   const columns: Record<string,Prisma.Sql> = { merchantId: Prisma.sql`u.merchant_id`, accountId: Prisma.sql`u.billing_account_id`, provider: Prisma.sql`u.provider`, model: Prisma.sql`u.model`, source: Prisma.sql`u.source`, costCenter: Prisma.sql`u.cost_center`, costStatus: Prisma.sql`u.cost_status` };
   for (const [key,column] of Object.entries(columns)) { const value = q[key as keyof CostQuery]; if (value !== undefined && value !== "") { if (typeof value !== "string" || value.length > 200) throw new BadRequestException("ai_costs_invalid_filter"); terms.push(Prisma.sql`${column} = ${value}`); } }
   if (q.q) { if (typeof q.q !== "string" || q.q.length > 100) throw new BadRequestException("ai_costs_invalid_search"); const value = "%"+q.q.replace(/[\\%_]/g,"\\$&")+"%"; terms.push(Prisma.sql`(m.name ILIKE ${value} OR a.name ILIKE ${value} OR u.merchant_id = ${q.q})`); }
