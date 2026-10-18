@@ -133,7 +133,7 @@ export function InfrastructureReadiness({ api, token, onSessionExpired }: Infras
         )}
       </section>
 
-      <Disclosure title="Conex?es e integra??es" note="Estados cadastrados nos provedores">
+      <Disclosure title="Conexões e integrações" note="Estados cadastrados nos provedores">
 
         {report.external_integrations.status === "available" ? <>
           {(report.external_integrations.connection_states?.length ?? 0) > 0 ? <ul className="infrastructure-integration-list">
@@ -148,7 +148,7 @@ export function InfrastructureReadiness({ api, token, onSessionExpired }: Infras
         </> : <p className="infrastructure-observability__empty">O banco não estava disponível para ler os estados persistidos de integração.</p>}
       </Disclosure>
 
-      <Disclosure title="Hist?rico de incidentes" note="Observa??es das consultas anteriores">
+      <Disclosure title="Histórico de incidentes" note="Observações das consultas anteriores">
 
         {report.incident_history?.status === "available" ? (
           (report.incident_history.items?.length ?? 0) > 0 ? <ul className="infrastructure-incident-list">

@@ -59,6 +59,7 @@ try {
     assert(await main.innerText(), "page_content_missing:" + view);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "desktop_overflow:" + view);
     const initiallyVisibleCharacters = (await main.innerText()).length;
+    await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); scrollTo(0, 0); });
     await page.screenshot({ path: path.join(evidence, `${environment}-${index}-desktop.png`), fullPage: true });
     const disclosures = main.locator("details.control-details");
     for (const disclosure of await disclosures.all()) {
@@ -67,6 +68,7 @@ try {
     }
     const expandedText = await main.innerText();
     assert(!/[\u00c3\u00c2][\u0080-\u00bf]|\ufffd/.test(expandedText), "corrupt_encoding:" + view);
+    assert(!/[\p{L}]\?[\p{L}?]/u.test(expandedText), "lost_accents:" + view);
     if (view === "Cobrança") {
       assert(!expandedText.includes("Cobertura desde Ainda"));
       assert(expandedText.includes("histórico anterior à implantação"), "corrected_source_copy_not_deployed");
@@ -75,6 +77,7 @@ try {
     await page.setViewportSize({ width: 390, height: 844 });
     await page.waitForTimeout(180);
     assert(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), "mobile_overflow:" + view);
+    await page.evaluate(() => { if (document.activeElement instanceof HTMLElement) document.activeElement.blur(); scrollTo(0, 0); });
     await page.screenshot({ path: path.join(evidence, `${environment}-${index}-mobile.png`), fullPage: true });
     await page.getByRole("button", { name: "Abrir navegação", exact: true }).click();
     await page.getByRole("button", { name: view, exact: true }).click();
