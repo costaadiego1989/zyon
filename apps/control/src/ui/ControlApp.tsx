@@ -319,6 +319,8 @@ function Overview({
 
   const aiPeriod = new Date(overview.ai_chat.period_started_at).toLocaleDateString("pt-BR", { month: "long", year: "numeric" });
   const capturedAt = new Date(overview.generated_at).toLocaleString("pt-BR", { dateStyle: "medium", timeStyle: "short" });
+  const environment = import.meta.env.VITE_PLATFORM_API_BASE_URL?.includes("sandbox") ? "Sandbox"
+    : ({ production: "Produção", development: "Desenvolvimento", staging: "Homologação", test: "Teste" }[overview.scope.environment] ?? overview.scope.environment);
   const receivablesObservedSince = overview.receivables.observed_since
     ? new Date(overview.receivables.observed_since).toLocaleDateString("pt-BR", { dateStyle: "medium" })
     : null;
@@ -331,7 +333,7 @@ function Overview({
       <section className="page-intro page-intro--split">
         <div>
           <h2>Panorama da plataforma</h2>
-          <p>Atualizado em {capturedAt} · {overview.scope.environment}</p>
+          <p>Atualizado em {capturedAt} · {environment}</p>
         </div>
         <button type="button" className="button button--secondary" onClick={() => setRequestVersion(version => version + 1)}>Atualizar</button>
       </section>

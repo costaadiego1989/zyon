@@ -150,6 +150,8 @@ function MetricsReport({ report, loading, error, onRetry }: { report: PlatformMe
     <Disclosure title="Evolução do consumo de IA"><AiSeries points={report.ai.series} granularity={report.period.granularity} /></Disclosure>
 
     <Disclosure title="Cobertura dos indicadores" note="Dados financeiros parciais">
+      <p className="page-context-note">{report.coverage.financial.description}</p>
+      <p className="page-context-note">{report.coverage.subscriptions.description}</p>
       <p className="page-context-note">Taxas da plataforma e resultado após IA ainda não estão disponíveis. {report.coverage.platform_fees.description}</p>
     </Disclosure>
   </div>;
@@ -193,7 +195,7 @@ function AiSeries({ points, granularity }: { points: PlatformMetrics["ai"]["seri
 function UnavailableFinancial({ coverage }: { coverage: PlatformMetrics["coverage"]["financial"] }) {
   return <div className="metrics-unavailable">
     <CircleAlert size={19} aria-hidden="true" />
-    <p><strong>Aguardando eventos financeiros autenticados.</strong> {coverage.description} Valores permanecem sem dado até a primeira cobrança observada.</p>
+    <p><strong>Aguardando o primeiro pagamento registrado.</strong> Valores disponíveis após a captura dos eventos dos provedores.</p>
   </div>;
 }
 
@@ -263,7 +265,7 @@ function formatBrlCents(value: string | null): string {
 }
 
 function formatCosts(costs: PlatformMetricCost[]): string {
-  if (costs.length === 0) return "Sem custo conhecido";
+  if (costs.length === 0) return "Sem dados";
   const byCurrency = new Map<string, bigint>();
   for (const cost of costs) byCurrency.set(cost.currency, (byCurrency.get(cost.currency) ?? 0n) + bigintOrZero(cost.cost_micros));
   return [...byCurrency].map(([currency, micros]) => formatMicros(micros.toString(), currency)).join(" / ");
