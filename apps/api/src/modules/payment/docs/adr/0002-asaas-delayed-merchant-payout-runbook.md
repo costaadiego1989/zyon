@@ -2,6 +2,16 @@
 
 ## Escopo
 
+Atualizacao de 2026-10-18: este documento descreve somente pagamentos
+historicos ja criados com `settlementMode=delayed_merchant_payout`. Novas
+compras diretas usam a conta conectada do merchant e o repasse do proprio
+provedor. `storeSettings.paymentRetention` e as variaveis
+`PAYMENT_MERCHANT_SETTLEMENT_MODE`, `PAYMENT_MERCHANT_DELAYED_PAYOUT_ASAAS_ENABLED`
+e `PAYMENT_MERCHANT_PAYOUT_HOLD_DAYS` nao ativam retencao nem bloqueiam novas
+cobrancas diretas. O checkout marketplace possui seu proprio fluxo de captura
+e distribuicao. Recibos, estornos e transferencias historicas continuam
+vinculados ao snapshot da conta que recebeu o pagamento.
+
 Este fluxo e exclusivo do Asaas. O comprador paga para a conta platform; a
 taxa de servico do comprador e a taxa da plataforma ficam registradas na
 platform. O valor liquido do merchant fica retido durante a janela configurada
@@ -24,7 +34,7 @@ implementacao de transferencia e conciliacao.
    `TRANSFER_CANCELLED`.
 4. A migration de `PaymentHold` ja foi aplicada pelo processo de deploy da API.
 
-## Ativacao controlada
+## Ativacao controlada (historico; nao executar em novas integracoes)
 
 1. Em sandbox, configure `PAYMENT_MERCHANT_SETTLEMENT_MODE=delayed_merchant_payout`.
 2. Mantenha a segunda trava desligada enquanto o checkout e os webhooks forem

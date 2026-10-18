@@ -292,6 +292,10 @@ test("dispatchEvent: charge.refunded marks intent refunded", async () => {
       object: {
         id: "ch_1",
         payment_intent: "pi_stripe_5",
+        amount: 8000,
+        amount_refunded: 8000,
+        currency: "brl",
+        refunded: true,
         metadata: { intent_id: intentId, merchant_id: "mrc_stripe" }
       }
     }
@@ -554,5 +558,6 @@ test("dispatchEvent: Stripe resolve chargeback pelo PaymentIntent sem depender d
   assert.deepEqual(closed, { outcome: "processed", effect: "chargeback_won" });
   assert.equal((await payments.getIntentById("mrc_stripe_chargeback", intent.id))?.snapshot().status, "chargeback_won");
   assert.deepEqual(checkoutPort.statuses.map(entry => entry.status), ["chargeback_disputed", "chargeback_won"]);
-  assert.deepEqual(marketplaceOrders, ["market_order_stripe"]);
+  // The funding journal is keyed by the provider payment, not the ERP order.
+  assert.deepEqual(marketplaceOrders, ["pi_stripe_chargeback"]);
 });

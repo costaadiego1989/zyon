@@ -157,5 +157,6 @@ test("Mercado Pago usa o tópico de chargeback e o payment_id original", async (
   assert.deepEqual(await useCase.execute(rawBody, signature, REQUEST_ID, WEBHOOK_SECRET), { outcome: "processed", effect: "chargeback_pending" });
   assert.deepEqual(await useCase.execute(rawBody, signature, REQUEST_ID, WEBHOOK_SECRET), { outcome: "processed", effect: "chargeback_lost" });
   assert.equal((await payments.getIntentById("merchant_chargeback", intent.id))?.snapshot().status, "chargeback_lost");
-  assert.deepEqual(marketplaceOrders, ["market_order_mercadopago"]);
+  // The funding journal is keyed by the provider payment, not the ERP order.
+  assert.deepEqual(marketplaceOrders, [PAYMENT_ID]);
 });

@@ -2,6 +2,7 @@ import type { MerchantRules, MerchantTheme, SeoSettings, GtmSettings } from "@zy
 
 export interface MerchantStoreSettings {
   /** Server-activated scheduled split. The clock starts at proven fulfillment. */
+  /** Historical platform-retention configuration; never gates new direct store payments. */
   paymentRetention?: { mode: "delayed_merchant_payout"; holdDays: 7; startsAt: "fulfillment"; providerFeePayer: "merchant" };
   budget?: { enabled: boolean; email?: string; whatsapp?: string };
   /**

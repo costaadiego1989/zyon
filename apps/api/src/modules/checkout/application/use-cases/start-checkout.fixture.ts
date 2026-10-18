@@ -18,6 +18,7 @@ import type { ProductPromotionRepositoryPort } from "../../../catalog/domain/por
 import type { CheckoutCartAuthorityService } from "../services/checkout-cart-authority.service.js";
 import type { PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
 import type { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
+import type { PaymentPlatformRepository } from "../../../payment/domain/ports/payment-platform-repository.port.js";
 const passthroughCartAuthority = {
   async resolve(_merchantId: string, cart: unknown) {
     return structuredClone(cart);
@@ -41,6 +42,7 @@ interface FixtureOverrides {
   promoRepository?: ProductPromotionRepositoryPort;
   cartAuthority?: CheckoutCartAuthorityService;
   promptExperiment?: PromptExperimentPort;
+  paymentConnections?: PaymentPlatformRepository;
   orderQuota?: Pick<OrderQuotaService, "assertCanAcceptNewSales">;}
 
 /**
@@ -83,6 +85,6 @@ export function createStartCheckoutUseCase(
     overrides?.experienceConfig,
     overrides?.cartAuthority ?? passthroughCartAuthority,
     overrides?.orderQuota as OrderQuotaService | undefined,
-    undefined,
+    overrides?.paymentConnections,
     overrides?.promptExperiment,  );
 }

@@ -36,11 +36,9 @@ export class SyncStripeConnectUseCase {
       const status = await this.stripe.retrieveConnectAccount(
         connection.externalAccountId,
       );
-      const active =
-        status.chargesEnabled &&
-        status.payoutsEnabled &&
-        status.detailsSubmitted &&
-        status.requirements.length === 0;
+      // Stripe owns the payout schedule and its separate payout requirements.
+      // Its charging capability is the authority for accepting store payments.
+      const active = status.chargesEnabled;
       const underReview =
         !active && status.detailsSubmitted && status.requirements.length === 0;
       await this.repository.saveConnection({

@@ -21,6 +21,7 @@ import type {
   PaymentPlatformRepository,
 } from "../domain/ports/payment-platform-repository.port.js";
 import { buildMarketplaceFundingBudget } from "../../marketplace/domain/services/marketplace-funding-budget.js";
+import { stripeConnectionAllowsCharges } from "../domain/stripe-charge-capability.js";
 
 @Injectable()
 export class RoutingPaymentAdapter implements PaymentProviderPort {
@@ -441,7 +442,7 @@ export class RoutingPaymentAdapter implements PaymentProviderPort {
         merchantId,
         "stripe",
       );
-    if (this.platformConnections && connection?.status !== "active") {
+    if (this.platformConnections && !stripeConnectionAllowsCharges(connection)) {
       return null;
     }
     return this.stripe;

@@ -310,7 +310,8 @@ test("Asaas registra o ciclo de chargeback e atualiza o repasse de Marketplace u
   assert.deepEqual(lost, { outcome: "processed", effect: "chargeback_lost" });
   assert.equal((await payments.getIntentById("mrc_chargeback", externalReference))?.snapshot().status, "chargeback_lost");
   assert.deepEqual(checkoutPort.statuses.map(entry => entry.status), ["chargeback_pending", "chargeback_disputed", "chargeback_lost"]);
-  assert.deepEqual(marketplaceOrders, ["market_order_asaas"]);
+  // The funding journal is keyed by the provider payment, not the ERP order.
+  assert.deepEqual(marketplaceOrders, ["pay_chargeback"]);
 });
 
 test("Asaas split events record the confirmed platform split and observed issuer balance", async () => {

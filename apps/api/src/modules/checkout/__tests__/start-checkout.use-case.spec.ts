@@ -6,6 +6,44 @@ import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-me
 import { startCheckoutRequest } from "./checkout-test-fixtures.js";
 import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
 import { createStartCheckoutUseCase } from "../application/use-cases/start-checkout.fixture.js";
+import { InMemoryPaymentPlatformRepository } from "../../payment/infrastructure/in-memory-payment-platform.repository.js";
+
+test("connected store methods remain available with a legacy seven-day payout policy", async () => {
+  const previous = { stripe: process.env.STRIPE_SECRET_KEY_TEST, mp: process.env.MERCADOPAGO_WEBHOOK_SECRET };
+  process.env.STRIPE_SECRET_KEY_TEST = "sk_test_owned";
+  process.env.MERCADOPAGO_WEBHOOK_SECRET = "test-webhook-secret";
+  try {
+    for (const provider of ["mercadopago", "asaas", "stripe"] as const) {
+      const repository = new InMemoryCheckoutRepository();
+      repository.getProfile = async id => ({ id, name: "Owned store", plan: "BOTH", storeSettings: {
+        paymentRetention: { mode: "delayed_merchant_payout", holdDays: 7, startsAt: "fulfillment", providerFeePayer: "merchant" },
+      } });
+      const connections = new InMemoryPaymentPlatformRepository();
+      await connections.saveConnection({ merchantId: "mrc_1", provider, status: provider === "stripe" ? "restricted" : "active", environment: "test",
+        externalAccountId: "acct_owned", chargesEnabled: true, payoutsEnabled: false });
+      const useCase = createStartCheckoutUseCase(repository, repository, { merchantRepository: repository, paymentConnections: connections });
+      const capabilities = await useCase.getPaymentCapabilities("mrc_1");
+      assert.equal(capabilities.card, true, provider);
+      assert.equal(capabilities.providers?.card, provider);
+      assert.equal(capabilities.pix, provider !== "stripe", provider);
+      if (provider !== "stripe") assert.equal(capabilities.providers?.pix, provider);
+      if (provider === "stripe") {
+        await connections.saveConnection({ merchantId: "mrc_1", provider, status: "active", environment: "test",
+          externalAccountId: "acct_owned", chargesEnabled: false, payoutsEnabled: true });
+        assert.equal((await useCase.getPaymentCapabilities("mrc_1")).card, false,
+          "provider authorization to charge is required even when payouts are enabled");
+      }
+      if (provider === "mercadopago") {
+        // The same result must reach the real bootstrap response consumed by the widget.
+        const response = await useCase.execute(startCheckoutRequest());
+        assert.deepEqual(response.experience.paymentMethods, capabilities);
+      }
+    }
+  } finally {
+    if (previous.stripe === undefined) delete process.env.STRIPE_SECRET_KEY_TEST; else process.env.STRIPE_SECRET_KEY_TEST = previous.stripe;
+    if (previous.mp === undefined) delete process.env.MERCADOPAGO_WEBHOOK_SECRET; else process.env.MERCADOPAGO_WEBHOOK_SECRET = previous.mp;
+  }
+});
 
 function returningBuyerAccount(): BuyerAccount {
   return new BuyerAccount({
