@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import { MerchantRankings } from "./MerchantRankings.js";
+import { Disclosure } from "./Disclosure.js";
+import { money } from "../lib/ai-costs.js";
 import { Bot, CalendarRange, CircleAlert, ReceiptText, RefreshCw, TrendingUp, Volume2 } from "lucide-react";
 import {
   PlatformApi,
@@ -54,7 +56,7 @@ export function PlatformMetricsPanel({
   function applyRange(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
     if (draft.from > draft.to) {
-      setError("A data final nao pode ser anterior a data inicial.");
+      setError("A data final não pode ser anterior a data inicial.");
       return;
     }
     setError(null);
@@ -71,28 +73,28 @@ export function PlatformMetricsPanel({
     <section className="overview-snapshot platform-metrics" aria-labelledby="platform-metrics-title">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Evolucao por periodo</p>
+          <p className="eyebrow">Evolução por período</p>
           <h2 id="platform-metrics-title">Receita e consumo de IA</h2>
         </div>
         <span className={`source-state ${report?.coverage.financial.status === "unavailable" ? "source-state--unavailable" : "source-state--partial"}`}><span aria-hidden="true" />Dados parciais</span>
       </div>
 
 
-      <form className="metrics-toolbar" onSubmit={applyRange} aria-label="Periodo das metricas">
+      <form className="metrics-toolbar" onSubmit={applyRange} aria-label="Período das métricas">
         <CalendarRange size={18} aria-hidden="true" />
         <label>
           <span>De</span>
           <input type="date" value={draft.from} max={draft.to} onChange={event => setDraft(current => ({ ...current, from: event.target.value }))} />
         </label>
         <label>
-          <span>Ate</span>
+          <span>Até</span>
           <input type="date" value={draft.to} min={draft.from} onChange={event => setDraft(current => ({ ...current, to: event.target.value }))} />
         </label>
         <label>
           <span>Agrupar</span>
           <select value={granularity} onChange={event => setGranularity(event.target.value as PlatformMetricsGranularity)}>
             <option value="day">Por dia</option>
-            <option value="month">Por mes</option>
+            <option value="month">Por mês</option>
           </select>
         </label>
         <div className="metrics-toolbar__actions">
@@ -105,7 +107,9 @@ export function PlatformMetricsPanel({
       {loading && !report ? <MetricsLoading /> : null}
       {error && !report ? <MetricsFailure message={error} onRetry={() => setRequestVersion(value => value + 1)} /> : null}
       {report ? <MetricsReport report={report} loading={loading} error={error} onRetry={() => setRequestVersion(value => value + 1)} /> : null}
-      <MerchantRankings api={api} token={token} onSessionExpired={onSessionExpired} />
+      <Disclosure title="Comparar empresas" note="Receita, consumo de IA e atividade">
+        <MerchantRankings api={api} token={token} onSessionExpired={onSessionExpired} />
+      </Disclosure>
     </section>
   );
 }
@@ -115,48 +119,47 @@ function MetricsReport({ report, loading, error, onRetry }: { report: PlatformMe
   const current = report.financial.current_position;
   return <div className={`platform-metrics__report ${loading ? "platform-metrics__report--refreshing" : ""}`}>
     {error ? <MetricsFailure message={error} onRetry={onRetry} compact /> : null}
-    <p className="platform-metrics__period">{formatPeriod(report.period)}. Fim exclusivo, calendario de {report.period.timezone}.</p>
+    <p className="platform-metrics__period">{formatPeriod(report.period)} · Horário de São Paulo</p>
 
     <div className="metrics-section-heading">
       <span className="metrics-section-heading__icon"><TrendingUp size={18} aria-hidden="true" /></span>
-      <div><strong>Financeiro</strong><small>Receita de assinaturas confirmada e posicao atual</small></div>
+      <div><strong>Financeiro</strong><small>Receita de assinaturas confirmada e posição atual</small></div>
     </div>
     {received ? <>
       <dl className="overview-facts metrics-facts">
-        <MetricFact label="Recebido no periodo" value={formatBrlCents(received.confirmed_known_amount_cents)} detail={`${formatInteger(received.confirmed_payment_count)} pagamento(s) com estado atual confirmado`} />
+        <MetricFact label="Recebido no período" value={formatBrlCents(received.confirmed_known_amount_cents)} detail={`${formatInteger(received.confirmed_payment_count)} pagamento(s) com estado atual confirmado`} />
         <MetricFact label="MRR contratual" value={formatBrlCents(report.financial.contracted_mrr.known_amount_cents)} detail={mrrDetail(report.financial.contracted_mrr)} />
-        <MetricFact label="Saldo vencido agora" value={formatBrlCents(current?.overdue_known_balance_cents ?? null)} detail={current ? `${formatInteger(String(current.overdue_merchant_count))} empresa(s) em atraso` : "Sem posicao atual"} />
-        <MetricFact label="Em aberto agora" value={formatBrlCents(current?.open_known_balance_cents ?? null)} detail={current ? `${formatInteger(String(current.open_count))} cobranca(s) ativas` : "Sem posicao atual"} />
+        <MetricFact label="Saldo vencido agora" value={formatBrlCents(current?.overdue_known_balance_cents ?? null)} detail={current ? `${formatInteger(String(current.overdue_merchant_count))} empresa(s) em atraso` : "Sem posição atual"} />
+        <MetricFact label="Em aberto agora" value={formatBrlCents(current?.open_known_balance_cents ?? null)} detail={current ? `${formatInteger(String(current.open_count))} cobrança(s) ativas` : "Sem posição atual"} />
       </dl>
-      <FinancialSeries points={received.series} granularity={report.period.granularity} />
-      {received.incomplete_amount_count !== "0" ? <p className="metrics-note">{formatInteger(received.incomplete_amount_count)} pagamento(s) confirmado(s) sem valor informado pelo evento foram mantidos fora do total monetario.</p> : null}
-      {current ? <p className="metrics-note">Posicao atual: {formatInteger(String(current.due_today_count))} vence(m) hoje e {formatInteger(String(current.due_next_7_days_count))} vence(m) nos proximos 7 dias{current.next_due_at ? `; proximo em ${formatDate(current.next_due_at)}` : ""}.</p> : null}
+      <Disclosure title="Evolução dos pagamentos"><FinancialSeries points={received.series} granularity={report.period.granularity} /></Disclosure>
+      {received.incomplete_amount_count !== "0" ? <p className="metrics-note">{formatInteger(received.incomplete_amount_count)} pagamento(s) confirmado(s) sem valor informado pelo evento foram mantidos fora do total monetário.</p> : null}
+      {current ? <p className="metrics-note">Posição atual: {formatInteger(String(current.due_today_count))} vence(m) hoje e {formatInteger(String(current.due_next_7_days_count))} vence(m) nos próximos 7 dias{current.next_due_at ? `; próximo em ${formatDate(current.next_due_at)}` : ""}.</p> : null}
     </> : <UnavailableFinancial coverage={report.coverage.financial} />}
 
     <div className="metrics-section-heading">
       <span className="metrics-section-heading__icon"><Bot size={18} aria-hidden="true" /></span>
-      <div><strong>IA no periodo</strong><small>Chat e voz separados por fonte de captura</small></div>
+      <div><strong>IA no período</strong><small>Chat e voz separados por fonte de captura</small></div>
     </div>
     <dl className="overview-facts metrics-facts metrics-facts--ai">
-      <MetricFact label="Chat" value={`${formatInteger(report.ai.chat.total_tokens)} tokens`} detail={`${formatInteger(report.ai.chat.event_count)} execucao(oes); ${formatInteger(report.ai.chat.unpriced_event_count)} sem preco`} />
-      <MetricFact label="Voz" value={`${formatInteger(report.ai.voice.total_tokens)} tokens`} detail={`${formatInteger(report.ai.voice.event_count)} componente(s); ${formatInteger(report.ai.voice.unpriced_event_count)} sem preco`} />
+      <MetricFact label="Chat" value={`${formatInteger(report.ai.chat.total_tokens)} tokens`} detail={`${formatInteger(report.ai.chat.event_count)} execução(ões); ${formatInteger(report.ai.chat.unpriced_event_count)} sem preço`} />
+      <MetricFact label="Voz" value={`${formatInteger(report.ai.voice.total_tokens)} tokens`} detail={`${formatInteger(report.ai.voice.event_count)} componente(s); ${formatInteger(report.ai.voice.unpriced_event_count)} sem preço`} />
       <MetricFact label="Custo de chat" value={formatCosts(report.ai.chat.costs)} detail="Estimado, reportado ou conciliado conforme indicado" />
-      <MetricFact label="Custo de voz" value={formatCosts(report.ai.voice.costs)} detail="Pode exigir conciliacao com a fatura do provedor" />
+      <MetricFact label="Custo de voz" value={formatCosts(report.ai.voice.costs)} detail="Pode exigir conciliação com a fatura do provedor" />
     </dl>
-    <AiSeries points={report.ai.series} granularity={report.period.granularity} />
+    <Disclosure title="Evolução do consumo de IA"><AiSeries points={report.ai.series} granularity={report.period.granularity} /></Disclosure>
 
-    <div className="metrics-unavailable" role="note">
-      <ReceiptText size={18} aria-hidden="true" />
-      <p><strong>Taxas da plataforma e resultado apos IA: indisponiveis.</strong> {report.coverage.platform_fees.description}</p>
-    </div>
+    <Disclosure title="Cobertura dos indicadores" note="Dados financeiros parciais">
+      <p className="page-context-note">Taxas da plataforma e resultado após IA ainda não estão disponíveis. {report.coverage.platform_fees.description}</p>
+    </Disclosure>
   </div>;
 }
 
 function FinancialSeries({ points, granularity }: { points: NonNullable<PlatformMetrics["financial"]["received"]>["series"]; granularity: PlatformMetricsGranularity }) {
-  if (points.length === 0) return <MetricEmpty title="Sem pagamentos confirmados neste periodo" detail="A cobertura existe, mas nao houve pagamento com estado atual confirmado nas datas escolhidas." />;
+  if (points.length === 0) return <MetricEmpty title="Sem pagamentos confirmados neste período" detail="A cobertura existe, mas não houve pagamento com estado atual confirmado nas datas escolhidas." />;
   const highest = points.reduce((maximum, point) => maximum > bigintOrZero(point.confirmed_known_amount_cents) ? maximum : bigintOrZero(point.confirmed_known_amount_cents), 0n);
   return <section className="metrics-series" aria-labelledby="financial-series-title">
-    <div className="metrics-series__heading"><div><p className="eyebrow">Serie por {granularity === "day" ? "dia" : "mes"}</p><h3 id="financial-series-title">Pagamentos confirmados</h3></div><span>{points.length} ponto(s)</span></div>
+    <div className="metrics-series__heading"><div><p className="eyebrow">Série por {granularity === "day" ? "dia" : "mês"}</p><h3 id="financial-series-title">Pagamentos confirmados</h3></div><span>{points.length} ponto(s)</span></div>
     <ol className="metrics-bars">
       {points.map(point => <li key={point.bucket}>
         <span>{formatBucket(point.bucket, granularity)}</span>
@@ -169,12 +172,12 @@ function FinancialSeries({ points, granularity }: { points: NonNullable<Platform
 }
 
 function AiSeries({ points, granularity }: { points: PlatformMetrics["ai"]["series"]; granularity: PlatformMetricsGranularity }) {
-  if (points.length === 0) return <MetricEmpty title="Sem eventos de IA neste periodo" detail="Chat concluido no servidor e eventos finais de voz aparecerao aqui quando forem capturados." />;
+  if (points.length === 0) return <MetricEmpty title="Sem eventos de IA neste período" detail="Chat concluído no servidor e eventos finais de voz aparecerão aqui quando forem capturados." />;
   return <section className="metrics-series metrics-series--ai" aria-labelledby="ai-series-title">
-    <div className="metrics-series__heading"><div><p className="eyebrow">Serie por {granularity === "day" ? "dia" : "mes"}</p><h3 id="ai-series-title">Tokens e custos de IA</h3></div><span>{points.length} ponto(s)</span></div>
+    <div className="metrics-series__heading"><div><p className="eyebrow">Série por {granularity === "day" ? "dia" : "mês"}</p><h3 id="ai-series-title">Tokens e custos de IA</h3></div><span>{points.length} ponto(s)</span></div>
     <div className="metrics-table-wrap">
       <table className="metrics-table">
-        <thead><tr><th scope="col">Periodo</th><th scope="col">Chat</th><th scope="col">Voz</th><th scope="col">Tokens</th><th scope="col">Custos conhecidos</th></tr></thead>
+        <thead><tr><th scope="col">Período</th><th scope="col">Chat</th><th scope="col">Voz</th><th scope="col">Tokens</th><th scope="col">Custos conhecidos</th></tr></thead>
         <tbody>{points.map(point => <tr key={point.bucket}>
           <th scope="row">{formatBucket(point.bucket, granularity)}</th>
           <td>{formatInteger(point.chat_event_count)} evento(s)</td>
@@ -190,7 +193,7 @@ function AiSeries({ points, granularity }: { points: PlatformMetrics["ai"]["seri
 function UnavailableFinancial({ coverage }: { coverage: PlatformMetrics["coverage"]["financial"] }) {
   return <div className="metrics-unavailable">
     <CircleAlert size={19} aria-hidden="true" />
-    <p><strong>Aguardando eventos financeiros autenticados.</strong> {coverage.description} Valores permanecem sem dado ate a primeira cobranca observada.</p>
+    <p><strong>Aguardando eventos financeiros autenticados.</strong> {coverage.description} Valores permanecem sem dado até a primeira cobrança observada.</p>
   </div>;
 }
 
@@ -233,7 +236,7 @@ function saoPauloStartToUtc(value: string): string {
 
 function formatPeriod(period: PlatformMetrics["period"]): string {
   const exclusiveEnd = dateInSaoPaulo(new Date(period.to));
-  return `${formatDate(period.from)} ate ${formatDate(saoPauloStartToUtc(shiftDate(exclusiveEnd, -1)))}`;
+  return `${formatDate(period.from)} até ${formatDate(saoPauloStartToUtc(shiftDate(exclusiveEnd, -1)))}`;
 }
 
 function formatDate(value: string): string {
@@ -246,7 +249,7 @@ function formatBucket(bucket: string, granularity: PlatformMetricsGranularity): 
 }
 
 function formatInteger(value: string): string {
-  try { return new Intl.NumberFormat("pt-BR").format(BigInt(value)); } catch { return "Indisponivel"; }
+  try { return new Intl.NumberFormat("pt-BR").format(BigInt(value)); } catch { return "Indisponível"; }
 }
 
 function formatBrlCents(value: string | null): string {
@@ -256,7 +259,7 @@ function formatBrlCents(value: string | null): string {
     const sign = cents < 0n ? "-" : "";
     const absolute = cents < 0n ? -cents : cents;
     return `R$ ${sign}${new Intl.NumberFormat("pt-BR").format(absolute / 100n)},${(absolute % 100n).toString().padStart(2, "0")}`;
-  } catch { return "Indisponivel"; }
+  } catch { return "Indisponível"; }
 }
 
 function formatCosts(costs: PlatformMetricCost[]): string {
@@ -274,13 +277,7 @@ function formatSeriesCosts(costs: Array<PlatformMetricCost & { channel: "chat" |
 }
 
 function formatMicros(value: string, currency: string): string {
-  try {
-    const micros = BigInt(value);
-    const sign = micros < 0n ? "-" : "";
-    const absolute = micros < 0n ? -micros : micros;
-    const prefix = currency === "USD" ? "US$" : currency;
-    return `${prefix} ${sign}${new Intl.NumberFormat("pt-BR").format(absolute / 1_000_000n)},${((absolute % 1_000_000n) / 10_000n).toString().padStart(2, "0")}`;
-  } catch { return "Indisponivel"; }
+  return money(value, currency);
 }
 
 function bigintOrZero(value: string): bigint {
@@ -297,8 +294,8 @@ function mrrDetail(mrr: PlatformMetrics["financial"]["contracted_mrr"]): string 
 }
 
 function metricsErrorMessage(error: unknown): string {
-  if (error instanceof PlatformApiError && error.status === 400) return "O periodo informado nao e valido. Use no maximo 366 dias e deixe a data final depois da inicial.";
-  if (error instanceof PlatformApiError && error.status === 403) return "Seu papel nao possui permissao para consultar as metricas da plataforma.";
-  if (error instanceof PlatformApiError && error.status === 404) return "As metricas por periodo ainda nao estao disponiveis neste ambiente.";
-  return "A consulta das metricas falhou. Tente novamente.";
+  if (error instanceof PlatformApiError && error.status === 400) return "Escolha um período válido de até 366 dias.";
+  if (error instanceof PlatformApiError && error.status === 403) return "Seu acesso não permite consultar as métricas da plataforma.";
+  if (error instanceof PlatformApiError && error.status === 404) return "As métricas por período ainda não estão disponíveis neste ambiente.";
+  return "A consulta das métricas falhou. Tente novamente.";
 }

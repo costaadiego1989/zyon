@@ -37,6 +37,8 @@ import { MerchantDirectory } from "./MerchantDirectory.js";
 import { PlatformMetricsPanel } from "./PlatformMetrics.js";
 import { OrdersPage } from "./OrdersPage.js";
 import { BillingPromotions } from "./BillingPromotions.js";
+import { Disclosure } from "./Disclosure.js";
+import "./minimal.css";
 
 type ViewId = "support" | "overview" | "feedback" | "merchants" | "orders" | "billing" | "billing-promotions" | "ai-usage" | "infrastructure" | "audit";
 
@@ -238,7 +240,7 @@ function ControlShell({
           </div>
         </header>
 
-        <main id="control-content" className="control-content">
+        <main id="control-content" className={`control-content ${view === "ai-usage" ? "" : "control-content--minimal"}`}>
           {view === "overview" ? <Overview api={api} token={token} onNavigate={selectView} role={operator.role} onSessionExpired={onSessionExpired} /> : null}
           {view === "feedback" ? (
             <FeedbackQueue api={api} token={token} operator={operator} onSessionExpired={onSessionExpired} />
@@ -328,29 +330,28 @@ function Overview({
     <div className="page-flow">
       <section className="page-intro page-intro--split">
         <div>
-          <h2>Leitura operacional atual</h2>
-          <p>Dados consultados diretamente no ambiente <strong>{overview.scope.environment}</strong> em {capturedAt}. Os limites de cada fonte permanecem visíveis abaixo.</p>
+          <h2>Panorama da plataforma</h2>
+          <p>Atualizado em {capturedAt} · {overview.scope.environment}</p>
         </div>
-        <span className="source-state source-state--ready"><span aria-hidden="true" />Leitura concluída</span>
+        <button type="button" className="button button--secondary" onClick={() => setRequestVersion(version => version + 1)}>Atualizar</button>
       </section>
 
-      <PlatformMetricsPanel api={api} token={token} onSessionExpired={onSessionExpired} />
       <section className="overview-snapshot" aria-labelledby="snapshot-heading">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Retrato do momento</p>
-            <h2 id="snapshot-heading">Cadastros, assinaturas e feedback</h2>
+            <h2 id="snapshot-heading">Operação</h2>
           </div>
-          <span className="quiet-note">{overview.scope.data_freshness === "read_through_database" ? "Leitura direta do banco" : overview.scope.data_freshness}</span>
         </div>
         <dl className="overview-facts">
-          <OverviewFact label="Empresas cadastradas" value={formatNumber(overview.merchants.registered)} detail="Registro operacional" />
-          <OverviewFact label="Usuários ativos" value={formatNumber(overview.merchants.active_users)} detail="Contas merchant não desativadas" />
-          <OverviewFact label="Registros de assinatura ativos" value={formatNumber(overview.subscriptions.active_records)} detail="Estado local; fonte financeira parcial" />
-          <OverviewFact label="Feedbacks recebidos" value={formatNumber(overview.feedback.received)} detail="Envios autenticados no painel merchant" />
+          <OverviewFact label="Empresas" value={formatNumber(overview.merchants.registered)} detail="Cadastradas" />
+          <OverviewFact label="Usuários ativos" value={formatNumber(overview.merchants.active_users)} detail="Contas das empresas" />
+          <OverviewFact label="Assinaturas ativas" value={formatNumber(overview.subscriptions.active_records)} detail="Estado local" />
+          <OverviewFact label="Feedbacks" value={formatNumber(overview.feedback.received)} detail="Recebidos" />
         </dl>
       </section>
 
+      <PlatformMetricsPanel api={api} token={token} onSessionExpired={onSessionExpired} />
+      <Disclosure title="Detalhes da operação" note="Cobranças, infraestrutura e cobertura dos dados">
       <section className="overview-snapshot" aria-labelledby="receivables-heading">
         <div className="section-heading">
           <div>
@@ -414,7 +415,7 @@ function Overview({
         <dl className="overview-facts overview-facts--three">
           <OverviewFact label="Banco de dados" value={overview.infrastructure.database} detail="Resultado da readiness atual" />
           <OverviewFact label="Redis" value={overview.infrastructure.redis} detail="Resultado da readiness atual" />
-          <OverviewFact label="Sinais e historico local" value="Parcial" detail="Filas, integracoes e snapshots de incidentes; sem monitoramento externo continuo" />
+          <OverviewFact label="Sinais e histórico local" value="Parcial" detail="Filas e integrações; sem monitoramento externo contínuo" />
         </dl>
       </section>
 
@@ -422,13 +423,13 @@ function Overview({
         <div className="section-heading">
           <div>
             <p className="eyebrow">Fonte disponível</p>
-            <h2 id="feedback-heading">Feedback dos merchants</h2>
+            <h2 id="feedback-heading">Feedback das empresas</h2>
           </div>
           <span className="source-state source-state--ready"><span aria-hidden="true" />Conectada</span>
         </div>
         <div className="source-ledger__body">
           <MessageSquareMore size={22} aria-hidden="true" />
-          <p>Receba, filtre e trate sugestões, melhorias, bugs e outros retornos enviados por pessoas autenticadas no painel merchant.</p>
+          <p>Acompanhe sugestões e problemas enviados pelas empresas.</p>
           {feedbackReady ? <button type="button" className="button button--primary" onClick={() => onNavigate("feedback")}>Abrir fila</button> : <span className="quiet-note">Seu papel não inclui a leitura da fila.</span>}
         </div>
       </section>
@@ -445,6 +446,7 @@ function Overview({
           {overviewSourceRows.map(row => <CoverageRow key={row.source} icon={row.icon} title={row.title} source={overview.sources[row.source]} />)}
         </ul>
       </section>
+      </Disclosure>
     </div>
   );
 }
@@ -509,7 +511,7 @@ function OperatorLogin({ onSubmit, initialMessage }: { onSubmit: (email: string,
         <div>
           <p className="eyebrow">Acesso de operadores</p>
           <h1>Uma central para a operação da plataforma.</h1>
-          <p>Use a identidade interna provisionada para seu papel. Este acesso é separado das contas de merchants.</p>
+          <p>Acesse com sua conta interna de operador.</p>
         </div>
         <ul className="login-notes">
           <li><ShieldCheck size={17} aria-hidden="true" />Permissões aplicadas pelo servidor</li>

@@ -201,7 +201,7 @@ export function FeedbackQueue({
       <section className="page-intro page-intro--split">
         <div>
           <h2>Fila de feedback</h2>
-          <p>Feedback enviado por pessoas autenticadas nos painéis merchant. O tratamento, a atribuição e as notas são internos.</p>
+          <p>Sugestões e problemas enviados pelas empresas. Notas e tratamento são internos.</p>
         </div>
         <button type="button" className="button button--secondary" onClick={() => setRefreshKey(value => value + 1)} disabled={loading}>
           <RefreshCw size={16} aria-hidden="true" />Atualizar
@@ -375,7 +375,7 @@ function FeedbackDetail({
       <div className="detail-heading">
         <div>
           <p className="eyebrow">{categoryLabels[feedback.category] ?? feedback.category}</p>
-          <h3 id="feedback-detail-title">{feedback.merchantName ?? "Merchant não identificado"}</h3>
+          <h3 id="feedback-detail-title">{feedback.merchantName ?? "Empresa não identificada"}</h3>
         </div>
         <StatusPill status={feedback.treatment.status} />
       </div>
@@ -485,7 +485,7 @@ function FeedbackSkeleton() {
 }
 
 function EmptyFeedback() {
-  return <div className="feedback-empty"><MessageSquareMore size={25} aria-hidden="true" /><h3>Nenhum feedback encontrado</h3><p>Ajuste os filtros ou aguarde novos envios de merchants.</p></div>;
+  return <div className="feedback-empty"><MessageSquareMore size={25} aria-hidden="true" /><h3>Nenhum feedback encontrado</h3><p>Ajuste os filtros ou aguarde novos envios das empresas.</p></div>;
 }
 
 function QueueError({ message, onRetry }: { message: string; onRetry: () => void }) {

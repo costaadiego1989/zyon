@@ -11,6 +11,7 @@ import {
   type PlatformBillingReceivablesPage,
 } from "../lib/api.js";
 import "./BillingSubscriptions.css";
+import { Disclosure } from "./Disclosure.js";
 
 const statusLabels: Record<PlatformBillingSubscriptionStatus, string> = {
   trialing: "Em teste",
@@ -169,22 +170,15 @@ export function BillingSubscriptions({ api, token, onSessionExpired }: BillingSu
     <div className="page-flow billing-subscriptions">
       <section className="page-intro page-intro--split">
         <div>
-          <p className="eyebrow">Fonte operacional parcial</p>
-          <h2>Assinaturas locais</h2>
-          <p>Estados locais de assinatura e o diário financeiro disponível por fonte.</p>
+          <h2>Assinaturas e cobranças</h2>
+          <p>Acompanhe assinaturas e recebíveis registrados pelos provedores.</p>
         </div>
         <button type="button" className="button button--secondary" onClick={() => setRequestVersion(value => value + 1)} disabled={loading}>
           <RefreshCw size={16} aria-hidden="true" />Atualizar
         </button>
       </section>
 
-      <section className="billing-disclosure" aria-labelledby="billing-disclosure-heading">
-        <div className="billing-disclosure__icon"><CircleAlert size={19} aria-hidden="true" /></div>
-        <div>
-          <h3 id="billing-disclosure-heading">Estados de assinatura não definem dívida</h3>
-          <p>“Em atraso” e “não paga” são estados locais. Os recebíveis abaixo usam eventos autenticados dos provedores e indicam a própria cobertura antes de qualquer total.</p>
-        </div>
-      </section>
+      <p className="page-context-note">Os estados de assinatura são locais. Valores financeiros têm cobertura parcial e ainda não estão conciliados.</p>
 
       <section className="billing-toolbar" aria-label="Filtros de assinaturas locais">
         <Filter size={17} aria-hidden="true" />
@@ -236,14 +230,7 @@ function BillingSnapshot({
 
   return (
     <>
-      <section className="billing-sources" aria-labelledby="billing-sources-heading">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Limites da fonte</p>
-            <h2 id="billing-sources-heading">O que esta consulta representa</h2>
-          </div>
-          <span className="quiet-note">Lido em {capturedAt}</span>
-        </div>
+      <Disclosure title="Fontes das assinaturas" note={`Atualizado em ${capturedAt}`}>
         <ul className="coverage-list">
           {(Object.keys(sourceLabels) as Array<keyof typeof sourceLabels>).map(source => (
             <li key={source} className="coverage-row">
@@ -256,19 +243,18 @@ function BillingSnapshot({
             </li>
           ))}
         </ul>
-      </section>
+      </Disclosure>
 
       <section className="billing-facts" aria-labelledby="billing-facts-heading">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Leitura local</p>
             <h2 id="billing-facts-heading">Situação das assinaturas</h2>
           </div>
           <span className="quiet-note">Não representa cobrança recebida</span>
         </div>
         <dl>
-          <Fact label="Registros locais" value={page.summary.total_records} />
-          <Fact label="Ativas locais" value={page.summary.active_local_records} />
+          <Fact label="Assinaturas" value={page.summary.total_records} />
+          <Fact label="Ativas" value={page.summary.active_local_records} />
           <Fact label="Em teste" value={page.summary.active_trials} />
           <Fact label="Em atraso" value={page.summary.past_due_local_state_records} note="Estado local; não confirma inadimplência." />
           <Fact label="Cancelamento agendado" value={page.summary.cancellation_at_period_end_records} />
@@ -288,8 +274,7 @@ function BillingSnapshot({
       <section className="billing-records" aria-labelledby="billing-records-heading">
         <div className="section-heading">
           <div>
-            <p className="eyebrow">Registros retornados</p>
-            <h2 id="billing-records-heading">Empresas e estado de assinatura</h2>
+            <h2 id="billing-records-heading">Assinaturas por empresa</h2>
           </div>
           <span className="quiet-note">{page.items.length} exibidos</span>
         </div>
@@ -337,24 +322,25 @@ function ReceivableLedger({
     <section className="billing-records" aria-labelledby="receivables-heading">
       <div className="section-heading">
         <div>
-          <p className="eyebrow">Diário financeiro parcial</p>
           <h2 id="receivables-heading">Recebíveis observados</h2>
         </div>
-        <span className="quiet-note">Cobertura desde {observedSince}</span>
+        <span className="quiet-note">{page.coverage.observed_since ? `Desde ${observedSince}` : "Ainda sem eventos"}</span>
       </div>
 
+      <Disclosure title="Fontes e conciliação dos recebíveis" note="Cobertura parcial">
       <ul className="coverage-list">
         <CoverageRow label="Cobranças de assinatura Asaas" source={page.sources.asaas_subscription_charges} />
         <CoverageRow label="Cobranças de assinatura Stripe" source={page.sources.stripe_subscription_charges} />
         <CoverageRow label="Cobranças de assinatura Mercado Pago" source={page.sources.mercadopago_subscription_charges} />
         <CoverageRow label="Conciliação financeira" source={page.sources.reconciliation} />
       </ul>
+      </Disclosure>
 
       {!page.coverage.financial_metrics_available ? (
         <div className="billing-empty">
           <ReceiptText size={25} aria-hidden="true" />
           <h3>Aguardando o primeiro evento financeiro</h3>
-          <p>Não há eventos de cobrança capturados desde a implantação desta fonte. Os valores não são mostrados como zero.</p>
+          <p>Os valores aparecerão após o primeiro evento de cobrança. Até lá, permanecem sem dados.</p>
         </div>
       ) : (
         <>

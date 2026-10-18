@@ -90,8 +90,8 @@ export function MerchantDirectory({
     <div className="page-flow merchant-directory">
       <section className="page-intro page-intro--split">
         <div>
-          <h2>Diretório de empresas</h2>
-          <p>Busque cadastros por nome, identificador ou slug. O plano exibido descreve a configuração operacional e não representa pagamento, vencimento ou inadimplência.</p>
+          <h2>Empresas</h2>
+          <p>Encontre uma empresa e consulte seus dados, plano e atividade.</p>
         </div>
         <button type="button" className="button button--secondary" onClick={() => setRefreshKey(value => value + 1)} disabled={loading}>
           <RefreshCw size={16} aria-hidden="true" />Atualizar

@@ -1,5 +1,7 @@
+import { statusLabel, providerLabel } from "../lib/labels.js";
 import { useEffect, useState } from "react";
 import { CircleAlert, Database, Gauge, RefreshCw, ServerCog, WifiOff } from "lucide-react";
+import { Disclosure } from "./Disclosure.js";
 import {
   PlatformApi,
   PlatformApiError,
@@ -62,9 +64,8 @@ export function InfrastructureReadiness({ api, token, onSessionExpired }: Infras
     <div className="page-flow infrastructure-readiness">
       <section className="page-intro page-intro--split" aria-labelledby="infrastructure-title">
         <div>
-          <p className="eyebrow">Estado da infraestrutura</p>
-          <h2 id="infrastructure-title">Prontidão operacional</h2>
-          <p>Leitura atual de dependências essenciais, filas e estados persistidos de integração. Ela não substitui a confirmação dos provedores externos.</p>
+          <h2 id="infrastructure-title">Saúde da plataforma</h2>
+          <p>Dependências, alertas e processamento no momento da consulta.</p>
         </div>
         <button type="button" className="button button--secondary" onClick={() => setRequestVersion(value => value + 1)} disabled={loading}>
           <RefreshCw size={16} aria-hidden="true" />Atualizar
@@ -104,7 +105,6 @@ export function InfrastructureReadiness({ api, token, onSessionExpired }: Infras
             {currentAlerts.map(alert => <InfrastructureIncidentRow key={alert.id} incident={alert} />)}
           </ul>
         )}
-        <p className="infrastructure-observability__note">Os alertas são derivados apenas de sondas locais, contagens BullMQ e estados persistidos. Eles não comprovam a disponibilidade de serviços externos.</p>
       </section>
 
       <section className="infrastructure-observability" aria-labelledby="queue-observability-title">
@@ -131,60 +131,41 @@ export function InfrastructureReadiness({ api, token, onSessionExpired }: Infras
             </li>)}
           </ul>
         )}
-        <p className="infrastructure-observability__note">A sonda mostra contagens no momento da consulta; ela não confirma que os workers estejam processando cada fila.</p>
       </section>
 
-      <section className="infrastructure-observability" aria-labelledby="integrations-observability-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Integrações cadastradas</p>
-            <h2 id="integrations-observability-title">Estado persistido de conexões</h2>
-          </div>
-          <ObservabilityStatus status={report.external_integrations.status} />
-        </div>
+      <Disclosure title="Conex?es e integra??es" note="Estados cadastrados nos provedores">
+
         {report.external_integrations.status === "available" ? <>
           {(report.external_integrations.connection_states?.length ?? 0) > 0 ? <ul className="infrastructure-integration-list">
-            {report.external_integrations.connection_states?.map(connection => <li key={`${connection.surface}-${connection.provider}-${connection.status}`}>
+            {report.external_integrations.connection_states?.map(connection => <li key={`${connection.surface}-${providerLabel(connection.provider)}-${statusLabel(connection.status)}`}>
               <span>{integrationSurfaceLabel(connection.surface)}</span>
               <strong>{connection.provider}</strong>
               <small>{connection.status}</small>
               <b>{formatNumber(connection.count)}</b>
             </li>)}
           </ul> : <p className="infrastructure-observability__empty">Nenhuma conexão persistida foi encontrada.</p>}
-          {(report.external_integrations.erp_sync_jobs?.length ?? 0) > 0 ? <div className="infrastructure-erp-jobs"><strong>Trabalhos de sincronização ERP</strong><span>{report.external_integrations.erp_sync_jobs?.map(job => `${job.status}: ${formatNumber(job.count)}`).join(" · ")}</span></div> : null}
+          {(report.external_integrations.erp_sync_jobs?.length ?? 0) > 0 ? <div className="infrastructure-erp-jobs"><strong>Trabalhos de sincronização ERP</strong><span>{report.external_integrations.erp_sync_jobs?.map(job => `${statusLabel(job.status)}: ${formatNumber(job.count)}`).join(" · ")}</span></div> : null}
         </> : <p className="infrastructure-observability__empty">O banco não estava disponível para ler os estados persistidos de integração.</p>}
-        <p className="infrastructure-observability__note">São registros locais de conexão e trabalho. O painel não executa chamadas aos provedores nem afirma que eles estão disponíveis.</p>
-      </section>
+      </Disclosure>
 
-      <section className="infrastructure-observability" aria-labelledby="incident-history-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Observações anteriores</p>
-            <h2 id="incident-history-title">Histórico de incidentes locais</h2>
-          </div>
-          <IncidentHistoryStatus history={report.incident_history} />
-        </div>
+      <Disclosure title="Hist?rico de incidentes" note="Observa??es das consultas anteriores">
+
         {report.incident_history?.status === "available" ? (
           (report.incident_history.items?.length ?? 0) > 0 ? <ul className="infrastructure-incident-list">
             {report.incident_history.items?.map(item => <InfrastructureIncidentRow key={item.id} incident={item} history={item} />)}
           </ul> : <p className="infrastructure-observability__empty">Nenhum alerta foi observado nas leituras já registradas.</p>
         ) : <p className="infrastructure-observability__empty">O histórico local ainda não está disponível nesta leitura.</p>}
-        <p className="infrastructure-observability__note">Cada item é consolidado a partir de snapshots gravados quando o painel é lido. “Não observado agora” não confirma resolução e não substitui alertas de monitoramento contínuo.</p>
-      </section>
+      </Disclosure>
 
-      <section className="coverage-section" aria-labelledby="infrastructure-coverage-title">
-        <div className="section-heading">
-          <div>
-            <p className="eyebrow">Cobertura da fonte</p>
-            <h2 id="infrastructure-coverage-title">O que esta leitura inclui</h2>
-          </div>
-        </div>
+      <Disclosure title="Como interpretar os dados" note="Fontes e limites desta leitura">
+
         <ul className="coverage-list">
           {(Object.keys(coverageLabels) as Array<keyof PlatformInfrastructureReadiness["coverage"]>).map(key => (
             <InfrastructureCoverageRow key={key} label={coverageLabels[key]} coverage={report.coverage[key]} />
           ))}
         </ul>
-      </section>
+        <p className="page-context-note">As informações são leituras locais de dependências, filas e conexões cadastradas. Elas não confirmam o processamento dos trabalhadores de fila nem a disponibilidade dos provedores externos. O histórico reúne observações do painel; a ausência de um alerta na leitura atual não confirma sua resolução.</p>
+      </Disclosure>
     </div>
   );
 }
