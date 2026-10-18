@@ -43,7 +43,7 @@ async function setup(page: Page, rejectEdit = false) {
       buyerFacing: card ? { invoiceUrl: "https://payments.example.test/fixture" } : { qrCodeCopyPaste: "fixture-pix-pending" }, experience } });
   });
   await page.route("**/embed/track", route => route.fulfill({ json: {} }));
-  await navigateToCheckout(page); await selectChatChannel(page);
+  await navigateToCheckout(page, "https://qa-checkout.invalid"); await selectChatChannel(page);
   await page.getByRole("button", { name: "Vamos prosseguir", exact: true }).click();
   await page.getByRole("button", { name: "Pix", exact: true }).click();
   await expect(page.getByText("Pix gerado! Pague e confirmo seu pedido automaticamente.")).toBeVisible();

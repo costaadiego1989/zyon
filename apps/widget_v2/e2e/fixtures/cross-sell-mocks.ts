@@ -147,12 +147,12 @@ export async function setupCrossSellMocks(page: Page, config: CrossSellMockConfi
 /**
  * Navigate to the widget with required query params.
  */
-export async function navigateToCheckout(page: Page) {
+export async function navigateToCheckout(page: Page, apiBaseUrl = "http://127.0.0.1:5174") {
   // Wait for network idle — first cold boot re-optimizes vite deps, so the page
   // may reload once before the module graph settles. `domcontentloaded` alone can
   // race that reload; `networkidle` ensures the app has actually mounted.
   await page.goto(
-    "/?embedToken=tok_e2e&merchantId=mrc_e2e&cartRef=cart_e2e&apiBaseUrl=http://127.0.0.1:5174",
+    `/?embedToken=tok_e2e&merchantId=mrc_e2e&cartRef=cart_e2e&apiBaseUrl=${encodeURIComponent(apiBaseUrl)}`,
     { waitUntil: "domcontentloaded", timeout: 30_000 }
   );
 }
