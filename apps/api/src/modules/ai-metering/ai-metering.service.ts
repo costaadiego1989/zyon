@@ -68,9 +68,13 @@ export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
     const row = await this.db.aiUsageEvent.findUnique({ where: { id: input.id } });
     if (!row || row.costStatus === "reconciled") return;
     const usage = normalizeUsage(input.payload, row.component === "embedding");
+    // A delayed/replayed incomplete event must not erase a measured response.
+    if(row.usageKnown&&!usage)return;
     const model = input.payload.model ?? row.model;
     let cost: bigint | undefined, audioCost: bigint | undefined, currency: string | undefined, version: string | undefined, costStatus = "unpriced";
     const reported = row.provider === "openrouter" ? decimalMicros(object(input.payload.usage).cost) : undefined;
+    if(row.usageKnown&&row.providerEventId===input.payload.id&&usage?.input===row.promptTokens&&usage?.output===row.completionTokens
+      &&(reported===undefined||reported===row.costMicros))return;
     if (reported !== undefined) { cost = reported; currency = "USD"; costStatus = "provider_reported"; }
     else if (usage) {
       const price = await this.db.aiPriceVersion.findFirst({ where: { provider: row.provider, model, channel: row.channel, component: row.component,
