@@ -42,14 +42,16 @@ export class MerchantAiUsageReader {
           UNION
           SELECT s.id FROM ai_voice_usage_sessions s WHERE s.merchant_id=${merchantId}
             AND s.started_at >= ${period.start} AND s.started_at < ${period.endExclusive} AND s.state NOT IN ('failed','rejected')
+        ), observed AS (
+          SELECT DISTINCT e.voice_session_id AS id FROM ai_usage_events e INNER JOIN activity a ON a.id=e.voice_session_id
+          WHERE e.merchant_id=${merchantId} AND e.usage_known AND e.measurement_origin IN ('server_http','server_sideband')
         ) SELECT COUNT(*)::text AS sessions,
           COUNT(*) FILTER (WHERE s.state IN ('unknown','unobservable')
             OR (s.state='negotiating' AND s.started_at < now()-interval '1 minute')
             OR (s.state='active' AND s.started_at < now()-interval '35 minutes')
-            OR (s.state='closed' AND NOT EXISTS (SELECT 1 FROM ai_usage_events e
-              WHERE e.merchant_id=${merchantId} AND e.voice_session_id=a.id AND e.usage_known
-                AND e.measurement_origin IN ('server_http','server_sideband'))))::text AS incomplete_sessions
-        FROM activity a LEFT JOIN ai_voice_usage_sessions s ON s.id=a.id AND s.merchant_id=${merchantId}`);
+            OR (s.state='closed' AND o.id IS NULL))::text AS incomplete_sessions
+        FROM activity a LEFT JOIN ai_voice_usage_sessions s ON s.id=a.id AND s.merchant_id=${merchantId}
+        LEFT JOIN observed o ON o.id=a.id`);
       const [history] = await tx.$queryRaw<Array<{ first_recorded_at: Date | null }>>(Prisma.sql`
         SELECT MIN(u.started_at) AS first_recorded_at FROM ai_usage_events u WHERE ${measured}`);
       return {
@@ -73,6 +75,9 @@ export class MerchantAiUsageReader {
     const rows: string[][] = [
       ["Consumo observado de IA", report.period.from, report.period.to, report.period.time_zone],
       ["Uso informado pelos provedores; dados anteriores à coleta não são retroativos. Este arquivo não é uma fatura."],
+      ["Sessões de voz com atividade no período", report.summary.voice_sessions],
+      ["Sessões de voz com medição incompleta", report.coverage.incomplete_voice_sessions],
+      ["As sessões observadas não representam o saldo de franquia do plano."],
       ["Data", "Requisições", "Com medição", "Sem medição", "Recusadas", "Tokens de entrada", "Tokens de saída", "Texto: entrada", "Texto: saída", "Áudio: entrada", "Áudio: saída"],
       ...report.daily.map(d => [d.date, d.requests, d.measured_requests, d.pending_requests, d.rejected_requests, d.input_tokens, d.output_tokens, d.text_input_tokens, d.text_output_tokens, d.audio_input_tokens, d.audio_output_tokens]),
     ];

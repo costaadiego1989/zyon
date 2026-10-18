@@ -60,6 +60,7 @@ test("merchant AI transparency uses real SQL, sessions and tenant permissions", 
       const response = await get(period, a.token, "/export.csv");
       assert.equal(response.status, 200); assert.match(response.headers.get("content-type")!, /text\/csv/);
       const csv = await response.text(); assert.match(csv, /"2026-10-17";"5";"3";"1";"1";"230";"70"/);
+      assert.match(csv, /"Sessões de voz com atividade no período";"3"/);
       assert.doesNotMatch(csv, /123456|1000000|USD|private/);
     });
     await t.test("invalid dates and unbounded periods are rejected before database access", async () => {
