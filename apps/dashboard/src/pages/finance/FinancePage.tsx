@@ -38,6 +38,7 @@ import { showToast } from "../../components/Toast.js";
 import { PeriodFilter } from "../../components/PeriodFilter.js";
 import { StatCard, StatCardGroup } from "../overview/components/StatCard.js";
 import "./finance-page.css";
+import { AiUsageReport } from "./AiUsageReport.js";
 
 type FinanceTab = "overview" | "transactions" | "reports";
 type RangePreset = "today" | "7d" | "15d" | "30d" | "custom";
@@ -84,6 +85,7 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
   const [exporting, setExporting] = useState(false);
   const [exportError, setExportError] = useState<string | null>(null);
   const [historyReload, setHistoryReload] = useState(0);
+  const [usageReload, setUsageReload] = useState(0);
   const summaryRequest = useRef(0);
   const transactionsRequest = useRef(0);
   const exportingRef = useRef(false);
@@ -211,7 +213,7 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
       from={from}
       to={to}
       onDate={editDate}
-      action={<Button variant="outline" size="sm" onClick={() => { void loadSummary(); void loadPayouts(); if (tab === "transactions") void loadTransactions(); }} disabled={summaryLoading || payoutsLoading || transactionsLoading}><RefreshCw size={14} /> Atualizar</Button>}
+      action={<Button variant="outline" size="sm" onClick={() => { void loadSummary(); void loadPayouts(); setUsageReload(value => value + 1); if (tab === "transactions") void loadTransactions(); }} disabled={summaryLoading || payoutsLoading || transactionsLoading}><RefreshCw size={14} /> Atualizar</Button>}
     />
   );
 
@@ -234,7 +236,7 @@ export function FinancePage({ apiBaseUrl, me }: { apiBaseUrl: string; me: Mercha
       {tab !== "overview" || !validPeriod || summaryError ? periodFilter : null}
       {tab === "overview" && validPeriod && !summaryError && (summaryLoading ? <PageLoader /> : summary ? <Overview summary={summary} payouts={payouts} payoutsLoading={payoutsLoading} payoutsError={payoutsError} onTransactions={() => setTab("transactions")} onRetryPayouts={loadPayouts} periodFilter={periodFilter} /> : null)}
       {tab === "transactions" && validPeriod && <Transactions summary={summary} loading={transactionsLoading} error={transactionsError} result={transactions} type={transactionFilter} onType={(value) => { setTransactionFilter(value); setPage(1); }} method={method} onMethod={(value) => { setMethod(value); setPage(1); }} methods={availableMethods} search={search} onSearch={(value) => { setSearch(value); setPage(1); }} onPage={setPage} onRetry={loadTransactions} onSelect={setSelected} onClear={() => { setSearch(""); setMethod(""); setTransactionFilter("all"); setPage(1); }} />}
-      {tab === "reports" && <Reports period={validPeriod ? { from, to, time_zone: summary?.period.time_zone ?? "America/Sao_Paulo" } : undefined} exporting={exporting || !validPeriod} onExport={downloadCsv} />}
+      {tab === "reports" && <div className="finance-page__reports">{validPeriod ? <AiUsageReport api={api} period={period} reload={usageReload} /> : null}<Reports period={validPeriod ? { from, to, time_zone: summary?.period.time_zone ?? "America/Sao_Paulo" } : undefined} exporting={exporting || !validPeriod} onExport={downloadCsv} /></div>}
       <Modal isOpen={Boolean(selected)} title={selected?.kind === "refund" ? "Reembolso confirmado" : "Pedido concluído"} subtitle="Confira a movimentação e os registros do provedor." presentation="center" size="lg" onClose={() => setSelected(null)} footer={<Button variant="outline" onClick={() => setSelected(null)}>Fechar</Button>}>{selected ? <TransactionDetails transaction={selected} allocationHistory={allocationHistory} allocationHistoryLoading={allocationHistoryLoading} allocationHistoryError={allocationHistoryError} onRetryHistory={() => setHistoryReload(current => current + 1)} /> : null}</Modal>
     </div>
   );

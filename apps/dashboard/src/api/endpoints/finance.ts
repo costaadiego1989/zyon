@@ -7,6 +7,32 @@ export interface FinanceFilters {
   to: string;
 }
 
+export interface AiUsageTotals {
+  requests: string;
+  measured_requests: string;
+  pending_requests: string;
+  rejected_requests: string;
+  input_tokens: string;
+  output_tokens: string;
+  text_input_tokens: string;
+  text_output_tokens: string;
+  audio_input_tokens: string;
+  audio_output_tokens: string;
+}
+
+export interface MerchantAiUsage {
+  period: { from: string; to: string; time_zone: string };
+  generated_at: string;
+  summary: AiUsageTotals & { voice_sessions: string };
+  daily: Array<AiUsageTotals & { date: string }>;
+  coverage: {
+    first_recorded_at: string | null;
+    incomplete_voice_sessions: string;
+    collection: "server";
+    voice_quota_comparable: false;
+  };
+}
+
 export interface FinanceSummary {
   period: { from: string; to: string; time_zone: string };
   generated_at: string;
@@ -118,6 +144,12 @@ function queryFor(filters: FinanceTransactionsFilters): string {
 
 export function financeEndpoints(base: string, f: typeof fetch) {
   return {
+    getAiUsage(filters: FinanceFilters): Promise<MerchantAiUsage> {
+      return dashboardJson<MerchantAiUsage>(base, `/dashboard/finance/ai-usage?${queryFor(filters)}`, { method: "GET" }, f);
+    },
+    getAiUsageCsv(filters: FinanceFilters): Promise<Response> {
+      return dashboardFetch(base, `/dashboard/finance/ai-usage/export.csv?${queryFor(filters)}`, { method: "GET" }, f);
+    },
     getFinanceSummary(filters: FinanceFilters): Promise<FinanceSummary> {
       return dashboardJson<FinanceSummary>(base, `/dashboard/finance/summary?${queryFor(filters)}`, { method: "GET" }, f);
     },
