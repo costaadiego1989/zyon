@@ -129,13 +129,23 @@ export function paymentMethodsForConfig(config: MerchantPaymentConfig): PaymentM
   return methods;
 }
 
+/** Buyer choices are distinct from the provider snapshot. An explicit Pix
+ * choice is always offered and revalidated by the payment API when selected. */
+export function paymentChoicesForConfig(config: MerchantPaymentConfig): PaymentMethod[] {
+  const methods = paymentMethodsForConfig(config);
+  return methods.some((method) => method.key === "pix")
+    ? methods
+    : [{ key: "pix", label: "Pix", sub: "Pagamento instantâneo" }, ...methods];
+}
+
 /** Turns an explicit payment chip into the UI payment action it represents. */
 export function paymentMethodForQuickReply(text: string): CheckoutPaymentMethod | undefined {
   const normalized = text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
-    .toLowerCase();
+    .toLowerCase()
+    .replace(/[.!]+$/, "");
   // Treat an explicit typed payment choice exactly like its quick reply. This
   // keeps a OneBuyClick preference as a starting point, never a lock-in.
   const requested = /^(?:(?:quero|prefiro|vou|pode ser|trocar|mudar|pagar|usar(?: o)?)(?:\s+(?:para|com|no))?\s+)*/;
@@ -148,10 +158,10 @@ export function paymentMethodForQuickReply(text: string): CheckoutPaymentMethod 
   return undefined;
 }
 
-/** Removes only payment choices that are not enabled for the current store. */
+/** Pix remains selectable even when the initial provider snapshot is false. */
 export function isEnabledPaymentQuickReply(text: string, config: MerchantPaymentConfig): boolean {
   const requested = paymentMethodForQuickReply(text);
-  return !requested || paymentMethodsForConfig(config).some((method) => method.key === requested);
+  return !requested || paymentChoicesForConfig(config).some((method) => method.key === requested);
 }
 
 export interface BuyerData {
@@ -258,6 +268,8 @@ interface CheckoutState {
   channel: "chat" | "voice";
 
   paymentIntent: PaymentIntent | null;
+  /** This order's explicit choice; never writes the buyer's saved preference. */
+  selectedPaymentMethod: CheckoutPaymentMethod | null;
   pendingPriceReview: PendingPriceReview | null;
   paymentSubmitting: boolean;
   paymentPolling: boolean;
@@ -459,7 +471,7 @@ function deriveBlocksFromStage(
   }
 
   if (stage === "payment") {
-    const methods = paymentMethodsForConfig(state.merchantPaymentConfig);
+    const methods = paymentChoicesForConfig(state.merchantPaymentConfig);
     return [{ type: "coupon_input", data: { methods } }];
   }
 
@@ -517,6 +529,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   chatResponseUnavailable: false,
   channel: "chat",
   paymentIntent: null,
+  selectedPaymentMethod: null,
   pendingPriceReview: null,
   paymentSubmitting: false,
   paymentPolling: false,
@@ -544,7 +557,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     try {
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, onRefreshEmbedToken, paymentRevision });
       get().stopPolling();
-      set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
+      set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null, selectedPaymentMethod: null,
         pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false, quickPurchaseApplying: false });
 
       const response = await api.start();
@@ -769,6 +782,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   sendMessage: async (text) => {
     const editSection = checkoutEditIntent(text);
     if (get().status === "completed" || get().isTyping || get().chatRecovery || (get().api?.requiresChatRecovery && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
+    const explicitPayment = paymentMethodForQuickReply(text);
+    const latestAgent = [...get().messages].reverse().find((message) => message.role === "agent");
+    if (explicitPayment && (get().paymentIntent || get().cart.status === "ready_to_pay"
+      || (get().selectedPaymentMethod && get().cart.shipping)
+      || latestAgent?.checkoutStage === "payment" || latestAgent?.checkoutStage === "payment_pending"
+      || latestAgent?.blocks?.some((block) => block.type === "payment_methods"))) {
+      await get().changePaymentMethod(explicitPayment);
+      return;
+    }
     const lastPaymentMessage = [...get().messages].reverse().find(message => message.role === "agent");
     if (text.trim().toLowerCase() === "tentar novamente" && lastPaymentMessage?.paymentRetry) {
       const retry = lastPaymentMessage.paymentRetry;
@@ -865,7 +887,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const lastAgentMessage = [...messages].reverse().find((message) => message.role === "agent");
     if (text.startsWith("Entrega ·") && !lastAgentMessage?.checkoutStage) {
       const { merchantPaymentConfig } = get();
-      const methods = paymentMethodsForConfig(merchantPaymentConfig);
+      const methods = paymentChoicesForConfig(merchantPaymentConfig);
       set((s) => ({
         messages: [...s.messages, {
           id: `agent_${Date.now()}`, role: "agent",
@@ -1304,7 +1326,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
-    const availableMethods = paymentMethodsForConfig(get().merchantPaymentConfig);
+    const availableMethods = paymentChoicesForConfig(get().merchantPaymentConfig);
     if (!availableMethods.some((available) => available.key === method)) {
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
@@ -1316,6 +1338,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
+    set({ selectedPaymentMethod: method });
     const shippingChosen = Boolean(cart.shipping) ||
       cart.status === "shipping_calculated" || cart.status === "ready_to_pay";
     if (!shippingChosen) {
@@ -1572,7 +1595,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   changePaymentMethod: async (method) => {
     const current = get();
-    const available = paymentMethodsForConfig(current.merchantPaymentConfig);
+    if (current.status === "completed" || current.isTyping || current.paymentSubmitting || current.paymentCreating
+      || current.cartUpdating || current.chatRecovery || current.api?.requiresChatRecovery
+      || (current.paymentIntent && ["approved", "refunded"].includes(current.paymentIntent.status))) return;
+    const available = paymentChoicesForConfig(current.merchantPaymentConfig);
     const selected = available.find((payment) => payment.key === method);
     if (!selected) {
       set((state) => ({ messages: [...state.messages, {
@@ -1584,6 +1610,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
+    set({ selectedPaymentMethod: method });
     // No prior intent exists yet: this is a normal first selection.
     if (!current.paymentIntent) {
       await get().pay(method);
@@ -1603,7 +1630,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       // new Pix/card intent is never started until it has confirmed that the
       // old intent is no longer payable.
       const experience = await current.api.reopenCheckout("payment");
-      if (get().api !== current.api) return;
+      if (get().api !== current.api || get().status === "completed") return;
       get().stopPolling();
       set((state) => ({
         paymentIntent: null,
@@ -1611,7 +1638,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         pendingPayment: null,
         activeDiscount: null,
         isTyping: false,
-        cart: { ...cartFromExperience(experience), status: experience.shipping ? "shipping_calculated" : "awaiting" },
+        cart: { ...cartFromExperience(experience), status: experience.shipping ? "ready_to_pay" : "awaiting" },
         messages: state.messages.map((message) => ({
           ...message,
           blocks: message.blocks?.filter((block) => ![
@@ -1621,12 +1648,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }));
       await get().pay(method);
     } catch {
+      if (get().api !== current.api) return;
       set((state) => ({
         isTyping: false,
         messages: [...state.messages, {
           id: `payment_change_error_${Date.now()}`,
           role: "agent",
-          text: "Ainda não foi possível trocar a forma de pagamento. Confirmei que o pagamento anterior ainda está sendo cancelado; tente novamente em instantes.",
+          text: "Ainda não foi possível trocar a forma de pagamento. Aguarde a confirmação do cancelamento do pagamento anterior e tente novamente.",
           timestamp: Date.now(),
         }],
       }));
@@ -1658,10 +1686,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   proceedToPayment: (methods) => {
     const s = get();
-    const permitted = paymentMethodsForConfig(s.merchantPaymentConfig);
+    const permitted = paymentChoicesForConfig(s.merchantPaymentConfig);
     const permittedKeys = new Set(permitted.map((method) => method.key));
     const requested = methods?.filter((method) => permittedKeys.has(method.key)) ?? [];
-    const list = requested.length > 0 ? requested : permitted;
+    const list = [...requested, ...permitted.filter((method) => !requested.some((choice) => choice.key === method.key))];
     set((st) => ({
       messages: [...st.messages, {
         id: `agent_pay_${Date.now()}`,
@@ -1729,6 +1757,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       cart: { items: [], total: 0, serviceFee: 0, discount: 0, status: "awaiting" },
       messages: [],
       paymentIntent: null,
+      selectedPaymentMethod: null,
       pendingPriceReview: null,
       paymentSubmitting: false,
       paymentPolling: false,

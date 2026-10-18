@@ -3,8 +3,7 @@ import { useState, useRef, useEffect } from "react";
 import {
   type CheckoutPaymentMethod,
   isEnabledPaymentQuickReply,
-  paymentMethodsForConfig,
-  paymentMethodForQuickReply,
+  paymentChoicesForConfig,
   useCheckoutStore,
 } from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
@@ -39,10 +38,10 @@ export function ChatPanel() {
   const chatResponseUnavailable = useCheckoutStore((s) => s.chatResponseUnavailable);
   const connectionStatus = useChatRecovery();
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
-  const pay = useCheckoutStore((s) => s.pay);
   const changePaymentMethod = useCheckoutStore((s) => s.changePaymentMethod);
   const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
+  const selectedPaymentMethod = useCheckoutStore((s) => s.selectedPaymentMethod);
   const quickPurchaseApplying = useCheckoutStore((s) => s.quickPurchaseApplying);
   const quickPurchaseStarted = useCheckoutStore((s) => s.quickPurchaseStarted);
   const oneBuyClickPreferences = useCheckoutStore((s) => s.oneBuyClickPreferences);
@@ -121,36 +120,26 @@ export function ChatPanel() {
     lastAgentMsg?.checkoutStage === "payment" ||
     lastAgentMsg?.blocks?.some((block) => block.type === "payment_methods") ||
     cart.status === "ready_to_pay" ||
+    (selectedPaymentMethod && cart.shipping) ||
     paymentIntent,
   );
-
-  const handlePaymentChoice = (text: string): boolean => {
-    // Server-owned stages must retain the durable chat request and recovery flow.
-    if (lastAgentMsg?.checkoutStage) return false;
-    const method = paymentMethodForQuickReply(text);
-    if (!method || !isPaymentChoiceStage) return false;
-    // A preference only chooses the first offer. An explicit quick reply or
-    // typed "Pix" can replace a pending card/payment intent only after the
-    // store has authoritatively cancelled that intent on the API.
-    if (paymentIntent) void changePaymentMethod(method);
-    else if (isEnabledPaymentQuickReply(text, merchantPaymentConfig)) void pay(method);
-    else void changePaymentMethod(method);
-    return true;
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isTyping || chatRecovery || paymentCreating) return;
-    if (!handlePaymentChoice(input.trim())) void sendMessage(input.trim());
+    void sendMessage(input.trim());
     setInput("");
   };
 
   const handleQuickReply = (text: string) => {
     if (isTyping || chatRecovery || paymentCreating) return;
-    if (!handlePaymentChoice(text)) void sendMessage(text);
+    void sendMessage(text);
   };
 
-  const activeQuickReplies = (lastAgentMsg?.quickReplies ?? [])
+  const paymentChoiceReplies = isPaymentChoiceStage && !paymentIntent
+    ? paymentChoicesForConfig(merchantPaymentConfig).map((method) => method.label)
+    : [];
+  const activeQuickReplies = [...new Set([...(lastAgentMsg?.quickReplies ?? []), ...paymentChoiceReplies])]
     .filter((quickReply) => isEnabledPaymentQuickReply(quickReply, merchantPaymentConfig));
 
   return (
@@ -209,8 +198,8 @@ export function ChatPanel() {
                 {label}
               </button>
             ))}
-            {paymentMethodsForConfig(merchantPaymentConfig)
-              .filter((method) => !(paymentIntent.method === "card" && ["credito", "debito"].includes(method.key)) && paymentIntent.method !== method.key)
+            {paymentChoicesForConfig(merchantPaymentConfig)
+              .filter((method) => !(["card", "credito", "debito"].includes(paymentIntent.method) && ["credito", "debito"].includes(method.key)) && paymentIntent.method !== method.key)
               .map((method) => (
                 <button key={`switch-${method.key}`} data-neu="control" type="button" disabled={isTyping || paymentCreating}
                   onClick={() => void changePaymentMethod(method.key as CheckoutPaymentMethod)} style={{ minHeight: 44, padding: "8px 12px", borderRadius: 14,

@@ -1,6 +1,6 @@
 import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
 import { createPortal } from "react-dom";
-import { paymentMethodsForConfig, useCheckoutStore } from "@/store/checkout-store";
+import { paymentChoicesForConfig, useCheckoutStore } from "@/store/checkout-store";
 import { confirmCryptoPayment } from "@/api/payment";
 import { PulseAgentOrb } from "../PulseAgentOrb";
 import { PerimeterBorder } from "../PerimeterBorder";
@@ -203,17 +203,21 @@ function shippingPriority(
 }
 
 function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
-  const pay = useCheckoutStore((s) => s.pay);
+  const changePaymentMethod = useCheckoutStore((s) => s.changePaymentMethod);
   const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
+  const isTyping = useCheckoutStore((s) => s.isTyping);
+  const selectedPaymentMethod = useCheckoutStore((s) => s.selectedPaymentMethod);
   const merchantPaymentConfig = useCheckoutStore((s) => s.merchantPaymentConfig);
   const preference = useCheckoutStore((s) => s.oneBuyClickPreferences?.paymentPreference);
-  const permittedKeys = new Set(paymentMethodsForConfig(merchantPaymentConfig).map((method) => method.key));
-  const meths = ((methods as Array<{ key: string; label: string; sub?: string }>) ?? [])
+  const choices = paymentChoicesForConfig(merchantPaymentConfig);
+  const permittedKeys = new Set(choices.map((method) => method.key));
+  const requested = Array.isArray(methods) ? methods as Array<{ key: string; label: string; sub?: string }> : [];
+  const meths = [...requested, ...choices.filter((choice) => !requested.some((method) => method.key === choice.key))]
     .filter((method) => permittedKeys.has(method.key))
     .sort((left, right) => paymentPriority(left.key, preference) - paymentPriority(right.key, preference));
 
   const handleSelect = (method: (typeof meths)[0]) => {
-    void pay(method.key as "pix" | "boleto" | "credito" | "debito" | "crypto");
+    void changePaymentMethod(method.key as "pix" | "boleto" | "credito" | "debito" | "crypto");
   };
 
   return (
@@ -223,7 +227,8 @@ function PaymentMethodsBlock({ methods }: { methods?: unknown }) {
       {meths.map((m) => (
         <button data-neu="choice"
           key={m.key}
-          disabled={paymentCreating}
+          disabled={paymentCreating || isTyping}
+          aria-pressed={selectedPaymentMethod === m.key}
           onClick={() => handleSelect(m)}
           style={{
             padding: "10px 12px",
