@@ -54,6 +54,10 @@ export class ConfirmStripePaymentUseCase {
     if (snap.method !== "card") {
       throw new BadRequestException("payment_intent_not_card");
     }
+    const original = snap.creation?.input;
+    if (original?.provider && original.provider !== "stripe") {
+      throw new BadRequestException("payment_intent_not_stripe");
+    }
     if (snap.status === "approved") {
       return { status: "approved", intent_id: intentId };
     }
@@ -61,11 +65,23 @@ export class ConfirmStripePaymentUseCase {
       throw new BadRequestException("payment_intent_not_confirmable");
     }
 
+    // Direct charges exist on the original connected account, not the
+    // platform. Never resolve a different account from today's store settings.
+    const direct = original?.stripeChargeMode === "direct_v2";
+    if (direct && !/^acct_[A-Za-z0-9]+$/.test(original.stripeConnectAccountId ?? "")) {
+      throw new BadRequestException("stripe_original_account_unproven");
+    }
     const pi = isE2ePaymentStubEnabled() && snap.providerPaymentId.startsWith("pi_e2e_")
-      ? { id: snap.providerPaymentId, status: "succeeded", amount_received: snap.amountCents }
-      : await this.stripe.paymentIntents.retrieve(snap.providerPaymentId);
+      ? { id: snap.providerPaymentId, status: "succeeded", amount: snap.amountCents, amount_received: snap.amountCents,
+          currency: snap.currency.toLowerCase(), metadata: { merchant_id: merchantId, session_id: sessionId, intent_id: intentId } }
+      : await this.stripe.paymentIntents.retrieve(snap.providerPaymentId, undefined,
+          direct ? { stripeAccount: original.stripeConnectAccountId } : undefined);
     if (pi.status !== "succeeded") {
       throw new BadRequestException(`stripe_payment_not_succeeded:${pi.status}`);
+    }
+    if (pi.id !== snap.providerPaymentId || pi.amount !== snap.amountCents || pi.currency?.toUpperCase() !== snap.currency.toUpperCase() ||
+        (direct && (pi.metadata?.merchant_id !== merchantId || pi.metadata?.session_id !== sessionId || pi.metadata?.intent_id !== intentId))) {
+      throw new BadRequestException("stripe_payment_confirmation_mismatch");
     }
 
     const intent = PaymentIntentEntity.rehydrate(snap);
