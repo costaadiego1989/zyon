@@ -34,6 +34,8 @@ import { PlatformSupportRateLimiter } from "../src/modules/platform-support/infr
 import { PlatformSupportRelay } from "../src/modules/platform-support/infrastructure/platform-support-relay.js";
 import { PlatformSupportGateway } from "../src/modules/platform-support/presentation/platform-support.gateway.js";
 import { MerchantPlatformSupportController, OperatorPlatformSupportController } from "../src/modules/platform-support/presentation/platform-support.controller.js";
+import { MerchantAiUsageController } from "../src/modules/ai-metering/merchant-ai-usage.controller.js";
+import { MerchantAiUsageReader } from "../src/modules/ai-metering/merchant-ai-usage.reader.js";
 
 @Controller("platform/auth")
 class FixtureAuthController {
@@ -100,9 +102,9 @@ export async function createSupportFixture(options: { aiMetering?: boolean } = {
     async function start(port = 0) {
       const localBus = apps.length ? new InMemoryDomainEventBus() : bus;
       class FixtureModule {}
-      Module({ controllers: [MerchantPlatformSupportController, OperatorPlatformSupportController, FixtureAuthController, ...(options.aiMetering ? [AiCostsController] : [])], providers: [
+      Module({ controllers: [MerchantPlatformSupportController, OperatorPlatformSupportController, FixtureAuthController, ...(options.aiMetering ? [AiCostsController, MerchantAiUsageController] : [])], providers: [
         { provide: PRISMA_CROSS_MERCHANT_CLIENT, useValue: prisma }, { provide: TenantContextService, useValue: context },
-        ...(options.aiMetering ? [AiMeteringService, AiCostsReader] : []),
+        ...(options.aiMetering ? [AiMeteringService, AiCostsReader, MerchantAiUsageReader] : []),
         { provide: PRISMA_CLIENT, useValue: wrapped }, { provide: REDIS_CLIENT_TOKEN, useValue: redis },
         { provide: DOMAIN_EVENT_BUS, useValue: localBus },
         { provide: JwtService, useValue: merchantJwt }, { provide: PlatformJwtService, useValue: operatorJwt }, { provide: AuthCookieService, useValue: cookies },
