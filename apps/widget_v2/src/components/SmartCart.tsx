@@ -1,3 +1,4 @@
+import { useState } from "react";
 import { useCheckoutStore } from "@/store/checkout-store";
 import type { CartItem } from "@/api/checkout-session";
 import { buyerServiceFeeCopy, checkoutLocale, checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
@@ -57,13 +58,21 @@ function QuantityStepper({ item, controlsDisabled, onQuantityChange, onRemove }:
 function CartProduct({ item, controlsDisabled, onQuantityChange, onRemove, formatPrice }: CartHandlers & { item: CartItem; formatPrice: (value: number) => string }) {
   const unitPrice = item.price_cents != null ? item.price_cents / 100 : item.price;
   const variantLabel = item.variantLabel ?? (item.variant?.trim().startsWith("[") ? undefined : item.variant);
-  const imageStyle = item.imageUrl
-    ? { background: `url(${item.imageUrl}) center / cover no-repeat` }
-    : { background: "repeating-linear-gradient(135deg,var(--tile1),var(--tile1) 6px,var(--tile2) 6px,var(--tile2) 12px)" };
+  const imageSrc = item.imageUrl?.trim();
+  const [failedImage, setFailedImage] = useState<string>();
+  const hasImage = Boolean(imageSrc && imageSrc !== failedImage);
 
   return (
     <article data-neu="surface" className="checkout-cart__product">
-      <div className="checkout-cart__product-image" style={imageStyle} role="img" aria-label={item.name} />
+      <div className="checkout-cart__product-image" role="img" aria-label={hasImage ? item.name : `Imagem indisponível: ${item.name}`}>
+        {hasImage ? <img src={imageSrc} alt="" onError={() => setFailedImage(imageSrc)} /> : (
+          <svg data-cart-image-placeholder width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+            <line x1="16.5" y1="9.4" x2="7.5" y2="4.21" />
+            <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+            <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+          </svg>
+        )}
+      </div>
       <div className="checkout-cart__product-copy">
         <strong className="checkout-cart__product-name">{item.name}</strong>
         {variantLabel?.trim() && <span className="checkout-cart__product-variant">{variantLabel}</span>}
@@ -217,7 +226,8 @@ export function SmartCart() {
         .checkout-cart__items { min-height: 0; flex: 1; overflow-y: auto; padding: 0 2px; scrollbar-width: thin; scrollbar-color: var(--bd) transparent; }
         .checkout-cart__product { display: grid; grid-template-columns: 52px minmax(0, 1fr); column-gap: 12px; row-gap: 10px; align-items: start; padding: 13px; border: 1px solid var(--bd); border-radius: 16px; background: var(--card); }
         .checkout-cart__product + .checkout-cart__product { margin-top: 10px; }
-        .checkout-cart__product-image { grid-row: span 2; width: 52px; height: 52px; overflow: hidden; border: 1px solid var(--bd); border-radius: 13px; background: var(--chip); }
+        .checkout-cart__product-image { grid-row: span 2; width: 52px; height: 52px; overflow: hidden; border: 1px solid var(--bd); border-radius: 13px; background: var(--chip); display: grid; place-items: center; color: var(--mut); }
+        .checkout-cart__product-image img { width: 100%; height: 100%; object-fit: cover; display: block; }
         .checkout-cart__product-copy { min-width: 0; }
         .checkout-cart__product-name { display: -webkit-box; overflow: hidden; color: var(--tx); font-size: 13.5px; font-weight: 700; line-height: 1.28; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
         .checkout-cart__product-price { display: block; margin-top: 3px; color: var(--mut); font-size: 10.5px; line-height: 1.35; }
