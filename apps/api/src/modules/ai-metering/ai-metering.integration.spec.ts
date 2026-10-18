@@ -47,6 +47,9 @@ test("AI cost capture, guarded reports and durable usage run against real Postgr
       const event={type:"response.done",response:{id,status:"completed",usage:{input_tokens:130,output_tokens:60,total_tokens:190,input_token_details:{text_tokens:100,audio_tokens:30,cached_tokens:0},output_token_details:{text_tokens:40,audio_tokens:20}}}};
       await meter.observeVoice(context,scope,session.model,event);await meter.observeVoice(context,scope,session.model,event);
       const row=await db.aiUsageEvent.findFirstOrThrow({where:{providerEventId:id}});assert.equal(row.costMicros,856n);assert.equal(row.audioCostMicros,700n);assert.equal(await db.aiUsageEvent.count({where:{providerEventId:id}}),1);
+      await meter.observeVoice(context,scope,session.model,{type:"response.completed",response:{id,status:"completed"}});
+      assert.equal((await db.aiUsageEvent.findUniqueOrThrow({where:{id:row.id}})).costMicros,856n);
+      assert.equal((await db.aiUsageEvent.findUniqueOrThrow({where:{id:row.id}})).usageKnown,true);
       await meter.rememberVoicePermit("test-permit",context);assert.equal((await meter.voicePermitContext("test-permit",merchantId,"voice-conversation")).voiceSessionId,session.id);await assert.rejects(meter.voicePermitContext("test-permit",f.merchants.growth!.id,"voice-conversation"));
       await withAiMetering(context,()=>call(merchantId));const calls=await db.aiUsageEvent.findMany({where:{voiceSessionId:session.id}});assert.equal(calls.length,2);assert(calls.every(x=>x.costCenter==="voice"));
     });
