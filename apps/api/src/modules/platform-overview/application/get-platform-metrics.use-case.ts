@@ -47,19 +47,19 @@ export class GetPlatformMetricsUseCase {
           status: financialAvailable ? "partial" as const : "unavailable" as const,
           observed_receivables: snapshot.financial.observedReceivableCount,
           observed_since: snapshot.financial.observedSince?.toISOString() ?? null,
-          description: "Pagamentos de assinatura no estado atual recebidos de eventos autenticados de Asaas, Stripe e Mercado Pago. Nao e uma conciliacao contabil entre provedores.",
+          description: "Pagamentos informados por Asaas, Stripe e Mercado Pago. Os valores ainda não estão conciliados entre os provedores.",
         },
         subscriptions: {
           status: snapshot.subscriptions.activeContractMissingAmountCount === 0 ? "partial" as const : "partial" as const,
-          description: "MRR contratual normaliza contratos locais ativos; nao confirma liquidacao ou conciliacao de pagamento.",
+          description: "A receita mensal recorrente considera os contratos locais ativos, sem confirmar a liquidação dos pagamentos.",
         },
         ai: {
           status: "partial" as const,
-          description: "Chat e capturado no servidor. Voz e capturada no servidor a partir dos eventos do provedor e custos precisam de conciliacao da fatura do provedor.",
+          description: "Texto e voz são medidos no servidor a partir das respostas dos provedores. Os custos estimados ainda precisam de conciliação com a fatura.",
         },
         platform_fees: {
           status: "unavailable" as const,
-          description: "Taxas da plataforma e resultado apos IA ainda nao possuem diario financeiro conciliado e conversao de moeda para calculo confiavel.",
+          description: "O cálculo depende de registros financeiros conciliados e conversão de moeda.",
         },
       },
       financial: {

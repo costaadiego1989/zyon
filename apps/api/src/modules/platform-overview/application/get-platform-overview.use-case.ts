@@ -74,11 +74,11 @@ function presentOverview(
       },
       ai_chat: {
         status: "partial",
-        description: "Captura inicial do agente storefront; custos podem permanecer sem preço até revisão da tabela de preços.",
+        description: "Chamadas de texto medidas no servidor. Uso ou tarifa ausentes permanecem pendentes de apuração.",
       },
       ai_voice: {
         status: "partial",
-        description: "Eventos finais do provedor são encaminhados pelo cliente com sessão vinculada; o resumo desta visão não soma voz e exige conciliação de fatura.",
+        description: "Uso de voz recebido diretamente do provedor pelo servidor. Os custos aparecem nas métricas por período e em Uso de IA; valores estimados ainda precisam de conciliação com a fatura.",
       },
       infrastructure: {
         status: "partial",
