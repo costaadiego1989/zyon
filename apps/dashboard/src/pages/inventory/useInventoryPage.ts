@@ -3,7 +3,6 @@ import type { MerchantProfile } from "../../api-client.js";
 import type { ErpConnectionDTO } from "../../api/endpoints/inventory.js";
 import { useApi } from "../../hooks/useApi.js";
 import { showToast } from "../../components/Toast.js";
-import { erpErrorMessage } from "./erp-connection-feedback.js";
 
 export function useInventoryPage(options: {
   me: MerchantProfile | null;
@@ -69,7 +68,7 @@ export function useInventoryPage(options: {
         showToast("success", `${erpConnected} conectado com sucesso`);
         void loadData(); // Reload to fetch updated connections
       } else {
-        showToast("error", erpErrorMessage(erpError));
+        showToast("error", "Não foi possível concluir a conexão com o ERP. Tente novamente.");
       }
       // Keep the explicit #inventory deep link after consuming callback params.
       window.history.replaceState({}, document.title, `${window.location.pathname}${window.location.hash}`);
@@ -135,7 +134,6 @@ export function useInventoryPage(options: {
     } catch (err) {
       // Credential forms keep a persistent inline error beside the entered fields.
       if (provider !== "omie" && provider !== "tiny") showToast("error", `Não foi possível conectar ${provider}. Tente novamente.`);
-      else throw err;
       return false;
     }
   }, [api, options.me, loadData]);

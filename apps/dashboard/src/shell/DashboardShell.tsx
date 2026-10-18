@@ -342,7 +342,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
       {/* ── SIDEBAR ── */}
       <aside style={{ width: 252, flex: "none", background: "var(--sidebar-bg)", display: "flex", flexDirection: "column", padding: "20px 14px", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px 18px", borderBottom: "1px solid var(--sidebar-border)", marginBottom: 14 }}>
-          <img src="/zyon-z.png" alt="Zyon" width="44" height="33" style={{ width: 44, height: 33, objectFit: "contain", flex: "none" }} />
+          <img src="/logo-zyon.png" alt="Zyon" style={{ width: 50, height: 50, borderRadius: 10, objectFit: "cover", flex: "none" }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, font: "600 15px var(--serif)", letterSpacing: "-0.01em", color: "var(--sidebar-text)" }}>
               Zyon Console

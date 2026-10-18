@@ -6,16 +6,12 @@ import { showToast } from "../../components/Toast.js";
 import type { BillingSubscription } from "../../api/types.js";
 import type { PlanDef } from "./components/PlanCard.js";
 import { toPlanDef, selectedBillingOffer } from "./plan-catalog.js";
-import { billingCheckoutError } from "./billing-checkout-error.js";
-import { useAutomaticBillingPromotions } from "./useAutomaticBillingPromotions.js";
 
 export function useBillingPlansPage() {
   const api = useApi();
-  const automaticPromotions = useAutomaticBillingPromotions();
   const [billingCycle, setBillingCycle] = useBillingCycle();
   const [pendingChange, setPendingChange] = useState<PlanDef | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [promotionCode, setPromotionCode] = useState("");
   const [loading, setLoading] = useState(true);
   const [upgrading, setUpgrading] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -53,16 +49,12 @@ export function useBillingPlansPage() {
       if (subscription?.billing_provider === "asaas") {
         setError("Para alterar o plano, selecione uma opção abaixo. Para cancelamento, entre em contato com o atendimento."); return;
       }
-      if (plan && plan !== "starter" && !hasSubscription && (automaticPromotions.loading || automaticPromotions.error)) {
-        setError("Não foi possível conferir as campanhas. Atualize a página antes de contratar."); return;
-      }
-      const code = promotionCode.trim() || (plan ? automaticPromotions.forPlan(plan, billingCycle)?.code : undefined);
       const session = !plan || hasSubscription || plan === "starter"
         ? await api.createBillingPortalSession({})
-        : await api.createBillingCheckoutSession({ plan, billingCycle, ...(billingCycle === "monthly" && code ? { promotionCode: code } : {}) });
+        : await api.createBillingCheckoutSession({ plan, billingCycle });
       window.location.assign(session.url);
-    } catch (error) {
-      const message = billingCheckoutError(error, "Não foi possível abrir o pagamento. Tente novamente em instantes.");
+    } catch {
+      const message = "Não foi possível abrir o pagamento. Tente novamente em instantes.";
       setError(message);
       showToast("error", message);
     } finally { setUpgrading(false); }
@@ -82,9 +74,7 @@ export function useBillingPlansPage() {
   const percentage = (current?: number | null, limit?: number | null) => limit && limit > 0 ? Math.round((current ?? 0) / limit * 100) : 0;
   const date = subscription?.status === "trialing" ? subscription.trial_end : subscription?.current_period_end;
   return {
-    loading, upgrading, error, subscription, plans: plans.map(plan => ({ ...plan, promotion: (!subscription?.has_subscription || ["cancelled", "canceled", "incomplete_expired"].includes(subscription.status)) && !promotionCode.trim() ? automaticPromotions.forPlan(plan.key, billingCycle) : undefined })), refresh, notice,
-    promotionCode, setPromotionCode,
-    canUsePromotion: !subscription?.has_subscription || ["cancelled", "canceled", "incomplete_expired"].includes(subscription.status),
+    loading, upgrading, error, subscription, plans, refresh, notice,
     billingCycle, setBillingCycle: (cycle: BillingCycle) => { setPendingChange(null); setBillingCycle(cycle); },
     pendingChange, dismissChange: () => setPendingChange(null), confirmChange,
     annualAvailable: plans.some(p => p.annualCheckoutAvailable),

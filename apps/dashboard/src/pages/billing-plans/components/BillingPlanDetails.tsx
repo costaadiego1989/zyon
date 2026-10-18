@@ -1,6 +1,6 @@
 import React from "react";
 import { Check } from "lucide-react";
-import { BILLING_PLAN_PRESENTATION, BUYER_SERVICE_FEE_CENTS, promotionalBillingPrice, billingPromotionDuration, type BillingCycle } from "@zyon/shared-types";
+import { BILLING_PLAN_PRESENTATION, BUYER_SERVICE_FEE_CENTS, type BillingCycle } from "@zyon/shared-types";
 import type { PlanDef } from "./PlanCard.js";
 import { billingMoney, selectedBillingOffer } from "../plan-catalog.js";
 import "./billing-plan-details.css";
@@ -11,7 +11,6 @@ export function BillingPlanDetails({ plan, billingCycle, choice }: {
 }) {
   const copy = BILLING_PLAN_PRESENTATION[plan.key];
   const offer = selectedBillingOffer(plan, billingCycle);
-  const promotion = billingCycle === "monthly" && plan.key !== "starter" ? plan.promotion : undefined;
   const visibleFeatures = plan.features.slice(0, 5);
   const additionalFeatures = plan.features.slice(5);
   return <div className="billing-plan-details">
@@ -19,9 +18,7 @@ export function BillingPlanDetails({ plan, billingCycle, choice }: {
     <div className="billing-plan-details__heading"><h2>{plan.name}</h2>{choice}</div>
     <p className="billing-plan-details__description">{copy.description}</p>
     <div className="billing-plan-details__pricing">
-      {promotion && offer && <p className="billing-promotion-original">De <s>{billingMoney(offer.amountCents)}</s> por</p>}
-      <div className="billing-plan-details__price"><strong>{offer ? billingMoney(promotion ? promotionalBillingPrice(offer.amountCents, promotion) : offer.equivalentMonthlyCents) : "Indisponível"}</strong>{offer && <span>/mês</span>}</div>
-      {promotion && offer && <p className="billing-promotion-terms">{promotion.name} · {billingPromotionDuration(promotion)}.{promotion.duration !== "forever" && <> Depois, {billingMoney(offer.amountCents)}/mês.</>}{promotion.firstTimeOnly && <> Apenas para clientes sem pagamentos anteriores.</>}</p>}
+      <div className="billing-plan-details__price"><strong>{offer ? billingMoney(offer.equivalentMonthlyCents) : "Indisponível"}</strong>{offer && <span>/mês</span>}</div>
       <p>{plan.key === "starter"
         ? `${plan.trialDays ?? 14} dias para conhecer a Zyon, sem taxa Zyon por transação nesse período. Depois, escolha Growth ou Scale para manter a loja publicada.`
         : `${plan.fee} por transação. Tarifa fixa por compra.`}</p>

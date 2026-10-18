@@ -17,7 +17,6 @@ import { FilterToolbar } from "../../components/FilterToolbar.js";
 import { useInventoryPage } from "./useInventoryPage.js";
 import { formatMovementQuantity, inventoryAdjustment } from "./inventory-display.js";
 import { centsToReais, reaisToCents } from "../../utils/currency.js";
-import { erpConnectionFeedback, erpErrorMessage } from "./erp-connection-feedback.js";
 
 export interface InventoryPageProps {
   apiBaseUrl: string;
@@ -728,16 +727,14 @@ interface ErpProviderCardProps {
   onSync: (id: string) => void;
 }
 
-export function ErpProviderCard({ provider, name, description, connection, onConnect, onDisconnect, onSync }: ErpProviderCardProps) {
+function ErpProviderCard({ provider, name, description, connection, onConnect, onDisconnect, onSync }: ErpProviderCardProps) {
   const status = connection?.status ?? "disconnected";
-  const feedback = erpConnectionFeedback(connection);
   const statusConfig: Record<string, { bg: string; color: string; label: string }> = {
-    success: { bg: "var(--color-success-bg)", color: "var(--color-success)", label: feedback.label },
-    neutral: { bg: "var(--surface-2)", color: "var(--color-text-muted)", label: feedback.label },
-    warning: { bg: "var(--color-warning-bg)", color: "var(--color-warning)", label: feedback.label },
-    error: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: feedback.label },
+    connected: { bg: "var(--color-success-bg)", color: "var(--color-success)", label: "Conectado" },
+    disconnected: { bg: "var(--surface-2)", color: "var(--color-text-faint)", label: "Não conectado" },
+    error: { bg: "var(--color-error-bg)", color: "var(--color-error)", label: "Erro" },
   };
-  const statusInfo = statusConfig[feedback.variant];
+  const statusInfo = statusConfig[status] ?? statusConfig.disconnected;
   const [showCredentialModal, setShowCredentialModal] = React.useState(false);
   const [omieAppKey, setOmieAppKey] = React.useState("");
   const [omieAppSecret, setOmieAppSecret] = React.useState("");
@@ -760,8 +757,6 @@ export function ErpProviderCard({ provider, name, description, connection, onCon
       setOmieAppKey("");
       setOmieAppSecret("");
       setTinyApiToken("");
-    } catch (error) {
-      setCredentialError(erpErrorMessage(error));
     } finally {
       setOmieLoading(false);
     }
@@ -806,11 +801,10 @@ export function ErpProviderCard({ provider, name, description, connection, onCon
       </p>
 
       {/* Last sync */}
-      {feedback.message && (
-        <p role="status" style={{ fontSize: 12, color: feedback.variant === "warning" ? "var(--color-warning)" : "var(--color-error)", margin: 0 }}>
-          {feedback.message}
-          {connection?.lastErrorAt ? ` ${new Date(connection.lastErrorAt).toLocaleString("pt-BR")}` : ""}
-          {feedback.paused && connection?.retryAfterAt ? ` Próxima tentativa a partir de ${new Date(connection.retryAfterAt).toLocaleString("pt-BR")}.` : ""}
+      {connection?.lastErrorCode && (
+        <p role="status" style={{ fontSize: 12, color: "var(--color-error)", margin: 0 }}>
+          {connection.lastErrorCode.includes("token_refresh_failed") ? "A conexão precisa ser reautorizada. Reconecte o ERP para retomar a sincronização." : "A última sincronização falhou. Confira a conexão antes de tentar novamente."}
+          {connection.lastErrorAt ? ` ${new Date(connection.lastErrorAt).toLocaleString("pt-BR")}` : ""}
         </p>
       )}
       {connection?.lastSyncAt && (
@@ -821,26 +815,29 @@ export function ErpProviderCard({ provider, name, description, connection, onCon
 
       {/* Actions */}
       <div style={{ display: "flex", gap: 8, marginTop: "auto" }}>
-        {status === "disconnected" || status === "error" || feedback.requiresReconnect ? (
+        {connection?.lastErrorCode?.includes("token_refresh_failed") && status === "connected" && <Button variant="outline" size="sm" onClick={handleOAuthConnect}>Reconectar</Button>}
+        {status === "disconnected" || status === "error" ? (
           <>
             {isCredentialProvider ? (
               <Button data-testid={`erp-connect-${provider}`} variant="primary" size="sm" onClick={() => setShowCredentialModal(true)}>
-                <Plug size={12} style={{ marginRight: 4 }} /> {connection ? "Atualizar chaves" : "Conectar"}
+                <Plug size={12} style={{ marginRight: 4 }} /> Conectar
               </Button>
             ) : (
-              <Button data-testid={`erp-connect-${provider}`} disabled={feedback.supportRequired} variant="primary" size="sm" onClick={handleOAuthConnect}>
-                <Plug size={12} style={{ marginRight: 4 }} /> {connection ? "Reconectar" : "Conectar"}
+              <Button data-testid={`erp-connect-${provider}`} variant="primary" size="sm" onClick={handleOAuthConnect}>
+                <Plug size={12} style={{ marginRight: 4 }} /> Conectar
               </Button>
             )}
           </>
         ) : (
           <>
-            <Button data-testid={`erp-sync-${provider}`} disabled={!feedback.canSync} variant="outline" size="sm" onClick={() => onSync(connection!.id)}>
+            <Button data-testid={`erp-sync-${provider}`} variant="outline" size="sm" onClick={() => onSync(connection!.id)}>
               <RefreshCw size={12} style={{ marginRight: 4 }} /> Sincronizar agora
+            </Button>
+            <Button variant="ghost" size="sm" onClick={() => onDisconnect(connection!.id)}>
+              <Unplug size={12} style={{ marginRight: 4 }} /> Desconectar
             </Button>
           </>
         )}
-        {connection && status !== "disconnected" && <Button variant="ghost" size="sm" onClick={() => onDisconnect(connection.id)}><Unplug size={12} style={{ marginRight: 4 }} /> Desconectar</Button>}
       </div>
 
       {isCredentialProvider && <Modal isOpen={showCredentialModal} title={`Conectar ${name}`} subtitle="Autorize a integração de produtos e estoque com as credenciais da sua conta." onClose={() => { if (!omieLoading) { setShowCredentialModal(false); setCredentialError(null); } }}

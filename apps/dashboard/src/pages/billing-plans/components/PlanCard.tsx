@@ -1,4 +1,4 @@
-import type { BillingCycle, BillingOffer, AutomaticBillingPromotion } from "@zyon/shared-types";
+import type { BillingCycle, BillingOffer } from "@zyon/shared-types";
 import { selectedBillingOffer } from "../plan-catalog.js";
 import React from "react";
 import { BillingPlanDetails } from "./BillingPlanDetails.js";
@@ -15,7 +15,6 @@ export interface PlanDef {
   features: string[];
   recommended?: boolean;
   trialDays?: number;
-  promotion?: AutomaticBillingPromotion;
 }
 
 interface PlanCardProps {

@@ -1,4 +1,4 @@
-import type { BillingCycle, BillingOffer, AutomaticBillingPromotion } from "@zyon/shared-types";
+import type { BillingCycle, BillingOffer } from "@zyon/shared-types";
 import { dashboardJson } from "../http/client.js";
 export interface BillingInvoice {
   invoice_id: string;
@@ -24,9 +24,6 @@ export function billingEndpoints(base: string, f: typeof fetch) {
     return response && typeof response === "object" && "meta" in response && "data" in response ? response.data : response as T;
   }
   return {
-    async listAutomaticBillingPromotions(): Promise<AutomaticBillingPromotion[]> {
-      return (await billingJson<{ campaigns: AutomaticBillingPromotion[] }>("/billing/promotions/automatic")).campaigns;
-    },
     getBillingSubscription(): Promise<BillingSubscription> {
       return billingJson("/billing/subscription");
     },
@@ -62,7 +59,7 @@ export function billingEndpoints(base: string, f: typeof fetch) {
     cancelBillingSubscription(payload?: { immediate?: boolean }): Promise<BillingSubscription> {
       return billingJson("/billing/subscription/cancel", { method: "POST", jsonBody: payload ?? {} });
     },
-    createBillingCheckoutSession(payload: { plan?: "starter179" | "growth" | "scale"; billingCycle?: BillingCycle; promotionCode?: string; price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
+    createBillingCheckoutSession(payload: { plan?: "starter179" | "growth" | "scale"; billingCycle?: BillingCycle; price_id?: string; success_url?: string; cancel_url?: string }): Promise<BillingCheckoutSessionResponse> {
       return billingJson("/billing/checkout-session", { method: "POST", jsonBody: payload });
     },
     createBillingPortalSession(payload: { return_url?: string }): Promise<BillingPortalSessionResponse> {
