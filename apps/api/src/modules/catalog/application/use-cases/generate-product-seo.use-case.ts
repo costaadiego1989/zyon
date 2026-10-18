@@ -1,3 +1,5 @@
+import { withAiMetering } from "../../../../shared/ai-metering.js";
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject, NotFoundException, BadRequestException, Logger, Optional } from "@nestjs/common";
 import { ProductRepositoryPort } from "../../domain/ports/product-repository.port.js";
 import { BillingPlanMeteringService } from "../../../payment/domain/billing-plan-guard.js";
@@ -27,6 +29,7 @@ export class GenerateProductSeoUseCase {
   ) {}
 
   async execute(input: GenerateProductSeoInput): Promise<GenerateProductSeoOutput> {
+    return withAiMetering({ merchantId: input.merchantId, source: "product_seo", costCenter: "automation" }, async () => {
     await this.billing?.assertAllowed(input.merchantId, { kind: "feature", key: "advancedAi" });
     const product = await this.productRepo.findById(input.merchantId, input.productId);
     if (!product) throw new NotFoundException("product_not_found");
@@ -35,6 +38,8 @@ export class GenerateProductSeoUseCase {
     const prompt = this.buildPrompt(product.name, product.description, tone);
     const raw = await this.callLlm(prompt);
     return this.parseAndValidate(raw, product.name);
+
+    });
   }
 
   private buildPrompt(name: string, description: string | undefined, tone: string): string {
@@ -77,7 +82,7 @@ Responda EXCLUSIVAMENTE em JSON válido (sem markdown, sem comentários):
         const controller = new AbortController();
         const timeout = setTimeout(() => controller.abort(), 20000);
 
-        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
+        const res = await meteredAiFetch("product_seo")(`${provider.baseUrl}/chat/completions`, {
           method: "POST",
           headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
           body: JSON.stringify({

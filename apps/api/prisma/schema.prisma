@@ -3576,11 +3576,23 @@ model AiUsageEvent {
   parentUsageEventId String? @map("parent_usage_event_id")
   metadata          Json?
   capturedAt        DateTime @default(now()) @map("captured_at")
+  billingAccountId  String? @map("billing_account_id")
+  credentialScope   String? @map("credential_scope")
+  payer             String @default("platform")
+  costCenter        String @default("text") @map("cost_center")
+  measurementOrigin String @default("legacy") @map("measurement_origin")
+  usageKnown        Boolean @default(false) @map("usage_known")
+  requestedModel    String? @map("requested_model")
+  inputDetails      Json? @map("input_details")
+  outputDetails     Json? @map("output_details")
+  audioCostMicros   BigInt? @map("audio_cost_micros")
 
   @@index([merchantId, startedAt])
   @@index([merchantId, channel, startedAt])
   @@index([provider, providerEventId])
   @@index([conversationId, startedAt])
+  @@index([startedAt, id])
+  @@index([billingAccountId, startedAt])
   @@map("ai_usage_events")
 }
 
@@ -3598,9 +3610,27 @@ model AiPriceVersion {
   effectiveTo            DateTime? @map("effective_to")
   source                 String
   createdAt              DateTime @default(now()) @map("created_at")
+  rates                  Json?
 
   @@index([provider, model, channel, component, effectiveFrom])
   @@map("ai_price_versions")
+}
+
+model AiVoiceUsageSession {
+  id String @id
+  merchantId String @map("merchant_id")
+  billingAccountId String @map("billing_account_id")
+  credentialScope String @map("credential_scope")
+  model String
+  source String
+  state String
+  providerCallId String? @map("provider_call_id")
+  conversationId String @map("conversation_id")
+  startedAt DateTime @default(now()) @map("started_at")
+  closedAt DateTime? @map("closed_at")
+  @@index([merchantId, startedAt])
+  @@index([state, startedAt])
+  @@map("ai_voice_usage_sessions")
 }
 
 // Weekly Revenue Intelligence. All transitions are tenant scoped and fenced.

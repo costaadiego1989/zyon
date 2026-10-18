@@ -1,4 +1,6 @@
-import { BadGatewayException, Injectable, ServiceUnavailableException, type OnModuleDestroy } from "@nestjs/common";
+import { BadGatewayException, Injectable, Optional, ServiceUnavailableException, type OnModuleDestroy } from "@nestjs/common";
+import { AiMeteringService, credentialScope } from "../../modules/ai-metering/ai-metering.service.js";
+import type { AiMeteringContext } from "../ai-metering.js";
 import { createHash } from "node:crypto";
 import WebSocket from "ws";
 import { AiUserRateLimitService } from "../http/ai-user-rate-limit.service.js";
@@ -60,7 +62,7 @@ const MAX_VOICE_ITEM_TEXT_LENGTH = 72;
 @Injectable()
 export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
   private readonly activeCalls = new Set<() => Promise<void>>();
-  constructor(private readonly userLimiter: AiUserRateLimitService) {}
+  constructor(private readonly userLimiter: AiUserRateLimitService, @Optional() private readonly metering?: AiMeteringService) {}
 
   async onModuleDestroy(): Promise<void> { await Promise.allSettled([...this.activeCalls].map(close => close())); }
 
@@ -77,6 +79,7 @@ export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
     if (!sdp) throw new BadGatewayException("voice_provider_invalid_offer");
 
     let response: Response;
+    const measurement = await this.metering?.openVoiceSession(input, String(session.model), apiKey, (session.tools as unknown[])?.length ? "voice_checkout" : "voice_narration");
     try {
       const form = new FormData();
       // The provider SDP parser requires CRLF lines and a final line terminator.
@@ -92,10 +95,12 @@ export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
         signal: AbortSignal.timeout(15_000),
       });
     } catch {
+      if (measurement) await this.metering?.voiceSessionState(measurement.id,"unknown");
       throw new OpenAIRealtimeVoiceCallUnknownError();
     }
 
     if (!response.ok) {
+      if (measurement) await this.metering?.voiceSessionState(measurement.id,response.status >= 500 ? "unknown" : "rejected");
       if (response.status >= 500) throw new OpenAIRealtimeVoiceCallUnknownError();
       throw new BadGatewayException("voice_provider_session_failed");
     }
@@ -104,12 +109,15 @@ export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
     if (!answer) throw new OpenAIRealtimeVoiceCallUnknownError();
     const providerCallId = response.headers.get("location")?.split("/").filter(Boolean).pop() ?? response.headers.get("x-openai-call-id")?.trim();
     if (!providerCallId || !/^[A-Za-z0-9_-]+$/.test(providerCallId)) throw new OpenAIRealtimeVoiceCallUnknownError();
-    try { await this.attachTurnGate(providerCallId, apiKey, input); }
-    catch { await this.hangup(providerCallId, apiKey).catch(() => undefined); throw new OpenAIRealtimeVoiceCallUnknownError(); }
+    try {
+      if (measurement) await this.metering?.voiceSessionState(measurement.id,"active",providerCallId);
+      await this.attachTurnGate(providerCallId, apiKey, input, measurement ? { context: { merchantId: input.merchantId, conversationId: input.conversationId, voiceSessionId: measurement.id, source: measurement.source, costCenter: "voice" }, model: measurement.model, transcriptionModel: (session.audio as any)?.input?.transcription?.model } : undefined);
+    }
+    catch { await this.hangup(providerCallId, apiKey).catch(() => undefined); if (measurement) await this.metering?.voiceSessionState(measurement.id,"unknown").catch(()=>undefined); throw new OpenAIRealtimeVoiceCallUnknownError(); }
     return { sdp: `${answer}\r\n`, ...(providerCallId ? { providerCallId } : {}) };
   }
 
-  protected async attachTurnGate(callId: string, apiKey: string, input: OpenAIRealtimeVoiceSessionInput): Promise<void> {
+  protected async attachTurnGate(callId: string, apiKey: string, input: OpenAIRealtimeVoiceSessionInput, measurement?: { context: AiMeteringContext; model: string; transcriptionModel?: string }): Promise<void> {
     const url = new URL(`${this.baseUrl()}/realtime`);
     url.protocol = url.protocol === "https:" ? "wss:" : "ws:";
     url.searchParams.set("call_id", callId);
@@ -122,17 +130,24 @@ export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
       clearTimeout(lifetime);
       try { await this.hangup(callId, apiKey); }
       catch { /* The provider outcome remains unknown; never admit more turns. */ }
-      finally { socket.terminate(); }
+      finally { socket.terminate(); if (measurement?.context.voiceSessionId) await this.metering?.voiceSessionState(measurement.context.voiceSessionId,"closed").catch(()=>undefined); }
     };
     const lifetime = setTimeout(() => { void close(); }, 30 * 60_000);
     lifetime.unref();
     this.activeCalls.add(close);
     const gate = new RealtimeVoiceTurnGate({ userId: input.aiUserId!, merchantId: input.merchantId, resourceId: input.conversationId, origin: input.origin }, this.userLimiter, new RealtimeCapabilityService(), (event) => {
-      if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
+      void (async () => {
+        const token = (event as any)?.response?.metadata?.zyon_turn_token;
+        if (token && measurement) await this.metering?.rememberVoicePermit(token,measurement.context);
+        if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));
+      })().catch(()=>close());
     }, close, input.resolveAiUserId);
     let events: Promise<void> = Promise.resolve();
     socket.on("message", (data) => {
-      try { const event = JSON.parse(data.toString()); events = events.then(() => gate.handle(event)).catch(() => close()); }
+      try { const event = JSON.parse(data.toString()); events = events.then(async () => {
+        if (measurement) await this.metering?.observeVoice(measurement.context, credentialScope("openai", "Bearer " + apiKey), measurement.model, event, measurement.transcriptionModel);
+        await gate.handle(event);
+      }).catch(() => close()); }
       catch { void close(); }
     });
     socket.on("close", () => { clearTimeout(lifetime); void close(); });
@@ -172,6 +187,10 @@ export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
     }
     const apiKey = process.env.OPENAI_API_KEY?.trim();
     if (!apiKey) throw new ServiceUnavailableException("voice_provider_not_configured");
+    // Kept for compatibility with old internal callers. Unlike negotiated calls,
+    // a detached credential cannot prove which response was consumed server-side.
+    const observation = await this.metering?.openVoiceSession({merchantId,conversationId},String(session.model),apiKey,"voice_legacy");
+    if(observation)await this.metering?.voiceSessionState(observation.id,"unobservable");
 
     let response: Response;
     try {

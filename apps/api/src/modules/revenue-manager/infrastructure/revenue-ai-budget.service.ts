@@ -130,7 +130,7 @@ export class RevenueAiBudgetService {
       if (r.state === "settled" || r.state === "overrun") return;
       const actual = valid ? cost(usage.prompt_tokens, usage.completion_tokens, r.inputRate, r.outputRate) : null;
       const overrun = actual !== null && (actual > r.amountMicros || usage!.prompt_tokens > r.maxInputTokens || usage!.completion_tokens > r.maxOutputTokens);
-      const data = { merchantId: r.merchantId, source: "revenue_manager", channel: "chat", component: "text_generation",
+      const data = { merchantId: r.merchantId, source: "revenue_manager", channel: "chat", component: "text_generation", measurementOrigin: "budget_reservation",
         provider: r.provider, model: r.model, executionStatus: valid ? "succeeded" : "unknown",
         promptTokens: valid ? usage.prompt_tokens : null, completionTokens: valid ? usage.completion_tokens : null,
         totalTokens: valid ? usage.prompt_tokens + usage.completion_tokens : null,

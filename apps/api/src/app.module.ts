@@ -1,3 +1,4 @@
+import { AiMeteringModule } from "./modules/ai-metering/ai-metering.module.js";
 import { REDACTED_LOG_PATHS, redactRequestUrl } from "./shared/logger/log-redaction.js";
 import { Module } from "@nestjs/common";
 import { PlatformOperatorDirectoryModule } from "./modules/platform-operator-directory/platform-operator-directory.module.js";
@@ -146,6 +147,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     PublicApiModule,
     PlatformControlModule,
     PlatformSupportModule,
+    AiMeteringModule,
     PlatformOperatorDirectoryModule,
     PlatformOverviewModule,
     PlatformMerchantDirectoryModule,

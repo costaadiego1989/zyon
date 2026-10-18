@@ -5,6 +5,10 @@ import { PrismaClient } from "@prisma/client";
 import { Redis } from "ioredis";
 import { randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../src/shared/persistence/persistence.module.js";
+import { PRISMA_CROSS_MERCHANT_CLIENT } from "../src/shared/persistence/persistence.module.js";
+import { AiMeteringService } from "../src/modules/ai-metering/ai-metering.service.js";
+import { AiCostsReader } from "../src/modules/ai-metering/ai-costs.reader.js";
+import { AiCostsController } from "../src/modules/ai-metering/ai-costs.controller.js";
 import { registerTenantMiddleware } from "../src/shared/persistence/tenant.middleware.js";
 import { TenantContextService } from "../src/shared/tenant/tenant-context.service.js";
 import { TenantGuard } from "../src/shared/tenant/tenant.guard.js";
@@ -39,7 +43,7 @@ class FixtureAuthController {
 
 /** Real PostgreSQL, Redis, identity sessions, guards, controllers and sockets.
  * Only unrelated application modules are omitted from this isolated fixture. */
-export async function createSupportFixture() {
+export async function createSupportFixture(options: { aiMetering?: boolean } = {}) {
   const database = process.env.PLATFORM_SUPPORT_TEST_DATABASE_URL;
   if (!database) throw new Error("PLATFORM_SUPPORT_TEST_DATABASE_URL required");
   const target = new URL(database);
@@ -62,6 +66,8 @@ export async function createSupportFixture() {
     await Promise.all(apps.map(app => app.close()));
     const merchantIds = Object.values(merchants).map(m => m.id);
     const operatorIds = Object.values(operators).map(o => o.id);
+    await prisma.aiUsageEvent.deleteMany({ where: { merchantId: { in: merchantIds } } });
+    await prisma.aiVoiceUsageSession.deleteMany({ where: { merchantId: { in: merchantIds } } });
     await prisma.platformSupportTicket.deleteMany({ where: { merchantId: { in: merchantIds } } });
     await prisma.platformAuditEvent.deleteMany({ where: { actorOperatorId: { in: operatorIds } } });
     await prisma.outboxMessage.deleteMany({ where: { merchantId: { in: merchantIds } } });
@@ -94,7 +100,9 @@ export async function createSupportFixture() {
     async function start(port = 0) {
       const localBus = apps.length ? new InMemoryDomainEventBus() : bus;
       class FixtureModule {}
-      Module({ controllers: [MerchantPlatformSupportController, OperatorPlatformSupportController, FixtureAuthController], providers: [
+      Module({ controllers: [MerchantPlatformSupportController, OperatorPlatformSupportController, FixtureAuthController, ...(options.aiMetering ? [AiCostsController] : [])], providers: [
+        { provide: PRISMA_CROSS_MERCHANT_CLIENT, useValue: prisma }, { provide: TenantContextService, useValue: context },
+        ...(options.aiMetering ? [AiMeteringService, AiCostsReader] : []),
         { provide: PRISMA_CLIENT, useValue: wrapped }, { provide: REDIS_CLIENT_TOKEN, useValue: redis },
         { provide: DOMAIN_EVENT_BUS, useValue: localBus },
         { provide: JwtService, useValue: merchantJwt }, { provide: PlatformJwtService, useValue: operatorJwt }, { provide: AuthCookieService, useValue: cookies },

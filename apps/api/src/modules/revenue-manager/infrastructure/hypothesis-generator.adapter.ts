@@ -1,3 +1,5 @@
+import { withAiMetering } from "../../../shared/ai-metering.js";
+import { meteredAiFetch } from "../../../shared/ai-metering.js";
 import { Injectable, Logger, Optional } from "@nestjs/common";
 import { providerRequestOptions } from "../../../shared/llm/provider-request-options.js";
 import { RevenueAiBudgetService, type TokenUsage } from "./revenue-ai-budget.service.js";
@@ -71,6 +73,7 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
     @Optional() private readonly sharedLearning?: SharedStrategyLearningService) {}
 
   async generate(request: HypothesisGenerationRequest): Promise<HypothesisGenerationResponse> {
+    return withAiMetering({ merchantId: request.merchant_id, source: "revenue_hypothesis", costCenter: "automation" }, async () => {
     if (request.incentive_options && (!request.checkout_baseline || !request.analysis_context
       || request.incentive_options.merchantId !== request.merchant_id
       || request.incentive_options.runId !== request.analysis_context.runId)) throw new Error("STRATEGY_INVALID_PLANNER_CONTEXT");
@@ -130,7 +133,7 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
           inputBytes: Buffer.byteLength(JSON.stringify(tools ? { messages, tools, tool_choice } : messages), "utf8"),
         }) : undefined;
         try {
-          const response = await fetch(`${provider.baseUrl}/chat/completions`, {
+          const response = await meteredAiFetch("revenue_hypothesis")(`${provider.baseUrl}/chat/completions`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",
@@ -177,6 +180,8 @@ export class LLMHypothesisGenerator implements HypothesisGeneratorPort {
 
     if (request.analysis_context) throw new Error("ANALYSIS_GENERATION_FAILED");
     return this.validateResponse(this.generateFallbackHypothesis(request), request);
+
+    });
   }
 
   private buildSystemPrompt(constraints: HypothesisGenerationRequest["constraints"], planner = false): string {

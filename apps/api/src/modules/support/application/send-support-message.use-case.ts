@@ -1,3 +1,4 @@
+import { withAiMetering } from "../../../shared/ai-metering.js";
 import { Inject, Injectable , Logger, Optional} from "@nestjs/common";
 import { isSafeGeneratedMessage } from "@zyon/conversation-engine";
 import type { SupportFaqItem, SupportTicketStatus } from "@zyon/shared-types";
@@ -97,6 +98,7 @@ export class SendSupportMessageUseCase {
     input: SupportMessageInput,
     ctx?: SupportMessageContext,
   ): Promise<SupportMessageOutput> {
+    return withAiMetering({ merchantId: input.merchant_id, conversationId: input.session_id, source: "buyer_support" }, async () => {
     const request = input.message.normalize("NFD").replace(/\p{Diacritic}/gu, "").toLowerCase();
     if (!/\b(nao quero|nao preciso|dispenso)\b/.test(request) &&
         /\b(atendente|atendimento humano|falar com (uma? )?(pessoa|humano)|suporte humano)\b/.test(request)) {
@@ -180,5 +182,7 @@ export class SendSupportMessageUseCase {
     }
 
     return { reply: aiReply, safe: true };
+
+    });
   }
 }

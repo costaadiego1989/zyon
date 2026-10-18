@@ -1,4 +1,6 @@
 import { CancelPaymentIntentUseCase } from "../../../payment/application/cancel-payment-intent.use-case.js";
+import { AiMeteringService } from "../../../ai-metering/ai-metering.service.js";
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 import {
   BadRequestException,
   Body,
@@ -130,6 +132,7 @@ export class EmbedCheckoutController {
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
     @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
     @Inject(CancelPaymentIntentUseCase) private readonly cancelPaymentIntent?: CancelPaymentIntentUseCase,
+    @Optional() private readonly aiMetering?: AiMeteringService,
   ) {}
 
   private readonly logger = new Logger(EmbedCheckoutController.name);
@@ -243,10 +246,11 @@ export class EmbedCheckoutController {
     const admittedVoice = await this.aiUserLimiter?.consumeVoicePermit(body.voice_turn_token, { userId, merchantId: embed.merchantId, resourceId: body.session_id, origin: typeof request.headers?.origin === "string" ? request.headers.origin : undefined });
     if (body.voice_turn_token && !admittedVoice) throw new UnauthorizedException("invalid_voice_turn_token");
     const { merchant_id: _m, voice_turn_token: _voiceProof, ...rest } = body;
-    return this.sendChat.execute({
+    const voiceContext = admittedVoice && this.aiMetering ? await this.aiMetering.voicePermitContext(body.voice_turn_token!,embed.merchantId,body.session_id) : undefined;
+    return withAiMetering({ merchantId: embed.merchantId, conversationId: body.session_id, source: "checkout", costCenter: admittedVoice ? "voice" : "text", ...voiceContext }, () => this.sendChat.execute({
       ...(rest as Omit<ChatMessageRequest, "merchant_id">),
       merchant_id: embed.merchantId,
-    }, { aiUserId: userId, voiceAdmitted: !!admittedVoice });
+    }, { aiUserId: userId, voiceAdmitted: !!admittedVoice }));
   }
 
   @Post("chat/reconcile")

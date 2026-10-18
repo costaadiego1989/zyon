@@ -30,6 +30,8 @@ import { ListPublicStorefrontProductsUseCase } from "../../../catalog/applicatio
 import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
+import { AiMeteringService } from "../../../ai-metering/ai-metering.service.js";
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
@@ -86,6 +88,7 @@ export class StorefrontController {
     @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
     @Optional() private readonly supportHandoff?: SupportHandoffService,
+    @Optional() private readonly aiMetering?: AiMeteringService,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
@@ -213,14 +216,16 @@ export class StorefrontController {
         throw new HttpException({ code: "ai_interaction_rate_limited", scope: "user", retry_after_seconds: retryAfterSeconds }, HttpStatus.TOO_MANY_REQUESTS);
       }
     }
-    const attachmentContext = await this.attachmentInterpreter.interpret(body.attachment);
+    const attachmentContext = await this.attachmentInterpreter.interpret(body.attachment, { merchantId: claims.merchantId, conversationId: claims.resourceId });
     const oneBuyClick = this.oneBuyClick
       ? await this.oneBuyClick.get({
           merchantId: claims.merchantId,
           conversationId: claims.resourceId,
           globalUserId,
         })
-      : undefined;    return this.sendStoreMessage.execute({
+      : undefined;
+    const voiceContext = admittedVoice && this.aiMetering ? await this.aiMetering.voicePermitContext(body.voice_turn_token!,claims.merchantId,claims.resourceId) : undefined;
+    return withAiMetering({ merchantId: claims.merchantId, conversationId: claims.resourceId, source: "storefront", costCenter: admittedVoice ? "voice" : "text", ...voiceContext }, () => this.sendStoreMessage.execute({
       merchant_id: claims.merchantId,
       conversation_id: claims.resourceId,
       user_message: body.user_message,
@@ -229,7 +234,7 @@ export class StorefrontController {
       attachment_context: attachmentContext,
       global_user_id: globalUserId,
       one_buy_click: oneBuyClick,
-    });
+    }));
   }
 
   @Get("conversations/:conversationId/one-buy-click")

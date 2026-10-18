@@ -1,3 +1,4 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 /**
  * OpenAI provider wrapper for storefront.
  *
@@ -53,7 +54,7 @@ export class OpenRouterProvider {
     this.apiKey = opts.apiKey || "";
     this.baseUrl = (opts.baseUrl ?? DEFAULT_BASE_URL).replace(/\/+$/, "");
     this.model = opts.model ?? DEFAULT_MODEL;
-    this.fetchFn = opts.fetchFn ?? globalThis.fetch;
+    this.fetchFn = meteredAiFetch("storefront_gateway", opts.fetchFn ?? globalThis.fetch);
     this.timeoutMs = opts.timeout ?? DEFAULT_TIMEOUT_MS;
   }
 

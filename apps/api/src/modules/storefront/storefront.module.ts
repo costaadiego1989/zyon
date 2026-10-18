@@ -1,3 +1,4 @@
+import { meteredAiFetch } from "../../shared/ai-metering.js";
 import { Module } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../shared/auth/realtime-capability.js";
 import {
@@ -114,7 +115,7 @@ import { StorefrontConsentController } from "./presentation/http/storefront-cons
     {
       provide: OpenRouterProvider,
       useFactory: () => {
-        return new OpenRouterProvider({
+        return new OpenRouterProvider({ fetchFn: meteredAiFetch("storefront_agent"),
           apiKey: process.env.OPENAI_API_KEY || "",
           model: process.env.OPENAI_MODEL || "gpt-4o-mini"
         });

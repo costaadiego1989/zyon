@@ -1,3 +1,4 @@
+import { meteredAiFetch } from "../../../shared/ai-metering.js";
 /**
  * SUPP-H2: OpenAI implementation of ChatCompletionPort.
  * Encapsulates HTTP client, env reads, and error handling.
@@ -43,8 +44,9 @@ export class OpenAIChatAdapter implements ChatCompletionPort {
     if (!this.apiKey) return null;
 
     try {
-      const fetchFn = this.http?.toFetch() ?? fetch;
-      const response = await fetchFn(`${this.baseUrl}/chat/completions`, {
+      // The meter owns each physical attempt; opaque HTTP retries could hide paid calls.
+      const fetchFn = fetch;
+      const response = await meteredAiFetch("buyer_support", fetchFn)(`${this.baseUrl}/chat/completions`, {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

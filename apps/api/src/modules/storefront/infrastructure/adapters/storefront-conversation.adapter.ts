@@ -1,3 +1,5 @@
+import { meteredAiFetch } from "../../../../shared/ai-metering.js";
+import { withAiMetering } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
 import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput, NudgeCopyInput } from "../../domain/ports/conversation.port.js";
@@ -65,7 +67,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const localModel = process.env.LOCAL_LLM_MODEL || process.env.OPENROUTER_MODEL || "deepseek-chat";
 
     const provider = new OpenRouterProvider({
-      apiKey: localApiKey,
+      apiKey: localApiKey, fetchFn: meteredAiFetch("storefront_agent"),
       baseUrl: localBaseUrl,
       model: localModel
     });
@@ -76,7 +78,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     const fallbackBaseUrl = process.env.OPENROUTER_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
     const fallbackModel = process.env.OPENROUTER_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
     const fallbackProvider = fallbackApiKey
-      ? new OpenRouterProvider({ apiKey: fallbackApiKey, baseUrl: fallbackBaseUrl, model: fallbackModel })
+      ? new OpenRouterProvider({ apiKey: fallbackApiKey, fetchFn: meteredAiFetch("storefront_agent"), baseUrl: fallbackBaseUrl, model: fallbackModel })
       : undefined;
 
     this.handlerDeps = {
@@ -111,9 +113,10 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   }
 
   async generateNudge(input: NudgeCopyInput): Promise<string> {
-    return this.copyService.generateNudge(input);
+    return withAiMetering({ merchantId: input.merchantId, source: "storefront_nudge" }, () => this.copyService.generateNudge(input));
   }
   async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
+    return withAiMetering({ merchantId: input.merchantId, conversationId: input.sessionId, source: "storefront" }, async () => {
     const ctx: ToolRequestContext = {
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
@@ -288,6 +291,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       cartId: result.cartId,
       suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage, listedCouponCodes)
     };
+
+    });
   }
   private blockContextHint(blocks: any[], toolsUsed: string[]): string {
     if (toolsUsed.includes("search_products")) return "uma lista de produtos";
