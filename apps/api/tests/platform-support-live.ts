@@ -130,6 +130,7 @@ async function main() {
   await merchant.locator(".ps-message-body").filter({ hasText: reply }).waitFor({ timeout: 20_000 });
   const mine = operator.getByLabel("Meus atendimentos", { exact: true }); await mine.check();
   assert.equal(await mine.isChecked(), true);
+  await operator.getByRole("button", { name: new RegExp(tag + " growth") }).waitFor({ state: "hidden" });
   await operator.getByRole("button", { name: new RegExp(tag + " scale") }).waitFor();
   assert(!await merchant.getByText(internal, { exact: true }).count());
   await operator.screenshot({ path: path.join(output, environment + "-admin.png"), fullPage: true });
@@ -137,10 +138,21 @@ async function main() {
   await merchant.setViewportSize({ width: 390, height: 844 });
   await pause(400);
   assert(await merchant.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth + 1), "mobile viewport overflow");
+  const mobileInput = merchant.getByLabel("Sua mensagem", { exact: true });
+  await mobileInput.fill("Mensagem enviada na tela de celular com assunto longo.");
+  const mobileSend = merchant.getByRole("button", { name: "Enviar mensagem", exact: true });
+  await mobileSend.scrollIntoViewIfNeeded();
+  assert(await mobileSend.evaluate(button => {
+    const rect = button.getBoundingClientRect(), frame = button.closest(".ps-layout")!.getBoundingClientRect();
+    return rect.top >= frame.top && rect.bottom <= frame.bottom + 1;
+  }), "mobile send button must fit inside the conversation");
+  await mobileSend.click();
+  await operator.locator(".ps-message-body").filter({ hasText: "Mensagem enviada na tela de celular com assunto longo." }).waitFor({ timeout: 20_000 });
   await merchant.screenshot({ path: path.join(output, environment + "-mobile.png"), fullPage: true });
   assert.equal(browserErrors.length, 0, "browser runtime errors");
   checks.push("real published dashboard and Control exchange messages, clipboard protocol, checkbox and mobile layout");
-  const rows = await db.platformSupportMessage.count({ where: { ticketId: scale.ticket.id } }); assert.equal(rows, 3);
+  checks.push("long mobile subject keeps the send button visible; mobile message delivered to operator");
+  const rows = await db.platformSupportMessage.count({ where: { ticketId: scale.ticket.id } }); assert.equal(rows, 4);
   report.persistedMessages = rows; report.browserErrors = browserErrors; report.passed = true;
 }
 try { await main(); }
