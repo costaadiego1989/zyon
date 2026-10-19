@@ -1,6 +1,7 @@
 "use client";
 
 import type { MerchantThemeAppearance } from "@zyon/shared-types";
+import { readRealtimeVoiceCall } from "@zyon/shared-types";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
@@ -307,18 +308,13 @@ export default function ConversationShell({
   const realtimeVoice = useRealtimeVoiceCheckout({
     // This session is reserved for the explicit purchase-voice composer control.
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
-    createSession: async () => {
+    createSession: async (sdp) => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
-      const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/session`, { method: "POST" });
-      if (!response.ok) {
-        const error = new Error("realtime_voice_session_failed") as Error & { status?: number };
-        error.status = response.status;
-        throw error;
-      }
-      const data = await response.json() as { value?: unknown; expires_at?: unknown };
-      if (typeof data.value !== "string") throw new Error("invalid_realtime_voice_session");
-      return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+      const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/session`, {
+        method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ sdp }),
+      });
+      return readRealtimeVoiceCall(response);
     },
     onCommerceTurn: async (buyerMessage, action) => {
       const selectedVariantId = action === "add_item_to_cart"
@@ -341,22 +337,15 @@ export default function ConversationShell({
   const narrationVoice = useRealtimeProductNarration({
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
     onProgress: publishNarrationProgress,
-    createSession: async (summary) => {
+    createSession: async (summary, sdp) => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
       const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/narration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary }),
+        body: JSON.stringify({ summary, sdp }),
       });
-      if (!response.ok) {
-        const error = new Error("realtime_narration_session_failed") as Error & { status?: number };
-        error.status = response.status;
-        throw error;
-      }
-      const data = await response.json() as { value?: unknown; expires_at?: unknown };
-      if (typeof data.value !== "string") throw new Error("invalid_realtime_narration_session");
-      return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+      return readRealtimeVoiceCall(response);
     },
   });
 

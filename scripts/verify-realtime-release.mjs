@@ -3,21 +3,23 @@ import { resolve } from "node:path";
 
 const requiredSource = [
   ["apps/api/src/shared/openai/openai-realtime-voice.service.ts", [
-    "/realtime/client_secrets",
+    "/realtime/calls",
     "gpt-realtime-2.1-mini",
     "add_item_to_cart",
     "begin_checkout",
-    "createProductNarrationClientSecret",
+    "createProductNarrationCall",
     "tools: []",
     "tool_choice: \"none\"",
   ]],
-  ["apps/api/src/modules/storefront/presentation/http/storefront-realtime-voice.controller.ts", ["realtime/session", "realtime/narration"]],
-  ["apps/api/src/modules/embed/presentation/http/embed-realtime-voice.controller.ts", ["Controller(\"embed/realtime\")", "@Post(\"session\")"]],
-  ["apps/widget_v2/src/lib/voice/use-realtime-voice-checkout.ts", ["RTCPeerConnection", "realtime/calls"]],
-  ["apps/widget_v2/src/api/checkout-session.ts", ["embed/realtime/session", "embedBaseUrl"]],
+  ["apps/api/src/modules/storefront/presentation/http/storefront-realtime-voice.controller.ts", ["realtime/session", "realtime/narration", "voiceSdp(body?.sdp)", "this.realtime.createCall"]],
+  ["apps/api/src/modules/embed/presentation/http/embed-realtime-voice.controller.ts", ["Controller(\"embed/realtime\")", "@Post(\"session\")", "voice_sdp_offer_required", "this.realtime.createCall"]],
+  ["apps/widget_v2/src/lib/voice/use-realtime-voice-checkout.ts", ["RTCPeerConnection", "sessionRef.current(normalizeRealtimeSdp", "sdp: normalizeRealtimeSdp(answer.sdp)"]],
+  ["apps/storefront/src/lib/voice/use-realtime-voice-checkout.ts", ["createSessionRef.current(normalizeRealtimeSdp", "sdp: normalizeRealtimeSdp(answer.sdp)"]],
+  ["apps/storefront/src/components/ConversationShell.tsx", ["JSON.stringify({ sdp })", "JSON.stringify({ summary, sdp })", "readRealtimeVoiceCall(response)"]],
+  ["apps/widget_v2/src/api/checkout-session.ts", ["embed/realtime/session", "embedBaseUrl", "sdp: normalizeRealtimeSdp(sdp)", "readRealtimeVoiceCall(res)"]],
   ["apps/storefront/src/components/CheckoutPanel.tsx", ["embedApiBaseUrl=\"/api\""]],
   ["apps/storefront/src/components/conversation/RealtimeVoiceComposer.tsx", ["Ativar"]],
-  ["apps/storefront/src/lib/voice/use-realtime-product-narration.ts", ["recvonly", "realtime/calls", "response.output_audio_transcript.done", "session.close", "session.closed"]],
+  ["apps/storefront/src/lib/voice/use-realtime-product-narration.ts", ["recvonly", "createSessionRef.current(source, normalizeRealtimeSdp", "response.output_audio_transcript.done", "session.close", "session.closed"]],
 ];
 
 const failures = [];
@@ -32,6 +34,17 @@ for (const [relativePath, fragments] of requiredSource) {
   for (const fragment of fragments) {
     if (!content.includes(fragment)) failures.push(`${relativePath}: falta ${JSON.stringify(fragment)}`);
   }
+}
+
+for (const relativePath of [
+  "apps/storefront/src/lib/voice/use-realtime-voice-checkout.ts",
+  "apps/storefront/src/lib/voice/use-realtime-product-narration.ts",
+  "apps/widget_v2/src/lib/voice/use-realtime-voice-checkout.ts",
+]) {
+  let content;
+  try { content = readFileSync(resolve(relativePath), "utf8"); }
+  catch { continue; } // Missing files are already reported by requiredSource.
+  if (content.includes("api.openai.com")) failures.push(`${relativePath}: browser must negotiate through the API, not contact the provider directly`);
 }
 
 if (failures.length > 0) {

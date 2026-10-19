@@ -1,11 +1,10 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { RealtimeVoiceInput, RealtimeVoiceResponses, VOICE_MICROPHONE_CONSTRAINTS, type VoiceInputEvent } from "@zyon/shared-types";
+import { RealtimeVoiceInput, RealtimeVoiceResponses, VOICE_MICROPHONE_CONSTRAINTS, normalizeRealtimeSdp, realtimeVoiceFailureHint, type RealtimeVoiceCall, type VoiceInputEvent } from "@zyon/shared-types";
 
 export type RealtimeVoiceTurnResult = { agentMessage: string; cart?: { itemCount: number; total: number } };
-type ClientSecret = { value: string; expires_at?: number };
 type Options = {
   enabled: boolean;
-  createSession: () => Promise<ClientSecret>;
+  createSession: (sdp: string) => Promise<RealtimeVoiceCall>;
   onCommerceTurn: (buyerMessage: string, action: "commerce" | "add_item_to_cart") => Promise<RealtimeVoiceTurnResult>;
   onBeginCheckout: () => Promise<RealtimeVoiceTurnResult>;
   getContext?: () => Promise<{ instructions: string }>;
@@ -140,9 +139,6 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
         const stream = await navigator.mediaDevices.getUserMedia(VOICE_MICROPHONE_CONSTRAINTS);
         if (attempt !== connectionAttempt.current) { stream.getTracks().forEach(track => track.stop()); return; }
         streamRef.current = stream;
-        const secret = await sessionRef.current();
-        if (attempt !== connectionAttempt.current) return;
-        if (!secret.value) throw new Error("voice_session_missing");
         const peer = new RTCPeerConnection(); peerRef.current = peer;
         const audio = document.createElement("audio");
         audio.autoplay = true;
@@ -177,16 +173,9 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
         if (attempt !== connectionAttempt.current) return;
         await peer.setLocalDescription(offer); await waitForIce(peer);
         if (attempt !== connectionAttempt.current) return;
-        const response = await fetch("https://api.openai.com/v1/realtime/calls", { method: "POST", headers: { Authorization: `Bearer ${secret.value}`, "Content-Type": "application/sdp" }, body: peer.localDescription?.sdp ?? offer.sdp });
+        const answer = await sessionRef.current(normalizeRealtimeSdp(peer.localDescription?.sdp ?? offer.sdp));
         if (attempt !== connectionAttempt.current) return;
-        if (!response.ok) {
-          const error = new Error("voice_connection_failed") as Error & { status?: number };
-          error.status = response.status;
-          throw error;
-        }
-        const answer = await response.text();
-        if (attempt !== connectionAttempt.current) return;
-        await peer.setRemoteDescription({ type: "answer", sdp: answer });
+        await peer.setRemoteDescription({ type: "answer", sdp: normalizeRealtimeSdp(answer.sdp) });
       } catch (error) {
         if (attempt !== connectionAttempt.current) return;
         stop(); setHint(voiceErrorHint(error));
@@ -226,6 +215,8 @@ function waitForIce(peer: RTCPeerConnection): Promise<void> {
 }
 
 function voiceErrorHint(error: unknown): string {
+  const specific = realtimeVoiceFailureHint(error, "");
+  if (specific) return specific;
   const status = Number((error as { status?: unknown })?.status);
   const name = error instanceof DOMException ? error.name : "";
   if (name === "NotAllowedError" || name === "SecurityError") return "Permita o uso do microfone para iniciar a compra por voz.";

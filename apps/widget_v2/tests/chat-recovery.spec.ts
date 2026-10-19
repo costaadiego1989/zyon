@@ -62,7 +62,7 @@ test("failed financial reads keep automatic recovery pending and never expose a 
   await assert.rejects(f.api.readChatPayment(state), ChatRecoveryRequired);
   assert.equal(f.api.requiresChatRecovery, true);
   await assert.rejects(f.api.chat("Continuar"), ChatRecoveryRequired);
-  await assert.rejects(f.api.createRealtimeVoiceSession(), ChatRecoveryRequired);
+  await assert.rejects(f.api.createRealtimeVoiceSession("v=0\r\n"), ChatRecoveryRequired);
   assert.equal(f.calls.some(call => call.url.includes("/payment/intents")), false);
   assert.throws(() => parseChatState({ ...empty, payment_intent_id: "pay_fixture", active_request: {
     message_id: "message_00000001", status: "unknown" } }, "session", "conversation"));
@@ -104,7 +104,7 @@ test("lost response preserves only the message reference and recovery never rese
   assert.match(messageId, /^[a-zA-Z0-9_-]{16,128}$/);
   assert.deepEqual([...f.storage.values()], [messageId]);
   await assert.rejects(f.api.chat("Outra mensagem"), ChatRecoveryRequired);
-  await assert.rejects(f.api.createRealtimeVoiceSession(), ChatRecoveryRequired);
+  await assert.rejects(f.api.createRealtimeVoiceSession("v=0\r\n"), ChatRecoveryRequired);
   const state = await f.api.recoverChat();
   assert.equal(state.turns[0].text, "Resposta confirmada"); assert.equal(f.api.requiresChatRecovery, false);
   assert.equal(f.calls.filter(c => c.url.endsWith("/embed/chat")).length, 1); assert.equal(f.storage.size, 0);

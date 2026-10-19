@@ -6,7 +6,7 @@ test("voice uses the same signed embed proxy as chat, with direct API fallback f
     paths.push(new URL(route.request().url()).pathname);
     return route.fulfill({ json: route.request().url().endsWith('/start')
       ? { session_id: 'chk_proxy', experience: {} }
-      : route.request().url().endsWith('/session') ? { value: 'test_ephemeral' }
+      : route.request().url().endsWith('/session') ? { sdp: 'v=0\r\n' }
       : route.request().url().endsWith('/context') ? { instructions: 'Current checkout stage' } : { message: 'OK' } });
   });
   await page.goto('/');
@@ -17,7 +17,7 @@ test("voice uses the same signed embed proxy as chat, with direct API fallback f
       const session = new CheckoutSession({ embedToken: 'test', merchantId: 'test', apiBaseUrl: '/direct', embedApiBaseUrl });
       await session.start();
       await session.chat('Quero finalizar');
-      await session.createRealtimeVoiceSession();
+      await session.createRealtimeVoiceSession('v=0\r\n');
       await session.realtimeVoiceContext();
     }
   });

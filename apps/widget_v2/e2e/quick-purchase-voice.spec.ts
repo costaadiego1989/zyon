@@ -56,7 +56,10 @@ for (const width of [390, 1280]) {
       await route.fulfill({ json: { id: "pix-quick", method: "pix", status: "requires_action", amountCents: 22099,
         buyerFacing: { qrCodeCopyPaste: "qa-pix-pending" }, experience } });
     });
-    await page.route("**/embed/realtime/session", route => { sessionCalls += 1; return route.fulfill({ json: { value: "qa-ephemeral-secret" } }); });
+    await page.route("**/embed/realtime/session", route => {
+      expect(route.request().postDataJSON()).toMatchObject({ session_id: "chk_voice_quick", sdp: "v=0\r\n" });
+      sessionCalls += 1; return route.fulfill({ json: { sdp: "v=0\r\n" } });
+    });
     await page.route("**/embed/realtime/context", route => route.fulfill({ json: { instructions: paymentReady
       ? "ETAPA ATUAL: Seu pagamento já está disponível na tela. Não pergunte sobre frete."
       : "ETAPA ATUAL: Escolha a forma de pagamento exibida na tela." } }));

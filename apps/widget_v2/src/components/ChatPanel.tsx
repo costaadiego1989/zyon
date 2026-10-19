@@ -72,9 +72,9 @@ export function ChatPanel() {
       if (!api) throw new Error("checkout_session_missing");
       return api.realtimeVoiceContext();
     },
-    createSession: async () => {
+    createSession: async (sdp) => {
       if (!api) throw new Error("checkout_session_missing");
-      return api.createRealtimeVoiceSession();
+      return api.createRealtimeVoiceSession(sdp);
     },
     onCommerceTurn: async (buyerMessage, action) => {
       await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage);

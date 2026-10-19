@@ -1,5 +1,6 @@
 import { CheckoutApiError } from "./checkout-api-error";
 import type { CheckoutEditSection } from "@zyon/shared-types";
+import { normalizeRealtimeSdp, readRealtimeVoiceCall, type RealtimeVoiceCall } from "@zyon/shared-types";
 import { ChatRecoveryRequired, PendingChatReference, chatReceipt, chatDisplayReference, parseChatState, type ChatState, type ChatDisplayReference } from "./chat-protocol";
 
 /**
@@ -518,18 +519,15 @@ export class CheckoutSession {
     } finally { this.chatInFlight = false; }
   }
 
-  async createRealtimeVoiceSession(): Promise<{ value: string; expires_at?: number }> {
+  async createRealtimeVoiceSession(sdp: string): Promise<RealtimeVoiceCall> {
     this.assertSession();
     if (this.requiresChatRecovery) throw new ChatRecoveryRequired();
     const res = await fetch(`${this.embedBaseUrl}/embed/realtime/session`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({ session_id: this.sessionId }),
+      body: JSON.stringify({ session_id: this.sessionId, sdp: normalizeRealtimeSdp(sdp) }),
     });
-    if (!res.ok) throw await CheckoutApiError.fromResponse("embed_realtime_voice", res);
-    const data = await res.json() as { value?: unknown; expires_at?: unknown };
-    if (typeof data.value !== "string") throw new Error("invalid_realtime_voice_session");
-    return { value: data.value, ...(typeof data.expires_at === "number" ? { expires_at: data.expires_at } : {}) };
+    return readRealtimeVoiceCall(res);
   }
 
   async realtimeVoiceContext(): Promise<{ instructions: string }> {

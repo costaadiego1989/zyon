@@ -1,8 +1,8 @@
 "use client";
 
 import { useCallback, useEffect, useRef, useState } from "react";
+import { normalizeRealtimeSdp, realtimeVoiceFailureHint, type RealtimeVoiceCall } from "@zyon/shared-types";
 
-type RealtimeClientSecret = { value: string; expires_at?: number };
 type RealtimeEvent = {
   type?: string;
   delta?: string;
@@ -12,7 +12,6 @@ type RealtimeEvent = {
     output?: Array<{ content?: Array<{ transcript?: string; text?: string }> }>;
   };
 };
-type VoiceError = Error & { status?: number };
 
 export type ProductNarrationProgress = {
   status: "idle" | "connecting" | "playing" | "blocked" | "completed" | "error";
@@ -22,7 +21,7 @@ export type ProductNarrationProgress = {
 
 type Options = {
   enabled: boolean;
-  createSession: (summary: string) => Promise<RealtimeClientSecret>;
+  createSession: (summary: string, sdp: string) => Promise<RealtimeVoiceCall>;
   onProgress?: (progress: ProductNarrationProgress) => void;
 };
 
@@ -154,10 +153,6 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
       }
       publish({ status: "connecting", hint: "Preparando o resumo em áudio...", transcript: "" });
       try {
-        const secret = await createSessionRef.current(source);
-        if (attempt !== attemptRef.current) return;
-        if (!secret.value) throw new Error("narration_session_missing");
-
         const peer = new RTCPeerConnection();
         peerRef.current = peer;
         // The summary has no buyer input. recvonly makes this explicit and,
@@ -230,19 +225,9 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
         await peer.setLocalDescription(offer);
         await waitForIceGathering(peer);
         if (attempt !== attemptRef.current) return;
-        const response = await fetch("https://api.openai.com/v1/realtime/calls", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${secret.value}`, "Content-Type": "application/sdp" },
-          body: peer.localDescription?.sdp ?? offer.sdp,
-        });
-        if (!response.ok) {
-          const error = new Error("narration_connection_failed") as VoiceError;
-          error.status = response.status;
-          throw error;
-        }
-        const answer = await response.text();
+        const answer = await createSessionRef.current(source, normalizeRealtimeSdp(peer.localDescription?.sdp ?? offer.sdp));
         if (attempt !== attemptRef.current) return;
-        await peer.setRemoteDescription({ type: "answer", sdp: answer });
+        await peer.setRemoteDescription({ type: "answer", sdp: normalizeRealtimeSdp(answer.sdp) });
       } catch (error) {
         if (attempt !== attemptRef.current) return;
         release();
@@ -260,6 +245,8 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
 }
 
 function narrationErrorHint(error: unknown): string {
+  const specific = realtimeVoiceFailureHint(error, "");
+  if (specific) return specific;
   const status = Number((error as { status?: unknown })?.status);
   if (status === 401) return "Sua sessão expirou. Atualize a página e tente ouvir novamente.";
   if (status === 403) return "O resumo em áudio não está disponível nesta sessão.";
