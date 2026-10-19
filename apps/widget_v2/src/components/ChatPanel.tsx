@@ -13,6 +13,7 @@ import { BlockRenderer } from "./chat/ChatBlocks";
 import { VoiceComposer } from "./chat/VoiceComposer";
 import { useChatRecovery } from "@/lib/use-chat-recovery";
 import { useChatDisplay } from "@/lib/use-chat-display";
+import { useAgentBlockDelay } from "@/lib/use-agent-block-delay";
 import type { CheckoutSession } from "@/api/checkout-session";
 import type { Message } from "@/store/checkout-store";
 
@@ -33,6 +34,8 @@ function isPaymentPresentationBlock(type: string): boolean {
 
 export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
+  const sessionId = useCheckoutStore((s) => s.sessionId);
+  const pendingAgentBlocks = useAgentBlockDelay(messages, sessionId);
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const chatRecovery = useCheckoutStore((s) => s.chatRecovery);
   const chatResponseUnavailable = useCheckoutStore((s) => s.chatResponseUnavailable);
@@ -114,9 +117,10 @@ export function ChatPanel() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, pendingAgentBlocks]);
 
   const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
+  const lastAgentBlocksReady = !lastAgentMsg || !pendingAgentBlocks.has(lastAgentMsg.id);
   const isPaymentChoiceStage = Boolean(
     lastAgentMsg?.checkoutStage === "payment" ||
     lastAgentMsg?.blocks?.some((block) => block.type === "payment_methods") ||
@@ -175,7 +179,7 @@ export function ChatPanel() {
               {msg.text && (
                 <MessageText message={msg} api={api} />
               )}
-              {!chatRecovery && msg.blocks?.map((block, j) => {
+              {!chatRecovery && !pendingAgentBlocks.has(msg.id) && msg.blocks?.map((block, j) => {
                 const navigation = ["address_confirmation", "shipping_options", "payment_methods", "coupon_input", "form_field", "crypto_chain_select"].includes(block.type);
                 if (navigation && (paymentIntent || msg.id !== lastAgentMsg?.id)) return null;
                 const paymentBlock = isPaymentPresentationBlock(block.type);
@@ -195,7 +199,7 @@ export function ChatPanel() {
           </div>
         ))}
 
-        {!chatRecovery && canEditPayment && paymentIntent && (
+        {!chatRecovery && lastAgentBlocksReady && canEditPayment && paymentIntent && (
           <nav aria-label="Alterar pedido" style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingLeft: 36 }}>
             {["Alterar pagamento", "Alterar frete", "Alterar endereço", "Usar cupom"].map(label => (
               <button key={label} data-neu="control" type="button" disabled={isTyping || paymentCreating || paymentSubmitting}
@@ -216,7 +220,7 @@ export function ChatPanel() {
           </nav>
         )}
 
-        {!chatRecovery && activeQuickReplies.length > 0 && (
+        {!chatRecovery && lastAgentBlocksReady && activeQuickReplies.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", paddingLeft: "36px" }}>
             {activeQuickReplies.map((qr) => (
               <button data-neu="control"

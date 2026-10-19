@@ -5,6 +5,7 @@ import { readRealtimeVoiceCall } from "@zyon/shared-types";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBorder";
+import { useAgentBlockDelay } from "../../../widget_v2/src/lib/use-agent-block-delay";
 import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
 import { useWidgetConfig } from "@/lib/widget-config";
@@ -294,6 +295,9 @@ export default function ConversationShell({
     setSupportOpen, setBuyerHubOpen, setShowBuyerAuth, setCheckoutIntent, setPolicyModal,
     setCartDrawerForceOpen, dismissCrossSell, dismissProductCrossSell, clearPreparedCheckout,
   } = vm;
+  const pendingAgentBlocks = useAgentBlockDelay(messages, conversationId ?? merchantId ?? null);
+  const latestAgentMessage = [...messages].reverse().find((message) => message.role === "agent");
+  const latestAgentBlocksReady = !latestAgentMessage || !pendingAgentBlocks.has(latestAgentMessage.id);
   const supportInbox = useBuyerSupportInbox(merchantId, conversationId);
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
@@ -551,6 +555,7 @@ export default function ConversationShell({
     if (checkoutOpen || navigation.view.cart) return;
     const latest = messages.at(-1);
     if (!latest || latest.role !== "agent") return;
+    if (pendingAgentBlocks.has(latest.id)) return;
     const block = latest.blocks?.find((item) => item.type === "product_content")
       ?? latest.blocks?.find((item) => item.type === "product_card");
     const productId = block?.type === "product_content" ? block.data?.productId : block?.data?.id;
@@ -580,7 +585,7 @@ export default function ConversationShell({
       )) setRichProduct({ productId });
     }).catch(() => {});
     return () => controller.abort();
-  }, [messages, merchantSlug]);
+  }, [messages, merchantSlug, pendingAgentBlocks]);
   useEffect(() => {
     const onOpenSupport = () => setSupportOpen(true);
     window.addEventListener("zyon:open-support", onOpenSupport);
@@ -687,7 +692,7 @@ export default function ConversationShell({
     if (!isLoading && inputRef.current) {
       setTimeout(() => inputRef.current?.focus(), 80);
     }
-  }, [messages, isLoading]);
+  }, [messages, isLoading, pendingAgentBlocks]);
   useEffect(() => {
     const el = threadRef.current;
     if (!el || typeof ResizeObserver === "undefined") return;
@@ -963,8 +968,8 @@ export default function ConversationShell({
                           config={{ ALLOWED_TAGS: ["strong", "em", "br"] }}
                         />
                       )}
-                      <BlockRenderer block={cardBlock} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />
-                      {otherBlocks.map((block, idx) => (
+                      {!pendingAgentBlocks.has(m.id) && <BlockRenderer block={cardBlock} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />}
+                      {!pendingAgentBlocks.has(m.id) && otherBlocks.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
                           <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />
                         </div>
@@ -982,7 +987,7 @@ export default function ConversationShell({
                     </div>
                     <div style={{ display: "flex", flexDirection: "column", gap: "12px", flex: 1, minWidth: 0 }}>
                       {m.text && <SafeStoreHtml material="message" style={{ boxShadow: "var(--aacp-neu-message)", padding: "12px 16px", borderRadius: "18px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} html={renderMarkdownText(m.text)} config={{ ALLOWED_TAGS: ["strong", "em", "br"] }} />}
-                      {m.blocks?.map((block, idx) => (
+                      {!pendingAgentBlocks.has(m.id) && m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
                           <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />
                         </div>
@@ -1108,7 +1113,7 @@ export default function ConversationShell({
       )}
       {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}
       <CrossSellInterstitial
-        data={crossSellPending}
+        data={latestAgentBlocksReady ? crossSellPending : null}
         onClose={dismissCrossSell}
         onViewCart={() => {
           dismissCrossSell();
