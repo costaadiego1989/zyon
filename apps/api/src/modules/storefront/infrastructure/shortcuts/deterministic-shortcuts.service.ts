@@ -4,6 +4,7 @@ import type { CartAddResultBlock, ConversationBlock } from "../../domain/types/c
 import type { AgentCopyService } from "../copy/agent-copy.service.js";
 import { productGallery } from "../product-gallery.js";
 import { isCatalogBrowseQuery } from "../../../catalog/domain/services/contextual-product-search.js";
+import { isUnspecifiedShoppingRequest } from "../../domain/services/sales-discovery.js";
 
 export interface DeterministicShortcutDeps {
   productRepo: ProductRepositoryPort;
@@ -343,6 +344,9 @@ export async function resolveDeterministicShortcut(
   // An attachment needs catalog matching and buyer confirmation from the agent,
   // even when the accompanying text would normally trigger a shortcut.
   if (input.attachmentContext) return null;
+  // Wanting help to buy is not a request to dump the catalog. Let the agent
+  // discover the need; explicit "Ver Produtos"/catalog actions stay deterministic.
+  if (isUnspecifiedShoppingRequest(input.userMessage)) return null;
   const normalizedMsg = input.userMessage.trim().toLowerCase();
   return (
     (await resolveAddToCartShortcut(deps, input)) ??

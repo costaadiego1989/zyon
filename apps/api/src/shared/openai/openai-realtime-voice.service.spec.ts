@@ -22,7 +22,7 @@ test("realtime voice sessions bound output, instructions and cart context", asyn
     return Response.json({ value: "ephemeral-voice-secret-for-test" });
   }) as typeof fetch;
 
-  const service = new OpenAIRealtimeVoiceService();
+  const service = new OpenAIRealtimeVoiceService({} as never);
   await service.createClientSecret({
     merchantId: "merchant_test",
     conversationId: "conversation_test",
@@ -39,7 +39,8 @@ test("realtime voice sessions bound output, instructions and cart context", asyn
 
   const firstSession = JSON.parse(String(requests[0]?.body)).session;
   assert.equal(firstSession.max_output_tokens, 512);
-  assert.match(firstSession.instructions, /até duas frases e 60 palavras/);
+  assert.match(firstSession.instructions, /vendedor consultivo/);
+  assert.match(firstSession.instructions, /handoff_to_commerce_agent para descobrir a necessidade/);
   assert.match(firstSession.instructions, /mais 2 item\(ns\)/);
   assert.doesNotMatch(firstSession.instructions, /Produto 5/);
   assert.equal(firstSession.tools.length, 3);
@@ -65,4 +66,5 @@ test("realtime voice sessions bound output, instructions and cart context", asyn
   assert.doesNotMatch(checkout.instructions, /A partir de agora|Olá! Sou/);
   assert.match(checkout.instructions, /Não se apresente novamente/);
   assert.match(checkout.instructions, /Não invente|Nunca complete um e-mail/);
+  assert.match(checkout.instructions, /até duas frases e 60 palavras/);
 });

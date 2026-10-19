@@ -1,4 +1,5 @@
 import type { ExecutableTool, ToolResult } from "./types.js";
+import { isUnspecifiedShoppingRequest } from "../services/sales-discovery.js";
 
 const CART_WRITES = new Set([
   "add_item_to_cart", "update_cart_item", "remove_cart_item", "clear_cart",
@@ -33,6 +34,7 @@ function normalize(value: string) {
 function authorizedWrites(message: string, attachmentContext?: string): Set<string> {
   const allowed = new Set<string>();
   if (attachmentContext) return allowed; // Extracted lists require item-by-item review.
+  if (isUnspecifiedShoppingRequest(message)) return allowed; // No product has been chosen.
   let command = normalize(message.replace(/\[(?:variantId|optionItemIds|crossSellPromoId|serviceSlotId):[^\]]*\]/gi, ""));
   command = command.replace(/^(?:por favor[,\s]+|(?:voce\s+)?(?:pode|poderia)\s+(?:por favor\s+)?|(?:eu\s+)?(?:quero|desejo)\s+|(?:eu\s+)?gostaria de\s+)/, "");
   if (/\b(?:nao|talvez|depois|antes|caso|se|pesquisando|comparando)\b/.test(command) || /\blista de desejos\b/.test(command)) return allowed;

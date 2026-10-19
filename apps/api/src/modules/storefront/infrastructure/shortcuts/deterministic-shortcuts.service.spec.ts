@@ -26,6 +26,16 @@ test("generic catalog questions show actual products without an LLM category gue
   assert.equal(queries.length, 3, "specific needs must keep the contextual discovery route");
 });
 
+test("unspecified buying requests reach the consultative agent without catalog, copy or cart shortcuts", async () => {
+  const run = fixture(null);
+  for (const question of ["quero comprar um produto", "Quero comprar algo", "Encontrar Produto", "Me ajude a escolher um produto",
+    "Quero um hidratante para minha pele oleosa", "Está caro", "Não quero comprar agora"]) {
+    assert.equal(await resolveDeterministicShortcut(run.deps, input(question)), null, question);
+  }
+  assert.deepEqual(run.calls, []);
+  assert.deepEqual(run.events, []);
+});
+
 const input = (message = "Adicionar produto ao carrinho [variantId:physical]", cartId: string | undefined = "cart_qa"): StorefrontConversationInput => ({
   userMessage: message, merchantId: "merchant_qa", sessionId: "conversation_qa", cartId, history: [], storeCategory: "test",
 });
