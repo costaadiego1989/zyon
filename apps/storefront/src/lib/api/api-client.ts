@@ -145,6 +145,7 @@ export const checkoutApi = {
     history?: any[];
     variantId?: string;
     attachment?: ConversationAttachment;
+    voiceTurnToken?: string;
   }): Promise<any> {
     return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
       method: "POST",
@@ -156,6 +157,7 @@ export const checkoutApi = {
         history: options?.history,
         variant_id: options?.variantId || undefined,
         attachment: options?.attachment,
+        voice_turn_token: options?.voiceTurnToken,
       }),
     }, checkoutId);
   },

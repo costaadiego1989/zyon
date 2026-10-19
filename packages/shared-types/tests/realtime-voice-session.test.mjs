@@ -1,6 +1,22 @@
 import assert from "node:assert/strict";
 import { test } from "node:test";
-import { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint } from "../dist/realtime-voice-session.js";
+import { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, RealtimeServerVoiceTurns } from "../dist/realtime-voice-session.js";
+
+test("server-owned turns never issue client response.create, including after interruption", () => {
+  const sent = [];
+  const turns = new RealtimeServerVoiceTurns(event => sent.push(event));
+  turns.sendText("Olá");
+  turns.receive({ type: "response.created", response: { id: "reply-1", metadata: { zyon_turn_token: "signed-permit" } } });
+  turns.receive({ type: "output_audio_buffer.started" });
+  turns.interrupt();
+  turns.sendText("Quero comprar");
+  assert.deepEqual(sent.map(event => event.type), ["conversation.item.create", "response.cancel", "output_audio_buffer.clear", "conversation.item.create"]);
+  assert.equal(turns.permitFor("reply-1"), "signed-permit");
+  assert.equal(turns.permitFor("different-response"), undefined);
+  assert(!JSON.stringify(sent).includes("signed-permit"));
+  turns.receive({ type: "response.done", response: { id: "reply-1" } });
+  assert.equal(turns.permitFor("reply-1"), undefined);
+});
 
 test("SDP offer and answer retain CRLF and a final terminator", () => {
   assert.equal(normalizeRealtimeSdp(" v=0\na=sendrecv\n "), "v=0\r\na=sendrecv\r\n");

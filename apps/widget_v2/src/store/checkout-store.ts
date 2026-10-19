@@ -333,13 +333,13 @@ interface CheckoutState {
   selectChannel: (channel: "chat" | "voice") => void;
   startQuickPurchase: () => Promise<void>;
   completeFormField: (field: string) => void;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, voiceTurnToken?: string) => Promise<void>;
   /**
    * Continues the visual checkout after a Realtime `begin_checkout` tool call.
    * This can reveal the payment-method chooser, but cannot create an intent,
    * collect card data, or confirm a payment.
    */
-  continueVoiceCheckout: () => Promise<void>;
+  continueVoiceCheckout: (voiceTurnToken?: string) => Promise<void>;
   acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
@@ -817,7 +817,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }));
   },
 
-  sendMessage: async (text) => {
+  sendMessage: async (text, voiceTurnToken) => {
     const latestAgent = [...get().messages].reverse().find((message) => message.role === "agent");
     const paymentStage = Boolean(get().paymentIntent || get().cart.status === "ready_to_pay"
       || latestAgent?.checkoutStage === "payment" || latestAgent?.checkoutStage === "payment_pending");
@@ -947,7 +947,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
 
     try {
-      const res = await api.chat(text);
+      const res = await api.chat(text, voiceTurnToken);
       if (get().api !== api) return;
 
       // Only use this offline fallback when the signed checkout service did
@@ -1193,7 +1193,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  continueVoiceCheckout: async () => {
+  continueVoiceCheckout: async (voiceTurnToken) => {
     if (get().chatRecovery || get().api?.requiresChatRecovery) return;
     const before = get().cart.status;
     if (before === "ready_to_pay") return;
@@ -1205,7 +1205,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     // This goes through the signed checkout conversation. It can ask for the
     // next delivery detail, but cannot reach payment until the backend has
     // reported the payment stage.
-    await get().sendMessage("Vamos prosseguir");
+    await get().sendMessage("Vamos prosseguir", voiceTurnToken);
     if (get().cart.status === "shipping_calculated") {
       get().proceedToPayment();
     }

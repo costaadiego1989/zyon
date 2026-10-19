@@ -7,6 +7,7 @@ import { ConversationSessionExpiredError } from "@/lib/conversation-access";
 export interface SendMessageParams {
   trimmed: string;
   attachment?: ConversationAttachment;
+  voiceTurnToken?: string;
   conversationId: string | null;
   setConversationId: (id: string) => void;
   clearCart: () => void;
@@ -80,6 +81,7 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
         history: newHistory,
         variantId: variantId || undefined,
         attachment,
+        voiceTurnToken: params.voiceTurnToken,
         token: getValidBuyer()?.token,
       };
       let data;
@@ -95,7 +97,7 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
         params.clearCart();
         setHistory([{ role: "user", content: trimmed }]);
         setMessages((prev) => [...prev, { id: `session-${Date.now()}`, role: "agent", text: "Sua sessão anterior expirou. Abri uma nova conversa; adicione novamente os produtos que deseja comprar." }]);
-        data = await checkoutApi.sendMessage(convId!, trimmed, { ...requestOptions, cartId: undefined, history: [{ role: "user", content: trimmed }] });
+        data = await checkoutApi.sendMessage(convId!, trimmed, { ...requestOptions, voiceTurnToken: undefined, cartId: undefined, history: [{ role: "user", content: trimmed }] });
       }
 
       if (data) {

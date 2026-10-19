@@ -387,7 +387,7 @@ export class CheckoutSession {
     return cartFromExperience(this.experience);
   }
 
-  async chat(message: string): Promise<ChatResponse> {
+  async chat(message: string, voiceTurnToken?: string): Promise<ChatResponse> {
     this.assertSession();
     if (this.requiresChatRecovery || this.chatInFlight) throw new ChatRecoveryRequired();
     const messageId = crypto.randomUUID();
@@ -400,6 +400,7 @@ export class CheckoutSession {
         body: JSON.stringify({
           session_id: this.sessionId,
           user_message: message,
+          voice_turn_token: voiceTurnToken,
           conversation_id: this.conversationId,
           message_id: messageId,
         }),

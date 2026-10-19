@@ -1,6 +1,44 @@
 /** Public browser/server voice contract. Provider credentials never cross it. */
 export type RealtimeVoiceCall = { sdp: string };
 
+export type RealtimeServerVoiceEvent = {
+  type?: string; response_id?: string;
+  response?: { id?: string; metadata?: Record<string, string> };
+};
+
+/** The API sideband owns response admission, quota and tool continuations. */
+export class RealtimeServerVoiceTurns {
+  private readonly permits = new Map<string, string>();
+  private active = false;
+  private playing = false;
+  constructor(private readonly send: (event: Record<string, unknown>) => void) {}
+
+  receive(event: RealtimeServerVoiceEvent): void {
+    if (event.type === "response.created") {
+      this.active = true;
+      const permit = event.response?.metadata?.zyon_turn_token;
+      if (event.response?.id && typeof permit === "string" && permit.length <= 512) this.permits.set(event.response.id, permit);
+    }
+    if (event.type === "output_audio_buffer.started") this.playing = true;
+    if (event.type === "output_audio_buffer.stopped" || event.type === "output_audio_buffer.cleared") this.playing = false;
+    if (event.type === "response.done" || event.type === "response.completed") {
+      this.active = false;
+      if (event.response?.id) this.permits.delete(event.response.id);
+    }
+  }
+
+  permitFor(responseId?: string): string | undefined { return responseId ? this.permits.get(responseId) : undefined; }
+
+  interrupt(): void {
+    if (this.active) this.send({ type: "response.cancel" });
+    if (this.playing) this.send({ type: "output_audio_buffer.clear" });
+  }
+
+  sendText(text: string): void {
+    this.send({ type: "conversation.item.create", item: { type: "message", role: "user", content: [{ type: "input_text", text }] } });
+  }
+}
+
 export function normalizeRealtimeSdp(value: unknown): string {
   if (typeof value !== "string" || value.length > 200_000 || !value.trim().startsWith("v=0")) {
     throw new Error("voice_sdp_invalid");

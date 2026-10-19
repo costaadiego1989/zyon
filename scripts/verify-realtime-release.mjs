@@ -45,6 +45,7 @@ for (const relativePath of [
   try { content = readFileSync(resolve(relativePath), "utf8"); }
   catch { continue; } // Missing files are already reported by requiredSource.
   if (content.includes("api.openai.com")) failures.push(`${relativePath}: browser must negotiate through the API, not contact the provider directly`);
+  if (content.includes('type: "response.create"')) failures.push(`${relativePath}: response admission must remain on the server sideband`);
 }
 
 if (failures.length > 0) {

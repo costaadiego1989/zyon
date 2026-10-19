@@ -204,7 +204,8 @@ test("native browser WebRTC completes the API SDP exchange and opens its data ch
   });
   await enterChat(page);
   await page.locator('[data-aacp-voice-channel="chat"]').click();
-  await expect.poll(() => page.evaluate(() => (window as any).__remoteVoiceEvents?.includes("response.create")), { timeout: 15000 }).toBe(true);
+  await expect.poll(() => page.evaluate(() => (window as any).__remoteVoiceEvents?.includes("conversation.item.create")), { timeout: 15000 }).toBe(true);
+  expect(await page.evaluate(() => (window as any).__remoteVoiceEvents.includes("response.create"))).toBe(false);
   await expect.poll(() => page.locator("audio[data-zyon-realtime-audio]").evaluate((audio: HTMLAudioElement) => Boolean(audio.srcObject))).toBe(true);
   expect(negotiations).toBe(1);
   expect(calls.provider).toBe(0);

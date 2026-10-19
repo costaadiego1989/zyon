@@ -208,7 +208,6 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
             type: "conversation.item.create",
             item: { type: "message", role: "user", content: [{ type: "input_text", text: "Reproduza agora o resumo configurado para este produto." }] },
           }));
-          channel.send(JSON.stringify({ type: "response.create" }));
         });
         channel.addEventListener("close", () => {
           if (peerRef.current !== peer) return;

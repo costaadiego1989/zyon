@@ -77,8 +77,8 @@ export function ChatPanel() {
       if (!api) throw new Error("checkout_session_missing");
       return api.createRealtimeVoiceSession(sdp);
     },
-    onCommerceTurn: async (buyerMessage, action) => {
-      await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage);
+    onCommerceTurn: async (buyerMessage, action, voiceTurnToken) => {
+      await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage, voiceTurnToken);
       const current = useCheckoutStore.getState();
       if (current.chatRecovery) throw new Error("checkout_chat_recovery_required");
       const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
@@ -87,9 +87,9 @@ export function ChatPanel() {
         cart: { itemCount: current.cart.items.length, total: current.cart.total },
       };
     },
-    onBeginCheckout: async () => {
+    onBeginCheckout: async (voiceTurnToken) => {
       if (useCheckoutStore.getState().chatRecovery) throw new Error("checkout_chat_recovery_required");
-      await continueVoiceCheckout();
+      await continueVoiceCheckout(voiceTurnToken);
       const current = useCheckoutStore.getState();
       const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
       return {

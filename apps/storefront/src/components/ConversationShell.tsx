@@ -316,14 +316,14 @@ export default function ConversationShell({
       });
       return readRealtimeVoiceCall(response);
     },
-    onCommerceTurn: async (buyerMessage, action) => {
+    onCommerceTurn: async (buyerMessage, action, voiceTurnToken) => {
       const selectedVariantId = action === "add_item_to_cart"
         ? presentedProductVariantRef.current ?? resolvePresentedVariantId(messages, buyerMessage)
         : undefined;
       const commerceMessage = action === "add_item_to_cart"
         ? attachPresentedVariantId(`Adicionar ao carrinho: ${buyerMessage}`, selectedVariantId)
         : buyerMessage;
-      const result = await sendMessage(commerceMessage);
+      const result = await sendMessage(commerceMessage, undefined, voiceTurnToken);
       return { agentMessage: result?.agentMessage ?? "Não consegui concluir este pedido agora. Pode repetir?", cart: { itemCount: cart.itemCount, total: cart.total } };
     },
     onBeginCheckout: async () => beginCheckout(),

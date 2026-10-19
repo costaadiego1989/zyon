@@ -2,8 +2,10 @@ import { test, expect } from "@playwright/test";
 
 test("voice uses the same signed embed proxy as chat, with direct API fallback for standalone", async ({ page }) => {
   const paths: string[] = [];
+  const permits: string[] = [];
   await page.route("**/embed/**", route => {
     paths.push(new URL(route.request().url()).pathname);
+    if (route.request().url().endsWith('/chat')) permits.push(route.request().postDataJSON().voice_turn_token);
     return route.fulfill({ json: route.request().url().endsWith('/start')
       ? { session_id: 'chk_proxy', experience: {} }
       : route.request().url().endsWith('/session') ? { sdp: 'v=0\r\n' }
@@ -16,7 +18,7 @@ test("voice uses the same signed embed proxy as chat, with direct API fallback f
     for (const embedApiBaseUrl of ['/api', undefined]) {
       const session = new CheckoutSession({ embedToken: 'test', merchantId: 'test', apiBaseUrl: '/direct', embedApiBaseUrl });
       await session.start();
-      await session.chat('Quero finalizar');
+      await session.chat('Quero finalizar', 'signed-voice-permit');
       await session.createRealtimeVoiceSession('v=0\r\n');
       await session.realtimeVoiceContext();
     }
@@ -25,4 +27,5 @@ test("voice uses the same signed embed proxy as chat, with direct API fallback f
     '/api/embed/start', '/api/embed/chat', '/api/embed/realtime/session', '/api/embed/realtime/context',
     '/direct/embed/start', '/direct/embed/chat', '/direct/embed/realtime/session', '/direct/embed/realtime/context',
   ]);
+  expect(permits).toEqual(['signed-voice-permit', 'signed-voice-permit']);
 });

@@ -1561,4 +1561,4 @@ export { VOICE_MICROPHONE_CONSTRAINTS, RealtimeVoiceInput, RealtimeVoiceResponse
 export * from "./order-fulfillment.js";
 
 
-export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, type RealtimeVoiceCall } from "./realtime-voice-session.js";
+export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, RealtimeServerVoiceTurns, type RealtimeVoiceCall, type RealtimeServerVoiceEvent } from "./realtime-voice-session.js";

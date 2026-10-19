@@ -159,7 +159,7 @@ export function useConversationViewModel(
   }, [initConversation]);
 
   const sendMessage = useCallback(
-    async (text: string, attachment?: ConversationAttachment): Promise<CommerceTurnResult | null> => {
+    async (text: string, attachment?: ConversationAttachment, voiceTurnToken?: string): Promise<CommerceTurnResult | null> => {
       const trimmed = text.trim();
       if ((!trimmed && !attachment) || sendingRef.current) return null;
       sendingRef.current = true;
@@ -169,6 +169,7 @@ export function useConversationViewModel(
         return await handleSendMessage({
           trimmed,
           attachment,
+          voiceTurnToken,
           conversationId: conversationIdRef.current,
           setConversationId,
           clearCart,
