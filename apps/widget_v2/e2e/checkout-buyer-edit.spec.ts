@@ -43,7 +43,7 @@ async function setup(page: Page, rejectEdit = false) {
       buyerFacing: card ? { invoiceUrl: "https://payments.example.test/fixture" } : { qrCodeCopyPaste: "fixture-pix-pending" }, experience } });
   });
   await page.route("**/embed/track", route => route.fulfill({ json: {} }));
-  await navigateToCheckout(page); await selectChatChannel(page);
+  await navigateToCheckout(page, "https://qa-checkout.invalid"); await selectChatChannel(page);
   await page.getByRole("button", { name: "Vamos prosseguir", exact: true }).click();
   await page.getByRole("button", { name: "Pix", exact: true }).click();
   await expect(page.getByText("Pix gerado! Pague e confirmo seu pedido automaticamente.")).toBeVisible();
@@ -57,10 +57,12 @@ for (const width of [320, 360, 390, 430, 768, 1024, 1280, 1440]) {
     await expect(page.getByRole("button", { name: "Alterar pagamento", exact: true })).toBeVisible();
     const composer = page.getByRole("textbox", { name: "Mensagem", exact: true });
     await composer.fill("Quero trocar para cartão"); await composer.press("Enter");
-    await expect(page.getByRole("button", { name: "Cartão de crédito", exact: true }).last()).toBeVisible();
+    const cardChoice = page.getByRole("button", { name: /^Cartão de crédito(?: Pagamento seguro com cartão)?$/ });
+    await expect(cardChoice).toHaveCount(1);
+    await expect(cardChoice).toBeVisible();
     expect(f.edits).toEqual(["payment"]); expect(f.payments).toHaveLength(1);
     await expect(page.getByRole("button", { name: "Copiar código", exact: true })).toHaveCount(0);
-    await page.getByRole("button", { name: "Cartão de crédito", exact: true }).last().click();
+    await cardChoice.click();
     await expect.poll(() => f.payments.length).toBe(2);
     expect(f.payments[1].method).toBe("card");
     expect(f.payments[1].idempotency_key).not.toBe(f.payments[0].idempotency_key);

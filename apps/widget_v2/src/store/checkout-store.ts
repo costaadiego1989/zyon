@@ -164,6 +164,37 @@ export function isEnabledPaymentQuickReply(text: string, config: MerchantPayment
   return !requested || paymentChoicesForConfig(config).some((method) => method.key === requested);
 }
 
+/** Use the signed stage: services/digital goods can pay without a freight quote. */
+export function cartStatusFromExperience(experience: Experience): CartStatus {
+  if (experience.stage === "payment" || experience.stage === "payment_pending") return "ready_to_pay";
+  if (experience.stage === "shipping" || experience.stage === "data_collection") return "awaiting";
+  return experience.shipping ? "shipping_calculated" : "awaiting";
+}
+
+/** One action per intent, even when the API says PIX and another source says Pix. */
+export function checkoutQuickReplies(replies: string[], config: MerchantPaymentConfig, options: {
+  paymentControlsVisible?: boolean; editControlsVisible?: boolean;
+} = {}): string[] {
+  const seen = new Set<string>();
+  return replies.filter(reply => {
+    const method = paymentMethodForQuickReply(reply);
+    if (method && (options.paymentControlsVisible || !isEnabledPaymentQuickReply(reply, config))) return false;
+    const edit = checkoutEditIntent(reply);
+    if (edit && options.editControlsVisible) return false;
+    const key = method ? `payment:${method}` : edit ? `edit:${edit}` : reply.trim().toLocaleLowerCase("pt-BR");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function retireCheckoutControls(messages: Message[]): Message[] {
+  return messages.map(message => ({ ...message, quickReplies: undefined, blocks: message.blocks?.filter(block => ![
+    "pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "crypto_payment", "crypto_chain_select",
+    "checkout_price_review", "payment_methods", "shipping_options", "coupon_input", "address_confirmation", "form_field",
+  ].includes(block.type)) }));
+}
+
 export interface BuyerData {
   name?: string;
   email?: string;
@@ -472,7 +503,7 @@ function deriveBlocksFromStage(
 
   if (stage === "payment") {
     const methods = paymentChoicesForConfig(state.merchantPaymentConfig);
-    return [{ type: "coupon_input", data: { methods } }];
+    return [{ type: "payment_methods", data: { methods } }];
   }
 
   return undefined;
@@ -622,7 +653,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           totalToPay: cartData.totalToPay,
           shipping: cartData.shipping,
           discount: cartData.discount,
-          status: cartData.shipping ? "shipping_calculated" : "awaiting",
+          status: cartStatusFromExperience(exp!),
         },
         activeDiscount: activeDiscountFromNudge(exp?.commercial_nudge),
         status: "channel_gate",
@@ -732,6 +763,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         return;
       }
 
+      // The server may already have resolved delivery (including no delivery
+      // for a service). Do not fetch freight just to apply a saved preference.
+      if (cart.status === "ready_to_pay") {
+        await get().pay(oneBuyClickPreferences.paymentPreference === "pix" ? "pix" : "credito");
+        return;
+      }
+
       const hasCompleteAddress = Boolean(buyer.address?.zip && buyer.address.street && buyer.address.number && buyer.address.city && buyer.address.state);
       if (!hasCompleteAddress) {
         await get().sendMessage("Vamos prosseguir");
@@ -780,10 +818,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   },
 
   sendMessage: async (text) => {
-    const editSection = checkoutEditIntent(text);
+    const latestAgent = [...get().messages].reverse().find((message) => message.role === "agent");
+    const paymentStage = Boolean(get().paymentIntent || get().cart.status === "ready_to_pay"
+      || latestAgent?.checkoutStage === "payment" || latestAgent?.checkoutStage === "payment_pending");
+    const editSection = text.trim().toLowerCase() === "voltar" && paymentStage ? "payment" : checkoutEditIntent(text);
     if (get().status === "completed" || get().isTyping || get().chatRecovery || (get().api?.requiresChatRecovery && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
     const explicitPayment = paymentMethodForQuickReply(text);
-    const latestAgent = [...get().messages].reverse().find((message) => message.role === "agent");
     if (explicitPayment && (get().paymentIntent || get().cart.status === "ready_to_pay"
       || (get().selectedPaymentMethod && get().cart.shipping)
       || latestAgent?.checkoutStage === "payment" || latestAgent?.checkoutStage === "payment_pending"
@@ -807,21 +847,26 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
     const latest = [...get().messages].reverse().find(message => message.role === "agent");
     if (editSection && (get().paymentIntent || latest?.checkoutStage === "payment_pending"
-      || (editSection !== "coupon" && (get().cart.shipping || latest?.checkoutStage === "payment")))) {
+      || (editSection !== "coupon" && (get().cart.shipping || paymentStage)))) {
       set({ isTyping: true });
       try {
         const experience = await api.reopenCheckout(editSection);
+        if (get().api !== api || get().status === "completed") return;
         get().stopPolling();
         set(state => ({ paymentIntent: null, pendingPriceReview: null, pendingPayment: null, activeDiscount: null,
-          cart: { ...cartFromExperience(experience), status: experience.shipping ? "shipping_calculated" : "awaiting" },
-          messages: state.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block =>
-            !["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "crypto_payment", "checkout_price_review", "payment_methods", "shipping_options", "coupon_input"].includes(block.type)) })),
+          cart: { ...cartFromExperience(experience), status: cartStatusFromExperience(experience) },
+          messages: retireCheckoutControls(state.messages),
           isTyping: false }));
       } catch {
         set(state => ({ isTyping: false, messages: [...state.messages, { id: `edit_error_${Date.now()}`, role: "agent",
           text: "Ainda não foi possível liberar a alteração. Preciso confirmar que o pagamento anterior foi cancelado. Tente novamente em instantes.", timestamp: Date.now() }] }));
         return;
       }
+    }
+    if (editSection === "payment" && ["ready_to_pay", "shipping_calculated"].includes(get().cart.status)) {
+      set(state => ({ messages: [...state.messages, { id: `user_edit_${Date.now()}`, role: "user", text, timestamp: Date.now() }] }));
+      get().proceedToPayment();
+      return;
     }
     const { messages } = get();
 
@@ -965,9 +1010,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           ? []
           : (deriveBlocksFromStage(res.stage, { buyer: updatedBuyer, cart, merchantPaymentConfig }, res.missing_fields) ?? []));
       const crossSellBlock = crossSellBlockFromSuggestions(res.experience?.suggestedProducts);
-      const mergedBlocks = crossSellBlock
+      const responseBlocks = crossSellBlock
         ? [...baseBlocks, crossSellBlock]
         : baseBlocks;
+      const mergedBlocks = get().paymentIntent
+        ? responseBlocks.filter(block => !["payment_methods", "coupon_input", "shipping_options", "address_confirmation", "form_field"].includes(block.type))
+        : responseBlocks;
       const agentText = resolveAgentText(res.message, mergedBlocks);
       const agentMsg: Message = {
         displayRef: agentText === res.message ? res.display_ref : undefined,
@@ -985,7 +1033,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         leadRegistered: hasCompleteLead(updatedBuyer),
         isTyping: false,
         cart: res.experience?.items && res.experience.totals ? { ...s.cart, ...cartFromExperience(res.experience),
-          shipping: experienceShipping, status: res.stage === "payment" ? "shipping_calculated" : res.stage === "shipping" ? "awaiting" : s.cart.status } : s.cart,
+          shipping: experienceShipping, status: cartStatusFromExperience({ ...res.experience, stage: res.stage ?? res.experience.stage }) } : s.cart,
         ...(res.experience?.items && res.experience.totals ? { activeDiscount: activeDiscountFromNudge(res.experience.commercial_nudge) } : {}),
       }));
 
@@ -1323,7 +1371,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   pay: async (method, installments, confirmedCartFingerprint) => {
     const { api, cart, leadRegistered } = get();
-    if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().status === "completed" || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
     const availableMethods = paymentChoicesForConfig(get().merchantPaymentConfig);
@@ -1346,7 +1394,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         id: `error_${Date.now()}`,
         role: "agent",
         text: "Selecione um frete antes de pagar.",
-        quickReplies: ["Voltar"],
+        quickReplies: ["Alterar frete"],
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg] }));
@@ -1379,7 +1427,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
-    set({ paymentSubmitting: true, paymentCreating: true });
+    set(state => ({ paymentSubmitting: true, paymentCreating: true, messages: retireCheckoutControls(state.messages) }));
     try {
       const intent = await api.createPaymentIntent(method, installments, { confirmedCartFingerprint });
       if (get().api !== api) return;
@@ -1610,6 +1658,9 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
+    if (current.paymentIntent?.status === "requires_action" || current.paymentIntent?.status === "pending") {
+      if (current.paymentIntent.method === method || (current.paymentIntent.method === "card" && method === "credito")) return;
+    }
     set({ selectedPaymentMethod: method });
     // No prior intent exists yet: this is a normal first selection.
     if (!current.paymentIntent) {
@@ -1638,19 +1689,21 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         pendingPayment: null,
         activeDiscount: null,
         isTyping: false,
-        cart: { ...cartFromExperience(experience), status: experience.shipping ? "ready_to_pay" : "awaiting" },
-        messages: state.messages.map((message) => ({
-          ...message,
-          blocks: message.blocks?.filter((block) => ![
-            "pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "crypto_payment", "checkout_price_review",
-          ].includes(block.type)),
-        })),
+        cart: { ...cartFromExperience(experience), status: cartStatusFromExperience(experience) },
+        messages: retireCheckoutControls(state.messages),
       }));
+      if (get().cart.status === "awaiting") {
+        // A real invalidated physical quote still needs server-guided delivery,
+        // not a payment attempt followed by a dead-end "Voltar" error.
+        await get().sendMessage("Vamos prosseguir");
+        return;
+      }
       await get().pay(method);
     } catch {
       if (get().api !== current.api) return;
       set((state) => ({
         isTyping: false,
+        selectedPaymentMethod: current.selectedPaymentMethod,
         messages: [...state.messages, {
           id: `payment_change_error_${Date.now()}`,
           role: "agent",
@@ -1686,16 +1739,21 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   proceedToPayment: (methods) => {
     const s = get();
+    // A detached coupon component/effect must not replace an in-flight or
+    // already-created payment with a second chooser.
+    if (s.status === "completed" || s.paymentIntent || s.paymentCreating || s.paymentSubmitting || s.cartUpdating
+      || s.chatRecovery || s.api?.requiresChatRecovery) return;
     const permitted = paymentChoicesForConfig(s.merchantPaymentConfig);
     const permittedKeys = new Set(permitted.map((method) => method.key));
     const requested = methods?.filter((method) => permittedKeys.has(method.key)) ?? [];
     const list = [...requested, ...permitted.filter((method) => !requested.some((choice) => choice.key === method.key))];
     set((st) => ({
-      messages: [...st.messages, {
+      messages: [...retireCheckoutControls(st.messages), {
         id: `agent_pay_${Date.now()}`,
         role: "agent",
         text: "Como você quer pagar?",
         blocks: [{ type: "payment_methods", data: { methods: list } }],
+        checkoutStage: "payment",
         timestamp: Date.now(),
       }],
       cart: { ...st.cart, status: "ready_to_pay" },

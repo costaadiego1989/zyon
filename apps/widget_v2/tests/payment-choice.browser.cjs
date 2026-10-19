@@ -9,6 +9,7 @@ const path = require('node:path');
 const target = process.env.WIDGET_TEST_URL || 'http://127.0.0.1:5186';
 const output = fs.mkdtempSync(path.join(os.tmpdir(), 'aacp-pix-choice-'));
 const experience = {
+  stage: 'payment',
   items: [{ sku: 'synthetic-sku', name: 'Produto de teste', quantity: 1, unit_price: 10 }],
   shipping: { carrierKey: 'synthetic-shipping', method: 'Entrega', customerPrice: 0 },
   totals: { subtotal: 10, discount: 0, shipping: 0, service_fee: 0.99, total: 10, total_to_pay: 10.99 },
@@ -21,7 +22,8 @@ async function main() {
   const browser = await chromium.launch({ headless: true });
   const results = [];
   try {
-    for (const mode of ['click', 'type', 'unavailable', 'chooser']) {
+    for (const mode of ['click', 'type', 'unavailable', 'chooser', 'service-roundtrip', 'physical-roundtrip']) {
+      const snapshot = { ...experience, ...(mode === 'service-roundtrip' ? { shipping: undefined } : {}) };
       const page = await browser.newPage({ viewport: mode === 'type' ? { width: 390, height: 844 } : { width: 1366, height: 900 } });
       const calls = [];
       const errors = [];
@@ -33,10 +35,10 @@ async function main() {
         const json = (data, status = 200) => route.fulfill({ status, contentType: 'application/json',
           headers: { 'access-control-allow-origin': '*' }, body: JSON.stringify(data) });
         if (request.method() === 'OPTIONS') return json({});
-        if (pathname.endsWith('/embed/start')) return json({ session_id: 'synthetic-session', experience });
+        if (pathname.endsWith('/embed/start')) return json({ session_id: 'synthetic-session', experience: snapshot });
         if (pathname.endsWith('/embed/checkout/edit')) {
           calls.push({ pathname, body });
-          return json({ experience, revision: 1 });
+          return json({ experience: snapshot, revision: calls.length });
         }
         if (pathname.endsWith('/embed/payment/intents') && request.method() === 'POST') {
           calls.push({ pathname, body });
@@ -47,7 +49,7 @@ async function main() {
             buyerFacing: { qrCodeCopyPaste: 'TEST_ONLY_NOT_A_REAL_PIX' } });
         }
         if (pathname.endsWith('/embed/chat')) return json({ session_id: 'synthetic-session', stage: 'payment',
-          message: 'Escolha como pagar.', experience,
+          message: 'Escolha como pagar.', experience: snapshot, quick_replies: ['PIX', 'Pix', 'Cartão de crédito'],
           blocks: [{ type: 'payment_methods', data: { methods: [{ key: 'credito', label: 'Cartão de crédito', sub: 'Pagamento seguro com cartão' }] } }] });
         if (pathname.includes('/payment/')) return json({ status: 'pending' });
         return json({ enabledTriggers: [], maxInterventionsPerSession: 0 });
@@ -59,6 +61,7 @@ async function main() {
         await page.getByRole('button', { name: 'Vamos prosseguir', exact: true }).click();
         const pix = page.getByRole('button', { name: /Pix Pagamento instantâneo/ });
         await expect(pix).toBeVisible();
+        await expect(page.getByRole('button', { name: /^(PIX|Pix|Trocar para Pix)$/ })).toHaveCount(0);
         await pix.click();
         await expect(page.getByRole('heading', { name: 'Pix', exact: true })).toBeVisible();
       } else {
@@ -80,12 +83,37 @@ async function main() {
         }
         assert.deepEqual(calls.map((call) => call.pathname), ['/embed/payment/intents', '/embed/checkout/edit', '/embed/payment/intents']);
       }
-      assert.equal(calls.filter((call) => call.pathname.endsWith('/payment/intents') && call.body.method === 'pix').length, 1);
+      if (mode.endsWith('roundtrip')) {
+        await page.getByRole('button', { name: 'Trocar para Cartão de crédito', exact: true }).click();
+        await expect(page.getByRole('heading', { name: 'Cartão de crédito', exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Pix', exact: true })).toHaveCount(0);
+        await expect(page.getByText('Forma de pagamento:', { exact: true })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: 'Trocar para Pix', exact: true })).toHaveCount(1);
+        const composer = page.getByRole('textbox', { name: 'Mensagem', exact: true });
+        await composer.fill('Voltar');
+        await composer.press('Enter');
+        await expect(page.getByText('Forma de pagamento:', { exact: true })).toBeVisible();
+        await expect(page.getByRole('heading', { name: 'Cartão de crédito', exact: true })).toHaveCount(0);
+        await expect(page.getByRole('button', { name: /^(PIX|Pix|Trocar para Pix)$/ })).toHaveCount(0);
+        const pixChoice = page.getByRole('button', { name: /Pix Pagamento instantâneo/ });
+        await expect(pixChoice).toHaveCount(1);
+        await pixChoice.click();
+        await expect(page.getByRole('heading', { name: 'Pix', exact: true })).toBeVisible();
+        await composer.fill('Tenho uma dúvida');
+        await composer.press('Enter');
+        await expect(page.getByText('Escolha como pagar.', { exact: true })).toBeVisible();
+        await expect(page.getByText('Forma de pagamento:', { exact: true })).toHaveCount(0);
+        await expect(page.getByRole('heading', { name: 'Pix', exact: true })).toHaveCount(1);
+        await expect(page.getByText('Selecione um frete antes de pagar.', { exact: true })).toHaveCount(0);
+        assert.equal(calls.filter(call => call.pathname.endsWith('/payment/intents')).length, 4);
+      }
+      const pixRequests = calls.filter((call) => call.pathname.endsWith('/payment/intents') && call.body.method === 'pix').length;
+      assert.equal(pixRequests, mode.endsWith('roundtrip') ? 2 : 1);
       assert.equal(calls.some((call) => /preference/.test(call.pathname)), false);
       assert.deepEqual(errors, []);
       const screenshot = path.join(output, `${mode}.png`);
       await page.screenshot({ path: screenshot, fullPage: true });
-      results.push({ mode, initialPix: false, pixRequests: 1, screenshot });
+      results.push({ mode, initialPix: false, pixRequests, screenshot });
       await page.close();
     }
     console.log(JSON.stringify({ target, proof: 'real UI with intercepted API responses; no provider payment', results }, null, 2));
