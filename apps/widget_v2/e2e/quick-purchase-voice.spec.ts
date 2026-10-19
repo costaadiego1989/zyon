@@ -108,7 +108,10 @@ for (const width of [390, 1280]) {
         call_id: "change-payment", arguments: JSON.stringify({ buyer_message: "Quero trocar para cartão" }) } });
       channel.emit({ type: "response.done" });
     });
-    await expect(page.getByRole("button", { name: "Cartão de crédito", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cartão de crédito Pagamento seguro com cartão", exact: true })).toBeVisible();
+    // The current production checkout deliberately removes duplicate quick
+    // replies when the full payment-method chooser is already on screen.
+    await expect(page.getByRole("button", { name: "Cartão de crédito", exact: true })).toHaveCount(0);
     expect(edits).toEqual(["payment"]); expect(paymentCalls).toBe(1);
     await expect.poll(() => page.evaluate(() => (window as any).__voiceChannels[0].sent.some((event: any) => event.type === "function_call_output"
       || event.item?.type === "function_call_output"))).toBe(true);
