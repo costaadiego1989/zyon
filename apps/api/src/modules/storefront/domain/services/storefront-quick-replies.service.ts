@@ -3,11 +3,13 @@
  *
  * Generates deterministic quick-reply suggestions based on conversation stage,
  * last tool used, and current context (cart state, shipping options).
- * Max 8 replies per stage; always deterministic, never LLM-generated.
+ * Stage actions remain deterministic. Discovery uses bounded, validated answer
+ * choices emitted together with the agent's question, not unrelated actions.
  */
 
 import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
 import { DEFAULT_STORE_QUICK_REPLIES } from "../defaults/store-quick-replies.defaults.js";
+import { isBroadShoppingRequest, isUnspecifiedShoppingRequest, type SalesDiscoveryQuestion } from "./sales-discovery.js";
 
 export interface StorefrontCartState {
   items: Array<{ variantId: string; name: string; quantity: number }>;
@@ -24,7 +26,7 @@ export interface StorefrontShippingOption {
 }
 
 export type StoreStage =
-  | "welcome" | "browsing" | "filter" | "categories"
+  | "welcome" | "discovery" | "browsing" | "filter" | "categories"
   | "product_detail" | "more_info" | "reviews" | "review_card"
   | "questions" | "compare" | "wishlist" | "added_to_cart"
   | "promotions"
@@ -59,7 +61,8 @@ export function detectStoreStage(lastToolUsed: string | null | undefined, contex
   // If no tool was called, try to infer stage from user message
   if (!lastToolUsed && context?.userMessage) {
     const msg = context.userMessage.toLowerCase().trim();
-    if (/adicionar|add.*carrin|comprar/i.test(msg)) return "added_to_cart";
+    // Saying "comprar" is intent, not evidence that a cart action succeeded.
+    if (isUnspecifiedShoppingRequest(msg) || isBroadShoppingRequest(msg)) return "discovery";
     if (/filtrar|filtro|ordenar|por pre[cç]o|avalia[cç][aã]o|mais vendidos|novidades|frete gr[aá]tis|desconto|limpar filtro/i.test(msg)) return "filter";
     if (/categorias?|segmento/i.test(msg)) return "categories";
     if (/rastrear|tracking|nota fiscal|cancelar pedido/i.test(msg)) return "post_purchase";
@@ -142,10 +145,16 @@ export function storefrontQuickReplies(
   cartState?: StorefrontCartState,
   shippingOptions?: StorefrontShippingOption[],
   userMessage?: string,
-  listedCouponCodes?: string[]
+  listedCouponCodes?: string[],
+  response?: { discoveryQuestion?: SalesDiscoveryQuestion; assistantMessage?: string; hasBlocks?: boolean },
 ): string[] {
+  if (response?.discoveryQuestion) return [...response.discoveryQuestion.replies];
+  // A plain-text clarification has no honest deterministic answer choices.
+  // In particular, never fill it with stale welcome/cart merchant defaults.
+  if (!lastToolUsed && !response?.hasBlocks && response?.assistantMessage?.includes("?")) return [];
   const cfg = normalizeStoreQuickRepliesConfig(config);
   const stage = detectStoreStage(lastToolUsed, { cartItemCount: cartState?.itemCount, userMessage });
+  if (stage === "discovery" || lastToolUsed === "ask_product_preferences") return [];
 
   // For shipping stage, inject dynamic carrier options if available
   if (lastToolUsed === "quote_shipping" && shippingOptions?.length) {

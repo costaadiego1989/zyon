@@ -220,7 +220,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       systemPrompt: input.experimentSystemPrompt,
       toolHandlers: composeStoreToolHandlers(this.handlerDeps, ctx),
     });
-    result = await ensureProductDiscovery(result, { userMessage: input.userMessage, merchantId: input.merchantId, handlers: shortcutHandlers });
+    result = await ensureProductDiscovery(result, { userMessage: input.userMessage, merchantId: input.merchantId, handlers: shortcutHandlers, history: input.history });
     const blocks = await appendOneBuyClickCheckout({
       blocks: result.blocks,
       toolsUsed: result.toolsUsed,
@@ -286,7 +286,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       message: finalMessage,
       blocks,
       cartId: result.cartId,
-      suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage, listedCouponCodes)
+      suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage, listedCouponCodes,
+        { discoveryQuestion: result.discoveryQuestion, assistantMessage: finalMessage, hasBlocks: blocks.length > 0 })
     };
   }
   private blockContextHint(blocks: any[], toolsUsed: string[]): string {

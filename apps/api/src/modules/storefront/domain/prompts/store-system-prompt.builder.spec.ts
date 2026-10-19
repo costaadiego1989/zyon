@@ -12,6 +12,12 @@ test("consultative selling distinguishes discovery, navigation and informed reco
   assert.match(prompt, /search_products com limit=3/);
   assert.match(prompt, /se já há informação suficiente, pesquise e recomende imediatamente/);
   assert.match(prompt, /2 a 4 frases curtas/);
+  assert.match(prompt, /DESCUBERTA EM ATÉ 3 NÍVEIS/);
+  assert.match(prompt, /ask_product_preferences/);
+  assert.match(prompt, /sem uma quarta pergunta de perfil/);
+  assert.match(prompt, /respostas curtas que respondam exatamente a ela/);
+  assert.match(prompt, /Só amplie os resultados quando a busca mais precisa não encontrar/);
+  assert.match(prompt, /Nunca descarte alergias\/restrições/);
   assert.doesNotMatch(prompt, /máx 20 palavras|responda APENAS a pergunta específica/);
   assert.match(prompt, /Não conceda desconto por conta própria/);
   assert.match(prompt, /Nunca invente escassez, pressione ou prometa resultado de saúde/);
