@@ -36,6 +36,51 @@ test("unspecified buying requests reach the consultative agent without catalog, 
   assert.deepEqual(run.events, []);
 });
 
+test("product selection and filtering ask for the missing choice without searching or repeating a carousel", async () => {
+  const run = fixture(null);
+  const history: StorefrontConversationInput["history"] = [
+    { role: "user", content: "Quero um produto para pele" },
+    { role: "assistant", content: "Como é sua pele?" },
+    { role: "user", content: "Oleosa" },
+    { role: "assistant", content: "Não encontrei exatamente. Estas opções relacionadas valem a pena conhecer." },
+  ];
+  for (const message of ["Selecionar Produto", " SELECIONAR   PRODUTO! ", "Filtrar Produtos"]) {
+    const result = await resolveDeterministicShortcut(run.deps, { ...input(message), history });
+    assert.ok(result, message);
+    assert.equal(result.message.match(/\?/g)?.length, 1);
+    assert.match(result.message, /qual/i);
+    if (/filtrar/i.test(message)) assert.match(result.message, /critério|faixa de preço/);
+    else assert.match(result.message, /Saber mais|nome/);
+    assert.doesNotMatch(result.message, /não encontrei|pele oleosa/i);
+    assert.deepEqual(result.blocks, []);
+    assert.deepEqual(result.suggestedNext, []);
+  }
+  assert.deepEqual(run.calls, []);
+  assert.deepEqual(run.events, []);
+  assert.equal(await resolveDeterministicShortcut(run.deps, { ...input("Selecionar Produto"), attachmentContext: "Lista" }), null);
+});
+
+test("Saber mais after the selection prompt still opens the chosen product instead of another recommendation", async () => {
+  const run = fixture(null);
+  const product = new ProductEntity({ id: "bruma", merchantId: "merchant_qa", name: "Bruma de Hidratação", isActive: true,
+    createdAt: new Date(), updatedAt: new Date(), variants: [] });
+  const queries: any[] = [];
+  run.deps.productRepo = { search: async (query: any) => { queries.push(query); return { products: [product], total: 1 }; } } as never;
+  run.deps.copyService = { generateVariantCopy: async (_experiment: unknown, _prompt: unknown, fallback: string) => fallback } as never;
+  const selection = await resolveDeterministicShortcut(run.deps, input("Selecionar Produto"));
+  assert.ok(selection);
+  assert.equal(queries.length, 0);
+  const detail = await resolveDeterministicShortcut(run.deps, { ...input("Detalhes Bruma de Hidratação"),
+    history: [{ role: "user", content: "Selecionar Produto" }, { role: "assistant", content: selection.message }] });
+  assert.ok(detail);
+  assert.equal(detail.blocks[0]?.type, "product_card");
+  assert.equal(detail.blocks[0]?.type === "product_card" && detail.blocks[0].data.id, "bruma");
+  assert.equal(queries.length, 1);
+  assert.equal(queries[0].query, "bruma de hidratação");
+  assert.equal(queries[0].merchantId, "merchant_qa");
+  assert.deepEqual(run.calls, []);
+});
+
 const input = (message = "Adicionar produto ao carrinho [variantId:physical]", cartId: string | undefined = "cart_qa"): StorefrontConversationInput => ({
   userMessage: message, merchantId: "merchant_qa", sessionId: "conversation_qa", cartId, history: [], storeCategory: "test",
 });

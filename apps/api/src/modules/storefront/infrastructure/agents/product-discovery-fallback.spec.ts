@@ -50,3 +50,17 @@ test('normal questions, checkout intents and already handled product responses a
   for(const userMessage of ['Oi, como vai?','quero pagar meu pedido','quero adicionar um produto para meu carrinho'])assert.equal(await ensureProductDiscovery(result,{userMessage,merchantId:'owned',handlers}),result);
   assert.equal(await ensureProductDiscovery({...result,toolsUsed:['search_products']},{userMessage:'quero um produto para minha pele',merchantId:'owned',handlers}).then(r=>r.message),result.message);
 });
+
+test('a selection or filter question after related recommendations is never replaced by another skin search', async () => {
+  const history: Array<{ role: 'user' | 'assistant'; content: string }> = [
+    { role: 'user', content: 'Quero um produto para pele' }, { role: 'assistant', content: 'Como é sua pele?' },
+    { role: 'user', content: 'Oleosa' },
+    { role: 'assistant', content: 'Não encontrei exatamente, mas estas opções relacionadas valem a pena conhecer.' },
+  ];
+  for (const userMessage of ['Selecionar Produto', 'Filtrar Produtos']) {
+    const question = { message: 'Qual produto você quer conhecer melhor?', blocks: [], toolsUsed: [] };
+    const output = await ensureProductDiscovery(question, { userMessage, merchantId: 'owned', history,
+      handlers: { searchProducts: async () => assert.fail('navigation must not restart discovery') } as any });
+    assert.equal(output, question);
+  }
+});

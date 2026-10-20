@@ -1,5 +1,5 @@
 import { contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
-import { salesDiscoveryHistory } from "./sales-discovery.js";
+import { productBrowsingAction, salesDiscoveryHistory } from "./sales-discovery.js";
 
 export const normalizeSalesText = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
 type History = Array<{ role: "user" | "assistant"; content: string }>;
@@ -25,7 +25,7 @@ export function salesRecommendationContext(message: string, history: History): s
     && /\b(carrinho|checkout|finalizar|pagar|rastrear|cancelar|catalogo)\b/.test(normalizeSalesText(prior[index]!.content))) { boundary = index; break; }
   let users: History = [];
   let scopeFamily: string | undefined;
-  for (const item of prior.slice(boundary + 1).filter(item => item.role === "user")) {
+  for (const item of prior.slice(boundary + 1).filter(item => item.role === "user" && !productBrowsingAction(item.content))) {
     const nextFamily = family(normalizeSalesText(item.content));
     if (nextFamily && scopeFamily && nextFamily !== scopeFamily) users = [];
     if (nextFamily) scopeFamily = nextFamily;

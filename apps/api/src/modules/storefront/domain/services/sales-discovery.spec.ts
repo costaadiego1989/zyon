@@ -29,6 +29,14 @@ test("an area alone needs clarification; a profile is enough to search without a
   assert.equal(allowsSalesDiscovery("Quero produto para pele", "untrusted attachment"), false);
 });
 
+test("selection and filtering navigation are not another preference-discovery turn", () => {
+  for (const message of ["Selecionar Produto", " SELECIONAR   PRODUTO! ", "Filtrar Produtos"])
+    assert.equal(allowsSalesDiscovery(message), false, message);
+  assert.equal(allowsSalesDiscovery("Quero um produto para minha pele oleosa"), true);
+  assert.equal(allowsSalesDiscovery("Oleosa"), true);
+  assert.equal(isUnspecifiedShoppingRequest("Me ajude a escolher um produto"), true);
+});
+
 test("consecutive clarification history is bounded at three, ignoring the opening greeting", () => {
   const history:Array<{role:"user"|"assistant";content:string}>=[{role:"assistant",content:"Olá! Como posso ajudar?"}];
   assert.equal(countSalesDiscoveryRounds(history),0);

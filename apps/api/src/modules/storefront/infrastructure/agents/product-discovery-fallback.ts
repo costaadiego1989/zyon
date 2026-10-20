@@ -11,6 +11,7 @@ import { hasCareProfile, salesRecommendationContext } from "../../domain/service
 export async function ensureProductDiscovery<T extends { message: string; blocks: ConversationBlock[]; toolsUsed: string[]; discoveryQuestion?: SalesDiscoveryQuestion }>(
   result: T, input: { userMessage: string; merchantId: string; handlers: StoreToolHandlers; history?: Array<{ role: "user" | "assistant"; content: string }> },
 ): Promise<T> {
+  if (!allowsSalesDiscovery(input.userMessage)) return result;
   const history = salesDiscoveryHistory(input.history ?? [], input.userMessage).slice(-10);
   if (result.discoveryQuestion || (isBroadShoppingRequest(input.userMessage)
     && countSalesDiscoveryRounds(history) < MAX_SALES_DISCOVERY_ROUNDS)) return result;

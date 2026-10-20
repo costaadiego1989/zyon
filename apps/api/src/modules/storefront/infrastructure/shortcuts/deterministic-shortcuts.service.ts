@@ -4,7 +4,7 @@ import type { CartAddResultBlock, ConversationBlock } from "../../domain/types/c
 import type { AgentCopyService } from "../copy/agent-copy.service.js";
 import { productGallery } from "../product-gallery.js";
 import { isCatalogBrowseQuery } from "../../../catalog/domain/services/contextual-product-search.js";
-import { isUnspecifiedShoppingRequest } from "../../domain/services/sales-discovery.js";
+import { isUnspecifiedShoppingRequest, productBrowsingAction } from "../../domain/services/sales-discovery.js";
 
 export interface DeterministicShortcutDeps {
   productRepo: ProductRepositoryPort;
@@ -344,6 +344,17 @@ export async function resolveDeterministicShortcut(
   // An attachment needs catalog matching and buyer confirmation from the agent,
   // even when the accompanying text would normally trigger a shortcut.
   if (input.attachmentContext) return null;
+  // No product/filter was selected yet. Resolve these navigation labels before
+  // the agent or its fallback can replay a previous contextual search. Do not
+  // return the same generic buttons, spend model tokens, or mutate the cart.
+  const browsingAction = productBrowsingAction(input.userMessage);
+  if (browsingAction) return {
+    message: browsingAction === "select"
+      ? "Qual produto você quer conhecer melhor? Clique em “Saber mais” no card ou me diga o nome."
+      : "Qual critério você quer usar para filtrar os produtos? Pode me dizer a faixa de preço ou uma característica importante.",
+    blocks: [],
+    suggestedNext: [],
+  };
   // Wanting help to buy is not a request to dump the catalog. Let the agent
   // discover the need; explicit "Ver Produtos"/catalog actions stay deterministic.
   if (isUnspecifiedShoppingRequest(input.userMessage)) return null;

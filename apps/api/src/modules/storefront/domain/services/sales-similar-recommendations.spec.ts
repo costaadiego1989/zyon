@@ -116,3 +116,17 @@ test("out-of-stock and over-budget partner products do not fill a similar carous
   assert.deepEqual((await tool!.execute({ query: "tênis corrida verde" }) as any).data.products, []);
   assert.equal(policy.recommendationMessage, undefined);
 });
+
+test("selection and filter labels never become product attributes in the next real refinement", () => {
+  const context = salesRecommendationContext("Até R$ 100", [
+    { role: "user", content: "Quero hidratante para pele oleosa sem perfume" },
+    { role: "assistant", content: "Estas opções relacionadas valem a pena conhecer." },
+    { role: "user", content: "Selecionar Produto" },
+    { role: "assistant", content: "Qual produto você quer conhecer melhor?" },
+    { role: "user", content: "Filtrar Produtos" },
+    { role: "assistant", content: "Qual faixa de preço?" },
+  ]);
+  assert.match(context, /pele oleosa sem perfume/);
+  assert.match(context, /Até R\$ 100/);
+  assert.doesNotMatch(context, /selecionar|filtrar/i);
+});

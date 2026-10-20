@@ -8,6 +8,15 @@ function shoppingWords(message: string): string[] {
     .replace(/[^\p{L}\p{N}\s]/gu, " ").trim().split(/\s+/);
 }
 
+/** Browsing buttons ask for a selection or filter, not another recommendation.
+ * Match whole labels only: a new concrete need must keep the sales route. */
+export function productBrowsingAction(message: string): "select" | "filter" | undefined {
+  const text = shoppingWords(message).join(" ");
+  if (/^selecionar produtos?$/.test(text)) return "select";
+  if (/^filtrar produtos?$/.test(text)) return "filter";
+  return undefined;
+}
+
 /** Only object-free shopping requests. Catalog navigation and any concrete need,
  * product, budget, variant or deictic reference must retain their normal route. */
 export function isUnspecifiedShoppingRequest(message: string): boolean {
@@ -72,7 +81,7 @@ export function countSalesDiscoveryRounds(history: Array<{ role: "user" | "assis
 /** Navigation, product actions, checkout and support must never be replaced by
  * an optional sales interview. Object-free/broad buying is the exception. */
 export function allowsSalesDiscovery(message: string, attachmentContext?: string): boolean {
-  if (attachmentContext) return false;
+  if (attachmentContext || productBrowsingAction(message)) return false;
   if (isUnspecifiedShoppingRequest(message) || isBroadShoppingRequest(message)) return true;
   const text = shoppingWords(message).join(" ");
   if (/\bcomprar\b/.test(text) && /\b(?:produtos? para|tenis de corrida|hidratante para)\b/.test(text)
