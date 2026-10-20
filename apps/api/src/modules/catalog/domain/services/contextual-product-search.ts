@@ -1,5 +1,9 @@
 const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 const browse = new Set(["*", "", "produto", "produtos", "ver produtos", "continuar comprando", "catalogo", "todos", "tudo", "all", "listar", "mostrar", "ver tudo"]);
+// Unknown profile data and absence of a preference are not negative product
+// attributes. This shared parser also runs in the real tool handler, after the
+// sales policy, so filtering them only in that policy is insufficient.
+const conversationalNegations = new Set(["nao sei", "nao tenho", "nao importa", "sem preferencia", "sem preferencias", "sem restricao", "sem restricoes"]);
 const stop = new Set("eu quero queria preciso gostaria procura procurar busco buscar encontre encontrar mostrar mostre ver comprar compra produto produtos item itens algum alguma algo um uma uns umas o a os as e de da do das dos para pra por com em no na nos nas minha meu minhas meus sua seu suas seus voce voces favor ajuda ajude loja lojas que qual quais tem temos tenho me mim pelo pela porfavor".split(" "));
 for (const word of "vende vendem vender venda disponivel disponiveis disponibilidade estoque catalogo catalogos opcao opcoes mostra conhecer saber ai aqui nessa nesta nesse neste oferece oferecem".split(" ")) stop.add(word);
 const aliases: Record<string, string[]> = {
@@ -38,7 +42,8 @@ export function contextualSearchGroups(query: string): string[][] {
   let text = normalize(query).replace(/[^\p{L}\p{N}\s-]/gu, " ");
   const phrases: string[][] = [];
   text = text.replace(/\b(sem|nao)\s+([\p{L}\p{N}-]+)/gu, match => {
-    phrases.push([match]); return " ";
+    if (!conversationalNegations.has(match.replace(/\s+/g, " "))) phrases.push([match]);
+    return " ";
   });
   const terms = [...new Set(text.split(/\s+/).filter(term => term.length > 1 && !stop.has(term) && !browse.has(term)))];
   return [...phrases, ...terms.map(term => aliases[term] ?? [term])].slice(0, 12);

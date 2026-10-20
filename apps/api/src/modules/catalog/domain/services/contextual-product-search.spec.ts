@@ -31,3 +31,11 @@ test('negation, product names and specific constraints are retained instead of b
   assert.deepEqual(contextualSearchGroups('*'), []);
   assert.deepEqual(contextualSearchGroups('produto'), []);
 });
+
+test('unknown profile answers and absent preferences are not injected as product exclusions', () => {
+  for (const answer of ['Não sei meu tipo de pele', 'NÃO  SEI', 'Não tenho outras preferências', 'Sem preferência', 'Sem restrições', 'Não importa']) {
+    assert.equal(contextualProductQuery('hidratante textura leve', answer), 'hidratante textura leve', answer);
+  }
+  assert.equal(contextualProductQuery('hidratante', 'Não sei meu tipo de pele. Sem perfume, até R$ 150'), 'hidratante sem perfume');
+  assert.deepEqual(contextualSearchGroups('hidratante sem perfume'), [['sem perfume'], ['hidrat']]);
+});
