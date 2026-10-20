@@ -178,3 +178,21 @@ test("empty recommendation search budgets and buyer constraints survive primary-
     assert.equal(result.discoveryQuestion,undefined);
   }
 });
+
+test("exhausted provider loops with confirmed matches introduce the results instead of restarting the greeting", async () => {
+  for (const failover of [false, true]) {
+    let searches = 0;
+    const respond = async () => ({ content: "", toolCalls: [{ id: `lookup_${searches}`, name: "search_products", args: { query: "hidratante leve", limit: 3 } }], usage });
+    const agent = new StorefrontLangGraphAgent({
+      provider: { chat: failover ? async () => { throw Error("primary_unavailable"); } : respond } as unknown as OpenRouterProvider,
+      fallbackProvider: { chat: respond } as unknown as OpenRouterProvider,
+      toolHandlers: { searchProducts: async () => { searches++; return { products: [{ id: "qa", name: "Hidratante QA", price: 7900, inStock: true, variants: [], images: [], description: "Textura leve" }] }; } } as never,
+    });
+    const result = await agent.run({ merchantId: "qa", sessionId: "qa", storeCategory: "others", history: [], userMessage: "Quero um hidratante leve" });
+    assert.equal(searches, 3);
+    assert.ok(result.blocks.some(block => block.type === "product_carousel"));
+    assert.match(result.message, /opções no catálogo/);
+    assert.doesNotMatch(result.message, /Como posso ajudá|não encontrei/i);
+    assert.equal(result.safetyValidation.safe, true);
+  }
+});

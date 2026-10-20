@@ -96,6 +96,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   } else if (toolResults["search_products"] && !skipProductCarousel) {
     const searchData = toolResults["search_products"] as any;
     if (searchData?.products?.length > 0) {
+      if (!finalContent.trim()) {
+        finalContent = "Encontrei estas opções no catálogo. Confira os detalhes para escolher a que faz sentido para você.";
+      }
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
       const isMarketplaceSource = searchData.source === "marketplace" || searchData.source === "mixed";
       blocks.push({
