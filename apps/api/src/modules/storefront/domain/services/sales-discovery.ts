@@ -29,6 +29,13 @@ export function isBroadShoppingRequest(message: string): boolean {
 }
 
 export const MAX_SALES_DISCOVERY_ROUNDS = 3;
+
+/** A bare price objection supplies no new target price. Clarify that target
+ * instead of paying for repeated searches that return the same products. */
+export function isBarePriceObjection(message: string): boolean {
+  return /^(?:(?:esta|ta|achei|esta muito|ta muito|achei muito|muito) )?car[oa]s?$/.test(shoppingWords(message).join(" "));
+}
+
 export interface SalesDiscoveryQuestion {
   question: string;
   replies: string[];

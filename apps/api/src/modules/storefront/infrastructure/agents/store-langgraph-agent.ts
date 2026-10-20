@@ -31,7 +31,7 @@ import { validateStorefrontMessage, type StorefrontMessageContext } from "../../
 import { buildStoreSystemPrompt } from "../../domain/prompts/store-system-prompt.builder.js";
 import { buildConversationBlocks } from "./conversation-block.builder.js";
 import { allowsSalesDiscovery, countSalesDiscoveryRounds, isBroadShoppingRequest, isUnspecifiedShoppingRequest,
-  MAX_SALES_DISCOVERY_ROUNDS, parseSalesDiscoveryQuestion, salesDiscoveryHistory, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
+  isBarePriceObjection, MAX_SALES_DISCOVERY_ROUNDS, parseSalesDiscoveryQuestion, salesDiscoveryHistory, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
 import { ASK_PRODUCT_PREFERENCES } from "../../domain/tools/definitions/ask-product-preferences.tool.js";
 import { createSalesSearchPolicy } from "../../domain/services/sales-search-policy.js";
 
@@ -185,7 +185,10 @@ export class StorefrontLangGraphAgent {
     const discoveryRounds = countSalesDiscoveryRounds(history.slice(-10));
     const canDiscover = allowsSalesDiscovery(input.userMessage, input.attachmentContext)
       && discoveryRounds < MAX_SALES_DISCOVERY_ROUNDS;
-    const needsDiscovery = canDiscover && (isUnspecifiedShoppingRequest(input.userMessage) || isBroadShoppingRequest(input.userMessage));
+    const lastReply = history.filter(message => message.role === "assistant").at(-1)?.content ?? "";
+    const needsPriceDiscovery = canDiscover && isBarePriceObjection(input.userMessage)
+      && !/\b(frete|pagamento|pedido|carrinho|checkout|entrega)\b/i.test(lastReply);
+    const needsDiscovery = canDiscover && (needsPriceDiscovery || isUnspecifiedShoppingRequest(input.userMessage) || isBroadShoppingRequest(input.userMessage));
     const turnTools = needsDiscovery ? [ASK_PRODUCT_PREFERENCES]
       : canDiscover ? [...this.tools, ASK_PRODUCT_PREFERENCES] : this.tools;
 
@@ -226,7 +229,9 @@ export class StorefrontLangGraphAgent {
       : "";
     const discoveryPolicy = canDiscover
       ? `\n\n${needsDiscovery ? "TURNO DE DESCOBERTA" : "DESCOBERTA OPCIONAL"}: ${discoveryRounds} de ${MAX_SALES_DISCOVERY_ROUNDS} rodadas de perguntas já usadas. ${needsDiscovery
-        ? "O pedido ainda é amplo: não há produto nem objetivo suficiente para recomendar. Não chame ferramentas para listar produtos, adicionar ao carrinho ou iniciar checkout."
+        ? needsPriceDiscovery
+          ? "O comprador achou caro, mas não informou um novo limite. Pergunte UMA faixa de valor confortável para procurar alternativas; não repita os mesmos produtos nem invente desconto. Não chame ferramentas para listar produtos, adicionar ao carrinho ou iniciar checkout."
+          : "O pedido ainda é amplo: não há produto nem objetivo suficiente para recomendar. Não chame ferramentas para listar produtos, adicionar ao carrinho ou iniciar checkout."
         : "Só pergunte se a informação ausente realmente muda a escolha. Se já sabe o suficiente, pesquise agora."} Para perguntar, chame ask_product_preferences com UMA pergunta e respostas rápidas que respondam exatamente a ela, ou [] para pergunta aberta. Use o histórico, não repita dados conhecidos. Não peça objetivo e orçamento juntos. Não ofereça carrinho, semelhantes ou finalizar compra durante a descoberta.`
       : !input.attachmentContext && discoveryRounds >= MAX_SALES_DISCOVERY_ROUNDS && allowsSalesDiscovery(input.userMessage)
         ? "\n\nLIMITE DA DESCOBERTA ATINGIDO: já houve 3 rodadas de perguntas. Não faça uma quarta pergunta de perfil. Consulte agora o catálogo usando todas as respostas do histórico e preserve as restrições. Apresente até 3 resultados relevantes; se não encontrar, explique a limitação sem inventar adequação."
@@ -442,7 +447,7 @@ export class StorefrontLangGraphAgent {
     // replace it with a catalog dump. No extra evaluation/model call is needed.
     if (canDiscover && !toolsUsed.length) discoveryQuestion = parseSalesDiscoveryQuestion({ question: finalContent, replies: [] }) ?? undefined;
     if (needsDiscovery && !discoveryQuestion) discoveryQuestion = {
-      question: "Para eu ajudar a escolher, qual é a sua principal necessidade?", replies: [],
+      question: needsPriceDiscovery ? "Qual faixa de valor fica confortável para você?" : "Para eu ajudar a escolher, qual é a sua principal necessidade?", replies: [],
     };
     if (discoveryQuestion) finalContent = discoveryQuestion.question;
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;

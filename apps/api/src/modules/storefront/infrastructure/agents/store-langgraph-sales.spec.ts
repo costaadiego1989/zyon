@@ -196,3 +196,38 @@ test("exhausted provider loops with confirmed matches introduce the results inst
     assert.equal(result.safetyValidation.safe, true);
   }
 });
+
+test("a bare price objection cannot search and repeat the same cards before clarifying the new budget", async () => {
+  for (const failover of [false, true]) {
+    let searches = 0;
+    const respond = async (request: OpenRouterChatRequest) => {
+      assert.deepEqual(request.tools?.map(tool => tool.function.name), ["ask_product_preferences"]);
+      assert.match(request.messages[0]!.content, /faixa de valor confortável/);
+      return { content: "", toolCalls: [{ id: "ignored_search", name: "search_products", args: { query: "hidratante" } }], usage };
+    };
+    const agent = new StorefrontLangGraphAgent({
+      provider: { chat: failover ? async () => { throw Error("primary_unavailable"); } : respond } as unknown as OpenRouterProvider,
+      fallbackProvider: { chat: respond } as unknown as OpenRouterProvider,
+      toolHandlers: { searchProducts: async () => { searches++; return { products: [] }; } } as never,
+    });
+    const result = await agent.run({ merchantId: "qa", sessionId: "qa", storeCategory: "others", userMessage: "Está caro", history: [
+      { role: "user", content: "Quero hidratação com textura leve, até R$ 150" },
+      { role: "assistant", content: "Encontrei estas opções no catálogo. Confira os detalhes para escolher." },
+    ] });
+    assert.equal(searches, 0);
+    assert.deepEqual(result.blocks, []);
+    assert.match(result.message, /faixa de valor/);
+    assert.ok(result.discoveryQuestion);
+  }
+});
+
+test("a price objection during shipping does not become a product-discovery interview", async () => {
+  const agent = new StorefrontLangGraphAgent({ provider: { chat: async (request: OpenRouterChatRequest) => {
+    assert.ok(request.tools?.some(tool => tool.function.name === "quote_shipping"));
+    assert.doesNotMatch(request.messages[0]!.content, /O comprador achou caro, mas não informou/);
+    return { content: "Podemos conferir as opções de frete disponíveis.", toolCalls: [], usage };
+  } } as unknown as OpenRouterProvider, toolHandlers: {} as never });
+  await agent.run({ merchantId: "qa", sessionId: "qa", storeCategory: "others", userMessage: "Está caro", history: [
+    { role: "user", content: "Calcular frete" }, { role: "assistant", content: "O frete custa R$ 24,90." },
+  ] });
+});

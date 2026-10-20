@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { allowsSalesDiscovery, countSalesDiscoveryRounds, isBroadShoppingRequest, isUnspecifiedShoppingRequest, parseSalesDiscoveryQuestion } from "./sales-discovery.js";
+import { allowsSalesDiscovery, countSalesDiscoveryRounds, isBarePriceObjection, isBroadShoppingRequest, isUnspecifiedShoppingRequest, parseSalesDiscoveryQuestion } from "./sales-discovery.js";
 
 test("object-free shopping intents need discovery rather than a catalog dump", () => {
   for (const text of ["quero comprar um produto", "Quero comprar algo!", "Eu gostaria de comprar alguma coisa.",
@@ -8,6 +8,12 @@ test("object-free shopping intents need discovery rather than a catalog dump", (
     "Queria uma indicação de produto", "Quero comprar um produto de vocês", "Quero comprar algo [variantId:previous_product]"]) {
     assert.equal(isUnspecifiedShoppingRequest(text), true, text);
   }
+});
+
+test("bare price objections need a target budget, but explicit cheaper-product or checkout requests retain their route", () => {
+  for (const message of ["Está caro", "Tá muito caro!", "Achei caro", "Muito caras", "Caro."]) assert.equal(isBarePriceObjection(message), true, message);
+  for (const message of ["Quero algo mais barato até R$ 80", "Quero mais opções", "O frete está caro", "Finalizar compra", "Está caro, até 80 reais"])
+    assert.equal(isBarePriceObjection(message), false, message);
 });
 
 test("broad care requests still need a purpose; concrete goals, products and direct commands do not", () => {
