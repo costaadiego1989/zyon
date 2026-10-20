@@ -4,8 +4,74 @@ import type { OpenRouterChatRequest, OpenRouterProvider } from "@zyon/conversati
 import { StorefrontLangGraphAgent } from "./store-langgraph-agent.js";
 import { storefrontQuickReplies } from "../../domain/services/storefront-quick-replies.service.js";
 import { ensureProductDiscovery } from "./product-discovery-fallback.js";
+import { contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
+import { normalizeSalesText } from "../../domain/services/sales-recommendation-intent.js";
 
 const usage = { promptTokens: 20, completionTokens: 10, totalTokens: 30 };
+
+test("known skin profile skips the objective interview and discloses related results without a second model call", async () => {
+  for (const failover of [false, true]) {
+    let calls = 0;
+    const queries: string[] = [];
+    const respond = async (request: OpenRouterChatRequest) => {
+      calls++;
+      assert.match(request.messages[0]!.content, /CONTEXTO SUFICIENTE/);
+      assert.equal(request.tools?.some(tool => tool.function.name === "ask_product_preferences"), false);
+      return { content: "", toolCalls: [{ id: "lookup", name: "search_products", args: { query: "pele oleosa" } }], usage };
+    };
+    const agent = new StorefrontLangGraphAgent({ provider: { chat: failover ? async () => { throw Error("unavailable"); } : respond } as any,
+      fallbackProvider: { chat: respond } as any, toolHandlers: { searchProducts: async (args: any) => {
+        queries.push(args.query);
+        const description = "Bruma facial de hidratação leve";
+        return { products: contextualSearchGroups(args.query).every(group => group.some(term => normalizeSalesText(description).includes(term)))
+          ? [{ id: "bruma", name: "Bruma", description, inStock: true, price: 7990, variants: [], images: [] }] : [] };
+      } } as any });
+    const result = await agent.run({ merchantId: "qa", sessionId: "qa", userMessage: "Oleosa", history: [
+      { role: "user", content: "Quero um produto para pele" }, { role: "assistant", content: "Como é sua pele?" },
+    ] });
+    assert.equal(calls, 1);
+    assert.equal(queries.length, 2);
+    assert.equal(result.discoveryQuestion, undefined);
+    assert.match(result.message, /não confirma indicação para pele oleosa/);
+    assert.ok(result.blocks.some(block => block.type === "product_carousel"));
+    assert.equal(result.safetyValidation.safe, true);
+  }
+});
+
+test("a legacy plain-text goal question cannot prevent searching once the skin profile is known", async () => {
+  const agent = new StorefrontLangGraphAgent({ provider: { chat: async () => ({ content: "Qual é seu objetivo?", toolCalls: [], usage }) } as any,
+    toolHandlers: {} as any });
+  const history: Array<{ role: "user" | "assistant"; content: string }> = [
+    { role: "user", content: "Quero um produto para pele" }, { role: "assistant", content: "Como é sua pele?" },
+  ];
+  const result = await agent.run({ merchantId: "qa", sessionId: "qa", userMessage: "Oleosa", history });
+  assert.equal(result.discoveryQuestion, undefined);
+  const response = await ensureProductDiscovery(result, { merchantId: "qa", userMessage: "Oleosa", history, handlers: {
+    searchProducts: async () => ({ products: [] }),
+  } as any });
+  assert.deepEqual(response.toolsUsed, ["search_products"]);
+  assert.notEqual(response.message, "Qual é seu objetivo?");
+});
+
+test("a buying need cannot authorize a substituted item, regardless of model tool-call ordering", async () => {
+  for (const reversed of [false, true]) {
+    let reads = 0;
+    let writes = 0;
+    const commands = [
+      { id: "search", name: "search_products", args: { query: "tênis de corrida verde" } },
+      { id: "add", name: "add_item_to_cart", args: { cartId: "qa", variantId: "black", quantity: 1 } },
+      { id: "checkout", name: "create_checkout_session", args: { cartId: "qa" } },
+    ];
+    const agent = new StorefrontLangGraphAgent({ provider: { chat: async () => ({ content: "", toolCalls: reversed ? [...commands].reverse() : commands, usage }) } as any,
+      toolHandlers: { searchProducts: async () => ({ products: ++reads === 1 ? [] : [
+        { id: "black", name: "Tênis de corrida preto", price: 18000, inStock: true, variants: [], images: [] },
+      ] }), addItemToCart: async () => { writes++; return {}; }, createCheckoutSession: async () => { writes++; return {}; } } as any });
+    const result = await agent.run({ merchantId: "qa", sessionId: "qa", userMessage: "Quero comprar um tênis de corrida verde", history: [] });
+    assert.equal(writes, 0);
+    assert.match(result.message, /não confirma cor verde/);
+    assert.equal(result.blocks.some(block => ["checkout_redirect", "checkout_prepared", "cart_summary"].includes(block.type)), false);
+  }
+});
 
 test("vague purchase instructions survive primary and fallback routing without losing the shared sales policy", async () => {
   for (const failover of [false, true]) {
@@ -114,7 +180,7 @@ test("three useful discovery rounds carry coherent answer choices and then searc
       addItemToCart:async()=>assert.fail("consultation cannot mutate cart"),createCheckoutSession:async()=>assert.fail("consultation cannot start checkout")};
     const agent=new StorefrontLangGraphAgent({provider:{chat:failover?async()=>{throw Error("primary_unavailable");}:respond} as unknown as OpenRouterProvider,
       fallbackProvider:{chat:respond} as unknown as OpenRouterProvider,toolHandlers:handlers});
-    for(const [index,userMessage] of ["Quero um produto para pele","Oleosa","Hidratação","Sem perfume"].entries()){
+    for(const [index,userMessage] of ["Quero um produto para pele","Não sei","Hidratação","Sem perfume"].entries()){
       const result=await agent.run({merchantId:"qa",sessionId:"qa",storeCategory:"electronics",history:[...history],userMessage});
       if(index<3){
         assert.deepEqual(result.discoveryQuestion,questions[index]);
@@ -164,14 +230,15 @@ test("empty recommendation search budgets and buyer constraints survive primary-
     const respond=(id:string)=>({content:"",toolCalls:[{id,name:"search_products",args:{query:"hidratante",limit:20,maxPrice:50000}}],usage});
     const agent=new StorefrontLangGraphAgent({provider:{chat:async()=>{
       primaryCalls++;
-      if(failover && primaryCalls===3) throw Error("primary_unavailable");
+      if(failover && primaryCalls===2) throw Error("primary_unavailable");
       return respond(`primary_${primaryCalls}`);
     }} as unknown as OpenRouterProvider,fallbackProvider:{chat:async()=>respond(`fallback_${++fallbackCalls}`)} as unknown as OpenRouterProvider,
       toolHandlers:{searchProducts:async(args:any)=>{searches.push(args);return {products:[]};}} as never});
     const result=await agent.run({merchantId:"qa",sessionId:"qa",storeCategory:"others",history:[],userMessage:"Quero um hidratante para pele oleosa sem perfume, até R$ 80"});
     assert.equal(searches.length,3);
-    assert.ok(searches.every(search=>search.limit===3 && search.maxPrice===8000 && /sem perfume/.test(search.query) && /pele oleosa/.test(search.query)));
-    assert.equal(primaryCalls,3);
+    assert.ok(searches.every(search=>search.limit===3 && search.maxPrice===8000 && /sem perfume/.test(search.query) && /pele/.test(search.query)));
+    assert.match(searches[0].query,/pele oleosa/);
+    assert.equal(primaryCalls,2);
     assert.equal(fallbackCalls,failover?1:0);
     assert.deepEqual(result.blocks,[]);
     assert.match(result.message,/Não encontrei uma correspondência confirmada/);

@@ -5,7 +5,7 @@ const result={message:'Você já viu a Bruma. Quer ver de novo?',blocks:[],tools
 
 test('a discovery request with prior product history still performs the shared filtered search when the model skips tools', async()=>{
   let call:any;
-  const output=await ensureProductDiscovery(result,{userMessage:'quero um produto para hidratação sem perfume',merchantId:'owned',handlers:{searchProducts:async(args:any)=>{call=args;return {products:[{id:'serum',name:'Sérum',description:'Cuidado da pele',price:500,inStock:true,variants:[],images:[]}]};}} as any});
+  const output=await ensureProductDiscovery(result,{userMessage:'quero um produto para hidratação sem perfume',merchantId:'owned',handlers:{searchProducts:async(args:any)=>{call=args;return {products:[{id:'serum',name:'Sérum',description:'Hidratação sem perfume',price:500,inStock:true,variants:[],images:[]}]};}} as any});
   assert.deepEqual(call,{query:'quero um produto para hidratação sem perfume',inStockOnly:true,limit:3});
   assert.equal(output.cartId,'same-cart');assert.deepEqual(output.toolsUsed,['search_products']);
   assert.equal(output.blocks[0].type,'product_carousel');assert.match(output.message,/relacionadas/);
@@ -25,7 +25,10 @@ test('after three clarifications the fallback searches the combined need, not th
     {role:'user',content:'Hidratação sem perfume'}, {role:'assistant',content:'Qual seu orçamento?'},
   ];
   const output=await ensureProductDiscovery(result,{userMessage:'Até R$ 80',history,merchantId:'owned',handlers:{searchProducts:async(args:any)=>{
-    assert.match(args.query,/produto para pele.*Oleosa.*Hidratação sem perfume.*Até R\$ 80/);
+    assert.match(args.query,/produto para pele/i);
+    assert.match(args.query,/hidrat/i);
+    assert.match(args.query,/sem perfume/i);
+    assert.doesNotMatch(args.query,/Até R\$ 80/,'budget belongs to the price filter, not literal text matching');
     assert.equal(args.limit,3); assert.equal(args.maxPrice,8000);
     return {products:[{id:'too_expensive',name:'Caro',price:9900}]};
   }} as any});

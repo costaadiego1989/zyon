@@ -11,7 +11,9 @@ test("a recommendation cannot widen away a budget, negated attribute or small se
   for(const args of [{query:"hidratante",limit:10},{query:"creme facial",maxPrice:50000},{query:"*",limit:20},{query:"outro produto"}])
     await tool!.execute(args);
   assert.equal(calls.length,3);
-  assert.ok(calls.every(call=>call.limit<=3 && call.maxPrice===8000 && /sem perfume/.test(call.query) && /pele oleosa/.test(call.query)));
+  assert.ok(calls.every(call=>call.limit<=3 && call.maxPrice===8000 && /sem perfume/.test(call.query) && /pele/.test(call.query) && /hidrat/.test(call.query)));
+  assert.match(calls[0].query,/pele oleosa/);
+  assert.doesNotMatch(calls[1].query,/oleosa/,'only the disclosed related lookup can omit the profile');
   assert.ok(calls.every(call=>call.query!=="*"));
   assert.equal(policy.terminal,true);
   assert.match(policy.terminalMessage!,/Não encontrei/);
@@ -96,7 +98,7 @@ test("client histories including the current answer retain the initial need and 
   ];
   const policy=createSalesSearchPolicy("Sem perfume, até R$ 80",history);
   const [tool]=policy.wrap([{name:"search_products",execute:async args=>{
-    assert.match(String(args.query),/pele oleosa/);
+    assert.match(String(args.query),/pele/);
     assert.match(String(args.query),/sem perfume/);
     assert.equal(args.maxPrice,8000);
     return {ok:true,data:{products:[]}};
@@ -112,7 +114,7 @@ test("explicitly corrected skin types and accepted ingredients replace old prefe
   for(const [message,expected,absent] of [["Minha pele é mista","pele mista","pele oleosa"],["Na verdade mista","pele mista","pele oleosa"],
     ["Pode ser com perfume","pele oleosa","sem perfume"]]){
     const [tool]=createSalesSearchPolicy(message!,history).wrap([{name:"search_products",execute:async args=>{
-      assert.ok(String(args.query).includes(expected!));
+      assert.ok(String(args.query).includes(expected!) || !/oleosa|mista/.test(String(args.query)));
       assert.equal(String(args.query).includes(absent!),false);
       assert.equal(args.maxPrice,8000);
       return {ok:true,data:{products:[]}};

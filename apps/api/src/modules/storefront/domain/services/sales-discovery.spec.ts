@@ -16,12 +16,12 @@ test("bare price objections need a target budget, but explicit cheaper-product o
     assert.equal(isBarePriceObjection(message), false, message);
 });
 
-test("broad care requests still need a purpose; concrete goals, products and direct commands do not", () => {
-  for (const text of ["um produto para pele", "Quero comprar um produto para minha pele oleosa", "Quero algo para o cabelo", "Preciso de algo para pele seca"]) {
+test("an area alone needs clarification; a profile is enough to search without a mandatory goal question", () => {
+  for (const text of ["um produto para pele", "Quero algo para o cabelo"]) {
     assert.equal(isBroadShoppingRequest(text), true, text);
     assert.equal(allowsSalesDiscovery(text), true, text);
   }
-  for (const text of ["Quero um hidratante para pele oleosa sem perfume", "Quero comprar este produto", "Ver produtos para pele", "Finalizar compra", "Quero algo até R$ 50"])
+  for (const text of ["Quero comprar um produto para minha pele oleosa", "Preciso de algo para pele seca", "Quero um hidratante para pele oleosa sem perfume", "Quero comprar este produto", "Ver produtos para pele", "Finalizar compra", "Quero algo até R$ 50"])
     assert.equal(isBroadShoppingRequest(text), false, text);
   for (const text of ["Quero comprar este produto", "Comprar Núcleo Sérum de Barreira", "Ver Produtos", "Quais produtos vocês têm à venda?",
     "Mostre opções", "Adicionar esse ao carrinho", "Finalizar compra", "Detalhes desse produto", "Produtos Semelhantes", "Falar com Humano"])

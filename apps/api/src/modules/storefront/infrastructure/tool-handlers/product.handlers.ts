@@ -76,15 +76,17 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       }));
 
       const federatedSearch = deps.searchFederatedProducts;
-      const shouldSearchMarketplace = localProducts.length < 3 && federatedSearch && query && query !== "*";
+      const shouldSearchMarketplace = localProducts.length === 0 && federatedSearch && query && query !== "*";
       if (shouldSearchMarketplace && federatedSearch) {
         try {
           const marketplaceResult = await federatedSearch.execute({
             query: query!,
             hostMerchantId: ctx.merchantId,
             limit: Math.min(args.limit ?? 5, 10),
+            maxPriceCents: args.maxPrice,
           });
-          const rawProducts = marketplaceResult.products ?? [];
+          const rawProducts = (marketplaceResult.products ?? []).filter(p => p.stockAvailable && p.currency === "BRL"
+            && (args.maxPrice === undefined || p.priceCents <= args.maxPrice));
           const sellerIds = [...new Set(rawProducts.map(p => p.sourceMerchantId))];
           const sellerNames: Record<string, string> = {};
           for (const sid of sellerIds) {
@@ -110,7 +112,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
           }));
           if (marketplaceProducts.length > 0) {
             return {
-              products: [...localProducts, ...marketplaceProducts],
+              products: [...localProducts, ...marketplaceProducts].slice(0, Math.min(args.limit ?? 10, 20)),
               source: localProducts.length > 0 ? "mixed" : "marketplace",
               note: localProducts.length > 0
                 ? "Encontrei produtos locais e de lojas parceiras"

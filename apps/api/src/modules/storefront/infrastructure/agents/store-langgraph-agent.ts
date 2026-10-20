@@ -30,6 +30,7 @@ import { classifyIntent, getModelForIntent, type StoreAgentIntent, type Classify
 import { validateStorefrontMessage, type StorefrontMessageContext } from "../../domain/tools/safety-validator.js";
 import { buildStoreSystemPrompt } from "../../domain/prompts/store-system-prompt.builder.js";
 import { buildConversationBlocks } from "./conversation-block.builder.js";
+import { hasCareProfile, salesRecommendationContext } from "../../domain/services/sales-recommendation-intent.js";
 import { allowsSalesDiscovery, countSalesDiscoveryRounds, isBroadShoppingRequest, isUnspecifiedShoppingRequest,
   isBarePriceObjection, MAX_SALES_DISCOVERY_ROUNDS, parseSalesDiscoveryQuestion, salesDiscoveryHistory, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
 import { ASK_PRODUCT_PREFERENCES } from "../../domain/tools/definitions/ask-product-preferences.tool.js";
@@ -189,8 +190,10 @@ export class StorefrontLangGraphAgent {
     const needsPriceDiscovery = canDiscover && isBarePriceObjection(input.userMessage)
       && !/\b(frete|pagamento|pedido|carrinho|checkout|entrega)\b/i.test(lastReply);
     const needsDiscovery = canDiscover && (needsPriceDiscovery || isUnspecifiedShoppingRequest(input.userMessage) || isBroadShoppingRequest(input.userMessage));
+    const profileReady = !needsDiscovery && hasCareProfile(salesRecommendationContext(input.userMessage, history));
+    const canAsk = canDiscover && !profileReady;
     const turnTools = needsDiscovery ? [ASK_PRODUCT_PREFERENCES]
-      : canDiscover ? [...this.tools, ASK_PRODUCT_PREFERENCES] : this.tools;
+      : canAsk ? [...this.tools, ASK_PRODUCT_PREFERENCES] : this.tools;
 
     const cartPolicy = createCartTurnPolicy(input.userMessage, input.attachmentContext, input.sessionId);
     const searchPolicy = createSalesSearchPolicy(input.userMessage, history.slice(-10), input.attachmentContext);
@@ -202,7 +205,7 @@ export class StorefrontLangGraphAgent {
         })
       : this.executableTools));
     const executableTools: ExecutableTool[] = needsDiscovery ? [] : commerceTools;
-    if (canDiscover) executableTools.push({ name: ASK_PRODUCT_PREFERENCES.name, execute: async args => {
+    if (canAsk) executableTools.push({ name: ASK_PRODUCT_PREFERENCES.name, execute: async args => {
       if (Object.keys(toolResults).some(name => name !== ASK_PRODUCT_PREFERENCES.name)) return { ok: false, error: "discovery_must_precede_product_results" };
       const parsed = parseSalesDiscoveryQuestion(args);
       if (!parsed) return { ok: false, error: "ask_one_clear_question_with_short_answer_choices" };
@@ -232,7 +235,9 @@ export class StorefrontLangGraphAgent {
         ? needsPriceDiscovery
           ? "O comprador achou caro, mas não informou um novo limite. Pergunte UMA faixa de valor confortável para procurar alternativas; não repita os mesmos produtos nem invente desconto. Não chame ferramentas para listar produtos, adicionar ao carrinho ou iniciar checkout."
           : "O pedido ainda é amplo: não há produto nem objetivo suficiente para recomendar. Não chame ferramentas para listar produtos, adicionar ao carrinho ou iniciar checkout."
-        : "Só pergunte se a informação ausente realmente muda a escolha. Se já sabe o suficiente, pesquise agora."} Para perguntar, chame ask_product_preferences com UMA pergunta e respostas rápidas que respondam exatamente a ela, ou [] para pergunta aberta. Use o histórico, não repita dados conhecidos. Não peça objetivo e orçamento juntos. Não ofereça carrinho, semelhantes ou finalizar compra durante a descoberta.`
+        : profileReady
+          ? "CONTEXTO SUFICIENTE: área e perfil já informados. Pesquise agora, sem exigir uma pergunta de objetivo. Se não houver correspondência exata, use as alternativas relacionadas identificadas pela ferramenta, sem prometer adequação não confirmada."
+          : "Só pergunte se a informação ausente realmente muda a escolha. Se já sabe o suficiente, pesquise agora."} Para perguntar, chame ask_product_preferences com UMA pergunta e respostas rápidas que respondam exatamente a ela, ou [] para pergunta aberta. Use o histórico, não repita dados conhecidos. Não peça objetivo e orçamento juntos. Não ofereça carrinho, semelhantes ou finalizar compra durante a descoberta.`
       : !input.attachmentContext && discoveryRounds >= MAX_SALES_DISCOVERY_ROUNDS && allowsSalesDiscovery(input.userMessage)
         ? "\n\nLIMITE DA DESCOBERTA ATINGIDO: já houve 3 rodadas de perguntas. Não faça uma quarta pergunta de perfil. Consulte agora o catálogo usando todas as respostas do histórico e preserve as restrições. Apresente até 3 resultados relevantes; se não encontrar, explique a limitação sem inventar adequação."
         : "";
@@ -445,11 +450,12 @@ export class StorefrontLangGraphAgent {
     // Legacy providers may answer in plain text instead of using the question
     // tool. Preserve a valid clarification and never let the search fallback
     // replace it with a catalog dump. No extra evaluation/model call is needed.
-    if (canDiscover && !toolsUsed.length) discoveryQuestion = parseSalesDiscoveryQuestion({ question: finalContent, replies: [] }) ?? undefined;
+    if (canAsk && !toolsUsed.length) discoveryQuestion = parseSalesDiscoveryQuestion({ question: finalContent, replies: [] }) ?? undefined;
     if (needsDiscovery && !discoveryQuestion) discoveryQuestion = {
       question: needsPriceDiscovery ? "Qual faixa de valor fica confortável para você?" : "Para eu ajudar a escolher, qual é a sua principal necessidade?", replies: [],
     };
     if (discoveryQuestion) finalContent = discoveryQuestion.question;
+    else if (searchPolicy.recommendationMessage) finalContent = searchPolicy.recommendationMessage;
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;
     const built = buildConversationBlocks({ toolResults: cartPolicy.sanitizeResults(toolResults), userMessage: input.userMessage, finalContent, merchantId: input.merchantId });
     blocks.push(...built.blocks);
@@ -465,7 +471,7 @@ export class StorefrontLangGraphAgent {
       if (addOutcome.status === "unknown") finalContent = "Não consegui confirmar a inclusão. Confira o carrinho antes de tentar novamente.";
       else if (addOutcome.status === "succeeded" && (cartPolicy.refused || !finalContent)) finalContent = "Produto adicionado ao carrinho.";
     }
-    if (cartPolicy.refused && !addOutcome) finalContent = "Para alterar o carrinho, escolha o produto e peça a alteração explicitamente.";
+    if (cartPolicy.refused && !addOutcome && !searchPolicy.recommendationMessage) finalContent = "Para alterar o carrinho, escolha o produto e peça a alteração explicitamente.";
 
     const hasProductCard = blocks.some(b => b.type === "product_card");
     const hasShippingOptions = blocks.some(b => b.type === "shipping_options");

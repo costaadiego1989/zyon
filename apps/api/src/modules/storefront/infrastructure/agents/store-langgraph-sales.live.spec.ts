@@ -2,6 +2,8 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { StorefrontLangGraphAgent } from "./store-langgraph-agent.js";
+import { contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
+import { normalizeSalesText } from "../../domain/services/sales-recommendation-intent.js";
 
 /** Opt-in, metered provider evaluation. All products/tools are isolated fixtures:
  * no production database, buyer, cart, checkout or payment is accessed. */
@@ -24,7 +26,10 @@ test("provider-backed consultative sales scenarios", { skip: process.env.ZYON_SA
       toolHandlers: {
         searchProducts: async (args: Record<string, any>) => {
           searches.push(args);
-          return { products: catalog.filter(product => !args.maxPrice || product.price <= args.maxPrice).slice(0, args.limit ?? 10) };
+          const groups = contextualSearchGroups(String(args.query));
+          return { products: catalog.filter(product => (args.maxPrice === undefined || product.price <= args.maxPrice)
+            && groups.length > 0 && groups.every(group => group.some(term => normalizeSalesText(`${product.name} ${product.description}`).includes(term))))
+            .slice(0, args.limit ?? 10) };
         },
         getProductDetails: async ({ productId }: { productId: string }) => ({ product: catalog.find(product => product.id === productId) }),
         addItemToCart: async () => assert.fail("A consultation must never mutate a cart"),
@@ -51,7 +56,7 @@ test("provider-backed consultative sales scenarios", { skip: process.env.ZYON_SA
     assert.equal(result.message.match(/\?/g)?.length, 1);
     assert.doesNotMatch(result.message, /or[çc]amento|faixa de valor/i);
   });
-  await scenario("a broad skin request explores the profile and goal before recommending, with matching answer choices", async () => {
+  await scenario("a broad skin request asks for the profile then searches without a mandatory objective", async () => {
     const history:Array<{role:"user"|"assistant";content:string}>=[];
     const append=(userMessage:string,message:string)=>history.push({role:"user",content:userMessage},{role:"assistant",content:message});
     const first=await run("Quero um produto para pele",history);
@@ -63,9 +68,9 @@ test("provider-backed consultative sales scenarios", { skip: process.env.ZYON_SA
     assert.doesNotMatch(first.result.discoveryQuestion.replies.join(" "),/carrinho|finalizar|continuar comprando|semelhantes/i);
     append("Quero um produto para pele",first.result.message);
     const second=await run("Minha pele é oleosa",history);
-    assert.equal(second.searches.length,0,"skin type alone is not a purpose");
-    assert.ok(second.result.discoveryQuestion);
-    assert.match(second.result.message,/objetivo|busca|procur|necessidade|prioridade|cuidado|hidrata|limpeza/i);
+    assert.ok(second.searches.length>0,"known area and skin type are enough to start searching");
+    assert.equal(second.result.discoveryQuestion,undefined);
+    assert.ok(second.result.blocks.some(block=>block.type==="product_carousel"));
     append("Minha pele é oleosa",second.result.message);
     const informed=await run("Quero hidratação, textura leve e sem perfume, até R$ 100",history);
     assert.ok(informed.searches.length>0,"do not force a third question when enough is known");
@@ -131,8 +136,28 @@ test("provider-backed consultative sales scenarios", { skip: process.env.ZYON_SA
     assert.ok(searches.length>0 && searches.length<=3);
     assert.ok(searches.every(search=>search.query!=="*" && search.maxPrice===8000 && search.limit<=3));
     assert.ok(searches.every(search=>/sem (?:perfume|fragr[aâ]ncia)/i.test(search.query)));
-    assert.ok(searches.every(search=>/pele oleosa/i.test(search.query)));
+    assert.ok(searches.every(search=>/pele/i.test(search.query)));
+    assert.match(searches[0]!.query,/pele oleosa/i);
     assert.equal(result.blocks.some(block=>block.type==="product_carousel" || block.type==="product_card"),false);
     assert.match(result.message,/n[aã]o encontrei|sem (?:op[çc][oõ]es|resultados)|n[aã]o (?:tenho|temos|h[aá])|nenhum/i);
+  });
+  await scenario("similar oily-skin alternatives disclose missing confirmation using a realistic catalog", async () => {
+    const { result, searches } = await run("Oleosa", [
+      { role: "user", content: "Quero um produto para pele" }, { role: "assistant", content: "Como é sua pele?" },
+    ], [{ ...products[0]!, id: "realistic_serum", name: "Sérum de Barreira", description: "Hidratação leve, ceramidas, sem fragrância adicionada." }]);
+    assert.equal(searches.length, 2);
+    assert.equal(result.discoveryQuestion, undefined);
+    assert.ok(result.blocks.some(block=>block.type==="product_carousel"));
+    assert.match(result.message, /não confirma indicação para pele oleosa/);
+    assert.doesNotMatch(result.message, /ideal para|controla a oleosidade/i);
+  });
+  await scenario("similar green running-shoe alternatives retain running use and disclose the color", async () => {
+    const { result, searches } = await run("Quero um tênis de corrida verde até R$ 200", [], [
+      { ...products[0]!, id: "shoe", name: "Tênis de corrida", description: "Tênis para correr, cor preta.", price: 18990 },
+    ]);
+    assert.equal(searches.length, 2);
+    assert.match(result.message, /não confirma cor verde/);
+    assert.ok(result.blocks.some(block=>block.type==="product_carousel"));
+    assert.equal(result.discoveryQuestion, undefined);
   });
 });

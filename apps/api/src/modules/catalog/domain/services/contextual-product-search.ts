@@ -6,8 +6,13 @@ const browse = new Set(["*", "", "produto", "produtos", "ver produtos", "continu
 const conversationalNegations = new Set(["nao sei", "nao tenho", "nao importa", "sem preferencia", "sem preferencias", "sem restricao", "sem restricoes"]);
 const stop = new Set("eu quero queria preciso gostaria procura procurar busco buscar encontre encontrar mostrar mostre ver comprar compra produto produtos item itens algum alguma algo um uma uns umas o a os as e de da do das dos para pra por com em no na nos nas minha meu minhas meus sua seu suas seus voce voces favor ajuda ajude loja lojas que qual quais tem temos tenho me mim pelo pela porfavor".split(" "));
 for (const word of "vende vendem vender venda disponivel disponiveis disponibilidade estoque catalogo catalogos opcao opcoes mostra conhecer saber ai aqui nessa nesta nesse neste oferece oferecem".split(" ")) stop.add(word);
+for (const word of "cuidar cuidado cuidados tratar objetivo principal melhor este esta isso outro outra tipo é e".split(" ")) stop.add(word);
 const aliases: Record<string, string[]> = {
-  pele: ["pele", "facial", "rosto", "cutane"],
+  pele: ["pele", "facial", "rosto", "cutane", "ceramida", "skincare"],
+  facial: ["facial", "rosto"], rosto: ["facial", "rosto"],
+  tenis: ["tenis", "sneaker"], corrida: ["corrida", "correr", "running"],
+  preto: ["preto", "preta"], preta: ["preto", "preta"], branco: ["branco", "branca"], branca: ["branco", "branca"],
+  vermelho: ["vermelho", "vermelha"], vermelha: ["vermelho", "vermelha"], amarelo: ["amarelo", "amarela"], amarela: ["amarelo", "amarela"], roxo: ["roxo", "roxa"], roxa: ["roxo", "roxa"],
   hidratar: ["hidrat"], hidratacao: ["hidrat"], hidratante: ["hidrat"], hidratantes: ["hidrat"],
   seca: ["seca", "ressecad"], seco: ["seco", "ressecad"],
   sensivel: ["sensivel", "sensiv"],
@@ -42,7 +47,8 @@ export function contextualSearchGroups(query: string): string[][] {
   let text = normalize(query).replace(/[^\p{L}\p{N}\s-]/gu, " ");
   const phrases: string[][] = [];
   text = text.replace(/\b(sem|nao)\s+([\p{L}\p{N}-]+)/gu, match => {
-    if (!conversationalNegations.has(match.replace(/\s+/g, " "))) phrases.push([match]);
+    if (!conversationalNegations.has(match.replace(/\s+/g, " "))) phrases.push(match === "sem perfume" || match === "sem fragrancia"
+      ? ["sem perfume", "sem fragrancia", "livre de fragrancia"] : [match]);
     return " ";
   });
   const terms = [...new Set(text.split(/\s+/).filter(term => term.length > 1 && !stop.has(term) && !browse.has(term)))];

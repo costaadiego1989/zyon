@@ -17,11 +17,12 @@ export function isUnspecifiedShoppingRequest(message: string): boolean {
     && words.every(word => genericShoppingWords.has(word));
 }
 
-/** A body area/type is not yet a purpose or a product selection. Keep this
- * deliberately narrow: a name, objective, ingredient or budget exits this rule.
+/** An area alone invites clarification; a known profile can already be searched.
+ * Keep this narrow: a name, profile, objective, ingredient or budget exits it.
  * Other verticals can use the model's bounded ask_product_preferences tool. */
 export function isBroadShoppingRequest(message: string): boolean {
   const words = shoppingWords(message);
+  if (words.some(word => /^(oleosa|seca|mista|normal|sensivel|oleosidade)$/.test(word))) return false;
   const broadCareWords = new Set("minha meu minhas meus pele rosto facial corpo corporal cabelo cabelos capilar oleosa seca mista normal sensivel cuidar cuidado cuidados tratar procuro busco procurando".split(" "));
   return words.some(word => /^(quero|queria|gostaria|preciso|procuro|busco|produto|produtos|algo)$/.test(word))
     && words.some(word => /^(pele|rosto|corpo|cabelo|cabelos)$/.test(word))
@@ -74,6 +75,8 @@ export function allowsSalesDiscovery(message: string, attachmentContext?: string
   if (attachmentContext) return false;
   if (isUnspecifiedShoppingRequest(message) || isBroadShoppingRequest(message)) return true;
   const text = shoppingWords(message).join(" ");
+  if (/\bcomprar\b/.test(text) && /\b(?:produtos? para|tenis de corrida|hidratante para)\b/.test(text)
+    && !/\b(carrinho|checkout|pedido|este|esse|aquele|finalizar)\b/.test(text)) return true;
   return !/\b(carrinho|checkout|pedido|pagar|pagamento|frete|cep|cupom|rastrear|troca|devolucao|suporte|humano|login|entrar|detalhes|avaliacoes|comparar|semelhantes|catalogo|categorias|ofertas|promocoes)\b/.test(text)
     && !/\b(comprar|compre|adicionar|adicione|remover|retirar|limpar|finalizar|concluir)\b/.test(text)
     && !/\b(ver|mostrar|mostre|listar|lista|vendem|venda|vender|voces tem|produtos disponiveis|mais opcoes|mais produtos|mais resultados|outras opcoes)\b/.test(text);

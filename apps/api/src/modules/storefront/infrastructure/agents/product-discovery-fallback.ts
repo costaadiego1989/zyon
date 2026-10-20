@@ -3,7 +3,8 @@ import type { StoreToolHandlers } from "../../domain/tools/types.js";
 import { buildConversationBlocks } from "./conversation-block.builder.js";
 import { allowsSalesDiscovery, countSalesDiscoveryRounds, isBroadShoppingRequest, isUnspecifiedShoppingRequest,
   MAX_SALES_DISCOVERY_ROUNDS, salesDiscoveryHistory, type SalesDiscoveryQuestion } from "../../domain/services/sales-discovery.js";
-import { salesSearchMaxPrice } from "../../domain/services/sales-search-policy.js";
+import { createSalesSearchPolicy } from "../../domain/services/sales-search-policy.js";
+import { hasCareProfile, salesRecommendationContext } from "../../domain/services/sales-recommendation-intent.js";
 
 /** Sufficiently defined requests need a real lookup, but a clarification must
  * not be replaced by products. Shared by chat and the voice commerce handoff. */
@@ -16,17 +17,18 @@ export async function ensureProductDiscovery<T extends { message: string; blocks
   const exhausted = countSalesDiscoveryRounds(history) >= MAX_SALES_DISCOVERY_ROUNDS && allowsSalesDiscovery(input.userMessage)
     && history.some(item => item.role === "user" && (isBroadShoppingRequest(item.content) || isUnspecifiedShoppingRequest(item.content)));
   const message = input.userMessage.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
-  if (result.toolsUsed.length || result.blocks.length || (!exhausted && !/(quero|preciso|procuro|busco|encontre|indique|recomende|sugira).*\bprodutos?\b.*\b(para|pra|com|sem|que)\b/.test(message))
+  const context = salesRecommendationContext(input.userMessage, history);
+  const profileReady = allowsSalesDiscovery(input.userMessage) && hasCareProfile(context);
+  if (result.toolsUsed.length || result.blocks.length || (!exhausted && !profileReady && !/(quero|preciso|procuro|busco|encontre|indique|recomende|sugira).*\bprodutos?\b.*\b(para|pra|com|sem|que)\b/.test(message))
     || /\b(adicionar|remover|cancelar|carrinho|pagar|pagamento|pedido|checkout|frete)\b/.test(message)) return result;
-  const query = exhausted ? [...history.filter(item => item.role === "user").slice(-3).map(item => item.content), input.userMessage].join(". ") : input.userMessage;
-  const maxPrice = salesSearchMaxPrice(query);
-  const found = await input.handlers.searchProducts({ query, inStockOnly: true, limit: 3,
-    ...(maxPrice !== undefined ? { maxPrice } : {}) }) as { products?: Array<{ price?: number }> };
-  // A federated provider must not bypass an explicitly stated spending cap.
-  if (maxPrice !== undefined) found.products = found.products?.filter(product => typeof product.price === "number" && product.price <= maxPrice);
-  const intro = found.products?.length ? "Encontrei opções relacionadas ao que você procura. Escolha um produto para ver os detalhes ou me conte mais sobre sua necessidade."
+  const policy = createSalesSearchPolicy(input.userMessage, history);
+  const [search] = policy.wrap([{ name: "search_products", execute: async args => ({ ok: true,
+    data: await input.handlers.searchProducts(args as Parameters<StoreToolHandlers["searchProducts"]>[0]) }) }]);
+  const searched = await search!.execute({ query: context, inStockOnly: true, limit: 3 });
+  const found = searched.ok ? searched.data as { products?: Array<{ price?: number }> } : { products: [] };
+  const intro = policy.recommendationMessage ?? (found.products?.length ? "Encontrei opções relacionadas ao que você procura. Escolha um produto para ver os detalhes ou me conte mais sobre sua necessidade."
     : exhausted ? "Não encontrei produtos correspondentes às preferências que você informou. Não vou indicar uma opção sem correspondência confirmada."
-      : "Não encontrei produtos correspondentes ao que você descreveu. Pode detalhar o que procura?";
+      : "Não encontrei produtos correspondentes ao que você descreveu. Pode detalhar o que procura?");
   const built = buildConversationBlocks({ toolResults: { search_products: found }, userMessage: input.userMessage, finalContent: intro, merchantId: input.merchantId });
   return { ...result, message: built.finalContent || intro, blocks: built.blocks, toolsUsed: ["search_products"] };
 }

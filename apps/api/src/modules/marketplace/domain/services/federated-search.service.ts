@@ -5,6 +5,7 @@ export interface FederatedSearchParams {
   limit: number;
   excludeMerchants: string[];
   includeMerchants?: string[];
+  maxPriceCents?: number;
 }
 
 export interface FederatedProductResult {
@@ -44,7 +45,7 @@ export type FederatedSearchRepositoryPort = {
     query: string,
     category: string | undefined,
     limit: number,
-    scope?: { includeMerchants?: string[]; excludeMerchants: string[] }
+    scope?: { includeMerchants?: string[]; excludeMerchants: string[]; maxPriceCents?: number }
   ): Promise<RawFederatedProduct[]>;
 };
 
@@ -65,12 +66,14 @@ export class FederatedSearchService {
       params.query,
       params.category,
       params.limit,
-      { includeMerchants: params.includeMerchants, excludeMerchants: [...excludeSet] }
+      { includeMerchants: params.includeMerchants, excludeMerchants: [...excludeSet],
+        ...(params.maxPriceCents !== undefined ? { maxPriceCents: params.maxPriceCents } : {}) }
     );
 
     const includeSet = params.includeMerchants ? new Set(params.includeMerchants) : null;
     const filtered = rawResults.filter(
-      (p) => !excludeSet.has(p.sourceMerchantId) && (includeSet === null || includeSet.has(p.sourceMerchantId))
+      (p) => p.stockAvailable && p.currency === "BRL" && (params.maxPriceCents === undefined || p.priceCents <= params.maxPriceCents)
+        && !excludeSet.has(p.sourceMerchantId) && (includeSet === null || includeSet.has(p.sourceMerchantId))
     );
 
     return filtered.slice(0, params.limit).map((p) => this.mapToResult(p));
