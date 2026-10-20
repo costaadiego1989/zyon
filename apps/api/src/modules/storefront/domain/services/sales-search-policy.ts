@@ -27,6 +27,11 @@ export function createSalesSearchPolicy(userMessage: string,
   if (released) context = context.normalize("NFD").replace(/[\u0300-\u036f]/g, "")
     .replace(new RegExp(`\\bsem ${released}\\b`, "gi"), "");
   const maxPrice = salesSearchMaxPrice(context);
+  // Preserve the explicitly requested purpose across synonym searches too.
+  // Product cards must not include another care step merely because it shares
+  // the same brand. Hydration has a stable published lexical family.
+  const hydrationRequired = /\bhidrat(?:acao|ar|ante|antes)\b/.test(context.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase())
+    && !/\bnao (?:quero |preciso de )?hidrat/.test(current);
   const constraints = contextualSearchGroups(context).map(group => group[0]!)
     .filter(term => /^(sem|nao) /.test(term) && !/^(?:nao sei|nao tenho|nao importa|sem preferencia|sem restricao)$/.test(term));
   const profile = context.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase()
@@ -59,14 +64,16 @@ export function createSalesSearchPolicy(userMessage: string,
           const normalized = query.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
           const missing = [...new Set(constraints)].filter(term => !normalized.includes(term));
           if (missing.length) query = `${query} ${missing.join(" ")}`;
+          if (hydrationRequired && !/hidrat/.test(normalized)) query = `${query} hidratação`;
           const requestedMax = typeof args.maxPrice === "number" && Number.isSafeInteger(args.maxPrice) && args.maxPrice >= 0 ? args.maxPrice : undefined;
           const cap = maxPrice === undefined ? requestedMax : requestedMax === undefined ? maxPrice : Math.min(maxPrice, requestedMax);
           const limit = typeof args.limit === "number" && Number.isFinite(args.limit) ? Math.max(1, Math.min(3, Math.floor(args.limit))) : 3;
           const { maxPrice: _modelMaxPrice, ...remainingArgs } = args;
           let result = await tool.execute({ ...remainingArgs, query, limit, ...(cap !== undefined ? { maxPrice: cap } : {}) });
           if (result.ok && result.data && typeof result.data === "object" && "products" in result.data && Array.isArray(result.data.products)) {
-            const products = result.data.products.filter(product => cap === undefined
-              || (typeof product?.price === "number" && Number.isFinite(product.price) && product.price <= cap)).slice(0, limit);
+            const products = result.data.products.filter(product => (cap === undefined
+              || (typeof product?.price === "number" && Number.isFinite(product.price) && product.price <= cap))
+              && (!hydrationRequired || /hidrat/i.test(`${product?.name ?? ""} ${product?.description ?? ""}`))).slice(0, limit);
             // A later empty synonym must not erase confirmed matches from this
             // same turn or make the assistant claim nothing was found.
             if (!products.length && hasMatches && lastResult) return lastResult;

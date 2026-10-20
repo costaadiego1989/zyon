@@ -211,8 +211,10 @@ test("a bare price objection cannot search and repeat the same cards before clar
       toolHandlers: { searchProducts: async () => { searches++; return { products: [] }; } } as never,
     });
     const result = await agent.run({ merchantId: "qa", sessionId: "qa", storeCategory: "others", userMessage: "Está caro", history: [
-      { role: "user", content: "Quero hidratação com textura leve, até R$ 150" },
-      { role: "assistant", content: "Encontrei estas opções no catálogo. Confira os detalhes para escolher." },
+      { role: "user", content: "Quero comprar um produto" }, { role: "assistant", content: "Qual produto procura?" },
+      { role: "user", content: "Quero hidratação leve" }, { role: "assistant", content: "Para rosto ou corpo?" },
+      { role: "user", content: "Rosto, até R$ 150" },
+      { role: "assistant", content: "Encontrei três opções. A Bruma tem hidratação leve, por R$ 79,90. Quer ver os detalhes dela?" },
     ] });
     assert.equal(searches, 0);
     assert.deepEqual(result.blocks, []);

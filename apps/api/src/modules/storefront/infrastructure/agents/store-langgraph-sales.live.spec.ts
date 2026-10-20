@@ -114,6 +114,18 @@ test("provider-backed consultative sales scenarios", { skip: process.env.ZYON_SA
     assert.equal(result.message.match(/\?/g)?.length, 1);
     assert.equal(result.toolsUsed.some(tool => ["add_item_to_cart", "create_checkout_session", "apply_coupon"].includes(tool)), false);
   });
+  await scenario("a price objection after two profile questions and a recommendation starts a fresh budget clarification", async () => {
+    const { result, searches } = await run("Está caro", [
+      { role: "user", content: "Quero comprar um produto" }, { role: "assistant", content: "Qual produto procura?" },
+      { role: "user", content: "Quero hidratação com textura leve" }, { role: "assistant", content: "Para o rosto ou corpo?" },
+      { role: "user", content: "Rosto, até R$ 150" },
+      { role: "assistant", content: "Encontrei três opções. A Bruma tem hidratação leve, por R$ 79,90. Quer ver os detalhes dela?" },
+    ]);
+    assert.deepEqual(searches, []);
+    assert.deepEqual(result.blocks, []);
+    assert.ok(result.discoveryQuestion);
+    assert.match(result.message, /faixa|orçamento|valor|gastar|investir|preço/i);
+  });
   await scenario("empty matches broaden through bounded searches without dropping the buyer's restrictions",async()=>{
     const {result,searches}=await run("Quero hidratante para pele oleosa, sem perfume, até R$ 80",[],[]);
     assert.ok(searches.length>0 && searches.length<=3);

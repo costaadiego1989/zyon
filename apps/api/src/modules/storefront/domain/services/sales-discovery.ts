@@ -57,7 +57,12 @@ export function countSalesDiscoveryRounds(history: Array<{ role: "user" | "assis
   for (let index = history.length - 1; index > firstUser; index--) {
     const message = history[index]!;
     if (message.role !== "assistant") continue;
-    if (!message.content.includes("?")) break;
+    // A recommendation often ends in "Quer ver os detalhes?". It closes the
+    // interview rather than consuming another profile question. In particular,
+    // do not let two profile questions + a priced recommendation exhaust the
+    // budget when the buyer later raises a new price objection.
+    if (!parseSalesDiscoveryQuestion({ question: message.content, replies: [] })
+      || /R\$\s*\d|\b(?:encontrei|separei)\b|quer ver (?:os |mais )?detalhes/i.test(message.content)) break;
     if (++rounds === MAX_SALES_DISCOVERY_ROUNDS) break;
   }
   return rounds;

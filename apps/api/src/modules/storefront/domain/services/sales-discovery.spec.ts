@@ -40,6 +40,20 @@ test("consecutive clarification history is bounded at three, ignoring the openin
   assert.equal(countSalesDiscoveryRounds(history),0);
 });
 
+test("a catalog recommendation ending in a question closes the discovery interview", () => {
+  const history: Array<{ role: "user" | "assistant"; content: string }> = [
+    { role: "user", content: "Quero um produto" }, { role: "assistant", content: "Qual necessidade?" },
+    { role: "user", content: "Hidratação leve" }, { role: "assistant", content: "Para o rosto ou corpo?" },
+    { role: "user", content: "Rosto, até R$ 150" },
+  ];
+  for (const reply of ["Encontrei três opções. A Bruma tem hidratação leve, por R$ 79,90. Quer ver os detalhes dela?",
+    "Esta opção tem textura leve. Quer ver os detalhes?", "Encontrei estas opções. Qual você prefere?"]) {
+    assert.equal(countSalesDiscoveryRounds([...history, { role: "assistant", content: reply }]), 0, reply);
+    assert.equal(countSalesDiscoveryRounds([...history, { role: "assistant", content: reply },
+      { role: "user", content: "Está caro" }, { role: "assistant", content: "Qual faixa de valor fica confortável?" }]), 1);
+  }
+});
+
 test("discovery questions accept only bounded answer choices, never commerce buttons or control tags", () => {
   const parsed=parseSalesDiscoveryQuestion({question:"Como é sua pele?",replies:["Oleosa","oleosa","Seca","Ver Carrinho","Finalizar Compra","Continuar Comprando","Produtos Semelhantes","<script>","[variantId:unsafe]","Não sei","Mista","Normal"]});
   assert.deepEqual(parsed,{question:"Como é sua pele?",replies:["Oleosa","Seca","Não sei","Mista"]});

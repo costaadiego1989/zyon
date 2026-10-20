@@ -25,26 +25,41 @@ test("short answers retain constraints from the current discovery and filter fed
   ];
   const policy=createSalesSearchPolicy("Leve",history);
   const [tool]=policy.wrap([{name:"search_products",execute:async args=>{
-    calls.push(args);return {ok:true,data:{products:[{id:"above",price:9900},{id:"within",price:7900},{id:"unknown"}]}};
+    calls.push(args);return {ok:true,data:{products:[{id:"above",name:"Hidratante",price:9900},{id:"within",name:"Hidratante",price:7900},{id:"unknown"}]}};
   }}]);
   const result=await tool!.execute({query:"hidratante leve",limit:10});
   assert.equal(calls[0].maxPrice,8000);
   assert.match(calls[0].query,/sem perfume/);
   assert.match(calls[0].query,/pele oleosa/);
   assert.equal(result.ok,true);
-  assert.deepEqual((result as any).data.products,[{id:"within",price:7900}]);
+  assert.deepEqual((result as any).data.products,[{id:"within",name:"Hidratante",price:7900}]);
 });
 
 test("an empty later synonym preserves earlier real matches instead of claiming no products",async()=>{
   let lookups=0;
   const policy=createSalesSearchPolicy("Quero hidratante sem perfume",[]);
-  const [tool]=policy.wrap([{name:"search_products",execute:async()=>({ok:true,data:{products:++lookups===1?[{id:"found",price:100}]:[]}})}]);
+  const [tool]=policy.wrap([{name:"search_products",execute:async()=>({ok:true,data:{products:++lookups===1?[{id:"found",name:"Hidratante",price:100}]:[]}})}]);
   for(let index=0;index<4;index++){
     const result=await tool!.execute({query:"hidratante"});
-    assert.deepEqual((result as any).data.products,[{id:"found",price:100}]);
+    assert.deepEqual((result as any).data.products,[{id:"found",name:"Hidratante",price:100}]);
   }
   assert.equal(lookups,3);
   assert.equal(policy.terminalMessage,undefined);
+});
+
+test("broadening to a shared brand never adds another care step to a hydration recommendation", async () => {
+  const [tool] = createSalesSearchPolicy("É para o rosto. Não sei meu tipo de pele, até R$ 150.", [
+    { role: "user", content: "Quero um produto para hidratação com textura leve" },
+    { role: "assistant", content: "É para o rosto ou corpo?" },
+  ]).wrap([{ name: "search_products", execute: async args => {
+    assert.match(String(args.query), /hidrat/);
+    return { ok: true, data: { products: [
+      { id: "wrong_step", name: "Protetor Diário FPS 50", description: "Protetor facial de uso diário", price: 9990 },
+      { id: "right_step", name: "Bruma de Hidratação", description: "Hidratação leve", price: 7990 },
+    ] } };
+  } }]);
+  const result = await tool!.execute({ query: "Núcleo", limit: 20 });
+  assert.deepEqual((result as any).data.products.map((product: any) => product.id), ["right_step"]);
 });
 
 test("failed lookups do not claim that the merchant has no products",async()=>{
