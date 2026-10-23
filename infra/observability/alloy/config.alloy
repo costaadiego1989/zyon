@@ -1,0 +1,55 @@
+// Local opt-in only. A Docker label is scope selection, not authentication.
+import.file "managed" {
+  filename = "/etc/alloy/managed.alloy"
+}
+
+logging {
+  level = "warn"
+  format = "json"
+}
+
+discovery.docker "storefront" {
+  host = "unix:///var/run/docker.sock"
+  refresh_interval = "15s"
+  filter {
+    name = "label"
+    values = ["zyon_observability=storefront_api"]
+  }
+}
+
+discovery.relabel "api" {
+  targets = discovery.docker.storefront.targets
+  rule {
+    source_labels = ["__meta_docker_container_label_zyon_observability"]
+    regex = "storefront_api"
+    action = "keep"
+  }
+  rule {
+    target_label = "service"
+    replacement = "zyon-api"
+  }
+  rule {
+    target_label = "environment"
+    replacement = "development"
+  }
+  rule {
+    target_label = "job"
+    replacement = "storefront-api"
+  }
+}
+
+loki.source.docker "api" {
+  host = "unix:///var/run/docker.sock"
+  targets = discovery.relabel.api.output
+  forward_to = [managed.managed_logs.api.receiver]
+}
+
+managed.managed_logs "api" {
+  forward_to = [loki.write.local.receiver]
+}
+
+loki.write "local" {
+  endpoint {
+    url = "http://loki:3100/loki/api/v1/push"
+  }
+}

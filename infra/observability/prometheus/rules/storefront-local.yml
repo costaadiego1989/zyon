@@ -1,0 +1,92 @@
+# Local evaluation only. No Alertmanager or notification receiver is configured.
+groups:
+  - name: storefront-local
+    interval: 15s
+    rules:
+      - alert: StorefrontContractOutputInvalid
+        expr: >-
+          sum by (job, service, environment) (
+            increase(storefront_llm_decisions_total{job="aacp-api",reason=~"invalid_context|invalid_output|safety_rejected"}[5m])
+          ) > 0
+        for: 1m
+        labels:
+          severity: warning
+          scope: storefront
+          evaluation: local
+        annotations:
+          summary: Storefront contract decisions require investigation
+          runbook: infra/observability/OPERATIONS.md
+
+      - alert: StorefrontCartOutcomeUnknown
+        expr: >-
+          sum by (job, service, environment) (
+            increase(storefront_llm_decisions_total{job="aacp-api",stage="tool",outcome="unknown",reason="cart_outcome_unknown"}[5m])
+          ) > 0
+        for: 0s
+        labels:
+          severity: critical
+          scope: storefront
+          evaluation: local
+        annotations:
+          summary: Storefront cart outcome is unknown
+          runbook: infra/observability/OPERATIONS.md
+
+      - alert: StorefrontTurnErrorRate
+        expr: >-
+          (
+            sum by (job, service, environment) (
+              increase(storefront_llm_operations_total{job="aacp-api",stage="turn",outcome="error"}[5m])
+            )
+            /
+            sum by (job, service, environment) (
+              increase(storefront_llm_operations_total{job="aacp-api",stage="turn"}[5m])
+            )
+          ) > 0.10
+          and
+          sum by (job, service, environment) (
+            increase(storefront_llm_operations_total{job="aacp-api",stage="turn"}[5m])
+          ) >= 20
+        for: 2m
+        labels:
+          severity: warning
+          scope: storefront
+          evaluation: local
+        annotations:
+          summary: Storefront terminal turn error ratio is high
+          runbook: infra/observability/OPERATIONS.md
+
+      - alert: StorefrontSlowTurns
+        expr: >-
+          (
+            1 -
+            sum by (job, service, environment) (
+              increase(storefront_llm_operation_duration_seconds_bucket{job="aacp-api",stage="turn",le="10"}[5m])
+            )
+            /
+            sum by (job, service, environment) (
+              increase(storefront_llm_operation_duration_seconds_count{job="aacp-api",stage="turn"}[5m])
+            )
+          ) > 0.20
+          and
+          sum by (job, service, environment) (
+            increase(storefront_llm_operation_duration_seconds_count{job="aacp-api",stage="turn"}[5m])
+          ) >= 20
+        for: 5m
+        labels:
+          severity: warning
+          scope: storefront
+          evaluation: local
+        annotations:
+          summary: Storefront completed turns are slow
+          runbook: infra/observability/OPERATIONS.md
+
+      - alert: StorefrontMetricsScrapeUnavailable
+        expr: min by (job, service, environment) (up{job="aacp-api"}) == 0
+        for: 2m
+        labels:
+          severity: warning
+          scope: storefront
+          evaluation: local
+        annotations:
+          summary: Storefront metrics scrape is failing
+          runbook: infra/observability/OPERATIONS.md

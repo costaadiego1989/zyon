@@ -1,0 +1,7 @@
+- [x] Identify published commits and inspect overlapping runtime changes.
+- [ ] Apply reviewed deltas while preserving existing integration boundaries.
+- [ ] Verify WhatsApp, billing and full dashboard regressions.
+- [ ] Freeze source104 and preserve canonical auth configuration/old assets.
+- [ ] Publish sandbox and verify readiness plus served presentation.
+- [ ] Promote the accepted candidate; verify public and authenticated behavior.
+- [ ] Record deployment evidence, known real-provider gaps and source provenance.

@@ -1,0 +1,98 @@
+{
+  "uid": "storefront-llm-v1",
+  "title": "Storefront — contratos e LLM",
+  "description": "Artefato local não homologado em produção. Operações não confirmam sucesso comercial. Sem dados não significa zero. Tokens/custo incluem apenas uso conhecido; estágios aninhados não são somáveis.",
+  "schemaVersion": 40,
+  "version": 1,
+  "editable": false,
+  "tags": ["storefront", "llm", "local-validation"],
+  "timezone": "browser",
+  "refresh": "30s",
+  "time": { "from": "now-6h", "to": "now" },
+  "templating": { "list": [{ "name": "environment", "label": "Ambiente", "type": "custom", "query": "development", "current": { "text": "development", "value": "development" }, "options": [{ "text": "development", "value": "development", "selected": true }], "multi": false, "includeAll": false }] },
+  "panels": [
+    {
+      "id": 1, "type": "stat", "title": "Coleta de métricas da API",
+      "description": "up mede o scrape do endpoint; não comprova entrega LLM, persistência, checkout ou pagamento. Ausência de série permanece Sem dados.",
+      "gridPos": { "x": 0, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "max(up{job=\"aacp-api\",service=\"zyon-api\",environment=\"$environment\"})", "instant": true }],
+      "fieldConfig": { "defaults": { "noValue": "Sem dados", "unit": "none", "mappings": [{ "type": "value", "options": { "0": { "text": "Scrape falhou" }, "1": { "text": "Scrape respondeu" } } }] }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 2, "type": "stat", "title": "Turnos observados no intervalo",
+      "description": "Estimativa por increase dos turnos, contados uma vez. Um turno ok pode ter fallback ou falha de histórico. Não mede sucesso comercial.",
+      "gridPos": { "x": 6, "y": 0, "w": 6, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(increase(storefront_llm_operations_total{job=\"aacp-api\",service=\"zyon-api\",environment=\"$environment\",stage=\"turn\"}[$__range]))", "instant": true }],
+      "fieldConfig": { "defaults": { "noValue": "Sem dados", "unit": "short", "decimals": 1 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 3, "type": "stat", "title": "Custo estimado conhecido — USD",
+      "description": "Custo estimado dos modelos tabelados, convertido de centavos USD para USD. Não é BRL nem faturamento; modelos/uso desconhecidos não entram no total.",
+      "gridPos": { "x": 12, "y": 0, "w": 12, "h": 4 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(increase(storefront_llm_estimated_cost_usd_cents_total{job=\"aacp-api\",service=\"zyon-api\",environment=\"$environment\"}[$__range])) / 100", "instant": true }],
+      "fieldConfig": { "defaults": { "noValue": "Sem dados", "unit": "currencyUSD", "decimals": 4 }, "overrides": [] },
+      "options": { "reduceOptions": { "calcs": ["lastNotNull"], "fields": "", "values": false } }
+    },
+    {
+      "id": 4, "type": "timeseries", "title": "Latência P95 por estágio",
+      "description": "Histogramas em segundos; estágios se sobrepõem. Não somar latências de turno, agente, geração, provider e ferramentas.",
+      "gridPos": { "x": 0, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "histogram_quantile(0.95, sum by (le, stage) (rate(storefront_llm_operation_duration_seconds_bucket{job=\"aacp-api\",service=\"zyon-api\",environment=\"$environment\"}[$__rate_interval])))", "legendFormat": "{{stage}}" }],
+      "fieldConfig": { "defaults": { "noValue": "Sem dados", "unit": "s" }, "overrides": [] }, "options": {}
+    },
+    {
+      "id": 5, "type": "timeseries", "title": "Decisões de fallback por segundo",
+      "description": "Eventos de decisão por estágio/motivo. Um turno pode gerar várias decisões; não é percentual de turnos com fallback.",
+      "gridPos": { "x": 12, "y": 4, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (stage, reason) (rate(storefront_llm_decisions_total{job=\"aacp-api\",service=\"zyon-api\",environment=\"$environment\",outcome=\"fallback\"}[$__rate_interval]))", "legendFormat": "{{stage}} / {{reason}}" }],
+      "fieldConfig": { "defaults": { "noValue": "Sem dados", "unit": "ops" }, "overrides": [] }, "options": {}
+    },
+    {
+      "id": 6, "type": "timeseries", "title": "Erros de chamadas provider por segundo",
+      "description": "Exceções observadas no provider; podem ser tratadas por fallback e não equivalem a erro da resposta pública.",
+      "gridPos": { "x": 0, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (reason) (rate(storefront_llm_operations_total{job=\"aacp-api\",service=\"zyon-api\",environment=\"$environment\",stage=\"provider\",outcome=\"error\"}[$__rate_interval]))", "legendFormat": "{{reason}}" }],
+      "fieldConfig": { "defaults": { "noValue": "Sem dados", "unit": "ops" }, "overrides": [] }, "options": {}
+    },
+    {
+      "id": 7, "type": "timeseries", "title": "Tokens conhecidos por segundo",
+      "description": "Somente uso válido reportado pelo provider, por fase/provedor/tipo. Não inventa tokens para geração sem chamada ou uso desconhecido.",
+      "gridPos": { "x": 12, "y": 12, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (phase, provider, kind) (rate(storefront_llm_tokens_total{job=\"aacp-api\",service=\"zyon-api\",environment=\"$environment\"}[$__rate_interval]))", "legendFormat": "{{phase}} / {{provider}} / {{kind}}" }],
+      "fieldConfig": { "defaults": { "noValue": "Sem dados", "unit": "short" }, "overrides": [] }, "options": {}
+    },
+    {
+      "id": 8, "type": "timeseries", "title": "Erros de histórico por segundo",
+      "description": "A chamada ao repositório lançou exceção. Não comprova rollback nem ausência de gravação; a resposta pública pode continuar segura.",
+      "gridPos": { "x": 0, "y": 20, "w": 12, "h": 8 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum(rate(storefront_llm_operations_total{job=\"aacp-api\",service=\"zyon-api\",environment=\"$environment\",stage=\"persistence\",outcome=\"error\"}[$__rate_interval]))", "legendFormat": "exceções" }],
+      "fieldConfig": { "defaults": { "noValue": "Sem dados", "unit": "ops" }, "overrides": [] }, "options": {}
+    },
+    {
+      "id": 9, "type": "logs", "title": "Observações gerenciadas — correlação",
+      "description": "Somente metadados projetados pelo Alloy. Trace ausente/não amostrado não é erro comercial. IDs ficam no JSON/structured metadata, não como labels indexados.",
+      "gridPos": { "x": 12, "y": 20, "w": 12, "h": 8 },
+      "datasource": { "type": "loki", "uid": "loki" },
+      "targets": [{ "refId": "A", "expr": "{service=\"zyon-api\",environment=\"$environment\"} | json | event=\"storefront.observation\"", "queryType": "range" }],
+      "options": { "showTime": true, "showLabels": false, "wrapLogMessage": true, "enableLogDetails": true, "sortOrder": "Descending", "dedupStrategy": "none" }
+    },
+    {
+      "id": 10, "type": "timeseries", "title": "Rejeições por estágio e motivo",
+      "description": "Eventos de rejeição de contrato, segurança ou ferramenta. Não é percentual de compradores nem confirmação de bloqueio financeiro; várias decisões podem ocorrer no mesmo turno.",
+      "gridPos": { "x": 0, "y": 28, "w": 24, "h": 6 },
+      "datasource": { "type": "prometheus", "uid": "prometheus" },
+      "targets": [{ "refId": "A", "expr": "sum by (stage, reason) (rate(storefront_llm_decisions_total{job=\"aacp-api\",service=\"zyon-api\",environment=\"$environment\",outcome=\"rejected\"}[$__rate_interval]))", "legendFormat": "{{stage}} / {{reason}}" }],
+      "fieldConfig": { "defaults": { "noValue": "Sem dados", "unit": "ops" }, "overrides": [] }, "options": {}
+    }
+  ]
+}

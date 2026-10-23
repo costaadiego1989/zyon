@@ -11,11 +11,11 @@ const requiredSource = [
     "tools: []",
     "tool_choice: \"none\"",
   ]],
-  ["apps/api/src/modules/storefront/presentation/http/storefront-realtime-voice.controller.ts", ["realtime/session", "realtime/narration", "voiceSdp(body?.sdp)", "this.realtime.createCall"]],
+  ["apps/api/src/modules/storefront/presentation/http/storefront-realtime-voice.controller.ts", ["realtime/session", "realtime/narration", "voiceSdp(body?.sdp)", "this.realtime.createCall", "storefrontProductNarrationRequestSchema.safeParse(body)", "this.prisma.product.findFirst", "buildCanonicalProductNarration(product.data)"]],
   ["apps/api/src/modules/embed/presentation/http/embed-realtime-voice.controller.ts", ["Controller(\"embed/realtime\")", "@Post(\"session\")", "voice_sdp_offer_required", "this.realtime.createCall"]],
   ["apps/widget_v2/src/lib/voice/use-realtime-voice-checkout.ts", ["RTCPeerConnection", "sessionRef.current(normalizeRealtimeSdp", "sdp: normalizeRealtimeSdp(answer.sdp)"]],
   ["apps/storefront/src/lib/voice/use-realtime-voice-checkout.ts", ["createSessionRef.current(normalizeRealtimeSdp", "sdp: normalizeRealtimeSdp(answer.sdp)"]],
-  ["apps/storefront/src/components/ConversationShell.tsx", ["JSON.stringify({ sdp })", "JSON.stringify({ summary, sdp })", "readRealtimeVoiceCall(response)"]],
+  ["apps/storefront/src/components/ConversationShell.tsx", ["JSON.stringify({ sdp })", "JSON.stringify({ productId, sdp })", "readRealtimeVoiceCall(response)"]],
   ["apps/widget_v2/src/api/checkout-session.ts", ["embed/realtime/session", "embedBaseUrl", "sdp: normalizeRealtimeSdp(sdp)", "readRealtimeVoiceCall(res)"]],
   ["apps/storefront/src/components/CheckoutPanel.tsx", ["embedApiBaseUrl=\"/api\""]],
   ["apps/storefront/src/components/conversation/RealtimeVoiceComposer.tsx", ["Ativar"]],
@@ -23,6 +23,10 @@ const requiredSource = [
 ];
 
 const failures = [];
+const shell = readFileSync(resolve("apps/storefront/src/components/ConversationShell.tsx"), "utf8");
+if (/JSON\.stringify\(\{\s*summary\s*,\s*sdp\s*\}\)/.test(shell)) {
+  failures.push("ConversationShell: narration must use canonical productId, not browser summary authority");
+}
 for (const [relativePath, fragments] of requiredSource) {
   let content = "";
   try {

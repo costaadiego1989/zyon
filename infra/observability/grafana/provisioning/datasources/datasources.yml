@@ -2,14 +2,11 @@ apiVersion: 1
 
 datasources:
   - name: Prometheus
+    uid: prometheus
     type: prometheus
     access: proxy
     url: http://prometheus:9090
     isDefault: true
-    jsonData:
-      exemplarTraceIdDestinations:
-        - name: traceID
-          datasourceUid: tempo
 
   - name: Tempo
     type: tempo
@@ -19,14 +16,12 @@ datasources:
     jsonData:
       tracesToLogsV2:
         datasourceUid: loki
-        filterByTraceID: true
-        filterBySpanID: true
-      tracesToMetrics:
-        datasourceUid: prometheus
-      nodeGraph:
-        enabled: true
-      serviceMap:
-        datasourceUid: prometheus
+        filterByTraceID: false
+        filterBySpanID: false
+        customQuery: true
+        query: '{service="zyon-api"} | json | traceId="$${__span.traceId}"'
+        spanStartTimeShift: '-2m'
+        spanEndTimeShift: '2m'
 
   - name: Loki
     type: loki
@@ -36,7 +31,7 @@ datasources:
     jsonData:
       derivedFields:
         - name: TraceID
-          matcherRegex: '"trace_id":"([a-f0-9]+)"'
+          matcherRegex: '"(?:traceId|trace_id)"\s*:\s*"([a-f0-9]{32})"'
           url: "$${__value.raw}"
           datasourceUid: tempo
           urlDisplayLabel: View Trace

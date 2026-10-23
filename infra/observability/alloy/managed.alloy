@@ -1,0 +1,107 @@
+// Reused verbatim by the offline native test. Never forward the original line.
+declare "managed_logs" {
+  argument "forward_to" {}
+  export "receiver" {
+    value = loki.process.managed.receiver
+  }
+  loki.process "managed" {
+    forward_to = argument.forward_to.value
+    stage.drop {
+      longer_than = "64KB"
+      drop_counter_reason = "oversized_managed_log"
+    }
+    stage.json {
+      expressions = {
+        time = "time",
+        event = "event",
+        msg = "msg",
+        level = "level",
+        request_id = "requestId",
+        trace_id = "traceId || trace_id",
+        span_id = "spanId || span_id",
+        turn_id = "turnId",
+        operation_id = "operationId",
+        parent_id = "parentId",
+        stage = "stage",
+        outcome = "outcome",
+        reason = "reason",
+        kind = "kind",
+        boundary = "boundary",
+        phase = "phase",
+        provider = "provider",
+        method = "req.method || method",
+        status = "res.statusCode || error.statusCode",
+      }
+    }
+    stage.template {
+      source = "safe_entry"
+      template = `
+{{- $event := "drop" -}}
+{{- if has (toString .event) (list "storefront.observation" "http.operation" "http.exception") -}}{{- $event = toString .event -}}{{- end -}}
+{{- if has (toString .msg) (list "request.completed" "request.failed") -}}{{- $event = toString .msg -}}{{- end -}}
+{{- $time := toString .time -}}
+{{- if not (regexMatch "^[0-9]{4}-[0-9]{2}-[0-9]{2}T[0-9]{2}:[0-9]{2}:[0-9]{2}([.][0-9]{1,9})?Z$" $time) -}}{{- $event = "drop" -}}{{- end -}}
+{{- $level := "unknown" -}}
+{{- $levels := dict "10" "trace" "20" "debug" "30" "info" "40" "warn" "50" "error" "60" "fatal" "trace" "trace" "debug" "debug" "info" "info" "warn" "warn" "error" "error" "fatal" "fatal" -}}
+{{- if hasKey $levels (toString .level) -}}{{- $level = get $levels (toString .level) -}}{{- end -}}
+{{- $out := dict "event" $event "level" $level -}}
+{{- if ne $event "drop" -}}{{- $_ := set $out "time" $time -}}{{- end -}}
+{{- $uuid := "^[a-f0-9]{8}-[a-f0-9]{4}-[1-8][a-f0-9]{3}-[89ab][a-f0-9]{3}-[a-f0-9]{12}$" -}}
+{{- range $key, $value := dict "requestId" .request_id "turnId" .turn_id "operationId" .operation_id "parentId" .parent_id -}}
+{{- if regexMatch $uuid (toString $value) -}}{{- $_ := set $out $key (toString $value) -}}{{- end -}}
+{{- end -}}
+{{- $trace := toString .trace_id -}}{{- $span := toString .span_id -}}
+{{- if and (regexMatch "^[a-f0-9]{32}$" $trace) (ne $trace "00000000000000000000000000000000") (regexMatch "^[a-f0-9]{16}$" $span) (ne $span "0000000000000000") -}}
+{{- $_ := set $out "traceId" $trace -}}{{- $_ := set $out "spanId" $span -}}{{- $_ := set $out "trace_id" $trace -}}{{- $_ := set $out "span_id" $span -}}
+{{- end -}}
+{{- $enums := dict "stage" (list "turn" "agent" "classifier" "provider" "tool" "validation" "persistence" "generation") "outcome" (list "ok" "error" "fallback" "rejected" "unknown") "reason" (list "completed" "exception" "invalid_input" "invalid_context" "invalid_output" "invalid_usage" "low_confidence" "inconsistent" "tool_calls" "cart_outcome_unknown" "safety_rejected" "budget_exhausted" "provider_fallback" "business_rejected") "kind" (list "operation" "decision") "boundary" (list "input" "context" "output" "response" "buyer_message" "agent_message" "fallback" "generation") "phase" (list "main" "retry" "final" "classifier" "variant" "nudge") "provider" (list "primary" "fallback" "copy") -}}
+{{- range $key, $allowed := $enums -}}
+{{- $value := toString (index $ $key) -}}{{- if has $value $allowed -}}{{- $_ := set $out $key $value -}}{{- end -}}
+{{- end -}}
+{{- if has (toString .method) (list "GET" "POST" "PUT" "PATCH" "DELETE" "HEAD" "OPTIONS" "CONNECT" "TRACE") -}}{{- $_ := set $out "method" (toString .method) -}}{{- end -}}
+{{- if regexMatch "^[1-5][0-9]{2}$" (toString .status) -}}{{- $_ := set $out "statusCode" (atoi (toString .status)) -}}{{- end -}}
+{{- $out | toJson -}}`
+    }
+    stage.json {
+      source = "safe_entry"
+      expressions = {
+        safe_event = "event",
+        safe_level = "level",
+        safe_request_id = "requestId",
+        safe_trace_id = "traceId",
+        safe_span_id = "spanId",
+        safe_turn_id = "turnId",
+        safe_operation_id = "operationId",
+      }
+    }
+    stage.labels {
+      values = { managed_event = "safe_event", level = "safe_level" }
+    }
+    // Missing/failed projection is rejected too: fail closed, not just event=drop.
+    stage.match {
+      selector = "{managed_event!~\"storefront[.]observation|http[.]operation|http[.]exception|request[.]completed|request[.]failed\"}"
+      action = "drop"
+      drop_counter_reason = "unmanaged_log"
+    }
+    stage.timestamp {
+      source = "time"
+      format = "RFC3339Nano"
+      action_on_failure = "skip"
+    }
+    stage.structured_metadata {
+      values = {
+        request_id = "safe_request_id",
+        trace_id = "safe_trace_id",
+        span_id = "safe_span_id",
+        turn_id = "safe_turn_id",
+        operation_id = "safe_operation_id",
+      }
+    }
+    stage.label_keep {
+      values = ["service", "environment", "job", "level"]
+    }
+    stage.output {
+      source = "safe_entry"
+    }
+  }
+}

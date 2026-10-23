@@ -2,6 +2,10 @@ global:
   scrape_interval: 15s
   evaluation_interval: 15s
 
+# Local evaluation only; no notification receiver is configured.
+rule_files:
+  - /etc/prometheus/rules/storefront-local.yml
+
 scrape_configs:
   - job_name: "aacp-api"
     metrics_path: /metrics
@@ -11,7 +15,8 @@ scrape_configs:
         labels:
           service: "zyon-api"
           environment: "development"
-    # In production, use bearer_token_file or basic_auth with OPS_SHARED_SECRET
+    # Development-only target. For production use HTTPS/private networking and
+    # a mounted secret file with the API's OPS_SHARED_SECRET (Basic is not accepted).
     # authorization:
     #   type: Bearer
-    #   credentials: "<OPS_SHARED_SECRET>"
+    #   credentials_file: /run/secrets/ops_shared_secret
