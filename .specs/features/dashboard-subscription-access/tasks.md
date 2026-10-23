@@ -13,5 +13,6 @@
 - [x] Publish the103 changes as API104/dashboard104, preserving both WhatsApp
       commits. Canonical bundle hides the menu; deployed serializer returns
       annual/zero. No charge or provider subscription was created.
-- [ ] Verify final authenticated owner screen after normal login; the current
-      release has served-bundle and read-only runtime proof, not this UI proof.
+- [x] Verify final authenticated owner screen after normal login: checkpoint106
+      confirms annual/zero/date in real UI and HTTP200; normal menus remain,
+      Marketplace is hidden, four plans render in 4/2/1 responsive columns.

@@ -6,6 +6,8 @@
 - [x] Promote API104/dashboard104/storefront105 and verify canonical public behavior.
 - [x] Verify persisted Athom contract and deployed serializer read-only, annual/zero.
 - [x] Record deployment evidence, real-provider gaps and source commits on origin.
-- [ ] Complete authenticated dashboard UI/HTTP verification after normal owner login.
+- [x] Complete authenticated dashboard UI/HTTP verification after normal owner login:
+      checkpoint106, production Athom, annual/zero HTTP200, normal menus,
+      Marketplace hidden, 4/2/1 plans and WhatsApp month/7d/30d HTTP200.
 - [ ] Complete remaining real PSP TEST/payment effects, microphone and human-auth gates;
       source/mocked/guest/read-only evidence does not substitute these journeys.

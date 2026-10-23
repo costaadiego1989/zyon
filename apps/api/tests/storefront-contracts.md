@@ -1,6 +1,6 @@
 # Integração final storefront — continuidade
 
-Atualização:23/10/2026 — checkpoint105 FINAL: frentes integradas e publicadas em produção.
+Atualização:23/10/2026 — checkpoint106: painel autenticado validado em produção.
 WhatsApp3858c098+406cfde9 integrado; suporte do sandbox preservado sem reset de histórico.
 Regressão atual:214/214 WhatsApp/API;886/886 dashboard;459/459 storefront.
 Não equivale à homologação integral de pagamento, voz real ou CAPTCHA humano.
@@ -16,6 +16,42 @@ base4908a053. Evidências antigas identificam sua pasta/base; não transferir
 aprovação entre revisões automaticamente.
 
 ## Estado atual resumido —23/10/2026
+
+### Checkpoint106 — validação autenticada da Athom, sem novo deploy
+
+Após login normal do proprietário, verificação real no painel de produção em
+23/10/2026 às15:54UTC. Entry continua `/assets/index-CfPvRHbr.js`; não houve
+mudança de código runtime, configuração, banco, cobrança ou envio WhatsApp.
+
+- GET `/billing/subscription` HTTP200: scale/active, annual, valor0 e fim do
+  período2027-10-23T02:13:46.774Z. Tela mostra Escala ativo, valor anual R$0,00
+  e22/10/2027. `has_subscription:false`, `has_billing_customer:true`:
+  concessão manual não criou assinatura no PSP. O rótulo atual da data é
+  “PRÓXIMA COBRANÇA”; não é prova de cobrança agendada no provedor.
+- Marketplace e atalhos duplicados ausentes. Catálogo, WhatsApp e Plano e
+  assinatura presentes. Canais/Configurações estavam recolhidos; expandir os
+  grupos confirmou os filhos, sem concluir erroneamente bloqueio de assinatura.
+- Quatro planos sem benefício comercial Marketplace. Navegador1440/900/390:
+  respectivamente4/2/1 colunas, sem overflow horizontal.
+- WhatsApp: aba Consumo e cobrança, atualização e seleção month/7d/30d com
+  HTTP200 e período correspondente na tela. Meta informa BRL, custo0,163/163
+  mensagens enviadas/entregues no mês e30d;14/14 em7d. Processamento Zyon
+  separado:70 recebidas,69 processadas,0 pendentes e1 falha histórica no mês;
+  nenhuma falha ou pendência recente na resposta mensal. Não houve replay nem
+  diagnóstico causal dessa falha antiga. Aba sem alertas e sem overflow1440/390.
+
+Evidência local segura: `.sandbox-state/lote106-authenticated-dashboard.json`.
+Somente a aba criada para auditoria foi fechada; a aba original e a sessão do
+usuário foram preservadas. Ajustes de seletores do harness (título plural e
+role tab) resolveram duas esperas incorretas, sem alteração da aplicação.
+Contagem de alertas refere-se à UI da aba; não atesta ausência global de console.
+
+**Gate autenticado do painel encerrado.** Continuam separados e pendentes os
+fluxos reais de pagamento PSP TEST com efeitos persistidos, microfone, conclusão
+humana Google/CAPTCHA e frete até checkout, além do novo teste PostgreSQL sem
+Docker local. Não houve nova chamada paga LLM nem renovação do orçamento.
+As pendências de login descritas no checkpoint105 abaixo são históricas e foram
+superadas por esta verificação, não por substituição das evidências antigas.
 
 ### Checkpoint105 — integração autorizada das versões mais novas
 
