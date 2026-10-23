@@ -217,10 +217,30 @@ Rules:
 - Every query and command must be scoped by `merchant_id`.
 - `global_user_id` identifies buyers platform-wide.
 - Purchase history is always filtered per merchant.
+- User decision (2026-10-20): integrate this candidate on the exact latest sandbox
+  revision without overwriting the user's newly published consultative-sales,
+  voice or checkout work. Preserve previous folders and reconcile by change.
+- User approved preserving technical execution records with merchant-scoped
+  access, no automatic deletion and no automatic replay of uncertain operations.
+  No deletion deadlines or purge job were approved. On 2026-10-22 the user
+  explicitly approved the integrated sandbox release followed by production
+  promotion and controlled validation, preserving working provider credentials
+  and without real charges or changes to customer orders.
 - Offer math must be deterministic.
+- User decision (2026-10-19): paid size/color/options additions belong to the
+  discount base: canonical product price + canonical paid additions, per unit.
+  Apply quantity and existing whole-cent rounding consistently across storefront,
+  checkout and cart recovery; never apply a promotion twice. Preserve the shared
+  combined ceiling, stacking rules and explicit shipping limits; no margin gate.
 - `evaluateDiscountOffer` hard-caps `maxDiscountPercent`.
-- Reject offers below `minimumMarginPercent`.
-- Margin uses item `cost`; if missing, default cost = 50% of price.
+- User decision (2026-10-19): cost/margin MUST NOT authorize or block commercial
+  discounts. Preserve `maxDiscountPercent`, combined ceiling, monetary validation,
+  tenant/reservation ownership and explicit shipping/stacking/subsidy limits.
+- Never invent a cost (including a 50% default) to authorize a benefit. Legacy
+  margin analytics/fields are informational, not eligibility. Experimental
+  revenue-manager follows the same policy; unknown measurements stay null.
+  Apply the nullable assignment-cost migration before enabling its new writer;
+  frozen approval hashes and commercial-budget guards remain mandatory.
 - Payment fee estimate = 4%.
 - Prisma repos are the only runtime persistence (dev and prod). Module roots wire Prisma always; no env-switchable in-memory fallback.
 - In-memory repos exist only as test doubles, constructed directly in specs (never injected via module roots).

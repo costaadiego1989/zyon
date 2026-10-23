@@ -29,6 +29,9 @@ export function resolveMetaStoreTextAction(message: string, state: WhatsAppConve
   }
   if (state.stage === "checkout" && !state.expectsFreeInput && /^(ver carrinho|continuar comprando|ver produtos)$/i.test(message.trim())) return metaStoreQuickReplyAction(message, state);
   if (state.expectsFreeInput || state.stage !== "store") return;
+  if (/^outras op[cç][oõ]es$/i.test(message.trim()) && state.view &&
+    !state.view.blocks.some(block => block.type === "product_card") &&
+    state.view.blocks.some(block => ["product_carousel", "marketplace_products", "wishlist", "cross_sell"].includes(block.type))) return { kind: "catalog_options" };
   const sameLabel = state.view?.choices.filter(c => c.label.trim().toLocaleLowerCase("pt-BR") === message.trim().toLocaleLowerCase("pt-BR")) ?? [];
   if (sameLabel.length === 1) return sameLabel[0].action;
   return metaStoreQuickReplyAction(message, state);

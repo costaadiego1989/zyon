@@ -1,6 +1,7 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
 import { HandleMarketplaceChargebackUseCase } from "../handle-marketplace-chargeback.use-case.js";
+import { PrismaMarketplaceFinancialRepository } from "../../../infrastructure/repositories/prisma-marketplace-financial.repository.js";
 
 function setup() {
   const reads: unknown[] = [];
@@ -61,31 +62,48 @@ describe("Marketplace chargeback authorization and provider evidence", () => {
       { id: "after-transfer", status: "transferred", sellerMerchantId: "seller-b", sellerNetCents: 700 },
       { id: "already-handled", status: "chargeback_debt", sellerMerchantId: "seller-c", sellerNetCents: 900 },
     ];
-    const repository = {
-      findByOrderId: async () => settlements,
-      updateStatus: async (input: any) => {
-        updates.push(input);
-        return { ...settlements.find((settlement) => settlement.id === input.settlementId), status: input.status };
+    const existingDebt = { id: "existing", settlementId: "already-handled", sellerMerchantId: "seller-c", amountCents: 900, status: "resolved" };
+    const debtRows = new Map<string, any>([[existingDebt.settlementId, structuredClone(existingDebt)]]);
+    // Exercise the real financial repository and its settlement/debt adapters.
+    // This transaction double does not prove PostgreSQL atomicity or row locks.
+    const tx = {
+      $queryRaw: async () => [],
+      marketplaceOrderLedger: { upsert: async () => ({ chargebackAt: new Date("2026-10-17T12:00:00Z") }) },
+      marketplaceFundingPlan: { findMany: async () => [], updateMany: async () => ({ count: 0 }) },
+      marketplaceResidualPlan: { findMany: async () => [] },
+      marketplaceTransferReversal: { count: async () => 0 },
+      marketplacePayout: { updateMany: async () => ({ count: 0 }), findMany: async () => [], findUnique: async () => null },
+      marketplaceSettlement: {
+        findMany: async (query: any) => { assert.deepEqual(query.where, { hostMerchantId: "host-a", orderId: "order-1" }); return settlements; },
+        update: async ({ where, data }: any) => {
+          const row = settlements.find(value => value.id === where.id)!;
+          assert.equal(row.status, where.status);
+          updates.push([where.id, where.status, data.status]);
+          Object.assign(row, data); return row;
+        },
       },
+      marketplaceSellerDebt: { upsert: async ({ where, create, update }: any) => {
+        assert.deepEqual(update, {});
+        if (!debtRows.has(where.settlementId)) {
+          debts.push(create); debtRows.set(where.settlementId, { id: `debt-${where.settlementId}`, ...create });
+        }
+        return debtRows.get(where.settlementId);
+      } },
     };
-    const debtRepository = {
-      create: async (input: any) => {
-        debts.push(input);
-        return { id: "debt-1", ...input };
-      },
-    };
-    const stateMachine = {
-      transition: (status: string) => status === "transferred" ? "chargeback_debt" : "chargeback_cancelled",
-    };
-    const useCase = new HandleMarketplaceChargebackUseCase(repository as any, debtRepository as any, stateMachine as any);
+    const financial = new PrismaMarketplaceFinancialRepository({ $transaction: async (run: (client: typeof tx) => unknown) => run(tx) } as never);
+    const useCase = new HandleMarketplaceChargebackUseCase({} as never, {} as never, {} as never, financial);
 
-    const result = await useCase.executeForOrder("order-1");
+    const result = await useCase.executeForOrder("order-1", "host-a");
 
-    assert.equal(result.length, 2);
-    assert.deepEqual(updates.map((update) => [update.settlementId, update.expectedStatus, update.status]), [
+    assert.equal(result.length, 3);
+    assert.deepEqual(updates, [
       ["before-transfer", "awaiting_return_window", "chargeback_cancelled"],
       ["after-transfer", "transferred", "chargeback_debt"],
+      ["already-handled", "chargeback_debt", "chargeback_debt"],
     ]);
-    assert.deepEqual(debts, [{ sellerMerchantId: "seller-b", settlementId: "after-transfer", amountCents: 700 }]);
+    assert.deepEqual(debts, [{ sellerMerchantId: "seller-b", settlementId: "after-transfer", amountCents: 700, status: "outstanding" }]);
+    await useCase.executeForOrder("order-1", "host-a");
+    assert.equal(debts.length, 1, "webhook replay must not duplicate seller debt");
+    assert.deepEqual(debtRows.get("already-handled"), existingDebt, "a resolved debt must not be reopened");
   });
 });

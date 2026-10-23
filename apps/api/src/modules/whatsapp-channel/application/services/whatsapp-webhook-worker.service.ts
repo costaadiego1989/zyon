@@ -1,4 +1,5 @@
 import { Inject, Injectable, Logger, type OnModuleInit, type OnModuleDestroy } from "@nestjs/common";
+import { whatsappProcessingErrorCode } from "../../domain/services/whatsapp-processing-error.js";
 import {
   WHATSAPP_WEBHOOK_INBOX, INBOX_LEASE_MS, type WhatsAppWebhookInbox,
 } from "../../domain/ports/whatsapp-webhook-inbox.port.js";
@@ -135,6 +136,7 @@ export class WhatsAppWebhookWorker implements OnModuleInit, OnModuleDestroy {
           this.logger.warn(`whatsapp_inbox_completion_lease_lost id=${claim.id}`);
         }
       } catch (error) {
+        if (errorCode === "whatsapp_inbox_processing_failed") errorCode = whatsappProcessingErrorCode(error);
         if (error instanceof Error && ["whatsapp_turn_result_unknown", "whatsapp_send_result_unknown", "whatsapp_service_window_expired"].includes(error.message)) errorCode = error.message;
         if (error instanceof WhatsAppDeliveryUncertainError) errorCode = error.message;
         if (!leaseLost) await this.inbox.fail(claim, errorCode);

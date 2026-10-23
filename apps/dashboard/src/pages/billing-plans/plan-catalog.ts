@@ -10,7 +10,8 @@ export function toPlanDef(plan: BillingPlanCard): PlanDef {
     billingOptions: plan.billingOptions, annualCheckoutAvailable: plan.annualCheckoutAvailable,
     fee: ((plan.transactionFeeCents ?? 0) / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" }),
     limits: { orders: limit("ordersPerMonth"), voiceSessions: limit("voiceSessionsPerMonth") },
-    features: [...new Set(plan.features.flatMap(feature => BILLING_FEATURE_LABELS[feature]
+    // Older deployed API catalogs can still advertise this non-MVP module.
+    features: [...new Set(plan.features.filter(feature => feature.trim().toLowerCase() !== "marketplace").flatMap(feature => BILLING_FEATURE_LABELS[feature]
       ? [BILLING_FEATURE_LABELS[feature]] : /\s/.test(feature) ? [feature] : []))],
     recommended: plan.recommended, trialDays: plan.trialDays,
   };

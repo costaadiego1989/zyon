@@ -161,6 +161,7 @@ export function SmartCart() {
 
       {cartUpdating && <p className="checkout-cart__notice" role="status">Atualizando carrinho…</p>}
       {cartError && <p className="checkout-cart__error" role="alert">{cartError}</p>}
+      {cart.commercialNotices?.map((notice, index) => <p key={`${notice.code}-${index}`} className="checkout-cart__notice" role="status">{notice.message}</p>)}
 
       <div className="checkout-cart__items">
         {cart.items.length === 0 ? (

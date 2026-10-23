@@ -6,8 +6,12 @@ const API_KEY = process.env.AACP_SERVICE_API_KEY || "";
 
 const ALLOWED_PREFIXES = ["storefront/", "buyer/", "embed/", "checkout-settings/widget-config"];
 
-function isPathAllowed(pathSegments: string[]): boolean {
+function isPathAllowed(pathSegments: string[], method: string): boolean {
   const path = pathSegments.join("/");
+  if (path === "support/faq/public") return method === "GET";
+  if (pathSegments.length === 3 && pathSegments[0] === "support" && pathSegments[1] === "attachments") {
+    return method === "GET" && /^[A-Za-z0-9_-]{8,120}$/.test(pathSegments[2]!);
+  }
   return ALLOWED_PREFIXES.some((prefix) => path.startsWith(prefix));
 }
 
@@ -16,7 +20,7 @@ export async function GET(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!isPathAllowed(path, "GET")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "GET");
 }
 
@@ -25,7 +29,7 @@ export async function POST(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!isPathAllowed(path, "POST")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "POST");
 }
 
@@ -34,7 +38,7 @@ export async function PATCH(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!isPathAllowed(path, "PATCH")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "PATCH");
 }
 
@@ -43,7 +47,7 @@ export async function PUT(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!isPathAllowed(path, "PUT")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "PUT");
 }
 
@@ -52,7 +56,7 @@ export async function DELETE(
   { params }: { params: Promise<{ path: string[] }> },
 ) {
   const { path } = await params;
-  if (!isPathAllowed(path)) return NextResponse.json({ error: "forbidden" }, { status: 403 });
+  if (!isPathAllowed(path, "DELETE")) return NextResponse.json({ error: "forbidden" }, { status: 403 });
   return proxyRequest(request, path, "DELETE");
 }
 
@@ -102,16 +106,18 @@ async function proxyRequest(
       method,
       headers,
       body,
+      cache: "no-store",
     });
 
-    const responseBody = await response.text();
+    const responseBody = response.status === 204 || response.status === 304 ? null : await response.arrayBuffer();
 
     return new NextResponse(responseBody, {
       status: response.status,
       headers: {
         "Content-Type": response.headers.get("Content-Type") || "application/json",
-        "Cache-Control": "no-store",
+        "Cache-Control": path.startsWith("support/attachments/") ? "private, no-store" : "no-store",
         "Referrer-Policy": "no-referrer",
+        "X-Content-Type-Options": "nosniff",
         ...(response.headers.get("X-RateLimit-Limit") && {
           "X-RateLimit-Limit": response.headers.get("X-RateLimit-Limit")!,
         }),

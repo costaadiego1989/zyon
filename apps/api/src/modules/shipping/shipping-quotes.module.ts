@@ -2,7 +2,8 @@ import { Logger, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
-import { CARRIER_ADAPTERS } from "./domain/ports/carrier.port.js";
+import { CARRIER_ADAPTERS, SHIPPING_REFERENCE_CARRIERS } from "./domain/ports/carrier.port.js";
+import type { ShippingContext } from "./domain/ports/carrier.port.js";
 import { SHIPPING_QUOTE_REPOSITORY } from "./domain/ports/shipping-quote-repository.port.js";
 import { OWN_DELIVERY_CONFIG_REPOSITORY } from "./domain/ports/own-delivery-config.port.js";
 import { MELHOR_ENVIO_TOKEN_RESOLVER, type MelhorEnvioTokenResolver } from "./domain/ports/melhor-envio-token-resolver.port.js";
@@ -75,6 +76,10 @@ import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketp
       useFactory: (flat: FlatRateCarrierAdapter, melhorEnvio: MelhorEnvioCarrierAdapter) => [melhorEnvio, flat],
       inject: [FlatRateCarrierAdapter, MelhorEnvioCarrierAdapter]
     },
+    { provide: SHIPPING_REFERENCE_CARRIERS,
+      useFactory: (carrier: MelhorEnvioCarrierAdapter) => [{ carrierKey: carrier.carrierKey,
+        fetchQuotes: (context: ShippingContext) => carrier.fetchQuotes(context, { requireMerchantAccount: true }) }],
+      inject: [MelhorEnvioCarrierAdapter] },
     QuoteShippingUseCase,
     QuoteMarketplaceShippingService,
     GetMarketplaceShippingContractService

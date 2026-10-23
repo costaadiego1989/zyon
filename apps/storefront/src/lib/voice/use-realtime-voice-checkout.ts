@@ -8,7 +8,7 @@ export type RealtimeVoiceTurnResult = { agentMessage: string; cart?: { itemCount
 type Options = {
   enabled: boolean;
   createSession: (sdp: string) => Promise<RealtimeVoiceCall>;
-  onCommerceTurn: (buyerMessage: string, action: RealtimeVoiceAction, voiceTurnToken?: string) => Promise<RealtimeVoiceTurnResult>;
+  onCommerceTurn: (buyerMessage: string, action: RealtimeVoiceAction, voiceTurnToken: string) => Promise<RealtimeVoiceTurnResult>;
   onBeginCheckout: () => Promise<RealtimeVoiceTurnResult>;
 };
 export type RealtimeVoiceCheckoutState = {
@@ -72,7 +72,8 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     responses.current?.receive(event);
     const decision = inputTurns.current.receive(event);
     if (decision) {
-      if (decision.kind === "speech") return; // The server admits recognized speech.
+      if (decision.kind === "speech") { setListening(false); setHint("Entendendo seu pedido..."); return; }
+      // The sideband owns admission and deletion of rejected/noisy input items.
       setListening(false);
       setHint(decision.kind === "failed" ? "Não entendi esse trecho. Pode repetir ou digitar." : "Pode falar quando quiser.");
       return;
@@ -87,6 +88,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
     const callId = event.item.call_id;
     const voiceTurnToken = responses.current?.permitFor(event.response_id);
     if (!callId || handledCalls.current.has(callId)) return;
+    if (!voiceTurnToken) return;
     handledCalls.current.add(callId);
     let buyerMessage = "";
     try {
@@ -162,7 +164,7 @@ export function useRealtimeVoiceCheckout({ enabled, createSession, onCommerceTur
             return;
           }
           setHint("Conectada. Vou iniciar seu resumo.");
-          responses.current?.sendText("Apresente-se brevemente conforme as instruções desta sessão.");
+          responses.current?.sendText("Olá, quero ajuda com compras nesta loja.");
         });
         channel.addEventListener("close", () => { if (peerRef.current === peer) stop(); });
         peer.addEventListener("connectionstatechange", () => { if (["failed", "closed", "disconnected"].includes(peer.connectionState) && peerRef.current === peer) stop(); });

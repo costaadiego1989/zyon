@@ -2,6 +2,7 @@ import { useEffect, useRef, useState } from "react";
 
 export interface TurnstileProps {
   siteKey: string | undefined;
+  required?: boolean;
   action?: string;
   resetKey?: string | number;
   onChange: (token: string | null) => void;
@@ -71,7 +72,7 @@ export function Turnstile(props: TurnstileProps) {
 
   useEffect(() => {
     const container = containerRef.current;
-    if (!props.siteKey || !container) return;
+    if (!props.siteKey?.trim() || !container) return;
     const resize = () => setCompact(container.clientWidth > 0 && container.clientWidth < 300);
     resize();
     if (typeof ResizeObserver === "undefined") return;
@@ -81,7 +82,7 @@ export function Turnstile(props: TurnstileProps) {
   }, [props.siteKey]);
 
   useEffect(() => {
-    if (!props.siteKey) return;
+    if (!props.siteKey?.trim()) return;
     let cancelled = false;
     let widgetId: string | undefined;
     let verificationTimer: number | undefined;
@@ -100,7 +101,7 @@ export function Turnstile(props: TurnstileProps) {
       setStatus("verifying");
       verificationTimer = window.setTimeout(() => fail("A verificação está demorando. Tente novamente ou use outro navegador."), 30000);
       widgetId = window.turnstile.render(containerRef.current, {
-        sitekey: props.siteKey!,
+        sitekey: props.siteKey!.trim(),
         action: props.action,
         callback: token => {
           if (cancelled) return;
@@ -133,7 +134,8 @@ export function Turnstile(props: TurnstileProps) {
     };
   }, [props.siteKey, props.theme, props.action, props.resetKey, attempt, compact]);
 
-  if (!props.siteKey) return null;
+  if (!props.siteKey?.trim()) return props.required ?
+    <p className="auth-verification__status" role="alert">A verificação de segurança está indisponível por configuração. Tente novamente mais tarde.</p> : null;
   return (
     <div className={props.className ?? "auth-verification"} style={{ minWidth: 0, maxWidth: "100%" }}>
       <div ref={containerRef} data-testid="cf-turnstile" />

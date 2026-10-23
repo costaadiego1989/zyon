@@ -245,6 +245,83 @@ test("persisted cross-sell acceptance calls the authenticated endpoint", async (
   await expect(page.locator("text=Complemento adicionado.")).toBeVisible();
 });
 
+for (const displayMode of ["inline", "modal", "banner", "interstitial"] as const) {
+for (const failure of ["review_required", "network_lost"] as const) {
+  test(`persisted cross-sell ${displayMode} ${failure} keeps suggestion without alternative writes`, async ({ page }, testInfo) => {
+    await page.setViewportSize({ width: failure === "review_required" ? 390 : 385, height: 844 });
+    let acceptCalls = 0;
+    const alternativeWrites: string[] = [];
+    await page.route("**/*", async route => {
+      if (new URL(route.request().url()).hostname !== "127.0.0.1") return route.abort();
+      return route.continue();
+    });
+    await setupCrossSellMocks(page, {
+      startProducts: [{ ...CROSS_SELL_PRODUCTS[0], image_url: undefined, suggestion_id: "sug_review_required", display_mode: displayMode }],
+    });
+    await page.route("**/embed/cross-sell/accept", async route => {
+      acceptCalls++;
+      if (failure === "network_lost") return route.abort("failed");
+      return route.fulfill({ status: 422, json: {
+        status: 422, code: "cross_sell_quote_review_required", detail: "cross_sell_quote_review_required",
+      } });
+    });
+    await navigateToCheckout(page);
+    await waitForActiveCheckout(page);
+    const product = page.getByRole("button", { name: "Hoodie Agentic", exact: true });
+    await expect(product).toBeVisible();
+    page.on("request", request => {
+      if (request.method() !== "POST") return;
+      const path = new URL(request.url()).pathname;
+      if (path === "/embed/chat" || path.includes("/cart/")) alternativeWrites.push(path);
+    });
+    await product.click();
+    const expected = failure === "review_required"
+      ? "Este complemento precisa de uma nova cotação. Aguarde uma nova sugestão para adicioná-lo."
+      : "Não foi possível confirmar a inclusão deste complemento. Confira o carrinho antes de continuar.";
+    await expect(product).toHaveAccessibleName("Hoodie Agentic");
+    await expect(product).toHaveAccessibleDescription(expected);
+    await expect(product).toBeVisible();
+    await expect(page.getByTestId(`cross-sell-${displayMode}`).getByRole("alert")).toHaveText(expected);
+    if (displayMode === "inline" && failure === "review_required") {
+      await page.screenshot({ path: testInfo.outputPath("cross-sell-review-required-mobile.png"), fullPage: true });
+    }
+    if (failure === "review_required") {
+      await expect(product).toBeDisabled();
+      await product.evaluate(button => (button as HTMLButtonElement).click());
+    } else await expect(product).toBeEnabled();
+    expect(acceptCalls).toBe(1);
+    expect(alternativeWrites).toEqual([]);
+    await expect(page.getByText("Complemento adicionado.", { exact: true })).toHaveCount(0);
+  });
+}
+}
+
+test("persisted cross-sell new suggestion ID can resume after a known stale quote without reusing the old one", async ({ page }) => {
+  const acceptedIds: string[] = [];
+  await page.route("**/*", async route => new URL(route.request().url()).hostname === "127.0.0.1" ? route.continue() : route.abort());
+  await setupCrossSellMocks(page, {
+    startProducts: [{ ...CROSS_SELL_PRODUCTS[0], image_url: undefined, suggestion_id: "old-quote", display_mode: "inline" }],
+    chatProducts: [{ ...CROSS_SELL_PRODUCTS[0], image_url: undefined, suggestion_id: "new-quote", display_mode: "inline" }],
+  });
+  await page.route("**/embed/cross-sell/accept", async route => {
+    acceptedIds.push(String(route.request().postDataJSON().suggestion_id));
+    await route.fulfill({ status: 422, json: { code: "cross_sell_quote_review_required" } });
+  });
+  await navigateToCheckout(page); await waitForActiveCheckout(page);
+  const old = page.getByTestId("cross-sell-product").first();
+  await old.click(); await expect(old).toBeDisabled();
+  expect(acceptedIds).toEqual(["old-quote"]);
+  // Explicit buyer input obtains a new server suggestion. This is not an
+  // automatic retry or an alternative add after the previous refusal.
+  const input = page.locator("input, textarea").first();
+  await input.fill("Quero uma nova sugestão"); await input.press("Enter");
+  await expect(page.getByTestId("cross-sell-product")).toHaveCount(2);
+  const fresh = page.getByTestId("cross-sell-product").last();
+  await expect(fresh).toBeEnabled(); await fresh.click(); await expect(fresh).toBeDisabled();
+  await expect(old).toBeDisabled();
+  expect(acceptedIds).toEqual(["old-quote", "new-quote"]);
+});
+
 // ─── Test 8: Empty suggestedProducts → no block ─────────────────────────────
 
 test("empty suggestedProducts array: no cross-sell block", async ({ page }) => {

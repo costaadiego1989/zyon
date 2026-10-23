@@ -5,10 +5,13 @@ import type { PrismaClient } from "@prisma/client";
 import type { Cart, CartItem, CurrencyCode } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { ValidateCartForPaymentUseCase } from "../../../commerce/application/validate-cart-for-payment.use-case.js";
-import { resolveEffectivePrice } from "../../../catalog/domain/services/price-resolver.service.js";
 import type { StorefrontCartItem } from "../../../storefront/domain/ports/storefront-cart.port.js";
 import { extractOptionGroups, resolveSelectedOptions } from "../../../storefront/domain/food-options.js";
-import { CartPromoResolutionService } from "./cart-promo-resolution.service.js";
+import { CartPromoResolutionService, checkoutCartLineIdentity, storefrontCrossSellLineIdentity, storefrontCrossSellOptionsMatch } from "./cart-promo-resolution.service.js";
+import { isDeepStrictEqual } from "node:util";
+import { STOREFRONT_CROSS_SELL_CART, type StorefrontCrossSellCartPort } from "../../../storefront/domain/ports/storefront-cross-sell-cart.port.js";
+import { couponNudge } from "../../../coupons/application/services/checkout-coupon.js";
+import { LegacySavedPriceReviewRequired } from "../../../storefront/application/services/legacy-saved-price-review.js";
 
 @Injectable()
 export class CheckoutCartAuthorityService {
@@ -16,20 +19,52 @@ export class CheckoutCartAuthorityService {
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly commerce: ValidateCartForPaymentUseCase,
     @Optional() private readonly promotions?: CartPromoResolutionService,
+    @Optional() @Inject(STOREFRONT_CROSS_SELL_CART) private readonly crossSellCart?: Pick<StorefrontCrossSellCartPort, "project">,
   ) {}
 
   // Called only with the cart reference authenticated by the embed capability.
-  // Persisted lines are server quotations, including modifiers and cross-sell prices.
+  // Explicitly approved saved quotations are preserved only for existing scoped
+  // lines/quantities; current catalog B and saved S are accounted separately.
   async resolveStorefront(merchantId: string, cartRef: string): Promise<Cart> {
     const stored = await this.prisma.storefrontCart.findUnique({
       where: { merchantId_sessionId: { merchantId, sessionId: cartRef } },
     });
     if (!stored || stored.expiresAt.getTime() <= Date.now()) throw new BadRequestException("checkout_cart_expired");
-    return this.resolveStorefrontLines(merchantId, cartRef, stored.items as unknown as StorefrontCartItem[], stored.discount, false);
+    if (stored.merchantId !== undefined && stored.merchantId !== merchantId || stored.sessionId !== undefined && stored.sessionId !== cartRef)
+      throw new BadRequestException("checkout_cart_scope_invalid");
+    const quoted = await this.resolveStorefrontLines(merchantId, cartRef, stored.items as unknown as StorefrontCartItem[], stored.discount, false);
+    if (stored.couponCode === null || stored.couponCode === undefined) return quoted;
+    const code = stored.couponCode;
+    if (typeof code !== "string" || !code || code.trim() !== code || code.length > 191 || code.includes("\0")) {
+      throw new BadRequestException("checkout_coupon_review_required");
+    }
+    // Preserve server provenance, not a new grant. Exact reservation and buyer
+    // ownership are revalidated under transactional fences before admission.
+    // Otherwise benefits preparation can mistake this D for a progressive grant.
+    const discount = quoted.currentDiscount ?? 0;
+    return { ...quoted,
+      commercialNudge: couponNudge({ code, discount_type: "fixed" }, discount, 0, quoted.total),
+      appliedBenefits: [...(quoted.appliedBenefits ?? []).filter(benefit => benefit.kind !== "discount"),
+        ...(discount > 0 ? [{ kind: "discount" as const, label: `Cupom ${code}`, amount: discount }] : [])],
+    };
   }
 
   /** Only the authenticated, persisted checkout snapshot may supply these lines. */
   async resolveRecoveredStorefront(merchantId: string, snapshot: Cart, cartRef: string): Promise<Cart> {
+    if (snapshot.items.some(item => item.crossSellIntent !== undefined)) {
+      if (!this.crossSellCart || snapshot.cart_ref !== cartRef) throw new BadRequestException("checkout_price_review_required");
+      const current = await this.crossSellCart.project({ merchantId, cartId: cartRef });
+      if (current.items.length !== snapshot.items.length || new Set(snapshot.items.map(checkoutCartLineIdentity)).size !== snapshot.items.length
+        || new Set(current.items.map(storefrontCrossSellLineIdentity)).size !== current.items.length
+        || snapshot.items.some(item => {
+          const line = current.items.find(line => storefrontCrossSellLineIdentity(line) === checkoutCartLineIdentity(item));
+          return !line || line.productId !== item.product_id || line.sku !== item.sku || line.quantity !== item.quantity
+            || !storefrontCrossSellOptionsMatch(item, line)
+            || !isDeepStrictEqual(item.crossSellIntent, line.crossSellIntent)
+            || Math.round((item.originalPrice ?? item.price) * 100) !== (line.pricingOriginalUnitPriceCents ?? line.unitPriceCents);
+        })) throw new BadRequestException("checkout_price_review_required");
+      return this.resolveStorefront(merchantId, cartRef);
+    }
     const lines = snapshot.items.map(item => {
       let optionIds: string[] = [];
       if (item.variant) {
@@ -46,13 +81,40 @@ export class CheckoutCartAuthorityService {
         selectedOptions: optionIds.map(itemId => ({ itemId, groupId: "", groupName: "", itemName: "", priceModifierInCents: 0 })),
       };
     });
+    if (snapshot.cart_ref === cartRef) {
+      const current = await this.prisma.storefrontCart.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId: cartRef } } });
+      if (current && current.expiresAt.getTime() > Date.now()
+        && Array.isArray(current.items)) {
+        const keys = (items: StorefrontCartItem[]) => items.map(line => JSON.stringify([
+          line.variantId, line.productId, line.sku, line.quantity, line.unitPriceCents,
+          (line.selectedOptions ?? []).map(option => option.itemId).sort(),
+        ])).sort();
+        const expected = lines.map((line, index) => ({ ...line,
+          unitPriceCents: Math.round((snapshot.items[index]!.originalPrice ?? snapshot.items[index]!.price) * 100),
+        }));
+        if (isDeepStrictEqual(keys(current.items as unknown as StorefrontCartItem[]), keys(expected))
+          || isDeepStrictEqual(keys(current.items as unknown as StorefrontCartItem[]), keys(lines))) {
+          // Only an exact authenticated source continuation may restore its D.
+          // A different cart never donates benefits or changes recovered lines.
+          return this.resolveStorefront(merchantId, cartRef);
+        }
+      }
+    }
+    // No exact source continuation: remembered commercial terms must not be
+    // silently replaced. Only an unreferenced, ungranted authenticated snapshot
+    // supplies identities/quantity for a NEW current-catalog quotation. Equal
+    // originalPrice metadata alone is not evidence of a previous reduction.
+    if (snapshot.cart_ref !== undefined || snapshot.discountBudget !== undefined
+      || snapshot.items.some(item => item.originalPrice !== undefined && item.originalPrice !== item.price)
+      || snapshot.commercialNudge?.kind === "coupon" || snapshot.appliedBenefits?.some(benefit => benefit.amount > 0))
+      throw new LegacySavedPriceReviewRequired("source_changed");
     return this.resolveStorefrontLines(merchantId, cartRef, lines, 0, true);
   }
 
   private async resolveStorefrontLines(merchantId: string, cartRef: string, lines: StorefrontCartItem[], discount: number, reprice: boolean): Promise<Cart> {
     if (!Array.isArray(lines) || !lines.length || lines.length > 100) throw new BadRequestException("checkout_cart_items_required");
     const variants = await this.prisma.productVariant.findMany({
-      where: { id: { in: lines.map(line => line.variantId) }, isActive: true, product: { merchantId, isActive: true } },
+      where: { id: { in: lines.map(line => line.variantId) }, isActive: true, product: { merchantId, isActive: true, deletedAt: null } },
       include: {
         product: true,
         price: true,
@@ -65,7 +127,8 @@ export class CheckoutCartAuthorityService {
     )];
     const fallbackMedia = productIdsWithoutVariantImage.length
       ? await this.prisma.productVariant.findMany({
-        where: { productId: { in: productIdsWithoutVariantImage }, isActive: true, media: { some: {} } },
+        where: { productId: { in: productIdsWithoutVariantImage }, isActive: true,
+          product: { merchantId, isActive: true, deletedAt: null }, media: { some: {} } },
         select: { productId: true, media: { orderBy: { order: "asc" }, take: 1 } },
       })
       : [];
@@ -74,10 +137,8 @@ export class CheckoutCartAuthorityService {
       const imageUrl = candidate.media[0]?.url;
       if (imageUrl && !productImages.has(candidate.productId)) productImages.set(candidate.productId, imageUrl);
     }
-    const activePromotions = reprice ? await this.prisma.productPromotion.findMany({
-      where: { merchantId, isActive: true, startsAt: { lte: new Date() }, endsAt: { gt: new Date() } },
-    }) : [];
     const quantities = new Map<string, number>();
+    let canonicalSubtotalCents = 0, hasLegacySavedPrice = false;
     let currency: CurrencyCode | undefined;
     const items: CartItem[] = lines.map(line => {
       this.quantity(line.quantity);
@@ -103,28 +164,22 @@ export class CheckoutCartAuthorityService {
       try {
         resolvedOptions = resolveSelectedOptions(extractOptionGroups(variant.product.metadata), (line.selectedOptions ?? []).map(option => option.itemId));
       } catch { throw new BadRequestException("checkout_product_options_changed"); }
-      let quotedPrice = line.unitPriceCents;
-      if (reprice) {
-        this.price(variant.price.basePriceInCents);
-        quotedPrice = variant.price.basePriceInCents;
-        for (const promotion of activePromotions) {
-          if (promotion.variantId !== variant.id && (!variant.product.categoryId || promotion.categoryId !== variant.product.categoryId)) continue;
-          if (promotion.couponId) continue;
-          if (promotion.promoPriceInCents != null && promotion.discountType == null) {
-            this.price(promotion.promoPriceInCents);
-            quotedPrice = Math.min(quotedPrice, promotion.promoPriceInCents);
-            continue;
-          }
-          if ((promotion.discountType !== "percent" && promotion.discountType !== "fixed") || typeof promotion.discountValue !== "number" || !Number.isFinite(promotion.discountValue) || promotion.discountValue < 0) throw new BadRequestException("checkout_product_promotion_invalid");
-          quotedPrice = Math.min(quotedPrice, resolveEffectivePrice(variant.price.basePriceInCents, {
-            discountType: promotion.discountType, discountValue: promotion.discountValue, isActive: true,
-          }, null).effectivePriceCents);
-        }
-        quotedPrice += resolvedOptions.priceModifierInCents;
-        this.price(quotedPrice);
+      this.price(variant.price.basePriceInCents);
+      const quotedPrice = variant.price.basePriceInCents + resolvedOptions.priceModifierInCents;
+      this.price(quotedPrice);
+      if (!reprice && line.unitPriceCents > quotedPrice)
+        throw new LegacySavedPriceReviewRequired("source_changed");
+      if (line.crossSellIntent !== undefined && line.unitPriceCents !== quotedPrice) throw new BadRequestException("checkout_price_review_required");
+      if (!reprice && line.unitPriceCents !== quotedPrice) {
+        const sortOptions = (options: NonNullable<StorefrontCartItem["selectedOptions"]>) => [...options].sort((a, b) => a.itemId.localeCompare(b.itemId));
+        if (!isDeepStrictEqual(sortOptions(line.selectedOptions ?? []), sortOptions(resolvedOptions.selected))) throw new LegacySavedPriceReviewRequired("source_changed");
+        hasLegacySavedPrice = true;
       }
+      canonicalSubtotalCents += quotedPrice * line.quantity;
+      this.price(canonicalSubtotalCents);
       return {
         sku: variant.sku, variantId: variant.id, product_id: variant.productId,
+        ...(line.crossSellIntent !== undefined ? { crossSellIntent: structuredClone(line.crossSellIntent) } : {}),
         productType: variant.product.type as CartItem["productType"],
         fulfillmentStrategy: fulfillmentStrategy(variant.product.type, variant.product.metadata, !!line.selectedServiceSlot),
         ...(line.selectedServiceSlot ? { fulfillmentSchedule: line.selectedServiceSlot } : {}),
@@ -134,7 +189,8 @@ export class CheckoutCartAuthorityService {
             .filter((value): value is string => typeof value === "string" && Boolean(value.trim())),
           ...(reprice ? resolvedOptions.selected : line.selectedOptions ?? []).map(option => option.itemName),
         ].join(" · "),
-        name: reprice ? variant.product.name : line.name, quantity: line.quantity, price: quotedPrice / 100,
+        name: reprice ? variant.product.name : line.name, quantity: line.quantity, price: (reprice ? quotedPrice : line.unitPriceCents) / 100,
+        ...(!reprice && line.unitPriceCents < quotedPrice ? { originalPrice: quotedPrice / 100 } : {}),
         imageUrl: variant.media[0]?.url ?? productImages.get(variant.productId) ?? line.imageUrl,
         cost: variant.price.costInCents == null ? undefined : variant.price.costInCents / 100,
         weightGrams: variant.weightGrams ?? undefined, height_cm: variant.heightCm ?? undefined,
@@ -143,13 +199,16 @@ export class CheckoutCartAuthorityService {
         selected_options: (reprice ? resolvedOptions.selected : line.selectedOptions)?.map(option => ({ group_name: option.groupName, item_name: option.itemName, price_modifier: option.priceModifierInCents / 100 })),
       };
     });
-    const quoted: Cart & { cart_ref: string } = { items, currency: currency!, total: 0, source: "storefront", cart_ref: cartRef, currentDiscount: reprice ? 0 : discount / 100 };
-    // Recovery prices already include active catalog promotions; never discount twice.
-    const cart = reprice ? quoted : await this.promotions?.resolveCartPromos(quoted, merchantId) ?? quoted;
-    const totalCents = cart.items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
+    const totalCents = items.reduce((sum, item) => sum + Math.round(item.price * 100) * item.quantity, 0);
     this.price(totalCents);
     this.price(discount);
-    return { ...cart, total: totalCents / 100, currentDiscount: reprice ? (cart.currentDiscount ?? 0) : Math.min(discount, totalCents) / 100 };
+    const quoted: Cart & { cart_ref: string } = { items, currency: currency!, total: totalCents / 100,
+      source: "storefront", cart_ref: cartRef, currentDiscount: reprice ? 0 : discount / 100 };
+    if (hasLegacySavedPrice) {
+      if (currency !== "BRL") throw new LegacySavedPriceReviewRequired("source_changed");
+      quoted.discountBudget = { version: 1, originalSubtotalCents: canonicalSubtotalCents, promotionDiscountCents: canonicalSubtotalCents - totalCents };
+    }
+    return this.projectPromotions(quoted, merchantId);
   }
 
   async resolve(merchantId: string, submitted: Cart): Promise<Cart> {
@@ -198,12 +257,8 @@ export class CheckoutCartAuthorityService {
       quantities.set(sku, quantity);
     }
     const variants = await this.prisma.productVariant.findMany({
-      where: { sku: { in: [...quantities.keys()] }, isActive: true, product: { merchantId, isActive: true } },
+      where: { sku: { in: [...quantities.keys()] }, isActive: true, product: { merchantId, isActive: true, deletedAt: null } },
       include: { product: true, price: true, stock: true, media: { orderBy: { order: "asc" }, take: 1 } },
-    });
-    const now = new Date();
-    const promotions = await this.prisma.productPromotion.findMany({
-      where: { merchantId, isActive: true, startsAt: { lte: now }, endsAt: { gt: now } },
     });
     let currency: CurrencyCode | undefined;
     let totalCents = 0;
@@ -218,22 +273,7 @@ export class CheckoutCartAuthorityService {
       if (currency && itemCurrency !== currency) throw new BadRequestException("checkout_mixed_currency");
       currency = itemCurrency;
       this.price(variant.price.basePriceInCents);
-      let priceCents = variant.price.basePriceInCents;
-      for (const promotion of promotions) {
-        if (promotion.variantId !== variant.id && (!variant.product.categoryId || promotion.categoryId !== variant.product.categoryId)) continue;
-        const discountType = promotion.discountType;
-        const discountValue = promotion.discountValue;
-        if ((discountType !== "percent" && discountType !== "fixed") ||
-          typeof discountValue !== "number" || !Number.isFinite(discountValue) || discountValue < 0) {
-          throw new BadRequestException("checkout_product_promotion_invalid");
-        }
-        const resolved = resolveEffectivePrice(variant.price.basePriceInCents, {
-          discountType,
-          discountValue,
-          isActive: true,
-        }, null);
-        priceCents = Math.min(priceCents, resolved.effectivePriceCents);
-      }
+      const priceCents = variant.price.basePriceInCents;
       this.price(priceCents);
       if (variant.product.type === "physical") {
         const available = variant.stock.reduce((sum, stock) => sum + Math.max(0, stock.quantity - stock.reserved), 0);
@@ -254,7 +294,15 @@ export class CheckoutCartAuthorityService {
       });
     }
     if (!Number.isSafeInteger(totalCents)) throw new BadRequestException("checkout_total_invalid");
-    return { currency: currency!, total: totalCents / 100, items, source: "checkout" };
+    return this.projectPromotions({ currency: currency!, total: totalCents / 100, items, source: "checkout" }, merchantId);
+  }
+
+  private async projectPromotions(cart: Cart, merchantId: string): Promise<Cart> {
+    if (this.promotions) return this.promotions.resolveCartPromos(cart, merchantId);
+    if (cart.items.some(item => item.crossSellIntent !== undefined)) throw new BadRequestException("checkout_price_review_required");
+    if ((cart.currentDiscount ?? 0) > 0 || (cart.discountBudget?.promotionDiscountCents ?? 0) > 0) throw new BadRequestException("checkout_discount_policy_unavailable");
+    // Backwards test construction without the real module grants no promotion.
+    return cart;
   }
 
   private quantity(value: number): void {

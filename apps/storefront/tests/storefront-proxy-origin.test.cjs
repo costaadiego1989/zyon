@@ -166,3 +166,50 @@ test("trusted origin does not bypass missing authorization or upstream capabilit
   assert.equal((await rejected.invoke()).status, 401);
   assert.equal(rejected.calls[0].headers.get("Authorization"), authorization);
 });
+
+for (const action of ["quote", "accept"]) {
+  test(`cross-sell ${action} forwards exactly one authenticated POST and never replays upstream errors`, async () => {
+    const selected = ["merchant-1", "cart", "session-1", "cross-sell", action];
+    for (const status of [200, 401, 403, 409, 422, 502]) {
+      const route = fixture(status);
+      assert.equal((await route.invoke("POST", { origin: publicOrigin }, internalOrigin, selected)).status, status);
+      assert.equal(route.calls.length, 1);
+      assert.equal(route.calls[0].url, `https://api.fixture.invalid/storefront/merchant-1/cart/session-1/cross-sell/${action}?current=true`);
+      assert.equal(route.calls[0].method, "POST");
+      assert.equal(route.calls[0].body, '{"enabled":true}');
+      assert.equal(route.calls[0].headers.get("Authorization"), authorization);
+      assert.equal(route.calls[0].headers.get("X-Trusted-Storefront-Origin"), publicOrigin);
+    }
+    for (const method of ["GET", "HEAD", "PATCH"]) {
+      const route = fixture();
+      assert.equal((await route.invoke(method, { origin: publicOrigin }, internalOrigin, selected)).status, 404);
+      assert.equal(route.calls.length, 0);
+    }
+    for (const [headers, expectedStatus] of [
+      [{ origin: publicOrigin, authorization: null }, 401],
+      [{ origin: "https://foreign.example" }, 403],
+      [{ origin: publicOrigin, "sec-fetch-site": "cross-site" }, 403],
+      [{}, 403],
+    ]) {
+      const route = fixture();
+      assert.equal((await route.invoke("POST", headers, internalOrigin, selected)).status, expectedStatus);
+      assert.equal(route.calls.length, 0);
+    }
+  });
+}
+
+test("cross-sell proxy accepts no wildcard merchant/cart actions or malformed identifiers", async () => {
+  const denied = [
+    ["merchant-1", "cart", "session-1", "cross-sell", "arbitrary"],
+    ["merchant-1", "cart", "session-1", "cross-sell", "accept", "extra"],
+    ["merchant-1", "cart", "session-1", "cross-sell"],
+    ["merchant/foreign", "cart", "session-1", "cross-sell", "accept"],
+    ["merchant-1", "cart", "session/foreign", "cross-sell", "quote"],
+    ["", "cart", "session-1", "cross-sell", "quote"],
+  ];
+  for (const selected of denied) {
+    const route = fixture();
+    assert.equal((await route.invoke("POST", { origin: publicOrigin }, internalOrigin, selected)).status, 404);
+    assert.equal(route.calls.length, 0);
+  }
+});

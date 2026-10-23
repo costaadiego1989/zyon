@@ -29,6 +29,12 @@ export interface OpenRouterToolDefinition {
 }
 
 export interface OpenRouterChatRequest {
+  /** Transport cancellation only; never serialized into the provider body. */
+  signal?: AbortSignal;
+  responseFormat?: { type: "json_object" } | {
+    type: "json_schema";
+    json_schema: { name: string; strict: boolean; schema: Record<string, unknown> };
+  };
   messages: OpenRouterChatMessage[];
   tools?: OpenRouterToolDefinition[];
   toolChoice?: "auto" | "none" | { type: "function"; function: { name: string } };
@@ -46,7 +52,11 @@ export interface OpenRouterToolCall {
 
 export interface OpenRouterChatResult {
   content: string;
+  finishReason?: string;
+  refusal?: string;
   toolCalls?: OpenRouterToolCall[];
+  /** Internal provenance: normalized fallback zeros are not measured usage. */
+  usageKnown?: boolean;
   usage: {
     promptTokens: number;
     completionTokens: number;
@@ -127,6 +137,8 @@ export class OpenRouterProvider {
       body.stop = request.stop;
     }
 
+    if (request.responseFormat) body.response_format = request.responseFormat;
+
     const response = await this.fetchFn(`${this.baseUrl}/chat/completions`, {
       method: "POST",
       headers: {
@@ -135,7 +147,8 @@ export class OpenRouterProvider {
         "HTTP-Referer": "https://zyon.ai",
         "X-Title": "AACP Checkout"
       },
-      body: JSON.stringify(body)
+      body: JSON.stringify(body),
+      ...(request.signal === undefined ? {} : { signal: request.signal }),
     });
 
     if (!response.ok) {
@@ -145,7 +158,9 @@ export class OpenRouterProvider {
 
     const json = (await response.json()) as {
       choices?: Array<{
+        finish_reason?: string;
         message?: {
+          refusal?: string | null;
           content?: string | null;
           tool_calls?: Array<{
             id?: string;
@@ -160,6 +175,9 @@ export class OpenRouterProvider {
     const choice = json.choices?.[0];
     const message = choice?.message ?? {};
     const usage = json.usage ?? {};
+    const usageKnown = [usage.prompt_tokens, usage.completion_tokens, usage.total_tokens]
+      .every(value => typeof value === "number" && Number.isSafeInteger(value) && value >= 0)
+      && (usage.prompt_tokens ?? -1) + (usage.completion_tokens ?? -1) === usage.total_tokens;
 
     const toolCalls: OpenRouterToolCall[] | undefined = message.tool_calls
       ?.map((tc) => {
@@ -182,7 +200,10 @@ export class OpenRouterProvider {
 
     return {
       content: typeof message.content === "string" ? message.content : "",
+      ...(typeof choice?.finish_reason === "string" ? { finishReason: choice.finish_reason } : {}),
+      ...(typeof message.refusal === "string" ? { refusal: message.refusal } : {}),
       toolCalls: toolCalls && toolCalls.length > 0 ? toolCalls : undefined,
+      usageKnown,
       usage: {
         promptTokens: usage.prompt_tokens ?? 0,
         completionTokens: usage.completion_tokens ?? 0,

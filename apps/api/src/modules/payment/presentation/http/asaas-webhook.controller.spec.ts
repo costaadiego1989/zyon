@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { AsaasWebhookController } from "./asaas-webhook.controller.js";
 import {
   HandleAsaasWebhookUseCase,
@@ -8,6 +8,14 @@ import {
 } from "../../application/handle-asaas-webhook.use-case.js";
 
 describe("AsaasWebhookController", () => {
+  it("preserves identity rejection as HTTP 400 instead of acknowledging success", async () => {
+    const rejection = new BadRequestException("asaas_webhook_payment_identity_mismatch");
+    const ctrl = new AsaasWebhookController({ execute: async () => { throw rejection; } } as unknown as HandleAsaasWebhookUseCase,
+      { execute: async () => assert.fail("Payment events cannot reach the transfer handler") } as never);
+    await assert.rejects(() => ctrl.asaasWebhook("synthetic-valid-token", { event: "PAYMENT_CHARGEBACK_REQUESTED" }),
+      (error: unknown) => error === rejection && rejection.getStatus() === 400);
+  });
+
   it("maps UnauthorizedWebhookError to UnauthorizedException", async () => {
     const ctrl = new AsaasWebhookController({
       execute: async () => {

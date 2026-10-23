@@ -11,6 +11,7 @@ import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastru
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { InMemoryMerchantRepository } from "../../../merchant/infrastructure/in-memory-merchant.repository.js";
 import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
+import type { OwnDeliveryConfig } from "../../domain/ports/own-delivery-config.port.js";
 
 const embedClaims = { typ: "aacp_embed_v1" as const, merchantId: "mrc_1", nonce: "shipping-buyer", issuedAtUnix: 1, expiresAtUnix: 9999999999 };
 const sessionId = embedCheckoutSessionId(embedClaims);
@@ -50,7 +51,9 @@ test("quote packages come from catalog-backed session data and reject missing di
   ] } });
   repo.saveSession(session);
   let seen: any;
-  const controller = new EmbedShippingController({ async execute(input: any) { seen = input; return input; } } as never, {} as never, undefined, repo);
+  const controller = new EmbedShippingController({ async execute(input: any, packages?: () => unknown) {
+    seen = { ...input, packages: packages?.() ?? input.packages }; return seen;
+  } } as never, {} as never, undefined, repo);
   await controller.quote({ embedClaims }, { session_id: sessionId, destination_zip: "01001000", cart_total: 999999,
     packages: [{ weightKg: 0.001, heightCm: 1, widthCm: 1, lengthCm: 1, quantity: 1 }],
   } as never);
@@ -59,6 +62,103 @@ test("quote packages come from catalog-backed session data and reject missing di
   session.cart.items[0]!.height_cm = undefined;
   repo.saveSession(session);
   await assert.rejects(controller.quote({ embedClaims }, { session_id: sessionId, destination_zip: "01001000" } as never), /checkout_product_shipping_dimensions_required/);
+});
+
+test("manual neighborhood quote uses the owned address only for the same CEP, ignoring body district", async () => {
+  const repo = new InMemoryCheckoutRepository();
+  const session = checkoutSession({ sessionId, customer: { address_verified: true, address: {
+    zip: "01001000", street: "Synthetic", number: "1", complement: "", neighborhood: "Centro", city: "Synthetic", state: "SP",
+  } }, cart: { currency: "BRL", total: 118, items: [
+    { sku: "x", name: "X", price: 118, quantity: 1, weightGrams: 1000, height_cm: 10, width_cm: 15, length_cm: 20 },
+  ] } });
+  repo.saveSession(session); const seen: Array<Record<string, unknown>> = [];
+  const controller = new EmbedShippingController({ async execute(input: Record<string, unknown>) { seen.push(input); return input; } } as never, {} as never, undefined, repo);
+  await controller.quote({ embedClaims }, { session_id: sessionId, destination_zip: "01001-000", destination_neighborhood: "Other district", cart_total: 99999 } as never);
+  assert.equal(seen[0]!.destination_neighborhood, "Centro"); assert.equal(seen[0]!.cart_total, 118);
+  await controller.quote({ embedClaims }, { session_id: sessionId, destination_zip: "02002000", destination_neighborhood: "Centro" } as never);
+  assert.equal(Object.hasOwn(seen[1]!, "destination_neighborhood"), false);
+});
+
+function realOwnedQuote(config: OwnDeliveryConfig | null, district = "Centro") {
+  const sessions = new InMemoryCheckoutRepository();
+  const session = checkoutSession({ sessionId, customer: { address_verified: true, address: {
+    zip: "01001000", street: "Synthetic", number: "1", complement: "", neighborhood: district, city: "Synthetic", state: "SP",
+  } }, cart: { currency: "BRL", total: 118, items: [{ sku: "x", name: "X", price: 118, quantity: 1 }] } });
+  sessions.saveSession(session);
+  let carrierCalls = 0, configReads = 0;
+  const carrier: CarrierPort = { carrierKey: "pac", async fetchQuotes(context) {
+    carrierCalls++; assert.equal(context.packages[0]!.heightCm, 10);
+    return [{ carrier_key: "pac", label: "PAC", price: 1500, eta_days: 5, is_free: false }];
+  } };
+  const quotes = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
+  const configSource = { async getByMerchantId() { configReads++; return config; }, async save(value: OwnDeliveryConfig) { return value; },
+    async getNeighborhoodOrigin() { return { kind: "ready" as const, origin: { merchantId: "mrc_1", zip: "01001000", city: "Synthetic", state: "SP" } }; } };
+  const use = new QuoteShippingUseCase(quotes, [carrier], undefined, configSource);
+  const controller = new EmbedShippingController(use, {} as never, undefined, sessions);
+  return { sessions, session, controller, use, quotes, configSource, stats: () => ({ carrierCalls, configReads }) };
+}
+const ownConfig: OwnDeliveryConfig = { id: "synthetic-config", merchantId: "mrc_1", enabled: true, mode: "flat",
+  flatPriceCents: 900, freeAboveCents: null, neighborhoods: null, radiusZones: null, estimatedValue: 1, estimatedUnit: "days" };
+const ownedQuoteBody = { session_id: sessionId, destination_zip: "01001000", cart_total: 999999,
+  destination_neighborhood: "Cheaper", packages: [{ weightKg: 1, heightCm: 1, widthCm: 1, lengthCm: 1, quantity: 1 }] };
+
+for (const [name, config, district, expected] of [
+  ["flat", ownConfig, "Centro", 900],
+  ["neighborhood", { ...ownConfig, mode: "neighborhood", neighborhoods: [{ name: "  CENTRO  ", priceCents: 1375 }, { name: "Cheaper", priceCents: 1 }] }, "Centro", 1375],
+  ["unknown district", { ...ownConfig, mode: "neighborhood", neighborhoods: [{ name: "Other", priceCents: 1 }] }, "Centro", undefined],
+  ["explicit free tariff", { ...ownConfig, flatPriceCents: 0 }, "Centro", 0],
+] as const) test(`real embed ${name} quote does not require parcel dimensions or dispatch a carrier`, async () => {
+  const f = realOwnedQuote(config as OwnDeliveryConfig, district);
+  const result = await f.controller.quote({ embedClaims }, ownedQuoteBody as never);
+  assert.equal(result.results.length, expected === undefined ? 0 : 1);
+  assert.equal(result.results[0]?.price, expected);
+  assert.deepEqual(f.stats(), { carrierCalls: 0, configReads: 1 });
+  assert.equal(f.sessions.getSession("mrc_1", sessionId)!.cart.total, 118);
+});
+
+test("provider validates owned missing dimensions before a cached quote, never trusting request packages", async () => {
+  const f = realOwnedQuote(null);
+  Object.assign(f.session.cart.items[0]!, { weightGrams: 1000, height_cm: 10, width_cm: 15, length_cm: 20 });
+  f.sessions.saveSession(f.session);
+  await f.controller.quote({ embedClaims }, ownedQuoteBody as never);
+  f.session.cart.items[0]!.height_cm = undefined; f.sessions.saveSession(f.session);
+  await assert.rejects(f.controller.quote({ embedClaims }, ownedQuoteBody as never), /checkout_product_shipping_dimensions_required/);
+  assert.deepEqual(f.stats(), { carrierCalls: 1, configReads: 2 });
+});
+
+test("foreign manual configuration is rejected before owned package validation and never dispatches", async () => {
+  const f = realOwnedQuote({ ...ownConfig, merchantId: "another-merchant" });
+  await assert.rejects(f.controller.quote({ embedClaims }, ownedQuoteBody as never), /shipping_manual_config_scope_mismatch/);
+  assert.deepEqual(f.stats(), { carrierCalls: 0, configReads: 1 });
+});
+
+test("embed neighborhood cannot price a homonymous district in a different owned city using forged body city", async () => {
+  const f = realOwnedQuote({ ...ownConfig, mode: "neighborhood", neighborhoods: [{ name: "Centro", priceCents: 900 }] });
+  f.session.customer!.address!.city = "Another city"; f.sessions.saveSession(f.session);
+  const result = await f.controller.quote({ embedClaims }, { ...ownedQuoteBody, destination_city: "Synthetic", destination_state: "SP" } as never);
+  assert.deepEqual(result.results, []); assert.equal(f.stats().carrierCalls, 0);
+});
+
+test("selection refuses a previously quoted district after the owned city changes, before saving selection", async () => {
+  const f = realOwnedQuote({ ...ownConfig, mode: "neighborhood", neighborhoods: [{ name: "Centro", priceCents: 900 }] });
+  const quote = await f.controller.quote({ embedClaims }, ownedQuoteBody as never);
+  f.session.customer!.address!.city = "Another city"; f.sessions.saveSession(f.session);
+  const before = structuredClone(f.sessions.getSession("mrc_1", sessionId));
+  const select = new SelectShippingMethodUseCase(f.quotes, f.sessions, f.configSource);
+  await assert.rejects(select.execute({ merchant_id: "mrc_1", session_id: sessionId, carrier_key: quote.results[0]!.carrier_key }), /shipping_quote_review_required/);
+  assert.equal((await f.quotes.findById(quote.id, "mrc_1"))!.snapshot().selected_carrier_key, null);
+  assert.deepEqual(f.sessions.getSession("mrc_1", sessionId), before);
+});
+
+test("configuration failure does not turn missing parcel dimensions into manual or carrier delivery", async () => {
+  const sessions = new InMemoryCheckoutRepository(); sessions.saveSession(checkoutSession({ sessionId }));
+  let carrierCalls = 0;
+  const use = new QuoteShippingUseCase(new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository()),
+    [{ carrierKey: "pac", async fetchQuotes() { carrierCalls++; return []; } }], undefined,
+    { async getByMerchantId() { throw new Error("synthetic_config_failure"); }, async save(value) { return value; } });
+  const controller = new EmbedShippingController(use, {} as never, undefined, sessions);
+  await assert.rejects(controller.quote({ embedClaims }, ownedQuoteBody as never), /synthetic_config_failure/);
+  assert.equal(carrierCalls, 0);
 });
 
 test("EmbedShippingController.quote rejects request without embed claims (missing merchant)", async () => {

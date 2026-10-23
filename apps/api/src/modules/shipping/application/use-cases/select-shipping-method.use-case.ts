@@ -4,6 +4,9 @@ import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../d
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../../checkout/domain/ports/checkout-session.repository.port.js";
 import type { ShippingQuoteResult, ShippingQuoteSnapshot } from "../../domain/entities/shipping-quote.entity.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+import { isDeepStrictEqual } from "node:util";
+import { OWN_DELIVERY_CONFIG_REPOSITORY, type OwnDeliveryConfigRepository } from "../../domain/ports/own-delivery-config.port.js";
+import { manualDeliveryConfigSchema, quoteManualDelivery } from "../../domain/services/manual-delivery-quote.js";
 
 @Injectable()
 export class SelectShippingMethodUseCase {
@@ -11,13 +14,28 @@ export class SelectShippingMethodUseCase {
 
   constructor(
     @Inject(SHIPPING_QUOTE_REPOSITORY) private readonly quotes: ShippingQuoteRepository,
-    @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkoutSessions?: CheckoutSessionRepository
+    @Optional() @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly checkoutSessions?: CheckoutSessionRepository,
+    @Optional() @Inject(OWN_DELIVERY_CONFIG_REPOSITORY) private readonly ownDeliveryConfig?: OwnDeliveryConfigRepository
   ) {}
 
   async execute(input: { session_id: string; merchant_id: string; carrier_key: string }) {
     const quote = await this.quotes.findBySession(input.session_id, input.merchant_id);
     if (!quote) throw new NotFoundException("shipping_quote_not_found");
     if (quote.isExpired()) throw new ConflictException("shipping_quote_expired");
+    const candidate = quote.snapshot().results.find(option => option.carrier_key === input.carrier_key);
+    if (candidate?.carrier_key.startsWith("own_delivery_neighborhood_")) {
+      const session = await this.checkoutSessions?.getSession(input.merchant_id, input.session_id);
+      const config = manualDeliveryConfigSchema.safeParse(await this.ownDeliveryConfig?.getByMerchantId(input.merchant_id));
+      const originResult = await this.ownDeliveryConfig?.getNeighborhoodOrigin?.(input.merchant_id);
+      if (originResult?.kind !== "ready") throw new BadRequestException({ code: "shipping_origin_address_configuration_required" });
+      const address = session?.customer?.address;
+      if (!session || session.merchantId !== input.merchant_id || session.sessionId !== input.session_id
+        || session.customer?.address_verified !== true || !address || address.zip?.replace(/\D/g, "") !== quote.snapshot().destination_zip.replace(/\D/g, "")
+        || !config.success || config.data.merchantId !== input.merchant_id || !config.data.enabled || config.data.mode !== "neighborhood"
+        || !quoteManualDelivery(config.data, { cartTotalCents: Math.round(session.cart.total * 100), neighborhood: address.neighborhood,
+          origin: originResult.origin, destinationCity: address.city, destinationState: address.state }).some(option => isDeepStrictEqual(option, candidate)))
+        throw new ConflictException("shipping_quote_review_required");
+    }
 
     let updated;
     try {

@@ -115,7 +115,7 @@ export class SendChatMessageUseCase {
     const previousStage = deriveChatStage(context.session);
 
     try {
-      const correction = await this.customerService.correctCustomerInput(working, input.user_message, lastAgentTurn, context.merchant?.name);
+      const correction = await this.customerService.correctCustomerInput(working, input.user_message, lastAgentTurn, context.merchant?.name, chatRequest);
       if (correction) {
         working = correction.session;
         if (correction.patch && !correction.blocked && correction.field === "zip") {
@@ -156,7 +156,8 @@ export class SendChatMessageUseCase {
         working,
         input.user_message,
         lastAgentTurn,
-        context.merchant?.name
+        context.merchant?.name,
+        chatRequest,
       );
     } catch (error: unknown) {
       if (error instanceof OtpValidationError) {

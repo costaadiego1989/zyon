@@ -666,6 +666,13 @@ function checkoutMethodsFor(connection: PaymentConnectionSnapshot): Array<"pix" 
 export function toBillingResponse(subscription: BillingSubscriptionWithPlanSnapshot) {
   return {
     plan: subscription.plan,
+    billing_cycle: subscription.billingCycle ?? "monthly",
+    billing_amount_cents: subscription.billingAmountCents,
+    billing_discount_percent: subscription.billingDiscountPercent,
+    pending_plan: subscription.pendingPlanKey,
+    pending_billing_cycle: subscription.pendingBillingCycle,
+    pending_billing_amount_cents: subscription.pendingBillingAmountCents,
+    pending_effective_at: subscription.pendingPlanEffectiveAt,
     plan_name: subscription.planName,
     monthly_price_brl: subscription.monthlyPriceBrl,
     transaction_fee_cents: subscription.transactionFeeCents,

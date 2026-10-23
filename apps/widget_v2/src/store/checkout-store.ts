@@ -35,9 +35,26 @@ import {
 import { checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
 import { CheckoutApiError } from "@/api/checkout-api-error";
 import type { CheckoutPriceReview } from "@/api/checkout-price-review";
+import type { NormalCheckoutCrossSellQuote, NormalCheckoutCrossSellTargetSelection } from "@zyon/contracts";
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
+export const CROSS_SELL_REVIEW_REQUIRED_MESSAGE = "Este complemento precisa de uma nova cotação. Aguarde uma nova sugestão para adicioná-lo.";
+export const CROSS_SELL_UNCERTAIN_MESSAGE = "Não foi possível confirmar a inclusão deste complemento. Confira o carrinho antes de continuar.";
+export const CROSS_SELL_COMMITTED_REVIEW_MESSAGE = "O complemento foi incluído, mas o resumo precisa ser atualizado. Confira o carrinho antes de pagar. Não adicione novamente.";
+export function crossSellQuotationKey(merchantId: string, sessionId: string | null, suggestionId: string): string {
+  return JSON.stringify([merchantId, sessionId, suggestionId]);
+}
+export function crossSellSelectionKey(merchantId: string, sessionId: string | null, suggestionId: string,
+  targets: readonly NormalCheckoutCrossSellTargetSelection[]): string {
+  return JSON.stringify([merchantId, sessionId, suggestionId, targets.map(target =>
+    JSON.stringify([target.sku, target.variant_id, target.quantity, [...(target.selected_option_item_ids ?? [])].sort()])).sort()]);
+}
+export function crossSellPreparedQuoteKey(quote: NormalCheckoutCrossSellQuote): string {
+  return JSON.stringify([crossSellSelectionKey(quote.merchantId, quote.sessionId, quote.suggestionId,
+    quote.pricing.targets.map(target => ({ sku: target.sku, variant_id: target.variantId, quantity: target.acceptedQuantity,
+      selected_option_item_ids: target.selectedOptionItemIds }))), quote.sessionVersion, quote.contextHash, quote.basisHash]);
+}
 
 export interface ShippingOption {
   key: string;
@@ -260,6 +277,7 @@ export interface CartState {
   shipping?: { key: string; label: string; cost: number };
   discount: number;
   benefits?: Experience["applied_benefits"];
+  commercialNotices?: Experience["commercial_notices"];
   status: CartStatus;
 }
 
@@ -307,6 +325,11 @@ interface CheckoutState {
   paymentCreating: boolean;
   cartUpdating: boolean;
   cartError: string | null;
+  /** Ephemeral refusals are scoped to the signed session and suggestion, not text. */
+  staleCrossSellQuotes: Record<string, true>;
+  preparedCrossSellQuotes: Record<string, NormalCheckoutCrossSellQuote>;
+  crossSellQuoteGeneration: Record<string, number>;
+  crossSellRecoveryRequired: boolean;
 
   triggerConfig: TriggerConfig | null;
   triggerMessages: Record<string, { message?: string; couponCode?: string }> | null;
@@ -340,7 +363,8 @@ interface CheckoutState {
    * collect card data, or confirm a payment.
    */
   continueVoiceCheckout: (voiceTurnToken?: string) => Promise<void>;
-  acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
+  prepareCrossSell: (suggestionId: string, targets: NormalCheckoutCrossSellTargetSelection[]) => Promise<NormalCheckoutCrossSellQuote | null>;
+  acceptCrossSell: (suggestionId: string, sku: string, quote?: NormalCheckoutCrossSellQuote, isCurrent?: () => boolean) => Promise<{ ok: boolean; error?: string; reviewRequired?: true; committedRequiresReview?: true }>;
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
   selectShipping: (option: Pick<ShippingOption, "key" | "label">) => Promise<boolean>;
@@ -567,6 +591,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   paymentCreating: false,
   cartUpdating: false,
   cartError: null,
+  staleCrossSellQuotes: {},
+  preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {}, crossSellRecoveryRequired: false,
   triggerConfig: null,
   triggerMessages: null,
   activeDiscount: null,
@@ -589,6 +615,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, onRefreshEmbedToken, paymentRevision });
       get().stopPolling();
       set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null, selectedPaymentMethod: null,
+        staleCrossSellQuotes: {}, preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {}, crossSellRecoveryRequired: false,
         pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false, quickPurchaseApplying: false });
 
       const response = await api.start();
@@ -653,6 +680,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           totalToPay: cartData.totalToPay,
           shipping: cartData.shipping,
           discount: cartData.discount,
+          commercialNotices: cartData.commercialNotices,
           status: cartStatusFromExperience(exp!),
         },
         activeDiscount: activeDiscountFromNudge(exp?.commercial_nudge),
@@ -748,7 +776,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   startQuickPurchase: async () => {
     const { api, cart, buyer, oneBuyClickPreferences, quickPurchaseStarted } = get();
-    if (!api || !oneBuyClickPreferences || quickPurchaseStarted || get().cartUpdating || get().paymentCreating) return;
+    if (!api || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || !oneBuyClickPreferences || quickPurchaseStarted || get().cartUpdating || get().paymentCreating) return;
     set({ quickPurchaseStarted: true, quickPurchaseApplying: true });
     try {
       if (cart.items.length === 0) {
@@ -822,7 +850,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const paymentStage = Boolean(get().paymentIntent || get().cart.status === "ready_to_pay"
       || latestAgent?.checkoutStage === "payment" || latestAgent?.checkoutStage === "payment_pending");
     const editSection = text.trim().toLowerCase() === "voltar" && paymentStage ? "payment" : checkoutEditIntent(text);
-    if (get().status === "completed" || get().isTyping || get().chatRecovery || (get().api?.requiresChatRecovery && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
+    if (get().status === "completed" || get().isTyping || get().chatRecovery || ((get().crossSellRecoveryRequired || get().api?.requiresCrossSellReconciliation || get().api?.requiresChatRecovery) && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
     const explicitPayment = paymentMethodForQuickReply(text);
     if (explicitPayment && (get().paymentIntent || get().cart.status === "ready_to_pay"
       || (get().selectedPaymentMethod && get().cart.shipping)
@@ -846,7 +874,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (!api || get().cartUpdating) return;
 
     const latest = [...get().messages].reverse().find(message => message.role === "agent");
-    if (editSection && (get().paymentIntent || latest?.checkoutStage === "payment_pending"
+    if (editSection && (get().crossSellRecoveryRequired || get().paymentIntent || latest?.checkoutStage === "payment_pending"
       || (editSection !== "coupon" && (get().cart.shipping || paymentStage)))) {
       set({ isTyping: true });
       try {
@@ -854,6 +882,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         if (get().api !== api || get().status === "completed") return;
         get().stopPolling();
         set(state => ({ paymentIntent: null, pendingPriceReview: null, pendingPayment: null, activeDiscount: null,
+          crossSellRecoveryRequired: false, preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {},
           cart: { ...cartFromExperience(experience), status: cartStatusFromExperience(experience) },
           messages: retireCheckoutControls(state.messages),
           isTyping: false }));
@@ -1211,20 +1240,57 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  acceptCrossSell: async (suggestionId, sku) => {
+  prepareCrossSell: async (suggestionId, targets) => {
+    const { api, cartUpdating, paymentSubmitting, paymentCreating, status, crossSellRecoveryRequired } = get();
+    if (!api || cartUpdating || paymentSubmitting || paymentCreating || status === "completed" || crossSellRecoveryRequired) return null;
+    const key = crossSellSelectionKey(api.currentMerchantId, api.currentSessionId, suggestionId, targets);
+    const suggestionKey = crossSellQuotationKey(api.currentMerchantId, api.currentSessionId, suggestionId);
+    const generation = (get().crossSellQuoteGeneration[key] ?? 0) + 1;
+    set(state => ({ crossSellQuoteGeneration: { ...state.crossSellQuoteGeneration, [key]: generation } }));
+    try {
+      const quote = await api.quoteCrossSell(suggestionId, targets);
+      if (get().api !== api || get().crossSellRecoveryRequired || get().crossSellQuoteGeneration[key] !== generation) return null;
+      set(state => {
+        const stale = { ...state.staleCrossSellQuotes }, priorStale = Boolean(stale[suggestionKey]); delete stale[suggestionKey];
+        const retained = Object.fromEntries(Object.entries(state.preparedCrossSellQuotes).filter(([, prior]) => {
+          const sameSuggestion = crossSellQuotationKey(prior.merchantId, prior.sessionId, prior.suggestionId) === suggestionKey;
+          return !sameSuggestion || !priorStale && crossSellSelectionKey(prior.merchantId, prior.sessionId, prior.suggestionId,
+            prior.pricing.targets.map(target => ({ sku: target.sku, variant_id: target.variantId, quantity: target.acceptedQuantity,
+              selected_option_item_ids: target.selectedOptionItemIds }))) !== key;
+        }));
+        return { preparedCrossSellQuotes: { ...retained, [crossSellPreparedQuoteKey(quote)]: quote }, staleCrossSellQuotes: stale };
+      });
+      return quote;
+    } catch { return null; }
+  },
+
+  acceptCrossSell: async (suggestionId, sku, displayedQuote, isCurrent = () => true) => {
     const { api, cartUpdating, status } = get();
-    if (!api || cartUpdating || get().paymentSubmitting || status === "completed") {
+    if (!api || !isCurrent() || cartUpdating || get().paymentSubmitting || get().paymentCreating || get().crossSellRecoveryRequired || status === "completed") {
       return { ok: false, error: "checkout_unavailable" };
     }
+    const quoteKey = crossSellQuotationKey(api.currentMerchantId, api.currentSessionId, suggestionId);
+    if (get().staleCrossSellQuotes[quoteKey]) {
+      set({ cartError: CROSS_SELL_REVIEW_REQUIRED_MESSAGE });
+      return { ok: false, error: CROSS_SELL_REVIEW_REQUIRED_MESSAGE, reviewRequired: true };
+    }
+    if (!displayedQuote || get().preparedCrossSellQuotes[crossSellPreparedQuoteKey(displayedQuote)] !== displayedQuote) return { ok: false, error: CROSS_SELL_REVIEW_REQUIRED_MESSAGE, reviewRequired: true };
     set({ cartUpdating: true, cartError: null, pendingPriceReview: null });
     try {
-      const response = await api.acceptCrossSell(suggestionId, sku);
+      const response = await api.acceptCrossSell(suggestionId, sku, displayedQuote, () => get().api === api && isCurrent());
+      if (get().api !== api) return { ok: false, error: "checkout_unavailable" };
+      if (response.projection_status === "requires_review") {
+        set({ crossSellRecoveryRequired: true, cartError: CROSS_SELL_COMMITTED_REVIEW_MESSAGE });
+        return { ok: false, error: CROSS_SELL_COMMITTED_REVIEW_MESSAGE, committedRequiresReview: true };
+      }
       const cart = cartFromExperience(response.experience);
       get().stopPolling();
       set((state) => ({
-        cart: { ...cart, status: "awaiting" },
+        cart: { ...cart, status: cartStatusFromExperience(response.experience) },
+        checkoutStage: response.experience.stage,
         activeDiscount: activeDiscountFromNudge(response.experience?.commercial_nudge),
         paymentIntent: null,
+        preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {},
         messages: response.agent_turn?.text
           ? [...state.messages, {
               id: `cross_sell_${Date.now()}`,
@@ -1236,18 +1302,22 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }));
       void trackEvent("cross_sell_accepted", { sku });
       return { ok: true };
-    } catch {
-      const error = "Nao foi possivel adicionar este complemento. Tente novamente.";
-      set({ cartError: error });
-      return { ok: false, error };
+    } catch (cause: unknown) {
+      if (get().api !== api) return { ok: false, error: "checkout_unavailable" };
+      const reviewRequired = cause instanceof CheckoutApiError && cause.operation === "cross_sell_accept"
+        && cause.status === 422 && cause.code === "cross_sell_quote_review_required";
+      const error = reviewRequired ? CROSS_SELL_REVIEW_REQUIRED_MESSAGE : CROSS_SELL_UNCERTAIN_MESSAGE;
+      set(state => ({ cartError: error, crossSellRecoveryRequired: !reviewRequired, ...(reviewRequired
+        ? { staleCrossSellQuotes: { ...state.staleCrossSellQuotes, [quoteKey]: true as const } } : {}) }));
+      return reviewRequired ? { ok: false, error, reviewRequired: true } : { ok: false, error };
     } finally {
-      set({ cartUpdating: false });
+      if (get().api === api) set({ cartUpdating: false });
     }
   },
 
   updateQty: async (sku, quantity, variant) => {
     const { api, cartUpdating, status } = get();
-    if (!api || cartUpdating || get().paymentSubmitting || status === "completed") return;
+    if (!api || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || cartUpdating || get().paymentSubmitting || status === "completed") return;
     set({ cartUpdating: true, cartError: null, pendingPriceReview: null });
     try {
       const response = await api.updateCartItemQty(sku, quantity, variant);
@@ -1276,7 +1346,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   selectShipping: async (option) => {
     const { api } = get();
-    if (!api || get().cartUpdating || get().paymentSubmitting) return false;
+    if (!api || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || get().cartUpdating || get().paymentSubmitting) return false;
     set({ cartUpdating: true, cartError: null, pendingPriceReview: null });
     console.log('[WIDGET-DBG] selectShipping called', { key: option.key });
     try {
@@ -1371,7 +1441,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   pay: async (method, installments, confirmedCartFingerprint) => {
     const { api, cart, leadRegistered } = get();
-    if (!api || get().status === "completed" || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().status === "completed" || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
     const availableMethods = paymentChoicesForConfig(get().merchantPaymentConfig);
@@ -1509,7 +1579,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   selectCryptoChain: async (chain, confirmedCartFingerprint) => {
     const { api, leadRegistered } = get();
-    if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
     if (!leadRegistered) {
@@ -1717,6 +1787,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   applyCouponCode: async (code) => {
     const { api, cart } = get();
     if (!api) return { ok: false, error: "Sessão não iniciada" };
+    if (get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation) return { ok: false, error: get().cartError ?? CROSS_SELL_UNCERTAIN_MESSAGE };
     try {
       const result = await api.applyCoupon(code.trim().toUpperCase(), {
         items: cart.items.map((it) => ({ sku: it.sku, name: it.name, price: it.price, quantity: it.quantity })),
@@ -1766,6 +1837,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
    * Only activates when merchant has progressiveDiscount.enabled.
    */
   applyProgressiveDiscount: async (cartStatus) => {
+    if (get().crossSellRecoveryRequired || get().api?.requiresCrossSellReconciliation) return;
     const { progressiveDiscount } = get();
     if (!progressiveDiscount?.enabled) return;
 
@@ -1784,6 +1856,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (!event || !stage) return;
 
     const result = await trackEvent(event as never);
+    if (get().crossSellRecoveryRequired || get().api?.requiresCrossSellReconciliation) return;
     const approved = result?.progressive_offer?.approved_percent ?? 0;
     if (approved <= 0) return;
     const message = `Desconto progressivo aprovado: ${approved}% foi aplicado a este checkout.`;
@@ -1822,6 +1895,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       paymentCreating: false,
       cartUpdating: false,
       cartError: null,
+      staleCrossSellQuotes: {},
+      preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {}, crossSellRecoveryRequired: false,
       activeDiscount: null,
       oneBuyClickPreferences: null,
       leadRegistered: false,

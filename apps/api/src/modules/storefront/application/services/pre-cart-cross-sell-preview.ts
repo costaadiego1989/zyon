@@ -2,6 +2,7 @@ import { normalizeCrossSellStrategies } from "@zyon/shared-types";
 
 export type PublicCrossSellProduct = {
   id: string;
+  productId?: string;
   name: string;
   price: number;
   priceFormatted: string;
@@ -29,6 +30,7 @@ export type PreCartCrossSellInput = {
   }>;
   products: Array<{
     id: string;
+    productId?: string;
     sku: string;
     name: string;
     price: number;
@@ -126,6 +128,7 @@ export function buildPreCartCrossSellPreview(input: PreCartCrossSellInput): Publ
       const discountPercent = Math.max(0, numberValue(promotion.discountPercent));
       products.push({
         id: candidate.id,
+        ...(candidate.productId ? { productId: candidate.productId } : {}),
         name: candidate.name,
         price: candidate.price,
         priceFormatted: new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(candidate.price),

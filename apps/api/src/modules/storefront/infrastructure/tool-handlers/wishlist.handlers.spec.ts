@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ProductEntity } from "../../../catalog/domain/entities/product.entity.js";
 import { createWishlistHandlers } from "./wishlist.handlers.js";
+import { validateStorefrontToolOutput } from "../../domain/contracts/storefront-tool-output.schemas.js";
 
 const saved: Array<{ merchantId: string; ownerKey: string; productId: string; createdAt: Date }> = [];
 const product = new ProductEntity({
@@ -62,4 +63,7 @@ test("persists, lists and removes wishlist products within the conversation tena
 
   const removed = await handlers.removeFromWishlist({ productId: product.id }) as { items: unknown[] };
   assert.equal(removed.items.length, 0);
+  for (const [name, result] of [["add_to_wishlist", added], ["get_wishlist", otherConversation], ["remove_from_wishlist", removed]] as const) {
+    assert.equal(validateStorefrontToolOutput(name, result).ok, true, name);
+  }
 });

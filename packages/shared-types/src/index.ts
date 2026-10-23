@@ -31,6 +31,9 @@ export type CheckoutEventName =
   | "message_sent";
 
 export interface CartItem {
+  /** Server-persisted cross-sell preconditions. Never trust public cart copies. */
+  crossSellIntent?: { version: 1; promotionId: string; promotionUpdatedAt: string; acceptedQuantity: number;
+    originalUnitPriceCents: number; maximumUnitPriceCents: number };
   originalPrice?: number;
   variantLabel?: string;
   fulfillmentStrategy?: import("./order-fulfillment.js").FulfillmentStrategy;
@@ -80,10 +83,16 @@ export interface ShippingContext {
 }
 
 export interface Cart {
+  /** Authenticated persisted storefront reference; never a bearer capability. */
+  cart_ref?: string;
   currency: CurrencyCode;
   total: number;
   items: CartItem[];
   currentDiscount?: number;
+  /** Server-authored original merchandise basis; never trust a submitted copy. */
+  discountBudget?: { version: 1; originalSubtotalCents: number; promotionDiscountCents: number };
+  /** Presentation only, authored from a verified server-side policy decision. */
+  commercialNotices?: CommercialNotice[];
   /** Server-authored context for a promotion already applied to this session. */
   commercialNudge?: CheckoutCommercialNudge;
   /** Display only; amounts are already reflected in prices/discount/shipping. */
@@ -96,6 +105,12 @@ marketplacePaymentOptions?: Array<{
     environment: "test" | "live";
     destinations: Array<{ merchantId: string; destination: string }>;
   }>;
+}
+
+export interface CommercialNotice {
+  version: 1;
+  code: "discount_limit_reached" | "discount_limited" | "discount_unavailable" | "benefit_not_combinable" | "benefit_conditions_not_met";
+  message: string;
 }
 
 export type CheckoutCommercialNudgeKind = "coupon" | "progressive_discount" | "advanced_rule";
@@ -474,6 +489,8 @@ export interface FoodOptionGroup {
 
 export interface SuggestedProduct {
   suggestion_id?: string;
+  /** Canonical product identity for opening the existing product detail. */
+  product_id?: string;
   sku: string;
   variant_id?: string;
   name: string;
@@ -515,6 +532,8 @@ export interface CheckoutExperienceSnapshot {
   /** A benefit already authorized for this checkout session, if any. */
   commercial_nudge?: CheckoutCommercialNudge;
   applied_benefits?: CheckoutAppliedBenefit[];
+  /** Server-owned display notices, not a grant or pricing input. */
+  commercial_notices?: CommercialNotice[];
   shipping?: ShippingQuote;
   shippingOptions?: ShippingQuote[];
   suggestedProducts?: SuggestedProduct[];
@@ -810,6 +829,7 @@ export type CrossSellDomainEventType =
 
 export type CouponsDomainEventType =
   | "coupon.applied"
+  | "coupon.redemption.requested"
   | "coupon.redeemed"
   | "coupon.expired";
 
@@ -1251,6 +1271,7 @@ export interface ApplyOfferRequest {
 }
 
 export interface ApplyOfferResponse {
+  commercialNotices?: CommercialNotice[];
   success: boolean;
   discount_code?: string;
   apply_url?: string;
@@ -1552,6 +1573,7 @@ export * from "./billing-plans.js";
 
 export * from "./billing-offers.js";
 export * from "./billing-promotions.js";
+export * from "./platform-support.js";
 
 export { NEUMORPHIC_THEME, merchantThemeTokens, type MerchantThemeAppearance } from "./merchant-theme.js";
 
@@ -1559,6 +1581,8 @@ export { checkoutEditIntent, type CheckoutEditSection } from "./checkout-edit-in
 export { VOICE_MICROPHONE_CONSTRAINTS, RealtimeVoiceInput, RealtimeVoiceResponses, type VoiceInputEvent } from "./realtime-voice-input.js";
 
 export * from "./order-fulfillment.js";
+export type { StorefrontReadUiAction, StorefrontReadUiActionCapability, StorefrontReadUiActionRequest,
+  StorefrontSuggestedReadAction, StorefrontSuggestedReadActions } from "./storefront-read-ui-action.js";
 
 
 export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, RealtimeServerVoiceTurns, type RealtimeVoiceCall, type RealtimeServerVoiceEvent } from "./realtime-voice-session.js";

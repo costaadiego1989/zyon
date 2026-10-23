@@ -30,6 +30,8 @@ export class AcceptCrossSellFromWidgetUseCase {
     const session = await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
 
+    await this.accept.assertSupportedAcceptance(input);
+
     const rules = await this.merchants.getRules(input.merchant_id);
 
     const cart: Cart = { ...session.cart };

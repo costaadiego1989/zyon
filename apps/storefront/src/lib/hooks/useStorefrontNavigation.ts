@@ -15,6 +15,9 @@ export function useStorefrontNavigation(initialSearch: string) {
     const url = storefrontViewUrl(window.location.href, next);
     if (url === window.location.pathname + window.location.search + window.location.hash) return;
     const state = { ...window.history.state, aacpView: !replace };
+    // The financial marker belongs to its exact history entry, not later
+    // ordinary visits. Existing entries retain it for Back/Forward/reload.
+    delete state.aacpCrossSellDetailProduct;
     window.history[replace ? "replaceState" : "pushState"](state, "", url);
     window.dispatchEvent(new Event("aacp:navigation"));
   }, []);

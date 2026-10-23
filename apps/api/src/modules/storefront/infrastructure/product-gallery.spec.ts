@@ -72,7 +72,9 @@ describe("Storefront product galleries", () => {
         received = args;
         return {
           cartId: args.cartId,
-          items: [{ variantId: args.variantId, name: "Produto com galeria", quantity: args.quantity, unitPrice: 129.9, lineTotal: 129.9 }],
+          items: [{ variantId: args.variantId, name: "Produto com galeria", quantity: args.quantity, unitPrice: 129.9, lineTotal: 129.9,
+            selectedOptions: (args.selectedOptionItemIds ?? []).map(itemId => ({ itemId, groupName: "Composição", itemName: itemId, priceModifier: 0 })) }],
+          addedItem: { variantId: args.variantId, optionItemIds: args.selectedOptionItemIds ?? [] },
           total: 129.9,
           discount: 0,
           freeShipping: false,
@@ -87,7 +89,10 @@ describe("Storefront product galleries", () => {
     } as StorefrontConversationInput);
 
     assert.deepEqual(received, { cartId: "cart-1", variantId: "variant-1", quantity: 1, selectedOptionItemIds: ["option-a", "option-b"] });
-    const block = output?.blocks[0];
+    const result = output?.blocks[0];
+    assert.ok(result && result.type === "cart_add_result");
+    assert.equal(result.data.status, "succeeded");
+    const block = output?.blocks.find(item => item.type === "cart_summary");
     assert.ok(block && block.type === "cart_summary");
     assert.equal(block.data.itemCount, 1);
     assert.equal(block.data.items[0].productName, "Produto com galeria");

@@ -1,5 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
+import { BadRequestException, Logger } from "@nestjs/common";
 import type { CommerceOrderPort } from "@zyon/commerce-adapters";
 import { PaymentIntentEntity, type PaymentIntentStatus } from "../domain/payment-intent.entity.js";
 import { HandleAsaasWebhookUseCase, UnauthorizedWebhookError, assertWebhookToken } from "./handle-asaas-webhook.use-case.js";
@@ -8,6 +9,7 @@ import { InMemoryPaymentRepository } from "../infrastructure/in-memory-payment.r
 import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { MarkCommerceOrderPaidUseCase } from "../../commerce/application/mark-commerce-order-paid.use-case.js";
 import { InMemoryCommercePaidWebhookDedup } from "../../commerce/infrastructure/in-memory-commerce-paid-webhook-dedup.js";
+import { approvedChargebackPayment, ChargebackTestRepository, RecordingMarketplaceChargeback } from "../__tests__/chargeback-test-fixtures.js";
 
 const TEST_ASAAS_TOKEN = "test-asaas-webhook-token";
 const WEBHOOK_HEADER = TEST_ASAAS_TOKEN;
@@ -19,7 +21,7 @@ process.env.ASAAS_WEBHOOK_TOKEN = TEST_ASAAS_TOKEN;
 class RecordingCheckoutPayment implements CheckoutPaymentPort {
   public approved: CheckoutPaymentApprovedInput[] = [];
   public failures: Array<{ merchantId: string; sessionId: string }> = [];
-  public statuses: Array<{ paymentIntentId: string; status: PaymentIntentStatus; reason?: string }> = [];
+  public statuses: Array<{ merchantId: string; sessionId: string; paymentIntentId: string; status: PaymentIntentStatus; reason?: string }> = [];
 
   async completeAfterApproval(input: CheckoutPaymentApprovedInput): Promise<void> {
     this.approved.push(input);
@@ -37,9 +39,9 @@ class RecordingCheckoutPayment implements CheckoutPaymentPort {
     status: PaymentIntentStatus;
     reason?: string;
   }): Promise<void> {
-    void params.merchantId;
-    void params.sessionId;
     this.statuses.push({
+      merchantId: params.merchantId,
+      sessionId: params.sessionId,
       paymentIntentId: params.paymentIntentId,
       status: params.status,
       reason: params.reason
@@ -258,13 +260,7 @@ test("Asaas registra o ciclo de chargeback e atualiza o repasse de Marketplace u
   const payments = new InMemoryPaymentRepository();
   const checkoutPort = new RecordingCheckoutPayment();
   const dispatch = new PaymentDispatchService(payments, checkoutPort);
-  const marketplaceOrders: string[] = [];
-  const marketplaceChargeback = {
-    async executeForOrder(orderId: string) {
-      marketplaceOrders.push(orderId);
-      return [];
-    },
-  };
+  const marketplaceChargeback = new RecordingMarketplaceChargeback();
   const uc = new HandleAsaasWebhookUseCase(
     payments,
     dispatch,
@@ -273,7 +269,7 @@ test("Asaas registra o ciclo de chargeback e atualiza o repasse de Marketplace u
     undefined,
     undefined,
     undefined,
-    marketplaceChargeback as any,
+    marketplaceChargeback as never,
   );
   const intent = PaymentIntentEntity.create({
     merchantId: "mrc_chargeback",
@@ -311,8 +307,307 @@ test("Asaas registra o ciclo de chargeback e atualiza o repasse de Marketplace u
   assert.equal((await payments.getIntentById("mrc_chargeback", externalReference))?.snapshot().status, "chargeback_lost");
   assert.deepEqual(checkoutPort.statuses.map(entry => entry.status), ["chargeback_pending", "chargeback_disputed", "chargeback_lost"]);
   // The funding journal is keyed by the provider payment, not the ERP order.
-  assert.deepEqual(marketplaceOrders, ["pay_chargeback"]);
+  assert.deepEqual(marketplaceChargeback.calls, [{ orderId: "pay_chargeback", hostMerchantId: "mrc_chargeback" }]);
+  assert.ok(checkoutPort.statuses.every((entry) => entry.merchantId === "mrc_chargeback" && entry.sessionId === "chk_chargeback" && entry.paymentIntentId === externalReference));
+  const beforeReplay = (await payments.getIntentById("mrc_chargeback", externalReference))!.snapshot();
+  for (const [id, event] of [["evt_chargeback_requested", "PAYMENT_CHARGEBACK_REQUESTED"],
+    ["evt_chargeback_disputed", "PAYMENT_CHARGEBACK_DISPUTE"], ["evt_chargeback_lost", "PAYMENT_REFUNDED"]]) {
+    assert.deepEqual(await uc.execute(WEBHOOK_HEADER, { id, event, payment: { id: "pay_chargeback", externalReference } }, TEST_ASAAS_TOKEN), { outcome: "duplicate" });
+    assert.equal(await payments.hasProcessedProviderEvent({ provider: "asaas", merchantId: "mrc_chargeback", eventId: id }), true);
+    assert.equal(await payments.hasProcessedProviderEvent({ provider: "asaas", merchantId: "other_merchant", eventId: id }), false);
+  }
+  assert.deepEqual((await payments.getIntentById("mrc_chargeback", externalReference))!.snapshot(), beforeReplay);
+  assert.equal(marketplaceChargeback.calls.length, 1);
+  assert.equal(checkoutPort.statuses.length, 3);
+  assert.equal(checkoutPort.approved.length, 0);
 });
+
+function asaasChargebackFixture() {
+  const payments = new ChargebackTestRepository();
+  const checkout = new RecordingCheckoutPayment();
+  const marketplace = new RecordingMarketplaceChargeback();
+  const holds: Array<{ kind: "refund" | "chargeback"; intentId: string }> = [];
+  const anomalies: Array<{ provider: string; kind: string }> = [];
+  const useCase = new HandleAsaasWebhookUseCase(payments, new PaymentDispatchService(payments, checkout),
+    { paymentWebhookAnomaly: { inc: (labels: { provider: string; kind: string }) => anomalies.push(labels) } } as never,
+    undefined, undefined,
+    { execute: async (intentId: string) => { holds.push({ kind: "refund", intentId }); } } as never,
+    { execute: async (intentId: string) => { holds.push({ kind: "chargeback", intentId }); } } as never,
+    marketplace as never);
+  return { payments, checkout, marketplace, holds, anomalies, useCase };
+}
+
+for (const token of [undefined, "synthetic-wrong-token"]) {
+  test(`Asaas chargeback rejects ${token === undefined ? "missing" : "wrong"} token before reservation or financial effects`, async () => {
+    const { payments, checkout, marketplace, useCase } = asaasChargebackFixture();
+    const intent = await approvedChargebackPayment(payments, "merchant_auth", "pay_auth");
+    const before = intent.snapshot();
+    await assert.rejects(() => useCase.execute(token, { id: "event_auth", event: "PAYMENT_CHARGEBACK_REQUESTED",
+      payment: { id: "pay_auth", externalReference: intent.id } }, TEST_ASAAS_TOKEN), UnauthorizedWebhookError);
+    assert.equal(payments.scopedReads.length, 0);
+    assert.equal(payments.reservations.length, 0);
+    assert.deepEqual((await payments.getIntentById(before.merchantId, intent.id))!.snapshot(), before);
+    assert.equal(marketplace.calls.length, 0);
+    assert.equal(checkout.statuses.length, 0);
+    assert.equal(checkout.approved.length, 0);
+  });
+}
+
+test("Asaas chargeback without a known external reference never selects another intent by payment id", async () => {
+  const { payments, checkout, marketplace, useCase } = asaasChargebackFixture();
+  const intent = await approvedChargebackPayment(payments, "merchant_known", "pay_known");
+  const before = intent.snapshot();
+  await assert.rejects(() => useCase.execute(WEBHOOK_HEADER, { id: "event_unknown_ref", event: "PAYMENT_CHARGEBACK_REQUESTED",
+    payment: { id: "pay_known", externalReference: "pay_int_unknown_reference" } }, TEST_ASAAS_TOKEN), isAsaasIdentityRejection);
+  assert.equal(payments.scopedReads.length, 0);
+  assert.deepEqual(payments.reservations, []);
+  assert.deepEqual((await payments.getIntentById(before.merchantId, intent.id))!.snapshot(), before);
+  assert.equal(marketplace.calls.length, 0);
+  assert.equal(checkout.statuses.length, 0);
+});
+
+test("concurrent Asaas chargeback deliveries reserve one transition and one marketplace propagation", async () => {
+  const { payments, checkout, marketplace, useCase } = asaasChargebackFixture();
+  const intent = await approvedChargebackPayment(payments, "merchant_concurrent", "pay_concurrent");
+  const body = { id: "event_concurrent", event: "PAYMENT_CHARGEBACK_REQUESTED", payment: { id: "pay_concurrent", externalReference: intent.id } };
+  const results = await Promise.all(Array.from({ length: 5 }, () => useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN)));
+  assert.equal(results.filter((row) => row.outcome === "processed").length, 1);
+  assert.equal(results.filter((row) => row.outcome === "duplicate").length, 4);
+  assert.deepEqual(marketplace.calls, [{ orderId: "pay_concurrent", hostMerchantId: "merchant_concurrent" }]);
+  assert.equal(checkout.statuses.length, 1);
+  assert.equal((await payments.getIntentById("merchant_concurrent", intent.id))!.status, "chargeback_pending");
+});
+
+test("Asaas chargeback event ids are deduplicated per merchant, not globally", async () => {
+  const { payments, checkout, marketplace, useCase } = asaasChargebackFixture();
+  for (const merchantId of ["merchant_a", "merchant_b"]) {
+    const intent = await approvedChargebackPayment(payments, merchantId, `pay_${merchantId}`);
+    const body = { id: "event_same_id", event: "PAYMENT_CHARGEBACK_REQUESTED", payment: { id: `pay_${merchantId}`, externalReference: intent.id } };
+    assert.deepEqual(await useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN), { outcome: "processed", effect: "chargeback_pending" });
+    assert.deepEqual(await useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN), { outcome: "duplicate" });
+    assert.equal(await payments.hasProcessedProviderEvent({ provider: "asaas", merchantId, eventId: "event_same_id" }), true);
+    assert.equal((await payments.getIntentById(merchantId, intent.id))!.status, "chargeback_pending");
+  }
+  assert.deepEqual(marketplace.calls, ["merchant_a", "merchant_b"].map((hostMerchantId) => ({ orderId: `pay_${hostMerchantId}`, hostMerchantId })));
+  assert.equal(checkout.statuses.length, 2);
+  assert.equal(checkout.approved.length, 0);
+});
+
+test("Asaas chargeback must reject a known payment bound to a different merchant's external reference", async () => {
+  const { payments, checkout, marketplace, useCase } = asaasChargebackFixture();
+  const original = await approvedChargebackPayment(payments, "merchant_original", "pay_original");
+  const foreign = await approvedChargebackPayment(payments, "merchant_foreign", "pay_foreign");
+  const beforeOriginal = original.snapshot();
+  const beforeForeign = foreign.snapshot();
+  let rejected: unknown;
+  try {
+    await useCase.execute(WEBHOOK_HEADER, { id: "event_conflicting_reference", event: "PAYMENT_CHARGEBACK_REQUESTED",
+      payment: { id: "pay_original", externalReference: foreign.id } }, TEST_ASAAS_TOKEN);
+  } catch (error) { rejected = error; }
+  // Authentication alone is not proof of a consistent persisted binding.
+  assert.deepEqual({
+    originalStatus: (await payments.getIntentById(beforeOriginal.merchantId, original.id))!.snapshot().status,
+    foreignStatus: (await payments.getIntentById(beforeForeign.merchantId, foreign.id))!.snapshot().status,
+    marketplaceCalls: marketplace.calls.length,
+    statusChanges: checkout.statuses.length,
+    reservations: payments.reservations.length,
+  }, { originalStatus: "approved", foreignStatus: "approved", marketplaceCalls: 0, statusChanges: 0, reservations: 0 });
+  assert.ok(rejected instanceof Error, "Contradictory chargeback identities must be rejected");
+  assert.deepEqual((await payments.getIntentById(beforeOriginal.merchantId, original.id))!.snapshot(), beforeOriginal);
+  assert.deepEqual((await payments.getIntentById(beforeForeign.merchantId, foreign.id))!.snapshot(), beforeForeign);
+});
+
+function isAsaasIdentityRejection(error: unknown): boolean {
+  return error instanceof BadRequestException && error.getStatus() === 400 &&
+    ["asaas_webhook_payment_identity_missing", "asaas_webhook_payment_identity_mismatch"].includes(error.message);
+}
+
+type AsaasIdentityFixture = ReturnType<typeof asaasChargebackFixture>;
+
+async function assertAsaasFinancialEffectsAbsent(fixture: AsaasIdentityFixture, snapshots: ReturnType<PaymentIntentEntity["snapshot"]>[]) {
+  assert.equal(fixture.payments.reservations.length, 0);
+  assert.equal(fixture.payments.capturedEvents.length, 0);
+  assert.deepEqual(fixture.checkout.statuses, []);
+  assert.deepEqual(fixture.checkout.approved, []);
+  assert.deepEqual(fixture.checkout.failures, []);
+  assert.deepEqual(fixture.marketplace.calls, []);
+  assert.deepEqual(fixture.holds, []);
+  for (const snapshot of snapshots) {
+    assert.deepEqual((await fixture.payments.getIntentById(snapshot.merchantId, snapshot.id))!.snapshot(), snapshot);
+  }
+}
+
+const identityProtectedEvents = ["PAYMENT_CHARGEBACK_REQUESTED", "PAYMENT_CHARGEBACK_DISPUTE",
+  "PAYMENT_AWAITING_CHARGEBACK_REVERSAL", "PAYMENT_REFUNDED"] as const;
+
+for (const event of identityProtectedEvents) {
+  for (const sameMerchant of [false, true]) {
+    test(`${event} rejects a different ${sameMerchant ? "same-merchant" : "foreign-merchant"} intent before financial effects`, async () => {
+      const fixture = asaasChargebackFixture();
+      const original = await approvedChargebackPayment(fixture.payments, "merchant_original", "pay_original");
+      // Distinct checkout/idempotency keys even when both payments share a tenant.
+      const target = PaymentIntentEntity.create({ merchantId: sameMerchant ? "merchant_original" : "merchant_foreign",
+        sessionId: "checkout_target", idempotencyKey: "target", amountCents: 10_000, currency: "BRL", method: "card" });
+      target.markRequiresAction({ providerPaymentId: "pay_target" });
+      target.markApproved({ providerPaymentId: "pay_target", approvedAmountCents: 10_000 });
+      if (event !== "PAYMENT_CHARGEBACK_REQUESTED") target.markChargebacked();
+      await fixture.payments.saveIntent({ intent: target });
+      const snapshots = [original.snapshot(), target.snapshot()];
+      await assert.rejects(() => fixture.useCase.execute(WEBHOOK_HEADER, { id: "event_conflict", event,
+        payment: { id: "pay_original", externalReference: target.id } }, TEST_ASAAS_TOKEN), isAsaasIdentityRejection);
+      await assertAsaasFinancialEffectsAbsent(fixture, snapshots);
+      assert.deepEqual(fixture.anomalies, [{ provider: "asaas", kind: "payment_identity_mismatch" }]);
+    });
+  }
+
+  for (const invalid of ["missing_payment", "missing_id", "blank_id", "unknown_id", "missing_reference", "blank_reference", "unknown_reference"] as const) {
+    test(`${event} rejects ${invalid} before reserving an event`, async () => {
+      const fixture = asaasChargebackFixture();
+      const intent = await approvedChargebackPayment(fixture.payments, "merchant_input", "pay_input");
+      if (event !== "PAYMENT_CHARGEBACK_REQUESTED") { intent.markChargebacked(); await fixture.payments.saveIntent({ intent }); }
+      const snapshot = intent.snapshot();
+      const payment = invalid === "missing_payment" ? undefined : {
+        id: invalid === "missing_id" ? undefined : invalid === "blank_id" ? "   " : invalid === "unknown_id" ? "pay_unknown" : "pay_input",
+        externalReference: invalid === "missing_reference" ? undefined : invalid === "blank_reference" ? "   " : invalid === "unknown_reference" ? "pay_int_unknown" : intent.id,
+      };
+      await assert.rejects(() => fixture.useCase.execute(WEBHOOK_HEADER, { id: "event_invalid", event, payment }, TEST_ASAAS_TOKEN), isAsaasIdentityRejection);
+      await assertAsaasFinancialEffectsAbsent(fixture, [snapshot]);
+      assert.equal(fixture.anomalies.length, 1);
+    });
+  }
+}
+
+test("Asaas identity rejection preserves the event id for a corrected redelivery", async () => {
+  const fixture = asaasChargebackFixture();
+  const original = await approvedChargebackPayment(fixture.payments, "merchant_original", "pay_original");
+  const foreign = await approvedChargebackPayment(fixture.payments, "merchant_foreign", "pay_foreign");
+  const foreignBefore = foreign.snapshot();
+  const invalid = { id: "event_recoverable", event: "PAYMENT_CHARGEBACK_REQUESTED", payment: { id: "pay_original", externalReference: foreign.id } };
+  for (let attempt = 0; attempt < 2; attempt++) {
+    await assert.rejects(() => fixture.useCase.execute(WEBHOOK_HEADER, invalid, TEST_ASAAS_TOKEN), isAsaasIdentityRejection);
+  }
+  await assertAsaasFinancialEffectsAbsent(fixture, [original.snapshot(), foreignBefore]);
+  const corrected = { ...invalid, payment: { id: "pay_original", externalReference: original.id } };
+  assert.deepEqual(await fixture.useCase.execute(WEBHOOK_HEADER, corrected, TEST_ASAAS_TOKEN), { outcome: "processed", effect: "chargeback_pending" });
+  const after = (await fixture.payments.getIntentById(original.snapshot().merchantId, original.id))!.snapshot();
+  assert.deepEqual(await fixture.useCase.execute(WEBHOOK_HEADER, corrected, TEST_ASAAS_TOKEN), { outcome: "duplicate" });
+  assert.deepEqual((await fixture.payments.getIntentById(original.snapshot().merchantId, original.id))!.snapshot(), after);
+  assert.deepEqual((await fixture.payments.getIntentById(foreignBefore.merchantId, foreign.id))!.snapshot(), foreignBefore);
+  assert.equal(await fixture.payments.hasProcessedProviderEvent({ provider: "asaas", merchantId: foreignBefore.merchantId, eventId: invalid.id }), false);
+  assert.deepEqual(fixture.holds, [{ kind: "chargeback", intentId: original.id }]);
+  assert.equal(fixture.marketplace.calls.length, 1);
+  assert.equal(fixture.checkout.statuses.length, 1);
+});
+
+test("Asaas identity guard accepts historical matching binding through won and replay", async () => {
+  const fixture = asaasChargebackFixture();
+  const intent = await approvedChargebackPayment(fixture.payments, "merchant_legacy", "pay_legacy");
+  assert.equal(intent.snapshot().creation, undefined);
+  for (const [index, event] of identityProtectedEvents.slice(0, 3).entries()) {
+    const body = { id: `event_legacy_${index}`, event, payment: { id: " pay_legacy ", externalReference: ` ${intent.id} ` } };
+    assert.deepEqual(await fixture.useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN), { outcome: "processed", effect: ["chargeback_pending", "chargeback_disputed", "chargeback_won"][index] });
+    assert.deepEqual(await fixture.useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN), { outcome: "duplicate" });
+  }
+  assert.equal((await fixture.payments.getIntentById(intent.snapshot().merchantId, intent.id))!.status, "chargeback_won");
+  assert.equal(fixture.marketplace.calls.length, 1);
+  assert.deepEqual(fixture.holds, [{ kind: "chargeback", intentId: intent.id }]);
+  assert.deepEqual(fixture.anomalies, []);
+});
+
+test("Asaas ordinary refund requires consistent identity and preserves one refund hold", async () => {
+  const fixture = asaasChargebackFixture();
+  const intent = await approvedChargebackPayment(fixture.payments, "merchant_refund", "pay_refund");
+  const body = { id: "event_refund", event: "PAYMENT_REFUNDED", payment: { id: "pay_refund", externalReference: intent.id } };
+  assert.deepEqual(await fixture.useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN), { outcome: "processed", effect: "payment_refunded" });
+  assert.deepEqual(await fixture.useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN), { outcome: "duplicate" });
+  assert.deepEqual(fixture.holds, [{ kind: "refund", intentId: intent.id }]);
+  assert.deepEqual(fixture.marketplace.calls, []);
+  assert.equal((await fixture.payments.getIntentById(intent.snapshot().merchantId, intent.id))!.status, "refunded");
+});
+
+test("Asaas validates identity even when the event id already has a success marker", async () => {
+  const fixture = asaasChargebackFixture();
+  const intent = await approvedChargebackPayment(fixture.payments, "merchant_replay", "pay_replay");
+  const body = { id: "event_processed", event: "PAYMENT_CHARGEBACK_REQUESTED", payment: { id: "pay_replay", externalReference: intent.id } };
+  await fixture.useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN);
+  const before = (await fixture.payments.getIntentById("merchant_replay", intent.id))!.snapshot();
+  await assert.rejects(() => fixture.useCase.execute(WEBHOOK_HEADER, { ...body, payment: { ...body.payment, id: "pay_unknown" } }, TEST_ASAAS_TOKEN), isAsaasIdentityRejection);
+  assert.equal(fixture.payments.reservations.length, 1);
+  assert.equal(fixture.holds.length, 1);
+  assert.equal(fixture.marketplace.calls.length, 1);
+  assert.equal(fixture.checkout.statuses.length, 1);
+  assert.deepEqual((await fixture.payments.getIntentById("merchant_replay", intent.id))!.snapshot(), before);
+});
+
+test("Asaas identity anomaly emits bounded labels and no rejected identifiers or token", async (t) => {
+  const warnings: unknown[] = [];
+  t.mock.method(Logger.prototype, "warn", (message: unknown) => { warnings.push(message); });
+  const fixture = asaasChargebackFixture();
+  const intent = await approvedChargebackPayment(fixture.payments, "sensitive_merchant", "sensitive_payment");
+  await assert.rejects(() => fixture.useCase.execute(WEBHOOK_HEADER, { id: "sensitive_event", event: "PAYMENT_CHARGEBACK_REQUESTED",
+    payment: { id: "sensitive_payment_mismatch", externalReference: intent.id } }, TEST_ASAAS_TOKEN), isAsaasIdentityRejection);
+  assert.deepEqual(fixture.anomalies, [{ provider: "asaas", kind: "payment_identity_mismatch" }]);
+  assert.equal(warnings.length, 1);
+  const log = String(warnings[0]);
+  assert.ok(log.startsWith("asaas.webhook.rejected reason=payment_identity_mismatch correlation="));
+  for (const secret of [intent.id, "sensitive_merchant", "sensitive_payment", "sensitive_event", WEBHOOK_HEADER]) {
+    assert.equal(log.includes(secret), false);
+  }
+});
+
+test("Asaas rejects historical intents without a persisted provider payment id", async () => {
+  const fixture = asaasChargebackFixture();
+  const intent = PaymentIntentEntity.create({ merchantId: "merchant_unbound", sessionId: "checkout_unbound", idempotencyKey: "unbound",
+    amountCents: 10_000, currency: "BRL", method: "card" });
+  await fixture.payments.saveIntent({ intent });
+  const snapshot = intent.snapshot();
+  await assert.rejects(() => fixture.useCase.execute(WEBHOOK_HEADER, { id: "event_unbound", event: "PAYMENT_CHARGEBACK_REQUESTED",
+    payment: { id: "pay_unverified", externalReference: intent.id } }, TEST_ASAAS_TOKEN), isAsaasIdentityRejection);
+  await assertAsaasFinancialEffectsAbsent(fixture, [snapshot]);
+});
+
+for (const provider of ["asaas", "stripe", "mercadopago"] as const) {
+  test(`Asaas identity guard ${provider === "asaas" ? "accepts" : "rejects"} explicit ${provider} creation metadata`, async () => {
+    const fixture = asaasChargebackFixture();
+    const intent = PaymentIntentEntity.create({ merchantId: "merchant_provider", sessionId: "checkout_provider", idempotencyKey: "provider",
+      amountCents: 10_000, currency: "BRL", method: "card" });
+    intent.prepareCreation({ merchantId: intent.snapshot().merchantId, sessionId: "checkout_provider", intentId: intent.id,
+      amountCents: 10_000, currency: "BRL", method: "card", provider });
+    intent.markRequiresAction({ providerPaymentId: "pay_provider" });
+    intent.markApproved({ providerPaymentId: "pay_provider", approvedAmountCents: 10_000 });
+    await fixture.payments.saveIntent({ intent });
+    const snapshot = intent.snapshot();
+    const execute = () => fixture.useCase.execute(WEBHOOK_HEADER, { id: "event_provider", event: "PAYMENT_CHARGEBACK_REQUESTED",
+      payment: { id: "pay_provider", externalReference: intent.id } }, TEST_ASAAS_TOKEN);
+    if (provider === "asaas") assert.deepEqual(await execute(), { outcome: "processed", effect: "chargeback_pending" });
+    else { await assert.rejects(execute, isAsaasIdentityRejection); await assertAsaasFinancialEffectsAbsent(fixture, [snapshot]); }
+  });
+}
+
+for (const lookup of ["missing", "conflicting_merchant", "conflicting_intent", "unavailable", "throwing", "entity_missing"] as const) {
+  test(`Asaas persisted reference check handles ${lookup} lookup without unsafe fallback`, async () => {
+    const fixture = asaasChargebackFixture();
+    const intent = await approvedChargebackPayment(fixture.payments, "merchant_lookup", "pay_lookup");
+    const snapshot = intent.snapshot();
+    const body = { id: "event_lookup", event: "PAYMENT_CHARGEBACK_REQUESTED", payment: { id: "pay_lookup", externalReference: intent.id } };
+    const originalScopedRead = fixture.payments.getIntentById.bind(fixture.payments);
+    if (lookup === "missing") fixture.payments.getIntentReferenceByProviderPaymentId = async () => null;
+    if (lookup === "conflicting_merchant") fixture.payments.getIntentReferenceByProviderPaymentId = async () => ({ id: intent.id, merchantId: "merchant_other" });
+    if (lookup === "conflicting_intent") fixture.payments.getIntentReferenceByProviderPaymentId = async () => ({ id: "pay_int_other", merchantId: intent.snapshot().merchantId });
+    if (lookup === "unavailable") Object.defineProperty(fixture.payments, "getIntentReferenceByProviderPaymentId", { value: undefined });
+    if (lookup === "throwing") fixture.payments.getIntentReferenceByProviderPaymentId = async () => { throw new Error("synthetic_lookup_unavailable"); };
+    if (lookup === "entity_missing") fixture.payments.getIntentById = async () => null;
+    if (lookup === "missing" || lookup === "unavailable") {
+      // Optional global lookup is not proof; the scoped entity's binding is.
+      assert.deepEqual(await fixture.useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN), { outcome: "processed", effect: "chargeback_pending" });
+    } else {
+      await assert.rejects(() => fixture.useCase.execute(WEBHOOK_HEADER, body, TEST_ASAAS_TOKEN),
+        lookup === "throwing" ? /synthetic_lookup_unavailable/ : isAsaasIdentityRejection);
+      fixture.payments.getIntentById = originalScopedRead;
+      await assertAsaasFinancialEffectsAbsent(fixture, [snapshot]);
+    }
+  });
+}
 
 test("Asaas split events record the confirmed platform split and observed issuer balance", async () => {
   const payments = new InMemoryPaymentRepository();

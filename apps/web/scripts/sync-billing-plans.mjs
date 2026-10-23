@@ -15,7 +15,7 @@ const capacityDescription = limits => {
 const cards = Object.entries(BILLING_PLANS).map(([key,plan]) => {
   const copy = BILLING_PLAN_PRESENTATION[key];
   const limits = billingLimitHighlights(plan.limits);
-  const features = Object.entries(plan.features).filter(([,on]) => on).map(([feature]) => {
+  const features = Object.entries(plan.features).filter(([feature,on]) => on && feature !== 'marketplace').map(([feature]) => {
     if (!BILLING_FEATURE_LABELS[feature]) throw Error('Missing feature label: '+feature);
     return BILLING_FEATURE_LABELS[feature];
   });

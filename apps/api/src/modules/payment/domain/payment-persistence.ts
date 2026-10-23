@@ -1,5 +1,8 @@
 import type { PaymentIntentSnapshot } from "./payment-intent.entity.js";
 import { isDeepStrictEqual } from "node:util";
+import { assertSamePaymentCouponAuthority } from "./payment-coupon-authority.js";
+import { assertSamePaymentWidgetCheckoutAuthority } from "./payment-widget-checkout-authority.js";
+import { assertSamePaymentNormalCrossSellAuthority } from "./payment-normal-cross-sell-authority.js";
 
 // PostgreSQL JSONB reorders object keys and omits undefined properties.
 function sameJson(left: unknown, right: unknown): boolean {
@@ -12,6 +15,9 @@ export class PaymentIntentConflictError extends Error {
 }
 
 export function assertSamePaymentIdentity(current: PaymentIntentSnapshot, next: PaymentIntentSnapshot): void {
+  assertSamePaymentCouponAuthority(current, next);
+  assertSamePaymentWidgetCheckoutAuthority(current, next);
+  assertSamePaymentNormalCrossSellAuthority(current, next);
   const cancellation = current.creation?.cancellation;
   if (cancellation && (["operationId", "buyerId", "idempotencyKey", "providerPaymentId", "startedAt"] as const).some(key => cancellation[key] !== next.creation?.cancellation?.[key]) ||
       cancellation?.mutationAttemptedAt && cancellation.mutationAttemptedAt !== next.creation?.cancellation?.mutationAttemptedAt) {

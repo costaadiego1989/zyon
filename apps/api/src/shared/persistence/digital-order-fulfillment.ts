@@ -3,6 +3,7 @@ import type { Prisma } from "@prisma/client";
 import { isDigitalContentReady } from "../../modules/catalog/domain/services/product-type-validation.js";
 import { orderTotalCents, type PaymentAmountBreakdown } from "../../modules/payment/domain/payment-amount.js";
 import type { DigitalPaymentContent } from "./digital-payment-content.js";
+import { readPaymentNormalCrossSellAuthority } from "../../modules/payment/domain/payment-normal-cross-sell-authority.js";
 
 /** Called inside the completed-order transaction, before its outbox is committed. */
 export async function createDigitalOrderFulfillment(tx: Prisma.TransactionClient, orderId: string, merchantId: string): Promise<void> {
@@ -28,8 +29,13 @@ export async function createDigitalOrderFulfillment(tx: Prisma.TransactionClient
       Math.round(Number(order.orderTotal) * 100) !== orderTotalCents(payment.amountBreakdown as unknown as PaymentAmountBreakdown | undefined ?? undefined, payment.amountCents)) {
     throw new Error("digital_paid_approval_required");
   }
-  const customer = order.session.customer && typeof order.session.customer === "object" && !Array.isArray(order.session.customer)
-    ? order.session.customer as Record<string, unknown> : {};
+  // Normal approvals already froze the verified recipient. A later session edit
+  // must not redirect the paid entitlement; malformed present authority never
+  // downgrades into legacy contact resolution.
+  const authority = readPaymentNormalCrossSellAuthority(payment);
+  const customer = authority?.frozenProjection.customer ??
+    (order.session.customer && typeof order.session.customer === "object" && !Array.isArray(order.session.customer)
+      ? order.session.customer as Record<string, unknown> : {});
   for (const content of contents) {
     if (contents.filter(c => c.sku === content.sku).length !== 1) throw new Error("digital_sku_ambiguous");
     const line = lines.find(l => l.sku === content.sku);

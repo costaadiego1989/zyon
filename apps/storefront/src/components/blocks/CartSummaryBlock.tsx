@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react";
 import RuleNotices from "./RuleNotices";
+import CommercialNotices from "./CommercialNotices";
 import type { CartSummaryBlock as CartSummaryBlockType } from "@/lib/types";
 import type { ActiveOffer } from "@/lib/cart-store";
 
@@ -163,6 +164,7 @@ export default function CartSummaryBlock({
         </svg>
       </div>
     </div>
+    <CommercialNotices notices={block.data.commercialNotices} />
     <RuleNotices
       live
       notices={[

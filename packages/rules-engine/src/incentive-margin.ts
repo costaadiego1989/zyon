@@ -20,6 +20,24 @@ export function moneyCents(value: unknown): number | null {
   return Number.isSafeInteger(cents) && Math.abs(value * 100 - cents) < 0.000001 ? cents : null;
 }
 
+/** Commercial amount validation independent of optional product cost/margin.
+ * BigInt avoids authorizing a subtotal whose line sum overflowed safe cents. */
+export function cartAmountIssue(cart: Cart): "economic_input_invalid" | "cart_items_missing" | "cart_total_mismatch" | undefined {
+  if (!cart || typeof cart !== "object") return "economic_input_invalid";
+  const total = moneyCents(cart.total);
+  if (total === null) return "economic_input_invalid";
+  if (!Array.isArray(cart.items) || !cart.items.length) return "cart_items_missing";
+  let subtotal = 0n;
+  for (const item of cart.items) {
+    if (!item || !Number.isSafeInteger(item.quantity) || item.quantity <= 0) return "economic_input_invalid";
+    const price = moneyCents(item.price);
+    if (price === null) return "economic_input_invalid";
+    subtotal += BigInt(price) * BigInt(item.quantity);
+    if (subtotal > BigInt(Number.MAX_SAFE_INTEGER)) return "economic_input_invalid";
+  }
+  return subtotal === BigInt(total) ? undefined : "cart_total_mismatch";
+}
+
 /** A forecast under an explicit fee assumption, NOT measured contribution.
  * Shipping receipts and carrier expense are independent components. */
 export function assessIncentiveMargin(cart: Cart, input: {

@@ -1,6 +1,7 @@
 import { Injectable, Inject, Optional, NotFoundException, BadRequestException, ConflictException, UnprocessableEntityException } from "@nestjs/common";
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
+import { evaluateCombinedDiscount,moneyCents } from "@zyon/rules-engine";
 import { authorizeShippingDiscount } from "@zyon/shipping-engine";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../domain/ports/coupon-repository.port.js";
 import { COUPON_TRANSACTION_REPOSITORY, type CouponTransactionRepository } from "../../domain/ports/coupon-transaction-repository.port.js";
@@ -16,6 +17,12 @@ import { PrismaCouponTransactionRepository } from "../../infrastructure/reposito
 import { checkoutWithCoupon } from "../services/checkout-coupon.js";
 import { applyIncentiveCoupon } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
 import { toCheckoutSession } from "../../../checkout/infrastructure/prisma/checkout-session.mapper.js";
+import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
+import { applyStorefrontCheckoutCouponInTransaction } from "../../../../shared/persistence/storefront-coupon/checkout-application.js";
+import { NORMAL_CHECKOUT_COUPON_READER, type NormalCheckoutCouponReader } from "../../domain/ports/normal-checkout-coupon-reader.port.js";
+import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
+import { isDeepStrictEqual } from "node:util";
+import { commercialNotice } from "../../../storefront/domain/services/commercial-notice.js";
 
 export type ApplyCouponInput = {
   merchant_id: string;
@@ -43,6 +50,7 @@ export class ApplyCouponUseCase {
     @Inject(COUPON_TRANSACTION_REPOSITORY) private readonly transactions: CouponTransactionRepository,
     @Inject(DISCOUNT_RULES_ENGINE) private readonly discountEngine: DiscountRulesEnginePort,
     @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient,
+    @Optional() @Inject(NORMAL_CHECKOUT_COUPON_READER) private readonly normalReader?:NormalCheckoutCouponReader<Prisma.TransactionClient>,
   ) {}
 
   /** Checkout callers supply only scope, code and their server-read version.
@@ -62,10 +70,12 @@ export class ApplyCouponUseCase {
     if (!await tx.merchantRule.findUnique({ where: { merchantId: input.merchant_id } })) {
       throw new ConflictException("CHECKOUT_MERCHANT_RULES_UNAVAILABLE");
     }
+    await tx.$queryRaw`SELECT merchant_id FROM checkout_settings WHERE merchant_id=${input.merchant_id} FOR SHARE`;
+    await lockCheckoutSessionAnchor(tx, input.merchant_id, input.session_id);
     await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${input.merchant_id}
       AND session_id = ${input.session_id} FOR UPDATE`;
     const sessions = new PrismaCheckoutRepository(tx, true);
-    const session = await sessions.getSession(input.merchant_id, input.session_id);
+    let session = await sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
     if (!Number.isSafeInteger(input.expectedVersion) || input.expectedVersion !== session.persistenceVersion) {
       throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
@@ -77,6 +87,20 @@ export class ApplyCouponUseCase {
       throw new ConflictException("CHECKOUT_COUPON_SESSION_NOT_MUTABLE");
     }
     const code = input.code.toUpperCase().trim();
+    if (session.cart.source === "storefront") {
+      const scoped = new ApplyCouponUseCase(new PrismaCouponRepository(tx), new PrismaCouponTransactionRepository(tx, true), this.discountEngine);
+      return applyStorefrontCheckoutCouponInTransaction(tx, { merchantId: input.merchant_id, checkoutSessionId: input.session_id,
+        code, expectedVersion: input.expectedVersion! }, command => scoped.execute(command),this.normalReader);
+    }
+    const normal=session.cart.items.some(item=>item.crossSellIntent!==undefined);
+    if(normal){
+      if(!this.normalReader)throw new ConflictException("cross_sell_quote_review_required");
+      const canonical=await this.normalReader(tx,{merchantId:input.merchant_id,sessionId:input.session_id});
+      if(canonical.merchantId!==session.merchantId||canonical.sessionId!==session.sessionId||canonical.globalUserId!==session.globalUserId
+        ||canonical.persistenceVersion!==session.persistenceVersion||paymentCartFingerprint(canonical)!==paymentCartFingerprint(session)
+        ||!isDeepStrictEqual(canonical.cart.discountBudget,session.cart.discountBudget))throw new ConflictException("cross_sell_quote_review_required");
+      session=canonical;
+    }
     await tx.$queryRaw`SELECT id FROM coupons WHERE merchant_id = ${input.merchant_id} AND code = ${code} FOR UPDATE`;
     const coupons = new PrismaCouponRepository(tx);
     const coupon = await coupons.findByCode(input.merchant_id, code);
@@ -132,6 +156,12 @@ export class ApplyCouponUseCase {
     });
     const next = checkoutWithCoupon(session, result);
     await sessions.saveSession(next);
+    if(normal){
+      const canonical=await this.normalReader!(tx,{merchantId:input.merchant_id,sessionId:input.session_id});
+      if(next.persistenceVersion!==input.expectedVersion!+1||canonical.persistenceVersion!==next.persistenceVersion
+        ||paymentCartFingerprint(canonical)!==paymentCartFingerprint(next))
+        throw new ConflictException("cross_sell_quote_review_required");
+    }
     if (!await tx.checkoutEvent.findFirst({ where: { merchantId: input.merchant_id,
       sessionId: input.session_id, eventName: "coupon_applied" }, select: { id: true } })) {
       await tx.checkoutEvent.create({ data: { merchantId: input.merchant_id,
@@ -162,6 +192,7 @@ export class ApplyCouponUseCase {
     const isShippingCoupon = snap.discount_type.startsWith("shipping_");
     const rawDiscount = calculateCouponDiscount(snap, input.cart.total);
     let discountApplied: number;
+    let commercialNotices:Cart["commercialNotices"]|undefined;
     let shippingDiscountApplied = 0;
     if (isShippingCoupon) {
       const shippingPrice = input.shipping?.customerPrice;
@@ -195,11 +226,25 @@ export class ApplyCouponUseCase {
       if (!authorization.approved) {
         throw new UnprocessableEntityException(`COUPON_DISCOUNT_REJECTED:${authorization.reason}`);
       }
-      discountApplied = snap.discount_type === "percent"
+      if(authorization.authorizedDiscountCents!==undefined&&(!Number.isSafeInteger(authorization.authorizedDiscountCents)
+        ||authorization.authorizedDiscountCents<=0||authorization.authorizedDiscountCents>(moneyCents(input.cart.total)??-1)))
+        throw new UnprocessableEntityException("COUPON_DISCOUNT_REJECTED:economic_input_invalid");
+      discountApplied = authorization.authorizedDiscountCents!==undefined?authorization.authorizedDiscountCents/100:snap.discount_type === "percent"
         ? calculateCouponDiscount({ ...snap, discount_value: authorization.authorizedDiscount }, input.cart.total)
         : Math.min(authorization.authorizedDiscount, input.cart.total);
     }
 
+    // Last monetary check before ANY redemption/reservation. The adapter's
+    // percentage round trip must never round a contextual grant above its cap.
+    if (!isShippingCoupon && input.cart.discountBudget) {
+      const targetCents = Math.round(discountApplied * 100);
+      const combined = evaluateCombinedDiscount(input.cart, input.merchantRules, targetCents);
+      if (combined.kind !== "authorized" || combined.cartDiscountCents <= 0) {
+        throw new UnprocessableEntityException(`COUPON_DISCOUNT_REJECTED:${combined.reason}`);
+      }
+      discountApplied = combined.cartDiscountCents / 100;
+      if(combined.remainingDiscountCents===0&&combined.totalDiscountCents>0)commercialNotices=[commercialNotice("discount_limit_reached")];
+    }
     const redemption = CouponRedemptionEntity.create({
       coupon_id: coupon.id,
       merchant_id: input.merchant_id,
@@ -233,6 +278,7 @@ export class ApplyCouponUseCase {
       discount_applied: discountApplied,
       shipping_discount_applied: shippingDiscountApplied,
       coupon: snap,
+      ...(commercialNotices?{commercial_notices:commercialNotices}:{}),
     };
   }
 }

@@ -6,6 +6,7 @@ import { ProductVariantLookupAdapter } from "../../checkout/infrastructure/adapt
 import { UpdateCartUseCase } from "../../checkout/application/use-cases/update-cart.use-case.js";
 import { ApplyCouponUseCase } from "../../coupons/application/use-cases/apply-coupon.use-case.js";
 import { applyAcpSessionPatch, type UpdateSessionBody } from "./acp-checkout-patch.js";
+import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
 
 @Injectable()
 export class AcpCheckoutUpdateService {
@@ -23,6 +24,7 @@ export class AcpCheckoutUpdateService {
       // read/write below uses this transaction, including catalogue and events.
       await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchantId} FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id = ${merchantId} FOR UPDATE`;
+      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
         AND session_id = ${sessionId} FOR UPDATE`;
       const sessions = new PrismaCheckoutRepository(tx, true);

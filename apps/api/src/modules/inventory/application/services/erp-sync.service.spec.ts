@@ -4,10 +4,11 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { ErpSyncService } from "./erp-sync.service.js";
 import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
+import type { AppliedInventorySale } from "../../domain/events/sale-completed.event.js";
 
-const applied = {
+const applied: AppliedInventorySale = {
   receiptId: "receipt_a",
-  event: { merchantId: "merchant_a", orderId: "order_a", items: [{ sku: "SKU", quantity: 2, productType: "physical" }], totalCents: 0, timestamp: "2026-09-13T00:00:00.000Z" },
+  event: { merchantId: "merchant_a", orderId: "order_a", items: [{ sku: "SKU", variantId: "variant_a", productType: "physical", quantity: 2 }], totalCents: 0, timestamp: "2026-09-13T00:00:00.000Z" },
   stockDecrementedCount: 1,
   idempotent: false,
   items: [{ sku: "SKU", itemId: "item_a", locationId: "warehouse_a", quantity: 2, remainingQuantity: 7 }],
@@ -16,10 +17,12 @@ const applied = {
 test("ERP sale work is persisted once per connection before any remote request", async () => {
   const jobs: any[] = [];
   let creates = 0;
+  const catalogReads: unknown[] = [];
+  const connectionReads: unknown[] = [];
   const prisma = {
-    productVariant: { findMany: async () => [{ id: "variant_a", sku: "SKU" }] },
+    productVariant: { findMany: async (input: unknown) => { catalogReads.push(input); return [{ id: "variant_a", sku: "SKU" }]; } },
     erpConnection: {
-      findMany: async () => [{ id: "connection_a" }],
+      findMany: async (input: unknown) => { connectionReads.push(input); return [{ id: "connection_a" }]; },
     },
     erpSyncJob: {
       create: async ({ data }: any) => {
@@ -46,7 +49,37 @@ test("ERP sale work is persisted once per connection before any remote request",
   assert.equal(jobs[0].kind, "sale");
   assert.equal(jobs[0].dedupeKey, "sale:connection_a:receipt_a");
   assert.deepEqual(jobs[0].payload, { receiptId: "receipt_a" });
+  assert.equal(jobs[0].merchantId, "merchant_a");
+  assert.equal(jobs[0].connectionId, "connection_a");
+  assert.deepEqual(catalogReads, Array.from({ length: 2 }, () => ({ where: {
+    sku: { in: ["SKU"] }, product: { merchantId: "merchant_a", type: "physical" },
+  }, select: { id: true, sku: true } })));
+  assert.equal(connectionReads.length, 2);
+  for (const request of connectionReads) {
+    const where = (request as { where: Record<string, unknown> }).where;
+    assert.equal(where.merchantId, "merchant_a");
+    assert.equal(where.status, "connected");
+    assert.deepEqual(where.directionMode, { in: ["bidirectional", "zyon_source_of_truth"] });
+    assert.deepEqual(where.productMappings, { some: { merchantId: "merchant_a", sku: { in: ["SKU"] } } });
+  }
 });
+
+for (const kind of ["empty", "digital", "service", "food", "unknown_variant", "spoofed_variant"] as const) {
+  test(`ERP sale excludes ${kind} lines before connection lookup or queue writes`, async () => {
+    const catalogReads: unknown[] = [];
+    const service = new ErpSyncService({
+      productVariant: { findMany: async (input: unknown) => { catalogReads.push(input); return kind === "spoofed_variant" ? [{ id: "variant_other", sku: "SKU" }] : []; } },
+      erpConnection: { findMany: async () => assert.fail("Ineligible lines cannot query ERP connections") },
+      erpSyncJob: { create: async () => assert.fail("Ineligible lines cannot persist outbound ERP work") },
+    } as never);
+    const sale: AppliedInventorySale = { ...applied, event: { ...applied.event,
+      items: kind === "empty" ? [] : [{ sku: "SKU", quantity: 2, variantId: "variant_a",
+        productType: kind === "digital" || kind === "service" || kind === "food" ? kind : "physical" }],
+    } };
+    await service.enqueueSale(sale);
+    assert.equal(catalogReads.length, kind === "unknown_variant" || kind === "spoofed_variant" ? 1 : 0);
+  });
+}
 
 test("expired ERP leases return to the durable queue after a worker crash", async () => {
   const calls: any[] = [];

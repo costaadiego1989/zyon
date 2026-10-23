@@ -11,6 +11,9 @@ import type {
   MerchantRules,
   StorePeriod
 } from "@zyon/shared-types";
+import type { CheckoutCouponOrderAuthority } from "../services/checkout-coupon-binding.js";
+import type { WidgetCheckoutPaymentAuthority } from "../../../payment/domain/widget-checkout-payment-authority.schemas.js";
+import type { NormalCheckoutPaymentAuthority } from "../../../payment/domain/normal-checkout-payment-authority.schemas.js";
 
 // Facade — delegates to split ports. Remove after Wave 2 migration.
 /** @deprecated Use CHECKOUT_SESSION_REPOSITORY, OFFER_REPOSITORY, ORDER_REPOSITORY, OUTBOX_REPOSITORY, MERCHANT_RULES_REPOSITORY, BUYER_IDENTITY_REPOSITORY, or DASHBOARD_READ_MODEL instead. */
@@ -20,6 +23,12 @@ export type MaybePromise<T> = T | Promise<T>;
 
 /** @deprecated God port — splitting into focused ports per Wave 2. */
 export interface CheckoutRepository {
+  assertNormalCrossSellPaymentOrderAuthority?(merchantId:string,sessionId:string,authority:NormalCheckoutPaymentAuthority,
+    paymentIntentId:string,providerPaymentId:string):MaybePromise<void>;
+  assertPublicCompletionAllowed?(merchantId: string, sessionId: string): MaybePromise<void>;
+  assertCouponOrderAuthority?(merchantId: string, sessionId: string, authority?: CheckoutCouponOrderAuthority, paymentIntentId?: string): MaybePromise<void>;
+  assertWidgetPaymentOrderAuthority?(merchantId: string, sessionId: string, authority: WidgetCheckoutPaymentAuthority,
+    paymentIntentId: string, providerPaymentId: string): MaybePromise<void>;
   transaction?<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T>;
   /** @deprecated Use MerchantRulesRepository.getRules */
   getRules(merchantId: string): MaybePromise<MerchantRules>;

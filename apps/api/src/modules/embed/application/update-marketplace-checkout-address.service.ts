@@ -3,31 +3,17 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { isDeepStrictEqual } from "node:util";
 import type { CustomerAddress } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
 import { MetricsService } from "../../../shared/observability/metrics.service.js";
 import { hasMarketplaceCheckout } from "../../checkout/infrastructure/marketplace-checkout-scope.js";
 import { PrismaCheckoutRepository } from "../../checkout/infrastructure/prisma/prisma-checkout.repository.js";
+import { checkoutAddressRegistrationSchema, checkoutExplicitAddressSchema } from "../../checkout/domain/services/checkout-explicit-address.schema.js";
 
 type Address = Required<CustomerAddress>;
-const states = new Set("AC AL AP AM BA CE DF ES GO MA MT MS MG PA PB PR PE PI RJ RN RS RO RR SC SP SE TO".split(" "));
-const object = (value: unknown): value is Record<string, unknown> => value !== null && typeof value === "object" &&
-  !Array.isArray(value) && [Object.prototype, null].includes(Object.getPrototypeOf(value));
 function address(value: unknown): Address {
-  if (!object(value) || Object.keys(value).some(key => !["zip", "street", "number", "complement", "neighborhood", "city", "state"].includes(key))) {
-    throw new BadRequestException("marketplace_address_invalid");
-  }
-  const text = (key: string, max: number, optional = false): string => {
-    const raw = value[key] ?? (optional ? "" : undefined);
-    if (typeof raw !== "string" || /[\u0000-\u001f\u007f]/.test(raw)) throw new BadRequestException("marketplace_address_invalid");
-    const normalized = raw.trim();
-    if ((!optional && !normalized) || normalized.length > max) throw new BadRequestException("marketplace_address_invalid");
-    return normalized;
-  };
-  const zip = text("zip", 9), state = text("state", 2).toUpperCase();
-  if (!/^\d{5}-?\d{3}$/.test(zip) || /^0{5}-?0{3}$/.test(zip) || !states.has(state)) {
-    throw new BadRequestException("marketplace_address_invalid");
-  }
-  return { zip: zip.replace("-", ""), street: text("street", 200), number: text("number", 32),
-    complement: text("complement", 160, true), neighborhood: text("neighborhood", 120), city: text("city", 120), state };
+  const parsed = checkoutExplicitAddressSchema.safeParse(value);
+  if (!parsed.success) throw new BadRequestException("marketplace_address_invalid");
+  return parsed.data;
 }
 
 export interface UpdateMarketplaceCheckoutAddressResponse {
@@ -50,8 +36,10 @@ export class UpdateMarketplaceCheckoutAddressService {
       const normalized = address(input.address);
       if (!input.merchantId?.trim() || !input.sessionId?.trim()) throw new BadRequestException("marketplace_address_invalid");
       const result = await this.prisma.$transaction(async tx => {
-        // Shares the first lock with shipping selection, generic session writes,
-        // funding admission and the first provider submission.
+        // The nested generic save can acquire the merchant lock when incentives
+        // are enabled. Acquire it BEFORE the session anchor/row, never after it.
+        await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${input.merchantId} FOR UPDATE`;
+        await lockCheckoutSessionAnchor(tx, input.merchantId, input.sessionId);
         await tx.$queryRaw`SELECT session_id FROM checkout_sessions WHERE merchant_id = ${input.merchantId}
           AND session_id = ${input.sessionId} FOR UPDATE`;
         const repository = new PrismaCheckoutRepository(tx, true);
@@ -63,8 +51,7 @@ export class UpdateMarketplaceCheckoutAddressService {
           throw new ConflictException("marketplace_address_not_available");
         }
         const customer = current.customer;
-        if (!customer?.fullName?.trim() || !customer.email?.trim() || !customer.phone?.replace(/\D/g, "") ||
-          customer.cpf?.replace(/\D/g, "").length !== 11) throw new BadRequestException("customer_registration_required");
+        if (!customer || !checkoutAddressRegistrationSchema.safeParse(customer).success) throw new BadRequestException("customer_registration_required");
         let previous: Address | undefined;
         try { previous = address(customer.address); } catch { /* incomplete legacy address */ }
         if (previous && isDeepStrictEqual(previous, normalized)) {

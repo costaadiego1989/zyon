@@ -9,6 +9,7 @@ import { UsageMeters, type UsageMeter } from "./components/UsageMeters.js";
 import { PlanCard } from "./components/PlanCard.js";
 import { BillingTerms } from "./components/BillingPlanDetails.js";
 import "./billing-plans-page.css";
+import "../onboarding-wizard/steps/signup-plans-modern.css";
 
 
 
@@ -140,7 +141,7 @@ export function BillingPlansPage() {
             <path d="M12 2L2 7l10 5 10-5-10-5z" /><path d="M2 17l10 5 10-5" /><path d="M2 12l10 5 10-5" />
           </svg>
           <div style={{ font: "500 12.5px var(--font-sans)", color: "var(--color-text)" }}>
-            Plano Free — o badge <b>"Powered by Zyon"</b> é exibido no checkout. Módulos avançados (Voice, Crypto, A/B Tests, Marketplace) não estão disponíveis. Faça upgrade para desbloquear.
+            Plano Free — o badge <b>"Powered by Zyon"</b> é exibido no checkout. Módulos avançados (Voice, Crypto, A/B Tests) não estão disponíveis. Faça upgrade para desbloquear.
           </div>
         </div>
       )}
@@ -171,7 +172,7 @@ export function BillingPlansPage() {
       </div>
 
       {/* Plan cards */}
-      <section className="billing-plans__plans-section">
+      <section className="billing-plans__plans-section plan-selection billing-plans__catalog">
         <div
           style={{
             font: "600 10.5px var(--font-mono)",

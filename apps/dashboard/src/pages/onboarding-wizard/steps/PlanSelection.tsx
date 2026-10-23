@@ -9,7 +9,8 @@ import { ArrowRight, CheckCircle2, LoaderCircle, ShieldCheck } from "lucide-reac
 import { Button } from "../../../components/Button.js";
 import { toPlanDef, selectedBillingOffer, billingMoney } from "../../billing-plans/plan-catalog.js";
 import type { BillingCycle } from "@zyon/shared-types";
-import { BillingPlanDetails, BillingTerms } from "../../billing-plans/components/BillingPlanDetails.js";
+import { BillingTerms } from "../../billing-plans/components/BillingPlanDetails.js";
+import { PlanTile } from "../../billing-plans/components/PlanTile.js";
 import { useBillingCycle } from "../../billing-plans/useBillingCycle.js";
 import { useAutomaticBillingPromotions } from "../../billing-plans/useAutomaticBillingPromotions.js";
 import { promotionalBillingPrice } from "@zyon/shared-types";
@@ -146,8 +147,7 @@ export function PlanSelection({ merchantName, initialPlan, requirePaidPlan = fal
 
 function SignupPlan({ plan, billingCycle, selected, onSelect }: { plan: PlanDef; billingCycle: BillingCycle; selected: boolean; onSelect: () => void }) {
   const offer = selectedBillingOffer(plan, billingCycle);
-  return <article data-plan-key={plan.key} className={`signup-plan${plan.recommended ? " signup-plan--featured" : ""}${selected ? " signup-plan--selected" : ""}`}>
-    <BillingPlanDetails plan={plan} billingCycle={billingCycle} choice={<input type="radio" name="signup-plan" value={plan.key} checked={selected} disabled={!offer} onChange={onSelect} aria-label={`Selecionar ${plan.name}`} />} />
+  return <PlanTile plan={plan} billingCycle={billingCycle} selected={selected} choice={<input type="radio" name="signup-plan" value={plan.key} checked={selected} disabled={!offer} onChange={onSelect} aria-label={`Selecionar ${plan.name}`} />}>
     <button type="button" className="signup-plan__select" disabled={!offer} onClick={onSelect}>{selected ? <><CheckCircle2 size={16} /> Plano selecionado</> : <>Escolher {plan.name}<ArrowRight size={16} /></>}</button>
-  </article>;
+  </PlanTile>;
 }

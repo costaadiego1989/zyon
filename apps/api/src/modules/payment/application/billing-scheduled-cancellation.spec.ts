@@ -11,10 +11,11 @@ import { CancelSubscriptionUseCase } from "./payment-platform/billing/cancel-sub
 import { HandleAsaasBillingWebhookUseCase } from "./payment-platform/billing/handle-asaas-billing-webhook.use-case.js";
 import { ReconcileScheduledSubscriptionCancellationsUseCase } from "./payment-platform/billing/reconcile-scheduled-subscription-cancellations.use-case.js";
 
-test("scheduled cancellation stops recurrence now and deletes it only after the paid period", async () => {
+test("scheduled cancellation stops recurrence now and deletes it only after the paid period", async (t) => {
   const repository = new InMemoryPaymentPlatformRepository();
   const provider = new StubBillingProvider();
   const now = new Date("2026-09-11T12:00:00.000Z");
+  t.mock.timers.enable({ apis: ["Date"], now });
   const periodEnd = new Date("2026-09-18T12:00:00.000Z");
   await repository.saveBilling({
     merchantId: "merchant_scheduled",
@@ -35,12 +36,27 @@ test("scheduled cancellation stops recurrence now and deletes it only after the 
   assert.ok(scheduled?.providerCancellationScheduledAt);
   assert.deepEqual(provider.inactivated, ["sub_scheduled"]);
   assert.deepEqual(provider.cancelled, []);
+  assert.equal(scheduled?.merchantId, "merchant_scheduled");
+  assert.equal(scheduled?.asaasSubscriptionId, "sub_scheduled");
+  assert.equal(scheduled?.currentPeriodEnd, periodEnd.toISOString());
+  assert.equal(scheduled?.providerCancellationScheduledAt, now.toISOString());
+
+  const repeated = await cancellation.execute({ merchantId: "merchant_scheduled" });
+  assert.deepEqual(repeated, scheduled);
+  assert.deepEqual(provider.inactivated, ["sub_scheduled"]);
+  assert.deepEqual(provider.cancelled, []);
 
   const reconcile = new ReconcileScheduledSubscriptionCancellationsUseCase(repository, provider);
   assert.deepEqual(await reconcile.execute({ now }), { suspended: 0, finalized: 0, failed: 0 });
+  assert.deepEqual(
+    await reconcile.execute({ now: new Date(periodEnd.getTime() - 1) }),
+    { suspended: 0, finalized: 0, failed: 0 },
+  );
+  assert.equal((await repository.getBilling("merchant_scheduled"))?.status, "active");
+  assert.deepEqual(provider.cancelled, []);
 
   assert.deepEqual(
-    await reconcile.execute({ now: new Date(periodEnd.getTime() + 1) }),
+    await reconcile.execute({ now: periodEnd }),
     { suspended: 0, finalized: 1, failed: 0 },
   );
   const finalized = await repository.getBilling("merchant_scheduled");
@@ -57,6 +73,52 @@ test("scheduled cancellation stops recurrence now and deletes it only after the 
     { suspended: 0, finalized: 0, failed: 0 },
   );
   assert.deepEqual(provider.cancelled, ["sub_scheduled"]);
+});
+
+for (const expiredByMs of [0, 1]) {
+  test(`a paid period ending ${expiredByMs}ms ago is cancelled immediately without a new grace period`, async (t) => {
+    const now = new Date("2026-09-18T12:00:00.000Z");
+    t.mock.timers.enable({ apis: ["Date"], now });
+    const repository = new InMemoryPaymentPlatformRepository();
+    const provider = new StubBillingProvider();
+    await repository.saveBilling({
+      merchantId: "expired_period", provider: "asaas", planKey: "growth", status: "active",
+      asaasSubscriptionId: "sub_expired", currentPeriodEnd: new Date(now.getTime() - expiredByMs).toISOString(),
+    });
+    const cancellation = new CancelSubscriptionUseCase(repository, provider);
+    const result = await cancellation.execute({ merchantId: "expired_period" });
+    assert.equal(result?.status, "cancelled");
+    assert.equal(result?.cancelAtPeriodEnd, false);
+    assert.deepEqual(provider.inactivated, []);
+    assert.deepEqual(provider.cancelled, ["sub_expired"]);
+    assert.deepEqual(await cancellation.execute({ merchantId: "expired_period" }), result);
+    assert.deepEqual(provider.cancelled, ["sub_expired"]);
+  });
+}
+
+test("scheduled cancellation touches only the requesting merchant and leaves another active subscription unchanged", async (t) => {
+  const now = new Date("2026-09-11T12:00:00.000Z");
+  const end = "2026-09-18T12:00:00.000Z";
+  t.mock.timers.enable({ apis: ["Date"], now });
+  const repository = new InMemoryPaymentPlatformRepository();
+  const provider = new StubBillingProvider();
+  for (const merchantId of ["scheduled_a", "untouched_b"]) {
+    await repository.saveBilling({
+      merchantId, provider: "asaas", planKey: "growth", status: "active",
+      asaasSubscriptionId: `sub_${merchantId}`, currentPeriodEnd: end,
+    });
+  }
+  const beforeB = await repository.getBilling("untouched_b");
+  await new CancelSubscriptionUseCase(repository, provider).execute({ merchantId: "scheduled_a" });
+  assert.deepEqual(provider.inactivated, ["sub_scheduled_a"]);
+  assert.deepEqual(provider.cancelled, []);
+  assert.deepEqual(await repository.getBilling("untouched_b"), beforeB);
+  assert.deepEqual(await new ReconcileScheduledSubscriptionCancellationsUseCase(repository, provider).execute({ now: new Date(end) }), {
+    suspended: 0, finalized: 1, failed: 0,
+  });
+  assert.deepEqual(provider.cancelled, ["sub_scheduled_a"]);
+  assert.equal((await repository.getBilling("scheduled_a"))?.status, "cancelled");
+  assert.deepEqual(await repository.getBilling("untouched_b"), beforeB);
 });
 
 test("reconciliation resumes a cancellation recorded before provider suspension", async () => {

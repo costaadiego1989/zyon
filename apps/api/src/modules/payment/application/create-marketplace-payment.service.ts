@@ -45,6 +45,7 @@ export class CreateMarketplacePaymentService {
     if (!session) throw new NotFoundException("checkout_session_not_found");
     const existing = await this.payments.getByIdempotency(merchantId, sessionId, idempotencyKey);
     if (existing) return this.resume(existing, body, session, publiclyAdmitted);
+    await this.checkout.assertCouponBindingCommandAllowed?.(merchantId, sessionId);
     if (publiclyAdmitted) this.publicAdmission!.assertRequest(merchantId, body.method);
     if (!session.shipping) throw new BadRequestException("shipping_method_required_before_payment");
     await this.orderQuota.assertCanAcceptNewSales(merchantId);

@@ -11,15 +11,16 @@ import { CartPromoResolutionService } from "../../../checkout/application/servic
 import { createStartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.fixture.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { UpdateCartUseCase } from "../../../checkout/application/use-cases/update-cart.use-case.js";
+import { merchantRules } from "../../../checkout/__tests__/checkout-test-fixtures.js";
 
 const origin = "https://store.example";
 const capabilities = new RealtimeCapabilityService("native-checkout-test-secret-32-characters");
 const cartAccess = new AuthorizeStorefrontCartService(capabilities);
 const proof = () => capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant", resourceId: "conv_cart", origin }).token;
 
-function fixture() {
+function fixture(options: { withoutBenefits?: boolean } = {}) {
   const stored = {
-    merchantId: "merchant", sessionId: "conv_cart", expiresAt: new Date(Date.now() + 3600000), discount: 100,
+    merchantId: "merchant", sessionId: "conv_cart", expiresAt: new Date(Date.now() + 3600000), discount: options.withoutBenefits ? 0 : 100,
     items: [
       { variantId: "variant", productId: "product", sku: "sku", name: "Sanduíche", quantity: 1, unitPriceCents: 2000 },
       { variantId: "variant", productId: "product", sku: "sku", name: "Sanduíche com queijo", quantity: 2, unitPriceCents: 2500,
@@ -30,13 +31,20 @@ function fixture() {
     attributes: { tamanho: "Grande" }, media: [],
     id: "variant", productId: "product", sku: "sku", product: { merchantId: "merchant", name: "Sanduíche", type: "physical",
       metadata: { optionGroups: [{ id: "extras", name: "Extras", selectionType: "multiple", items: [{ id: "cheese", name: "Queijo", priceModifierInCents: 500 }] }] } },
-    price: { currency: "BRL", costInCents: 1000 }, stock: [{ quantity: 10, reserved: 0 }],
+    price: { currency: "BRL", basePriceInCents: 2000, costInCents: 1000 }, stock: [{ quantity: 10, reserved: 0 }],
   };
   const authority = new CheckoutCartAuthorityService({
     storefrontCart: { findUnique: async ({ where }: any) => where.merchantId_sessionId.merchantId === "merchant" && where.merchantId_sessionId.sessionId === "conv_cart" ? stored : null },
     productVariant: { findMany: async () => [variant] },
   } as never, { execute: async () => { throw new Error("native_cart_must_not_call_commerce"); } } as never,
-  new CartPromoResolutionService({ findActiveBySku: async () => [{ discountType: "percent", discountValue: 10 }] } as never));
+  new CartPromoResolutionService({ findActiveBySku: async (merchantId: string, variantId: string) => {
+    assert.equal(merchantId, "merchant"); assert.equal(variantId, "variant");
+    if (options.withoutBenefits) return [];
+    return [{ id: "synthetic-promo", merchantId, variantId, isActive: true,
+      startsAt: new Date("2020-01-01"), endsAt: new Date("2099-01-01"), discountType: "percent", discountValue: 10 }];
+  } } as never, { getExistingRules: async (merchantId: string) => {
+    assert.equal(merchantId, "merchant"); return { ...merchantRules({ maxDiscountPercent: 15, minimumMarginPercent: 0 }), merchantId };
+  } } as never));
   return { stored, variant, authority };
 }
 
@@ -98,4 +106,19 @@ test("native cart validates expiry, product availability and combined stock acro
   variant.stock[0]!.quantity = 10;
   stored.expiresAt = new Date(0);
   await assert.rejects(authority.resolveStorefront("merchant", "conv_cart"), /checkout_cart_expired/);
+});
+
+test("native checkout never uses cost or cart snapshots as a missing catalog base price", async () => {
+  const { authority, variant } = fixture();
+  Reflect.deleteProperty(variant.price, "basePriceInCents");
+  await assert.rejects(authority.resolveStorefront("merchant", "conv_cart"), /checkout_price_invalid/);
+});
+
+test("native options keep exact base/modifier quantities without discounts or invented option costs", async () => {
+  const { authority } = fixture({ withoutBenefits: true });
+  const cart = await authority.resolveStorefront("merchant", "conv_cart");
+  assert.equal(cart.total, 70); assert.equal(cart.currentDiscount, 0);
+  assert.deepEqual(cart.items.map(item => [item.price, item.quantity]), [[20, 1], [25, 2]]);
+  assert.equal(cart.items[1].selected_options?.[0]?.item_name, "Queijo");
+  assert.notEqual(cart.items[0].variant, cart.items[1].variant);
 });

@@ -6,7 +6,9 @@ interface CrossSellInterstitialProps {
   data: CrossSellInterstitialData | null;
   onClose: () => void;
   onViewCart: () => void;
-  onAddItem: (productId: string, productName: string, promoId?: string, couponCode?: string) => void;
+  onOpenProduct?: (product: CrossSellInterstitialData["products"][number]) => void;
+  onAddItem: (productId: string, productName: string, promoId?: string, couponCode?: string,
+    displayedProduct?: CrossSellInterstitialData["products"][number]) => void;
 }
 
 export default function CrossSellInterstitial({
@@ -14,6 +16,7 @@ export default function CrossSellInterstitial({
   onClose,
   onViewCart,
   onAddItem,
+  onOpenProduct,
 }: CrossSellInterstitialProps) {
   if (!data || data.products.length === 0) return null;
 
@@ -178,6 +181,10 @@ export default function CrossSellInterstitial({
             >
               {}
               <div
+                role={product.promoId && onOpenProduct ? "button" : undefined}
+                tabIndex={product.promoId && onOpenProduct ? 0 : undefined}
+                onClick={() => product.promoId && onOpenProduct?.(product)}
+                onKeyDown={event => { if (product.promoId && onOpenProduct && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onOpenProduct(product); } }}
                 style={{
                   width: "100%",
                   height: "160px",
@@ -261,8 +268,10 @@ export default function CrossSellInterstitial({
                 {}
                 <button data-neu="control"
                   type="button"
-                  onClick={() => onAddItem(product.id, product.name, product.promoId, (product as any).couponCode)}
-                  disabled={!product.inStock}
+                  onClick={() => product.readOnlyCandidate ? onOpenProduct?.(product) : onAddItem(product.id, product.name, product.promoId, product.couponCode, product)}
+                  disabled={!product.inStock || !!product.couponCode || (product.readOnlyCandidate ? !onOpenProduct : !!product.promoId && !product.expectedQuote
+                    || product.acceptanceStatus !== undefined && product.acceptanceStatus !== "ready")}
+                  aria-busy={product.acceptanceStatus === "pending"}
                   style={{
                     width: "100%",
                     padding: "9px 12px",
@@ -280,8 +289,10 @@ export default function CrossSellInterstitial({
                     letterSpacing: "0.01em",
                   }}
                 >
-                  {product.inStock ? "Adicionar ao carrinho" : "Indisponível"}
+                  {product.acceptanceStatus === "pending" ? "Adicionando…" : product.acceptanceStatus === "accepted" ? "Adicionado"
+                    : product.readOnlyCandidate ? "Ver detalhes" : product.inStock ? "Adicionar ao carrinho" : "Indisponível"}
                 </button>
+                {product.acceptanceError ? <span role="alert">{product.acceptanceError}</span> : null}
               </div>
             </div>
           ))}

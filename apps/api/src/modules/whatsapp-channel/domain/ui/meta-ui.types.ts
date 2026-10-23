@@ -8,6 +8,7 @@ export type StoreUiAction =
   | { kind: "slot"; productId: string; slotId: string }
   | { kind: "option_group"; productId: string; groupId?: string }
   | { kind: "page"; page: number }
+  | { kind: "catalog_options" }
   | { kind: "back" }
   | { kind: "menu" };
 

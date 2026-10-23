@@ -5,9 +5,8 @@ export type CouponValidityResult =
   | { valid: true }
   | { valid: false; reason: string };
 
-export function validateCoupon(coupon: CouponSnapshot, cart: Cart, buyerRegion?: string): CouponValidityResult {
-  const now = new Date();
-
+export function validateCoupon(coupon: CouponSnapshot, cart: Cart, buyerRegion?: string, now: Date = new Date()): CouponValidityResult {
+  if (!Number.isFinite(now.getTime())) return { valid: false, reason: "COUPON_INVALID" };
   if (coupon.status !== "active") return { valid: false, reason: "COUPON_INVALID" };
   if (new Date(coupon.starts_at) > now) return { valid: false, reason: "COUPON_NOT_YET_ACTIVE" };
   if (coupon.ends_at && new Date(coupon.ends_at) < now) return { valid: false, reason: "COUPON_EXPIRED" };

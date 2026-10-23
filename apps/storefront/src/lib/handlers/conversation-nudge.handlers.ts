@@ -14,6 +14,10 @@ export interface FireNudgeParams {
   setIsLoading: (value: boolean) => void;
   canFireTrigger: (mid: string, event: string, cooldown: number) => boolean;
   recordTriggerFired: (mid: string, event: string) => void;
+  /** Owned merchant/conversation/nudge generation, independent of cart totals. */
+  isCurrent?: () => boolean;
+  /** Acquire generation only after policy permits this trigger. */
+  onAdmitted?: () => void;
 }
 
 function buildConversionNudge(stage: "cart" | "browsing" | undefined, widgetConfig: any, triggerEvent: string): string | null {
@@ -43,6 +47,12 @@ function resolveFallback(stage: "cart" | "browsing" | undefined, widgetConfig: a
 
 export function handleFireNudge(params: FireNudgeParams) {
   const { triggerEvent, stage, merchantId, conversationId, agentMode, widgetConfig, setMode, setMessages, setIsLoading, canFireTrigger, recordTriggerFired } = params;
+  const isCurrent = params.isCurrent ?? (() => true);
+  if (!isCurrent()) return;
+  const appendMessage = (text: string) => {
+    if (isCurrent()) setMessages((prev) => isCurrent()
+      ? [...prev, { id: crypto.randomUUID(), role: "agent", text, ephemeral: true }] : prev);
+  };
 
   const mid = merchantId || "";
   if (agentMode === "manual_only") return;
@@ -53,11 +63,13 @@ export function handleFireNudge(params: FireNudgeParams) {
   const fallback = resolveFallback(stage, widgetConfig, triggerEvent);
   if (!fallback) return;
 
+  params.onAdmitted?.();
+  if (!isCurrent()) return;
   recordTriggerFired(mid, triggerEvent);
   setMode("chat");
 
   if (!mid || !conversationId) {
-    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text: fallback, ephemeral: true }]);
+    appendMessage(fallback);
     return;
   }
 
@@ -66,8 +78,9 @@ export function handleFireNudge(params: FireNudgeParams) {
   const reveal = (text: string) => {
     if (settled) return;
     settled = true;
+    if (!isCurrent()) return;
     setIsLoading(false);
-    setMessages((prev) => [...prev, { id: crypto.randomUUID(), role: "agent", text, ephemeral: true }]);
+    appendMessage(text);
   };
   const fallbackTimer = setTimeout(() => reveal(fallback), 6000);
 

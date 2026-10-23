@@ -39,9 +39,11 @@ export type StrategyIncentiveRecommendation = {
     control: "current_checkout_without_test_incentive";
     stacking: "no_other_coupon_or_incentive";
     minimumMarginPercent: number;
+    /** Present only on new replay-v2 terms; absent historical terms stay byte reproducible. */
+    authorizationPolicy?: "company_ceiling_without_margin_v1";
     budgetBasis: "worst_case_discount_times_max_redemptions";
     measurement: { conversionWindowHours: 168; primary: "approved_order_conversion_per_assigned_buyer";
-      guardrails: ["discount_spend", "configured_product_margin", "refunds"];
+      guardrails: ["discount_spend", "configured_product_margin" | "company_discount_ceiling", "refunds"];
       result: "not_measured"; samplePlanning: "required_before_activation" | "included_in_recommendation" };
   };
 });
@@ -70,9 +72,10 @@ export function incentiveRecommendation(study: StrategyDiscountStudy, rules: Mer
     discountPercent: study.candidate.percent, maxDiscountCents, limitCents, maxRedemptions, maxPerBuyer: 1,
     durationDays: 7, start: "after_specific_approval", allocation: "50/50", control: "current_checkout_without_test_incentive",
     stacking: "no_other_coupon_or_incentive", minimumMarginPercent: rules.minimumMarginPercent,
+    ...(sample.definition === "discount-catalog-replay-v2" ? { authorizationPolicy: "company_ceiling_without_margin_v1" as const } : {}),
     budgetBasis: "worst_case_discount_times_max_redemptions",
     measurement: { conversionWindowHours: 168, primary: "approved_order_conversion_per_assigned_buyer",
-      guardrails: ["discount_spend", "configured_product_margin", "refunds"], result: "not_measured", samplePlanning: "required_before_activation" },
+      guardrails: ["discount_spend", sample.definition === "discount-catalog-replay-v2" ? "company_discount_ceiling" : "configured_product_margin", "refunds"], result: "not_measured", samplePlanning: "required_before_activation" },
   } };
 }
 

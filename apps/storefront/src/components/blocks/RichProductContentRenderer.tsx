@@ -17,6 +17,9 @@ import ProductNarration from "./ProductNarration";
 import { buildProductNarration } from "@/lib/services/product-narration";
 import { useGallerySwipe } from "../useGallerySwipe";
 import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
+import { selectCrossSellDetailCandidate, type CrossSellDetailPurchase } from "@/lib/storefront-cross-sell-detail";
+import { selectCheckoutProductDetail, type CheckoutProductDetailPurchase } from "@/lib/checkout-product-detail";
+import { canonicalCommercialNotice, type NormalCheckoutCrossSellQuote } from "@zyon/contracts";
 
 type PurchaseTarget = ProductContentPurchaseResponse;
 type GalleryImage = { src: string; alt: string };
@@ -37,7 +40,7 @@ function getImages(purchase: PurchaseTarget | undefined, blocks: ProductContentB
   return candidates.filter((image, index) => safeImage(image.src) && candidates.findIndex((other) => other.src === image.src) === index).slice(0, 8);
 }
 
-export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, merchantSlug, productId, embedded = false, immersive = false, narrationEnabled = true, shareUrl, showNarration = true, onCartAdded, crossSell, onAddCrossSell }: {
+export default function RichProductContentRenderer({ blocks, faqs, testimonials, videos, purchase, merchantSlug, productId, embedded = false, immersive = false, narrationEnabled = true, shareUrl, showNarration = true, onCartAdded, crossSell, onAddCrossSell, onOpenCrossSell, financialPurchase, checkoutPurchase }: {
   blocks: ProductContentBlock[];
   faqs: ProductContentSupplementalFaq[];
   testimonials: ProductContentSupplementalTestimonial[];
@@ -54,13 +57,53 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   onCartAdded?: () => void;
   crossSell?: CrossSellInterstitialData | null;
   onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  onOpenCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  financialPurchase?: CrossSellDetailPurchase;
+  checkoutPurchase?: CheckoutProductDetailPurchase;
 }) {
   const { cart } = useCart();
-  const [selectedVariantId, setSelectedVariantId] = useState(purchase?.defaultVariantId ?? purchase?.variants[0]?.id ?? "");
-  const [selectedOptionIds, setSelectedOptionIds] = useState<Set<string>>(new Set());
+  const [selectedVariantId, setSelectedVariantId] = useState(checkoutPurchase?.request.initialVariantId ?? financialPurchase?.context.initialVariantId ?? purchase?.defaultVariantId ?? purchase?.variants[0]?.id ?? "");
+  const [selectedOptionIds, setSelectedOptionIds] = useState<Set<string>>(() => new Set(financialPurchase?.context.source.selectedOptionItemIds ?? []));
   const [optionError, setOptionError] = useState<string | null>(null);
   const [status, setStatus] = useState<"idle" | "pending" | "added" | "review">("idle");
   const pending = useRef<{ variantId: string; previousQuantity: number } | null>(null);
+  const [financialPhase, setFinancialPhase] = useState<"idle" | "pending" | "accepted" | "failed">("idle");
+  const [financialError, setFinancialError] = useState<string | null>(null);
+  const [, refreshQuote] = useState(0);
+  const [preparedSelection, setPreparedSelection] = useState<string | null>(null);
+  const selectionGeneration = useRef(0), financialRef = useRef(financialPurchase), mounted = useRef(true);
+  financialRef.current = financialPurchase;
+  const checkoutRef = useRef(checkoutPurchase); checkoutRef.current = checkoutPurchase;
+  const [checkoutQuote, setCheckoutQuote] = useState<{ key: string; quote: NormalCheckoutCrossSellQuote | null } | null>(null);
+  const generationAtRender = selectionGeneration.current;
+  const selectionKey = JSON.stringify([selectedVariantId, [...selectedOptionIds].sort()]);
+  const preparedKey = JSON.stringify([financialPurchase?.scopeKey, selectionKey]);
+  const choice = financialPurchase && purchase ? selectCrossSellDetailCandidate(financialPurchase.context, purchase, selectedVariantId, [...selectedOptionIds]) : null;
+  const financialOffer = choice?.kind === "selected" ? financialPurchase?.present([choice.product])[0] : undefined;
+  const financialReady = !!financialOffer?.expectedQuote && financialOffer.acceptanceStatus === "ready" && financialPurchase?.isCurrent() === true;
+  const checkoutKey = JSON.stringify([checkoutPurchase?.request.key, selectionKey]);
+  const checkoutChoice = checkoutPurchase && purchase ? selectCheckoutProductDetail(checkoutPurchase.request, purchase, selectedVariantId, [...selectedOptionIds]) : null;
+  const checkoutReady = checkoutQuote?.key === checkoutKey && checkoutQuote.quote !== null && checkoutPurchase?.request.isCurrent() === true;
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
+  useEffect(() => {
+    if (!financialPurchase || choice?.kind !== "selected" || financialPhase !== "idle" || !financialPurchase.isCurrent()) return;
+    let active = true; const generation = selectionGeneration.current;
+    void financialPurchase.prepare([choice.product]).catch(() => {}).finally(() => { if (active && mounted.current && generation === selectionGeneration.current) { setPreparedSelection(preparedKey); refreshQuote(value => value + 1); } });
+    return () => { active = false; };
+    // Selection identity and cart scope, not callback identity, own this read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [financialPurchase?.context.key, financialPurchase?.scopeKey, selectionKey, purchase]);
+  useEffect(() => {
+    if (!checkoutPurchase || checkoutChoice?.kind !== "selected" || financialPhase !== "idle" || !checkoutPurchase.request.isCurrent()) return;
+    const generation = selectionGeneration.current, request = checkoutPurchase.request; let active = true;
+    void request.prepare(checkoutChoice.selection).then(quote => {
+      if (active && mounted.current && generation === selectionGeneration.current && checkoutRef.current?.request === request && request.isCurrent())
+        setCheckoutQuote({ key: checkoutKey, quote });
+    }).catch(() => { if (active && mounted.current && generation === selectionGeneration.current) setCheckoutQuote({ key: checkoutKey, quote: null }); });
+    return () => { active = false; };
+    // Canonical scope/selection, not callback identity, owns this read.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [checkoutPurchase?.request.key, selectionKey, purchase]);
   const selectedVariant = purchase?.variants.find((variant) => variant.id === selectedVariantId) ?? null;
   const images = getImages(purchase, blocks);
   const optionExtraReais = purchase?.optionGroups.flatMap((group) => group.items)
@@ -68,13 +111,20 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
     .reduce((total, item) => total + item.priceModifierInCents / 100, 0) ?? 0;
   const price = selectedVariant?.priceReais ?? purchase?.priceReais;
   const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: selectedVariant?.currency ?? purchase?.currency ?? "BRL" });
+  const checkoutTarget = checkoutQuote?.key === checkoutKey ? checkoutQuote.quote?.pricing.targets[0] : undefined;
+  const displayedUnitPrice = checkoutPurchase
+    ? checkoutReady && checkoutTarget ? currency.format(checkoutTarget.maximumUnitPriceCents / 100)
+      : checkoutChoice?.kind === "incomplete" ? "Escolha as opções" : checkoutChoice?.kind === "unavailable" || checkoutQuote?.key === checkoutKey || !checkoutPurchase.request.isCurrent() ? "Oferta indisponível" : "Conferindo oferta…"
+    : financialPurchase
+    ? financialOffer?.priceFormatted ?? (choice?.kind === "incomplete" ? "Escolha as opções" : choice?.kind === "unavailable" || preparedSelection === preparedKey || !financialPurchase.isCurrent() ? "Oferta indisponível" : "Conferindo oferta…")
+    : typeof price === "number" ? currency.format(price + optionExtraReais) : "Preço indisponível";
   const ratings = testimonials.map((item) => item.rating).filter((value): value is number => typeof value === "number" && value >= 1 && value <= 5);
   const rating = ratings.length ? (ratings.reduce((sum, value) => sum + value, 0) / ratings.length).toLocaleString("pt-BR", { maximumFractionDigits: 1 }) : null;
 
   // Confirm only after the server-backed cart actually grows.
   useEffect(() => {
     const request = pending.current;
-    if (!request) return;
+    if (!request || financialPurchase || checkoutPurchase) return;
     const quantity = cart.items.filter((item) => item.variantId === request.variantId).reduce((sum, item) => sum + item.quantity, 0);
     if (quantity > request.previousQuantity) {
       pending.current = null;
@@ -84,12 +134,14 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   }, [cart.items, onCartAdded]);
 
   useEffect(() => {
-    if (status !== "pending") return;
+    if (status !== "pending" || financialPurchase || checkoutPurchase) return;
     const timer = window.setTimeout(() => setStatus("review"), 25000);
     return () => window.clearTimeout(timer);
   }, [status]);
 
   const toggleOption = (group: PurchaseTarget["optionGroups"][number], itemId: string) => {
+    if ((financialPurchase || checkoutPurchase) && financialPhase !== "idle") return;
+    selectionGeneration.current++;
     setSelectedOptionIds((previous) => {
       const next = new Set(previous);
       if (group.selectionType === "single") {
@@ -104,6 +156,30 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
   };
 
   const addToCart = () => {
+    if (checkoutPurchase) {
+      if (!checkoutReady || !checkoutQuote?.quote || financialPhase !== "idle" || generationAtRender !== selectionGeneration.current) return;
+      const generation = selectionGeneration.current, request = checkoutPurchase.request, quote = checkoutQuote.quote;
+      const guard = () => mounted.current && selectionGeneration.current === generation && checkoutRef.current?.request === request && request.isCurrent();
+      setFinancialPhase("pending");
+      void request.accept(quote, guard).then(result => {
+        if (!guard()) return;
+        if (result.ok) { setFinancialPhase("accepted"); setStatus("added"); onCartAdded?.(); }
+        else { setFinancialPhase("failed"); setFinancialError(result.error || "Não foi possível confirmar esta oferta. Confira o carrinho antes de continuar."); }
+      }).catch(() => { if (guard()) { setFinancialPhase("failed"); setFinancialError("Não foi possível confirmar esta oferta. Confira o carrinho antes de continuar."); } });
+      return;
+    }
+    if (financialPurchase) {
+      if (!financialReady || !financialOffer || financialPhase !== "idle" || generationAtRender !== selectionGeneration.current) return;
+      const generation = selectionGeneration.current, context = financialPurchase.context;
+      const guard = () => mounted.current && selectionGeneration.current === generation && financialRef.current?.context === context && financialRef.current.isCurrent();
+      setFinancialPhase("pending");
+      void financialPurchase.accept(financialOffer, guard).then(accepted => {
+        if (!guard()) return;
+        if (accepted) { setFinancialPhase("accepted"); setStatus("added"); onCartAdded?.(); }
+        else { setFinancialPhase("failed"); setFinancialError("Não foi possível confirmar esta oferta. Confira o carrinho antes de continuar."); }
+      }).catch(() => { if (guard()) { setFinancialPhase("failed"); setFinancialError("Não foi possível confirmar esta oferta. Confira o carrinho antes de continuar."); } });
+      return;
+    }
     if (!purchase || !selectedVariant?.available || (pending.current && status !== "review")) return;
     // An unknown submission can be retried. We never show a success state
     // before the cart returned by the server has actually changed.
@@ -124,7 +200,7 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
     }));
   };
 
-  const openCart = () => window.dispatchEvent(new Event("aacp:open-rich-product-cart"));
+  const openCart = () => checkoutPurchase ? checkoutPurchase.close() : window.dispatchEvent(new Event("aacp:open-rich-product-cart"));
   const onCtaClick = (href: string) => {
     if (href === "#checkout") {
       document.getElementById("aacp-rich-product-title")?.scrollIntoView({ block: "center" });
@@ -133,16 +209,20 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
     }
     window.location.assign(href);
   };
-  const inProgress = status === "pending";
+  const inProgress = financialPurchase || checkoutPurchase ? financialPhase === "pending" : status === "pending";
+  const selectionLocked = financialPurchase || checkoutPurchase ? financialPhase !== "idle" : inProgress;
   const purchaseActions = <>
-    <button data-neu="primary" type="button" data-aacp-rich-product-add-to-cart className={styles.buyButton} onClick={addToCart} disabled={!selectedVariant?.available || inProgress} aria-busy={inProgress}>
+    <button data-neu="primary" type="button" data-aacp-rich-product-add-to-cart className={styles.buyButton} onClick={addToCart} disabled={!selectedVariant?.available || inProgress || !!financialPurchase && (!financialReady || financialPhase !== "idle") || !!checkoutPurchase && (!checkoutReady || financialPhase !== "idle")} aria-busy={inProgress}>
       {status === "added" ? <FiCheck aria-hidden="true" /> : <FiShoppingBag aria-hidden="true" />}
-      {status === "pending" ? "Adicionando…" : status === "review" ? "Tentar novamente" : status === "added" ? "Adicionar mais um" : selectedVariant?.available ? "Adicionar ao carrinho" : "Produto indisponível"}
+      {financialPurchase || checkoutPurchase ? financialPhase === "pending" ? "Adicionando…" : financialPhase === "accepted" ? "Adicionado" : "Adicionar ao carrinho"
+        : status === "pending" ? "Adicionando…" : status === "review" ? "Tentar novamente" : status === "added" ? "Adicionar mais um" : selectedVariant?.available ? "Adicionar ao carrinho" : "Produto indisponível"}
       <FiArrowRight aria-hidden="true" />
     </button>
     <div className={styles.feedback} aria-live="polite" aria-atomic="true">
+      {checkoutReady && checkoutQuote?.quote?.pricing.notice && financialPhase === "idle"
+        ? <span role="status">{canonicalCommercialNotice(checkoutQuote.quote.pricing.notice).message}</span> : null}
       {status === "added" ? <><FiCheck aria-hidden="true" /><span>Produto adicionado.</span><button data-neu="text" type="button" onClick={openCart}>Ver carrinho <FiArrowRight aria-hidden="true" /></button></> : null}
-      {status === "review" ? <span>A confirmação está demorando. <button data-neu="text" type="button" onClick={openCart}>Confira o carrinho</button> antes de tentar novamente.</span> : null}
+      {status === "review" || financialPhase === "failed" ? <span role="alert">{financialPurchase || checkoutPurchase ? financialError : "A confirmação está demorando."} <button data-neu="text" type="button" onClick={openCart}>Confira o carrinho</button>{financialPurchase || checkoutPurchase ? null : " antes de tentar novamente."}</span> : null}
     </div>
   </>;
 
@@ -163,18 +243,18 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
             <h1 id="aacp-rich-product-title">{purchase.productName}</h1>
             {purchase.description ? <p className={styles.description}>{purchase.description}</p> : null}
             <div className={styles.priceRow}>
-              <strong data-aacp-rich-product-price className={styles.price}>{typeof price === "number" ? currency.format(price + optionExtraReais) : "Preço indisponível"}</strong>
+              <strong data-aacp-rich-product-price className={styles.price}>{displayedUnitPrice}</strong>
               <span className={styles.stock}>{selectedVariant?.available ? <><FiCheck aria-hidden="true" /> Disponível</> : "Indisponível no momento"}</span>
             </div>
             {purchase.variants.length > 1 || purchase.variants.some((variant) => Object.keys(variant.attributes).length > 0) ? (
-              <fieldset className={styles.variants} disabled={inProgress}>
+              <fieldset className={styles.variants} disabled={selectionLocked}>
                 <legend>Escolha sua versão</legend>
                 <div className={styles.variantList}>
                   {purchase.variants.map((variant, index) => {
                     const label = Object.values(variant.attributes).join(" / ") || (purchase.variants.length > 1 ? "Opção " + (index + 1) : "Padrão");
                     return <label key={variant.id} className={styles.variant} data-unavailable={!variant.available}>
                       <input type="radio" name="rich-product-variant" value={variant.id} checked={variant.id === selectedVariantId} onChange={() => {
-                        setSelectedVariantId(variant.id);
+                        selectionGeneration.current++; setSelectedVariantId(variant.id);
                         setStatus("idle");
                         if (immersive && typeof productId === "string") {
                           window.dispatchEvent(new CustomEvent("aacp:rich-product-variant-selected", { detail: { productId, variantId: variant.id } }));
@@ -186,11 +266,11 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
                 </div>
               </fieldset>
             ) : null}
-            {purchase.optionGroups.length ? <FoodOptions groups={purchase.optionGroups} selected={selectedOptionIds} error={optionError} disabled={inProgress} onToggle={toggleOption} /> : null}
+            {purchase.optionGroups.length ? <FoodOptions groups={purchase.optionGroups} selected={selectedOptionIds} error={optionError} disabled={selectionLocked} onToggle={toggleOption} /> : null}
             {selectedVariant?.available && selectedVariant.lowStock ? <p data-aacp-rich-product-nudge className={styles.nudge}><FiPackage aria-hidden="true" /><span>Últimas unidades desta versão disponíveis.</span></p> : null}
             <RuleNotices notices={purchase.ruleNotices} />
             {!immersive ? purchaseActions : null}
-            {crossSell?.products.length ? <ProductCrossSell data={crossSell} onAdd={onAddCrossSell} /> : null}
+            {crossSell?.products.length ? <ProductCrossSell data={crossSell} onAdd={onAddCrossSell} onOpen={onOpenCrossSell} /> : null}
             <div className={styles.delivery}><FiTruck aria-hidden="true" /><div><strong>Entrega calculada para você</strong><p>Consulte o frete e o prazo com seu CEP no checkout.</p></div></div>
           </div>
         </section>
@@ -201,16 +281,17 @@ export default function RichProductContentRenderer({ blocks, faqs, testimonials,
       {purchase ? <div className={styles.closing}><div><span>Pronto para escolher?</span><strong>{purchase.productName}</strong></div><a href="#aacp-rich-product-title">Ver opções <FiArrowRight aria-hidden="true" /></a></div> : null}
       </div>
       {immersive && purchase ? <footer className={styles.purchaseDock} data-aacp-product-purchase-dock>
-        <div className={styles.dockPrice}><span>{Object.values(selectedVariant?.attributes ?? {}).join(" / ") || "Sua escolha"}</span><strong data-aacp-product-total>{typeof price === "number" ? currency.format(price + optionExtraReais) : "Preço indisponível"}</strong></div>
+        <div className={styles.dockPrice}><span>{Object.values(selectedVariant?.attributes ?? {}).join(" / ") || "Sua escolha"}</span><strong data-aacp-product-total>{displayedUnitPrice}</strong></div>
         <div className={styles.dockActions}>{purchaseActions}</div>
       </footer> : null}
     </div>
   );
 }
 
-function ProductCrossSell({ data, onAdd }: {
+function ProductCrossSell({ data, onAdd, onOpen }: {
   data: CrossSellInterstitialData;
   onAdd?: (product: CrossSellInterstitialData["products"][number]) => void;
+  onOpen?: (product: CrossSellInterstitialData["products"][number]) => void;
 }) {
   return <section className={styles.crossSell} data-aacp-product-cross-sell aria-labelledby="aacp-product-cross-sell-heading">
     <div className={styles.crossSellHeading}>
@@ -222,7 +303,8 @@ function ProductCrossSell({ data, onAdd }: {
     </div>
     <div className={styles.crossSellList}>
       {data.products.map((product) => <article key={product.id} className={styles.crossSellCard}>
-        <div className={styles.crossSellImage}>
+        <div className={styles.crossSellImage} role={product.promoId && onOpen ? "button" : undefined} tabIndex={product.promoId && onOpen ? 0 : undefined}
+          onClick={() => product.promoId && onOpen?.(product)} onKeyDown={event => { if (product.promoId && onOpen && (event.key === "Enter" || event.key === " ")) { event.preventDefault(); onOpen(product); } }}>
           {product.image && safeImage(product.image)
             ? <img src={product.image} alt={product.name} loading="lazy" />
             : <FiPackage aria-hidden="true" />}
@@ -232,9 +314,13 @@ function ProductCrossSell({ data, onAdd }: {
           <span>{product.priceFormatted}</span>
           {product.discountPercent && product.discountPercent > 0 ? <small>Oferta de {Math.round(product.discountPercent)}%</small> : null}
         </div>
-        <button data-neu="control" type="button" onClick={() => onAdd?.(product)} disabled={!product.inStock}>
-          {product.inStock ? "Adicionar" : "Indisponível"}
+        <button data-neu="control" type="button" onClick={() => product.readOnlyCandidate ? onOpen?.(product) : onAdd?.(product)} disabled={!product.inStock || !!product.couponCode
+          || (product.readOnlyCandidate ? !onOpen : !!product.promoId && !product.expectedQuote || product.acceptanceStatus !== undefined && product.acceptanceStatus !== "ready")}
+          aria-busy={product.acceptanceStatus === "pending"}>
+          {product.acceptanceStatus === "pending" ? "Adicionando…" : product.acceptanceStatus === "accepted" ? "Adicionado"
+            : product.readOnlyCandidate ? "Ver detalhes" : product.inStock ? "Adicionar" : "Indisponível"}
         </button>
+        {product.acceptanceError ? <span role="alert">{product.acceptanceError}</span> : null}
       </article>)}
     </div>
   </section>;

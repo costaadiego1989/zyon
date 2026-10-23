@@ -2,7 +2,7 @@ import test from "node:test";
 import assert from "node:assert/strict";
 import { StorefrontConversationGateway } from "./conversation.gateway.js";
 import { RealtimeCapabilityService, realtimeRoom } from "../../../../shared/auth/realtime-capability.js";
-import { RateLimitStore } from "../../../../shared/rate-limit/rate-limit.store.js";
+import { DistributedRateLimitStore } from "../../../../shared/http/rate-limit.store.js";
 import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
 
 const capabilities = new RealtimeCapabilityService("test-realtime-secret-at-least-32-characters");
@@ -21,10 +21,10 @@ function fixture() {
     { execute: async (input: unknown) => { calls.push(input); return { message: "hello", blocks: [], cart_id: "conv_a" }; } } as never,
     { execute: async () => ({ messages: [] }) } as never,
     capabilities,
-    new StorefrontConversationRateLimitService(new RateLimitStore()),
+    new StorefrontConversationRateLimitService(new DistributedRateLimitStore({ production: false, ipMax: 600, tenantMax: 60, windowMs: 60_000 })),
   );
   gateway.server = { to: (room: string) => ({ emit: (event: string) => broadcasts.push({ room, event }) }) } as never;
-  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a", origin });
+  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a", origin, aiUserId: "visitor:user_a" });
   return { gateway, calls, broadcasts, access };
 }
 

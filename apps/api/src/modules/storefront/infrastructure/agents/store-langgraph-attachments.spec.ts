@@ -1,7 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import type { OpenRouterChatRequest, OpenRouterProvider } from "@zyon/conversation-engine";
-import { StorefrontLangGraphAgent } from "./store-langgraph-agent.js";
+import { createAllowedScopeAgent } from "./storefront-scope.fixture.js";
 
 test("derived attachment and confirmation policy survive primary and fallback provider routing", async () => {
   for (const failover of [false, true]) {
@@ -13,7 +13,7 @@ test("derived attachment and confirmation policy survive primary and fallback pr
       interpreted = true;
       return { content: "Encontrei referências para pesquisar. Deseja incluir os produtos?", toolCalls: [], usage: { promptTokens: 20, completionTokens: 10, totalTokens: 30 } };
     };
-    const agent = new StorefrontLangGraphAgent({
+    const agent = createAllowedScopeAgent({
       provider: { chat: failover ? async () => { throw new Error("primary_provider_unavailable"); } : interpret } as unknown as OpenRouterProvider,
       fallbackProvider: { chat: interpret } as unknown as OpenRouterProvider,
       toolHandlers: {} as never,

@@ -1,10 +1,20 @@
 import { randomUUID } from "node:crypto";
 import { assertPaymentAmount, type PaymentAmountBreakdown } from "./payment-amount.js";
 import type { CreateProviderPaymentInput } from "./ports/payment-provider.port.js";
+import type { CheckoutCouponPaymentAuthority } from "../../checkout/domain/services/checkout-coupon-binding.js";
+import { assertNoPaymentCouponAuthorityInProviderInput, readPaymentCouponAuthority } from "./payment-coupon-authority.js";
+import { assertNoPaymentWidgetCheckoutAuthorityInProviderInput, readPaymentWidgetCheckoutAuthority } from "./payment-widget-checkout-authority.js";
+import type { WidgetCheckoutPaymentAuthority } from "./widget-checkout-payment-authority.schemas.js";
+import { assertNoPaymentNormalCrossSellAuthorityInProviderInput, readPaymentNormalCrossSellAuthority } from "./payment-normal-cross-sell-authority.js";
+import type { NormalCheckoutPaymentAuthority } from "./normal-checkout-payment-authority.schemas.js";
 
 export type PaymentCreation = {
   state: "ready" | "in_flight" | "uncertain" | "complete";
   input: CreateProviderPaymentInput;
+  /** Internal immutable journal sibling. Never part of the PSP input or SDK. */
+  couponAuthority?: CheckoutCouponPaymentAuthority;
+  widgetCheckoutAuthority?: WidgetCheckoutPaymentAuthority;
+  normalCrossSellAuthority?: NormalCheckoutPaymentAuthority;
   leaseToken?: string;
   leaseUntil?: string;
   firstAttemptAt?: string;
@@ -135,8 +145,24 @@ export class PaymentIntentEntity {
   }
 
   static rehydrate(snapshot: PaymentIntentSnapshot): PaymentIntentEntity {
+    const couponAuthority = readPaymentCouponAuthority(snapshot);
+    const widgetCheckoutAuthority = readPaymentWidgetCheckoutAuthority(snapshot);
+    const normalCrossSellAuthority = readPaymentNormalCrossSellAuthority(snapshot);
+    if (couponAuthority && widgetCheckoutAuthority) throw new Error("payment_widget_checkout_authority_conflict");
+    let cloned: PaymentIntentSnapshot;
+    if (couponAuthority || widgetCheckoutAuthority || normalCrossSellAuthority) {
+      try {
+        // Keep the detached parsed identity, never clone/re-read its raw fields.
+        cloned = structuredClone({ ...snapshot, creation: { ...snapshot.creation!,
+          ...(couponAuthority ? { couponAuthority } : {}), ...(widgetCheckoutAuthority ? { widgetCheckoutAuthority } : {}),
+          ...(normalCrossSellAuthority ? { normalCrossSellAuthority } : {}) } });
+        readPaymentCouponAuthority(cloned);
+        readPaymentWidgetCheckoutAuthority(cloned);
+        readPaymentNormalCrossSellAuthority(cloned);
+      } catch { throw new Error(normalCrossSellAuthority ? "payment_normal_cross_sell_authority_conflict" : widgetCheckoutAuthority ? "payment_widget_checkout_authority_conflict" : "payment_coupon_authority_conflict"); }
+    } else cloned = structuredClone(snapshot);
     return new PaymentIntentEntity({
-      ...structuredClone(snapshot),
+      ...cloned,
       version: snapshot.version ?? 0,
       statusHistory: snapshot.statusHistory ?? [
         { status: snapshot.status, occurredAt: new Date().toISOString() }
@@ -150,6 +176,41 @@ export class PaymentIntentEntity {
 
   persisted(version: number): void { this.s.version = version; }
 
+  /** Repository-only acknowledgement AFTER the initial admission transaction
+   * commits. Never issue from a DTO, provider payload or a recovery attempt. */
+  acknowledgeCouponCapture(authority: unknown): void {
+    if ((this.s.version ?? 0) !== 0 || this.s.status !== "pending" || this.s.providerPaymentId
+      || !this.s.creation || this.s.creation.state !== "ready" || this.s.creation.firstAttemptAt
+      || "couponAuthority" in this.s.creation || "widgetCheckoutAuthority" in this.s.creation) throw new Error("payment_coupon_authority_conflict");
+    const parsed = readPaymentCouponAuthority({ ...this.s,
+      creation: { ...this.s.creation, couponAuthority: authority } });
+    if (!parsed) throw new Error("payment_coupon_authority_conflict");
+    this.s.creation = { ...this.s.creation, couponAuthority: structuredClone(parsed) };
+  }
+
+  /** Repository-only acknowledgement after initial transaction commit. A
+   * supplied sibling never grants new admission; persistence rejects it. */
+  acknowledgeWidgetCheckoutCapture(authority: unknown): void {
+    if ((this.s.version ?? 0) !== 0 || this.s.status !== "pending" || this.s.providerPaymentId
+      || !this.s.creation || this.s.creation.state !== "ready" || this.s.creation.firstAttemptAt
+      || "widgetCheckoutAuthority" in this.s.creation || "couponAuthority" in this.s.creation || "normalCrossSellAuthority" in this.s.creation) throw new Error("payment_widget_checkout_authority_conflict");
+    const parsed = readPaymentWidgetCheckoutAuthority({ ...this.s,
+      creation: { ...this.s.creation, widgetCheckoutAuthority: authority } });
+    if (!parsed) throw new Error("payment_widget_checkout_authority_conflict");
+    this.s.creation = { ...this.s.creation, widgetCheckoutAuthority: structuredClone(parsed) };
+  }
+
+  /** Acknowledge only the initial committed normal admission, never recovery. */
+  acknowledgeNormalCrossSellCapture(authority: unknown): void {
+    if ((this.s.version ?? 0) !== 0 || this.s.status !== "pending" || this.s.providerPaymentId
+      || !this.s.creation || this.s.creation.state !== "ready" || this.s.creation.firstAttemptAt
+      || "normalCrossSellAuthority" in this.s.creation || "widgetCheckoutAuthority" in this.s.creation)
+      throw new Error("payment_normal_cross_sell_authority_conflict");
+    const parsed = readPaymentNormalCrossSellAuthority({ ...this.s, creation: { ...this.s.creation, normalCrossSellAuthority: authority } });
+    if (!parsed) throw new Error("payment_normal_cross_sell_authority_conflict");
+    this.s.creation = { ...this.s.creation, normalCrossSellAuthority: structuredClone(parsed) };
+  }
+
   recordCancellation(value: import("./pending-payment-cancellation.js").PaymentCancellation): void {
     if (!this.s.creation || value.providerPaymentId !== this.s.providerPaymentId) throw new Error("payment_cancellation_identity_invalid");
     const previous = this.s.creation.cancellation;
@@ -159,6 +220,9 @@ export class PaymentIntentEntity {
   }
 
   prepareCreation(input: CreateProviderPaymentInput): void {
+    assertNoPaymentCouponAuthorityInProviderInput(input);
+    assertNoPaymentWidgetCheckoutAuthorityInProviderInput(input);
+    assertNoPaymentNormalCrossSellAuthorityInProviderInput(input);
     if (this.s.creation || this.s.providerPaymentId || input.creditCard || input.creditCardHolderInfo || input.remoteIp) throw new Error("payment_creation_input_invalid");
     if (input.intentId !== this.s.id || input.amountCents !== this.s.amountCents || input.merchantId !== this.s.merchantId || input.sessionId !== this.s.sessionId || input.currency !== this.s.currency) throw new Error("payment_creation_input_invalid");
     this.s.creation = { state: "ready", input: structuredClone(input) };

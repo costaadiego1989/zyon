@@ -44,6 +44,10 @@ import { RetainedMerchantPaymentAdapter } from "./infrastructure/retained-mercha
 import { ScheduledMerchantSplitService } from "./application/scheduled-merchant-split.service.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
 import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
+import { createNormalCrossSellPaymentAdmission } from "./infrastructure/prisma-normal-cross-sell-payment-admission.js";
+import { readNormalCheckoutCrossSellAuthority } from "../cross-sell/infrastructure/repositories/prisma-normal-checkout-cross-sell.authority.js";
+import { projectNormalCrossSellCart } from "../cross-sell/infrastructure/repositories/prisma-normal-checkout-cross-sell.adapter.js";
+import { captureStorefrontCouponForPayment } from "../coupons/infrastructure/repositories/prisma-storefront-coupon-admission.js";
 import { PrismaPaymentSettlementLedgerRepository } from "./infrastructure/prisma-payment-settlement-ledger.repository.js";
 import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
 import { AsaasPayoutAdapter } from "./infrastructure/asaas-payout.adapter.js";
@@ -324,7 +328,11 @@ import {
     },
     {
       provide: PAYMENT_REPOSITORY,
-      useFactory: (prisma: PrismaClient) => new PrismaPaymentRepository(prisma),
+      useFactory: (prisma: PrismaClient) => new PrismaPaymentRepository(prisma, captureStorefrontCouponForPayment,undefined,
+        createNormalCrossSellPaymentAdmission(async(tx,scope,options)=>{
+          const current=await readNormalCheckoutCrossSellAuthority(tx,scope,undefined,options);
+          return {...current,projectedCart:projectNormalCrossSellCart(current)};
+        })),
       inject: [PRISMA_CLIENT]
     },
     {

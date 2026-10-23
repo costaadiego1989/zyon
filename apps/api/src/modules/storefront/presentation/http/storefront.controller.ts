@@ -1,5 +1,8 @@
 import { BadRequestException, Body, Controller, ForbiddenException, Get, Inject, NotFoundException, Optional, Param, Patch, Post, Query, Req, Res, UnauthorizedException, UseGuards } from "@nestjs/common";
 import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
+import { storefrontCartQuantityUpdateSchema } from "../../domain/contracts/storefront-cart-line-selector.schemas.js";
+import type { StorefrontCartLineSelector } from "../../domain/ports/storefront-cart.port.js";
+import { storefrontCartLineSelectionLabel } from "../../domain/services/storefront-cart-line-identity.js";
 import { AiUserRateLimitService } from "../../../../shared/http/ai-user-rate-limit.service.js";
 import { HttpException, HttpStatus } from "@nestjs/common";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
@@ -24,17 +27,19 @@ import { GetPublicStoreResourcesUseCase } from "../../application/use-cases/get-
 import { TrackStorefrontEventUseCase } from "../../application/use-cases/track-storefront-event.use-case.js";
 import { GetStorefrontLiveSessionsUseCase } from "../../application/use-cases/get-storefront-live-sessions.use-case.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import { STOREFRONT_CROSS_SELL_CART, type StorefrontCrossSellCartPort } from "../../domain/ports/storefront-cross-sell-cart.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
-import { applyProductPromoPricing } from "../../infrastructure/pricing/storefront-cart-promo.pricing.js";
+import { applyProductPromoPricing, getProductPromoBadge } from "../../application/services/storefront-cart-promo.pricing.js";
 import { ListPublicStorefrontProductsUseCase } from "../../../catalog/application/use-cases/list-public-storefront-products.use-case.js";
 import { BuyerJwtService } from "../../../buyer-account/domain/services/buyer-jwt.service.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
+import { storefrontPublicReadUiActionRequestSchema, storefrontReadUiActionCapability } from "../../domain/contracts/storefront-public-read-ui-action.schemas.js";
 
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
-import { reevaluateCartRules } from "../../infrastructure/tool-handlers/cart.handlers.js";
+import { reevaluateCartRules } from "../../application/services/reevaluate-cart-rules.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
 
@@ -49,6 +54,8 @@ export interface StartConversationRequest {
 
 export interface SendMessageRequest {
   user_message: string;
+  ui_action_version?: unknown;
+  ui_action?: unknown;
   voice_turn_token?: string;
   cart_id?: string;
   history?: Array<{ role: "user" | "assistant"; content: string }>;
@@ -86,11 +93,12 @@ export class StorefrontController {
     @Optional() private readonly aiUserLimiter?: AiUserRateLimitService,
     @Optional() @Inject(CHECKOUT_CROSS_SELL_RECOMMENDER) private readonly crossSellRecommender?: CheckoutCrossSellRecommenderPort,
     @Optional() private readonly supportHandoff?: SupportHandoffService,
+    @Optional() @Inject(STOREFRONT_CROSS_SELL_CART) private readonly crossSellCart?: StorefrontCrossSellCartPort,
   ) {}
 
   private async priceCart(merchantId: string, cartId: string, cart: StorefrontCart) {
     if (this.prisma && this.merchantRepo) {
-      return reevaluateCartRules({ prisma: this.prisma, merchantRepo: this.merchantRepo, cartRepo: this.cartRepo, productPromotionRepo: this.productPromotionRepo }, merchantId, cartId, cart);
+      return reevaluateCartRules({ prisma: this.prisma, merchantRepo: this.merchantRepo, cartRepo: this.cartRepo, productPromotionRepo: this.productPromotionRepo, crossSellCart: this.crossSellCart }, merchantId, cartId, cart);
     }
     return { cart, promoMeta: await applyProductPromoPricing(this.productPromotionRepo, merchantId, cart), nextNudge: null, activeRules: [] };
   }
@@ -172,7 +180,8 @@ export class StorefrontController {
       origin: storefrontOrigin(request),
       aiUserId: identity.userId,
     });
-    return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt, ai_user_token: identity.token };
+    return { ...result, conversation_token: access.token, conversation_token_expires_at: access.expiresAt, ai_user_token: identity.token,
+      ui_action_capability: storefrontReadUiActionCapability() };
   }
 
   @Post("conversations/:conversationId/support/buyer")
@@ -197,7 +206,20 @@ export class StorefrontController {
   ) {
     const claims = this.conversationAccess(request, conversationId, body.merchant_id);
     if (body.cart_id !== undefined && body.cart_id !== claims.resourceId) throw new ForbiddenException("conversation_cart_mismatch");
+    let uiAction: import("@zyon/shared-types").StorefrontReadUiAction | undefined;
+    if (Object.hasOwn(body, "ui_action_version") || Object.hasOwn(body, "ui_action")) {
+      const parsed = storefrontPublicReadUiActionRequestSchema.safeParse({
+        ui_action_version: body.ui_action_version, ui_action: body.ui_action, user_message: body.user_message,
+      });
+      if (!parsed.success) throw new BadRequestException("invalid_storefront_ui_action");
+      uiAction = parsed.data.ui_action;
+    }
     const globalUserId = this.buyerId(request, claims.merchantId);
+    if (uiAction && body.attachment !== undefined) throw new BadRequestException("attachment_not_allowed_with_ui_action");
+    // Capture browser-controlled data before rate-limit/LLM awaits. Only the
+    // server closure below can load attachment/oneBuyClick context after scope.
+    const messageSnapshot = structuredClone({ userMessage: body.user_message, history: body.history,
+      attachment: body.attachment, uiAction });
     const userId = globalUserId ? `buyer:${globalUserId}` : claims.aiUserId;
     if (!userId) throw new UnauthorizedException("ai_user_identity_required");
     const admittedVoice = await this.aiUserLimiter?.consumeVoicePermit(body.voice_turn_token, { userId, merchantId: claims.merchantId, resourceId: claims.resourceId, origin: request.headers?.origin });
@@ -213,23 +235,32 @@ export class StorefrontController {
         throw new HttpException({ code: "ai_interaction_rate_limited", scope: "user", retry_after_seconds: retryAfterSeconds }, HttpStatus.TOO_MANY_REQUESTS);
       }
     }
-    const attachmentContext = await this.attachmentInterpreter.interpret(body.attachment);
-    const oneBuyClick = this.oneBuyClick
-      ? await this.oneBuyClick.get({
-          merchantId: claims.merchantId,
-          conversationId: claims.resourceId,
-          globalUserId,
-        })
-      : undefined;    return this.sendStoreMessage.execute({
+    const deferredContext = messageSnapshot.attachment !== undefined || this.oneBuyClick ? async () => {
+      const attachmentContext = messageSnapshot.attachment === undefined ? undefined
+        : await this.attachmentInterpreter.interpret(messageSnapshot.attachment);
+      const state = this.oneBuyClick ? await this.oneBuyClick.get({
+        merchantId: claims.merchantId, conversationId: claims.resourceId, globalUserId,
+      }) : undefined;
+      // The canonical public state also contains preferences/receipt metadata.
+      // Keep the private agent context bounded without weakening strict Zod or
+      // removing those fields from the real public state endpoint.
+      return { attachmentContext, oneBuyClick: state === undefined ? undefined : {
+        enabled: state.enabled, status: state.status,
+        shippingPreference: state.shippingPreference, paymentPreference: state.paymentPreference,
+      } };
+    } : undefined;
+    const input = {
       merchant_id: claims.merchantId,
       conversation_id: claims.resourceId,
-      user_message: body.user_message,
+      user_message: messageSnapshot.userMessage,
       cart_id: claims.resourceId,
-      history: body.history,
-      attachment_context: attachmentContext,
+      history: messageSnapshot.history,
+      attachment_context: undefined,
       global_user_id: globalUserId,
-      one_buy_click: oneBuyClick,
-    });
+      one_buy_click: undefined,
+      ...(messageSnapshot.uiAction ? { ui_action: messageSnapshot.uiAction } : {}),
+    };
+    return deferredContext ? this.sendStoreMessage.execute(input, deferredContext) : this.sendStoreMessage.execute(input);
   }
 
   @Get("conversations/:conversationId/one-buy-click")
@@ -276,9 +307,11 @@ export class StorefrontController {
         const buyerToken = request.headers?.["x-buyer-authorization"]?.match(/^Bearer (\S+)$/i)?.[1];
         const identity = (this.aiIdentity ?? new AiUserIdentityService()).resolve({ visitorToken: request.headers?.["x-ai-user-token"], buyerToken, merchantId: claims.merchantId });
         const migrated = this.capabilities.renewConversation(access.token, conversationId, storefrontOrigin(request), Math.floor(Date.now() / 1000), identity.userId);
-        return { conversation_id: conversationId, conversation_token: migrated.token, conversation_token_expires_at: migrated.expiresAt, ai_user_token: identity.token };
+        return { conversation_id: conversationId, merchant_id: claims.merchantId, conversation_token: migrated.token,
+          conversation_token_expires_at: migrated.expiresAt, ai_user_token: identity.token, ui_action_capability: storefrontReadUiActionCapability() };
       }
-      return { conversation_id: conversationId, conversation_token: access.token, conversation_token_expires_at: access.expiresAt };
+      return { conversation_id: conversationId, merchant_id: claims.merchantId, conversation_token: access.token,
+        conversation_token_expires_at: access.expiresAt, ui_action_capability: storefrontReadUiActionCapability() };
     } catch {
       throw new UnauthorizedException("invalid_conversation_token");
     }
@@ -377,9 +410,12 @@ export class StorefrontController {
     return {
       cartId: cart.sessionId,
       items: cart.items.map((i) => {
-        const badge = promoMeta?.get(i.variantId);
+        const badge = getProductPromoBadge(promoMeta, i);
         return {
           variantId: i.variantId,
+          optionItemIds: (i.selectedOptions ?? []).map(option => option.itemId),
+          selectionLabel: storefrontCartLineSelectionLabel(i),
+          serviceSlotId: i.selectedServiceSlot?.slotId ?? null,
           productName: i.name,
           selectedServiceSlot: i.selectedServiceSlot,
           selectedServiceSlotId: i.selectedServiceSlot?.slotId,
@@ -395,6 +431,7 @@ export class StorefrontController {
       subtotal: cart.total / 100,
       total: (cart.total - cart.discount) / 100,
       freeShipping: cart.freeShipping,
+      commercialNotices: cart.commercialNotices,
       nextNudge,
       activeRules,
     };
@@ -437,7 +474,7 @@ export class StorefrontController {
     @Param("cartId") cartId: string,
     @Param("variantId") variantId: string,
     @Query("merchantId") merchantId: string,
-    @Body() body: { quantity: number },
+    @Body() body: { quantity: number } & StorefrontCartLineSelector,
     @Req() request: { headers?: { authorization?: string; origin?: string } },
   ) {
     if (!merchantId) throw new BadRequestException("merchantId query param required");
@@ -445,14 +482,22 @@ export class StorefrontController {
     if (body.quantity == null || !Number.isInteger(body.quantity) || body.quantity < 0 || body.quantity > 99) {
       throw new BadRequestException("quantity must be an integer between 0 and 99");
     }
-    const base = await this.cartRepo.updateItemQuantity(merchantId, cartId, variantId, body.quantity);
+    const parsed = storefrontCartQuantityUpdateSchema.safeParse(body);
+    if (!parsed.success) throw new BadRequestException("cart_line_selection_invalid");
+    const { quantity, ...selector } = parsed.data;
+    const base = selector.optionItemIds !== undefined || selector.serviceSlotId !== undefined
+      ? await this.cartRepo.updateItemQuantity(merchantId, cartId, variantId, quantity, selector)
+      : await this.cartRepo.updateItemQuantity(merchantId, cartId, variantId, quantity);
     const { cart, promoMeta, nextNudge, activeRules } = await this.priceCart(merchantId, cartId, base);
     return {
       cartId: cart.sessionId,
       items: cart.items.map((i) => {
-        const badge = promoMeta?.get(i.variantId);
+        const badge = getProductPromoBadge(promoMeta, i);
         return {
           variantId: i.variantId,
+          optionItemIds: (i.selectedOptions ?? []).map(option => option.itemId),
+          selectionLabel: storefrontCartLineSelectionLabel(i),
+          serviceSlotId: i.selectedServiceSlot?.slotId ?? null,
           productName: i.name,
           quantity: i.quantity,
           price: i.unitPriceCents / 100,
@@ -466,6 +511,7 @@ export class StorefrontController {
       subtotal: cart.total / 100,
       total: (cart.total - cart.discount) / 100,
       freeShipping: cart.freeShipping,
+      commercialNotices: cart.commercialNotices,
       nextNudge,
       activeRules,
     };

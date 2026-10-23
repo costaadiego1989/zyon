@@ -49,12 +49,13 @@ function createTestUseCase(
   merchantRepo?: MerchantRepository,
   brevoNotifier?: BrevoBuyerEmailNotifier,
   crossSellRecommender?: CheckoutCrossSellRecommenderPort,
-  buyerAccounts?: InMemoryBuyerAccountRepository
+  buyerAccounts?: InMemoryBuyerAccountRepository,
+  emailSender: EmailSenderPort = acceptedEmail
 ) {
   const otpService = new OtpService();
   const recognitionService = new BuyerRecognitionService(repository, buyerAccounts);
   const persistenceService = new BuyerAccountPersistenceService(buyerAccounts);
-  const custService = new CheckoutCustomerService(repository, brevoNotifier, otpService, recognitionService, persistenceService, acceptedEmail);
+  const custService = new CheckoutCustomerService(repository, brevoNotifier, otpService, recognitionService, persistenceService, emailSender);
   const shipService = new CheckoutShippingService(repository, custService);
   const offerService = new CheckoutOfferService(repository);
   return createSendChatUseCase(repository, {
@@ -693,38 +694,94 @@ test("SendChatMessageUseCase gera quick_replies dinâmicas customizadas de acord
   assert.equal(qr.includes("Tenho um cupom"), false, "Filtrou a menção de cupom porque maxDiscount=0 e couponBoxEnabled=false");
 });
 
-test.skip("SendChatMessageUseCase blocks duplicate email registration and returns chat error turn", async () => {
+test("SendChatMessageUseCase requires this session's OTP for a duplicate unverified email without adopting prior identity or profile", async () => {
   const repository = new InMemoryCheckoutRepository();
   const conversation = new RecordingConversationPort();
-  const useCase = createTestUseCase(repository, conversation);
+  const deliveries: Parameters<EmailSenderPort["send"]>[0][] = [];
+  const sender: EmailSenderPort = { async send(input) {
+    deliveries.push(structuredClone(input));
+    return acceptedEmail.send(input);
+  } };
+  const useCase = createTestUseCase(repository, conversation, undefined, undefined, undefined, undefined, undefined, sender);
 
-  // Setup session 1 with registered email
-  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_1" }));
+  // Seeing an email in another session is not registration or proof of ownership.
+  // This older profile deliberately lacks email_verified, even if it has PII.
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_1", customer: undefined }));
   const session1 = await repository.getSession("mrc_1", "chk_1");
-  if (session1) {
-    session1.customer = { email: "duplicado@aacp.io", fullName: "Comprador Um" };
-    await repository.saveSession(session1);
-  }
+  assert.ok(session1);
+  session1.globalUserId = "buyer_unverified_previous";
+  session1.customer = { email: "duplicado@aacp.io", fullName: "Comprador Um", phone: "21999998888", cpf: "12345678900",
+    address: { zip: "01310100", street: "Rua do Perfil Anterior", number: "100", city: "Sao Paulo", state: "SP" } };
+  await repository.saveSession(session1);
+  const previousSnapshot = structuredClone(session1);
 
-  // Setup session 2
-  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_2" }));
+  await createStartCheckoutUseCase(repository, repository).execute(startCheckoutRequest({ session_id: "chk_2", customer: undefined }));
   const session2 = await repository.getSession("mrc_1", "chk_2");
-  if (session2) {
-    session2.customer = { fullName: "Comprador Dois" };
-    await repository.saveSession(session2);
-  }
+  assert.ok(session2);
+  session2.customer = { fullName: "Comprador Dois" };
+  await repository.saveSession(session2);
+  const currentIdentity = session2.globalUserId;
+  assert.notEqual(currentIdentity, previousSnapshot.globalUserId);
 
-  // Try to register session 2 with duplicate email
   const res = await useCase.execute({
     merchant_id: "mrc_1",
     session_id: "chk_2",
     conversation_id: "conv_2",
-    user_message: "Meu email é duplicado@aacp.io"
+    user_message: "Meu email é DUPLICADO@aacp.io"
   });
 
-  assert.equal(res.message.includes("Não é possível cadastrar com este e-mail"), true, "Retornou mensagem amigável de e-mail duplicado");
-  const session2After = await repository.getSession("mrc_1", "chk_2");
-  assert.notEqual(session2After?.customer?.email, "duplicado@aacp.io", "Não salvou o e-mail duplicado");
+  const pending = await repository.getSession("mrc_1", "chk_2");
+  assert.ok(pending);
+  assert.equal(res.stage, "data_collection");
+  assert.equal(res.missing_fields?.[0], "código de verificação");
+  assert.equal(pending.customer?.email, "duplicado@aacp.io");
+  assert.notEqual(pending.customer?.email_verified, true);
+  assert.notEqual(pending.customer?.recognized_buyer, true);
+  assert.equal(pending.globalUserId, currentIdentity);
+  assert.equal(pending.customer?.fullName, "Comprador Dois");
+  assert.equal(pending.customer?.phone, undefined);
+  assert.equal(pending.customer?.cpf, undefined);
+  assert.equal(pending.customer?.address, undefined);
+  const code = pending.customer?.otp_code;
+  assert.ok(code); assert.match(code, /^\d{6}$/);
+  assert.equal(deliveries.length, 1);
+  assert.equal(deliveries[0]?.to, "duplicado@aacp.io");
+  assert.equal(deliveries[0]?.merchantId, "mrc_1");
+  assert.equal(deliveries[0]?.requireDelivery, true);
+  assert.equal(deliveries[0]?.idempotencyKey, `checkout-otp:mrc_1:chk_2:${code}`);
+  assert.equal(deliveries[0]?.subject, `${code} é seu código de confirmação`);
+  assert.ok(deliveries[0]?.html.includes(code));
+
+  await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_2", conversation_id: "conv_2", user_message: code === "100000" ? "100001" : "100000" });
+  const afterWrongCode = await repository.getSession("mrc_1", "chk_2");
+  assert.notEqual(afterWrongCode?.customer?.email_verified, true);
+  assert.equal(afterWrongCode?.globalUserId, currentIdentity);
+  assert.equal(afterWrongCode?.customer?.otp_code, code);
+  assert.equal(deliveries.length, 1, "invalid OTP is not a delivery or implicit resend");
+
+  const verified = await useCase.execute({ merchant_id: "mrc_1", session_id: "chk_2", conversation_id: "conv_2", user_message: code });
+  const afterOtp = await repository.getSession("mrc_1", "chk_2");
+  assert.equal(afterOtp?.customer?.email_verified, true);
+  assert.equal(afterOtp?.customer?.otp_code, "");
+  assert.equal(afterOtp?.globalUserId, currentIdentity, "unverified prior session cannot supply a verified identity");
+  assert.notEqual(afterOtp?.customer?.recognized_buyer, true);
+  assert.equal(afterOtp?.customer?.fullName, "Comprador Dois");
+  assert.equal(afterOtp?.customer?.phone, undefined);
+  assert.equal(afterOtp?.customer?.cpf, undefined);
+  assert.equal(afterOtp?.customer?.address, undefined);
+  assert.equal(verified.stage, "data_collection");
+  assert.ok(verified.missing_fields?.includes("telefone"));
+  assert.ok(verified.missing_fields?.includes("CPF"));
+  assert.deepEqual(await repository.getSession("mrc_1", "chk_1"), previousSnapshot);
+  assert.equal(deliveries.length, 1);
+  // The conversation port is the deterministic fallback, not the LLM gateway.
+  // Invalid OTP exits before it; email capture and successful OTP each use it.
+  assert.equal(conversation.calls.length, 2);
+  for (const call of conversation.calls) {
+    assert.equal(call.merchantId, "mrc_1"); assert.equal(call.sessionId, "chk_2");
+    assert.equal(call.stage, "data_collection");
+    assert.equal(JSON.stringify(call).includes("Rua do Perfil Anterior"), false);
+  }
 });
 
 test("SendChatMessageUseCase recognizes existing buyer email and continues after verification", async () => {

@@ -4,6 +4,7 @@ import type { Cart, CheckoutSession } from "@zyon/shared-types";
 import { isDeepStrictEqual } from "node:util";
 import { marketplacePaymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
 import { PAYMENT_PROVIDER_PORT, type PaymentProviderPort } from "../domain/ports/payment-provider.port.js";
 import { BillingPlanMeteringService } from "../domain/billing-plan-guard.js";
 import { merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
@@ -30,6 +31,7 @@ export class PrepareMarketplaceCheckoutService {
    * attempts recover their original charge instead of requiring a fresh quote. */
   async assertFrozenShipping(input: { merchantId: string; sessionId: string }, instructions: FrozenMarketplaceFunding): Promise<void> {
     await this.prisma.$transaction(async tx => {
+      await lockCheckoutSessionAnchor(tx, input.merchantId, input.sessionId);
       await tx.$queryRaw`SELECT session_id FROM checkout_sessions WHERE merchant_id = ${input.merchantId} AND session_id = ${input.sessionId} FOR UPDATE`;
       const row = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: input } });
       if (!row || row.merchantId !== input.merchantId) throw new ConflictException("marketplace_funding_checkout_missing");

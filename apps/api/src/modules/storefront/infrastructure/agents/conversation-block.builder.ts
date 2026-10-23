@@ -1,6 +1,10 @@
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
+import { STOREFRONT_TOOL_OUTCOME_UNKNOWN } from "../../domain/errors/store-tool-outcome-unknown.error.js";
+import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
+import { commercialNoticesSchema } from "../../domain/contracts/commercial-notice.schemas.js";
 
 export interface BuildBlocksInput {
+  presentationMode?: "legacy" | "structured";
   toolResults: Record<string, unknown>;
   userMessage: string;
   finalContent: string;
@@ -39,6 +43,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   const addItemResult = toolResults["add_item_to_cart"] as any;
   const userMessage = input.userMessage;
 
+  if ((toolResults.apply_coupon as { error?: unknown } | undefined)?.error === STOREFRONT_TOOL_OUTCOME_UNKNOWN)
+    return { blocks: [], finalContent: STOREFRONT_CONTRACT_FALLBACK };
+
   if (typeof addItemResult?.error === "string" && /^service_(?:slot|schedule)_/.test(addItemResult.error)) {
     return { blocks: [], finalContent: "Não foi possível adicionar esse horário. Revise a data e o horário oferecidos antes de tentar novamente." };
   }
@@ -57,7 +64,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
 
   const skipProductCarousel = !!toolResults["add_item_to_cart"] || !!toolResults["get_product_details"];
-  const isDetailIntent = /detalh|saber mais|informa[cç]|especifica|mais sobre|me fale|conte.*sobre/i.test(userMessage);
+  const isDetailIntent = input.presentationMode === "structured" ? false
+    : /detalh|saber mais|informa[cç]|especifica|mais sobre|me fale|conte.*sobre/i.test(userMessage);
   const searchData = toolResults["search_products"] as any;
   const singleSearchAsDetail = !toolResults["get_product_details"] && isDetailIntent && searchData?.products?.length === 1;
 
@@ -182,6 +190,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   const skipCartBlock = !!toolResults["quote_shipping"];
  
   const couponResult = (toolResults["apply_coupon"] ?? toolResults["remove_coupon"]) as any;
+  const couponNotices = commercialNoticesSchema.parse(couponResult?.commercialNotices ?? []);
+  if (couponResult?.applied === false && couponNotices.length > 0) finalContent = couponNotices.map(notice => notice.message).join(" ");
   if (couponResult?.applied && couponResult?.items?.length > 0 && !skipCartBlock) {
     blocks.push({
       type: "cart_summary",
@@ -189,6 +199,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         cartId: couponResult.cartId,
         items: couponResult.items.map((i: any) => ({
           variantId: i.variantId,
+          optionItemIds: i.optionItemIds,
+          selectionLabel: i.selectionLabel,
+          serviceSlotId: i.serviceSlotId === null ? null : i.serviceSlotId ?? i.selectedServiceSlot?.slotId,
           productName: i.name,
           quantity: i.quantity,
           price: i.unitPrice,
@@ -201,6 +214,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         couponCode: couponResult.couponCode ?? null,
         freeShipping: false,
         total: (couponResult.total ?? 0) - (couponResult.discount ?? 0),
+        commercialNotices: couponNotices.length ? couponNotices : undefined,
       }
     });
   }
@@ -235,6 +249,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
   if (latestCart) {
     const cartData = latestCart as any;
+    const notices = [...new Map([...couponNotices, ...commercialNoticesSchema.parse(cartData?.commercialNotices ?? [])]
+      .map(notice => [notice.code, notice] as const)).values()];
     if (Array.isArray(cartData?.items) && !couponResult?.applied) {
       blocks.push({
         type: "cart_summary",
@@ -242,6 +258,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           cartId: cartData.cartId,
           items: cartData.items.map((i: any) => ({
             variantId: i.variantId,
+            optionItemIds: i.optionItemIds,
+            selectionLabel: i.selectionLabel,
+            serviceSlotId: i.serviceSlotId === null ? null : i.serviceSlotId ?? i.selectedServiceSlot?.slotId,
             productName: i.name,
             quantity: i.quantity,
             price: i.unitPrice,
@@ -255,6 +274,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           total: cartData.total - (cartData.discount ?? 0),
           nextNudge: cartData.nextNudge ?? undefined,
           activeRules: cartData.activeRules ?? undefined,
+          commercialNotices: notices.length ? notices : undefined,
         }
       });
     }

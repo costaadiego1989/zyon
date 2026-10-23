@@ -36,15 +36,17 @@ test(
   async () => {
     const prisma = createPrismaClient();
     const authRepository = new PrismaAuthRepository(prisma);
-    const jwt = new JwtService("test-secret-32-chars-long-xxxxxx", 3600);
+    const jwt = new JwtService("test-secret-32-chars-long-xxxxxx", 3600, authRepository);
     const hasher = new PasswordHasher();
     const idGen = new DefaultMerchantIdGenerator();
     const register = new RegisterMerchantUseCase(authRepository, hasher, jwt, idGen);
     const login = new LoginUseCase(authRepository, hasher, jwt);
 
     const emailSender = new FakeEmailSender();
-    const redisUrl = process.env.REDIS_URL ?? "redis://localhost:6379";
-    const redis = new Redis(redisUrl, { lazyConnect: false, maxRetriesPerRequest: 1 });
+    assert.ok(process.env.REDIS_URL, "explicit_synthetic_redis_url_required");
+    const redisUrl = process.env.REDIS_URL;
+    const redis = new Redis(redisUrl, { lazyConnect: true, maxRetriesPerRequest: 0,
+      retryStrategy: () => null, connectTimeout: 5000, commandTimeout: 5000 });
     const otpStore = new RedisEmailChangeOtpStore(redis);
     const rateLimiter = new EmailChangeRateLimiter(3, 15 * 60 * 1000);
 
@@ -69,7 +71,9 @@ test(
     const originalEmail = merchantEmail;
     const newEmail = `me_e2e_new_${crypto.randomUUID()}@example.com`;
 
+    let primaryError: unknown;
     try {
+      await redis.connect();
       // ── Register ──
       const registered = await register.execute({
         merchant_name: "Me Test",
@@ -150,7 +154,7 @@ test(
         () =>
           (authController as any).confirmEmailChangeRoute(merchantId, {
             new_email: newEmail,
-            code: "000000",
+            code: code === "000000" ? "000001" : "000000",
           }),
         (err: any) => err.status === 401,
       );
@@ -180,17 +184,41 @@ test(
         () => login.execute({ email: merchantEmail, password: "new-pw-12345" }),
         (err: any) => err.message?.includes("invalid_credentials") || err.code === "invalid_credentials",
       );
+    } catch (error) {
+      primaryError = error;
+      throw error;
     } finally {
-      // Cleanup
-      if (merchantId) {
-        await prisma.merchantRule.deleteMany({ where: { merchantId } });
-        await prisma.merchantUser.deleteMany({ where: { merchantId } });
-        await prisma.merchant.deleteMany({ where: { id: merchantId } });
-      }
-      // Cleanup any user with newEmail (in case of partial state)
-      await prisma.merchantUser.deleteMany({ where: { email: newEmail } });
-      await prisma.$disconnect();
-      await redis.quit();
+      const cleanupErrors: unknown[] = [];
+      try {
+        if (merchantId) {
+          await prisma.merchantRule.deleteMany({ where: { merchantId } });
+          await prisma.merchantUser.deleteMany({ where: { merchantId } });
+          await prisma.merchant.deleteMany({ where: { id: merchantId } });
+        }
+        await prisma.merchantUser.deleteMany({ where: { email: newEmail } });
+      } catch (error) { cleanupErrors.push(error); }
+      try { await prisma.$disconnect(); } catch (error) { cleanupErrors.push(error); }
+      try {
+        // QUIT acknowledges the command, not closure of the proxied socket.
+        // All fixture commands have settled; close only this client's resources.
+        if (redis.status !== "end") {
+          let timer: ReturnType<typeof setTimeout> | undefined;
+          let onEnd: () => void = () => {};
+          try {
+            const ended = new Promise<void>((resolve, reject) => {
+              onEnd = resolve;
+              redis.once("end", onEnd);
+              timer = setTimeout(() => reject(new Error("owned_auth_redis_close_timeout")), 5000);
+            });
+            redis.disconnect();
+            await ended;
+          } finally {
+            clearTimeout(timer);
+            redis.removeListener("end", onEnd);
+          }
+        }
+      } catch (error) { cleanupErrors.push(error); }
+      if (cleanupErrors.length) throw new AggregateError([...(primaryError ? [primaryError] : []), ...cleanupErrors], "auth_me_fixture_cleanup_failed");
     }
   },
 );

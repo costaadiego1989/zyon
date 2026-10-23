@@ -3,7 +3,7 @@ import assert from "node:assert/strict";
 import type { AgentContext, AuthorizedOffer, Cart, StartCheckoutRequest } from "@zyon/shared-types";
 import { InMemoryBuyerPurchaseHistoryRepository } from "../../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
 import { RecordCompletedPurchaseUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { CheckoutPurchasePaymentIntent as CreatePaymentIntentUseCase, RecordingCheckoutEmailSender } from "../../__tests__/checkout-purchase-flow-fixtures.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
 import { PaymentDispatchService } from "../../../payment/application/services/payment-dispatch.service.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
@@ -31,6 +31,7 @@ import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in
 import { CheckoutController } from "./checkout.controller.js";
 import { InMemoryDomainEventBus } from "../../../../shared/events/in-memory-domain-event-bus.js";
 import { PaymentApprovedHandler } from "../../application/handlers/payment-approved.handler.js";
+import type { EmailSenderPort } from "../../../notifications/domain/ports/email-sender.port.js";
 
 const MERCHANT = "mrc_prisma_e2e";
 const CART: Cart = {
@@ -77,7 +78,7 @@ class FakeConv implements ConversationPort {
 
 import { BuyerPurchaseHistoryAdapter } from "../../infrastructure/adapters/buyer-purchase-history.adapter.js";
 
-function buildController(repo: InMemoryCheckoutRepository) {
+function buildController(repo: InMemoryCheckoutRepository, sender?: EmailSenderPort) {
   const payments = new InMemoryPaymentRepository();
   const purchaseHistoryRepo = new InMemoryBuyerPurchaseHistoryRepository();
   const purchaseHistoryPort = new BuyerPurchaseHistoryAdapter(new RecordCompletedPurchaseUseCase(purchaseHistoryRepo));
@@ -92,7 +93,8 @@ function buildController(repo: InMemoryCheckoutRepository) {
   const completeOrder = new CompleteOrderUseCase(repo, repo, repo, repo, purchaseHistoryPort,
     undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, paymentApprovals);
   const conv = new FakeConv();
-  const custService = new CheckoutCustomerService(repo, undefined, new OtpService());
+  const emailSender = new RecordingCheckoutEmailSender();
+  const custService = new CheckoutCustomerService(repo, undefined, new OtpService(), undefined, undefined, sender ?? emailSender);
   const shipService = new CheckoutShippingService(repo, custService);
   const offerService = new CheckoutOfferService(repo);
   const ctrl = new CheckoutController(
@@ -111,7 +113,7 @@ function buildController(repo: InMemoryCheckoutRepository) {
     completeOrder, new GetDashboardOverviewUseCase(repo),
     new GetMerchantRulesUseCase(repo), new UpdateMerchantRulesUseCase(repo)
   );
-  return { ctrl, payments, completeOrder, purchaseHistoryRepo };
+  return { ctrl, payments, completeOrder, purchaseHistoryRepo, emailSender };
 }
 
 // Seed the already-verified customer/shipping state for tests that begin after onboarding.
@@ -131,7 +133,7 @@ async function startVerifiedFixture(ctrl: CheckoutController, repo: InMemoryChec
 test("In-memory checkout integration: data_collection → shipping → payment → completed", async () => {
   const repo = new InMemoryCheckoutRepository();
   repo.setRules(MERCHANT, { maxDiscountPercent: 12, couponBoxEnabled: true });
-  const { ctrl, payments, completeOrder } = await buildController(repo);
+  const { ctrl, payments, completeOrder, emailSender } = await buildController(repo);
   const sid = "chk_prisma_e2e_1";
 
   // 1. Start
@@ -151,18 +153,25 @@ test("In-memory checkout integration: data_collection → shipping → payment �
   assert.equal(res.stage, "data_collection");
   const otpCode = repo.getSession(MERCHANT, sid)?.customer?.otp_code;
   assert.ok(otpCode, "OTP generated");
+  assert.equal(emailSender.deliveries.length, 1);
+  assert.equal(emailSender.deliveries[0].to, "joao@email.com");
+  assert.equal(emailSender.deliveries[0].merchantId, MERCHANT);
+  assert.ok(emailSender.deliveries[0].html.includes(otpCode));
+  assert.notEqual(repo.getSession(MERCHANT, sid)?.customer?.email_verified, true);
 
   // 4. Verify OTP
   await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: `o codigo e ${otpCode}` });
   const afterOtp = repo.getSession(MERCHANT, sid);
   assert.equal(afterOtp?.customer?.email_verified, true, "Email verified");
 
-  // 5. CPF
-  await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "123.456.789-01" });
-  assert.equal(repo.getSession(MERCHANT, sid)?.customer?.cpf, "12345678901");
-
-  // 6. Phone
+  // 5. Contact phone precedes CPF in the current collection order.
   res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "(21) 99300-1883" });
+  assert.equal(res.stage, "data_collection");
+  assert.equal(repo.getSession(MERCHANT, sid)?.customer?.phone, "21993001883");
+
+  // 6. CPF (must not be submitted as a reply to the phone question).
+  res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "123.456.789-01" });
+  assert.equal(repo.getSession(MERCHANT, sid)?.customer?.cpf, "12345678901");
   assert.equal(res.stage, "shipping", "Verified email and contact phone transition to shipping");
   assert.equal(repo.getSession(MERCHANT, sid)?.customer?.phone_otp_code, undefined);
 
@@ -200,7 +209,14 @@ test("In-memory checkout integration: data_collection → shipping → payment �
 
   // 10. Payment method
   res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "vou pagar no pix" });
-  assert.ok(res.actions.some(a => a.type === "continue_checkout"), "PIX action returned");
+  assert.equal(res.stage, "payment");
+  const paymentMethods = res.blocks?.find(block => block.type === "payment_methods");
+  assert.ok(paymentMethods && paymentMethods.type === "payment_methods");
+  assert.ok(paymentMethods.data);
+  const methods = paymentMethods.data.methods;
+  assert.ok(Array.isArray(methods));
+  assert.ok(methods.some((method: unknown) => typeof method === "object" && method !== null && "key" in method && method.key === "pix"));
+  assert.deepEqual(await payments.listForSession(MERCHANT, sid), [], "Chat navigation must not create a payment");
 
   // 11. Verify persisted session
   const finalSession = repo.getSession(MERCHANT, sid);
@@ -237,6 +253,57 @@ test("In-memory checkout integration: data_collection → shipping → payment �
   assert.equal(tracking.order.trackingCode, "BRPRISMA123AA");
 });
 
+for (const delivery of ["queued", "skipped", "error"] as const) {
+  test(`checkout identity remains unverified when OTP delivery is ${delivery}`, async () => {
+    const repo = new InMemoryCheckoutRepository();
+    let deliveries = 0;
+    const { ctrl, payments } = buildController(repo, {
+      async send(input) {
+        deliveries += 1;
+        assert.equal(input.merchantId, MERCHANT);
+        assert.equal(input.to, "identity@example.test");
+        assert.equal(input.requireDelivery, true);
+        if (delivery === "error") throw new Error("synthetic_sender_unavailable");
+        return { status: delivery, messageId: "synthetic-not-delivered" };
+      },
+    });
+    const started = await ctrl.start({ merchant_id: MERCHANT, session_id: `otp_${delivery}`, cart: CART });
+    const response = await ctrl.chat({ merchant_id: MERCHANT, session_id: started.session_id,
+      conversation_id: started.conversation_id, user_message: "identity@example.test" });
+    assert.equal(deliveries, 1);
+    assert.equal(response.stage, "data_collection");
+    const session = repo.getSession(MERCHANT, started.session_id);
+    assert.notEqual(session?.customer?.email_verified, true);
+    assert.ok(!session?.customer?.otp_code, "Undelivered challenge must not be committed");
+    assert.deepEqual(await payments.listForSession(MERCHANT, started.session_id), []);
+  });
+}
+
+for (const attempt of ["invalid", "expired"] as const) {
+  test(`checkout identity rejects ${attempt} OTP without advancing or creating payment`, async () => {
+    const repo = new InMemoryCheckoutRepository();
+    const { ctrl, payments, emailSender } = buildController(repo);
+    const started = await ctrl.start({ merchant_id: MERCHANT, session_id: `otp_${attempt}`, cart: CART });
+    await ctrl.chat({ merchant_id: MERCHANT, session_id: started.session_id,
+      conversation_id: started.conversation_id, user_message: "identity@example.test" });
+    const challenge = repo.getSession(MERCHANT, started.session_id)!;
+    const code = challenge.customer?.otp_code;
+    assert.ok(code);
+    assert.equal(emailSender.deliveries.length, 1);
+    if (attempt === "expired") await repo.saveSession({ ...challenge,
+      customer: { ...challenge.customer, otp_expires_at: new Date(Date.now() - 1_000).toISOString() } });
+    const supplied = attempt === "expired" ? code : code === "123456" ? "654321" : "123456";
+    const response = await ctrl.chat({ merchant_id: MERCHANT, session_id: started.session_id,
+      conversation_id: started.conversation_id, user_message: `o codigo e ${supplied}` });
+    assert.equal(response.stage, "data_collection");
+    const after = repo.getSession(MERCHANT, started.session_id)!;
+    assert.notEqual(after.customer?.email_verified, true);
+    assert.equal(after.customer?.otp_code, code);
+    assert.equal(emailSender.deliveries.length, 1, "Invalid attempts must not issue a replacement automatically");
+    assert.deepEqual(await payments.listForSession(MERCHANT, started.session_id), []);
+  });
+}
+
 // ---- TEST 2: Discount rules - max cap ----
 test("Discount offer is capped at maxDiscountPercent", async () => {
   const repo = new InMemoryCheckoutRepository();
@@ -252,8 +319,8 @@ test("Discount offer is capped at maxDiscountPercent", async () => {
   }
 });
 
-// ---- TEST 3: Discount blocked by minimum margin ----
-test("Discount blocked when margin too low", async () => {
+// ---- TEST 3: Margin does not override the configured discount ceiling ----
+test("Discount remains authorized within ceiling regardless of old minimum margin", async () => {
   const repo = new InMemoryCheckoutRepository();
   repo.setRules(MERCHANT, { maxDiscountPercent: 50, minimumMarginPercent: 99, couponBoxEnabled: true });
   const { ctrl } = await buildController(repo);
@@ -262,8 +329,9 @@ test("Discount blocked when margin too low", async () => {
   await startVerifiedFixture(ctrl, repo, { merchant_id: MERCHANT, session_id: sid, customer: { fullName: "Test User", email: "t@t.com", email_verified: true, cpf: "12345678901", phone: "11999999999", phone_verified: true, address_verified: true, address: { zip: "01310100", street: "Rua A", number: "1", city: "SP", state: "SP", neighborhood: "C" } }, cart: CART, shipping: { customerPrice: 20, realCost: 15, carrier: "C", method: "PAC", deliveryDays: 5, region: "sudeste" } });
 
   const res = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: "conv_test", user_message: "quero desconto" });
-  assert.equal(res.authorized_offer?.approved, false, "Offer blocked by margin rule");
-  assert.equal(res.authorized_offer?.reason, "minimum_margin_violation");
+  assert.equal(res.authorized_offer?.approved, true);
+  assert.ok(res.authorized_offer.value > 0 && res.authorized_offer.value <= 50);
+  assert.notEqual(res.authorized_offer.reason, "minimum_margin_violation");
 });
 
 // ---- TEST 4: Shipping offer blocked in data_collection stage ----
@@ -358,7 +426,10 @@ test("Quick replies differ by stage", async () => {
 
   const started = await ctrl.start({ merchant_id: MERCHANT, session_id: sid, customer: undefined, cart: CART });
   const dataReplies = started.experience.copy.quick_replies;
-  assert.ok(dataReplies.some(r => /email|spam|e-mail/i.test(r)), "Data collection quick replies present");
+  assert.deepEqual(dataReplies, ["Vocês vão me ligar?", "Mandam rastreio por WhatsApp?", "Por que precisa ser celular?"]);
+  assert.equal(started.experience.copy.expected_input_type, "tel");
+  const emailPrompt = await ctrl.chat({ merchant_id: MERCHANT, session_id: sid, conversation_id: started.conversation_id, user_message: "(21) 99300-1883" });
+  assert.ok(emailPrompt.experience?.copy.quick_replies.some(r => /email|spam|e-mail/i.test(r)), "Email quick replies follow phone collection");
 
   // Skip to payment stage
   const sid2 = "chk_qr_pay";

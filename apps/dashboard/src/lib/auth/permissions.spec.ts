@@ -38,7 +38,7 @@ describe("filterNavByRole", () => {
     expect(keys).toContain("funnel");
     expect(keys).toContain("customers");
     expect(keys).toContain("account-settings");
-    expect(keys).toContain("marketplace");
+    expect(keys).not.toContain("marketplace");
     expect(keys).not.toContain("catalog");
     expect(keys).not.toContain("team");
     expect(keys).not.toContain("billing");

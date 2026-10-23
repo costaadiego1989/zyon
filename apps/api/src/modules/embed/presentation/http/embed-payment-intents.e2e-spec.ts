@@ -10,7 +10,7 @@ import { EmbedCheckoutController, EmbedCheckoutGuardHelper } from "./embed-check
 import { createStartCheckoutUseCase } from "../../../checkout/application/use-cases/start-checkout.fixture.js";
 import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cases/track-checkout-event.use-case.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { CheckoutPurchasePaymentIntent as CreatePaymentIntentUseCase } from "../../../checkout/__tests__/checkout-purchase-flow-fixtures.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
 
@@ -55,6 +55,15 @@ test("embed payment intents: merchant_id só do embed token após sessão válid
     customer: { fullName: "Embed Buyer", email: "embed-buyer@example.test", phone: "11999999999", cpf: "12345678901", asaasCustomerId: "untrusted-browser-id" },
     shipping: { customerPrice: 0, realCost: 0, method: "Frete gratis" }
   });
+
+  const foreignClaims = { ...embedClaims, merchantId: "foreign_embed_merchant" };
+  // A structurally valid adversarial input may contain untrusted extra fields.
+  // Only the already-verified embed claims can select the merchant scope.
+  const foreignTenantInput = {
+    session_id: started.session_id, idempotency_key: "foreign-tenant", merchant_id: embedClaims.merchantId,
+  };
+  await assert.rejects(c.intentFromEmbed({ embedClaims: foreignClaims }, foreignTenantInput), /embed_checkout_session_binding_mismatch/);
+  assert.deepEqual(await payments.listForSession(embedClaims.merchantId, started.session_id), []);
 
   await assert.rejects(c.intentFromEmbed({ embedClaims }, { session_id: started.session_id, idempotency_key: "before-shipping" }), /shipping_method_required_before_payment/);
   const quotes = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());

@@ -3,7 +3,7 @@
  */
 
 import { Injectable, Inject } from "@nestjs/common";
-import type { PrismaClient } from "@prisma/client";
+import { Prisma, type PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { WhatsAppSessionRepository, WhatsAppSessionEntity, PostSaleContextData } from "../../domain/ports/whatsapp-session-repository.port.js";
 
@@ -11,17 +11,26 @@ import type { WhatsAppSessionRepository, WhatsAppSessionEntity, PostSaleContextD
 export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepository {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
 
-  async findActiveByPhone(merchantId: string, buyerPhone: string): Promise<WhatsAppSessionEntity | null> {
+  async findActiveByPhone(merchantId: string, buyerPhone: string, deviceId?: string): Promise<WhatsAppSessionEntity | null> {
     const row = await (this.prisma as any).whatsAppSession?.findFirst({
-      where: { merchantId, buyerPhone, status: "active" },
+      where: { merchantId, buyerPhone, ...(deviceId ? { deviceId } : {}), status: "active" },
       orderBy: { lastActivityAt: "desc" },
     });
     return row ? this.toDomain(row) : null;
   }
 
   async create(data: Omit<WhatsAppSessionEntity, "id" | "createdAt">): Promise<WhatsAppSessionEntity> {
-    const row = await (this.prisma as any).whatsAppSession.create({
-      data: {
+    const row = await this.prisma.$transaction(async tx => {
+      // The unique key includes expired rows. Serialize renewal on that same
+      // key so retries and concurrent first messages cannot create duplicates
+      // or overwrite a conversation that another worker has already renewed.
+      const key = JSON.stringify(["whatsapp-session", data.merchantId, data.buyerPhone, data.deviceId]);
+      await tx.$queryRaw(Prisma.sql`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text`);
+      const existing = await tx.whatsAppSession.findUnique({ where: {
+        merchantId_buyerPhone_deviceId: { merchantId: data.merchantId, buyerPhone: data.buyerPhone, deviceId: data.deviceId },
+      } });
+      if (existing?.status === "active") return existing;
+      const fresh = {
         merchantId: data.merchantId,
         buyerPhone: data.buyerPhone,
         buyerAlias: data.buyerAlias ?? null,
@@ -32,8 +41,11 @@ export class PrismaWhatsAppSessionRepository implements WhatsAppSessionRepositor
         currentPage: data.currentPage,
         lastActivityAt: data.lastActivityAt,
         status: data.status,
-        conversationState: data.conversationState,
-      },
+        conversationState: data.conversationState ? JSON.parse(JSON.stringify(data.conversationState)) as Prisma.InputJsonValue : Prisma.DbNull,
+      };
+      return existing
+        ? tx.whatsAppSession.update({ where: { id: existing.id }, data: { ...fresh, postSaleContext: Prisma.DbNull } })
+        : tx.whatsAppSession.create({ data: fresh });
     });
     return this.toDomain(row);
   }

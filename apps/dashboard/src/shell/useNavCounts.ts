@@ -31,11 +31,12 @@ export interface UseNavCounts {
  * reflect only items unseen since the merchant last opened that section.
  * Graceful fallback: zeros on error, nav still renders.
  */
-export function useNavCounts(): UseNavCounts {
+export function useNavCounts(enabled = true): UseNavCounts {
   const [counts, setCounts] = useState<NavCounts>({ orders: 0, messages: 0, cartRecovery: 0 });
   const stoppedRef = useRef(false);
 
   const fetchCounts = useCallback(async () => {
+    if (!enabled) return;
     try {
       const res = await dashboardFetch(API_BASE_URL, "/dashboard/nav-counts");
       if (res.ok) {
@@ -45,9 +46,10 @@ export function useNavCounts(): UseNavCounts {
     } catch {
       // Silent fail, keep current counts
     }
-  }, []);
+  }, [enabled]);
 
   const markViewed = useCallback((badgeKey: NavBadgeKey) => {
+    if (!enabled) return;
     // Optimistic: zero the badge immediately for snappy UX
     setCounts((prev) => ({ ...prev, [countField[badgeKey]]: 0 }));
     // Persist (best-effort — server also swallows failures)
@@ -56,9 +58,10 @@ export function useNavCounts(): UseNavCounts {
     }).catch(() => {
       // On failure, next poll will restore the true count
     });
-  }, []);
+  }, [enabled]);
 
   useEffect(() => {
+    if (!enabled) { stoppedRef.current = true; return; }
     stoppedRef.current = false;
 
     void fetchCounts();

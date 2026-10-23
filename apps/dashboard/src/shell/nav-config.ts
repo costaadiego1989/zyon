@@ -175,12 +175,7 @@ export const NAV_ITEMS: NavItem[] = [
   { key: "agent-config", label: "Agente IA", section: "channels", icon: Bot, requiredPlan: STORE, keywords: ["agente", "agent", "ia", "ai", "assistente", "bot"] },
   { key: "theme", label: "Aparência do checkout", section: "channels", icon: Palette, requiredPlan: STORE, keywords: ["tema", "theme", "aparência", "cores", "visual", "branding"] },
   { key: "whatsapp-seller", label: "WhatsApp", section: "channels", icon: Smartphone, keywords: ["whatsapp", "zap", "wpp", "vendedor"] },
-  { key: "marketplace", label: "Marketplace", section: "channels", icon: ShoppingBag, keywords: ["marketplace", "mercado", "conexões"] },
-  { key: "marketplace-payments", label: "Cobranças do marketplace", section: "channels", icon: CreditCard, keywords: ["marketplace", "cobranças", "cancelamento"] },
-  { key: "marketplace-shipments", label: "Remessas do marketplace", section: "channels", icon: PackageSearch, keywords: ["marketplace", "remessas", "melhor envio", "recuperar", "uuid"] },
-  { key: "marketplace-refunds", label: "Estornos do marketplace", section: "channels", icon: Undo2, keywords: ["marketplace", "devoluções", "estornos", "reembolso"] },
-  { key: "marketplace-asaas-wallet-returns", label: "Retornos Asaas", section: "channels", icon: Undo2, keywords: ["marketplace", "repasses", "retorno", "asaas", "estorno"] },
-  { key: "marketplace-contributions", label: "Aportes para estornos", section: "channels", icon: CreditCard, keywords: ["marketplace", "aporte", "stripe", "taxas", "estorno"] },
+  // Marketplace is outside the MVP in every plan; keep its routes for reactivation.
   { key: "custom-domain", label: "Domínio", section: "channels", icon: Globe, requiredPlan: STORE, keywords: ["domínio", "domain", "dns", "url", "site"] },
 
   // ─── INTEGRAÇÕES ─── conexões técnicas

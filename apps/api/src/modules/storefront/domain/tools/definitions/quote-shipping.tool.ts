@@ -4,7 +4,7 @@ import { wrapHandler } from "../types.js";
 export const QUOTE_SHIPPING: ToolDefinition = {
   name: "quote_shipping",
   description:
-    "Get shipping quote. Can quote for a cart OR for a single product (by productId). Returns carriers (Sedex, PAC), price in cents, and delivery days. Does NOT require product to be in cart.",
+    "Read a current shipping reference for the authenticated cart and destination CEP. Returns only configured manual tariffs or real merchant-connected carriers, prices in cents and estimated days. This is NOT selected shipping or a financial/free-shipping grant. Missing address/dimensions/account or ambiguous product choices return a prerequisite, never fabricated PAC/Sedex. For product-only requests, guide the existing product detail/variant selection.",
   parameters: {
     type: "object",
     properties: {

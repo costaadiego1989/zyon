@@ -18,10 +18,23 @@ coverage
 # Test reports and results
 playwright-report/
 test-results/
+# Durable local provider approval ledger; never distribute/reset as test fixtures.
+/apps/api/.sandbox-state/
+/.sandbox-state/
 
 # Local scripts and tools
 scripts/*
 !scripts/docker-engine-ok.mjs
+# Required dashboard build dependency and its focused regression tests.
+!scripts/lib/
+scripts/lib/*
+!scripts/lib/dashboard-auth-build-policy.cjs
+!scripts/tests/
+scripts/tests/*
+!scripts/tests/dashboard-auth-build-policy.spec.cjs
+!scripts/tests/dashboard-auth-build-wiring.spec.cjs
+!scripts/tests/dashboard-production-preservation.spec.cjs
+!scripts/tests/platform-support-client-preservation.spec.cjs
 .kilo/
 .impeccable/
 
@@ -57,6 +70,8 @@ wp-config.php
 .wp-cli/
 .playwright-mcp/
 *.png
+!apps/dashboard/public/zyon-favicon-green.png
+!apps/dashboard/src/assets/zyon-favicon-green.png
 !apps/web/assets/*.png
 !apps/control/public/zyon-z.png
 !apps/dashboard/public/zyon-z.png

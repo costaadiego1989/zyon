@@ -1,5 +1,5 @@
 import type { Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
-import { assessIncentiveMargin, evaluateDiscountOffer, meetsMarginFloor, moneyCents } from "@zyon/rules-engine";
+import { assessIncentiveMargin, evaluateDiscountOffer, moneyCents } from "@zyon/rules-engine";
 import { authorizeShippingDiscount } from "@zyon/shipping-engine";
 import type { StrategyIncentiveRecommendation } from "./strategy-incentive-recommendation.js";
 import { progressiveIncentiveStages } from "./strategy-incentive-recommendation.js";
@@ -15,7 +15,7 @@ export function assessExecutableIncentive(cart: Cart, rules: MerchantRules,
   const total = moneyCents(cart.total), t = recommendation.test;
   if (total === null || total < t.audience.minCartTotalCents || total > t.audience.maxCartTotalCents
     || rules.autonomousEngineEnabled !== true || !Number.isFinite(t.discountPercent) || t.discountPercent <= 0
-    || t.discountPercent > rules.maxDiscountPercent || rules.minimumMarginPercent !== t.minimumMarginPercent
+    || t.discountPercent > rules.maxDiscountPercent
     || !Number.isSafeInteger(t.maxDiscountCents) || t.maxDiscountCents < 1) return null;
   const commercial = ["weekly-incentive-recommendation-v3", "weekly-incentive-recommendation-v4"].includes(recommendation.definition);
   if (!commercial && t.kind !== "capped_percentage_discount") return null;
@@ -47,6 +47,9 @@ export function assessExecutableIncentive(cart: Cart, rules: MerchantRules,
     || shipping.customerPrice < shipping.realCost!)) return null;
   const margin = assessIncentiveMargin(cart, { totalDiscount: amountCents / 100,
     ...(commercial && shipping ? { shippingRevenue: shipping.customerPrice, shippingCost: shipping.realCost } : {}) });
-  return meetsMarginFloor(margin, rules.minimumMarginPercent) && margin.productCostCents !== null
-    ? { amountCents, costCents: margin.productCostCents } : null;
+  // Assignment cost is a nullable PostgreSQL INTEGER measurement. A known
+  // aggregate outside that storage range stays unavailable, never truncates,
+  // fabricates zero or prevents an otherwise valid capped benefit.
+  const cost = margin.productCostCents;
+  return { amountCents, costCents: cost !== null && cost <= 2_147_483_647 ? cost : null };
 }

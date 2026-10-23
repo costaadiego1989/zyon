@@ -4,6 +4,7 @@ import { clearBuyerSession, getValidBuyer } from "@/lib/buyer-auth";
 import BuyerLoginForm from "./BuyerLoginForm";
 import CheckoutPanel from "./CheckoutPanel";
 import styles from "./RecoveryCheckoutPanel.module.css";
+import type { OpenCheckoutProductDetail } from "@zyon/widget-v2";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
 const messages: Record<string, string> = {
@@ -13,8 +14,9 @@ const messages: Record<string, string> = {
   recovery_store_mismatch: "Este link pertence a outra loja. Abra o endereço completo recebido na mensagem.",
   recovery_buyer_mismatch: "Entre com a conta usada nesta compra para continuar.",
 };
-export default function RecoveryCheckoutPanel({ token, slug, merchantId, storeName, theme, onClose }: {
+export default function RecoveryCheckoutPanel({ token, slug, merchantId, storeName, theme, onClose, suspended, onOpenProductDetail }: {
   token: string; slug: string; merchantId: string; storeName: string; theme: "dark" | "light"; onClose: () => void;
+  suspended?: boolean; onOpenProductDetail?: OpenCheckoutProductDetail;
 }) {
   const panel = useRef<HTMLElement>(null);
   const [attempt, setAttempt] = useState(0);
@@ -63,7 +65,7 @@ export default function RecoveryCheckoutPanel({ token, slug, merchantId, storeNa
     return () => { document.removeEventListener("focusin", contain); if (previous?.isConnected) previous.focus(); };
   }, [ready]);
   if (status === "ready") return <CheckoutPanel merchantId={merchantId} globalUserId={getValidBuyer()?.globalUserId ?? ""}
-    cartRef={undefined} initialEmbedToken={embedToken} recovered theme={theme} onClose={onClose} />;
+    cartRef={undefined} initialEmbedToken={embedToken} recovered theme={theme} onClose={onClose} suspended={suspended} onOpenProductDetail={onOpenProductDetail} />;
   return <section ref={panel} tabIndex={-1} role="dialog" aria-modal="true" className={styles.panel} aria-labelledby="recovery-title" data-aacp-recovery
     onKeyDown={event => { if (event.key === "Escape") { event.preventDefault(); onClose(); } }}>
     <div className={styles.content}>

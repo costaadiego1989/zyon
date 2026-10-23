@@ -1,4 +1,5 @@
 import { dashboardJson } from "../http/client.js";
+import type { WhatsAppUsage, WhatsAppUsagePeriod } from "./whatsapp-usage.js";
 import type { ManagedMerchantStore, MerchantProfile, MerchantRules, MerchantTheme } from "../types.js";
 import { normalizeRole } from "../../lib/auth/roles.js";
 import type { SeoSettings, GtmSettings, GenerateSeoSuggestionsRequest, GenerateSeoSuggestionsResponse, CrossSellConfig } from "@zyon/shared-types";
@@ -196,6 +197,9 @@ export function merchantEndpoints(base: string, f: typeof fetch) {
 
     getWhatsAppConfig(merchantId: string): Promise<any> {
       return dashboardJson(base, `/merchants/${merchantId}/whatsapp/connection`, { method: "GET" }, f);
+    },
+    getWhatsAppUsage(merchantId: string, period: WhatsAppUsagePeriod = "month"): Promise<WhatsAppUsage> {
+      return dashboardJson(base, `/merchants/${encodeURIComponent(merchantId)}/whatsapp/usage?period=${period}`, { method: "GET" }, f);
     },
 
     getWhatsAppOnboarding(merchantId: string): Promise<{ configured: boolean; appId: string; configId: string }> {

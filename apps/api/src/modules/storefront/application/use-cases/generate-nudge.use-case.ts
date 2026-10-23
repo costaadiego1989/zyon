@@ -1,9 +1,13 @@
-import { Injectable, Inject, Optional, Logger } from "@nestjs/common";
+import { Injectable, Inject, Optional, Logger, BadRequestException } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort, type NudgeTrigger } from "../../domain/ports/conversation.port.js";
 import { COUPON_REPOSITORY, type CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { generateNudgeInputSchema, nudgeCopyInputSchema, nudgePublicOutputSchema } from "../../domain/contracts/storefront-copy.schemas.js";
+import { safeCopyFallback, validNudgePortMessage } from "../../domain/services/storefront-copy-policy.js";
+import { NOOP_STOREFRONT_USE_CASE_OBSERVATION, STOREFRONT_USE_CASE_OBSERVATION, type StorefrontUseCaseObservation,
+  type StorefrontObservationBoundary } from "../../domain/ports/storefront-use-case-observation.port.js";
 
 export interface GenerateNudgeInput {
   merchant_id: string;
@@ -25,24 +29,71 @@ export class GenerateNudgeUseCase {
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     @Optional() @Inject(COUPON_REPOSITORY) private readonly coupons?: CouponRepository,
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
+    @Optional() @Inject(STOREFRONT_USE_CASE_OBSERVATION) private readonly observation: StorefrontUseCaseObservation = NOOP_STOREFRONT_USE_CASE_OBSERVATION,
   ) {}
 
   async execute(input: GenerateNudgeInput): Promise<GenerateNudgeOutput> {
+    return this.observation.turn(() => this.executeTurn(input));
+  }
+
+  private async executeTurn(input: GenerateNudgeInput): Promise<GenerateNudgeOutput> {
+    const parsed = await this.validate("input", () => generateNudgeInputSchema.safeParse(input), "invalid_input");
+    if (!parsed.success) throw new BadRequestException("invalid_storefront_nudge_input");
+    input = parsed.data;
+    const fallback = await this.observation.operation("validation", "fallback", async () => {
+      const safe = safeCopyFallback(input.fallback);
+      if (safe !== input.fallback) this.observation.decision("fallback", "fallback", "safety_rejected");
+      return safe;
+    });
     const experimentSystemPrompt = await this.resolveExperimentPrompt(input.merchant_id);
     const agentTone = experimentSystemPrompt ? undefined : await this.resolveAgentTone(input.merchant_id);
     const availableOffers = await this.resolveAvailableOffers(input.merchant_id);
 
-    const message = await this.conversation.generateNudge({
+    const context = await this.validate("context", () => nudgeCopyInputSchema.safeParse({
       merchantId: input.merchant_id,
       trigger: input.trigger,
       stage: input.stage,
       experimentSystemPrompt,
       agentTone,
       availableOffers,
-      fallback: input.fallback,
-    });
+      fallback,
+    }), "invalid_context", "fallback");
+    if (!context.success) {
+      this.logger.warn({ event: "storefront_nudge_contract_invalid", stage: "context", schemaVersion: 1 });
+      return this.publicResponse(fallback);
+    }
+    const trustedOffers = [...context.data.availableOffers];
+    let boundary: StorefrontObservationBoundary = "generation";
+    try {
+      const generated = await this.observation.operation("generation", "generation", () => this.conversation.generateNudge(context.data));
+      boundary = "output";
+      const message = await this.observation.operation("validation", "output", async () => {
+        const valid = validNudgePortMessage(generated, trustedOffers);
+        if (valid === undefined) this.observation.decision("output", "fallback", "invalid_output");
+        return valid ?? fallback;
+      });
+      boundary = "response";
+      return await this.publicResponse(message);
+    } catch {
+      this.observation.decision(boundary, "fallback", "exception");
+      this.logger.warn({ event: "storefront_nudge_generation_failed", schemaVersion: 1 });
+      return this.publicResponse(fallback);
+    }
+  }
 
-    return { message: message?.trim() || input.fallback };
+  private validate<T extends { success: boolean }>(boundary: StorefrontObservationBoundary, parse: () => T,
+    reason: "invalid_input" | "invalid_context" | "invalid_output", outcome: "rejected" | "fallback" = "rejected"): Promise<T> {
+    return this.observation.operation("validation", boundary, async () => {
+      const parsed = parse();
+      if (!parsed.success) this.observation.decision(boundary, outcome, reason);
+      return parsed;
+    });
+  }
+
+  private async publicResponse(message: string): Promise<GenerateNudgeOutput> {
+    const response = await this.validate("response", () => nudgePublicOutputSchema.safeParse({ message }), "invalid_output");
+    if (!response.success) throw response.error;
+    return response.data;
   }
 
   private async resolveAvailableOffers(merchantId: string): Promise<string[]> {
@@ -73,8 +124,8 @@ export class GenerateNudgeUseCase {
           if (s.max_usages !== null && s.usages_count >= s.max_usages) continue;
           offers.push(this.describeCoupon(s));
         }
-      } catch (err) {
-        this.logger.warn(`[nudge] coupon lookup failed: ${err instanceof Error ? err.message : "unknown"}`);
+      } catch {
+        this.logger.warn({ event: "storefront_nudge_lookup_failed", source: "coupons" });
       }
     }
 
@@ -85,8 +136,8 @@ export class GenerateNudgeUseCase {
           const min = Number(rules.freeShippingMinCartValue ?? 0);
           offers.push(min > 0 ? `frete grátis em compras acima de R$${min.toFixed(0)}` : "frete grátis");
         }
-      } catch (err) {
-        this.logger.warn(`[nudge] rules lookup failed: ${err instanceof Error ? err.message : "unknown"}`);
+      } catch {
+        this.logger.warn({ event: "storefront_nudge_lookup_failed", source: "rules" });
       }
     }
 

@@ -20,14 +20,14 @@ test("discount simulation derives a cent-exact cap from observed carts, without 
   assert.match(result.rationale, /precisa ser medido/);
 });
 
-test("discount simulation lowers the percentage to protect the least profitable basket", () => {
+test("discount simulation uses the company ceiling even for a low-margin basket", () => {
   const stats = cohort([...Array.from({ length: 29 }, () => cart(10)), cart(60)]);
   const result = service.generate([stats], rules)!;
   const percent = Number(result.rule.action.params.percent);
-  assert.ok(percent > 0 && percent < 2);
-  assert.ok(result.simulation.minimumProjectedMarginPercent >= 35);
+  assert.equal(percent, 20);
+  assert.ok(result.simulation.minimumProjectedMarginPercent! < 35);
   for (const basket of stats.carts) assert.ok(evaluateDiscountOffer(basket, rules, percent, Number(result.rule.action.params.maxDiscountReais)).approved);
-  assert.equal(evaluateDiscountOffer(cart(60), rules, percent + .01).approved, false);
+  assert.equal(evaluateDiscountOffer(cart(60), rules, percent + .01).value, 20);
 });
 
 test("discount simulation uses a common safe percentage across different cart values", () => {
@@ -46,9 +46,19 @@ for (const [label, mutate] of [
   ["negative cost", (c: Cart) => { c.items[0].cost = -1; }],
   ["cost above margin floor", (c: Cart) => { c.items[0].cost = 62; }],
   ["no remaining margin", (c: Cart) => { c.items[0].cost = 61; }],
+  ["invalid precision", (c: Cart) => { c.items[0].cost = .001; }],
+] as const) test(`discount simulation keeps ${label} informational, not eligibility`, () => {
+  const stats = cohort(); mutate(stats.carts[29]);
+  const result = service.generate([stats], rules)!;
+  assert.ok(result);
+  assert.equal(result.rule.action.params.percent, 20);
+  assert.equal(result.simulation.minimumProjectedMarginPercent === null,
+    ["unknown cost", "null cost", "negative cost", "invalid precision"].includes(label));
+});
+
+for (const [label, mutate] of [
   ["currency", (c: Cart) => { c.currency = "USD"; }],
   ["stacking", (c: Cart) => { c.currentDiscount = 1; }],
-  ["invalid precision", (c: Cart) => { c.items[0].cost = .001; }],
   ["invalid quantity", (c: Cart) => { c.items[0].quantity = .5; }],
   ["inconsistent total", (c: Cart) => { c.total = 101; }],
   ["options", (c: Cart) => { c.items[0].selected_options = [{}] as never; }],
@@ -67,8 +77,11 @@ test("discount simulation rejects immature-sized or malformed aggregate inputs",
 
 test("discount simulation rejects invalid policy and the engine kill switch", () => {
   for (const patch of [{ autonomousEngineEnabled: false }, { maxDiscountPercent: 0 }, { maxDiscountPercent: NaN },
-    { maxDiscountPercent: 100.01 }, { maxDiscountPercent: .001 }, { minimumMarginPercent: NaN }, { minimumMarginPercent: -1 }]) {
+    { maxDiscountPercent: 100.01 }, { maxDiscountPercent: .001 }]) {
     assert.equal(service.generate([cohort()], { ...rules, ...patch }), null);
+  }
+  for (const minimumMarginPercent of [NaN, -1, 1000]) {
+    assert.ok(service.generate([cohort()], { ...rules, minimumMarginPercent }));
   }
 });
 

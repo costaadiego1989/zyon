@@ -1,6 +1,7 @@
-import { useState, useEffect, useCallback, useMemo, useRef, type ReactNode } from "react";
+import { useState, useEffect, useCallback, useMemo, useRef, useId, useContext, type ReactNode } from "react";
+import { CheckoutProductDetailContext } from "@/lib/checkout-product-detail-context";
 import { createPortal } from "react-dom";
-import { paymentChoicesForConfig, useCheckoutStore } from "@/store/checkout-store";
+import { paymentChoicesForConfig, useCheckoutStore, crossSellQuotationKey, CROSS_SELL_REVIEW_REQUIRED_MESSAGE, CROSS_SELL_UNCERTAIN_MESSAGE } from "@/store/checkout-store";
 import { confirmCryptoPayment } from "@/api/payment";
 import { PulseAgentOrb } from "../PulseAgentOrb";
 import { PerimeterBorder } from "../PerimeterBorder";
@@ -10,6 +11,8 @@ import { Elements, CardElement, useStripe, useElements } from "@stripe/react-str
 import { trackEvent } from "@/lib/tracking";
 import { translateShippingLabel } from "./helpers";
 import { buyerServiceFeeCopy, checkoutLocale } from "@/lib/checkout-totals";
+import { standaloneCrossSellCardKey, standaloneCrossSellSelection, standaloneCrossSellPrice, type StandaloneCrossSellProduct } from "@/lib/cross-sell-standalone";
+import { canonicalCommercialNotice, type NormalCheckoutCrossSellQuote } from "@zyon/contracts";
 
 function BuyerServiceFeeNotice() {
   const serviceFee = useCheckoutStore((s) => s.cart.serviceFee);
@@ -586,23 +589,48 @@ function OrderConfirmationBlock({ data }: { data?: Record<string, unknown> }) {
   );
 }
 
-type CrossSellProduct = { name: string; price?: number; image?: string; sku?: string; suggestionId?: string; variantId?: string; inStock?: boolean };
+type CrossSellProduct = StandaloneCrossSellProduct & { name: string; price?: number; image?: string; productId?: string };
 
 const formatCrossSellPrice = (v: number) =>
   new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(v);
 function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
+  const openDetail = useContext(CheckoutProductDetailContext);
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
   const acceptCrossSell = useCheckoutStore((s) => s.acceptCrossSell);
-  const [dismissed, setDismissed] = useState(false);
-  const [pendingSku, setPendingSku] = useState<string | null>(null);
-  const [error, setError] = useState<string | null>(null);
+  const api = useCheckoutStore((s) => s.api);
+  const cartUpdating = useCheckoutStore((s) => s.cartUpdating);
+  const recoveryRequired = useCheckoutStore((s) => s.crossSellRecoveryRequired);
+  const staleQuotes = useCheckoutStore((s) => s.staleCrossSellQuotes);
+  const [dismissedQuotation, setDismissedQuotation] = useState<string | null>(null);
+  const [pending, setPending] = useState<{ quotation: string; sku: string } | null>(null);
+  const [standalone, setStandalone] = useState<{ quotation: string; cards: Record<string, { quote?: NormalCheckoutCrossSellQuote; price?: number; unavailable?: true }> }>({ quotation: "", cards: {} });
+  const [failure, setFailure] = useState<{ quotation: string; message: string } | null>(null);
+  const errorId = useId();
 
-  const products = (data?.products as CrossSellProduct[]) ?? [];
+  const sourceProducts = (data?.products as CrossSellProduct[]) ?? [];
   const mode = (data?.displayMode as string) ?? "inline";
+  const quotation = JSON.stringify([api?.currentMerchantId ?? null, api?.currentSessionId ?? null,
+    sourceProducts.map(product => [product.suggestionId ?? null, product.sku ?? null, product.variantId ?? null,
+      product.optionGroups ?? product.option_groups ?? null])]);
+  const standaloneCards = standalone.quotation === quotation ? standalone.cards : {};
+  const products = sourceProducts.map(product => ({ ...product, price: openDetail ? product.price : standaloneCards[standaloneCrossSellCardKey(product)]?.price }));
+  const dismissed = dismissedQuotation === quotation;
+  const pendingSku = pending?.quotation === quotation ? pending.sku : null;
+  const isStale = (product: CrossSellProduct) => Boolean(api && product.suggestionId
+    && staleQuotes[crossSellQuotationKey(api.currentMerchantId, api.currentSessionId, product.suggestionId)]);
+  const unavailable = !openDetail && Object.values(standaloneCards).some(card => card.unavailable);
+  const error = products.some(isStale) ? CROSS_SELL_REVIEW_REQUIRED_MESSAGE : failure?.quotation === quotation ? failure.message
+    : unavailable ? "Alguns complementos precisam de opções ou de uma nova oferta. Abra os detalhes na loja para conferir antes de adicionar." : null;
+  const disabled = (product: CrossSellProduct) => product.inStock === false || Boolean(pendingSku) || cartUpdating
+    || recoveryRequired || isStale(product) || !openDetail && !standaloneCards[standaloneCrossSellCardKey(product)]?.quote;
+  const label = (product: CrossSellProduct) => product.inStock === false ? "Indisponível" : openDetail ? "Adicionar"
+    : standaloneCards[standaloneCrossSellCardKey(product)]?.unavailable ? "Confira na loja"
+      : standaloneCards[standaloneCrossSellCardKey(product)]?.quote ? "Adicionar" : "Conferindo oferta...";
+  const dismiss = () => setDismissedQuotation(quotation);
 
   const handleEsc = useCallback((e: KeyboardEvent) => {
-    if (e.key === "Escape") setDismissed(true);
-  }, []);
+    if (e.key === "Escape") setDismissedQuotation(quotation);
+  }, [quotation]);
 
   useEffect(() => {
     if (mode !== "modal" || dismissed) return;
@@ -610,33 +638,83 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
     return () => document.removeEventListener("keydown", handleEsc);
   }, [mode, dismissed, handleEsc]);
 
+  useEffect(() => {
+    if (openDetail || !api || dismissed) return;
+    let active = true;
+    const merchantId = api.currentMerchantId, sessionId = api.currentSessionId;
+    const current = () => active && useCheckoutStore.getState().api === api && api.currentMerchantId === merchantId
+      && api.currentSessionId === sessionId && !useCheckoutStore.getState().crossSellRecoveryRequired;
+    setStandalone({ quotation, cards: Object.fromEntries(sourceProducts.map(product =>
+      [standaloneCrossSellCardKey(product), standaloneCrossSellSelection(product) ? {} : { unavailable: true as const }])) });
+    // Serial read-only preparation. No acceptance, retry, body price or guessed
+    // option is sent. A required-option rejection remains visibly unavailable.
+    void (async () => {
+      for (const product of sourceProducts) {
+        if (!current()) return;
+        const selection = standaloneCrossSellSelection(product); if (!selection) continue;
+        const quote = await useCheckoutStore.getState().prepareCrossSell(product.suggestionId!, [selection]);
+        if (!current()) return;
+        const price = quote ? standaloneCrossSellPrice(quote, selection) : null;
+        setStandalone(state => state.quotation !== quotation ? state : { quotation, cards: { ...state.cards,
+          [standaloneCrossSellCardKey(product)]: quote && price !== null ? { quote, price } : { unavailable: true } } });
+      }
+    })();
+    return () => { active = false; };
+    // quotation encodes the exact card selections. Accept-state changes MUST
+    // NOT trigger an automatic re-quote/retry after a refusal or uncertain ACK.
+  }, [api, openDetail, quotation, dismissed]);
+
   if (!data || products.length === 0 || dismissed) return null;
 
   const addProduct = async (product: CrossSellProduct) => {
-    if (product.inStock === false || pendingSku) return;
-    setError(null);
-    if (!product.suggestionId || !product.sku) {
-      await sendMessage(`Adicionar ${product.name}`);
-      setDismissed(true);
+    if (disabled(product)) return;
+    if (isStale(product)) {
+      setFailure({ quotation, message: CROSS_SELL_REVIEW_REQUIRED_MESSAGE });
       return;
     }
-    setPendingSku(product.sku);
-    const result = await acceptCrossSell(product.suggestionId, product.sku);
-    setPendingSku(null);
-    if (result.ok) {
-      setDismissed(true);
-    } else {
-      setError(result.error || "Nao foi possivel adicionar este complemento.");
+    setFailure(null);
+    if (!api || !product.variantId || !product.suggestionId || !product.sku) {
+      setFailure({ quotation, message: "Abra os detalhes deste complemento na loja para conferir as opções antes de adicionar." });
+      return;
     }
+    const merchantId = api.currentMerchantId, sessionId = api.currentSessionId!, suggestionId = product.suggestionId;
+    const current = () => useCheckoutStore.getState().api === api && api.currentMerchantId === merchantId && api.currentSessionId === sessionId;
+    if (!openDetail) {
+      const displayed = standaloneCards[standaloneCrossSellCardKey(product)]?.quote;
+      if (!displayed) return;
+      setPending({ quotation, sku: product.sku });
+      try {
+        const result = await acceptCrossSell(suggestionId, product.sku, displayed, current);
+        if (!current()) return;
+        if (result.ok) setDismissedQuotation(quotation);
+        else setFailure({ quotation, message: result.error ?? CROSS_SELL_UNCERTAIN_MESSAGE });
+      } finally { if (current()) setPending(null); }
+      return;
+    }
+    if (!product.productId) {
+      setFailure({ quotation, message: "Abra os detalhes deste complemento na loja para conferir as opções antes de adicionar." });
+      return;
+    }
+    openDetail({ key: JSON.stringify([merchantId, sessionId, suggestionId, product.productId]), merchantId, sessionId,
+      suggestionId, productId: product.productId, initialVariantId: product.variantId, initialSku: product.sku, isCurrent: current,
+      prepare: selection => current() ? useCheckoutStore.getState().prepareCrossSell(suggestionId, [{ sku: selection.sku, variant_id: selection.variantId,
+        quantity: selection.quantity, selected_option_item_ids: selection.selectedOptionItemIds }]) : Promise.resolve(null),
+      accept: async (expected, guard = () => true) => {
+        if (!current()) return { ok: false, error: CROSS_SELL_UNCERTAIN_MESSAGE };
+        const result = await acceptCrossSell(suggestionId, expected.pricing.targets[0]!.sku, expected, () => current() && guard());
+        if (current() && result.ok) setDismissedQuotation(quotation);
+        return result;
+      } });
   };
 
   const addButton = (p: CrossSellProduct, i: number, compact = false) => (
     <button data-neu="choice"
       key={i}
       data-testid="cross-sell-product"
-      disabled={p.inStock === false || Boolean(pendingSku)}
+      disabled={disabled(p)}
       aria-busy={pendingSku === p.sku}
-      aria-label={error ? `${p.name}. ${error}` : p.name}
+      aria-label={p.name}
+      aria-describedby={error ? errorId : undefined}
       onClick={() => void addProduct(p)}
       style={{
         display: "flex",
@@ -649,7 +727,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
         border: "1px solid var(--bd)",
         background: "transparent",
         color: "var(--tx)",
-        cursor: p.inStock === false || pendingSku ? "not-allowed" : "pointer",
+        cursor: disabled(p) ? "not-allowed" : "pointer",
         fontSize: "12px",
         marginBottom: compact ? 0 : "6px",
         textAlign: "left",
@@ -663,10 +741,16 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
             {formatCrossSellPrice(p.price)}
           </span>
         )}
-        {!compact && <span style={{ color: "var(--mut)", fontSize: "11px", fontWeight: 600 }}>Adicionar</span>}
+        {(!compact || p.price == null) && <span style={{ color: "var(--mut)", fontSize: "11px", fontWeight: 600 }}>{label(p)}</span>}
         </span>
     </button>
   );
+  const capped = !openDetail && Object.values(standaloneCards).some(card => card.quote?.pricing.notice === "discount_limit_reached");
+  const limited = !openDetail && Object.values(standaloneCards).some(card => card.quote?.pricing.notice === "discount_limited");
+  const errorNotice = <>
+    {capped || limited ? <p role="status">{canonicalCommercialNotice(capped ? "discount_limit_reached" : "discount_limited").message}</p> : null}
+    {error ? <p id={errorId} role="alert" style={{ fontSize: "12px", lineHeight: 1.4, color: "var(--tx)", margin: "8px 0 0", overflowWrap: "anywhere" }}>{error}</p> : null}
+  </>;
 
   if (mode === "modal") {
     return createPortal(
@@ -675,7 +759,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
         aria-modal="true"
         aria-label="Complementos sugeridos"
         data-testid="cross-sell-modal"
-        onClick={(e) => { if (e.target === e.currentTarget) setDismissed(true); }}
+        onClick={(e) => { if (e.target === e.currentTarget) dismiss(); }}
         style={{
           position: "fixed",
           inset: 0,
@@ -710,7 +794,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
               type="button"
               aria-label="Fechar sugestões"
               data-testid="cross-sell-dismiss"
-              onClick={() => setDismissed(true)}
+              onClick={dismiss}
               style={{ background: "transparent", border: "none", color: "var(--mut)", cursor: "pointer", fontSize: "18px", lineHeight: 1 }}
             >
               ×
@@ -719,10 +803,11 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
           <div style={{ display: "flex", flexDirection: "column", gap: "6px" }}>
             {products.map((p, i) => addButton(p, i))}
           </div>
+          {errorNotice}
           <button data-neu="control"
             type="button"
             data-testid="cross-sell-skip"
-            onClick={() => setDismissed(true)}
+            onClick={dismiss}
             style={{ marginTop: "12px", width: "100%", padding: "10px", borderRadius: "8px", border: "1px solid var(--bd)", background: "transparent", color: "var(--mut)", cursor: "pointer", fontSize: "12px", fontWeight: 600 }}
           >
             Continuar sem adicionar →
@@ -755,7 +840,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
             type="button"
             aria-label="Fechar sugestões"
             data-testid="cross-sell-dismiss"
-            onClick={() => setDismissed(true)}
+            onClick={dismiss}
             style={{ background: "transparent", border: "none", color: "var(--mut)", cursor: "pointer", fontSize: "16px", lineHeight: 1 }}
           >
             ×
@@ -764,13 +849,14 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
         <div style={{ display: "flex", gap: "8px", overflowX: "auto", scrollbarWidth: "none" }}>
           {products.map((p, i) => addButton(p, i, true))}
         </div>
+        {errorNotice}
       </div>
     );
   }
 
   if (mode === "interstitial") {
     const advanceToPayment = () => {
-      setDismissed(true);
+      setDismissedQuotation(quotation);
       void sendMessage("Continuar");
     };
     return (
@@ -812,21 +898,24 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
                 <button data-neu="control"
                   type="button"
                   data-testid="cross-sell-product"
-                  disabled={p.inStock === false || Boolean(pendingSku)}
+                  disabled={disabled(p)}
                   aria-busy={pendingSku === p.sku}
+                  aria-label={p.name}
+                  aria-describedby={error ? errorId : undefined}
                   onClick={() => {
                     void addProduct(p);
                   }}
-                  style={{ marginTop: "auto", width: "100%", padding: "9px 8px", borderRadius: "8px", border: "none", background: p.inStock === false ? "var(--bd)" : "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "12px", fontWeight: 800, cursor: p.inStock === false ? "not-allowed" : "pointer", opacity: p.inStock === false ? 0.5 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
+                  style={{ marginTop: "auto", width: "100%", padding: "9px 8px", borderRadius: "8px", border: "none", background: p.inStock === false ? "var(--bd)" : "var(--aacp-accent, #0f766e)", color: "#fff", fontSize: "12px", fontWeight: 800, cursor: disabled(p) ? "not-allowed" : "pointer", opacity: p.inStock === false || isStale(p) ? 0.5 : 1, display: "flex", alignItems: "center", justifyContent: "center", gap: "5px" }}
                 >
                   <svg width="14" height="14" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2.5" strokeLinecap="round" strokeLinejoin="round" aria-hidden><line x1="12" y1="5" x2="12" y2="19"/><line x1="5" y1="12" x2="19" y2="12"/></svg>
-                  {p.inStock === false ? "Indisponível" : "Adicionar"}
+                  {label(p)}
                 </button>
               </div>
             </div>
           ))}
         </div>
         <div style={{ padding: "12px 14px", borderTop: "1px solid var(--bd)" }}>
+          {errorNotice}
           <button data-neu="control" type="button" data-testid="cross-sell-continue" onClick={advanceToPayment} style={{ width: "100%", padding: "12px", borderRadius: "10px", border: "1px solid var(--bd)", background: "transparent", color: "var(--tx)", fontSize: "13px", fontWeight: 600, cursor: "pointer" }}>
             Continuar
           </button>
@@ -839,6 +928,7 @@ function CrossSellBlock({ data }: { data?: Record<string, unknown> }) {
     <div data-neu="surface" data-testid="cross-sell-inline" style={{ padding: "12px", borderRadius: "10px", background: "var(--card)", border: "1px solid var(--bd)" }}>
       <div style={{ fontSize: "12px", fontWeight: 600, marginBottom: "8px" }}>Você também pode gostar:</div>
       {products.map((p, i) => addButton(p, i))}
+      {errorNotice}
     </div>
   );
 }

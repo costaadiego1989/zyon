@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import type { PrismaClient } from "@prisma/client";
 import { createOrderHandlers } from "./order.handlers.js";
+import { validateStorefrontToolOutput } from "../../domain/contracts/storefront-tool-output.schemas.js";
 
 const buyerContext = {
   merchantId: "merchant_1",
@@ -18,6 +19,7 @@ test("policy lookup reads only the current store and prioritizes published edits
   const result = await createOrderHandlers({ prisma }, buyerContext).getStorePolicies({ policyType: "all" }) as any;
   assert.deepEqual(result.policies, { returns: "Condições vigentes", exchanges: "Condições vigentes", warranty: "Garantia cadastrada" });
   assert.deepEqual(calls, [{ id: "merchant_1" }, { merchantId: "merchant_1" }]);
+  assert.equal(validateStorefrontToolOutput("get_store_policies", result).ok, true);
 });
 
 test("unpublished policy results contain no default exchange, delivery or warranty promises", async () => {
@@ -27,6 +29,7 @@ test("unpublished policy results contain no default exchange, delivery or warran
   assert.equal(result.policy, null);
   assert.match(result.message, /direitos legais/);
   assert.doesNotMatch(JSON.stringify(result), /12 meses|30 dias|2 a 10/);
+  assert.equal(validateStorefrontToolOutput("get_store_policies", result).ok, true);
 });
 
 test("policy lookup propagates database failure instead of inventing a fallback", async () => {
@@ -76,6 +79,7 @@ test("trackOrder returns the buyer-scoped persisted shipment instead of placehol
   } as unknown as PrismaClient;
 
   const result = await createOrderHandlers({ prisma }, buyerContext).trackOrder({ orderId: " ORDER-123 " }) as any;
+  assert.equal(validateStorefrontToolOutput("track_order", result).ok, true);
 
   assert.deepEqual(result, {
     orderId: "ORDER-123",
