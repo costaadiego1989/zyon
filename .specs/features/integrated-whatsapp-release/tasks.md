@@ -1,7 +1,11 @@
 - [x] Identify published commits and inspect overlapping runtime changes.
-- [ ] Apply reviewed deltas while preserving existing integration boundaries.
-- [ ] Verify WhatsApp, billing and full dashboard regressions.
-- [ ] Freeze source104 and preserve canonical auth configuration/old assets.
-- [ ] Publish sandbox and verify readiness plus served presentation.
-- [ ] Promote the accepted candidate; verify public and authenticated behavior.
-- [ ] Record deployment evidence, known real-provider gaps and source provenance.
+- [x] Apply reviewed deltas while preserving existing integration boundaries.
+- [x] Verify214/214 WhatsApp/API,886/886 dashboard and459/459 storefront regressions.
+- [x] Freeze104/105 and preserve auth configuration plus630 legacy dashboard assets.
+- [x] Publish sandbox and verify readiness, FAQ/cart history and guest support UI.
+- [x] Promote API104/dashboard104/storefront105 and verify canonical public behavior.
+- [x] Verify persisted Athom contract and deployed serializer read-only, annual/zero.
+- [x] Record deployment evidence, real-provider gaps and source commits on origin.
+- [ ] Complete authenticated dashboard UI/HTTP verification after normal owner login.
+- [ ] Complete remaining real PSP TEST/payment effects, microphone and human-auth gates;
+      source/mocked/guest/read-only evidence does not substitute these journeys.

@@ -10,6 +10,8 @@
       cases and882/882 full dashboard tests pass.
 - [x] Release103: reproduce2 failures for omitted subscription cycle/value and
       pending changes; fix legacy response serialization;14/14 billing tests pass.
-- [ ] Publish these103-only changes after coordinating the concurrent WhatsApp
-      release. Do not overwrite the other session's API/dashboard or claim that
-      source tests publish the menu hiding or billing serialization fix.
+- [x] Publish the103 changes as API104/dashboard104, preserving both WhatsApp
+      commits. Canonical bundle hides the menu; deployed serializer returns
+      annual/zero. No charge or provider subscription was created.
+- [ ] Verify final authenticated owner screen after normal login; the current
+      release has served-bundle and read-only runtime proof, not this UI proof.

@@ -1,13 +1,16 @@
 # Integração final storefront — continuidade
 
-Atualização:23/10/2026 — checkpoint105: integração das frentes paralelas e gates de publicação.
+Atualização:23/10/2026 — checkpoint105 FINAL: frentes integradas e publicadas em produção.
 WhatsApp3858c098+406cfde9 integrado; suporte do sandbox preservado sem reset de histórico.
 Regressão atual:214/214 WhatsApp/API;886/886 dashboard;459/459 storefront.
 Não equivale à homologação integral de pagamento, voz real ou CAPTCHA humano.
-Marketplace oculto e assinatura corrigida no sandbox104; produção ainda aguarda os gates105.
+Marketplace oculto, assinatura corrigida e suporte/WhatsApp preservados na produção atual.
 Pasta ativa: **AACP-sandbox-integracao-20261020**.
 Branch: `feat/storefront-sandbox-integration-20261020`.
-Base atual: `c27160dfd329aa5a09e313b212aa30d011b430b7`, commit exato da API sandbox.
+Base do pacote congelado: `c27160dfd329aa5a09e313b212aa30d011b430b7`.
+Código integrado salvo no Git: `9f11c51513017ee95391fca8d213b26259f2629b`,
+seguido dos commits de preservação95138379,1c693ade e0dbccb62; branch enviada
+ao origin sem force-push. O registro final deste relatório recebe commit próprio.
 Origem preservada: AACP-integracao, branch feat/storefront-llm-integration-20261018,
 base4908a053. Evidências antigas identificam sua pasta/base; não transferir
 aprovação entre revisões automaticamente.
@@ -15,6 +18,75 @@ aprovação entre revisões automaticamente.
 ## Estado atual resumido —23/10/2026
 
 ### Checkpoint105 — integração autorizada das versões mais novas
+
+#### Fechamento de publicação e provas atuais —23/10/2026
+
+- API produção104: **b35c8362-ac46-4ccf-9b7c-54c5b79c94ae SUCCESS**, fonte idêntica
+  à API homologada04dbe04d; `/ready`200. A versão fdc91200 foi substituída, não
+  revertida para98: as melhorias3858c098/406cfde9 permanecem integradas.
+- Dashboard produção104: **dpl_DCsKXFhJNuiySseKQAahBJmNdCdL READY/PROMOVIDO**;
+  domínio app.zyon-payments.com.br, entryCfPvRHbr e SHA da etapa de homologação.
+  Bundle canônico sem item principal Marketplace e com menus normais; chunk
+  WhatsAppSellerPage-DZSLUiPw contém consumo/cobrança. Existe também um wrapper
+  lazy de79 bytes: a presença de dois nomes de chunk não é duplicação de UI.
+  Google/Turnstile atuais preservados;630 assets antigos retidos para abas abertas.
+- Storefront produção105: **dpl_DbtShLefPsPUpmHbWi1B12gMGpUy READY/PROMOVIDO**;
+  domínio storefront.zyon-payments.com.br. Sandbox778c4d35 SUCCESS. Suporte novo
+  e correção do histórico convivem; sem mudança no cross-sell aprovado.
+- Widget produção96: **dpl_BH4tS7i2KnTbFBVPt54Tp6YpNuxR**, preservado sem novo
+  deploy, pois não houve delta runtime nesta integração. Não confundir a suíte
+  legada apps/widget com o serviço widget_v2 efetivamente publicado.
+
+Navegador real isolado sandbox E produção: FAQ201, histórico visível de imediato
+após recarregar `show=cart`, carrinho vazio, nenhum aviso falso de expiração.
+No sandbox43ms e produção15ms até a verificação final da restauração. Auth
+pública: cadastro renderiza, alternância troca URL para signin, favicon verde,
+submissão vazia bloqueada. Isso NÃO conclui CAPTCHA humano ou OAuth Google.
+Navegador de suporte1440/390 em ambos os ambientes: botão Meus Dados abre hub;
+sinal existente de FAQ abre painel; visitante precisa de login para enviar à
+loja; sem overflow, sem turno LLM, sem criar chamado ou solicitação de devolução.
+O sinal de suporte foi disparado pelo harness; não é teste de envio de chamado.
+
+Leitura administrativa no servidor produção, com tenant/service/environment
+explicitamente conferidos: Athom Escala active, cicloannual, valor0, validade
+2027-10-23T02:13:46.774Z (22/10/2027 23:13:46 São Paulo), sem assinatura PSP.
+O **serializer realmente compilado/publicado** devolve annual/0 corretamente.
+Não houve alteração no banco nesta etapa. Essa prova não substitui GET HTTP
+autenticado nem inspeção da tela do lojista, ainda aguardando login normal.
+
+Provas adicionais preservadas:47/47 ferramentas de release/alertas;21/21
+compatibilidade de frete do widget legado; guard Realtime passou. Vitest não
+estava no PATH de apps/widget; usado o runner já instalado do dashboard com
+root explícito, sem instalar dependências. Arquivos de observabilidade e scripts
+também salvos no Git; não foi ativada nenhuma stack Grafana/collector em produção.
+As239 modificações locais em node_modules continuam fora dos commits e intactas.
+Nenhum reset, exclusão de pastas anteriores, chave trocada ou force-push.
+
+Auditoria após publicação às13:33:30UTC:92 credenciais/configurações selecionadas
+continuam com o mesmo hash do baseline95; apenas três flags LLM já aprovados.
+Observações runtime da produção mostram validações/turno ok; projeção salva só
+com campos técnicos permitidos, sem prompt, resposta, buyer, headers ou tokens.
+Não inferir contagem de provider dessa projeção reduzida; os smokes FAQ têm
+expectativa0 e não iniciaram novo teste pago DeepSeek. Orçamento aprovado não
+foi renovado/reinicializado. Nenhum pagamento, pedido de cliente ou replay remoto.
+
+Evidências finais `.sandbox-state/`:
+`lote105-live-browser-{sandbox,production}.json`,
+`lote105-support-browser-{sandbox,production}.json`,
+`lote105-production-billing-proof.json`, `lote105-final-public-proof.json`,
+`lote105-production-observations.json`, `lote105-release-tooling-tests.log`.
+Falhas anteriores104 continuam preservadas e foram resolvidas pela integração105,
+não apagadas ou tratadas como se tivessem passado.
+
+**Implementação/publicação deste lote concluída. Homologação integral do sistema
+AINDA NÃO encerrada:** faltam pagamento PSP TEST e efeitos persistidos de
+pedido/estoque/outbox, compra por microfone real, conclusão humana Google/CAPTCHA,
+frete até checkout e inspeção autenticada final do painel. Credenciais live
+funcionais não são autorização para cobrança real ou webhook pago fictício.
+O novo teste PostgreSQL de renovação não foi repetido localmente sem Docker.
+
+As notas seguintes deste checkpoint registram a preparação, agora superada pelo
+fechamento acima; não usar seus estados BUILDING/stage como estado atual.
 
 Usuário pediu implementar as modificações da outra sessão, sem sobrescrevê-las.
 Produção consultada antes desta publicação: API fdc91200-7fbf-4c30-b5e1-64dffc3ef9bf
