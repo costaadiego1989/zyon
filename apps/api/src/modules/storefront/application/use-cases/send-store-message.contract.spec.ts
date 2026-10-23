@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SendStoreMessageUseCase, type SendStoreMessageInput } from "./send-store-message.use-case.js";
 import { PrismaMerchantAgentRuleReader } from "../../../agent-rules/infrastructure/merchant-agent-rule-reader.adapter.js";
+import { encryptPii } from "../../../../shared/crypto/pii-cipher.service.js";
 
 const input: SendStoreMessageInput = {
   merchant_id: "merchant", conversation_id: "conversation", cart_id: "conversation", user_message: "Quero um livro",
@@ -30,6 +31,34 @@ function fixture(result: unknown = validReply) {
   } });
   return { calls, useCase, merchant, prisma };
 }
+
+test("contract: an existing buyer's encrypted phone is decoded before storefront context validation", async () => {
+  const previous = process.env.AACP_PII_ENC_KEY;
+  process.env.AACP_PII_ENC_KEY = "synthetic-support-context-key";
+  try {
+    const phone = "+5511999999999";
+    const encrypted = encryptPii(phone);
+    const f = fixture();
+    f.prisma.buyerAccount.findUnique = async () => ({ globalUserId: "buyer", displayName: "QA Buyer", email: "buyer@example.test", phone: encrypted }) as never;
+    await f.useCase.execute({ ...input, global_user_id: "buyer", user_message: "Suporte" });
+    assert.equal((f.calls.generated[0] as { buyerContext: { phone: string } }).buyerContext.phone, phone);
+    assert.ok(!JSON.stringify(f.calls.generated).includes("pii_v1:"));
+    assert.ok(!JSON.stringify(f.calls.logs).includes(phone));
+  } finally {
+    if (previous === undefined) delete process.env.AACP_PII_ENC_KEY;
+    else process.env.AACP_PII_ENC_KEY = previous;
+  }
+});
+
+test("contract: an unreadable optional phone preserves buyer identity and does not expose ciphertext", async () => {
+  const f = fixture();
+  f.prisma.buyerAccount.findUnique = async () => ({ globalUserId: "buyer", displayName: "QA Buyer", email: "buyer@example.test", phone: "pii_v1:invalid" }) as never;
+  await f.useCase.execute({ ...input, global_user_id: "buyer", user_message: "Suporte" });
+  assert.deepEqual((f.calls.generated[0] as { buyerContext: unknown }).buyerContext, {
+    globalUserId: "buyer", name: "QA Buyer", email: "buyer@example.test",
+  });
+  assert.ok(!JSON.stringify([f.calls.generated, f.calls.logs]).includes("pii_v1:"));
+});
 
 test("contract: an ordinary storefront turn retains the existing wire response", async () => {
   const f = fixture();
