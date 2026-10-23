@@ -10,6 +10,10 @@ import { Prisma } from "@prisma/client";
 import type { DomainEventEnvelope } from "@zyon/shared-types";
 import { PaymentIntentEntity } from "../domain/payment-intent.entity.js";
 import { assertSamePaymentIdentity, PaymentIntentConflictError } from "../domain/payment-persistence.js";
+import { readPaymentCouponAuthority } from "../domain/payment-coupon-authority.js";
+import { readPaymentWidgetCheckoutAuthority, assertSamePaymentWidgetCheckoutAuthority } from "../domain/payment-widget-checkout-authority.js";
+import type { CaptureWidgetCheckoutPayment } from "./prisma-widget-checkout-payment-admission.js";
+import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
 import type {
   CryptoTransferKey,
   PaymentRepository,
@@ -22,6 +26,12 @@ import type { PaymentIntentSnapshot, PaymentIntentStatus } from "../domain/payme
 import type { PaymentMethod } from "../domain/payment-intent.entity.js";
 import { appendPlannedSettlementInTransaction } from "./prisma-payment-settlement-ledger.repository.js";
 import { recordIncentivePayment, validateIncentivePayment } from "../../revenue-manager/infrastructure/incentive-execution-ledger.js";
+import { assertNoCheckoutCouponBindingInput } from "../../checkout/domain/services/checkout-coupon-storage.js";
+import { assertNoUnprojectedWidgetReceipt } from "../../checkout/domain/services/checkout-widget-receipt-boundary.js";
+import { parseStorefrontCouponPaymentScope, type StorefrontCouponPaymentScope } from "../domain/storefront-coupon-payment-scope.js";
+import { assertNeighborhoodPaymentAdmission } from "./prisma-payment-neighborhood-admission.js";
+import { readPaymentNormalCrossSellAuthority, assertSamePaymentNormalCrossSellAuthority } from "../domain/payment-normal-cross-sell-authority.js";
+import type { CaptureNormalCrossSellPayment } from "./prisma-normal-cross-sell-payment-admission.js";
 
 type PrismaTx = Prisma.TransactionClient;
 
@@ -174,7 +184,11 @@ function snapshotFromRecord(row: {
 
 @Injectable()
 export class PrismaPaymentRepository implements PaymentRepository {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient,
+    private readonly captureCoupon?: (tx: PrismaTx, snapshot: PaymentIntentSnapshot, scope?: StorefrontCouponPaymentScope)
+      => Promise<ReturnType<typeof readPaymentCouponAuthority>>,
+    private readonly captureWidgetCheckout?: CaptureWidgetCheckoutPayment,
+    private readonly captureNormalCrossSell?: CaptureNormalCrossSellPayment) {}
 
   async listForSession(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]> {
     const rows = await this.prisma.paymentIntent.findMany({ where: { merchantId, sessionId }, orderBy: { createdAt: "desc" } });
@@ -191,49 +205,93 @@ export class PrismaPaymentRepository implements PaymentRepository {
 
   async saveIntent(input: SavePaymentIntentInput): Promise<void> {
     const snapshot = input.intent.snapshot();
+    const originalNormal = readPaymentNormalCrossSellAuthority(snapshot);
+    const originalWidget = readPaymentWidgetCheckoutAuthority(snapshot);
     await this.prisma.$transaction(tx => this.saveVersion(tx, snapshot));
+    const capturedWidget = readPaymentWidgetCheckoutAuthority(snapshot);
+    if (capturedWidget && !originalWidget) input.intent.acknowledgeWidgetCheckoutCapture(capturedWidget);
+    const capturedNormal = readPaymentNormalCrossSellAuthority(snapshot);
+    if (capturedNormal && !originalNormal) input.intent.acknowledgeNormalCrossSellCapture(capturedNormal);
     input.intent.persisted((snapshot.version ?? 0) + 1);
   }
 
   async saveIntentWithSettlementPlan(input: SavePaymentIntentWithSettlementPlanInput): Promise<void> {
     const snapshot = input.intent.snapshot();
+    const originalNormal = readPaymentNormalCrossSellAuthority(snapshot);
+    const originalCoupon = readPaymentCouponAuthority(snapshot);
+    const originalWidget = readPaymentWidgetCheckoutAuthority(snapshot);
+    const scope = input.storefrontCouponScope === undefined ? undefined : parseStorefrontCouponPaymentScope(input.storefrontCouponScope);
     await this.prisma.$transaction(async tx => {
-      await this.saveVersion(tx, snapshot);
+      await this.saveVersion(tx, snapshot, scope);
       if (!snapshot.creation?.input.marketplaceFunding) await appendPlannedSettlementInTransaction(tx, input.settlementPlan);
     });
+    const captured = readPaymentCouponAuthority(snapshot);
+    if (captured && !originalCoupon) input.intent.acknowledgeCouponCapture(captured);
+    const capturedWidget = readPaymentWidgetCheckoutAuthority(snapshot);
+    if (capturedWidget && !originalWidget) input.intent.acknowledgeWidgetCheckoutCapture(capturedWidget);
+    const capturedNormal = readPaymentNormalCrossSellAuthority(snapshot);
+    if (capturedNormal && !originalNormal) input.intent.acknowledgeNormalCrossSellCapture(capturedNormal);
     input.intent.persisted((snapshot.version ?? 0) + 1);
   }
 
   async saveIntentWithOutbox(input: SavePaymentIntentInput, event: DomainEventEnvelope): Promise<void> {
     const snapshot = input.intent.snapshot();
+    const originalNormal = readPaymentNormalCrossSellAuthority(snapshot);
+    const originalWidget = readPaymentWidgetCheckoutAuthority(snapshot);
     const outboxArgs = outboxUpsertArgs(event);
     await this.prisma.$transaction(async (tx: PrismaTx) => {
       await this.saveVersion(tx, snapshot);
       await tx.outboxMessage.upsert(outboxArgs);
     });
+    const capturedWidget = readPaymentWidgetCheckoutAuthority(snapshot);
+    if (capturedWidget && !originalWidget) input.intent.acknowledgeWidgetCheckoutCapture(capturedWidget);
+    const capturedNormal = readPaymentNormalCrossSellAuthority(snapshot);
+    if (capturedNormal && !originalNormal) input.intent.acknowledgeNormalCrossSellCapture(capturedNormal);
     input.intent.persisted((snapshot.version ?? 0) + 1);
   }
 
-  private async saveVersion(tx: PrismaTx, snapshot: PaymentIntentSnapshot): Promise<void> {
+  private async saveVersion(tx: PrismaTx, snapshot: PaymentIntentSnapshot, trustedScope?: StorefrontCouponPaymentScope): Promise<void> {
+    const frozenCoupon = readPaymentCouponAuthority(snapshot);
+    const frozenWidget = readPaymentWidgetCheckoutAuthority(snapshot);
+    const frozenNormal = readPaymentNormalCrossSellAuthority(snapshot);
     const isMarketplace = Boolean(snapshot.creation?.input.marketplaceFunding);
+    const couponAdmission = trustedScope !== undefined || frozenCoupon !== undefined;
+    if (frozenWidget && (couponAdmission || isMarketplace)) throw new Error("payment_widget_checkout_authority_conflict");
+    if (couponAdmission && isMarketplace) throw new Error("checkout_coupon_binding_conflict");
     if (!isMarketplace) await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${snapshot.merchantId} FOR UPDATE`;
+    const legacyCreation = snapshot.creation && !snapshot.creation.input.marketplaceFunding;
+    const publicMarketplaceCreation = snapshot.creation?.input.marketplacePublicAdmission !== undefined;
+    const couldAdmit = (legacyCreation || publicMarketplaceCreation) && ((snapshot.version ?? 0) === 0 ||
+      (snapshot.status === "pending" && !snapshot.providerPaymentId && snapshot.creation?.state === "in_flight"));
+    // Opt-in widget admission reacquires these through the canonical reader.
+    // Acquire configuration before session, preserving the shared lock order.
+    // Default legacy/coupon callers retain their original fences unchanged.
+    if (couponAdmission || legacyCreation && couldAdmit || this.captureWidgetCheckout && couldAdmit && !isMarketplace)
+      await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id = ${snapshot.merchantId} FOR UPDATE`;
+    if ((this.captureWidgetCheckout || this.captureNormalCrossSell) && couldAdmit && !isMarketplace) {
+      await tx.$queryRaw`SELECT merchant_id FROM checkout_settings WHERE merchant_id = ${snapshot.merchantId} FOR SHARE`;
+      await tx.$queryRaw`SELECT id FROM own_delivery_configs WHERE merchant_id = ${snapshot.merchantId} FOR SHARE`;
+    } else if (legacyCreation && couldAdmit) {
+      await tx.$queryRaw`SELECT id FROM own_delivery_configs WHERE merchant_id = ${snapshot.merchantId} FOR SHARE`;
+    }
     if (!isMarketplace) {
       const paymentSessionLock = JSON.stringify(["payment-session", snapshot.merchantId, snapshot.sessionId]);
       await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${paymentSessionLock}, 0))::text`;
     }
-    const legacyCreation = snapshot.creation && !snapshot.creation.input.marketplaceFunding;
-    const publicMarketplaceCreation = snapshot.creation?.input.marketplacePublicAdmission !== undefined;
     // Admission and the first send share the canonical checkout row lock with
     // cart writers. Later reconciliation/receipts must remain available.
-    const couldAdmit = (legacyCreation || publicMarketplaceCreation) && ((snapshot.version ?? 0) === 0 ||
-      (snapshot.status === "pending" && !snapshot.providerPaymentId && snapshot.creation?.state === "in_flight"));
+    let admissionCart: unknown;
+    let admissionSession: { merchantId: string; sessionId: string; cart: unknown; customer: unknown; shipping: unknown } | null = null;
     if (couldAdmit) {
+      await lockCheckoutSessionAnchor(tx, snapshot.merchantId, snapshot.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${snapshot.merchantId} AND session_id = ${snapshot.sessionId} FOR UPDATE`;
       const stored = await tx.checkoutSession.findUnique({
         where: { merchantId_sessionId: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId } },
-        select: { cart: true },
+        select: { merchantId: true, sessionId: true, cart: true, customer: true, shipping: true },
       });
+      admissionSession = stored;
       const cartRef = (stored?.cart as { cart_ref?: unknown } | null)?.cart_ref;
+      admissionCart = stored?.cart;
       const refs = [...new Set([snapshot.sessionId, ...(typeof cartRef === "string" && cartRef.trim() ? [cartRef] : [])])].sort();
       // A cart writer may have checked mutability before this checkout existed.
       // Wait for that writer's lines before deciding whether legacy admission is safe.
@@ -242,11 +300,82 @@ export class PrismaPaymentRepository implements PaymentRepository {
         await tx.$queryRaw`SELECT pg_advisory_xact_lock(hashtextextended(${key}, 0))::text`;
       }
     }
-    const args = paymentIntentUpsertArgs(snapshot);
     const current = await tx.paymentIntent.findUnique({ where: { id: snapshot.id } });
+    if (!current && frozenWidget) throw new Error("payment_widget_checkout_authority_conflict");
+    if (!current && frozenNormal) throw new Error("payment_normal_cross_sell_authority_conflict");
     const previousCreation = current?.creation as PaymentIntentSnapshot["creation"];
     const firstSend = current && previousCreation?.state === "ready" && !previousCreation.firstAttemptAt &&
       snapshot.creation?.state === "in_flight" && !current.providerPaymentId;
+    // The lock arm is deliberately broader than admission: an uncertain prior
+    // attempt can also claim a recovery lease. Do not block its reconciliation.
+    if (couldAdmit && (!current || firstSend)) {
+      let hasWidgetReceipt = false;
+      try { hasWidgetReceipt = admissionCart !== null && typeof admissionCart === "object" && "_widgetCrossSellAcceptance" in admissionCart; }
+      catch { throw new Error("cross_sell_quote_review_required"); }
+      if (hasWidgetReceipt || frozenWidget) {
+        if (!hasWidgetReceipt || couponAdmission || isMarketplace || !this.captureWidgetCheckout || !snapshot.creation) {
+          assertNoUnprojectedWidgetReceipt(admissionCart);
+          throw new Error("payment_widget_checkout_authority_conflict");
+        }
+        assertNoCheckoutCouponBindingInput(admissionCart);
+        if (current) {
+          if ((current.version ?? 0) !== (snapshot.version ?? 0)) throw new PaymentIntentConflictError();
+          if (!frozenWidget) throw new Error("payment_widget_checkout_authority_conflict");
+          // Actual persisted identity is proved before the callback can request
+          // the canonical reader's independently fenced own-row exception.
+          assertSamePaymentIdentity(snapshotFromRecord(current), snapshot);
+        }
+        const authority = await this.captureWidgetCheckout(tx, snapshot);
+        const admitted = { ...snapshot, creation: { ...snapshot.creation, widgetCheckoutAuthority: authority } };
+        readPaymentWidgetCheckoutAuthority(admitted);
+        if (current) assertSamePaymentWidgetCheckoutAuthority(snapshot, admitted);
+        else snapshot.creation = admitted.creation;
+      } else {
+        assertNoUnprojectedWidgetReceipt(admissionCart);
+        if (legacyCreation) await assertNeighborhoodPaymentAdmission(tx, {
+          merchantId: snapshot.merchantId, sessionId: snapshot.sessionId,
+        }, admissionSession);
+        // A new journal cannot arrive pre-authorized, including through a generic
+        // repository call. Only this fenced admission may capture its sibling.
+        if (!current && frozenCoupon) throw new Error("checkout_coupon_binding_conflict");
+        const source = admissionCart as { source?: unknown; cart_ref?: unknown } | null;
+        const storefrontSource = source?.source === "storefront" && typeof source.cart_ref === "string" && source.cart_ref.trim().length > 0;
+        if (couponAdmission || storefrontSource) {
+          if (!this.captureCoupon) throw new Error("checkout_coupon_binding_conflict");
+          const authority = await this.captureCoupon(tx, snapshot, current ? undefined : trustedScope);
+          if (frozenCoupon && !authority) throw new Error("checkout_coupon_binding_conflict");
+          if (!current && authority && snapshot.creation) {
+            snapshot.creation = { ...snapshot.creation, couponAuthority: authority };
+            readPaymentCouponAuthority(snapshot);
+          }
+        } else assertNoCheckoutCouponBindingInput(admissionCart);
+        const cart = admissionCart as { source?: unknown; items?: unknown; currentDiscount?:unknown } | null;
+        const hasIntent = Array.isArray(cart?.items) && cart.items.some(item => item !== null && typeof item === "object" && "crossSellIntent" in item);
+        const hasDiscount = typeof cart?.currentDiscount === "number" && Number.isFinite(cart.currentDiscount) && cart.currentDiscount > 0;
+        // Existing storefront V1 intents are not normal-checkout acceptance.
+        // Actual normal history also survives removal of every target when an
+        // independent D remains. This selects canonical admission, never grants
+        // authority from a body/cart flag or from an unproved discount alone.
+        const normalSourceEvent = (hasIntent && cart?.source === "storefront" || hasDiscount) ? await tx.outboxMessage.findFirst({ where: {
+          merchantId: snapshot.merchantId, eventType: "cross-sell.offer.accepted", producer: "cross-sell",
+          payload: { path: ["ack", "sessionId"], equals: snapshot.sessionId },
+          AND: [{ payload: { path: ["protocol"], equals: "normal_checkout_cross_sell_v1" } }],
+        }, select: { eventId: true } }) : null;
+        if (frozenNormal || hasIntent && cart?.source !== "storefront" || normalSourceEvent && (hasIntent || hasDiscount)) {
+          if (!snapshot.creation || isMarketplace || !this.captureNormalCrossSell) throw new Error("payment_normal_cross_sell_authority_conflict");
+          if (current) {
+            if ((current.version ?? 0) !== (snapshot.version ?? 0)) throw new PaymentIntentConflictError();
+            if (!frozenNormal) throw new Error("payment_normal_cross_sell_authority_conflict");
+            assertSamePaymentIdentity(snapshotFromRecord(current), snapshot);
+          }
+          const authority = await this.captureNormalCrossSell(tx, snapshot);
+          const admitted = { ...snapshot, creation: { ...snapshot.creation, normalCrossSellAuthority: authority } };
+          readPaymentNormalCrossSellAuthority(admitted);
+          if (current) assertSamePaymentNormalCrossSellAuthority(snapshot, admitted);
+          else snapshot.creation = admitted.creation;
+        }
+      }
+    }
     if (publicMarketplaceCreation && (!current || firstSend)) {
       if (current) {
         if ((current.version ?? 0) !== (snapshot.version ?? 0)) throw new PaymentIntentConflictError();
@@ -273,6 +402,7 @@ export class PrismaPaymentRepository implements PaymentRepository {
       }
     }
 
+    const args = paymentIntentUpsertArgs(snapshot);
     if (!current) {
       if ((snapshot.version ?? 0) !== 0) throw new PaymentIntentConflictError();
       if (await tx.paymentIntent.findFirst({ where: { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) throw new PaymentIntentConflictError();

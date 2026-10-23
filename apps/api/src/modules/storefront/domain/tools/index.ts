@@ -1,4 +1,6 @@
 export * from "./types.js";
+import { z } from "zod";
+import { storefrontToolSchema } from "../contracts/storefront-tool.schemas.js";
 
 import { SEARCH_PRODUCTS, createSearchProductsTool } from "./definitions/search-products.tool.js";
 import { GET_PRODUCT_DETAILS, createGetProductDetailsTool } from "./definitions/get-product-details.tool.js";
@@ -67,7 +69,17 @@ export function buildStoreTools(): ToolDefinition[] {
     ESCALATE_TO_HUMAN,
     GET_INVOICE,
     CANCEL_ORDER
-  ];
+  ].map(definition => {
+    const schema = storefrontToolSchema(definition.name);
+    if (!schema) throw new Error(`storefront_tool_contract_missing:${definition.name}`);
+    const json = z.toJSONSchema(schema, { target: "draft-7" });
+    const properties = Object.fromEntries(Object.entries(json.properties ?? {}).map(([name, field]) => {
+      const existing = definition.parameters.properties[name] as { description?: string } | undefined;
+      return [name, { ...(typeof field === "object" && field !== null ? field : {}),
+        ...(existing?.description ? { description: existing.description } : {}) }];
+    }));
+    return { ...definition, parameters: { ...json, type: "object" as const, additionalProperties: false, properties } };
+  });
 }
 
 export function buildExecutableStoreTools(ctx: StoreToolContext): ExecutableTool[] {

@@ -4,6 +4,8 @@ import type { PrismaClient } from "@prisma/client";
 import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
 import { STOREFRONT_CART_PORT } from "../storefront/domain/ports/storefront-cart.port.js";
 import { PrismaStorefrontCartRepository } from "../storefront/infrastructure/repositories/prisma-storefront-cart.repository.js";
+import { STOREFRONT_CROSS_SELL_CART } from "../storefront/domain/ports/storefront-cross-sell-cart.port.js";
+import { PrismaStorefrontCrossSellCartAdapter } from "../storefront/infrastructure/repositories/prisma-storefront-cross-sell-cart.adapter.js";
 import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
 import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
@@ -123,6 +125,7 @@ import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-template
   ],
   controllers: [CheckoutController],
   providers: [
+    { provide: STOREFRONT_CROSS_SELL_CART, useFactory: (prisma: PrismaClient) => new PrismaStorefrontCrossSellCartAdapter(prisma), inject: [PRISMA_CLIENT] },
     ListBuyerAddressesUseCase,
     CheckoutSavedAddressService,
     {

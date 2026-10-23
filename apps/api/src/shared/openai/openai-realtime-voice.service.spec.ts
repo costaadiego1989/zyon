@@ -22,7 +22,7 @@ test("realtime voice sessions bound output, instructions and cart context", asyn
     return Response.json({ value: "ephemeral-voice-secret-for-test" });
   }) as typeof fetch;
 
-  const service = new OpenAIRealtimeVoiceService({} as never);
+  const service = new OpenAIRealtimeVoiceService({ assertAllowed: async () => {} } as never);
   await service.createClientSecret({
     merchantId: "merchant_test",
     conversationId: "conversation_test",
@@ -67,4 +67,15 @@ test("realtime voice sessions bound output, instructions and cart context", asyn
   assert.match(checkout.instructions, /Não se apresente novamente/);
   assert.match(checkout.instructions, /Não invente|Nunca complete um e-mail/);
   assert.match(checkout.instructions, /até duas frases e 60 palavras/);
+});
+
+test("storefront cannot obtain browser provider secrets or start without server scope admission", async (t) => {
+  const previousFetch = globalThis.fetch; let calls = 0;
+  t.after(() => { globalThis.fetch = previousFetch; });
+  globalThis.fetch = (async () => { calls++; throw new Error("provider must not be called"); }) as typeof fetch;
+  const service = new OpenAIRealtimeVoiceService({ assertAllowed: async () => {} } as never);
+  const input = { merchantId: "merchant", conversationId: "conversation", surface: "storefront" as const, cart: { items: [] } };
+  await assert.rejects(service.createClientSecret(input), /voice_server_control_required/);
+  await assert.rejects(service.createCall({ ...input, sdp: "v=0\r\nsynthetic-offer" }), /voice_scope_checker_required/);
+  assert.equal(calls, 0);
 });

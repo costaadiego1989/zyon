@@ -1,103 +1,69 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { createPrismaClient } from "../../../shared/persistence/prisma-client.js";
-import crypto from "node:crypto";
+import { revenueLiftPrismaFixture } from "./revenue-lift.prisma-fixture.js";
 
 const runPrisma = process.env.AACP_RUN_PRISMA_TESTS === "1" && Boolean(process.env.DATABASE_URL);
 
-// TODO: Requires migration. Models HoldoutGroupAssignment, AttributionTag, RevenueLiftSnapshot not yet in schema.prisma
-// When models are added, these tests will verify:
-// 1. HoldoutGroupAssignment CRUD with idempotency (upsert)
-// 2. AttributionTag creation and aggregation by cohort/dateRange
-// 3. RevenueLiftSnapshot persistence and latest-retrieval
-// 4. Cohort statistics and tenant isolation
-// 5. Revenue lift calculations match manual aggregation
-
-test(
-  "Revenue Lift Integration: HoldoutGroupAssignment, AttributionTag, RevenueLiftSnapshot with tenant isolation",
-  { skip: runPrisma ? false : "Set AACP_RUN_PRISMA_TESTS=1 and DATABASE_URL to run Prisma integration tests." },
-  async () => {
-    const prisma = createPrismaClient();
-    const merchantId1 = `mrc_lift_${crypto.randomUUID()}`;
-    const merchantId2 = `mrc_lift_${crypto.randomUUID()}`;
-
+test("Revenue Lift actual repository: approved revenue, dates, tenants and attribution idempotency",
+  { skip: runPrisma ? false : "Requires the explicit owned disposable legacy Prisma runner." }, async t => {
+    const f = await revenueLiftPrismaFixture();
+    const at = new Date("2026-01-02T12:00:00.000Z"), from = new Date("2026-01-01T00:00:00.000Z"), to = new Date("2026-01-04T00:00:00.000Z");
     try {
-      // ─── Test 1: Save HoldoutGroupAssignment → find by globalUserId+merchantId → returns cohort ───
-      await test("Save HoldoutGroupAssignment, find by globalUserId+merchantId", async () => {
-        // Placeholder: when HoldoutGroupAssignment model exists:
-        // - create({ merchantId, globalUserId, cohort: "treatment" | "holdout", assignedAt })
-        // - find({ where: { merchantId, globalUserId } })
-        // - verify cohort returned
-        assert.ok(true, "Awaiting HoldoutGroupAssignment model in schema");
+      await f.session(f.merchantId, "holdout", "holdout", at);
+      await f.order(f.merchantId, "holdout", 100, at);
+      await f.session(f.merchantId, "treatment", "treatment", at);
+      await f.order(f.merchantId, "treatment", 150, at);
+      await f.session(f.merchantId, "no-order", "treatment", at);
+      await f.session(f.merchantId, "declined", "treatment", at);
+      await f.order(f.merchantId, "declined", 9999, at, "cancelled");
+      await f.session(f.merchantId, "outside", "treatment", new Date("2026-01-10T12:00:00.000Z"));
+      await f.order(f.merchantId, "outside", 9999, at);
+      await f.session(f.merchantId, "unassigned", "unassigned", at);
+      await f.order(f.merchantId, "unassigned", 9999, at);
+      // Same session and order identifiers in another tenant must never join.
+      await f.session(f.otherMerchantId, "treatment", "treatment", at);
+      await f.order(f.otherMerchantId, "treatment", 9999, at);
+      await t.test("cohort aggregation excludes other tenants, outside dates and unapproved orders", async () => {
+        assert.deepEqual(await f.repo.aggregateByCohort(f.merchantId, from, to), {
+          holdout: { sessions: 1, orders: 1, totalRevenueCents: 10000, totalAiCostCents: 0 },
+          treatment: { sessions: 3, orders: 1, totalRevenueCents: 15000, totalAiCostCents: 15 },
+        });
+        assert.deepEqual(await f.repo.aggregateByCohort("synthetic-missing-merchant", from, to), {
+          holdout: { sessions: 0, orders: 0, totalRevenueCents: 0, totalAiCostCents: 0 },
+          treatment: { sessions: 0, orders: 0, totalRevenueCents: 0, totalAiCostCents: 0 },
+        });
       });
-
-      // ─── Test 2: Idempotent save: save same user twice → no duplicate (upsert) ───
-      await test("HoldoutGroupAssignment idempotent: save same user twice, no duplicate", async () => {
-        // Placeholder: when HoldoutGroupAssignment exists:
-        // - upsert({ where: { merchantId_globalUserId }, create: { ... }, update: { assignedAt: now() } })
-        // - count by merchantId → should be 1, not 2
-        // - assignedAt should be updated to second insert time
-        assert.ok(true, "Awaiting upsert logic in model");
+      await t.test("tag upsert is idempotent and cannot replace an existing order attribution", async () => {
+        const input = f.tag(f.merchantId, "treatment");
+        await f.repo.saveTag(input);
+        const before = await f.prisma.attributionTag.findMany({ where: { merchantId: f.merchantId } });
+        await f.repo.saveTag({ ...input, orderValueCents: 99999, negotiationApplied: true });
+        assert.deepEqual(await f.prisma.attributionTag.findMany({ where: { merchantId: f.merchantId } }), before);
+        assert.equal(before.length, 1);
+        await f.repo.saveTag({ ...input, merchantId: f.otherMerchantId, negotiationApplied: true });
+        assert.equal(await f.prisma.attributionTag.count({ where: { orderId: input.orderId } }), 2);
       });
-
-      // ─── Test 3: Save AttributionTag → query by merchantId+cohort+dateRange → returns correct set ───
-      await test("Save AttributionTag, query by merchantId+cohort+dateRange", async () => {
-        // Placeholder: when AttributionTag model exists:
-        // - create({ merchantId, globalUserId, cohort, orderId, orderValue, taggedAt })
-        // - query: findMany({ where: { merchantId, cohort, taggedAt: { gte: from, lte: to } } })
-        // - verify correct set returned with no cross-merchant or cross-cohort bleed
-        assert.ok(true, "Awaiting AttributionTag model in schema");
+      await t.test("feature breakout uses approved order values and complete merchant joins", async () => {
+        await f.repo.saveTag(f.tag(f.merchantId, "declined"));
+        assert.deepEqual(await f.repo.getFeatureBreakout(f.merchantId, from, to), [
+          { feature: "cross_sell", orders: 1, revenueCents: 15000 },
+        ]);
+        assert.deepEqual(await f.repo.getFeatureBreakout(f.otherMerchantId, from, to), [
+          { feature: "negotiation", orders: 1, revenueCents: 999900 },
+        ]);
       });
-
-      // ─── Test 4: Attribution aggregation: count orders by cohort, sum revenue ───
-      await test("AttributionTag aggregation: count orders and sum revenue by cohort", async () => {
-        // Placeholder: when AttributionTag exists:
-        // - create 5 tags for cohort="treatment", sum = 500
-        // - create 3 tags for cohort="holdout", sum = 300
-        // - aggregate:
-        //   - SELECT cohort, COUNT(*) as order_count, SUM(orderValue) as total_revenue
-        //   - verify treatment: 5 orders, 500 revenue
-        //   - verify holdout: 3 orders, 300 revenue
-        // - manual calculation: lift = (treatment_revenue / treatment_count - holdout_revenue / holdout_count) / (holdout_revenue / holdout_count)
-        assert.ok(true, "Awaiting aggregation queries");
+      await t.test("daily trend includes zero-order sessions without foreign or unapproved revenue", async () => {
+        assert.deepEqual(await f.repo.getDailyTrend(f.merchantId, from, to), [
+          { date: "2026-01-02", holdoutRevenueCents: 10000, treatmentRevenueCents: 15000, holdoutSessions: 1, treatmentSessions: 3 },
+        ]);
       });
-
-      // ─── Test 5: RevenueLiftSnapshot: save snapshot → find latest by merchantId ───
-      await test("RevenueLiftSnapshot: save and find latest by merchantId", async () => {
-        // Placeholder: when RevenueLiftSnapshot model exists:
-        // - create({ merchantId, calculatedAt, snapshotData: { lift%, confidence, ... } })
-        // - query latest: findFirst({ where: { merchantId }, orderBy: { calculatedAt: "desc" } })
-        // - verify returns most recent snapshot
-        // - run twice with different data → latest returns second snapshot
-        assert.ok(true, "Awaiting RevenueLiftSnapshot model in schema");
+      await t.test("recovery marking is tenant-scoped and a missing tag remains absent", async () => {
+        await f.repo.markCartRecovery(f.otherMerchantId, "synthetic-order-treatment");
+        assert.equal((await f.prisma.attributionTag.findUnique({ where: { merchantId_orderId: { merchantId: f.merchantId, orderId: "synthetic-order-treatment" } } }))?.cartRecoveryApplied, false);
+        await f.repo.markCartRecovery(f.merchantId, "synthetic-missing-order");
+        assert.equal(await f.prisma.attributionTag.count({ where: { merchantId: f.merchantId } }), 2);
+        await f.repo.markCartRecovery(f.merchantId, "synthetic-order-treatment");
+        assert.equal((await f.prisma.attributionTag.findUnique({ where: { merchantId_orderId: { merchantId: f.merchantId, orderId: "synthetic-order-treatment" } } }))?.cartRecoveryApplied, true);
       });
-
-      // ─── Test 6: Cohort query: count holdout vs treatment assignments for a merchant → ~5% holdout ───
-      await test("Cohort query: count holdout vs treatment, verify ~5% holdout ratio", async () => {
-        // Placeholder: when HoldoutGroupAssignment exists:
-        // - create 95 "treatment" assignments
-        // - create 5 "holdout" assignments
-        // - aggregate: SELECT cohort, COUNT(*) as count
-        // - verify: holdout_count / (holdout_count + treatment_count) ≈ 0.05
-        // - verify no cross-merchant bleed
-        assert.ok(true, "Awaiting cohort statistics calculation");
-      });
-
-      // ─── Test 7: Tenant isolation: merchant_A's tags NOT in merchant_B's aggregation ───
-      await test("Tenant isolation: merchant_A's attribution tags invisible to merchant_B", async () => {
-        // Placeholder: when AttributionTag exists:
-        // - create tags for merchantId1, cohort="treatment"
-        // - query tags for merchantId2 with same cohort
-        // - verify returns empty, not cross-tenant
-        // - also test: aggregate on merchantId1 does not include merchantId2 rows
-        assert.ok(true, "Awaiting tenant-scoped query verification");
-      });
-    } finally {
-      // Cleanup when models exist
-      // await prisma.revenueLiftSnapshot.deleteMany({ where: { merchantId: { in: [merchantId1, merchantId2] } } });
-      // await prisma.attributionTag.deleteMany({ where: { merchantId: { in: [merchantId1, merchantId2] } } });
-      // await prisma.holdoutGroupAssignment.deleteMany({ where: { merchantId: { in: [merchantId1, merchantId2] } } });
-      await prisma.$disconnect();
-    }
-  }
-);
+    } finally { await f.dispose(); }
+  });

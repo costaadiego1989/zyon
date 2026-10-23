@@ -1,5 +1,5 @@
 import type { CheckoutEventName, CheckoutSession, MerchantRules, ProgressiveDiscountPolicy } from "@zyon/shared-types";
-import { assessIncentiveMargin, evaluateDiscountOffer, meetsMarginFloor } from "@zyon/rules-engine";
+import { evaluateDiscountOffer } from "@zyon/rules-engine";
 import { authorizeShippingDiscount } from "@zyon/shipping-engine";
 import { AdvancedRuleEvaluator, type AdvancedRule, type RuleMatchContext } from "./advanced-rule-evaluator.service.js";
 import { resolveProgressiveDiscountStage, selectProgressiveDiscountPercent } from "./progressive-discount-policy.service.js";
@@ -65,14 +65,8 @@ export function checkoutBenefitsPolicy(input: {
   if (requestedPercent > 0) {
     const evaluation = evaluateDiscountOffer(next.cart, rules, requestedPercent, cap);
     const discount = Math.round(next.cart.total * evaluation.value) / 100;
-    const margin = assessIncentiveMargin(next.cart, {
-      totalDiscount: discount,
-      shippingRevenue: next.shipping?.customerPrice ?? 0,
-      shippingCost: next.shipping?.realCost ?? 0,
-    });
     // Preserve an already-authorized larger benefit; target, not additive.
     if (evaluation.approved && discount > (next.cart.currentDiscount ?? 0)
-      && meetsMarginFloor(margin, rules.minimumMarginPercent)
       && (next.shipping?.customerPrice !== 0 || !next.shipping.realCost || rules.allowStackDiscountAndFreeShipping)) {
       next.cart.currentDiscount = discount;
       next.cart.commercialNudge = {

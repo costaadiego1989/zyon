@@ -40,7 +40,7 @@ for (const [label, change] of [
   ["pretend reservation", (s: any) => s.commercialBudget = "reserved"],
   ["unmature window", (s: any) => s.candidate.simulation.conversionWindowHours = 24],
   ["unsupported lift", (s: any) => s.candidate.simulation.expectedLiftStatus = "measured"],
-  ["lower margin", (s: any) => s.candidate.simulation.minimumProjectedMarginPercent = 34],
+  ["invalid informational margin", (s: any) => s.candidate.simulation.minimumProjectedMarginPercent = NaN],
   ["higher discount", (s: any) => s.candidate.percent = 21],
   ["invented fixed cap", (s: any) => s.candidate.simulation.maxDiscountCents++],
   ["inflated replay total", (s: any) => s.candidate.simulation.replayDiscountTotalCents++],

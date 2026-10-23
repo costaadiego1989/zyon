@@ -28,8 +28,18 @@ import { PAYMENT_APPROVAL_READER, type PaymentApprovalReader, type PersistedPaym
 import { assertPaymentAmount, orderTotalCents } from "../../../payment/domain/payment-amount.js";
 import { paymentCartFingerprint } from "../../domain/services/payment-cart-fingerprint.js";
 import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
+import { parseCheckoutCouponOrderAuthority, parseCheckoutCouponPaymentAuthority, type CheckoutCouponOrderAuthority } from "../../domain/services/checkout-coupon-binding.js";
+import { isDeepStrictEqual } from "node:util";
+import { parseWidgetCheckoutPaymentAuthority, type WidgetCheckoutPaymentAuthority } from "../../../payment/domain/widget-checkout-payment-authority.schemas.js";
+import { parseNormalCheckoutPaymentAuthority, type NormalCheckoutPaymentAuthority } from "../../../payment/domain/normal-checkout-payment-authority.schemas.js";
 
 interface OrderCommitRepository {
+  assertNormalCrossSellPaymentOrderAuthority?(merchantId:string,sessionId:string,authority:NormalCheckoutPaymentAuthority,
+    paymentIntentId:string,providerPaymentId:string):Promise<void>|void;
+  assertPublicCompletionAllowed?(merchantId: string, sessionId: string): Promise<void> | void;
+  assertCouponOrderAuthority?(merchantId: string, sessionId: string, authority?: CheckoutCouponOrderAuthority, paymentIntentId?: string): Promise<void> | void;
+  assertWidgetPaymentOrderAuthority?(merchantId: string, sessionId: string, authority: WidgetCheckoutPaymentAuthority,
+    paymentIntentId: string, providerPaymentId: string): Promise<void> | void;
   saveCompletedOrder(order: CompletedOrder): Promise<{ order: CompletedOrder; idempotent: boolean }> | { order: CompletedOrder; idempotent: boolean };
   recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName): Promise<void> | void;
   appendOutbox(event: DomainEventEnvelope): Promise<DomainEventEnvelope> | DomainEventEnvelope;
@@ -74,7 +84,7 @@ export class CompleteOrderUseCase {
   async executePaymentApproval(input: CompleteOrderRequest, paymentIntentId?: string): Promise<CompleteOrderResponse> {
     if (!paymentIntentId || !this.paymentApprovals) throw new BadRequestException("payment_approval_required");
     const approval = await this.paymentApprovals.find(input.merchant_id, input.session_id, paymentIntentId);
-    if (!approval || approval.merchantId !== input.merchant_id || approval.sessionId !== input.session_id ||
+    if (!approval || approval.id !== paymentIntentId || approval.merchantId !== input.merchant_id || approval.sessionId !== input.session_id ||
       approval.status !== "approved" || approval.providerPaymentId !== input.external_order_id ||
       approval.currency !== input.currency || approval.approvedAmountCents !== approval.amountCents ||
       !Number.isSafeInteger(approval.amountCents) || approval.amountCents <= 0 ||
@@ -83,15 +93,56 @@ export class CompleteOrderUseCase {
       throw new BadRequestException("payment_approval_mismatch");
     }
     if (approval.amountBreakdown) assertPaymentAmount(approval.amountBreakdown, approval.amountCents, approval.currency);
-    return this.complete(input, approval);
+    let widgetAuthority: WidgetCheckoutPaymentAuthority | undefined;
+    if ("widgetCheckoutAuthority" in approval) {
+      widgetAuthority = parseWidgetCheckoutPaymentAuthority(approval.widgetCheckoutAuthority);
+      if ("couponAuthority" in approval || !this.txRunner?.transaction || widgetAuthority.paymentId !== approval.id
+        || widgetAuthority.merchantId !== approval.merchantId || widgetAuthority.checkoutSessionId !== approval.sessionId
+        || widgetAuthority.amountCents !== approval.amountCents || widgetAuthority.currency !== approval.currency
+        || approval.acceptedOfferId !== null || !isDeepStrictEqual(widgetAuthority.amountBreakdown, approval.amountBreakdown))
+        throw new Error("payment_widget_checkout_authority_conflict");
+    }
+    // Only the internal persisted approval can carry this authority. Presence
+    // is strict: null/undefined/corrupt metadata must never become legacy mode.
+    let couponAuthority: CheckoutCouponOrderAuthority | undefined;
+    if ("couponAuthority" in approval) {
+      const identity = parseCheckoutCouponPaymentAuthority(approval.couponAuthority);
+      if (identity.merchantId !== approval.merchantId || identity.checkoutSessionId !== approval.sessionId
+        || approval.amountBreakdown && identity.discountCents !== approval.amountBreakdown.discountCents) {
+        throw new Error("checkout_coupon_binding_conflict");
+      }
+      couponAuthority = parseCheckoutCouponOrderAuthority({ ...identity, orderId: input.external_order_id });
+      if (!this.txRunner?.transaction) throw new Error("checkout_coupon_binding_conflict");
+    }
+    let normalAuthority:NormalCheckoutPaymentAuthority|undefined;
+    if("normalCrossSellAuthority"in approval){
+      normalAuthority=parseNormalCheckoutPaymentAuthority(approval.normalCrossSellAuthority);
+      if(widgetAuthority||!this.txRunner?.transaction||normalAuthority.paymentId!==approval.id||normalAuthority.merchantId!==approval.merchantId
+        ||normalAuthority.checkoutSessionId!==approval.sessionId||normalAuthority.amountCents!==approval.amountCents||normalAuthority.currency!==approval.currency
+        ||(normalAuthority.discountOwner?.kind==="accepted_offer"?approval.acceptedOfferId!==null&&approval.acceptedOfferId!==normalAuthority.discountOwner.authorizedOfferId:approval.acceptedOfferId!==null)
+        ||!isDeepStrictEqual(normalAuthority.amountBreakdown,approval.amountBreakdown))
+        throw new Error("payment_normal_cross_sell_authority_conflict");
+    }
+    const historicalInput=normalAuthority?.discountOwner?.kind==="accepted_offer"
+      ?{...input,accepted_offer_id:normalAuthority.discountOwner.authorizedOfferId}:input;
+    return this.complete(historicalInput, approval, couponAuthority, widgetAuthority,normalAuthority);
   }
 
-  private async complete(input: CompleteOrderRequest, approval?: PersistedPaymentApproval): Promise<CompleteOrderResponse> {
-    const session = await this.sessions.getSession(input.merchant_id, input.session_id);
+  private async complete(input: CompleteOrderRequest, approval?: PersistedPaymentApproval, couponAuthority?: CheckoutCouponOrderAuthority,
+    widgetAuthority?: WidgetCheckoutPaymentAuthority,normalAuthority?:NormalCheckoutPaymentAuthority): Promise<CompleteOrderResponse> {
+    // An approved immutable widget journal is historical order data, not a raw
+    // BASE checkout projection. Do not invoke the generic receipt mapper even
+    // for retries. Actual approved persistence is rechecked in commit below.
+    const session = widgetAuthority ? frozenAdmittedOrderSession(widgetAuthority)
+      : normalAuthority ? frozenAdmittedOrderSession(normalAuthority)
+      : await this.sessions.getSession(input.merchant_id, input.session_id);
     if (!session) throw new NotFoundException("checkout_session_not_found");
     const existingOrder = approval
       ? await this.orders.getCompletedOrder(input.merchant_id, input.session_id, input.external_order_id)
       : undefined;
+    if (couponAuthority && (couponAuthority.buyerId !== session.globalUserId || !existingOrder && (
+      session.cart.cart_ref !== couponAuthority.cartId || toCents(session.cart.currentDiscount ?? 0) !== couponAuthority.discountCents
+    ))) throw new Error("checkout_coupon_binding_conflict");
 
     // A retry of an already committed payment must not depend on a later cart edit.
     // The order repository still rejects conflicting persisted money/currency/offer.
@@ -129,7 +180,7 @@ export class CompleteOrderUseCase {
         throw new BadRequestException("order_total_mismatch");
       }
 
-      if ((!approval || !existingOrder) && input.accepted_offer_id) {
+      if ((!approval || !existingOrder) && !normalAuthority && input.accepted_offer_id) {
         const acceptedOffer = await this.offerRepository.getAcceptedOffer(
           input.merchant_id,
           input.session_id,
@@ -156,6 +207,23 @@ export class CompleteOrderUseCase {
         : undefined;
 
     const commit = async (repo: OrderCommitRepository): Promise<boolean> => {
+      // A private bound checkout cannot be completed through the public legacy
+      // entrypoint. Canonical storage is checked in this same order/outbox TX.
+      if (!approval) await repo.assertPublicCompletionAllowed?.(input.merchant_id, input.session_id);
+      else if (widgetAuthority) {
+        if (!this.txRunner?.transaction || !repo.assertWidgetPaymentOrderAuthority || !approval.providerPaymentId)
+          throw new Error("payment_widget_checkout_authority_conflict");
+        await repo.assertWidgetPaymentOrderAuthority(input.merchant_id, input.session_id, widgetAuthority, approval.id, approval.providerPaymentId);
+      }
+      else {
+        if(normalAuthority){
+          if(!this.txRunner?.transaction||!repo.assertNormalCrossSellPaymentOrderAuthority||!approval.providerPaymentId)
+            throw new Error("payment_normal_cross_sell_authority_conflict");
+          await repo.assertNormalCrossSellPaymentOrderAuthority(input.merchant_id,input.session_id,normalAuthority,approval.id,approval.providerPaymentId);
+        }
+        if (couponAuthority && !repo.assertCouponOrderAuthority) throw new Error("checkout_coupon_binding_conflict");
+        if(couponAuthority||!normalAuthority)await repo.assertCouponOrderAuthority?.(input.merchant_id, input.session_id, couponAuthority, approval.id);
+      }
       const saved = await repo.saveCompletedOrder(order);
       if (saved.idempotent) return true;
       await repo.recordCompletedOrderQuota?.(order);
@@ -176,6 +244,8 @@ export class CompleteOrderUseCase {
             fulfillment_snapshot: { version: 2, lines: lineItems },
             carrier_key: session.shipping?.carrier ?? null,
             ...(approval ? { payment_intent_id: approval.id, payment_amount_breakdown: approval.amountBreakdown } : {}),
+            ...(couponAuthority ? { coupon_authority: couponAuthority } : {}),
+            ...(normalAuthority?.discountOwner?.kind==="checkout_coupon"?{normal_coupon_owner:normalAuthority.discountOwner}:{}),
             inventory_sale: {
               version: 1,
               stocked_items_only: true,
@@ -252,6 +322,8 @@ export class CompleteOrderUseCase {
     };
 
     const fallbackRepo: OrderCommitRepository = {
+      assertPublicCompletionAllowed: (m, s) => this.orders.assertPublicCompletionAllowed?.(m, s),
+      assertCouponOrderAuthority: (m, s, a, p) => this.orders.assertCouponOrderAuthority?.(m, s, a, p),
       saveCompletedOrder: (o) => this.orders.saveCompletedOrder(o),
       recordEvent: (m, s, e) => this.sessions.recordEvent(m, s, e),
       appendOutbox: (e) => this.outbox.appendOutbox(e),
@@ -272,7 +344,7 @@ export class CompleteOrderUseCase {
 
       await this.recordConversionAnalytics(session, input);
 
-      const globalUserId = await this.resolveBuyerGlobalUserId(session);
+      const globalUserId = widgetAuthority ? widgetAuthority.buyerId : await this.resolveBuyerGlobalUserId(session);
       await this.tagAttributionForOrder(session, input, globalUserId);
       if (globalUserId) {
         await this.purchaseHistory?.recordCheckoutPurchase({
@@ -442,6 +514,14 @@ export class CompleteOrderUseCase {
 }
 
 const BUYER_SERVICE_FEE_MAJOR_UNITS = 0.99;
+
+/** Minimal local carrier for the existing order/notification/fulfillment
+ * pipeline. No mutable session metadata, conversation or analytics is inferred. */
+function frozenAdmittedOrderSession(authority: WidgetCheckoutPaymentAuthority|NormalCheckoutPaymentAuthority): CheckoutSession {
+  return { merchantId: authority.merchantId, sessionId: authority.checkoutSessionId,
+    conversationId: "", ...structuredClone(authority.frozenProjection),
+    abandonmentScore: 0, triggerAgent: false, chatHistory: [], createdAt: authority.admittedAt, updatedAt: authority.admittedAt };
+}
 
 function computeExpectedTotal(session: CheckoutSession): number {
   const items = Array.isArray(session.cart?.items) ? session.cart.items : [];

@@ -14,11 +14,12 @@ function setup() {
   const listEligible = new ListEligibleCrossSellsUseCase(promotions, suggestions, outbox);
   // Mock merchant with crossSell enabled so the recommender proceeds past the enabled check
   const prismaMock = {
-    merchant: { findUnique: async () => ({ storeSettings: { crossSell: { enabled: true } } }) },
+    merchant: { findUnique: async () => ({ storeSettings: { crossSell: { enabled: true, strategies: ["complementary"] } } }) },
     crossSellSuggestion: { findFirst: async () => null },
     productVariant: {
       findFirst: async ({ where }: { where: { sku: string } }) => where.sku === "ZYON-HOOD-001" ? ({
         id: "variant_hoodie",
+        productId: "product_hoodie",
         price: { basePriceInCents: 19990 },
         media: [],
         stock: [{ quantity: 3, reserved: 0 }],
@@ -57,6 +58,8 @@ describe("CheckoutCrossSellRecommender", () => {
     assert.equal(products[0]?.sku, "ZYON-HOOD-001");
     assert.equal(products[0]?.name, "Hoodie Agentic Checkout");
     assert.equal(products[0]?.unit_price, 199.9);
+    assert.equal(products[0]?.product_id, "product_hoodie");
+    assert.equal(products[0]?.variant_id, "variant_hoodie");
     assert.ok(products[0]?.suggestion_id);
   });
 

@@ -1,5 +1,7 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { CheckoutProductDetailContext } from "./lib/checkout-product-detail-context";
+import type { OpenCheckoutProductDetail } from "./lib/checkout-product-detail";
 import { useCheckoutStore } from "./store/checkout-store";
 import { CheckoutLayout } from "./layouts/CheckoutLayout";
 import { MascotOverlay } from "./components/MascotOverlay";
@@ -25,9 +27,12 @@ export interface InlineCheckoutProps {
   initialChannel?: "chat" | "voice";
   theme?: "dark" | "light";
   onClose?: () => void;
+  onOpenProductDetail?: OpenCheckoutProductDetail;
 }
 
 export function InlineCheckout(props: InlineCheckoutProps) {
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const status = useCheckoutStore((s) => s.status);
   const error = useCheckoutStore((s) => s.error);
   const init = useCheckoutStore((s) => s.init);
@@ -111,5 +116,9 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     return <CheckoutUnavailable error={error} onClose={props.onClose} />;
   }
 
-  return <CheckoutLayout forcedTheme={props.theme} onClose={props.onClose} />;
+  const open: OpenCheckoutProductDetail | undefined = props.onOpenProductDetail ? request => {
+    if (!mounted.current || request.merchantId !== props.merchantId || !request.isCurrent()) return;
+    props.onOpenProductDetail?.({ ...request, isCurrent: () => mounted.current && request.merchantId === props.merchantId && request.isCurrent() });
+  } : undefined;
+  return <CheckoutProductDetailContext.Provider value={open}><CheckoutLayout forcedTheme={props.theme} onClose={props.onClose} /></CheckoutProductDetailContext.Provider>;
 }

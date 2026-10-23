@@ -2,11 +2,17 @@ import type { CommerceTurnResult, Message, CrossSellInterstitialData, ProductCro
 import { narrateStorefrontBlock, trackFunnelEvent } from "@/lib/services/conversation.service";
 import { checkoutApi } from "@/lib/api/api-client";
 import { getValidBuyer } from "@/lib/buyer-auth";
-import { ConversationSessionExpiredError } from "@/lib/conversation-access";
+import { ConversationSessionExpiredError, ensureConversationAccess } from "@/lib/conversation-access";
+import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import { cloneStorefrontReadUiAction } from "@/lib/storefront-read-ui-action";
+import { parseSuggestedReadActions } from "@/lib/storefront-suggested-read-actions";
+import type { CartLineSelection } from "@/lib/cart-line-selection";
+import type { ConversationStart } from "@/lib/scoped-conversation";
 
 export interface SendMessageParams {
   trimmed: string;
   attachment?: ConversationAttachment;
+  uiAction?: StorefrontReadUiAction;
   voiceTurnToken?: string;
   conversationId: string | null;
   setConversationId: (id: string) => void;
@@ -22,6 +28,10 @@ export interface SendMessageParams {
   setCrossSellPending: (data: CrossSellInterstitialData | null) => void;
   setProductCrossSell: (data: ProductCrossSellPlacement | null) => void;
   updateFromBlocks: (blocks: any[]) => void;
+  /** Conversation lifecycle, independent of the mutable cart snapshot. */
+  isCurrent?: () => boolean;
+  /** Captured, one-use cart projection capability; missing means deny. */
+  applyCartProjection?: (blocks: any[]) => boolean;
   noteActivity: (merchantId: string) => void;
   onCheckoutPrepared: (action: {
     actionId: string;
@@ -32,6 +42,7 @@ export interface SendMessageParams {
 }
 
 export async function handleSendMessage(params: SendMessageParams): Promise<CommerceTurnResult | null> {
+  const uiAction = params.uiAction === undefined ? undefined : cloneStorefrontReadUiAction(params.uiAction);
   const {
     trimmed,
     attachment,
@@ -40,40 +51,58 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
     history,
     cartId,
     variantId,
-    setMessages,
-    setHistory,
-    setIsLoading,
-    setInput,
-    setCrossSellPending,
-    setProductCrossSell,
-    updateFromBlocks,
     noteActivity,
   } = params;
-
-  if (!trimmed && !attachment) return null;
-  if (merchantId) noteActivity(merchantId);
-
-  const userMsg: Message = {
-    id: `u-${Date.now()}`,
-    role: "user",
-    text: trimmed,
-    attachment: attachment ? { kind: attachment.kind, name: attachment.name } : undefined,
+  const isCurrent = params.isCurrent ?? (() => true);
+  const setMessages: SendMessageParams["setMessages"] = (updater) => {
+    if (isCurrent()) params.setMessages((previous) => isCurrent() ? updater(previous) : previous);
   };
-  setMessages((prev) => [...prev, userMsg]);
-  setInput("");
-  setIsLoading(true);
-  const newHistory = [...history, { role: "user" as const, content: trimmed }];
-  setHistory(newHistory);
+  const setHistory: SendMessageParams["setHistory"] = (value) => {
+    if (isCurrent()) params.setHistory((previous) => isCurrent()
+      ? (typeof value === "function" ? value(previous) : value) : previous);
+  };
+  const setIsLoading = (value: boolean) => { if (isCurrent()) params.setIsLoading(value); };
+  const setInput = (value: string) => { if (isCurrent()) params.setInput(value); };
+  const setCrossSellPending: SendMessageParams["setCrossSellPending"] = (value) => { if (isCurrent()) params.setCrossSellPending(value); };
+  const setProductCrossSell: SendMessageParams["setProductCrossSell"] = (value) => { if (isCurrent()) params.setProductCrossSell(value); };
+
+  if ((!trimmed && !attachment) || !merchantId || !isCurrent()) return null;
 
   try {
     let convId = conversationId;
+    if ((!convId && (cartId || history.length || params.voiceTurnToken))
+      || (cartId && convId && cartId !== convId)) {
+      // A proof, cart or previous turn cannot migrate to a newly created
+      // identity. Only explicit owner-backed recovery may resolve this state.
+      throw new ConversationSessionExpiredError();
+    }
     if (!convId && merchantId) {
       const startData = await checkoutApi.create({ merchantId });
+      if (!isCurrent()) return null;
       if (startData?.conversation_id) {
         convId = startData.conversation_id;
-        params.setConversationId(convId!);
+        params.setConversationId(startData.conversation_id);
       }
     }
+    if (!isCurrent()) return null;
+    if (!convId) return null;
+    // Renew the original identity before consuming the buyer's draft. A failed
+    // preflight must not append an unsent turn, reset a cart or move a voice proof.
+    // Empty-session replacement belongs to the shared owner, not this handler.
+    await ensureConversationAccess(convId);
+    if (!isCurrent()) return null;
+    noteActivity(merchantId);
+    const userMsg: Message = {
+      id: `u-${Date.now()}`,
+      role: "user",
+      text: trimmed,
+      attachment: attachment ? { kind: attachment.kind, name: attachment.name } : undefined,
+    };
+    setMessages((prev) => [...prev, userMsg]);
+    setInput("");
+    setIsLoading(true);
+    const newHistory = [...history, { role: "user" as const, content: trimmed }];
+    setHistory(newHistory);
     if (convId && merchantId) {
       const requestOptions = {
         merchantId,
@@ -81,35 +110,37 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
         history: newHistory,
         variantId: variantId || undefined,
         attachment,
+        uiAction,
         voiceTurnToken: params.voiceTurnToken,
         token: getValidBuyer()?.token,
       };
-      let data;
-      try {
-        data = await checkoutApi.sendMessage(convId, trimmed, requestOptions);
-      } catch (error) {
-        if (!(error instanceof ConversationSessionExpiredError)) throw error;
-        // No usable signed credential remains. Start a new scoped session instead
-        // of repeatedly sending an invalid token or trusting a cart ID alone.
-        const fresh = await checkoutApi.create({ merchantId });
-        convId = fresh.conversation_id;
-        params.setConversationId(convId!);
-        params.clearCart();
-        setHistory([{ role: "user", content: trimmed }]);
-        setMessages((prev) => [...prev, { id: `session-${Date.now()}`, role: "agent", text: "Sua sessão anterior expirou. Abri uma nova conversa; adicione novamente os produtos que deseja comprar." }]);
-        data = await checkoutApi.sendMessage(convId!, trimmed, { ...requestOptions, voiceTurnToken: undefined, cartId: undefined, history: [{ role: "user", content: trimmed }] });
-      }
+      // Expiry/uncertainty never creates another identity or resends a possibly
+      // mutating turn. Explicit recovery must preserve the original reference.
+      const data = await checkoutApi.sendMessage(convId, trimmed, requestOptions);
+      if (!isCurrent()) return null;
 
       if (data) {
-        const blocks = data.blocks ?? [];
+        if (data.conversation_id !== undefined && data.conversation_id !== convId) {
+          throw new Error("conversation_response_mismatch");
+        }
+        const responseBlocks = Array.isArray(data.blocks) ? [...data.blocks] : [];
+        // Evaluate once: our accepted cart_summary changes the cart version but
+        // must not invalidate this response's transcript or prepared checkout.
+        const projectionAccepted = params.applyCartProjection?.(responseBlocks) === true;
+        if (!isCurrent()) return null;
+        const blocks = projectionAccepted ? responseBlocks : responseBlocks.filter((block: any) =>
+          !["cart_summary", "checkout_prepared", "cross_sell"].includes(block?.type));
         if (data.suggested_next?.length) {
           blocks.push({ type: "quick_replies", data: { options: data.suggested_next } });
         }
-        updateFromBlocks(blocks);
-
+        const suggestedActions = data.conversation_id === convId ? parseSuggestedReadActions(data.suggested_actions) : null;
+        if (suggestedActions?.items.length) {
+          blocks.push({ type: "quick_replies", data: { options: [], suggestedActions } });
+        }
         const preparedCheckout = blocks.find((block: any) => block.type === "checkout_prepared")?.data;
         if (
-          typeof preparedCheckout?.actionId === "string"
+          isCurrent()
+          && typeof preparedCheckout?.actionId === "string"
           && typeof preparedCheckout?.cartId === "string"
           && (preparedCheckout?.shippingPreference === "fastest" || preparedCheckout?.shippingPreference === "cheapest")
           && (preparedCheckout?.paymentPreference === "pix" || preparedCheckout?.paymentPreference === "card")
@@ -143,7 +174,7 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
           }
           // else: leave the cross_sell block inline; BlockRenderer -> CrossSellBlock handles it.
         }
-        if (conversationId && merchantId) {
+        if (isCurrent() && conversationId && merchantId) {
           const hasCart = blocks.some((b: any) => b.type === "cart_summary");
           const hasProducts = blocks.some((b: any) => ["product_carousel", "product_card", "marketplace_products"].includes(b.type));
           if (hasCart) {
@@ -173,13 +204,17 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
         setIsLoading(false);
         return { agentMessage: agentText || "Atualizei sua compra. Posso continuar?", blocks };
       } else {
-        setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Desculpe, houve um erro. Tente novamente." }]);
+        setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Não consegui confirmar o resultado da solicitação. Verifique o carrinho antes de enviar outra ação." }]);
       }
     } else {
       setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: `Entendi, "${trimmed}". Deixa eu verificar para você...` }]);
     }
-  } catch {
-    setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text: "Não consegui concluir sua solicitação agora. Tente novamente em instantes." }]);
+  } catch (error) {
+    if (!isCurrent()) return null;
+    const text = error instanceof ConversationSessionExpiredError
+      ? "A sessão precisa ser validada. Sua solicitação não foi reenviada automaticamente. Verifique o carrinho antes de continuar."
+      : "Não consegui confirmar o resultado da solicitação. Verifique o carrinho antes de enviar outra ação.";
+    setMessages((prev) => [...prev, { id: `a-${Date.now()}`, role: "agent", text }]);
   }
   setIsLoading(false);
   return null;
@@ -188,10 +223,11 @@ export async function handleSendMessage(params: SendMessageParams): Promise<Comm
 export interface QuickReplyParams {
   budgetModeEnabled?: boolean;
   option: string;
+  uiAction?: StorefrontReadUiAction;
   cartItemCount: number;
   merchantId: string | null;
   conversationId: string | null;
-  sendMessage: (text: string) => Promise<CommerceTurnResult | null>;
+  sendMessage: (text: string, attachment?: ConversationAttachment, uiAction?: StorefrontReadUiAction) => Promise<CommerceTurnResult | null>;
   setCartDrawerForceOpen: (value: boolean) => void;
   setCheckoutIntent: (value: string | null) => void;
   setShowBuyerAuth: (value: boolean) => void;
@@ -200,7 +236,19 @@ export interface QuickReplyParams {
 export function handleQuickReply(params: QuickReplyParams) {
   const { option, cartItemCount, merchantId, conversationId, sendMessage, setCartDrawerForceOpen, setCheckoutIntent, setShowBuyerAuth } = params;
 
-  const lower = option.toLowerCase();
+  if (params.uiAction !== undefined) {
+    const uiAction = cloneStorefrontReadUiAction(params.uiAction);
+    void sendMessage(option, undefined, uiAction).catch((err) => {
+      console.error("[conversation] quick-reply sendMessage failed:", err);
+    });
+    return;
+  }
+
+  const lower = option.trim().toLowerCase();
+  if (lower === "meus dados") {
+    window.dispatchEvent(new Event("aacp:open-buyer-hub"));
+    return;
+  }
   if (lower === "ver carrinho" || lower === "ver meu carrinho") {
     setCartDrawerForceOpen(true);
     setTimeout(() => setCartDrawerForceOpen(false), 100);
@@ -241,15 +289,16 @@ export interface UpdateQuantityParams {
   quantity: number;
   cartId: string | null;
   merchantId: string | null;
-  updateItemQuantity: (variantId: string, quantity: number) => Promise<void>;
+  selection?: CartLineSelection;
+  updateItemQuantity: (variantId: string, quantity: number, selection?: CartLineSelection) => Promise<void>;
 }
 
 export async function handleUpdateQuantity(params: UpdateQuantityParams) {
-  const { variantId, quantity, cartId, merchantId, updateItemQuantity } = params;
+  const { variantId, quantity, cartId, merchantId, updateItemQuantity, selection } = params;
 
   if (!cartId || !merchantId) return;
   try {
-    await updateItemQuantity(variantId, quantity);
+    await updateItemQuantity(variantId, quantity, selection);
   } catch (err) {
     console.error("[cart] server sync failed:", err);
   }
@@ -262,18 +311,22 @@ export interface InitConversationParams {
   setConversationId: (id: string) => void;
   captureFromConversationStart: (data: { conversation_id: string; experiment: any }) => void;
   setExperimentGreeting: (message: string, suggestedNext?: string[]) => void;
+  isCurrent?: () => boolean;
+  ensureConversation?: () => Promise<ConversationStart>;
 }
 
 export async function initConversation(params: InitConversationParams) {
   const { merchantId, conversationId, cartId, setConversationId, captureFromConversationStart, setExperimentGreeting } = params;
+  const isCurrent = params.isCurrent ?? (() => true);
 
-  if (!merchantId || conversationId) return;
+  if (!merchantId || conversationId || !isCurrent()) return;
   try {
-    const data = await checkoutApi.create({ merchantId });
-    if (!data?.conversation_id) return;
+    const data = params.ensureConversation ? await params.ensureConversation() : await checkoutApi.create({ merchantId });
+    if (!isCurrent() || !data?.conversation_id) return;
 
     const convId = data.conversation_id;
     setConversationId(convId);
+    if (!isCurrent()) return;
     try {
       sessionStorage.setItem("zyon_conversation_id", convId);
     } catch {}
@@ -284,7 +337,7 @@ export async function initConversation(params: InitConversationParams) {
     checkoutApi
       .sendMessage(convId, "olá", { merchantId, cartId: cartId || undefined, history: [] })
       .then((greetingData) => {
-        if (greetingData?.message) setExperimentGreeting(greetingData.message, greetingData.suggested_next);
+        if (isCurrent() && greetingData?.message) setExperimentGreeting(greetingData.message, greetingData.suggested_next);
       })
       .catch(() => {});
   } catch {}

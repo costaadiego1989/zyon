@@ -15,25 +15,28 @@ test("known costs, quantities and fees reconcile in cents after the discount", (
   assert.equal(estimateMargin(cart, 0, 0.07).paymentFees, 14);
 });
 
-test("missing or partially missing costs are unavailable, even with a zero margin floor", () => {
+test("missing costs remain unavailable analytically but never veto a valid discount", () => {
   for (const items of [[], [{ ...cart.items[0], cost: undefined }],
     [{ ...cart.items[0], quantity: 1 }, { ...cart.items[0], quantity: 1, cost: undefined }]]) {
     const unknown = { ...cart, items };
     assert.equal(estimateMargin(unknown).productCost, null);
     assert.equal(estimateMargin(unknown).marginPercent, null);
-    assert.equal(evaluateDiscountOffer(unknown, { ...rules, minimumMarginPercent: 0 }, 10).reason, "product_cost_missing");
+    const decision = evaluateDiscountOffer(unknown, { ...rules, minimumMarginPercent: 0 }, 10);
+    assert.equal(decision.approved, items.length > 0);
+    if (!items.length) assert.equal(decision.reason, "cart_items_missing");
   }
 });
 
-test("a catalog base cost does not cover unpriced add-ons", () => {
+test("unmodeled add-on costs do not block the configured discount ceiling", () => {
   const options = { ...cart, items: [{ ...cart.items[0], selected_options: [{ group_name: "Extra", item_name: "Extra", price_modifier: 10 }] }] };
-  assert.equal(evaluateDiscountOffer(options, rules, 5).reason, "product_option_cost_missing");
+  assert.equal(evaluateDiscountOffer(options, rules, 5).approved, true);
+  assert.equal(estimateMargin(options).status, "unavailable");
 });
 
-test("explicit zero cost is valid, zero net revenue cannot authorize a margin", () => {
+test("the configured ceiling can allow a full merchandise discount without a margin gate", () => {
   const freeCost = { ...cart, items: [{ ...cart.items[0], cost: 0 }] };
   assert.equal(evaluateDiscountOffer(freeCost, rules, 5).approved, true);
-  assert.equal(evaluateDiscountOffer(freeCost, { ...rules, maxDiscountPercent: 100, minimumMarginPercent: 0 }, 100).approved, false);
+  assert.equal(evaluateDiscountOffer(freeCost, { ...rules, maxDiscountPercent: 100, minimumMarginPercent: 0 }, 100).approved, true);
 });
 
 test("discounts above revenue, empty carts and mismatched totals fail closed", () => {
@@ -42,20 +45,20 @@ test("discounts above revenue, empty carts and mismatched totals fail closed", (
   assert.equal(evaluateDiscountOffer({ ...cart, total: 0, items: [] }, rules, 10).approved, false);
 });
 
-test("caps apply before margin, never bypassing the configured floor", () => {
+test("percentage and fixed caps apply independently of the obsolete margin floor", () => {
   const capped = evaluateDiscountOffer(cart, rules, 50);
   assert.equal(capped.approved, true);
   assert.equal(capped.value, 10);
   assert.equal(capped.reason, "capped_by_max_discount_rule");
-  assert.equal(evaluateDiscountOffer(cart, { ...rules, minimumMarginPercent: 50 }, 50).reason, "minimum_margin_violation");
+  assert.equal(evaluateDiscountOffer(cart, { ...rules, minimumMarginPercent: 50 }, 50).value, 10);
   assert.equal(evaluateDiscountOffer(cart, rules, 10, 5).value, 2.5);
   assert.equal(evaluateDiscountOffer(cart, rules, 10, 5).reason, "capped_by_reais_limit");
 });
 
-test("one cent boundary: accept equality and reject the next cent of product cost", () => {
+test("changing only product cost cannot change the commercial discount decision", () => {
   const boundary: Cart = { currency: "BRL", total: 100, items: [{ sku: "b", name: "B", price: 100, cost: 52.2, quantity: 1 }] };
   assert.equal(evaluateDiscountOffer(boundary, rules, 10).approved, true); // 90 - 52.20 - 3.60 = 34.20 (38%)
-  assert.equal(evaluateDiscountOffer({ ...boundary, items: [{ ...boundary.items[0], cost: 52.21 }] }, rules, 10).approved, false);
+  assert.equal(evaluateDiscountOffer({ ...boundary, items: [{ ...boundary.items[0], cost: 52.21 }] }, rules, 10).approved, true);
 });
 
 test("existing discount participates once and cannot exceed the current policy", () => {
@@ -71,13 +74,14 @@ test("tiny amounts do not round benefits up through percentage caps", () => {
   assert.equal(estimateMargin(tiny).paymentFees, 0.05);
 });
 
-test("malformed numbers, currencies and policies never approve", () => {
+test("invalid requested amounts/ceilings reject, but optional cost and old margin do not authorize", () => {
   for (const bad of [NaN, Infinity, -1, 0.001]) {
-    assert.equal(evaluateDiscountOffer({ ...cart, items: [{ ...cart.items[0], cost: bad }] }, rules, 5).approved, false);
+    assert.equal(evaluateDiscountOffer({ ...cart, items: [{ ...cart.items[0], cost: bad }] }, rules, 5).approved, true);
+    assert.equal(estimateMargin({ ...cart, items: [{ ...cart.items[0], cost: bad }] }).status, "unavailable");
   }
   for (const bad of [NaN, Infinity]) assert.equal(evaluateDiscountOffer(cart, rules, bad).approved, false);
   for (const bad of [-1, NaN, Infinity, 101]) {
-    assert.equal(evaluateDiscountOffer(cart, { ...rules, minimumMarginPercent: bad }, 5).approved, false);
+    assert.equal(evaluateDiscountOffer(cart, { ...rules, minimumMarginPercent: bad }, 5).approved, true);
     assert.equal(evaluateDiscountOffer(cart, { ...rules, maxDiscountPercent: bad }, 5).approved, false);
   }
   assert.equal(evaluateDiscountOffer({ ...cart, currency: "USD" }, rules, 5).reason, "incentive_currency_unsupported");

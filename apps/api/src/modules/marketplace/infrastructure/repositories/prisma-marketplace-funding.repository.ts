@@ -10,6 +10,7 @@ import { SettlementStateMachineService } from "../../domain/services/settlement-
 import { marketplacePaymentOptions } from "./marketplace-payment-options.js";
 import { bindMarketplacePaymentStock } from "./marketplace-payment-stock.js";
 import { assertMarketplaceShippingSelection } from "./marketplace-shipping-selection.js";
+import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 
 export type { FrozenMarketplaceFunding } from "../../domain/services/marketplace-funding-budget.js";
 export type FundingBudget = ReturnType<typeof buildMarketplaceFundingBudget>;
@@ -41,6 +42,7 @@ export async function freezeMarketplaceFunding(tx: Prisma.TransactionClient, sna
     providerFeeCents: 0, netAmountCents: instructions.amountCents });
   // Session writers also acquire this row lock when saving. Read only after it,
   // so a concurrent edit cannot leave admission using an obsolete snapshot.
+  await lockCheckoutSessionAnchor(tx, snapshot.merchantId, snapshot.sessionId);
   await tx.$queryRaw`SELECT session_id FROM checkout_sessions WHERE merchant_id = ${snapshot.merchantId}
     AND session_id = ${snapshot.sessionId} FOR UPDATE`;
   const checkout = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: {

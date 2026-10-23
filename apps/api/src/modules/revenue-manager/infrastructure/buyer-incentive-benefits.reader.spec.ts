@@ -180,8 +180,6 @@ for (const [label, mutate] of [
   ["over redemptions", (s: any) => s.budget.spentCount = s.budget.maxRedemptions],
   ["forged current discount", (s: any) => s.session.cart.currentDiscount = 5],
   ["changed cart", (s: any) => s.session.cart.items[0].quantity = 2],
-  ["unknown cost", (s: any) => s.prices[0].costInCents = null],
-  ["margin erosion", (s: any) => s.prices[0].costInCents = 9800],
   ["changed catalog price", (s: any) => s.prices[0].basePriceInCents = 11000],
   ["inactive catalog product", (s: any) => s.prices = []],
   ["subsidized freight", (s: any) => s.session.shipping.realCost = 11],
@@ -206,6 +204,16 @@ for (const [label, mutate] of [
   const f = fixture(); mutate(f.state);
   const before = structuredClone(f.state);
   assert.deepEqual(await f.read(), []); assert.deepEqual(f.state, before);
+});
+
+for (const costInCents of [null, 9800]) test(`buyer benefits preserve the existing capped grant with catalog cost ${costInCents}`, async () => {
+  const f = fixture();
+  const expected = await f.read();
+  assert.equal(expected.length, 1);
+  f.state.prices[0].costInCents = costInCents;
+  const before = structuredClone(f.state);
+  assert.deepEqual(await f.read(), expected);
+  assert.deepEqual(f.state, before);
 });
 
 for (const [label, mutate] of [

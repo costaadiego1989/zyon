@@ -1,7 +1,7 @@
 import { Injectable, Inject, NotFoundException } from "@nestjs/common";
 import { decodePersistedTheme } from "../../../merchant/domain/services/merchant-theme.validators.js";
 import { STOREFRONT_CONFIG_QUERY_PORT, type StorefrontConfigQueryPort, type StorefrontConfigSnapshot } from "../../domain/ports/storefront-config-query.port.js";
-import { BillingPlanMeteringService } from "../../../payment/infrastructure/billing/billing-plan-guard.js";
+import { BILLING_PLAN_ACCESS, type BillingPlanAccessPort } from "../../../payment/domain/ports/billing-plan-access.port.js";
 
 export interface StoreConfigOutput {
   publishedPolicies?: Record<string, string>;
@@ -48,7 +48,7 @@ export interface StoreConfigOutput {
 export class GetStoreConfigUseCase {
   constructor(
     @Inject(STOREFRONT_CONFIG_QUERY_PORT) private readonly configQuery: StorefrontConfigQueryPort,
-    @Inject(BillingPlanMeteringService) private readonly billing?: BillingPlanMeteringService,
+    @Inject(BILLING_PLAN_ACCESS) private readonly billing?: BillingPlanAccessPort,
   ) {}
 
   async execute(slug: string): Promise<StoreConfigOutput> {

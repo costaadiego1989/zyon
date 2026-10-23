@@ -1,7 +1,13 @@
 "use client";
 
-interface CrossSellProduct {
+import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import { assertStorefrontReadUiAction } from "@/lib/storefront-read-ui-action";
+import type { CrossSellDisplayProduct } from "@/lib/storefront-cross-sell-flow";
+
+interface CrossSellProduct extends CrossSellDisplayProduct {
   id: string;
+  /** id can be a variant/SKU; only an explicit productId selects product details. */
+  productId?: string;
   name: string;
   price: number;
   priceFormatted: string;
@@ -21,7 +27,9 @@ interface CrossSellBlockProps {
       displayMode?: string;
     };
   };
-  onQuickReply?: (text: string) => void;
+  onQuickReply?: (text: string, uiAction?: StorefrontReadUiAction) => void;
+  onAcceptCrossSell?: (product: CrossSellDisplayProduct) => Promise<boolean>;
+  onOpenCrossSell?: (product: CrossSellDisplayProduct) => void;
 }
 
 function getInitial(name: string): string {
@@ -33,6 +41,8 @@ function getInitial(name: string): string {
 export default function CrossSellBlock({
   block,
   onQuickReply,
+  onAcceptCrossSell,
+  onOpenCrossSell,
 }: CrossSellBlockProps) {
   const { data } = block;
   const isBanner = data.displayMode === "banner";
@@ -138,7 +148,20 @@ export default function CrossSellBlock({
               cursor: "pointer",
               transition: "transform 0.15s ease, box-shadow 0.15s ease",
             }}
-            onClick={() => onQuickReply?.(`Detalhes ${product.name}`)}
+            onClick={() => {
+              if (product.promoId || product.couponCode || product.expectedQuote || product.acceptanceStatus !== undefined) {
+                if (!product.inStock || product.couponCode || product.acceptanceStatus !== undefined && product.acceptanceStatus !== "ready") return;
+                if (product.promoId && onOpenCrossSell) onOpenCrossSell(product);
+                return;
+              }
+              if (product.productId === undefined) {
+                onQuickReply?.(`Detalhes ${product.name}`);
+                return;
+              }
+              const uiAction: StorefrontReadUiAction = { tool: "get_product_details", args: { productId: product.productId } };
+              assertStorefrontReadUiAction(uiAction);
+              onQuickReply?.(`Detalhes ${product.name}`, uiAction);
+            }}
             onMouseEnter={(e) => {
               e.currentTarget.style.transform = "translateY(-2px)";
               e.currentTarget.style.boxShadow =
@@ -254,14 +277,17 @@ export default function CrossSellBlock({
                 type="button"
                 onClick={(e) => {
                   e.stopPropagation();
-                  const tags = `[variantId:${product.id}]${product.promoId ? `[crossSellPromoId:${product.promoId}]` : ""}`;
-                  onQuickReply?.(`Adicionar ${product.name} ao carrinho ${tags}`);
-                  // Gap C: coupon-mode — apply the store coupon the card promised.
-                  if (product.couponCode) {
-                    setTimeout(() => onQuickReply?.(`Aplicar cupom ${product.couponCode}`), 400);
+                  if (!product.inStock || product.couponCode || product.acceptanceStatus !== undefined && product.acceptanceStatus !== "ready") return;
+                  if (product.readOnlyCandidate) { onOpenCrossSell?.(product); return; }
+                  if (product.promoId || product.couponCode || product.expectedQuote) {
+                    if (product.expectedQuote) void onAcceptCrossSell?.(product);
+                    return;
                   }
+                  onQuickReply?.(`Adicionar ${product.name} ao carrinho [variantId:${product.id}]`);
                 }}
-                disabled={!product.inStock}
+                disabled={!product.inStock || !!product.couponCode || (product.readOnlyCandidate ? !onOpenCrossSell : !!product.promoId && (!product.expectedQuote || !onAcceptCrossSell))
+                  || product.acceptanceStatus !== undefined && product.acceptanceStatus !== "ready"}
+                aria-busy={product.acceptanceStatus === "pending"}
                 style={{
                   marginTop: "auto",
                   width: "100%",
@@ -301,12 +327,13 @@ export default function CrossSellBlock({
                       <line x1="12" y1="5" x2="12" y2="19" />
                       <line x1="5" y1="12" x2="19" y2="12" />
                     </svg>
-                    Adicionar
+                    {product.readOnlyCandidate ? "Ver detalhes" : product.acceptanceStatus === "pending" ? "Adicionando…" : product.acceptanceStatus === "accepted" ? "Adicionado" : "Adicionar"}
                   </>
                 ) : (
                   "Esgotado"
                 )}
               </button>
+              {product.acceptanceError ? <span role="alert">{product.acceptanceError}</span> : null}
             </div>
           </div>
         ))}

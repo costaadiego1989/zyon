@@ -9,6 +9,7 @@ import { QuoteShippingUseCase } from "../../../shipping/application/use-cases/qu
 import { MERCHANT_RULES_REPOSITORY, type MerchantRulesRepository } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 import { checkoutShippingLabel } from "../../domain/services/checkout-shipping-label.js";
+import { toCheckoutShippingQuote } from "../../../shipping/domain/services/checkout-shipping-quote.mapper.js";
 
 @Injectable()
 export class CheckoutShippingService {
@@ -149,32 +150,34 @@ export class CheckoutShippingService {
           session_id: session.sessionId,
           merchant_id: session.merchantId ?? "",
           destination_zip: addr.zip.replace(/\D/g, ""),
+          destination_neighborhood: addr.neighborhood,
+          ...(session.customer?.address_verified === true ? { destination_city: addr.city, destination_state: addr.state } : {}),
           cart_total: cartTotal,
           origin_zip: originZip,
           packages
         });
 
-        if (quoteSnapshot.results.length > 0) {
-          shippingOptions = quoteSnapshot.results.map((r) =>
-            toCheckoutShippingQuote({
-              label: r.label,
-              carrierKey: r.carrier_key,
-              priceInCents: r.price,
-              realCostInCents: r.original_price ?? r.price,
-              isFree: r.is_free,
-              etaDays: r.eta_days,
-              destinationZip: addr.zip ?? ""
-            })
-          );
-        }
+        shippingOptions = quoteSnapshot.results.map((r) =>
+          toCheckoutShippingQuote({
+            label: r.label,
+            carrierKey: r.carrier_key,
+            priceInCents: r.price,
+            realCostInCents: r.original_price ?? r.price,
+            isFree: r.is_free,
+            etaDays: r.eta_days,
+            destinationZip: addr.zip ?? ""
+          })
+        );
       } catch (err) {
-        this.logger.warn("Live shipping quote failed, falling back to estimate", err);
+        this.logger.warn("Shipping quote unavailable; no estimated carrier substituted", err);
+        return session;
       }
       // A persistence conflict is not a provider failure. Never substitute an
       // estimate or reuse the response after the buyer/cart/address changed.
       if (shippingOptions) return commitCheckoutMutation(this.repository, {
         expected: session, next: { ...session, shippingOptions },
       });
+      return session;
     }
 
     // Fallback: deterministic estimate based on state/region
@@ -230,6 +233,7 @@ export class CheckoutShippingService {
     if (!text.trim().startsWith("Entrega ·") && this.looksLikeAddressComplement(text)) return session;
     const selected = this.selectShippingOption(text, session.shippingOptions);
     if (!selected) return session;
+    await this.quoteShipping?.assertNeighborhoodDestination?.(session, selected);
     const next = await commitCheckoutMutation(this.repository, { expected: session, next: {
       ...session,
       shipping: selected,
@@ -292,11 +296,18 @@ export class CheckoutShippingService {
       return options[1] ?? null;
     }
 
+    // Manual delivery labels are not a fuzzy intent. A generic "ver entregas"
+    // must not become acceptance of the only local method. Existing exact
+    // labels/buttons, numbered choices and explicit cheaper/faster still work.
+    const manual = (option: ShippingQuote) => normalize(option.carrier ?? "") === "entrega"
+      && this.normalizeShippingToken(option.method) === "propria";
     const methodMatches = options.filter(option => {
+      if (manual(option)) return false;
       const method = this.normalizeShippingToken(option.method);
       return method && normalized.includes(method);
     });
     const matches = methodMatches.length ? methodMatches : options.filter(option => {
+      if (manual(option)) return false;
       const carrier = this.normalizeShippingToken(option.carrier);
       return carrier && normalized.includes(carrier);
     });
@@ -337,49 +348,4 @@ export class CheckoutShippingService {
     if (parts.length === 0) return undefined;
     return `Referência para entrega: ${parts.join(" · ")}`;
   }
-}
-
-function toCheckoutShippingQuote(input: {
-  label: string;
-  carrierKey: string;
-  priceInCents: number;
-  realCostInCents: number;
-  isFree: boolean;
-  etaDays: number;
-  destinationZip: string;
-}): ShippingQuote {
-  const label = input.label.trim();
-  const inferred = inferCarrierAndMethod(label, input.carrierKey);
-  const price = input.priceInCents / 100;
-  return {
-    customerPrice: price,
-    realCost: input.realCostInCents / 100,
-    carrier: inferred.carrier,
-    method: inferred.method,
-    deliveryDays: input.etaDays,
-    destinationZip: input.destinationZip
-  };
-}
-
-function inferCarrierAndMethod(label: string, carrierKey: string): { carrier: string; method: string } {
-  if (/^correios\s+pac$/i.test(label)) return { carrier: "Correios", method: "PAC" };
-  if (/^correios\s+sedex$/i.test(label)) return { carrier: "Correios", method: "Sedex" };
-  if (/^transportadora/i.test(label)) return { carrier: "Transportadora Parceira", method: "Entrega padrao" };
-
-  const parts = label.split(/\s+/).filter(Boolean);
-  if (parts.length >= 2) return { carrier: parts[0]!, method: parts.slice(1).join(" ") };
-
-  return {
-    carrier: humanizeCarrierKey(carrierKey),
-    method: label || "Frete"
-  };
-}
-
-function humanizeCarrierKey(value: string): string {
-  const label = value
-    .replace(/[-_]+/g, " ")
-    .replace(/\bestimate\b/gi, "")
-    .trim()
-    .replace(/\b\w/g, (char) => char.toUpperCase());
-  return label || "Transportadora";
 }

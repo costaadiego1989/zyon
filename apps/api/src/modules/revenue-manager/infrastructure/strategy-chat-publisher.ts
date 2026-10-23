@@ -8,6 +8,7 @@ import { digest } from "../../experiments/domain/services/measurement-plan.js";
 import { lockCheckoutBaselineRows } from "./checkout-baseline.reader.js";
 import { currentStrategyTurnReason, executionClock } from "./strategy-execution-ledger.js";
 import { checkoutNavigationBlocks, checkoutNavigationTools, MAIN_CHAT_PUBLICATION_POLICY, CHECKOUT_CHAT_NAVIGATION_MESSAGE } from "../../checkout/domain/services/checkout-chat-navigation.js";
+import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
 
 /** Publication primitive. No provider/tool/payment I/O or client delivery
  * assertion. The main chat adapter returns committed text and pure navigation. */
@@ -20,6 +21,7 @@ export class StrategyChatPublisher {
     const responseHash = digest(input.result);
     return this.prisma.$transaction(async tx => {
       await lockCheckoutBaselineRows(tx, input.merchantId);
+      await lockCheckoutSessionAnchor(tx, input.merchantId, input.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${input.merchantId}
         AND session_id = ${input.sessionId} FOR UPDATE`;
       const turn = await tx.strategyTurn.findFirst({ where: { id: input.turnId, merchantId: input.merchantId },

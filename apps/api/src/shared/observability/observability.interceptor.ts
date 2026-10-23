@@ -5,14 +5,14 @@ import {
   Logger,
   NestInterceptor,
 } from "@nestjs/common";
-import { Observable, tap, catchError, throwError } from "rxjs";
-import { CorrelationIdStorage } from "../logger/correlation-id.storage.js";
+import { Observable, defer, tap } from "rxjs";
+import { performance } from "node:perf_hooks";
+import { ignoreLogFailure, logContext, safeErrorMetadata } from "../logger/log-context.js";
 import { MetricsService } from "./metrics.service.js";
 
 @Injectable()
 export class ObservabilityInterceptor implements NestInterceptor {
   private readonly logger = new Logger("Observability");
-  private readonly operationDuration: Map<string, { count: number; errorCount: number }> = new Map();
 
   constructor(private readonly metrics: MetricsService) {}
 
@@ -20,28 +20,20 @@ export class ObservabilityInterceptor implements NestInterceptor {
     const className = context.getClass().name;
     const handler = context.getHandler().name;
     const operation = `${className}.${handler}`;
-    const correlationId = CorrelationIdStorage.get();
-    const start = Date.now();
+    const start = performance.now();
+    let recorded = false;
+    const record = (result: "success" | "error", error?: unknown) => {
+      if (recorded) return;
+      recorded = true;
+      const duration_ms = Math.max(0, performance.now() - start);
+      ignoreLogFailure(() => this.logger[result === "success" ? "debug" : "warn"]({
+        event: "http.operation", operation, ...logContext(), result, duration_ms,
+        ...(result === "error" ? { error: safeErrorMetadata(error) } : {}),
+      }));
+      this.recordMetric(operation, result, duration_ms);
+    };
 
-    return next.handle().pipe(
-      tap(() => {
-        const duration_ms = Date.now() - start;
-        this.logger.debug(operation, { correlationId, result: "success", duration_ms });
-        this.recordMetric(operation, "success", duration_ms);
-      }),
-      catchError((error: Error) => {
-        const duration_ms = Date.now() - start;
-        this.logger.warn(operation, {
-          correlationId,
-          result: "error",
-          errorCode: (error as any).code || error.constructor.name,
-          message: error.message,
-          duration_ms,
-        });
-        this.recordMetric(operation, "error", duration_ms);
-        return throwError(() => error);
-      }),
-    );
+    return defer(() => next.handle()).pipe(tap({ complete: () => record("success"), error: error => record("error", error) }));
   }
 
   private recordMetric(operation: string, result: string, duration_ms: number): void {

@@ -12,6 +12,7 @@ import {
   Optional
 , Logger} from "@nestjs/common";
 import { createHash } from "node:crypto";
+import { ZodError } from "zod";
 import { requiresPhysicalDelivery } from "../../checkout/domain/services/cart-fulfillment.js";
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import { ResumePaymentCreationService } from "./resume-payment-creation.service.js";
@@ -46,6 +47,7 @@ import { OrderQuotaService } from "./services/order-quota.service.js";
 import { assertProviderFeeCap, merchantTransactionFeeCentsFor } from "../domain/billing-plans.js";
 import type { PlannedPaymentSettlement } from "../domain/ports/payment-settlement-ledger.port.js";
 import { resolveCheckoutPaymentCapabilities } from "../domain/checkout-payment-routing.js";
+import { parseStorefrontCouponPaymentScope, type StorefrontCouponPaymentScope } from "../domain/storefront-coupon-payment-scope.js";
 import { stripeConnectionAllowsCharges } from "../domain/stripe-charge-capability.js";
 import { hasMarketplaceCheckout } from "../../checkout/infrastructure/marketplace-checkout-scope.js";
 import { CreateMarketplacePaymentService } from "./create-marketplace-payment.service.js";
@@ -262,17 +264,30 @@ export class CreatePaymentIntentUseCase {
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
   ) { }
 
-  async execute(body: CreatePaymentIntentRequest, context?: { marketplaceSurface: "embed" | "v1" }): Promise<CreatePaymentIntentResponseBody> {
+  async execute(body: CreatePaymentIntentRequest, context?: {
+    marketplaceSurface: "embed" | "v1"; storefrontCouponScope?: StorefrontCouponPaymentScope;
+  }): Promise<CreatePaymentIntentResponseBody> {
+    if (!body || typeof body !== "object" || Array.isArray(body)) throw new BadRequestException("payment_intent_scope_invalid");
+    if (["storefrontCouponScope", "couponAuthority", "coupon_authority", "_storefrontCouponBinding"]
+      .some(key => Object.hasOwn(body, key))) throw new BadRequestException("payment_coupon_authority_conflict");
+    const storefrontCouponScope = context?.storefrontCouponScope === undefined ? undefined
+      : parseStorefrontCouponPaymentScope(context.storefrontCouponScope);
     const merchantId = body.merchant_id.trim();
     const sessionId = body.session_id.trim();
     const idempotencyKey = body.idempotency_key.trim();
     if (!merchantId || !sessionId || !idempotencyKey) throw new BadRequestException("payment_intent_scope_invalid");
+    if (storefrontCouponScope && (context?.marketplaceSurface !== "embed"
+      || storefrontCouponScope.merchantId !== merchantId || storefrontCouponScope.checkoutSessionId !== sessionId)) {
+      throw new BadRequestException("payment_coupon_authority_conflict");
+    }
     if (!["pix", "card", "crypto"].includes(body.method ?? "pix")) {
       throw new BadRequestException("payment_method_not_supported");
     }
 
     let session = await this.checkout.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
+    if (storefrontCouponScope && (session.globalUserId !== storefrontCouponScope.buyerId
+      || session.cart.cart_ref !== storefrontCouponScope.cartId)) throw new BadRequestException("payment_coupon_authority_conflict");
     // Check the persisted scope before either legacy creation or retry. A
     // stale snapshot can omit line markers or the original storefront cart.
     if (!this.prisma) throw new ServiceUnavailableException("marketplace_checkout_scope_unavailable");
@@ -297,6 +312,24 @@ export class CreatePaymentIntentUseCase {
 
     // An existing idempotency key is an admission made before a later block.
     // Only a brand-new provider/payment attempt must pass the commercial gate.
+    const standaloneNormalLine=session.cart.source!=="storefront"&&session.cart.items.some(item=>item.crossSellIntent!==undefined);
+    if(this.checkout.readVerifiedNormalBuyerIdentity){
+      if(!Number.isSafeInteger(session.persistenceVersion))throw new ConflictException("cross_sell_quote_review_required");
+      try{
+        const buyer=await this.checkout.readVerifiedNormalBuyerIdentity({merchantId,sessionId},
+          {expectedVersion:session.persistenceVersion!,expectedBuyerId:session.globalUserId});
+        if(buyer!==undefined&&buyer!==session.globalUserId||standaloneNormalLine&&buyer===undefined)
+          throw new ConflictException("cross_sell_quote_review_required");
+      }catch(error){
+        if(error instanceof ZodError||error instanceof Error&&error.message==="checkout_buyer_identity_review_required")
+          throw new ConflictException("cross_sell_quote_review_required");
+        throw error;
+      }
+    }else if(standaloneNormalLine)throw new ConflictException("cross_sell_quote_review_required");
+    // This read is not a lease: real admission/FIRST SEND still revalidate all
+    // canonical financial sources in the journal transaction. It prevents a
+    // known detached/unverified normal buyer from reaching external preparation.
+    await this.checkout.assertCouponBindingCommandAllowed?.(merchantId, sessionId);
     if (!this.prisma) throw new ServiceUnavailableException("payment_stock_authority_unavailable");
     await assertCartStock(this.prisma, merchantId, session.cart.items);
     await this.orderQuota?.assertCanAcceptNewSales(merchantId);
@@ -540,7 +573,8 @@ export class CreatePaymentIntentUseCase {
       isStripeCard,
       usesMercadoPago,
     });
-    try { await this.payments.saveIntentWithSettlementPlan({ intent, settlementPlan }); }
+    try { await this.payments.saveIntentWithSettlementPlan({ intent, settlementPlan,
+      ...(storefrontCouponScope ? { storefrontCouponScope } : {}) }); }
     catch (error) {
       if (error instanceof Error && (/^INCENTIVE_PAYMENT_(AUTHORITY_CHANGED|POLICY_CHANGED|MARGIN_CHANGED|CART_CHANGED|REVIEW_REQUIRED)$/.test(error.message)
         || error.message === "INCENTIVE_PROGRESSIVE_REVIEW_REQUIRED")) {

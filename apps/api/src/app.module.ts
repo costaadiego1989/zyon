@@ -1,4 +1,4 @@
-import { REDACTED_LOG_PATHS, redactRequestUrl } from "./shared/logger/log-redaction.js";
+import { createHttpLoggerOptions } from "./shared/logger/http-logger.config.js";
 import { Module } from "@nestjs/common";
 import { PlatformControlModule } from "./modules/platform-control/platform-control.module.js";
 import { PlatformOverviewModule } from "./modules/platform-overview/platform-overview.module.js";
@@ -69,24 +69,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
 
 @Module({
   imports: [
-    LoggerModule.forRoot({
-      pinoHttp: {
-        autoLogging: true,
-        quietReqLogger: true,
-        serializers: { req: redactRequestUrl },
-        redact: { paths: REDACTED_LOG_PATHS, censor: "[redacted]" },
-        customProps: (req: import("http").IncomingMessage) => ({
-          correlationId:
-            (req as import("http").IncomingMessage & { correlationId?: string })
-              .correlationId ??
-            (req.headers["x-correlation-id"] as string | undefined) ??
-            crypto.randomUUID(),
-        }),
-        transport: process.env.NODE_ENV !== "production"
-          ? { target: "pino-pretty", options: { colorize: true, singleLine: true } }
-          : undefined,
-      },
-    }),
+    LoggerModule.forRootAsync({ useFactory: () => ({ pinoHttp: createHttpLoggerOptions() }) }),
     TenantModule,
     ObservabilityModule,
     HttpModule,

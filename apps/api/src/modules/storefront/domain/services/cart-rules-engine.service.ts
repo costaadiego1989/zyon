@@ -10,7 +10,7 @@
  * INVARIANTS (CLAUDE.md):
  * - LLM never authorizes offers — this service is the authority, called server-side.
  * - Discounts approved ONLY by the rules-engine (`evaluateDiscountOffer`), which
- *   hard-caps `maxDiscountPercent` and rejects below `minimumMarginPercent`.
+ *   hard-caps `maxDiscountPercent`; cost/margin are not eligibility criteria.
  * - Offer math is deterministic + idempotent: same cart + rules → same result.
  *   Recomputed from scratch each call (never accumulates discount over discount).
  */
@@ -65,12 +65,12 @@ export class CartRulesEngine {
   /**
    * Evaluate advanced rules against a cart and return the deterministic
    * discount / free-shipping decision. Discount always routed through the
-   * rules-engine (`evaluateDiscountOffer`) for the hard cap + margin floor.
+   * rules-engine (`evaluateDiscountOffer`) for the hard cap and valid amounts.
    */
   evaluate(
     cart: StorefrontCart,
     advancedRules: AdvancedRule[],
-    merchantRules: MerchantRules,
+    merchantRules: Pick<MerchantRules, "maxDiscountPercent" | "allowFreeShipping"> & Partial<MerchantRules>,
     ctx: RuleMatchContext,
     costsByVariant: ReadonlyMap<string, number> = new Map(),
   ): CartRulesResult {
@@ -90,7 +90,7 @@ export class CartRulesEngine {
           action.params.maxDiscountReais != null ? Number(action.params.maxDiscountReais) : undefined;
         if (requestedPercent <= 0) return { ...NO_RESULT, appliedRuleId: ruleId };
 
-        // Route through the rules-engine — hard cap + margin floor authority.
+        // Route through the rules-engine — hard cap and monetary authority.
         const engineCart = toEngineCart(cart, costsByVariant);
         const evaluation = evaluateDiscountOffer(engineCart, merchantRules, requestedPercent, maxReaisCap);
         if (!evaluation.approved || evaluation.value <= 0) {
@@ -134,7 +134,8 @@ export function toEngineCart(cart: StorefrontCart, costsByVariant: ReadonlyMap<s
       cost: i.selectedOptions?.length ? undefined : costsByVariant.get(i.variantId),
     })),
     total: (cart.total ?? 0) / 100,
-    currentDiscount: 0,
+    currentDiscount: cart.couponCode ? cart.discount / 100 : 0,
+    ...(cart.discountBudget ? { discountBudget: { ...cart.discountBudget } } : {}),
     source: "storefront",
   };
 }

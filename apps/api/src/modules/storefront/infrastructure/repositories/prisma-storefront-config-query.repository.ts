@@ -1,4 +1,4 @@
-import { findMerchantAgentRule } from "../../../agent-rules/infrastructure/find-merchant-agent-rule.js";
+import { MERCHANT_AGENT_RULE_READER, type MerchantAgentRuleReaderPort } from "../../../agent-rules/domain/ports/merchant-agent-rule-reader.port.js";
 import { Inject, Injectable } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
@@ -8,7 +8,10 @@ import { resolveStorePolicies } from "../../../../shared/legal/store-policies.js
 
 @Injectable()
 export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQueryPort {
-  constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Inject(MERCHANT_AGENT_RULE_READER) private readonly agentRules: MerchantAgentRuleReaderPort,
+  ) {}
 
   async findPublicConfig(identifier: string): Promise<StorefrontConfigSnapshot | null> {
     let merchant = null;
@@ -52,7 +55,7 @@ export class PrismaStorefrontConfigQueryRepository implements StorefrontConfigQu
           select: { status: true, trialEndsAt: true, stripePriceId: true, planKey: true },
         })
         : Promise.resolve(resolvedSubscription),
-      findMerchantAgentRule(this.prisma, merchant.id),
+      this.agentRules.findForMerchant(merchant.id),
       this.prisma.merchantRule.findUnique({ where: { merchantId: merchant.id }, select: { quickReplies: true } }),
       this.prisma.storyCategory.findMany({
         where: { merchantId: merchant.id, isArchived: false },

@@ -31,6 +31,7 @@ describe("PurchaseShippingLabelUseCase", () => {
           return { updated: true, changed: true, order: {}, shipment: {}, events_recorded: 0 } as any;
         },
       } as any,
+      { assertOrdinaryOrder: async () => {} },
     );
 
     const result = await useCase.execute(labelInput);
@@ -43,7 +44,7 @@ describe("PurchaseShippingLabelUseCase", () => {
   });
 
   it("rejects missing order id", async () => {
-    const useCase = new PurchaseShippingLabelUseCase({} as MelhorEnvioCarrierAdapter, { assertOrderExists: async () => undefined, execute: async () => ({}) } as any);
+    const useCase = new PurchaseShippingLabelUseCase({} as MelhorEnvioCarrierAdapter, { assertOrderExists: async () => undefined, execute: async () => ({}) } as any, { assertOrdinaryOrder: async () => assert.fail("invalid input must stop before marketplace admission") });
     await assert.rejects(
       useCase.execute({ ...labelInput, externalOrderId: "" }),
       BadRequestException,
@@ -58,6 +59,7 @@ describe("PurchaseShippingLabelUseCase", () => {
         assertOrderExists: async () => { throw new NotFoundException("completed_order_not_found"); },
         execute: async () => ({}) as any,
       },
+      { assertOrdinaryOrder: async () => assert.fail("foreign tenant must stop before marketplace admission") },
     );
 
     await assert.rejects(useCase.execute(labelInput), NotFoundException);

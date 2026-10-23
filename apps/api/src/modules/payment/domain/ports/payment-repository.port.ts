@@ -1,6 +1,7 @@
 import type { DomainEventEnvelope } from "@zyon/shared-types";
 import type { PaymentIntentEntity } from "../payment-intent.entity.js";
 import type { PlannedPaymentSettlement } from "./payment-settlement-ledger.port.js";
+import type { StorefrontCouponPaymentScope } from "../storefront-coupon-payment-scope.js";
 
 export const PAYMENT_REPOSITORY = Symbol("PAYMENT_REPOSITORY");
 
@@ -10,6 +11,8 @@ export type SavePaymentIntentInput = {
 
 export type SavePaymentIntentWithSettlementPlanInput = SavePaymentIntentInput & {
   settlementPlan: PlannedPaymentSettlement;
+  /** Server-authenticated source, kept outside creation.input and public JSON. */
+  storefrontCouponScope?: StorefrontCouponPaymentScope;
 };
 
 export type PaymentProviderName = "asaas" | "stripe" | "mercadopago";

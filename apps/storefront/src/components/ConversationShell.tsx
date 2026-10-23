@@ -1,6 +1,6 @@
 "use client";
 
-import type { MerchantThemeAppearance } from "@zyon/shared-types";
+import type { MerchantThemeAppearance, StorefrontReadUiAction } from "@zyon/shared-types";
 import { readRealtimeVoiceCall } from "@zyon/shared-types";
 
 import { type ReactNode, useCallback, useEffect, useMemo, useRef, useState } from "react";
@@ -8,6 +8,11 @@ import { PerimeterBorder } from "../../../widget_v2/src/components/PerimeterBord
 import { useAgentBlockDelay } from "../../../widget_v2/src/lib/use-agent-block-delay";
 import { SafeStoreHtml } from "./SafeStoreHtml";
 import { useCart } from "@/lib/cart-store";
+import { useStorefrontCrossSell } from "@/lib/use-storefront-cross-sell";
+import { createCrossSellDetailContext, crossSellDetailRequiresRecovery, isCrossSellDetailCurrent, type CrossSellDetailContext, type CrossSellDetailPurchase } from "@/lib/storefront-cross-sell-detail";
+import type { CrossSellDisplayProduct } from "@/lib/storefront-cross-sell-flow";
+import type { CheckoutProductDetailRequest } from "@zyon/widget-v2";
+import type { CheckoutProductDetailPurchase } from "@/lib/checkout-product-detail";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { useConversationViewModel, type Message } from "@/lib/viewmodels/useConversationViewModel";
 import { ATTACHMENT_WELCOME_NOTICE } from "@/lib/services/conversation.service";
@@ -303,12 +308,61 @@ export default function ConversationShell({
   const threadRef = useRef<HTMLDivElement | null>(null);
   const presentedProductVariantRef = useRef<string | undefined>(undefined);
   const agent = agentName || "Assistente";
-  const { cart } = useCart();
+  const { cart, updateFromBlocks } = useCart();
+  const crossSellPlacementRef = useRef({ pending: crossSellPending, product: productCrossSell });
+  crossSellPlacementRef.current = { pending: crossSellPending, product: productCrossSell };
+  const crossSell = useStorefrontCrossSell({ merchantId, conversationId, cart }, [
+    ...messages.flatMap(message => (message.blocks ?? []).filter(block => block.type === "cross_sell" && Array.isArray(block.data?.products))
+      .map(block => block.data.products)), crossSellPending?.products, productCrossSell?.data.products,
+  ], snapshot => updateFromBlocks([{ type: "cart_summary", data: snapshot }]));
+  const preparedCrossSell = crossSellPending ? { ...crossSellPending, products: crossSell.present(crossSellPending.products) } : null;
+  const preparedProductCrossSell = productCrossSell ? { ...productCrossSell,
+    data: { ...productCrossSell.data, products: crossSell.present(productCrossSell.data.products) } } : null;
   const [pendingAttachment, setPendingAttachment] = useState<ConversationAttachment | null>(null);
   const [readingAttachment, setReadingAttachment] = useState(false);
   const navigation = useStorefrontNavigation(initialSearch || (initialRichProductId ? `?show=content&product=${encodeURIComponent(initialRichProductId)}` : ""));
   const checkoutOpen = navigation.view.checkout;
   const setCheckoutOpen = navigation.setCheckout;
+  const [crossSellDetail, setCrossSellDetail] = useState<CrossSellDetailContext | null>(null);
+  const [checkoutDetail, setCheckoutDetail] = useState<CheckoutProductDetailPurchase | null>(null);
+  const checkoutDetailScope = useRef({ detail: checkoutDetail, merchantId, checkoutOpen, blocked: false });
+  checkoutDetailScope.current = { detail: checkoutDetail, merchantId, checkoutOpen, blocked: buyerHubOpen || showBuyerAuth || navigation.view.cart };
+  const openCheckoutProductDetail = useCallback((request: CheckoutProductDetailRequest) => {
+    if (!checkoutOpen || request.merchantId !== merchantId || !request.isCurrent()) return;
+    const detail: CheckoutProductDetailPurchase = { request: { ...request, isCurrent: () => {
+      const now = checkoutDetailScope.current;
+      return now.detail === detail && now.checkoutOpen && !now.blocked && now.merchantId === request.merchantId && request.isCurrent();
+    } }, close: () => setCheckoutDetail(previous => previous === detail ? null : previous) };
+    setCheckoutDetail(detail);
+  }, [checkoutOpen, merchantId]);
+  useEffect(() => { if (!checkoutOpen || checkoutDetail?.request.merchantId !== merchantId) setCheckoutDetail(null); }, [checkoutOpen, merchantId, checkoutDetail?.request.merchantId]);
+  const [protectedFinancialProduct, setProtectedFinancialProduct] = useState<string | null>(null);
+  const [financialMarkerReady, setFinancialMarkerReady] = useState(false);
+  useEffect(() => {
+    const read = () => { setProtectedFinancialProduct(typeof window.history.state?.aacpCrossSellDetailProduct === "string" ? window.history.state.aacpCrossSellDetailProduct : null); setFinancialMarkerReady(true); };
+    read(); window.addEventListener("popstate", read); window.addEventListener("aacp:navigation", read);
+    return () => { window.removeEventListener("popstate", read); window.removeEventListener("aacp:navigation", read); };
+  }, []);
+  const detailScopeRef = useRef({ context: crossSellDetail, merchantId, conversationId, cartId: cart.cartId, productId: navigation.view.productId, blocked: false });
+  detailScopeRef.current = { context: crossSellDetail, merchantId, conversationId, cartId: cart.cartId, productId: navigation.view.productId,
+    blocked: checkoutOpen || navigation.view.cart || buyerHubOpen || showBuyerAuth };
+  const openCrossSellDetail = (product: CrossSellDisplayProduct, placement: string) => {
+    if (!merchantId || !conversationId || cart.cartId !== conversationId) return;
+    try {
+      const context = createCrossSellDetailContext({ merchantId, conversationId, cartId: cart.cartId }, product, placement);
+      pendingProductCart.current = null;
+      detailScopeRef.current = { ...detailScopeRef.current, context, productId: context.productId };
+      setCrossSellDetail(context); navigation.setProduct({ productId: context.productId });
+      window.history.replaceState({ ...window.history.state, aacpCrossSellDetailProduct: context.productId }, "");
+      setProtectedFinancialProduct(context.productId);
+    } catch { /* Unsupported financial navigation cannot become an ordinary purchase. */ }
+  };
+  const detailIsCurrent = (context: CrossSellDetailContext) => {
+    return isCrossSellDetailCurrent(context, detailScopeRef.current);
+  };
+  const financialPurchase: CrossSellDetailPurchase | undefined = crossSellDetail && navigation.view.productId === crossSellDetail.productId
+    ? { context: crossSellDetail, scopeKey: crossSell.scopeKey, isCurrent: () => detailIsCurrent(crossSellDetail),
+      prepare: crossSell.prepare, present: crossSell.quoted, accept: crossSell.accept } : undefined;
   const realtimeVoice = useRealtimeVoiceCheckout({
     // This session is reserved for the explicit purchase-voice composer control.
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
@@ -321,13 +375,16 @@ export default function ConversationShell({
       return readRealtimeVoiceCall(response);
     },
     onCommerceTurn: async (buyerMessage, action, voiceTurnToken) => {
+      if (action === "add_item_to_cart" && detailScopeRef.current.context && detailScopeRef.current.productId === detailScopeRef.current.context.productId) {
+        return { agentMessage: "Use o botão do produto para confirmar esta oferta.", cart: { itemCount: cart.itemCount, total: cart.total } };
+      }
       const selectedVariantId = action === "add_item_to_cart"
         ? presentedProductVariantRef.current ?? resolvePresentedVariantId(messages, buyerMessage)
         : undefined;
       const commerceMessage = action === "add_item_to_cart"
         ? attachPresentedVariantId(`Adicionar ao carrinho: ${buyerMessage}`, selectedVariantId)
         : buyerMessage;
-      const result = await sendMessage(commerceMessage, undefined, voiceTurnToken);
+      const result = await sendMessage(commerceMessage, undefined, undefined, voiceTurnToken);
       return { agentMessage: result?.agentMessage ?? "Não consegui concluir este pedido agora. Pode repetir?", cart: { itemCount: cart.itemCount, total: cart.total } };
     },
     onBeginCheckout: async () => beginCheckout(),
@@ -341,13 +398,13 @@ export default function ConversationShell({
   const narrationVoice = useRealtimeProductNarration({
     enabled: voiceCheckoutEnabled === true && !checkoutOpen,
     onProgress: publishNarrationProgress,
-    createSession: async (summary, sdp) => {
+    createSession: async (productId, sdp) => {
       const activeConversationId = await ensureConversation();
       if (!activeConversationId) throw new Error("conversation_not_ready");
       const response = await conversationFetch(activeConversationId, `${API_BASE}/storefront/conversations/${encodeURIComponent(activeConversationId)}/realtime/narration`, {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ summary, sdp }),
+        body: JSON.stringify({ productId, sdp }),
       });
       return readRealtimeVoiceCall(response);
     },
@@ -437,11 +494,15 @@ export default function ConversationShell({
         });
         return;
       }
-      narrationVoice.play(summary);
+      if (!richProduct?.productId) {
+        publishNarrationProgress({ status: "error", hint: "Abra os detalhes do produto para ouvir o resumo.", transcript: "" });
+        return;
+      }
+      narrationVoice.play(richProduct.productId);
     };
     window.addEventListener("zyon:realtime-product-summary", requestSummary);
     return () => window.removeEventListener("zyon:realtime-product-summary", requestSummary);
-  }, [checkoutOpen, narrationVoice.play, publishNarrationProgress, voiceCheckoutEnabled]);
+  }, [checkoutOpen, narrationVoice.play, publishNarrationProgress, richProduct?.productId, voiceCheckoutEnabled]);
   useEffect(() => {
     if (voiceCheckoutEnabled !== true && channel === "voice") toggleChannel();
   }, [voiceCheckoutEnabled, channel, toggleChannel]);
@@ -553,6 +614,7 @@ export default function ConversationShell({
   }, [richProduct, checkoutOpen, navigation.view.cart, selectChannel]);
   useEffect(() => {
     if (checkoutOpen || navigation.view.cart) return;
+    if (detailScopeRef.current.context && detailScopeRef.current.productId === detailScopeRef.current.context.productId) return;
     const latest = messages.at(-1);
     if (!latest || latest.role !== "agent") return;
     if (pendingAgentBlocks.has(latest.id)) return;
@@ -577,7 +639,7 @@ export default function ConversationShell({
       signal: controller.signal,
       cache: "no-store",
     }).then(async (response) => response.ok ? response.json() : null).then((content) => {
-      if (controller.signal.aborted) return;
+      if (controller.signal.aborted || detailScopeRef.current.context && detailScopeRef.current.productId === detailScopeRef.current.context.productId) return;
       openedProductMessages.current.add(key);
       if (content && Array.isArray(content.blocks) && (
         (typeof content.purchase?.productName === "string" && Array.isArray(content.purchase?.variants)) ||
@@ -609,6 +671,7 @@ export default function ConversationShell({
   }, [setBuyerHubOpen]);
   useEffect(() => {
     const onRichProductAdd = (event: Event) => {
+      if (detailScopeRef.current.context && detailScopeRef.current.productId === detailScopeRef.current.context.productId) return;
       const detail = (event as CustomEvent<{ variantId?: unknown; optionItemIds?: unknown }>).detail;
       const variantId = detail?.variantId;
       // Do not turn arbitrary browser events into chat markup. Catalog ids are
@@ -739,7 +802,11 @@ export default function ConversationShell({
     "Meus Dados",
     "Ofertas",
   ];
-  const handleProductQuickReply = (option: string) => {
+  const handleProductQuickReply = (option: string, uiAction?: StorefrontReadUiAction) => {
+    if (uiAction !== undefined) {
+      handleQuickReply(option, uiAction);
+      return;
+    }
     const pending = pendingProductCart.current;
     if (option === "Adicionar ao carrinho" && pending) {
       pendingProductCart.current = null;
@@ -968,10 +1035,10 @@ export default function ConversationShell({
                           config={{ ALLOWED_TAGS: ["strong", "em", "br"] }}
                         />
                       )}
-                      {!pendingAgentBlocks.has(m.id) && <BlockRenderer block={cardBlock} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />}
+                      {!pendingAgentBlocks.has(m.id) && <BlockRenderer block={cardBlock} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} crossSell={crossSell} onOpenCrossSell={product => openCrossSellDetail(product, "inline")} />}
                       {!pendingAgentBlocks.has(m.id) && otherBlocks.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />
+                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} crossSell={crossSell} onOpenCrossSell={product => openCrossSellDetail(product, "inline")} />
                         </div>
                       ))}
                     </div>
@@ -989,7 +1056,7 @@ export default function ConversationShell({
                       {m.text && <SafeStoreHtml material="message" style={{ boxShadow: "var(--aacp-neu-message)", padding: "12px 16px", borderRadius: "18px", fontSize: "13.5px", lineHeight: 1.55, whiteSpace: "pre-wrap", background: "var(--aacp-card)", color: "var(--aacp-fg)", wordWrap: "break-word", border: "1px solid var(--aacp-line)" }} html={renderMarkdownText(m.text)} config={{ ALLOWED_TAGS: ["strong", "em", "br"] }} />}
                       {!pendingAgentBlocks.has(m.id) && m.blocks?.map((block, idx) => (
                         <div key={idx} style={{ maxWidth: "100%" }}>
-                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} />
+                          <BlockRenderer block={block} merchantSlug={merchantSlug} onQuickReply={handleProductQuickReply} crossSell={crossSell} onOpenCrossSell={product => openCrossSellDetail(product, "inline")} />
                         </div>
                       ))}
                     </div>
@@ -1104,32 +1171,32 @@ export default function ConversationShell({
           }}
           onViewCart={() => setCartDrawerForceOpen(true)}
           onUpdateQty={handleUpdateQuantity}
-          onRemoveItem={(variantId) => handleUpdateQuantity(variantId, 0)}
+          onRemoveItem={(variantId, selection) => handleUpdateQuantity(variantId, 0, selection)}
           forceOpen={navigation.view.cart}
           onOpen={() => navigation.setCart(true)}
           onClose={() => navigation.setCart(false)}
-          suppressAutoOpen={Boolean(crossSellPending) || Boolean(richProduct) || checkoutOpen}
+          suppressAutoOpen={Boolean(preparedCrossSell?.products.length) || Boolean(richProduct) || checkoutOpen}
         />
       )}
       {/* Cross-sell interstitial — shows before the cart drawer after add-to-cart */}
       <CrossSellInterstitial
-        data={latestAgentBlocksReady ? crossSellPending : null}
+        data={latestAgentBlocksReady && !financialPurchase ? preparedCrossSell : null}
+        onOpenProduct={product => openCrossSellDetail(product, "interstitial")}
         onClose={dismissCrossSell}
         onViewCart={() => {
           dismissCrossSell();
           setCartDrawerForceOpen(true);
         }}
-        onAddItem={(id, name, promoId, couponCode) => {
-          // The product-details panel can open from the same product-detail
-          // response. Close it before accepting an upsell so it cannot cover
-          // the cross-sell action or the resulting cart update.
-          setRichProduct(null);
-          dismissCrossSell();
-          const tags = `[variantId:${id}]${promoId ? `[crossSellPromoId:${promoId}]` : ""}`;
-          handleQuickReply(`Adicionar ${name} ao carrinho ${tags}`);
-          if (couponCode) {
-            setTimeout(() => handleQuickReply(`Aplicar cupom ${couponCode}`), 400);
+        onAddItem={async (id, name, promoId, couponCode, displayedProduct) => {
+          if (promoId || couponCode || displayedProduct?.expectedQuote) {
+            if (displayedProduct && await crossSell.accept(displayedProduct)
+              && crossSellPlacementRef.current.pending === crossSellPending) {
+              setRichProduct(null); dismissCrossSell();
+            }
+            return;
           }
+          setRichProduct(null); dismissCrossSell();
+          handleQuickReply(`Adicionar ${name} ao carrinho [variantId:${id}]`);
         }}
       />
       {/* Buyer Hub Panel */}
@@ -1199,6 +1266,7 @@ export default function ConversationShell({
         navigation.view.recovery && merchantSlug ? <RecoveryCheckoutPanel
           token={navigation.view.recovery} slug={merchantSlug} merchantId={merchantId} storeName={storeName}
           theme={theme} onClose={() => setCheckoutOpen(false)}
+          suspended={Boolean(checkoutDetail)} onOpenProductDetail={openCheckoutProductDetail}
         /> : <CheckoutPanel
           merchantId={merchantId}
           globalUserId={checkoutUserId}
@@ -1206,20 +1274,34 @@ export default function ConversationShell({
           oneBuyClickPreferences={checkoutPreferences}
           theme={theme}
           onClose={() => setCheckoutOpen(false)}
+          suspended={Boolean(checkoutDetail)}
+          onOpenProductDetail={openCheckoutProductDetail}
         />
       )}
       </div>{/* end content wrapper */}
-      {richProduct ? <RichProductDetailsPanel key={richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug} crossSell={productCrossSell?.productId === richProduct.productId ? productCrossSell.data : null} onAddCrossSell={(product) => {
+      {checkoutOpen && checkoutDetail ? <RichProductDetailsPanel key={checkoutDetail.request.key}
+        productId={checkoutDetail.request.productId} merchantSlug={merchantSlug} checkoutPurchase={checkoutDetail}
+        suspended={buyerHubOpen || showBuyerAuth || navigation.view.cart}
+        onClose={() => checkoutDetail.close()} /> : null}
+      {richProduct ? <RichProductDetailsPanel key={financialPurchase?.context.key ?? richProduct.productId} productId={richProduct.productId} merchantSlug={merchantSlug}
+      financialPurchase={financialPurchase} onOpenCrossSell={product => openCrossSellDetail(product, "rich")} presentCrossSell={crossSell.present}
+      financialUnavailable={!financialPurchase && crossSellDetailRequiresRecovery(financialMarkerReady, protectedFinancialProduct, richProduct.productId)}
+      crossSell={preparedProductCrossSell?.productId === richProduct.productId ? preparedProductCrossSell.data : null} onAddCrossSell={async (product) => {
+        if (product.promoId || product.couponCode || product.expectedQuote) {
+          if (await crossSell.accept(product) && crossSellPlacementRef.current.product === productCrossSell) dismissProductCrossSell();
+          return;
+        }
         dismissProductCrossSell();
-        const tags = `[variantId:${product.id}]${product.promoId ? `[crossSellPromoId:${product.promoId}]` : ""}`;
-        handleQuickReply(`Adicionar ${product.name} ao carrinho ${tags}`);
-        if (product.couponCode) setTimeout(() => handleQuickReply(`Aplicar cupom ${product.couponCode}`), 400);
-      }} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || Boolean(crossSellPending)} onProductResolved={({ productId, defaultVariantId }) => {
+        handleQuickReply(`Adicionar ${product.name} ao carrinho [variantId:${product.id}]`);
+      }} suspended={buyerHubOpen || navigation.view.cart || showBuyerAuth || checkoutOpen || !financialPurchase && Boolean(preparedCrossSell?.products.length)} onProductResolved={({ productId, defaultVariantId }) => {
+        if (financialPurchase) return;
         if (richProduct.productId === productId && typeof defaultVariantId === "string" && /^[A-Za-z0-9_-]{1,191}$/.test(defaultVariantId)) {
           presentedProductVariantRef.current = defaultVariantId;
         }
       }} onClose={({ productId, productName, defaultVariantId, cartAdded }) => {
+        detailScopeRef.current = { ...detailScopeRef.current, productId: undefined };
         setRichProduct(null);
+        if (crossSellDetail?.productId === productId || protectedFinancialProduct === productId) return;
         if (productCrossSell?.productId === productId) dismissProductCrossSell();
         if (cartAdded || !productName || !defaultVariantId || promptedProductClose.current.has(productId)) return;
         promptedProductClose.current.add(productId);

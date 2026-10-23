@@ -142,9 +142,13 @@ export function createOrderHandlers(deps: OrderHandlerDeps, ctx: ToolRequestCont
     },
 
     getBuyerProfile: async () => {
-      return {
-        message: "Você pode visualizar seus dados e histórico na seção de perfil. Posso ajudar com algo específico?"
+      if (!ctx.buyer?.globalUserId) return {
+        message: "Entre na sua conta em Meus Dados para visualizar seu perfil, pedidos e histórico de atendimento.",
       };
+      const details = [ctx.buyer.name && `Nome: ${ctx.buyer.name}`, ctx.buyer.email && `E-mail: ${ctx.buyer.email}`,
+        ctx.buyer.phone && `Telefone: ${ctx.buyer.phone}`].filter(Boolean);
+      return { message: ["Seus dados da conta:", ...details,
+        "Abra Meus Dados para editar seu perfil e consultar Pedidos, Rastreio e Conversas."].join("\n") };
     },
 
     getInvoice: async (args: any) => {

@@ -21,7 +21,7 @@ export type ProductNarrationProgress = {
 
 type Options = {
   enabled: boolean;
-  createSession: (summary: string, sdp: string) => Promise<RealtimeVoiceCall>;
+  createSession: (productId: string, sdp: string) => Promise<RealtimeVoiceCall>;
   onProgress?: (progress: ProductNarrationProgress) => void;
 };
 
@@ -29,7 +29,7 @@ export type RealtimeProductNarrationState = {
   connecting: boolean;
   speaking: boolean;
   hint: string;
-  play: (summary: string) => void;
+  play: (productId: string) => void;
   stop: () => void;
 };
 
@@ -48,6 +48,7 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
   const channelRef = useRef<RTCDataChannel | null>(null);
   const audioRef = useRef<HTMLAudioElement | null>(null);
   const attemptRef = useRef(0);
+  const productRef = useRef<string | null>(null);
   const transcriptRef = useRef("");
   const finishTimerRef = useRef<number | null>(null);
   const createSessionRef = useRef(createSession);
@@ -75,6 +76,7 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
     const peer = peerRef.current;
     channelRef.current = null;
     peerRef.current = null;
+    productRef.current = null;
     channel?.close();
     peer?.close();
     const audio = audioRef.current;
@@ -128,14 +130,14 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
     }
   }, [publish, release]);
 
-  const play = useCallback((summary: string) => {
-    const source = summary.replace(/\s+/g, " ").trim().slice(0, 1_200);
-    if (!enabled || !source) return;
+  const play = useCallback((productId: string) => {
+    const source = productId.trim();
+    if (!enabled || !source || source.length > 191) return;
     // A browser can reject the first asynchronous play call even though the
     // buyer clicked the action. Reuse the already-authorized media track on
     // the next tap rather than silently ignoring it or creating another call.
     if (peerRef.current) {
-      if (finishTimerRef.current === null) {
+      if (finishTimerRef.current === null && productRef.current === source) {
         resumeAudio(attemptRef.current);
         return;
       }
@@ -145,6 +147,7 @@ export function useRealtimeProductNarration({ enabled, createSession, onProgress
       release();
     }
     const attempt = ++attemptRef.current;
+    productRef.current = source;
     transcriptRef.current = "";
     void (async () => {
       if (!window.RTCPeerConnection) {

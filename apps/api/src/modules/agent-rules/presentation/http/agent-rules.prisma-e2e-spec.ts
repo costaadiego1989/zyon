@@ -19,12 +19,12 @@ import type { AgentRulesPatchDto } from "./dto/agent-rules-patch.dto.js";
 const runPrisma = process.env.AACP_RUN_PRISMA_TESTS === "1" && Boolean(process.env.DATABASE_URL);
 
 test(
-  "Prisma agent rules e2e configures a user agent and returns negotiation context",
+  "Prisma agent rules persist separate merchant defaults and isolated user-agent context",
   { skip: runPrisma ? false : "Set AACP_RUN_PRISMA_TESTS=1 and DATABASE_URL to run Prisma agent-rules e2e tests." },
   async () => {
     const prisma = createPrismaClient();
     const authRepository = new PrismaAuthRepository(prisma);
-    const jwt = new JwtService("test-secret", 3600);
+    const jwt = new JwtService("test-secret", 3600, authRepository);
     const merchantRepository = new PrismaMerchantRepository(prisma);
     const register = new RegisterMerchantUseCase(
       authRepository,
@@ -34,11 +34,10 @@ test(
     );
     const repository = new PrismaAgentRulesRepository(prisma);
     const noopCheckoutPort = { async getContext() { return undefined; } } as const;
-    const controller = new AgentRulesController(
-      new GetAgentRulesUseCase(repository),
-      new UpdateAgentRulesUseCase(repository),
-      new GetAgentContextUseCase(repository, noopCheckoutPort)
-    );
+    const getRules = new GetAgentRulesUseCase(repository);
+    const updateRules = new UpdateAgentRulesUseCase(repository);
+    const getContext = new GetAgentContextUseCase(repository, noopCheckoutPort);
+    const controller = new AgentRulesController(getRules, updateRules, getContext);
 
     let merchantId = "";
     try {
@@ -57,21 +56,46 @@ test(
         }
       };
 
-      // M3 fix: E2E test validates DTO path (whitelist, transform, validation)
-      // by calling controller (which applies ValidationPipe) rather than use-case directly.
+      // Direct controller invocation exercises its default-tenant routing, not
+      // Nest HTTP ValidationPipe execution. User context uses its real use-cases.
       const dto = {
         identity: { agentName: "Maya" },
         capabilities: { machineToMachineNegotiation: true },
         checkoutSettings: { maxInterventionsPerSession: 4 }
       } as unknown as AgentRulesPatchDto;
-      await controller.updateDefault(request, dto);
-      const context = await controller.defaultContext(request);
+      await controller.updateDefault(request, {
+        identity: { agentName: "Shared agent" },
+        capabilities: { machineToMachineNegotiation: false },
+        checkoutSettings: { maxInterventionsPerSession: 2 }
+      } as unknown as AgentRulesPatchDto);
+      const sharedContext = await controller.defaultContext(request);
+      assert.equal(sharedContext.merchant_id, merchantId);
+      assert.equal(sharedContext.agent_id, "default");
+      assert.equal(sharedContext.user_id, undefined);
+      assert.equal(sharedContext.agent.agentName, "Shared agent");
+      assert.equal((await controller.defaultRules(request)).scope, "merchant_default");
+
+      const principal = { merchantId, userId: auth.user_id };
+      const privateRules = await updateRules.execute(principal, dto);
+      assert.equal(privateRules.scope, "user_agent");
+      assert.equal(privateRules.userId, auth.user_id);
+      const context = await getContext.execute(principal);
 
       assert.equal(context.merchant_id, merchantId);
       assert.equal(context.user_id, auth.user_id);
       assert.equal(context.agent.agentName, "Maya");
       assert.equal(context.capabilities.machineToMachineNegotiation, true);
       assert.equal(context.checkout_settings.maxInterventionsPerSession, 4);
+      const otherUserId = `other_${crypto.randomUUID()}`;
+      assert.equal(await repository.getDefault(merchantId, otherUserId), undefined);
+      assert.equal(await repository.getDefault(`${merchantId}_other`, auth.user_id), undefined);
+      const otherContext = await getContext.execute({ merchantId, userId: otherUserId });
+      assert.equal(otherContext.user_id, otherUserId);
+      assert.equal(otherContext.agent.agentName, "Zion");
+      assert.equal(otherContext.capabilities.machineToMachineNegotiation, false);
+      assert.equal((await controller.defaultContext(request)).agent.agentName, "Shared agent");
+      assert.equal(await prisma.agentRule.count({ where: { merchantId, scope: "merchant_default", userId: null } }), 1);
+      assert.equal(await prisma.agentRule.count({ where: { merchantId, scope: "user_agent", userId: auth.user_id } }), 1);
     } finally {
       await prisma.agentRule.deleteMany({ where: { merchantId } });
       await prisma.merchantRule.deleteMany({ where: { merchantId } });

@@ -9,6 +9,8 @@ import { flattenProductContentBlocks } from "./product-content-normalizer";
 import type { ProductContentBlock as ProductContentBlockType } from "./ContentBlocks";
 import { buildProductNarration } from "@/lib/services/product-narration";
 import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
+import type { CrossSellDetailPurchase } from "@/lib/storefront-cross-sell-detail";
+import type { CheckoutProductDetailPurchase } from "@/lib/checkout-product-detail";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 const CATALOG_ID = /^[A-Za-z0-9_-]{1,191}$/;
@@ -64,6 +66,7 @@ function readCrossSell(value: unknown): PublicProductContent["crossSell"] {
     if (typeof product.id !== "string" || typeof product.name !== "string" || typeof product.price !== "number" || typeof product.priceFormatted !== "string" || typeof product.inStock !== "boolean") return [];
     return [{
       id: product.id,
+      ...(typeof product.productId === "string" ? { productId: product.productId } : {}),
       name: product.name,
       price: product.price,
       priceFormatted: product.priceFormatted,
@@ -94,6 +97,11 @@ export default function ProductContentBlock({
   onCartAdded,
   crossSell,
   onAddCrossSell,
+  onOpenCrossSell,
+  financialPurchase,
+  checkoutPurchase,
+  presentCrossSell,
+  financialUnavailable = false,
 }: {
   block: ConversationBlock & { type: "product_content" };
   merchantSlug?: string;
@@ -106,6 +114,11 @@ export default function ProductContentBlock({
   onCartAdded?: () => void;
   crossSell?: CrossSellInterstitialData | null;
   onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  onOpenCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  financialPurchase?: CrossSellDetailPurchase;
+  checkoutPurchase?: CheckoutProductDetailPurchase;
+  presentCrossSell?: (products: CrossSellInterstitialData["products"]) => CrossSellInterstitialData["products"];
+  financialUnavailable?: boolean;
 }) {
   const data = block.data as unknown as ProductContentData;
   const productId = typeof data?.productId === "string" && CATALOG_ID.test(data.productId) ? data.productId : null;
@@ -128,7 +141,14 @@ export default function ProductContentBlock({
     })
       .then(async (response) => {
         if (!response.ok) return null;
-        return readPublicContent(await response.json(), productId);
+        const body: unknown = await response.json();
+        if (financialPurchase && (!body || typeof body !== "object"
+          || (body as Record<string, unknown>).productId !== financialPurchase.context.productId
+          || (body as Record<string, unknown>).merchantId !== financialPurchase.context.scope.merchantId)) return null;
+        if (checkoutPurchase && (!body || typeof body !== "object"
+          || (body as Record<string, unknown>).productId !== checkoutPurchase.request.productId
+          || (body as Record<string, unknown>).merchantId !== checkoutPurchase.request.merchantId)) return null;
+        return readPublicContent(body, productId);
       })
       .then((next) => {
         if (controller.signal.aborted) return;
@@ -140,7 +160,7 @@ export default function ProductContentBlock({
       });
 
     return () => controller.abort();
-  }, [merchantSlug, productId, immersive, attempt]);
+  }, [merchantSlug, productId, immersive, attempt, financialPurchase?.context.key, checkoutPurchase?.request.key]);
 
   useEffect(() => {
     const purchase = immersive ? content?.purchase : undefined;
@@ -164,8 +184,9 @@ export default function ProductContentBlock({
     </button>;
   }
 
-  if (content) {
+  if (content && !financialUnavailable) {
     const blocks = flattenProductContentBlocks(content);
+    const recommendations = crossSell ?? content.crossSell ?? null;
     return (
       <article
         aria-label={`Detalhes de ${content.purchase?.productName ?? "produto"}`}
@@ -188,14 +209,17 @@ export default function ProductContentBlock({
           shareUrl={shareUrl}
           showNarration={!onNarrationChange}
           onCartAdded={onCartAdded}
-          crossSell={crossSell ?? content.crossSell ?? null}
+          crossSell={recommendations && presentCrossSell ? { ...recommendations, products: presentCrossSell(recommendations.products) } : recommendations}
           onAddCrossSell={onAddCrossSell}
+          onOpenCrossSell={onOpenCrossSell}
+          financialPurchase={financialPurchase}
+          checkoutPurchase={checkoutPurchase}
         />
       </article>
     );
   }
 
-  if (fallbackBlocks.length > 0) {
+  if (fallbackBlocks.length > 0 && !financialPurchase && !checkoutPurchase && !financialUnavailable) {
     return (
       <section aria-label="Conteúdo do produto" style={{ width: "100%", minWidth: 0 }}>
         <ProductContentRenderer blocks={fallbackBlocks} onCtaClick={onCtaClick} merchantSlug={merchantSlug} productId={productId ?? undefined} />
@@ -209,7 +233,7 @@ export default function ProductContentBlock({
       aria-busy={status === "loading"}
       style={{ width: "100%", padding: "24px", color: "var(--aacp-muted)", fontSize: "14px" }}
     >
-      {status === "unavailable" ? "Os detalhes completos deste produto não estão disponíveis agora." : "Preparando os detalhes do produto…"}
+      {financialUnavailable ? "Esta oferta precisa ser aberta novamente pela recomendação. Confira o carrinho antes de continuar." : status === "unavailable" ? "Os detalhes completos deste produto não estão disponíveis agora." : "Preparando os detalhes do produto…"}
       {status === "unavailable" ? <button data-neu="control" type="button" onClick={() => setAttempt((value) => value + 1)} style={{ display: "block", minHeight: 44, marginTop: 16, padding: "10px 16px", border: "1px solid var(--aacp-line)", borderRadius: "var(--aacp-radius-sm)", background: "var(--aacp-surface)", color: "var(--aacp-fg)", font: "inherit", cursor: "pointer" }}>Tentar novamente</button> : null}
     </section>
   );

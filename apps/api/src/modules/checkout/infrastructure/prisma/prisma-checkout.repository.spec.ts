@@ -54,7 +54,8 @@ test("prepayment benefits take admission locks and never rewrite a committed or 
     assert.equal(writes, 0);
     assert.match(locks[0]!, /merchants.*FOR UPDATE/);
     assert.match(locks[1]!, /merchant_rules.*FOR UPDATE/);
-    assert.match(locks[2]!, /checkout_sessions.*FOR UPDATE/);
+    assert.match(locks[2]!, /pg_advisory_xact_lock/);
+    assert.match(locks[3]!, /checkout_sessions.*FOR UPDATE/);
   }
 });
 

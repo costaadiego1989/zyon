@@ -108,6 +108,9 @@ describe("AddCrossStoreItemUseCase", () => {
 
   it("should create line item with commission", async () => {
     const mockConfigRepo = {
+      isConnected: async (host: string, seller: string) => {
+        assert.equal(host, "m1"); assert.equal(seller, "m2"); return true;
+      },
       get: async () => ({
         enabled: true,
         commissionRateBps: 1500,
@@ -158,7 +161,8 @@ describe("cross-store authoritative catalog data", () => {
     const writes: any[] = [];
     const useCase = new AddCrossStoreItemUseCase(
       { create: async (data: any) => { writes.push(data); return { id: "line", ...data }; } } as any,
-      { get: async (id: string) => ({ enabled: id === "host" || sellerEnabled, blockedMerchants: [], commissionRateBps: id === "host" ? 1000 : 2000 }) } as any,
+      { get: async (id: string) => ({ enabled: id === "host" || sellerEnabled, blockedMerchants: [], commissionRateBps: id === "host" ? 1000 : 2000 }),
+        isConnected: async (host: string, seller: string) => { assert.equal(host, "host"); assert.equal(seller, "seller"); return true; } } as any,
       { getById: async () => ({ sourceMerchantId: "seller", stockAvailable: true, currency: "BRL", priceCents: 5000, ...overrides }) } as any,
       new CommissionCalculatorService(),
     );
@@ -189,5 +193,20 @@ describe("cross-store authoritative catalog data", () => {
     }
     assert.equal(writes.length, 0);
     await assert.rejects(setup({}, false).useCase.execute(input), /Seller is unavailable/);
+  });
+
+  it("rejects a disconnected seller before creating any line", async () => {
+    let writes = 0;
+    const connections: string[][] = [];
+    const useCase = new AddCrossStoreItemUseCase(
+      { create: async () => { writes++; assert.fail("A disconnected seller cannot create a line"); } } as never,
+      { get: async () => ({ enabled: true, blockedMerchants: [], commissionRateBps: 2000 }),
+        isConnected: async (host: string, seller: string) => { connections.push([host, seller]); return false; } } as never,
+      { getById: async () => ({ sourceMerchantId: "seller", stockAvailable: true, currency: "BRL", priceCents: 5000 }) } as never,
+      new CommissionCalculatorService(),
+    );
+    await assert.rejects(() => useCase.execute(input), /Seller is not connected/);
+    assert.deepEqual(connections, [["host", "seller"]]);
+    assert.equal(writes, 0);
   });
 });

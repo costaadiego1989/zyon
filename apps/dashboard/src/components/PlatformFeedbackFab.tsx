@@ -1,5 +1,8 @@
-import { useState, type FormEvent } from "react";
-import { Bug, MessageSquarePlus } from "lucide-react";
+import { useEffect, useMemo, useState, type FormEvent } from "react";
+import { Bug, MessageSquarePlus, MessagesSquare } from "lucide-react";
+import { createPlatformSupportClient, PlatformSupportDesk } from "@zyon/platform-support-ui";
+import type { PlatformSupportCapabilities } from "@zyon/shared-types";
+import { dashboardJson } from "../api/http/client.js";
 import { useApi } from "../hooks/useApi.js";
 import { Button } from "./Button.js";
 import { Modal } from "./Modal.js";
@@ -16,8 +19,27 @@ const feedbackCategories: Array<{ value: PlatformFeedbackCategory; label: string
   { value: "other", label: "Outro feedback" },
 ];
 
-export function PlatformFeedbackFab() {
+export function PlatformFeedbackFab({ apiBaseUrl, merchantId }: { apiBaseUrl: string; merchantId: string }) {
   const api = useApi();
+  const supportClient = useMemo(() => createPlatformSupportClient({ baseUrl: apiBaseUrl, kind: "merchant", request: <T,>(path: string, init?: { method?: string; body?: string }) => dashboardJson<T>(apiBaseUrl, path, { ...init, ...(init?.body ? { headers: { "Content-Type": "application/json" } } : {}) }) }), [apiBaseUrl, merchantId]);
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [capabilities, setCapabilities] = useState<PlatformSupportCapabilities | null>(null);
+  const [unread, setUnread] = useState(0);
+  const [hasTickets, setHasTickets] = useState(false);
+  useEffect(() => {
+    let active = true;
+    const load = () => {
+      void Promise.all([supportClient.capabilities(), supportClient.list()]).then(([access, page]) => {
+        if (!active) return;
+        setCapabilities(access); setHasTickets(page.items.length > 0);
+        setUnread(page.items.reduce((sum, ticket) => sum + ticket.unreadCount, 0));
+      }).catch(() => { /* The support panel exposes source errors with a retry action. */ });
+    };
+    load();
+    const unsubscribe = supportClient.subscribe({ changed: load, state: () => {} });
+    const timer = setInterval(load, 30_000);
+    return () => { active = false; unsubscribe(); clearInterval(timer); };
+  }, [supportClient]);
   const [isOpen, setIsOpen] = useState(false);
   const [category, setCategory] = useState<PlatformFeedbackCategory | "">("");
   const [message, setMessage] = useState("");
@@ -63,12 +85,13 @@ export function PlatformFeedbackFab() {
       <button
         type="button"
         className="platform-feedback-fab"
-        onClick={() => setIsOpen(true)}
+        onClick={() => capabilities?.canOpen || hasTickets || !capabilities ? setSupportOpen(true) : setIsOpen(true)}
         aria-haspopup="dialog"
-        aria-label="Enviar feedback sobre a Zyon"
+        aria-label={unread ? `Ajuda e feedback, ${unread} mensagens não lidas` : "Ajuda e feedback sobre a Zyon"}
       >
         <Bug size={18} aria-hidden="true" />
-        <span>Feedback</span>
+        <span>Ajuda e feedback</span>
+        {unread > 0 && <span className="platform-support-unread">{unread}</span>}
       </button>
 
       <Modal
@@ -88,6 +111,9 @@ export function PlatformFeedbackFab() {
           </>
         )}
       >
+        <Button variant="outline" onClick={() => { setIsOpen(false); setSupportOpen(true); }}>
+          <MessagesSquare size={16} aria-hidden="true" />Atendimento técnico e meus chamados
+        </Button>
         <form id="merchant-platform-feedback-form" className="platform-feedback-form" onSubmit={handleSubmit} noValidate>
           <div className="platform-feedback-form__field">
             <label htmlFor="platform-feedback-category">Tipo de feedback</label>
@@ -135,6 +161,9 @@ export function PlatformFeedbackFab() {
 
           {error && <p id="platform-feedback-error" className="platform-feedback-form__error" role="alert">{error}</p>}
         </form>
+      </Modal>
+      <Modal isOpen={supportOpen} onClose={() => setSupportOpen(false)} presentation="center" size="lg" eyebrow={capabilities?.tier === "priority" ? "Escala · atendimento prioritário" : "Suporte Zyon"} title="Atendimento técnico" subtitle="Converse com a equipe e acompanhe seus chamados." footer={<Button variant="ghost" onClick={() => { setSupportOpen(false); setIsOpen(true); }}>Enviar sugestão ou outro feedback</Button>}>
+        <PlatformSupportDesk key={merchantId} client={supportClient} />
       </Modal>
     </>
   );

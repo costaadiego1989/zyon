@@ -58,12 +58,18 @@ test("discount cohort counts one conversion within the half-open seven-day windo
   assert.equal(stats[0].conversionRate, 1 / 3);
 });
 
-for (const [label, prices] of [["missing", []], ["null", [{ ...price, costInCents: null }]],
+for (const [label, prices] of [["null", [{ ...price, costInCents: null }]],
   ["negative", [{ ...price, costInCents: -1 }]], ["fractional", [{ ...price, costInCents: .1 }]] ] as const) {
-  test(`discount cohort rejects ${label} catalog cost instead of trusting snapshot cost`, async () => {
-    assert.deepEqual(await loadDiscountCohorts(db([session()], [intent()], [...prices]), "store", now, 30), []);
+  test(`discount cohort leaves ${label} catalog cost unavailable instead of trusting snapshot cost`, async () => {
+    const result = await loadDiscountCohorts(db([session()], [intent()], [...prices]), "store", now, 30);
+    assert.equal(result[0].sampleSize, 1);
+    assert.equal(result[0].carts[0].total, 100);
+    assert.equal(result[0].carts[0].items[0].cost, undefined);
   });
 }
+test("discount cohort still rejects a missing catalog price", async () => {
+  assert.deepEqual(await loadDiscountCohorts(db([session()], [intent()], []), "store", now, 30), []);
+});
 
 for (const [label, patch] of [["currency", { currency: "USD" }], ["stacking", { currentDiscount: 1 }],
   ["options", { items: [{ variantId: "variant", quantity: 1, selected_options: [{}] }] }],
@@ -100,13 +106,13 @@ test("incentive baseline counts eligible non-buyers, excludes holdout/unknown co
   assert.equal(JSON.stringify(b).includes("buyer-"), false);
 });
 
-test("incentive planning rechecks audience, cart range and capped offer margin against the captured catalog", () => {
+test("incentive planning rechecks audience and cart range without excluding high-cost buyers", () => {
   const cart = { currency: "BRL", total: 100, items: [{ sku: "sku", name: "Produto", quantity: 1, price: 100, cost: 40 }] };
   const buyer = { intent: "price_sensitive", cart, converted: false, cohort: "treatment" };
   const history = { complete: true, buyers: [buyer, { ...buyer, intent: "returning" }, { ...buyer, cart: { ...cart, total: 200 } },
     { ...buyer, cart: { ...cart, items: [{ ...cart.items[0], cost: 99 }] } }] };
   const b = incentivePlanningBaseline(history, now, recommendation(), rules)!;
-  assert.equal(b.buyers, 1); assert.equal(b.conversions, 0);
+  assert.equal(b.buyers, 2); assert.equal(b.conversions, 0);
 });
 
 test("incentive planning refuses partial histories and distinguishes them from an empty complete history", async () => {

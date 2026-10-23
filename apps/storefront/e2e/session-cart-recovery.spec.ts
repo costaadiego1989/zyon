@@ -1,29 +1,32 @@
 import { test, expect } from "@playwright/test";
 
-const token = (expired = false) => `${Buffer.from(JSON.stringify({ expiresAt: Date.now() / 1000 + (expired ? -10 : 3600) })).toString("base64url")}.test`;
+const token = (origin: string, expired = false) => `${Buffer.from(JSON.stringify({ origin, expiresAt: Date.now() / 1000 + (expired ? -10 : 3600) })).toString("base64url")}.test`;
 
 for (const mobile of [false, true]) {
-  test(`restored conversation renews and cart quantities survive failures (${mobile ? "mobile" : "desktop"})`, async ({ page }) => {
+  test(`restored conversation renews and cart quantities survive failures (${mobile ? "mobile" : "desktop"})`, async ({ page, baseURL }) => {
     if (mobile) await page.setViewportSize({ width: 390, height: 844 });
+    const origin = new URL(baseURL ?? "http://localhost:3001").origin;
     const id = "e2e_cart_session";
     let starts = 0;
     let renewals = 0;
     let quantity = 0;
     let fail = false;
     let rejectMessage = false;
+    let messageRequests = 0;
     const quantities: number[] = [];
     const snapshot = () => ({ cartId: id, items: quantity ? [{ variantId: "sku_test", productName: "Produto de teste", quantity, price: 129.9, subtotal: 129.9 * quantity }] : [], itemCount: quantity, discount: 0, total: quantity * 129.9 });
     await page.route("**/storefront/conversations", async route => {
       starts++;
-      await route.fulfill({ json: { conversation_id: id, conversation_token: token() } });
+      await route.fulfill({ json: { conversation_id: id, conversation_token: token(origin) } });
     });
     await page.route(`**/storefront/conversations/${id}/access`, async route => {
       expect(route.request().headers().authorization).toMatch(/^Bearer /);
       renewals++;
-      await route.fulfill({ json: { conversation_id: id, conversation_token: token() } });
+      await route.fulfill({ json: { conversation_id: id, conversation_token: token(origin) } });
     });
     await page.route(`**/storefront/conversations/${id}/events`, route => route.fulfill({ json: {} }));
     await page.route(`**/storefront/conversations/${id}/messages`, async route => {
+      messageRequests++;
       if (rejectMessage) { rejectMessage = false; return route.fulfill({ status: 401, json: { message: "invalid_conversation_token" } }); }
       const adding = route.request().postDataJSON().user_message.includes("Adicionar");
       if (adding) quantity = 1;
@@ -47,7 +50,7 @@ for (const mobile of [false, true]) {
     await input.press("Enter");
     await expect(page.getByText("Produto adicionado.", { exact: true })).toBeVisible();
     expect(starts).toBe(1);
-    await page.evaluate(({ id, expired }) => sessionStorage.setItem(`aacp_conversation_access:${id}`, expired), { id, expired: token(true) });
+    await page.evaluate(({ id, expired }) => sessionStorage.setItem(`aacp_conversation_access:${id}`, expired), { id, expired: token(origin, true) });
     await page.reload();
     const cart = page.getByRole("dialog", { name: "Carrinho", exact: true });
     const cartButton = page.getByRole("button", { name: /^Carrinho:/ });
@@ -74,10 +77,12 @@ for (const mobile of [false, true]) {
     expect(quantities).toEqual([2, 1, 1, 0]);
     await cart.getByRole("button", { name: "Fechar carrinho", exact: true }).click();
     rejectMessage = true;
+    const beforeRejection = messageRequests;
     await input.fill("Ver Produtos");
     await input.press("Enter");
-    await expect(page.getByText("Catálogo disponível.", { exact: true })).toBeVisible();
-    expect(renewals).toBe(2);
+    await expect(page.getByText("A sessão precisa ser validada. Sua solicitação não foi reenviada automaticamente. Verifique o carrinho antes de continuar.", { exact: true })).toBeVisible();
+    expect(messageRequests).toBe(beforeRejection + 1);
+    expect(renewals).toBe(1);
     expect(starts).toBe(1);
   });
 }

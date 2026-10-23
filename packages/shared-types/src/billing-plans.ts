@@ -94,6 +94,7 @@ export const BILLING_PLAN_PRESENTATION = {
       "Regras avançadas de produto",
       "Módulo de IA liberado",
       "Integrações com ERP e CRM",
+      "Suporte técnico por chat em tempo real",
     ],
   },
   scale: {
@@ -313,7 +314,7 @@ export const BILLING_PLANS: Record<BillingPlan, BillingPlanConfig> = {
       revenueManager: false,
       m2mAgents: false,
       advancedProductLayout: true,
-      realtimeChatSupport: false,
+      realtimeChatSupport: true,
       prioritySupport: false,
       whatsappSeller: true,
     }),

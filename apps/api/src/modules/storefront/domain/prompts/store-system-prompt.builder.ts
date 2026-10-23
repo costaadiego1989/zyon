@@ -1,3 +1,6 @@
+import { storefrontModelJsonSchema } from "../contracts/storefront-model-output.schema.js";
+import { storefrontPromptV1 } from "./storefront-prompt.v1.js";
+
 export interface AgentIdentity {
   agentName?: string;
   persona?: string;
@@ -23,6 +26,7 @@ export interface BuyerPromptContext {
 }
 
 export interface StoreSystemPromptInput {
+  styleInstructions?: string;
   merchantName?: string;
   storeCategory?: string;
   storeSettings?: Record<string, any>;
@@ -40,7 +44,22 @@ export interface StoreSystemPromptInput {
 }
 
 export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
-  const { merchantName, storeCategory, storeSettings, agentIdentity, merchantPolicy, advancedRules, buyerContext, oneBuyClick, knowledgeContext } = input;
+  return JSON.stringify({
+    ...storefrontPromptV1,
+    operatingInstructions: buildStoreOperatingGuide(input),
+    context: {
+      merchantName: input.merchantName,
+      storeCategory: input.storeCategory,
+      knowledge: input.knowledgeContext,
+      styleInstructions: input.styleInstructions,
+    },
+    outputContract: storefrontModelJsonSchema,
+  });
+}
+
+// Preserve the existing commerce guidance while migrating it incrementally.
+function buildStoreOperatingGuide(input: StoreSystemPromptInput): string {
+  const { merchantName, storeCategory, storeSettings, agentIdentity, merchantPolicy, advancedRules, buyerContext, oneBuyClick } = input;
 
   const name = merchantName ? ` da loja ${merchantName}` : "";
   const agentNameLabel = agentIdentity?.agentName || "Assistente";
@@ -201,10 +220,6 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
     ? `\n\nCLIENTE AUTENTICADO: ${buyerContext.name} (telefone ${buyerContext.phone}). Para create_review, use estes dados automaticamente como authorName e authorPhone — NÃO peça nome nem telefone ao cliente. Vá direto para nota e comentário.`
     : "";
 
-  const knowledgeNote = knowledgeContext
-    ? `\n\nINFORMAÇÕES OFICIAIS DA LOJA (base de conhecimento — use como fonte de verdade para políticas, prazos, garantia, pagamento e dúvidas do cliente):\n${knowledgeContext}\n\nBaseie respostas sobre políticas e informações da loja NESTES dados. Se a resposta não estiver aqui nem nas ferramentas, diga que não tem essa informação — NUNCA invente.`
-    : "";
-
   const purchaseModeNote = oneBuyClick?.enabled
     ? `\n\nONEBUYCLICK ATIVO, ESTAS REGRAS SOBRESCREVEM QUALQUER INSTRUCAO ANTERIOR DE CARRINHO:\n- So altere o carrinho com um pedido explicito de adicionar ou comprar. Perguntas, comparacoes, negacoes e mencoes isoladas a quero nao autorizam uma compra.\n- Resolva o produto exato. Nunca escolha o primeiro resultado da busca.\n- Se houver mais de uma variacao vendavel ou opcao obrigatoria pendente, pergunte somente a escolha que falta. Nunca escolha a primeira variante. Use exatamente o variantId retornado pela interface.\n- Depois de produto, variante, opcoes obrigatorias e estoque validados, adicione uma unica vez e chame create_checkout_session.\n- Frete preferido: ${oneBuyClick.shippingPreference === "cheapest" ? "mais economico" : "mais rapido"}. Pagamento preferido: ${oneBuyClick.paymentPreference === "card" ? "cartao" : "Pix"}. O checkout confirma a escolha final.\n- Nunca confirme pagamento, desconto ou frete sem o resultado deterministico da API.`
     : `\n\nREGRAS ATUAIS DE CARRINHO, ESTAS REGRAS SOBRESCREVEM QUALQUER INSTRUCAO ANTERIOR CONTRARIA:\n- Adicione apenas diante de um pedido explicito de adicionar ou comprar.\n- Resolva um produto exato e nunca escolha o primeiro resultado da busca ou a primeira variacao.\n- Se houver mais de uma variacao vendavel, solicite a escolha antes de alterar o carrinho.\n- Use create_checkout_session apenas quando o cliente pedir para finalizar um carrinho valido.`;
@@ -212,5 +227,5 @@ export function buildStoreSystemPrompt(input: StoreSystemPromptInput): string {
   const budgetNote = storeSettings?.budget?.enabled === true
     ? "\n\nMODO ORÇAMENTO ATIVO: esta regra prevalece sobre instruções de pagamento e OneBuyClick. Ajude a selecionar os itens e, ao finalizar, use create_checkout_session para oferecer Solicitar orçamento. O comprador informa nome, email e telefone no formulário do carrinho. Não solicite dados de cartão, não prometa cobrança nem pedido pago. Só confirme o envio após o registro da solicitação."
     : "";
-  return base + knowledgeNote + buyerIdentityNote + purchaseModeNote + budgetNote;
+  return base + buyerIdentityNote + purchaseModeNote + budgetNote;
 }

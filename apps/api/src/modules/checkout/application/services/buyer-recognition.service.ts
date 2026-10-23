@@ -1,8 +1,9 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional, UnauthorizedException } from "@nestjs/common";
 import type { CheckoutSession, CustomerHints } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import type { BuyerAccount } from "../../../buyer-account/domain/entities/buyer-account.entity.js";
+import { buyerProfileCompletenessScore, isCompleteBuyerAddress, pickBestPriorCheckoutBuyer } from "../../domain/services/buyer-recognition.js";
 
 /**
  * Handles returning buyer recognition: finding prior sessions/accounts,
@@ -84,7 +85,8 @@ export class BuyerRecognitionService {
    */
   async recognizeVerifiedBuyer(
     session: CheckoutSession,
-    mergeCustomers: (session: CheckoutSession, patch: Partial<CustomerHints>) => CheckoutSession
+    mergeCustomers: (session: CheckoutSession, patch: Partial<CustomerHints>) => CheckoutSession,
+    trustedGlobalUserId?: string,
   ): Promise<{
     session: CheckoutSession;
     globalUserId: string | undefined;
@@ -95,8 +97,13 @@ export class BuyerRecognitionService {
     }
 
     const account = await this.buyerAccounts?.findByEmail(email) ?? null;
+    if (trustedGlobalUserId !== undefined && account && account.globalUserId !== trustedGlobalUserId) {
+      throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+    }
     const priorSessions = await this.repository.findSessionsByEmail(session.merchantId, email);
-    const previousSession = this.pickBestPriorSession(priorSessions, session.sessionId, email);
+    const candidates = trustedGlobalUserId === undefined ? priorSessions : priorSessions.filter(prior =>
+      prior.globalUserId === trustedGlobalUserId && prior.merchantId === session.merchantId);
+    const previousSession = this.pickBestPriorSession(candidates, session.sessionId, email);
     if (!account && !previousSession) return { session, globalUserId: undefined };
 
     const patch = this.buildRecognizedProfilePatch(session.customer, account, previousSession?.customer);
@@ -111,20 +118,7 @@ export class BuyerRecognitionService {
    * Profile completeness score for ranking prior sessions.
    */
   profileCompletenessScore(customer?: CustomerHints): number {
-    if (!customer) return 0;
-    let score = 0;
-    if (customer.fullName) score += 2;
-    if (customer.email_verified) score += 1;
-    if (customer.cpf) score += 2;
-    if (customer.phone) score += 1;
-    if (customer.phone_verified) score += 2;
-    if (customer.address?.zip) score += 1;
-    if (customer.address?.street) score += 1;
-    if (customer.address?.number) score += 1;
-    if (customer.address?.complement !== undefined) score += 1;
-    if (customer.address_verified) score += 1;
-    if (this.isCompleteAddress(customer.address)) score += 3;
-    return score;
+    return buyerProfileCompletenessScore(customer);
   }
 
   private pickBestPriorSession(
@@ -132,15 +126,7 @@ export class BuyerRecognitionService {
     currentSessionId: string,
     email: string,
   ): CheckoutSession | null {
-    return sessions
-      .filter((session) => session.sessionId !== currentSessionId &&
-        session.customer?.email_verified === true &&
-        session.customer.email?.trim().toLowerCase() === email.trim().toLowerCase())
-      .sort((a, b) => {
-        const scoreDiff = this.profileCompletenessScore(b.customer) - this.profileCompletenessScore(a.customer);
-        if (scoreDiff !== 0) return scoreDiff;
-        return Date.parse(b.updatedAt) - Date.parse(a.updatedAt);
-      })[0] ?? null;
+    return pickBestPriorCheckoutBuyer(sessions, currentSessionId, email);
   }
 
   private pickBestAddress(
@@ -160,13 +146,6 @@ export class BuyerRecognitionService {
   }
 
   isCompleteAddress(address?: CustomerHints["address"]): boolean {
-    return Boolean(
-      address?.zip &&
-      address.street &&
-      address.city &&
-      address.state &&
-      address.number &&
-      address.complement !== undefined
-    );
+    return isCompleteBuyerAddress(address);
   }
 }

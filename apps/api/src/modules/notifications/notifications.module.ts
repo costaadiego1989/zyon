@@ -15,7 +15,7 @@ import { PrismaReturnNoticeRepository } from "./infrastructure/repositories/pris
 import { PlanNoticeJob } from "./application/services/plan-notice.job.js";
 import { PlanNoticeSender } from "./infrastructure/adapters/plan-notice.sender.js";
 import { PrismaPlanNoticeRepository } from "./infrastructure/repositories/prisma-plan-notice.repository.js";
-import { Module } from "@nestjs/common";
+import { forwardRef, Module } from "@nestjs/common";
 import { EMAIL_SENDER_PORT } from "./domain/ports/email-sender.port.js";
 import { WHATSAPP_SENDER_PORT } from "./domain/ports/whatsapp-sender.port.js";
 import { ResendEmailAdapter } from "./infrastructure/adapters/resend-email.adapter.js";
@@ -50,7 +50,7 @@ import { BudgetRequestNotificationSender } from "./infrastructure/adapters/budge
 import { PrismaBudgetRequestNotificationRepository } from "./infrastructure/repositories/prisma-budget-request-notification.repository.js";
 
 @Module({
-  imports: [PersistenceModule, PaymentModule, WhatsAppTemplatesModule, AuthModule],
+  imports: [PersistenceModule, forwardRef(() => PaymentModule), WhatsAppTemplatesModule, AuthModule],
   controllers: [MerchantNotificationController, DigitalDownloadController, MarketplaceOperationalAlertController],
   providers: [
     MarketplaceOperationalAlertService,

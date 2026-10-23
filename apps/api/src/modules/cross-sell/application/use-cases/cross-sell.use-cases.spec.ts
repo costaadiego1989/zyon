@@ -1,6 +1,6 @@
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
-import { AcceptCrossSellSuggestionUseCase } from "./accept-cross-sell-suggestion.use-case.js";
+import { AcceptCrossSellSuggestionUseCase, CrossSellQuoteReviewRequiredException } from "./accept-cross-sell-suggestion.use-case.js";
 import { ListEligibleCrossSellsUseCase } from "./list-eligible-cross-sells.use-case.js";
 import { CrossSellPromotionEntity } from "../../domain/entities/cross-sell-promotion.entity.js";
 import { CrossSellSuggestionEntity } from "../../domain/entities/cross-sell-suggestion.entity.js";
@@ -46,7 +46,7 @@ function makeSuggestionSetup() {
 }
 
 describe("AcceptCrossSellSuggestionUseCase", () => {
-  it("accepts suggestion with valid skus", async () => {
+  it("accepts ordinary zero-benefit suggestion with valid skus", async () => {
     const { promoRepo, suggestionRepo, outbox, acceptUseCase } = makeSuggestionSetup();
     const promo = makePromo();
     await promoRepo.save(promo);
@@ -57,7 +57,7 @@ describe("AcceptCrossSellSuggestionUseCase", () => {
       promo_id: promo.id,
       ranked_items: ["SKU-Y", "SKU-Z"],
       agent_copy: "",
-      computed_discount: 10,
+      computed_discount: 0,
     });
     await suggestionRepo.save(suggestion);
 
@@ -71,6 +71,7 @@ describe("AcceptCrossSellSuggestionUseCase", () => {
     });
 
     assert.equal(snap.status, "accepted");
+    assert.equal(snap.computed_discount, 0);
     const events = outbox.listOutbox("mrc_1");
     assert.equal(events[0].event_type, "cross-sell.offer.accepted");
   });
@@ -127,7 +128,7 @@ describe("AcceptCrossSellSuggestionUseCase", () => {
 
   // ── P0 regression: discount must pass through rules-engine ───────────────
 
-  it("P0: rejects accept when discount exceeds promotion max_discount_percent cap", async () => {
+  it("P0: refuses explicit over-cap benefit before promotion-only fallback can authorize", async () => {
     const { promoRepo, suggestionRepo, acceptUseCase } = makeSuggestionSetup();
     const promo = makePromo(); // max_discount_percent = 20
     await promoRepo.save(promo);
@@ -149,11 +150,11 @@ describe("AcceptCrossSellSuggestionUseCase", () => {
         merchant_id: "mrc_1",
         session_id: "sess_1",
         accepted_skus: ["SKU-Y"],
-        // No merchantRules → falls back to promotion cap
+        // No merchantRules must not enable the former promotion-only fallback.
       }),
       (err: { message?: string }) => {
         assert.ok(
-          err.message?.startsWith("CROSS_SELL_DISCOUNT_EXCEEDS_CAP"),
+          err instanceof CrossSellQuoteReviewRequiredException,
           `unexpected: ${err.message}`
         );
         return true;
@@ -163,7 +164,7 @@ describe("AcceptCrossSellSuggestionUseCase", () => {
 
   // ── P0 stacking regression: aggregate discount capped ───────────────────
 
-  it("P0: rejects accept when stacked discounts exceed maxDiscountPercent", async () => {
+  it("P0: refuses explicit stacked benefit until real post-add authority is integrated", async () => {
     const { promoRepo, suggestionRepo, acceptUseCase } = makeSuggestionSetup();
     const promo = makePromo(); // max_discount_percent = 20
     await promoRepo.save(promo);
@@ -191,7 +192,7 @@ describe("AcceptCrossSellSuggestionUseCase", () => {
         currentCouponDiscountPercent: 8, // 10 + 8 = 18 > 15
       }),
       (err: { message?: string }) => {
-        assert.ok(err.message?.startsWith("DISCOUNT_CAP_EXCEEDED"), `unexpected: ${err.message}`);
+        assert.ok(err instanceof CrossSellQuoteReviewRequiredException, `unexpected: ${err.message}`);
         return true;
       }
     );

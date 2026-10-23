@@ -7,6 +7,6 @@ export default defineConfig({
   webServer: {
     cwd: path.resolve(__dirname, ".."),
     command: "pnpm --dir ../dashboard exec vite --config ../storefront/e2e/fixtures/commerce-rules/vite.config.mjs",
-    url: "http://127.0.0.1:5186", reuseExistingServer: true, timeout: 60000,
+    url: "http://127.0.0.1:5186", reuseExistingServer: false, timeout: 60000,
   },
 });

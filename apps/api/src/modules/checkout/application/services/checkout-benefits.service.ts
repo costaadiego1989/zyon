@@ -7,6 +7,8 @@ import { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply
 import { checkoutBenefitsPolicy } from "../../domain/services/checkout-benefits-policy.js";
 import type { AdvancedRule } from "../../domain/services/advanced-rule-evaluator.service.js";
 import { CheckoutOfferService } from "./checkout-offer.service.js";
+import { NORMAL_CHECKOUT_CROSS_SELL, type NormalCheckoutCrossSellPort } from "../../../cross-sell/domain/ports/normal-checkout-cross-sell.port.js";
+import { normalCheckoutBenefitsCommandSchema } from "../../domain/contracts/normal-commercial-benefit-proof.schemas.js";
 
 @Injectable()
 export class CheckoutBenefitsService {
@@ -18,12 +20,28 @@ export class CheckoutBenefitsService {
     @Inject(PAYMENT_REPOSITORY) private readonly payments: PaymentRepository,
     private readonly coupons: ApplyCouponUseCase,
     @Optional() private readonly offers?: CheckoutOfferService,
+    @Optional() @Inject(NORMAL_CHECKOUT_CROSS_SELL) private readonly normal?: Pick<NormalCheckoutCrossSellPort, "prepareBenefits">,
   ) {}
 
   async prepare(merchantId: string, sessionId: string, method: string) {
     let session = await this.sessions.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
     if (await this.payments.hasCommittedPaymentForSession(merchantId, sessionId)) return session;
+    if (session.cart.items.some(item => item.crossSellIntent !== undefined)) {
+      if (!this.normal) throw new Error("CHECKOUT_NORMAL_BENEFITS_PERSISTENCE_UNAVAILABLE");
+      const prepared = await this.normal.prepareBenefits({ merchantId, sessionId }, normalCheckoutBenefitsCommandSchema.parse({ method, expectedVersion: session.persistenceVersion }));
+      // Internal code is selected from the actual policy, never the body. The
+      // existing coupon command owns its own quota/reservation/CAS transaction.
+      if (prepared.couponCode) return (await this.coupons.executeForCheckout({ merchant_id: merchantId,
+        session_id: sessionId, code: prepared.couponCode, expectedVersion: prepared.session.persistenceVersion })).session;
+      return prepared.session;
+    }
+    if (session.cart.source === "storefront" && session.cart.cart_ref && (session.cart.currentDiscount ?? 0) > 0) {
+      if (!this.sessions.prepareStorefrontCouponBenefits) throw new Error("CHECKOUT_STOREFRONT_COUPON_PREPARATION_UNAVAILABLE");
+      const prepared = await this.sessions.prepareStorefrontCouponBenefits(merchantId, sessionId, method);
+      if (prepared) return prepared;
+    }
+    await this.sessions.assertCouponBindingCommandAllowed?.(merchantId, sessionId);
     const [rules, settings, config, history] = await Promise.all([
       this.merchantRules.getRules(merchantId), this.settings.getContext(merchantId),
       this.settings.getInterventionConfig(merchantId), this.sessions.getSessionEvents(merchantId, sessionId),

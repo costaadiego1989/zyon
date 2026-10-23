@@ -3,9 +3,10 @@
 import { useState, useEffect, useRef, useCallback, lazy, Suspense } from "react";
 import { useCart } from "@/lib/cart-store";
 import { cartApi } from "@/lib/api/api-client";
-import { conversationFetch } from "@/lib/conversation-access";
+import { requestStorefrontCheckoutToken } from "@/lib/checkout-session-access";
 import { getValidBuyer } from "@/lib/buyer-auth";
 import CheckoutErrorBoundary from "./CheckoutErrorBoundary";
+import type { OpenCheckoutProductDetail } from "@zyon/widget-v2";
 
 interface CheckoutPanelProps {
   merchantId: string;
@@ -19,6 +20,8 @@ interface CheckoutPanelProps {
   };
   theme?: "dark" | "light";
   onClose: () => void;
+  suspended?: boolean;
+  onOpenProductDetail?: OpenCheckoutProductDetail;
 }
 
 const createInlineCheckout = () => lazy(() =>
@@ -53,12 +56,19 @@ function CheckoutPanelContent({
   oneBuyClickPreferences,
   theme,
   onClose,
+  suspended = false,
+  onOpenProductDetail,
 }: CheckoutPanelProps) {
   // React.lazy caches rejected imports. A fresh mount must be able to retry
   // loading the checkout after a network failure, including after closing it.
   const [InlineCheckout] = useState(createInlineCheckout);
   const effectiveTheme = resolveInitialTheme(theme);
-  const [embedToken, setEmbedToken] = useState<string | null>(initialEmbedToken ?? null);
+  const tokenContext = JSON.stringify([merchantId, cartRef, initialEmbedToken, recovered]);
+  const [issuedToken, setIssuedToken] = useState<{ context: string; value: string } | null>(
+    initialEmbedToken ? { context: tokenContext, value: initialEmbedToken } : null,
+  );
+  // Never render an old tenant/cart token while a context-change effect waits.
+  const embedToken = issuedToken?.context === tokenContext ? issuedToken.value : null;
   const [error, setError] = useState<string | null>(null);
   const [globalUserId, setGlobalUserId] = useState(initialGlobalUserId);
   const { cart, clearCart } = useCart();
@@ -92,49 +102,32 @@ function CheckoutPanelContent({
     tokenCartRef.current = recovered ? "" : cartRef || cart.cartId || "";
   }
   useEffect(() => {
-    if (initialEmbedToken) return;
+    let active = true;
+    if (initialEmbedToken) {
+      setIssuedToken({ context: tokenContext, value: initialEmbedToken });
+      setError(null);
+      return;
+    }
+    setIssuedToken(null);
     const cartRefForToken = cartRef || tokenCartRef.current || undefined;
     if (!cartRefForToken) { setError("Seu carrinho está vazio neste navegador. Volte à loja para adicionar produtos."); return; }
     setError(null);
-    conversationFetch(cartRefForToken ?? "", "/api/checkout-token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        merchant_id: merchantId,
-        cart_ref: cartRefForToken,
-        allowed_origin: typeof window !== "undefined" ? window.location.origin : "",
-      }),
-    })
-      .then((r) => {
-        if (!r.ok) throw new Error(`HTTP ${r.status}`);
-        return r.json();
-      })
-      .then((data) => {
-        if (data.embed_session_token) setEmbedToken(data.embed_session_token);
-        else setError("Falha ao iniciar checkout");
-      })
-      .catch(() => setError("Erro ao conectar com servidor de checkout"));
+    requestStorefrontCheckoutToken({ merchantId, cartRef: cartRefForToken })
+      .then((value) => { if (active) setIssuedToken({ context: tokenContext, value }); })
+      .catch(() => { if (active) setError("Erro ao conectar com servidor de checkout"); });
+    // The shared request captures its receipt across remounts; only this view
+    // detaches. Do not abort and silently mint another nonce on the next mount.
+    return () => { active = false; };
     // Intentionally excludes cart.cartId: see comment above.
     // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [merchantId, cartRef, initialEmbedToken]);
+  }, [merchantId, cartRef, initialEmbedToken, recovered, tokenContext]);
 
   const refreshEmbedToken = useCallback(async (previousEmbedToken: string): Promise<string | null> => {
     const cartRefForToken = cartRef || tokenCartRef.current || undefined;
     if (!cartRefForToken) return null;
-    const response = await conversationFetch(cartRefForToken, "/api/checkout-token", {
-      method: "POST",
-      headers: { "Content-Type": "application/json" },
-      body: JSON.stringify({
-        merchant_id: merchantId,
-        cart_ref: cartRefForToken,
-        allowed_origin: typeof window !== "undefined" ? window.location.origin : "",
-        previous_embed_token: previousEmbedToken,
-        buyer_access_token: getValidBuyer()?.token,
-      }),
-    });
-    if (!response.ok) return null;
-    const data = await response.json() as { embed_session_token?: unknown };
-    return typeof data.embed_session_token === "string" && data.embed_session_token ? data.embed_session_token : null;
+    try {
+      return await requestStorefrontCheckoutToken({ merchantId, cartRef: cartRefForToken, previousToken: previousEmbedToken });
+    } catch { return null; }
   }, [merchantId, cartRef]);
 
   if (error) {
@@ -159,7 +152,7 @@ function CheckoutPanelContent({
   const apiBase = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 
   return (
-    <div style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", overflow: "hidden", display: "flex", flexDirection: "column" }}>
+    <div aria-hidden={suspended || undefined} style={{ position: "fixed", inset: 0, zIndex: 9999, background: "var(--aacp-bg, #f7f8fa)", overflow: "hidden", display: suspended ? "none" : "flex", flexDirection: "column" }}>
       <Suspense fallback={<div style={{ flex: 1, display: "flex", alignItems: "center", justifyContent: "center", color: "var(--aacp-fg, #f0f0f0)" }}>Carregando...</div>}>
         <InlineCheckout
           embedToken={embedToken}
@@ -174,6 +167,7 @@ function CheckoutPanelContent({
           initialChannel="chat"
           theme={effectiveTheme}
           onClose={onClose}
+          onOpenProductDetail={onOpenProductDetail}
         />
       </Suspense>
     </div>

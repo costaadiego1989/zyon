@@ -51,6 +51,12 @@ export interface StorefrontConversationOutput {
   suggestedNext?: string[];
 }
 
+/** Server-owned deferred IO, not a JSON input or a browser-supplied permit. */
+export type StorefrontDeferredContext = () => Promise<{
+  attachmentContext?: string;
+  oneBuyClick?: OneBuyClickConversationContext;
+}>;
+
 export type NudgeTrigger = "idle_30_seconds" | "exit_intent_detected";
 
 export interface NudgeCopyInput {
@@ -66,6 +72,6 @@ export interface NudgeCopyInput {
 export const STOREFRONT_CONVERSATION_PORT = Symbol("StorefrontConversationPort");
 
 export interface StorefrontConversationPort {
-  reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput>;
+  reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput>;
   generateNudge(input: NudgeCopyInput): Promise<string>;
 }

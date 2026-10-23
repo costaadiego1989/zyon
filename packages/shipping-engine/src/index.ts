@@ -1,5 +1,5 @@
 import type { Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
-import { assessIncentiveMargin, meetsMarginFloor, moneyCents, type OfferEvaluation } from "@zyon/rules-engine";
+import { assessIncentiveMargin, cartAmountIssue, evaluateCombinedDiscount, moneyCents, type OfferEvaluation } from "@zyon/rules-engine";
 
 export { selectCheapestQuote } from "./select-cheapest-quote.js";
 export type { CarrierQuoteInput } from "./select-cheapest-quote.js";
@@ -21,14 +21,52 @@ const blocked = (reason: string, marginAfterOffer = 0): OfferEvaluation => ({
   approved: false, type: "none", value: 0, reason, marginAfterOffer,
 });
 
+/** SERVER-owned manual tariff admission, not a carrier-cost estimate. A waived
+ * configured fee consumes the explicit subsidy limit, but must never be copied
+ * into realCost or used to fabricate product/delivery margin. Source/address/
+ * quote expiry must be proved by the caller's canonical fenced reader. */
+export function authorizeConfiguredManualDelivery(input: {
+  cart: Cart;
+  rules: Pick<MerchantRules, "maxDiscountPercent" | "allowFreeShipping" | "allowStackDiscountAndFreeShipping"
+    | "freeShippingMinCartValue" | "maxShippingSubsidy" | "blockedRegions">;
+  priceCents: number; originalPriceCents: number; configuredFreeAboveCents: number | null; region?: string;
+}): OfferEvaluation {
+  const { cart, rules, priceCents, originalPriceCents, configuredFreeAboveCents, region } = input;
+  if (![priceCents, originalPriceCents].every(value => Number.isSafeInteger(value) && value >= 0 && value <= 2_147_483_647)
+    || priceCents > originalPriceCents || priceCents !== 0 && priceCents !== originalPriceCents)
+    return blocked("shipping_discount_invalid");
+  const goods = evaluateCombinedDiscount(cart, rules, moneyCents(cart.currentDiscount ?? 0) ?? -1);
+  if (goods.kind !== "authorized") return blocked(goods.reason);
+  if (!Array.isArray(rules.blockedRegions) || rules.blockedRegions.some(value => typeof value !== "string")) return blocked("economic_input_invalid");
+  if (rules.blockedRegions.length && !region) return blocked("shipping_region_missing");
+  if (region && rules.blockedRegions.includes(region)) return blocked("blocked_shipping_region");
+  const waiver = originalPriceCents - priceCents;
+  if (waiver > 0) {
+    if (!rules.allowFreeShipping) return blocked("free_shipping_not_allowed");
+    if (!rules.allowStackDiscountAndFreeShipping && goods.totalDiscountCents > 0) return blocked("stack_discount_and_free_shipping_not_allowed");
+    const minimum = moneyCents(rules.freeShippingMinCartValue), maximum = moneyCents(rules.maxShippingSubsidy);
+    const net = (moneyCents(cart.total) ?? -1) - (moneyCents(cart.currentDiscount ?? 0) ?? 0);
+    if (minimum === null || maximum === null || configuredFreeAboveCents === null
+      || !Number.isSafeInteger(configuredFreeAboveCents) || configuredFreeAboveCents < 0) return blocked("economic_input_invalid");
+    if (net < Math.max(minimum, configuredFreeAboveCents)) return blocked("free_shipping_minimum_not_met");
+    if (waiver > maximum) return blocked("shipping_subsidy_above_limit");
+  }
+  return { approved: true, type: waiver > 0 ? "shipping_free" : "none", value: waiver / 100,
+    reason: waiver > 0 ? "configured_manual_waiver_allowed" : "configured_manual_tariff_allowed", marginAfterOffer: 0 };
+}
+
 /** Shared authority for coupons and contextual shipping offers. A coupon's
  * face value cannot bypass carrier cost, stacking, region or subsidy limits. */
-export function authorizeShippingDiscount(input: Omit<ShippingDecisionInput, "abandonmentScore"> & {
+export function authorizeShippingDiscount(input: Omit<ShippingDecisionInput, "abandonmentScore" | "rules"> & {
+  rules: Pick<MerchantRules, "maxDiscountPercent" | "allowFreeShipping" | "allowShippingDiscount" | "allowStackDiscountAndFreeShipping"
+    | "freeShippingMinCartValue" | "maxShippingSubsidy" | "maxPartialShippingDiscount" | "blockedRegions"> & Partial<MerchantRules>;
   requestedDiscount: number;
   type: "shipping_free" | "shipping_discount_fixed";
 }): OfferEvaluation {
   const { cart, rules, shipping, type } = input;
   if (cart.currency !== "BRL") return blocked("incentive_currency_unsupported");
+  const amountIssue = cartAmountIssue(cart);
+  if (amountIssue) return blocked(amountIssue);
   const realCost = moneyCents(shipping?.realCost);
   const customerPrice = moneyCents(shipping?.customerPrice);
   const discount = moneyCents(input.requestedDiscount);
@@ -37,8 +75,7 @@ export function authorizeShippingDiscount(input: Omit<ShippingDecisionInput, "ab
   const maxSubsidy = moneyCents(rules.maxShippingSubsidy);
   const maxPartial = moneyCents(rules.maxPartialShippingDiscount);
   const freeMinimum = moneyCents(rules.freeShippingMinCartValue);
-  if (maxSubsidy === null || maxPartial === null || freeMinimum === null ||
-      !Number.isFinite(rules.minimumMarginPercent) || rules.minimumMarginPercent < 0 || rules.minimumMarginPercent > 100) {
+  if (maxSubsidy === null || maxPartial === null || freeMinimum === null) {
     return blocked("economic_input_invalid");
   }
   if (rules.blockedRegions.length && !shipping?.region) return blocked("shipping_region_missing");
@@ -71,11 +108,9 @@ export function authorizeShippingDiscount(input: Omit<ShippingDecisionInput, "ab
     totalDiscount: cart.currentDiscount ?? 0,
     shippingRevenue: afterShippingRevenue / 100, shippingCost: realCost / 100,
   });
-  if (margin.status === "unavailable") return blocked(margin.reason);
-  if (!meetsMarginFloor(margin, rules.minimumMarginPercent)) return blocked("minimum_margin_violation", margin.marginPercent ?? 0);
   return { approved: true, type, value: discount / 100,
     reason: type === "shipping_free" ? "free_shipping_allowed" : "partial_shipping_allowed",
-    marginAfterOffer: margin.marginPercent! };
+    marginAfterOffer: margin.marginPercent ?? 0 };
 }
 
 export function evaluateShippingOffer(input: ShippingDecisionInput): OfferEvaluation {

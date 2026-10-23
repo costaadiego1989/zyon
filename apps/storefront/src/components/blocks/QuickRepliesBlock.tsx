@@ -1,14 +1,21 @@
 "use client";
 
 import type { QuickRepliesBlock as QuickRepliesBlockType } from "@/lib/types";
+import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import { parseSuggestedReadActions } from "@/lib/storefront-suggested-read-actions";
 
 export default function QuickRepliesBlock({
   block,
   onSelect,
 }: {
   block: QuickRepliesBlockType;
-  onSelect?: (option: string) => void;
+  onSelect?: (option: string, uiAction?: StorefrontReadUiAction) => void;
 }) {
+  const suggested = parseSuggestedReadActions(block.data.suggestedActions);
+  const replies: Array<{ id: string; label: string; action?: StorefrontReadUiAction }> = [
+    ...block.data.options.map((label, index) => ({ id: `legacy-${index}`, label })),
+    ...(suggested?.items ?? []),
+  ];
   return (
     <div
       style={{
@@ -17,11 +24,18 @@ export default function QuickRepliesBlock({
         gap: "8px",
       }}
     >
-      {block.data.options.map((option, idx) => (
+      {replies.map(({ id, label, action }) => (
         <button data-neu="control"
-          key={idx}
+          key={action === undefined ? id : `suggested-${id}`}
           type="button"
-          onClick={() => onSelect?.(option)}
+          onClick={() => {
+            if (action === undefined) {
+              onSelect?.(label);
+              return;
+            }
+            const selected = parseSuggestedReadActions({ version: 1, items: [{ id, label, action }] })?.items[0];
+            if (selected) onSelect?.(selected.label, selected.action);
+          }}
           style={{
             padding: "9px 16px",
             borderRadius: "var(--aacp-radius-pill)",
@@ -47,7 +61,7 @@ export default function QuickRepliesBlock({
             el.style.color = "var(--aacp-muted)";
           }}
         >
-          {option}
+          {label}
         </button>
       ))}
     </div>

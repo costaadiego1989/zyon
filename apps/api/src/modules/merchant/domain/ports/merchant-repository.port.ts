@@ -7,6 +7,8 @@ export interface MerchantRepository {
   getStripeConnectAccountId(merchantId: string): Promise<string | undefined>;
   setStripeConnectAccountId(merchantId: string, accountId: string): Promise<void>;
   getRules(merchantId: string): Promise<MerchantRules>;
+  /** Read existing policy only; absence must not create permissive defaults. */
+  getExistingRules?(merchantId: string): Promise<MerchantRules | undefined>;
   updateRules(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules>;
   updateTheme(merchantId: string, theme: MerchantTheme): Promise<MerchantTheme>;
   updateStoreCategory(merchantId: string, storeCategory: string): Promise<void>;

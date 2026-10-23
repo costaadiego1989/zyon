@@ -4,7 +4,7 @@ import { buildPreCartCrossSellPreview } from "./pre-cart-cross-sell-preview.js";
 
 const products = [
   { id: "primary", sku: "PRIMARY", name: "Produto principal", price: 89.9, inStock: true },
-  { id: "companion", sku: "COMPANION", name: "Complemento", price: 49.9, inStock: true },
+  { id: "companion", productId: "product-companion", sku: "COMPANION", name: "Complemento", price: 49.9, inStock: true },
 ];
 
 test("pre-cart preview returns only an active complementary promotion for the viewed SKU", () => {
@@ -16,6 +16,7 @@ test("pre-cart preview returns only an active complementary promotion for the vi
   });
   assert.equal(preview?.displayMode, "modal");
   assert.equal(preview?.products[0]?.id, "companion");
+  assert.equal((preview?.products[0] as any)?.productId, "product-companion");
   assert.equal(preview?.products[0]?.promoId, "promo");
   assert.equal(preview?.products[0]?.discountPercent, 10);
 });

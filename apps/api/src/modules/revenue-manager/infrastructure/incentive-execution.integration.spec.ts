@@ -317,7 +317,7 @@ spec("progressive settlement spends only the granted first stage and releases it
   assert.equal((await prisma.strategyIncentiveBudget.findFirstOrThrow()).spentCents, 250);
 });
 
-spec("progressive stage SQL rejects invented amounts and admission rechecks current consent and margin", async () => {
+spec("progressive stage SQL rejects invented amounts and rechecks consent without a margin gate", async () => {
   const f = await ready("progressive"), session = await admit(await buyer(f, "treatment"));
   const assignment = await prisma.strategyIncentiveAssignment.findFirstOrThrow();
   await assert.rejects(tx(async client => {
@@ -330,11 +330,12 @@ spec("progressive stage SQL rejects invented amounts and admission rechecks curr
   }), /reserved approved terms/);
   const checkout = new PrismaCheckoutRepository(prisma);
   await prisma.productPrice.update({ where: { variantId: "variant" }, data: { costInCents: 9900 } });
-  assert.equal((await checkout.prepareProgressiveIncentivePayment("store", session.sessionId, "pix"))?.cart.currentDiscount, 2.5);
+  assert.equal((await checkout.prepareProgressiveIncentivePayment("store", session.sessionId, "pix"))?.cart.currentDiscount, 5);
   await prisma.productPrice.update({ where: { variantId: "variant" }, data: { costInCents: 4000 } });
-  await prisma.buyerIntentMemoryConsent.update({ where: { merchantId_globalUserId: { merchantId: "store", globalUserId: assignment.buyerId } }, data: { optedIn: false } });
-  assert.equal((await checkout.prepareProgressiveIncentivePayment("store", session.sessionId, "pix"))?.cart.currentDiscount, 2.5);
-  assert.equal(await prisma.strategyIncentiveStageGrant.count(), 1);
+  const revoked = await admit(await buyer(f, "treatment"));
+  await prisma.buyerIntentMemoryConsent.update({ where: { merchantId_globalUserId: { merchantId: "store", globalUserId: revoked.globalUserId } }, data: { optedIn: false } });
+  assert.equal((await checkout.prepareProgressiveIncentivePayment("store", revoked.sessionId, "pix"))?.cart.currentDiscount, 2.5);
+  assert.equal(await prisma.strategyIncentiveStageGrant.count(), 3);
   const forged = structuredClone(f.source.recommendation!);
   if (forged.status !== "recommended") throw new Error("fixture");
   forged.test.stages![0].maxDiscountCents++;
@@ -399,18 +400,20 @@ spec("eligibility can appear at shipping persistence and never after an existing
   assert.equal(await prisma.strategyIncentiveAssignment.count(), 1);
 });
 
-spec("unknown costs, changed catalog prices, no consent and holdout cannot receive incentives", async () => {
+spec("unknown cost persists null while changed prices, no consent and holdout stay ineligible", async () => {
   const f = await ready();
   await admit(await buyer(f, "treatment", { cohort: "holdout" }));
   const consentless = await buyer(f, "treatment");
   await prisma.buyerIntentMemoryConsent.update({ where: { merchantId_globalUserId: { merchantId: "store", globalUserId: consentless.globalUserId } }, data: { optedIn: false } });
   await admit(consentless);
   await prisma.productPrice.update({ where: { variantId: "variant" }, data: { costInCents: null } });
-  await admit(await buyer(f, "treatment"));
+  const admitted = await admit(await buyer(f, "treatment"));
+  assert.equal(admitted.cart.currentDiscount, 5);
+  assert.equal((await prisma.strategyIncentiveAssignment.findFirstOrThrow()).costCents, null);
   await prisma.productPrice.update({ where: { variantId: "variant" }, data: { costInCents: 4000, basePriceInCents: 12000 } });
   await admit(await buyer(f, "treatment"));
-  assert.equal(await prisma.strategyIncentiveAssignment.count(), 0);
-  assert.equal(await prisma.strategyIncentiveReservation.count(), 0);
+  assert.equal(await prisma.strategyIncentiveAssignment.count(), 1);
+  assert.equal(await prisma.strategyIncentiveReservation.count(), 1);
 });
 
 spec("real payment persistence validates then settles once; refunds retain historical spend", async () => {
@@ -448,12 +451,12 @@ spec("withdrawal preserves in-flight payment resolution and blocks new assignmen
   assert.equal(await prisma.strategyIncentiveAssignment.count(), 1);
 });
 
-spec("payment rejects changed cost/margin and invented discounts before creating intent", async () => {
+spec("payment permits changed product cost but rejects invented discounts before creating intent", async () => {
   const f = await ready(), session = await admit(await buyer(f, "treatment"));
   const repository = new PrismaPaymentRepository(prisma), intent = payment(session);
   await prisma.productPrice.update({ where: { variantId: "variant" }, data: { costInCents: 9400 } });
-  await assert.rejects(repository.saveIntent({ intent }), /MARGIN_CHANGED/);
-  assert.equal(await prisma.paymentIntent.count(), 0);
+  await repository.saveIntent({ intent });
+  assert.equal(await prisma.paymentIntent.count(), 1);
   await prisma.productPrice.update({ where: { variantId: "variant" }, data: { costInCents: 4000 } });
   const altered = PaymentIntentEntity.rehydrate({ ...intent.snapshot(), amountBreakdown: { ...intent.snapshot().amountBreakdown!, discountCents: 1000, totalCents: 10000 }, amountCents: 10000 });
   await assert.rejects(repository.saveIntent({ intent: altered }), /AUTHORITY_CHANGED/);

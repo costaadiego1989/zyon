@@ -173,6 +173,14 @@ export class HandleAsaasWebhookUseCase {
         if (persisted?.snapshot().creation?.input.marketplaceFunding !== undefined) ref = persistedReference;
       }
     }
+    // Refund also ends a chargeback depending on persisted state. Validate all
+    // four events before reserving their marker or applying financial effects.
+    const requiresPaymentIdentity = body.event === "PAYMENT_CHARGEBACK_REQUESTED" ||
+      body.event === "PAYMENT_CHARGEBACK_DISPUTE" ||
+      body.event === "PAYMENT_AWAITING_CHARGEBACK_REVERSAL" || body.event === "PAYMENT_REFUNDED";
+    const validatedIntent = requiresPaymentIdentity
+      ? await this.requireMatchingPaymentIdentity(body, ref)
+      : null;
     const merchantId = ref?.merchantId ?? null;
     const eventKey: ProviderEventKey = { provider: "asaas", merchantId, eventId: body.id };
 
@@ -193,7 +201,7 @@ export class HandleAsaasWebhookUseCase {
       return { outcome: "ignored", reason: "intent_not_found" };
     }
 
-    const intentEntity = await this.payments.getIntentById(ref.merchantId, ref.id);
+    const intentEntity = validatedIntent ?? await this.payments.getIntentById(ref.merchantId, ref.id);
     if (!intentEntity) {
       this.logger.warn(`asaas.webhook.ignored reason=intent_not_found correlation=${correlationId}`);
       return { outcome: "ignored", reason: "intent_not_found" };
@@ -221,6 +229,40 @@ export class HandleAsaasWebhookUseCase {
       await this.payments.deleteProcessedProviderEvent(eventKey);
       throw e;
     }
+  }
+
+  private async requireMatchingPaymentIdentity(
+    inbound: AsaasWebhookInbound,
+    reference: { id: string; merchantId: string } | null,
+  ): Promise<PaymentIntentEntity> {
+    const providerPaymentId = inbound.payment?.id?.trim();
+    if (!providerPaymentId || !inbound.payment?.externalReference?.trim()) {
+      return this.rejectPaymentIdentity("missing");
+    }
+    if (!reference) return this.rejectPaymentIdentity("mismatch");
+
+    const persistedReference = await this.payments.getIntentReferenceByProviderPaymentId?.(providerPaymentId);
+    if (persistedReference && (persistedReference.id !== reference.id || persistedReference.merchantId !== reference.merchantId)) {
+      return this.rejectPaymentIdentity("mismatch");
+    }
+    // The optional global lookup is only an additional consistency check. A
+    // matching provider id on the tenant-scoped entity is always mandatory.
+    const intent = await this.payments.getIntentById(reference.merchantId, reference.id);
+    if (!intent) return this.rejectPaymentIdentity("mismatch");
+    const snapshot = intent.snapshot();
+    const provider = snapshot.creation?.input.provider;
+    if (snapshot.id !== reference.id || snapshot.merchantId !== reference.merchantId ||
+        snapshot.providerPaymentId !== providerPaymentId || (provider !== undefined && provider !== "asaas")) {
+      return this.rejectPaymentIdentity("mismatch");
+    }
+    return intent;
+  }
+
+  private rejectPaymentIdentity(kind: "missing" | "mismatch"): never {
+    this.metrics?.paymentWebhookAnomaly.inc({ provider: "asaas", kind: `payment_identity_${kind}` });
+    this.logger.warn(`asaas.webhook.rejected reason=payment_identity_${kind} correlation=${CorrelationIdStorage.get() ?? "none"}`);
+    // No success marker: corrected/reconciled deliveries can retry the event.
+    throw new BadRequestException(`asaas_webhook_payment_identity_${kind}`);
   }
 
   private async dispatch(

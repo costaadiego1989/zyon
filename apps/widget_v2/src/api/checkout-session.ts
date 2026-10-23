@@ -1,5 +1,9 @@
 import { CheckoutApiError } from "./checkout-api-error";
-import type { CheckoutEditSection } from "@zyon/shared-types";
+import { commercialNoticesSchema, normalCheckoutCrossSellHttpQuoteSchema, normalCheckoutCrossSellQuoteSchema, normalCheckoutCrossSellHttpAcceptanceSchema,
+  normalCheckoutCrossSellHttpAcceptanceResponseSchema, type NormalCheckoutCrossSellHttpAcceptanceResponse,
+  type NormalCheckoutCrossSellQuote, type NormalCheckoutCrossSellTargetSelection,
+  type NormalCheckoutProductType,type NormalCheckoutFulfillmentStrategy } from "@zyon/contracts";
+import type { CommercialNotice, CheckoutEditSection, SuggestedProduct as SharedSuggestedProduct } from "@zyon/shared-types";
 import { normalizeRealtimeSdp, readRealtimeVoiceCall, type RealtimeVoiceCall } from "@zyon/shared-types";
 import { ChatRecoveryRequired, PendingChatReference, chatReceipt, chatDisplayReference, parseChatState, type ChatState, type ChatDisplayReference } from "./chat-protocol";
 
@@ -106,6 +110,8 @@ export interface BuyerConfig {
 }
 
 export interface CartItem {
+  productType?:NormalCheckoutProductType;
+  fulfillmentStrategy?:NormalCheckoutFulfillmentStrategy;
   sku: string;
   name: string;
   price: number;
@@ -119,9 +125,11 @@ export interface CartItem {
 }
 
 export interface SuggestedProduct {
+  option_groups?: SharedSuggestedProduct["option_groups"];
   suggestion_id?: string;
   sku: string;
   variant_id?: string;
+  product_id?: string;
   name: string;
   unit_price: number;
   image_url?: string;
@@ -140,8 +148,10 @@ export interface CommercialNudge {
 }
 
 export interface Experience {
+  commercial_notices?: CommercialNotice[];
   policies?: { privacyUrl?: string; termsUrl?: string; refundUrl?: string; shippingUrl?: string };
-  items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; original_unit_price?: number; image_url?: string; variant?: string; variant_label?: string }>;
+  items?: Array<{ sku: string; name: string; quantity: number; unit_price: number; original_unit_price?: number; image_url?: string; variant?: string; variant_label?: string;
+    productType?:NormalCheckoutProductType;fulfillmentStrategy?:NormalCheckoutFulfillmentStrategy }>;
   totals?: { subtotal: number; shipping?: number; discount: number; service_fee?: number; total_to_pay?: number; total: number };
   shipping?: {
     carrier?: string;
@@ -183,16 +193,17 @@ export interface StartResponse {
   experience?: Experience;
 }
 
-export interface CrossSellAcceptResponse {
-  experience?: Experience;
-  agent_turn?: { role: "agent" | "buyer"; text: string; occurredAt?: string };
-}
+export type CrossSellAcceptResponse = Exclude<NormalCheckoutCrossSellHttpAcceptanceResponse, { projection_status: "available" }>
+  | (Omit<Extract<NormalCheckoutCrossSellHttpAcceptanceResponse, { projection_status: "available" }>, "experience"> & { experience: Experience });
 
-export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number; shipping?: { key: string; label: string; cost: number }; benefits?: Experience["applied_benefits"] } {
+export function cartFromExperience(experience: Experience | undefined): { items: CartItem[]; total: number; discount: number; serviceFee: number; totalToPay?: number; shipping?: { key: string; label: string; cost: number }; benefits?: Experience["applied_benefits"]; commercialNotices: CommercialNotice[] } {
   if (!experience?.items || !experience.totals) throw new Error("checkout_cart_snapshot_missing");
   const shipping = checkoutShippingFromExperience(experience.shipping);
+  const notices = commercialNoticesSchema.safeParse(experience.commercial_notices);
   return {
-    items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, originalPrice: item.original_unit_price, imageUrl: item.image_url, variant: item.variant, variantLabel: item.variant_label })),
+    commercialNotices: notices.success ? notices.data : [],
+    items: experience.items.map(item => ({ sku: item.sku, name: item.name, quantity: item.quantity, price: item.unit_price, originalPrice: item.original_unit_price, imageUrl: item.image_url, variant: item.variant, variantLabel: item.variant_label,
+      ...(item.productType===undefined?{}:{productType:item.productType}),...(item.fulfillmentStrategy===undefined?{}:{fulfillmentStrategy:item.fulfillmentStrategy}) })),
     total: experience.totals.subtotal,
     discount: experience.totals.discount,
     serviceFee: typeof experience.totals.service_fee === "number" && Number.isFinite(experience.totals.service_fee) && experience.totals.service_fee >= 0
@@ -277,6 +288,8 @@ export interface PaymentIntent {
 
 export class CheckoutSession {
   private paymentRecoveryPending = false;
+  private crossSellRecoveryPending = false;
+  get requiresCrossSellReconciliation(): boolean { return this.crossSellRecoveryPending; }
   private token: string;
   private merchantId: string;
   private baseUrl: string;
@@ -389,6 +402,7 @@ export class CheckoutSession {
 
   async chat(message: string, voiceTurnToken?: string): Promise<ChatResponse> {
     this.assertSession();
+    this.assertCommercialReconciled();
     if (this.requiresChatRecovery || this.chatInFlight) throw new ChatRecoveryRequired();
     const messageId = crypto.randomUUID();
     this.chatInFlight = true;
@@ -447,9 +461,11 @@ export class CheckoutSession {
       if (!response.ok) throw await CheckoutApiError.fromResponse("embed_checkout_edit", response);
     }
     const result = await response.json() as { experience: Experience; revision?: number };
+    cartFromExperience(result.experience);
     this.experience = result.experience;
     this.paymentRevision = Math.max(this.paymentRevision + 1, result.revision ?? 0);
     this.paymentRecoveryPending = false;
+    this.crossSellRecoveryPending = false;
     if (this.chatState) this.chatState = { ...this.chatState, payment_intent_id: undefined };
     return this.experience;
   }
@@ -522,6 +538,7 @@ export class CheckoutSession {
 
   async createRealtimeVoiceSession(sdp: string): Promise<RealtimeVoiceCall> {
     this.assertSession();
+    this.assertCommercialReconciled();
     if (this.requiresChatRecovery) throw new ChatRecoveryRequired();
     const res = await fetch(`${this.embedBaseUrl}/embed/realtime/session`, {
       method: "POST",
@@ -533,6 +550,7 @@ export class CheckoutSession {
 
   async realtimeVoiceContext(): Promise<{ instructions: string }> {
     this.assertSession();
+    this.assertCommercialReconciled();
     if (this.requiresChatRecovery) throw new ChatRecoveryRequired();
     const res = await fetch(`${this.embedBaseUrl}/embed/realtime/context`, {
       method: "POST", headers: this.headers(), body: JSON.stringify({ session_id: this.sessionId }),
@@ -549,6 +567,7 @@ export class CheckoutSession {
 
   async updateCart(items: Array<{ sku: string; quantity: number; variant?: string }>): Promise<StartResponse> {
     this.assertSession();
+    this.assertCommercialReconciled();
     const res = await fetch(`${this.embedBaseUrl}/embed/cart`, {
       method: "POST",
       headers: this.headers(),
@@ -562,25 +581,87 @@ export class CheckoutSession {
     return response;
   }
 
-  async acceptCrossSell(suggestionId: string, sku: string): Promise<CrossSellAcceptResponse> {
+  async quoteCrossSell(suggestionId: string, targets: NormalCheckoutCrossSellTargetSelection[]): Promise<NormalCheckoutCrossSellQuote> {
     this.assertSession();
+    if (this.crossSellRecoveryPending) throw new Error("cross_sell_reconciliation_required");
+    const sessionId = this.sessionId, merchantId = this.merchantId;
+    const request = normalCheckoutCrossSellHttpQuoteSchema.parse({ session_id: sessionId, suggestion_id: suggestionId, targets });
+    const res = await fetch(`${this.embedBaseUrl}/embed/cross-sell/quote`, {
+      method: "POST", headers: this.headers(), body: JSON.stringify(request),
+    });
+    if (!res.ok) throw await CheckoutApiError.fromResponse("cross_sell_quote", res);
+    const parsed = normalCheckoutCrossSellQuoteSchema.safeParse(await res.json());
+    const key = (sku: string, variantId: string, quantity: number, optionIds: readonly string[] = []) =>
+      JSON.stringify([sku, variantId, quantity, [...optionIds].sort()]);
+    if (!parsed.success || this.sessionId !== sessionId || this.merchantId !== merchantId
+      || parsed.data.merchantId !== merchantId || parsed.data.sessionId !== sessionId || parsed.data.suggestionId !== suggestionId
+      || JSON.stringify(parsed.data.pricing.targets.map(target => key(target.sku, target.variantId, target.acceptedQuantity, target.selectedOptionItemIds)).sort())
+        !== JSON.stringify(request.targets.map(target => key(target.sku, target.variant_id, target.quantity, target.selected_option_item_ids)).sort()))
+      throw new Error("cross_sell_quote_invalid");
+    return parsed.data;
+  }
+
+  async acceptCrossSell(suggestionId: string, sku: string, expectedQuote?: unknown, isCurrent: () => boolean = () => true): Promise<CrossSellAcceptResponse> {
+    this.assertSession();
+    if (this.crossSellRecoveryPending) throw new Error("cross_sell_reconciliation_required");
+    const merchantId = this.merchantId, sessionId = this.sessionId;
+    const request = normalCheckoutCrossSellHttpAcceptanceSchema.parse({ session_id: sessionId, suggestion_id: suggestionId,
+      accepted_skus: [sku], expected_quote: expectedQuote });
+    if (request.expected_quote.merchantId !== merchantId) throw new Error("cross_sell_quote_invalid");
+    const bytes = await crypto.subtle.digest("SHA-256", new TextEncoder().encode(JSON.stringify(request.expected_quote)));
+    const quoteHash = Array.from(new Uint8Array(bytes), byte => byte.toString(16).padStart(2, "0")).join("");
+    if (this.merchantId !== merchantId || this.sessionId !== sessionId || !isCurrent()) throw new Error("cross_sell_quote_invalid");
+    this.crossSellRecoveryPending = true;
     const res = await fetch(`${this.embedBaseUrl}/embed/cross-sell/accept`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({ session_id: this.sessionId, suggestion_id: suggestionId, accepted_skus: [sku] }),
+      body: JSON.stringify(request),
     });
-    if (!res.ok) throw new Error(`cross_sell_accept_failed: ${res.status}`);
-    const response = await res.json() as CrossSellAcceptResponse;
-    if (response.experience) {
+    if (!res.ok) {
+      const error = await CheckoutApiError.fromResponse("cross_sell_accept", res);
+      if (error.status === 422 && error.code === "cross_sell_quote_review_required") this.crossSellRecoveryPending = false;
+      throw error;
+    }
+    const response = normalCheckoutCrossSellHttpAcceptanceResponseSchema.parse(await res.json()), ack = response.acknowledgement;
+    if (this.merchantId !== merchantId || this.sessionId !== sessionId || ack.merchantId !== merchantId || ack.sessionId !== sessionId
+      || ack.suggestionId !== suggestionId || ack.persistenceVersion !== request.expected_quote.sessionVersion + 1 || ack.quoteHash !== quoteHash)
+      throw new Error("cross_sell_acknowledgement_invalid");
+    if (response.projection_status === "available") {
+      const q = request.expected_quote.pricing, cents = (value: number) => Math.round(value * 100);
+      const lineKey = (variantId: string, productId: string, sku: string, quantity: number, price: number, options: string[]) => JSON.stringify([variantId, productId, sku, quantity, price, [...options].sort()]);
+      const actual = response.cart.items.map(item => {
+        const selection: unknown = item.variant === undefined ? [item.variantId, []] : JSON.parse(item.variant);
+        if (!Array.isArray(selection) || selection.length !== 2 || selection[0] !== item.variantId || !Array.isArray(selection[1])
+          || selection[1].some(value => typeof value !== "string")) throw new Error("cross_sell_projection_invalid");
+        return lineKey(item.variantId, item.product_id, item.sku, item.quantity, cents(item.price), selection[1]);
+      }).sort();
+      const expected = q.items.map(item => lineKey(item.variantId, item.productId, item.sku, item.quantity, item.unitPriceCents, (item.selectedOptions ?? []).map(option => option.itemId))).sort();
+      if (cents(response.cart.total) !== q.merchandiseSubtotalCents || cents(response.cart.currentDiscount ?? 0) !== q.cartDiscountCents
+        || JSON.stringify(actual) !== JSON.stringify(expected)) throw new Error("cross_sell_projection_invalid");
+      // The legacy experience omits catalog fulfillment metadata. Copy only
+      // the typed pair from this SAME confirmed public cart, after exact
+      // canonical identities/options/quantities/cents matched the shown quote.
+      const displayKey=(sku:string,quantity:number,price:number,variant?:string)=>JSON.stringify([sku,quantity,cents(price),variant??null]);
+      response.experience={...response.experience,items:response.experience.items.map(item=>{
+        const matches=response.cart.items.filter(line=>displayKey(line.sku,line.quantity,line.price,line.variant)===displayKey(item.sku,item.quantity,item.unit_price,item.variant));
+        if(matches.length!==1)throw new Error("cross_sell_projection_invalid");
+        const line=matches[0]!;
+        if(item.productType!==undefined&&item.productType!==line.productType
+          ||item.fulfillmentStrategy!==undefined&&item.fulfillmentStrategy!==line.fulfillmentStrategy)throw new Error("cross_sell_projection_invalid");
+        return {...item,...(line.productType===undefined?{}:{productType:line.productType}),
+          ...(line.fulfillmentStrategy===undefined?{}:{fulfillmentStrategy:line.fulfillmentStrategy})};
+      })};
       cartFromExperience(response.experience);
       this.experience = response.experience;
       this.paymentRevision += 1;
+      this.crossSellRecoveryPending = false;
     }
     return response;
   }
 
   async fetchShippingQuote(destinationZip?: string): Promise<Array<{ key: string; label: string; tag: string; sub: string; cost: number }>> {
     this.assertSession();
+    this.assertCommercialReconciled();
     const body: Record<string, unknown> = { session_id: this.sessionId };
     if (destinationZip) body.destination_zip = destinationZip;
     const res = await fetch(`${this.embedBaseUrl}/embed/shipping/quote`, {
@@ -615,6 +696,7 @@ export class CheckoutSession {
 
   async selectShipping(key: string): Promise<{ ok: boolean; shipping: { carrier: string; method: string; carrierKey: string; customerPrice: number } }> {
     this.assertSession();
+    this.assertCommercialReconciled();
     console.log('[WIDGET-DBG] API selectShipping', { key, sessionId: this.sessionId });
     const res = await fetch(`${this.embedBaseUrl}/embed/shipping/select`, {
       method: "POST",
@@ -658,6 +740,7 @@ export class CheckoutSession {
     options?: { chain?: "polygon" | "base"; confirmedCartFingerprint?: string }
   ): Promise<PaymentIntent> {
     this.assertSession();
+    if (this.crossSellRecoveryPending) throw new Error("cross_sell_reconciliation_required");
     if (this.pendingMessageId || this.chatInFlight || this.chatState?.payment_intent_id) throw new ChatRecoveryRequired();
     const apiMethod = method === "credito" || method === "debito" ? "card" : method;
     const idempotencyKey = `pay_${this.sessionId}_${apiMethod}_${this.paymentRevision}`;
@@ -812,6 +895,7 @@ export class CheckoutSession {
 
   async applyOffer(offerId: string): Promise<unknown> {
     this.assertSession();
+    this.assertCommercialReconciled();
     const res = await fetch(`${this.embedBaseUrl}/embed/offers/apply`, {
       method: "POST",
       headers: this.headers(),
@@ -828,6 +912,7 @@ export class CheckoutSession {
     experience?: Experience;
   }> {
     this.assertSession();
+    this.assertCommercialReconciled();
     const res = await fetch(`${this.embedBaseUrl}/embed/coupons/apply`, {
       method: "POST",
       headers: this.headers(),
@@ -853,6 +938,7 @@ export class CheckoutSession {
 
   async updateCustomer(data: Record<string, unknown>): Promise<unknown> {
     this.assertSession();
+    this.assertCommercialReconciled();
     const res = await fetch(`${this.embedBaseUrl}/embed/customer/update`, {
       method: "POST",
       headers: this.headers(),
@@ -864,6 +950,9 @@ export class CheckoutSession {
 
   private assertSession(): void {
     if (!this.sessionId) throw new Error("session_not_started");
+  }
+  private assertCommercialReconciled(): void {
+    if (this.crossSellRecoveryPending) throw new Error("cross_sell_reconciliation_required");
   }
 }
 
@@ -886,10 +975,12 @@ export function crossSellBlockFromSuggestions(
         suggestionId: p.suggestion_id,
         sku: p.sku,
         variantId: p.variant_id,
+        productId: p.product_id,
         name: p.name,
         price: p.unit_price,
         image: p.image_url,
         inStock: p.in_stock !== false,
+        optionGroups: p.option_groups?.map(group => ({ required: group.required })),
       })),
     },
   };

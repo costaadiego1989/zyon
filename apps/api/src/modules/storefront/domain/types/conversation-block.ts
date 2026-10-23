@@ -1,3 +1,4 @@
+import type { CommercialNotice, CrossSellDisplayMode } from "@zyon/shared-types";
 import type { PublicServiceSchedule } from "../../../catalog/domain/services/service-schedule.js";
 export interface ProductCardBlock {
   type: "product_card";
@@ -83,6 +84,7 @@ export interface CartSummaryBlock {
     total: number;
     nextNudge?: { kind: string; gap?: number; message: string; reachable: boolean; ruleId?: string };
     activeRules?: Array<{ ruleId?: string; message: string }>;
+    commercialNotices?: CommercialNotice[];
   };
 }
 
@@ -218,6 +220,7 @@ export interface CrossSellBlock {
   type: "cross_sell";
   data: {
     trigger: string;
+    displayMode?: CrossSellDisplayMode;
     products: Array<{
       id: string;
       productId?: string;
@@ -246,6 +249,11 @@ export interface CouponListBlock {
   };
 }
 
+export interface CategoryCarouselBlock {
+  type: "category_carousel";
+  data: { categories: Array<{ id: string; name: string; slug?: string; productCount: number }> };
+}
+
 export type ConversationBlock =
   | { type: "cart_add_result"; data: { cartId: string; variantId: string; serviceSlotId?: string; optionItemIds?: string[]; status: "succeeded" | "rejected" | "unknown"; code?: string } }
   | ProductCardBlock
@@ -264,4 +272,5 @@ export type ConversationBlock =
   | ReviewsBlock
   | AddReviewBlock
   | CrossSellBlock
-  | CouponListBlock;
+  | CouponListBlock
+  | CategoryCarouselBlock;

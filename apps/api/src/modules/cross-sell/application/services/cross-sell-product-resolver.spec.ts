@@ -25,6 +25,8 @@ describe("cross-sell-product-resolver", () => {
     assert.deepEqual(result && {
       sku: result.sku, name: result.name, unit_price: result.unit_price, suggestion_id: result.suggestion_id,
     }, { sku: "NECS-001", name: "Necessaire Executiva", unit_price: 49.9, suggestion_id: "sugg_1" });
+    assert.equal(result?.product_id, "product_1");
+    assert.equal(result?.variant_id, "variant_1");
   });
 
   it("uses the catalog price and cost when adding an accepted SKU", async () => {

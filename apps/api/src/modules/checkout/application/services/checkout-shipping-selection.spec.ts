@@ -37,3 +37,32 @@ test("a numeric shipping choice uses the displayed ordering and a unique named s
   assert.equal((await select("2")).shipping?.customerPrice, 22.08);
   assert.equal((await select("Quero Sedex")).shipping?.customerPrice, 34.62);
 });
+
+for (const outcome of ["empty", "failure", "manual"] as const) test(`configured quote ${outcome} never becomes fabricated PAC/Sedex fallback`, async () => {
+  const repository = new InMemoryCheckoutRepository();
+  const session: any = { merchantId: "m1", sessionId: "s1", globalUserId: "buyer", conversationId: "c1", chatHistory: [],
+    cart: { currency: "BRL", total: 118, items: [{ sku: "sku", name: "Item", price: 118, quantity: 1 }] },
+    customer: { address_verified: true, address: { zip: "01310100", street: "Rua", city: "São Paulo", state: "SP", neighborhood: "Centro", number: "1", complement: "" } },
+    createdAt: new Date().toISOString(), updatedAt: new Date().toISOString() };
+  repository.saveSession(session); let seen: any;
+  const service = new CheckoutShippingService(repository, {} as any, { async execute(input: unknown) {
+    seen = input;
+    if (outcome === "failure") throw new Error("synthetic_manual_config_unavailable");
+    return { results: outcome === "manual" ? [{ label: "Entrega própria - Centro", carrier_key: "own_delivery_neighborhood_centro",
+      price: 0, original_price: 900, eta_days: 1, is_free: true }] : [] };
+  } } as never);
+  await service.processShippingState(repository.getSession("m1", "s1")!, "Ver entregas");
+  const saved = repository.getSession("m1", "s1")!;
+  assert.equal(seen.destination_neighborhood, "Centro");
+  assert.equal(seen.cart_total, 118);
+  assert.equal(saved.cart.total, 118);
+  if (outcome === "failure") assert.equal(saved.shippingOptions, undefined);
+  if (outcome === "empty") assert.deepEqual(saved.shippingOptions, []);
+  if (outcome === "manual") {
+    assert.equal(saved.shippingOptions?.length, 1); assert.equal(saved.shippingOptions?.[0]?.customerPrice, 0);
+    assert.equal(saved.shippingOptions?.[0]?.realCost, 9); assert.equal(saved.shipping, undefined);
+    const selected = await service.processShippingState(saved, checkoutShippingLabel(saved.shippingOptions![0]!));
+    assert.equal(selected.shipping?.customerPrice, 0); assert.equal(selected.shipping?.realCost, 9);
+    assert.equal(selected.shipping?.destinationZip, "01310100");
+  }
+});

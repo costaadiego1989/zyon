@@ -35,7 +35,10 @@ function publicRequestOrigin(request: Request): string | null {
   return internalOrigin;
 }
 
-function isAllowedPath(path: string[]): boolean {
+function isAllowedPath(path: string[], method: string): boolean {
+  if (path.length === 5 && isIdentifier(path[0]) && path[1] === "cart" && isIdentifier(path[2]) && path[3] === "cross-sell") {
+    return method === "POST" && (path[4] === "quote" || path[4] === "accept");
+  }
   if (path[0] === "budget-requests") return path.length === 1;
   if (path[0] === "nudge") return path.length === 1;
   if (path[0] === "conversations") {
@@ -64,7 +67,7 @@ function requestHasVerifiedStorefrontOrigin(request: Request, origin: string): b
 
 async function proxy(request: Request, context: RouteContext): Promise<NextResponse> {
   const { path } = await context.params;
-  if (!isAllowedPath(path)) return NextResponse.json({ error: "route_not_allowed" }, { status: 404 });
+  if (!isAllowedPath(path, request.method)) return NextResponse.json({ error: "route_not_allowed" }, { status: 404 });
 
   const origin = publicRequestOrigin(request);
   if (!origin || !requestHasVerifiedStorefrontOrigin(request, origin)) {

@@ -1,3 +1,5 @@
+import { callStorefrontTool } from "./call-storefront-tool.js";
+
 export interface ToolDefinition {
   name: string;
   description: string;
@@ -5,6 +7,7 @@ export interface ToolDefinition {
     type: "object";
     properties: Record<string, unknown>;
     required?: string[];
+    additionalProperties?: boolean;
   };
 }
 
@@ -54,8 +57,8 @@ export interface StoreToolHandlers {
     crossSellPromoId?: string;
   }) => Promise<unknown>;
   getCart: (args: { cartId: string }) => Promise<unknown>;
-  removeCartItem: (args: { cartId: string; variantId: string }) => Promise<unknown>;
-  updateCartItem: (args: { cartId: string; variantId: string; quantity: number }) => Promise<unknown>;
+  removeCartItem: (args: { cartId: string; variantId: string; optionItemIds?: string[]; serviceSlotId?: string | null }) => Promise<unknown>;
+  updateCartItem: (args: { cartId: string; variantId: string; quantity: number; optionItemIds?: string[]; serviceSlotId?: string | null }) => Promise<unknown>;
   clearCart: (args: { cartId: string }) => Promise<unknown>;
   quoteShipping: (args: { cartId?: string; productId?: string; zipCode: string }) => Promise<unknown>;
   applyCoupon: (args: { cartId?: string; couponCode: string }) => Promise<unknown>;
@@ -115,8 +118,7 @@ export function wrapHandler(
     name,
     execute: async (args: Record<string, unknown>): Promise<ToolResult> => {
       try {
-        const data = await fn(args as any);
-        return { ok: true, data };
+        return await callStorefrontTool(name, args, fn);
       } catch (err: unknown) {
         const message = err instanceof Error ? err.message : String(err);
         const code = err instanceof Error && (err as any).code ? (err as any).code : undefined;

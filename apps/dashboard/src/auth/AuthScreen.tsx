@@ -1,4 +1,4 @@
-import React, { useState } from "react";
+import React, { useEffect, useState } from "react";
 import { Github, Eye, EyeOff } from "lucide-react";
 import { AuthExperience } from "./SignupExperience.js";
 import { SignupWizard } from "./SignupWizard.js";
@@ -7,6 +7,7 @@ import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
 import { DashboardHttpError } from "../api-client.js";
 import { friendlyAuthError } from "./auth-error.js";
+import { buildOAuthAuthorizationUrl, isAuthCaptchaReady, requiresAuthCaptcha } from "./auth-config.js";
 import "./auth-screen.css";
 
 export type AuthMode = "login" | "signup" | "forgot" | "reset";
@@ -41,46 +42,47 @@ function generateOAuthState(): string {
   return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
 }
 
-function startOAuthFlow(provider: "github" | "google") {
-  const state = generateOAuthState();
-  sessionStorage.setItem("oauth_state", state);
-  sessionStorage.setItem("oauth_provider", provider);
-
-  const redirectUri = (import.meta as { env?: Record<string, string> }).env?.VITE_OAUTH_REDIRECT_URI
-    || `${window.location.origin}/auth/oauth/callback`;
-
-  if (provider === "github") {
-    const clientId = (import.meta as { env?: Record<string, string> }).env?.VITE_GITHUB_CLIENT_ID || "";
-    const url = `https://github.com/login/oauth/authorize?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&scope=user:email&state=${state}`;
-    window.location.href = url;
-  } else {
-    const clientId = (import.meta as { env?: Record<string, string> }).env?.VITE_GOOGLE_CLIENT_ID || "";
-    const url = `https://accounts.google.com/o/oauth2/v2/auth?client_id=${encodeURIComponent(clientId)}&redirect_uri=${encodeURIComponent(redirectUri)}&response_type=code&scope=openid%20email%20profile&state=${state}&access_type=offline&prompt=consent`;
-    window.location.href = url;
-  }
-}
-
 export function AuthScreen(props: AuthScreenProps) {
+  const [oauthError, setOAuthError] = useState<string | null>(null);
+  const githubClientId = import.meta.env.VITE_GITHUB_CLIENT_ID?.trim();
+  const githubConfigured = Boolean(githubClientId && !["undefined", "null"].includes(githubClientId));
+  const onGithubClick = githubConfigured ? () => startOAuthFlow("github") : undefined;
+  useEffect(() => setOAuthError(null), [props.mode]);
+  function startOAuthFlow(provider: "github" | "google") {
+    try {
+      const env = import.meta.env;
+      const state = generateOAuthState();
+      const url = buildOAuthAuthorizationUrl(provider, { state, origin: window.location.origin,
+        clientId: provider === "google" ? env.VITE_GOOGLE_CLIENT_ID : env.VITE_GITHUB_CLIENT_ID,
+        redirectUri: env.VITE_OAUTH_REDIRECT_URI });
+      // Do not retain a false OAuth attempt or leave this form on invalid config.
+      sessionStorage.setItem("oauth_state", state);
+      sessionStorage.setItem("oauth_provider", provider);
+      window.location.href = url;
+    } catch (error) { setOAuthError(friendlyAuthError(error)); }
+  }
   return <AuthExperience mode={props.mode} busy={props.busy} onSwitchMode={props.setMode}>
     {props.mode === "signup" ? <SignupWizard
-      busy={props.busy} hint={props.hint} onRegister={props.onRegister}
+      busy={props.busy} hint={oauthError ?? props.hint} onRegister={props.onRegister}
       onSaveTheme={props.onSaveTheme} onSaveCompanyData={props.onSaveCompanyData}
       onSaveOwner={props.onSaveOwner} onComplete={props.onComplete} oauthProfile={props.oauthProfile}
       onSwitchToLogin={() => props.setMode("login")}
-      onGithubClick={() => startOAuthFlow("github")} onGoogleClick={() => startOAuthFlow("google")}
+      onGithubClick={onGithubClick} onGoogleClick={() => startOAuthFlow("google")}
       turnstileSiteKey={props.turnstileSiteKey} captchaToken={props.captchaToken} setCaptchaToken={props.setCaptchaToken}
     /> : props.mode === "reset" ? <ResetPasswordForm onBack={() => props.setMode("login")} turnstileSiteKey={props.turnstileSiteKey} />
       : props.mode === "forgot" ? <ForgotPasswordForm onBack={() => props.setMode("login")} turnstileSiteKey={props.turnstileSiteKey} />
-      : <LoginForm {...props} onGithubClick={() => startOAuthFlow("github")} onGoogleClick={() => startOAuthFlow("google")} />}
+      : <LoginForm {...props} hint={oauthError ?? props.hint} onGithubClick={onGithubClick} onGoogleClick={() => startOAuthFlow("google")} />}
   </AuthExperience>;
 }
 
-function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogleClick: () => void }) {
+function LoginForm(props: AuthScreenProps & { onGithubClick?: () => void; onGoogleClick: () => void }) {
+  const captchaRequired = requiresAuthCaptcha(props.turnstileSiteKey, import.meta.env.PROD);
+  const captchaReady = isAuthCaptchaReady(props.turnstileSiteKey, props.captchaToken, import.meta.env.PROD);
   const [showPass, setShowPass] = useState(false);
   const [captchaAttempt, setCaptchaAttempt] = useState(0);
   return (
     <form onSubmit={(event) => {
-      if (props.busy || (props.turnstileSiteKey && !props.captchaToken)) { event.preventDefault(); return; }
+      if (props.busy || !captchaReady) { event.preventDefault(); return; }
       props.onSubmit(event);
       setCaptchaAttempt(value => value + 1);
     }} className="auth-form" aria-busy={props.busy}>
@@ -94,10 +96,10 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
           <GoogleIcon />
           <span>Google</span>
         </button>
-        <button type="button" className="auth-social__btn" onClick={props.onGithubClick} disabled={props.busy}>
+        {props.onGithubClick && <button type="button" className="auth-social__btn" onClick={props.onGithubClick} disabled={props.busy}>
           <Github size={16} />
           <span>GitHub</span>
-        </button>
+        </button>}
       </div>
 
       <div className="auth-divider">
@@ -122,9 +124,10 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
         </div>
       </div>
 
-      {props.turnstileSiteKey ? (
+      {captchaRequired ? (
         <div className="auth-field">
           <Turnstile
+            required={captchaRequired}
             action="login"
             resetKey={captchaAttempt}
             theme="light"
@@ -140,7 +143,7 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
         type="submit"
         disabled={
           props.busy ||
-          (Boolean(props.turnstileSiteKey) && !props.captchaToken)
+          !captchaReady
         }
         className="auth-cta"
       >
@@ -153,6 +156,7 @@ function LoginForm(props: AuthScreenProps & { onGithubClick: () => void; onGoogl
 }
 
 function ForgotPasswordForm({ onBack, turnstileSiteKey }: { onBack: () => void; turnstileSiteKey: string }) {
+  const captchaRequired = requiresAuthCaptcha(turnstileSiteKey, import.meta.env.PROD);
   const api = useApi();
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaAttempt, setCaptchaAttempt] = useState(0);
@@ -163,7 +167,7 @@ function ForgotPasswordForm({ onBack, turnstileSiteKey }: { onBack: () => void; 
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy || (turnstileSiteKey && !captchaToken)) return;
+    if (busy || !isAuthCaptchaReady(turnstileSiteKey, captchaToken, import.meta.env.PROD)) return;
     setBusy(true);
     setError(null);
     try {
@@ -192,15 +196,16 @@ function ForgotPasswordForm({ onBack, turnstileSiteKey }: { onBack: () => void; 
         <label className="auth-field__label" htmlFor="recovery-email">E-mail</label>
         <input id="recovery-email" type="email" value={email} onChange={(e) => setEmail(e.target.value)} autoComplete="email" placeholder="voce@empresa.com.br" required className="auth-field__input" />
       </div>
-      <Turnstile theme="light" siteKey={turnstileSiteKey} action="forgot_password" resetKey={captchaAttempt} onChange={setCaptchaToken} />
+      <Turnstile required={captchaRequired} theme="light" siteKey={turnstileSiteKey} action="forgot_password" resetKey={captchaAttempt} onChange={setCaptchaToken} />
       {error ? <div className="auth-hint" role="alert">{error}</div> : null}
-      <button type="submit" disabled={busy || (Boolean(turnstileSiteKey) && !captchaToken)} className="auth-cta">{busy ? "Enviando..." : "Enviar link"}</button>
+      <button type="submit" disabled={busy || !isAuthCaptchaReady(turnstileSiteKey, captchaToken, import.meta.env.PROD)} className="auth-cta">{busy ? "Enviando..." : "Enviar link"}</button>
       <button type="button" onClick={onBack} disabled={busy} className="auth-btn-secondary">← Voltar ao login</button>
     </form>
   );
 }
 
 export function ResetPasswordForm({ onBack, turnstileSiteKey = "" }: { onBack: () => void; turnstileSiteKey?: string }) {
+  const captchaRequired = requiresAuthCaptcha(turnstileSiteKey, import.meta.env.PROD);
   const api = useApi();
   const [captchaToken, setCaptchaToken] = useState<string | null>(null);
   const [captchaAttempt, setCaptchaAttempt] = useState(0);
@@ -215,7 +220,7 @@ export function ResetPasswordForm({ onBack, turnstileSiteKey = "" }: { onBack: (
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (busy || (turnstileSiteKey && !captchaToken)) return;
+    if (busy || !isAuthCaptchaReady(turnstileSiteKey, captchaToken, import.meta.env.PROD)) return;
     setError(null);
     if (newPassword.length < 8) { setError("Senha deve ter no mínimo 8 caracteres"); return; }
     if (newPassword !== confirmPassword) { setError("Senhas não conferem"); return; }
@@ -283,9 +288,9 @@ export function ResetPasswordForm({ onBack, turnstileSiteKey = "" }: { onBack: (
         <label className="auth-field__label" htmlFor="reset-confirm-password">Confirmar senha</label>
         <input id="reset-confirm-password" type="password" value={confirmPassword} onChange={(e) => setConfirmPassword(e.target.value)} autoComplete="new-password" placeholder="Repita a nova senha" required className="auth-field__input" />
       </div>
-      <Turnstile theme="light" siteKey={turnstileSiteKey} action="reset_password" resetKey={captchaAttempt} onChange={setCaptchaToken} />
+      <Turnstile required={captchaRequired} theme="light" siteKey={turnstileSiteKey} action="reset_password" resetKey={captchaAttempt} onChange={setCaptchaToken} />
       {error ? <div className="auth-hint" role="alert">{error}</div> : null}
-      <button type="submit" disabled={busy || (Boolean(turnstileSiteKey) && !captchaToken)} className="auth-cta">{busy ? "Salvando..." : "Redefinir senha"}</button>
+      <button type="submit" disabled={busy || !isAuthCaptchaReady(turnstileSiteKey, captchaToken, import.meta.env.PROD)} className="auth-cta">{busy ? "Salvando..." : "Redefinir senha"}</button>
     </form>
   );
 }

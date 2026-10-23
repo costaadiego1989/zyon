@@ -34,6 +34,7 @@ import { TrackCheckoutEventUseCase } from "../../../checkout/application/use-cas
 import { SendChatMessageUseCase } from "../../../checkout/application/use-cases/send-chat-message.use-case.js";
 import { ReconcileChatMessageUseCase } from "../../../checkout/application/use-cases/reconcile-chat-message.use-case.js";
 import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { parseStorefrontCouponPaymentScope, type StorefrontCouponPaymentScope } from "../../../payment/domain/storefront-coupon-payment-scope.js";
 import { ConfirmCryptoPaymentUseCase } from "../../../payment/application/confirm-crypto-payment.use-case.js";
 import { ConfirmStripePaymentUseCase } from "../../../payment/application/confirm-stripe-payment.use-case.js";
 import { GetPaymentIntentStatusUseCase } from "../../../payment/application/get-payment-intent-status.use-case.js";
@@ -462,11 +463,23 @@ export class EmbedCheckoutController {
     }
   ) {
     const embed = request.embedClaims!;
+    if (["storefrontCouponScope", "couponAuthority", "coupon_authority", "_storefrontCouponBinding"]
+      .some(key => Object.hasOwn(body, key))) throw new BadRequestException("payment_coupon_authority_conflict");
     if (typeof body.session_id !== "string" || typeof body.idempotency_key !== "string") {
       throw new BadRequestException("session_and_idempotency_required");
     }
     await this.embedGuards.assertSessionBelongsToEmbedMerchant(embed, body.session_id);
     await this.embedGuards.assertBuyerRegisteredForPayment(embed.merchantId, body.session_id);
+
+    let storefrontCouponScope: StorefrontCouponPaymentScope | undefined;
+    if (embed.storefrontCartRef !== undefined) {
+      const canonical = await this.embedGuards.loadSession(embed.merchantId, body.session_id);
+      if (!canonical || canonical.cart.cart_ref !== embed.storefrontCartRef) {
+        throw new BadRequestException("payment_coupon_authority_conflict");
+      }
+      storefrontCouponScope = parseStorefrontCouponPaymentScope({ merchantId: embed.merchantId,
+        checkoutSessionId: body.session_id, cartId: embed.storefrontCartRef, buyerId: canonical.globalUserId });
+    }
 
     // Extract buyer's real IP for Asaas tokenization (PCI compliance)
     const forwarded = request.headers?.["x-forwarded-for"];
@@ -488,7 +501,7 @@ export class EmbedCheckoutController {
           : undefined,
       credit_card: body.credit_card,
       remote_ip: remoteIp
-    }, { marketplaceSurface: "embed" });
+    }, { marketplaceSurface: "embed", ...(storefrontCouponScope ? { storefrontCouponScope } : {}) });
     const session = await this.embedGuards.loadSession(embed.merchantId, body.session_id.trim());
     const breakdown = intent.amountBreakdown;
     // Render the same finalized financial snapshot that the provider charged.

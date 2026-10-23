@@ -7,6 +7,23 @@ import { DEFAULT_RULES } from "../domain/merchant-rules.defaults.js";
 import { decodePersistedTheme } from "../domain/services/merchant-theme.validators.js";
 import { toNumber } from "../../../shared/persistence/decimal.util.js";
 import { isBillingFeatureEnabled } from "../../payment/domain/billing-plans.js";
+import { z } from "zod";
+
+const existingPercent = z.union([z.number().finite(), z.custom<Prisma.Decimal>(value => Prisma.Decimal.isDecimal(value))
+  .transform(value => value.toNumber())]).pipe(z.number().finite().min(0).max(100));
+const existingAuthority = z.object({ merchantId: z.string(), maxDiscountPercent: existingPercent,
+  minimumMarginPercent: existingPercent });
+
+/** Read-only existing-policy projection, reusable by transaction-bound callers.
+ * Shares the exact mapper; never provisions defaults or owns a transaction. */
+export async function readExistingPrismaMerchantRules(prisma: Pick<Prisma.TransactionClient, "merchantRule" | "merchant">, merchantId: string): Promise<MerchantRules | undefined> {
+  const row = await prisma.merchantRule.findUnique({ where: { merchantId } });
+  if (row === null) return undefined;
+  const authority = existingAuthority.safeParse(row);
+  if (!authority.success || authority.data.merchantId !== merchantId) return undefined;
+  const merchant = await prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+  return { ...toRules(row), policies: (merchant?.storeSettings as MerchantStoreSettings | null)?.checkoutPolicyLinks };
+}
 
 export class PrismaMerchantRepository implements MerchantRepository, MerchantRulesRepository {
   constructor(private readonly prisma: PrismaClient) {}
@@ -133,6 +150,10 @@ export class PrismaMerchantRepository implements MerchantRepository, MerchantRul
     });
     const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
     return { ...toRules(row), policies: (merchant?.storeSettings as MerchantStoreSettings | null)?.checkoutPolicyLinks };
+  }
+
+  async getExistingRules(merchantId: string): Promise<MerchantRules | undefined> {
+    return readExistingPrismaMerchantRules(this.prisma, merchantId);
   }
 
   async updateRules(merchantId: string, rules: Partial<MerchantRules>): Promise<MerchantRules> {

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { useCart } from "@/lib/cart-store";
-import { CartFAB, CartSheet } from "@zyon/checkout-ui";
+import { CartFAB, CartSheet, type CartLineSelection } from "@zyon/checkout-ui";
 import { useWidgetConfig } from "@/lib/widget-config";
 import { cartApi } from "@/lib/api/api-client";
 
@@ -9,8 +9,8 @@ interface NativeCartPanelProps {
   budgetModeEnabled?: boolean;
   onCheckout: () => void | Promise<void>;
   onViewCart: () => void;
-  onUpdateQty: (variantId: string, quantity: number) => void;
-  onRemoveItem: (variantId: string) => void;
+  onUpdateQty: (variantId: string, quantity: number, selection?: CartLineSelection) => void;
+  onRemoveItem: (variantId: string, selection?: CartLineSelection) => void;
   forceOpen?: boolean;
   onOpen?: () => void;
   onClose?: () => void;
@@ -108,6 +108,7 @@ export default function NativeCartPanel({
           subtotal: cart.total + (cart.discount ?? 0),
           discount: cart.discount ?? 0,
           total: cart.total,
+          commercialNotices: cart.commercialNotices,
         }}
         mode={isBudgetMode ? "budget" : "checkout"}
         updating={updating || widgetConfig == null}
@@ -124,8 +125,8 @@ export default function NativeCartPanel({
           setSheetOpen(false);
           onViewCart();
         }}
-        onUpdateQty={(id, quantity) => { handleManualOpen(); onUpdateQty(id, quantity); }}
-        onRemoveItem={(id) => { handleManualOpen(); onRemoveItem(id); }}
+        onUpdateQty={(id, quantity, selection) => { handleManualOpen(); onUpdateQty(id, quantity, selection); }}
+        onRemoveItem={(id, selection) => { handleManualOpen(); onRemoveItem(id, selection); }}
       />
     </>
   );

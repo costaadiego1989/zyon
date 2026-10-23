@@ -9,6 +9,8 @@ import ProductNarration from "./ProductNarration";
 import { ProductCopyLink } from "./ProductCopyLink";
 import styles from "./RichProductDetailsPanel.module.css";
 import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
+import type { CrossSellDetailPurchase } from "@/lib/storefront-cross-sell-detail";
+import type { CheckoutProductDetailPurchase } from "@/lib/checkout-product-detail";
 
 /** The official rich product surface: narration, reviews and editorial details. */
 export default function RichProductDetailsPanel({
@@ -16,6 +18,11 @@ export default function RichProductDetailsPanel({
   merchantSlug,
   crossSell = null,
   onAddCrossSell,
+  onOpenCrossSell,
+  financialPurchase,
+  checkoutPurchase,
+  presentCrossSell,
+  financialUnavailable,
   suspended = false,
   onClose,
   onProductResolved,
@@ -24,6 +31,11 @@ export default function RichProductDetailsPanel({
   merchantSlug?: string;
   crossSell?: CrossSellInterstitialData | null;
   onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  onOpenCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  financialPurchase?: CrossSellDetailPurchase;
+  checkoutPurchase?: CheckoutProductDetailPurchase;
+  presentCrossSell?: (products: CrossSellInterstitialData["products"]) => CrossSellInterstitialData["products"];
+  financialUnavailable?: boolean;
   suspended?: boolean;
   onClose: (result: { productId: string; productName?: string; defaultVariantId?: string | null; cartAdded: boolean }) => void;
   onProductResolved?: (product: { productId: string; name: string; defaultVariantId: string | null }) => void;
@@ -115,7 +127,7 @@ export default function RichProductDetailsPanel({
         </div>
       </header>
       <ProductContentBlock
-        key={productId}
+        key={checkoutPurchase?.request.key ?? financialPurchase?.context.key ?? productId}
         block={{ type: "product_content", data: { productId, blocks: [] } } as ConversationBlock & { type: "product_content" }}
         merchantSlug={merchantSlug}
         immersive
@@ -126,6 +138,11 @@ export default function RichProductDetailsPanel({
         onCartAdded={() => setCartAdded(true)}
         crossSell={crossSell}
         onAddCrossSell={onAddCrossSell}
+        onOpenCrossSell={onOpenCrossSell}
+        financialPurchase={financialPurchase}
+        checkoutPurchase={checkoutPurchase}
+        presentCrossSell={presentCrossSell}
+        financialUnavailable={financialUnavailable}
       />
     </div>
   );

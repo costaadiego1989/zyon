@@ -17,6 +17,7 @@ import {
 } from "../../domain/ports/whatsapp-session-repository.port.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 import { createHash } from "node:crypto";
 
 const SESSION_TTL_MS = 24 * 60 * 60 * 1000; // 24 hours
@@ -174,27 +175,30 @@ export class RouteToSessionUseCase {
     const conversationId = crypto.randomUUID();
     const now = new Date();
 
-    await this.prisma.checkoutSession.create({
-      data: {
-        merchantId,
-        sessionId,
-        globalUserId,
-        conversationId,
-        customer: {
-          phone: buyerData.phone,
-          phone_verified: true,
-          fullName: buyerData.fullName ?? null,
-          email: buyerData.email ?? null,
-          cpf: buyerData.cpf ?? null,
-          address: buyerData.address ?? null,
+    await this.prisma.$transaction(async tx => {
+      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
+      await tx.checkoutSession.create({
+        data: {
+          merchantId,
+          sessionId,
+          globalUserId,
+          conversationId,
+          customer: {
+            phone: buyerData.phone,
+            phone_verified: true,
+            fullName: buyerData.fullName ?? null,
+            email: buyerData.email ?? null,
+            cpf: buyerData.cpf ?? null,
+            address: buyerData.address ?? null,
+          },
+          cart: { items: [], total: 0, currency: "BRL" },
+          chatHistory: [],
+          abandonmentScore: 0,
+          triggerAgent: false,
+          createdAt: now,
+          updatedAt: now,
         },
-        cart: { items: [], total: 0, currency: "BRL" },
-        chatHistory: [],
-        abandonmentScore: 0,
-        triggerAgent: false,
-        createdAt: now,
-        updatedAt: now,
-      },
+      });
     });
 
     return sessionId;
