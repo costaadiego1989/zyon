@@ -26,6 +26,26 @@ function paymentStatusIsPaid(status?: string): boolean {
   return ['paid', 'confirmed', 'completed', 'approved'].includes(status ?? '');
 }
 
+function shippingOption(value: unknown): ShippingOption | null {
+  if (!value || typeof value !== 'object' || Array.isArray(value)) return null;
+  const row = value as Record<string, unknown>;
+  const prices = ['price', 'price_cents'].filter(key => Object.hasOwn(row, key)).map(key => row[key]);
+  if (!prices.length || prices.some(price => typeof price !== 'number' || !Number.isSafeInteger(price)
+    || price < 0 || price > 2_147_483_647 || price !== prices[0])) return null;
+  const durations = ['eta_days', 'eta_business_days', 'delivery_days'].filter(key => Object.hasOwn(row, key)).map(key => row[key]);
+  if (durations.some(days => typeof days !== 'number' || !Number.isSafeInteger(days) || days < 0
+    || days > 3650 || days !== durations[0])) return null;
+  const text = (value: unknown) => typeof value === 'string' && value.trim() ? value : undefined;
+  const days = durations[0] as number | undefined;
+  return {
+    key: text(row.carrier_key) ?? text(row.key) ?? text(row.carrier_name) ?? 'shipping',
+    label: text(row.label) ?? text(row.carrier_name) ?? 'Frete',
+    tag: text(row.tag) ?? (days === 1 ? 'Mais rápido' : 'Econômico'),
+    sub: text(row.sub) ?? (days ? `Chega em ${days} dias úteis` : 'Prazo a confirmar'),
+    cost: (prices[0] as number) / 100,
+  };
+}
+
 function base64UrlToBuffer(value: string): ArrayBuffer {
   const base64 = value.replace(/-/g, '+').replace(/_/g, '/').padEnd(Math.ceil(value.length / 4) * 4, '=');
   const binary = window.atob(base64);
@@ -384,16 +404,8 @@ export class PulseAPI {
         });
         if (r.ok) {
           const data = await r.json() as { results?: unknown[]; options?: unknown[] };
-          const opts = (data.results ?? data.options ?? []) as Array<{ carrier_key?: string; key?: string; carrier_name?: string; label?: string; tag?: string; sub?: string; price_cents?: number; delivery_days?: number; eta_business_days?: number }>;
-          if (opts.length > 0) {
-            return opts.map((o) => ({
-              key: o.carrier_key ?? o.key ?? o.carrier_name ?? 'shipping',
-              label: o.label ?? o.carrier_name ?? 'Frete',
-              tag: o.tag ?? ((o.eta_business_days ?? o.delivery_days) === 1 ? 'Mais rápido' : 'Econômico'),
-              sub: o.sub ?? ((o.eta_business_days ?? o.delivery_days) ? `Chega em ${o.eta_business_days ?? o.delivery_days} dias úteis` : 'Prazo a confirmar'),
-              cost: (o.price_cents ?? 0) / 100,
-            }));
-          }
+          const opts = data.results ?? data.options;
+          if (Array.isArray(opts)) return opts.map(shippingOption).filter((option): option is ShippingOption => option !== null);
         }
       } catch (e) {
         console.warn('[PulseAPI] getShipping failed:', e);
