@@ -249,6 +249,20 @@ export function handleQuickReply(params: QuickReplyParams) {
     window.dispatchEvent(new Event("aacp:open-buyer-hub"));
     return;
   }
+  if (lower === "status do pedido" || lower === "rastrear pedido") {
+    window.dispatchEvent(new CustomEvent("aacp:open-buyer-hub", {
+      detail: { tab: lower === "rastrear pedido" ? "tracking" : "orders" },
+    }));
+    return;
+  }
+  const supportView = lower === "reportar problema" ? "report"
+    : lower === "falar com humano" || lower === "falar com atendente" ? "human"
+      : lower === "faq" || lower === "perguntas frequentes" ? "faq"
+        : lower === "suporte" || lower === "ajuda" ? "welcome" : null;
+  if (supportView) {
+    window.dispatchEvent(new CustomEvent("zyon:open-support", { detail: { view: supportView } }));
+    return;
+  }
   if (lower === "ver carrinho" || lower === "ver meu carrinho") {
     setCartDrawerForceOpen(true);
     setTimeout(() => setCartDrawerForceOpen(false), 100);

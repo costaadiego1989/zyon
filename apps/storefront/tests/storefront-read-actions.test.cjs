@@ -14,12 +14,15 @@ const product = { tool: "get_product_details", args: { productId: "product-a" } 
 const plain = value => JSON.parse(JSON.stringify(value));
 const token = expired => `${Buffer.from(JSON.stringify({ origin: "https://store.fixture.invalid", expiresAt: Date.now() / 1000 + (expired ? -1 : 3600) })).toString("base64url")}.synthetic`;
 const response = (value, status = 200) => Response.json(value, { status });
+class BrowserCustomEvent extends Event {
+  constructor(type, init = {}) { super(type, init); this.detail = init.detail; }
+}
 
 function runtime(options = {}) {
   const cache = new Map(), calls = [], storage = new Map();
   const sessionStorage = { getItem: key => storage.get(key) ?? null, setItem: (key, value) => storage.set(key, value), removeItem: key => storage.delete(key) };
   const react = { ...require("react"), useCallback: fn => fn, useEffect: () => {}, useId: () => "track", useRef: () => ({ current: null }), useState: initial => [typeof initial === "function" ? initial() : initial, () => {}] };
-  const context = vm.createContext({ console, URL, URLSearchParams, Headers, Request, Response, AbortSignal, Date, atob, setTimeout, clearTimeout, Event,
+  const context = vm.createContext({ console, URL, URLSearchParams, Headers, Request, Response, AbortSignal, Date, atob, setTimeout, clearTimeout, Event, CustomEvent: BrowserCustomEvent,
     process: { env: { NEXT_PUBLIC_API_BASE_URL: "https://api.fixture.invalid" } },
     window: { location: { origin: "https://store.fixture.invalid" }, dispatchEvent: event => options.onEvent?.(event) }, sessionStorage, localStorage: sessionStorage,
     fetch: async (url, init = {}) => { const call = { url: String(url), ...init }; calls.push(call); if (options.fetch) return options.fetch(call, calls); if (call.url === "/api/storefront-conversations") return response({ merchant_id: "merchant-a", conversation_id: "conversation-a", conversation_token: token(), ui_action_capability: options.capability === undefined ? capability : options.capability }); if (call.url.endsWith("/access")) return response({ merchant_id: "merchant-a", conversation_id: "conversation-a", conversation_token: token(), ui_action_capability: capability }); return response({ message: "Resultado", blocks: [] }); },
@@ -60,6 +63,21 @@ test("Meus Dados opens the buyer hub without a model response or cart operation"
   assert.deepEqual(events, ["aacp:open-buyer-hub"]); assert.equal(f.calls.length, 0);
 });
 async function start(f) { await f.client().create({ merchantId: "merchant-a" }); }
+for (const [label, type, detail] of [
+  ["Reportar Problema", "zyon:open-support", { view: "report" }],
+  ["Falar com Humano", "zyon:open-support", { view: "human" }],
+  ["FAQ", "zyon:open-support", { view: "faq" }],
+  ["Suporte", "zyon:open-support", { view: "welcome" }],
+  ["Status do Pedido", "aacp:open-buyer-hub", { tab: "orders" }],
+  ["Rastrear Pedido", "aacp:open-buyer-hub", { tab: "tracking" }],
+]) test(`${label} opens its native destination without ticket, chat, or cart writes`, () => {
+  const events = [], f = runtime({ onEvent: event => events.push({ type: event.type, detail: plain(event.detail) }) });
+  const unexpected = () => assert.fail("navigation must not send messages or change commerce state");
+  f.load("lib/handlers/conversation.handlers.ts").handleQuickReply({ option: label, cartItemCount: 1,
+    merchantId: "merchant-a", conversationId: "conversation-a", sendMessage: unexpected,
+    setCartDrawerForceOpen: unexpected, setCheckoutIntent: unexpected, setShowBuyerAuth: unexpected });
+  assert.deepEqual(events, [{ type, detail }]); assert.equal(f.calls.length, 0);
+});
 function handlerParams(uiAction) {
   const effects = { messages: [], history: [], cartClears: 0, conversationChanges: [] };
   const params = { trimmed: "Detalhes duplicados", uiAction, conversationId: "conversation-a", merchantId: "merchant-a", history: [], cartId: "conversation-a", variantId: undefined,

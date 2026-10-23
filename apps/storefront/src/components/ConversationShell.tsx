@@ -23,7 +23,8 @@ import RichProductDetailsPanel from "./blocks/RichProductDetailsPanel";
 import { BuyerHub } from "./BuyerHub";
 import { BuyerHubTrigger } from "./BuyerHubTrigger";
 import { useBuyerSupportInbox } from "@/lib/viewmodels/useBuyerSupportInbox";
-import SupportPanel from "./SupportPanel";
+import SupportPanel, { type SupportTarget } from "./SupportPanel";
+import type { TabType } from "@/lib/viewmodels/useBuyerHub";
 import StoriesRow from "./StoriesRow";
 import CheckoutWidgetPanel from "./CheckoutWidgetPanel";
 import CheckoutPanel from "./CheckoutPanel";
@@ -304,6 +305,8 @@ export default function ConversationShell({
   const latestAgentMessage = [...messages].reverse().find((message) => message.role === "agent");
   const latestAgentBlocksReady = !latestAgentMessage || !pendingAgentBlocks.has(latestAgentMessage.id);
   const supportInbox = useBuyerSupportInbox(merchantId, conversationId);
+  const [supportTarget, setSupportTarget] = useState<SupportTarget>();
+  const [buyerHubTab, setBuyerHubTab] = useState<TabType>("profile");
   const inputRef = useRef<HTMLInputElement | null>(null);
   const threadRef = useRef<HTMLDivElement | null>(null);
   const presentedProductVariantRef = useRef<string | undefined>(undefined);
@@ -649,10 +652,19 @@ export default function ConversationShell({
     return () => controller.abort();
   }, [messages, merchantSlug, pendingAgentBlocks]);
   useEffect(() => {
-    const onOpenSupport = () => setSupportOpen(true);
+    const onOpenSupport = (event: Event) => {
+      setSupportTarget((event as CustomEvent<SupportTarget>).detail);
+      setBuyerHubOpen(false);
+      setSupportOpen(true);
+    };
     window.addEventListener("zyon:open-support", onOpenSupport);
+    const ticketId = new URL(window.location.href).searchParams.get("supportTicket");
+    if (ticketId && /^[A-Za-z0-9_-]{8,120}$/.test(ticketId)) {
+      setSupportTarget({ ticketId });
+      setSupportOpen(true);
+    }
     return () => window.removeEventListener("zyon:open-support", onOpenSupport);
-  }, []);
+  }, [setSupportOpen, setBuyerHubOpen]);
   useEffect(() => {
     const onVariantSelected = (event: Event) => {
       const detail = (event as CustomEvent<{ productId?: unknown; variantId?: unknown }>).detail;
@@ -665,10 +677,19 @@ export default function ConversationShell({
     return () => window.removeEventListener("aacp:rich-product-variant-selected", onVariantSelected);
   }, [richProduct?.productId]);
   useEffect(() => {
-    const onOpenBuyerHub = () => setBuyerHubOpen(true);
+    const onOpenBuyerHub = (event: Event) => {
+      const tab = (event as CustomEvent<{ tab?: string }>).detail?.tab;
+      setBuyerHubTab(tab === "orders" || tab === "tracking" || tab === "conversations" ? tab : "profile");
+      setSupportOpen(false);
+      setBuyerHubOpen(true);
+    };
     window.addEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
-    return () => window.removeEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
-  }, [setBuyerHubOpen]);
+    window.addEventListener("zyon:open-buyer-hub", onOpenBuyerHub);
+    return () => {
+      window.removeEventListener("aacp:open-buyer-hub", onOpenBuyerHub);
+      window.removeEventListener("zyon:open-buyer-hub", onOpenBuyerHub);
+    };
+  }, [setBuyerHubOpen, setSupportOpen]);
   useEffect(() => {
     const onRichProductAdd = (event: Event) => {
       if (detailScopeRef.current.context && detailScopeRef.current.productId === detailScopeRef.current.context.productId) return;
@@ -1158,7 +1179,7 @@ export default function ConversationShell({
       {/* Support FAB + Panel — only in chat mode */}
       {effectiveMode === "chat" && (
         <>
-          <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} merchantId={merchantId} agentName={agentName} />
+          <SupportPanel open={supportOpen} onClose={() => setSupportOpen(false)} merchantId={merchantId} agentName={agentName} target={supportTarget} />
         </>
       )}
       {/* Native Cart — FAB + lateral drawer, no iframe */}
@@ -1201,6 +1222,7 @@ export default function ConversationShell({
       />
       {/* Buyer Hub Panel */}
       <BuyerHub isOpen={buyerHubOpen} onClose={() => setBuyerHubOpen(false)} merchantId={merchantId} merchantSlug={merchantSlug} onToggleTheme={toggleTheme}
+        initialTab={buyerHubTab}
         supportInbox={supportInbox}
         currentSessionId={conversationId}
         onResumeConversation={async (conversation) => {
