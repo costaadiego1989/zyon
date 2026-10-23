@@ -41,7 +41,13 @@ const capture = () => list().map(file => {
 function verify(manifest) {
   assert.equal(manifest.sourceRoot, root);
   assert.equal(manifest.folder, path.resolve(destination));
-  assert.equal(manifest.base, git(['rev-parse', 'HEAD']), 'release_base_changed');
+  const currentHead = git(['rev-parse', 'HEAD']);
+  if (manifest.base !== currentHead) {
+    assert.ok(process.argv.includes('--allow-committed-ancestor'), 'release_base_changed');
+    // Committing the reviewed snapshot changes HEAD, not the frozen contents.
+    // An unrelated history is never accepted; all file hashes are still checked.
+    git(['merge-base', '--is-ancestor', manifest.base, currentHead]);
+  }
   assert.deepEqual(capture(), manifest.files, 'release_source_changed');
   for (const item of manifest.files) {
     assert.equal(hash(fs.readFileSync(path.join(destination, item.file))), item.sha256,
