@@ -1,6 +1,6 @@
 import type { Prisma } from "@prisma/client";
 import type { Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
-import { assessIncentiveMargin, moneyCents } from "@zyon/rules-engine";
+import { cartAmountIssue, moneyCents } from "@zyon/rules-engine";
 import { assessExecutableIncentive } from "../domain/executable-incentive.js";
 import type { CohortStats } from "../domain/services/discount-rule-hypothesis.service.js";
 import type { IncentivePlanningBaseline } from "../domain/incentive-measurement.js";
@@ -66,7 +66,7 @@ export async function loadDiscountHistory(tx: Prisma.TransactionClient, merchant
   const variantIds = [...new Set(eligible.flatMap(s => s.items.map(i => i.variantId as string)))];
   if (!variantIds.length) return { complete: true, buyers: [] };
   const prices = await tx.productPrice.findMany({ where: { variantId: { in: variantIds }, currency: "BRL",
-    costInCents: { not: null }, variant: { isActive: true, product: { merchantId, isActive: true, deletedAt: null } } },
+    variant: { isActive: true, product: { merchantId, isActive: true, deletedAt: null } } },
     select: { variantId: true, basePriceInCents: true, costInCents: true } });
   const catalog = new Map(prices.map(price => [price.variantId, price]));
   const buyers: DiscountHistory["buyers"] = [];
@@ -75,15 +75,15 @@ export async function loadDiscountHistory(tx: Prisma.TransactionClient, merchant
     const items: Cart["items"] = [];
     for (const item of entry.items) {
       const price = catalog.get(item.variantId);
-      if (!price || price.costInCents === null || !Number.isSafeInteger(price.costInCents) || price.costInCents < 0
-        || !Number.isSafeInteger(price.basePriceInCents) || price.basePriceInCents <= 0) break;
+      if (!price || !Number.isSafeInteger(price.basePriceInCents) || price.basePriceInCents <= 0) break;
       totalCents += price.basePriceInCents * item.quantity;
       items.push({ sku: item.variantId, variantId: item.variantId, name: "Produto", quantity: item.quantity,
-        price: price.basePriceInCents / 100, cost: price.costInCents / 100 });
+        price: price.basePriceInCents / 100,
+        ...(Number.isSafeInteger(price.costInCents) && price.costInCents! >= 0 ? { cost: price.costInCents! / 100 } : {}) });
     }
     if (items.length !== entry.items.length || !Number.isSafeInteger(totalCents)) continue;
     const cart: Cart = { currency: "BRL", total: totalCents / 100, items };
-    if (moneyCents(cart.total) === null || assessIncentiveMargin(cart, { totalDiscount: 0 }).status !== "estimated") continue;
+    if (cartAmountIssue(cart)) continue;
     const quote = record(entry.session.shipping);
     const shipping = quote && moneyCents(quote.customerPrice) !== null && moneyCents(quote.realCost) !== null
       ? { customerPrice: quote.customerPrice as number, realCost: quote.realCost as number,

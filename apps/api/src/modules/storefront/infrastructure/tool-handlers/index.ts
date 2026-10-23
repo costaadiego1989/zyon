@@ -10,9 +10,12 @@ import type { CrossSellPromotionRepository } from "../../../cross-sell/domain/po
 import type { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
 import type { CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
 import type { StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import type { StorefrontCrossSellCartPort } from "../../domain/ports/storefront-cross-sell-cart.port.js";
+import type { StorefrontCouponCartPort } from "../../domain/ports/storefront-coupon-cart.port.js";
 import type { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 import type { PrismaClient } from "@prisma/client";
 import type { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
+import type { StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
 import type { SubmitCustomerTestimonialUseCase } from "../../../catalog/application/use-cases/submit-customer-testimonial.use-case.js";
 import { createProductHandlers, type ProductHandlerDeps } from "./product.handlers.js";
 import { createCartHandlers, type CartHandlerDeps } from "./cart.handlers.js";
@@ -26,6 +29,8 @@ export interface AllHandlerDeps {
   productRepo: ProductRepositoryPort;
   stockRepo: StockRepositoryPort;
   cartRepo: StorefrontCartPort;
+  crossSellCart?: Pick<StorefrontCrossSellCartPort, "project">;
+  couponCart?: StorefrontCouponCartPort;
   prisma: PrismaClient;
   merchantRepo: MerchantRepository;
   supportHandoff: SupportHandoffService;
@@ -39,6 +44,7 @@ export interface AllHandlerDeps {
   productPromotionRepo?: ProductPromotionRepositoryPort;
   oneBuyClick?: OneBuyClickSessionService;
   submitTestimonial?: SubmitCustomerTestimonialUseCase;
+  shippingReference?: StorefrontShippingReferencePort;
 }
 
 export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestContext): StoreToolHandlers {
@@ -54,6 +60,8 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
   };
 
   const cartDeps: CartHandlerDeps = {
+    couponCart: deps.couponCart,
+    crossSellCart: deps.crossSellCart,
     productRepo: deps.productRepo,
     stockRepo: deps.stockRepo,
     cartRepo: deps.cartRepo,
@@ -68,6 +76,7 @@ export function composeStoreToolHandlers(deps: AllHandlerDeps, ctx: ToolRequestC
     couponRepo: deps.couponRepo,
     productPromotionRepo: deps.productPromotionRepo,
     oneBuyClick: deps.oneBuyClick,
+    shippingReference: deps.shippingReference,
   };
 
   const reviewDeps: ReviewHandlerDeps = {

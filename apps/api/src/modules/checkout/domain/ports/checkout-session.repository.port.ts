@@ -1,4 +1,5 @@
 import type { ChatTurn, CheckoutEventName, CheckoutSession, MerchantRules, PaymentMethod } from "@zyon/shared-types";
+import type { CheckoutEmailOtpVerificationScope, CheckoutEmailOtpVerificationCommand } from "../services/checkout-email-otp-verification.js";
 
 export const CHECKOUT_SESSION_REPOSITORY = Symbol("CHECKOUT_SESSION_REPOSITORY");
 
@@ -29,6 +30,27 @@ export interface CheckoutCommercialMutation {
 }
 
 export interface CheckoutSessionRepository {
+  /** Actual challenge/account/claim verification, identity CAS and durable
+   * acceptance transition in one transaction. Never accepts a verified flag. */
+  verifyEmailOtpAndRecognize?(scope: CheckoutEmailOtpVerificationScope, command: CheckoutEmailOtpVerificationCommand,
+    claim?: ChatExchangeClaim): Promise<CheckoutSession | undefined>;
+  /** Canonical identity pin for profile-only remount hydration. Does not grant
+   * or migrate a benefit; undefined is actual absence of NORMAL provenance. */
+  readVerifiedNormalBuyerIdentity?(scope: CheckoutEmailOtpVerificationScope,
+    expected: { expectedVersion: number; expectedBuyerId: string }): Promise<string | undefined>;
+  /** Privacy revocation only: server-generated anonymous UID plus exact public
+   * acceptance provenance. Never verifies email or transfers a personal owner. */
+  detachNormalBuyerEmail?(scope: CheckoutEmailOtpVerificationScope, command: { expectedVersion: number; email: string },
+    claim?: ChatExchangeClaim): Promise<CheckoutSession | undefined>;
+  /** Presence-only resume preflight, NOT release proof, ownership or a lease.
+   * Dedicated commands must reread/validate receipt, payments and version. */
+  hasReleasedStorefrontCouponBinding?(merchantId: string, sessionId: string): MaybePromise<boolean>;
+  /** Dedicated canonical coupon revalidation before payment; never a new grant. */
+  prepareStorefrontCouponBenefits?(merchantId: string, sessionId: string, method: string): Promise<CheckoutSession | undefined>;
+  /** Internal preflight for commands with external side effects. This reads the
+   * canonical private storage, not a bit exposed on the public Cart. It is not
+   * a lease: issuance/admission still require the common transactional fence. */
+  assertCouponBindingCommandAllowed?(merchantId: string, sessionId: string): MaybePromise<void>;
   assertBuyerEditAllowed?(merchantId: string, sessionId: string): Promise<void>;
   /** Buyer editing requires resolved payments, no active chat, and an open order. */
   reopenForBuyerEdit?(merchantId: string, sessionId: string, section: import("@zyon/shared-types").CheckoutEditSection): Promise<CheckoutSession>;

@@ -14,6 +14,14 @@ import {
   UpdateOrderStatusUseCase,
 } from "./order-command.use-cases.js";
 
+function ordinaryOrderPrisma(): ConstructorParameters<typeof CancelOrderUseCase>[4] {
+  return {
+    crossStoreLineItem: { findFirst: async () => null },
+    marketplaceFundingPlan: { findFirst: async () => null },
+    completedOrder: { findMany: async () => [] },
+  } as never;
+}
+
 describe("CancelOrderUseCase", () => {
   it("cancels the provider order, persists status and emits a tenant webhook", async () => {
     const checkout = completedOrderRepository();
@@ -29,6 +37,7 @@ describe("CancelOrderUseCase", () => {
           return [];
         },
       } as unknown as TenantWebhookPublisher,
+      ordinaryOrderPrisma(),
     );
 
     const result = await useCase.execute({
@@ -58,6 +67,7 @@ describe("CancelOrderUseCase", () => {
       checkout,
       commerce,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      ordinaryOrderPrisma(),
     );
 
     await assert.rejects(
@@ -78,6 +88,7 @@ describe("CancelOrderUseCase", () => {
       completedOrderRepository(),
       commerce,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      ordinaryOrderPrisma(),
     );
 
     await assert.rejects(
@@ -97,6 +108,7 @@ describe("CancelOrderUseCase", () => {
       checkout,
       commerce,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      ordinaryOrderPrisma(),
     );
 
     await useCase.execute({
@@ -121,6 +133,7 @@ describe("CancelOrderUseCase", () => {
           return [];
         },
       } as unknown as TenantWebhookPublisher,
+      ordinaryOrderPrisma(),
     );
 
     await assert.rejects(
@@ -139,6 +152,7 @@ describe("CancelOrderUseCase", () => {
       checkout,
       commerce,
       { publish: async () => [] } as unknown as TenantWebhookPublisher,
+      ordinaryOrderPrisma(),
     );
     const input = { merchantId: "mrc_a", orderId: "ord_1", reason: "Merchant requested" };
 

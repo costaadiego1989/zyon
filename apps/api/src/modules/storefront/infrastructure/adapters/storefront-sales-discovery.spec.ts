@@ -4,7 +4,9 @@ import { StorefrontConversationAdapter } from "./storefront-conversation.adapter
 
 function adapterFixture(cartRepo: unknown = {}, productRepo: unknown = {}) {
   // Constructor wiring requires a key, but this projection test never calls a
-  // provider: run() is replaced below. Restore the process environment at once.
+  // provider: prepare() returns a unit-only allowed turn whose run() is replaced
+  // below. This fixture does not prove semantic scope or paid classification.
+  // Restore the process environment at once.
   const previous = process.env.LOCAL_LLM_API_KEY;
   process.env.LOCAL_LLM_API_KEY = "qa-unused-provider-credential";
   try {
@@ -18,7 +20,8 @@ function adapterFixture(cartRepo: unknown = {}, productRepo: unknown = {}) {
 test("the storefront adapter projects discovery choices, even with a populated cart and custom action defaults",async()=>{
   const adapter=adapterFixture({getOrCreate:async()=>({items:[{variantId:"old",name:"Anterior",quantity:1}],total:100})});
   const discoveryQuestion={question:"Como você descreveria sua pele?",replies:["Oleosa","Seca","Mista","Não sei"]};
-  (adapter as any).agent={run:async()=>({message:discoveryQuestion.question,blocks:[],toolsUsed:["ask_product_preferences"],discoveryQuestion,cartId:"cart"})};
+  (adapter as any).agent={prepare:async()=>({allowed:true,run:async()=>({message:discoveryQuestion.question,blocks:[],toolsUsed:["ask_product_preferences"],discoveryQuestion,cartId:"cart",
+    routing:{source:"structured",intent:"PRODUCT_SEARCH",needsProductDiscovery:false}})})};
   const result=await adapter.reply({merchantId:"qa",sessionId:"session",cartId:"cart",userMessage:"Quero um produto para pele",history:[],
     oneBuyClick:{enabled:true,status:"idle",shippingPreference:"cheapest",paymentPreference:"pix"},
     storeCategory:"electronics",storeSettings:{quick_replies:{stages:[{stage:"welcome",replies:["Ver Carrinho","Finalizar Compra"]}],fallback:["Ofertas"]}}});
@@ -30,7 +33,8 @@ test("the storefront adapter projects discovery choices, even with a populated c
 
 test("a plain-text open question returns no unrelated configured buttons",async()=>{
   const adapter=adapterFixture();
-  (adapter as any).agent={run:async()=>({message:"Qual faixa de valor fica confortável?",blocks:[],toolsUsed:[]})};
+  (adapter as any).agent={prepare:async()=>({allowed:true,run:async()=>({message:"Qual faixa de valor fica confortável?",blocks:[],toolsUsed:[],
+    routing:{source:"structured",intent:"PRODUCT_SEARCH",needsProductDiscovery:false}})})};
   const result=await adapter.reply({merchantId:"qa",sessionId:"session",userMessage:"Está caro",history:[],storeCategory:"others"});
   assert.deepEqual(result.suggestedNext,[]);
   assert.deepEqual(result.blocks,[]);
@@ -40,9 +44,11 @@ test("browsing buttons after skin alternatives bypass the LLM, fallback search a
   let searches = 0;
   let providerCalls = 0;
   let cartCalls = 0;
+  let preparations = 0;
   const adapter = adapterFixture({ getOrCreate: async () => { cartCalls++; assert.fail("navigation cannot touch checkout/cart"); } },
     { search: async () => { searches++; assert.fail("navigation cannot repeat the carousel"); } });
-  (adapter as any).agent = { run: async () => { providerCalls++; assert.fail("no paid model call for a browsing prompt"); } };
+  (adapter as any).agent = { prepare: async () => { preparations++; return { allowed: true,
+    run: async () => { providerCalls++; assert.fail("no generation call for a browsing prompt after the scope gate"); } }; } };
   const history: Array<{ role: "user" | "assistant"; content: string }> = [
     { role: "user", content: "Quero um produto para pele" }, { role: "assistant", content: "Como é sua pele?" },
     { role: "user", content: "Oleosa" },
@@ -62,4 +68,5 @@ test("browsing buttons after skin alternatives bypass the LLM, fallback search a
   assert.equal(searches, 0);
   assert.equal(providerCalls, 0);
   assert.equal(cartCalls, 0);
+  assert.equal(preparations, 3, "each navigation still passes exactly one scope preparation before its shortcut");
 });

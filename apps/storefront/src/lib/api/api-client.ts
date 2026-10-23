@@ -19,8 +19,12 @@
  */
 
 import { conversationFetch, rememberConversationAccess } from "../conversation-access";
+import { cloneStorefrontReadUiAction, rememberStorefrontReadUiActionCapability, storefrontReadUiActionRequest } from "../storefront-read-ui-action";
+import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import { readCartLineSelection, type CartLineSelection } from "../cart-line-selection";
 import { apiCall } from "@/lib/services/http";
 import type { ConversationAttachment } from "@/lib/viewmodels/useConversationViewModel/types";
+import { assertCrossSellQuoteScope, assertCrossSellRequestScope, parseCrossSellAcceptance, parseCrossSellQuote, parseCrossSellSelection } from "../cross-sell-quote";
 
 const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
 export interface Product {
@@ -41,15 +45,18 @@ export interface ProductListResponse {
   products: Product[];
   nextCursor?: string;
 }
-async function safeFetch(url: string, options?: RequestInit, conversationId?: string) {
-  const request = {
-    ...options,
-    headers: {
-      "Content-Type": "application/json",
-      ...options?.headers,
-    },
+async function safeFetch(url: string, options?: RequestInit | (() => RequestInit), conversationId?: string, replayAuthorizationFailure = true) {
+  const request = () => {
+    const prepared = typeof options === "function" ? options() : options;
+    return {
+      ...prepared,
+      headers: {
+        "Content-Type": "application/json",
+        ...prepared?.headers,
+      },
+    };
   };
-  const res = await (conversationId ? conversationFetch(conversationId, url, request) : fetch(url, request));
+  const res = await (conversationId ? conversationFetch(conversationId, url, request, { replayAuthorizationFailure }) : fetch(url, request()));
   if (!res.ok) {
     const error: any = new Error(`HTTP ${res.status}`);
     error.status = res.status;
@@ -112,19 +119,23 @@ export const checkoutApi = {
     items?: any[];
   }): Promise<any> {
     const key = JSON.stringify(data);
+    const merchantId = data.merchantId;
     const pending = conversationStarts.get(key);
     if (pending) return pending;
     const start = (async () => {
       const result = await safeFetch("/api/storefront-conversations", {
         method: "POST",
         body: JSON.stringify({
-          merchant_id: data.merchantId,
+          merchant_id: merchantId,
           customer_id: data.customerId,
           items: data.items,
         }),
       });
+      if (Object.prototype.hasOwnProperty.call(result, "merchant_id") && result.merchant_id !== merchantId) throw new Error("conversation_start_merchant_mismatch");
       if (typeof result.conversation_id !== "string" || typeof result.conversation_token !== "string") throw new Error("missing_conversation_access");
       rememberConversationAccess(result.conversation_id, result.conversation_token);
+      rememberStorefrontReadUiActionCapability(result.conversation_id,
+        result.merchant_id === merchantId ? result.merchant_id : undefined, result.ui_action_capability);
       return result;
     })();
     conversationStarts.set(key, start);
@@ -145,21 +156,31 @@ export const checkoutApi = {
     history?: any[];
     variantId?: string;
     attachment?: ConversationAttachment;
+    uiAction?: StorefrontReadUiAction;
     voiceTurnToken?: string;
   }): Promise<any> {
-    return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, {
+    const hasUiAction = options?.uiAction !== undefined;
+    // Reject malformed commands before IO. The transport prepares the body only
+    // after learning any successful renewal's protocol support.
+    const uiActionSnapshot = hasUiAction ? cloneStorefrontReadUiAction(options.uiAction) : undefined;
+    const merchantId = options?.merchantId;
+    const buyerAuthorization = options?.token ? `Bearer ${options.token}` : undefined;
+    // Freeze the actual JSON semantics before renewal can yield to UI changes.
+    // Only capability selection belongs after preflight, never buyer/intent data.
+    const bodySnapshot = JSON.parse(JSON.stringify({
+      merchant_id: merchantId, user_message: text, cart_id: checkoutId,
+      history: options?.history, variant_id: options?.variantId || undefined,
+      attachment: options?.attachment,
+      voice_turn_token: options?.voiceTurnToken,
+    }));
+    return safeFetch(`${API_BASE}/storefront/conversations/${checkoutId}/messages`, () => ({
       method: "POST",
-      headers: options?.token ? { "X-Buyer-Authorization": `Bearer ${options.token}` } : undefined,
+      headers: buyerAuthorization ? { "X-Buyer-Authorization": buyerAuthorization } : undefined,
       body: JSON.stringify({
-        merchant_id: options?.merchantId,
-        user_message: text,
-        cart_id: checkoutId,
-        history: options?.history,
-        variant_id: options?.variantId || undefined,
-        attachment: options?.attachment,
-        voice_turn_token: options?.voiceTurnToken,
+        ...bodySnapshot,
+        ...(hasUiAction ? storefrontReadUiActionRequest(checkoutId, merchantId, uiActionSnapshot) : undefined),
       }),
-    }, checkoutId);
+      }), checkoutId, false);
   },
 
   async getOneBuyClick(conversationId: string, buyerToken?: string): Promise<{
@@ -209,6 +230,26 @@ export const checkoutApi = {
     });
   },
 };
+/** Dedicated buyer-confirmed route. Never send a quote through chat/LLM tools. */
+export const crossSellApi = {
+  async quote(merchantId: string, cartId: string, conversationId: string, input: unknown) {
+    assertCrossSellRequestScope(merchantId, cartId, conversationId);
+    const request = parseCrossSellSelection(input);
+    const result = parseCrossSellQuote(await safeFetch(
+      `${API_BASE}/storefront/${encodeURIComponent(merchantId)}/cart/${encodeURIComponent(cartId)}/cross-sell/quote`,
+      { method: "POST", body: JSON.stringify(request) }, conversationId, false));
+    assertCrossSellQuoteScope(result, merchantId, cartId, request);
+    return result;
+  },
+  async accept(merchantId: string, cartId: string, conversationId: string, input: unknown) {
+    assertCrossSellRequestScope(merchantId, cartId, conversationId);
+    const expectedQuote = parseCrossSellQuote(input);
+    assertCrossSellQuoteScope(expectedQuote, merchantId, cartId);
+    return parseCrossSellAcceptance(await safeFetch(
+      `${API_BASE}/storefront/${encodeURIComponent(merchantId)}/cart/${encodeURIComponent(cartId)}/cross-sell/accept`,
+      { method: "POST", body: JSON.stringify({ expectedQuote }) }, conversationId, false), merchantId, cartId);
+  },
+};
 export const cartApi = {
   async requestBudget(cartId: string, merchantId: string, data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }): Promise<{ id: string; status: string }> {
     return safeFetch(`${API_BASE}/storefront/budget-requests`, {
@@ -227,12 +268,13 @@ export const cartApi = {
     variantId: string,
     quantity: number,
     merchantId: string,
+    selection?: CartLineSelection,
   ): Promise<any> {
     return safeFetch(
       `${API_BASE}/storefront/cart/${encodeURIComponent(cartId)}/items/${encodeURIComponent(variantId)}?merchantId=${encodeURIComponent(merchantId)}`,
       {
         method: "PATCH",
-        body: JSON.stringify({ quantity }),
+        body: JSON.stringify({ quantity, ...readCartLineSelection(selection ?? {}) }),
       },
       cartId,
     );

@@ -85,7 +85,7 @@ test("DeterministicConversationAdapter.reply mentions approved offer", async () 
   assert.match(result.message, /10%/);
 });
 
-test("DeterministicConversationAdapter.reply includes agent name prefix when agentContext provided", async () => {
+test("DeterministicConversationAdapter.reply preserves the shared deterministic payment template with agent context", async () => {
   const result = await adapter.reply({
     userMessage: "ok",
     brandVoice: "consultative",
@@ -131,5 +131,6 @@ test("DeterministicConversationAdapter.reply includes agent name prefix when age
       copy_constraints: []
     }
   });
-  assert.match(result.message, /Nina:/);
+  assert.equal(result.message, "Vamos finalizar seu pedido. Escolha uma das formas de pagamento disponíveis.");
+  assert.equal(result.objection, "unknown");
 });

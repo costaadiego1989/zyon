@@ -1,6 +1,8 @@
 "use client";
 
 import type { ConversationBlock } from "@/lib/types";
+import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import type { CrossSellDisplayProduct } from "@/lib/storefront-cross-sell-flow";
 import ProductCardBlock from "./ProductCardBlock";
 import ProductCarouselBlock from "./ProductCarouselBlock";
 import ComparisonTableBlock from "./ComparisonTableBlock";
@@ -23,10 +25,15 @@ export default function BlockRenderer({
   block,
   onQuickReply,
   merchantSlug,
+  crossSell,
+  onOpenCrossSell,
 }: {
   block: ConversationBlock;
-  onQuickReply?: (option: string) => void;
+  onQuickReply?: (option: string, uiAction?: StorefrontReadUiAction) => void;
   merchantSlug?: string;
+  crossSell?: { present: (products: readonly CrossSellDisplayProduct[]) => CrossSellDisplayProduct[];
+    accept: (product: CrossSellDisplayProduct) => Promise<boolean> };
+  onOpenCrossSell?: (product: CrossSellDisplayProduct) => void;
 }) {
   switch (block.type) {
     case "product_card":
@@ -58,8 +65,13 @@ export default function BlockRenderer({
       return <ReviewsBlock block={block} onQuickReply={onQuickReply} />;
     case "add_review":
       return <AddReviewBlock block={block} onQuickReply={onQuickReply} />;
-    case "cross_sell":
-      return <CrossSellBlock block={block as any} onQuickReply={onQuickReply} />;
+    case "cross_sell": {
+      const data = (block as any).data;
+      const products = crossSell ? crossSell.present(data.products)
+        : data.products.filter((product: CrossSellDisplayProduct) => !product.promoId && !product.couponCode && !(product.discountPercent && product.discountPercent > 0));
+      if (!products.length) return null;
+      return <CrossSellBlock block={{ ...block, data: { ...data, products } } as any} onQuickReply={onQuickReply} onAcceptCrossSell={crossSell?.accept} onOpenCrossSell={onOpenCrossSell} />;
+    }
     case "category_carousel":
       return <CategoryCarouselBlock block={block as any} onQuickReply={onQuickReply} />;
     case "marketplace_products":

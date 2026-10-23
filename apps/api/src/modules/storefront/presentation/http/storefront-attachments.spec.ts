@@ -13,9 +13,13 @@ function fixture() {
     capabilities,
     attachmentInterpreter: new StorefrontAttachmentInterpreter(),
     conversationRateLimiter: { consume: () => ({ allowed: true, limit: 10, remaining: 9, resetAt: Date.now() + 60_000 }) },
-    sendStoreMessage: { execute: async (input: Record<string, unknown>) => { calls.push(input); return { message: "Produtos encontrados", blocks: [] }; } },
+    sendStoreMessage: { execute: async (input: Record<string, unknown>, deferred?: () => Promise<{ attachmentContext?: string }>) => {
+      const context = await deferred?.();
+      calls.push({ ...input, attachment_context: context?.attachmentContext });
+      return { message: "Produtos encontrados", blocks: [] };
+    } },
   }) as StorefrontController;
-  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "cart_a", origin: "https://store.example" });
+  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "cart_a", origin: "https://store.example", aiUserId: "visitor:user_a" });
   const request = { headers: { authorization: `Bearer ${access.token}`, origin: "https://store.example" } };
   return { controller, calls, request };
 }

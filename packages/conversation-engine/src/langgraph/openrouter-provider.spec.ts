@@ -198,3 +198,66 @@ test("OpenRouterProvider.isAvailable returns false when apiKey missing", () => {
 type _ChatMessage = OpenRouterChatMessage;
 const _check: _ChatMessage = { role: "user", content: "x" };
 void _check;
+
+test("structured format is opt-in and preserves refusal and finish metadata", async () => {
+  const bodies: Record<string, unknown>[] = [];
+  const provider = new OpenRouterProvider({ apiKey: "test-only", fetchFn: (async (_url, init) => {
+    bodies.push(JSON.parse(String(init?.body)));
+    return new Response(JSON.stringify({ choices: [{ finish_reason: "content_filter", message: { content: null, refusal: "refused" } }] }));
+  }) as typeof fetch });
+  const result = await provider.chat({ messages: [], responseFormat: { type: "json_object" } });
+  await provider.chat({ messages: [] });
+  assert.deepEqual(bodies[0]?.response_format, { type: "json_object" });
+  assert.ok(!Object.hasOwn(bodies[1]!, "response_format"));
+  assert.equal(result.content, "");
+  assert.equal(result.finishReason, "content_filter");
+  assert.equal(result.refusal, "refused");
+});
+
+test("strict JSON Schema is forwarded unchanged to the compatible provider", async () => {
+  const format = { type: "json_schema" as const, json_schema: { name: "reply_v1", strict: true, schema: { type: "object", additionalProperties: false, properties: { message: { type: "string" } }, required: ["message"] } } };
+  const provider = new OpenRouterProvider({ apiKey: "test-only", fetchFn: (async (_url, init) => {
+    assert.deepEqual(JSON.parse(String(init?.body)).response_format, format);
+    return new Response(JSON.stringify({ choices: [{ message: { content: '{"message":"Oi"}' } }] }));
+  }) as typeof fetch });
+  assert.equal((await provider.chat({ messages: [], responseFormat: format })).content, '{"message":"Oi"}');
+});
+
+test("optional abort signal is forwarded only to fetch and an aborted call is never retried", async () => {
+  const signal = AbortSignal.abort(new DOMException("synthetic_abort", "TimeoutError")); let attempts = 0;
+  const provider = new OpenRouterProvider({ apiKey: "synthetic-test-only", fetchFn: (async (_url, init) => {
+    attempts++; assert.equal(init?.signal, signal); assert.equal(Object.hasOwn(JSON.parse(String(init?.body)), "signal"), false);
+    signal.throwIfAborted(); throw new Error("unreachable_after_abort");
+  }) as typeof fetch });
+  await assert.rejects(provider.chat({ messages: [], signal }), error => error === signal.reason);
+  assert.equal(attempts, 1);
+});
+
+test("legacy request without signal keeps the original fetch defaults and wire body", async () => {
+  let attempts = 0;
+  const provider = new OpenRouterProvider({ apiKey: "synthetic-test-only", fetchFn: (async (_url, init) => {
+    attempts++; assert.equal(Object.hasOwn(init!, "signal"), false); assert.equal(Object.hasOwn(JSON.parse(String(init?.body)), "signal"), false);
+    return new Response(JSON.stringify({ choices: [{ finish_reason: "stop", message: { content: "ok" } }] }));
+  }) as typeof fetch });
+  assert.equal((await provider.chat({ messages: [] })).content, "ok"); assert.equal(attempts, 1);
+});
+
+for (const rawUsage of [undefined, null, {}, { prompt_tokens: 12 }, { prompt_tokens: "12", completion_tokens: 4, total_tokens: 16 },
+  { prompt_tokens: -1, completion_tokens: 4, total_tokens: 3 }, { prompt_tokens: 1.5, completion_tokens: 4, total_tokens: 5.5 },
+  { prompt_tokens: 12, completion_tokens: 4, total_tokens: 1 }, { prompt_tokens: Number.MAX_SAFE_INTEGER + 1, completion_tokens: 0, total_tokens: Number.MAX_SAFE_INTEGER + 1 }]) {
+  test(`RAW usage provenance remains unknown rather than normalized zero: ${JSON.stringify(rawUsage)}`, async () => {
+    const provider = new OpenRouterProvider({ apiKey: "synthetic-test-only", fetchFn: (async () => new Response(JSON.stringify({
+      choices: [{ finish_reason: "stop", message: { content: "ok" } }], ...(rawUsage === undefined ? {} : { usage: rawUsage }),
+    }))) as typeof fetch });
+    const result = await provider.chat({ messages: [] }); assert.equal(result.usageKnown, false); assert.equal(result.content, "ok");
+  });
+}
+for (const rawUsage of [{ prompt_tokens: 12, completion_tokens: 4, total_tokens: 16 }, { prompt_tokens: 0, completion_tokens: 0, total_tokens: 0 }]) {
+  test(`RAW complete measured counts preserve usage provenance: ${JSON.stringify(rawUsage)}`, async () => {
+    const provider = new OpenRouterProvider({ apiKey: "synthetic-test-only", fetchFn: (async () => new Response(JSON.stringify({
+      choices: [{ finish_reason: "stop", message: { content: "ok" } }], usage: rawUsage,
+    }))) as typeof fetch });
+    const result = await provider.chat({ messages: [] }); assert.equal(result.usageKnown, true);
+    assert.deepEqual(result.usage, { promptTokens: rawUsage.prompt_tokens, completionTokens: rawUsage.completion_tokens, totalTokens: rawUsage.total_tokens });
+  });
+}

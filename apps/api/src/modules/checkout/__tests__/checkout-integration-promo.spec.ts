@@ -1,9 +1,33 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import type { ProductPromotionRepositoryPort, ProductPromotionEntity, CreateProductPromotionInput } from "../../catalog/domain/ports/product-promotion-repository.port.js";
+import type { ProductPromotionRepositoryPort, ProductPromotionEntity, CreateProductPromotionInput, UpdateProductPromotionInput } from "../../catalog/domain/ports/product-promotion-repository.port.js";
+import type { PrismaClient } from "@prisma/client";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
-import { startCheckoutRequest } from "./checkout-test-fixtures.js";
+import { startCheckoutRequest, merchantRules } from "./checkout-test-fixtures.js";
 import { createStartCheckoutUseCase } from "../application/use-cases/start-checkout.fixture.js";
+import { CheckoutCartAuthorityService } from "../application/services/checkout-cart-authority.service.js";
+import { CartPromoResolutionService } from "../application/services/cart-promo-resolution.service.js";
+import type { ValidateCartForPaymentUseCase } from "../../commerce/application/validate-cart-for-payment.use-case.js";
+
+// Exercise the real authority/projector before StartCheckout marks the cart validated.
+// Fixed server catalog, never derived from the submitted unit price or cost.
+function promoCheckout(checkoutRepo: InMemoryCheckoutRepository, promoRepo: ProductPromotionRepositoryPort) {
+  const catalog = ["mrc_1", "mrc_2"].flatMap(merchantId => [
+    ["ZYON-SHIRT-001", 10000], ["ZYON-SHIRT-002", 10000], ["ZYON-SHIRT-003", 5000],
+    ["ZYON-SHIRT-004", 10000], ["ZYON-PANTS-001", 5000],
+  ].map(([sku, amount]) => ({ id: String(sku), productId: String(sku), sku: String(sku), isActive: true,
+    product: { id: String(sku), merchantId, name: String(sku), type: "physical", isActive: true, deletedAt: null, metadata: {}, categoryId: null },
+    price: { basePriceInCents: Number(amount), costInCents: 1000, currency: "BRL" }, stock: [{ quantity: 10, reserved: 0 }], media: [] })));
+  const prisma = { productVariant: { async findMany(args: { where: { sku: { in: string[] }; isActive: boolean; product: { merchantId: string; isActive: boolean; deletedAt: null } } }) {
+    assert.equal(args.where.isActive, true);
+    assert.deepEqual(args.where.product, { merchantId: args.where.product.merchantId, isActive: true, deletedAt: null });
+    return catalog.filter(row => row.product.merchantId === args.where.product.merchantId && args.where.sku.in.includes(row.sku));
+  } } };
+  const rules = { getRules: async () => merchantRules({ maxDiscountPercent: 30, minimumMarginPercent: 38 }) };
+  const cartAuthority = new CheckoutCartAuthorityService(prisma as unknown as PrismaClient, {} as ValidateCartForPaymentUseCase,
+    new CartPromoResolutionService(promoRepo, rules));
+  return createStartCheckoutUseCase(checkoutRepo, checkoutRepo, { promoRepository: promoRepo, cartAuthority });
+}
 
 // In-memory product promotion repository for testing
 class InMemoryProductPromotionRepository implements ProductPromotionRepositoryPort {
@@ -22,12 +46,12 @@ class InMemoryProductPromotionRepository implements ProductPromotionRepositoryPo
     return promo;
   }
 
-  async update(id: string, merchantId: string, input: any): Promise<ProductPromotionEntity> {
+  async update(id: string, merchantId: string, input: UpdateProductPromotionInput): Promise<ProductPromotionEntity> {
     const key = `${merchantId}`;
     const promos = this.promotions.get(key) ?? [];
     const index = promos.findIndex((p) => p.id === id);
     if (index === -1) throw new Error("promotion_not_found");
-    const updated = { ...promos[index], ...input, updatedAt: new Date() };
+    const updated = { ...promos[index]!, ...input, updatedAt: new Date() };
     promos[index] = updated;
     return updated;
   }
@@ -71,7 +95,7 @@ class InMemoryProductPromotionRepository implements ProductPromotionRepositoryPo
   }
 
   async findActiveBySku(merchantId: string, sku: string, now?: Date): Promise<ProductPromotionEntity[]> {
-    // Test double: SKU maps to a promo whose productId or variantId equals the sku.
+    // Explicit fixture stable ID equals SKU; runtime lookup is tenant-scoped.
     const key = `${merchantId}`;
     const promos = this.promotions.get(key) ?? [];
     const checkDate = now ?? new Date();
@@ -102,9 +126,7 @@ test("StartCheckout with product promo: resolves unit_price via promo resolver",
     endsAt: tomorrow,
   });
 
-  const useCase = createStartCheckoutUseCase(checkoutRepo, checkoutRepo, {
-    promoRepository: promoRepo,
-  });
+  const useCase = promoCheckout(checkoutRepo, promoRepo);
 
   // Start checkout with a cart line that matches the promo
   const response = await useCase.execute(
@@ -150,9 +172,7 @@ test("StartCheckout with coupon promo: unit_price unchanged, no fabricated disco
     endsAt: tomorrow,
   });
 
-  const useCase = createStartCheckoutUseCase(checkoutRepo, checkoutRepo, {
-    promoRepository: promoRepo,
-  });
+  const useCase = promoCheckout(checkoutRepo, promoRepo);
 
   const response = await useCase.execute(
     startCheckoutRequest({
@@ -184,9 +204,7 @@ test("StartCheckout without promo: unit_price = base price", async () => {
   const checkoutRepo = new InMemoryCheckoutRepository();
   const promoRepo = new InMemoryProductPromotionRepository();
 
-  const useCase = createStartCheckoutUseCase(checkoutRepo, checkoutRepo, {
-    promoRepository: promoRepo,
-  });
+  const useCase = promoCheckout(checkoutRepo, promoRepo);
 
   const response = await useCase.execute(
     startCheckoutRequest({
@@ -239,9 +257,7 @@ test("StartCheckout with multiple lines: each resolved independently", async () 
     endsAt: tomorrow,
   });
 
-  const useCase = createStartCheckoutUseCase(checkoutRepo, checkoutRepo, {
-    promoRepository: promoRepo,
-  });
+  const useCase = promoCheckout(checkoutRepo, promoRepo);
 
   const response = await useCase.execute(
     startCheckoutRequest({
@@ -291,9 +307,7 @@ test("StartCheckout with promo: merchant boundary enforced (cross-merchant acces
     endsAt: tomorrow,
   });
 
-  const useCase = createStartCheckoutUseCase(checkoutRepo, checkoutRepo, {
-    promoRepository: promoRepo,
-  });
+  const useCase = promoCheckout(checkoutRepo, promoRepo);
 
   // Start checkout for mrc_2 with same product
   const response = await useCase.execute(
@@ -340,9 +354,7 @@ test("StartCheckout with inline price promo: resolves to promo price", async () 
     endsAt: tomorrow,
   });
 
-  const useCase = createStartCheckoutUseCase(checkoutRepo, checkoutRepo, {
-    promoRepository: promoRepo,
-  });
+  const useCase = promoCheckout(checkoutRepo, promoRepo);
 
   const response = await useCase.execute(
     startCheckoutRequest({

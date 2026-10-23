@@ -16,12 +16,21 @@ import { deriveChatStage, missingFieldsForStage } from "../../domain/services/cu
 import type { MerchantRules } from "@zyon/shared-types";
 import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
 import { checkoutShippingLabel } from "../../domain/services/checkout-shipping-label.js";
+import { commercialNoticesSchema } from "../../../storefront/domain/contracts/commercial-notice.schemas.js";
+import { commercialNotice } from "../../../storefront/domain/services/commercial-notice.js";
 
 export interface ExperienceInputs {
   merchant_id: string;
   cart: Cart;
   customer?: CustomerHints;
   shipping?: ShippingQuote;
+}
+
+function publicCommercialNotices(value: unknown): Pick<CheckoutExperienceSnapshot, "commercial_notices"> {
+  const parsed = commercialNoticesSchema.safeParse(value);
+  return parsed.success && parsed.data.length
+    ? { commercial_notices: parsed.data.map(notice => commercialNotice(notice.code)) }
+    : {};
 }
 
 export interface ExperienceDeps {
@@ -274,6 +283,7 @@ export function buildCheckoutExperience(input: ExperienceInputs, deps: Experienc
       total_to_pay: totalToPay,
       total
     },
+    ...publicCommercialNotices(input.cart.commercialNotices),
     commercial_nudge: publicCommercialNudge(input.cart.commercialNudge),
     applied_benefits: input.cart.appliedBenefits?.filter(benefit =>
       (benefit.kind === "discount" || benefit.kind === "shipping") && typeof benefit.label === "string"

@@ -93,11 +93,8 @@ export class SentryModule implements OnApplicationShutdown {
       try {
         const close = (state.sdk as unknown as { close?: (timeout: number) => void }).close;
         close?.(2_000);
-      } catch (err) {
-        Logger.warn(
-          `Sentry shutdown failed: ${err instanceof Error ? err.message : String(err)}`,
-          SentryModule.name,
-        );
+      } catch {
+        Logger.warn({ event: "sentry.shutdown_failed" }, SentryModule.name);
       }
     }
   }
@@ -115,13 +112,8 @@ function initSdk(config: SentryConfig): typeof Sentry | null {
       enabled: true,
     });
     return Sentry;
-  } catch (err) {
-    Logger.warn(
-      `Sentry init failed; running without error tracking. ${
-        err instanceof Error ? err.message : String(err)
-      }`,
-      SentryModule.name,
-    );
+  } catch {
+    Logger.warn({ event: "sentry.init_failed" }, SentryModule.name);
     return null;
   }
 }

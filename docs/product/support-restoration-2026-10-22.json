@@ -1,0 +1,20 @@
+{
+  "scope": "Sandbox persistent support recovery",
+  "publishedBaseline": "d79a902",
+  "baselineSource": "zyon-support-quick-replies-release-20261022",
+  "recoveredBranch": "release/conversational-cancellation-20261008",
+  "recoveredIntegration": "17bb2aa5d08305eaca8066e068d4eaba8f43415a",
+  "recoveredSourceHead": "876780d",
+  "behavior": [
+    "Reportar Problema and Falar com Humano open native authenticated message intake",
+    "Navigation and empty input never create tickets",
+    "First submitted text opens or reuses the buyer's active merchant support case",
+    "Persisted history, replies, return requests and reload resume are available",
+    "Meus Dados opens the buyer account; Status do Pedido and Rastrear Pedido select their respective tabs",
+    "FAQ reads the merchant's public questions through a GET-only route",
+    "Existing encrypted buyer phones are decoded before validating the storefront conversation context"
+  ],
+  "integrationRequirement": "Future storefront releases must include this integration and its navigation, binary proxy and browser lifecycle checks; deploying the older SupportPanel removes persistent intake again.",
+  "browserRegression": "apps/storefront/e2e/support-navigation.live.cjs",
+  "productionPublished": false
+}

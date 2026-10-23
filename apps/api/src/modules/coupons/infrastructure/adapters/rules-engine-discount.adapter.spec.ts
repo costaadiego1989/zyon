@@ -3,6 +3,7 @@ import assert from "node:assert/strict";
 import { RulesEngineDiscountAdapter } from "./rules-engine-discount.adapter.js";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import type { Cart, MerchantRules } from "@zyon/shared-types";
+import { evaluateDiscountOffer } from "@zyon/rules-engine";
 
 const adapter = new RulesEngineDiscountAdapter();
 
@@ -13,6 +14,19 @@ const BASE_CART: Cart = {
 };
 
 describe("RulesEngineDiscountAdapter", () => {
+  for(const scale of [1,100])it(`preserves exact fixed cents without a percent roundtrip at scale ${scale}`,()=>{
+    const cart:Cart={currency:"BRL",total:47/scale,currentDiscount:0,
+      items:[{sku:"SKU",name:"Synthetic",price:47/scale,quantity:1}],
+      discountBudget:{version:1,originalSubtotalCents:5000/scale,promotionDiscountCents:300/scale}};
+    const result=adapter.authorizeDiscount(cart,{...DEFAULT_MERCHANT_RULES,maxDiscountPercent:20},1/scale,"fixed");
+    assert.equal(result.approved,true);assert.equal(result.authorizedDiscount,1/scale);
+  });
+  it("fixed cents still consume only the remaining combined P+D ceiling",()=>{
+    const cart:Cart={currency:"BRL",total:47,currentDiscount:0,items:[{sku:"SKU",name:"Synthetic",price:47,quantity:1}],
+      discountBudget:{version:1,originalSubtotalCents:5000,promotionDiscountCents:300}};
+    const result=adapter.authorizeDiscount(cart,{...DEFAULT_MERCHANT_RULES,maxDiscountPercent:20},10,"fixed");
+    assert.equal(result.approved,true);assert.equal(result.authorizedDiscount,7);
+  });
   it("approves percent discount within limits", () => {
     const rules: MerchantRules = { ...DEFAULT_MERCHANT_RULES, maxDiscountPercent: 15, minimumMarginPercent: 0 };
     const result = adapter.authorizeDiscount(BASE_CART, rules, 10, "percent");
@@ -28,17 +42,25 @@ describe("RulesEngineDiscountAdapter", () => {
     assert.ok(result.reason.includes("capped"));
   });
 
-  it("rejects when minimum margin is violated", () => {
+  it("preserves the company ceiling when informational margin is negative", () => {
     // Cart = 200, explicit product cost = 100.
     // margin before discount = 200 - 100 - (200*0.04 fees) = 92 / 200 = 46%
     // requesting 90% discount → subsidy = 180, margin = (200-100-8-180)/200 = negative
     const rules: MerchantRules = { ...DEFAULT_MERCHANT_RULES, maxDiscountPercent: 90, minimumMarginPercent: 38 };
     const result = adapter.authorizeDiscount(BASE_CART, rules, 90, "percent");
-    assert.equal(result.approved, false);
-    assert.equal(result.authorizedDiscount, 0);
+    // Approved user policy: cost/margin is diagnostic, never grant authority.
+    assert.equal(result.approved, true);
+    assert.equal(result.authorizedDiscount, 90);
+    assert.equal(result.authorizedDiscount, rules.maxDiscountPercent);
+    const diagnostic = evaluateDiscountOffer(BASE_CART, rules, 90);
+    assert.ok(diagnostic.marginAfterOffer < 0);
+    const capped = adapter.authorizeDiscount(BASE_CART, { ...rules, maxDiscountPercent: 10, minimumMarginPercent: 99 }, 90, "percent");
+    assert.equal(capped.approved, true);
+    assert.equal(capped.authorizedDiscount, 10);
+    assert.ok(capped.reason.includes("capped"));
   });
 
-  it("handles fixed discount by converting to percent internally", () => {
+  it("handles fixed discount directly in exact cents", () => {
     const rules: MerchantRules = { ...DEFAULT_MERCHANT_RULES, maxDiscountPercent: 15, minimumMarginPercent: 0 };
     // 20 fixed on 200 cart = 10% → allowed (max is 15%)
     const result = adapter.authorizeDiscount(BASE_CART, rules, 20, "fixed");

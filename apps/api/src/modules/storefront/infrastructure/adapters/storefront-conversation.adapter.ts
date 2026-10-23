@@ -1,11 +1,17 @@
 import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
 import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
-import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput, NudgeCopyInput } from "../../domain/ports/conversation.port.js";
+import type { StorefrontConversationScopePort } from "../../domain/ports/conversation-scope.port.js";
+import { classifyStorefrontIntent } from "../ai/structured-intent-classifier.js";
+import { isStorefrontDomainAllowed } from "../../domain/services/storefront-conversation-scope.js";
+import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput, NudgeCopyInput,
+  StorefrontDeferredContext } from "../../domain/ports/conversation.port.js";
+import { storefrontDeferredContextSchema } from "../../domain/contracts/storefront-conversation.schemas.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import { ensureProductDiscovery } from "../agents/product-discovery-fallback.js";
 import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/index.js";
+import { STOREFRONT_SHIPPING_REFERENCE, type StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
 import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
@@ -17,6 +23,8 @@ import { COUPON_REPOSITORY, type CouponRepository } from "../../../coupons/domai
 import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
 import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import { STOREFRONT_CROSS_SELL_CART, type StorefrontCrossSellCartPort } from "../../domain/ports/storefront-cross-sell-cart.port.js";
+import { STOREFRONT_COUPON_CART, type StorefrontCouponCartPort } from "../../domain/ports/storefront-coupon-cart.port.js";
 import { normalizeStoreQuickRepliesConfig, storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
 import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
 import type { PrismaClient } from "@prisma/client";
@@ -24,22 +32,53 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
 import { AgentCopyService } from "../copy/agent-copy.service.js";
 import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
+import { resolveSupportNavigation } from "../shortcuts/support-navigation.shortcut.js";
 import { executeStorefrontUiAction } from "../agents/storefront-ui-action.executor.js";
 import { SubmitCustomerTestimonialUseCase } from "../../../catalog/application/use-cases/submit-customer-testimonial.use-case.js";
 import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
 import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
 import { appendOneBuyClickCheckout } from "../one-buy-click/one-buy-click-checkout-preparation.js";
+import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
+import { buildConversationBlocks } from "../agents/conversation-block.builder.js";
+import { readStorefrontCartState } from "./read-storefront-cart-state.js";
 import { STOREFRONT_TELEMETRY_PORT, type StorefrontTelemetryPort } from "../../domain/ports/storefront-telemetry.port.js";
+import { MetricsService } from "../../../../shared/observability/metrics.service.js";
+import { StorefrontObserver, observeStorefrontHandlers, recordStorefrontDecision } from "../observability/storefront-observation.js";
 
 export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
+/** Optional infrastructure transport; absence keeps production behavior intact.
+ * A supplied factory must cover both channels and may fail closed in a harness. */
+export const STOREFRONT_PROVIDER_FETCH_FACTORY = Symbol("StorefrontProviderFetchFactory");
+export type StorefrontProviderFetchFactory = (channel: "primary" | "fallback") => typeof fetch;
+function optionalProviderTransport(factory: StorefrontProviderFetchFactory | undefined, channel: "primary" | "fallback") {
+  if (factory === undefined) return {};
+  if (typeof factory !== "function") throw new Error("storefront_provider_transport_invalid");
+  const fetchFn = factory(channel);
+  if (typeof fetchFn !== "function") throw new Error("storefront_provider_transport_invalid");
+  return { fetchFn };
+}
 
 @Injectable()
-export class StorefrontConversationAdapter implements StorefrontConversationPort {
+export class StorefrontConversationAdapter implements StorefrontConversationPort, StorefrontConversationScopePort {
+  private readonly structuredRouting: boolean;
   private readonly logger = new Logger(StorefrontConversationAdapter.name);
   private readonly agent: StorefrontLangGraphAgent;
   private readonly copyProvider: OpenRouterProvider;
   private readonly copyService: AgentCopyService;
   private readonly handlerDeps: AllHandlerDeps;
+  private readonly observer: StorefrontObserver;
+
+  async classifyConversationScope(input: Parameters<StorefrontConversationScopePort["classifyConversationScope"]>[0]) {
+    return this.observer.turn(async () => {
+      const result = await classifyStorefrontIntent(this.copyProvider, structuredClone(input), {
+        model: this.copyProvider.model,
+        structuredOutputMode: process.env.STOREFRONT_LLM_OUTPUT_MODE === "json_schema" ? "json_schema" : "json_object",
+      });
+      const domain = result.classification.domain;
+      if (!isStorefrontDomainAllowed(domain)) recordStorefrontDecision("agent", "rejected", domain === "OUT_OF_SCOPE" ? "out_of_scope" : "scope_unclear");
+      return domain;
+    });
+  }
 
   constructor(
     @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo: MerchantRepository,
@@ -59,30 +98,45 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     @Optional() private readonly oneBuyClick?: OneBuyClickSessionService,
     @Optional() @Inject(STOREFRONT_TELEMETRY_PORT) private readonly telemetry?: StorefrontTelemetryPort,
     @Optional() private readonly submitTestimonial?: SubmitCustomerTestimonialUseCase,
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() @Inject(STOREFRONT_CROSS_SELL_CART) private readonly crossSellCart?: StorefrontCrossSellCartPort,
+    @Optional() @Inject(STOREFRONT_COUPON_CART) private readonly couponCart?: StorefrontCouponCartPort,
+    @Optional() @Inject(STOREFRONT_PROVIDER_FETCH_FACTORY) providerFetchFactory?: StorefrontProviderFetchFactory,
+    @Optional() @Inject(STOREFRONT_SHIPPING_REFERENCE) private readonly shippingReference?: StorefrontShippingReferencePort,
   ) {
+    this.observer = new StorefrontObserver({ enabled: process.env.STOREFRONT_LLM_OBSERVABILITY === "enabled",
+      metrics: this.metrics, record: event => this.logger.log({ event: "storefront.observation", ...event }) });
     const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
+    this.structuredRouting = process.env.STOREFRONT_SEMANTIC_ROUTING === "structured";
     const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
     const localModel = process.env.LOCAL_LLM_MODEL || process.env.OPENROUTER_MODEL || "deepseek-chat";
 
     const provider = new OpenRouterProvider({
       apiKey: localApiKey,
       baseUrl: localBaseUrl,
-      model: localModel
+      model: localModel,
+      ...optionalProviderTransport(providerFetchFactory, "primary"),
     });
     this.copyProvider = provider;
-    this.copyService = new AgentCopyService(provider);
+    this.copyService = new AgentCopyService(provider, {
+      model: localModel,
+      structuredOutputMode: process.env.STOREFRONT_LLM_OUTPUT_MODE === "json_schema" ? "json_schema" : "json_object",
+    });
 
     const fallbackApiKey = process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY || "";
     const fallbackBaseUrl = process.env.OPENROUTER_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
     const fallbackModel = process.env.OPENROUTER_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
     const fallbackProvider = fallbackApiKey
-      ? new OpenRouterProvider({ apiKey: fallbackApiKey, baseUrl: fallbackBaseUrl, model: fallbackModel })
+      ? new OpenRouterProvider({ apiKey: fallbackApiKey, baseUrl: fallbackBaseUrl, model: fallbackModel,
+        ...optionalProviderTransport(providerFetchFactory, "fallback") })
       : undefined;
 
     this.handlerDeps = {
       productRepo: this.productRepo,
       stockRepo: this.stockRepo,
       cartRepo: this.cartRepo,
+      crossSellCart: this.crossSellCart,
+      couponCart: this.couponCart,
       prisma: this.prisma,
       merchantRepo: this.merchantRepo,
       supportHandoff: this.supportHandoff,
@@ -96,12 +150,16 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       productPromotionRepo: this.productPromotionRepo,
       oneBuyClick: this.oneBuyClick,
       submitTestimonial: this.submitTestimonial,
+      shippingReference: this.shippingReference,
     };
 
     const placeholderHandlers: StoreToolHandlers = {} as any;
     this.agent = new StorefrontLangGraphAgent({
+      structuredRouting: this.structuredRouting,
+      structuredOutputMode: process.env.STOREFRONT_LLM_OUTPUT_MODE === "json_schema" ? "json_schema" : "json_object",
       provider,
       fallbackProvider,
+      fallbackModel,
       toolHandlers: placeholderHandlers,
       model: localModel,
       fastModel: localModel,
@@ -111,9 +169,14 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
   }
 
   async generateNudge(input: NudgeCopyInput): Promise<string> {
-    return this.copyService.generateNudge(input);
+    return this.observer.turn(() => this.copyService.generateNudge(input));
   }
-  async reply(input: StorefrontConversationInput): Promise<StorefrontConversationOutput> {
+  async reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
+    return this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext)) : this.replyTurn(input, deferredContext);
+  }
+  private async replyTurn(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
+    // The decision and every later shortcut/RAG/port must use the same input.
+    input = structuredClone(input);
     const ctx: ToolRequestContext = {
       merchantId: input.merchantId,
       sessionId: input.cartId || input.sessionId,
@@ -127,14 +190,61 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       } : undefined,
     };
     const deviceMeta = input.deviceType ? { device: input.deviceType } : undefined;
-    this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
-    const shortcutHandlers = composeStoreToolHandlers(this.handlerDeps, ctx);
+    let handlers: StoreToolHandlers | undefined;
+    const getHandlers = () => handlers ??= observeStorefrontHandlers(
+      composeStoreToolHandlers(this.handlerDeps, ctx), input.cartId || input.sessionId);
     if (input.uiAction) {
+      this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
+      const shortcutHandlers = getHandlers();
       const output = await executeStorefrontUiAction(shortcutHandlers, input.uiAction, input.merchantId, input.cartId || input.sessionId);
       const configured = (input.storeSettings?.quick_replies ?? null) as StoreQuickRepliesConfig | null;
       return { ...output, cartId: input.cartId || input.sessionId,
-        suggestedNext: storefrontQuickReplies(input.uiAction.tool, configured) };
+        suggestedNext: storefrontQuickReplies(input.uiAction.tool, configured, undefined, undefined, undefined, undefined,
+          this.structuredRouting ? { mode: "structured", merchantId: input.merchantId, cartId: input.cartId || input.sessionId, blocks: output.blocks } : undefined) };
     }
+    // Complete support navigation labels are explicit application actions.
+    // Keep them independent of model availability, persona and prior sales turns.
+    // These actions need no media interpretation or one-click checkout context.
+    // Leave deferred IO untouched; unrelated prose still prepares below.
+    const navigation = await resolveSupportNavigation(input, getHandlers);
+    if (navigation) return navigation;
+    // Preparing owns classification exactly once, regardless of legacy routing.
+    // Lazy server-owned ports avoid even composing tool delegates before approval.
+    const prepared = await this.agent.prepare({
+      sessionId: input.sessionId,
+      merchantId: input.merchantId,
+      userMessage: input.userMessage,
+      cartId: input.cartId,
+      history: input.history,
+      attachmentContext: input.attachmentContext,
+      merchantName: input.merchantName,
+      storeCategory: input.storeCategory,
+      storeSettings: input.storeSettings,
+      agentIdentity: input.agentIdentity,
+      merchantPolicy: input.merchantPolicy,
+      advancedRules: input.advancedRules,
+      buyerContext: input.buyerContext,
+      oneBuyClick: input.oneBuyClick,
+      systemPrompt: input.experimentSystemPrompt,
+      toolHandlers: new Proxy({} as StoreToolHandlers, {
+        get(_target, key) { return Reflect.get(getHandlers(), key); },
+      }),
+    });
+    if (!prepared.allowed) {
+      return { message: prepared.result.message, blocks: [], suggestedNext: [], cartId: input.cartId || input.sessionId };
+    }
+    // Only the opaque prepared turn authorizes deferred attachment/provider IO.
+    // Never accept browser-supplied classifications or prepare a second time.
+    const deferred = deferredContext ? storefrontDeferredContextSchema.parse(await deferredContext()) : undefined;
+    if (deferred) {
+      input = { ...input, ...deferred };
+      ctx.oneBuyClick = input.oneBuyClick ? {
+        enabled: input.oneBuyClick.enabled, shippingPreference: input.oneBuyClick.shippingPreference,
+        paymentPreference: input.oneBuyClick.paymentPreference,
+      } : undefined;
+    }
+    this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
+    const shortcutHandlers = getHandlers();
     const shortcut = await resolveDeterministicShortcut(
       {
         productRepo: this.productRepo,
@@ -150,34 +260,19 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         // shows the stale pre-discount total (buyer told "applied", sees full price).
         getCartBlock: async (cartId: string) => {
           try {
-            const cart = await shortcutHandlers.getCart({ cartId }) as any;
-            if (!cart?.items?.length) return null;
-            const discount = cart.discount ?? 0;
-            return {
-              type: "cart_summary",
-              data: {
-                cartId: cart.cartId ?? cartId,
-                items: cart.items.map((i: any) => ({
-                  variantId: i.variantId,
-                  productName: i.name,
-                  quantity: i.quantity,
-                  price: i.unitPrice,
-                  subtotal: i.lineTotal ?? (i.unitPrice ?? 0) * (i.quantity ?? 1),
-                })),
-                itemCount: cart.itemCount,
-                subtotal: cart.total,
-                discount,
-                couponCode: cart.couponCode ?? null,
-                freeShipping: cart.freeShipping ?? false,
-                total: (cart.total ?? 0) - discount,
-              },
-            } as ConversationBlock;
+            const args = { cartId };
+            const checked = await callStorefrontTool("get_cart", args, () => shortcutHandlers.getCart(args), { cartId });
+            if (!checked.ok) return null;
+            const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: "Ver carrinho", finalContent: "",
+              toolResults: { get_cart: checked.data } });
+            return built.blocks.find(block => block.type === "cart_summary" && block.data.items.length > 0) ?? null;
           } catch {
             return null;
           }
         },
       },
       input,
+      { structuredReadRouting: this.structuredRouting },
     );
     if (shortcut) return shortcut;
 
@@ -197,30 +292,14 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
           knowledgeContext = result.chunks.map((c) => `• ${c.content}`).join("\n\n");
         }
       } catch (err) {
-        this.logger.warn(`Knowledge base query failed: ${err instanceof Error ? err.message : String(err)}`);
+        this.logger.warn("storefront.knowledge_query.failed", { reason: "query_error" });
       }
     }
 
-    let result = await this.agent.run({
-      sessionId: input.sessionId,
-      merchantId: input.merchantId,
-      userMessage: input.userMessage,
-      cartId: input.cartId,
-      history: input.history,
-      attachmentContext: input.attachmentContext,
-      merchantName: input.merchantName,
-      storeCategory: input.storeCategory,
-      storeSettings: input.storeSettings,
-      agentIdentity: input.agentIdentity,
-      merchantPolicy: input.merchantPolicy,
-      advancedRules: input.advancedRules,
-      buyerContext: input.buyerContext,
-      oneBuyClick: input.oneBuyClick,
-      knowledgeContext,
-      systemPrompt: input.experimentSystemPrompt,
-      toolHandlers: composeStoreToolHandlers(this.handlerDeps, ctx),
-    });
-    result = await ensureProductDiscovery(result, { userMessage: input.userMessage, merchantId: input.merchantId, handlers: shortcutHandlers, history: input.history });
+    let result = await prepared.run({ knowledgeContext,
+      ...(deferred ? { attachmentContext: input.attachmentContext, oneBuyClick: input.oneBuyClick } : {}) });
+    result = await ensureProductDiscovery(result, { userMessage: input.userMessage, merchantId: input.merchantId, handlers: shortcutHandlers, history: input.history,
+      discoveryDecision: this.structuredRouting ? result.routing.needsProductDiscovery === true : undefined });
     const blocks = await appendOneBuyClickCheckout({
       blocks: result.blocks,
       toolsUsed: result.toolsUsed,
@@ -231,19 +310,7 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     this.emitToolFunnelEvents(input, result.toolsUsed, deviceMeta).catch(() => {});
     let cartState: StorefrontCartState | undefined;
     if (input.cartId) {
-      try {
-        const cart = await this.cartRepo.getOrCreate("", input.cartId);
-        cartState = {
-          items: cart.items.map(i => ({
-            variantId: i.variantId,
-            name: i.name,
-            quantity: i.quantity
-          })),
-          total: cart.total,
-          itemCount: cart.items.reduce((sum, i) => sum + i.quantity, 0),
-          couponCode: cart.couponCode ?? null
-        };
-      } catch {}
+      cartState = await readStorefrontCartState(this.cartRepo, { merchantId: input.merchantId, cartId: input.cartId });
     }
     const PRIORITY_TOOLS = new Set([
       "compare_products", "get_product_details", "add_item_to_cart", "get_reviews",
@@ -287,6 +354,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
       blocks,
       cartId: result.cartId,
       suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage, listedCouponCodes,
+        this.structuredRouting ? { mode: "structured", source: result.routing.source, intent: result.routing.intent,
+          merchantId: input.merchantId, cartId: input.cartId || input.sessionId, blocks } : undefined,
         { discoveryQuestion: result.discoveryQuestion, assistantMessage: finalMessage, hasBlocks: blocks.length > 0 })
     };
   }

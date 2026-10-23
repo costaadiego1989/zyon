@@ -4,7 +4,7 @@ import { createServer, type IncomingMessage, type Server, type ServerResponse } 
 import type { AgentContext, AuthorizedOffer, Cart, CartItem } from "@zyon/shared-types";
 import { InMemoryBuyerPurchaseHistoryRepository } from "../../../buyer-purchase-history/infrastructure/in-memory-buyer-purchase-history.repository.js";
 import { RecordCompletedPurchaseUseCase } from "../../../buyer-purchase-history/application/buyer-purchase-history.use-cases.js";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { CheckoutPurchasePaymentIntent as CreatePaymentIntentUseCase, RecordingCheckoutEmailSender } from "../../__tests__/checkout-purchase-flow-fixtures.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
 import { PaymentDispatchService } from "../../../payment/application/services/payment-dispatch.service.js";
 import { FakePaymentProvider } from "../../../payment/infrastructure/fake-payment-provider.js";
@@ -281,7 +281,8 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       undefined, undefined, undefined, undefined, undefined, paymentApprovals
     );
     const conv = new RecordingConversationPort();
-    const custService = new CheckoutCustomerService(repo, undefined, new OtpService());
+    const emailSender = new RecordingCheckoutEmailSender();
+    const custService = new CheckoutCustomerService(repo, undefined, new OtpService(), undefined, undefined, emailSender);
     const shipService = new CheckoutShippingService(repo, custService);
     const offerService = new CheckoutOfferService(repo);
     const controller = new CheckoutController(
@@ -337,6 +338,11 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
 
     const otpCode = repo.getSession(MERCHANT, sessionId)?.customer?.otp_code;
     assert.ok(otpCode, "Deve ter gerado OTP para o email");
+    assert.equal(emailSender.deliveries.length, 1);
+    assert.equal(emailSender.deliveries[0].to, "joao@email.com");
+    assert.equal(emailSender.deliveries[0].merchantId, MERCHANT);
+    assert.ok(emailSender.deliveries[0].html.includes(otpCode));
+    assert.notEqual(repo.getSession(MERCHANT, sessionId)?.customer?.email_verified, true);
 
     await controller.chat({
       merchant_id: MERCHANT,
@@ -348,13 +354,13 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       merchant_id: MERCHANT,
       session_id: sessionId,
       conversation_id: started.conversation_id,
-      user_message: "123.456.789-01"
+      user_message: "(21) 99300-1883"
     });
     res = await controller.chat({
       merchant_id: MERCHANT,
       session_id: sessionId,
       conversation_id: started.conversation_id,
-      user_message: "(21) 99300-1883"
+      user_message: "123.456.789-01"
     });
     assert.equal(res.stage, "shipping");
     assert.equal(repo.getSession(MERCHANT, sessionId)?.customer?.phone_otp_code, undefined);
@@ -436,7 +442,14 @@ test("E2E Full Purchase Flow: produtos fake, chat completo, pagamento, tracking 
       conversation_id: started.conversation_id,
       user_message: "vou pagar no pix"
     });
-    assert.ok(res.actions.some((action) => action.type === "continue_checkout"));
+    assert.equal(res.stage, "payment");
+    const paymentMethods = res.blocks?.find(block => block.type === "payment_methods");
+    assert.ok(paymentMethods && paymentMethods.type === "payment_methods");
+    assert.ok(paymentMethods.data);
+    const methods = paymentMethods.data.methods;
+    assert.ok(Array.isArray(methods));
+    assert.ok(methods.some((method: unknown) => typeof method === "object" && method !== null && "key" in method && method.key === "pix"));
+    assert.deepEqual(await payments.listForSession(MERCHANT, sessionId), [], "Chat navigation must not create a payment");
 
     const readySession = repo.getSession(MERCHANT, sessionId);
     assert.ok(readySession?.shipping?.customerPrice);

@@ -1,4 +1,4 @@
-import { findMerchantAgentRule } from "../../../agent-rules/infrastructure/find-merchant-agent-rule.js";
+import { MERCHANT_AGENT_RULE_READER, type MerchantAgentRuleReaderPort } from "../../../agent-rules/domain/ports/merchant-agent-rule-reader.port.js";
 /**
  * Send store message use-case.
  *
@@ -6,16 +6,23 @@ import { findMerchantAgentRule } from "../../../agent-rules/infrastructure/find-
  * returns response message + conversation blocks.
  */
 
-import { Injectable, Inject, NotFoundException, Optional , Logger} from "@nestjs/common";
+import { BadRequestException, Injectable, Inject, NotFoundException, Optional, Logger, ServiceUnavailableException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
-import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../domain/ports/conversation.port.js";
+import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort, type StorefrontDeferredContext } from "../../domain/ports/conversation.port.js";
 import { BUYER_CONVERSATION_REPOSITORY, type BuyerConversationRepository } from "../../../buyer-account/domain/ports/buyer-conversation.port.js";
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
-import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import type { OneBuyClickConversationContext } from "../../domain/ports/conversation.port.js";
+import { outputMatchesStorefrontScope, sendStoreMessageInputSchema, sendStoreMessageOutputSchema,
+  STOREFRONT_CONTRACT_FALLBACK, STOREFRONT_CONVERSATION_CONTRACT_VERSION,
+  storefrontConversationInputSchema, storefrontConversationOutputSchema } from "../../domain/contracts/storefront-conversation.schemas.js";
+import { NOOP_STOREFRONT_USE_CASE_OBSERVATION, STOREFRONT_USE_CASE_OBSERVATION, type StorefrontUseCaseObservation,
+  type StorefrontObservationBoundary } from "../../domain/ports/storefront-use-case-observation.port.js";
+import type { StorefrontSuggestedReadActions } from "@zyon/shared-types";
+import { projectStorefrontSuggestedReadActions } from "../../domain/services/storefront-suggested-read-actions.js";
+import { decryptPii, isPiiEncrypted } from "../../../../shared/crypto/pii-cipher.service.js";
 
 export interface SendStoreMessageInput {
   ui_action?: import("../../domain/types/storefront-ui-action.js").StorefrontUiAction;
@@ -37,6 +44,7 @@ export interface SendStoreMessageOutput {
   cart_id?: string;
   conversation_id: string;
   suggested_next: string[];
+  suggested_actions?: StorefrontSuggestedReadActions;
 }
 
 @Injectable()
@@ -47,10 +55,19 @@ export class SendStoreMessageUseCase {
     @Inject(MERCHANT_REPOSITORY) private readonly merchant: MerchantRepository,
     @Inject(STOREFRONT_CONVERSATION_PORT) private readonly conversation: StorefrontConversationPort,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
-    @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository
+    @Inject(MERCHANT_AGENT_RULE_READER) private readonly agentRules: MerchantAgentRuleReaderPort,
+    @Optional() @Inject(BUYER_CONVERSATION_REPOSITORY) private readonly conversationRepo?: BuyerConversationRepository,
+    @Optional() @Inject(STOREFRONT_USE_CASE_OBSERVATION) private readonly observation: StorefrontUseCaseObservation = NOOP_STOREFRONT_USE_CASE_OBSERVATION,
   ) {}
 
-  async execute(input: SendStoreMessageInput): Promise<SendStoreMessageOutput> {
+  async execute(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext): Promise<SendStoreMessageOutput> {
+    return this.observation.turn(() => this.executeTurn(input, deferredContext));
+  }
+
+  private async executeTurn(input: SendStoreMessageInput, deferredContext?: StorefrontDeferredContext): Promise<SendStoreMessageOutput> {
+    const parsedInput = await this.validate("input", () => sendStoreMessageInputSchema.safeParse(input), "invalid_input");
+    if (!parsedInput.success) throw new BadRequestException("invalid_storefront_input");
+    input = parsedInput.data;
     const merchant = await this.merchant.getProfile(input.merchant_id);
     if (!merchant) throw new NotFoundException("merchant_not_found");
 
@@ -61,7 +78,7 @@ export class SendStoreMessageUseCase {
     // Load agent identity from agent_rules (source of truth for agent name/persona/tone/language)
     let agentIdentity: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string } | undefined;
     try {
-      const agentRule = await findMerchantAgentRule(this.prisma, input.merchant_id);
+      const agentRule = await this.agentRules.findForMerchant(input.merchant_id);
       const identity = agentRule?.identity as { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string } | null;
       if (identity) agentIdentity = identity;
     } catch { /* optional — fallback to no identity */ }
@@ -125,12 +142,12 @@ export class SendStoreMessageUseCase {
             return `QUANDO ${conds}: ${benefit} (você apenas informa o cliente; nunca prometa desconto por conta própria)`;
           });
       }
-    } catch (err) {
-      this.logger.warn(`Failed to load advancedRules: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      this.logger.warn("storefront.context.read_failed", { source: "advanced_rules" });
     }
 
     if (advancedRules.length > 0) {
-      this.logger.debug(`[${input.merchant_id}] Loaded ${advancedRules.length} advanced rules for LLM`);
+      this.logger.debug("storefront.context.loaded", { source: "advanced_rules" });
     }
 
     // Load experiment variant system prompt for this session (if A/B test running)
@@ -149,17 +166,15 @@ export class SendStoreMessageUseCase {
           target -= variant.weight;
           if (target <= 0) {
             experimentSystemPrompt = variant.systemPrompt;
-            this.logger.log(
-              `[experiment] merchant=${input.merchant_id} conv=${input.conversation_id} → variant="${variant.name}" (exp=${running.id})`,
-            );
+            this.logger.log("storefront.context.loaded", { source: "experiment_variant" });
             break;
           }
         }
       } else {
-        this.logger.debug(`[experiment] No running experiment for merchant=${input.merchant_id}`);
+        this.logger.debug("storefront.context.absent", { source: "experiment" });
       }
-    } catch (err) {
-      this.logger.warn(`[experiment] Failed to load: ${err instanceof Error ? err.message : String(err)}`);
+    } catch {
+      this.logger.warn("storefront.context.read_failed", { source: "experiment" });
     }
 
     let buyerContext: { globalUserId: string; name?: string; phone?: string; email?: string } | undefined;
@@ -173,9 +188,12 @@ export class SendStoreMessageUseCase {
           buyerContext = {
             globalUserId: account.globalUserId,
             name: account.displayName || undefined,
-            phone: account.phone || undefined,
             email: account.email || undefined,
           };
+          if (account.phone) {
+            try { buyerContext.phone = isPiiEncrypted(account.phone) ? decryptPii(account.phone) : account.phone; }
+            catch { this.logger.warn("storefront.context.read_failed", { source: "buyer_phone" }); }
+          }
         }
       } catch {
         /* buyer identity is best-effort — never block the reply */
@@ -183,7 +201,7 @@ export class SendStoreMessageUseCase {
     }
 
     if (input.trusted_buyer_context && input.trusted_buyer_context.globalUserId === input.global_user_id) buyerContext = input.trusted_buyer_context;
-    const result = await this.conversation.reply({
+    const context = await this.validate("context", () => storefrontConversationInputSchema.safeParse({
       userMessage: input.user_message,
       uiAction: input.ui_action,
       cartId: input.cart_id,
@@ -201,14 +219,37 @@ export class SendStoreMessageUseCase {
       buyerContext,
       oneBuyClick: input.one_buy_click,
       deviceType: input.device_type,
+    }), "invalid_context");
+    if (!context.success) {
+      this.logger.warn("storefront.contract.invalid", { stage: "context", version: STOREFRONT_CONVERSATION_CONTRACT_VERSION,
+        issueCount: context.error.issues.length });
+      throw new ServiceUnavailableException("storefront_context_invalid");
+    }
+    const generated = deferredContext ? await this.conversation.reply(context.data, deferredContext)
+      : await this.conversation.reply(context.data);
+    const scope = { merchantId: input.merchant_id, cartId: input.cart_id ?? input.conversation_id };
+    const result = await this.observation.operation("validation", "output", async () => {
+      const parsedOutput = storefrontConversationOutputSchema.safeParse(generated);
+      if (parsedOutput.success && outputMatchesStorefrontScope(parsedOutput.data, scope)) return parsedOutput.data;
+      // Never log provider content/Zod values or replay a turn: commerce tools may already have run.
+      this.observation.decision("output", "fallback", "invalid_output");
+      this.logger.warn("storefront.contract.invalid", { stage: "output", version: STOREFRONT_CONVERSATION_CONTRACT_VERSION,
+        issueCount: parsedOutput.success ? 1 : parsedOutput.error.issues.length });
+      return storefrontConversationOutputSchema.parse({
+        message: STOREFRONT_CONTRACT_FALLBACK, blocks: [], cartId: scope.cartId, suggestedNext: [],
+      });
     });
 
-    // Persist conversation history (non-blocking, best-effort)
-    if (this.conversationRepo && input.global_user_id) {
+    const suggestedActions = projectStorefrontSuggestedReadActions(result.blocks, input.merchant_id);
+
+    // Persist conversation history sequentially and awaited, but best-effort.
+    const globalUserId = input.global_user_id;
+    if (this.conversationRepo && globalUserId) {
       try {
         const now = new Date();
-        await this.conversationRepo.upsertConversation({
-          globalUserId: input.global_user_id,
+        const repository = this.conversationRepo;
+        await this.observation.operation("persistence", "buyer_message", () => repository.upsertConversation({
+          globalUserId,
           sessionId: input.conversation_id,
           merchantId: input.merchant_id,
           message: {
@@ -218,9 +259,9 @@ export class SendStoreMessageUseCase {
             createdAt: now,
             rating: null
           }
-        });
-        await this.conversationRepo.upsertConversation({
-          globalUserId: input.global_user_id,
+        }));
+        await this.observation.operation("persistence", "agent_message", () => repository.upsertConversation({
+          globalUserId,
           sessionId: input.conversation_id,
           merchantId: input.merchant_id,
           message: {
@@ -230,19 +271,31 @@ export class SendStoreMessageUseCase {
             createdAt: new Date(),
             rating: null
           }
-        });
+        }));
       } catch {
         // Conversation persistence is best-effort; never block storefront flow
       }
     }
 
-    return {
+    const response = await this.validate("response", () => sendStoreMessageOutputSchema.safeParse({
       message: result.message,
       blocks: result.blocks,
       cart_id: result.cartId,
       conversation_id: input.conversation_id,
-      suggested_next: result.suggestedNext ?? []
-    };
+      suggested_next: result.suggestedNext ?? [],
+      ...(suggestedActions ? { suggested_actions: suggestedActions } : {}),
+    }), "invalid_output");
+    if (!response.success) throw response.error;
+    return response.data;
+  }
+
+  private validate<T extends { success: boolean }>(boundary: StorefrontObservationBoundary, parse: () => T,
+    reason: "invalid_input" | "invalid_context" | "invalid_output"): Promise<T> {
+    return this.observation.operation("validation", boundary, async () => {
+      const parsed = parse();
+      if (!parsed.success) this.observation.decision(boundary, "rejected", reason);
+      return parsed;
+    });
   }
 
   /** Deterministic hash for consistent variant assignment per conversation */

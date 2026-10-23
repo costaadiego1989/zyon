@@ -65,9 +65,10 @@ export class PrismaCouponTransactionRepository implements CouponTransactionRepos
       );
       if (!limitCheck.allowed) return { status: "limit_reached", reason: limitCheck.reason ?? "COUPON_EXHAUSTED" };
 
+      let reserved: {id:string;updatedAt:Date};
       if (existing) {
         const snap = input.redemption.snapshot();
-        await tx.couponRedemption.update({
+        reserved = await tx.couponRedemption.update({
           where: { id: existing.id },
           data: {
             buyerGlobalUserId: snap.buyer_global_user_id,
@@ -75,34 +76,61 @@ export class PrismaCouponTransactionRepository implements CouponTransactionRepos
             source: snap.source,
             status: "applied",
             orderId: null,
-          }
+          },
+          select: {id:true,updatedAt:true},
         });
       } else {
-        await tx.couponRedemption.create({ data: toRedemptionCreateInput(input.redemption) });
+        reserved = await tx.couponRedemption.create({ data: toRedemptionCreateInput(input.redemption),select:{id:true,updatedAt:true} });
       }
-      await appendOutboxInTransaction(tx, input.event);
+      if(!reserved || reserved.id!==(existing?.id??input.redemption.id)||!(reserved.updatedAt instanceof Date)
+        ||!Number.isFinite(reserved.updatedAt.getTime()))throw new Error("coupon_reservation_generation_unavailable");
+      await appendOutboxInTransaction(tx, {...input.event,payload:{...input.event.payload,
+        redemption_id:reserved.id,reservation_updated_at:reserved.updatedAt.toISOString()}});
       return { status: "reserved", redemption_id: existing?.id ?? input.redemption.id };
     });
   }
 
   async redeem(input: Parameters<CouponTransactionRepository["redeem"]>[0]): Promise<void> {
+    const { merchantId, sessionId, orderId, eventFor } = input;
     await this.transaction(async (tx) => {
+      // Discover lock identities without taking a redemption row lock. Every
+      // coupon must be acquired before any redemption mutation, as in reserve.
+      const candidates = await tx.couponRedemption.findMany({
+        where: { merchantId, sessionId, status: "applied" },
+        select: { id: true, couponId: true },
+      });
+      if (candidates.length === 0) return;
+      const couponIds = [...new Set(candidates.map(row => row.couponId))].sort();
+      for (const couponId of couponIds) {
+        const locked = await tx.$queryRaw<Array<{ id: string }>>`
+          SELECT "id" FROM "coupons"
+          WHERE "id" = ${couponId} AND "merchant_id" = ${merchantId}
+          FOR UPDATE
+        `;
+        if (locked.length !== 1 || locked[0]?.id !== couponId) {
+          throw new Error("coupon_redemption_coupon_unavailable");
+        }
+      }
+      // A competing delivery/cancellation can have changed the snapshot while
+      // we waited. Only the discovered, still-applied scoped rows are eligible.
       const applied = await tx.couponRedemption.findMany({
-        where: { merchantId: input.merchantId, sessionId: input.sessionId, status: "applied" }
+        where: { merchantId, sessionId, status: "applied", id: { in: candidates.map(row => row.id) }, couponId: { in: couponIds } },
+        orderBy: [{ couponId: "asc" }, { id: "asc" }],
       });
 
       for (const redemption of applied) {
         const updated = await tx.couponRedemption.updateMany({
-          where: { id: redemption.id, status: "applied" },
-          data: { status: "redeemed", orderId: input.orderId }
+          where: { id: redemption.id, merchantId, sessionId, couponId: redemption.couponId, status: "applied" },
+          data: { status: "redeemed", orderId }
         });
         if (updated.count === 0) continue;
+        if (updated.count !== 1) throw new Error("coupon_redemption_transition_conflict");
 
         await tx.coupon.update({
-          where: { id: redemption.couponId },
+          where: { id: redemption.couponId, merchantId },
           data: { usagesCount: { increment: 1 } }
         });
-        await appendOutboxInTransaction(tx, input.eventFor({
+        await appendOutboxInTransaction(tx, eventFor({
           id: redemption.id,
           coupon_id: redemption.couponId,
           merchant_id: redemption.merchantId,
@@ -111,7 +139,7 @@ export class PrismaCouponTransactionRepository implements CouponTransactionRepos
           discount_applied: Number(redemption.discountApplied),
           source: redemption.source as "manual" | "auto",
           status: "redeemed",
-          order_id: input.orderId,
+          order_id: orderId,
           created_at: redemption.createdAt.toISOString(),
           updated_at: new Date().toISOString()
         }));

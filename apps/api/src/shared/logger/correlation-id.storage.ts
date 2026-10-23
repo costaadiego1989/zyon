@@ -1,28 +1,31 @@
 import { AsyncLocalStorage } from "node:async_hooks";
+import { randomUUID } from "node:crypto";
 
 const CORRELATION_ID_PATTERN = /^[A-Za-z0-9._:-]{1,128}$/;
 
 /**
  * AsyncLocalStorage-backed accessor for the current request's correlation id.
  *
- * The middleware (and pino-http's `genReqId`) populates this slot so that any
- * downstream service — repositories, use-cases, error filters — can attach
- * the active correlation id to its log lines without threading it through
- * every function signature.
+ * Both middleware entrypoints preserve the public correlation contract here.
+ * Logs use the independent generated requestId, not caller-controlled content.
  */
 export class CorrelationIdStorage {
-  private static readonly storage = new AsyncLocalStorage<string>();
+  private static readonly storage = new AsyncLocalStorage<{ correlationId: string; requestId: string }>();
 
-  static run<T>(correlationId: string, fn: () => T): T {
-    return this.storage.run(correlationId, fn);
+  static run<T>(correlationId: string, fn: () => T, requestId: string = randomUUID()): T {
+    return this.storage.run({ correlationId, requestId }, fn);
   }
 
   static get(): string | undefined {
-    return this.storage.getStore();
+    return this.storage.getStore()?.correlationId;
+  }
+
+  static getRequestId(): string | undefined {
+    return this.storage.getStore()?.requestId;
   }
 
   static getOrThrow(): string {
-    const value = this.storage.getStore();
+    const value = this.get();
     if (!value) {
       throw new Error("correlation_id_missing_from_async_storage");
     }

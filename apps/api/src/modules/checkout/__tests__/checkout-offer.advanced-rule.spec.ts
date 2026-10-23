@@ -11,7 +11,7 @@ import { evaluateDiscountOffer } from "@zyon/rules-engine";
  * Spec: F0-T03, F0-T04, F0-T06, F0-T07, INV-01
  * - Rule match with offer_discount → evaluateDiscountOffer called (rules-engine authority)
  * - Rule match with offer_free_shipping → evaluateShippingOffer called
- * - Margin violation → approved:false
+ * - Margin is informational; configured discount ceiling remains authoritative
  * - Regras show_message/suggest_product do NOT gerar oferta
  * - Value-action rules don't appear in decision text (intervention-rule-text.builder.ts)
  */
@@ -105,7 +105,7 @@ test("F0-T06: Advanced rule with offer_discount action → evaluateDiscountOffer
   assert.equal(evaluation.reason, "capped_by_reais_limit", "Reason should indicate reais cap applied");
 });
 
-test("F0-T06: Margin violation → approved:false", async () => {
+test("F0-T06: old minimum margin cannot veto the merchant discount ceiling", async () => {
   const cart = createCart({
     total: 100,
     items: [
@@ -131,8 +131,9 @@ test("F0-T06: Margin violation → approved:false", async () => {
     undefined
   );
 
-  assert.equal(evaluation.approved, false, "Offer should be rejected due to margin violation");
-  assert.equal(evaluation.reason, "minimum_margin_violation");
+  assert.equal(evaluation.approved, true);
+  assert.equal(evaluation.value, 20);
+  assert.equal(evaluation.reason, "discount_allowed");
 });
 
 test("F0-T06: Rule with offer_free_shipping action", async () => {

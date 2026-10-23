@@ -1,6 +1,6 @@
 import { createHash } from "node:crypto";
 import type { AdvancedRule, Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
-import { assessIncentiveMargin, evaluateDiscountOffer, meetsMarginFloor, moneyCents } from "@zyon/rules-engine";
+import { assessIncentiveMargin, cartAmountIssue, evaluateDiscountOffer, moneyCents } from "@zyon/rules-engine";
 
 export interface CohortStats {
   intent: string;
@@ -13,14 +13,15 @@ export interface CohortStats {
 }
 
 export interface DiscountSimulation {
-  definition: "discount-catalog-replay-v1";
+  definition: "discount-catalog-replay-v1" | "discount-catalog-replay-v2";
   currency: "BRL";
   sampleSize: number;
   conversionWindowHours: 168;
   observedConversionRate: number;
   costBasis: "current_catalog";
   paymentFeeAssumptionPercent: 4;
-  minimumProjectedMarginPercent: number;
+  /** Informational only. v2 leaves incomplete cost coverage explicitly unavailable. */
+  minimumProjectedMarginPercent: number | null;
   minCartTotalCents: number;
   maxCartTotalCents: number;
   maxDiscountCents: number;
@@ -46,7 +47,6 @@ export class DiscountRuleHypothesisService {
     excluded: ReadonlySet<string> = new Set()): DiscountRuleCandidate | null {
     const cap = moneyCents(rules.maxDiscountPercent);
     if (rules.autonomousEngineEnabled !== true || cap === null || cap <= 0 || cap > 10_000
-      || !Number.isFinite(rules.minimumMarginPercent) || rules.minimumMarginPercent < 0 || rules.minimumMarginPercent > 100
       || !Number.isSafeInteger(minSamples) || minSamples < 30 || !Array.isArray(stats)) return null;
     const eligible = stats.filter(s => Number.isSafeInteger(s.sampleSize) && s.sampleSize >= minSamples
       && Array.isArray(s.carts) && s.carts.length === s.sampleSize && /^[a-z][a-z0-9_]{0,63}$/.test(s.intent)
@@ -63,28 +63,24 @@ export class DiscountRuleHypothesisService {
     const totals = cohort.carts.map(cart => moneyCents(cart.total));
     if (totals.some(t => t === null || t <= 0) || cohort.carts.some(cart => cart.currency !== "BRL"
       || (cart.currentDiscount ?? 0) !== 0 || cart.commercialNudge || (cart as Cart & { crossStoreItems?: unknown[] }).crossStoreItems?.length
-      || !meetsMarginFloor(assessIncentiveMargin(cart, { totalDiscount: 0 }), rules.minimumMarginPercent))) return null;
+      || cartAmountIssue(cart)
+      || cart.items.some(item => item.selected_options !== undefined
+        && (!Array.isArray(item.selected_options) || item.selected_options.length > 0)))) return null;
     const cents = totals as number[];
-    // Margin decreases monotonically with the percentage. Find a common safe rate
-    // without using an average that could hide a loss-making basket.
-    let low = 0, high = capBps;
-    while (low < high) {
-      const mid = Math.ceil((low + high) / 2);
-      const safe = cohort.carts.every((cart, i) => meetsMarginFloor(assessIncentiveMargin(cart,
-        { totalDiscount: discountCents(cents[i], mid) / 100 }), rules.minimumMarginPercent));
-      if (safe) low = mid; else high = mid - 1;
-    }
-    const discounts = cents.map(total => discountCents(total, low));
-    if (low === 0 || discounts.some(d => d <= 0)) return null;
+    // Cost is optional evidence, not authority. Apply the same configured ceiling
+    // to each canonical basket; never manufacture cost to make it eligible.
+    const discounts = cents.map(total => discountCents(total, capBps));
+    if (capBps === 0 || discounts.some(d => d <= 0)) return null;
     const replayDiscountTotalCents = discounts.reduce((sum, d) => sum + d, 0);
     if (!Number.isSafeInteger(replayDiscountTotalCents)) return null;
     const maxDiscountCents = Math.max(...discounts), minCartTotalCents = Math.min(...cents), maxCartTotalCents = Math.max(...cents);
-    const percent = low / 100, maxDiscountReais = maxDiscountCents / 100;
+    const percent = capBps / 100, maxDiscountReais = maxDiscountCents / 100;
     if (!cohort.carts.every(cart => evaluateDiscountOffer(cart, rules, percent, maxDiscountReais).approved)) return null;
-    const minimumProjectedMarginPercent = Math.min(...cohort.carts.map((cart, i) =>
-      assessIncentiveMargin(cart, { totalDiscount: discounts[i] / 100 }).marginPercent! * 100));
-    const fingerprint = createHash("sha256").update(JSON.stringify(["discount-catalog-replay-v1", cohort.intent,
-      percent, maxDiscountReais, minCartTotalCents, maxCartTotalCents, rules.minimumMarginPercent])).digest("hex");
+    const margins = cohort.carts.map((cart, i) => assessIncentiveMargin(cart, { totalDiscount: discounts[i] / 100 }).marginPercent);
+    const minimumProjectedMarginPercent = margins.some(value => value === null) ? null
+      : Math.min(...margins.map(value => value! * 100));
+    const fingerprint = createHash("sha256").update(JSON.stringify(["discount-catalog-replay-v2", cohort.intent,
+      percent, maxDiscountReais, minCartTotalCents, maxCartTotalCents])).digest("hex");
     return {
       rule: { id: fingerprint, name: `Desconto para ${cohort.intent}`, enabled: false, priority: 100,
         conditions: [{ field: "buyer_type", operator: "is", value: cohort.intent },
@@ -94,8 +90,8 @@ export class DiscountRuleHypothesisService {
         action: { type: "offer_discount", params: { percent, maxDiscountReais } } },
       rationale: `Testar desconto de ${percent}% (até R$ ${maxDiscountReais.toFixed(2)}) para o perfil "${cohort.intent}". `
         + `Conversão observada: ${(cohort.conversionRate * 100).toFixed(1)}% em ${cohort.sampleSize} compradores com janela encerrada. `
-        + "A simulação usa o catálogo atual e preserva a margem configurada em cada carrinho. O efeito na conversão ainda precisa ser medido.",
-      simulation: { definition: "discount-catalog-replay-v1", currency: "BRL", sampleSize: cohort.sampleSize,
+        + "A simulação usa o catálogo atual e respeita o teto de desconto da empresa. O efeito na conversão ainda precisa ser medido.",
+      simulation: { definition: "discount-catalog-replay-v2", currency: "BRL", sampleSize: cohort.sampleSize,
         conversionWindowHours: 168, observedConversionRate: cohort.conversionRate, costBasis: "current_catalog",
         paymentFeeAssumptionPercent: 4, minimumProjectedMarginPercent, minCartTotalCents, maxCartTotalCents,
         maxDiscountCents, replayDiscountTotalCents, expectedLiftStatus: "not_estimated" }, fingerprint,

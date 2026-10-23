@@ -5,7 +5,7 @@
   "type": "module",
   "scripts": {
     "dev": "vite --host 0.0.0.0 --port 5175",
-    "build": "tsc -p tsconfig.json && vite build",
+    "build": "node scripts/verify-public-auth-env.mjs && tsc -p tsconfig.json && vite build",
     "typecheck": "tsc -p tsconfig.json --noEmit",
     "test": "vitest run",
     "test:payment-onboarding": "node scripts/verify-payment-onboarding.cjs",
@@ -15,6 +15,7 @@
     "e2e:erp-live:auth": "node scripts/capture-erp-live-auth.mjs"
   },
   "dependencies": {
+    "@zyon/platform-support-ui": "workspace:*",
     "@vitejs/plugin-react": "^4.3.4",
     "@zyon/shared-types": "workspace:*",
     "leaflet": "^1.9.4",

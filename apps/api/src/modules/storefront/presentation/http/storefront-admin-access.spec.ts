@@ -6,7 +6,7 @@ import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
 import { StorefrontController } from "./storefront.controller.js";
 import { UpdateBudgetRequestStatusUseCase } from "../../application/use-cases/update-budget-request-status.use-case.js";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
-import { RateLimitStore } from "../../../../shared/rate-limit/rate-limit.store.js";
+import { DistributedRateLimitStore } from "../../../../shared/http/rate-limit.store.js";
 import { StorefrontConversationRateLimitService } from "../../application/services/storefront-conversation-rate-limit.service.js";
 import { StorefrontAttachmentInterpreter } from "../../application/services/storefront-attachment-interpreter.service.js";
 
@@ -69,7 +69,7 @@ test("HTTP conversation aliases reject missing/foreign capability before reading
   await assert.rejects(() => controller.sendMessage("conv_a", { user_message: "hello", merchant_id: "merchant_a" }, {}), /invalid_conversation_token/);
   await assert.rejects(() => controller.getHistory("conv_a", {}), /invalid_conversation_token/);
   await assert.rejects(() => controller.trackEvent("conv_a", { event: "hello", merchant_id: "merchant_a" }, {}), /invalid_conversation_token/);
-  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a" });
+  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a", aiUserId: "visitor:user_a" });
   const request = { headers: { authorization: `Bearer ${access.token}` } };
   await assert.rejects(() => controller.getHistory("conv_b", request), /conversation_access_denied/);
   await assert.rejects(() => controller.sendMessage("conv_a", { user_message: "hello", merchant_id: "merchant_b" }, request), /conversation_access_denied/);
@@ -91,9 +91,9 @@ test("HTTP messages enforce ten requests per minute with the conversation capabi
     capabilities,
     sendStoreMessage: { execute: async (input: unknown) => calls.push(input) },
     attachmentInterpreter: new StorefrontAttachmentInterpreter(),
-    conversationRateLimiter: new StorefrontConversationRateLimitService(new RateLimitStore()),
+    conversationRateLimiter: new StorefrontConversationRateLimitService(new DistributedRateLimitStore({ production: false, ipMax: 600, tenantMax: 60, windowMs: 60_000 })),
   }) as StorefrontController;
-  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a" });
+  const access = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant_a", resourceId: "conv_a", aiUserId: "visitor:user_a" });
   const request = { headers: { authorization: `Bearer ${access.token}` } };
 
   for (let requestCount = 0; requestCount < 10; requestCount++) {

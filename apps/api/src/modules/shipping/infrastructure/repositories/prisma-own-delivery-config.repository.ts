@@ -1,6 +1,7 @@
 import { Injectable, Inject } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { readNeighborhoodDeliveryOrigin } from "./neighborhood-delivery-origin.reader.js";
 import type {
   OwnDeliveryConfig,
   OwnDeliveryConfigRepository
@@ -9,6 +10,10 @@ import type {
 @Injectable()
 export class PrismaOwnDeliveryConfigRepository implements OwnDeliveryConfigRepository {
   constructor(@Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient) {}
+
+  getNeighborhoodOrigin(merchantId: string) {
+    return readNeighborhoodDeliveryOrigin(this.prisma, merchantId);
+  }
 
   async getByMerchantId(merchantId: string): Promise<OwnDeliveryConfig | null> {
     const record = await (this.prisma as any).ownDeliveryConfig.findUnique({

@@ -81,6 +81,7 @@ export interface ProductContentPurchaseResponse {
   currency?: string;
   variants: Array<{
     id: string;
+    sku?: string;
     attributes: Record<string, string>;
     available: boolean;
     priceReais: number | null;
@@ -103,6 +104,7 @@ export interface ProductContentCrossSell {
   displayMode?: string;
   products: Array<{
     id: string;
+    productId?: string;
     name: string;
     price: number;
     priceFormatted: string;
@@ -206,6 +208,7 @@ function readCrossSell(value: unknown): ProductContentCrossSell | undefined {
     ) return [];
     return [{
       id: product.id,
+      ...(typeof product.productId === "string" ? { productId: product.productId } : {}),
       name: product.name,
       price: product.price,
       priceFormatted: product.priceFormatted,

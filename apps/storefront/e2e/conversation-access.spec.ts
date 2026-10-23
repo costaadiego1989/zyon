@@ -65,34 +65,78 @@ test("expired chat and cart access renew once and preserve the resource", async 
   }
 });
 
-test("authentication is retried once after renewal; invalid renewal stops", async () => {
+test("GET and HEAD authorization failures renew once and preserve the original identity", async () => {
   const originalFetch = globalThis.fetch;
   Object.defineProperty(globalThis, "window", { value: { location: { origin: "http://localhost:3001" } }, configurable: true });
   const id = "rejected_cart";
   rememberConversationAccess(id, token(Date.now() / 1000 + 3600));
-  let calls = 0;
-  globalThis.fetch = async (url) => {
-    calls++;
-    if (String(url).endsWith("/access")) return Response.json({ conversation_id: id, conversation_token: token(Date.now() / 1000 + 3700) });
-    return Response.json({}, { status: calls === 1 ? 401 : 200 });
-  };
   try {
-    expect((await conversationFetch(id, "/cart/rejected_cart", { method: "PATCH" })).status).toBe(200);
-    expect(calls).toBe(3);
-    calls = 0;
-    globalThis.fetch = async (url) => {
-      calls++;
-      if (String(url).endsWith("/access")) return Response.json({ conversation_id: id, conversation_token: token(Date.now() / 1000 + 3700) });
-      return Response.json({}, { status: calls === 1 ? 403 : 200 });
-    };
-    expect((await conversationFetch(id, "/cart/rejected_cart", { method: "PATCH" })).status).toBe(200);
-    expect(calls).toBe(3);
-    calls = 0;
-    globalThis.fetch = async () => { calls++; return Response.json({}, { status: 401 }); };
-    await expect(conversationFetch(id, "/cart/rejected_cart")).rejects.toBeInstanceOf(ConversationSessionExpiredError);
+    for (const method of ["GET", "HEAD"]) for (const status of [401, 403]) {
+      let calls = 0;
+      globalThis.fetch = async url => {
+        calls++;
+        if (String(url).endsWith("/access")) return Response.json({ conversation_id: id, conversation_token: token(Date.now() / 1000 + 3700) });
+        return new Response(null, { status: calls === 1 ? status : 200 });
+      };
+      expect((await conversationFetch(id, "/cart/rejected_cart", { method })).status).toBe(200);
+      expect(calls).toBe(3);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    forgetConversationAccess(id);
+    Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
+test("POST, PATCH and DELETE rejection never renews and replays a possibly applied command", async () => {
+  const originalFetch = globalThis.fetch;
+  Object.defineProperty(globalThis, "window", { value: { location: { origin: "http://localhost:3001" } }, configurable: true });
+  const id = "uncertain_command";
+  try {
+    for (const method of ["POST", "PATCH", "DELETE"]) for (const status of [401, 403]) {
+      rememberConversationAccess(id, token(Date.now() / 1000 + 3600));
+      const calls: string[] = [];
+      globalThis.fetch = async url => { calls.push(String(url)); return Response.json({}, { status }); };
+      await expect(conversationFetch(id, "/cart/uncertain_command", { method })).rejects.toBeInstanceOf(ConversationSessionExpiredError);
+      expect(calls).toEqual(["/cart/uncertain_command"]);
+    }
+  } finally {
+    globalThis.fetch = originalFetch;
+    forgetConversationAccess(id);
+    Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
+test("an explicitly non-replayable GET is never repeated after authorization failure", async () => {
+  const originalFetch = globalThis.fetch;
+  Object.defineProperty(globalThis, "window", { value: { location: { origin: "http://localhost:3001" } }, configurable: true });
+  const id = "non_replayable_read";
+  rememberConversationAccess(id, token(Date.now() / 1000 + 3600));
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json({}, { status: 401 }); };
+  try {
+    await expect(conversationFetch(id, "/cart/non_replayable_read", { method: "GET" }, { replayAuthorizationFailure: false })).rejects.toBeInstanceOf(ConversationSessionExpiredError);
+    expect(calls).toBe(1);
+  } finally {
+    globalThis.fetch = originalFetch;
+    forgetConversationAccess(id);
+    Reflect.deleteProperty(globalThis, "window");
+  }
+});
+
+test("a rejected read renewal stops before a second read dispatch", async () => {
+  const originalFetch = globalThis.fetch;
+  Object.defineProperty(globalThis, "window", { value: { location: { origin: "http://localhost:3001" } }, configurable: true });
+  const id = "rejected_renewal";
+  rememberConversationAccess(id, token(Date.now() / 1000 + 3600));
+  let calls = 0;
+  globalThis.fetch = async () => { calls++; return Response.json({}, { status: 401 }); };
+  try {
+    await expect(conversationFetch(id, "/cart/rejected_renewal")).rejects.toBeInstanceOf(ConversationSessionExpiredError);
     expect(calls).toBe(2);
   } finally {
     globalThis.fetch = originalFetch;
+    forgetConversationAccess(id);
     Reflect.deleteProperty(globalThis, "window");
   }
 });

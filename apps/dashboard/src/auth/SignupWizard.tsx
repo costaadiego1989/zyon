@@ -5,6 +5,7 @@ import { Turnstile } from "./Turnstile.js";
 import { maskPhone, maskCpfCnpj, validateCpfCnpj } from "../utils/masks.js";
 import { STORE_CATEGORIES, ROLES, VOLUMES } from "../lib/signup-options.js";
 import { SegmentSelect } from "../components/SegmentSelect.js";
+import { isAuthCaptchaReady, requiresAuthCaptcha } from "./auth-config.js";
 
 export interface SignupWizardProps {
   busy: boolean;
@@ -50,6 +51,7 @@ const STEP_META = [
 ];
 
 export function SignupWizard(props: SignupWizardProps) {
+  const captchaRequired = requiresAuthCaptcha(props.turnstileSiteKey, import.meta.env.PROD);
   const titleRef = useRef<HTMLHeadingElement>(null);
   const isOAuth = Boolean(props.oauthProfile);
   const accountCreated = useRef(isOAuth);
@@ -95,7 +97,7 @@ export function SignupWizard(props: SignupWizardProps) {
     if (!isOAuth && account.password.length < 8) { setError("Mínimo 8 caracteres, com letra e número."); return; }
     if (!isOAuth && account.password !== account.confirmPassword) { setError("As senhas não coincidem."); return; }
     if (!account.phone.trim() || account.phone.replace(/\D/g, "").length < 10) { setError("Informe um celular válido."); return; }
-    if (!isOAuth && !accountCreated.current && props.turnstileSiteKey && !props.captchaToken) {
+    if (!isOAuth && !accountCreated.current && !isAuthCaptchaReady(props.turnstileSiteKey, props.captchaToken, import.meta.env.PROD)) {
       setError("Confirme que você não é um robô.");
       return;
     }
@@ -179,9 +181,9 @@ export function SignupWizard(props: SignupWizardProps) {
       {step === 3 && <AccountFields draft={account} onChange={setAccount} oauth={isOAuth} />}
       </div>
 
-      {step === 3 && !isOAuth && !accountCreated.current && props.turnstileSiteKey ? (
+      {step === 3 && !isOAuth && !accountCreated.current && captchaRequired ? (
         <div style={{ marginTop: 8 }}>
-          <Turnstile action="signup" resetKey={captchaAttempt} theme="light" siteKey={props.turnstileSiteKey} onChange={props.setCaptchaToken} />
+          <Turnstile required={captchaRequired} action="signup" resetKey={captchaAttempt} theme="light" siteKey={props.turnstileSiteKey} onChange={props.setCaptchaToken} />
         </div>
       ) : null}
 
@@ -196,7 +198,7 @@ export function SignupWizard(props: SignupWizardProps) {
           type="submit"
           disabled={
             busy ||
-            (!isOAuth && !accountCreated.current && Boolean(props.turnstileSiteKey) && !props.captchaToken)
+            (!isOAuth && !accountCreated.current && !isAuthCaptchaReady(props.turnstileSiteKey, props.captchaToken, import.meta.env.PROD))
           }
           className="auth-cta"
         >

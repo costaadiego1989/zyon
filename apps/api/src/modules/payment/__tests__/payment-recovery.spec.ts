@@ -15,6 +15,23 @@ import { InMemoryCheckoutRepository } from "../../checkout/infrastructure/reposi
 import { checkoutSession } from "../../checkout/__tests__/checkout-test-fixtures.js";
 import type { CheckoutPaymentApprovedInput, CheckoutPaymentPort } from "../domain/ports/checkout-payment.port.js";
 import { InMemoryDomainEventBus } from "../../../shared/events/in-memory-domain-event-bus.js";
+import type { PrismaClient } from "@prisma/client";
+import type { CheckoutSession } from "@zyon/shared-types";
+import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
+
+/** Explicit synthetic persisted scope/catalog for mandatory pre-send guards.
+ * This double proves neither SQL fencing nor a live provider account. */
+function guardedPrisma(checkout:InMemoryCheckoutRepository,session:CheckoutSession):PrismaClient{
+  const catalog=session.cart.items.map((item,index)=>({id:item.variantId??`synthetic-${index}`,sku:item.sku,isActive:true,
+    product:{merchantId:session.merchantId,isActive:true,deletedAt:null,type:"physical"},stock:[{quantity:100,reserved:0}]}));
+  return {checkoutSession:{findUnique:async({where}: {where:{merchantId_sessionId:{merchantId:string;sessionId:string}}})=>{
+    assert.deepEqual(where.merchantId_sessionId,{merchantId:session.merchantId,sessionId:session.sessionId});
+    return checkout.getSession(session.merchantId,session.sessionId);}},crossStoreLineItem:{findFirst:async()=>null},
+    productVariant:{findMany:async({where}:{where:{product:{merchantId:string}}})=>{assert.equal(where.product.merchantId,session.merchantId);return catalog;}}} as unknown as PrismaClient;
+}
+function guardedCreate(checkout:InMemoryCheckoutRepository,repo:InMemoryPaymentRepository,provider:PaymentProviderPort,session:CheckoutSession){
+  return new CreatePaymentIntentUseCase(checkout,checkout,repo,provider,undefined,undefined,undefined,undefined,undefined,undefined,undefined,undefined,guardedPrisma(checkout,session));
+}
 
 function prepared() {
   const intent = PaymentIntentEntity.create({ merchantId: "merchant_recovery", sessionId: "session_recovery", idempotencyKey: "same-key", amountCents: 1099, currency: "BRL", method: "pix" });
@@ -130,7 +147,7 @@ for (const scenario of ["empty", "duplicate", "mismatch"] as const) {
   });
 }
 
-test("API013: Stripe retries stable parameters within retention and only searches after 23 hours", async () => {
+test("API013: Stripe recovery only looks up the original charge at every age, never replays create", async () => {
   const provider = new StripePaymentAdapter("sk_test_fake", "pk_test_fake");
   const input: CreateProviderPaymentInput = { ...prepared().snapshot().creation!.input, method: "card", stripeConnectAccountId: "acct_owned", platformFeeCents: 0 };
   const calls: any[] = [];
@@ -138,10 +155,8 @@ test("API013: Stripe retries stable parameters within retention and only searche
     create: async (body: unknown, options: unknown) => { calls.push({ body, options }); return { id: "pi_one", client_secret: "client-secret" }; },
     search: async () => { calls.push("search"); return { has_more: false, data: [] }; },
   } };
-  await provider.recoverPayment(input, new Date().toISOString());
-  assert.equal(calls[0].options.idempotencyKey, "stable-key");
-  assert.deepEqual(calls[0].body.transfer_data, { destination: "acct_owned" });
-  assert.equal(calls[0].body.application_fee_amount, undefined);
+  assert.equal(await provider.recoverPayment(input, new Date().toISOString()),null);
+  assert.deepEqual(calls,["search"],"ready/uncertain recovery cannot issue another Stripe CREATE");
   assert.equal(await provider.recoverPayment(input, new Date(Date.now() - 24 * 3600_000).toISOString()), null);
   assert.equal(calls.length, 2); assert.equal(calls[1], "search");
 });
@@ -166,7 +181,7 @@ test("Accounts v2 Managed Risk creates and recovers a direct charge on the conne
   const input: CreateProviderPaymentInput = {
     ...prepared().snapshot().creation!.input,
     method: "card",
-    stripeConnectAccountId: "acct_v2_merchant",
+    stripeConnectAccountId: "acct_v2merchant",
     stripeChargeMode: "direct_v2",
     platformFeeCents: 298,
   };
@@ -183,13 +198,13 @@ test("Accounts v2 Managed Risk creates and recovers a direct charge on the conne
   } };
 
   const created = await provider.createPayment(input);
-  assert.equal(calls[0].options.stripeAccount, "acct_v2_merchant");
+  assert.equal(calls[0].options.stripeAccount, "acct_v2merchant");
   assert.equal(calls[0].body.application_fee_amount, 298);
   assert.equal(calls[0].body.transfer_data, undefined);
-  assert.equal(created.buyerFacingPayload.stripeAccountId, "acct_v2_merchant");
+  assert.equal(created.buyerFacingPayload.stripeAccountId, "acct_v2merchant");
 
   assert.equal(await provider.recoverPayment(input, new Date(Date.now() - 24 * 3600_000).toISOString()), null);
-  assert.equal(calls[1].options.stripeAccount, "acct_v2_merchant");
+  assert.equal(calls[1].options.stripeAccount, "acct_v2merchant");
 });
 
 test("API014: card fee snapshot survives configuration changes and dispatch forwards captured total and intent ID", async t => {
@@ -205,7 +220,7 @@ test("API014: card fee snapshot survives configuration changes and dispatch forw
     checkout.getStripeConnectAccountId = async () => "acct_owned";
     const inputs: CreateProviderPaymentInput[] = [];
     const provider: PaymentProviderPort = { createPayment: async input => { inputs.push(input); return { providerPaymentId: "pi_one", status: "requires_action", buyerFacingPayload: { clientSecret: "secret" } }; } };
-    const result = await new CreatePaymentIntentUseCase(checkout, checkout, repo, provider).execute({ merchant_id: session.merchantId, session_id: session.sessionId, idempotency_key: `fee-${fee}`, method: "card" });
+    const result = await guardedCreate(checkout,repo,provider,session).execute({ merchant_id: session.merchantId, session_id: session.sessionId, idempotency_key: `fee-${fee}`, method: "card" });
     const expected = 9000 + Math.round((session.shipping?.customerPrice ?? 0) * 100) + Math.round(Number(fee) * 100);
     assert.equal(result.amountCents, expected); assert.equal(inputs[0].amountCents, expected); assert.equal(result.amountBreakdown?.platformFeeCents, Math.round(Number(fee) * 100));
     process.env.PLATFORM_FEE_BRL = "99";
@@ -247,11 +262,17 @@ test("API015: durable approval handler recovers checkout after post-commit crash
 });
 
 test("API013: reconciliation resumes creation without provider ID instead of permanently skipping", async () => {
-  const repo = new InMemoryPaymentRepository(); const intent = prepared(); await repo.saveIntent({ intent });
+  const checkout=new InMemoryCheckoutRepository(),session=checkoutSession({merchantId:"merchant_recovery",sessionId:"session_recovery",
+    cart:{currency:"BRL",total:10,currentDiscount:0,items:[{sku:"sku",variantId:"native-variant",name:"Synthetic item",price:10,quantity:1}]},shipping:{customerPrice:0,region:"SP"}});
+  await checkout.saveSession(session);
+  const repo = new InMemoryPaymentRepository();
+  const intent=PaymentIntentEntity.create({merchantId:session.merchantId,sessionId:session.sessionId,idempotencyKey:"reconcile-ready",amountCents:1099,currency:"BRL",method:"pix",
+    amountBreakdown:{version:1,currency:"BRL",cartFingerprint:paymentCartFingerprint(session),itemsSubtotalCents:1000,discountCents:0,shippingCents:0,platformFeeCents:99,totalCents:1099}});
+  intent.prepareCreation({...prepared().snapshot().creation!.input,intentId:intent.id});await repo.saveIntent({intent});
   const remote = asaasMock(intent.id);
   const port: CheckoutPaymentPort = { completeAfterApproval: async () => {}, recordPaymentFailure: async () => {}, recordPaymentStatusChanged: async () => {} };
   remote.provider.fetchPaymentStatus = async () => ({ state: "pending" });
-  const result = await new ReconcilePaymentIntentsUseCase(repo, remote.provider, port).execute({ staleAfterMs: 0 });
+  const result = await new ReconcilePaymentIntentsUseCase(repo, remote.provider, port,undefined,undefined,checkout,guardedPrisma(checkout,session)).execute({ staleAfterMs: 0 });
   assert.equal(remote.posts(), 1); assert.equal(result.reconciled[0].outcome, "still_pending");
   assert.equal((await repo.getIntentById("merchant_recovery", intent.id))!.snapshot().providerPaymentId, "pay_unique");
 });
@@ -262,7 +283,7 @@ test("API014: idempotent retry rejects changed sale identities and hides persist
     cart: { currency: "BRL", total: 10, currentDiscount: 0, items: [{ sku: "sku-one", name: "Item", price: 10, quantity: 1 }] } });
   await checkout.saveSession(session); let creates = 0;
   const provider: PaymentProviderPort = { createPayment: async () => { creates++; return { providerPaymentId: "pay_one", status: "requires_action", buyerFacingPayload: { qrCodeCopyPaste: "pix-code" } }; } };
-  const uc = new CreatePaymentIntentUseCase(checkout, checkout, repo, provider);
+  const uc = guardedCreate(checkout,repo,provider,session);
   const input = { merchant_id: session.merchantId, session_id: session.sessionId, idempotency_key: "same-sale", method: "pix" as const };
   const result = await uc.execute(input);
   assert.equal("creation" in result, false); assert.equal("version" in result, false);

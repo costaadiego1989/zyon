@@ -5,17 +5,22 @@ import vm from "node:vm";
 import { createRequire } from "node:module";
 import { webcrypto } from "node:crypto";
 import ts from "typescript";
-import { storefrontRequestOrigin } from "../../../../../../storefront/src/lib/platform-hostname.js";
 
 // Execute the actual Next route with a mocked upstream, without a Next dev server
 // or a service credential from the environment. NextResponse remains the real class.
 function route(upstream: typeof fetch) {
+  // Execute the real pure helper without importing another app into API rootDir.
+  const hostnameUrl = new URL("../../../../../../storefront/src/lib/platform-hostname.ts", import.meta.url);
+  const hostname = { exports: {} as { storefrontRequestOrigin: (request: Request) => string } };
+  vm.runInNewContext(ts.transpileModule(fs.readFileSync(hostnameUrl, "utf8"), {
+    compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 },
+  }).outputText, { module: hostname, exports: hostname.exports, URL }, { filename: hostnameUrl.pathname });
   const sourceUrl = new URL("../../../../../../storefront/src/app/api/checkout-token/route.ts", import.meta.url);
   const source = fs.readFileSync(sourceUrl, "utf8");
   const { outputText } = ts.transpileModule(source, { compilerOptions: { module: ts.ModuleKind.CommonJS, target: ts.ScriptTarget.ES2022 } });
   const module = { exports: {} as { POST: (request: Request) => Promise<Response> } };
   vm.runInNewContext(outputText, {
-    module, exports: module.exports, require: (name: string) => name === "@/lib/platform-hostname" ? { storefrontRequestOrigin } : createRequire(sourceUrl)(name),
+    module, exports: module.exports, require: (name: string) => name === "@/lib/platform-hostname" ? hostname.exports : createRequire(sourceUrl)(name),
     process: { env: { INTERNAL_SERVICE_TOKEN: "unit-test-service-token", AACP_API_URL: "https://api.example" } },
     URL, AbortSignal, crypto: webcrypto, fetch: upstream,
   }, { filename: sourceUrl.pathname });

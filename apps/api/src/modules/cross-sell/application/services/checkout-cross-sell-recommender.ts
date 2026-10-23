@@ -100,6 +100,7 @@ export class CheckoutCrossSellRecommender implements CheckoutCrossSellRecommende
       return {
         ...product,
         variant_id: variant.id,
+        product_id: variant.productId,
         name: variant.product?.name ?? product.name,
         unit_price: priceCents != null ? priceCents / 100 : product.unit_price,
         image_url: variant.media?.[0]?.url ?? product.image_url,

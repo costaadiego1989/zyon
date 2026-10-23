@@ -51,6 +51,11 @@ describe("SettlementStateMachineService", () => {
         event: "chargeback_received",
         to: "chargeback_debt",
       },
+      {
+        from: "finalized",
+        event: "chargeback_received",
+        to: "chargeback_debt",
+      },
     ];
 
     for (const { from, event, to } of validCases) {
@@ -72,7 +77,6 @@ describe("SettlementStateMachineService", () => {
       { from: "transfer_scheduled", event: "buyer_returned" },
       { from: "transferred", event: "return_window_expired" },
       { from: "transferred", event: "transfer_executed" },
-      { from: "finalized", event: "chargeback_received" },
       { from: "finalized", event: "return_window_expired" },
       { from: "return_cancelled", event: "transfer_executed" },
       { from: "chargeback_cancelled", event: "chargeback_window_expired" },
@@ -86,6 +90,16 @@ describe("SettlementStateMachineService", () => {
         });
       });
     }
+  });
+
+  it("an expired internal window permits only a verified-dispute debt transition, never another payout", () => {
+    assert.equal(machine.isTerminal("finalized"), false);
+    assert.deepEqual(machine.getAvailableEvents("finalized"), ["chargeback_received"]);
+    assert.equal(machine.transition("finalized", "chargeback_received"), "chargeback_debt");
+    assert.equal(machine.isTerminal("chargeback_debt"), true);
+    assert.deepEqual(machine.getAvailableEvents("chargeback_debt"), []);
+    assert.throws(() => machine.transition("finalized", "transfer_executed"), /Invalid transition/);
+    assert.throws(() => machine.transition("chargeback_debt", "chargeback_received"), /Invalid transition/);
   });
 
   describe("calculateWindows", () => {

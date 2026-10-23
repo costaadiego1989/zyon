@@ -79,11 +79,12 @@ test("missing shipping costs, insufficient burden and forbidden regions never be
     { customerPrice: 20, realCost: 20, region: "SP" }), null);
 });
 
-test("freight runtime preserves carrier subsidy, free-shipping eligibility and complete order margin", () => {
+test("freight runtime preserves carrier subsidy and free-shipping eligibility, not a product-margin gate", () => {
   const r = terms("shipping").recommendation;
   assert.equal(assessExecutableIncentive(cart(), rules, r, { customerPrice: 3, realCost: 3 }), null);
   assert.equal(assessExecutableIncentive(cart(), rules, r, { customerPrice: 20, realCost: 30 }), null);
-  assert.equal(assessExecutableIncentive(cart(100, 60), rules, r, { customerPrice: 20, realCost: 20 }), null);
+  assert.deepEqual(assessExecutableIncentive(cart(100, 60), rules, r, { customerPrice: 20, realCost: 20 }),
+    { amountCents: 500, costCents: 6000 });
   assert.equal(assessExecutableIncentive(cart(), { ...rules, allowShippingDiscount: false }, r,
     { customerPrice: 20, realCost: 20 }), null);
 });
@@ -97,7 +98,7 @@ test("fixed coupon is deterministic without personal information and cannot exce
   const low = { ...r, test: { ...r.test, audience: { ...r.test.audience, minCartTotalCents: 1 } } };
   assert.equal(assessExecutableIncentive(cart(10, 1), rules, low), null);
   assert.equal(assessExecutableIncentive({ ...cart(), currentDiscount: 1 }, rules, r), null);
-  assert.equal(assessExecutableIncentive(cart(100, 80), rules, r), null);
+  assert.deepEqual(assessExecutableIncentive(cart(100, 80), rules, r), { amountCents: 500, costCents: 8000 });
 });
 
 for (const mode of ["fixed", "shipping", "percentage"] as const) test(`${mode} never stacks a new incentive with pre-subsidized shipping`, () => {

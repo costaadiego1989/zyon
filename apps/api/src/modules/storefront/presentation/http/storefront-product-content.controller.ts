@@ -7,9 +7,7 @@ import {
   NotFoundException,
   Param,
 } from "@nestjs/common";
-import {
-  BillingPlanMeteringService,
-} from "../../../payment/infrastructure/billing/billing-plan-guard.js";
+import { BILLING_PLAN_ACCESS, type BillingPlanAccessPort } from "../../../payment/domain/ports/billing-plan-access.port.js";
 import { BILLING_PLANS } from "../../../payment/domain/billing-plans.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
@@ -18,7 +16,7 @@ import {
   DEFAULT_PRODUCT_CONTENT_LOCALE,
   normalizeProductContentLocale,
 } from "../../../catalog/domain/entities/product-content-block.entity.js";
-import { loadProductNoticeRules, productRuleNotices } from "../../infrastructure/product-rule-notices.js";
+import { loadProductNoticeRules, productRuleNotices } from "../../application/services/product-rule-notices.js";
 import { extractOptionGroups, toBlockOptionGroups } from "../../domain/food-options.js";
 import { ServiceSlotHoldsService } from "../../../../shared/bookings/service-slot-holds.service.js";
 import { type PublicCrossSellPreview } from "../../application/services/pre-cart-cross-sell-preview.js";
@@ -103,7 +101,8 @@ export class StorefrontProductContentController {
   constructor(
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
     private readonly getProductContent: GetProductContentUseCase,
-    private readonly billing: BillingPlanMeteringService,
+    @Inject(BILLING_PLAN_ACCESS) private readonly billing: BillingPlanAccessPort,
+    @Inject(PublicProductCrossSellPreview) private readonly crossSellPreview: PublicProductCrossSellPreview,
   ) {}
 
   @Get(":slug/products/:productId/share")
@@ -205,6 +204,7 @@ export class StorefrontProductContentController {
       );
       return {
         id: variant.id,
+        sku: variant.sku,
         ...(schedule ? { serviceSchedule: schedule } : {}),
         attributes,
         available: isAvailable,
@@ -276,7 +276,7 @@ export class StorefrontProductContentController {
     viewedSkus: string[],
     viewedCategory?: string | null,
   ): Promise<PublicCrossSellPreview | undefined> {
-    return new PublicProductCrossSellPreview(this.prisma).suggest(merchantId, storeSettings, viewedSkus, viewedCategory);
+    return this.crossSellPreview.suggest(merchantId, storeSettings, viewedSkus, viewedCategory);
   }
 
 }

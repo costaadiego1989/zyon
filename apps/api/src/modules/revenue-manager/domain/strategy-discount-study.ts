@@ -75,13 +75,12 @@ export function assertDiscountStudy(study: StrategyDiscountStudy, merchantId: st
     const percent = moneyCents(c?.percent), cap = moneyCents(rules.maxDiscountPercent);
     if (!c || !s || !/^[a-z][a-z0-9_]{0,63}$/.test(c.intent) || percent === null || cap === null
       || percent <= 0 || percent > cap || cap > 10_000 || rules.autonomousEngineEnabled !== true
-      || s.definition !== "discount-catalog-replay-v1" || s.currency !== "BRL" || s.conversionWindowHours !== 168
+      || !["discount-catalog-replay-v1", "discount-catalog-replay-v2"].includes(s.definition) || s.currency !== "BRL" || s.conversionWindowHours !== 168
       || s.costBasis !== "current_catalog" || s.paymentFeeAssumptionPercent !== 4 || s.expectedLiftStatus !== "not_estimated"
       || !Number.isSafeInteger(s.sampleSize) || s.sampleSize < 30 || s.sampleSize > 10_000
       || !Number.isFinite(s.observedConversionRate) || s.observedConversionRate < 0 || s.observedConversionRate >= .15
-      || !Number.isFinite(rules.minimumMarginPercent) || rules.minimumMarginPercent < 0 || rules.minimumMarginPercent > 100
-      || !Number.isFinite(s.minimumProjectedMarginPercent) || s.minimumProjectedMarginPercent > 100
-      || s.minimumProjectedMarginPercent + 1e-9 < rules.minimumMarginPercent
+      || (s.minimumProjectedMarginPercent === null ? s.definition !== "discount-catalog-replay-v2"
+        : !Number.isFinite(s.minimumProjectedMarginPercent) || s.minimumProjectedMarginPercent > 100)
       || [s.minCartTotalCents, s.maxCartTotalCents, s.maxDiscountCents, s.replayDiscountTotalCents]
         .some(n => !Number.isSafeInteger(n) || n <= 0)
       || s.minCartTotalCents > s.maxCartTotalCents || s.maxDiscountCents > s.maxCartTotalCents

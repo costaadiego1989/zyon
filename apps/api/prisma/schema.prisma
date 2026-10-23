@@ -4106,7 +4106,8 @@ model StrategyIncentiveAssignment {
   assignedAt DateTime @map("assigned_at")
   cartHash String @map("cart_hash")
   amountCents Int @map("amount_cents")
-  costCents Int @map("cost_cents")
+  // Optional measurement only: unknown cost must not deny eligibility or become zero.
+  costCents Int? @map("cost_cents")
   reservationId String? @unique @map("reservation_id")
   @@unique([merchantId, sessionId])
   @@unique([executionId, merchantId, buyerId])

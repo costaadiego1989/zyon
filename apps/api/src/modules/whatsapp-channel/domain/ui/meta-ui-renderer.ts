@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { MetaUiChoice, MetaUiMessage, MetaUiPresentation, MetaUiView, StoreUiAction, WhatsAppStructuredResponse } from "./meta-ui.types.js";
 import { serviceSlotLabel } from "../../../catalog/domain/services/service-schedule.js";
 import { metaStoreQuickReplyAction } from "./meta-store-actions.js";
+import { commercialNoticesSchema } from "../../../storefront/domain/contracts/commercial-notice.schemas.js";
 
 const object = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const items = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
@@ -153,6 +154,10 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         });
         text.push(`Subtotal: ${money(d.subtotal)}${d.discount ? `\nDescontos: −${money(d.discount)}` : ""}\n*Total dos itens: ${money(d.total)}*\n\n_Frete e eventuais taxas aparecem no resumo antes do pagamento._`);
         if (d.freeShipping) text.push("Frete grátis aplicado.");
+        {
+          const notices = commercialNoticesSchema.safeParse(d.commercialNotices);
+          if (notices.success) for (const notice of notices.data) text.push(notice.message);
+        }
         if (items(d.items).length) add("Finalizar compra", tool("checkout", {}));
         add("Continuar comprando", tool("search_products", { query: "*" }));
         break;

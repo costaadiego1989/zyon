@@ -1,4 +1,4 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { Inject, Injectable, Optional, UnauthorizedException } from "@nestjs/common";
 import type { CheckoutSession, CustomerHints } from "@zyon/shared-types";
 import { BUYER_ACCOUNT_REPOSITORY, type BuyerAccountRepository } from "../../../buyer-account/domain/ports/buyer-account-repository.port.js";
 import { BuyerAccount } from "../../../buyer-account/domain/entities/buyer-account.entity.js";
@@ -37,7 +37,10 @@ export class BuyerAccountPersistenceService {
    * @param session The checkout session with customer data.
    * @param emailVerifiedOnly When true, only persist if email is verified (skip full registration check).
    */
-  async ensureBuyerAccountPersisted(session: CheckoutSession, emailVerifiedOnly = false): Promise<void> {
+  async ensureBuyerAccountPersisted(session: CheckoutSession, emailVerifiedOnly = false, trustedGlobalUserId?: string): Promise<void> {
+    if (trustedGlobalUserId !== undefined && (session.globalUserId !== trustedGlobalUserId || !session.customer?.email_verified)) {
+      throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+    }
     if (!this.buyerAccounts) return;
 
     const customer = session.customer;
@@ -48,6 +51,9 @@ export class BuyerAccountPersistenceService {
 
     const email = customer.email.trim().toLowerCase();
     const existing = await this.buyerAccounts.findByEmail(email);
+    if (trustedGlobalUserId !== undefined && existing && existing.globalUserId !== trustedGlobalUserId) {
+      throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+    }
     if (existing) {
       const hydrated = existing.withUpdatedProfile(
         customer.fullName,

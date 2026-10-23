@@ -1,23 +1,34 @@
-import { Injectable, Inject, Optional , Logger} from "@nestjs/common";
+import { Injectable, Inject, Optional, Logger, BadRequestException } from "@nestjs/common";
 import { buildQuoteKey } from "@zyon/shipping-engine";
+import { createHash } from "node:crypto";
+import { canonicalJson } from "../../../../shared/http/canonical-json.js";
 import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { SHIPPING_QUOTE_REPOSITORY, type ShippingQuoteRepository } from "../../domain/ports/shipping-quote-repository.port.js";
-import { CARRIER_ADAPTERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
+import { CARRIER_ADAPTERS, SHIPPING_REFERENCE_CARRIERS, type CarrierPort } from "../../domain/ports/carrier.port.js";
+import { z } from "zod";
 import { OWN_DELIVERY_CONFIG_REPOSITORY, type OwnDeliveryConfigRepository } from "../../domain/ports/own-delivery-config.port.js";
 import { applyFreeShippingPolicy } from "../../domain/policies/free-shipping.policy.js";
-import type { PackageDimensions } from "@zyon/shared-types";
+import type { PackageDimensions, CheckoutSession, ShippingQuote } from "@zyon/shared-types";
 import {
   MERCHANT_RULES_REPOSITORY,
   type MerchantRulesRepository
 } from "../../../merchant/domain/ports/merchant-rules.repository.port.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { geocodeBrazilianCep, haversineDistance, getPriceForDistance } from "../../domain/services/distance-calculator.service.js";
-import type { OwnDeliveryRadiusZone } from "../../domain/ports/own-delivery-config.port.js";
+import type { OwnDeliveryConfig, OwnDeliveryRadiusZone } from "../../domain/ports/own-delivery-config.port.js";
+import { manualDeliveryConfigSchema, normalizeDeliveryNeighborhood, quoteManualDelivery } from "../../domain/services/manual-delivery-quote.js";
+import type { NeighborhoodDeliveryOrigin } from "../../domain/services/neighborhood-delivery-origin.js";
+import { evaluateSelectedNeighborhoodDelivery } from "../../domain/services/selected-neighborhood-delivery.js";
 
 export interface QuoteShippingInput {
   session_id: string;
   merchant_id: string;
   destination_zip: string;
+  /** Owned session address only, and only when its CEP matches destination_zip.
+   * Never forward a raw request/model neighborhood as pricing authority. */
+  destination_neighborhood?: string;
+  destination_city?: string;
+  destination_state?: string;
   cart_total: number;
   /**
    * @deprecated C1 fix: IGNORED at runtime. Free-shipping threshold is always
@@ -29,6 +40,26 @@ export interface QuoteShippingInput {
   packages?: PackageDimensions[];
   items?: { sku: string; quantity: number }[];
 }
+
+export type ShippingReferenceInput = Omit<QuoteShippingInput, "free_shipping_threshold"> & { basisHash: string; configurationHash: string };
+export type ShippingReferenceSnapshot = { referenceOnly: true; id: string; expiresAt: string; basisHash: string; configurationHash: string;
+  results: ShippingQuoteResult[]; reason?: "source_changed" | "origin_required" | "origin_address_configuration_required" | "dimensions_required" | "address_required" | "coverage_unavailable" | "carrier_unavailable" };
+export function shippingReferenceConfigurationHash(manual: unknown, originZip: string, origin?: NeighborhoodDeliveryOrigin): string {
+  const neighborhood = manual && typeof manual === "object" && Reflect.get(manual, "enabled") === true && Reflect.get(manual, "mode") === "neighborhood";
+  return createHash("sha256").update(canonicalJson({ namespace: "storefront-reference-v1", manual, originZip,
+    ...(neighborhood ? { origin: origin ?? null } : {}) })).digest("hex");
+}
+const referenceInput = z.strictObject({ session_id: z.string().min(1).max(191), merchant_id: z.string().min(1).max(191),
+  destination_zip: z.string().regex(/^\d{8}$/).refine(value => value !== "00000000"), destination_neighborhood: z.string().min(1).max(120).optional(),
+  destination_city: z.string().min(1).max(191).optional(), destination_state: z.string().length(2).optional(),
+  cart_total: z.number().finite().nonnegative().refine(value => Number.isSafeInteger(Math.round(value * 100)) && Math.round(value * 100) <= 2_147_483_647),
+  origin_zip: z.string().max(8).optional(), basisHash: z.string().regex(/^[a-f0-9]{64}$/), configurationHash: z.string().regex(/^[a-f0-9]{64}$/),
+  packages: z.array(z.strictObject({ weightKg: z.number().finite().positive(), heightCm: z.number().finite().positive(),
+    widthCm: z.number().finite().positive(), lengthCm: z.number().finite().positive(), quantity: z.number().int().min(1).max(99) })).min(1).max(200).optional(),
+  items: z.array(z.strictObject({ sku: z.string().min(1).max(191), quantity: z.number().int().min(1).max(99) })).min(1).max(200),
+});
+const referenceResults = z.array(z.object({ carrier_key: z.string().min(1).max(300), label: z.string().min(1).max(300),
+  price: z.number().int().min(0).max(2_147_483_647), eta_days: z.number().int().min(0).max(3650), is_free: z.literal(false) })).max(100);
 
 @Injectable()
 export class QuoteShippingUseCase {
@@ -45,10 +76,80 @@ export class QuoteShippingUseCase {
     private readonly merchantRules?: MerchantRulesRepository,
     // Own delivery config — optional for backward compat with tests
     @Optional() @Inject(OWN_DELIVERY_CONFIG_REPOSITORY)
-    private readonly ownDeliveryConfig?: OwnDeliveryConfigRepository
+    private readonly ownDeliveryConfig?: OwnDeliveryConfigRepository,
+    @Optional() @Inject(SHIPPING_REFERENCE_CARRIERS) private readonly referenceCarriers?: CarrierPort[]
   ) {}
 
-  async execute(input: QuoteShippingInput) {
+  /** Locality gate only, not quote/payment authority. Only an identified
+   * neighborhood selection is constrained; an unselected session or another
+   * carrier is never rejected just because neighborhood mode is configured. */
+  async assertNeighborhoodDestination(session: CheckoutSession, selected: ShippingQuote | null = session.shipping ?? null): Promise<void> {
+    if (!selected || selected.carrier !== "Entrega" && !selected.carrier?.startsWith("own_delivery_neighborhood_")) return;
+    const source = await this.quotes.findBySession(session.sessionId, session.merchantId);
+    const config = await this.ownDeliveryConfig?.getByMerchantId(session.merchantId);
+    const origin = config?.enabled && config.mode === "neighborhood" ? await this.ownDeliveryConfig?.getNeighborhoodOrigin?.(session.merchantId) : undefined;
+    const decision = evaluateSelectedNeighborhoodDelivery({ merchantId: session.merchantId, sessionId: session.sessionId, selected,
+      address: session.customer?.address, addressVerified: session.customer?.address_verified === true,
+      config, origin, cartTotalCents: Math.round(session.cart.total * 100), sourceQuote: source?.snapshot() });
+    if (decision.kind === "requires_review") throw new BadRequestException({ code: decision.reason });
+  }
+
+  /** Reference ONLY: no cache lookup, quote persistence/events, selection or
+   * subsidy. Existing execute() behavior below remains independent. */
+  async executeReference(rawInput: ShippingReferenceInput): Promise<ShippingReferenceSnapshot> {
+    const input = referenceInput.parse(structuredClone(rawInput));
+    const raw = await this.ownDeliveryConfig?.getByMerchantId(input.merchant_id);
+    const manual = raw == null ? null : manualDeliveryConfigSchema.parse(raw);
+    if (manual && manual.merchantId !== input.merchant_id) throw new Error("shipping_manual_config_scope_mismatch");
+    const entity = ShippingQuoteEntity.create({ session_id: input.session_id, merchant_id: input.merchant_id, destination_zip: input.destination_zip });
+    const snapshot = entity.snapshot();
+    const result: ShippingReferenceSnapshot = { referenceOnly: true, id: snapshot.id, expiresAt: snapshot.expires_at,
+      basisHash: input.basisHash, configurationHash: input.configurationHash, results: [] };
+    const refuse = (reason: NonNullable<ShippingReferenceSnapshot["reason"]>) => ({ ...result, reason });
+    const originResult = manual?.enabled && manual.mode === "neighborhood" ? await this.ownDeliveryConfig?.getNeighborhoodOrigin?.(input.merchant_id) : undefined;
+    if (manual?.enabled && manual.mode === "neighborhood" && originResult?.kind !== "ready") return refuse("origin_address_configuration_required");
+    const origin = originResult?.kind === "ready" ? originResult.origin : undefined;
+    if (shippingReferenceConfigurationHash(manual, input.origin_zip ?? "", origin) !== input.configurationHash) return refuse("source_changed");
+    if (manual?.enabled) {
+      if (manual.mode === "neighborhood" && !input.destination_neighborhood) return refuse("address_required");
+      if (manual.mode === "radius" && !/^\d{8}$/.test(input.origin_zip ?? "")) return refuse("origin_required");
+      const tariffs = await this.appendOwnDeliveryOptions(input, manual, origin);
+      // Configured free-above is a benefit candidate, not authorization. Show
+      // only the raw configured tariff; do not invent or infer a carrier cost.
+      result.results = tariffs.map(({ original_price, ...tariff }) => ({ ...tariff, price: original_price ?? tariff.price, is_free: false }));
+      if (!result.results.length) return refuse("coverage_unavailable");
+    } else {
+      if (!/^\d{8}$/.test(input.origin_zip ?? "")) return refuse("origin_required");
+      if (!input.packages?.length) return refuse("dimensions_required");
+      const context = { merchantId: input.merchant_id, originZip: input.origin_zip!, destinationZip: input.destination_zip,
+        cartTotalCents: Math.round(input.cart_total * 100), packages: input.packages };
+      const settled = await Promise.allSettled((this.referenceCarriers ?? []).filter(carrier => carrier.carrierKey !== "flat-rate")
+        .map(carrier => carrier.fetchQuotes(context)));
+      result.results = dedupeQuoteResults(settled.flatMap(item => item.status === "fulfilled" ? item.value : []));
+      if (!result.results.length) return refuse("carrier_unavailable");
+    }
+    result.results = referenceResults.parse(result.results);
+    if (Date.parse(result.expiresAt) <= Date.now()) return { ...refuse("source_changed"), results: [] };
+    return result;
+  }
+
+  async execute(unresolvedInput: QuoteShippingInput, resolveCanonicalPackages?: () => PackageDimensions[]) {
+    // Read BEFORE cache: changed/disabled/foreign manual configuration must
+    // never reuse a previously enabled mode or silently authorize a carrier.
+    const rawManual = await this.ownDeliveryConfig?.getByMerchantId(unresolvedInput.merchant_id);
+    const manual = rawManual == null ? null : manualDeliveryConfigSchema.parse(rawManual);
+    if (manual && manual.merchantId !== unresolvedInput.merchant_id) throw new Error("shipping_manual_config_scope_mismatch");
+    // Internal owned-session resolver, never an HTTP/body option. Resolve only
+    // for a carrier, but BEFORE cache: a cached quote cannot hide newly missing
+    // catalog dimensions. One config snapshot decides the branch; do not mutate
+    // the caller or invent parcel measurements for this authenticated path.
+    const input = !manual?.enabled && resolveCanonicalPackages
+      ? { ...unresolvedInput, packages: resolveCanonicalPackages() }
+      : unresolvedInput;
+    const originResult = manual?.enabled && manual.mode === "neighborhood" ? await this.ownDeliveryConfig?.getNeighborhoodOrigin?.(input.merchant_id) : undefined;
+    if (manual?.enabled && manual.mode === "neighborhood" && originResult?.kind !== "ready") throw new BadRequestException({
+      code: "shipping_origin_address_configuration_required", message: "A loja precisa configurar o endereço da origem da entrega." });
+    const origin = originResult?.kind === "ready" ? originResult.origin : undefined;
     const cartTotalCents = Math.round(input.cart_total * 100);
     const baseKey = buildQuoteKey({
       merchantId: input.merchant_id,
@@ -63,7 +164,11 @@ export class QuoteShippingUseCase {
       ? await this.merchantRules.getRules(input.merchant_id)
       : null;
     const rulesHash = rules ? computeRulesHash(rules) : "none";
-    const quoteKey = `${baseKey}:rules:${rulesHash}:live-first-v2`;
+    const contextHash = createHash("sha256").update(canonicalJson({ manual,
+      neighborhood: normalizeDeliveryNeighborhood(input.destination_neighborhood ?? ""), originZip: input.origin_zip ?? "",
+      ...(manual?.enabled && manual.mode === "neighborhood" ? { origin, city: input.destination_city ?? null, state: input.destination_state ?? null } : {}),
+      packages: input.packages ?? null })).digest("hex");
+    const quoteKey = `${baseKey}:rules:${rulesHash}:live-first-v2:context:${contextHash}`;
 
     const reusable = await this.quotes.findValidByKey(quoteKey, input.merchant_id);
     if (reusable) {
@@ -76,6 +181,14 @@ export class QuoteShippingUseCase {
         return snap; // Same session; safe to reuse
       }
       // Quote belongs to a different session; ignore cache and create fresh
+    }
+
+    if (manual?.enabled) {
+      const results = await this.appendOwnDeliveryOptions(input, manual, origin);
+      const ownedQuote = ShippingQuoteEntity.create({ session_id: input.session_id, merchant_id: input.merchant_id,
+        destination_zip: input.destination_zip, quote_key: quoteKey }).addResults(results).recordCreated();
+      await this.quotes.saveWithEvents(ownedQuote);
+      return ownedQuote.snapshot();
     }
 
     let quote = ShippingQuoteEntity.create({
@@ -155,16 +268,13 @@ export class QuoteShippingUseCase {
         )
       : currentResults;
 
-    // Add own-delivery options if enabled
-    const resultsWithOwnDelivery = await this.appendOwnDeliveryOptions(finalResults, input);
-
     // Only return delivery methods configured by the merchant or quoted by a carrier.
     const withFreeShipping = ShippingQuoteEntity.create({
       session_id: input.session_id,
       merchant_id: input.merchant_id,
       destination_zip: input.destination_zip,
       quote_key: quoteKey
-    }).addResults(resultsWithOwnDelivery);
+    }).addResults(finalResults);
 
     const finalQuote = withFreeShipping.recordCreated();
     await this.quotes.saveWithEvents(finalQuote);
@@ -172,85 +282,15 @@ export class QuoteShippingUseCase {
   }
 
   private async appendOwnDeliveryOptions(
-    currentResults: ShippingQuoteResult[],
-    input: QuoteShippingInput
+    input: QuoteShippingInput,
+    config: OwnDeliveryConfig,
+    origin?: NeighborhoodDeliveryOrigin
   ): Promise<ShippingQuoteResult[]> {
-    if (!this.ownDeliveryConfig) return currentResults;
-
-    try {
-      const config = await this.ownDeliveryConfig.getByMerchantId(input.merchant_id);
-      if (!config?.enabled) return currentResults;
-
-      const ownDeliveryOptions: ShippingQuoteResult[] = [];
-
-      if (config.mode === "flat" && config.flatPriceCents !== null) {
-        const cartTotalCents = Math.round(input.cart_total * 100);
-        const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
-        const etaDays = convertToEtaDays(config.estimatedValue, config.estimatedUnit);
-
-        ownDeliveryOptions.push({
-          carrier_key: "own_delivery_flat",
-          label: "Entrega própria",
-          price: isFree ? 0 : config.flatPriceCents,
-          eta_days: etaDays,
-          is_free: isFree
-        });
-      } else if (config.mode === "neighborhood" && config.neighborhoods && config.neighborhoods.length > 0) {
-        // Look up destination neighborhood from ZIP (ViaCEP or from session address)
-        // For MVP, we'll just add all neighborhood options; in production, filter by destination ZIP
-        const cartTotalCents = Math.round(input.cart_total * 100);
-        const etaDays = convertToEtaDays(config.estimatedValue, config.estimatedUnit);
-
-        for (const neighborhood of config.neighborhoods) {
-          const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
-
-          ownDeliveryOptions.push({
-            carrier_key: `own_delivery_neighborhood_${neighborhood.name.toLowerCase().replace(/\s+/g, "_")}`,
-            label: `Entrega própria - ${neighborhood.name}`,
-            price: isFree ? 0 : neighborhood.priceCents,
-            eta_days: etaDays,
-            is_free: isFree
-          });
-        }
-      } else if (config.mode === "radius" && config.radiusZones && config.radiusZones.length > 0) {
-        // Radius mode: compute distance (origin → destination CEP) and pick the
-        // matching zone price. Requires origin_zip + destination_zip to geocode.
-        const cartTotalCents = Math.round(input.cart_total * 100);
-        const etaDays = convertToEtaDays(config.estimatedValue, config.estimatedUnit);
-        const isFree = config.freeAboveCents !== null && cartTotalCents >= config.freeAboveCents;
-
-        const priceCents = await this.computeRadiusPrice(
-          input.origin_zip ?? "",
-          input.destination_zip,
-          config.radiusZones
-        );
-
-        if (priceCents !== null) {
-          ownDeliveryOptions.push({
-            carrier_key: "own_delivery_radius",
-            label: "Entrega própria",
-            price: isFree ? 0 : priceCents,
-            eta_days: etaDays,
-            is_free: isFree
-          });
-        }
-        // If priceCents is null, destination is out of delivery range — no option added
-      }
-
-      // Mutual exclusivity: when own delivery is enabled, it is the ONLY
-      // fulfillment method (the dashboard enforces this on the config side).
-      // Return own-delivery options exclusively, discarding carrier quotes.
-      if (ownDeliveryOptions.length > 0) {
-        return ownDeliveryOptions;
-      }
-      return currentResults;
-    } catch (err) {
-      this.logger.warn("own-delivery.append.failed", {
-        merchantId: input.merchant_id,
-        error: err instanceof Error ? err.message : String(err)
-      });
-      return currentResults;
-    }
+    const radiusPriceCents = config.mode === "radius"
+      ? await this.computeRadiusPrice(input.origin_zip ?? "", input.destination_zip, config.radiusZones!) : null;
+    return quoteManualDelivery(config, { cartTotalCents: Math.round(input.cart_total * 100),
+      neighborhood: input.destination_neighborhood, radiusPriceCents, origin,
+      destinationCity: input.destination_city, destinationState: input.destination_state });
   }
 
   private async computeRadiusPrice(
@@ -260,26 +300,15 @@ export class QuoteShippingUseCase {
   ): Promise<number | null> {
     const origin = await geocodeBrazilianCep(originZip);
     const dest = await geocodeBrazilianCep(destinationZip);
-    if (!origin || !dest) {
+    const validCoordinates = (point: { lat: number; lng: number } | null): point is { lat: number; lng: number } => point !== null
+      && Number.isFinite(point.lat) && Math.abs(point.lat) <= 90 && Number.isFinite(point.lng) && Math.abs(point.lng) <= 180;
+    if (!validCoordinates(origin) || !validCoordinates(dest)) {
       this.logger.warn("radius.geocode.failed", { originZip, destinationZip });
       return null;
     }
     const distanceKm = haversineDistance(origin.lat, origin.lng, dest.lat, dest.lng);
     return getPriceForDistance(distanceKm, zones);
   }
-}
-
-/**
- * Convert estimatedValue and estimatedUnit to eta_days.
- * minutes → eta_days = Math.ceil(value / 1440)
- * days → eta_days = value
- */
-function convertToEtaDays(estimatedValue: number, estimatedUnit: "minutes" | "days"): number {
-  if (estimatedUnit === "days") {
-    return estimatedValue;
-  }
-  // minutes
-  return Math.ceil(estimatedValue / 1440);
 }
 
 /**

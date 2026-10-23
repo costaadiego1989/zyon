@@ -22,7 +22,7 @@ test("contextual navigation uses tenant-authorized handlers for recommendations,
     getDailyDeals: async () => { calls.push(["deals"]); return { deals: [{ id: "p2", name: "Oferta", price: 1000, inStock: true }] }; },
   } as any;
   for (const tool of ["get_similar_products", "compare_products", "get_daily_deals"]) {
-    const result = await executeStorefrontUiAction(handlers, { tool, args: { productId: "p1" } }, "merchant", "cart");
+    const result = await executeStorefrontUiAction(handlers, { tool, args: tool === "get_daily_deals" ? {} : { productId: "p1" } }, "merchant", "cart");
     assert.ok(result.blocks.length, `${tool} must display the authorized products`);
   }
   assert.deepEqual(calls, [["similar", { productId: "p1" }], ["compare", { productId: "p1", includeSimilar: true }], ["deals"]]);

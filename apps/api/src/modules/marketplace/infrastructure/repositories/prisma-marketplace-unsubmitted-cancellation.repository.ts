@@ -7,6 +7,7 @@ import { isNeverSubmittedMarketplacePayment, MARKETPLACE_UNSUBMITTED_CANCELLATIO
   type MarketplaceUnsubmittedCancellationRepository } from "../../domain/ports/marketplace-unsubmitted-cancellation.port.js";
 import { assertMarketplaceUncapturedAllocation, type UncapturedMarketplaceFunding } from "../../domain/services/marketplace-cancellation-allocation.js";
 import { fundingHash } from "./prisma-marketplace-funding.repository.js";
+import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 
 const conflict = () => new ConflictException("marketplace_unsubmitted_cancellation_unavailable");
 const reasons: readonly string[] = ["requested_by_customer", "abandoned", "duplicate", "fraudulent"];
@@ -129,6 +130,7 @@ export class PrismaMarketplaceUnsubmittedCancellationRepository implements Marke
       if (!first || !firstPlan) throw new NotFoundException("marketplace_payment_not_found");
       // Match checkout writers and first-send admission, then protect the journal
       // version against an internal sender that does not need the checkout lock.
+      await lockCheckoutSessionAnchor(tx, host, first.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${host} AND session_id = ${first.sessionId} FOR UPDATE`;
       for (const ref of [...new Set([first.sessionId, firstPlan.checkoutSessionId])].sort()) {
         const key = JSON.stringify(["storefront-cart", host, ref]);

@@ -16,12 +16,19 @@ import { CouponsOnOrderCompletedHandler } from "./infrastructure/event-handlers/
 import { MerchantCouponsController } from "./presentation/http/merchant-coupons.controller.js";
 import { WidgetCouponsController } from "./presentation/http/widget-coupons.controller.js";
 import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
+import { BOUND_COUPON_REDEMPTION } from "./domain/ports/bound-coupon-redemption.port.js";
+import { PrismaBoundCouponRedemption } from "./infrastructure/repositories/prisma-bound-coupon-redemption.js";
 
 @Module({
   // AuthModule needed for AuthGuard in MerchantCouponsController (P3 fix)
   imports: [EmbedModule, CheckoutModule, MerchantModule, AuthModule, CouponsExecutionModule],
   controllers: [MerchantCouponsController, WidgetCouponsController],
   providers: [
+    {
+      provide: BOUND_COUPON_REDEMPTION,
+      useFactory: (prisma: PrismaClient) => new PrismaBoundCouponRedemption(prisma),
+      inject: [PRISMA_CLIENT]
+    },
     {
       provide: COUPON_REDEMPTION_REPOSITORY,
       useFactory: (prisma: PrismaClient) => new PrismaCouponRedemptionRepository(prisma),

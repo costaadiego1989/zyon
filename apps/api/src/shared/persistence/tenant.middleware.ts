@@ -20,6 +20,8 @@ export const TENANT_SCOPED_MODELS = [
   "AiUsageEvent",
   "AttributionTag",
   "AuthorizedOffer",
+  "BillingAdminNotice",
+  "BillingReceivable",
   "BillingWebhookEvent",
   "BudgetRequest",
   "BuyerAgent",

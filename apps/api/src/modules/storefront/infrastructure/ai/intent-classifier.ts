@@ -16,16 +16,8 @@
  * - Default → COMPLEX_QUESTION
  */
 
-export type StoreAgentIntent =
-  | "PRODUCT_SEARCH"
-  | "ADD_CART"
-  | "COMPARE_PRODUCTS"
-  | "NEGOTIATE_PRICE"
-  | "RECOMMEND_PERSONALIZED"
-  | "ORDER_STATUS"
-  | "RETURN_REQUEST"
-  | "GREETING"
-  | "COMPLEX_QUESTION";
+import type { StoreAgentIntent } from "../../domain/contracts/storefront-intent.schemas.js";
+export type { StoreAgentIntent } from "../../domain/contracts/storefront-intent.schemas.js";
 
 export interface ClassifyIntentResult {
   intent: StoreAgentIntent;

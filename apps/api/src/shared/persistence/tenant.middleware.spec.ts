@@ -16,6 +16,32 @@ import {
 } from "./tenant.middleware.js";
 
 describe("registerTenantMiddleware", () => {
+  for (const model of ["BillingAdminNotice", "BillingReceivable"] as const) {
+    it(`${model} enforces caller ownership for reads, writes and mutations`, () => {
+      const context = { merchantId: "mrc_1", userId: "usr_1", role: "owner" as const };
+      for (const operation of [...TENANT_SCOPED_READ_OPERATIONS, ...TENANT_SCOPED_WHERE_MUTATIONS, ...TENANT_SCOPED_WRITE_OPERATIONS]) {
+        assert.equal(shouldInjectTenant(model, operation), true, `${model}.${operation}`);
+      }
+      const read = { where: { id: "row_1", merchantId: "mrc_hostile" } };
+      assert.deepEqual(scopeTenantOperation(model, "findMany", read, context), {
+        where: { id: "row_1", merchantId: "mrc_1" },
+      });
+      assert.equal(read.where.merchantId, "mrc_hostile", "must not mutate caller-owned arguments");
+      assert.deepEqual(scopeTenantOperation(model, "createMany", { data: [{ id: "one", merchantId: "mrc_hostile" }, { id: "two" }] }, context), {
+        data: [{ id: "one", merchantId: "mrc_1" }, { id: "two", merchantId: "mrc_1" }],
+      });
+      assert.deepEqual(scopeTenantOperation(model, "update", { ...read, data: { merchantId: "mrc_hostile", status: "paid" } }, context), {
+        where: { id: "row_1", merchantId: "mrc_1" }, data: { merchantId: "mrc_1", status: "paid" },
+      });
+      assert.deepEqual(scopeTenantOperation(model, "delete", read, context), { where: { id: "row_1", merchantId: "mrc_1" } });
+      assert.deepEqual(scopeTenantOperation(model, "upsert", { ...read,
+        create: { id: "row_1", merchantId: "mrc_hostile" }, update: { merchantId: "mrc_hostile", status: "paid" },
+      }, context), { where: { id: "row_1", merchantId: "mrc_1" },
+        create: { id: "row_1", merchantId: "mrc_1" }, update: { merchantId: "mrc_1", status: "paid" },
+      });
+    });
+  }
+
   it("scopes every tenant model across every supported operation", () => {
     const operations = [
       ...TENANT_SCOPED_READ_OPERATIONS,

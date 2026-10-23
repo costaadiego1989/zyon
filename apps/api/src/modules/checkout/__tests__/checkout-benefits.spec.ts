@@ -67,17 +67,18 @@ test("free shipping uses actual carrier cost and appears as an applied benefit",
   assert.equal(buildExperienceFromSession(result, { serviceFee: .99 }).totals.total_to_pay, 300.99);
   assert.equal(checkoutBenefitsPolicy({ ...args, rules: { ...args.rules, maxShippingSubsidy: 36 } }).session.shipping?.customerPrice, 35);
 });
-test("stacking, region, eligibility threshold and missing costs remain economic gates", () => {
+test("stacking, region and eligibility remain gates, product cost and margin do not", () => {
   const args = input();
   const both = checkoutBenefitsPolicy({ ...args, rules: { ...args.rules, minimumMarginPercent: 37, allowStackDiscountAndFreeShipping: true } }).session;
   assert.equal(both.cart.currentDiscount, 30); assert.equal(both.shipping?.customerPrice, 0);
-  assert.equal(checkoutBenefitsPolicy({ ...args, rules: { ...args.rules, allowStackDiscountAndFreeShipping: true } }).session.shipping?.customerPrice, 35,
-    "stacking permission still cannot bypass the 38% margin floor");
+  assert.equal(checkoutBenefitsPolicy({ ...args, rules: { ...args.rules, allowStackDiscountAndFreeShipping: true } }).session.shipping?.customerPrice, 0,
+    "stacking permission is independent of the obsolete margin floor");
   assert.equal(checkoutBenefitsPolicy({ ...args, rules: { ...args.rules, blockedRegions: ["SP"] }, progressivePolicy: undefined }).session.shipping?.customerPrice, 35);
   assert.equal(checkoutBenefitsPolicy({ ...args, rules: { ...args.rules, freeShippingMinCartValue: 400 }, progressivePolicy: undefined }).session.shipping?.customerPrice, 35);
   const withoutCost = checkoutSession(); delete withoutCost.cart.items[0]!.cost;
-  const blocked = checkoutBenefitsPolicy({ ...args, session: withoutCost }).session;
-  assert.equal(blocked.cart.currentDiscount ?? 0, 0); assert.equal(blocked.shipping?.customerPrice, 35);
+  const authorized = checkoutBenefitsPolicy({ ...args, session: withoutCost }).session;
+  assert.equal(authorized.cart.currentDiscount, 30); assert.equal(authorized.shipping?.customerPrice, 35,
+    "no new shipping stacking permission is granted by removing the margin gate");
 });
 test("explicit free-shipping rule precedes generic stages when stacking is disabled", () => {
   const args = input();
@@ -129,7 +130,14 @@ test("payment admission charges the earned amount once and keeps the persisted c
     inputs.push(request); return fake.createPayment(request);
   } };
   const useCase = new CreatePaymentIntentUseCase(checkout, checkout, payments, provider,
-    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined, benefits);
+    undefined, undefined, undefined, undefined, undefined, undefined, undefined, undefined,
+    { checkoutSession: { findUnique: async () => checkout.getSession("mrc_1", "chk_1") },
+      crossStoreLineItem: { findFirst: async () => null },
+      productVariant: { findMany: async (query: { where: { product: { merchantId: string } } }) => {
+        assert.equal(query.where.product.merchantId, "mrc_1");
+        return [{ id: "variant-kit", sku: "kit", isActive: true, product: { isActive: true, type: "physical", deletedAt: null }, stock: [{ quantity: 10, reserved: 0 }] }];
+      } } } as never,
+    undefined, benefits);
   const request = { merchant_id: "mrc_1", session_id: "chk_1", idempotency_key: "benefits-pix", method: "pix" as const };
   const intent = await useCase.execute(request);
   assert.equal(intent.amountCents, 30599);

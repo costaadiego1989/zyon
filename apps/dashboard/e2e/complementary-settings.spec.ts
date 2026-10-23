@@ -90,9 +90,11 @@ test("support starts on Hoje with local-day boundaries and Todos remains availab
 
 test("dashboard serves the existing green favicon", async ({ request }) => {
   const html = await (await request.get("/")).text();
-  expect(html).toContain('href="/zyon-favicon-green.png"');
+  const href = html.match(/rel="icon"[^>]*href="([^"]+)"/)?.[1];
+  expect(href).toMatch(/^\/(?:src\/assets\/zyon-favicon-green|assets\/zyon-favicon-green-[\w-]+)\.png$/);
   expect(html).not.toContain('href="/zyon-mark.png"');
-  const icon = await request.get("/zyon-favicon-green.png");
+  const icon = await request.get(href!);
   expect(icon.status()).toBe(200);
   expect(icon.headers()["content-type"]).toContain("image/png");
+  expect((await icon.body()).subarray(0, 8).toString("hex")).toBe("89504e470d0a1a0a");
 });

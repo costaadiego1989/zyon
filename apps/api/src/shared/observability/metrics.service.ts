@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
 import { Counter, Histogram, Gauge, Registry, collectDefaultMetrics } from "prom-client";
+import { getMetricsRegistry } from "../http/metrics.middleware.js";
 
 @Injectable()
 export class MetricsService {
@@ -197,6 +198,28 @@ export class MetricsService {
   });
 
   async getMetrics(): Promise<string> {
-    return this.registry.metrics();
+    // Keep producer APIs and family names stable; expose one authenticated scrape.
+    return Registry.merge([this.registry, getMetricsRegistry()]).metrics();
   }
+
+  readonly storefrontLlmOperations = new Counter({
+    name: "storefront_llm_operations_total", help: "Storefront AI operations completed or thrown, not confirmed commercial outcomes",
+    labelNames: ["stage", "outcome", "reason"], registers: [this.registry],
+  });
+  readonly storefrontLlmDecisions = new Counter({
+    name: "storefront_llm_decisions_total", help: "Storefront AI validation, fallback and uncertainty decisions",
+    labelNames: ["stage", "outcome", "reason"], registers: [this.registry],
+  });
+  readonly storefrontLlmDuration = new Histogram({
+    name: "storefront_llm_operation_duration_seconds", help: "Storefront AI operation durations; nested stages overlap",
+    labelNames: ["stage"], buckets: [0.005, 0.05, 0.1, 0.5, 1, 2, 5, 10, 30, 60], registers: [this.registry],
+  });
+  readonly storefrontLlmTokens = new Counter({
+    name: "storefront_llm_tokens_total", help: "Validated provider-reported tokens, one observation per call",
+    labelNames: ["phase", "provider", "kind"], registers: [this.registry],
+  });
+  readonly storefrontLlmEstimatedCost = new Counter({
+    name: "storefront_llm_estimated_cost_usd_cents_total", help: "Approximate USD cents for explicitly priced models only, not invoiced cost",
+    labelNames: ["phase", "provider"], registers: [this.registry],
+  });
 }

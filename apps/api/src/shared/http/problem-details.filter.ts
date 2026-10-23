@@ -10,6 +10,7 @@ import type { Request, Response } from "express";
 import { randomUUID } from "node:crypto";
 import { OptimisticConcurrencyError } from "./http-contract.errors.js";
 import type { AacpHttpRequest } from "./http-request.js";
+import { ignoreLogFailure, logContext, safeErrorMetadata, safeHttpMethod } from "../logger/log-context.js";
 
 @Catch()
 export class ProblemDetailsFilter {
@@ -19,14 +20,13 @@ export class ProblemDetailsFilter {
     const context = host.switchToHttp();
     const request = context.getRequest<AacpHttpRequest>();
     const response = context.getResponse<Response>();
+    if (response.headersSent) return;
     const correlationId = request.correlationId ?? `corr_${randomUUID()}`;
     const problem = toProblemDetails(exception, correlationId);
 
     if (problem.status >= 500) {
-      this.logger.error(
-        `${problem.code} ${request.method ?? "HTTP"} ${request.originalUrl ?? request.url}`,
-        exception instanceof Error ? exception.stack : undefined,
-      );
+      ignoreLogFailure(() => this.logger.error({ event: "http.exception", ...logContext(request),
+        method: safeHttpMethod(request.method), error: safeErrorMetadata(exception) }));
     }
 
     response.setHeader("x-correlation-id", correlationId);

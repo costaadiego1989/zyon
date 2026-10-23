@@ -3,6 +3,15 @@ import assert from "node:assert/strict";
 import { CheckoutSession, cartFromExperience } from "../src/api/checkout-session.js";
 import { CheckoutApiError } from "../src/api/checkout-api-error.js";
 
+test("ordinary legacy mapping stays compatible and preserves server-owned non-scheduled fulfillment when present",()=>{
+  const legacy={items:[{sku:"old",name:"Legacy",quantity:1,unit_price:10}],totals:{subtotal:10,discount:0,total:10}};
+  const old=cartFromExperience(legacy).items[0]!;assert.equal("productType"in old,false);assert.equal("fulfillmentStrategy"in old,false);
+  for(const [productType,fulfillmentStrategy]of [["physical","carrier"],["food","pickup"],["digital","digital"],["service","service"]]as const){
+    const typed={...legacy,items:[{...legacy.items[0]!,productType,fulfillmentStrategy}]};
+    const line=cartFromExperience(typed).items[0]!;assert.equal(line.productType,productType);assert.equal(line.fulfillmentStrategy,fulfillmentStrategy);
+  }
+});
+
 test("widget starts and updates the signed checkout session without reading or mutating public carts", async () => {
   const original = globalThis.fetch;
   const requests: Array<{ url: string; body: any; headers: any }> = [];
