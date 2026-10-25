@@ -1,8 +1,9 @@
 # Integração final storefront — continuidade
 
-Atualização:25/10/2026 — checkpoint107: hotfix de contexto autenticado, publicação em andamento.
+Atualização:25/10/2026 — checkpoint107 FINAL: hotfix do chat autenticado publicado e verificado.
 WhatsApp3858c098+406cfde9 integrado; suporte do sandbox preservado sem reset de histórico.
-Regressão atual:214/214 WhatsApp/API;886/886 dashboard;459/459 storefront.
+Baseline integrado105:214/214 WhatsApp/API;886/886 dashboard;459/459 storefront.
+Hotfix107:105/105 contratos e225/225 escopo/privacidade/observação.
 Não equivale à homologação integral de pagamento, voz real ou CAPTCHA humano.
 Marketplace oculto, assinatura corrigida e suporte/WhatsApp preservados na produção atual.
 Pasta ativa: **AACP-sandbox-integracao-20261020**.
@@ -15,9 +16,43 @@ Origem preservada: AACP-integracao, branch feat/storefront-llm-integration-20261
 base4908a053. Evidências antigas identificam sua pasta/base; não transferir
 aprovação entre revisões automaticamente.
 
-## Estado atual resumido —23/10/2026
+## Estado atual resumido —25/10/2026
 
 ### Checkpoint107 — erro503 no chat autenticado da Athom
+
+**Encerramento25/10 às22:11UTC:** API sandbox
+df344305-12c1-4bc2-8e04-1e8a8621d8a9 SUCCESS e produção
+5e3f1b8c-f36d-44a2-9ed2-7c09882aa98a SUCCESS, mesmo pacote107 congelado.
+Ambos passaram no build remoto/checagem de tipos. Fonte salva no commit
+cd2390c319a79313c12c037d3514b5dd0bb674a3, enviado ao origin sem force.
+Nenhum deploy de dashboard/storefront/widget por este hotfix exclusivamente API.
+
+Prova read-only na produção após SUCCESS: hash da fonte107 conferido; comprador
+persistido ligado à Athom continua com telefone criptografado no banco, mas o
+contexto decodificado passa em Zod. Contextos anônimo e sintético criptografado
+também passam. Port de geração substituído por interrupção antes do provider:
+zero chamadas pagas, zero escritas nesse diagnóstico. Isso não é login do
+comprador pelo navegador nem autorização para emitir JWT de impersonação.
+
+Navegador real isolado: “qual a raiz quadrada de 365” retornou201 e a recusa fixa
+de assunto fora da loja; FAQ na MESMA conversa retornou201 em seguida. Logs
+correlacionados: input/context/output/response e turno ok nos dois; matemática
+out_of_scope com1 chamada classifier (1707 tokens de entrada,40 de saída), FAQ
+com0 chamadas provider, sem retry. Conversa conv_548cee12-23b1-423c-a543-c620ac02cba3.
+Nada enviado à conversa/carrinho existente do usuário, nenhum pedido/pagamento.
+O diagnóstico com comprador persistido e o HTTP de visitante são provas separadas;
+não houve novo turno LLM “olá quero comprar” nem jornada autenticada completa.
+
+Orçamento original não reiniciado:89 baseline+13 chamadas remotas confirmadas,
+24 ainda reservadas por incerteza anterior e4 disponíveis de130 após reservas.
+Evidências locais: `lote107-sandbox-proof.json`, `lote107-production-proof.json`,
+`lote107-production-observations.json` e ledger `lote97-live-llm-usage.json`.
+Primeiro diagnóstico SSH durante DEPLOYING não atestou a fonte e não foi usado
+para aprovar; a leitura após SUCCESS confirmou107. Não houve repetição de ação
+de compra. Mantidos os demais gates reais pendentes do checkpoint106.
+
+As notas abaixo registram o diagnóstico e a preparação, superados pelo fechamento
+acima; não usar o antigo estado de upload como estado atual de publicação.
 
 Incidente23/10 às18:29UTC (15:29 São Paulo): requests
 b38b715a-fdca-40b7-9f4e-5ac28c1caf07 e01d7066f-dc39-4960-8eb0-a6cf588f0544.
