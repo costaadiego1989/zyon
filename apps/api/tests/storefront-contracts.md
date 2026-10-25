@@ -1,6 +1,6 @@
 # Integração final storefront — continuidade
 
-Atualização:23/10/2026 — checkpoint106: painel autenticado validado em produção.
+Atualização:25/10/2026 — checkpoint107: hotfix de contexto autenticado, publicação em andamento.
 WhatsApp3858c098+406cfde9 integrado; suporte do sandbox preservado sem reset de histórico.
 Regressão atual:214/214 WhatsApp/API;886/886 dashboard;459/459 storefront.
 Não equivale à homologação integral de pagamento, voz real ou CAPTCHA humano.
@@ -16,6 +16,42 @@ base4908a053. Evidências antigas identificam sua pasta/base; não transferir
 aprovação entre revisões automaticamente.
 
 ## Estado atual resumido —23/10/2026
+
+### Checkpoint107 — erro503 no chat autenticado da Athom
+
+Incidente23/10 às18:29UTC (15:29 São Paulo): requests
+b38b715a-fdca-40b7-9f4e-5ac28c1caf07 e01d7066f-dc39-4960-8eb0-a6cf588f0544.
+Logs da API b35c8362 mostram input válido, context invalid_context,503 em cerca
+de45ms e nenhuma etapa provider nesses turnos. Não era a resposta semântica da
+LLM à raiz quadrada: o processamento falhava antes de chamá-la. O frontend
+mostrava a advertência genérica de resultado desconhecido, sem replay de ação.
+
+Diagnóstico read-only no código compilado em produção, com leitores reais e
+port de geração interrompido antes do provider: contexto anônimo passa; contexto
+do comprador ligado à Athom falha exclusivamente em buyerContext.phone/too_big.
+O telefone persistido está criptografado e sua forma decodificada cabe no limite
+atual40. Nenhum telefone, chave, token ou conteúdo do comprador foi registrado.
+
+Correção mínima: SendStoreMessageUseCase decodifica somente o telefone opcional
+com o cipher compartilhado, antes de Zod. Texto legado continua compatível;
+se a decodificação falhar, omite só o telefone, preservando identidade/nome/email.
+Não afrouxa o schema, não regrava PII no banco e não repete o turno nem o carrinho.
+Testes novos RED33/35 (criptografado/ilegível falham), depois contratos105/105 e
+escopo/privacidade/observação225/225 GREEN, sem chamadas pagas.
+
+Release107:5515 arquivos,42199500 bytes, digest
+d8023cb2c72b7cb44f703a6ba671f521626d2e9f1a4c2747a43c16dd21aa0084.
+Comparação completa com105: só2 arquivos API diferem (usecase e spec); todas as
+outras fontes, inclusive prompts/Zod/WhatsApp/checkout/frontends, são idênticas.
+Não publicar novamente os frontends por este ajuste exclusivo da API.
+
+Retomada25/10: upload anterior falhou em DNS backboard.railway.com antes de
+criar deploy. Railway reconfirmou API produção b35c8362 SUCCESS e sandbox
+04dbe04d SUCCESS, sem nova publicação no intervalo. Fonte congelada107 novamente
+verificada; novo envio sandbox em andamento. **Não declarar hotfix publicado
+nem pedido do usuário resolvido antes do sandbox, promoção e prova runtime.**
+Evidências locais: `.sandbox-state/lote107-context-before.json`,
+`lote107-context-diagnostic.cjs`, `lote107-integrated-source.json`.
 
 ### Checkpoint106 — validação autenticada da Athom, sem novo deploy
 

@@ -7,7 +7,7 @@ const { execFileSync } = require('node:child_process');
 // Package this reviewed integration, never the independent dirty IDE checkout.
 const root = path.resolve(__dirname, '..');
 const revision = process.argv[3] ?? '92';
-assert.ok(['92', '93', '94', '95', '96', '98', '99', '100', '101', '102', '104', '105'].includes(revision), 'release_revision_not_reviewed');
+assert.ok(['92', '93', '94', '95', '96', '98', '99', '100', '101', '102', '104', '105', '107'].includes(revision), 'release_revision_not_reviewed');
 const destination = 'C:/tmp/zyon-integrated-release-20261022-' + revision;
 const evidence = path.join(root, '.sandbox-state/lote' + revision + '-integrated-source.json');
 const rootFiles = new Set(['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yaml',
@@ -15,7 +15,7 @@ const rootFiles = new Set(['package.json', 'pnpm-lock.yaml', 'pnpm-workspace.yam
 const releaseScripts = new Set(['scripts/lib/dashboard-auth-build-policy.cjs',
   'scripts/vercel-deploy-guard.mjs']);
 const apps = new Set(['api', 'dashboard', 'storefront', 'widget_v2']);
-if (['104','105'].includes(revision)) apps.add('web'); // Include the reviewed public plan-copy removal.
+if (['104','105','107'].includes(revision)) apps.add('web'); // Include the reviewed public plan-copy removal.
 const forbiddenDirectories = new Set(['node_modules', '.git', '.sandbox-state', '.audit',
   '.next', '.vercel', '.playwright-mcp', 'dist', 'dist-test', 'coverage', 'test-results',
   'playwright-report', '.impeccable']);
@@ -23,7 +23,7 @@ function eligible(file) {
   if (file === 'apps/api/tests/storefront-contracts.md') return false;
   const parts = file.split('/');
   if (parts.some(part => forbiddenDirectories.has(part) || part.startsWith('.env'))) return false;
-  if (/\.(log|tsbuildinfo|pem|key)$/i.test(file) || ['104','105'].includes(revision) && /\.err$/i.test(file)) return false;
+  if (/\.(log|tsbuildinfo|pem|key)$/i.test(file) || ['104','105','107'].includes(revision) && /\.err$/i.test(file)) return false;
   return rootFiles.has(file) || releaseScripts.has(file) || parts[0] === 'packages' ||
     (parts[0] === 'apps' && apps.has(parts[1]));
 }

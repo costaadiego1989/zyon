@@ -2,6 +2,7 @@ import assert from "node:assert/strict";
 import test from "node:test";
 import { SendStoreMessageUseCase, type SendStoreMessageInput } from "./send-store-message.use-case.js";
 import { PrismaMerchantAgentRuleReader } from "../../../agent-rules/infrastructure/merchant-agent-rule-reader.adapter.js";
+import { encryptPii } from "../../../../shared/crypto/pii-cipher.service.js";
 
 const input: SendStoreMessageInput = {
   merchant_id: "merchant", conversation_id: "conversation", cart_id: "conversation", user_message: "Quero um livro",
@@ -121,4 +122,33 @@ test("contract: trusted buyer context must still match the server-bound buyer id
   const generated = f.calls.generated[0] as { buyerContext?: unknown };
   assert.equal(generated.buyerContext, undefined);
 });
+
+for (const phoneKind of ["encrypted", "legacy", "absent", "unreadable"] as const) {
+  test(`contract: ${phoneKind} optional buyer phone preserves authenticated chat`, async () => {
+    const previousKey = process.env.AACP_PII_ENC_KEY;
+    process.env.AACP_PII_ENC_KEY = "synthetic-context-contract-key-not-a-secret";
+    try {
+      const phone = "+5511999991234";
+      const stored = phoneKind === "encrypted" ? encryptPii(phone)
+        : phoneKind === "legacy" ? phone
+        : phoneKind === "unreadable" ? "pii_v1:unreadable:synthetic:payload:phone" : null;
+      const f = fixture();
+      f.prisma.buyerAccount.findUnique = async () => ({ globalUserId: "buyer", displayName: "Test Buyer",
+        email: "buyer@example.invalid", phone: stored }) as never;
+      const output = await f.useCase.execute({ ...input, global_user_id: "buyer" });
+      assert.equal(output.conversation_id, input.conversation_id);
+      assert.equal(output.cart_id, input.cart_id);
+      assert.equal(f.calls.generated.length, 1, "never replay the turn");
+      const context = f.calls.generated[0] as { buyerContext: { globalUserId: string; name?: string; phone?: string; email?: string } };
+      assert.deepEqual(context.buyerContext, { globalUserId: "buyer", name: "Test Buyer",
+        email: "buyer@example.invalid", phone: phoneKind === "encrypted" || phoneKind === "legacy" ? phone : undefined });
+      const logs = JSON.stringify(f.calls.logs);
+      assert.ok(!logs.includes(phone));
+      assert.ok(!logs.includes("pii_v1:"));
+    } finally {
+      if (previousKey === undefined) delete process.env.AACP_PII_ENC_KEY;
+      else process.env.AACP_PII_ENC_KEY = previousKey;
+    }
+  });
+}
 

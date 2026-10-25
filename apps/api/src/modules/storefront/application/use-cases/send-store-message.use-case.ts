@@ -22,6 +22,18 @@ import { NOOP_STOREFRONT_USE_CASE_OBSERVATION, STOREFRONT_USE_CASE_OBSERVATION, 
   type StorefrontObservationBoundary } from "../../domain/ports/storefront-use-case-observation.port.js";
 import type { StorefrontSuggestedReadActions } from "@zyon/shared-types";
 import { projectStorefrontSuggestedReadActions } from "../../domain/services/storefront-suggested-read-actions.js";
+import { decryptPii, isPiiEncrypted } from "../../../../shared/crypto/pii-cipher.service.js";
+
+function optionalBuyerPhone(stored: string | null): string | undefined {
+  if (!stored) return undefined;
+  try {
+    return isPiiEncrypted(stored) ? decryptPii(stored) : stored;
+  } catch {
+    // Optional PII must never block chat or expose ciphertext to the model.
+    // Preserve the server-bound buyer and leave the encrypted database untouched.
+    return undefined;
+  }
+}
 
 export interface SendStoreMessageInput {
   ui_action?: import("../../domain/types/storefront-ui-action.js").StorefrontUiAction;
@@ -187,7 +199,7 @@ export class SendStoreMessageUseCase {
           buyerContext = {
             globalUserId: account.globalUserId,
             name: account.displayName || undefined,
-            phone: account.phone || undefined,
+            phone: optionalBuyerPhone(account.phone),
             email: account.email || undefined,
           };
         }
