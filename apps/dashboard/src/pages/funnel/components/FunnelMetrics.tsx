@@ -1,0 +1,65 @@
+import React from "react";
+import { TrendingUp, Users, AlertTriangle, Clock } from "lucide-react";
+import { StatCard, StatCardGroup } from "../../overview/components/StatCard.js";
+import type { FunnelData } from "../useFunnelPage.js";
+
+interface FunnelMetricsProps {
+  data: FunnelData;
+}
+
+export function FunnelMetrics({ data }: FunnelMetricsProps): React.ReactElement {
+  const { totalSessions, overallConversion, transitions, steps, previous } = data;
+
+  let biggestDropOff = 0;
+  let biggestDropOffStep = "";
+  for (const t of transitions) {
+    if (t.dropOff > biggestDropOff) {
+      biggestDropOff = t.dropOff;
+      biggestDropOffStep = t.from;
+    }
+  }
+  const dropOffLabel = steps.find((s) => s.name === biggestDropOffStep)?.label ?? "—";
+
+  const totalTimeSeconds = transitions.reduce((sum, t) => sum + t.avgTimeSeconds, 0);
+  const avgTimeStr = totalTimeSeconds > 0
+    ? `${Math.floor(totalTimeSeconds / 60)}m ${Math.round(totalTimeSeconds % 60)}s`
+    : "—";
+
+  const convTrend = previous
+    ? overallConversion - previous.overallConversion
+    : undefined;
+  const sessionsTrend = previous && previous.totalSessions > 0
+    ? ((totalSessions - previous.totalSessions) / previous.totalSessions) * 100
+    : undefined;
+
+  return (
+    <StatCardGroup columns={4}>
+      <StatCard
+        label="Conversão"
+        value={`${overallConversion.toFixed(1)}`}
+        suffix="%"
+        note={convTrend === undefined ? undefined : (convTrend >= 0 ? "+" : "") + convTrend.toFixed(1) + " p.p. vs. período anterior"}
+        icon={<TrendingUp size={16} />}
+        accent="var(--color-brand)"
+      />
+      <StatCard
+        label="Sessões"
+        value={totalSessions}
+        trend={sessionsTrend}
+        icon={<Users size={16} />}
+      />
+      <StatCard
+        label="Maior abandono"
+        value={`${biggestDropOff.toFixed(0)}%`}
+        icon={<AlertTriangle size={16} />}
+        accent={biggestDropOff > 50 ? "var(--color-error)" : undefined}
+      />
+      <StatCard
+        label="Tempo entre etapas"
+        note="Soma dos tempos médios medidos"
+        value={avgTimeStr}
+        icon={<Clock size={16} />}
+      />
+    </StatCardGroup>
+  );
+}

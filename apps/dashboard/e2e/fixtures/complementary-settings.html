@@ -1,0 +1,20 @@
+<!doctype html>
+<html lang="pt-BR"><head><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1"><title>Ajustes de produtos complementares</title></head>
+<body><div id="root"></div><script type="module">
+import React from "react";
+import { createRoot } from "react-dom/client";
+import { ApiContext } from "/src/hooks/useApi.ts";
+import { createDashboardApi } from "/src/api-client.ts";
+import { CrossSellPage } from "/src/pages/cross-sell/CrossSellPage.tsx";
+import { SupportTicketsTab } from "/src/pages/support-settings/tabs/SupportTicketsTab.tsx";
+import { ToastContainer } from "/src/components/Toast.tsx";
+import "/src/styles.css";
+import "/src/pages/support-settings/support-settings.css";
+const api = createDashboardApi({ baseUrl: location.origin + "/audit-api" });
+const surface = new URLSearchParams(location.search).get("surface") ?? "store";
+const content = surface === "support"
+  ? React.createElement(SupportTicketsTab, { api, socket: { connected: false } })
+  : React.createElement(CrossSellPage, { context: surface });
+createRoot(document.getElementById("root")).render(React.createElement(ApiContext.Provider, { value: api },
+  React.createElement("main", { className: "console-content", style: { padding: 16 } }, content), React.createElement(ToastContainer)));
+</script></body></html>

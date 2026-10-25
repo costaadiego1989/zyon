@@ -1,0 +1,225 @@
+import { Injectable } from "@nestjs/common";
+import { Counter, Histogram, Gauge, Registry, collectDefaultMetrics } from "prom-client";
+import { getMetricsRegistry } from "../http/metrics.middleware.js";
+
+@Injectable()
+export class MetricsService {
+  readonly registry = new Registry();
+
+  constructor() {
+    collectDefaultMetrics({ register: this.registry });
+  }
+
+  readonly checkoutStarted = new Counter({
+    name: "checkout_started_total",
+    help: "Total checkout sessions started",
+    labelNames: ["merchant_id"],
+    registers: [this.registry],
+  });
+
+  readonly paymentIntentCreated = new Counter({
+    name: "payment_intent_created_total",
+    help: "Total payment intents created",
+    labelNames: ["method", "merchant_id"],
+    registers: [this.registry],
+  });
+
+  readonly marketplacePublicPaymentAdmission = new Counter({
+    name: "marketplace_public_payment_admission_total",
+    help: "Marketplace public payment admission decisions; not charges, approvals or settlement",
+    labelNames: ["outcome", "reason"],
+    registers: [this.registry],
+  });
+
+  readonly marketplacePaymentCapabilityChecks = new Counter({
+    name: "marketplace_payment_capability_checks_total",
+    help: "Read-only marketplace payment availability checks; not payment admission, charges or approvals",
+    labelNames: ["outcome", "reason"],
+    registers: [this.registry],
+  });
+
+  readonly marketplacePaymentRecoveryLookups = new Counter({
+    name: "marketplace_payment_recovery_lookups_total",
+    help: "Read-only session-bound marketplace payment recovery lookups; not charges or approvals",
+    labelNames: ["outcome", "reason"],
+    registers: [this.registry],
+  });
+
+  readonly marketplacePaymentResumeOperations = new Counter({
+    name: "marketplace_payment_resume_operations_total",
+    help: "Explicit authorization, action reads and verification of the original marketplace payment; no customer or payment labels",
+    labelNames: ["operation", "outcome"],
+    registers: [this.registry],
+  });
+
+  readonly marketplaceCheckoutAddressUpdates = new Counter({
+    name: "marketplace_checkout_address_updates_total",
+    help: "Explicit marketplace checkout address confirmations and refusals; no customer labels",
+    labelNames: ["outcome"],
+    registers: [this.registry],
+  });
+
+  readonly paymentFailed = new Counter({
+    name: "payment_failed_total",
+    help: "Total payments failed",
+    labelNames: ["method", "reason"],
+    registers: [this.registry],
+  });
+
+  readonly webhookProcessingSeconds = new Histogram({
+    name: "webhook_processing_seconds",
+    help: "Time to process an inbound provider webhook end to end",
+    labelNames: ["provider"],
+    buckets: [0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+    registers: [this.registry],
+  });
+
+  readonly apiRequestDuration = new Histogram({
+    name: "api_request_duration_seconds",
+    help: "Duration of HTTP API requests in seconds",
+    labelNames: ["method", "route", "status"],
+    buckets: [0.005, 0.01, 0.05, 0.1, 0.25, 0.5, 1, 2, 5, 10],
+    registers: [this.registry],
+  });
+
+  readonly activeWsConnections = new Gauge({
+    name: "active_ws_connections",
+    help: "Number of active WebSocket connections",
+    registers: [this.registry],
+  });
+
+  readonly orderCompleted = new Counter({
+    name: "order_completed_total",
+    help: "Total orders completed",
+    labelNames: ["merchant_id"],
+    registers: [this.registry],
+  });
+
+  readonly paymentApproved = new Counter({
+    name: "payment_approved_total",
+    help: "Total payments approved",
+    labelNames: ["merchant_id", "method", "provider"],
+    registers: [this.registry],
+  });
+
+  readonly paymentWebhookAnomaly = new Counter({
+    name: "payment_webhook_anomaly_total",
+    help: "Provider webhook events that hit an illegal/unexpected state transition",
+    labelNames: ["provider", "kind"],
+    registers: [this.registry],
+  });
+
+  readonly paymentWebhookReceived = new Counter({
+    name: "payment_webhook_received_total",
+    help: "Payment webhooks received by provider",
+    labelNames: ["provider", "event_type"],
+    registers: [this.registry],
+  });
+
+  readonly checkoutDuration = new Histogram({
+    name: "checkout_duration_seconds",
+    help: "Time from session start to order completion",
+    labelNames: ["merchant_id"],
+    buckets: [30, 60, 120, 300, 600, 1800, 3600],
+    registers: [this.registry],
+  });
+
+  readonly chatResponseLatency = new Histogram({
+    name: "chat_response_latency_seconds",
+    help: "Latency of chat message processing (LLM + rules)",
+    labelNames: ["merchant_id", "has_offer"],
+    buckets: [0.3, 0.5, 1, 2, 3, 5, 10, 15],
+    registers: [this.registry],
+  });
+
+  readonly shippingQuoteLatency = new Histogram({
+    name: "shipping_quote_latency_seconds",
+    help: "Time to fetch shipping quotes from carrier",
+    labelNames: ["carrier"],
+    buckets: [0.5, 1, 2, 3, 5, 10],
+    registers: [this.registry],
+  });
+
+  readonly outboxLag = new Histogram({
+    name: "outbox_lag_seconds",
+    help: "Age of oldest pending outbox event in seconds",
+    buckets: [0.1, 0.5, 1, 5, 10, 30, 60],
+    registers: [this.registry],
+  });
+
+  readonly outboxPendingCount = new Gauge({
+    name: "outbox_pending_count",
+    help: "Number of pending outbox messages",
+    registers: [this.registry],
+  });
+
+  readonly outboxDeadLetterCount = new Gauge({
+    name: "outbox_dead_letter_count",
+    help: "Number of dead-lettered outbox messages",
+    registers: [this.registry],
+  });
+
+  readonly httpClientDuration = new Histogram({
+    name: "llm_latency_seconds",
+    help: "Latency of external HTTP client calls in seconds",
+    labelNames: ["target", "status"],
+    buckets: [0.05, 0.1, 0.3, 0.5, 1, 2, 5, 10],
+    registers: [this.registry],
+  });
+
+  readonly commerceSyncDuration = new Histogram({
+    name: "commerce_sync_duration_seconds",
+    help: "Time to process commerce webhook and sync order",
+    labelNames: ["provider", "outcome"],
+    buckets: [0.1, 0.3, 0.5, 1, 2, 5],
+    registers: [this.registry],
+  });
+
+  readonly activeCheckoutSessions = new Gauge({
+    name: "active_checkout_sessions",
+    help: "Number of checkout sessions active in last 30 minutes",
+    labelNames: ["merchant_id"],
+    registers: [this.registry],
+  });
+
+  readonly apiOperationTotal = new Counter({
+    name: "api_operation_total",
+    help: "Total API operations by handler and result",
+    labelNames: ["operation", "result"],
+    registers: [this.registry],
+  });
+
+  readonly apiOperationDuration = new Histogram({
+    name: "api_operation_duration_ms",
+    help: "API operation duration in milliseconds",
+    labelNames: ["operation", "result"],
+    buckets: [5, 10, 25, 50, 100, 250, 500, 1000, 2500, 5000, 10000],
+    registers: [this.registry],
+  });
+
+  async getMetrics(): Promise<string> {
+    // Keep producer APIs and family names stable; expose one authenticated scrape.
+    return Registry.merge([this.registry, getMetricsRegistry()]).metrics();
+  }
+
+  readonly storefrontLlmOperations = new Counter({
+    name: "storefront_llm_operations_total", help: "Storefront AI operations completed or thrown, not confirmed commercial outcomes",
+    labelNames: ["stage", "outcome", "reason"], registers: [this.registry],
+  });
+  readonly storefrontLlmDecisions = new Counter({
+    name: "storefront_llm_decisions_total", help: "Storefront AI validation, fallback and uncertainty decisions",
+    labelNames: ["stage", "outcome", "reason"], registers: [this.registry],
+  });
+  readonly storefrontLlmDuration = new Histogram({
+    name: "storefront_llm_operation_duration_seconds", help: "Storefront AI operation durations; nested stages overlap",
+    labelNames: ["stage"], buckets: [0.005, 0.05, 0.1, 0.5, 1, 2, 5, 10, 30, 60], registers: [this.registry],
+  });
+  readonly storefrontLlmTokens = new Counter({
+    name: "storefront_llm_tokens_total", help: "Validated provider-reported tokens, one observation per call",
+    labelNames: ["phase", "provider", "kind"], registers: [this.registry],
+  });
+  readonly storefrontLlmEstimatedCost = new Counter({
+    name: "storefront_llm_estimated_cost_usd_cents_total", help: "Approximate USD cents for explicitly priced models only, not invoiced cost",
+    labelNames: ["phase", "provider"], registers: [this.registry],
+  });
+}

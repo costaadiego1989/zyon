@@ -1,0 +1,457 @@
+import { Injectable, Inject, Logger, Optional } from "@nestjs/common";
+import { StorefrontLangGraphAgent } from "../agents/store-langgraph-agent.js";
+import type { StorefrontConversationScopePort } from "../../domain/ports/conversation-scope.port.js";
+import { classifyStorefrontIntent } from "../ai/structured-intent-classifier.js";
+import { isStorefrontDomainAllowed } from "../../domain/services/storefront-conversation-scope.js";
+import type { StorefrontConversationPort, StorefrontConversationInput, StorefrontConversationOutput, NudgeCopyInput,
+  StorefrontDeferredContext } from "../../domain/ports/conversation.port.js";
+import { storefrontDeferredContextSchema } from "../../domain/contracts/storefront-conversation.schemas.js";
+import type { ConversationBlock } from "../../domain/types/conversation-block.js";
+import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
+import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
+import { ensureProductDiscovery } from "../agents/product-discovery-fallback.js";
+import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/index.js";
+import { STOREFRONT_SHIPPING_REFERENCE, type StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
+import { OpenRouterProvider } from "@zyon/conversation-engine";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+import { SearchFederatedProductsUseCase } from "../../../marketplace/application/use-cases/search-federated-products.use-case.js";
+import { AddMarketplaceItemToCartStorefrontUseCase } from "../../application/use-cases/add-marketplace-item-to-cart.use-case.js";
+import { ListEligibleCrossSellsUseCase } from "../../../cross-sell/application/use-cases/list-eligible-cross-sells.use-case.js";
+import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } from "../../../cross-sell/domain/ports/cross-sell-promotion-repository.port.js";
+import { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply-coupon.use-case.js";
+import { COUPON_REPOSITORY, type CouponRepository } from "../../../coupons/domain/ports/coupon-repository.port.js";
+import type { ProductRepositoryPort, StockRepositoryPort } from "../../../catalog/domain/ports/product-repository.port.js";
+import { PRODUCT_PROMOTION_REPOSITORY, type ProductPromotionRepositoryPort } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
+import { STOREFRONT_CART_PORT, type StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
+import { STOREFRONT_CROSS_SELL_CART, type StorefrontCrossSellCartPort } from "../../domain/ports/storefront-cross-sell-cart.port.js";
+import { STOREFRONT_COUPON_CART, type StorefrontCouponCartPort } from "../../domain/ports/storefront-coupon-cart.port.js";
+import { normalizeStoreQuickRepliesConfig, storefrontQuickReplies, type StorefrontCartState, type StorefrontShippingOption } from "../../domain/services/storefront-quick-replies.service.js";
+import type { StoreQuickRepliesConfig } from "@zyon/shared-types";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { SupportHandoffService } from "../../../support/application/support-handoff.service.js";
+import { AgentCopyService } from "../copy/agent-copy.service.js";
+import { resolveDeterministicShortcut } from "../shortcuts/deterministic-shortcuts.service.js";
+import { resolveSupportNavigation } from "../shortcuts/support-navigation.shortcut.js";
+import { executeStorefrontUiAction } from "../agents/storefront-ui-action.executor.js";
+import { SubmitCustomerTestimonialUseCase } from "../../../catalog/application/use-cases/submit-customer-testimonial.use-case.js";
+import { QueryKnowledgeUseCase } from "../../../knowledge-base/application/use-cases/query-knowledge.use-case.js";
+import { OneBuyClickSessionService } from "../../application/services/one-buy-click-session.service.js";
+import { appendOneBuyClickCheckout } from "../one-buy-click/one-buy-click-checkout-preparation.js";
+import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
+import { buildConversationBlocks } from "../agents/conversation-block.builder.js";
+import { readStorefrontCartState } from "./read-storefront-cart-state.js";
+import { STOREFRONT_TELEMETRY_PORT, type StorefrontTelemetryPort } from "../../domain/ports/storefront-telemetry.port.js";
+import { MetricsService } from "../../../../shared/observability/metrics.service.js";
+import { StorefrontObserver, observeStorefrontHandlers, recordStorefrontDecision } from "../observability/storefront-observation.js";
+
+export const STOREFRONT_CONVERSATION_ADAPTER = Symbol("StorefrontConversationAdapter");
+/** Optional infrastructure transport; absence keeps production behavior intact.
+ * A supplied factory must cover both channels and may fail closed in a harness. */
+export const STOREFRONT_PROVIDER_FETCH_FACTORY = Symbol("StorefrontProviderFetchFactory");
+export type StorefrontProviderFetchFactory = (channel: "primary" | "fallback") => typeof fetch;
+function optionalProviderTransport(factory: StorefrontProviderFetchFactory | undefined, channel: "primary" | "fallback") {
+  if (factory === undefined) return {};
+  if (typeof factory !== "function") throw new Error("storefront_provider_transport_invalid");
+  const fetchFn = factory(channel);
+  if (typeof fetchFn !== "function") throw new Error("storefront_provider_transport_invalid");
+  return { fetchFn };
+}
+
+@Injectable()
+export class StorefrontConversationAdapter implements StorefrontConversationPort, StorefrontConversationScopePort {
+  private readonly structuredRouting: boolean;
+  private readonly logger = new Logger(StorefrontConversationAdapter.name);
+  private readonly agent: StorefrontLangGraphAgent;
+  private readonly copyProvider: OpenRouterProvider;
+  private readonly copyService: AgentCopyService;
+  private readonly handlerDeps: AllHandlerDeps;
+  private readonly observer: StorefrontObserver;
+
+  async classifyConversationScope(input: Parameters<StorefrontConversationScopePort["classifyConversationScope"]>[0]) {
+    return this.observer.turn(async () => {
+      const result = await classifyStorefrontIntent(this.copyProvider, structuredClone(input), {
+        model: this.copyProvider.model,
+        structuredOutputMode: process.env.STOREFRONT_LLM_OUTPUT_MODE === "json_schema" ? "json_schema" : "json_object",
+      });
+      const domain = result.classification.domain;
+      if (!isStorefrontDomainAllowed(domain)) recordStorefrontDecision("agent", "rejected", domain === "OUT_OF_SCOPE" ? "out_of_scope" : "scope_unclear");
+      return domain;
+    });
+  }
+
+  constructor(
+    @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo: MerchantRepository,
+    @Inject("ProductRepositoryPort") private readonly productRepo: ProductRepositoryPort,
+    @Inject("StockRepositoryPort") private readonly stockRepo: StockRepositoryPort,
+    @Inject(STOREFRONT_CART_PORT) private readonly cartRepo: StorefrontCartPort,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly supportHandoff: SupportHandoffService,
+    @Optional() private readonly searchFederatedProducts?: SearchFederatedProductsUseCase,
+    @Optional() private readonly addMarketplaceItemToCart?: AddMarketplaceItemToCartStorefrontUseCase,
+    @Optional() private readonly listEligibleCrossSells?: ListEligibleCrossSellsUseCase,
+    @Optional() @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly crossSellPromotionRepo?: CrossSellPromotionRepository,
+    @Optional() private readonly applyCouponUseCase?: ApplyCouponUseCase,
+    @Optional() @Inject(COUPON_REPOSITORY) private readonly couponRepo?: CouponRepository,
+    @Optional() @Inject(PRODUCT_PROMOTION_REPOSITORY) private readonly productPromotionRepo?: ProductPromotionRepositoryPort,
+    @Optional() private readonly queryKnowledge?: QueryKnowledgeUseCase,
+    @Optional() private readonly oneBuyClick?: OneBuyClickSessionService,
+    @Optional() @Inject(STOREFRONT_TELEMETRY_PORT) private readonly telemetry?: StorefrontTelemetryPort,
+    @Optional() private readonly submitTestimonial?: SubmitCustomerTestimonialUseCase,
+    @Optional() private readonly metrics?: MetricsService,
+    @Optional() @Inject(STOREFRONT_CROSS_SELL_CART) private readonly crossSellCart?: StorefrontCrossSellCartPort,
+    @Optional() @Inject(STOREFRONT_COUPON_CART) private readonly couponCart?: StorefrontCouponCartPort,
+    @Optional() @Inject(STOREFRONT_PROVIDER_FETCH_FACTORY) providerFetchFactory?: StorefrontProviderFetchFactory,
+    @Optional() @Inject(STOREFRONT_SHIPPING_REFERENCE) private readonly shippingReference?: StorefrontShippingReferencePort,
+  ) {
+    this.observer = new StorefrontObserver({ enabled: process.env.STOREFRONT_LLM_OBSERVABILITY === "enabled",
+      metrics: this.metrics, record: event => this.logger.log({ event: "storefront.observation", ...event }) });
+    const localApiKey = process.env.LOCAL_LLM_API_KEY || process.env.OPENROUTER_API_KEY || "";
+    this.structuredRouting = process.env.STOREFRONT_SEMANTIC_ROUTING === "structured";
+    const localBaseUrl = process.env.LOCAL_LLM_BASE_URL || process.env.OPENROUTER_BASE_URL || undefined;
+    const localModel = process.env.LOCAL_LLM_MODEL || process.env.OPENROUTER_MODEL || "deepseek-chat";
+
+    const provider = new OpenRouterProvider({
+      apiKey: localApiKey,
+      baseUrl: localBaseUrl,
+      model: localModel,
+      ...optionalProviderTransport(providerFetchFactory, "primary"),
+    });
+    this.copyProvider = provider;
+    this.copyService = new AgentCopyService(provider, {
+      model: localModel,
+      structuredOutputMode: process.env.STOREFRONT_LLM_OUTPUT_MODE === "json_schema" ? "json_schema" : "json_object",
+    });
+
+    const fallbackApiKey = process.env.OPENROUTER_API_KEY || process.env.DEEPSEEK_API_KEY || "";
+    const fallbackBaseUrl = process.env.OPENROUTER_BASE_URL || process.env.DEEPSEEK_BASE_URL || "https://api.deepseek.com/v1";
+    const fallbackModel = process.env.OPENROUTER_MODEL || process.env.DEEPSEEK_MODEL || "deepseek-chat";
+    const fallbackProvider = fallbackApiKey
+      ? new OpenRouterProvider({ apiKey: fallbackApiKey, baseUrl: fallbackBaseUrl, model: fallbackModel,
+        ...optionalProviderTransport(providerFetchFactory, "fallback") })
+      : undefined;
+
+    this.handlerDeps = {
+      productRepo: this.productRepo,
+      stockRepo: this.stockRepo,
+      cartRepo: this.cartRepo,
+      crossSellCart: this.crossSellCart,
+      couponCart: this.couponCart,
+      prisma: this.prisma,
+      merchantRepo: this.merchantRepo,
+      supportHandoff: this.supportHandoff,
+      searchFederatedProducts: this.searchFederatedProducts,
+      addMarketplaceItemToCart: this.addMarketplaceItemToCart,
+      listEligibleCrossSells: this.listEligibleCrossSells,
+      loadCrossSellConfig: this.loadCrossSellConfig.bind(this),
+      crossSellPromotionRepo: this.crossSellPromotionRepo,
+      applyCouponUseCase: this.applyCouponUseCase,
+      couponRepo: this.couponRepo,
+      productPromotionRepo: this.productPromotionRepo,
+      oneBuyClick: this.oneBuyClick,
+      submitTestimonial: this.submitTestimonial,
+      shippingReference: this.shippingReference,
+    };
+
+    const placeholderHandlers: StoreToolHandlers = {} as any;
+    this.agent = new StorefrontLangGraphAgent({
+      structuredRouting: this.structuredRouting,
+      structuredOutputMode: process.env.STOREFRONT_LLM_OUTPUT_MODE === "json_schema" ? "json_schema" : "json_object",
+      provider,
+      fallbackProvider,
+      fallbackModel,
+      toolHandlers: placeholderHandlers,
+      model: localModel,
+      fastModel: localModel,
+      strongModel: process.env.OPENROUTER_MODEL ?? localModel,
+      budgetCents: parseInt(process.env.AGENT_BUDGET_CENTS ?? "500", 10)
+    });
+  }
+
+  async generateNudge(input: NudgeCopyInput): Promise<string> {
+    return this.observer.turn(() => this.copyService.generateNudge(input));
+  }
+  async reply(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
+    return this.observer ? this.observer.turn(() => this.replyTurn(input, deferredContext)) : this.replyTurn(input, deferredContext);
+  }
+  private async replyTurn(input: StorefrontConversationInput, deferredContext?: StorefrontDeferredContext): Promise<StorefrontConversationOutput> {
+    // The decision and every later shortcut/RAG/port must use the same input.
+    input = structuredClone(input);
+    const ctx: ToolRequestContext = {
+      merchantId: input.merchantId,
+      sessionId: input.cartId || input.sessionId,
+      conversationId: input.sessionId,
+      userMessage: input.uiAction ? undefined : input.userMessage,
+      buyer: input.buyerContext,
+      oneBuyClick: input.oneBuyClick ? {
+        enabled: input.oneBuyClick.enabled,
+        shippingPreference: input.oneBuyClick.shippingPreference,
+        paymentPreference: input.oneBuyClick.paymentPreference,
+      } : undefined,
+    };
+    const deviceMeta = input.deviceType ? { device: input.deviceType } : undefined;
+    let handlers: StoreToolHandlers | undefined;
+    const getHandlers = () => handlers ??= observeStorefrontHandlers(
+      composeStoreToolHandlers(this.handlerDeps, ctx), input.cartId || input.sessionId);
+    if (input.uiAction) {
+      this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
+      const shortcutHandlers = getHandlers();
+      const output = await executeStorefrontUiAction(shortcutHandlers, input.uiAction, input.merchantId, input.cartId || input.sessionId);
+      const configured = (input.storeSettings?.quick_replies ?? null) as StoreQuickRepliesConfig | null;
+      return { ...output, cartId: input.cartId || input.sessionId,
+        suggestedNext: storefrontQuickReplies(input.uiAction.tool, configured, undefined, undefined, undefined, undefined,
+          this.structuredRouting ? { mode: "structured", merchantId: input.merchantId, cartId: input.cartId || input.sessionId, blocks: output.blocks } : undefined) };
+    }
+    // Complete support navigation labels are explicit application actions.
+    // Keep them independent of model availability, persona and prior sales turns.
+    // These actions need no media interpretation or one-click checkout context.
+    // Leave deferred IO untouched; unrelated prose still prepares below.
+    const navigation = await resolveSupportNavigation(input, getHandlers);
+    if (navigation) return navigation;
+    // Preparing owns classification exactly once, regardless of legacy routing.
+    // Lazy server-owned ports avoid even composing tool delegates before approval.
+    const prepared = await this.agent.prepare({
+      sessionId: input.sessionId,
+      merchantId: input.merchantId,
+      userMessage: input.userMessage,
+      cartId: input.cartId,
+      history: input.history,
+      attachmentContext: input.attachmentContext,
+      merchantName: input.merchantName,
+      storeCategory: input.storeCategory,
+      storeSettings: input.storeSettings,
+      agentIdentity: input.agentIdentity,
+      merchantPolicy: input.merchantPolicy,
+      advancedRules: input.advancedRules,
+      buyerContext: input.buyerContext,
+      oneBuyClick: input.oneBuyClick,
+      systemPrompt: input.experimentSystemPrompt,
+      toolHandlers: new Proxy({} as StoreToolHandlers, {
+        get(_target, key) { return Reflect.get(getHandlers(), key); },
+      }),
+    });
+    if (!prepared.allowed) {
+      return { message: prepared.result.message, blocks: [], suggestedNext: [], cartId: input.cartId || input.sessionId };
+    }
+    // Only the opaque prepared turn authorizes deferred attachment/provider IO.
+    // Never accept browser-supplied classifications or prepare a second time.
+    const deferred = deferredContext ? storefrontDeferredContextSchema.parse(await deferredContext()) : undefined;
+    if (deferred) {
+      input = { ...input, ...deferred };
+      ctx.oneBuyClick = input.oneBuyClick ? {
+        enabled: input.oneBuyClick.enabled, shippingPreference: input.oneBuyClick.shippingPreference,
+        paymentPreference: input.oneBuyClick.paymentPreference,
+      } : undefined;
+    }
+    this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
+    const shortcutHandlers = getHandlers();
+    const shortcut = await resolveDeterministicShortcut(
+      {
+        productRepo: this.productRepo,
+        copyService: this.copyService,
+        emitFunnelEvent: (merchantId, sessionId, event) => this.emitFunnelEvent(
+          { ...input, merchantId, sessionId }, event, deviceMeta,
+        ),
+        applyCoupon: (args) => shortcutHandlers.applyCoupon(args),
+        addItemToCart: (args) => shortcutHandlers.addItemToCart(args),
+        // Build an updated cart_summary block after a deterministic coupon apply
+        // so the storefront cart store (CartFAB drawer) refreshes its discount /
+        // net total. Without this the coupon persists server-side but the drawer
+        // shows the stale pre-discount total (buyer told "applied", sees full price).
+        getCartBlock: async (cartId: string) => {
+          try {
+            const args = { cartId };
+            const checked = await callStorefrontTool("get_cart", args, () => shortcutHandlers.getCart(args), { cartId });
+            if (!checked.ok) return null;
+            const built = buildConversationBlocks({ merchantId: input.merchantId, userMessage: "Ver carrinho", finalContent: "",
+              toolResults: { get_cart: checked.data } });
+            return built.blocks.find(block => block.type === "cart_summary" && block.data.items.length > 0) ?? null;
+          } catch {
+            return null;
+          }
+        },
+      },
+      input,
+      { structuredReadRouting: this.structuredRouting },
+    );
+    if (shortcut) return shortcut;
+
+    // RAG: pull relevant knowledge-base chunks (policies, FAQ, config) for this
+    // message so the sales agent answers policy/store questions from the source
+    // of truth instead of guessing. Best-effort — never blocks the reply.
+    let knowledgeContext: string | undefined;
+    if (this.queryKnowledge) {
+      try {
+        const result = await this.queryKnowledge.execute({
+          merchantId: input.merchantId,
+          queryText: input.userMessage,
+          limit: 5,
+          threshold: 0.65,
+        });
+        if (result.chunks.length > 0) {
+          knowledgeContext = result.chunks.map((c) => `• ${c.content}`).join("\n\n");
+        }
+      } catch (err) {
+        this.logger.warn("storefront.knowledge_query.failed", { reason: "query_error" });
+      }
+    }
+
+    let result = await prepared.run({ knowledgeContext,
+      ...(deferred ? { attachmentContext: input.attachmentContext, oneBuyClick: input.oneBuyClick } : {}) });
+    result = await ensureProductDiscovery(result, { userMessage: input.userMessage, merchantId: input.merchantId, handlers: shortcutHandlers, history: input.history,
+      discoveryDecision: this.structuredRouting ? result.routing.needsProductDiscovery === true : undefined });
+    const blocks = await appendOneBuyClickCheckout({
+      blocks: result.blocks,
+      toolsUsed: result.toolsUsed,
+      oneBuyClickEnabled: input.oneBuyClick?.enabled === true,
+      cartId: input.cartId || input.sessionId,
+      createCheckoutSession: shortcutHandlers.createCheckoutSession,
+    });
+    this.emitToolFunnelEvents(input, result.toolsUsed, deviceMeta).catch(() => {});
+    let cartState: StorefrontCartState | undefined;
+    if (input.cartId) {
+      cartState = await readStorefrontCartState(this.cartRepo, { merchantId: input.merchantId, cartId: input.cartId });
+    }
+    const PRIORITY_TOOLS = new Set([
+      "compare_products", "get_product_details", "add_item_to_cart", "get_reviews",
+      "create_review", "get_product_questions", "create_question", "get_similar_products",
+      "add_to_wishlist", "get_wishlist", "quote_shipping", "create_checkout_session",
+      "track_order", "get_invoice", "cancel_order", "escalate_to_human", "get_faq",
+      "get_store_policies", "get_buyer_profile", "get_daily_deals"
+    ]);
+    const priorityTool = [...result.toolsUsed].reverse().find((t: string) => PRIORITY_TOOLS.has(t));
+    const lastTool = priorityTool ?? result.toolsUsed[result.toolsUsed.length - 1] ?? null;
+    let shippingOptions: StorefrontShippingOption[] | undefined;
+    if (lastTool === "quote_shipping" && (result as any).shippingOptions) {
+      shippingOptions = (result as any).shippingOptions.map((opt: any) => ({
+        carrier: opt.carrier,
+        name: opt.name,
+        price: opt.price,
+        days: opt.days
+      }));
+    }
+    let quickRepliesConfig: StoreQuickRepliesConfig | null = null;
+    if (input.storeSettings?.quick_replies) {
+      try {
+        quickRepliesConfig = normalizeStoreQuickRepliesConfig(input.storeSettings.quick_replies);
+      } catch {}
+    }
+    let finalMessage = result.message;
+    if ((!finalMessage || finalMessage.trim().length === 0) && blocks.length > 0) {
+      const contextHint = this.blockContextHint(blocks, result.toolsUsed);
+      finalMessage = await this.copyService.generateVariantCopy(
+        input.experimentSystemPrompt,
+        `Você acabou de mostrar ${contextHint} para o cliente. Escreva 1 frase curta e natural acompanhando a apresentação. Não repita dados do componente (preço, nome). Seja empático e conversacional.`,
+        this.defaultBlockIntro(result.toolsUsed),
+      );
+    }
+    const couponListBlock = blocks.find((b: any) => b.type === "coupon_list") as any;
+    const listedCouponCodes: string[] | undefined = couponListBlock?.data?.coupons
+      ?.map((c: any) => c.code)
+      .filter(Boolean);
+    return {
+      message: finalMessage,
+      blocks,
+      cartId: result.cartId,
+      suggestedNext: storefrontQuickReplies(lastTool, quickRepliesConfig, cartState, shippingOptions, input.userMessage, listedCouponCodes,
+        this.structuredRouting ? { mode: "structured", source: result.routing.source, intent: result.routing.intent,
+          merchantId: input.merchantId, cartId: input.cartId || input.sessionId, blocks } : undefined,
+        { discoveryQuestion: result.discoveryQuestion, assistantMessage: finalMessage, hasBlocks: blocks.length > 0 })
+    };
+  }
+  private blockContextHint(blocks: any[], toolsUsed: string[]): string {
+    if (toolsUsed.includes("search_products")) return "uma lista de produtos";
+    if (toolsUsed.includes("get_product_details")) return "os detalhes de um produto";
+    if (toolsUsed.includes("quote_shipping")) return "as opções de frete";
+    if (toolsUsed.includes("get_cart")) return "o carrinho do cliente";
+    if (toolsUsed.includes("get_reviews")) return "avaliações do produto";
+    if (toolsUsed.includes("compare_products")) return "uma comparação entre produtos";
+    if (toolsUsed.includes("get_similar_products")) return "produtos similares";
+    if (blocks.some((b: any) => b.type === "product_carousel")) return "produtos recomendados";
+    if (blocks.some((b: any) => b.type === "product_card")) return "um produto em destaque";
+    return "informações relevantes";
+  }
+  private defaultBlockIntro(toolsUsed: string[]): string {
+    if (toolsUsed.includes("search_products")) return "Encontrei algumas opções pra você:";
+    if (toolsUsed.includes("get_product_details")) return "Aqui estão os detalhes:";
+    if (toolsUsed.includes("quote_shipping")) return "Calculei o frete pra você:";
+    if (toolsUsed.includes("get_cart")) return "Seu carrinho:";
+    if (toolsUsed.includes("get_reviews")) return "Veja o que outros compradores disseram:";
+    if (toolsUsed.includes("compare_products")) return "Comparação entre os produtos:";
+    if (toolsUsed.includes("get_similar_products")) return "Produtos similares que podem te interessar:";
+    return "Aqui está o que encontrei:";
+  }
+  private async emitFunnelEvent(input: StorefrontConversationInput, eventName: string, metadata?: Record<string, unknown>): Promise<void> {
+    if (!this.telemetry) return;
+    await this.telemetry.recordEvent({
+      merchantId: input.merchantId,
+      conversationId: input.sessionId,
+      cartId: input.cartId || input.sessionId,
+      globalUserId: input.buyerContext?.globalUserId,
+      event: eventName,
+      metadata,
+    });
+  }
+  private async emitToolFunnelEvents(input: StorefrontConversationInput, toolsUsed: string[], meta?: Record<string, unknown>): Promise<void> {
+    if (toolsUsed.includes("search_products") || toolsUsed.includes("get_product_details")) {
+      await this.emitFunnelEvent(input, "product_viewed", meta);
+    }
+    if (toolsUsed.includes("add_item_to_cart")) {
+      await this.emitFunnelEvent(input, "cart_viewed", meta);
+    }
+    if (toolsUsed.includes("quote_shipping")) {
+      await this.emitFunnelEvent(input, "shipping_option_selected", meta);
+    }
+    if (toolsUsed.includes("apply_coupon")) {
+      await this.emitFunnelEvent(input, "coupon_applied", meta);
+    }
+    if (toolsUsed.includes("create_checkout_session")) {
+      await this.emitFunnelEvent(input, "payment_method_selected", meta);
+    }
+  }
+  private buildSuggestedActions(toolsUsed: string[], cartId?: string): string[] {
+    const lastTool = toolsUsed[toolsUsed.length - 1];
+    switch (lastTool) {
+      case "search_products":
+        return ["Ver detalhes", "Adicionar ao carrinho", "Comparar produtos"];
+      case "add_item_to_cart":
+        return ["Continuar comprando", "Ver meu carrinho", "Ir para checkout"];
+      case "get_cart":
+        return ["Aplicar cupom", "Calcular frete", "Finalizar compra", "Limpar carrinho"];
+      case "remove_cart_item":
+      case "update_cart_item":
+        return ["Ver carrinho atualizado", "Continuar comprando", "Finalizar compra"];
+      case "apply_coupon":
+        return ["Ver carrinho", "Calcular frete", "Finalizar compra"];
+      case "quote_shipping":
+        return ["Escolher Sedex", "Escolher PAC", "Finalizar compra"];
+      case "clear_cart":
+        return ["Buscar produtos", "Ver promoções"];
+      case "list_promotions":
+        // No hardcoded coupon code (was a fake "ZYON10"). Codes vary per merchant
+        // and come from the real list_promotions result, not a canned quick-reply.
+        return ["Ver carrinho", "Finalizar compra"];
+      default:
+        return cartId
+          ? ["Ver meu carrinho", "Buscar produtos", "Promoções disponíveis"]
+          : ["O que vocês vendem?", "Tem promoção?", "Buscar produto"];
+    }
+  }
+  private async loadCrossSellConfig(merchantId: string): Promise<{ enabled: boolean; touchpoints: { browsing: boolean; pre_cart: boolean; post_cart?: boolean; pre_payment: boolean; post_purchase: boolean }; discount: { enabled: boolean; mode: string; percent: number; couponCode?: string }; limits: { maxSuggestionsPerSession: number; cooldownSeconds: number }; strategies: string[]; display: { mode: string } }> {
+    try {
+      const merchant = await this.prisma.merchant.findUnique({ where: { id: merchantId }, select: { storeSettings: true } });
+      const settings = (merchant?.storeSettings as Record<string, any>) ?? {};
+      const cs = settings.crossSell ?? {};
+      return {
+        enabled: cs.enabled ?? false,
+        touchpoints: { browsing: cs.touchpoints?.browsing ?? true, pre_cart: cs.touchpoints?.pre_cart ?? false, post_cart: cs.touchpoints?.post_cart ?? false, pre_payment: cs.touchpoints?.pre_payment ?? true, post_purchase: cs.touchpoints?.post_purchase ?? false },
+        discount: { enabled: cs.discount?.enabled ?? false, mode: cs.discount?.mode ?? "percent", percent: cs.discount?.percent ?? 10, couponCode: cs.discount?.couponCode },
+        limits: { maxSuggestionsPerSession: cs.limits?.maxSuggestionsPerSession ?? 2, cooldownSeconds: cs.limits?.cooldownSeconds ?? 120 },
+        strategies: cs.strategies ?? ["same_category", "ai_personalized"],
+        display: { mode: cs.display?.mode ?? "interstitial" },
+      };
+    } catch {
+      return { enabled: false, touchpoints: { browsing: true, pre_cart: false, post_cart: false, pre_payment: true, post_purchase: false }, discount: { enabled: false, mode: "percent", percent: 10 }, limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 }, strategies: ["same_category", "ai_personalized"], display: { mode: "interstitial" } };
+    }
+  }
+}

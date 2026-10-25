@@ -1,0 +1,51 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9"
+        xmlns:xhtml="http://www.w3.org/1999/xhtml"
+        xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+        xsi:schemaLocation="http://www.sitemaps.org/schemas/sitemap/0.9
+        http://www.sitemaps.org/schemas/sitemap/0.9/sitemap.xsd">
+  <url>
+    <loc>https://www.zyon-payments.com.br/</loc>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://www.zyon-payments.com.br/" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.zyon-payments.com.br/es" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.zyon-payments.com.br/en" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.zyon-payments.com.br/" />
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>1.0</priority>
+  </url>
+  <url>
+    <loc>https://www.zyon-payments.com.br/es</loc>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://www.zyon-payments.com.br/" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.zyon-payments.com.br/es" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.zyon-payments.com.br/en" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.zyon-payments.com.br/" />
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url>
+    <loc>https://www.zyon-payments.com.br/en</loc>
+    <xhtml:link rel="alternate" hreflang="pt-BR" href="https://www.zyon-payments.com.br/" />
+    <xhtml:link rel="alternate" hreflang="es" href="https://www.zyon-payments.com.br/es" />
+    <xhtml:link rel="alternate" hreflang="en" href="https://www.zyon-payments.com.br/en" />
+    <xhtml:link rel="alternate" hreflang="x-default" href="https://www.zyon-payments.com.br/" />
+    <lastmod>2026-09-24</lastmod>
+    <changefreq>weekly</changefreq>
+    <priority>0.9</priority>
+  </url>
+  <url><loc>https://www.zyon-payments.com.br/recursos</loc><lastmod>2026-09-11</lastmod><changefreq>weekly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/ecommerce-agentico</loc><lastmod>2026-09-11</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/governanca-de-ia-no-ecommerce</loc><lastmod>2026-09-11</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/agentes-de-compra</loc><lastmod>2026-09-11</lastmod><changefreq>monthly</changefreq><priority>0.7</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/plataforma-ecommerce-com-ia</loc><lastmod>2026-10-07</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/migrar-loja-virtual</loc><lastmod>2026-10-07</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/agente-ia-para-ecommerce</loc><lastmod>2026-10-07</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/como-vender-pelo-whatsapp-com-ia</loc><lastmod>2026-10-16</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/chatbot-whatsapp-loja-virtual</loc><lastmod>2026-10-16</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/integrar-whatsapp-loja-virtual</loc><lastmod>2026-10-16</lastmod><changefreq>monthly</changefreq><priority>0.8</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/cookies</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/termos</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/privacidade</loc><lastmod>2026-10-05</lastmod><changefreq>monthly</changefreq><priority>0.5</priority></url>
+  <url><loc>https://www.zyon-payments.com.br/exclusao-de-dados</loc><lastmod>2026-09-11</lastmod><changefreq>monthly</changefreq><priority>0.3</priority></url>
+</urlset>

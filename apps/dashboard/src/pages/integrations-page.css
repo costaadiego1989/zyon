@@ -1,0 +1,175 @@
+.api-integrations-page {
+  min-width: 0;
+}
+.api-integrations-page .form-field input { min-height: 44px; }
+.api-integrations-page .data-table th {
+  font: 600 13px var(--font-sans);
+  text-transform: none;
+  letter-spacing: 0;
+}
+.api-integrations-page .data-table td {
+  font: 14px/1.5 var(--font-sans);
+  max-width: 340px;
+  overflow-wrap: anywhere;
+}
+.api-integrations-page .data-table {
+  min-width: 680px;
+}
+.api-feedback {
+  padding: 14px 16px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font: 14px/1.6 var(--font-sans);
+  margin: 0;
+  overflow-wrap: anywhere;
+}
+.api-feedback--error {
+  color: var(--color-error);
+  background: var(--color-error-bg);
+  border-color: var(--color-error);
+}
+.api-feedback--success {
+  color: var(--color-success);
+  background: var(--color-success-bg);
+}
+.api-secret code {
+  padding: 16px;
+  border-radius: var(--radius-sm);
+  background: var(--surface-2);
+  font: 14px/1.7 var(--font-mono);
+  overflow-wrap: anywhere;
+  user-select: all;
+}
+.api-inline-actions {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 12px;
+}
+.api-create-row {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  align-items: end;
+  gap: 16px;
+}
+.api-permissions summary,
+.api-example summary {
+  font: 600 14px/1.6 var(--font-sans);
+  cursor: pointer;
+  padding: 8px 0;
+}
+.api-permissions summary span {
+  font-weight: 400;
+  color: var(--color-text-muted);
+  margin-left: 12px;
+}
+.api-permissions p,
+.api-example p,
+.api-helper {
+  margin: 0;
+  font: 14px/1.6 var(--font-sans);
+  color: var(--color-text-muted);
+  max-width: 72ch;
+}
+.api-options {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 20px;
+  margin-top: 16px;
+}
+.api-options label {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  padding: 12px;
+  min-height: 48px;
+  border: 1px solid var(--color-border);
+  border-radius: var(--radius-sm);
+  font: 13px/1.5 var(--font-mono);
+  cursor: pointer;
+  overflow-wrap: anywhere;
+  min-width: 0;
+}
+.api-options label:has(input:checked) {
+  background: var(--accent-soft);
+  border-color: var(--accent-line);
+}
+.api-options label:focus-within {
+  outline: 2px solid var(--color-brand);
+  outline-offset: 2px;
+}
+.api-options input {
+  width: 18px;
+  height: 18px;
+  min-height: 18px;
+  margin: 0;
+  flex-shrink: 0;
+  accent-color: var(--color-brand);
+}
+.api-options span {
+  min-width: 0;
+}
+.api-event-fieldset {
+  margin: 0;
+  padding: 0;
+  border: 0;
+  min-width: 0;
+}
+.api-event-fieldset legend {
+  font: 600 14px var(--font-sans);
+  text-transform: none;
+}
+.api-webhook-list article {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto auto;
+  gap: 16px;
+  align-items: center;
+  padding: 20px 0;
+  border-top: 1px solid var(--color-border);
+}
+.api-webhook-list article:first-child {
+  padding-top: 0;
+  border-top: 0;
+}
+.api-webhook-list article > div {
+  min-width: 0;
+  overflow-wrap: anywhere;
+}
+.api-webhook-list strong {
+  font: 500 14px/1.6 var(--font-sans);
+}
+.api-webhook-list details,
+.api-scopes-list {
+  font: 13px/1.6 var(--font-sans);
+  color: var(--color-text-muted);
+}
+.api-example .code-block {
+  margin: 16px 0;
+  white-space: pre-wrap;
+  overflow-wrap: anywhere;
+  font-size: 13px;
+}
+.api-example a {
+  display: inline-flex;
+  gap: 8px;
+  color: var(--color-brand);
+  align-items: center;
+  font-size: 14px;
+}
+@media (max-width: 700px) {
+  .api-options {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .api-create-row {
+    grid-template-columns: minmax(0, 1fr);
+  }
+  .api-create-row > button {
+    justify-self: start;
+  }
+  .api-webhook-list article {
+    grid-template-columns: minmax(0, 1fr) auto;
+  }
+  .api-webhook-list article > div {
+    grid-column: 1/-1;
+  }
+}

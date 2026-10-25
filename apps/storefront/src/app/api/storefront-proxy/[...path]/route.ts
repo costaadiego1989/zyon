@@ -1,0 +1,133 @@
+import { NextResponse } from "next/server";
+
+type RouteContext = { params: Promise<{ path: string[] }> };
+
+function isIdentifier(value: string | undefined): value is string {
+  return Boolean(value && /^[A-Za-z0-9_-]{1,200}$/.test(value));
+}
+
+function publicRequestOrigin(request: Request): string | null {
+  const internalOrigin = new URL(request.url).origin;
+  const forwardedHost = request.headers.get("x-forwarded-host")?.split(",")[0]?.trim();
+  const forwardedProtocol = request.headers.get("x-forwarded-proto")?.split(",")[0]?.trim().toLowerCase();
+  const browserOrigin = request.headers.get("origin");
+
+  // Railway terminates TLS at the edge and forwards requests over its internal
+  // network. Writes still require an exact Origin match. Same-origin reads may
+  // omit Origin; Fetch Metadata must confirm their browser origin instead.
+  if (request.headers.get("x-railway-edge")) {
+    if (!forwardedHost || !/^[A-Za-z0-9.-]+(?::\d{1,5})?$/.test(forwardedHost) || forwardedProtocol !== "https") return null;
+    const publicOrigin = `https://${forwardedHost}`;
+    try {
+      new URL(publicOrigin);
+    } catch {
+      return null;
+    }
+    if (browserOrigin === publicOrigin) return publicOrigin;
+    if (
+      (request.method === "GET" || request.method === "HEAD") &&
+      browserOrigin === null &&
+      request.headers.get("sec-fetch-site") === "same-origin"
+    ) return publicOrigin;
+    return null;
+  }
+
+  return internalOrigin;
+}
+
+function isAllowedPath(path: string[], method: string): boolean {
+  if (path.length === 5 && isIdentifier(path[0]) && path[1] === "cart" && isIdentifier(path[2]) && path[3] === "cross-sell") {
+    return method === "POST" && (path[4] === "quote" || path[4] === "accept");
+  }
+  if (path[0] === "budget-requests") return path.length === 1;
+  if (path[0] === "nudge") return path.length === 1;
+  if (path[0] === "conversations") {
+    if (!isIdentifier(path[1])) return false;
+    if (path.length === 3) return ["messages", "one-buy-click", "access", "history", "events"].includes(path[2]!);
+    return path.length === 4 && (
+      (path[2] === "realtime" && ["session", "narration"].includes(path[3]!)) ||
+      (path[2] === "support" && path[3] === "buyer")
+    );
+  }
+  if (path[0] !== "cart" || !isIdentifier(path[1])) return false;
+  return path.length === 2 ||
+    (path.length === 3 && path[2] === "clear") ||
+    (path.length === 4 && path[2] === "items" && isIdentifier(path[3]));
+}
+
+function requestHasVerifiedStorefrontOrigin(request: Request, origin: string): boolean {
+  if (request.headers.get("sec-fetch-site") === "cross-site") return false;
+  if (request.method !== "GET" && request.method !== "HEAD") {
+    return request.headers.get("origin") === origin;
+  }
+  const browserOrigin = request.headers.get("origin");
+  return request.headers.get("sec-fetch-site") === "same-origin" &&
+    (browserOrigin === null || browserOrigin === origin);
+}
+
+async function proxy(request: Request, context: RouteContext): Promise<NextResponse> {
+  const { path } = await context.params;
+  if (!isAllowedPath(path, request.method)) return NextResponse.json({ error: "route_not_allowed" }, { status: 404 });
+
+  const origin = publicRequestOrigin(request);
+  if (!origin || !requestHasVerifiedStorefrontOrigin(request, origin)) {
+    return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
+  }
+
+  const authorization = request.headers.get("authorization");
+  if (!authorization?.match(/^Bearer \S+$/i)) {
+    return NextResponse.json({ error: "conversation_access_required" }, { status: 401 });
+  }
+
+  const serviceToken = process.env.INTERNAL_SERVICE_TOKEN;
+  const apiBase = process.env.AACP_API_URL || process.env.NEXT_PUBLIC_API_BASE_URL || "http://localhost:3009";
+  if (!serviceToken) return NextResponse.json({ error: "service_not_configured" }, { status: 503 });
+
+  const requestUrl = new URL(request.url);
+  const targetPath = path.map(encodeURIComponent).join("/");
+  const headers = new Headers({
+    Authorization: authorization,
+    // Capabilities are origin-bound. Preserve the browser origin after this
+    // server-side hop so API verification has the same trust boundary.
+    Origin: origin,
+    "X-Internal-Service-Token": serviceToken,
+    "X-Trusted-Storefront-Origin": origin,
+  });
+  const contentType = request.headers.get("content-type");
+  const buyerAuthorization = request.headers.get("x-buyer-authorization");
+  if (contentType) headers.set("Content-Type", contentType);
+  if (buyerAuthorization) headers.set("X-Buyer-Authorization", buyerAuthorization);
+
+  try {
+    const response = await fetch(`${apiBase}/storefront/${targetPath}${requestUrl.search}`, {
+      method: request.method,
+      headers,
+      body: request.method === "GET" || request.method === "HEAD" ? undefined : await request.text(),
+      cache: "no-store",
+      // Image interpretation and catalog matching share this conversation turn.
+      signal: AbortSignal.timeout(path[0] === "conversations" && path[2] === "messages" ? 60000 : 10000),
+    });
+    const responseHeaders = new Headers({ "Cache-Control": "no-store" });
+    const responseContentType = response.headers.get("content-type");
+    if (responseContentType) responseHeaders.set("Content-Type", responseContentType);
+    for (const name of ["X-RateLimit-Limit", "X-RateLimit-Remaining", "X-RateLimit-Reset", "Retry-After"]) {
+      const value = response.headers.get(name);
+      if (value) responseHeaders.set(name, value);
+    }
+    return new NextResponse(await response.text(), { status: response.status, headers: responseHeaders });
+  } catch {
+    return NextResponse.json({ error: "storefront_proxy_unavailable" }, { status: 502 });
+  }
+}
+
+export function GET(request: Request, context: RouteContext) {
+  return proxy(request, context);
+}
+
+export function POST(request: Request, context: RouteContext) {
+  return proxy(request, context);
+}
+
+export function PATCH(request: Request, context: RouteContext) {
+  return proxy(request, context);
+}

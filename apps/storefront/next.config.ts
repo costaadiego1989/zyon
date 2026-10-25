@@ -1,0 +1,86 @@
+import path from "node:path";
+import type { NextConfig } from "next";
+
+const publicApiBaseUrl =
+  process.env.NODE_ENV === "production"
+    ? "/api/v1"
+    : process.env.NEXT_PUBLIC_API_BASE_URL ?? "/api/v1";
+
+const websocketApiOrigin = process.env.NEXT_PUBLIC_API_WEBSOCKET_ORIGIN ?? "wss://api.zyon-payments.com.br";
+
+const config: NextConfig = {
+  reactStrictMode: true,
+  output: process.env.AACP_STANDALONE === "true" ? "standalone" : undefined,
+  outputFileTracingRoot: path.resolve(__dirname, "../.."),
+  devIndicators: process.env.AACP_VISUAL_REVIEW === "1" ? false : undefined,
+  transpilePackages: ["@zyon/checkout-ui", "@zyon/widget-v2"],
+  experimental: {
+    serverActions: {
+      allowedOrigins: ["localhost:3001", "storefront.zyon-payments.com.br"],
+    },
+  },
+  env: {
+    // Browser requests stay same-origin in production. The route handler uses
+    // AACP_API_URL server-side, avoiding a fragile public API hostname/CORS hop.
+    NEXT_PUBLIC_API_BASE_URL: publicApiBaseUrl,
+    NEXT_PUBLIC_WIDGET_BASE_URL:
+      process.env.NEXT_PUBLIC_WIDGET_BASE_URL ?? "http://localhost:5173",
+  },
+  async headers() {
+    const isDev = process.env.NODE_ENV !== "production";
+    // Merchant themes may opt into the configured Google Font family. Keep that
+    // stylesheet source explicit in production rather than silently falling back.
+    // The API and widget local origins remain development-only.
+    const devConnect = isDev
+      ? " http://localhost:3009 http://localhost:5174 http://127.0.0.1:3009 ws://localhost:3001 ws://localhost:3009"
+      : "";
+    const devFont = isDev ? " https://fonts.gstatic.com" : "";
+    const contentSecurityPolicy = (frameAncestors: string) => [
+      "default-src 'self'",
+      "script-src 'self' 'unsafe-inline' 'unsafe-eval' https://www.googletagmanager.com https://connect.facebook.net https://analytics.tiktok.com https://js.stripe.com https://challenges.cloudflare.com",
+      "style-src 'self' 'unsafe-inline' https://fonts.googleapis.com",
+      "img-src 'self' data: https: blob:",
+      `connect-src 'self' https: ${websocketApiOrigin}${devConnect} https://api.stripe.com`,
+      "frame-src 'self' https://www.googletagmanager.com https://js.stripe.com https://hooks.stripe.com https://www.youtube.com https://www.youtube-nocookie.com https://player.vimeo.com https://challenges.cloudflare.com",
+      "media-src 'self' https: blob:",
+      `font-src 'self' data: https:${devFont}`,
+      `frame-ancestors ${frameAncestors}`,
+    ].join("; ");
+
+    const commonHeaders = [
+      { key: "X-Content-Type-Options", value: "nosniff" },
+      { key: "Referrer-Policy", value: "strict-origin-when-cross-origin" },
+    ];
+
+    return [
+      {
+        // Somente as lojas autorizadas podem ser incorporadas no site da Zyon.
+        source: "/store/:slug(demo|athom-technologies)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: contentSecurityPolicy(
+              "'self' https://zyon-payments.com.br https://www.zyon-payments.com.br https://zyon-agentic-checkout.vercel.app" +
+              (isDev ? " http://localhost:4175 http://127.0.0.1:4175" : ""),
+            ),
+          },
+          ...commonHeaders,
+        ],
+      },
+      {
+        // Keep every merchant storefront protected from third-party framing.
+        source: "/:path((?!store/(?:demo|athom-technologies)$).*)",
+        headers: [
+          {
+            key: "Content-Security-Policy",
+            value: contentSecurityPolicy("'none'"),
+          },
+          { key: "X-Frame-Options", value: "DENY" },
+          ...commonHeaders,
+        ],
+      },
+    ];
+  },
+};
+
+export default config;

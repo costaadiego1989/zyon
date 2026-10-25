@@ -1,0 +1,37 @@
+# Exclude everything not needed at build/runtime.
+# `**/` matches at any depth.
+node_modules
+**/node_modules
+.git
+**/.git
+.claude
+**/.claude
+.specs
+**/.specs
+dist
+**/dist
+coverage
+**/coverage
+*.log
+**/*.log
+.env
+.env.*
+**/.env*
+.vscode
+**/.vscode
+.eslintcache
+**/.eslintcache
+.playwright-mcp
+**/.playwright-mcp
+**/playwright-tiktok-profile
+node_modules
+**/node_modules
+
+.audit
+**/.audit
+**/.impeccable
+**/.next
+**/.vercel
+**/*.tsbuildinfo
+**/.test-oauth
+**/.test-billing

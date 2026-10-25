@@ -1,0 +1,354 @@
+import { Body, Controller, Get, Post, Put, Inject, UseGuards, ValidationPipe, BadRequestException, ForbiddenException, Param, Res } from "@nestjs/common";
+import type { MerchantTheme } from "@zyon/shared-types";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
+import { S3UploadService } from "../../../shared/storage/s3-upload.service.js";
+import {
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+} from "@nestjs/swagger";
+import { AuthGuard } from "../../auth/presentation/auth.guard.js";
+import { CurrentTenant } from "../../../shared/tenant/current-tenant.decorator.js";
+import { currentTenantPrincipal } from "../../../shared/auth/tenant-principal.js";
+import { Req } from "@nestjs/common";
+import {
+  GetMerchantProfileUseCase,
+  GetMerchantRulesUseCase,
+  UpdateMerchantRulesUseCase
+} from "../application/merchant.use-cases.js";
+import { GetMerchantThemeUseCase } from "../application/get-merchant-theme.use-case.js";
+import { UpdateMerchantThemeUseCase } from "../application/update-merchant-theme.use-case.js";
+import { UpdateMerchantRulesDto } from "./dto/update-merchant-rules.dto.js";
+import { storePolicyGenerationPrompt } from "../domain/services/store-policy-generation.js";
+import { SubmitPlatformFeedbackDto } from "./dto/submit-platform-feedback.dto.js";
+import { Idempotent } from "../../../shared/http/idempotency/idempotent.decorator.js";
+import { MerchantStoreService } from "../application/merchant-store.service.js";
+import { ActivateMerchantStoreUseCase } from "../application/activate-merchant-store.use-case.js";
+import { AuthCookieService } from "../../auth/domain/services/auth-cookie.service.js";
+import type { AuthenticatedPrincipal } from "../../auth/domain/auth.types.js";
+
+/**
+ * MERC-H2: Uses @CurrentTenant() decorator instead of unsafe request casting.
+ * MERC-H5: Crypto payments route merged into this controller.
+ */
+@ApiTags("Merchant")
+@UseGuards(AuthGuard)
+@Controller("merchants/me")
+export class MerchantController {
+  constructor(
+    private readonly getProfile: GetMerchantProfileUseCase,
+    private readonly getRules: GetMerchantRulesUseCase,
+    private readonly updateRules: UpdateMerchantRulesUseCase,
+    private readonly getTheme: GetMerchantThemeUseCase,
+    private readonly updateTheme: UpdateMerchantThemeUseCase,
+    private readonly s3: S3UploadService,
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly stores: MerchantStoreService,
+    private readonly activateStore: ActivateMerchantStoreUseCase,
+    private readonly cookies: AuthCookieService,
+  ) {}
+
+  @Get("stores")
+  async listStores(@Req() request: { user?: AuthenticatedPrincipal }) {
+    return { data: await this.stores.list(authenticatedMerchantActor(request)) };
+  }
+
+  @Post("stores")
+  @Idempotent()
+  async createStore(
+    @Req() request: { user?: AuthenticatedPrincipal },
+    @Body() body: { name?: string },
+  ) {
+    return this.stores.create({
+      actor: authenticatedMerchantActor(request),
+      name: body.name ?? "",
+    });
+  }
+
+  // This is an account-scoped command, not a request scoped to the current
+  // tenant. The target membership is verified by MerchantStoreService before a
+  // new session is issued. Keep the parameter distinct from `merchantId` so
+  // the global tenant guard does not mistake the target for a forged tenant.
+  @Post("stores/:targetMerchantId/activate")
+  async activateMerchantStore(
+    @Req() request: { user?: AuthenticatedPrincipal },
+    @Param("targetMerchantId") targetMerchantId: string,
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    const auth = await this.activateStore.execute(authenticatedPrincipal(request), targetMerchantId);
+    response.setHeader("Set-Cookie", this.cookies.create(auth));
+    return auth;
+  }
+
+  @ApiOperation({
+    summary: "Get merchant profile",
+    description:
+      "Retrieve current merchant profile data including ID, email, name, and subscription status.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Merchant profile",
+    schema: {
+      example: {
+        id: "merch_123",
+        email: "owner@example.com",
+        name: "Example Store",
+        status: "active",
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Not authenticated",
+  })
+  @Get()
+  profile(@CurrentTenant() merchantId: string, @Req() req: unknown) {
+    const principal = currentTenantPrincipal(
+      req as Parameters<typeof currentTenantPrincipal>[0],
+    );
+    return this.getProfile.execute(merchantId, principal);
+  }
+
+  @ApiOperation({
+    summary: "Get merchant business rules",
+    description:
+      "Retrieve discount and margin rules. maxDiscountPercent: 0-100 (hard cap on discounts). minimumMarginPercent: 0-100 (margin floor for cost-based calculations). defaultCostPercent: 0-100 (fallback cost = price * percent if not provided).",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Business rules",
+    schema: {
+      example: {
+        maxDiscountPercent: 50,
+        minimumMarginPercent: 15,
+        defaultCostPercent: 50,
+      },
+    },
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Not authenticated",
+  })
+  @Get("rules")
+  rules(@CurrentTenant() merchantId: string) {
+    return this.getRules.execute(merchantId);
+  }
+
+  @ApiOperation({
+    summary: "Update merchant business rules",
+    description:
+      "Update discount and margin rules. All fields optional. maxDiscountPercent limits offer engine. minimumMarginPercent enforces profit floor. defaultCostPercent sets fallback cost.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Rules updated",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid rule values (must be 0-100)",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Not authenticated",
+  })
+  @Put("rules")
+  update(
+    @CurrentTenant() merchantId: string,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+    body: UpdateMerchantRulesDto
+  ) {
+    return this.updateRules.execute(merchantId, body);
+  }
+
+  @ApiOperation({
+    summary: "Get merchant theme",
+    description:
+      "Retrieve storefront theme settings (colors, fonts, logo, accent). Used by widget to render branded checkout.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Theme configuration",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Not authenticated",
+  })
+  @Get("theme")
+  theme(@CurrentTenant() merchantId: string) {
+    return this.getTheme.execute(merchantId);
+  }
+
+  @ApiOperation({
+    summary: "Update merchant theme",
+    description:
+      "Update storefront theme. Supports partial updates. Fields: primaryColor, accentColor, logoUrl, fontFamily, borderRadius, etc.",
+  })
+  @ApiResponse({
+    status: 200,
+    description: "Theme updated",
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Invalid theme values",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Not authenticated",
+  })
+  @Put("theme")
+  putTheme(@CurrentTenant() merchantId: string, @Body() body: MerchantTheme) {
+    return this.updateTheme.execute(merchantId, body);
+  }
+
+  @Post("logo")
+  @ApiOperation({ summary: "Upload merchant logo to S3 and save URL" })
+  @ApiResponse({ status: 201, description: "Logo uploaded and URL saved to theme" })
+  async uploadLogo(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { logo: string; persistTheme?: boolean }
+  ) {
+    if (!body.logo) throw new BadRequestException("logo_required");
+    if (body.persistTheme !== undefined && typeof body.persistTheme !== "boolean") throw new BadRequestException("invalid_persist_theme");
+    if (!this.s3.isConfigured()) throw new BadRequestException("s3_not_configured");
+
+    const result = await this.s3.uploadBase64(body.logo, `merchants/${merchantId}/logos`);
+    // Save URL in theme.logoUrl
+    if (body.persistTheme !== false) await this.updateTheme.execute(merchantId, { logoUrl: result.url });
+    return { logoUrl: result.url };
+  }
+
+  @Put("store-category")
+  async putStoreCategory(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { storeCategory: string }
+  ) {
+    return this.updateTheme.executeCategory(merchantId, body.storeCategory);
+  }
+
+  @Get("store-settings")
+  async getStoreSettings(@CurrentTenant() merchantId: string) {
+    return this.updateTheme.getStoreSettings(merchantId);
+  }
+
+  @Put("name")
+  async updateName(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { name: string },
+  ) {
+    const name = body.name?.trim();
+    if (!name || name.length < 2) throw new BadRequestException("name_too_short");
+    if (name.length > 80) throw new BadRequestException("name_too_long");
+    await this.prisma.merchant.update({ where: { id: merchantId }, data: { name } });
+    return { name };
+  }
+
+  @Put("store-settings")
+  async putStoreSettings(
+    @CurrentTenant() merchantId: string,
+    @Body() body: Record<string, unknown>
+  ) {
+    return this.updateTheme.updateStoreSettings(merchantId, body);
+  }
+
+  @Post("generate-policy")
+  async generatePolicy(
+    @CurrentTenant() merchantId: string,
+    @Body() body: { type: "privacy" | "returns" | "terms" | "shipping"; company?: Record<string, unknown> },
+  ) {
+    const prompt = storePolicyGenerationPrompt(body?.type, body?.company);
+
+    const providers = [
+      {
+        baseUrl: process.env.LOCAL_LLM_BASE_URL || "http://localhost:11434/v1",
+        apiKey: process.env.LOCAL_LLM_API_KEY || "ollama",
+        model: process.env.LOCAL_LLM_MODEL || "llama3.2",
+      },
+      {
+        baseUrl: process.env.DEEPSEEK_BASE_URL || process.env.OPENAI_BASE_URL || "https://api.deepseek.com/v1",
+        apiKey: process.env.DEEPSEEK_API_KEY || process.env.OPENAI_API_KEY || "",
+        model: process.env.DEEPSEEK_MODEL || process.env.OPENAI_MODEL || "deepseek-chat",
+      },
+    ];
+
+    for (const provider of providers) {
+      if (!provider.apiKey) continue;
+      try {
+        const controller = new AbortController();
+        const timeout = setTimeout(() => controller.abort(), 30000);
+
+        const res = await fetch(`${provider.baseUrl}/chat/completions`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Authorization: `Bearer ${provider.apiKey}` },
+          body: JSON.stringify({
+            model: provider.model,
+            messages: [{ role: "user", content: prompt }],
+            max_tokens: 1200,
+            temperature: 0.2,
+          }),
+          signal: controller.signal,
+        });
+
+        clearTimeout(timeout);
+        if (!res.ok) continue;
+
+        const data = await res.json() as { choices?: Array<{ finish_reason?: string; message?: { content?: string } }> };
+        const text = data.choices?.[0]?.message?.content?.trim() ?? "";
+        if (text && text.length <= 10000 && data.choices?.[0]?.finish_reason !== "length") return { policy: text };
+      } catch {
+        continue;
+      }
+    }
+
+    throw new BadRequestException("ai_generation_failed: all providers unavailable");
+  }
+
+  @Post("platform-feedback")
+  @Idempotent()
+  @ApiOperation({ summary: "Submit feedback about the Zyon platform" })
+  @ApiResponse({ status: 201, description: "Feedback recorded" })
+  async submitPlatformFeedback(
+    @CurrentTenant() merchantId: string,
+    @Req() req: unknown,
+    @Body(new ValidationPipe({ whitelist: true, forbidNonWhitelisted: true, transform: true }))
+    body: SubmitPlatformFeedbackDto,
+  ) {
+    const message = body.message.trim();
+    if (message.length < 10) throw new BadRequestException("feedback_message_too_short");
+
+    const principal = currentTenantPrincipal(
+      req as Parameters<typeof currentTenantPrincipal>[0],
+    );
+    if (principal.kind !== "human") {
+      throw new ForbiddenException("feedback_requires_human_principal");
+    }
+    const feedback = await this.prisma.merchantPlatformFeedback.create({
+      data: {
+        merchantId,
+        userId: principal.userId,
+        category: body.category,
+        message,
+      },
+      select: {
+        id: true,
+        category: true,
+        createdAt: true,
+      },
+    });
+
+    return {
+      ...feedback,
+      createdAt: feedback.createdAt.toISOString(),
+    };
+  }
+}
+
+function authenticatedPrincipal(request: { user?: AuthenticatedPrincipal }): AuthenticatedPrincipal {
+  if (!request.user) throw new ForbiddenException("merchant_store_authentication_required");
+  return request.user;
+}
+
+function authenticatedMerchantActor(request: { user?: AuthenticatedPrincipal }) {
+  const user = authenticatedPrincipal(request);
+  return { userId: user.userId, merchantId: user.merchantId, role: user.role };
+}

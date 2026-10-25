@@ -1,0 +1,26 @@
+export const STOREFRONT_CONFIG_QUERY_PORT = Symbol("STOREFRONT_CONFIG_QUERY_PORT");
+
+export interface StorefrontConfigMerchant {
+  budgetModeEnabled?: boolean;
+  id: string;
+  name: string;
+  theme: unknown;
+  storeCategory: string | null;
+  storeSettings: unknown;
+}
+
+export interface StorefrontConfigSnapshot {
+  publishedPolicies?: Record<string, string>;
+  policiesAvailable?: boolean;
+  merchant: StorefrontConfigMerchant;
+  subscriptionStatus?: string;
+  checkoutMode?: string;
+  agentRule?: { identity: unknown; checkoutSettings: unknown };
+  quickReplies?: unknown;
+  stories: unknown[];
+}
+
+export interface StorefrontConfigQueryPort {
+  findPublicConfig(identifier: string): Promise<StorefrontConfigSnapshot | null>;
+  findMerchantConfig?(merchantId: string): Promise<StorefrontConfigSnapshot | null>;
+}

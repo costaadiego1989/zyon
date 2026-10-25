@@ -1,0 +1,484 @@
+/* ==========================================================================
+   AACP Continuum :: Polish Layer
+   --------------------------------------------------------------------------
+   Camada aditiva de refinamento visual. Carregada por ultimo.
+   Regras:
+   - Nao introduz paleta nova. Reutiliza apenas tokens OKLCH ja definidos
+     (--aacp-enterprise-*, --aacp-accent, --continuum-*).
+   - Nao altera markup, classes, labels ou roles (hooks de teste intactos).
+   - Escopo travado em .checkout-experience.zyon-widget--conversational
+     (especificidade 0-3-0) para vencer regras existentes sem !important.
+   - Sistema: Editorial Intelligence + Transactional Precision.
+   - Arquetipo: console operacional refinado. Precisao acima de decoracao.
+   ========================================================================== */
+
+/* --------------------------------------------------------------------------
+   1. Tokens locais de movimento e bisel (double-bezel)
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational {
+  /* Curvas: alinhadas a continuum/DESIGN (ease-out-quint e quart). */
+  --pol-ease: cubic-bezier(0.22, 1, 0.36, 1);
+  --pol-ease-soft: cubic-bezier(0.25, 1, 0.5, 1);
+  --pol-ease-press: cubic-bezier(0.32, 1.12, 0.62, 1);
+  --pol-dur-press: 130ms;
+  --pol-dur-state: 200ms;
+  --pol-dur-enter: 220ms;
+
+  /* Bisel superior: realce otico no topo das superficies elevadas.
+     Mesma tecnica ja usada em --aacp-enterprise-edge-highlight. */
+  --pol-bezel-top: color-mix(in oklch, white 58%, transparent);
+  --pol-bezel-inner: color-mix(in oklch, var(--aacp-enterprise-ink) 5%, transparent);
+
+  /* Elevacao em duas camadas: contato curto + difusao longa. */
+  --pol-elevate:
+    0 1px 2px color-mix(in oklch, var(--aacp-enterprise-ink) 8%, transparent),
+    0 12px 32px color-mix(in oklch, var(--aacp-enterprise-ink) 9%, transparent);
+  --pol-elevate-soft:
+    0 1px 2px color-mix(in oklch, var(--aacp-enterprise-ink) 6%, transparent),
+    0 8px 22px color-mix(in oklch, var(--aacp-enterprise-ink) 6%, transparent);
+
+  /* Anel de foco coerente com o acento do merchant. */
+  --pol-focus-ring: color-mix(in oklch, var(--aacp-accent) 38%, transparent);
+}
+
+/* No dark carbono o realce branco vira quase nulo para evitar linha dura. */
+.checkout-experience.zyon-widget--conversational[data-theme="dark"] {
+  --pol-bezel-top: color-mix(in oklch, white 7%, transparent);
+  --pol-bezel-inner: color-mix(in oklch, black 16%, transparent);
+  --pol-elevate:
+    0 1px 2px color-mix(in oklch, black 32%, transparent),
+    0 16px 38px color-mix(in oklch, black 40%, transparent);
+  --pol-elevate-soft:
+    0 1px 2px color-mix(in oklch, black 26%, transparent),
+    0 10px 26px color-mix(in oklch, black 30%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   2. Foco visivel unificado (acessibilidade AA: nunca so cor)
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational :where(
+    button, a, input, select, textarea, [tabindex], [role="button"]
+  ):focus-visible {
+  outline: 2px solid var(--aacp-accent);
+  outline-offset: 2px;
+  border-radius: inherit;
+}
+
+/* --------------------------------------------------------------------------
+   3. Superficies maiores: double-bezel discreto
+   Shell, paineis laterais, dialogos, sheets, janela do chat.
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-shell {
+  box-shadow:
+    inset 0 1px 0 var(--pol-bezel-top),
+    inset 0 0 0 1px var(--pol-bezel-inner),
+    var(--pol-elevate);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-ai-panel {
+  box-shadow:
+    inset 0 1px 0 var(--pol-bezel-top),
+    inset 0 0 0 1px var(--pol-bezel-inner),
+    var(--pol-elevate);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-auth-dialog,
+.checkout-experience.zyon-widget--conversational .zyon-side-panel {
+  box-shadow:
+    inset 0 1px 0 var(--pol-bezel-top),
+    inset 0 0 0 1px var(--pol-bezel-inner),
+    var(--pol-elevate);
+}
+
+/* Entrada de dialogos e paineis com timing coreografado. */
+.checkout-experience.zyon-widget--conversational .zyon-auth-dialog {
+  animation: pol-surface-in var(--pol-dur-enter) var(--pol-ease) both;
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-side-panel {
+  animation: pol-sheet-in var(--pol-dur-enter) var(--pol-ease) both;
+}
+
+/* --------------------------------------------------------------------------
+   4. Launcher / FAB: feedback haptico tatil
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-fab {
+  box-shadow:
+    inset 0 1px 0 var(--pol-bezel-top),
+    var(--pol-elevate-soft);
+  transition:
+    background-color var(--pol-dur-press) var(--pol-ease),
+    border-color var(--pol-dur-press) var(--pol-ease),
+    transform var(--pol-dur-press) var(--pol-ease-press),
+    box-shadow var(--pol-dur-press) var(--pol-ease);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-fab:hover {
+  transform: translateY(-1px);
+  box-shadow:
+    inset 0 1px 0 var(--pol-bezel-top),
+    var(--pol-elevate);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-fab:active {
+  transform: translateY(0) scale(0.97);
+  box-shadow:
+    inset 0 1px 0 var(--pol-bezel-top),
+    var(--pol-elevate-soft);
+}
+
+/* --------------------------------------------------------------------------
+   5. Botoes de acao: CTA primaria e variantes com toque tatil
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-cta {
+  transition:
+    background-color var(--pol-dur-press) var(--pol-ease),
+    border-color var(--pol-dur-press) var(--pol-ease),
+    transform var(--pol-dur-press) var(--pol-ease-press),
+    box-shadow var(--pol-dur-press) var(--pol-ease);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-cta:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--pol-elevate-soft);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-cta:active {
+  transform: translateY(0);
+  box-shadow: none;
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-auth-primary,
+.checkout-experience.zyon-widget--conversational .zyon-offer-cta,
+.checkout-experience.zyon-widget--conversational .zyon-send,
+.checkout-experience.zyon-widget--conversational .zyon-cart-btn {
+  transition:
+    background-color var(--pol-dur-press) var(--pol-ease),
+    border-color var(--pol-dur-press) var(--pol-ease),
+    transform var(--pol-dur-press) var(--pol-ease-press),
+    box-shadow var(--pol-dur-press) var(--pol-ease);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-auth-primary:hover,
+.checkout-experience.zyon-widget--conversational .zyon-offer-cta:hover,
+.checkout-experience.zyon-widget--conversational .zyon-cart-btn:hover {
+  transform: translateY(-1px);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-auth-primary:active,
+.checkout-experience.zyon-widget--conversational .zyon-offer-cta:active,
+.checkout-experience.zyon-widget--conversational .zyon-send:active,
+.checkout-experience.zyon-widget--conversational .zyon-cart-btn:active {
+  transform: translateY(0) scale(0.99);
+}
+
+/* Botoes secundarios e chips: realce sutil no hover. */
+.checkout-experience.zyon-widget--conversational .zyon-chip,
+.checkout-experience.zyon-widget--conversational .zyon-auth-secondary,
+.checkout-experience.zyon-widget--conversational .zyon-login-btn,
+.checkout-experience.zyon-widget--conversational .zyon-google-login {
+  transition:
+    background-color var(--pol-dur-press) var(--pol-ease),
+    border-color var(--pol-dur-press) var(--pol-ease),
+    transform var(--pol-dur-press) var(--pol-ease-press);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-chip:active,
+.checkout-experience.zyon-widget--conversational .zyon-auth-secondary:active,
+.checkout-experience.zyon-widget--conversational .zyon-login-btn:active,
+.checkout-experience.zyon-widget--conversational .zyon-google-login:active {
+  transform: scale(0.98);
+}
+
+/* Botoes de icone e steppers de quantidade. */
+.checkout-experience.zyon-widget--conversational .zyon-icon-btn:active,
+.checkout-experience.zyon-widget--conversational .zyon-qty-btn:active,
+.checkout-experience.zyon-widget--conversational .zyon-cart-stepper-seg:active {
+  transform: scale(0.94);
+}
+
+/* --------------------------------------------------------------------------
+   6. Mensagens do chat: turno ativo do agente em destaque
+   A ultima mensagem do agente entra com presenca; historico fica calmo.
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-bubble-agent {
+  animation: pol-turn-in var(--pol-dur-enter) var(--pol-ease) both;
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-bubble {
+  transition: border-color var(--pol-dur-state) var(--pol-ease);
+}
+
+/* --------------------------------------------------------------------------
+   7. Campos de entrada: anel de foco preciso (auth, side, composer)
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-auth-input-wrap:focus-within,
+.checkout-experience.zyon-widget--conversational .zyon-side-input:focus-within,
+.checkout-experience.zyon-widget--conversational .zyon-composer:focus-within,
+.checkout-experience.zyon-widget--conversational .zyon-input:focus-within {
+  box-shadow: 0 0 0 3px var(--pol-focus-ring);
+  transition: box-shadow var(--pol-dur-press) var(--pol-ease);
+}
+
+/* --------------------------------------------------------------------------
+   8. Estado: indicador de digitacao com ritmo, nao loop chamativo
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-dots > * {
+  animation: pol-typing 1.2s var(--pol-ease-soft) infinite;
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-dots > *:nth-child(2) {
+  animation-delay: 0.15s;
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-dots > *:nth-child(3) {
+  animation-delay: 0.3s;
+}
+
+/* --------------------------------------------------------------------------
+   9. Tipografia: precisao financeira e ritmo editorial
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-cart-total,
+.checkout-experience.zyon-widget--conversational .zyon-totals,
+.checkout-experience.zyon-widget--conversational .zyon-order-confirmation-reference,
+.checkout-experience.zyon-widget--conversational .zyon-hub-metric {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1, "ss01" 1;
+}
+
+/* Metadados operacionais de pagamento alinhados ao mesmo ritmo tabular. */
+.checkout-experience.zyon-widget--conversational .zyon-crypto-quote,
+.checkout-experience.zyon-widget--conversational .zyon-crypto-mono,
+.checkout-experience.zyon-widget--conversational .zyon-pix-panel,
+.checkout-experience.zyon-widget--conversational .zyon-shipping-total {
+  font-variant-numeric: tabular-nums;
+  font-feature-settings: "tnum" 1;
+}
+
+/* --------------------------------------------------------------------------
+   9b. Header: avatar do agente e presenca com presenca calma
+   Realce otico sutil no avatar; acoes do header com toque tatil.
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-header-agent-avatar {
+  box-shadow:
+    inset 0 1px 0 var(--pol-bezel-top),
+    var(--pol-elevate-soft);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-header-help,
+.checkout-experience.zyon-widget--conversational .zyon-header-actions .zyon-icon-btn {
+  transition:
+    background-color var(--pol-dur-press) var(--pol-ease),
+    border-color var(--pol-dur-press) var(--pol-ease),
+    transform var(--pol-dur-press) var(--pol-ease-press);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-header-help:active,
+.checkout-experience.zyon-widget--conversational .zyon-header-actions .zyon-icon-btn:active {
+  transform: scale(0.94);
+}
+
+/* --------------------------------------------------------------------------
+   9c. Journey Protocol: a etapa ativa respira; o indice ganha contato otico
+   Refina, nao substitui, o tratamento ja existente em continuum.css.
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-stage-progress-index {
+  box-shadow:
+    inset 0 1px 0 var(--pol-bezel-top),
+    var(--pol-elevate-soft);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-stage-progress-track-fill,
+.checkout-experience.zyon-widget--conversational .zyon-progress-line-fill {
+  transition: width var(--pol-dur-state) var(--pol-ease);
+}
+
+/* Marcador da etapa ativa: transicao de estado precisa, sem cor isolada. */
+.checkout-experience.zyon-widget--conversational .zyon-stage-progress-dot,
+.checkout-experience.zyon-widget--conversational .zyon-progress-node {
+  transition:
+    background-color var(--pol-dur-state) var(--pol-ease),
+    border-color var(--pol-dur-state) var(--pol-ease),
+    box-shadow var(--pol-dur-state) var(--pol-ease);
+}
+
+/* --------------------------------------------------------------------------
+   9d. Quick replies: a acao recomendada ganha enfase tatil
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-quick-replies .zyon-chip {
+  transition:
+    background-color var(--pol-dur-press) var(--pol-ease),
+    border-color var(--pol-dur-press) var(--pol-ease),
+    transform var(--pol-dur-press) var(--pol-ease-press),
+    box-shadow var(--pol-dur-press) var(--pol-ease);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-quick-replies .zyon-chip:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--pol-elevate-soft);
+}
+
+/* --------------------------------------------------------------------------
+   9e. Cross-sell: cartoes de complemento com leve elevacao ao foco
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-cross-sell-card {
+  transition:
+    border-color var(--pol-dur-state) var(--pol-ease),
+    transform var(--pol-dur-press) var(--pol-ease-press),
+    box-shadow var(--pol-dur-press) var(--pol-ease);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-cross-sell-card:hover {
+  transform: translateY(-1px);
+  box-shadow: var(--pol-elevate-soft);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-cross-sell-add:active,
+.checkout-experience.zyon-widget--conversational .zyon-crypto-btn:active,
+.checkout-experience.zyon-widget--conversational .zyon-pix-copy:active {
+  transform: scale(0.98);
+}
+
+/* --------------------------------------------------------------------------
+   9f. Estados elevados: vazio, erro e pagamento com entrada calma
+   Sem spinner teatral; a estrutura aparece com timing coreografado unico.
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-cart-empty,
+.checkout-experience.zyon-widget--conversational .zyon-crypto-panel,
+.checkout-experience.zyon-widget--conversational .zyon-pix-panel {
+  animation: pol-turn-in var(--pol-dur-enter) var(--pol-ease) both;
+}
+
+/* Mensagens de erro e status: realce de borda, nunca apenas cor. */
+.checkout-experience.zyon-widget--conversational .zyon-crypto-error,
+.checkout-experience.zyon-widget--conversational .zyon-crypto-status {
+  transition: border-color var(--pol-dur-state) var(--pol-ease);
+}
+
+/* --------------------------------------------------------------------------
+   9g. Microestetica: scrollbar discreta e selecao on-brand
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational ::selection {
+  background: color-mix(in oklch, var(--aacp-accent) 22%, transparent);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-thread {
+  scrollbar-width: thin;
+  scrollbar-color: color-mix(in oklch, var(--aacp-enterprise-line) 70%, transparent) transparent;
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-thread::-webkit-scrollbar {
+  width: 10px;
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-thread::-webkit-scrollbar-thumb {
+  border: 3px solid transparent;
+  border-radius: 999px;
+  background-clip: padding-box;
+  background-color: color-mix(in oklch, var(--aacp-enterprise-line) 70%, transparent);
+}
+
+.checkout-experience.zyon-widget--conversational .zyon-thread::-webkit-scrollbar-thumb:hover {
+  background-color: color-mix(in oklch, var(--aacp-enterprise-muted) 50%, transparent);
+}
+
+/* --------------------------------------------------------------------------
+   9h. Confirmacao do pedido: um unico gesto curto e opcional (DESIGN 16.2)
+   -------------------------------------------------------------------------- */
+.checkout-experience.zyon-widget--conversational .zyon-order-confirmation-reference {
+  animation: pol-confirm-settle var(--pol-dur-enter) var(--pol-ease-soft) both;
+}
+
+/* --------------------------------------------------------------------------
+   10. Keyframes
+   -------------------------------------------------------------------------- */
+@keyframes pol-surface-in {
+  from {
+    opacity: 0;
+    transform: translateY(8px) scale(0.99);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes pol-sheet-in {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pol-turn-in {
+  from {
+    opacity: 0;
+    transform: translateY(4px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@keyframes pol-typing {
+  0%, 60%, 100% {
+    opacity: 0.35;
+    transform: translateY(0);
+  }
+  30% {
+    opacity: 1;
+    transform: translateY(-2px);
+  }
+}
+
+/* Confirmacao: assentamento curto, sem confete nem glow (DESIGN 16.2). */
+@keyframes pol-confirm-settle {
+  from {
+    opacity: 0;
+    transform: translateY(3px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* --------------------------------------------------------------------------
+   11. Movimento reduzido: desliga toda coreografia e transform
+   -------------------------------------------------------------------------- */
+@media (prefers-reduced-motion: reduce) {
+  .checkout-experience.zyon-widget--conversational *,
+  .checkout-experience.zyon-widget--conversational *::before,
+  .checkout-experience.zyon-widget--conversational *::after {
+    animation-duration: 0.01ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.01ms !important;
+  }
+
+  .checkout-experience.zyon-widget--conversational .zyon-fab:hover,
+  .checkout-experience.zyon-widget--conversational .zyon-fab:active,
+  .checkout-experience.zyon-widget--conversational .zyon-cta:hover,
+  .checkout-experience.zyon-widget--conversational .zyon-cta:active,
+  .checkout-experience.zyon-widget--conversational .zyon-auth-primary:hover,
+  .checkout-experience.zyon-widget--conversational .zyon-auth-primary:active,
+  .checkout-experience.zyon-widget--conversational .zyon-quick-replies .zyon-chip:hover,
+  .checkout-experience.zyon-widget--conversational .zyon-cross-sell-card:hover {
+    transform: none;
+  }
+}
+
+/* --------------------------------------------------------------------------
+   12. Cores forcadas: preserva limites visiveis
+   -------------------------------------------------------------------------- */
+@media (forced-colors: active) {
+  .checkout-experience.zyon-widget--conversational :where(
+      button, a, input, select, textarea, [tabindex]
+    ):focus-visible {
+    outline: 2px solid CanvasText;
+  }
+}

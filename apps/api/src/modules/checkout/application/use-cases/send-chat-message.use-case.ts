@@ -1,0 +1,611 @@
+import { Inject, Injectable, Optional, Logger, ServiceUnavailableException } from "@nestjs/common";
+import type {
+  ChatMessageRequest,
+  ChatMessageResponse,
+  ChatUiBlock,
+  CartItem,
+  CheckoutSession,
+} from "@zyon/shared-types";
+import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository, type ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
+import { AGENT_CONTEXT_PORT, type AgentContextPort } from "../../domain/ports/agent-context.port.js";
+import { CONVERSATION_PORT, type ConversationPort } from "../../domain/ports/conversation.port.js";
+import {
+  MERCHANT_REPOSITORY,
+  type MerchantRepository
+} from "../../../merchant/domain/ports/merchant-repository.port.js";
+import {
+  deriveChatStage,
+  missingFieldsForStage
+} from "../../domain/services/customer-extraction.service.js";
+import { buildExperienceFromSession } from "../services/checkout-experience.service.js";
+import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../domain/checkout-experience.config.js";
+import { CheckoutCustomerService, OtpValidationError } from "../services/checkout-customer.service.js";
+import { CheckoutShippingService } from "../services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "../services/checkout-offer.service.js";
+import { isSafeGeneratedMessage } from "../../domain/types/safe-generated-message.js";
+import { SafeAuthorizedOffer } from "../../domain/types/safe-authorized-offer.js";
+import { PROMPT_EXPERIMENT_PORT, type PromptExperimentPort } from "../../domain/ports/prompt-experiment.port.js";
+import { PRODUCT_VARIANT_LOOKUP_PORT, type ProductVariantLookupPort } from "../../domain/ports/product-variant-lookup.port.js";
+import { ChatToolExecutorService } from "../services/chat-tool-executor.service.js";
+import { ChatLlmGatewayService, type BuyerIntentPromptContext } from "../services/chat-llm-gateway.service.js";
+import { ChatContextService, type ChatContextLoaded } from "../services/chat-context.service.js";
+import { ChatResponseBuilder } from "../services/chat-response.builder.js";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { OrderQuotaService } from "../../../payment/application/services/order-quota.service.js";
+import { ConversationRateLimitService } from "../services/conversation-rate-limit.service.js";
+import { correctionLabels } from "../../domain/services/customer-correction-prompts.js";
+import { CheckoutChatRequestService } from "../../infrastructure/prisma/checkout-chat-request.service.js";
+import { chatRequestsEnabled } from "../services/chat-message-identity.js";
+import { checkoutCartPrompt } from "../../domain/services/checkout-chat-context.js";
+import { StrategyCheckoutChatService } from "../services/strategy-checkout-chat.service.js";
+import { strategyExecutionEnabled } from "../../../revenue-manager/domain/strategy-execution.js";
+import { chatPaymentSelection } from "../../domain/services/chat-payment-selection.js";
+import { checkoutNavigationContext, CHECKOUT_CHAT_NAVIGATION_MESSAGE } from "../../domain/services/checkout-chat-navigation.js";
+import { checkoutEditIntent } from "@zyon/shared-types";
+
+function structuredCloneDeep<T>(obj: T): T {
+  if (typeof globalThis.structuredClone === "function") return globalThis.structuredClone(obj);
+  return JSON.parse(JSON.stringify(obj)) as T;
+}
+
+@Injectable()
+export class SendChatMessageUseCase {
+  private readonly logger = new Logger(SendChatMessageUseCase.name);
+
+  constructor(
+    @Inject(CHECKOUT_SESSION_REPOSITORY) private readonly sessions: CheckoutSessionRepository,
+    @Inject(CONVERSATION_PORT) private readonly conversation: ConversationPort,
+    private readonly customerService: CheckoutCustomerService,
+    private readonly shippingService: CheckoutShippingService,
+    private readonly offerService: CheckoutOfferService,
+    private readonly chatContextService: ChatContextService,
+    private readonly chatResponseBuilder: ChatResponseBuilder,
+    @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
+    @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
+    @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchantRepo?: MerchantRepository,
+    @Optional() @Inject(PROMPT_EXPERIMENT_PORT) private readonly promptExperiment?: PromptExperimentPort,
+    @Optional() @Inject(PRODUCT_VARIANT_LOOKUP_PORT) private readonly productVariantLookup?: ProductVariantLookupPort,
+    @Optional() private readonly chatToolExecutor?: ChatToolExecutorService,
+    @Optional() private readonly chatLlmGateway?: ChatLlmGatewayService,
+    private readonly orderQuota?: OrderQuotaService,
+    private readonly conversationRateLimit?: ConversationRateLimitService,
+    @Optional() private readonly chatRequests?: CheckoutChatRequestService,
+    @Optional() private readonly strategyChat?: StrategyCheckoutChatService,
+  ) {}
+
+  async execute(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean }): Promise<ChatMessageResponse> {
+    if (this.chatRequests) return this.chatRequests.run(input,
+      request => this.preflight(request, authority), (request, claim) => this.processMessage(request, claim));
+    if (chatRequestsEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "CHAT_MESSAGE_STORE_UNAVAILABLE" });
+    await this.preflight(input, authority);
+    return this.processMessage(input);
+  }
+
+  private async preflight(input: ChatMessageRequest, authority?: { aiUserId?: string; voiceAdmitted?: boolean }): Promise<void> {
+    await this.orderQuota?.assertCanAcceptNewSales(input.merchant_id);
+    const storedSession = !authority?.aiUserId && this.conversationRateLimit
+      ? await this.sessions.getSession(input.merchant_id, input.session_id) : undefined;
+    const userId = authority?.aiUserId ?? (storedSession?.globalUserId && storedSession.customer?.email_verified
+      ? `buyer:${storedSession.globalUserId}` : storedSession ? `visitor:${storedSession.sessionId}` : undefined);
+    if (!authority?.voiceAdmitted) await this.conversationRateLimit?.assertAllowed({
+      merchantId: input.merchant_id,
+      sessionId: input.session_id,
+      userId,
+    });
+  }
+
+  private async processMessage(input: ChatMessageRequest, chatRequest?: ChatExchangeClaim): Promise<ChatMessageResponse> {
+    let continuation = await this.strategyChat?.continueWithoutExperiment(input, chatRequest) ?? false;
+    // Capture this telemetry before reading a protected snapshot. Its update
+    // must not race the compare-and-save used to protect the buyer's cart.
+    if (this.looksLikeCouponRequest(input.user_message)) {
+      try { await this.sessions.recordEvent(input.merchant_id, input.session_id, "coupon_field_clicked"); }
+      catch (error) { this.logger.warn("coupon_field_clicked.record_failed", error as Error); }
+    }
+    const context = await this.chatContextService.loadContext(
+      input.merchant_id,
+      input.session_id,
+      input.agent_user_id,
+      input.agent_id,
+      input.user_message
+    );
+
+    let working = structuredCloneDeep(context.session);
+    const lastAgentTurn = [...context.session.chatHistory].reverse().find((t) => t.role === "agent")?.text;
+    const previousStage = deriveChatStage(context.session);
+
+    try {
+      const correction = await this.customerService.correctCustomerInput(working, input.user_message, lastAgentTurn, context.merchant?.name, chatRequest);
+      if (correction) {
+        working = correction.session;
+        if (correction.patch && !correction.blocked && correction.field === "zip") {
+          working = await this.shippingService.processShippingState(working, "");
+        }
+        if (!correction.blocked) await this.customerService.saveDeliveryAddress(working);
+        const resolvedState = { ...working, chatHistory: [] };
+        const stage = deriveChatStage(resolvedState);
+        const missingFields = missingFieldsForStage(resolvedState, stage);
+        const offer = SafeAuthorizedOffer.noOffer(working.merchantId, working.sessionId);
+        const nextReply = correction.message ? { message: correction.message, objection: "unknown" as const } : await this.conversation.reply({
+          userMessage: "", brandVoice: context.rules.brandVoice, authorizedOffer: offer,
+          stage, missingFields, cart: working.cart, history: working.chatHistory,
+          deliverySummary: this.shippingService.summarizeDelivery(working), shippingOptions: working.shippingOptions,
+        });
+        if (!correction.message && !correction.cancelled && correction.field === "email" && working.customer?.otp_code) {
+          nextReply.message = `O e-mail informado é ${working.customer.email}. Confira o e-mail e informe o código de 6 dígitos recebido. Se estiver errado, diga corrigir e-mail.`;
+        } else if (!correction.message && !correction.cancelled && correction.patch) {
+          nextReply.message = `Dado atualizado. ${nextReply.message}`;
+        }
+        const response = await this.chatResponseBuilder.build({
+          reply: nextReply, safeMessage: nextReply.message, userMessage: input.user_message, session: working, chatRequest,
+          offer, merchant: context.merchant, rules: context.rules, stage, previousStage: stage, missingFields,
+          isHoldout: true, preSearchedProducts: [], suppressPaymentActions: true, merchantId: input.merchant_id, sessionId: input.session_id,
+        });
+        if (correction.needsInput && response.experience) {
+          response.stage = "data_collection";
+          response.missing_fields = [correctionLabels[correction.field]];
+          response.experience.stage = "data_collection";
+          response.experience.copy = {
+            ...response.experience.copy, quick_replies: ["Cancelar correção"], focus_input: true,
+            expected_input_type: correction.field === "email" ? "email" : correction.field === "phone" ? "tel" : "text",
+          };
+        }
+        return response;
+      }
+      working = await this.customerService.processCustomerInput(
+        working,
+        input.user_message,
+        lastAgentTurn,
+        context.merchant?.name,
+        chatRequest,
+      );
+    } catch (error: unknown) {
+      if (error instanceof OtpValidationError) {
+        context.session = await this.sessions.getSession(input.merchant_id, input.session_id) ?? context.session;
+        return this.buildOtpValidationResponse(input, error.message, context, chatRequest);
+      }
+      throw error;
+    }
+
+    working = await this.shippingService.processShippingState(working, input.user_message);
+    await this.customerService.saveDeliveryAddress(working);
+
+    // Verified account recognition/correction can change participation identity
+    // in this very turn. PostgreSQL permanently stops that assignment; check
+    // the durable stop before attempting the primary provider, without reassigning.
+    if (!continuation && this.strategyChat && (working.globalUserId !== context.session.globalUserId
+      || working.cohort !== context.session.cohort || working.cart.currency !== context.session.cart.currency
+      || working.promptVariantId !== context.session.promptVariantId)) {
+      continuation = await this.strategyChat.continueWithoutExperiment(input, chatRequest);
+    }
+
+    const stage = deriveChatStage(working);
+    const missingFields = missingFieldsForStage(working, stage);
+    const cohortForOffer = (working as any).cohort;
+    const isHoldout = cohortForOffer === "holdout";
+    const beforeOffer = structuredCloneDeep(working);
+    const offer = cohortForOffer === "holdout"
+      ? SafeAuthorizedOffer.noOffer(working.merchantId, working.sessionId)
+      : await this.offerService.authorizeOffer(input.user_message, working, context.rules, stage, missingFields,
+        continuation ? { skipExperiment: true } : undefined);
+
+    const advancedCouponCode =
+      !isHoldout && offer.reason === "advanced_coupon_available"
+        ? offer.discountCode
+        : undefined;
+    if (advancedCouponCode) {
+      working = {
+        ...working,
+        cart: {
+          ...working.cart,
+          commercialNudge: {
+            kind: "advanced_rule",
+            title: "Cupom disponível",
+            message: `A regra comercial identificou o cupom ${advancedCouponCode}. Insira-o no campo de cupom para validar o benefício.`,
+            badge: "Cupom disponível",
+            couponCode: advancedCouponCode,
+            ruleId: offer.id,
+          },
+        },
+      };
+    }
+
+    this.logger.debug("chat.routing", { stage, missingFields, rulesCount: context.merchantRules?.length ?? 0, isHoldout });
+
+    let reply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> };
+    let llmReply: { message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> } | null = null;
+
+    // Address confirmation only verifies the location. Number, complement and
+    // shipping selection still belong to the same deterministic checkout flow.
+    const selectedPaymentMethod = chatPaymentSelection(input.user_message, stage);
+    const reviewingPayment = checkoutEditIntent(input.user_message) === "payment" && stage === "payment";
+    const reviewingCoupon = checkoutEditIntent(input.user_message) === "coupon" && stage === "payment";
+    const forceDeterministic = stage === "data_collection"
+      || (stage === "shipping" && missingFields.length > 0)
+      || (previousStage === "shipping" && stage === "payment")
+      || !!selectedPaymentMethod
+      || reviewingPayment
+      || reviewingCoupon
+      || stage === "payment_pending" || stage === "completed";
+
+    if (!isHoldout && !forceDeterministic) {
+      if (!this.strategyChat && process.env.REVENUE_STRATEGY_MAIN_CHAT_ENABLED === "true"
+        && strategyExecutionEnabled(input.merchant_id)) throw new ServiceUnavailableException({ code: "STRATEGY_MAIN_CHAT_UNAVAILABLE" });
+      const strategyReply = continuation ? undefined : await this.strategyChat?.tryReply({ request: input, claim: chatRequest, session: working, beforeOffer,
+        stage, previousStage, offer, hasBuyerIntent: context.buyerIntent !== undefined,
+        cryptoEnabled: !!context.rules.cryptoPayments?.enabled,
+        hasPreSearchedProducts: context.preSearchedProducts.length > 0 });
+      // This response is already published atomically. In particular, do not
+      // overwrite its session with attribution flags or append/pay via builder.
+      if (strategyReply && "continueWithoutExperiment" in strategyReply) continuation = true;
+      else if (strategyReply) return strategyReply;
+      const experimentPromptOverride = continuation ? undefined : await this.resolveExperimentPrompt(
+        input.merchant_id,
+        input.session_id,
+        working.promptVariantId,
+      );
+      llmReply = await this.callLocalLlm(
+        input.user_message, context.merchantRules ?? [], context.merchant?.name, working.cart, input.merchant_id, context.buyerIntent, experimentPromptOverride, offer,
+        this.buildLlmUiContext(working, context.rules, stage, !continuation),
+      );
+    } else if (forceDeterministic) {
+      this.logger.debug("chat.routing.forced-deterministic", { stage, missingFields });
+    }
+
+    if (!isHoldout) {
+      const features = { ...(working.featuresApplied ?? {}) };
+      if (offer?.approved && offer.type && offer.type !== "none") {
+        features.negotiation = true;
+      }
+      if ((working.cart.currentDiscount ?? 0) > 0) {
+        features.progressiveDiscount = true;
+      }
+      // Intent personalization = the AI had consented buyer-intent memory to
+      // personalize this turn (attached by ChatContextService under LGPD consent).
+      if (context.buyerIntent) {
+        features.intentPersonalization = true;
+      }
+      working.featuresApplied = features;
+      try {
+        if (continuation) {
+          if (!this.sessions.saveSessionIfUnchanged) throw new Error("CHAT_SESSION_COMPARE_REQUIRED");
+          await this.sessions.saveSessionIfUnchanged(working, beforeOffer);
+        } else await this.sessions.saveSession(working);
+      } catch (err) {
+        if (continuation) throw err;
+        this.logger.warn("[revenue-lift] failed to persist attribution flags", err as Error);
+      }
+    }
+
+    if (stage === "payment_pending") {
+      reply = { message: "Acompanhe a confirmação do pagamento no checkout.", objection: "unknown" };
+    } else if (selectedPaymentMethod || reviewingPayment) {
+      reply = { message: "Escolha a forma de pagamento para este pedido.", objection: "unknown",
+        blocks: [{ type: "payment_methods", data: { methods: checkoutNavigationContext(working, !!context.rules.cryptoPayments?.enabled).paymentMethods } }] };
+    } else if (reviewingCoupon) {
+      reply = context.rules.couponBoxEnabled
+        ? { message: advancedCouponCode
+          ? `Encontrei o cupom ${advancedCouponCode}. Insira-o para validar o desconto neste pedido.`
+          : "Informe o cupom para validar o desconto neste pedido.", objection: "unknown",
+          blocks: [{ type: "coupon_input", data: { methods: checkoutNavigationContext(working, !!context.rules.cryptoPayments?.enabled).paymentMethods } }] }
+        : { message: "Esta loja não está aceitando cupons no checkout.", objection: "unknown" };
+    } else if (advancedCouponCode) {
+      reply = {
+        message: `Encontrei o cupom ${advancedCouponCode} para este carrinho. Insira-o no campo de cupom para validar a condição.`,
+        objection: "price",
+      };
+    } else if (llmReply && llmReply.message && llmReply.message !== "Como posso ajudar com o seu pedido?") {
+      reply = llmReply;
+    } else {
+      reply = await this.conversation.reply({
+        userMessage: input.user_message,
+        brandVoice: context.rules.brandVoice,
+        authorizedOffer: isHoldout ? { approved: false, type: "none" } as any : offer,
+        agentContext: context.agentContext,
+        merchantName: context.merchant?.name,
+        cart: working.cart,
+        history: working.chatHistory,
+        stage,
+        missingFields,
+        deliverySummary: this.shippingService.summarizeDelivery(working),
+        shippingOptions: working.shippingOptions,
+        merchantRules: context.merchantRules,
+        merchantId: input.merchant_id,
+        sessionId: input.session_id
+      });
+    }
+
+    if (stage === "data_collection" && missingFields[0] === "código de verificação" && working.customer?.email) {
+      reply.message = `O e-mail informado é ${working.customer.email}. Qual é o código de 6 dígitos recebido? Se estiver errado, diga corrigir e-mail.`;
+    }
+
+    const safetyCheck = isSafeGeneratedMessage(
+      reply.message,
+      isHoldout ? undefined : offer,
+    );
+    const safeMessage = safetyCheck.safe
+      ? reply.message
+      : "Como posso ajudar com o seu pedido?";
+
+    return this.chatResponseBuilder.build({
+      chatRequest,
+      reply,
+      safeMessage,
+      userMessage: input.user_message,
+      session: working,
+      offer,
+      merchant: context.merchant,
+      rules: context.rules,
+      stage,
+      previousStage,
+      missingFields,
+      isHoldout,
+      preSearchedProducts: context.preSearchedProducts,
+      merchantId: input.merchant_id,
+      sessionId: input.session_id
+    });
+  }
+
+  private async buildOtpValidationResponse(
+    input: ChatMessageRequest,
+    errorMsg: string,
+    context: ChatContextLoaded,
+    chatRequest?: ChatExchangeClaim,
+  ): Promise<ChatMessageResponse> {
+    const now = new Date().toISOString();
+    const updated = await this.sessions.appendChatExchange({
+      merchantId: input.merchant_id, sessionId: input.session_id,
+      expectedSession: context.session, claim: chatRequest,
+      buyer: {
+        role: "buyer",
+        text: input.user_message,
+        occurredAt: now
+      },
+      agent: {
+        role: "agent",
+        text: errorMsg,
+        occurredAt: now
+      }
+    });
+
+    const experience = buildExperienceFromSession(updated, {
+      merchantName: context.merchant?.name,
+      theme: (context.merchant as any)?.theme,
+      couponBoxEnabled: context.rules.couponBoxEnabled,
+      rules: context.rules,
+      serviceFee: this.experienceConfig.platformFeeBrl
+    });
+
+    const isPhoneOtp = Boolean(updated.customer?.phone_otp_code && !updated.customer?.phone_verified);
+    const otpMissingField = isPhoneOtp ? "código de verificação do celular" : "código de verificação";
+    const otpQuickReplies = isPhoneOtp
+      ? ["Reenviar código SMS", "Não recebi o SMS", "Posso usar outro número?"]
+      : ["Corrigir e-mail", "Reenviar código de e-mail", "Qual e-mail foi usado?"];
+    const responseExperience = {
+      ...experience,
+      copy: { ...experience.copy, quick_replies: otpQuickReplies }
+    };
+
+    return {
+      message: errorMsg,
+      objection: "unknown",
+      actions: [],
+      turns: updated.chatHistory,
+      experience: responseExperience,
+      stage: "data_collection",
+      missing_fields: [otpMissingField]
+    };
+  }
+
+  private async resolveExperimentPrompt(
+    merchantId: string,
+    sessionId: string,
+    promptVariantId?: string | null,
+  ): Promise<string | undefined> {
+    try {
+      const running = await this.promptExperiment?.findRunningExperiment(merchantId);
+      if (running && running.variants.length > 0) {
+        if (promptVariantId) {
+          return running.variants.find((variant) => variant.id === promptVariantId)?.systemPrompt;
+        }
+        const hash = this.hashSessionId(sessionId);
+        const totalWeight = running.variants.reduce((sum: number, v: any) => sum + v.weight, 0);
+        let target = (Math.abs(hash) % totalWeight) + 1;
+        for (const variant of running.variants) {
+          target -= variant.weight;
+          if (target <= 0) {
+            this.logger.log(
+              `[experiment] session=${sessionId} → variant="${variant.name}" (exp=${running.id})`,
+            );
+            return variant.systemPrompt;
+          }
+        }
+      }
+    } catch {
+      // Non-critical — continue without experiment override
+    }
+    return undefined;
+  }
+
+  private buildLlmUiContext(
+    working: CheckoutSession,
+    rules: import("@zyon/shared-types").MerchantRules,
+    stage: import("@zyon/shared-types").ChatStage,
+    allowCartChanges = true,
+  ) {
+    return {
+      stage,
+      ...checkoutNavigationContext(working, !!rules.cryptoPayments?.enabled),
+      // Continuations keep cart mutations on the normal cart endpoints until
+      // tool writes participate in the same compare-and-save protocol.
+      addCrossSellItem: allowCartChanges ? (sku: string, quantity: number) =>
+        this.addCrossSellItemToCart(working, sku, quantity) : undefined,
+    };
+  }
+
+  private async callLocalLlm(
+    userMessage: string,
+    merchantRules: string[],
+    merchantName?: string,
+    cart?: { items?: Array<{ name?: string; unit_price?: number }>; total?: number; currency?: string },
+    merchantId?: string,
+    buyerIntent?: BuyerIntentPromptContext,
+    experimentPromptOverride?: string,
+    authorizedOffer?: SafeAuthorizedOffer,
+    uiContext?: {
+      stage?: string;
+      shippingOptions?: Array<{ key: string; label: string; tag?: string; sub?: string; cost?: number }>;
+      paymentMethods?: Array<{ key: string; label: string; sub?: string }>;
+      address?: { formatted?: string; [k: string]: unknown };
+      addCrossSellItem?: (sku: string, quantity: number) => Promise<{ ok: boolean; name?: string; cartBlock?: ChatUiBlock }>;
+    },
+  ): Promise<{ message: string; objection: import("@zyon/conversation-engine").Objection; suggested_skus?: string[]; blocks?: Array<{ type: string; data?: Record<string, unknown> }> }> {
+    if (!this.chatLlmGateway || !this.chatToolExecutor) {
+      return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
+    }
+
+    const cartInfo = checkoutCartPrompt(cart);
+    if (cartInfo === undefined) return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
+    const tools = this.chatLlmGateway.getTools();
+    const generatedSystemPrompt = this.chatLlmGateway.buildSystemPrompt({
+        merchantName,
+        merchantRules,
+        cartInfo,
+        stage: uiContext?.stage,
+        hasAddress: Boolean(uiContext?.address?.formatted),
+        hasShipping: Boolean(uiContext?.shippingOptions?.length),
+        buyerIntent,
+      });
+    const availablePaymentLabels = uiContext?.paymentMethods?.map((method) => method.label).join(", ") || "nenhuma forma de pagamento";
+    const paymentCapabilityPrompt = uiContext?.paymentMethods?.some((method) => method.key === "crypto")
+      ? `FORMAS DE PAGAMENTO ATIVAS: ${availablePaymentLabels}. Só ofereça as formas desta lista.`
+      : `FORMAS DE PAGAMENTO ATIVAS: ${availablePaymentLabels}. Crypto não está ativado nesta loja; nunca o mencione ou ofereça.`;
+    const systemPrompt = experimentPromptOverride
+      ? [experimentPromptOverride, paymentCapabilityPrompt, this.chatLlmGateway.buildBuyerIntentContext(buyerIntent)].filter(Boolean).join("\n\n")
+      : [generatedSystemPrompt, paymentCapabilityPrompt].join("\n\n");
+
+    const messages: Array<{ role: "system" | "user"; content: string }> = [
+      { role: "system", content: systemPrompt },
+      { role: "user", content: userMessage },
+    ];
+
+    const result = await this.chatLlmGateway.call(messages, tools);
+    if (!result) {
+      return { message: "Como posso ajudar com o seu pedido?", objection: "unknown" as any };
+    }
+
+    if (result.toolCalls.length > 0) {
+      const execution = await this.chatToolExecutor.executeToolCalls(
+        result.toolCalls,
+        {
+          merchantId: merchantId || "",
+          authorizedOffer,
+          shippingOptions: uiContext?.shippingOptions,
+          paymentMethods: uiContext?.paymentMethods,
+          address: uiContext?.address,
+          addCrossSellItem: uiContext?.addCrossSellItem,
+        },
+      );
+      const textContent = result.content?.trim() || "";
+      const hasUiBlocks = execution.blocks && execution.blocks.length > 0;
+      const fallbackMsg = hasUiBlocks ? CHECKOUT_CHAT_NAVIGATION_MESSAGE : "Como posso ajudar com o seu pedido?";
+      const finalMsg = execution.message
+        ? `${textContent ? textContent + "\n" : ""}${execution.message}`
+        : textContent || fallbackMsg;
+      const safetyCheck = isSafeGeneratedMessage(finalMsg || "ok", authorizedOffer);
+      const safeMsg = safetyCheck.safe ? finalMsg : fallbackMsg;
+      return { message: safeMsg, objection: "unknown" as any, blocks: execution.blocks };
+    }
+
+    const safetyCheck = isSafeGeneratedMessage(result.content || "", authorizedOffer);
+    const safeContent = safetyCheck.safe
+      ? result.content || "Como posso ajudar com o seu pedido?"
+      : "Como posso ajudar com o seu pedido?";
+    return { message: safeContent, objection: "unknown" as any };
+  }
+
+  private async addCrossSellItemToCart(
+    working: CheckoutSession,
+    sku: string,
+    quantity: number,
+  ): Promise<{ ok: boolean; name?: string; cartBlock?: ChatUiBlock }> {
+    const qty = Math.max(1, Math.min(99, Math.floor(quantity) || 1));
+
+    let name: string | undefined;
+    let price: number | undefined;
+    let category: string | undefined;
+    let variant: string | undefined;
+    let imageUrl: string | undefined;
+    try {
+      const variantData = await this.productVariantLookup?.findBySku(working.merchantId, sku);
+      if (variantData) {
+        name = variantData.name;
+        price = variantData.price;
+        imageUrl = variantData.imageUrl;
+      }
+    } catch { /* fall back below */ }
+
+    if (price == null || !name) {
+      try {
+        const variantData = await this.productVariantLookup?.findBySku(working.merchantId, sku);
+        if (variantData) {
+          name = name ?? variantData.name;
+          price = price ?? variantData.price;
+          imageUrl = imageUrl ?? variantData.imageUrl;
+        }
+      } catch { /* keep previous values */ }
+      if (!name) name = `Produto ${sku}`;
+    }
+
+    const items = [...working.cart.items];
+    const existing = items.find((it) => it.sku === sku);
+    if (existing) {
+      existing.quantity = Math.min(99, existing.quantity + qty);
+    } else {
+      items.push({ sku, name: name!, price: price!, quantity: qty, category, variant, imageUrl } as CartItem);
+    }
+    const total = Math.round(items.reduce((s, it) => s + it.price * it.quantity, 0) * 100) / 100;
+
+    working.cart = { ...working.cart, items, total };
+    working.shipping = undefined;
+    working.updatedAt = new Date().toISOString();
+    working.featuresApplied = { ...(working.featuresApplied ?? {}), crossSell: true };
+    try {
+      await this.sessions.saveSession(working);
+    } catch (err) {
+      this.logger.warn(`[cross-sell] failed to persist cart add for sku=${sku}`, err as Error);
+      return { ok: false };
+    }
+
+    const cartBlock: ChatUiBlock = {
+      type: "cart_summary",
+      data: {
+        items: items.map((it) => ({ name: it.name, qty: it.quantity, price: it.price })),
+        total,
+      },
+    };
+    return { ok: true, name, cartBlock };
+  }
+
+  private hashSessionId(str: string): number {
+    let hash = 0;
+    for (let i = 0; i < str.length; i++) {
+      const char = str.charCodeAt(i);
+      hash = ((hash << 5) - hash) + char;
+      hash |= 0;
+    }
+    return hash;
+  }
+
+  /** True when the buyer message reads as a coupon / discount request. */
+  private looksLikeCouponRequest(message: string): boolean {
+    const normalized = message
+      .normalize("NFD")
+      .replace(/\p{Diacritic}/gu, "")
+      .toLowerCase();
+    return /\b(cupom|cupons|codigo\s+de\s+desconto|desconto|promocao|promocode|voucher|tem\s+algum\s+codigo)\b/.test(
+      normalized,
+    );
+  }
+
+}

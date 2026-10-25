@@ -1,0 +1,5 @@
+.vercel
+.env*
+
+# Force-include assets that root .gitignore excludes
+!assets/*.png

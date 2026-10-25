@@ -1,0 +1,153 @@
+import { BillingCycleSelector } from "../../billing-plans/components/BillingCycleSelector.js";
+import { BillingPromotionField } from "../../billing-plans/components/BillingPromotionField.js";
+import { billingCheckoutError } from "../../billing-plans/billing-checkout-error.js";
+import { rememberSubscriptionPlan, type SubscriptionPlan } from "../../../auth/subscription-intent.js";
+import React, { useEffect, useRef, useState } from "react";
+import { useApi } from "../../../hooks/useApi.js";
+import type { PlanDef } from "../../billing-plans/components/PlanCard.js";
+import { ArrowRight, CheckCircle2, LoaderCircle, ShieldCheck } from "lucide-react";
+import { Button } from "../../../components/Button.js";
+import { toPlanDef, selectedBillingOffer, billingMoney } from "../../billing-plans/plan-catalog.js";
+import type { BillingCycle } from "@zyon/shared-types";
+import { BillingTerms } from "../../billing-plans/components/BillingPlanDetails.js";
+import { PlanTile } from "../../billing-plans/components/PlanTile.js";
+import { useBillingCycle } from "../../billing-plans/useBillingCycle.js";
+import { useAutomaticBillingPromotions } from "../../billing-plans/useAutomaticBillingPromotions.js";
+import { promotionalBillingPrice } from "@zyon/shared-types";
+import "../../billing-plans/billing-plans-page.css";
+import "./signup-plans-modern.css";
+
+type Props = {
+  merchantName: string;
+  initialPlan?: SubscriptionPlan;
+  requirePaidPlan?: boolean;
+  onExit?: () => void | Promise<void>;
+  merchantEmail?: string;
+  onDone: () => void | Promise<void>;
+};
+
+export function PlanSelection({ merchantName, initialPlan, requirePaidPlan = false, onDone, onExit }: Props) {
+  const api = useApi();
+  const automaticPromotions = useAutomaticBillingPromotions();
+  const [billingCycle, setBillingCycle] = useBillingCycle();
+  const [plans, setPlans] = useState<PlanDef[]>([]);
+  const [busy, setBusy] = useState(false);
+  const [promotionCode, setPromotionCode] = useState("");
+  const [selected, setSelected] = useState<PlanDef["key"]>(requirePaidPlan ? (initialPlan === "starter" ? "starter179" : initialPlan ?? "starter179") : initialPlan ?? "starter");
+  const [loading, setLoading] = useState(true);
+  const [confirming, setConfirming] = useState(new URLSearchParams(window.location.search).get("billing") === "success");
+  const [error, setError] = useState<string | null>(null);
+  const [notice, setNotice] = useState<string | null>(new URLSearchParams(window.location.search).get("billing") === "cancelled" ? "O pagamento não foi concluído. Seu acesso e o plano escolhido continuam aqui para você retomar." : null);
+  const [paymentPending] = useState(new URLSearchParams(window.location.search).get("billing") === "success");
+  const doneRef = useRef(onDone);
+  doneRef.current = onDone;
+
+  async function loadPlans() {
+    setLoading(true);
+    setError(null);
+    try { setPlans((await api.listBillingPlans()).map(toPlanDef)); }
+    catch { setError("Não foi possível carregar os planos. Tente novamente."); }
+    finally { setLoading(false); }
+  }
+  useEffect(() => { void loadPlans(); }, [api]);
+
+  useEffect(() => {
+    if (!confirming) return;
+    let stopped = false;
+    let timer: ReturnType<typeof setTimeout>;
+    let attempts = 0;
+    async function check() {
+      try {
+        const sub = await api.getBillingSubscription();
+        if (stopped) return;
+        if (sub.status === "active" && sub.plan !== "starter" && (!initialPlan || sub.plan === initialPlan) && (sub.billing_cycle ?? "monthly") === billingCycle) {
+          await doneRef.current();
+          return;
+        }
+      } catch {
+        if (stopped) return;
+      }
+      if (++attempts < 15) timer = setTimeout(check, 2000);
+      else {
+        setConfirming(false);
+        setNotice("A confirmação da assinatura ainda está pendente. Atualize o status em instantes. Seu acesso está salvo.");
+      }
+    }
+    void check();
+    return () => { stopped = true; clearTimeout(timer); };
+  }, [confirming, api, initialPlan, billingCycle]);
+
+  async function select(plan: PlanDef["key"]) {
+    setBusy(true);
+    setError(null);
+    try {
+      if (requirePaidPlan && plan === "starter") {
+        setError("O período gratuito terminou. Escolha Starter, Growth ou Scale para reativar a loja.");
+        return;
+      }
+      const definition = plans.find(p => p.key === plan);
+      if (!definition || !selectedBillingOffer(definition, billingCycle)) { setError("O anual está indisponível. Selecione o mensal para continuar."); return; }
+      rememberSubscriptionPlan(plan, billingCycle);
+      if (plan === "starter") {
+        await api.startBillingTrial();
+        await doneRef.current();
+      } else {
+        if (automaticPromotions.loading || automaticPromotions.error) {
+          setError("Não foi possível conferir as campanhas. Atualize a página para continuar com o preço correto."); return;
+        }
+        const sub = await api.getBillingSubscription();
+        if (sub.status === "active" && sub.plan === plan && (sub.billing_cycle ?? "monthly") === billingCycle) { await doneRef.current(); return; }
+        const activeSubscription = sub.has_subscription && !["cancelled", "canceled", "incomplete_expired"].includes(sub.status);
+        if (activeSubscription) {
+          setNotice("Você já tem uma assinatura. Abra Planos e Assinatura no painel para revisar e agendar a alteração.");
+          return;
+        }
+        const code = promotionCode.trim() || automaticPromotions.forPlan(plan, billingCycle)?.code;
+        const session = await api.createBillingCheckoutSession({ plan, billingCycle, ...(billingCycle === "monthly" && code ? { promotionCode: code } : {}) });
+        window.location.assign(session.url);
+      }
+    } catch (error) {
+      setError(billingCheckoutError(error, "Não foi possível concluir esta etapa. Seus dados foram salvos. Tente novamente."));
+    } finally { setBusy(false); }
+  }
+
+  const selectedPlan = plans.find(plan => plan.key === selected);
+  const selectedOffer = selectedPlan ? selectedBillingOffer(selectedPlan, billingCycle) : undefined;
+  const promotion = !promotionCode.trim() ? automaticPromotions.forPlan(selected, billingCycle) : undefined;
+  const annualAvailable = plans.some(plan => plan.annualCheckoutAvailable);
+  const discountPercent = plans.flatMap(plan => plan.billingOptions ?? []).find(offer => offer.cycle === "annual")?.discountPercent ?? 0;
+  return <section className="plan-selection" aria-labelledby="plan-selection-title">
+    <div className="plan-selection__brand"><a href="https://www.zyon-payments.com.br/" aria-label="Zyon, voltar ao site"><img src="/logo-zyon.png" alt="Zyon" /></a><span><CheckCircle2 size={15} /> Acesso confirmado</span></div>
+    <header className="plan-selection__header">
+      <p className="plan-selection__eyebrow">SEU PLANO · {merchantName}</p>
+      <h1 id="plan-selection-title">Sua loja pronta para o próximo passo.</h1>
+      <p>Escolha o plano que acompanha sua operação. Compare os limites e confira as taxas.{initialPlan ? " O plano escolhido no site já está selecionado abaixo." : ""}</p>
+    </header>
+    {requirePaidPlan && <p className="plan-selection__message" role="status">Seu período gratuito terminou. Escolha Starter, Growth ou Scale para reativar sua loja quando a assinatura for confirmada.</p>}
+    {error && <div role="alert" className="plan-selection__message plan-selection__message--error">{error} {!plans.length && <Button variant="outline" onClick={() => void loadPlans()}>Tentar novamente</Button>}</div>}
+    {notice && <div role="status" className="plan-selection__message">{notice}{paymentPending && <Button variant="outline" disabled={confirming} onClick={() => setConfirming(true)}>Atualizar status</Button>}</div>}
+    {confirming && <p role="status" className="plan-selection__message"><LoaderCircle size={18} /> Confirmando sua assinatura…</p>}
+    {automaticPromotions.error && <p role="alert" className="plan-selection__message">Não foi possível conferir as campanhas. Atualize a página antes de contratar um plano pago.</p>}
+    {!loading && !busy && !confirming && !paymentPending && <BillingCycleSelector value={billingCycle} onChange={cycle => { setBillingCycle(cycle); rememberSubscriptionPlan(selected, cycle); }} annualAvailable={annualAvailable} discountPercent={discountPercent} />}
+    {selected !== "starter" && !loading && !paymentPending && <BillingPromotionField value={promotionCode} onChange={setPromotionCode} disabled={busy || confirming} cycle={billingCycle} promotion={promotion} />}
+    {loading ? <div className="plan-selection__loading" role="status">Carregando planos…</div> : <fieldset className="plan-selection__grid" disabled={busy || confirming || paymentPending}>
+      <legend className="sr-only">Escolha seu plano</legend>
+      {plans.filter(plan => !requirePaidPlan || plan.key !== "starter").map(plan => <SignupPlan key={plan.key} plan={{ ...plan, promotion: !promotionCode.trim() ? automaticPromotions.forPlan(plan.key, billingCycle) : undefined }} billingCycle={billingCycle} selected={selected === plan.key} onSelect={() => setSelected(plan.key)} />)}
+    </fieldset>}
+    <p className="plan-selection__terms"><ShieldCheck size={18} /><span><BillingTerms /></span></p>
+    <footer className="plan-selection__footer">
+      <div aria-live="polite"><span>Plano selecionado</span><strong>{selectedPlan ? selectedPlan.name + " · " + (selectedOffer ? billingMoney(promotion ? promotionalBillingPrice(selectedOffer.amountCents, promotion) : selectedOffer.amountCents) : "Indisponível") : "Carregando…"}<small>{selectedOffer?.cycle === "annual" ? "/ano, à vista" : "/mês"}</small></strong>{promotion && <small>{promotion.name} · desconto aplicado</small>}</div>
+      <Button variant="primary" disabled={loading || busy || confirming || paymentPending || !selectedPlan || !selectedOffer || (selected !== "starter" && (automaticPromotions.loading || automaticPromotions.error))} onClick={() => void select(selected)}>
+        {busy || confirming ? <><LoaderCircle size={16} /> Aguarde…</> : <>{selected === "starter" ? "Começar no Free" : `Confirmar ${selectedPlan?.name ?? "plano"} no Stripe`}<ArrowRight size={16} /></>}
+      </Button>
+    </footer>
+    {onExit && <button className="plan-selection__change" type="button" disabled={busy || confirming} onClick={() => void onExit()}>Ir para meu painel</button>}
+  </section>;
+}
+
+function SignupPlan({ plan, billingCycle, selected, onSelect }: { plan: PlanDef; billingCycle: BillingCycle; selected: boolean; onSelect: () => void }) {
+  const offer = selectedBillingOffer(plan, billingCycle);
+  return <PlanTile plan={plan} billingCycle={billingCycle} selected={selected} choice={<input type="radio" name="signup-plan" value={plan.key} checked={selected} disabled={!offer} onChange={onSelect} aria-label={`Selecionar ${plan.name}`} />}>
+    <button type="button" className="signup-plan__select" disabled={!offer} onClick={onSelect}>{selected ? <><CheckCircle2 size={16} /> Plano selecionado</> : <>Escolher {plan.name}<ArrowRight size={16} /></>}</button>
+  </PlanTile>;
+}

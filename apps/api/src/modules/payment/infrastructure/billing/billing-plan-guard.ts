@@ -1,0 +1,289 @@
+import {
+  CanActivate,
+  ExecutionContext,
+  ForbiddenException,
+  Inject,
+  Injectable,
+  SetMetadata,
+} from "@nestjs/common";
+import { Reflector } from "@nestjs/core";
+import type { PrismaClient } from "@prisma/client";
+import { currentTenantPrincipal } from "../../../../shared/auth/tenant-principal.js";
+import { PRISMA_CLIENT, PRISMA_CROSS_MERCHANT_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import {
+  BILLING_PLANS,
+  effectiveBillingPlan,
+  type BillingPlanFeatureKey,
+  type BillingPlanLimitKey,
+} from "../../domain/billing-plans.js";
+import type { BillingPlan, BillingSubscriptionSnapshot } from "../../domain/payment-platform.types.js";
+
+export type BillingUsageSnapshot = {
+  periodStart: string;
+  ordersPerMonth: number;
+  voiceSessions: number;
+  commerceConnections: number;
+  webhookEndpoints: number;
+  teamMembers: number;
+  crossSellPromotions: number;
+  activeCoupons: number;
+};
+
+export type PlanLimitRequirement =
+  | { kind: "limit"; key: BillingPlanLimitKey; increment?: number; soft?: boolean }
+  | { kind: "feature"; key: BillingPlanFeatureKey };
+
+export const PLAN_LIMIT_REQUIREMENT = Symbol("PLAN_LIMIT_REQUIREMENT");
+
+export function RequirePlanLimit(
+  key: BillingPlanLimitKey,
+  increment = 1,
+  opts?: { soft?: boolean },
+): ReturnType<typeof SetMetadata> {
+  return SetMetadata(PLAN_LIMIT_REQUIREMENT, { kind: "limit", key, increment, soft: opts?.soft } satisfies PlanLimitRequirement);
+}
+
+export function RequirePlanFeature(
+  key: BillingPlanFeatureKey,
+): ReturnType<typeof SetMetadata> {
+  return SetMetadata(PLAN_LIMIT_REQUIREMENT, { kind: "feature", key } satisfies PlanLimitRequirement);
+}
+
+@Injectable()
+export class BillingPlanMeteringService {
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    @Inject(PRISMA_CROSS_MERCHANT_CLIENT) private readonly billingPrisma: PrismaClient = prisma,
+  ) {}
+
+  /** Platform subscription is owned by the Scale billing account; commercial
+   * connections and operational usage remain scoped to the active store. */
+  async resolveBillingAccountMerchantId(merchantId: string): Promise<string> {
+    const scopedMerchantId = merchantId.trim();
+    const merchant = await this.prisma.merchant.findUnique({
+      where: { id: scopedMerchantId },
+      select: { billingAccountMerchantId: true },
+    });
+    return merchant?.billingAccountMerchantId ?? scopedMerchantId;
+  }
+
+  async getSubscription(merchantId: string): Promise<BillingSubscriptionSnapshot | undefined> {
+    const billingMerchantId = await this.resolveBillingAccountMerchantId(merchantId);
+    // Only the resolved account's platform subscription crosses store scope.
+    const row = await this.billingPrisma.merchantBillingSubscription.findUnique({
+      where: { merchantId: billingMerchantId },
+    });
+    if (!row) return undefined;
+    return {
+      merchantId: row.merchantId,
+      stripeCustomerId: row.stripeCustomerId ?? undefined,
+      stripeSubscriptionId: row.stripeSubscriptionId ?? undefined,
+      stripePriceId: row.stripePriceId ?? undefined,
+      planKey: row.planKey === "starter179" || row.planKey === "growth" || row.planKey === "scale" ? row.planKey : "starter",
+      status: toBillingStatus(row.status),
+      trialEndsAt: row.trialEndsAt?.toISOString(),
+      currentPeriodEnd: row.currentPeriodEnd?.toISOString(),
+      cancelAtPeriodEnd: row.cancelAtPeriodEnd,
+      createdAt: row.createdAt.toISOString(),
+      updatedAt: row.updatedAt.toISOString(),
+    };
+  }
+
+  async getEffectivePlan(merchantId: string, now = new Date()): Promise<BillingPlan> {
+    return effectiveBillingPlan(await this.getSubscription(merchantId), now);
+  }
+
+  async getUsage(merchantId: string, now = new Date()): Promise<BillingUsageSnapshot> {
+    const scopedMerchantId = merchantId.trim();
+    const periodStart = new Date(Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), 1));
+    const [orders, voiceSessions, connections, endpoints, members, promos, coupons] = await Promise.all([
+      this.prisma.completedOrder.count({
+        where: {
+          merchantId: scopedMerchantId,
+          status: "approved",
+          completedAt: { gte: periodStart },
+        },
+      }),
+      this.prisma.aiUsageEvent.count({
+        where: { merchantId: scopedMerchantId, startedAt: { gte: periodStart }, component: "voice_admission" },
+      }),
+      this.prisma.merchantCommerceConnection.count({
+        where: { merchantId: scopedMerchantId, status: { not: "disconnected" } },
+      }),
+      this.prisma.merchantWebhookEndpoint.count({
+        where: { merchantId: scopedMerchantId },
+      }),
+      this.prisma.merchantTeamMember.count({
+        where: { merchantId: scopedMerchantId, user: { disabledAt: null } },
+      }),
+      this.prisma.crossSellPromotion.count({
+        where: { merchantId: scopedMerchantId, status: "active" },
+      }),
+      this.prisma.coupon.count({
+        where: { merchantId: scopedMerchantId, status: "active" },
+      }),
+    ]);
+
+    return {
+      periodStart: periodStart.toISOString(),
+      ordersPerMonth: orders,
+      voiceSessions,
+      commerceConnections: connections,
+      webhookEndpoints: endpoints,
+      teamMembers: members,
+      crossSellPromotions: promos,
+      activeCoupons: coupons,
+    };
+  }
+
+  async assertAllowed(merchantId: string, requirement: PlanLimitRequirement): Promise<void> {
+    // In development mode, bypass plan limits entirely
+    if (process.env.NODE_ENV === "development" && process.env.BILLING_BYPASS === "true") {
+      return;
+    }
+    const plan = await this.getEffectivePlan(merchantId);
+    const config = BILLING_PLANS[plan];
+    if (requirement.kind === "feature") {
+      if (!config.features[requirement.key]) {
+        throw new ForbiddenException({
+          code: "plan_feature_unavailable",
+          feature: requirement.key,
+          plan,
+          required_plan: requiredPlanForFeature(requirement.key),
+        });
+      }
+      return;
+    }
+
+    // Sales admission belongs exclusively to OrderQuotaService, which grants
+    // the 72-hour window and records the suspension durably.
+    if (requirement.key === "ordersPerMonth") return;
+
+    const limit = config.limits[requirement.key];
+    if (limit === null) return;
+    const usage = await this.getUsage(merchantId);
+    const current = requirement.key === "voiceSessionsPerMonth"
+      ? usage.voiceSessions
+      : usage[requirement.key];
+    const next = current + (requirement.increment ?? 1);
+    if (next > limit) {
+      // Soft-limit: aviso, não bloqueia. Starter pode continuar vendendo além do limite.
+      if (requirement.soft) {
+        console.warn(
+          `Plan limit soft-exceeded: merchant=${merchantId}, plan=${plan}, ` +
+          `limit=${requirement.key}, current=${current}, attempted=${next}, limit=${limit}`
+        );
+        return;
+      }
+      // Hard-limit: bloqueia (default para features não-Starter).
+      throw new ForbiddenException({
+        code: "plan_limit_exceeded",
+        feature: requirement.key,
+        plan,
+        current,
+        attempted: next,
+        limit,
+        required_plan: requiredPlanForLimit(requirement.key, next),
+      });
+    }
+  }
+
+  /**
+   * Records one idempotent admission per checkout voice session. The usage
+   * ledger already exists in production, so this keeps the quota durable
+   * without introducing a second counter table.
+   */
+  async admitVoiceSession(merchantId: string, voiceSessionId: string): Promise<void> {
+    const scopedMerchantId = merchantId.trim();
+    const scopedSessionId = voiceSessionId.trim();
+    await this.assertAllowed(scopedMerchantId, { kind: "feature", key: "voiceCheckout" });
+    await this.assertAllowed(scopedMerchantId, { kind: "limit", key: "voiceSessionsPerMonth" });
+    const now = new Date();
+    const month = now.toISOString().slice(0, 7);
+    await this.prisma.aiUsageEvent.upsert({
+      where: { idempotencyKey: `voice-admission:${scopedMerchantId}:${month}:${scopedSessionId}` },
+      create: {
+        idempotencyKey: `voice-admission:${scopedMerchantId}:${month}:${scopedSessionId}`,
+        merchantId: scopedMerchantId,
+        source: "billing_guard",
+        channel: "voice",
+        component: "voice_admission",
+        provider: "openai",
+        model: "gpt-realtime",
+        executionStatus: "admitted",
+        costStatus: "unpriced",
+        startedAt: now,
+        completedAt: now,
+        latencyMs: 0,
+        voiceSessionId: scopedSessionId,
+      },
+      update: {},
+    });
+  }
+}
+
+@Injectable()
+export class PlanLimitGuard implements CanActivate {
+  constructor(
+    private readonly reflector: Reflector,
+    private readonly metering: BillingPlanMeteringService,
+  ) {}
+
+  async canActivate(context: ExecutionContext): Promise<boolean> {
+    const requirement = this.reflector.getAllAndOverride<PlanLimitRequirement>(PLAN_LIMIT_REQUIREMENT, [
+      context.getHandler(),
+      context.getClass(),
+    ]);
+    if (!requirement) return true;
+    const request = context.switchToHttp().getRequest<{ body?: unknown; tenantPrincipal?: unknown; user?: unknown; m2mAgent?: unknown }>();
+    const merchantId = resolveMerchantId(request);
+    await this.metering.assertAllowed(merchantId, requirement);
+    return true;
+  }
+}
+
+function resolveMerchantId(request: { body?: unknown; tenantPrincipal?: unknown; user?: unknown; m2mAgent?: unknown }): string {
+  try {
+    const principal = currentTenantPrincipal(request as Parameters<typeof currentTenantPrincipal>[0]);
+    if (principal.tenantId?.trim()) return principal.tenantId.trim();
+  } catch {
+    // AuthGuard routes expose req.user; public checkout routes carry merchant_id in body.
+  }
+  const user = request.user as { merchantId?: unknown } | undefined;
+  if (typeof user?.merchantId === "string" && user.merchantId.trim()) return user.merchantId.trim();
+  const m2mAgent = request.m2mAgent as { merchantId?: unknown } | undefined;
+  if (typeof m2mAgent?.merchantId === "string" && m2mAgent.merchantId.trim()) return m2mAgent.merchantId.trim();
+  const body = request.body as { merchant_id?: unknown; merchantId?: unknown } | undefined;
+  const candidate = typeof body?.merchant_id === "string" ? body.merchant_id : typeof body?.merchantId === "string" ? body.merchantId : "";
+  if (!candidate.trim()) throw new ForbiddenException({ code: "plan_limit_scope_missing" });
+  return candidate.trim();
+}
+
+function toBillingStatus(status: string): BillingSubscriptionSnapshot["status"] {
+  if (
+    status === "trialing" ||
+    status === "starter" ||
+    status === "active" ||
+    status === "past_due" ||
+    status === "unpaid" ||
+    status === "paused" ||
+    status === "cancelled" ||
+    status === "incomplete"
+  ) return status;
+  return status === "canceled" ? "cancelled" : "trialing";
+}
+
+function requiredPlanForFeature(feature: BillingPlanFeatureKey): BillingPlan {
+  for (const plan of ["starter", "starter179", "growth", "scale"] as BillingPlan[]) {
+    if (BILLING_PLANS[plan].features[feature]) return plan;
+  }
+  return "scale";
+}
+
+function requiredPlanForLimit(limitKey: BillingPlanLimitKey, attempted: number): BillingPlan {
+  for (const plan of ["starter", "starter179", "growth", "scale"] as BillingPlan[]) {
+    const limit = BILLING_PLANS[plan].limits[limitKey];
+    if (limit === null || attempted <= limit) return plan;
+  }
+  return "scale";
+}

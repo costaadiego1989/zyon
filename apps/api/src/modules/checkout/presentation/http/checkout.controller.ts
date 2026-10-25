@@ -1,0 +1,198 @@
+import { Body, Controller, Get, Param, Patch, Post, Put, Query, Headers, Optional, UseGuards } from "@nestjs/common";
+import { AiUserIdentityService } from "../../../../shared/http/ai-user-identity.service.js";
+import type {
+  ApplyOfferRequest,
+  ChatMessageRequest,
+  CompleteOrderRequest,
+  DecisionRequest,
+  MerchantRules,
+  ShippingEvaluateRequest,
+  StartCheckoutRequest,
+  StorePeriod,
+  TrackEventRequest,
+  UpdateCartRequest,
+  UpdateOrderTrackingRequest
+} from "@zyon/shared-types";
+import { ApplyOfferUseCase } from "../../application/use-cases/apply-offer.use-case.js";
+import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
+import { GetFunnelUseCase } from "../../application/use-cases/get-funnel.use-case.js";
+import { GetFunnelSessionsUseCase } from "../../application/use-cases/get-funnel-sessions.use-case.js";
+import {
+  GetDashboardOverviewUseCase,
+  GetMerchantRulesUseCase,
+  GetStoreOverviewUseCase,
+  GetTimeseriesUseCase,
+  UpdateMerchantRulesUseCase
+} from "../../application/use-cases/dashboard.use-cases.js";
+import { EvaluateShippingUseCase } from "../../application/use-cases/evaluate-shipping.use-case.js";
+import { GetDecisionUseCase } from "../../application/use-cases/get-decision.use-case.js";
+import { GetCheckoutSessionUseCase } from "../../application/use-cases/get-checkout-session.use-case.js";
+import { SendChatMessageUseCase } from "../../application/use-cases/send-chat-message.use-case.js";
+import { StartCheckoutUseCase } from "../../application/use-cases/start-checkout.use-case.js";
+import { TrackCheckoutEventUseCase } from "../../application/use-cases/track-checkout-event.use-case.js";
+import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
+import { UpdateCartUseCase } from "../../application/use-cases/update-cart.use-case.js";
+import { NonProductionRoute, ProductionRoute } from "../../../../shared/http/non-production-route.js";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { MerchantOwnershipGuard } from "../../../auth/presentation/merchant-ownership.guard.js";
+import { StaffReadable } from "../../../auth/presentation/staff-readable.decorator.js";
+import { StaffReadableGuard } from "../../../auth/presentation/staff-readable.guard.js";
+
+@NonProductionRoute()
+@Controller("checkout")
+export class CheckoutController {
+  constructor(
+    private readonly startCheckout: StartCheckoutUseCase,
+    private readonly trackEvent: TrackCheckoutEventUseCase,
+    private readonly getCheckoutSession: GetCheckoutSessionUseCase,
+    private readonly getDecision: GetDecisionUseCase,
+    private readonly sendChatMessage: SendChatMessageUseCase,
+    private readonly evaluateShipping: EvaluateShippingUseCase,
+    private readonly applyOffer: ApplyOfferUseCase,
+    private readonly completeOrder: CompleteOrderUseCase,
+    private readonly getDashboardOverview: GetDashboardOverviewUseCase,
+    private readonly getRules: GetMerchantRulesUseCase,
+    private readonly updateRules: UpdateMerchantRulesUseCase,
+    private readonly updateOrderTracking?: UpdateOrderTrackingUseCase,
+    private readonly updateCart?: UpdateCartUseCase,
+    private readonly getStoreOverview?: GetStoreOverviewUseCase,
+    private readonly getTimeseries?: GetTimeseriesUseCase,
+    private readonly getFunnel?: GetFunnelUseCase,
+    private readonly getFunnelSessions?: GetFunnelSessionsUseCase,
+    @Optional() private readonly aiIdentities?: AiUserIdentityService,
+  ) {}
+
+  @Post("start-checkout")
+  start(@Body() body: StartCheckoutRequest) {
+    return this.startCheckout.execute(body);
+  }
+
+  @Post("track-event")
+  track(@Body() body: TrackEventRequest) {
+    return this.trackEvent.execute(body);
+  }
+
+  @Get("checkout/:merchantId/:sessionId")
+  session(@Param("merchantId") merchantId: string, @Param("sessionId") sessionId: string) {
+    return this.getCheckoutSession.execute(merchantId, sessionId);
+  }
+
+  @Post("decision")
+  decision(@Body() body: DecisionRequest) {
+    return this.getDecision.execute(body);
+  }
+
+  @Post("chat/message")
+  async chat(@Body() body: ChatMessageRequest & { ai_user_token?: string; buyer_access_token?: string }, @Headers("x-ai-user-token") visitorToken?: string) {
+    const identity = (this.aiIdentities ?? new AiUserIdentityService()).resolve({ merchantId: body.merchant_id, visitorToken: visitorToken ?? body.ai_user_token, buyerToken: body.buyer_access_token });
+    const { ai_user_token: _visitor, buyer_access_token: _buyer, ...input } = body;
+    const result = await this.sendChatMessage.execute(input, { aiUserId: identity.userId });
+    return { ...result, ...(identity.token ? { ai_user_token: identity.token } : {}) };
+  }
+
+  @Post("shipping/evaluate")
+  shipping(@Body() body: ShippingEvaluateRequest) {
+    return this.evaluateShipping.execute(body);
+  }
+
+  @Post("offers/apply")
+  offer(@Body() body: ApplyOfferRequest) {
+    return this.applyOffer.execute(body);
+  }
+
+  @Post("orders/complete")
+  complete(@Body() body: CompleteOrderRequest) {
+    return this.completeOrder.execute(body);
+  }
+
+  @Patch("orders/tracking")
+  tracking(@Body() body: UpdateOrderTrackingRequest) {
+    if (!this.updateOrderTracking) throw new Error("update_order_tracking_not_configured");
+    return this.updateOrderTracking.execute(body);
+  }
+
+  @Patch("cart")
+  cart(@Body() body: UpdateCartRequest) {
+    if (!this.updateCart) throw new Error("update_cart_not_configured");
+    return this.updateCart.execute(body);
+  }
+
+  @Get("dashboard/overview/:merchantId")
+  @ProductionRoute()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  overview(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: StorePeriod,
+  ) {
+    return this.getDashboardOverview.execute(merchantId, period ?? "7d");
+  }
+
+  @Get("dashboard/store-overview/:merchantId")
+  @ProductionRoute()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  storeOverview(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: StorePeriod,
+  ) {
+    if (!this.getStoreOverview) throw new Error("store_overview_not_configured");
+    return this.getStoreOverview.execute(merchantId, period ?? "7d");
+  }
+
+  @Get("dashboard/overview/timeseries/:merchantId")
+  @ProductionRoute()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  timeseries(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: StorePeriod,
+  ) {
+    if (!this.getTimeseries) throw new Error("timeseries_not_configured");
+    return this.getTimeseries.execute(merchantId, period ?? "7d");
+  }
+
+  @Get("dashboard/rules/:merchantId")
+  @ProductionRoute()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  rules(@Param("merchantId") merchantId: string) {
+    return this.getRules.execute(merchantId);
+  }
+
+  @Put("dashboard/rules/:merchantId")
+  @ProductionRoute()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard)
+  update(@Param("merchantId") merchantId: string, @Body() body: Partial<MerchantRules>) {
+    return this.updateRules.execute(merchantId, body);
+  }
+
+  @Get("funnel/:merchantId")
+  @ProductionRoute()
+  @StaffReadable()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
+  funnel(
+    @Param("merchantId") merchantId: string,
+    @Query("period") period?: string,
+    @Query("breakdown") breakdown?: string,
+    @Query("compare") compare?: string,
+    @Query("from") from?: string,
+    @Query("to") to?: string,
+  ) {
+    if (!this.getFunnel) throw new Error("funnel_not_configured");
+    const validBreakdowns = ["device", "buyer_type", "payment_method"];
+    const breakdownValue = breakdown && validBreakdowns.includes(breakdown)
+      ? breakdown as "device" | "buyer_type" | "payment_method"
+      : undefined;
+    return this.getFunnel.execute(
+      merchantId,
+      (period ?? "7d") as "today" | "7d" | "30d" | "90d",
+      { breakdown: breakdownValue, compare: compare === "true", range: from || to ? { from, to } : undefined },
+    );
+  }
+
+  @Get("funnel/:merchantId/sessions")
+  @ProductionRoute()
+  @StaffReadable()
+  @UseGuards(AuthGuard, MerchantOwnershipGuard, StaffReadableGuard)
+  funnelSessions(@Param("merchantId") merchantId: string) {
+    if (!this.getFunnelSessions) throw new Error("funnel_sessions_not_configured");
+    return this.getFunnelSessions.execute(merchantId);
+  }
+}

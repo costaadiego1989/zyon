@@ -1,0 +1,382 @@
+import { Inject, Injectable, Logger, OnModuleDestroy, OnModuleInit } from "@nestjs/common";
+import { weeklyAnalysisEnabled } from "../../domain/weekly-analysis-policy.js";
+import { Queue, Worker, type Job } from "bullmq";
+import type { RedisOptions } from "ioredis";
+import { randomUUID } from "node:crypto";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import type { PrismaClient } from "@prisma/client";
+import { ObserveMetricsUseCase } from "../../application/use-cases/observe-metrics.use-case.js";
+import { GenerateHypothesisUseCase } from "../../application/use-cases/generate-hypothesis.use-case.js";
+import { CreateExperimentFromHypothesisUseCase } from "../../application/use-cases/create-experiment-from-hypothesis.use-case.js";
+import { DiscountRuleHypothesisService } from "../../domain/services/discount-rule-hypothesis.service.js";
+import { loadDiscountCohorts } from "../discount-cohort.reader.js";
+import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
+import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
+
+export const REVENUE_MANAGER_OBSERVATION_QUEUE = "revenue-manager-observations";
+export const REVENUE_MANAGER_QUEUE_UNAVAILABLE = "REVENUE_MANAGER_QUEUE_UNAVAILABLE";
+const JOB_NAME = "daily-observation-compile";
+// BullMQ reserves `:` inside custom job IDs. Keep these stable IDs readable
+// without using the separator so both manual and recurring jobs persist.
+const RECURRING_JOB_KEY = "revenue-manager-observations.cron";
+const CRON_DAILY_2AM_UTC = "0 2 * * *"; // 2 AM UTC
+const DEFAULT_RULE_OPTIMIZER_LOOKBACK_DAYS = 30;
+const MAX_RULE_OPTIMIZER_LOOKBACK_DAYS = 90;
+const JOB_RETRY_OPTIONS = {
+  attempts: 3,
+  backoff: { type: "exponential" as const, delay: 1_000 },
+  removeOnComplete: 100,
+  removeOnFail: 1_000,
+};
+
+interface DailyObservationJobData {
+  triggeredAt: string;
+  merchantId?: string;
+}
+
+function ruleOptimizerLookbackDays(): number {
+  const configured = Number(process.env.RULE_OPTIMIZER_LOOKBACK_DAYS);
+  if (!Number.isFinite(configured)) return DEFAULT_RULE_OPTIMIZER_LOOKBACK_DAYS;
+  return Math.min(Math.max(Math.floor(configured), 7), MAX_RULE_OPTIMIZER_LOOKBACK_DAYS);
+}
+
+function redisConnection(): RedisOptions | null {
+  const raw = process.env.REDIS_URL?.trim();
+  if (!raw) return null;
+  const url = new URL(raw);
+  return {
+    host: url.hostname,
+    port: url.port ? Number(url.port) : 6379,
+    username: url.username ? decodeURIComponent(url.username) : undefined,
+    password: url.password ? decodeURIComponent(url.password) : undefined,
+    db: url.pathname.length > 1 ? Number(url.pathname.slice(1)) : 0,
+    maxRetriesPerRequest: null,
+  };
+}
+
+/**
+ * Scheduler for DailyObservationJob.
+ * Registers a recurring BullMQ job to run daily at 2 AM UTC.
+ */
+@Injectable()
+export class DailyObservationScheduler implements OnModuleDestroy {
+  private readonly logger = new Logger(DailyObservationScheduler.name);
+  private readonly queue: Queue<DailyObservationJobData> | null;
+
+  constructor() {
+    const connection = redisConnection();
+    this.queue = connection
+      ? new Queue<DailyObservationJobData>(REVENUE_MANAGER_OBSERVATION_QUEUE, { connection })
+      : null;
+  }
+
+  async ensureRecurringJob(): Promise<void> {
+    if (weeklyAnalysisEnabled()) return;
+    if (!this.queue) return;
+    try {
+      await this.queue.add(JOB_NAME, { triggeredAt: new Date().toISOString() }, {
+        jobId: RECURRING_JOB_KEY,
+        repeat: { pattern: CRON_DAILY_2AM_UTC },
+        ...JOB_RETRY_OPTIONS,
+      });
+      this.logger.log(`Scheduled recurring daily observation (cron=${CRON_DAILY_2AM_UTC})`);
+    } catch (err) {
+      this.logger.warn(
+        `Failed to register recurring daily observation: ${err instanceof Error ? err.message : String(err)}`,
+      );
+    }
+  }
+
+  async enqueueMerchantRun(merchantId: string): Promise<string> {
+    if (!this.queue) throw new Error(REVENUE_MANAGER_QUEUE_UNAVAILABLE);
+
+    const job = await this.queue.add(
+      JOB_NAME,
+      { triggeredAt: new Date().toISOString(), merchantId },
+      {
+        jobId: `revenue-manager-observations.merchant.${merchantId}.${randomUUID()}`,
+        ...JOB_RETRY_OPTIONS,
+      },
+    );
+
+    return String(job.id);
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    await this.queue?.close();
+  }
+}
+
+/**
+ * DailyObservationWorker — Background Job (every day 2 AM UTC)
+ *
+ * For each merchant:
+ * 1. Fetch merchant config + current metrics (funnel, abandonment, etc)
+ * 2. Call ObserveMetricsUseCase to create/deduplicate observation
+ * 3. If observation is new: call GenerateHypothesisUseCase
+ * 4. Create a merchant-reviewable strategy suggestion
+ *
+ * Falls back to a daily timer when Redis is not configured. The HTTP trigger
+ * intentionally remains unavailable in that state: an interactive request must
+ * get a durable job instead of waiting for an LLM response in the API process.
+ * Timeout: 10 minutes per job.
+ */
+@Injectable()
+export class DailyObservationWorker implements OnModuleInit, OnModuleDestroy {
+  private readonly logger = new Logger(DailyObservationWorker.name);
+  private worker: Worker<DailyObservationJobData> | null = null;
+  private timer: ReturnType<typeof setInterval> | null = null;
+
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly observeMetricsUseCase: ObserveMetricsUseCase,
+    private readonly generateHypothesisUseCase: GenerateHypothesisUseCase,
+    private readonly createExperimentUseCase: CreateExperimentFromHypothesisUseCase,
+    private readonly discountRuleHypothesisService: DiscountRuleHypothesisService,
+    @Inject(HYPOTHESIS_REPOSITORY_PORT) private readonly hypothesisRepository: HypothesisRepositoryPort,
+  ) {}
+
+  async onModuleInit(): Promise<void> {
+    if (weeklyAnalysisEnabled()) return;
+    const connection = redisConnection();
+    if (connection) {
+      this.worker = new Worker<DailyObservationJobData>(
+        REVENUE_MANAGER_OBSERVATION_QUEUE,
+        async (job) => this.process(job),
+        { connection, concurrency: 1 },
+      );
+      this.worker.on("failed", (job, err) => {
+        this.logger.warn(`Daily observation job failed ${job?.id ?? "unknown"}: ${err.message}`);
+      });
+      this.logger.log("DailyObservationWorker started (BullMQ)");
+    } else {
+      // Fallback to setInterval
+      this.timer = setInterval(
+        () => {
+          void this.runObservationCycle().catch((err) => {
+            this.logger.warn(`Daily observation timer failed: ${err instanceof Error ? err.message : String(err)}`);
+          });
+        },
+        24 * 60 * 60 * 1_000, // Run every 24 hours
+      );
+      this.logger.log("DailyObservationWorker started (setInterval fallback, every 24h)");
+    }
+  }
+
+  async onModuleDestroy(): Promise<void> {
+    if (this.timer) clearInterval(this.timer);
+    await this.worker?.close();
+  }
+
+  private async process(job: Job<DailyObservationJobData>): Promise<void> {
+    const count = await this.runObservationCycle(job.data.merchantId);
+    this.logger.log(`Daily observation job ${job.id ?? "n/a"} processed ${count} merchants`);
+  }
+
+  /**
+   * Exposed for testability.
+   * Run one observation cycle for all merchants, or a single merchant when an
+   * interactive request was queued.
+   */
+  async runObservationCycle(merchantId?: string): Promise<number> {
+    const merchants = merchantId
+      ? await this.prisma.merchant.findMany({ where: { id: merchantId }, take: 1 })
+      : await this.prisma.merchant.findMany({ take: 100 });
+
+    if (merchantId && merchants.length !== 1) {
+      throw new Error("REVENUE_MANAGER_MERCHANT_NOT_FOUND");
+    }
+
+    let processedCount = 0;
+
+    for (const merchant of merchants) {
+      try {
+        await this.processMerchant(merchant.id);
+        processedCount++;
+      } catch (err) {
+        this.logger.warn(`Failed to process merchant ${merchant.id}: ${err instanceof Error ? err.message : String(err)}`);
+        // A merchant-triggered job must fail and retry if the merchant's data
+        // could not be read or persisted. The recurring batch still advances
+        // to the next merchant so one tenant cannot block every other tenant.
+        if (merchantId) throw err;
+      }
+    }
+
+    return processedCount;
+  }
+
+  /**
+   * Full pipeline per merchant:
+   * 1. Observe metrics → deduplicate by fingerprint
+   * 2. Generate hypothesis → LLM call (skip if fails)
+   * 3. If auto-approved → create experiment (skip if running experiment exists)
+   * 4. (F2-T05) Generate discount rule hypothesis if enabled
+   */
+  private async processMerchant(merchantId: string): Promise<void> {
+    // Migration ownership persists even if the new feature is paused. Never
+    // silently fall back to daily paid generation for a migrated store.
+    if (weeklyAnalysisEnabled()) return;
+    if (await this.prisma.revenueAnalysisSchedule.findUnique({ where: { merchantId } })) return;
+    // Calculate observation window (last 24 hours)
+    const windowEnd = new Date();
+    const windowStart = new Date(windowEnd.getTime() - 7 * 24 * 60 * 60 * 1_000);
+
+    // Step 1: Observe metrics
+    const observation = await this.observeMetricsUseCase.execute({
+      merchant_id: merchantId,
+      window_start: windowStart,
+      window_end: windowEnd,
+    });
+
+    // If observation already existed (fingerprint dedup), skip
+    if (!observation.is_new) {
+      this.logger.debug(`Merchant ${merchantId}: observation unchanged (fingerprint dedup)`);
+      return;
+    }
+    if (!observation.data_ready) {
+      this.logger.log(`Merchant ${merchantId}: observation has insufficient measured data; hypothesis generation skipped`, {
+        missingMetrics: observation.missing_metrics
+      });
+      return;
+    }
+
+    // Step 2: Generate hypothesis (LLM call — skip on failure)
+    let hypothesis;
+    try {
+      hypothesis = await this.generateHypothesisUseCase.execute({
+        merchant_id: merchantId,
+        observation_id: observation.observation_id,
+      });
+    } catch (err) {
+      this.logger.warn(`Merchant ${merchantId}: hypothesis generation failed, skipping: ${err instanceof Error ? err.message : String(err)}`);
+      return;
+    }
+
+    // Step 3: If auto-approved (low risk), create experiment immediately
+    if (hypothesis.approval_strategy === "auto") {
+      try {
+        const result = await this.createExperimentUseCase.execute({
+          merchant_id: merchantId,
+          hypothesis_id: hypothesis.hypothesis_id,
+        });
+
+        if (result.status === "created") {
+          this.logger.log(`Merchant ${merchantId}: auto-created experiment ${result.experiment_id} from hypothesis ${hypothesis.hypothesis_id}`);
+        } else {
+          this.logger.warn(`Merchant ${merchantId}: experiment creation failed: ${result.error}`);
+        }
+      } catch (err) {
+        // Constraint: merchant already has running experiment — expected, skip silently
+        const message = err instanceof Error ? err.message : String(err);
+        if (message.includes("MERCHANT_ALREADY_HAS_RUNNING_EXPERIMENT")) {
+          this.logger.debug(`Merchant ${merchantId}: already has running experiment, skipping`);
+        } else {
+          this.logger.warn(`Merchant ${merchantId}: experiment creation failed: ${message}`);
+        }
+      }
+    } else {
+      this.logger.log(`Merchant ${merchantId}: hypothesis ${hypothesis.hypothesis_id} needs manual approval (risk=${hypothesis.risk_level})`);
+    }
+
+    // Step 4: (F2-T05) Generate discount rule hypothesis if autonomous engine enabled
+    await this.generateDiscountRuleHypothesis(merchantId, observation.observation_id);
+  }
+
+  /**
+   * F2-T05: Generate discount rule hypothesis.
+   *
+   * 1. Fetch merchant rules (kill-switch check)
+   * 2. If autonomousEngineEnabled=false, skip
+   * 3. Fetch cohort stats (reuse observation metrics)
+   * 4. Call DiscountRuleHypothesisService.generate()
+   * 5. If candidate: create HypothesisEntity type='discount_rule' status='pending_review'
+   * 6. Create MerchantNotification type='ai_rule_suggestion'
+   */
+  private async generateDiscountRuleHypothesis(merchantId: string, observationId: string): Promise<void> {
+    try {
+      if (process.env.REVENUE_MANAGER_DISCOUNT_RULE_SUGGESTIONS_ENABLED === "false") {
+        this.logger.debug(`Merchant ${merchantId}: discount rule suggestions are disabled by configuration`);
+        return;
+      }
+
+      // Fetch merchant rules to check kill-switch
+      const merchantRules = await this.prisma.merchantRule.findUnique({
+        where: { merchantId },
+      });
+
+      if (!merchantRules) {
+        this.logger.debug(`Merchant ${merchantId}: no rules configured, skipping discount rule generation`);
+        return;
+      }
+
+      // ADI-F2-05: kill-switch — skip if disabled
+      if (!merchantRules.autonomousEngineEnabled) {
+        this.logger.debug(`Merchant ${merchantId}: autonomous engine disabled (kill-switch), skipping discount rule generation`);
+        return;
+      }
+
+      // Reprice mature, consented buyer observations from this store's catalog.
+      const cohortStats = await this.loadCohortStats(merchantId);
+      const existing = await this.hypothesisRepository.findByObservation(observationId);
+      const excluded = new Set(existing.filter(h => h.merchant_id === merchantId)
+        .flatMap(h => h.discount_rule_json ? [h.discount_rule_json.id] : []));
+
+      // ADI-F2-01..03: call DiscountRuleHypothesisService to generate a safe candidate.
+      // Prisma Decimal caps are coerced to number for the pure domain service.
+      const candidate = this.discountRuleHypothesisService.generate(
+        cohortStats,
+        {
+          maxDiscountPercent: Number(merchantRules.maxDiscountPercent),
+          minimumMarginPercent: Number(merchantRules.minimumMarginPercent),
+          autonomousEngineEnabled: merchantRules.autonomousEngineEnabled,
+        } as unknown as Parameters<DiscountRuleHypothesisService["generate"]>[1],
+        Number(process.env.RULE_OPTIMIZER_MIN_SAMPLES ?? "30"),
+        excluded,
+      );
+
+      if (!candidate) {
+        this.logger.debug(`Merchant ${merchantId}: no discount rule candidate generated (no eligible cohorts or all rejected)`);
+        return;
+      }
+
+      // ADI-F2-04: candidate → HypothesisEntity type='discount_rule', pending_review.
+      const hypothesisEntity = HypothesisEntity.create({
+        merchant_id: merchantId,
+        observation_id: observationId,
+        hypothesis_text: candidate.rationale,
+        reasoning: "Simulação com preços e custos atuais do catálogo e taxa de pagamento estimada de 4%. "
+          + "Não inclui tributos, frete, estornos ou custo de IA; não comprova lucro nem aumento de conversão.",
+        expected_lift_percent: 0, // Legacy numeric column; no uplift estimate is asserted for discount drafts.
+        risk_level: "medium",
+        approval_strategy: "manual", // ADI-F3-01/INV-08: always merchant-approved
+        hypothesis_type: "discount_rule",
+        discount_rule_json: candidate.rule,
+        discount_simulation: candidate.simulation,
+        template: {
+          name: "discount_rule_system",
+          description: "System-generated discount rule",
+          variant_a: { name: "control", system_prompt: "", weight: 0.5, is_control: true },
+          variant_b: { name: "treatment", system_prompt: "", weight: 0.5, is_control: false },
+        },
+      });
+
+      // Persist via repository (embeds hypothesis_type + discount_rule_json in templateJson).
+      await this.hypothesisRepository.save(hypothesisEntity);
+
+      // The repository persists the suggestion and its notification atomically.
+      this.logger.log(
+        `Merchant ${merchantId}: processed discount draft ${candidate.fingerprint} for observation ${observationId}`
+      );
+    } catch (err) {
+      this.logger.warn(
+        `Merchant ${merchantId}: discount rule generation failed: ${err instanceof Error ? err.message : String(err)}`
+      );
+      // Don't throw — allow observation cycle to continue
+    }
+  }
+
+  private async loadCohortStats(merchantId: string) {
+    return this.prisma.$transaction(tx => loadDiscountCohorts(tx, merchantId, new Date(), ruleOptimizerLookbackDays()),
+      { isolationLevel: "RepeatableRead", timeout: 30_000 });
+  }
+}

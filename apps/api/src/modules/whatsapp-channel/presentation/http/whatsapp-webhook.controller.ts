@@ -1,0 +1,276 @@
+/**
+ * WhatsApp Webhook Controller
+ *
+ * Receives messages from Meta Cloud API and legacy providers, then dispatches to the message pipeline.
+ * No auth guard — authenticates via webhook secret header or provider HMAC signature.
+ * BubbleWhats acknowledges only after durable inbox persistence.
+ */
+
+import {
+  Body,
+  BadRequestException,
+  Controller,
+  Get,
+  HttpCode,
+  Post,
+  Headers,
+  Query,
+  Res,
+  UnauthorizedException,
+  Inject,
+  Req,
+  ServiceUnavailableException,
+  Optional,
+} from "@nestjs/common";
+import { ApiExcludeController } from "@nestjs/swagger";
+import { createHmac, timingSafeEqual } from "node:crypto";
+import type { Request, Response } from "express";
+import { WHATSAPP_CONFIG_REPOSITORY, type WhatsAppConfigRepository } from "../../domain/ports/whatsapp-config-repository.port.js";
+import { AcceptBubbleWhatsWebhookUseCase } from "../../application/use-cases/accept-bubblewhats-webhook.use-case.js";
+import { HandleStatusUpdateUseCase } from "../../application/use-cases/handle-status-update.use-case.js";
+import { validateTwilioSignature } from "../../domain/services/twilio-signature-validator.js";
+import { parseTwilioInbound } from "../../infrastructure/adapters/twilio-webhook-parser.js";
+import { twilioWhatsAppCallbackUrl } from "../../domain/services/public-url.js";
+
+interface BubbleWhatsMessagePayload {
+  id: string;
+  fromNumber: string;
+  fromGroup?: string;
+  fromAlias?: string;
+  toNumber: string;
+  body: string;
+  caption?: string;
+  isGroup: boolean;
+  url?: string;
+  mimetype?: string;
+  messageContext?: Record<string, unknown>;
+  key?: string;
+  degreesLatitude?: number;
+  degreesLongitude?: number;
+  messageType: string;
+  deviceID: string;
+  timestamp: number;
+}
+
+interface BubbleWhatsStatusPayload {
+  deviceID: string;
+  messages: Array<{
+    key: { remoteJid: string; id: string; fromMe: boolean };
+    update: { status: number };
+  }>;
+}
+
+import { WhatsAppDeliveryService } from "../../application/services/whatsapp-delivery.service.js";
+
+interface MetaInboundMessage {
+  id?: string;
+  from?: string;
+  timestamp?: string;
+  type?: string;
+  text?: { body?: string };
+  order?: import("../../infrastructure/adapters/meta-catalog-order.adapter.js").MetaCatalogOrder;
+  image?: { id?: string; mime_type?: string; caption?: string };
+  document?: { id?: string; mime_type?: string; filename?: string; caption?: string };
+  audio?: { id?: string; mime_type?: string };
+  button?: { text?: string };
+  interactive?: { button_reply?: { id?: string; title?: string }; list_reply?: { id?: string; title?: string }; nfm_reply?: { response_json?: string; body?: string } };
+}
+
+interface MetaWebhookPayload {
+  entry?: Array<{
+    changes?: Array<{
+      field?: string;
+      value?: {
+        metadata?: { phone_number_id?: string };
+        contacts?: Array<{ profile?: { name?: string } }>;
+        messages?: MetaInboundMessage[];
+        statuses?: Array<{ id?: string; status?: string; timestamp?: string; biz_opaque_callback_data?: string; errors?: Array<{ code?: number }> }>;
+      };
+    }>;
+  }>;
+}
+
+@ApiExcludeController()
+@Controller("webhooks/whatsapp")
+export class WhatsAppWebhookController {
+  constructor(
+    @Inject(WHATSAPP_CONFIG_REPOSITORY)
+    private readonly configRepo: WhatsAppConfigRepository,
+    private readonly acceptBubbleWhats: AcceptBubbleWhatsWebhookUseCase,
+    @Optional() private readonly delivery?: WhatsAppDeliveryService,
+    @Optional() private readonly metaStatus?: HandleStatusUpdateUseCase,
+  ) {}
+
+  @Get("meta")
+  verifyMetaWebhook(
+    @Query() query: Record<string, string | undefined>,
+    @Res() response: Response,
+  ): void {
+    const verifyToken = process.env.META_WEBHOOK_VERIFY_TOKEN;
+    if (
+      query["hub.mode"] !== "subscribe" ||
+      !verifyToken ||
+      query["hub.verify_token"] !== verifyToken ||
+      !query["hub.challenge"]
+    ) {
+      response.sendStatus(403);
+      return;
+    }
+
+    response.status(200).send(query["hub.challenge"]);
+  }
+
+  @Post("meta")
+  @HttpCode(200)
+  async receiveMetaWebhook(
+    @Headers("x-hub-signature-256") signature: string | undefined,
+    @Body() payload: MetaWebhookPayload,
+    @Req() request: Request,
+  ): Promise<{ received: true }> {
+    const rawBody = (request as Request & { rawBody?: Buffer }).rawBody;
+    if (!this.isValidMetaSignature(signature, rawBody)) {
+      throw new UnauthorizedException("invalid_meta_signature");
+    }
+
+    for (const entry of payload.entry ?? []) {
+      for (const change of entry.changes ?? []) {
+        if (change.field !== "messages") continue;
+
+        const phoneNumberId = change.value?.metadata?.phone_number_id;
+        if (!phoneNumberId) continue;
+
+        const config = await this.configRepo.findByMetaPhoneNumberId(phoneNumberId);
+        if (!config || config.provider !== "META_CLOUD") continue;
+        for (const status of change.value?.statuses ?? []) {
+          if (!this.delivery) throw new ServiceUnavailableException("whatsapp_delivery_not_configured");
+          await this.delivery.reconcileMeta(config.merchantId, config.id, status);
+        }
+        for (const status of change.value?.statuses ?? []) {
+          if (!status.id || !status.status) continue;
+          if (!this.metaStatus) throw new ServiceUnavailableException("whatsapp_receipt_store_unavailable");
+          await this.metaStatus.receiveMetaReceipt({ merchantId: config.merchantId, configId: config.id, messageId: status.id,
+            status: status.status, timestamp: status.timestamp, correlationId: status.biz_opaque_callback_data,
+            errorCode: status.errors?.find(error => Number.isSafeInteger(error.code))?.code });
+        }
+        if (!config.enabled) continue;
+
+        const senderName = change.value?.contacts?.[0]?.profile?.name;
+        for (const message of change.value?.messages ?? []) {
+          if (!message.id || !message.from) continue;
+
+          const body = this.metaMessageBody(message);
+          if (!body) {
+            continue;
+          }
+
+          await this.acceptBubbleWhats.messageForAuthenticatedConfig(config, "META", message.id, {
+            fromNumber: message.from.startsWith("+") ? message.from : `+${message.from}`,
+            fromAlias: senderName,
+            body,
+            ...(message.order ? { catalogOrder: message.order } : {}),
+            ...((message.image?.id ?? message.document?.id ?? message.audio?.id) ? { metaMedia: {
+              id: (message.image?.id ?? message.document?.id ?? message.audio?.id)!, mimeType: message.image?.mime_type ?? message.document?.mime_type ?? message.audio?.mime_type,
+              name: message.document?.filename,
+            } } : {}),
+            ...((message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id) ? { interactiveId: message.interactive?.button_reply?.id ?? message.interactive?.list_reply?.id } : {}),
+            ...(message.interactive?.nfm_reply?.response_json ? { flowResponse: this.metaFlowResponse(message.interactive.nfm_reply.response_json) } : {}),
+            messageType: message.type ?? "text",
+            timestamp: Number(message.timestamp ?? 0) * 1000 || Date.now(),
+          });
+        }
+      }
+    }
+
+    return { received: true };
+  }
+
+  private isValidMetaSignature(signature: string | undefined, rawBody: Buffer | undefined): boolean {
+    const secret = process.env.META_APP_SECRET;
+    if (!signature || !rawBody || !secret) return false;
+
+    const expected = `sha256=${createHmac("sha256", secret).update(rawBody).digest("hex")}`;
+    const received = Buffer.from(signature);
+    const expectedBuffer = Buffer.from(expected);
+    return received.length === expectedBuffer.length && timingSafeEqual(received, expectedBuffer);
+  }
+
+  private metaMessageBody(message: MetaInboundMessage): string {
+    return message.text?.body
+      ?? (message.order ? "Escolhi produtos no catálogo do WhatsApp" : undefined)
+      ?? message.image?.caption ?? message.document?.caption
+      ?? ((message.image || message.document || message.audio) ? "Enviei um anexo para ajudar na compra" : undefined)
+      ?? message.button?.text
+      ?? message.interactive?.button_reply?.title
+      ?? message.interactive?.list_reply?.title
+      ?? (message.interactive?.nfm_reply ? "Dados do formulário" : undefined)
+      ?? "";
+  }
+
+  private metaFlowResponse(raw: string): Record<string, unknown> {
+    if (raw.length > 4096) throw new BadRequestException("whatsapp_flow_response_invalid");
+    try { const reply = JSON.parse(raw); if (reply && typeof reply === "object" && !Array.isArray(reply)) return reply; } catch {}
+    throw new BadRequestException("whatsapp_flow_response_invalid");
+  }
+
+  /**
+   * BubbleWhats message webhook (legacy, kept for backward compat).
+   */
+  @Post("bubblewhats/messages")
+  @HttpCode(200)
+  async receiveBubbleWhatsMessage(
+    @Headers("x-webhook-secret") secret: string | undefined,
+    @Body() payload: unknown,
+  ): Promise<{ received: true }> {
+    return this.acceptBubbleWhats.message(secret, payload);
+  }
+
+  @Post("bubblewhats/status")
+  @HttpCode(200)
+  async receiveBubbleWhatsStatus(
+    @Headers("x-webhook-secret") secret: string | undefined,
+    @Body() payload: unknown,
+  ): Promise<{ received: true }> {
+    return this.acceptBubbleWhats.status(secret, payload);
+  }
+
+  /**
+   * Twilio WhatsApp message webhook.
+   * Receives form-encoded POST body with HMAC-SHA1 signature validation.
+   */
+  @Post("twilio")
+  @HttpCode(200)
+  async receiveTwilioMessage(
+    @Headers("x-twilio-signature") signature: string | undefined,
+    @Body() body: Record<string, string>,
+    @Req() req: Request,
+  ): Promise<string> {
+    const normalized = parseTwilioInbound(body);
+    if (!normalized) return "";
+
+    const config = await this.configRepo.findByWhatsAppNumber(normalized.toNumber);
+    if (!config || !config.enabled || config.status !== "ACTIVE" || config.provider !== "TWILIO") return "";
+    if (config.credentials.onboardingVersion === 2 && body.AccountSid !== config.credentials.accountSid) {
+      throw new UnauthorizedException("invalid_twilio_account");
+    }
+
+    const authToken = String(config.credentials?.authToken ?? "");
+    if (!signature || !authToken) {
+      throw new ServiceUnavailableException("twilio_webhook_auth_not_configured");
+    }
+    const requestUrl = twilioWhatsAppCallbackUrl() ?? `${req.protocol}://${req.get("host")}${req.originalUrl}`;
+    if (!validateTwilioSignature(signature, requestUrl, body, authToken)) {
+      throw new UnauthorizedException("invalid_twilio_signature");
+    }
+
+    await this.acceptBubbleWhats.messageForAuthenticatedConfig(config, "TWILIO", normalized.messageSid, {
+      fromNumber: normalized.fromNumber,
+      fromAlias: normalized.fromAlias,
+      body: normalized.body,
+      messageType: "text",
+      mediaUrl: normalized.mediaUrl,
+      mimetype: normalized.mimetype,
+      timestamp: normalized.timestamp,
+    });
+    return "";
+  }
+}

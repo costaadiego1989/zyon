@@ -1,0 +1,293 @@
+import { Controller, Get, Param, Query, Req, Res, Inject, Logger, UseGuards } from "@nestjs/common";
+import { ApiOperation, ApiTags } from "@nestjs/swagger";
+import type { PrismaClient } from "@prisma/client";
+import { createHmac, randomBytes } from "node:crypto";
+import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
+import { fetchBlingCompanyId } from "../../infrastructure/adapters/bling-company-identity.js";
+import { blingClientFingerprint } from "../../infrastructure/adapters/bling-token-identity.js";
+import { exchangeShopeeCode, shopeeAuthorizationUrl, shopeeShopId } from "../../infrastructure/adapters/shopee-api.js";
+import { ShopeeMarketplaceAdapter } from "../../infrastructure/adapters/shopee-marketplace.adapter.js";
+import { isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
+import { TriggerMarketplaceSyncUseCase } from "../../application/use-cases/trigger-marketplace-sync.use-case.js";
+import { TriggerErpSyncUseCase } from "../../application/use-cases/trigger-erp-sync.use-case.js";
+import { TIKTOKSHOP_OAUTH_PORT, type TikTokShopOAuthPort } from "../../domain/ports/tiktokshop-oauth.port.js";
+
+function env(key: string, fallback = ""): string {
+  return process.env[key] ?? fallback;
+}
+
+function dashboardRedirect(params: Record<string, string>): string {
+  const url = new URL(env("DASHBOARD_URL", "http://localhost:5175"));
+  for (const [key, value] of Object.entries(params)) url.searchParams.set(key, value);
+  // ERP authorization is started from Inventory. Keep the callback on that
+  // explicit deep link so an unfinished general onboarding cannot take over
+  // the OAuth result page.
+  url.hash = "inventory";
+  return url.toString();
+}
+
+function callbackErrorCode(error: unknown): string {
+  const message = error instanceof Error ? error.message : String(error);
+  return /^[a-z0-9_:-]{1,160}$/i.test(message) ? message : "erp_callback_error";
+}
+
+@ApiTags("Inventory - ERP OAuth")
+@Controller("inventory/erp/oauth")
+export class ErpOAuthController {
+  private readonly logger = new Logger(ErpOAuthController.name);
+  constructor(
+    @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
+    private readonly marketplaceSync: TriggerMarketplaceSyncUseCase,
+    private readonly erpSync: TriggerErpSyncUseCase,
+    @Inject(TIKTOKSHOP_OAUTH_PORT) private readonly tiktokOAuth: TikTokShopOAuthPort,
+  ) {}
+
+  private async triggerInitialSync(merchantId: string, provider: string, accessToken: string, connectionId: string) {
+    try {
+      const result = await this.marketplaceSync.execute({ merchantId, provider, accessToken, connectionId });
+      this.logger.log("marketplace.initial_sync.complete", { merchantId, provider, imported: result.productsImported });
+    } catch (err) {
+      this.logger.error("marketplace.initial_sync.failed", { merchantId, provider, error: err instanceof Error ? err.message : String(err) });
+    }
+  }
+
+  /**
+   * GET /inventory/erp/oauth/:provider/authorize
+   * Returns { url } pointing to provider's OAuth authorize endpoint.
+   */
+  @Get(":provider/authorize")
+  @UseGuards(AuthGuard)
+  @ApiOperation({ summary: "Get ERP OAuth authorize URL" })
+  async authorize(@Req() request: any, @Param("provider") provider: string) {
+    const merchantId = currentUser(request).merchantId;
+    const provider_lower = provider.toLowerCase();
+    const state = this.signState(provider_lower, merchantId);
+
+    if (provider_lower === "bling") {
+      if (!env("BLING_CLIENT_ID") || !env("BLING_CLIENT_SECRET") || !env("BLING_REDIRECT_URI")) throw new Error("erp_bling_app_configuration_invalid");
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: env("BLING_CLIENT_ID"),
+        redirect_uri: env("BLING_REDIRECT_URI"),
+        state,
+      });
+      return {
+        url: `https://www.bling.com.br/Api/v3/oauth/authorize?${params.toString()}`,
+      };
+    }
+
+    if (provider_lower === "tiny") throw new Error("tiny_api_token_required");
+
+    if (provider_lower === "mercadolivre") {
+      const params = new URLSearchParams({
+        response_type: "code",
+        client_id: env("MERCADOLIVRE_APP_ID"),
+        redirect_uri: env("MERCADOLIVRE_REDIRECT_URI"),
+        state,
+      });
+      return {
+        url: `https://auth.mercadolivre.com.br/authorization?${params.toString()}`,
+      };
+    }
+
+    if (provider_lower === "shopee") return { url: shopeeAuthorizationUrl(state) };
+
+    if (provider_lower === "tiktokshop") {
+      return { url: this.tiktokOAuth.authorizationUrl(state) };
+    }
+
+    throw new Error(`unsupported_erp_provider:${provider_lower}`);
+  }
+
+  /**
+   * GET /inventory/erp/oauth/callback?code=X&state=Y
+   * OAuth callback: exchanges code for token, stores in ErpConnection, redirects to dashboard.
+   */
+  @Get("callback")
+  @ApiOperation({ summary: "ERP OAuth callback" })
+  async callback(
+    @Query("code") code: string,
+    @Query("state") state: string,
+    @Res() res: any,
+    @Query("shop_id") shopId?: string
+  ) {
+    if (!code || code === "null" || !state) {
+      res.redirect(302, dashboardRedirect({ error: "erp_denied" }));
+      return;
+    }
+
+    const { provider, merchantId } = this.verifyState(state);
+    if (!provider || !merchantId) {
+      this.logger.warn("erp.callback.invalid_state", { state });
+      res.redirect(302, dashboardRedirect({ error: "erp_csrf" }));
+      return;
+    }
+
+    try {
+      let tokenData: any;
+      let tokenEndpoint = "";
+      let clientId = "";
+      let clientSecret = "";
+      let redirectUri = "";
+      let providerConfig: Record<string, string> | null = null;
+
+      if (provider === "bling") {
+        tokenEndpoint = "https://api.bling.com.br/Api/v3/oauth/token";
+        clientId = env("BLING_CLIENT_ID");
+        clientSecret = env("BLING_CLIENT_SECRET");
+        redirectUri = env("BLING_REDIRECT_URI");
+
+        // Bling: Basic auth with client_id:client_secret
+        const auth = Buffer.from(`${clientId}:${clientSecret}`).toString("base64");
+        const tokenRes = await fetch(tokenEndpoint, {
+          method: "POST",
+          headers: {
+            Authorization: `Basic ${auth}`,
+            "Content-Type": "application/x-www-form-urlencoded",
+            "enable-jwt": "1",
+          },
+          body: new URLSearchParams({
+            grant_type: "authorization_code",
+            code,
+            redirect_uri: redirectUri,
+          }).toString(),
+          signal: AbortSignal.timeout(20_000),
+        });
+
+        if (!tokenRes.ok) {
+          this.logger.error("bling.token_exchange_failed", { status: tokenRes.status });
+          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
+          return;
+        }
+        tokenData = await tokenRes.json();
+        if (typeof tokenData?.access_token !== "string" || !tokenData.access_token || typeof tokenData?.refresh_token !== "string" || !tokenData.refresh_token || !Number.isSafeInteger(tokenData.expires_in) || tokenData.expires_in <= 0) throw new Error("bling_token_response_invalid");
+      } else if (provider === "mercadolivre") {
+        // Mercado Livre: JSON body, no Basic auth
+        const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
+          method: "POST",
+          headers: { "Content-Type": "application/json", Accept: "application/json" },
+          body: JSON.stringify({
+            grant_type: "authorization_code",
+            client_id: env("MERCADOLIVRE_APP_ID"),
+            client_secret: env("MERCADOLIVRE_CLIENT_SECRET"),
+            code,
+            redirect_uri: env("MERCADOLIVRE_REDIRECT_URI"),
+          }),
+        });
+        if (!tokenRes.ok) {
+          const err = await tokenRes.text();
+          this.logger.error("mercadolivre.token_exchange_failed", { status: tokenRes.status, error: err });
+          res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
+          return;
+        }
+        tokenData = await tokenRes.json();
+      } else if (provider === "shopee") {
+        const id = shopeeShopId(shopId);
+        const tokens = await exchangeShopeeCode(code, id);
+        const identity = await new ShopeeMarketplaceAdapter({ shopeeShopId: id }).getSellerInfo(tokens.accessToken);
+        tokenData = { access_token: tokens.accessToken, refresh_token: tokens.refreshToken, expires_at: tokens.expiresAt };
+        providerConfig = { shopeeShopId: identity.sellerId, shopeeShopName: identity.name, shopeeRefreshExpiresAt: tokens.refreshExpiresAt.toISOString() };
+      } else if (provider === "tiktokshop") {
+        const tokens = await this.tiktokOAuth.exchangeCode(code);
+        const shop = await this.tiktokOAuth.getShopIdentity(tokens.accessToken, shopId);
+        tokenData = {
+          access_token: tokens.accessToken,
+          refresh_token: tokens.refreshToken,
+          expires_at: tokens.expiresAt,
+        };
+        providerConfig = { tiktokShopId: shop.id, tiktokShopCipher: shop.cipher, tiktokRefreshExpiresAt: tokens.refreshExpiresAt.toISOString() };
+      }
+
+      // Encrypt and store in ErpConnection
+      const accessTokenCipher = encryptErpSecret(tokenData.access_token);
+      const refreshTokenCipher = tokenData.refresh_token ? encryptErpSecret(tokenData.refresh_token) : null;
+      const expiresAt = tokenData.expires_at ?? new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
+
+      const blingCompanyId = provider === "bling" ? await fetchBlingCompanyId(tokenData.access_token) : null;
+      const previousBling = provider === "bling" ? await this.prisma.erpConnection.findUnique({ where: { merchantId_provider: { merchantId, provider } } }) : null;
+      if (provider === "bling") {
+        if (previousBling?.config && typeof previousBling.config === "object" && !Array.isArray(previousBling.config) && previousBling.config.blingCompanyId && previousBling.config.blingCompanyId !== blingCompanyId) throw new Error("bling_company_change_requires_disconnect");
+        const existingRoute = await this.prisma.erpWebhookRoute.findUnique({
+          where: { provider_externalAccountId: { provider: "bling", externalAccountId: blingCompanyId! } },
+        });
+        if (existingRoute && existingRoute.merchantId !== merchantId) {
+          throw new Error("bling_company_already_connected");
+        }
+      }
+      const connection = await this.prisma.erpConnection.upsert({
+        where: { merchantId_provider: { merchantId, provider } },
+        update: {
+          status: "connected",
+          directionMode: previousBling?.directionMode ?? "bidirectional",
+          accessTokenCipher,
+          refreshTokenCipher,
+          tokenExpiresAt: expiresAt,
+          lastErrorCode: null,
+          ...(blingCompanyId ? { config: { ...(previousBling?.config as object ?? {}), blingCompanyId, blingClientFingerprint: blingClientFingerprint() } } : {}),
+          ...(providerConfig ? { config: providerConfig } : {}),
+        },
+        create: {
+          merchantId,
+          provider,
+          status: "connected",
+          directionMode: "bidirectional",
+          accessTokenCipher,
+          refreshTokenCipher,
+          tokenExpiresAt: expiresAt,
+          ...(blingCompanyId ? { config: { blingCompanyId, blingClientFingerprint: blingClientFingerprint() } } : {}),
+          ...(providerConfig ? { config: providerConfig } : {}),
+        },
+      });
+
+      this.logger.log("erp.connected", { merchantId, provider, expiresAt: expiresAt.toISOString() });
+
+      if (provider === "bling") {
+        await this.prisma.erpWebhookRoute.deleteMany({
+          where: { provider: "bling", connectionId: connection.id, externalAccountId: { not: blingCompanyId! } },
+        });
+        await this.prisma.erpWebhookRoute.upsert({
+          where: { provider_externalAccountId: { provider: "bling", externalAccountId: blingCompanyId! } },
+          update: { merchantId, connectionId: connection.id },
+          create: { provider: "bling", externalAccountId: blingCompanyId!, merchantId, connectionId: connection.id },
+        });
+      }
+
+      // Fire-and-forget: import products into inventory (marketplaces only)
+      if (isMarketplaceProvider(provider)) {
+        void this.triggerInitialSync(merchantId, provider, tokenData.access_token, connection.id);
+      } else if (provider === "bling") {
+        await this.erpSync.execute(merchantId, connection.id);
+      }
+
+      res.redirect(302, dashboardRedirect({ erp_connected: provider }));
+    } catch (err) {
+      const code = callbackErrorCode(err);
+      this.logger.error("erp.callback.error", { provider, merchantId, code });
+      res.redirect(302, dashboardRedirect({ error: code === "bling_company_change_requires_disconnect" ? code : "erp_callback_error" }));
+    }
+  }
+
+  private get stateSecret(): string {
+    return process.env.OAUTH_STATE_SECRET || process.env.JWT_SECRET || "dev-fallback-secret";
+  }
+
+  private signState(provider: string, merchantId: string): string {
+    const nonce = randomBytes(16).toString("hex");
+    const payload = `${provider}:${merchantId}:${nonce}`;
+    const signature = createHmac("sha256", this.stateSecret).update(payload).digest("hex").slice(0, 16);
+    return `${payload}:${signature}`;
+  }
+
+  private verifyState(state: string): { provider: string | null; merchantId: string | null } {
+    const parts = state.split(":");
+    if (parts.length !== 4) return { provider: null, merchantId: null };
+
+    const [provider, merchantId, nonce, signature] = parts;
+    const expected = createHmac("sha256", this.stateSecret).update(`${provider}:${merchantId}:${nonce}`).digest("hex").slice(0, 16);
+    if (signature !== expected) return { provider: null, merchantId: null };
+
+    return { provider, merchantId };
+  }
+}

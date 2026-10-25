@@ -1,0 +1,33 @@
+.marketplace-remediation-actions {
+  max-width: 1280px;
+  margin: 24px auto 48px;
+  padding-top: 16px;
+  border-top: 1px solid oklch(78% .03 155);
+  color: oklch(24% .035 155);
+  font: 13px/1.6 Manrope, system-ui, sans-serif;
+}
+.marketplace-remediation-actions summary {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+  min-height: 44px;
+  width: fit-content;
+  cursor: pointer;
+  font-weight: 600;
+}
+.marketplace-remediation-actions summary::after { content: "+"; font-size: 20px; }
+.marketplace-remediation-actions[open] summary::after { content: "−"; }
+.marketplace-remediation-actions > p { margin: 8px 0 16px; max-width: 65ch; }
+.marketplace-remediation-actions nav { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; }
+.marketplace-remediation-actions .zyn-btn {
+  justify-content: flex-start;
+  min-width: 0;
+  min-height: 44px;
+  color: inherit;
+  text-align: left;
+  white-space: normal;
+}
+.marketplace-remediation-actions :focus-visible { outline: 2px solid oklch(40% .085 155); outline-offset: 4px; }
+@media (max-width: 640px) {
+  .marketplace-remediation-actions nav { grid-template-columns: minmax(0, 1fr); }
+}

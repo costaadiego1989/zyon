@@ -1,0 +1,42 @@
+# Zyon
+
+Zyon é uma plataforma de IA especialista em vendas para lojas virtuais.
+
+## O que a plataforma faz
+
+- Usa catálogo e informações da loja para responder dúvidas e recomendar produtos.
+- Conduz a jornada do cliente até o checkout, por texto e, nos planos elegíveis, por voz.
+- Aplica regras comerciais configuradas pela loja a preço, desconto, margem e frete antes de apresentar uma condição.
+- Mantém catálogo, pedidos, clientes e regras visíveis no dashboard.
+
+## Posicionamento
+
+Zyon descreve sua abordagem como e-commerce agêntico: uma IA de vendas que trabalha com contexto comercial e regras definidas pelo lojista. A IA não substitui as políticas comerciais da loja.
+
+## Idiomas
+
+- Português do Brasil: https://www.zyon-payments.com.br/
+- Español: https://www.zyon-payments.com.br/es
+- English: https://www.zyon-payments.com.br/en
+
+## Páginas oficiais
+
+- Site: https://www.zyon-payments.com.br/
+- Demonstração: https://storefront.zyon-payments.com.br/store/athom-technologies
+- Biblioteca: https://www.zyon-payments.com.br/recursos
+- IA para vendas e e-commerce agêntico: https://www.zyon-payments.com.br/ecommerce-agentico
+- Regras comerciais para atendimento com IA: https://www.zyon-payments.com.br/governanca-de-ia-no-ecommerce
+- Agentes de compra: https://www.zyon-payments.com.br/agentes-de-compra
+- Guia: Plataforma de e-commerce com IA: https://www.zyon-payments.com.br/plataforma-ecommerce-com-ia
+- Guia: Migrar loja virtual: https://www.zyon-payments.com.br/migrar-loja-virtual
+- Guia: Agente de IA para e-commerce: https://www.zyon-payments.com.br/agente-ia-para-ecommerce
+- Guia: Vender pelo WhatsApp com IA: https://www.zyon-payments.com.br/como-vender-pelo-whatsapp-com-ia
+- Guia: Chatbot para WhatsApp de loja virtual: https://www.zyon-payments.com.br/chatbot-whatsapp-loja-virtual
+- Guia: Integrar WhatsApp à loja virtual: https://www.zyon-payments.com.br/integrar-whatsapp-loja-virtual
+- Painel: https://app.zyon-payments.com.br/
+- Termos: https://www.zyon-payments.com.br/termos
+- Privacidade: https://www.zyon-payments.com.br/privacidade
+
+## Limites de afirmações
+
+Não interpretar esta descrição como garantia de conversão, prazo de pagamento, disponibilidade de canal externo ou desconto automático. Recursos, integrações e condições comerciais dependem do plano, da configuração e da operação de cada loja.

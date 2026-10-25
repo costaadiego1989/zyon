@@ -1,0 +1,12 @@
+.marketplace-contributions .marketplace-refunds__amounts dt,
+.marketplace-contributions .marketplace-refunds__amounts dd,
+.marketplace-contributions .marketplace-refunds__table td { overflow-wrap: anywhere; }
+.marketplace-contributions .marketplace-refunds__state[data-state="credited"] { color: var(--color-success); }
+.marketplace-contributions__amount { display: flex; flex-direction: column; gap: .5rem; max-width: 24rem; font-weight: 600; }
+.marketplace-contributions__amount input { width: 100%; min-height: 44px; padding: .75rem; border: 1px solid var(--border); border-radius: var(--radius-sm); background: var(--card); color: var(--color-text); font: inherit; box-sizing: border-box; }
+.marketplace-contributions__checkout { align-self: flex-start; display: flex; align-items: center; min-height: 44px; color: var(--color-brand); font-weight: 600; text-decoration: underline; text-underline-offset: .2em; }
+@media (max-width: 600px) {
+  .marketplace-contributions .marketplace-refunds__table td:nth-child(2) { grid-column: 1 / -1; }
+  .marketplace-contributions__checkout { width: 100%; }
+  .marketplace-contributions .marketplace-refunds__amounts { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); }
+}

@@ -1,0 +1,193 @@
+import { ConflictException, Injectable } from "@nestjs/common";
+import { PrismaClient } from "@prisma/client";
+import type {
+  MarketplaceSettlementRepository,
+  MarketplaceSettlementSnapshot,
+  CreateMarketplaceSettlementInput,
+  UpdateSettlementStatusInput,
+  SettlementStatus,
+} from "../../domain/ports/marketplace-settlement-repository.port.js";
+
+@Injectable()
+export class PrismaMarketplaceSettlementRepository
+  implements MarketplaceSettlementRepository
+{
+  constructor(private readonly prisma: PrismaClient) {}
+
+  async create(
+    input: CreateMarketplaceSettlementInput,
+  ): Promise<MarketplaceSettlementSnapshot> {
+    const settlement = await this.prisma.marketplaceSettlement.upsert({
+      where: { lineItemId: input.lineItemId },
+      update: {},
+      create: {
+        hostMerchantId: input.hostMerchantId,
+        sellerMerchantId: input.sellerMerchantId,
+        orderId: input.orderId,
+        lineItemId: input.lineItemId,
+        totalAmountCents: input.totalAmountCents,
+        commissionCents: input.commissionCents,
+        sellerNetCents: input.sellerNetCents,
+        returnWindowUntil: input.returnWindowUntil,
+        transferScheduledAt: input.transferScheduledAt,
+        chargebackWindowUntil: input.chargebackWindowUntil,
+      },
+    });
+    for (const key of ["hostMerchantId", "sellerMerchantId", "orderId", "totalAmountCents", "commissionCents", "sellerNetCents"] as const) {
+      if (settlement[key] !== input[key]) throw new ConflictException("marketplace_settlement_replay_mismatch");
+    }
+    return this.toSnapshot(settlement);
+  }
+
+  async getById(
+    settlementId: string,
+  ): Promise<MarketplaceSettlementSnapshot | undefined> {
+    const settlement = await this.prisma.marketplaceSettlement.findUnique({
+      where: { id: settlementId },
+    });
+    if (!settlement) return undefined;
+    return this.toSnapshot(settlement);
+  }
+
+  async getByIdForMerchant(
+    settlementId: string,
+    merchantId: string,
+  ): Promise<MarketplaceSettlementSnapshot | undefined> {
+    if (!merchantId) return undefined;
+    const settlement = await this.prisma.marketplaceSettlement.findFirst({
+      where: {
+        id: settlementId,
+        OR: [{ hostMerchantId: merchantId }, { sellerMerchantId: merchantId }],
+      },
+    });
+    return settlement ? this.toSnapshot(settlement) : undefined;
+  }
+
+  async findByLineItemId(
+    lineItemId: string,
+  ): Promise<MarketplaceSettlementSnapshot | undefined> {
+    const settlement = await this.prisma.marketplaceSettlement.findFirst({
+      where: { lineItemId },
+    });
+    if (!settlement) return undefined;
+    return this.toSnapshot(settlement);
+  }
+
+  async findByOrderId(
+    orderId: string,
+  ): Promise<MarketplaceSettlementSnapshot[]> {
+    const settlements = await this.prisma.marketplaceSettlement.findMany({
+      where: { orderId },
+      orderBy: { createdAt: "desc" },
+    });
+    return settlements.map((s: any) => this.toSnapshot(s));
+  }
+
+  async findBySellerMerchantId(
+    sellerMerchantId: string,
+    status?: SettlementStatus,
+  ): Promise<MarketplaceSettlementSnapshot[]> {
+    const settlements = await this.prisma.marketplaceSettlement.findMany({
+      where: {
+        sellerMerchantId,
+        ...(status && { status }),
+      },
+      orderBy: { createdAt: "desc" },
+    });
+    return settlements.map((s: any) => this.toSnapshot(s));
+  }
+
+  async findExpiredReturnWindows(
+    nowDate: Date,
+  ): Promise<MarketplaceSettlementSnapshot[]> {
+    const settlements = await this.prisma.marketplaceSettlement.findMany({
+      where: {
+        status: "awaiting_return_window",
+        returnWindowUntil: { lte: nowDate },
+      },
+    });
+    return settlements.map((s: any) => this.toSnapshot(s));
+  }
+
+  async findDueTransfers(
+    nowDate: Date,
+  ): Promise<MarketplaceSettlementSnapshot[]> {
+    const settlements = await this.prisma.marketplaceSettlement.findMany({
+      where: {
+        status: "transfer_scheduled",
+        transferScheduledAt: { lte: nowDate },
+        OR: [{ payout: { is: null } }, { payout: { is: { OR: [
+          { fundingPlanId: null }, { fundingPlan: { is: { residualPlans: { none: {} } } } },
+        ] } } }],
+      },
+    });
+    return settlements.map((s: any) => this.toSnapshot(s));
+  }
+
+  async findExpiredChargebackWindows(
+    nowDate: Date,
+  ): Promise<MarketplaceSettlementSnapshot[]> {
+    const settlements = await this.prisma.marketplaceSettlement.findMany({
+      where: {
+        status: "transferred",
+        providerTransferId: { not: null },
+        chargebackWindowUntil: { lte: nowDate },
+      },
+    });
+    return settlements.map((s: any) => this.toSnapshot(s));
+  }
+
+  async updateStatus(
+    input: UpdateSettlementStatusInput,
+  ): Promise<MarketplaceSettlementSnapshot> {
+    const settlement = await this.prisma.marketplaceSettlement.update({
+      where: { id: input.settlementId, ...(input.expectedStatus && { status: input.expectedStatus }) },
+      data: {
+        status: input.status,
+        ...(input.transferScheduledAt !== undefined && {
+          transferScheduledAt: input.transferScheduledAt,
+        }),
+        ...(input.transferredAt !== undefined && {
+          transferredAt: input.transferredAt,
+        }),
+        ...(input.finalizedAt !== undefined && {
+          finalizedAt: input.finalizedAt,
+        }),
+        ...(input.chargebackAt !== undefined && {
+          chargebackAt: input.chargebackAt,
+        }),
+        ...(input.returnAt !== undefined && {
+          returnAt: input.returnAt,
+        }),
+        ...(input.providerTransferId !== undefined && {
+          providerTransferId: input.providerTransferId,
+        }),
+      },
+    });
+    return this.toSnapshot(settlement);
+  }
+
+  private toSnapshot(settlement: any): MarketplaceSettlementSnapshot {
+    return {
+      id: settlement.id,
+      hostMerchantId: settlement.hostMerchantId,
+      sellerMerchantId: settlement.sellerMerchantId,
+      orderId: settlement.orderId,
+      lineItemId: settlement.lineItemId,
+      totalAmountCents: settlement.totalAmountCents,
+      commissionCents: settlement.commissionCents,
+      sellerNetCents: settlement.sellerNetCents,
+      status: settlement.status as SettlementStatus,
+      returnWindowUntil: settlement.returnWindowUntil,
+      transferScheduledAt: settlement.transferScheduledAt,
+      chargebackWindowUntil: settlement.chargebackWindowUntil,
+      transferredAt: settlement.transferredAt,
+      finalizedAt: settlement.finalizedAt,
+      chargebackAt: settlement.chargebackAt,
+      returnAt: settlement.returnAt,
+      providerTransferId: settlement.providerTransferId,
+      createdAt: settlement.createdAt,
+      updatedAt: settlement.updatedAt,
+    };
+  }
+}
