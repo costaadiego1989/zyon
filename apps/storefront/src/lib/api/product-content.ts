@@ -1,0 +1,224 @@
+/**
+ * Storefront public-content fetch layer.
+ *
+ * Wraps the flag-gated `GET /storefront/:slug/products/:productId/content`
+ * endpoint. Returns `null` for any non-200 outcome — caller falls back to
+ * the legacy `ProductCardBlock` surface.
+ *
+ * Notes:
+ *  - Server-only fetch (Node runtime). NOT safe for client components.
+ *  - Endpoint is gated by `@RequirePlanFeature("advancedProductLayout")` and
+ *    `MerchantOwnershipGuard`, so non-flagged merchants receive 404 here.
+ *  - Result shape mirrors `PublicProductContent` from
+ *    `apps/api/src/modules/catalog/application/use-cases/get-product-content.use-case.ts`.
+ */
+
+import "server-only";
+
+const API_BASE_URL =
+  process.env.AACP_API_URL ??
+  process.env.NEXT_PUBLIC_API_BASE_URL ??
+  "http://localhost:3009";
+
+export interface ProductContentBlockNode {
+  id: string;
+  productId: string;
+  type: string;
+  props: Record<string, unknown>;
+  order: number;
+  isEnabled: boolean;
+}
+
+export interface ProductFaqItemResponse {
+  id: string;
+  productId: string;
+  question: string;
+  answer: string;
+  order: number;
+  isPublished: boolean;
+}
+
+export interface ProductTestimonialResponse {
+  id: string;
+  productId: string;
+  authorName: string;
+  authorAvatarUrl?: string | null;
+  body: string;
+  rating?: number | null;
+  source: "curated" | "customer_submission";
+  moderationStatus: string;
+  isPublished: boolean;
+}
+
+export interface ProductVideoResponse {
+  id: string;
+  productId: string;
+  title: string;
+  videoUrl: string;
+  thumbnailUrl?: string | null;
+  durationSeconds?: number | null;
+  source: "merchant" | "customer";
+  moderationStatus: string;
+  isPublished: boolean;
+}
+
+/** Minimal server-authoritative input required for a rich-content purchase CTA. */
+export interface ProductContentPurchaseResponse {
+  seo?: {
+    title?: string | null;
+    description?: string | null;
+    ogTitle?: string | null;
+    ogDescription?: string | null;
+    twitterCard?: string | null;
+    keywords?: string[];
+  };
+  ruleNotices?: Array<{ ruleId?: string; message: string }>;
+  productName: string;
+  description?: string | null;
+  defaultVariantId: string | null;
+  /** Public display amount in reais. The cart still recalculates from catalog. */
+  priceReais?: number | null;
+  currency?: string;
+  variants: Array<{
+    id: string;
+    sku?: string;
+    attributes: Record<string, string>;
+    available: boolean;
+    priceReais: number | null;
+    currency: string;
+    lowStock: boolean;
+  }>;
+  images: Array<{ src: string; alt: string; variantId: string }>;
+  isDemo?: boolean;
+  optionGroups: Array<{
+    id: string;
+    name: string;
+    required: boolean;
+    selectionType: "single" | "multiple";
+    items: Array<{ id: string; name: string; priceModifierInCents: number }>;
+  }>;
+}
+
+export interface ProductContentCrossSell {
+  trigger: string;
+  displayMode?: string;
+  products: Array<{
+    id: string;
+    productId?: string;
+    name: string;
+    price: number;
+    priceFormatted: string;
+    image?: string;
+    inStock: boolean;
+    discountPercent?: number;
+    promoId?: string;
+  }>;
+}
+
+export interface PublicProductContent {
+  merchantId?: string;
+  productId: string;
+  blocks: ProductContentBlockNode[];
+  faqs: ProductFaqItemResponse[];
+  testimonials: ProductTestimonialResponse[];
+  videos: ProductVideoResponse[];
+  purchase?: ProductContentPurchaseResponse;
+  crossSell?: ProductContentCrossSell;
+}
+
+/**
+ * Server-side fetch of rich product content for a public storefront route.
+ *
+ * Returns `null` when:
+ *  - the response is non-2xx (404 for missing store / product / flag-off merchants),
+ *  - the body is not JSON,
+ *  - the endpoint is unreachable.
+ *
+ * Callers MUST treat `null` as "fall back to legacy product card".
+ */
+export async function fetchProductContent(
+  slug: string,
+  productId: string,
+): Promise<PublicProductContent | null> {
+  if (!slug || !productId) return null;
+
+  const url = `${API_BASE_URL}/storefront/${encodeURIComponent(slug)}/products/${encodeURIComponent(productId)}/share`;
+
+  try {
+    const res = await fetch(url, {
+      headers: {
+        Accept: "application/json",
+      },
+      // Skip the HTTP cache — the read-side metrics recorder expects a live read
+      // on each navigation; SSR can re-issue cheap calls.
+      cache: "no-store",
+    });
+
+    if (!res.ok) return null;
+    const body = (await res.json()) as Partial<PublicProductContent>;
+    if (!body || typeof body !== "object" || !Array.isArray(body.blocks)) {
+      return null;
+    }
+
+    return {
+      merchantId: typeof body.merchantId === "string" ? body.merchantId : undefined,
+      productId: typeof body.productId === "string" ? body.productId : productId,
+      blocks: body.blocks ?? [],
+      faqs: Array.isArray(body.faqs) ? body.faqs : [],
+      testimonials: Array.isArray(body.testimonials) ? body.testimonials : [],
+      videos: Array.isArray(body.videos) ? body.videos : [],
+      crossSell: readCrossSell(body.crossSell),
+      purchase:
+        body.purchase &&
+        typeof body.purchase === "object" &&
+        typeof (body.purchase as ProductContentPurchaseResponse).productName === "string" &&
+        ((body.purchase as ProductContentPurchaseResponse).defaultVariantId === null || typeof (body.purchase as ProductContentPurchaseResponse).defaultVariantId === "string")
+          ? {
+              ...(body.purchase as ProductContentPurchaseResponse),
+              images: Array.isArray(body.purchase.images) ? body.purchase.images : [],
+              variants: Array.isArray((body.purchase as ProductContentPurchaseResponse).variants)
+                ? (body.purchase as ProductContentPurchaseResponse).variants
+                    .filter((variant) => variant && typeof variant.id === "string")
+                : [],
+              optionGroups: Array.isArray((body.purchase as ProductContentPurchaseResponse).optionGroups)
+                ? (body.purchase as ProductContentPurchaseResponse).optionGroups
+                : [],
+            }
+          : undefined,
+    };
+  } catch {
+    // Network error, DNS failure, etc. Caller falls back to ProductCardBlock.
+    return null;
+  }
+}
+
+function readCrossSell(value: unknown): ProductContentCrossSell | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const data = value as Record<string, unknown>;
+  if (typeof data.trigger !== "string" || !Array.isArray(data.products)) return undefined;
+  const products = data.products.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const product = item as Record<string, unknown>;
+    if (
+      typeof product.id !== "string" ||
+      typeof product.name !== "string" ||
+      typeof product.price !== "number" ||
+      typeof product.priceFormatted !== "string" ||
+      typeof product.inStock !== "boolean"
+    ) return [];
+    return [{
+      id: product.id,
+      ...(typeof product.productId === "string" ? { productId: product.productId } : {}),
+      name: product.name,
+      price: product.price,
+      priceFormatted: product.priceFormatted,
+      ...(typeof product.image === "string" ? { image: product.image } : {}),
+      inStock: product.inStock,
+      ...(typeof product.discountPercent === "number" ? { discountPercent: product.discountPercent } : {}),
+      ...(typeof product.promoId === "string" ? { promoId: product.promoId } : {}),
+    }];
+  });
+  return products.length > 0
+    ? { trigger: data.trigger, ...(typeof data.displayMode === "string" ? { displayMode: data.displayMode } : {}), products }
+    : undefined;
+}

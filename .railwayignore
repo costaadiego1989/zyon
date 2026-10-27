@@ -1,0 +1,11 @@
+**/node_modules/**
+**/dist/**
+**/.env
+**/.env.*
+**/.git/**
+**/coverage/**
+**/.next/**
+**/.vercel/**
+**/.audit/**
+**/dist-umd/**
+**/e2e/**

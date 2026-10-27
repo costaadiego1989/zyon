@@ -1,0 +1,83 @@
+import type { CheckoutSession } from "@/api/checkout-session";
+
+export type CheckoutEventName =
+  | "checkout_started"
+  | "channel_selected"
+  | "cart_viewed"
+  | "item_quantity_updated"
+  | "item_removed"
+  | "cross_sell_accepted"
+  | "shipping_option_selected"
+  | "payment_method_selected"
+  | "order_completed"
+  | "checkout_abandoned"
+  | "idle_30_seconds"
+  | "exit_intent_detected"
+  | "shipping_objection_detected"
+  | "coupon_field_clicked"
+  | "payment_failed";
+
+let api: CheckoutSession | null = null;
+let sessionId: string | null = null;
+
+export function initTracking(apiInstance: CheckoutSession, session: string) {
+  api = apiInstance;
+  sessionId = session;
+}
+
+export interface TrackEventResult {
+  progressive_offer?: {
+    stage: string;
+    approved_percent: number;
+    reason: string;
+  };
+}
+
+export async function trackEvent(
+  event: CheckoutEventName,
+  data?: Record<string, unknown>,
+  options?: { keepalive?: boolean },
+): Promise<TrackEventResult | undefined> {
+  // The approved-payment flow records completion on the server.
+  if (event === "order_completed" || !api || !sessionId) return undefined;
+  try {
+    const res = await fetch(`${api.embedApiBaseUrl}/embed/track`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json",
+        Authorization: `Bearer ${api.authToken}`,
+      },
+      body: JSON.stringify({
+        session_id: sessionId,
+        event,
+        metadata: data ?? {},
+      }),
+      // A normal fetch is cancelled as the page is closed. Cart recovery must
+      // receive the terminal event even when the buyer closes the tab/window.
+      keepalive: options?.keepalive === true,
+    });
+    if (res.ok) return (await res.json()) as TrackEventResult;
+  } catch {
+  }
+  return undefined;
+}
+
+export function setupAbandonmentTracking(): () => void {
+  let reported = false;
+  const handler = () => {
+    if (reported) return;
+    reported = true;
+    void trackEvent("checkout_abandoned", {
+      timestamp: new Date().toISOString(),
+      url: window.location.href,
+    }, { keepalive: true });
+  };
+  // pagehide is fired for normal tab/window closes as well as mobile browser
+  // lifecycle changes. beforeunload remains as a compatibility fallback.
+  window.addEventListener("pagehide", handler);
+  window.addEventListener("beforeunload", handler);
+  return () => {
+    window.removeEventListener("pagehide", handler);
+    window.removeEventListener("beforeunload", handler);
+  };
+}

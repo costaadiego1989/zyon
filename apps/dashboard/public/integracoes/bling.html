@@ -1,0 +1,105 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="description" content="Manual da integração Zyon com o Bling: autorize sua conta, importe produtos e acompanhe a sincronização de estoque.">
+  <title>Conectar Bling à Zyon — Manual</title>
+  <link rel="canonical" href="https://app.zyon-payments.com.br/integracoes/bling.html">
+  <style>
+    :root { color-scheme: dark; --bg: oklch(13% .002 145); --surface: oklch(18.5% .004 145); --text: oklch(96% .002 145); --secondary: oklch(80% .005 145); --line: oklch(35% .008 145); --accent: oklch(74% .19 149); }
+    * { box-sizing: border-box; }
+    body { margin: 0; background: var(--bg); color: var(--text); font: 1rem/1.7 system-ui, -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif; }
+    header, main, footer { width: min(100% - 48px, 760px); margin-inline: auto; }
+    header { display: flex; align-items: center; justify-content: space-between; gap: 24px; padding-block: 24px; border-bottom: 1px solid var(--line); }
+    .brand { display: inline-flex; align-items: center; gap: 12px; color: var(--text); font-size: 1.25rem; font-weight: 750; text-decoration: none; }
+    .brand img { width: 40px; height: 34px; object-fit: contain; }
+    a { color: var(--accent); text-underline-offset: 4px; overflow-wrap: anywhere; }
+    a:hover { text-decoration-thickness: 2px; }
+    a:focus-visible { outline: 2px solid var(--accent); outline-offset: 5px; border-radius: 3px; }
+    .skip { position: absolute; top: -100px; left: 20px; padding: 12px; background: var(--surface); }
+    .skip:focus { top: 12px; }
+    main { padding-block: 48px 32px; }
+    h1, h2 { line-height: 1.25; text-wrap: balance; }
+    h1 { font-size: 2.25rem; letter-spacing: -.025em; margin: 0 0 20px; }
+    h2 { font-size: 1.375rem; margin: 0 0 16px; }
+    p { margin: 0 0 16px; text-wrap: pretty; }
+    .intro { color: var(--secondary); font-size: 1.125rem; }
+    section { margin-top: 40px; }
+    ul, ol { padding-left: 24px; margin-block: 16px; }
+    li { padding-left: 4px; margin-block: 12px; }
+    li p { color: var(--secondary); margin-block: 6px 0; }
+    .action { display: inline-flex; align-items: center; min-height: 44px; padding: 10px 18px; border-radius: 8px; color: var(--bg); background: var(--accent); text-decoration: none; font-weight: 700; }
+    .action:hover { background: oklch(80% .17 149); }
+    .note { background: var(--surface); padding: 20px; border-radius: 10px; }
+    footer { border-top: 1px solid var(--line); padding-block: 24px 40px; color: var(--secondary); font-size: .875rem; }
+    footer nav { display: flex; flex-wrap: wrap; gap: 12px 24px; margin-bottom: 16px; }
+    @media (max-width: 480px) { header, main, footer { width: calc(100% - 32px); } header { gap: 16px; } header > a:last-child { font-size: .875rem; } main { padding-top: 32px; } h1 { font-size: 1.875rem; } }
+    @media print { :root { --bg: white; --surface: #eee; --text: #111; --secondary: #333; --line: #999; --accent: #075b31; } header > a:last-child, .action, .skip { display: none; } main { padding-top: 24px; } section { break-inside: avoid; } }
+  </style>
+</head>
+<body>
+  <a class="skip" href="#conteudo">Ir para o conteúdo</a>
+  <header>
+    <a class="brand" href="https://www.zyon-payments.com.br/"><img src="/zyon-mark.png" alt="" width="40" height="34">Zyon</a>
+    <a href="/#erp-integrations">Abrir integrações</a>
+  </header>
+  <main id="conteudo">
+    <h1>Conectar sua conta Bling à Zyon</h1>
+    <p class="intro">Autorize o acesso aos produtos e ao estoque da sua empresa. A Zyon importa o catálogo do Bling e mantém os saldos sincronizados com a sua loja.</p>
+
+    <section aria-labelledby="requisitos">
+      <h2 id="requisitos">Antes de conectar</h2>
+      <ul>
+        <li>Tenha uma conta Zyon e uma loja cadastrada. Para conhecer a plataforma e criar sua conta, acesse o <a href="https://www.zyon-payments.com.br/">site da Zyon</a>.</li>
+        <li>Tenha sua própria conta Bling, com acesso à API e permissão para autorizar aplicativos. As condições e os limites do seu plano são definidos pelo Bling.</li>
+        <li>Confira os produtos, preços e saldos no Bling. Cadastre os produtos que deseja importar antes da primeira sincronização.</li>
+      </ul>
+      <p>O cliente autoriza o aplicativo Zyon. Não é necessário criar um aplicativo de desenvolvedor nem copiar chaves para conectar o Bling.</p>
+    </section>
+
+    <section aria-labelledby="conexao">
+      <h2 id="conexao">Autorizar a conexão</h2>
+      <ol>
+        <li><strong>Abra a loja no painel Zyon.</strong><p>Entre com seu usuário e selecione a loja que receberá os produtos.</p></li>
+        <li><strong>Acesse Integrações → ERP e marketplaces.</strong><p>No conector Bling, clique em <strong>Conectar</strong>.</p></li>
+        <li><strong>Entre na sua conta Bling.</strong><p>Confira a empresa selecionada, o nome Zyon e as permissões apresentadas. Autorize o acesso nessa página do Bling.</p></li>
+        <li><strong>Aguarde o retorno ao painel.</strong><p>Confira o estado da conexão. A primeira importação pode levar alguns minutos, dependendo do tamanho do catálogo.</p></li>
+        <li><strong>Revise o catálogo e o estoque.</strong><p>Na aba Estoque da Zyon, confira os produtos, preços e saldos importados antes de começar a vender.</p></li>
+      </ol>
+      <a class="action" href="/#erp-integrations">Conectar pelo painel Zyon</a>
+    </section>
+
+    <section aria-labelledby="sincronizacao">
+      <h2 id="sincronizacao">Produtos e estoque</h2>
+      <p>O conector consulta os produtos, preços e saldos físicos do Bling. Após a importação inicial, a Zyon realiza novas consultas periódicas. Para solicitar uma atualização, use <strong>Sincronizar agora</strong> no conector e acompanhe a última sincronização.</p>
+      <p>As vendas da loja Zyon geram atualizações de saldo no Bling. Para essa atualização, o conector utiliza o depósito padrão do Bling ou o único depósito ativo disponível.</p>
+      <div class="note"><strong>Se sua empresa usa vários depósitos:</strong> confira o depósito padrão antes de vender. Se não for possível determinar um depósito, a atualização de estoque pode falhar; o conector apresenta o estado da sincronização no painel.</div>
+    </section>
+
+    <section aria-labelledby="problemas">
+      <h2 id="problemas">Se a sincronização falhar</h2>
+      <ul>
+        <li><strong>Conexão precisa ser reautorizada:</strong> clique em <strong>Reconectar</strong> e conclua novamente a autorização no Bling.</li>
+        <li><strong>Produtos ou saldos não foram atualizados:</strong> confira os dados no Bling, solicite <strong>Sincronizar agora</strong> e aguarde o processamento.</li>
+        <li><strong>Falha persistente:</strong> informe ao suporte a loja, o horário e a mensagem exibida no painel. Não envie senhas, códigos de autorização ou chaves.</li>
+      </ul>
+      <p>Suporte Zyon: <a href="mailto:costaadiego1989@gmail.com?subject=Integra%C3%A7%C3%A3o%20Bling%20%E2%80%94%20Zyon">costaadiego1989@gmail.com</a>.</p>
+    </section>
+
+    <section aria-labelledby="desconectar">
+      <h2 id="desconectar">Desconectar e controlar o acesso</h2>
+      <p>Use <strong>Desconectar</strong> no painel Zyon para interromper a sincronização. Para revogar a autorização também no Bling, acesse <strong>Central de Extensões → Minhas instalações</strong>, localize Zyon e escolha a opção de desinstalação.</p>
+      <p>Você pode consultar as condições de uso e o tratamento de dados nos links abaixo.</p>
+    </section>
+  </main>
+  <footer>
+    <nav aria-label="Informações legais">
+      <a href="https://www.zyon-payments.com.br/privacidade.html">Privacidade</a>
+      <a href="https://www.zyon-payments.com.br/termos.html">Termos de uso</a>
+      <a href="https://www.zyon-payments.com.br/exclusao-de-dados.html">Solicitar exclusão de dados</a>
+    </nav>
+    <p>Zyon · ATOM TECHNOLOGIES LTDA</p>
+  </footer>
+</body>
+</html>

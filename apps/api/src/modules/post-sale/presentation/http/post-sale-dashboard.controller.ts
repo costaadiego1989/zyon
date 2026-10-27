@@ -1,0 +1,215 @@
+import { RecoveryTemplateLifecycleUseCase } from "../../../whatsapp-templates/application/use-cases/recovery-template-lifecycle.use-case.js";
+import { WHATSAPP_TEMPLATE_TYPES } from "../../../whatsapp-templates/domain/catalog/template-types.js";
+import {
+  Controller,
+  Get,
+  UseGuards,
+  Req,
+  BadRequestException,
+  Logger,
+  Patch,
+  Param,
+  Body,
+  Query,
+  Post,
+  Put,
+} from "@nestjs/common";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { PlanLimitGuard, RequirePlanFeature } from "../../../payment/domain/billing-plan-guard.js";
+import { currentTenantPrincipal, type TenantPrincipalRequest } from "../../../../shared/auth/tenant-principal.js";
+import { GetPostSaleDashboardUseCase } from "../../application/use-cases/get-post-sale-dashboard.use-case.js";
+import { GeneratePostSaleTemplateUseCase } from "../../application/use-cases/generate-post-sale-template.use-case.js";
+import { REVIEW_REPOSITORY, type ReviewRepositoryPort } from "../../domain/ports/review-repository.port.js";
+import { NPS_REPOSITORY, type NpsRepositoryPort } from "../../domain/ports/nps-repository.port.js";
+import { POST_SALE_TEMPLATE_REPOSITORY, type PostSaleTemplateRepositoryPort } from "../../domain/ports/post-sale-template-repository.port.js";
+import { TEMPLATE_SUBMISSION_PORT, type TemplateSubmissionPort } from "../../../whatsapp-templates/domain/ports/template-submission.port.js";
+import { SubmitTemplatePackageUseCase } from "../../../whatsapp-templates/application/use-cases/submit-template-package.use-case.js";
+import { SyncTemplateStatusesUseCase } from "../../../whatsapp-templates/application/use-cases/sync-template-statuses.use-case.js";
+import { Inject, Optional } from "@nestjs/common";
+
+@Controller("dashboard/post-sale")
+@UseGuards(AuthGuard, PlanLimitGuard)
+@RequirePlanFeature("postSale")
+export class PostSaleDashboardController {
+  private readonly logger = new Logger(PostSaleDashboardController.name);
+
+  constructor(
+    private readonly lifecycle: RecoveryTemplateLifecycleUseCase,
+    private readonly dashboard: GetPostSaleDashboardUseCase,
+    private readonly generateTemplateUseCase: GeneratePostSaleTemplateUseCase,
+    @Inject(REVIEW_REPOSITORY)
+    private readonly reviews: ReviewRepositoryPort,
+    @Inject(NPS_REPOSITORY)
+    private readonly nps: NpsRepositoryPort,
+    @Optional() @Inject(POST_SALE_TEMPLATE_REPOSITORY)
+    private readonly templates?: PostSaleTemplateRepositoryPort,
+    @Optional() @Inject(TEMPLATE_SUBMISSION_PORT)
+    private readonly templateSubmission?: TemplateSubmissionPort,
+    @Optional()
+    private readonly submitPackage?: SubmitTemplatePackageUseCase,
+    @Optional()
+    private readonly syncStatuses?: SyncTemplateStatusesUseCase
+  ) {}
+
+  @Get("stats")
+  async getStats(@Req() req: TenantPrincipalRequest) {
+    const tenant = currentTenantPrincipal(req);
+    return this.dashboard.execute(tenant.tenantId);
+  }
+
+  @Get("reviews")
+  async listReviews(
+    @Req() req: TenantPrincipalRequest,
+    @Query("page") page?: string,
+    @Query("productId") productId?: string,
+    @Query("status") status?: "pending" | "approved" | "rejected"
+  ) {
+    const tenant = currentTenantPrincipal(req);
+    const pageNum = page ? parseInt(page, 10) : 1;
+
+    const result = await this.reviews.list({
+      merchantId: tenant.tenantId,
+      productId,
+      moderationStatus: status,
+      page: pageNum,
+      pageSize: 20,
+    });
+
+    return {
+      items: result.items,
+      total: result.total,
+      page: pageNum,
+    };
+  }
+
+  @Get("nps")
+  async listNps(
+    @Req() req: TenantPrincipalRequest,
+    @Query("page") page?: string
+  ) {
+    const tenant = currentTenantPrincipal(req);
+    const pageNum = page ? parseInt(page, 10) : 1;
+
+    const result = await this.nps.listByMerchant(tenant.tenantId, pageNum, 20);
+
+    return {
+      items: result.items,
+      total: result.total,
+      page: pageNum,
+    };
+  }
+
+  @Patch("reviews/:id/moderate")
+  async moderateReview(
+    @Req() req: TenantPrincipalRequest,
+    @Param("id") reviewId: string,
+    @Body() body: { status: "approved" | "rejected" }
+  ) {
+    const tenant = currentTenantPrincipal(req);
+
+    const review = await this.reviews.findById(tenant.tenantId, reviewId);
+    if (!review) {
+      throw new BadRequestException("Review not found");
+    }
+
+    const updated = await this.reviews.update(reviewId, {
+      moderationStatus: body.status,
+    });
+
+    this.logger.log(
+      `Review moderated`,
+      {
+        reviewId,
+        status: body.status,
+        merchantId: tenant.tenantId,
+      }
+    );
+
+    return {
+      success: true,
+      review: updated,
+    };
+  }
+
+  @Get("templates")
+  async listTemplates(@Req() req: TenantPrincipalRequest) {
+    const tenant = currentTenantPrincipal(req);
+
+    if (!this.templates) {
+      throw new BadRequestException("Templates feature not available");
+    }
+
+    for (const type of WHATSAPP_TEMPLATE_TYPES) await this.lifecycle.ensure(tenant.tenantId, type);
+    const templates = await this.templates.findAllByMerchant(tenant.tenantId);
+    return { templates: templates.map(t => ({ ...t, metaRevision: templates.find(w => w.type === t.type && w.channel === "whatsapp")?.metaRevision })) };
+  }
+
+  @Put("templates/:type/:channel")
+  async upsertTemplate(@Req() req: TenantPrincipalRequest, @Param("type") type: string, @Param("channel") channel: string,
+    @Body() body: { body: string; subject?: string; revision?: number }) {
+    return { template: await this.lifecycle.saveChannel(currentTenantPrincipal(req).tenantId, type, channel, body) };
+  }
+
+  @Post("templates/:type/:channel/submit-meta")
+  async submitMetaTemplate(@Req() req: TenantPrincipalRequest, @Param("type") type: string, @Param("channel") channel: string) {
+    if (channel !== "whatsapp") throw new BadRequestException("invalid_template_channel");
+    const template = await this.lifecycle.submit(currentTenantPrincipal(req).tenantId, type);
+    return { template, submission: { status: template.metaStatus, contentSid: template.twilioContentSid } };
+  }
+
+  @Post("templates/:type/restore")
+  async restoreTemplate(@Req() req: TenantPrincipalRequest, @Param("type") type: string, @Body() body: { revision: number; expectedRevision: number }) {
+    const merchantId = currentTenantPrincipal(req).tenantId;
+    await this.lifecycle.restore(merchantId, type, body.revision, body.expectedRevision);
+    return { template: await this.lifecycle.record(merchantId, type, "whatsapp") };
+  }
+
+  @Get("templates/:type/:channel/meta-status")
+  async metaTemplateStatus(@Req() req: TenantPrincipalRequest, @Param("type") type: string, @Param("channel") channel: string) {
+    if (channel !== "whatsapp") throw new BadRequestException("invalid_template_channel");
+    const tpl = await this.lifecycle.submit(currentTenantPrincipal(req).tenantId, type);
+    return { status: tpl.metaStatus, contentSid: tpl.twilioContentSid, rejectionReason: tpl.metaRejectionReason };
+  }
+
+  @Post("templates/generate")
+  async generatePostSaleTemplate(
+    @Req() req: TenantPrincipalRequest,
+    @Body() body: { type: string; channel: string; tone?: string; storeName?: string }
+  ) {
+    const tenant = currentTenantPrincipal(req);
+
+    const generated = await this.generateTemplateUseCase.execute({
+      type: body.type as any,
+      channel: body.channel,
+      tone: body.tone,
+      storeName: body.storeName || "loja",
+    });
+
+    this.logger.log(`Template generated`, {
+      type: body.type,
+      channel: body.channel,
+      merchantId: tenant.tenantId,
+    });
+
+    return generated;
+  }
+
+  @Post("templates/submit-package")
+  async submitTemplatePackage(@Req() req: TenantPrincipalRequest) {
+    const tenant = currentTenantPrincipal(req);
+    if (!this.submitPackage) throw new BadRequestException("templates_feature_not_available");
+    const result = await this.submitPackage.execute(tenant.tenantId);
+    this.logger.log(`Template package submitted`, { merchantId: tenant.tenantId, submitted: result.submitted });
+    return result;
+  }
+
+  @Get("templates/package-status")
+  async templatePackageStatus(@Req() req: TenantPrincipalRequest) {
+    const tenant = currentTenantPrincipal(req);
+    if (!this.syncStatuses) {
+      return { total: 0, approved: 0, submitted: 0, rejected: 0, draft: 0, perType: [] };
+    }
+    return this.syncStatuses.execute(tenant.tenantId);
+  }
+}
+

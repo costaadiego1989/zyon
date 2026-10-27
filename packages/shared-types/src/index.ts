@@ -1,0 +1,1597 @@
+export type CurrencyCode = "BRL" | "USD" | "EUR";
+
+export type CheckoutEventName =
+  | "checkout_started"
+  | "cart_viewed"
+  | "product_viewed"
+  | "shipping_calculated"
+  | "shipping_option_selected"
+  | "shipping_objection_detected"
+  | "coupon_field_clicked"
+  | "coupon_applied"
+  | "payment_method_selected"
+  | "payment_failed"
+  | "exit_intent_detected"
+  | "idle_30_seconds"
+  | "offer_viewed"
+  | "offer_accepted"
+  | "order_completed"
+  | "checkout_abandoned"
+  | "cross_sell_accepted"
+  | "cross_sell_added"
+  | "auth_phone_submitted"
+  | "auth_phone_verified"
+  | "auth_identity_confirmed"
+  | "auth_registration_completed"
+  | "login_completed"
+  | "channel_selected"
+  | "item_quantity_updated"
+  | "item_removed"
+  | "session_start"
+  | "message_sent";
+
+export interface CartItem {
+  /** Server-persisted cross-sell preconditions. Never trust public cart copies. */
+  crossSellIntent?: { version: 1; promotionId: string; promotionUpdatedAt: string; acceptedQuantity: number;
+    originalUnitPriceCents: number; maximumUnitPriceCents: number };
+  originalPrice?: number;
+  variantLabel?: string;
+  fulfillmentStrategy?: import("./order-fulfillment.js").FulfillmentStrategy;
+  fulfillmentSchedule?: import("./order-fulfillment.js").FulfillmentSchedule;
+  digitalDeliveryChannels?: string[];
+  /** Product type reconstructed from the merchant catalog by checkout authority. */
+  productType?: "physical" | "digital" | "service" | "food";
+  /** Verified marketplace allocation; never accepted from public cart input. */
+  marketplace?: CrossStoreLineItem;
+  sku: string;
+  /** Canonical catalog variant, distinct from the option-selection line key. */
+  variantId?: string;
+  name: string;
+  price: number;
+  cost?: number;
+  quantity: number;
+  weightGrams?: number;
+  weight_kg?: number;
+  height_cm?: number;
+  width_cm?: number;
+  length_cm?: number;
+  imageUrl?: string;
+  productUrl?: string;
+  category?: string;
+  variant?: string;
+  description?: string;
+  product_id?: string;
+  title?: string;
+  unit_price?: number;
+  selected_options?: Array<{ group_name: string; item_name: string; price_modifier: number }>;
+}
+
+export interface PackageDimensions {
+  weightKg: number;
+  heightCm: number;
+  widthCm: number;
+  lengthCm: number;
+  quantity: number;
+}
+
+export interface ShippingContext {
+  originZip: string;
+  destinationZip: string;
+  cartTotalCents: number;
+  merchantId: string;
+  packages: PackageDimensions[];
+}
+
+export interface Cart {
+  /** Authenticated persisted storefront reference; never a bearer capability. */
+  cart_ref?: string;
+  currency: CurrencyCode;
+  total: number;
+  items: CartItem[];
+  currentDiscount?: number;
+  /** Server-authored original merchandise basis; never trust a submitted copy. */
+  discountBudget?: { version: 1; originalSubtotalCents: number; promotionDiscountCents: number };
+  /** Presentation only, authored from a verified server-side policy decision. */
+  commercialNotices?: CommercialNotice[];
+  /** Server-authored context for a promotion already applied to this session. */
+  commercialNudge?: CheckoutCommercialNudge;
+  /** Display only; amounts are already reflected in prices/discount/shipping. */
+  appliedBenefits?: CheckoutAppliedBenefit[];
+  source?: "storefront" | "checkout" | "platform_api" | "manual";
+  commerceCartRef?: string;
+
+marketplacePaymentOptions?: Array<{
+    provider: "stripe" | "asaas";
+    environment: "test" | "live";
+    destinations: Array<{ merchantId: string; destination: string }>;
+  }>;
+}
+
+export interface CommercialNotice {
+  version: 1;
+  code: "discount_limit_reached" | "discount_limited" | "discount_unavailable" | "benefit_not_combinable" | "benefit_conditions_not_met";
+  message: string;
+}
+
+export type CheckoutCommercialNudgeKind = "coupon" | "progressive_discount" | "advanced_rule";
+
+export interface CheckoutAppliedBenefit {
+  kind: "discount" | "shipping";
+  label: string;
+  amount: number;
+}
+
+/**
+ * Presentation metadata for a commercial benefit that the server already
+ * authorized. It never authorizes or calculates a benefit on the client.
+ */
+export interface CheckoutCommercialNudge {
+  kind: CheckoutCommercialNudgeKind;
+  title: string;
+  message: string;
+  badge?: string;
+  couponCode?: string;
+  ruleId?: string;
+  discountPercent?: number;
+}
+
+export interface CustomerAddress {
+  zip?: string;
+  street?: string;
+  number?: string;
+  complement?: string;
+  neighborhood?: string;
+  city?: string;
+  state?: string;
+}
+
+export interface CustomerHints {
+  deliveryAddressLabel?: string;
+  externalCustomerId?: string;
+  asaasCustomerId?: string;
+  email?: string;
+  email_verified?: boolean;
+  otp_code?: string;
+  /** Server-issued email verification challenge deadline, in ISO 8601. */
+  otp_expires_at?: string;
+  recognized_buyer?: boolean;
+  phone?: string;
+  phone_verified?: boolean;
+  phone_otp_code?: string;
+  address_verified?: boolean;
+  isReturning?: boolean;
+  fullName?: string;
+  cpf?: string;
+  address?: CustomerAddress;
+}
+
+export interface ShippingQuote {
+  carrierKey?: string;
+  quoteId?: string;
+  quoteKey?: string;
+  expiresAt?: string;
+  source?: "melhor_envio" | "own_delivery";
+  estimatedValue?: number;
+  estimatedUnit?: "minutes" | "days";
+
+  customerPrice: number;
+  realCost?: number;
+  carrier?: string;
+  method?: string;
+  deliveryDays?: number;
+  destinationZip?: string;
+  region?: string;
+}
+
+export interface ShippingQuoteRequest {
+  session_id: string;
+  destination_zip: string;
+  cart_total: number;
+  free_shipping_threshold?: number;
+  packages?: PackageDimensions[];
+}
+
+export interface ShippingSelectRequest {
+  quote_id?: string;
+  session_id: string;
+  carrier_key: string;
+}
+
+export interface ShippingQuoteResultDto {
+  carrier_key: string;
+  label: string;
+  price: number;
+  eta_days: number;
+  is_free: boolean;
+}
+
+export interface ShippingQuoteResponse {
+  id: string;
+  session_id: string;
+  merchant_id: string;
+  destination_zip: string;
+  results: ShippingQuoteResultDto[];
+  selected_carrier_key: string | null;
+  created_at: string;
+  expires_at: string;
+}
+
+export interface StageQuickReplies {
+  data_collection?: {
+    nome?: string[];
+    email?: string[];
+    CPF?: string[];
+    telefone?: string[];
+    default?: string[];
+  };
+  shipping?: {
+    CEP?: string[];
+    confirmar?: string[];
+    numero_complemento?: string[];
+    frete?: string[];
+    default?: string[];
+  };
+  payment?: string[];
+  completed?: string[];
+}
+
+export interface MerchantCryptoPayments {
+  enabled: boolean;
+  chain: "polygon" | "base";
+  network: "mainnet" | "testnet";
+  treasuryAddress: string;
+  token: "USDC";
+  quoteTtlSeconds: number;
+  brlPerUsdc?: number;
+}
+
+export interface MerchantPolicies {
+  privacyUrl?: string;
+  termsUrl?: string;
+  refundUrl?: string;
+  shippingUrl?: string;
+}
+
+export interface MerchantRules {
+  maxDiscountPercent: number;
+  minimumMarginPercent: number;
+  allowFreeShipping: boolean;
+  allowShippingDiscount: boolean;
+  allowBonusItem: boolean;
+  allowStackDiscountAndFreeShipping: boolean;
+  freeShippingMinCartValue: number;
+  maxShippingSubsidy: number;
+  maxPartialShippingDiscount: number;
+  offerExpirationMinutes: number;
+  blockedRegions: string[];
+  brandVoice: "consultative" | "aggressive" | "premium" | "young" | "technical" | "popular";
+  couponBoxEnabled: boolean;
+  autonomousEngineEnabled: boolean;
+  originZip?: string;
+  quickReplies?: StageQuickReplies;
+  cryptoPayments?: MerchantCryptoPayments;
+  policies?: MerchantPolicies;
+}
+
+export const DEFAULT_MERCHANT_RULES: MerchantRules = {
+  maxDiscountPercent: 10,
+  minimumMarginPercent: 38,
+  allowFreeShipping: true,
+  allowShippingDiscount: true,
+  allowBonusItem: false,
+  allowStackDiscountAndFreeShipping: false,
+  freeShippingMinCartValue: 250,
+  maxShippingSubsidy: 45,
+  maxPartialShippingDiscount: 20,
+  offerExpirationMinutes: 15,
+  blockedRegions: [],
+  brandVoice: "consultative",
+  couponBoxEnabled: true,
+  autonomousEngineEnabled: true
+};
+
+export type CrossSellTouchpoint = "browsing" | "pre_cart" | "post_cart" | "pre_checkout" | "pre_payment" | "post_purchase";
+export type CrossSellStrategy = "same_category" | "bought_together" | "cart_value_upgrade" | "complementary" | "ai_personalized";
+export const CROSS_SELL_STRATEGIES: readonly CrossSellStrategy[] = ["same_category", "bought_together", "cart_value_upgrade", "complementary", "ai_personalized"];
+
+/** Keep the first valid source in legacy settings, without mixing recommendation logic. */
+export function normalizeCrossSellStrategies(strategies: unknown): CrossSellStrategy[] {
+  if (strategies === undefined) return ["same_category"];
+  if (!Array.isArray(strategies)) return [];
+  const first = strategies.find((strategy): strategy is CrossSellStrategy => CROSS_SELL_STRATEGIES.includes(strategy));
+  return first ? [first] : [];
+}
+export type CrossSellDisplayMode = "inline" | "modal" | "banner" | "interstitial";
+
+export interface CrossSellConfig {
+  enabled: boolean;
+  touchpoints: Record<Exclude<CrossSellTouchpoint, "post_cart" | "pre_checkout">, boolean> & { post_cart?: boolean; pre_checkout?: boolean };
+  /** Exactly one source when recommendations are enabled; array retained for stored JSON compatibility. */
+  strategies: CrossSellStrategy[];
+  limits: {
+    maxSuggestionsPerSession: number;
+    cooldownSeconds: number;
+  };
+  discount: {
+    enabled: boolean;
+    mode?: "percent" | "coupon";
+    percent: number;
+    couponCode?: string;
+  };
+  display: {
+    mode: CrossSellDisplayMode;
+  };
+}
+
+export const DEFAULT_CROSS_SELL_CONFIG: CrossSellConfig = {
+  enabled: false,
+  touchpoints: { browsing: true, pre_cart: false, post_cart: false, pre_checkout: false, pre_payment: true, post_purchase: false },
+  strategies: ["same_category"],
+  limits: { maxSuggestionsPerSession: 2, cooldownSeconds: 120 },
+  discount: { enabled: false, percent: 10 },
+  display: { mode: "inline" },
+};
+
+export function normalizeCrossSellConfig(config: Partial<CrossSellConfig> = {}): CrossSellConfig {
+  return {
+    ...DEFAULT_CROSS_SELL_CONFIG,
+    ...config,
+    strategies: normalizeCrossSellStrategies(config.strategies),
+    touchpoints: { ...DEFAULT_CROSS_SELL_CONFIG.touchpoints, ...config.touchpoints },
+    limits: { ...DEFAULT_CROSS_SELL_CONFIG.limits, ...config.limits },
+    discount: { ...DEFAULT_CROSS_SELL_CONFIG.discount, ...config.discount },
+    display: { ...DEFAULT_CROSS_SELL_CONFIG.display, ...config.display },
+  };
+}
+
+export type ChatStage = "data_collection" | "shipping" | "payment" | "payment_pending" | "completed";
+
+export type PaymentMethod = "pix" | "credit_card" | "boleto" | "crypto";
+
+export type ChatTurnRole = "buyer" | "agent";
+
+export interface ChatTurn {
+  role: ChatTurnRole;
+  text: string;
+  occurredAt: string;
+  authorizedOfferId?: string;
+  /** Server-owned link to the durable buyer-message admission, when present. */
+  chatRequestId?: string;
+}
+
+export interface CrossStoreLineItem {
+  lineItemId: string;
+  federatedProductId: string;
+  sourceMerchantId: string;
+  quantity: number;
+  unitPriceCents: number;
+  totalCents: number;
+  commissionCents: number;
+  sellerNetCents: number;
+
+providerFeePolicy?: "proportional_seller_sales_v1";
+sourceVariantId?: string;
+stockReservationId?: string;
+}
+
+export interface CheckoutSession {
+  serviceSlotHold?: { expiresAt: string; slots: Array<{ resourceId: string; slotId: string; startsAt: string; endsAt: string }> };
+  merchantId: string;
+  sessionId: string;
+  globalUserId: string;
+  conversationId: string;
+  cart: Cart;
+  customer?: CustomerHints;
+  shipping?: ShippingQuote;
+  shippingOptions?: ShippingQuote[];
+  abandonmentScore: number;
+  triggerAgent: boolean;
+  chatHistory: ChatTurn[];
+  paymentMethod?: PaymentMethod;
+  promptVariantId?: string;
+  crossStoreItems?: CrossStoreLineItem[];
+  cohort?: "holdout" | "treatment";
+  featuresApplied?: {
+    negotiation?: boolean;
+    crossSell?: boolean;
+    progressiveDiscount?: boolean;
+    cartRecovery?: boolean;
+    intentPersonalization?: boolean;
+  };
+  aiCostCents?: number;
+  /** Server-loaded optimistic concurrency token. Never accept it from buyer input. */
+  persistenceVersion?: number;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface StartCheckoutRequest {
+  merchant_id: string;
+  session_id?: string;
+  cart_ref?: string;
+  customer?: CustomerHints;
+  cart: Cart;
+  shipping?: ShippingQuote;
+}
+
+export interface MerchantTheme {
+  accentColor: string;
+  secondaryColor?: string;
+  textColor: string;
+  backgroundColor: string;
+  fontFamily: string;
+  logoUrl?: string;
+  faviconUrl?: string;
+  agentAvatarUrl?: string;
+  surfaceColor?: string;
+  surfaceElevatedColor?: string;
+  borderColor?: string;
+  successColor?: string;
+  warningColor?: string;
+  mutedTextColor?: string;
+  fontDisplay?: string;
+  backgroundImageUrl?: string;
+  borderRadius?: number;
+  density?: "compact" | "comfortable" | "spacious";
+  headerTitle?: string;
+  headerSubtitle?: string;
+  agentName?: string;
+  trustBadges?: string[];
+  mode?: "light" | "dark" | "grey";
+}
+
+export const DEFAULT_MERCHANT_THEME: MerchantTheme = {
+  accentColor: "#0F766E",
+  secondaryColor: "#1E40AF",
+  textColor: "#111827",
+  backgroundColor: "#F7F8FA",
+  fontFamily: "Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
+  surfaceColor: "#FFFFFF",
+  surfaceElevatedColor: "#F8FAFC",
+  borderColor: "#D9E2EC",
+  successColor: "#047857",
+  warningColor: "#B45309",
+  mutedTextColor: "#64748B",
+  fontDisplay: "Manrope, Inter, ui-sans-serif, system-ui, sans-serif",
+  borderRadius: 8,
+  density: "comfortable"
+};
+
+export interface CheckoutBrandSnapshot {
+  merchant_id: string;
+  name: string;
+  subtitle?: string;
+  logo_url?: string;
+  accent_color?: string;
+  support_label?: string;
+  theme: MerchantTheme;
+}
+
+export interface CheckoutItemSnapshot {
+  sku: string;
+  name: string;
+  quantity: number;
+  unit_price: number;
+  original_unit_price?: number;
+  line_total: number;
+  image_url?: string;
+  product_url?: string;
+  category?: string;
+  variant?: string;
+  variant_label?: string;
+  description?: string;
+}
+
+export interface FoodOptionItem {
+  id: string;
+  name: string;
+  price_modifier_cents: number;
+}
+
+export interface FoodOptionGroup {
+  id: string;
+  name: string;
+  required: boolean;
+  selection_type: "single" | "multiple";
+  items: FoodOptionItem[];
+}
+
+export interface SuggestedProduct {
+  suggestion_id?: string;
+  /** Canonical product identity for opening the existing product detail. */
+  product_id?: string;
+  sku: string;
+  variant_id?: string;
+  name: string;
+  unit_price: number;
+  image_url?: string;
+  product_url?: string;
+  category?: string;
+  variant?: string;
+  description?: string;
+  in_stock?: boolean;
+  display_mode?: CrossSellDisplayMode;
+  option_groups?: FoodOptionGroup[];
+}
+
+export interface CheckoutTotalsSnapshot {
+  currency: CurrencyCode;
+  subtotal: number;
+  shipping: number;
+  discount: number;
+  service_fee?: number;
+  /** Amount charged to the buyer: order total plus the separately disclosed service fee. */
+  total_to_pay?: number;
+  total: number;
+}
+
+export interface CheckoutExperienceSnapshot {
+  brand: CheckoutBrandSnapshot;
+  stage?: ChatStage;
+  rules?: {
+    couponBoxEnabled: boolean;
+    cryptoPaymentsEnabled?: boolean;
+    cryptoPayments?: MerchantCryptoPayments;
+    showBranding?: boolean;
+    voiceEnabled?: boolean;
+  };
+  policies?: MerchantPolicies;
+  items: CheckoutItemSnapshot[];
+  totals: CheckoutTotalsSnapshot;
+  /** A benefit already authorized for this checkout session, if any. */
+  commercial_nudge?: CheckoutCommercialNudge;
+  applied_benefits?: CheckoutAppliedBenefit[];
+  /** Server-owned display notices, not a grant or pricing input. */
+  commercial_notices?: CommercialNotice[];
+  shipping?: ShippingQuote;
+  shippingOptions?: ShippingQuote[];
+  suggestedProducts?: SuggestedProduct[];
+  customer?: CustomerHints;
+  agent: {
+    name: string;
+    greeting: string;
+    tone: AgentTone;
+    language: string;
+  };
+  copy: {
+    headline: string;
+    subheadline: string;
+    trust_badges: string[];
+    quick_replies: string[];
+    focus_input?: boolean;
+    expected_input_type?: "text" | "email" | "tel" | "number";
+  };
+  merchant_rules?: {
+    maxDiscountPercent: number;
+    allowFreeShipping: boolean;
+    allowShippingDiscount: boolean;
+    freeShippingMinCartValue: number;
+    maxShippingSubsidy: number;
+    maxPartialShippingDiscount: number;
+    offerExpirationMinutes: number;
+    blockedRegions: string[];
+    brandVoice: string;
+    originZip?: string;
+  };
+  advanced_rules?: string[];
+  visual?: {
+    mode?: string;
+    density?: string;
+    backgroundImageUrl?: string;
+    borderRadius?: number;
+    fontFamily?: string;
+    fontDisplay?: string;
+  };
+  stripeEnabled?: boolean;
+  /**
+   * Server-authoritative methods that can be completed by this checkout. The
+   * client must not infer availability from a connected-provider label.
+   */
+  paymentMethods?: {
+    pix: boolean;
+    boleto: boolean;
+    card: boolean;
+    /** Provider selected by the merchant after server-side capability checks. */
+    providers?: {
+      pix?: "asaas" | "mercadopago" | "stripe";
+      boleto?: "asaas" | "mercadopago" | "stripe";
+      card?: "asaas" | "mercadopago" | "stripe";
+    };
+  };
+  cryptoPaymentsEnabled?: boolean;
+  cryptoPayments?: MerchantCryptoPayments | Record<string, unknown> | null;
+  payment_intent?: {
+    id: string;
+    status: string;
+    method: PaymentMethod;
+    amount_cents: number;
+    currency: string;
+    expires_at?: string;
+    qr_code?: string;
+    qr_code_image?: string;
+    copy_paste?: string;
+    ticket_url?: string;
+  };
+}
+
+export interface StartCheckoutResponse {
+  service_slot_hold?: CheckoutSession["serviceSlotHold"];
+  /** Present only for sessions owned by the durable message protocol. */
+  chat_protocol?: "durable_v2";
+  conversation_id: string;
+  session_id: string;
+  global_user_id: string;
+  agent_enabled: boolean;
+  initial_mode: "silent" | "open";
+  tracking_token: string;
+  experience: CheckoutExperienceSnapshot;
+  turns?: ChatTurn[];
+}
+
+export interface TrackEventRequest {
+  merchant_id: string;
+  session_id: string;
+  event: CheckoutEventName;
+  metadata?: Record<string, unknown>;
+}
+
+export interface ProgressiveOfferResponse {
+  stage: ProgressiveDiscountStage;
+  requested_percent: number;
+  approved_percent: number;
+  reason: string;
+}
+
+export interface TrackEventResponse {
+  received: true;
+  abandonment_score: number;
+  trigger_agent: boolean;
+  progressive_offer?: ProgressiveOfferResponse;
+}
+
+export interface UpdateCartItemInput {
+  sku: string;
+  quantity: number;
+  /** Line variant/option identity returned by the checkout experience. */
+  variant?: string;
+}
+
+export interface UpdateCartRequest {
+  merchant_id: string;
+  session_id: string;
+  items: UpdateCartItemInput[];
+}
+
+export interface UpdateCartResponse {
+  session_id: string;
+  experience: CheckoutExperienceSnapshot;
+}
+
+export interface DecisionRequest {
+  merchant_id: string;
+  session_id: string;
+  context?: Record<string, unknown>;
+}
+
+export interface DecisionResponse {
+  decision_id: string;
+  action: "trigger_agent" | "stay_silent";
+  reason: string;
+  abandonment_score: number;
+}
+
+export interface BuyerIntentMemoryConsent {
+  merchant_id: string;
+  global_user_id: string;
+  opted_in: boolean;
+  expires_at: string;
+  updated_at: string;
+}
+
+export interface BehavioralSignals {
+  session_duration_seconds: number;
+  items_viewed: number;
+  comparisons_made: number;
+  objections_raised: number;
+  checkout_stage_reached: number;
+  last_objection_type?: string;
+}
+
+export interface CustomerIntentRecord {
+  id: string;
+  merchant_id: string;
+  global_user_id: string;
+  primary_intent: string;
+  urgency: "low" | "medium" | "high";
+  budget_tier: "budget" | "mid" | "premium";
+  category_focus: string[];
+  pain_points: string[];
+  conversion_likelihood_percent: number;
+  behavioral_signals: BehavioralSignals;
+  generated_at: string;
+}
+
+export type OfferType =
+  | "discount_percent"
+  | "discount_fixed"
+  | "shipping_free"
+  | "shipping_discount_fixed"
+  | "none";
+
+export interface AuthorizedOffer {
+  id: string;
+  merchantId: string;
+  sessionId: string;
+  type: OfferType;
+  value: number;
+  approved: boolean;
+  reason: string;
+  marginAfterOffer: number;
+  expiresAt: string;
+  discountCode?: string;
+}
+
+export interface AcceptedOffer {
+  merchantId: string;
+  sessionId: string;
+  offerId: string;
+  type: OfferType;
+  value: number;
+  marginAfterOffer: number;
+  acceptedAt: string;
+  expiresAt: string;
+}
+
+export type CompletedOrderStatus =
+  | "pending"
+  | "processing"
+  | "approved"
+  | "paid"
+  | "shipped"
+  | "delivered"
+  | "cancelled"
+  | "returned";
+
+export interface CompletedOrderLineItem {
+  snapshotVersion?: 2;
+  lineId?: string;
+  productType?: import("./order-fulfillment.js").FulfillmentProductType;
+  fulfillmentStrategy?: import("./order-fulfillment.js").FulfillmentStrategy;
+  selectedOptions?: Array<{ group_name: string; item_name: string; price_modifier: number }>;
+  schedule?: import("./order-fulfillment.js").FulfillmentSchedule;
+  requiredChannels?: string[];
+  sku: string;
+  variantId?: string;
+  name?: string;
+  unitPriceCents: number;
+  quantity: number;
+}
+
+export interface CompletedOrder {
+  merchantId: string;
+  sessionId: string;
+  externalOrderId: string;
+  orderTotal: number;
+  currency: CurrencyCode;
+  status?: CompletedOrderStatus;
+  acceptedOfferId?: string;
+  trackingCode?: string;
+  /** Cart line items snapshot at completion — enables per-item partial refunds. */
+  lineItems?: CompletedOrderLineItem[];
+  /** Shipping the buyer paid, in cents. Refunded proportionally on returns. */
+  shippingCents?: number;
+  completedAt: string;
+  cancelledAt?: string;
+  cancellationReason?: string;
+}
+
+export interface CompleteOrderRequest {
+  merchant_id: string;
+  session_id: string;
+  external_order_id: string;
+  order_total: number;
+  currency: CurrencyCode;
+  accepted_offer_id?: string;
+  tracking_code?: string;
+}
+
+export interface CompleteOrderResponse {
+  recorded: true;
+  idempotent: boolean;
+  event_type: "order.completed";
+}
+
+export interface UpdateOrderTrackingRequest {
+  merchant_id: string;
+  session_id: string;
+  external_order_id: string;
+  tracking_code: string;
+}
+
+export interface UpdateOrderTrackingResponse {
+  updated: true;
+  changed: boolean;
+  event_type: "order.tracking.updated";
+  order: CompletedOrder;
+}
+
+export type CheckoutDomainEventType =
+  | "checkout.session.started"
+  | "checkout.event.tracked"
+  | "checkout.abandonment.scored"
+  | "checkout.abandoned"
+  | "checkout.intervention_triggered"
+  | "checkout.cart.updated"
+  | "order.completed"
+  | "order.confirmed"
+  | "order.tracking.updated"
+  | "whatsapp.message.requested"
+  | "payment.status.changed"
+  | "customer.phone_collected"
+  | "customer.registered"
+  | "funnel.step_completed";
+
+export type CrossSellDomainEventType =
+  | "cross-sell.offer.suggested"
+  | "cross-sell.offer.accepted"
+  | "cross-sell.offer.declined";
+
+export type CouponsDomainEventType =
+  | "coupon.applied"
+  | "coupon.redemption.requested"
+  | "coupon.redeemed"
+  | "coupon.expired";
+
+export type SelfCheckoutDomainEventType =
+  | "buyer.registered"
+  | "buyer.wallet.payment-method-added"
+  | "buyer.template.created"
+  | "buyer.template.executed"
+  | "buyer.consent.updated";
+
+export type ScrapingAgentDomainEventType =
+  | "scraping.job.requested"
+  | "scraping.job.completed"
+  | "scraping.job.failed"
+  | "scraping.source.circuit-open";
+
+export type ShippingDomainEventType =
+  | "shipping.quote.created"
+  | "shipping.method.selected";
+
+export type FulfillmentDomainEventType =
+  | "shipment.created"
+  | "shipment.label-generated"
+  | "shipment.status-updated"
+  | "shipment.delivered"
+  | "shipment.cancelled";
+
+export type CommerceDomainEventType =
+  | "commerce.order.pending"
+  | "commerce.order.paid";
+
+export type OnboardingDomainEventType =
+  | "merchant.onboarding.step.completed"
+  | "merchant.onboarding.completed";
+
+export type ExperimentDomainEventType =
+  | "experiment.created"
+  | "experiment.started"
+  | "experiment.completed"
+  | "winner.promoted";
+
+export type RevenueManagerDomainEventType =
+  | "revenue_manager.observation.created"
+  | "revenue_manager.hypothesis.generated"
+  | "revenue_manager.hypothesis.approved"
+  | "revenue_manager.hypothesis.rejected"
+  | "revenue_manager.experiment.created"
+  | "revenue_manager.lesson.recorded";
+
+export type DomainEventType =
+  | "support.case.changed"
+  | CheckoutDomainEventType
+  | CrossSellDomainEventType
+  | CouponsDomainEventType
+  | SelfCheckoutDomainEventType
+  | ScrapingAgentDomainEventType
+  | ShippingDomainEventType
+  | FulfillmentDomainEventType
+  | CommerceDomainEventType
+  | OnboardingDomainEventType
+  | ExperimentDomainEventType
+  | RevenueManagerDomainEventType;
+
+export type DomainEventProducer =
+  | "support"
+  | "checkout"
+  | "cross-sell"
+  | "coupons"
+  | "self-checkout"
+  | "scraping-agent"
+  | "shipping"
+  | "fulfillment"
+  | "commerce"
+  | "onboarding"
+  | "experiments"
+  | "revenue-manager";
+
+export type OnboardingStepId = "account" | "checkout_config" | "whatsapp" | "ai_engine";
+
+export type OnboardingStepStatus = "pending" | "completed";
+
+export interface OnboardingStepState {
+  id: OnboardingStepId;
+  status: OnboardingStepStatus;
+  completed_at?: string;
+}
+
+export interface OnboardingStateResponse {
+  merchant_id: string;
+  steps: OnboardingStepState[];
+  completed: boolean;
+  completed_at?: string;
+  next_step?: OnboardingStepId;
+}
+
+export interface DomainEventEnvelope<TPayload = Record<string, unknown>> {
+  event_id: string;
+  event_type: DomainEventType;
+  schema_version: 1;
+  merchant_id: string;
+  occurred_at: string;
+  correlation_id: string;
+  causation_id: string;
+  producer: DomainEventProducer;
+  payload: TPayload;
+}
+
+export interface ChatMessageRequest {
+  merchant_id: string;
+  session_id: string;
+  conversation_id: string;
+  user_message: string;
+  agent_id?: string;
+  agent_user_id?: string;
+  /** Stable for every retry of one buyer message. Required for the opted-in protocol. */
+  message_id?: string;
+}
+
+export type AgentRuleScope = "merchant_default" | "user_agent";
+export type AgentTone = "consultative" | "premium" | "direct" | "friendly" | "technical";
+export type AgentMode = "silent_until_trigger" | "proactive" | "manual_only";
+
+export interface AgentIdentity {
+  agentName: string;
+  persona: string;
+  tone: AgentTone;
+  language: string;
+  greeting: string;
+  emptyCartGreeting?: string;
+}
+
+export interface AgentCapabilities {
+  priceObjectionHandling: boolean;
+  shippingObjectionHandling: boolean;
+  trustReassurance: boolean;
+  paymentFrictionGuidance: boolean;
+  escalation: boolean;
+  machineToMachineNegotiation: boolean;
+}
+
+export interface AgentGuardrails {
+  forbidUnauthorizedDiscounts: boolean;
+  forbidUnauthorizedFreeShipping: boolean;
+  forbidDeliveryPromisesWithoutSource: boolean;
+  forbidStockPromisesWithoutSource: boolean;
+  forbidPaymentStatusClaims: boolean;
+  forbidLegalMedicalFinancialAdvice: boolean;
+  forbidAbusivePressure: boolean;
+  blockedPhrases: string[];
+  requiredDisclaimers: string[];
+  escalationTriggers: string[];
+}
+
+export interface AgentCheckoutSettings {
+  agentMode: AgentMode;
+  openWidgetOnTrigger: boolean;
+  cooldownSeconds: number;
+  maxInterventionsPerSession: number;
+  triggerPreferences: string[];
+  handoffEnabled: boolean;
+}
+
+export type PurchaseHistoryDiscountSensitivity = "unknown" | "low" | "medium" | "high";
+
+export interface AgentPurchaseHistoryContext {
+  known_buyer: boolean;
+  orders_count: number;
+  lifetime_value: number;
+  average_order_value: number;
+  last_order_at?: string;
+  top_categories: string[];
+  recent_skus: string[];
+  discount_sensitivity: PurchaseHistoryDiscountSensitivity;
+  returning_customer_copy_hint: string;
+}
+
+export interface AgentContext {
+  merchant_id: string;
+  user_id?: string;
+  agent_id: string;
+  agent: AgentIdentity;
+  capabilities: AgentCapabilities;
+  guardrails: AgentGuardrails;
+  checkout_settings: AgentCheckoutSettings;
+  checkout_context?: CheckoutSettingsContext;
+  purchase_history?: AgentPurchaseHistoryContext;
+  intent?: {
+    primary_intent: string;
+    urgency: "low" | "medium" | "high";
+    budget_tier: "budget" | "mid" | "premium";
+    pain_points: string[];
+  };
+  copy_constraints: string[];
+}
+
+export type CheckoutSettingsMode = "silent_until_trigger" | "proactive" | "manual_only";
+export type CheckoutWidgetPosition = "bottom_right" | "bottom_left";
+export type CheckoutTriggerName =
+  | "shipping_objection_detected"
+  | "coupon_field_clicked"
+  | "payment_failed"
+  | "exit_intent_detected"
+  | "idle_30_seconds"
+  | "checkout_abandoned";
+
+export type ProgressiveDiscountStage =
+  | "initial_coupon"
+  | "exit_intent"
+  | "abandoned_cart"
+  | "payment_nudge";
+
+export type ProgressiveDiscountMode = "progressive_only" | "coupon_only" | "both";
+
+export interface ProgressiveDiscountPolicy {
+  enabled: boolean;
+  mode?: ProgressiveDiscountMode;
+  maxProgressivePercent?: number;
+  stages: Record<ProgressiveDiscountStage, number>;
+}
+
+export interface ProgressiveDiscountPolicyPatch {
+  enabled?: boolean;
+  mode?: ProgressiveDiscountMode;
+  maxProgressivePercent?: number;
+  stages?: Partial<Record<ProgressiveDiscountStage, number>>;
+}
+
+export type CheckoutWidgetPresentationMode =
+  | "fab"
+  | "mini_card"
+  | "bottom_banner"
+  | "trigger_only"
+  | "inline";
+
+export type CheckoutFabClickAction = "redirect_to_cart" | "open_widget" | "open_new_tab";
+
+export interface CheckoutWidgetBehavior {
+  openWidgetOnTrigger: boolean;
+  startMinimized: boolean;
+  position: CheckoutWidgetPosition;
+  initialDelaySeconds: number;
+  presentationMode: CheckoutWidgetPresentationMode;
+  fabColor?: string;
+  inviteText?: string;
+  showCartBadge?: boolean;
+  fabClickAction?: CheckoutFabClickAction;
+  fabRedirectUrl?: string;
+  cartPresentationMode?: "floating" | "page" | "redirect";
+  budgetModeEnabled?: boolean;
+}
+
+export interface CheckoutAssistanceSettings {
+  pix: boolean;
+  installments: boolean;
+  unavailableProduct: boolean;
+  humanHandoff: boolean;
+}
+
+export const DEFAULT_CHECKOUT_ASSISTANCE: CheckoutAssistanceSettings = {
+  pix: true, installments: true, unavailableProduct: true, humanHandoff: true,
+};
+
+export interface CheckoutInterventionPolicy {
+  minimumAbandonmentScore: number;
+  cooldownSeconds: number;
+  maxInterventionsPerSession: number;
+  /** Seconds without buyer interaction before offering help; defaults to 180. */
+  idleSeconds?: number;
+  assistance?: Partial<CheckoutAssistanceSettings>;
+  progressiveDiscount?: ProgressiveDiscountPolicy;
+}
+
+export interface CheckoutTriggerRule {
+  trigger: CheckoutTriggerName;
+  enabled: boolean;
+  priority: number;
+  message?: string;
+  cooldownSeconds?: number;
+  couponCode?: string;
+}
+
+export interface CheckoutSuppressionRules {
+  suppressedSteps: string[];
+  blockedRegions: string[];
+  minimumCartValue?: number;
+  suppressAfterOfferAccepted: boolean;
+  respectBuyerOptOut: boolean;
+}
+
+export interface CheckoutHandoffSettings {
+  enabled: boolean;
+  message: string;
+  channels: Array<"email" | "whatsapp" | "chat">;
+}
+
+export interface CheckoutSettings {
+  merchantId: string;
+  mode: CheckoutSettingsMode;
+  widgetBehavior: CheckoutWidgetBehavior;
+  interventionPolicy: CheckoutInterventionPolicy;
+  triggerRules: CheckoutTriggerRule[];
+  suppressionRules: CheckoutSuppressionRules;
+  handoff: CheckoutHandoffSettings;
+  advancedRules: AdvancedRule[];
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface CheckoutSettingsPatch {
+  mode?: CheckoutSettingsMode;
+  widgetBehavior?: Partial<CheckoutWidgetBehavior>;
+  interventionPolicy?: Partial<Omit<CheckoutInterventionPolicy, "progressiveDiscount">> & {
+    progressiveDiscount?: ProgressiveDiscountPolicyPatch;
+  };
+  triggerRules?: CheckoutTriggerRule[];
+  suppressionRules?: Partial<CheckoutSuppressionRules>;
+  handoff?: Partial<CheckoutHandoffSettings>;
+  advancedRules?: AdvancedRule[];
+}
+
+export interface CheckoutSettingsContext {
+  merchant_id: string;
+  checkout_settings: {
+    mode: CheckoutSettingsMode;
+    open_widget_on_trigger: boolean;
+    position?: CheckoutWidgetPosition;
+    fab_color?: string;
+    invite_text?: string;
+    presentation_mode?: string;
+    start_minimized?: boolean;
+    initial_delay_seconds?: number;
+    show_cart_badge?: boolean;
+    fab_click_action?: string;
+    fab_redirect_url?: string;
+    minimum_abandonment_score: number;
+    cooldown_seconds: number;
+    max_interventions_per_session: number;
+    enabled_triggers: CheckoutTriggerName[];
+    handoff_enabled: boolean;
+    handoff_message?: string;
+    handoff_channels?: string[];
+    progressive_discount?: ProgressiveDiscountPolicy;
+    suppressed_steps?: string[];
+    blocked_regions?: string[];
+  };
+  merchant_rules: string[];
+  operational_constraints: string[];
+}
+
+export interface ChatAction {
+  label: string;
+  type: "apply_offer" | "show_alternatives" | "continue_checkout";
+  offer_id?: string;
+}
+
+export interface ChatUiBlock {
+  type: string;
+  data?: Record<string, unknown>;
+}
+
+export interface ChatMessageReference {
+  merchant_id: string;
+  session_id: string;
+  conversation_id: string;
+  message_id: string;
+}
+
+/** Opaque publication identity; acknowledgement is client-reported visibility only. */
+export interface ChatDisplayReference {
+  turn_id: string;
+  text_hash: string;
+}
+
+export interface ChatDisplayReport {
+  session_id: string;
+  conversation_id: string;
+  display_ref: ChatDisplayReference;
+  definition: "widget-visible-text-v1";
+}
+
+/** Saved text, current navigation and a payment reference. Payment credentials require a separate financial scope. */
+export interface ChatSessionStateResponse {
+  protocol: "durable_v2" | "legacy";
+  session_id: string;
+  conversation_id: string;
+  turns: Array<{ id: string; role: "buyer" | "agent"; text: string; occurred_at: string; display_ref?: ChatDisplayReference;
+    blocks?: ChatUiBlock[]; checkout_stage?: ChatStage }>;
+  request?: { message_id: string; status: "processing" | "unknown" | "completed" | "reconciled" | "rejected"; response_outcome?: "withheld" };
+  active_request?: { message_id: string; status: "processing" | "unknown" };
+  payment_intent_id?: string;
+}
+
+/** Receipt only; never an old response, authorization or delivery confirmation. */
+export interface ChatMessageRecoveryResponse {
+  chat_request: { message_id: string; status: "completed" | "reconciled" | "rejected"; next_action: "refresh_session" };
+}
+
+export interface ChatMessageResponse {
+  display_ref?: ChatDisplayReference;
+  /** Processing receipt; does not assert browser delivery or experimental exposure. */
+  chat_request?: { message_id: string; status: "completed" };
+  message: string;
+  objection: "shipping_cost" | "price" | "trust" | "payment" | "unknown";
+  authorized_offer?: AuthorizedOffer;
+  actions: ChatAction[];
+  turns: ChatTurn[];
+  experience?: CheckoutExperienceSnapshot;
+  stage?: ChatStage;
+  missing_fields?: string[];
+  expected_input_type?: string;
+  ssml?: string;
+  voice_config?: { speed: number; pitch: number };
+  blocks?: ChatUiBlock[];
+}
+
+export interface ShippingEvaluateRequest {
+  merchant_id: string;
+  session_id: string;
+  cart_value?: number;
+  shipping_price?: number;
+  shipping_real_cost?: number;
+  abandonment_score?: number;
+}
+
+export interface ShippingEvaluateResponse {
+  approved: boolean;
+  action: OfferType;
+  reason: string;
+  shipping_subsidy: number;
+  margin_after_offer: number;
+  message: string;
+  offer?: AuthorizedOffer;
+}
+
+export interface ApplyOfferRequest {
+  merchant_id: string;
+  session_id: string;
+  offer_id: string;
+}
+
+export interface ApplyOfferResponse {
+  commercialNotices?: CommercialNotice[];
+  success: boolean;
+  discount_code?: string;
+  apply_url?: string;
+  new_total?: number;
+  expires_at?: string;
+  reason?: string;
+  experience?: CheckoutExperienceSnapshot;
+  agent_turn?: ChatTurn;
+}
+
+export interface SupportFaqItem {
+  id: string;
+  question: string;
+  answer: string;
+}
+
+export interface SupportSettings {
+  merchantId: string;
+  faqItems: SupportFaqItem[];
+  updatedAt: string;
+}
+
+export interface SupportSettingsPatch {
+  faqItems: SupportFaqItem[];
+}
+
+export * from "./support-case.js";
+export type SupportTicketStatus = "open" | "in_progress" | "resolved" | "closed";
+
+export interface SupportTicket {
+  id: string;
+  merchantId: string;
+  sessionId?: string;
+  buyerMessage: string;
+  status: SupportTicketStatus;
+  source: "widget" | "dashboard" | "system" | "return_request";
+  returnId?: string;
+  originMerchantId?: string;
+  transferredAt?: string;
+  createdAt: string;
+  updatedAt: string;
+  resolvedAt?: string;
+}
+
+export type SupportReturnReason =
+  | "DEFECTIVE"
+  | "WRONG_ITEM"
+  | "NOT_AS_DESCRIBED"
+  | "CHANGED_MIND"
+  | "DAMAGED_IN_TRANSIT"
+  | "OTHER";
+
+export interface SupportReturnItem {
+  name: string;
+  variantId: string;
+  quantity: number;
+  imageUrl?: string;
+}
+
+export type SupportMessageMetadata =
+  | { kind: "text" }
+  | { kind: "photos"; imageUrls: string[] }
+  | { kind: "case_update"; event: string; returnId?: string }
+  | {
+      kind: "return_request";
+      returnId: string;
+      reason: SupportReturnReason;
+      reasonLabel: string;
+      items: SupportReturnItem[];
+      imageUrls: string[];
+      orderRef?: string;
+    }
+  | {
+      kind: "ticket_transferred";
+      fromMerchantId: string;
+      toMerchantId: string;
+      toStoreName: string;
+    };
+
+export interface SupportTicketMessage {
+  id: string;
+  ticketId: string;
+  senderType: "buyer" | "merchant" | "system";
+  content: string;
+  metadata?: SupportMessageMetadata | null;
+  createdAt: string;
+}
+
+export interface SupportTicketStatusPatch {
+  status: SupportTicketStatus;
+}
+
+export interface DashboardOverview {
+  merchant_id: string;
+  conversations_started: number;
+  offers_viewed: number;
+  offers_accepted: number;
+  orders_completed: number;
+  conversion_rate_with_agent: number;
+  average_discount: number;
+  average_shipping_subsidy: number;
+  incremental_revenue: number;
+  recent_sessions: CheckoutSession[];
+  recent_offers: AuthorizedOffer[];
+}
+
+export type StorePeriod = "today" | "7d" | "30d" | "90d";
+
+export interface StoreOverviewTopProduct {
+  product_id: string;
+  name: string;
+  image_url?: string;
+  quantity: number;
+  revenue: number;
+}
+
+export interface StoreOverviewRecentOrder {
+  id: string;
+  buyer_name: string;
+  total: number;
+  status: string;
+  created_at: string;
+}
+
+export interface StoreOverview {
+  merchant_id: string;
+  period: string;
+  revenue: number;
+  orders_count: number;
+  average_ticket: number;
+  products_sold: number;
+  new_customers: number;
+  abandonment_rate: number;
+  orders_by_status: Record<string, number>;
+  top_products: StoreOverviewTopProduct[];
+  recent_orders: StoreOverviewRecentOrder[];
+}
+
+export interface TimeseriesDataPoint {
+  date: string;
+  value: number;
+}
+
+export interface TimeseriesResponse {
+  merchant_id: string;
+  period: string;
+  revenue_daily: TimeseriesDataPoint[];
+  orders_daily: TimeseriesDataPoint[];
+  sessions_daily: TimeseriesDataPoint[];
+  conversion_daily: TimeseriesDataPoint[];
+}
+
+export interface ProductCategoryDTO {
+  id: string;
+  merchant_id: string;
+  name: string;
+  slug: string;
+  parent_id: string | null;
+  description: string | null;
+  image_url: string | null;
+  is_active: boolean;
+  sort_order: number;
+  created_at: string;
+  updated_at: string;
+  children?: ProductCategoryDTO[];
+  product_count?: number;
+}
+
+export interface CreateCategoryInput {
+  name: string;
+  slug?: string;
+  parent_id?: string;
+  description?: string;
+  image_url?: string;
+}
+
+export interface UpdateCategoryInput {
+  name?: string;
+  parent_id?: string | null;
+  description?: string;
+  image_url?: string;
+  is_active?: boolean;
+  sort_order?: number;
+}
+
+export interface ReorderCategoryItem {
+  id: string;
+  sort_order: number;
+}
+
+export interface StoreQuickReplyStage {
+  stage: string;
+  label: string;
+  replies: string[];
+}
+
+export interface StoreQuickRepliesConfig {
+  stages: StoreQuickReplyStage[];
+  fallback: string[];
+}
+
+// ── Advanced Rules ──────────────────────────────────────────────────────────
+
+export type ConditionField =
+  | "cart_total"
+  | "shipping_cost"
+  | "product_in_cart"
+  | "category_in_cart"
+  | "coupon_applied"
+  | "buyer_type"
+  | "payment_method"
+  | "trigger_fired"
+  | "cart_item_count";
+
+export type ConditionOperator = "gt" | "lt" | "gte" | "lte" | "eq" | "contains" | "is";
+
+export interface RuleCondition {
+  field: ConditionField;
+  operator: ConditionOperator;
+  value: string | number | boolean | string[];
+}
+
+export type ActionType =
+  | "offer_discount"
+  | "offer_free_shipping"
+  | "suggest_product"
+  | "show_message"
+  | "offer_installments"
+  | "do_nothing"
+  | "offer_coupon";
+
+export interface RuleAction {
+  type: ActionType;
+  params: Record<string, string | number>;
+}
+
+export interface AdvancedRule {
+  productId?: string;
+  id: string;
+  name: string;
+  conditions: RuleCondition[];
+  action: RuleAction;
+  enabled: boolean;
+  priority: number;
+}
+
+export type TwitterCardType = "summary" | "summary_large_image";
+
+export type SeoTone = "profissional" | "casual" | "luxo" | "técnico";
+
+export interface SeoSettings {
+  title?: string;
+  description?: string;
+  keywords?: string[];
+  ogTitle?: string;
+  ogDescription?: string;
+  ogImage?: string;
+  twitterCard?: TwitterCardType;
+  canonicalUrl?: string;
+  generatedAt?: string;
+  generatedBy?: string;
+}
+
+export interface PixelIds {
+  facebook?: string;
+  tiktok?: string;
+  custom?: Record<string, string>;
+}
+
+export interface GtmSettings {
+  gtmId?: string;
+  gaTrackingId?: string;
+  pixelIds?: PixelIds;
+  dataLayerEnabled?: boolean;
+  eventsTracked?: string[];
+}
+
+export interface GenerateSeoSuggestionsRequest {
+  prompt: string;
+  tone: SeoTone;
+  storeCategory?: string;
+}
+
+export interface GenerateSeoSuggestionsResponse {
+  titles: [string, string, string];
+  descriptions: [string, string, string];
+  keywords: string[];
+}
+
+export type OAuthProvider = "github" | "google";
+
+export interface OAuthCallbackPayload {
+  provider: OAuthProvider;
+  code: string;
+  state: string;
+}
+
+export * from "./billing-plans.js";
+
+export * from "./billing-offers.js";
+export * from "./billing-promotions.js";
+export * from "./platform-support.js";
+
+export { NEUMORPHIC_THEME, merchantThemeTokens, type MerchantThemeAppearance } from "./merchant-theme.js";
+
+export { checkoutEditIntent, type CheckoutEditSection } from "./checkout-edit-intent.js";
+export { VOICE_MICROPHONE_CONSTRAINTS, RealtimeVoiceInput, RealtimeVoiceResponses, type VoiceInputEvent } from "./realtime-voice-input.js";
+
+export * from "./order-fulfillment.js";
+export type { StorefrontReadUiAction, StorefrontReadUiActionCapability, StorefrontReadUiActionRequest,
+  StorefrontSuggestedReadAction, StorefrontSuggestedReadActions } from "./storefront-read-ui-action.js";
+
+
+export { normalizeRealtimeSdp, readRealtimeVoiceCall, realtimeVoiceFailureHint, RealtimeServerVoiceTurns, type RealtimeVoiceCall, type RealtimeServerVoiceEvent } from "./realtime-voice-session.js";

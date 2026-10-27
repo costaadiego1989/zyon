@@ -1,0 +1,41 @@
+{
+  "name": "@zyon/storefront",
+  "version": "0.1.0",
+  "private": true,
+  "scripts": {
+    "dev": "next dev -p 3001",
+    "build": "next build",
+    "start": "next start -p 3001",
+    "typecheck": "tsc --noEmit",
+    "test:regression": "node --test --test-concurrency=1 tests/*.test.cjs",
+    "test:conversation-scope": "node --test --test-concurrency=1 tests/storefront-conversation-scope.test.cjs tests/storefront-conversation-cart-projection.test.cjs tests/storefront-nudge-scope.test.cjs tests/storefront-conversation-start-identity.test.cjs tests/storefront-read-actions.test.cjs tests/storefront-suggested-read-actions.test.cjs",
+    "test:voice-server-control": "node --test tests/storefront-voice-server-control.test.cjs",
+    "test:product-narration": "node --test tests/storefront-narration-server-control.test.cjs tests/storefront-voice-server-control.test.cjs",
+    "test:cross-sell-one-click": "node --test tests/storefront-cross-sell-one-click.test.cjs tests/storefront-cross-sell-layout.test.cjs tests/storefront-proxy-origin.test.cjs",
+    "e2e:cross-sell-one-click": "playwright test --config e2e/cross-sell-one-click.playwright.config.ts",
+    "e2e:cross-sell-cart-integration": "playwright test --config e2e/cross-sell-cart-integration.playwright.config.ts",
+    "test:checkout-continuity": "node --test --test-concurrency=1 tests/storefront-checkout-continuity.test.cjs tests/storefront-checkout-panel-lifecycle.test.cjs tests/storefront-checkout-browser.test.cjs",
+    "test:typed-actions": "node --test tests/storefront-read-actions.test.cjs tests/storefront-additional-read-actions.test.cjs tests/storefront-suggested-read-actions.test.cjs tests/storefront-commercial-notices.test.cjs tests/storefront-cross-sell-quote.test.cjs",
+    "e2e:typed-actions": "playwright test --config playwright-read-actions.config.ts",
+    "e2e": "playwright test",
+    "e2e:ui": "playwright test --ui"
+  },
+  "dependencies": {
+    "@zyon/checkout-ui": "workspace:*",
+    "@zyon/contracts": "workspace:^",
+    "@zyon/shared-types": "workspace:^",
+    "@zyon/widget-v2": "workspace:*",
+    "dompurify": "^3.4.14",
+    "next": "^15.0.0",
+    "react": "^18.3.1",
+    "react-dom": "^18.3.1",
+    "react-icons": "^5.7.0",
+    "socket.io-client": "4.8.1"
+  },
+  "devDependencies": {
+    "@playwright/test": "1.62.1",
+    "@types/node": "^20.0.0",
+    "@types/react": "^18.3.0",
+    "typescript": "^5.4.0"
+  }
+}

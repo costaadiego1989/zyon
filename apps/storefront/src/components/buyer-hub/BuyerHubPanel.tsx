@@ -1,0 +1,834 @@
+"use client";
+
+import { BuyerBiometricAccess } from "../BuyerBiometricAccess";
+import BuyerRegistrationForm from "../BuyerRegistrationForm";
+import { useState, useCallback, useEffect, useRef } from "react";
+import { useBuyerHub, type TabType } from "@/lib/viewmodels/useBuyerHub";
+import { getValidBuyer } from "@/lib/buyer-auth";
+import { useCart } from "@/lib/cart-store";
+import { Turnstile } from "@zyon/checkout-ui";
+import ProfileTab from "./tabs/ProfileTab";
+import { OrdersTab } from "./tabs/OrdersTab";
+import { TrackingTab } from "./tabs/TrackingTab";
+import ConversationsTab from "./tabs/ConversationsTab";
+import { BuyerSupportConversations } from "./BuyerSupportConversations";
+import type { BuyerSupportInbox } from "@/lib/viewmodels/useBuyerSupportInbox";
+import type { BuyerConversation } from "@/lib/viewmodels/useBuyerHub/types";
+import PreferencesTab from "./tabs/PreferencesTab";
+import LoyaltyTab from "./tabs/LoyaltyTab";
+import { SettingsTab } from "./tabs/SettingsTab";
+
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+const TURNSTILE_SITE_KEY = process.env.NEXT_PUBLIC_TURNSTILE_SITE_KEY ?? "";
+const AUTH_STORAGE_KEY = "aacp_buyer_auth_session";
+
+
+export interface BuyerHubPanelProps {
+  isOpen: boolean;
+  onClose: () => void;
+  merchantId?: string;
+  merchantSlug?: string;
+  onToggleTheme?: () => void;
+  currentSessionId?: string | null;
+  onResumeConversation?: (conversation: BuyerConversation) => Promise<void>;
+  supportInbox?: BuyerSupportInbox;
+  initialTab?: TabType;
+}
+
+
+interface AuthSession {
+  global_user_id: string;
+  email: string;
+  access_token: string;
+  expires_at: number;
+}
+
+
+interface TabDef {
+  key: TabType;
+  label: string;
+  icon: React.ReactNode;
+}
+
+const TABS: TabDef[] = [
+  {
+    key: "profile",
+    label: "Perfil",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M20 21v-2a4 4 0 00-4-4H8a4 4 0 00-4 4v2" />
+        <circle cx="12" cy="7" r="4" />
+      </svg>
+    ),
+  },
+  {
+    key: "orders",
+    label: "Pedidos",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 16V8a2 2 0 00-1-1.73l-7-4a2 2 0 00-2 0l-7 4A2 2 0 003 8v8a2 2 0 001 1.73l7 4a2 2 0 002 0l7-4A2 2 0 0021 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
+        <line x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    ),
+  },
+  {
+    key: "tracking",
+    label: "Rastreio",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <rect x="1" y="3" width="15" height="13" rx="2" ry="2" />
+        <polygon points="16 8 20 8 23 11 23 16 16 16 16 8" />
+        <circle cx="5.5" cy="18.5" r="2.5" />
+        <circle cx="18.5" cy="18.5" r="2.5" />
+      </svg>
+    ),
+  },
+  {
+    key: "conversations",
+    label: "Conversas",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M21 15a2 2 0 01-2 2H7l-4 4V5a2 2 0 012-2h14a2 2 0 012 2z" />
+      </svg>
+    ),
+  },
+  {
+    key: "preferences",
+    label: "Preferências",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <path d="M18 8A6 6 0 006 8c0 7-3 9-3 9h18s-3-2-3-9" />
+        <path d="M13.73 21a2 2 0 01-3.46 0" />
+      </svg>
+    ),
+  },
+  {
+    key: "loyalty",
+    label: "Fidelidade",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <polygon points="12 2 15.09 8.26 22 9.27 17 14.14 18.18 21.02 12 17.77 5.82 21.02 7 14.14 2 9.27 8.91 8.26 12 2" />
+      </svg>
+    ),
+  },
+  {
+    key: "settings",
+    label: "Config",
+    icon: (
+      <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+        <circle cx="12" cy="12" r="3" />
+        <path d="M19.4 15a1.65 1.65 0 00.33 1.82l.06.06a2 2 0 010 2.83 2 2 0 01-2.83 0l-.06-.06a1.65 1.65 0 00-1.82-.33 1.65 1.65 0 00-1 1.51V21a2 2 0 01-2 2 2 2 0 01-2-2v-.09A1.65 1.65 0 009 19.4a1.65 1.65 0 00-1.82.33l-.06.06a2 2 0 01-2.83 0 2 2 0 010-2.83l.06-.06A1.65 1.65 0 004.68 15a1.65 1.65 0 00-1.51-1H3a2 2 0 01-2-2 2 2 0 012-2h.09A1.65 1.65 0 004.6 9a1.65 1.65 0 00-.33-1.82l-.06-.06a2 2 0 010-2.83 2 2 0 012.83 0l.06.06A1.65 1.65 0 009 4.68a1.65 1.65 0 001-1.51V3a2 2 0 012-2 2 2 0 012 2v.09a1.65 1.65 0 001 1.51 1.65 1.65 0 001.82-.33l.06-.06a2 2 0 012.83 0 2 2 0 010 2.83l-.06.06A1.65 1.65 0 0019.4 9a1.65 1.65 0 001.51 1H21a2 2 0 012 2 2 2 0 01-2 2h-.09a1.65 1.65 0 00-1.51 1z" />
+      </svg>
+    ),
+  },
+];
+
+
+function isAccountNotFound(response: unknown): boolean {
+  return typeof response === "object"
+    && response !== null
+    && "code" in response
+    && response.code === "email_otp_account_not_found";
+}
+
+function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
+  onAuthSuccess: () => void;
+  merchantId?: string;
+  onAccountNotFound: (credentials: { email: string; otp: string }) => void;
+}) {
+  const [email, setEmail] = useState("");
+  const [captchaToken, setCaptchaToken] = useState<string | null>(null);
+  const [captchaAttempt, setCaptchaAttempt] = useState(0);
+  const [emailCode, setEmailCode] = useState("");
+  const [codeSent, setCodeSent] = useState(false);
+  const [loading, setLoading] = useState(false);
+  const [error, setError] = useState<string | null>(null);
+  const [accountNotFound, setAccountNotFound] = useState<{ email: string; otp: string } | null>(null);
+
+  async function handleSendCode() {
+    if (loading || !email.includes("@") || (TURNSTILE_SITE_KEY && !captchaToken)) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/buyer/email/send`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, merchant_id: merchantId, turnstile_token: captchaToken ?? undefined }),
+      });
+      if (!res.ok) {
+        const payload = await res.json().catch(() => null);
+        setError(payload?.detail ?? payload?.message ?? "Falha ao enviar codigo.");
+        return;
+      }
+      setCodeSent(true);
+    } catch {
+      setError("Erro de rede ao enviar codigo.");
+    } finally {
+      setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaAttempt(value => value + 1);
+    }
+  }
+
+  async function handleVerifyCode() {
+    if (loading || emailCode.length !== 6 || (TURNSTILE_SITE_KEY && !captchaToken)) return;
+    setLoading(true);
+    setError(null);
+    try {
+      const res = await fetch(`${API_BASE}/buyer/email/login/verify`, {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ email, code: emailCode, turnstile_token: captchaToken ?? undefined }),
+      });
+      const payload = await res.json().catch(() => null);
+      if (!res.ok) {
+        if (isAccountNotFound(payload)) {
+          setAccountNotFound({ email, otp: emailCode });
+          return;
+        }
+        setError(payload?.detail ?? payload?.message ?? "Codigo invalido.");
+        return;
+      }
+      const globalUserId = payload.globalUserId ?? payload.global_user_id;
+      const accessToken = payload.accessToken ?? payload.access_token;
+      const verifiedEmail = payload.email ?? email;
+      const expiresIn = payload.expiresIn ?? payload.expires_in ?? 3600;
+      if (!globalUserId || !accessToken) {
+        setError("Resposta invalida do servidor.");
+        return;
+      }
+      const newSession: AuthSession = {
+        global_user_id: globalUserId,
+        email: verifiedEmail,
+        access_token: accessToken,
+        expires_at: Date.now() + (expiresIn - 60) * 1000,
+      };
+      localStorage.setItem(AUTH_STORAGE_KEY, JSON.stringify(newSession));
+      try {
+        localStorage.setItem("zyon_buyer_token", accessToken);
+        localStorage.setItem("zyon_buyer_session", JSON.stringify({ globalUserId, token: accessToken, email: verifiedEmail }));
+        window.dispatchEvent(new StorageEvent("storage", { key: "zyon_buyer_token" }));
+      } catch {}
+      onAuthSuccess();
+    } catch {
+      setError("Erro de rede ao verificar codigo.");
+    } finally {
+      setLoading(false);
+      setCaptchaToken(null);
+      setCaptchaAttempt(value => value + 1);
+    }
+  }
+
+  const canSendCode = email.includes("@");
+  const canConfirmCode = codeSent && emailCode.length === 6;
+
+  return (
+    <div style={{ display: "flex", flexDirection: "column", gap: "20px", padding: "24px 0" }}>
+      {/* Icon */}
+      <div style={{ display: "flex", justifyContent: "center" }}>
+        <div style={{
+          width: "56px",
+          height: "56px",
+          borderRadius: "50%",
+          background: "var(--aacp-surface-2)",
+          border: "1px solid var(--aacp-line)",
+          display: "flex",
+          alignItems: "center",
+          justifyContent: "center",
+        }}>
+          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-accent)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round">
+            <path d="M15 3h4a2 2 0 012 2v14a2 2 0 01-2 2h-4M10 17l5-5-5-5M15 12H3" />
+          </svg>
+        </div>
+      </div>
+
+      {/* Title */}
+      <div style={{ textAlign: "center" }}>
+        <div style={{ fontSize: "11px", fontWeight: 700, textTransform: "uppercase", letterSpacing: "0.5px", color: "var(--aacp-muted)", marginBottom: "8px" }}>Conta segura</div>
+        <div style={{ fontSize: "18px", fontWeight: 700, color: "var(--aacp-fg)", marginBottom: "8px", lineHeight: 1.3 }}>Entrar com e-mail</div>
+        <div style={{ fontSize: "13px", color: "var(--aacp-muted)", lineHeight: 1.5 }}>Acesse pedidos anteriores e conclua compras futuras com menos etapas.</div>
+      </div>
+
+      <BuyerBiometricAccess onComplete={() => onAuthSuccess()} />
+
+      {/* Assurance strip */}
+      <div data-neu="surface" style={{
+        display: "flex",
+        alignItems: "center",
+        gap: "10px",
+        padding: "12px 16px",
+        borderRadius: "10px",
+        background: "var(--aacp-surface-2)",
+        border: "1px solid var(--aacp-line)",
+        fontSize: "13px",
+        color: "var(--aacp-muted)",
+        lineHeight: 1.4,
+      }}>
+        <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-success, #22c55e)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+          <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+          <path d="M9 12l2 2 4-4" />
+        </svg>
+        <span>Seu acesso e seus dados permanecem protegidos.</span>
+      </div>
+
+      {/* Form */}
+      <form onSubmit={(e) => e.preventDefault()} style={{ display: "flex", flexDirection: "column", gap: "16px" }}>
+        {!codeSent ? (
+          <label style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-muted)" }}>E-mail</span>
+            <div data-neu="inset" style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              padding: "12px 16px",
+              borderRadius: "12px",
+              border: "1px solid var(--aacp-line)",
+              background: "var(--aacp-inset-bg)",
+              transition: "border-color 0.15s ease, background 0.15s ease",
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <rect x="5" y="2" width="14" height="20" rx="2" ry="2" />
+                <line x1="12" y1="18" x2="12.01" y2="18" />
+              </svg>
+              <input
+                value={email}
+                onChange={(e) => {
+                  setEmail(e.target.value);
+                  setAccountNotFound(null);
+                }}
+                type="email"
+                inputMode="email"
+                autoComplete="email"
+                placeholder="voce@email.com"
+                aria-label="E-mail"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  color: "var(--aacp-fg)",
+                  fontSize: "15px",
+                  fontFamily: "inherit",
+                }}
+              />
+            </div>
+          </label>
+        ) : (
+          <label style={{ display: "flex", flexDirection: "column", gap: "8px", width: "100%" }}>
+            <span style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-muted)" }}>Codigo de verificacao</span>
+            <div data-neu="inset" style={{
+              display: "flex",
+              alignItems: "center",
+              gap: "12px",
+              padding: "12px 16px",
+              borderRadius: "12px",
+              border: "1px solid var(--aacp-line)",
+              background: "var(--aacp-inset-bg)",
+              transition: "border-color 0.15s ease, background 0.15s ease",
+            }}>
+              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="var(--aacp-muted)" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ flexShrink: 0 }}>
+                <path d="M21 2l-2 2m-7.61 7.61a5.5 5.5 0 11-7.778 7.778 5.5 5.5 0 017.777-7.777zm0 0L15.5 7.5m0 0l3 3L22 7l-3-3m-3.5 3.5L19 4" />
+              </svg>
+              <input
+                value={emailCode}
+                onChange={(e) => {
+                  setEmailCode(e.target.value.replace(/\D/g, "").slice(0, 6));
+                  setAccountNotFound(null);
+                }}
+                type="text"
+                inputMode="numeric"
+                autoComplete="one-time-code"
+                placeholder="000000"
+                maxLength={6}
+                aria-label="Codigo de verificacao"
+                style={{
+                  flex: 1,
+                  minWidth: 0,
+                  background: "transparent",
+                  border: "none",
+                  outline: "none",
+                  color: "var(--aacp-fg)",
+                  fontSize: "15px",
+                  fontFamily: "inherit",
+                  letterSpacing: "4px",
+                  textAlign: "center",
+                }}
+              />
+            </div>
+          </label>
+        )}
+
+        {codeSent && (
+          <p style={{ fontSize: "13px", color: "var(--aacp-muted)", textAlign: "center" }} role="status">
+            Código enviado para {email}
+          </p>
+        )}
+
+        {accountNotFound && (
+          <div data-neu="surface"
+            role="status"
+            style={{
+              padding: "12px 14px",
+              borderRadius: "10px",
+              border: "1px solid var(--aacp-line)",
+              background: "var(--aacp-surface-2)",
+              color: "var(--aacp-fg)",
+              fontSize: "13px",
+              lineHeight: 1.45,
+              textAlign: "center",
+            }}
+          >
+            <strong style={{ display: "block", marginBottom: "3px" }}>Ainda não há uma conta para este e-mail.</strong>
+            O código foi confirmado e continua válido para criar sua conta.
+          </div>
+        )}
+
+        {error && !accountNotFound && (
+          <p style={{ fontSize: "13px", color: "#ef4444", textAlign: "center", padding: "6px 0" }} role="alert">{error}</p>
+        )}
+
+        {!accountNotFound && <Turnstile siteKey={TURNSTILE_SITE_KEY} action={codeSent ? "buyer_email_login" : "buyer_email_send"} resetKey={captchaAttempt} onChange={setCaptchaToken} />}
+
+        <button data-neu="primary"
+          type="button"
+          disabled={loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode) || (!accountNotFound && Boolean(TURNSTILE_SITE_KEY) && !captchaToken)}
+          onClick={() => {
+            if (accountNotFound) {
+              onAccountNotFound(accountNotFound);
+              return;
+            }
+            void (codeSent ? handleVerifyCode() : handleSendCode());
+          }}
+          style={{
+            width: "100%",
+            padding: "14px",
+            borderRadius: "12px",
+            background: "var(--aacp-accent)",
+            color: "#fff",
+            border: "none",
+            cursor: loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode) ? "not-allowed" : "pointer",
+            fontSize: "15px",
+            fontWeight: 600,
+            opacity: loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode) ? 0.5 : 1,
+            transition: "opacity 0.15s ease, transform 0.15s ease",
+            transform: "scale(1)",
+          }}
+          onMouseDown={(e) => {
+            if (!(loading || (!codeSent && !canSendCode) || (codeSent && !canConfirmCode))) {
+              (e.target as HTMLButtonElement).style.transform = "scale(0.98)";
+            }
+          }}
+          onMouseUp={(e) => {
+            (e.target as HTMLButtonElement).style.transform = "scale(1)";
+          }}
+        >
+          {loading ? "Processando..." : accountNotFound ? "Criar conta com este código" : codeSent ? "Confirmar código" : "Enviar código por e-mail"}
+        </button>
+
+        {codeSent && (
+          <button data-neu="text"
+            type="button"
+            onClick={() => {
+              setCodeSent(false);
+              setError(null);
+              setAccountNotFound(null);
+            }}
+            style={{
+              background: "transparent",
+              border: "none",
+              color: "var(--aacp-muted)",
+              cursor: "pointer",
+              fontSize: "13px",
+              padding: "8px 0",
+              textDecoration: "underline",
+              textUnderlineOffset: "3px",
+              transition: "color 0.15s ease",
+            }}
+          >
+            Alterar e-mail
+          </button>
+        )}
+      </form>
+    </div>
+  );
+}
+
+
+export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onToggleTheme, currentSessionId, onResumeConversation, supportInbox, initialTab = "profile" }: BuyerHubPanelProps) {
+  const panelRef = useRef<HTMLDivElement>(null);
+  const vm = useBuyerHub(isOpen, merchantId);
+  useEffect(() => { if (isOpen) vm.setActiveTab(initialTab); }, [isOpen, initialTab, vm.setActiveTab]);
+  const cartView = useCart();
+  const currentCart = merchantId && cartView.snapshotMerchantId === merchantId && !cartView.error && !cartView.updating
+    ? cartView.cart : null;
+  const itemAmounts = currentCart?.items.map((item) => Math.round(item.subtotal * 100));
+  const subtotalCents = itemAmounts?.every((amount) => Number.isSafeInteger(amount) && amount >= 0)
+    ? itemAmounts.reduce((sum, amount) => sum + amount, 0) : null;
+  const cartSnapshot = currentCart ? {
+    subtotalCents: Number.isSafeInteger(subtotalCents) ? subtotalCents : null,
+    itemCount: currentCart.itemCount,
+    nextNudge: currentCart.nextNudge,
+    freeShipping: currentCart.freeShipping,
+    activeRules: currentCart.activeRules,
+  } : undefined;
+  const [authVersion, setAuthVersion] = useState(0);
+  const [registrationOtp, setRegistrationOtp] = useState<{ email: string; otp: string } | null>(null);
+
+  useEffect(() => {
+    if (isOpen && panelRef.current) {
+      panelRef.current.focus();
+    }
+  }, [isOpen]);
+
+  useEffect(() => {
+    if (!isOpen) return;
+    const handleKeyDown = (e: KeyboardEvent) => {
+      if (e.key === "Escape") onClose();
+    };
+    document.addEventListener("keydown", handleKeyDown);
+    return () => document.removeEventListener("keydown", handleKeyDown);
+  }, [isOpen, onClose]);
+
+  const handleAuthSuccess = useCallback(() => {
+    setAuthVersion((v) => v + 1);
+    window.dispatchEvent(new StorageEvent("storage", { key: "zyon_buyer_token" }));
+  }, []);
+
+  useEffect(() => {
+    if (isOpen && vm.activeTab === "loyalty" && merchantSlug && !vm.discountRules.data && !vm.discountRules.loading) {
+      void vm.loadDiscountRules(merchantSlug);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isOpen, vm.activeTab, merchantSlug]);
+
+  if (!isOpen) return null;
+
+  const isAuthenticated = Boolean(vm.auth);
+  const displayName = vm.profile.data?.display_name ?? (vm.auth ? "Conta verificada" : "Comprador");
+  const displayEmail = vm.profile.data?.email ?? vm.auth?.email ?? "nao autenticado";
+  const avatarInitial = displayName[0]?.toUpperCase() ?? "U";
+
+  return (
+    <>
+      {/* Backdrop */}
+      <div
+        onClick={onClose}
+        role="presentation"
+        style={{
+          position: "fixed",
+          inset: 0,
+          background: "rgba(0, 0, 0, 0.5)",
+          zIndex: 10000,
+          animation: "buyerHubFadeIn 0.2s ease",
+          backdropFilter: "blur(2px)",
+        }}
+      />
+
+      {/* Panel */}
+      <div
+        ref={panelRef}
+        role="dialog"
+        aria-modal="true"
+        aria-label="Hub do comprador"
+        tabIndex={-1}
+        style={{
+          position: "fixed",
+          top: 0,
+          right: 0,
+          width: "min(480px, 100vw)",
+          height: "100dvh",
+          background: "var(--aacp-panel-bg, var(--aacp-bg, #edf0ee))",
+          borderLeft: "1px solid var(--aacp-line)",
+          boxShadow: "-12px 0 48px rgba(0, 0, 0, 0.24)",
+          display: "flex",
+          flexDirection: "column",
+          zIndex: 10001,
+          animation: "buyerHubSlideIn 0.3s cubic-bezier(0.22, 1, 0.36, 1)",
+          outline: "none",
+        }}
+      >
+        {/* Keyframes */}
+        <style>{`
+          @keyframes buyerHubSlideIn {
+            from { transform: translateX(100%); opacity: 0; }
+            to { transform: translateX(0); opacity: 1; }
+          }
+          @keyframes buyerHubFadeIn {
+            from { opacity: 0; }
+            to { opacity: 1; }
+          }
+          @media (prefers-reduced-motion: reduce) {
+            @keyframes buyerHubSlideIn {
+              from { opacity: 0; }
+              to { opacity: 1; }
+            }
+          }
+          [role="tablist"][aria-label="Navegacao do hub"]::-webkit-scrollbar { display: none; }
+        `}</style>
+
+        {/* Header — Premium spacing & typography */}
+        <div style={{
+          padding: "24px 20px",
+          borderBottom: "1px solid var(--aacp-line)",
+          display: "flex",
+          alignItems: "flex-start",
+          justifyContent: "space-between",
+          gap: "16px",
+        }}>
+          <div style={{ display: "flex", alignItems: "center", gap: "16px", flex: 1, minWidth: 0 }}>
+            {/* Avatar with gradient ring */}
+            <div
+              style={{
+                position: "relative",
+                width: "48px",
+                height: "48px",
+                flexShrink: 0,
+              }}
+              aria-hidden="true"
+            >
+              {/* Gradient ring (outer) */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 0,
+                  borderRadius: "50%",
+                  background: "linear-gradient(135deg, var(--aacp-accent) 0%, var(--aacp-accent, #3b82f6) 100%)",
+                  opacity: 0.2,
+                }}
+              />
+              {/* Avatar circle */}
+              <div
+                style={{
+                  position: "absolute",
+                  inset: 2,
+                  borderRadius: "50%",
+                  background: "var(--aacp-accent)",
+                  display: "flex",
+                  alignItems: "center",
+                  justifyContent: "center",
+                  color: "#fff",
+                  fontWeight: 700,
+                  fontSize: "18px",
+                }}
+              >
+                {avatarInitial}
+              </div>
+            </div>
+
+            {/* Name & email */}
+            <div style={{ display: "flex", flexDirection: "column", minWidth: 0, gap: "4px" }}>
+              <span style={{ fontSize: "15px", fontWeight: 600, color: "var(--aacp-fg)", wordBreak: "break-word" }}>{displayName}</span>
+              <span style={{ fontSize: "12px", color: "var(--aacp-muted)", wordBreak: "break-word" }}>{displayEmail}</span>
+            </div>
+          </div>
+
+          {/* Close button — ghost style */}
+          <button data-neu="icon"
+            onClick={onClose}
+            aria-label="Fechar painel"
+            style={{
+              width: "36px",
+              height: "36px",
+              borderRadius: "8px",
+              border: "none",
+              background: "transparent",
+              color: "var(--aacp-muted)",
+              cursor: "pointer",
+              display: "flex",
+              alignItems: "center",
+              justifyContent: "center",
+              flexShrink: 0,
+              transition: "background 0.15s ease, color 0.15s ease",
+            }}
+            onMouseEnter={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "var(--aacp-surface-2)";
+              (e.currentTarget as HTMLButtonElement).style.color = "var(--aacp-fg)";
+            }}
+            onMouseLeave={(e) => {
+              (e.currentTarget as HTMLButtonElement).style.background = "transparent";
+              (e.currentTarget as HTMLButtonElement).style.color = "var(--aacp-muted)";
+            }}
+          >
+            <svg width="18" height="18" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+              <path d="M18 6L6 18M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+
+        {/* Content area */}
+        {!isAuthenticated ? (
+          <div style={{ flex: 1, overflowY: "auto", padding: "20px", display: "flex", flexDirection: "column" }}>
+            {registrationOtp ? (
+              <BuyerRegistrationForm
+                merchantId={merchantId}
+                onComplete={async () => {
+                  setRegistrationOtp(null);
+                  handleAuthSuccess();
+                }}
+                onCancel={onClose}
+                initialEmail={registrationOtp.email}
+                initialEmailOtp={registrationOtp.otp}
+              />
+            ) : (
+              <EmailLoginForm
+                onAuthSuccess={handleAuthSuccess}
+                merchantId={merchantId}
+                onAccountNotFound={setRegistrationOtp}
+              />
+            )}
+          </div>
+        ) : (
+          <>
+            {/* Tab bar — HORIZONTAL SCROLLABLE, NOT STRETCHED */}
+            <div
+              role="tablist"
+              aria-label="Navegacao do hub"
+              style={{
+                display: "flex",
+                gap: "2px",
+                padding: "0 8px",
+                borderBottom: "1px solid var(--aacp-line)",
+                overflowX: "auto",
+                overflowY: "hidden",
+                scrollbarWidth: "none",
+                msOverflowStyle: "none",
+              }}
+            >
+              {TABS.map((tab) => {
+                const isActive = vm.activeTab === tab.key;
+                return (
+                  <button data-neu="tab"
+                    key={tab.key}
+                    role="tab"
+                    aria-selected={isActive}
+                    aria-controls={`buyerhub-tabpanel-${tab.key}`}
+                    onClick={() => vm.setActiveTab(tab.key)}
+                    title={tab.label}
+                    style={{
+                      flex: "1 0 auto",
+                      minWidth: "58px",
+                      padding: "14px 4px",
+                      background: "transparent",
+                      border: "none",
+                      borderBottom: isActive ? "2px solid var(--aacp-accent)" : "2px solid transparent",
+                      color: isActive ? "var(--aacp-accent-text, var(--aacp-accent))" : "var(--aacp-muted)",
+                      cursor: "pointer",
+                      display: "flex",
+                      flexDirection: "column",
+                      alignItems: "center",
+                      gap: "5px",
+                      transition: "color 0.15s ease, border-color 0.15s ease",
+                    }}
+                  >
+                    {tab.icon}
+                    <span style={{ fontSize: "10.5px", fontWeight: isActive ? 600 : 500, whiteSpace: "nowrap", letterSpacing: "0.1px" }}>{tab.label}{tab.key === "conversations" && !!supportInbox?.unreadCount && <strong aria-label={`${supportInbox.unreadCount} conversa(s) não lida(s)`} style={{ marginLeft: 5, color: "var(--aacp-accent)" }}>{supportInbox.unreadCount}</strong>}</span>
+                  </button>
+                );
+              })}
+            </div>
+
+            {/* Tab content — spacious padding, max-width constraint */}
+            <div
+              id={`buyerhub-tabpanel-${vm.activeTab}`}
+              role="tabpanel"
+              aria-label={TABS.find((t) => t.key === vm.activeTab)?.label}
+              style={{ flex: 1, overflowY: "auto", display: "flex", flexDirection: "column", padding: "20px" }}
+            >
+              {vm.activeTab === "profile" && (
+                <ProfileTab
+                  profile={vm.profile.data}
+                  addresses={vm.addresses.data ?? []}
+                  loading={vm.profile.loading || vm.addresses.loading}
+                  onUpdateProfile={vm.updateProfile}
+                  onAddAddress={async (addr) => { await vm.createAddress(addr); }}
+                  onUpdateAddress={async (id, addr) => { await vm.updateAddress(id, addr as any); }}
+                  onDeleteAddress={vm.deleteAddress}
+                />
+              )}
+              {vm.activeTab === "orders" && (
+                <OrdersTab
+                  purchases={vm.purchases.data ?? []}
+                  loading={vm.purchases.loading}
+                  error={vm.purchases.error}
+                  onRetry={() => { void (vm.purchases.data?.length && vm.purchasesHasMore ? vm.loadMorePurchases() : vm.loadPurchases(true)); }}
+                  hasMore={vm.purchasesHasMore}
+                  loadingMore={vm.purchases.loading}
+                  onLoadMore={vm.loadMorePurchases}
+                />
+              )}
+              {vm.activeTab === "tracking" && (
+                <TrackingTab
+                  purchases={vm.tracking.data ?? []}
+                  loading={vm.tracking.loading}
+                  error={vm.tracking.error}
+                  onRetry={() => { void vm.loadTracking(); }}
+                />
+              )}
+              {vm.activeTab === "conversations" && (
+                <>
+                {supportInbox && <BuyerSupportConversations inbox={supportInbox} />}
+                {(!supportInbox?.items.length || vm.conversations.loading || vm.conversations.error || !!vm.conversations.data?.length) && <ConversationsTab
+                  conversations={vm.conversations.data ?? []}
+                  loading={vm.conversations.loading}
+                  error={vm.conversations.error}
+                  merchantId={merchantId}
+                  currentSessionId={currentSessionId}
+                  onRetry={() => { void vm.loadConversations(); }}
+                  onResume={onResumeConversation}
+                  onRate={vm.rateMessage}
+                />}
+                </>
+              )}
+              {vm.activeTab === "preferences" && (
+                <PreferencesTab
+                  preferences={vm.preferences.data}
+                  intentProfile={vm.intentProfile.data ?? null}
+                  loading={vm.preferences.loading}
+                  onUpdatePreference={async (key, value) => {
+                    await vm.updatePreferences({ [key]: value } as any);
+                  }}
+                />
+              )}
+              {vm.activeTab === "loyalty" && (
+                <LoyaltyTab
+                  loyalty={vm.loyalty.data}
+                  summary={vm.summary.data ?? null}
+                  discountRules={vm.discountRules.data}
+                  couponsError={vm.discountRules.error}
+                  onRetryCoupons={merchantSlug ? () => { void vm.loadDiscountRules(merchantSlug); } : undefined}
+                  benefits={vm.benefits.data ?? null}
+                  cartSnapshot={cartSnapshot}
+                  benefitsError={vm.benefits.error}
+                  onRetryBenefits={() => { void vm.loadBenefits(); }}
+                  loading={vm.loyalty.loading || vm.discountRules.loading || vm.benefits.loading}
+                />
+              )}
+              {vm.activeTab === "settings" && (
+                <SettingsTab
+                  theme={(typeof window !== "undefined" && (localStorage.getItem("zyon-theme") as "dark" | "light")) || "dark"}
+                  onToggleTheme={() => {
+                    if (onToggleTheme) {
+                      onToggleTheme();
+                    } else {
+                      const current = (typeof window !== "undefined" && localStorage.getItem("zyon-theme")) ?? "dark";
+                      localStorage.setItem("zyon-theme", current === "dark" ? "light" : "dark");
+                    }
+                    setAuthVersion((v) => v + 1);
+                  }}
+                  onExportData={vm.exportData}
+                  onDeleteAccount={async () => { await vm.deleteAccount(); }}
+                  onLogout={vm.signOut}
+                />
+              )}
+            </div>
+          </>
+        )}
+      </div>
+    </>
+  );
+}
+
+export default BuyerHubPanel;

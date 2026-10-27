@@ -1,0 +1,165 @@
+import { Inject, Injectable, Logger } from "@nestjs/common";
+import { HYPOTHESIS_REPOSITORY_PORT, type HypothesisRepositoryPort } from "../../domain/ports/hypothesis-repository.port.js";
+import { OBSERVATION_REPOSITORY_PORT, type ObservationRepositoryPort } from "../../domain/ports/observation-repository.port.js";
+import { STRATEGY_LESSON_REPOSITORY_PORT, type StrategyLessonRepositoryPort } from "../../domain/ports/strategy-lesson-repository.port.js";
+import { HYPOTHESIS_GENERATOR_PORT, type HypothesisGeneratorPort } from "../../domain/ports/hypothesis-generator.port.js";
+import { HypothesisEntity } from "../../domain/entities/hypothesis.entity.js";
+import { assessHypothesisRisk } from "../../domain/value-objects/hypothesis-risk-level.js";
+import { validateHypothesisResponse, validateHypothesisSafety } from "../../domain/services/hypothesis-validator.service.js";
+import { HYPOTHESIS_MERCHANT_CONTEXT_PORT, type HypothesisMerchantContextPort } from "../../domain/ports/hypothesis-merchant-context.port.js";
+import { checkoutBaselineReference, checkoutContractHash } from "../../../checkout/domain/services/checkout-chat-baseline.js";
+import { strategyMeasurementEnabled } from "../../infrastructure/strategy-measurement-planning.js";
+import { discountStudyEnabled } from "../../infrastructure/strategy-discount-study.js";
+
+export interface GenerateHypothesisInput {
+  analysis_context?: { runId: string; leaseToken: number };
+  merchant_id: string;
+  observation_id: string;
+}
+
+export interface GenerateHypothesisOutput {
+  hypothesis_id: string;
+  hypothesis_text: string;
+  risk_level: "low" | "medium" | "high";
+  approval_strategy: "auto" | "manual";
+}
+
+/**
+ * GenerateHypothesisUseCase — Calls LLM to generate hypothesis from observation.
+ *
+ * Uses HYPOTHESIS_GENERATOR_PORT (LLM-backed implementation).
+ * Assesses risk level, determines approval strategy (auto vs manual).
+ * Saves hypothesis entity.
+ */
+@Injectable()
+export class GenerateHypothesisUseCase {
+  private readonly logger = new Logger(GenerateHypothesisUseCase.name);
+
+  constructor(
+    @Inject(OBSERVATION_REPOSITORY_PORT) private readonly observationRepo: ObservationRepositoryPort,
+    @Inject(HYPOTHESIS_REPOSITORY_PORT) private readonly hypothesisRepo: HypothesisRepositoryPort,
+    @Inject(STRATEGY_LESSON_REPOSITORY_PORT) private readonly lessonRepo: StrategyLessonRepositoryPort,
+    @Inject(HYPOTHESIS_GENERATOR_PORT) private readonly generator: HypothesisGeneratorPort,
+    @Inject(HYPOTHESIS_MERCHANT_CONTEXT_PORT) private readonly merchantContext: HypothesisMerchantContextPort,
+  ) {}
+
+  async execute(input: GenerateHypothesisInput): Promise<GenerateHypothesisOutput> {
+    // Fetch observation
+    const observation = await this.observationRepo.findById(input.observation_id, input.merchant_id);
+    if (!observation || observation.merchant_id !== input.merchant_id) {
+      throw new Error(`OBSERVATION_NOT_FOUND: ${input.observation_id}`);
+    }
+    if (!Number.isFinite(observation.funnel.total_sessions) || observation.funnel.total_sessions <= 0) {
+      throw new Error("HYPOTHESIS_INSUFFICIENT_OBSERVATIONS");
+    }
+    if (!observation.isReadyForHypothesis()) {
+      throw new Error("HYPOTHESIS_INSUFFICIENT_MEASURED_DATA");
+    }
+    if (observation.funnel.conversion_rate === null) {
+      throw new Error("HYPOTHESIS_INSUFFICIENT_MEASURED_DATA");
+    }
+
+    const rules = await this.merchantContext.getRules(input.merchant_id);
+    if (!rules) throw new Error("HYPOTHESIS_MERCHANT_RULES_UNAVAILABLE");
+    if (rules.autonomousEngineEnabled !== true) throw new Error("HYPOTHESIS_ENGINE_DISABLED");
+    if (!Number.isFinite(rules.maxDiscountPercent) || rules.maxDiscountPercent < 0 || rules.maxDiscountPercent > 100 || typeof rules.allowFreeShipping !== "boolean") {
+      throw new Error("HYPOTHESIS_INVALID_MERCHANT_RULES");
+    }
+    const policySnapshot = JSON.stringify(rules);
+    const checkoutBaseline = await this.merchantContext.getCheckoutBaseline?.(input.merchant_id);
+    if (checkoutBaseline && !input.analysis_context) throw new Error("HYPOTHESIS_WEEKLY_CONTEXT_REQUIRED");
+    if (checkoutBaseline && checkoutBaseline.policyHash !== checkoutContractHash(rules)) throw new Error("HYPOTHESIS_MERCHANT_RULES_CHANGED");
+    const currentPrompt = checkoutBaseline ? checkoutBaselineReference(checkoutBaseline)
+      : this.merchantContext.getCheckoutBaseline ? undefined : await this.merchantContext.getCurrentPrompt(input.merchant_id);
+    if (typeof currentPrompt !== "string" || !currentPrompt.trim()) throw new Error("HYPOTHESIS_BASELINE_UNAVAILABLE");
+    const measurementPlanning = input.analysis_context
+      ? await this.merchantContext.getMeasurementPlanning?.(input.merchant_id, input.analysis_context) : undefined;
+    if (strategyMeasurementEnabled() && (!checkoutBaseline || !measurementPlanning)) {
+      throw new Error("HYPOTHESIS_MEASUREMENT_CONTEXT_REQUIRED");
+    }
+    // Server-owned simulation prepares reviewable options. Selecting an option
+    // with the planner tool never authorizes an offer to a buyer.
+    const discountStudy = input.analysis_context
+      ? await this.merchantContext.getDiscountStudy?.(input.merchant_id, input.analysis_context) : undefined;
+    if (input.analysis_context && discountStudyEnabled(input.merchant_id) && !discountStudy) {
+      throw new Error("HYPOTHESIS_DISCOUNT_STUDY_REQUIRED");
+    }
+    const incentiveOptions = input.analysis_context
+      ? await this.merchantContext.getIncentiveOptions?.(input.merchant_id, input.analysis_context) : undefined;
+
+    // Legacy lessons do not carry a preregistered plan or complete assignment
+    // population. Keep them out of weekly planning until evidence is versioned.
+    const pastLessons = input.analysis_context ? [] : await this.lessonRepo.findByMerchant(input.merchant_id, 20);
+
+    const constraints = {
+      max_discount_percent: rules.maxDiscountPercent,
+      allow_free_shipping: rules.allowFreeShipping,
+      max_running_experiments: 1,
+      merchant_rules: structuredClone(rules),
+    };
+
+    // Call LLM to generate hypothesis
+    const generationResponse = await this.generator.generate({
+      analysis_context: input.analysis_context,
+      merchant_id: input.merchant_id,
+      observation: observation.snapshot(),
+      past_lessons: pastLessons.map((l) => l.snapshot()),
+      current_prompt: currentPrompt,
+      checkout_baseline: checkoutBaseline,
+      measurement_planning: measurementPlanning,
+      incentive_options: incentiveOptions,
+      constraints,
+    });
+
+    validateHypothesisResponse(generationResponse);
+    if (!generationResponse.template.variant_a.is_control || generationResponse.template.variant_b.is_control) {
+      throw new Error("HYPOTHESIS_INVALID_JSON: variant_a must preserve the current control");
+    }
+    // The server owns CONTROL even if a generator attempts to rewrite it.
+    generationResponse.template.variant_a.system_prompt = currentPrompt;
+    validateHypothesisSafety(generationResponse, constraints, currentPrompt);
+
+    // Revalidate after a potentially slow LLM call: a kill-switch or changed policy
+    // must prevent saving a proposal based on stale commercial authorization.
+    const latestRules = await this.merchantContext.getRules(input.merchant_id);
+    if (!latestRules) throw new Error("HYPOTHESIS_MERCHANT_RULES_UNAVAILABLE");
+    if (latestRules.autonomousEngineEnabled !== true) throw new Error("HYPOTHESIS_ENGINE_DISABLED");
+    if (JSON.stringify(latestRules) !== policySnapshot) throw new Error("HYPOTHESIS_MERCHANT_RULES_CHANGED");
+    if (await this.merchantContext.getCurrentPrompt(input.merchant_id) !== currentPrompt) throw new Error("HYPOTHESIS_BASELINE_CHANGED");
+
+    const riskLevel = assessHypothesisRisk(generationResponse, currentPrompt);
+
+    // Determine approval strategy
+    // Prompts are unstructured; even apparently pure messaging needs merchant review.
+    const approvalStrategy = "manual";
+
+    // Create hypothesis entity
+    let hypothesis = HypothesisEntity.create({
+      merchant_id: input.merchant_id,
+      observation_id: input.observation_id,
+      hypothesis_text: generationResponse.hypothesis_text,
+      reasoning: generationResponse.reasoning,
+      expected_lift_percent: generationResponse.expected_lift_percent,
+      risk_level: riskLevel,
+      template: generationResponse.template,
+      approval_strategy: approvalStrategy,
+    });
+
+    // Save
+    if (input.analysis_context) hypothesis = HypothesisEntity.rehydrate({ ...hypothesis.snapshot(), id: `analysis-${input.analysis_context.runId}` });
+    await this.hypothesisRepo.save(hypothesis, input.analysis_context ? { ...input.analysis_context, checkoutBaseline, measurementPlanning, discountStudy,
+      ...(generationResponse.strategy_plan ? { orchestration: generationResponse.strategy_plan } : {}) } : undefined);
+
+    this.logger.log(
+      `Generated hypothesis for merchant ${input.merchant_id}: ` +
+      `risk=${riskLevel}, strategy=${approvalStrategy}, expected_lift=${generationResponse.expected_lift_percent}%`,
+    );
+
+    return {
+      hypothesis_id: hypothesis.id,
+      hypothesis_text: hypothesis.hypothesis_text,
+      risk_level: riskLevel,
+      approval_strategy: approvalStrategy,
+    };
+  }
+}

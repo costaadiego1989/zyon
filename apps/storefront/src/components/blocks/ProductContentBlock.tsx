@@ -1,0 +1,240 @@
+"use client";
+
+import { useEffect, useState } from "react";
+import type { ConversationBlock } from "@/lib/types";
+import type { PublicProductContent, ProductContentPurchaseResponse } from "@/lib/api/product-content";
+import ProductContentRenderer from "./ProductContentRenderer";
+import RichProductContentRenderer from "./RichProductContentRenderer";
+import { flattenProductContentBlocks } from "./product-content-normalizer";
+import type { ProductContentBlock as ProductContentBlockType } from "./ContentBlocks";
+import { buildProductNarration } from "@/lib/services/product-narration";
+import type { CrossSellInterstitialData } from "@/lib/viewmodels/useConversationViewModel";
+import type { CrossSellDetailPurchase } from "@/lib/storefront-cross-sell-detail";
+import type { CheckoutProductDetailPurchase } from "@/lib/checkout-product-detail";
+
+const API_BASE = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:3009";
+const CATALOG_ID = /^[A-Za-z0-9_-]{1,191}$/;
+
+type ProductContentData = {
+  productId?: unknown;
+  blocks?: unknown;
+};
+
+export type ProductNarrationDetails = {
+  summary: string;
+  enabled: boolean;
+};
+
+function readPublicContent(body: unknown, fallbackProductId: string): PublicProductContent | null {
+  if (!body || typeof body !== "object") return null;
+  const value = body as Record<string, unknown>;
+  if (!Array.isArray(value.blocks)) return null;
+
+  const rawPurchase = value.purchase;
+  const purchase = rawPurchase && typeof rawPurchase === "object"
+    ? rawPurchase as Record<string, unknown>
+    : null;
+  const usablePurchase = purchase && typeof purchase.productName === "string" &&
+    (purchase.defaultVariantId === null || typeof purchase.defaultVariantId === "string")
+    ? {
+        ...purchase,
+        variants: Array.isArray(purchase.variants) ? purchase.variants : [],
+        images: Array.isArray(purchase.images) ? purchase.images : [],
+        optionGroups: Array.isArray(purchase.optionGroups) ? purchase.optionGroups : [],
+      } as ProductContentPurchaseResponse
+    : undefined;
+
+  return {
+    merchantId: typeof value.merchantId === "string" ? value.merchantId : undefined,
+    productId: typeof value.productId === "string" ? value.productId : fallbackProductId,
+    blocks: value.blocks as PublicProductContent["blocks"],
+    faqs: Array.isArray(value.faqs) ? value.faqs as PublicProductContent["faqs"] : [],
+    testimonials: Array.isArray(value.testimonials) ? value.testimonials as PublicProductContent["testimonials"] : [],
+    videos: Array.isArray(value.videos) ? value.videos as PublicProductContent["videos"] : [],
+    crossSell: readCrossSell(value.crossSell),
+    purchase: usablePurchase,
+  };
+}
+
+function readCrossSell(value: unknown): PublicProductContent["crossSell"] {
+  if (!value || typeof value !== "object") return undefined;
+  const data = value as Record<string, unknown>;
+  if (typeof data.trigger !== "string" || !Array.isArray(data.products)) return undefined;
+  const products = data.products.flatMap((item) => {
+    if (!item || typeof item !== "object") return [];
+    const product = item as Record<string, unknown>;
+    if (typeof product.id !== "string" || typeof product.name !== "string" || typeof product.price !== "number" || typeof product.priceFormatted !== "string" || typeof product.inStock !== "boolean") return [];
+    return [{
+      id: product.id,
+      ...(typeof product.productId === "string" ? { productId: product.productId } : {}),
+      name: product.name,
+      price: product.price,
+      priceFormatted: product.priceFormatted,
+      ...(typeof product.image === "string" ? { image: product.image } : {}),
+      inStock: product.inStock,
+      ...(typeof product.discountPercent === "number" ? { discountPercent: product.discountPercent } : {}),
+      ...(typeof product.promoId === "string" ? { promoId: product.promoId } : {}),
+    }];
+  });
+  return products.length > 0 ? { trigger: data.trigger, products } : undefined;
+}
+
+/**
+ * A product-details response is an agent turn. It fetches the same public,
+ * feature-gated representation used on direct product links, then presents it
+ * in the chat's product overlay. A compact action remains in the conversation
+ * so the buyer can reopen the product without losing their place.
+ */
+export default function ProductContentBlock({
+  block,
+  merchantSlug,
+  onQuickReply,
+  immersive = false,
+  narrationEnabled = true,
+  shareUrl,
+  onNarrationChange,
+  onProductResolved,
+  onCartAdded,
+  crossSell,
+  onAddCrossSell,
+  onOpenCrossSell,
+  financialPurchase,
+  checkoutPurchase,
+  presentCrossSell,
+  financialUnavailable = false,
+}: {
+  block: ConversationBlock & { type: "product_content" };
+  merchantSlug?: string;
+  onQuickReply?: (option: string) => void;
+  immersive?: boolean;
+  narrationEnabled?: boolean;
+  shareUrl?: string;
+  onNarrationChange?: (details: ProductNarrationDetails | null) => void;
+  onProductResolved?: (product: { name: string; defaultVariantId: string | null }) => void;
+  onCartAdded?: () => void;
+  crossSell?: CrossSellInterstitialData | null;
+  onAddCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  onOpenCrossSell?: (product: CrossSellInterstitialData["products"][number]) => void;
+  financialPurchase?: CrossSellDetailPurchase;
+  checkoutPurchase?: CheckoutProductDetailPurchase;
+  presentCrossSell?: (products: CrossSellInterstitialData["products"]) => CrossSellInterstitialData["products"];
+  financialUnavailable?: boolean;
+}) {
+  const data = block.data as unknown as ProductContentData;
+  const productId = typeof data?.productId === "string" && CATALOG_ID.test(data.productId) ? data.productId : null;
+  const [content, setContent] = useState<PublicProductContent | null>(null);
+  const [status, setStatus] = useState<"idle" | "loading" | "unavailable">("idle");
+  const [attempt, setAttempt] = useState(0);
+
+  useEffect(() => {
+    if (!immersive || !merchantSlug || !productId) return;
+    const controller = new AbortController();
+    setStatus("loading");
+    setContent(null);
+
+    fetch(`${API_BASE}/storefront/${encodeURIComponent(merchantSlug)}/products/${encodeURIComponent(productId)}/share`, {
+      // Use the storefront's displayed language. The browser preference can
+      // differ (e.g. English browser on the Portuguese storefront).
+      headers: { Accept: "application/json", "Accept-Language": document.documentElement.lang || "pt-BR" },
+      signal: controller.signal,
+      cache: "no-store",
+    })
+      .then(async (response) => {
+        if (!response.ok) return null;
+        const body: unknown = await response.json();
+        if (financialPurchase && (!body || typeof body !== "object"
+          || (body as Record<string, unknown>).productId !== financialPurchase.context.productId
+          || (body as Record<string, unknown>).merchantId !== financialPurchase.context.scope.merchantId)) return null;
+        if (checkoutPurchase && (!body || typeof body !== "object"
+          || (body as Record<string, unknown>).productId !== checkoutPurchase.request.productId
+          || (body as Record<string, unknown>).merchantId !== checkoutPurchase.request.merchantId)) return null;
+        return readPublicContent(body, productId);
+      })
+      .then((next) => {
+        if (controller.signal.aborted) return;
+        setContent(next);
+        setStatus(next ? "idle" : "unavailable");
+      })
+      .catch(() => {
+        if (!controller.signal.aborted) setStatus("unavailable");
+      });
+
+    return () => controller.abort();
+  }, [merchantSlug, productId, immersive, attempt, financialPurchase?.context.key, checkoutPurchase?.request.key]);
+
+  useEffect(() => {
+    const purchase = immersive ? content?.purchase : undefined;
+    if (!purchase) {
+      onNarrationChange?.(null);
+      return;
+    }
+    onProductResolved?.({ name: purchase.productName, defaultVariantId: purchase.defaultVariantId });
+    onNarrationChange?.({ summary: buildProductNarration(purchase), enabled: narrationEnabled });
+  }, [content?.purchase, immersive, narrationEnabled, onNarrationChange, onProductResolved]);
+
+  const onCtaClick = (href: string) => onQuickReply?.(href);
+  const fallbackBlocks = Array.isArray(data?.blocks) ? data.blocks as ProductContentBlockType[] : [];
+
+  if (!productId && fallbackBlocks.length === 0) return null;
+
+  if (!immersive && productId && merchantSlug) {
+    return <button data-neu="control" type="button" onClick={() => window.dispatchEvent(new CustomEvent("aacp:open-product-content", { detail: { productId } }))}
+      style={{ minHeight: 46, padding: "12px 18px", border: "1px solid var(--aacp-line)", borderRadius: "var(--aacp-radius-sm)", background: "var(--aacp-surface)", color: "var(--aacp-fg)", font: "inherit", cursor: "pointer" }}>
+      Explorar detalhes do produto
+    </button>;
+  }
+
+  if (content && !financialUnavailable) {
+    const blocks = flattenProductContentBlocks(content);
+    const recommendations = crossSell ?? content.crossSell ?? null;
+    return (
+      <article
+        aria-label={`Detalhes de ${content.purchase?.productName ?? "produto"}`}
+        aria-busy={false}
+        data-aacp-product-content
+        data-product-id={content.productId}
+        style={{ width: "100%", minWidth: 0, minHeight: 0, display: "flex", flexDirection: "column", flex: 1, fontFamily: "var(--aacp-font)" }}
+      >
+        <RichProductContentRenderer
+          blocks={blocks}
+          faqs={content.faqs}
+          testimonials={content.testimonials}
+          videos={content.videos}
+          purchase={content.purchase}
+          merchantSlug={merchantSlug}
+          productId={content.productId}
+          embedded={!immersive}
+          immersive={immersive}
+          narrationEnabled={narrationEnabled}
+          shareUrl={shareUrl}
+          showNarration={!onNarrationChange}
+          onCartAdded={onCartAdded}
+          crossSell={recommendations && presentCrossSell ? { ...recommendations, products: presentCrossSell(recommendations.products) } : recommendations}
+          onAddCrossSell={onAddCrossSell}
+          onOpenCrossSell={onOpenCrossSell}
+          financialPurchase={financialPurchase}
+          checkoutPurchase={checkoutPurchase}
+        />
+      </article>
+    );
+  }
+
+  if (fallbackBlocks.length > 0 && !financialPurchase && !checkoutPurchase && !financialUnavailable) {
+    return (
+      <section aria-label="Conteúdo do produto" style={{ width: "100%", minWidth: 0 }}>
+        <ProductContentRenderer blocks={fallbackBlocks} onCtaClick={onCtaClick} merchantSlug={merchantSlug} productId={productId ?? undefined} />
+      </section>
+    );
+  }
+
+  return (
+    <section
+      aria-live="polite"
+      aria-busy={status === "loading"}
+      style={{ width: "100%", padding: "24px", color: "var(--aacp-muted)", fontSize: "14px" }}
+    >
+      {financialUnavailable ? "Esta oferta precisa ser aberta novamente pela recomendação. Confira o carrinho antes de continuar." : status === "unavailable" ? "Os detalhes completos deste produto não estão disponíveis agora." : "Preparando os detalhes do produto…"}
+      {status === "unavailable" ? <button data-neu="control" type="button" onClick={() => setAttempt((value) => value + 1)} style={{ display: "block", minHeight: 44, marginTop: 16, padding: "10px 16px", border: "1px solid var(--aacp-line)", borderRadius: "var(--aacp-radius-sm)", background: "var(--aacp-surface)", color: "var(--aacp-fg)", font: "inherit", cursor: "pointer" }}>Tentar novamente</button> : null}
+    </section>
+  );
+}

@@ -1,0 +1,279 @@
+import { GetMerchantThemeUseCase } from "../../../merchant/application/get-merchant-theme.use-case.js";
+import {
+  BadRequestException,
+  Body,
+  Controller,
+  Inject,
+  Optional,
+  Post,
+  Req,
+  UseGuards,
+} from "@nestjs/common";
+import {
+  ApiBearerAuth,
+  ApiCookieAuth,
+  ApiOperation,
+  ApiResponse,
+  ApiTags,
+  ApiBody,
+  ApiPropertyOptional,
+} from "@nestjs/swagger";
+import {
+  IsArray,
+  IsInt,
+  IsOptional,
+  IsString,
+  Max,
+  MaxLength,
+  Min,
+} from "class-validator";
+import { IssueEmbedSessionUseCase } from "../../application/issue-embed-session.use-case.js";
+import { AuthorizeStorefrontCartService } from "../../application/authorize-storefront-cart.service.js";
+import { RenewStorefrontEmbedSessionService } from "../../application/renew-storefront-embed-session.service.js";
+import { Idempotent } from "../../../../shared/http/idempotency/idempotent.decorator.js";
+import { RateLimit } from "../../../../shared/http/rate-limit.guard.js";
+import { currentEmbedIssuer, EmbedSessionIssuerGuard } from "./embed-session-issuer.guard.js";
+import { ListInstallationsUseCase, ResolveInstallationForEmbedUseCase } from "../../../installations/application/installation.use-cases.js";
+import { MERCHANT_REPOSITORY, type MerchantRepository } from "../../../merchant/domain/ports/merchant-repository.port.js";
+
+class IssueEmbedSessionDto {
+  @ApiPropertyOptional({ type: String, example: "cm123installation" })
+  @IsOptional()
+  @IsString()
+  installation_id?: string;
+
+  @ApiPropertyOptional({ type: Number, minimum: 60, maximum: 86400, example: 900 })
+  @IsOptional()
+  @IsInt()
+  @Min(60)
+  @Max(86400)
+  ttl_seconds?: number;
+
+  @ApiPropertyOptional({ type: String, example: "https://checkout.example.com" })
+  @IsOptional()
+  @IsString()
+  allowed_origin?: string;
+
+  @ApiPropertyOptional({
+    type: [String],
+    example: ["checkout:start", "checkout:chat"],
+  })
+  @IsOptional()
+  @IsArray()
+  @IsString({ each: true })
+  scopes?: string[];
+
+  @ApiPropertyOptional({ type: String, example: "cart_123" })
+  @IsOptional()
+  @IsString()
+  @MaxLength(120)
+  cart_ref?: string;
+
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  conversation_token?: string;
+
+  /** A signed, possibly expired storefront token. It can only be continued
+   * after the current conversation/cart ownership has been checked again. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(8192)
+  previous_embed_token?: string;
+
+  /** Buyer proof is only used to continue a buyer-bound checkout session. */
+  @IsOptional()
+  @IsString()
+  @MaxLength(4096)
+  buyer_access_token?: string;
+}
+
+@ApiTags("Embed sessions")
+@ApiBearerAuth("service_api_key")
+@ApiCookieAuth("console_session")
+@UseGuards(EmbedSessionIssuerGuard)
+@Controller(["embed-sessions", "embed/sessions"])
+export class EmbedSessionsController {
+  constructor(
+    private readonly issue: IssueEmbedSessionUseCase,
+    private readonly resolveInstallation: ResolveInstallationForEmbedUseCase,
+    @Inject(MERCHANT_REPOSITORY) private readonly merchants: MerchantRepository,
+    private readonly getTheme: GetMerchantThemeUseCase,
+    @Optional() private readonly listInstallations?: ListInstallationsUseCase,
+    @Optional() private readonly storefrontCartAccess?: AuthorizeStorefrontCartService,
+    @Optional() private readonly renewStorefrontSession?: RenewStorefrontEmbedSessionService,
+  ) {}
+
+  @Post()
+  @Idempotent()
+  @RateLimit(30)
+  @ApiOperation({
+    summary: "Issue an embed session token",
+    description:
+      "Create a short-lived embed session token for use with the `<zyon-checkout-agent>` web component. " +
+      "The token encodes the merchant context, allowed scopes, and optional widget binding (installation). " +
+      "Pass the returned `token` value as the `session-token` attribute on the web component. " +
+      "Default TTL is 900 seconds (15 min); configurable between 60s and 86400s. " +
+      "When `allowed_origin` is provided, the token will only be accepted from matching origins. " +
+      "If `installation_id` is given, the session inherits that installation's environment and widget version.",
+  })
+  @ApiBody({ type: IssueEmbedSessionDto })
+  @ApiResponse({
+    status: 201,
+    description: "Embed session created successfully",
+    schema: {
+      type: "object",
+      properties: {
+        token: { type: "string", description: "JWT embed session token to set on <zyon-checkout-agent session-token=\"...\">" },
+        expires_at: { type: "string", format: "date-time", description: "Token expiration timestamp" },
+        merchant_id: { type: "string", example: "cm123merchant" },
+        installation_id: { type: "string", nullable: true, description: "Resolved installation ID if provided" },
+        scopes: { type: "array", items: { type: "string" }, example: ["checkout:start", "checkout:chat"] },
+      },
+    },
+  })
+  @ApiResponse({
+    status: 400,
+    description: "Validation error: invalid scopes, origin, or TTL out of range. Also returned when merchant_id is passed in body (must be derived from credentials).",
+  })
+  @ApiResponse({
+    status: 401,
+    description: "Unauthorized. Missing or invalid service API key or console session cookie.",
+  })
+  async issueSession(
+    @Req() request: unknown,
+    @Body() body: IssueEmbedSessionDto,
+  ) {
+    if ("merchant_id" in (body as object)) {
+      throw new BadRequestException("merchant_id_is_credential_derived");
+    }
+    const issuer = currentEmbedIssuer(request as never);
+    let ttl = typeof body?.ttl_seconds === "number" && Number.isFinite(body.ttl_seconds) ? body.ttl_seconds : 900;
+    let installationId = body.installation_id;
+    let storefrontCartRef: string | undefined;
+    if (issuer.type === "internal_service") {
+      if (!body.allowed_origin) throw new BadRequestException("public_embed_origin_required");
+      if (body.cart_ref !== undefined) {
+        if (!this.storefrontCartAccess) throw new BadRequestException("public_embed_cart_ownership_required");
+        storefrontCartRef = this.storefrontCartAccess.authorize({
+          token: body.conversation_token, merchantId: issuer.merchantId,
+          cartRef: body.cart_ref, origin: body.allowed_origin,
+        });
+      }
+      ttl = Math.min(ttl, 900);
+      if (!installationId && !storefrontCartRef) {
+        if (!this.listInstallations) throw new BadRequestException("public_embed_installation_required");
+        const installations = await this.listInstallations.execute(issuer.merchantId, 200);
+        const matches = installations.data.filter((installation) =>
+          installation.status === "active" && installation.environment === issuer.environment &&
+          installation.allowedOrigins.includes(body.allowed_origin!),
+        );
+        if (matches.length !== 1 || installations.hasMore) throw new BadRequestException("public_embed_installation_required");
+        installationId = matches[0]!.id;
+      }
+    }
+    const resolved = installationId
+      ? await this.resolveInstallation.execute({
+          merchantId: issuer.merchantId,
+          installationId,
+          requestedOrigin: body.allowed_origin,
+          credentialEnvironment: issuer.environment,
+        })
+      : undefined;
+    const allowedOrigin = resolved?.allowedOrigin ?? body.allowed_origin;
+    const environment = resolved?.installation.environment ?? (storefrontCartRef ? issuer.environment : undefined);
+    const aiUserId = storefrontCartRef
+      ? this.storefrontCartAccess?.userIdentity({ token: body.conversation_token, merchantId: issuer.merchantId, cartRef: storefrontCartRef, origin: body.allowed_origin! })
+      : undefined;
+    const result = body.previous_embed_token !== undefined
+      ? await this.continueStorefrontSession({
+          issuerType: issuer.type,
+          previousToken: body.previous_embed_token,
+          merchantId: issuer.merchantId,
+          storefrontCartRef,
+          origin: allowedOrigin,
+          environment,
+          installationId: resolved?.installation.id,
+          scopes: body.scopes,
+          buyerToken: body.buyer_access_token,
+          aiUserId,
+        })
+      : this.issue.execute({
+          merchantId: issuer.merchantId,
+          ttlSeconds: ttl,
+          installationId: resolved?.installation.id,
+          environment,
+          widgetVersion: resolved?.installation.widgetVersion,
+          allowedOrigin,
+          scopes: body.scopes,
+          cartRef: issuer.type === "internal_service" ? undefined : body.cart_ref,
+          storefrontCartRef,
+          aiUserId,
+        });
+
+    const profile = await this.merchants.getProfile(issuer.merchantId);
+    const merchant = profile ? { ...profile, theme: await this.getTheme.execute(issuer.merchantId) } : undefined;
+
+    return {
+      ...result,
+      widget_config: {
+        brand: merchant?.theme ? {
+          name: merchant.theme.headerTitle ?? merchant.name,
+          logoUrl: merchant.theme.logoUrl ?? undefined,
+          accentColor: merchant.theme.accentColor,
+          backgroundColor: merchant.theme.backgroundColor,
+          textColor: merchant.theme.textColor,
+          fontFamily: merchant.theme.fontFamily,
+          fontDisplay: merchant.theme.fontDisplay ?? undefined,
+          borderRadius: merchant.theme.borderRadius,
+          borderColor: merchant.theme.borderColor ?? undefined,
+          surfaceColor: merchant.theme.surfaceColor ?? undefined,
+          surfaceElevatedColor: merchant.theme.surfaceElevatedColor ?? undefined,
+          mutedTextColor: merchant.theme.mutedTextColor ?? undefined,
+          successColor: merchant.theme.successColor ?? undefined,
+          warningColor: merchant.theme.warningColor ?? undefined,
+          secondaryColor: merchant.theme.secondaryColor ?? undefined,
+          mode: merchant.theme.mode ?? undefined,
+          density: merchant.theme.density ?? undefined,
+          agentAvatarUrl: merchant.theme.agentAvatarUrl ?? undefined,
+          backgroundImageUrl: merchant.theme.backgroundImageUrl ?? undefined,
+          faviconUrl: merchant.theme.faviconUrl ?? undefined,
+          headerTitle: merchant.theme.headerTitle ?? undefined,
+          headerSubtitle: merchant.theme.headerSubtitle ?? undefined,
+        } : undefined,
+        agent: merchant?.theme?.agentName ? {
+          name: merchant.theme.agentName,
+          greeting: merchant.theme.agentGreeting ?? undefined,
+        } : undefined,
+      },
+    };
+  }
+
+  private async continueStorefrontSession(input: {
+    issuerType: string;
+    previousToken: string;
+    merchantId: string;
+    storefrontCartRef?: string;
+    origin?: string;
+    environment?: "test" | "live";
+    installationId?: string;
+    scopes?: string[];
+    buyerToken?: string;
+    aiUserId?: string;
+  }) {
+    if (input.issuerType !== "internal_service" || !input.storefrontCartRef || !input.origin || !input.environment || !this.renewStorefrontSession) {
+      throw new BadRequestException("public_embed_continuation_unavailable");
+    }
+    return this.renewStorefrontSession.execute({
+      previousToken: input.previousToken,
+      merchantId: input.merchantId,
+      storefrontCartRef: input.storefrontCartRef,
+      origin: input.origin,
+      environment: input.environment,
+      installationId: input.installationId,
+      scopes: input.scopes,
+      buyerToken: input.buyerToken,
+      aiUserId: input.aiUserId,
+    });
+  }
+}

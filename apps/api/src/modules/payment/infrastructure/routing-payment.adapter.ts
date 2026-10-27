@@ -1,0 +1,475 @@
+import type { PendingPaymentCancellationInput, PendingPaymentCancellationResult } from "../domain/pending-payment-cancellation.js";
+import { Injectable } from "@nestjs/common";
+import type {
+  CreateProviderPaymentInput,
+  CreateProviderPaymentOutput,
+  FetchPaymentStatusInput,
+  FetchPaymentStatusOutput,
+  ReadMarketplacePaymentActionOutput,
+  FetchRefundStatusInput,
+  FetchRefundStatusOutput,
+  RefundPaymentInput,
+  RefundPaymentOutput,
+  MarketplaceCaptureAccount,
+  PaymentProviderPort
+} from "../domain/ports/payment-provider.port.js";
+import { StripePaymentAdapter } from "./stripe-payment.adapter.js";
+import { AsaasPaymentAdapter } from "./asaas-payment.adapter.js";
+import { MercadoPagoPaymentAdapter } from "./mercadopago-payment.adapter.js";
+import { EvmCryptoPaymentAdapter } from "./evm-crypto-payment.adapter.js";
+import type {
+  PaymentPlatformRepository,
+} from "../domain/ports/payment-platform-repository.port.js";
+import { buildMarketplaceFundingBudget } from "../../marketplace/domain/services/marketplace-funding-budget.js";
+import { stripeConnectionAllowsCharges } from "../domain/stripe-charge-capability.js";
+
+@Injectable()
+export class RoutingPaymentAdapter implements PaymentProviderPort {
+  constructor(
+    private readonly stripe: StripePaymentAdapter | null,
+    private readonly asaas: AsaasPaymentAdapter | null,
+    private readonly mercadopago: MercadoPagoPaymentAdapter | null,
+    private readonly evmCrypto: EvmCryptoPaymentAdapter,
+    private readonly platformConnections?: PaymentPlatformRepository,
+    private readonly asaasBaseUrl?: string,
+    private readonly mercadopagoBaseUrl?: string,
+    private readonly fetchImpl: typeof fetch = globalThis.fetch,
+  ) {}
+
+  async preparePayment(input: CreateProviderPaymentInput): Promise<CreateProviderPaymentInput> {
+    if (input.marketplaceFunding) {
+      await this.marketplaceCreationRoute(input);
+      return { ...input, providerAccountFingerprint: input.marketplaceFunding.accountFingerprint };
+    }
+    const route = await this.creationRoute(input);
+    if (route.name === "asaas" || route.name === "mercadopago") (route.adapter as AsaasPaymentAdapter | MercadoPagoPaymentAdapter).validatePlatformFee?.(input);
+    const prepared = route.name === "mercadopago" && route.adapter.preparePayment
+      ? await route.adapter.preparePayment(input) : input;
+    return { ...prepared, provider: route.name, providerAccountFingerprint: route.adapter.creationAccountFingerprint?.() };
+  }
+
+  async recoverPayment(input: CreateProviderPaymentInput, firstAttemptAt: string): Promise<CreateProviderPaymentOutput | null> {
+    const { adapter } = await this.creationRoute(input);
+    if (!input.marketplaceFunding) this.assertAccount(adapter, input.providerAccountFingerprint);
+    return adapter.recoverPayment ? adapter.recoverPayment(input, firstAttemptAt) : null;
+  }
+
+  private assertAccount(adapter: PaymentProviderPort, fingerprint?: string): void {
+    if (fingerprint && adapter.creationAccountFingerprint?.() !== fingerprint) throw new Error("payment_provider_account_changed");
+  }
+
+  private async cancellationRoute(input: PendingPaymentCancellationInput): Promise<PaymentProviderPort | null> {
+    const p = input.payment;
+    const scope = p as { marketplaceFunding?: unknown; marketplacePublicAdmission?: unknown };
+    if (!p?.provider || !p.providerAccountFingerprint || scope.marketplaceFunding !== undefined || scope.marketplacePublicAdmission !== undefined) return null;
+    const { adapter } = await this.creationRoute(p);
+    // Unlike legacy reads, cancellation never guesses another account/provider.
+    this.assertAccount(adapter, p.providerAccountFingerprint);
+    return adapter;
+  }
+
+  async readCancellationStatus(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    const adapter = await this.cancellationRoute(input);
+    return adapter?.readCancellationStatus ? adapter.readCancellationStatus(input) : { state: "unsupported" };
+  }
+
+  async cancelPendingPayment(input: PendingPaymentCancellationInput): Promise<PendingPaymentCancellationResult> {
+    const adapter = await this.cancellationRoute(input);
+    return adapter?.cancelPendingPayment ? adapter.cancelPendingPayment(input) : { state: "unsupported" };
+  }
+
+  async prepareMarketplaceAccount(input: Pick<MarketplaceCaptureAccount, "provider" | "environment">): Promise<MarketplaceCaptureAccount> {
+    const adapter = input.provider === "stripe" ? this.stripe : input.provider === "asaas" ? this.asaas : null;
+    if (!adapter?.prepareMarketplaceAccount) throw new Error("marketplace_capture_account_not_configured");
+    return adapter.prepareMarketplaceAccount(input);
+  }
+
+  private async marketplaceRoute(account: MarketplaceCaptureAccount, provider: CreateProviderPaymentInput["provider"], fingerprint?: string) {
+    if (!account || account.provider !== provider || !account.accountFingerprint ||
+        (fingerprint && fingerprint !== account.accountFingerprint)) throw new Error("marketplace_capture_account_mismatch");
+    const actual = await this.prepareMarketplaceAccount(account);
+    if (actual.accountFingerprint !== account.accountFingerprint) throw new Error("marketplace_capture_account_mismatch");
+    return { name: account.provider, adapter: (account.provider === "stripe" ? this.stripe : this.asaas)! };
+  }
+
+  private async marketplaceCreationRoute(input: CreateProviderPaymentInput) {
+    const funding = input.marketplaceFunding!;
+    if (funding.hostMerchantId !== input.merchantId || funding.amountCents !== input.amountCents || funding.currency !== input.currency ||
+        !input.provider || input.settlementMode || input.stripeConnectAccountId || input.merchantPayoutDestination ||
+        input.merchantPayoutHoldDays !== undefined || (input.platformFeeCents ?? 0) !== 0 || input.creditCard || input.creditCardHolderInfo ||
+        (input.provider === "stripe" ? input.method !== "card" : !["pix", "boleto", "card"].includes(input.method))) {
+      throw new Error("marketplace_capture_creation_invalid");
+    }
+    buildMarketplaceFundingBudget(funding, { ...funding, providerPaymentId: "preflight", sourceId: "preflight",
+      providerFeeCents: 0, netAmountCents: input.amountCents });
+    const route = await this.marketplaceRoute(funding, input.provider, input.providerAccountFingerprint);
+    await route.adapter.preparePayment?.(input);
+    return route;
+  }
+
+  private async creationRoute(input: Pick<CreateProviderPaymentInput, "merchantId" | "method" | "provider" | "settlementMode"> & {
+    marketplaceAccount?: MarketplaceCaptureAccount; providerAccountFingerprint?: string;
+  }): Promise<{ name: NonNullable<CreateProviderPaymentInput["provider"]>; adapter: PaymentProviderPort }> {
+    if ("marketplaceFunding" in input && input.marketplaceFunding) return this.marketplaceCreationRoute(input as CreateProviderPaymentInput);
+    if (input.marketplaceAccount) {
+      if (input.settlementMode) throw new Error("marketplace_capture_creation_invalid");
+      return this.marketplaceRoute(input.marketplaceAccount, input.provider, input.providerAccountFingerprint);
+    }
+    // A delayed merchant payout must be charged by the platform. Resolving a
+    // tenant credential here would put the money in the merchant account at
+    // capture time and make the configured return window fictional.
+    if (input.settlementMode === "delayed_merchant_payout") {
+      if (input.provider === "mercadopago") throw new Error("mercadopago_delayed_payout_not_supported");
+      if (input.provider === "crypto" || input.method === "crypto") throw new Error("crypto_delayed_payout_not_supported");
+      if (input.provider === "stripe" || (!input.provider && input.method === "card")) {
+        const creation = input as CreateProviderPaymentInput;
+        if ("intentId" in input && (creation.merchantPayoutAnchor !== "fulfillment" || creation.merchantPayoutHoldDays !== 7 ||
+            !creation.merchantPayoutDestination || creation.stripeChargeMode || creation.stripeConnectAccountId)) throw new Error("stripe_delayed_payout_snapshot_invalid");
+        if (!this.stripe) throw new Error("stripe_platform_account_not_configured");
+        return { name: "stripe", adapter: this.stripe };
+      }
+      if (!this.asaas) throw new Error("asaas_platform_account_not_configured");
+      return { name: "asaas", adapter: this.asaas };
+    }
+    if (input.provider === "crypto" || (!input.provider && input.method === "crypto")) return { name: "crypto", adapter: this.evmCrypto };
+    if (input.provider === "stripe" || (!input.provider && input.method === "card")) {
+      // Existing intents remain pinned to their original account for reconciliation.
+      const stripe = input.provider === "stripe" ? this.stripe : await this.resolveStripe(input.merchantId);
+      if (stripe) return { name: "stripe", adapter: stripe };
+      if (input.provider === "stripe") throw new Error("payment_provider_not_configured");
+    }
+    if ((!input.provider && input.method !== "card") || input.provider === "mercadopago") {
+      const mp = await this.resolveMercadoPago(input.merchantId);
+      if (mp) return { name: "mercadopago", adapter: mp };
+      if (input.provider) throw new Error("payment_provider_not_configured");
+    }
+    const asaas = await this.resolveAsaas(input.merchantId);
+    if (!asaas) throw new Error("payment_provider_not_configured");
+    return { name: "asaas", adapter: asaas };
+  }
+
+  async createPayment(
+    input: CreateProviderPaymentInput,
+  ): Promise<CreateProviderPaymentOutput> {
+    if (!["pix", "card", "crypto"].includes(input.method)) throw new Error("payment_method_not_supported");
+    if (input.marketplaceFunding) {
+      const { adapter } = await this.marketplaceCreationRoute(input);
+      return adapter.createPayment(input);
+    }
+    if (input.provider) {
+      if (input.provider === "mercadopago" && !mercadoPagoWebhookConfigured()) {
+        throw new Error("mercadopago_webhook_not_configured");
+      }
+      const { adapter } = await this.creationRoute(input);
+      this.assertAccount(adapter, input.providerAccountFingerprint);
+      return adapter.createPayment(input);
+    }
+    if (input.method === "crypto") {
+      return this.evmCrypto.createPayment(input);
+    }
+
+    // For card, try Stripe only if merchant connection is active, otherwise fall through to Asaas
+    if (input.method === "card") {
+      const stripe = await this.resolveStripe(input.merchantId);
+      if (stripe) {
+        return stripe.createPayment(input);
+      }
+    }
+
+    // Mercado Pago may create a charge only when its signed webhook is ready to
+    // reconcile the result. When it is not, prefer the active Asaas rail.
+    const mercadopago = await this.resolveMercadoPago(input.merchantId);
+    if (mercadopago && mercadoPagoWebhookConfigured() && input.method === "pix") {
+      return mercadopago.createPayment(input);
+    }
+
+    const asaas = await this.resolveAsaas(input.merchantId);
+    if (asaas) {
+      return asaas.createPayment(input);
+    }
+
+    throw new Error("payment_provider_not_configured");
+  }
+
+  async readMarketplacePaymentAction(input: FetchPaymentStatusInput): Promise<ReadMarketplacePaymentActionOutput> {
+    if (!input.marketplaceAccount || !["stripe", "asaas"].includes(input.provider ?? "") || input.marketplaceAccount.provider !== input.provider ||
+      !["test", "live"].includes(input.marketplaceAccount.environment) || !input.marketplacePayment || input.settlementMode ||
+      input.providerAccountFingerprint !== input.marketplaceAccount.accountFingerprint) {
+      throw new Error("marketplace_payment_resume_identity_invalid");
+    }
+    const { adapter } = await this.marketplaceRoute(input.marketplaceAccount, input.provider, input.providerAccountFingerprint);
+    const reader: PaymentProviderPort = adapter;
+    if (!reader.readMarketplacePaymentAction) throw new Error("marketplace_payment_resume_unavailable");
+    return reader.readMarketplacePaymentAction(input);
+  }
+
+  async fetchPaymentStatus(
+    input: FetchPaymentStatusInput,
+  ): Promise<FetchPaymentStatusOutput> {
+    if (input.marketplaceAccount !== undefined && !input.marketplaceAccount) throw new Error("marketplace_payment_identity_invalid");
+    if (input.marketplacePayment !== undefined && !input.marketplaceAccount) throw new Error("marketplace_payment_identity_invalid");
+    if (input.provider || input.marketplaceAccount) {
+      const { adapter } = await this.creationRoute({
+        merchantId: input.merchantId,
+        provider: input.provider,
+        method: "",
+        settlementMode: input.settlementMode,
+        marketplaceAccount: input.marketplaceAccount,
+        providerAccountFingerprint: input.providerAccountFingerprint,
+      });
+      if (!input.marketplaceAccount) this.assertAccount(adapter, input.providerAccountFingerprint);
+      if (!adapter.fetchPaymentStatus) return { state: "unknown" };
+      return adapter.fetchPaymentStatus(input);
+    }
+    const isStripeId = input.providerPaymentId.startsWith("pi_");
+    if (isStripeId && this.stripe) {
+      return this.stripe.fetchPaymentStatus(input);
+    }
+
+    const mercadopago = await this.resolveMercadoPago(input.merchantId);
+    if (mercadopago) {
+      // Try mercadopago first — if it fails, try asaas
+      try {
+        return await mercadopago.fetchPaymentStatus(input);
+      } catch {
+        // Fall through to asaas
+      }
+    }
+
+    const asaas = await this.resolveAsaas(input.merchantId);
+    if (asaas) {
+      return asaas.fetchPaymentStatus(input);
+    }
+
+    throw new Error("payment_provider_not_configured");
+  }
+
+  async cancelPayment(input: FetchPaymentStatusInput): Promise<{ state: "cancelled" | "blocked" | "unknown" }> {
+    if (!input.provider) return { state: "unknown" };
+    const { adapter } = await this.creationRoute({ merchantId: input.merchantId, provider: input.provider,
+      method: "", settlementMode: input.settlementMode });
+    this.assertAccount(adapter, input.providerAccountFingerprint);
+    return adapter.cancelPayment ? adapter.cancelPayment(input) : { state: "unknown" };
+  }
+
+  async fetchRefundStatus(input: FetchRefundStatusInput): Promise<FetchRefundStatusOutput> {
+    if (input.provider || input.marketplaceAccount) {
+      const { adapter } = await this.creationRoute({
+        merchantId: input.merchantId,
+        provider: input.provider,
+        method: "",
+        settlementMode: input.settlementMode,
+        marketplaceAccount: input.marketplaceAccount,
+        providerAccountFingerprint: input.providerAccountFingerprint,
+      });
+      this.assertAccount(adapter, input.providerAccountFingerprint);
+      return adapter.fetchRefundStatus ? adapter.fetchRefundStatus(input) : { state: "unknown" };
+    }
+
+    if (input.providerPaymentId.startsWith("pi_") && this.stripe?.fetchRefundStatus) {
+      return this.stripe.fetchRefundStatus(input);
+    }
+
+    const asaas = await this.resolveAsaas(input.merchantId).catch(() => null);
+    return asaas?.fetchRefundStatus ? asaas.fetchRefundStatus(input) : { state: "unknown" };
+  }
+
+  async readRefundRecoveryEligibility(input: RefundPaymentInput): Promise<boolean> {
+    if (input.provider !== "stripe" || input.marketplaceAccount || input.stripeChargeMode !== "direct_v2") return false;
+    const { adapter } = await this.creationRoute({ merchantId: input.merchantId, provider: input.provider,
+      method: "", settlementMode: input.settlementMode, providerAccountFingerprint: input.providerAccountFingerprint });
+    this.assertAccount(adapter, input.providerAccountFingerprint);
+    return adapter.readRefundRecoveryEligibility ? adapter.readRefundRecoveryEligibility(input) : false;
+  }
+
+  async createCustomer(input: {
+    marketplaceAccount?: MarketplaceCaptureAccount;
+    merchantId: string;
+    name: string;
+    email: string;
+    cpfCnpj: string;
+    phone?: string;
+    settlementMode?: CreateProviderPaymentInput["settlementMode"];
+  }): Promise<string> {
+    if (input.marketplaceAccount) {
+      if (input.marketplaceAccount.provider !== "asaas" || input.settlementMode) throw new Error("marketplace_capture_creation_invalid");
+      const { adapter } = await this.marketplaceRoute(input.marketplaceAccount, "asaas");
+      return (adapter as AsaasPaymentAdapter).createCustomer(input);
+    }
+    if (input.settlementMode === "delayed_merchant_payout") {
+      if (!this.asaas) throw new Error("asaas_platform_account_not_configured");
+      return this.asaas.createCustomer(input);
+    }
+    const asaas = await this.resolveAsaas(input.merchantId);
+    if (asaas) {
+      return asaas.createCustomer(input);
+    }
+    throw new Error("payment_provider_not_configured_for_customer_creation");
+  }
+
+  /**
+   * Route the refund to the SAME provider that captured the payment. We select
+   * by the providerPaymentId shape (Stripe intents are `pi_*`), mirroring
+   * fetchPaymentStatus — a merchant may have multiple providers connected, so
+   * the refund must target the one that actually holds the charge, never a
+   * "default" one. Falls back across the merchant's configured providers.
+   */
+  async refundPayment(input: RefundPaymentInput): Promise<RefundPaymentOutput> {
+    // Prefer the immutable route captured when the payment was created. In
+    // delayed-payout mode this selects the platform account, which is the
+    // account that actually owns the charge until the return window closes.
+    if (input.provider || input.marketplaceAccount) {
+      const { adapter } = await this.creationRoute({
+        merchantId: input.merchantId,
+        provider: input.provider,
+        method: "",
+        settlementMode: input.settlementMode,
+        marketplaceAccount: input.marketplaceAccount,
+        providerAccountFingerprint: input.providerAccountFingerprint,
+      });
+      this.assertAccount(adapter, input.providerAccountFingerprint);
+      if (!adapter.refundPayment) throw new Error("payment_provider_refund_unsupported");
+      return adapter.refundPayment(input);
+    }
+
+    const isStripeId = input.providerPaymentId.startsWith("pi_");
+    if (isStripeId) {
+      if (this.stripe?.refundPayment) return this.stripe.refundPayment(input);
+      throw new Error("stripe_refund_unavailable");
+    }
+
+    // Non-Stripe id: try the merchant's active BR providers (mercadopago, then asaas).
+    const mercadopago = await this.resolveMercadoPago(input.merchantId).catch(() => null);
+    if (mercadopago?.refundPayment) {
+      try {
+        return await mercadopago.refundPayment(input);
+      } catch {
+        // fall through to asaas
+      }
+    }
+    const asaas = await this.resolveAsaas(input.merchantId).catch(() => null);
+    if (asaas?.refundPayment) {
+      return asaas.refundPayment(input);
+    }
+    throw new Error("payment_provider_not_configured_for_refund");
+  }
+
+  private async resolveAsaas(
+    merchantId: string,
+  ): Promise<AsaasPaymentAdapter | null> {
+    const connection =
+      await this.platformConnections?.getConnection(
+        merchantId,
+        "asaas",
+      );
+    if (this.platformConnections && connection?.status !== "active") {
+      throw new Error("asaas_connection_not_active");
+    }
+    const rawSecret =
+      await this.platformConnections?.getConnectionSecret(
+        merchantId,
+        "asaas",
+      );
+    const tenantKey = extractAsaasApiKey(rawSecret);
+    if (tenantKey && this.asaasBaseUrl) {
+      // Use sandbox URL when the merchant connection is in test environment
+      const isSandbox = connection?.environment === "test";
+      const baseUrl = isSandbox
+        ? (process.env.ASAAS_BASE_URL_SANDBOX?.trim() || "https://api-sandbox.asaas.com")
+        : this.asaasBaseUrl;
+      const platformWallet = (isSandbox ? process.env.ASAAS_PLATFORM_WALLET_ID_TEST : process.env.ASAAS_PLATFORM_WALLET_ID)?.trim();
+      const merchantWallet = connection?.walletId?.trim();
+      // A merchant connection must never use the platform's wallet. Omitting
+      // the split in that case would retain the full charge in the platform.
+      if (platformWallet && merchantWallet === platformWallet) {
+        throw new Error("asaas_merchant_wallet_matches_platform_wallet");
+      }
+      return new AsaasPaymentAdapter(
+        baseUrl,
+        tenantKey,
+        this.fetchImpl,
+        platformWallet,
+        !platformWallet,
+      );
+    }
+    return this.asaas;
+  }
+
+  private async resolveMercadoPago(
+    merchantId: string,
+  ): Promise<MercadoPagoPaymentAdapter | null> {
+    const connection =
+      await this.platformConnections?.getConnection(
+        merchantId,
+        "mercadopago",
+      );
+    if (this.platformConnections && connection?.status !== "active") {
+      return null;
+    }
+    const rawCredentials =
+      await this.platformConnections?.getConnectionSecret(
+        merchantId,
+        "mercadopago",
+      );
+    let tenantKey = rawCredentials;
+    let oauthSeller = false;
+    if (rawCredentials?.trim().startsWith("{")) {
+      try {
+        const credentials = JSON.parse(rawCredentials) as { accessToken?: string; refreshToken?: string };
+        tenantKey = credentials.accessToken;
+        oauthSeller = Boolean(tenantKey && typeof credentials.refreshToken === "string" && credentials.refreshToken.trim());
+      } catch { tenantKey = undefined; }
+    }
+    if (tenantKey && this.mercadopagoBaseUrl) {
+      return new MercadoPagoPaymentAdapter(
+        this.mercadopagoBaseUrl,
+        tenantKey,
+        "",
+        this.fetchImpl,
+        oauthSeller,
+        true,
+        this.mercadopago ?? undefined,
+      );
+    }
+    return this.mercadopago;
+  }
+
+  private async resolveStripe(
+    merchantId: string,
+  ): Promise<StripePaymentAdapter | null> {
+    const connection =
+      await this.platformConnections?.getConnection(
+        merchantId,
+        "stripe",
+      );
+    if (this.platformConnections && !stripeConnectionAllowsCharges(connection)) {
+      return null;
+    }
+    return this.stripe;
+  }
+}
+
+function mercadoPagoWebhookConfigured(): boolean {
+  return Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim());
+}
+
+/**
+ * The Asaas connection secret is stored as JSON (`{"apiKey":"...","webhookToken":"..."}`)
+ * by SaveAsaasConnectionConfigUseCase. Older records may hold the raw key string.
+ * Extract the API key from either shape.
+ */
+function extractAsaasApiKey(rawSecret: string | undefined): string | undefined {
+  if (!rawSecret) return undefined;
+  const trimmed = rawSecret.trim();
+  if (trimmed.startsWith("{")) {
+    try {
+      const parsed = JSON.parse(trimmed) as { apiKey?: string };
+      return typeof parsed.apiKey === "string" && parsed.apiKey.trim()
+        ? parsed.apiKey.trim()
+        : undefined;
+    } catch {
+      return undefined;
+    }
+  }
+  return trimmed || undefined;
+}

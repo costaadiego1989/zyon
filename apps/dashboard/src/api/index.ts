@@ -1,0 +1,118 @@
+/**
+ * Dashboard API client factory and type exports.
+ * Composes HTTP layer + endpoint groups into a single API object.
+ * This module maintains full backward compatibility with the original api-client.ts.
+ */
+
+import { authEndpoints } from "./endpoints/auth.js";
+import { merchantEndpoints } from "./endpoints/merchants.js";
+import { checkoutSettingsEndpoints } from "./endpoints/checkout-settings.js";
+import { supportEndpoints } from "./endpoints/support.js";
+import { otherEndpoints } from "./endpoints/other.js";
+import { catalogEndpoints } from "./endpoints/catalog.js";
+import { productContentEndpoints } from "./endpoints/product-content.js";
+import { experimentsEndpoints } from "./endpoints/experiments.js";
+import { marketplaceEndpoints } from "./endpoints/marketplace-v2.js";
+import { marketplaceCancellationEndpoints } from "./endpoints/marketplace-cancellation.js";
+import { marketplaceShipmentEndpoints } from "./endpoints/marketplace-shipments.js";
+import { marketplaceRefundEndpoints } from "./endpoints/marketplace-refunds.js";
+import { marketplaceRefundPreparationEndpoints } from "./endpoints/marketplace-refund-preparation.js";
+import { marketplaceAsaasWalletReturnEndpoints } from "./endpoints/marketplace-asaas-wallet-returns.js";
+import { marketplaceContributionCheckoutEndpoints } from "./endpoints/marketplace-contribution-checkouts.js";
+import { marketplaceSellerFeeCollectionEndpoints } from "./endpoints/marketplace-seller-fee-collections.js";
+import { marketplaceHostFeeCollectionEndpoints } from "./endpoints/marketplace-host-fee-collections.js";
+import { webhookEndpoints } from "./endpoints/webhook.js";
+import { orderEndpoints } from "./endpoints/order.js";
+import {
+  customerEndpoints,
+  paymentEndpoints,
+} from "./endpoints/customer.js";
+import { billingEndpoints } from "./endpoints/billing.js";
+import { onboardingEndpoints } from "./endpoints/onboarding.js";
+import { agentEndpoints } from "./endpoints/agent.js";
+import { negotiationEndpoints } from "./endpoints/negotiation.js";
+import { m2mManagementEndpoints } from "./endpoints/m2m-management.js";
+import { auditEndpoints } from "./endpoints/audit.js";
+import { funnelEndpoints } from "./endpoints/funnel.js";
+import {
+  integrationEndpoints,
+  commerceEndpoints,
+  installationEndpoints,
+} from "./endpoints/integration.js";
+import { revenueLiftEndpoints } from "./endpoints/revenue-lift.js";
+import { revenueManagerEndpoints } from "./endpoints/revenue-manager.js";
+import { cartRecoveryEndpoints } from "./endpoints/cart-recovery.js";
+import { returnsEndpoints } from "./endpoints/returns.js";
+import { inventoryEndpoints } from "./endpoints/inventory.js";
+import { deliveryEndpoints } from "./endpoints/delivery.js";
+import { postSaleEndpoints } from "./endpoints/post-sale.js";
+import { knowledgeEndpoints } from "./endpoints/knowledge.js";
+import { financeEndpoints } from "./endpoints/finance.js";
+
+export * from "./http/index.js";
+export * from "./types.js";
+export * from "./endpoints/catalog.js";
+export * from "./endpoints/product-content.js";
+export * from "./endpoints/marketplace-v2.js";
+export * from "./endpoints/finance.js";
+export {
+  mapWebhookEndpoint,
+  mapWebhookDelivery,
+  type WebhookEndpointApi,
+  type WebhookDeliveryApi,
+} from "./adapters/webhook-mappers.js";
+
+/**
+ * Create and return a complete dashboard API client.
+ * Merges all endpoint groups (auth, merchants, checkout, support, etc.) into one object.
+ */
+export function createDashboardApi(options: {
+  baseUrl: string;
+  fetchImpl?: typeof fetch;
+}) {
+  const base = options.baseUrl.trimEnd().replace(/\/+$/, "");
+  const f = options.fetchImpl ?? globalThis.fetch;
+
+  return {
+    ...authEndpoints(base, f),
+    ...merchantEndpoints(base, f),
+    ...checkoutSettingsEndpoints(base, f),
+    ...supportEndpoints(base, f),
+    ...webhookEndpoints(base, f),
+    ...orderEndpoints(base, f),
+    ...customerEndpoints(base, f),
+    ...paymentEndpoints(base, f),
+    ...billingEndpoints(base, f),
+    ...onboardingEndpoints(base, f),
+    ...agentEndpoints(base, f),
+    ...negotiationEndpoints(base, f),
+    ...m2mManagementEndpoints(base, f),
+    ...auditEndpoints(base, f),
+    ...integrationEndpoints(base, f),
+    ...commerceEndpoints(base, f),
+    ...installationEndpoints(base, f),
+    ...catalogEndpoints(base, f),
+    ...productContentEndpoints(base, f),
+    ...experimentsEndpoints(base, f),
+    ...marketplaceEndpoints(base, f),
+    ...marketplaceCancellationEndpoints(base, f),
+    ...marketplaceShipmentEndpoints(base, f),
+    ...marketplaceRefundEndpoints(base, f),
+    ...marketplaceRefundPreparationEndpoints(base, f),
+    ...marketplaceAsaasWalletReturnEndpoints(base, f),
+    ...marketplaceContributionCheckoutEndpoints(base, f),
+    ...marketplaceSellerFeeCollectionEndpoints(base, f),
+    ...marketplaceHostFeeCollectionEndpoints(base, f),
+    ...funnelEndpoints(base, f),
+    ...revenueLiftEndpoints(base, f),
+    ...revenueManagerEndpoints(base, f),
+    ...cartRecoveryEndpoints(base, f),
+    ...returnsEndpoints(base, f),
+    ...inventoryEndpoints(base, f),
+    ...deliveryEndpoints(base, f),
+    ...postSaleEndpoints(base, f),
+    ...knowledgeEndpoints(base, f),
+    ...financeEndpoints(base, f),
+    ...otherEndpoints(base, f),
+  };
+}

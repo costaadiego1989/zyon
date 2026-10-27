@@ -1,0 +1,139 @@
+import { createHttpLoggerOptions } from "./shared/logger/http-logger.config.js";
+import { Module } from "@nestjs/common";
+import { PlatformControlModule } from "./modules/platform-control/platform-control.module.js";
+import { PlatformOverviewModule } from "./modules/platform-overview/platform-overview.module.js";
+import { PlatformMerchantDirectoryModule } from "./modules/platform-merchant-directory/platform-merchant-directory.module.js";
+import { PlatformInfrastructureModule } from "./modules/platform-infrastructure/platform-infrastructure.module.js";
+import { PlatformCommerceModule } from "./modules/platform-commerce/platform-commerce.module.js";
+import { BillingPromotionsModule } from "./modules/billing-promotions/billing-promotions.module.js";
+import { ServiceSlotHoldsModule } from "./shared/bookings/service-slot-holds.module.js";
+import { APP_INTERCEPTOR } from "@nestjs/core";
+import { LoggerModule } from "nestjs-pino";
+import { MetricsInterceptor } from "./shared/observability/metrics.interceptor.js";
+import { TenantModule } from "./shared/tenant/tenant.module.js";
+import { ObservabilityModule } from "./shared/observability/observability.module.js";
+import { HttpModule } from "./shared/http/http.module.js";
+import { PersistenceModule } from "./shared/persistence/persistence.module.js";
+import { DataRetentionModule } from "./shared/retention/data-retention.module.js";
+import { MessagingModule } from "./shared/messaging/messaging.module.js";
+import { HealthModule } from "./shared/health/health.module.js";
+import { AuthModule } from "./modules/auth/auth.module.js";
+import { AgentRulesModule } from "./modules/agent-rules/agent-rules.module.js";
+import { BuyerPurchaseHistoryModule } from "./modules/buyer-purchase-history/buyer-purchase-history.module.js";
+import { CheckoutModule } from "./modules/checkout/checkout.module.js";
+import { CheckoutSettingsModule } from "./modules/checkout-settings/checkout-settings.module.js";
+import { MerchantModule } from "./modules/merchant/merchant.module.js";
+import { NegotiationModule } from "./modules/negotiation/negotiation.module.js";
+import { EmbedModule } from "./modules/embed/embed.module.js";
+import { PaymentModule } from "./modules/payment/payment.module.js";
+import { ShippingModule } from "./modules/shipping/shipping.module.js";
+import { FulfillmentModule } from "./modules/fulfillment/fulfillment.module.js";
+import { IntegrationsModule } from "./modules/integrations/integrations.module.js";
+import { SupportModule } from "./modules/support/support.module.js";
+import { BuyerAccountModule } from "./modules/buyer-account/buyer-account.module.js";
+import { OnboardingModule } from "./modules/onboarding/onboarding.module.js";
+import { InstallationsModule } from "./modules/installations/installations.module.js";
+import { AuditModule } from "./modules/audit/audit.module.js";
+import { OperationsModule } from "./modules/operations/operations.module.js";
+import { CatalogModule } from "./modules/catalog/catalog.module.js";
+import { StoreSettingsModule } from "./modules/store-settings/store-settings.module.js";
+import { ReturnsModule } from "./modules/returns/returns.module.js";
+import { StoreAnalyticsModule } from "./modules/store-analytics/store-analytics.module.js";
+import { TeamModule } from "./modules/team/team.module.js";
+import { DomainsModule } from "./modules/domains/domains.module.js";
+import { NotificationsModule } from "./modules/notifications/notifications.module.js";
+import { StorefrontModule } from "./modules/storefront/storefront.module.js";
+import { StorageModule } from "./shared/storage/storage.module.js";
+import { StoriesModule } from "./modules/stories/stories.module.js";
+import { ExperimentsModule } from "./modules/experiments/experiments.module.js";
+import { MarketplaceModule } from "./modules/marketplace/marketplace.module.js";
+import { DashboardMarketplaceModule } from "./modules/dashboard/dashboard-marketplace.module.js";
+import { DashboardModule } from "./modules/dashboard/dashboard.module.js";
+import { RevenueManagerModule } from "./modules/revenue-manager/revenue-manager.module.js";
+import { RevenueLiftModule } from "./modules/revenue-lift/revenue-lift.module.js";
+import { CartRecoveryModule } from "./modules/cart-recovery/cart-recovery.module.js";
+import { IntentMemoryModule } from "./modules/intent-memory/intent-memory.module.js";
+import { CouponsModule } from "./modules/coupons/coupons.module.js";
+import { WhatsAppChannelModule } from "./modules/whatsapp-channel/whatsapp-channel.module.js";
+import { InventoryModule } from "./modules/inventory/inventory.module.js";
+import { PostSaleModule } from "./modules/post-sale/post-sale.module.js";
+import { WhatsAppTemplatesModule } from "./modules/whatsapp-templates/whatsapp-templates.module.js";
+import { KnowledgeBaseModule } from "./modules/knowledge-base/knowledge-base.module.js";
+import { CrossSellModule } from "./modules/cross-sell/cross-sell.module.js";
+import { WidgetCrossSellModule } from "./modules/cross-sell/widget-cross-sell.module.js";
+import { UcpDiscoveryModule } from "./modules/public-api/ucp-discovery/ucp-discovery.module.js";
+import { AgenticProtocolModule } from "./modules/public-api/agentic-protocol/agentic-protocol.module.js";
+import { PublicApiModule } from "./modules/public-api/public-api.module.js";
+
+
+
+@Module({
+  imports: [
+    LoggerModule.forRootAsync({ useFactory: () => ({ pinoHttp: createHttpLoggerOptions() }) }),
+    TenantModule,
+    ObservabilityModule,
+    HttpModule,
+    PersistenceModule,
+    ServiceSlotHoldsModule,
+    DataRetentionModule,
+    MessagingModule,
+    HealthModule,
+    AuthModule,
+    MerchantModule,
+    AgentRulesModule,
+    CheckoutSettingsModule,
+    BuyerPurchaseHistoryModule,
+    CheckoutModule,
+    NegotiationModule,
+    EmbedModule,
+    PaymentModule,
+    ShippingModule,
+    FulfillmentModule,
+    IntegrationsModule,
+    SupportModule,
+    BuyerAccountModule,
+    OnboardingModule,
+    InstallationsModule,
+    AuditModule,
+    OperationsModule,
+    StoriesModule,
+    CatalogModule,
+    StoreSettingsModule,
+    ReturnsModule,
+    StoreAnalyticsModule,
+    TeamModule,
+    DomainsModule,
+    NotificationsModule,
+    StorefrontModule,
+    StorageModule,
+    ExperimentsModule,
+    RevenueManagerModule,
+    RevenueLiftModule,
+    MarketplaceModule,
+    DashboardMarketplaceModule,
+    DashboardModule,
+    CartRecoveryModule,
+    IntentMemoryModule,
+    CouponsModule,
+    WhatsAppChannelModule,
+    InventoryModule,
+    PostSaleModule,
+    WhatsAppTemplatesModule,
+    KnowledgeBaseModule,
+    CrossSellModule,
+    WidgetCrossSellModule,
+    UcpDiscoveryModule,
+    AgenticProtocolModule,
+    PublicApiModule,
+    PlatformControlModule,
+    PlatformOverviewModule,
+    PlatformMerchantDirectoryModule,
+    PlatformInfrastructureModule,
+    PlatformCommerceModule,
+    BillingPromotionsModule,
+  ],
+  providers: [
+    { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },
+  ],
+})
+export class AppModule {}

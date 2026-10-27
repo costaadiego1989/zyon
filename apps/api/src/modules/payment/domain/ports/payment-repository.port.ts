@@ -1,0 +1,146 @@
+import type { DomainEventEnvelope } from "@zyon/shared-types";
+import type { PaymentIntentEntity } from "../payment-intent.entity.js";
+import type { PlannedPaymentSettlement } from "./payment-settlement-ledger.port.js";
+import type { StorefrontCouponPaymentScope } from "../storefront-coupon-payment-scope.js";
+
+export const PAYMENT_REPOSITORY = Symbol("PAYMENT_REPOSITORY");
+
+export type SavePaymentIntentInput = {
+  intent: PaymentIntentEntity;
+};
+
+export type SavePaymentIntentWithSettlementPlanInput = SavePaymentIntentInput & {
+  settlementPlan: PlannedPaymentSettlement;
+  /** Server-authenticated source, kept outside creation.input and public JSON. */
+  storefrontCouponScope?: StorefrontCouponPaymentScope;
+};
+
+export type PaymentProviderName = "asaas" | "stripe" | "mercadopago";
+
+/** Identifies a provider webhook event for idempotent processing, scoped by tenant. */
+export type ProviderEventKey = {
+  provider: PaymentProviderName;
+  /** Tenant boundary. `null` only when the intent (and thus merchant) is unknown. */
+  merchantId: string | null;
+  eventId: string;
+};
+
+export type StalePendingQuery = {
+  /** Only intents not updated since this instant are candidates for reconciliation. */
+  olderThan: Date;
+  limit: number;
+};
+
+/** Global uniqueness key for an on-chain settlement, scoped by tenant + intent. */
+export type CryptoTransferKey = {
+  chain: string;
+  txHash: string;
+  merchantId: string;
+  intentId: string;
+};
+
+export interface PaymentRepository {
+  listForSession?(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]>;
+  /** Automatic offers must preserve the quote once payment creation has started. */
+  hasCommittedPaymentForSession(merchantId: string, sessionId: string): Promise<boolean>;
+  saveIntent(input: SavePaymentIntentInput): Promise<void>;
+  /**
+   * Creates the payment intent and its first ledger snapshot in one atomic
+   * operation. The snapshot is planned only; approval never implies settlement.
+   */
+  saveIntentWithSettlementPlan(input: SavePaymentIntentWithSettlementPlanInput): Promise<void>;
+  /**
+   * Persists the intent and appends the domain event atomically. A partial
+   * provider failure must never leave the intent saved without its event, nor
+   * the event emitted without the intent.
+   */
+  saveIntentWithOutbox(input: SavePaymentIntentInput, event: DomainEventEnvelope): Promise<void>;
+  getByIdempotency(
+    merchantId: string,
+    sessionId: string,
+    idempotencyKey: string
+  ): Promise<PaymentIntentEntity | null>;
+  getByProviderPaymentId(
+    merchantId: string,
+    providerPaymentId: string
+  ): Promise<PaymentIntentEntity | null>;
+  /**
+   * Resolves the tenant-scoped intent reference from a provider payment id on
+   * an authenticated provider webhook. The caller must re-fetch through
+   * `getIntentById` before applying a state transition.
+   */
+  getIntentReferenceByProviderPaymentId?(
+    providerPaymentId: string
+  ): Promise<{ id: string; merchantId: string } | null>;
+  /**
+   * Most recent approved intent for a checkout session. Used by the refund flow
+   * to resolve the provider payment to reverse when a return is refunded.
+   */
+  findApprovedBySessionId(
+    merchantId: string,
+    sessionId: string
+  ): Promise<PaymentIntentEntity | null>;
+  /**
+   * Lookup do intent escopado pelo tenant. O `merchantId` é obrigatório e parte
+   * do filtro de persistência — o boundary de tenant mora na porta, não em
+   * pós-checagens por call site (ADR 0001 #3, ADR 0005).
+   */
+  getIntentById(merchantId: string, intentBusinessId: string): Promise<PaymentIntentEntity | null>;
+  /**
+   * Resolve o tenant a partir do `externalReference` (`pay_int_*`) quando o
+   * merchant ainda é desconhecido (caminho de webhook). Devolve apenas
+   * `id + merchantId` para forçar o re-fetch escopado via `getIntentById`,
+   * nunca o snapshot completo (ADR 0001 #3).
+   */
+  getIntentByExternalReference(
+    externalReference: string
+  ): Promise<{ id: string; merchantId: string } | null>;
+  /** Open intents (pending/requires_action) eligible for authoritative-state reconciliation. */
+  listStalePending(query: StalePendingQuery): Promise<PaymentIntentEntity[]>;
+  /**
+   * Approved intents that have not been updated since `olderThan`. Used to
+   * recover from a crash between markApproved and completeAfterApproval
+   * (payment charged but checkout/order never completed). Optional: repos that
+   * cannot detect the "approved-but-incomplete" set may omit it.
+   */
+  listStaleApproved?(query: StalePendingQuery): Promise<PaymentIntentEntity[]>;
+  hasProcessedProviderEvent(key: ProviderEventKey): Promise<boolean>;
+  /**
+   * Portão atômico de idempotência: INSERT do marcador, `true` se gravou,
+   * `false` se já existia (conflito de unicidade). Deve rodar ANTES do efeito
+   * colateral, na mesma transação que muda o estado (ADR 0001 #1).
+   */
+  recordProcessedProviderEvent(key: ProviderEventKey): Promise<boolean>;
+  /**
+   * Remove o marcador de evento processado. Usado apenas para compensar uma
+   * falha de dispatch após o gate ter reservado o marcador, preservando o
+   * retry do provedor em vez de envenenar o evento (ADR 0001 #1).
+   */
+  deleteProcessedProviderEvent(key: ProviderEventKey): Promise<void>;
+  /**
+   * Portão de unicidade global de settlement cripto: INSERT de `(chain, txHash)`,
+   * `true` se reservou para este intent, `false` se a tx já foi consumida (por
+   * este ou outro intent). Deve rodar ANTES de `markApproved` para barrar replay
+   * e reuso cross-intent de um mesmo `txHash` (ADR 0001 #2).
+   */
+  recordCryptoTransfer(key: CryptoTransferKey): Promise<boolean>;
+  /** Releases a reservation only after its owner reaches failed/cancelled; unresolved verification retains it. */
+  deleteCryptoTransfer(key: Pick<CryptoTransferKey, "chain" | "txHash">): Promise<void>;
+  /**
+   * Reaps expired reservations only for terminal unpaid intents under a lock.
+   * Expiration alone cannot establish that another verifier stopped.
+   */
+  reapExpiredCryptoReservations(): Promise<number>;
+  /**
+   * Lists payment intents by merchant, optionally filtered by status prefix.
+   * Used by dashboard to render chargeback/dispute lists.
+   */
+  listByMerchantId(
+    merchantId: string,
+    statusPrefix?: string,
+  ): Promise<PaymentIntentEntity[]>;
+
+listBySessionId(merchantId: string, sessionId: string): Promise<PaymentIntentEntity[]>;
+}
+
+

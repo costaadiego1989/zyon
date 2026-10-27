@@ -1,0 +1,262 @@
+import { forwardRef, Module } from "@nestjs/common";
+
+import type { PrismaClient } from "@prisma/client";
+import { AgentRulesModule } from "../agent-rules/agent-rules.module.js";
+import { STOREFRONT_CART_PORT } from "../storefront/domain/ports/storefront-cart.port.js";
+import { PrismaStorefrontCartRepository } from "../storefront/infrastructure/repositories/prisma-storefront-cart.repository.js";
+import { STOREFRONT_CROSS_SELL_CART } from "../storefront/domain/ports/storefront-cross-sell-cart.port.js";
+import { PrismaStorefrontCrossSellCartAdapter } from "../storefront/infrastructure/repositories/prisma-storefront-cross-sell-cart.adapter.js";
+import { BuyerPurchaseHistoryModule } from "../buyer-purchase-history/buyer-purchase-history.module.js";
+import { CheckoutSettingsModule } from "../checkout-settings/checkout-settings.module.js";
+import { MerchantModule } from "../merchant/merchant.module.js";
+import { ShippingModule } from "../shipping/shipping.module.js";
+import { BuyerAccountRepositoryModule } from "../buyer-account/buyer-account-repository.module.js";
+import { ListBuyerAddressesUseCase } from "../buyer-account/application/use-cases/list-buyer-addresses.use-case.js";
+import { MarketplaceModule } from "../marketplace/marketplace.module.js";
+import { RevenueLiftModule } from "../revenue-lift/revenue-lift.module.js";
+import { CatalogModule } from "../catalog/catalog.module.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../payment/domain/billing-plan-guard.js";
+import { AcceptCheckoutOfferUseCase } from "./application/use-cases/accept-checkout-offer.use-case.js";
+import { ApplyOfferUseCase } from "./application/use-cases/apply-offer.use-case.js";
+import { CompleteOrderUseCase } from "./application/use-cases/complete-order.use-case.js";
+import {
+  GetDashboardOverviewUseCase,
+  GetMerchantRulesUseCase,
+  GetStoreOverviewUseCase,
+  GetTimeseriesUseCase,
+  UpdateMerchantRulesUseCase
+} from "./application/use-cases/dashboard.use-cases.js";
+import { EvaluateShippingUseCase } from "./application/use-cases/evaluate-shipping.use-case.js";
+import { GetDecisionUseCase } from "./application/use-cases/get-decision.use-case.js";
+import { GetCheckoutSessionUseCase } from "./application/use-cases/get-checkout-session.use-case.js";
+import { SendChatMessageUseCase } from "./application/use-cases/send-chat-message.use-case.js";
+import { ReconcileChatMessageUseCase } from "./application/use-cases/reconcile-chat-message.use-case.js";
+import { ChatToolExecutorService } from "./application/services/chat-tool-executor.service.js";
+import { ChatLlmGatewayService } from "./application/services/chat-llm-gateway.service.js";
+import { StrategyCheckoutChatService } from "./application/services/strategy-checkout-chat.service.js";
+import { StartCheckoutUseCase } from "./application/use-cases/start-checkout.use-case.js";
+import { TrackCheckoutEventUseCase } from "./application/use-cases/track-checkout-event.use-case.js";
+import { UpdateOrderTrackingUseCase } from "./application/use-cases/update-order-tracking.use-case.js";
+import { UpdateCartUseCase } from "./application/use-cases/update-cart.use-case.js";
+import { UpdateCrossStoreCartUseCase } from "./application/use-cases/update-cross-store-cart.use-case.js";
+import { GetFunnelUseCase } from "./application/use-cases/get-funnel.use-case.js";
+import { GetFunnelSessionsUseCase } from "./application/use-cases/get-funnel-sessions.use-case.js";
+import { CheckoutCustomerService } from "./application/services/checkout-customer.service.js";
+import { CheckoutSavedAddressService } from "./application/services/checkout-saved-address.service.js";
+import { CheckoutShippingService } from "./application/services/checkout-shipping.service.js";
+import { CheckoutOfferService } from "./application/services/checkout-offer.service.js";
+import { BuyerResolutionService } from "./application/services/buyer-resolution.service.js";
+import { BuyerContextService } from "./application/services/buyer-context.service.js";
+import { CheckoutBootstrapService } from "./application/services/checkout-bootstrap.service.js";
+import { CartPromoResolutionService } from "./application/services/cart-promo-resolution.service.js";
+import { CheckoutBenefitsService } from "./application/services/checkout-benefits.service.js";
+import { CouponsExecutionModule } from "../coupons/coupons-execution.module.js";
+import { InterventionRuleTextBuilder } from "./application/services/intervention-rule-text.builder.js";
+import { ChatContextService } from "./application/services/chat-context.service.js";
+import { ChatResponseBuilder } from "./application/services/chat-response.builder.js";
+import { COMMERCE_OFFER_PORT } from "./domain/ports/commerce-offer.port.js";
+import { CHECKOUT_REPOSITORY } from "./domain/ports/checkout-repository.port.js";
+import { CHECKOUT_SESSION_REPOSITORY } from "./domain/ports/checkout-session.repository.port.js";
+import { OFFER_REPOSITORY } from "./domain/ports/offer.repository.port.js";
+import { ORDER_REPOSITORY } from "./domain/ports/order.repository.port.js";
+import { DASHBOARD_READ_MODEL } from "./domain/ports/dashboard-read-model.port.js";
+import { STORE_OVERVIEW_READ_MODEL } from "./domain/ports/store-overview-read-model.port.js";
+import { AGENT_CONTEXT_PORT } from "./domain/ports/agent-context.port.js";
+import { CHECKOUT_SETTINGS_PORT } from "./domain/ports/checkout-settings.port.js";
+import { CHECKOUT_INTERVENTION_LEDGER } from "./domain/ports/checkout-intervention-ledger.port.js";
+import { CONVERSATION_PORT } from "./domain/ports/conversation.port.js";
+import { PURCHASE_HISTORY_PORT } from "./domain/ports/purchase-history.port.js";
+import { MERCHANT_PLAN_PORT } from "./domain/ports/merchant-plan.port.js";
+import { PROMPT_EXPERIMENT_PORT } from "./domain/ports/prompt-experiment.port.js";
+import { PRODUCT_VARIANT_LOOKUP_PORT } from "./domain/ports/product-variant-lookup.port.js";
+import { AgentRulesContextAdapter } from "./infrastructure/adapters/agent-rules-context.adapter.js";
+import { BuyerPurchaseHistoryAdapter } from "./infrastructure/adapters/buyer-purchase-history.adapter.js";
+import { CheckoutSettingsAdapter } from "./infrastructure/adapters/checkout-settings.adapter.js";
+import { createCheckoutExperienceConfig } from "./infrastructure/checkout-experience.config.factory.js";
+import { MerchantPlanAdapter } from "./infrastructure/adapters/merchant-plan.adapter.js";
+import { PromptExperimentAdapter } from "./infrastructure/adapters/prompt-experiment.adapter.js";
+import { ProductVariantLookupAdapter } from "./infrastructure/adapters/product-variant-lookup.adapter.js";
+import { DeterministicConversationAdapter } from "./infrastructure/adapters/deterministic-conversation.adapter.js";
+import { OpenAiConversationAdapter } from "./infrastructure/adapters/openai-conversation.adapter.js";
+import { BrevoBuyerEmailNotifier } from "./infrastructure/brevo-buyer-email.notifier.js";
+import { ShopifyCommerceOfferAdapter } from "./infrastructure/adapters/shopify-commerce-offer.adapter.js";
+import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
+import { PrismaCheckoutRepository } from "./infrastructure/prisma/prisma-checkout.repository.js";
+import { CheckoutChatRequestService } from "./infrastructure/prisma/checkout-chat-request.service.js";
+import { PRODUCT_SEARCH_PORT } from "./domain/ports/product-search.port.js";
+import { LocalCatalogFallbackAdapter } from "../catalog/infrastructure/local-catalog-fallback.adapter.js";
+import { PrismaStoreOverviewRepository } from "./infrastructure/prisma/prisma-store-overview.repository.js";
+import { PrismaInterventionLedgerRepository } from "./infrastructure/prisma-intervention-ledger.repository.js";
+import { CheckoutController } from "./presentation/http/checkout.controller.js";
+import { PaymentApprovedHandler } from "./application/handlers/payment-approved.handler.js";
+import { OtpService } from "./application/services/otp.service.js";
+import { BuyerRecognitionService } from "./application/services/buyer-recognition.service.js";
+import { BuyerAccountPersistenceService } from "./application/services/buyer-account-persistence.service.js";
+import { ExperimentsModule } from "../experiments/experiments.module.js";
+import { IntentMemoryModule } from "../intent-memory/intent-memory.module.js";
+import { PaymentModule } from "../payment/payment.module.js";
+import { CommerceModule } from "../commerce/commerce.module.js";
+import { CheckoutCartAuthorityService } from "./application/services/checkout-cart-authority.service.js";
+import { PAYMENT_APPROVAL_READER } from "./domain/ports/payment-approval.port.js";
+import { PrismaPaymentApprovalReader } from "./infrastructure/adapters/prisma-payment-approval.reader.js";
+import { OrderQuotaService } from "../payment/application/services/order-quota.service.js";
+import { ConversationRateLimitService } from "./application/services/conversation-rate-limit.service.js";
+import { NotificationsModule } from "../notifications/notifications.module.js";
+import { WhatsAppTemplatesModule } from "../whatsapp-templates/whatsapp-templates.module.js";
+
+@Module({
+  imports: [
+    CouponsExecutionModule,
+    CommerceModule,
+    AgentRulesModule,
+    CheckoutSettingsModule,
+    BuyerPurchaseHistoryModule,
+    MerchantModule,
+    forwardRef(() => ShippingModule),
+    forwardRef(() => MarketplaceModule),
+    forwardRef(() => PaymentModule),
+    CatalogModule,
+    BuyerAccountRepositoryModule,
+    ExperimentsModule,
+    RevenueLiftModule,
+    IntentMemoryModule,
+    NotificationsModule,
+    WhatsAppTemplatesModule,
+  ],
+  controllers: [CheckoutController],
+  providers: [
+    { provide: STOREFRONT_CROSS_SELL_CART, useFactory: (prisma: PrismaClient) => new PrismaStorefrontCrossSellCartAdapter(prisma), inject: [PRISMA_CLIENT] },
+    ListBuyerAddressesUseCase,
+    CheckoutSavedAddressService,
+    {
+      provide: PAYMENT_APPROVAL_READER,
+      useFactory: (prisma: PrismaClient) => new PrismaPaymentApprovalReader(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    CheckoutCartAuthorityService,
+    CheckoutBenefitsService,
+    StartCheckoutUseCase,
+    TrackCheckoutEventUseCase,
+    GetCheckoutSessionUseCase,
+    GetDecisionUseCase,
+    ChatToolExecutorService,
+    ChatLlmGatewayService,
+    SendChatMessageUseCase,
+    ReconcileChatMessageUseCase,
+    {
+      provide: CheckoutChatRequestService,
+      useFactory: (prisma: PrismaClient) => new CheckoutChatRequestService(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    ConversationRateLimitService,
+    CheckoutCustomerService,
+    CheckoutShippingService,
+    CheckoutOfferService,
+    BuyerResolutionService,
+    BuyerContextService,
+    CheckoutBootstrapService,
+    CartPromoResolutionService,
+    InterventionRuleTextBuilder,
+    ChatContextService,
+    {
+      provide: StrategyCheckoutChatService,
+      useFactory: (prisma: PrismaClient, gateway: ChatLlmGatewayService) => new StrategyCheckoutChatService(prisma, gateway),
+      inject: [PRISMA_CLIENT, ChatLlmGatewayService]
+    },
+    ChatResponseBuilder,
+    OtpService,
+    BuyerRecognitionService,
+    BuyerAccountPersistenceService,
+    BillingPlanMeteringService,
+    PlanLimitGuard,
+    {
+      provide: CHECKOUT_INTERVENTION_LEDGER,
+      useFactory: (prisma: PrismaClient) => new PrismaInterventionLedgerRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    EvaluateShippingUseCase,
+    AcceptCheckoutOfferUseCase,
+    ApplyOfferUseCase,
+    CompleteOrderUseCase,
+    UpdateOrderTrackingUseCase,
+    UpdateCartUseCase,
+    UpdateCrossStoreCartUseCase,
+    GetDashboardOverviewUseCase,
+    GetStoreOverviewUseCase,
+    GetTimeseriesUseCase,
+    GetMerchantRulesUseCase,
+    UpdateMerchantRulesUseCase,
+    GetFunnelUseCase,
+    GetFunnelSessionsUseCase,
+    AgentRulesContextAdapter,
+    BuyerPurchaseHistoryAdapter,
+    CheckoutSettingsAdapter,
+    MerchantPlanAdapter,
+    PromptExperimentAdapter,
+    ProductVariantLookupAdapter,
+    DeterministicConversationAdapter,
+    OpenAiConversationAdapter,
+    BrevoBuyerEmailNotifier,
+    ShopifyCommerceOfferAdapter,
+    {
+      provide: CHECKOUT_REPOSITORY,
+      useFactory: (prisma: PrismaClient, orderQuota: OrderQuotaService) => new PrismaCheckoutRepository(prisma, false, orderQuota),
+      inject: [PRISMA_CLIENT, OrderQuotaService]
+    },
+    { provide: CHECKOUT_SESSION_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
+    { provide: OFFER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
+    { provide: ORDER_REPOSITORY, useExisting: CHECKOUT_REPOSITORY },
+    { provide: DASHBOARD_READ_MODEL, useExisting: CHECKOUT_REPOSITORY },
+    {
+      provide: STOREFRONT_CART_PORT,
+      useFactory: (prisma: PrismaClient) => new PrismaStorefrontCartRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    {
+      provide: STORE_OVERVIEW_READ_MODEL,
+      useFactory: (prisma: PrismaClient) => new PrismaStoreOverviewRepository(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    {
+      provide: PRODUCT_SEARCH_PORT,
+      useFactory: (prisma: PrismaClient) => new LocalCatalogFallbackAdapter(prisma),
+      inject: [PRISMA_CLIENT]
+    },
+    { provide: AGENT_CONTEXT_PORT, useExisting: AgentRulesContextAdapter },
+    { provide: CHECKOUT_SETTINGS_PORT, useExisting: CheckoutSettingsAdapter },
+    { provide: MERCHANT_PLAN_PORT, useExisting: MerchantPlanAdapter },
+    { provide: PROMPT_EXPERIMENT_PORT, useExisting: PromptExperimentAdapter },
+    { provide: PRODUCT_VARIANT_LOOKUP_PORT, useExisting: ProductVariantLookupAdapter },
+    { provide: PURCHASE_HISTORY_PORT, useExisting: BuyerPurchaseHistoryAdapter },
+    {
+      provide: CONVERSATION_PORT,
+      useClass: DeterministicConversationAdapter
+    },
+    { provide: COMMERCE_OFFER_PORT, useExisting: ShopifyCommerceOfferAdapter },
+    { provide: Symbol.for("CheckoutExperienceConfig"), useFactory: createCheckoutExperienceConfig },
+    PaymentApprovedHandler
+  ],
+  exports: [
+    CheckoutCartAuthorityService,
+    CheckoutBenefitsService,
+    CHECKOUT_REPOSITORY,
+    CHECKOUT_SESSION_REPOSITORY,
+    Symbol.for("CheckoutExperienceConfig"),
+    OFFER_REPOSITORY,
+    ORDER_REPOSITORY,
+    DASHBOARD_READ_MODEL,
+    CompleteOrderUseCase,
+    UpdateOrderTrackingUseCase,
+    UpdateCartUseCase,
+    StartCheckoutUseCase,
+    TrackCheckoutEventUseCase,
+    SendChatMessageUseCase,
+    ReconcileChatMessageUseCase,
+    ApplyOfferUseCase,
+    AcceptCheckoutOfferUseCase,
+    GetCheckoutSessionUseCase,
+    EvaluateShippingUseCase,
+    CheckoutCustomerService,
+  ]
+})
+export class CheckoutModule {}

@@ -1,0 +1,366 @@
+"use client";
+
+import { useCallback, useEffect, useRef } from "react";
+import { getValidBuyer, clearBuyerSession } from "@/lib/buyer-auth";
+import * as buyerHub from "@/lib/services/buyer-hub.service";
+import { runFetch, useBuyerHubState } from "./state";
+import type { BuyerAddress, BuyerPreferences, BuyerProfile, UseBuyerHub } from "./types";
+
+export function useBuyerHub(isOpen = true, merchantId?: string): UseBuyerHub {
+  const s = useBuyerHubState();
+  const currentMerchant = useRef(merchantId);
+  currentMerchant.current = merchantId;
+  const benefitsMerchant = useRef(merchantId);
+  const benefitsRequest = useRef(0);
+  const conversationsMerchant = useRef(merchantId);
+  const conversationsRequest = useRef(0);
+  const trackingMerchant = useRef(merchantId);
+  const trackingBuyer = useRef<string>();
+  const trackingRequest = useRef(0);
+  const purchasesMerchant = useRef(merchantId);
+  const purchasesBuyer = useRef<string>();
+  const purchasesRequest = useRef(0);
+
+  useEffect(() => {
+    const buyer = getValidBuyer();
+    s.setAuth(buyer);
+    if (buyer) void runFetch(s.setProfile, buyerHub.fetchProfile);
+
+    const onStorage = (e: StorageEvent) => {
+      if (e.key === "zyon_buyer_token" || e.key === "zyon_buyer_session") {
+        trackingRequest.current++;
+        purchasesRequest.current++;
+        const next = getValidBuyer();
+        s.setAuth(next);
+        s.resetSections();
+      }
+    };
+    window.addEventListener("storage", onStorage);
+    return () => {
+      trackingRequest.current++;
+      purchasesRequest.current++;
+      window.removeEventListener("storage", onStorage);
+    };
+  }, []);
+
+  const loadProfile = useCallback(async () => {
+    await runFetch(s.setProfile, buyerHub.fetchProfile);
+  }, []);
+  const updateProfile = useCallback(async (patch: Partial<BuyerProfile>) => {
+    s.setProfile((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const data = await buyerHub.updateProfile(patch);
+      s.setProfile({ data, loading: false, error: null });
+    } catch (err: any) {
+      s.setProfile((prev) => ({ ...prev, loading: false, error: err?.message || "Erro ao atualizar perfil" }));
+      throw err;
+    }
+  }, []);
+
+  const loadAddresses = useCallback(async () => {
+    await runFetch(s.setAddresses, buyerHub.fetchAddresses);
+  }, []);
+
+  const createAddress = useCallback(async (input: Omit<BuyerAddress, "id" | "created_at">) => {
+    try {
+      const created = await buyerHub.createAddress(input);
+      s.setAddresses((prev) => ({
+        ...prev,
+        data: prev.data ? [created, ...prev.data] : [created],
+      }));
+      void buyerHub
+        .fetchAddresses()
+        .then((items) => s.setAddresses({ data: items, loading: false, error: null }))
+        .catch(() => {});
+      return created;
+    } catch (err) {
+      console.error("[BUYER-HUB] createAddress failed:", err);
+      throw err;
+    }
+  }, []);
+
+  const updateAddress = useCallback(
+    async (id: string, input: Omit<BuyerAddress, "id" | "created_at">) => {
+      const updated = await buyerHub.updateAddress(id, input);
+      s.setAddresses((prev) => ({
+        ...prev,
+        data: prev.data ? prev.data.map((a) => (a.id === id ? updated : a)) : prev.data,
+      }));
+      return updated;
+    },
+    [],
+  );
+
+  const deleteAddress = useCallback(async (id: string) => {
+    await buyerHub.deleteAddress(id);
+    s.setAddresses((prev) => ({
+      ...prev,
+      data: prev.data ? prev.data.filter((a) => a.id !== id) : prev.data,
+    }));
+  }, []);
+
+  const loadPurchases = useCallback(async (reset = true) => {
+    const request = ++purchasesRequest.current;
+    const buyerToken = getValidBuyer()?.token;
+    const sameScope = purchasesMerchant.current === merchantId && purchasesBuyer.current === buyerToken;
+    const replace = reset || !sameScope;
+    purchasesMerchant.current = merchantId;
+    purchasesBuyer.current = buyerToken;
+    const isCurrent = () => request === purchasesRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId;
+    if (replace) {
+      s.purchasesRef.current = [];
+      s.setPurchasesCursor(null);
+      s.setPurchasesHasMore(false);
+    }
+    if (!buyerToken) { s.setPurchases({ data: null, loading: false, error: null }); return; }
+    s.setPurchases((prev) => ({ data: replace ? null : prev.data, loading: true, error: null }));
+    try {
+      const cursor = replace ? "" : s.purchasesCursor ?? "";
+      const data = await buyerHub.fetchPurchases(cursor, 10, merchantId);
+      if (!isCurrent()) return;
+      if (cursor && data.next_cursor === cursor) throw new Error("Repeated purchase cursor");
+      const merged = [...new Map((replace ? data.items : [...s.purchasesRef.current, ...data.items]).map(item => [item.id, item])).values()];
+      s.purchasesRef.current = merged;
+      s.setPurchases({ data: merged, loading: false, error: null });
+      s.setPurchasesCursor(data.next_cursor);
+      s.setPurchasesHasMore(Boolean(data.next_cursor));
+    } catch {
+      if (isCurrent()) s.setPurchases((prev) => ({ ...prev, loading: false, error: "Não foi possível carregar seus pedidos. Tente novamente." }));
+    }
+  }, [s.purchasesCursor, merchantId]);
+
+  const loadMorePurchases = useCallback(async () => {
+    if (!s.purchasesHasMore || s.purchases.loading) return;
+    await loadPurchases(false);
+  }, [s.purchasesHasMore, s.purchases.loading, loadPurchases]);
+
+  const loadTracking = useCallback(async () => {
+    const request = ++trackingRequest.current;
+    const buyerToken = getValidBuyer()?.token;
+    trackingMerchant.current = merchantId;
+    trackingBuyer.current = buyerToken;
+    if (!buyerToken) { s.setTracking({ data: null, loading: false, error: null }); return; }
+    const isCurrent = () => request === trackingRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId;
+    s.setTracking({ data: null, loading: true, error: null });
+    try {
+      const filtered = await buyerHub.fetchTracking(merchantId);
+      if (isCurrent()) s.setTracking({ data: filtered, loading: false, error: null });
+    } catch {
+      if (isCurrent()) s.setTracking({ data: null, loading: false, error: "Não foi possível carregar suas entregas. Tente novamente." });
+    }
+  }, [merchantId]);
+
+  const loadConversations = useCallback(async () => {
+    const request = ++conversationsRequest.current;
+    const buyerToken = getValidBuyer()?.token;
+    conversationsMerchant.current = merchantId;
+    if (!buyerToken) { s.setConversations({ data: null, loading: false, error: null }); return; }
+    s.setConversations({ data: null, loading: true, error: null });
+    const isCurrent = () => request === conversationsRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId;
+    try {
+      const data = await buyerHub.fetchConversations(merchantId);
+      if (isCurrent()) s.setConversations({ data: merchantId ? data.filter((item) => item.merchant_id === merchantId) : data, loading: false, error: null });
+    } catch {
+      if (isCurrent()) s.setConversations({ data: null, loading: false, error: "Não foi possível carregar suas conversas. Tente novamente." });
+    }
+  }, [merchantId]);
+
+  const rateMessage = useCallback(
+    async (conversationId: string, messageId: string, rating: "up" | "down") => {
+      const buyerToken = getValidBuyer()?.token;
+      await buyerHub.rateMessage(conversationId, messageId, rating, merchantId);
+      if (getValidBuyer()?.token !== buyerToken || currentMerchant.current !== merchantId) return;
+      s.setConversations((prev) => ({
+        ...prev,
+        data: prev.data
+          ? prev.data.map((c) =>
+              c.id !== conversationId
+                ? c
+                : {
+                    ...c,
+                    messages: c.messages.map((m) => (m.id === messageId ? { ...m, rating } : m)),
+                  },
+            )
+          : prev.data,
+      }));
+    },
+    [merchantId],
+  );
+
+  const loadPreferences = useCallback(async () => {
+    await runFetch(s.setPreferences, buyerHub.fetchPreferences);
+  }, []);
+
+  const updatePreferences = useCallback(async (patch: Partial<BuyerPreferences>) => {
+    s.setPreferences((prev) => ({ ...prev, loading: true, error: null }));
+    try {
+      const data = await buyerHub.updatePreferences(patch);
+      s.setPreferences({ data, loading: false, error: null });
+    } catch (err: any) {
+      s.setPreferences((prev) => ({ ...prev, loading: false, error: err?.message || "Erro ao salvar preferências" }));
+      throw err;
+    }
+  }, []);
+
+  const loadLoyalty = useCallback(async () => {
+    await runFetch(s.setLoyalty, buyerHub.fetchLoyalty);
+  }, []);
+  const loadBenefits = useCallback(async () => {
+    const request = ++benefitsRequest.current;
+    const buyerToken = getValidBuyer()?.token;
+    if (!buyerToken) { s.setBenefits({ data: null, loading: false, error: null }); return; }
+    benefitsMerchant.current = merchantId;
+    s.setBenefits({ data: null, loading: true, error: null });
+    try {
+      const data = await buyerHub.fetchBenefits(merchantId);
+      if (request === benefitsRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId) s.setBenefits({ data, loading: false, error: null });
+    } catch {
+      if (request === benefitsRequest.current && getValidBuyer()?.token === buyerToken && currentMerchant.current === merchantId) s.setBenefits({ data: null, loading: false, error: "Não foi possível atualizar seus benefícios. Tente novamente." });
+    }
+  }, [merchantId]);
+  const loadDiscountRules = useCallback(async (merchantSlug: string) => {
+    await runFetch(s.setDiscountRules, () => buyerHub.fetchDiscountRules(merchantSlug));
+  }, []);
+  const loadReviews = useCallback(async () => {
+    await runFetch(s.setReviews, buyerHub.fetchReviews);
+  }, []);
+  const loadIntentProfile = useCallback(async () => {
+    await runFetch(s.setIntentProfile, buyerHub.fetchIntentProfile);
+  }, []);
+
+  const exportData = useCallback(async () => {
+    const blob = await buyerHub.exportData();
+    const url = URL.createObjectURL(blob);
+    const a = document.createElement("a");
+    a.href = url;
+    a.download = `buyer-export-${new Date().toISOString().slice(0, 10)}.json`;
+    document.body.appendChild(a);
+    a.click();
+    a.remove();
+    setTimeout(() => URL.revokeObjectURL(url), 1000);
+  }, []);
+
+  const deleteAccount = useCallback(async () => {
+    const data = await buyerHub.deleteAccount();
+    trackingRequest.current++;
+    purchasesRequest.current++;
+    clearBuyerSession();
+    s.setAuth(null);
+    s.resetSections();
+    return data;
+  }, []);
+
+  useEffect(() => {
+    if (!s.auth || !isOpen) return;
+    switch (s.activeTab) {
+      case "profile":
+        if (!s.profile.data && !s.profile.loading) void loadProfile();
+        if (!s.addresses.data && !s.addresses.loading) void loadAddresses();
+        break;
+      case "orders":
+        void loadPurchases(true);
+        if (!s.summary.data && !s.summary.loading) void runFetch(s.setSummary, buyerHub.fetchSummary);
+        break;
+      case "tracking":
+        void loadTracking();
+        break;
+      case "conversations":
+        void loadConversations();
+        break;
+      case "preferences":
+        if (!s.preferences.data && !s.preferences.loading) void runFetch(s.setPreferences, buyerHub.fetchPreferences);
+        if (!s.intentProfile.data && !s.intentProfile.loading) void runFetch(s.setIntentProfile, buyerHub.fetchIntentProfile);
+        break;
+      case "loyalty":
+        if (!s.loyalty.data && !s.loyalty.loading) void runFetch(s.setLoyalty, buyerHub.fetchLoyalty);
+        void loadBenefits();
+        if (!s.summary.data && !s.summary.loading) void runFetch(s.setSummary, buyerHub.fetchSummary);
+        break;
+      case "settings":
+        if (!s.intentProfile.data && !s.intentProfile.loading) void runFetch(s.setIntentProfile, buyerHub.fetchIntentProfile);
+        if (!s.reviews.data && !s.reviews.loading) void loadReviews();
+        break;
+    }
+  }, [s.activeTab, s.auth, isOpen, merchantId]);
+
+  const refresh = useCallback(async () => {
+    if (!s.auth) return;
+    switch (s.activeTab) {
+      case "profile":
+        await loadProfile();
+        break;
+      case "orders":
+        await loadPurchases(true);
+        await runFetch(s.setSummary, buyerHub.fetchSummary);
+        break;
+      case "tracking":
+        await loadTracking();
+        break;
+      case "conversations":
+        await loadConversations();
+        break;
+      case "preferences":
+        await loadPreferences();
+        break;
+      case "loyalty":
+        await loadLoyalty();
+        await loadBenefits();
+        await runFetch(s.setSummary, buyerHub.fetchSummary);
+        break;
+      case "settings":
+        await loadIntentProfile();
+        await loadReviews();
+        break;
+    }
+  }, [s.auth, s.activeTab, loadConversations, loadTracking, loadPurchases]);
+
+  const signOut = useCallback(() => {
+    trackingRequest.current++;
+    purchasesRequest.current++;
+    clearBuyerSession();
+    s.setAuth(null);
+    s.resetSections();
+    s.setActiveTab("profile");
+  }, []);
+  return {
+    auth: s.auth,
+    signOut,
+    activeTab: s.activeTab,
+    setActiveTab: s.setActiveTab,
+    profile: s.profile,
+    loadProfile,
+    updateProfile,
+    addresses: s.addresses,
+    loadAddresses,
+    createAddress,
+    updateAddress,
+    deleteAddress,
+    purchases: purchasesMerchant.current === merchantId && purchasesBuyer.current === s.auth?.token ? s.purchases : { data: null, loading: false, error: null },
+    purchasesCursor: purchasesMerchant.current === merchantId && purchasesBuyer.current === s.auth?.token ? s.purchasesCursor : null,
+    purchasesHasMore: purchasesMerchant.current === merchantId && purchasesBuyer.current === s.auth?.token && s.purchasesHasMore,
+    loadPurchases,
+    loadMorePurchases,
+    summary: s.summary,
+    tracking: trackingMerchant.current === merchantId && trackingBuyer.current === s.auth?.token ? s.tracking : { data: null, loading: false, error: null },
+    loadTracking,
+    conversations: conversationsMerchant.current === merchantId ? s.conversations : { data: null, loading: false, error: null },
+    loadConversations,
+    rateMessage,
+    preferences: s.preferences,
+    loadPreferences,
+    updatePreferences,
+    loyalty: s.loyalty,
+    loadLoyalty,
+    benefits: benefitsMerchant.current === merchantId ? s.benefits : { data: null, loading: false, error: null },
+    loadBenefits,
+    discountRules: s.discountRules,
+    loadDiscountRules,
+    reviews: s.reviews,
+    loadReviews,
+    intentProfile: s.intentProfile,
+    loadIntentProfile,
+    exportData,
+    deleteAccount,
+    refresh,
+  };
+}

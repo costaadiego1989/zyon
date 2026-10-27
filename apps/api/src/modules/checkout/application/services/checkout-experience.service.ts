@@ -1,0 +1,401 @@
+import type {
+  AgentContext,
+  Cart,
+  ChatStage,
+  CheckoutExperienceSnapshot,
+  CheckoutItemSnapshot,
+  CheckoutSession,
+  CurrencyCode,
+  CustomerHints,
+  MerchantTheme,
+  ShippingQuote,
+  SuggestedProduct
+} from "@zyon/shared-types";
+import { DEFAULT_MERCHANT_THEME } from "@zyon/shared-types";
+import { deriveChatStage, missingFieldsForStage } from "../../domain/services/customer-extraction.service.js";
+import type { MerchantRules } from "@zyon/shared-types";
+import { DEFAULT_PLATFORM_FEE_BRL } from "../../../../shared/config/platform-fee.config.js";
+import { checkoutShippingLabel } from "../../domain/services/checkout-shipping-label.js";
+import { commercialNoticesSchema } from "../../../storefront/domain/contracts/commercial-notice.schemas.js";
+import { commercialNotice } from "../../../storefront/domain/services/commercial-notice.js";
+
+export interface ExperienceInputs {
+  merchant_id: string;
+  cart: Cart;
+  customer?: CustomerHints;
+  shipping?: ShippingQuote;
+}
+
+function publicCommercialNotices(value: unknown): Pick<CheckoutExperienceSnapshot, "commercial_notices"> {
+  const parsed = commercialNoticesSchema.safeParse(value);
+  return parsed.success && parsed.data.length
+    ? { commercial_notices: parsed.data.map(notice => commercialNotice(notice.code)) }
+    : {};
+}
+
+export interface ExperienceDeps {
+  policies?: MerchantRules["policies"];
+  merchantName?: string;
+  theme?: MerchantTheme;
+  agent?: AgentContext;
+  couponBoxEnabled?: boolean;
+  chatStage?: ChatStage;
+  missingFieldsPreview?: string[];
+  rules?: MerchantRules;
+  /**
+   * Platform service fee in BRL. Resolved from the injected
+   * `CheckoutExperienceConfig.platformFeeBrl` by the caller; defaults to 0.99
+   * to preserve the prior `process.env.PLATFORM_FEE_BRL` fallback.
+   */
+  serviceFee?: number;
+  suggestedProducts?: SuggestedProduct[];
+  showBranding?: boolean;
+  /** Voice checkout habilitado (feature voiceCheckout do plano — Growth+). */
+  voiceEnabled?: boolean;
+  /** Payment configuration — which methods the merchant accepts */
+  stripeConnectAccountId?: string | null;
+  paymentMethods?: {
+    pix: boolean;
+    boleto: boolean;
+    card: boolean;
+    providers?: {
+      pix?: "asaas" | "mercadopago" | "stripe";
+      boleto?: "asaas" | "mercadopago" | "stripe";
+      card?: "asaas" | "mercadopago" | "stripe";
+    };
+  };
+  cryptoPaymentsEnabled?: boolean;
+  cryptoPayments?: Record<string, unknown> | null;
+  merchantRulesForWidget?: {
+    maxDiscountPercent: number;
+    allowFreeShipping: boolean;
+    allowShippingDiscount: boolean;
+    freeShippingMinCartValue: number;
+    maxShippingSubsidy: number;
+    maxPartialShippingDiscount: number;
+    offerExpirationMinutes: number;
+    blockedRegions: string[];
+    brandVoice: string;
+    originZip?: string;
+  };
+  advancedRules?: string[];
+  visual?: {
+    mode?: string;
+    density?: string;
+    backgroundImageUrl?: string;
+    borderRadius?: number;
+    fontFamily?: string;
+    fontDisplay?: string;
+  };
+}
+
+export interface CartSnapshot {
+  items: Array<{ name: string; quantity: number }>;
+  total: number;
+  couponCode?: string | null;
+}
+
+export function quickRepliesForStage(
+  stage: ChatStage,
+  missingFields: string[] = [],
+  rules?: MerchantRules,
+  cart?: CartSnapshot,
+  paymentMethods?: ExperienceDeps["paymentMethods"],
+): string[] {
+  const next = missingFields[0];
+  if (next === "confirmar endereço") {
+    return ["Sim", "Não"];
+  }
+  let customReplies: string[] | undefined;
+
+  if (stage === "data_collection") {
+    // Empty cart: show product discovery actions
+    if (cart?.items.length === 0) {
+      return ["Ver produtos", "Buscar por categoria", "Quais as promoções?"];
+    }
+    const dRules = rules?.quickReplies?.data_collection;
+    if (next === "nome") customReplies = dRules?.nome;
+    else if (next === "email") customReplies = dRules?.email;
+    else if (next === "CPF") customReplies = dRules?.CPF;
+    else if (next === "telefone") customReplies = dRules?.telefone;
+    if (!customReplies?.length) customReplies = dRules?.default;
+  } else if (stage === "shipping") {
+    // Cart-aware: show carrier options as quick replies when frete stage is ready
+    if (next === "frete" && cart?.items.length) {
+      // Carrier options will be provided separately via shippingOptionReplies
+      return ["Tem frete grátis?", "O prazo está muito longo", "Tem transportadora mais rápida?"];
+    }
+    const sRules = rules?.quickReplies?.shipping;
+    if (next === "CEP") customReplies = sRules?.CEP;
+    else if (next?.includes("confirmar")) customReplies = sRules?.confirmar;
+    else if (next?.includes("número") || next?.includes("complemento")) customReplies = sRules?.numero_complemento;
+    else if (next === "frete") customReplies = sRules?.frete;
+    if (!customReplies?.length) customReplies = sRules?.default;
+  } else if (stage === "payment") {
+    customReplies = rules?.quickReplies?.payment;
+  } else if (stage === "completed") {
+    customReplies = rules?.quickReplies?.completed;
+  }
+
+  if (customReplies && customReplies.length > 0) {
+    if (stage === "payment" && (!rules?.couponBoxEnabled || rules?.maxDiscountPercent === 0)) {
+      return customReplies.filter(r => !/cupom/i.test(r));
+    }
+    return customReplies;
+  }
+
+  switch (stage) {
+    case "data_collection":
+      if (next === "nome")
+        return ["Por que precisa do meu nome?", "Posso usar nome de empresa?", "É seguro informar dados aqui?"];
+      if (next === "email")
+        return ["Vão me mandar SPAM?", "Posso usar outro e-mail?", "Vocês enviam a nota por e-mail?"];
+      if (next === "código de verificação")
+        return ["Corrigir e-mail", "Reenviar código de e-mail", "Qual e-mail foi usado?"];
+      if (next === "código de verificação do celular")
+        return ["Reenviar código SMS", "Não recebi o SMS", "Posso usar outro número?"];
+      if (next === "CPF")
+        return ["Por que o CPF é obrigatório?", "Posso informar CNPJ?", "É seguro enviar meu CPF?"];
+      if (next === "telefone")
+        return ["Vocês vão me ligar?", "Mandam rastreio por WhatsApp?", "Por que precisa ser celular?"];
+      return ["Precisa de mais algum dado?", "Como funciona a entrega?", "Quais as formas de pagamento?"];
+    case "shipping":
+      if (next === "CEP")
+        return [
+          "Como calculo o frete?",
+          "Entregam em todo o Brasil?",
+          "Não sei meu CEP, como faço?"
+        ];
+      if (next?.includes("confirmar"))
+        return ["O CEP está correto", "Não encontram meu endereço", "Qual o problema com o CEP?"];
+      if (next?.includes("complemento"))
+        return ["Não tem", "Como informo o bloco?", "Moro em zona rural"];
+      if (next?.includes("número"))
+        return ["Minha casa não tem número", "Como informo o bloco?", "Moro em zona rural"];
+      if (next === "frete")
+        return ["Tem frete grátis?", "O prazo está muito longo", "Tem transportadora mais rápida?"];
+      return ["Qual o prazo médio?", "Tem opção de retirada?", "Como acompanho o pedido?"];
+    case "payment": {
+      // Keep a legacy fallback for older callers, but when the checkout start
+      // response has capability data, never advertise a method the active
+      // browser flow cannot finish.
+      const available = paymentMethods ?? { pix: true, boleto: true, card: true };
+      const base: string[] = [];
+      if (available.card) base.push("Cartão de crédito", "Cartão de débito");
+      if (available.pix) base.push("PIX");
+      if (available.boleto) base.push("Boleto");
+      if (rules?.cryptoPayments?.enabled) {
+        base.push("Pagar com crypto");
+      }
+      const cartAwareReplies: string[] = [];
+      // Add quantity modification option if any item has qty > 1
+      if (cart?.items.some(item => item.quantity > 1)) {
+        cartAwareReplies.push("Quero alterar quantidade");
+      }
+      // Add item removal option if cart has 2+ items
+      if (cart && cart.items.length >= 2) {
+        cartAwareReplies.push("Remover item");
+      }
+      // Filter out coupon mention if not applicable or already applied
+      const couponReplies: string[] = [];
+      if (rules?.couponBoxEnabled !== false && (rules?.maxDiscountPercent ?? 0) > 0 && !cart?.couponCode) {
+        couponReplies.push("Tenho um cupom de desconto");
+      }
+      return [...couponReplies, ...base, ...cartAwareReplies];
+    }
+    case "completed":
+      return ["Obrigado!", "Quero acompanhar o pedido", "Voltar à loja"];
+    default:
+      return ["Ok"];
+  }
+}
+
+function readPlatformServiceFee(deps: ExperienceDeps): number {
+  if (typeof deps.serviceFee === "number" && Number.isFinite(deps.serviceFee) && deps.serviceFee >= 0) {
+    return deps.serviceFee;
+  }
+  return DEFAULT_PLATFORM_FEE_BRL;
+}
+
+export function buildCheckoutExperience(input: ExperienceInputs, deps: ExperienceDeps): CheckoutExperienceSnapshot {
+  const merchantName = deps.merchantName ?? input.merchant_id;
+  const theme = deps.theme ?? DEFAULT_MERCHANT_THEME;
+  const chatStage = deps.chatStage ?? "data_collection";
+  const items = input.cart.items.map(toItemSnapshot);
+  // Only include shipping cost when a method has been explicitly selected (session.shipping exists)
+  const shipping = input.shipping ? input.shipping.customerPrice : 0;
+  const discount = input.cart.currentDiscount ?? 0;
+  const subtotal = input.cart.total;
+  const total = Math.max(0, roundMoney(subtotal + shipping - discount));
+  const serviceFee = readPlatformServiceFee(deps);
+  const totalToPay = roundMoney(total + serviceFee);
+  const agentIdentity = deps.agent?.agent;
+  const agentName = deps.theme?.agentName || agentIdentity?.agentName || "Assistente AACP";
+  const cartEmpty = input.cart.items.length === 0;
+  const greeting = cartEmpty
+    ? (agentIdentity?.emptyCartGreeting ?? "O que você deseja comprar? Digite aqui que encontro para você.")
+    : (agentIdentity?.greeting ?? "Ola, tudo bem? Sou o seu assistente virtual e vou guiar seu checkout com seguranca.");
+
+  let expected_input_type: "text" | "email" | "tel" | "number" = "text";
+  if (chatStage === "data_collection") {
+    const next = deps.missingFieldsPreview?.[0];
+    if (next === "email") expected_input_type = "email";
+    if (next === "telefone") expected_input_type = "tel";
+    if (next === "CPF") expected_input_type = "number";
+  } if (chatStage === "shipping") {
+    const next = deps.missingFieldsPreview?.[0];
+    if (next === "CEP" || next?.includes("número")) expected_input_type = "number";
+  }
+
+  // Build cart snapshot for cart-aware quick replies
+  const cartSnapshot: CartSnapshot = {
+    items: input.cart.items.map(item => ({ name: item.name, quantity: item.quantity })),
+    total: subtotal,
+    couponCode: (input.cart as any).couponCode ?? null
+  };
+
+  return {
+    stage: chatStage,
+    brand: {
+      merchant_id: input.merchant_id,
+      name: merchantName,
+      subtitle: "Checkout assistido por IA",
+      support_label: "Compra guiada",
+      logo_url: theme.logoUrl,
+      accent_color: theme.accentColor,
+      theme
+    },
+    rules: {
+      couponBoxEnabled: deps.couponBoxEnabled ?? true,
+      cryptoPaymentsEnabled: deps.rules?.cryptoPayments?.enabled === true,
+      cryptoPayments: deps.rules?.cryptoPayments,
+      showBranding: deps.showBranding ?? false,
+      voiceEnabled: deps.voiceEnabled ?? false,
+    },
+    policies: deps.policies ?? deps.rules?.policies,
+    items,
+    totals: {
+      currency: input.cart.currency,
+      subtotal: roundMoney(subtotal),
+      shipping: roundMoney(shipping),
+      discount: roundMoney(discount),
+      service_fee: serviceFee,
+      total_to_pay: totalToPay,
+      total
+    },
+    ...publicCommercialNotices(input.cart.commercialNotices),
+    commercial_nudge: publicCommercialNudge(input.cart.commercialNudge),
+    applied_benefits: input.cart.appliedBenefits?.filter(benefit =>
+      (benefit.kind === "discount" || benefit.kind === "shipping") && typeof benefit.label === "string"
+      && Number.isFinite(benefit.amount) && benefit.amount > 0
+      && (benefit.kind === "discount" ? discount > 0 : input.shipping != null)
+    ).map(benefit => ({ kind: benefit.kind, label: benefit.label.slice(0, 160), amount: roundMoney(benefit.amount) })),
+    shipping: input.shipping,
+    shippingOptions: undefined,
+    suggestedProducts: deps.suggestedProducts?.length ? deps.suggestedProducts : undefined,
+    customer: publicCustomerHints(input.customer),
+    agent: {
+      name: agentName,
+      greeting,
+      tone: agentIdentity?.tone ?? "consultative",
+      language: agentIdentity?.language ?? "pt-BR"
+    },
+    copy: {
+      headline: `${merchantName}: finalize sua compra com ajuda da IA`,
+      subheadline: `${items.length} item(ns) no pedido, total a pagar ${formatMoney(totalToPay, input.cart.currency)} com contexto real do carrinho.`,
+      trust_badges: [],
+      quick_replies: quickRepliesForStage(chatStage, deps.missingFieldsPreview ?? [], deps.rules, cartSnapshot, deps.paymentMethods),
+      focus_input: chatStage !== "completed",
+      expected_input_type
+    }
+  };
+}
+
+function publicCommercialNudge(value: unknown): import("@zyon/shared-types").CheckoutCommercialNudge | undefined {
+  if (!value || typeof value !== "object") return undefined;
+  const nudge = value as Record<string, unknown>;
+  if (
+    (nudge.kind !== "coupon" && nudge.kind !== "progressive_discount" && nudge.kind !== "advanced_rule") ||
+    typeof nudge.title !== "string" ||
+    typeof nudge.message !== "string"
+  ) {
+    return undefined;
+  }
+  return {
+    kind: nudge.kind,
+    title: nudge.title,
+    message: nudge.message,
+    ...(typeof nudge.badge === "string" ? { badge: nudge.badge } : {}),
+    ...(typeof nudge.couponCode === "string" ? { couponCode: nudge.couponCode } : {}),
+    ...(typeof nudge.ruleId === "string" ? { ruleId: nudge.ruleId } : {}),
+    ...(typeof nudge.discountPercent === "number" && Number.isFinite(nudge.discountPercent)
+      ? { discountPercent: nudge.discountPercent }
+      : {}),
+  };
+}
+
+export function buildExperienceFromSession(session: CheckoutSession, deps: ExperienceDeps): CheckoutExperienceSnapshot {
+  const chatStage = deriveChatStage(session);
+  const missingFieldsPreview = missingFieldsForStage(session, chatStage);
+  const experience = buildCheckoutExperience(
+    {
+      merchant_id: session.merchantId,
+      cart: session.cart,
+      customer: session.customer,
+      shipping: session.shipping
+    },
+    { ...deps, chatStage, missingFieldsPreview }
+  );
+  const shippingOptionReplies =
+    chatStage === "shipping" && missingFieldsPreview[0] === "frete" && session.shippingOptions?.length
+      ? session.shippingOptions.map(checkoutShippingLabel)
+      : undefined;
+  const readyForFrete = missingFieldsPreview[0] === "frete";
+  return {
+    ...experience,
+    shippingOptions: readyForFrete ? session.shippingOptions : undefined,
+    copy: shippingOptionReplies
+      ? { ...experience.copy, quick_replies: shippingOptionReplies }
+      : experience.copy,
+    merchant_rules: deps.merchantRulesForWidget,
+    advanced_rules: deps.advancedRules,
+    visual: deps.visual,
+    // Payment methods flags — ONLY booleans, never credentials/IDs
+    stripeEnabled: deps.paymentMethods?.card ?? !!deps.stripeConnectAccountId,
+    paymentMethods: deps.paymentMethods,
+    cryptoPaymentsEnabled: deps.cryptoPaymentsEnabled ?? false,
+    cryptoPayments: deps.cryptoPayments ? { chain: (deps.cryptoPayments as any).chain, token: (deps.cryptoPayments as any).token, enabled: (deps.cryptoPayments as any).enabled } : null,
+  };
+}
+
+function publicCustomerHints(customer: CustomerHints | undefined): CustomerHints | undefined {
+  if (!customer) return undefined;
+  const { otp_code: _otpCode, phone_otp_code: _phoneOtpCode, ...safe } = customer;
+  return safe;
+}
+
+function toItemSnapshot(item: Cart["items"][number]): CheckoutItemSnapshot {
+  return {
+    sku: item.sku,
+    name: item.name,
+    quantity: item.quantity,
+    unit_price: roundMoney(item.price),
+    ...(typeof item.originalPrice === "number" && Number.isFinite(item.originalPrice) && item.originalPrice > item.price
+      ? { original_unit_price: roundMoney(item.originalPrice) } : {}),
+    line_total: roundMoney(item.price * item.quantity),
+    image_url: item.imageUrl,
+    product_url: item.productUrl,
+    category: item.category,
+    variant: item.variant,
+    variant_label: item.variantLabel,
+    description: item.description?.slice(0, 100)
+  };
+}
+
+function roundMoney(value: number): number {
+  return Math.round((value + Number.EPSILON) * 100) / 100;
+}
+
+function formatMoney(value: number, currency: CurrencyCode): string {
+  return new Intl.NumberFormat("pt-BR", { style: "currency", currency: currency || "BRL" }).format(value);
+}

@@ -1,0 +1,11 @@
+{
+  "extends": "./tsconfig.json",
+  "compilerOptions": {
+    "outDir": "dist-test",
+    "noEmitOnError": true,
+    "incremental": false
+  },
+  "include": ["src/test-runner.ts"],
+  "exclude": ["node_modules", "dist", "dist-test"]
+}
+
