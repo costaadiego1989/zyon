@@ -4,10 +4,10 @@ import { StorefrontController } from "./storefront.controller.js";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import { createCartHandlers } from "../../infrastructure/tool-handlers/cart.handlers.js";
 
-test("renewal preserves cart and merchant ownership and rejects other resources", () => {
+for (const idleDays of [0, 3, 7, 29]) test(`renewal after ${idleDays} idle days preserves cart and merchant ownership and rejects other resources`, () => {
   const capabilities = new RealtimeCapabilityService("storefront-cart-test-secret-32-characters");
   const controller = Object.assign(Object.create(StorefrontController.prototype), { capabilities }) as StorefrontController;
-  const issued = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant", resourceId: "cart_a", origin: "https://store.example" }, Math.floor(Date.now() / 1000) - 4000);
+  const issued = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant", resourceId: "cart_a", origin: "https://store.example", aiUserId: "visitor:idle_buyer" }, Math.floor(Date.now() / 1000) - 4000 - idleDays * 86400);
   const request = { headers: { authorization: `Bearer ${issued.token}`, origin: "https://store.example" } };
   const renewed = controller.renewConversationAccess("cart_a", request);
   assert.equal(renewed.conversation_id, "cart_a");
