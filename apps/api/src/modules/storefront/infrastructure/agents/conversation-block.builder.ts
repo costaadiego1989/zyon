@@ -2,6 +2,7 @@ import type { ConversationBlock } from "../../domain/types/conversation-block.js
 import { STOREFRONT_TOOL_OUTCOME_UNKNOWN } from "../../domain/errors/store-tool-outcome-unknown.error.js";
 import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
 import { commercialNoticesSchema } from "../../domain/contracts/commercial-notice.schemas.js";
+import { storefrontShippingReferenceResultSchema } from "../../domain/contracts/storefront-shipping-reference.schemas.js";
 
 export interface BuildBlocksInput {
   presentationMode?: "legacy" | "structured";
@@ -306,13 +307,17 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     }
   }
   if (toolResults["quote_shipping"]) {
-    const shippingData = toolResults["quote_shipping"] as any;
-    if (shippingData?.options?.length > 0) {
+    const shipping = storefrontShippingReferenceResultSchema.safeParse(toolResults["quote_shipping"]);
+    if (shipping.success && shipping.data.options.length > 0) {
+      const shippingData = shipping.data;
+      // The carrier/reference response owns these values. A malformed model
+      // narration cannot turn a successful read into an apparent quote failure.
+      finalContent = "Estas são as opções de entrega disponíveis para o CEP informado.";
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
       blocks.push({
         type: "shipping_options",
         data: {
-          options: shippingData.options.map((o: any) => ({
+          options: shippingData.options.map(o => ({
             carrier: o.carrier,
             name: o.name,
             price: o.price,
