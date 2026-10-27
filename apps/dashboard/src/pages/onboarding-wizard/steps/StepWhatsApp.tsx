@@ -1,5 +1,7 @@
+import { formatWhatsAppPhone } from "../../../utils/masks.js";
 import React from "react";
-import { CheckCircle, Loader2, MessageCircle } from "lucide-react";
+import { CheckCircle, Loader2 } from "lucide-react";
+import { WhatsAppIcon } from "../../../components/WhatsAppIcon.js";
 import { Button } from "../../../components/Button.js";
 import type { MerchantProfile } from "../../../api-client.js";
 import { useWhatsAppSellerPage } from "../../whatsapp-seller/useWhatsAppSellerPage.js";
@@ -30,7 +32,7 @@ export function StepWhatsApp({ me }: StepWhatsAppProps) {
   return (
     <div className="onb-field-group">
       <div className="onb-hero-icon" aria-hidden="true">
-        <MessageCircle size={22} />
+        <WhatsAppIcon size={26} />
       </div>
 
       <p className="onb-help">
@@ -45,7 +47,7 @@ export function StepWhatsApp({ me }: StepWhatsAppProps) {
             <strong>Conexão Meta ativa</strong>
             {vm.config?.whatsappNumber && (
               <span className="onb-connected-sub">
-                Número +{vm.config.whatsappNumber}
+                Número {formatWhatsAppPhone(vm.config.whatsappNumber)}
               </span>
             )}
           </div>

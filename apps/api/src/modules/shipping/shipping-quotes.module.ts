@@ -10,7 +10,6 @@ import { MELHOR_ENVIO_TOKEN_RESOLVER, type MelhorEnvioTokenResolver } from "./do
 import { QuoteShippingUseCase } from "./application/use-cases/quote-shipping.use-case.js";
 import { QuoteMarketplaceShippingService } from "./application/use-cases/quote-marketplace-shipping.service.js";
 import { GetMarketplaceShippingContractService } from "./application/use-cases/get-marketplace-shipping-contract.service.js";
-import { FlatRateCarrierAdapter } from "./infrastructure/adapters/flat-rate.carrier.js";
 import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envio.carrier.js";
 import { MelhorEnvioReverseAdapter } from "./infrastructure/adapters/melhor-envio-reverse.adapter.js";
 import { PrismaMelhorEnvioTokenResolver } from "./infrastructure/adapters/prisma-melhor-envio-token-resolver.js";
@@ -31,7 +30,6 @@ import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketp
   imports: [MerchantModule],
   controllers: [ShippingShipmentRecoveryController, ShippingShipmentDashboardController],
   providers: [
-    FlatRateCarrierAdapter,
     PrismaMarketplaceDeliveryRepository,
     MarketplaceDeliveryEventsHandler,
     { provide: PrismaMarketplaceShipmentRepository,
@@ -52,7 +50,7 @@ import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketp
       provide: MelhorEnvioCarrierAdapter,
       useFactory: (resolver: MelhorEnvioTokenResolver) => {
         if (!process.env.MELHOR_ENVIO_TOKEN) {
-          Logger.warn("MelhorEnvio: no global MELHOR_ENVIO_TOKEN fallback; merchants without a connected OAuth account will get flat-rate only", "ShippingModule");
+          Logger.warn("MelhorEnvio: no global MELHOR_ENVIO_TOKEN fallback; carrier rates require the merchant account; eligible local delivery stays available", "ShippingModule");
         }
         return new MelhorEnvioCarrierAdapter(resolver);
       },
@@ -73,8 +71,8 @@ import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketp
     },
     {
       provide: CARRIER_ADAPTERS,
-      useFactory: (flat: FlatRateCarrierAdapter, melhorEnvio: MelhorEnvioCarrierAdapter) => [melhorEnvio, flat],
-      inject: [FlatRateCarrierAdapter, MelhorEnvioCarrierAdapter]
+      useFactory: (melhorEnvio: MelhorEnvioCarrierAdapter) => [melhorEnvio],
+      inject: [MelhorEnvioCarrierAdapter]
     },
     { provide: SHIPPING_REFERENCE_CARRIERS,
       useFactory: (carrier: MelhorEnvioCarrierAdapter) => [{ carrierKey: carrier.carrierKey,

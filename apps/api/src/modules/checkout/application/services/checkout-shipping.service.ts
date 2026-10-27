@@ -1,7 +1,14 @@
+import { ConflictException } from "@nestjs/common";
+import type { PrismaClient } from "@prisma/client";
+import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { hasMarketplaceCheckout } from "../../infrastructure/marketplace-checkout-scope.js";
+import { hasPreparedCheckoutPayment } from "../../infrastructure/checkout-payment-scope.js";
+import { requiresPhysicalDelivery } from "../../domain/services/cart-fulfillment.js";
+import { checkoutShippingInput, checkoutShippingOption } from "../../../shipping/application/checkout-shipping-quote.js";
 import { Inject, Injectable, Logger, Optional } from "@nestjs/common";
 import type { CheckoutSession, CustomerHints, PackageDimensions, ShippingQuote } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
-import { estimatePacQuote, lookupAddressByViaCep } from "../../domain/services/viacep-lookup.service.js";
+import { lookupAddressByViaCep } from "../../domain/services/viacep-lookup.service.js";
 import { extractAddressDetailLine, isShippingQuickReplyQuestion } from "../../domain/services/customer-extraction.service.js";
 import { CheckoutCustomerService } from "./checkout-customer.service.js";
 import { HttpClientService } from "../../../../shared/http/http-client.service.js";
@@ -20,10 +27,13 @@ export class CheckoutShippingService {
     private readonly customerService: CheckoutCustomerService,
     @Optional() private readonly quoteShipping?: QuoteShippingUseCase,
     @Optional() private readonly http?: HttpClientService,
-    @Optional() @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRulesRepo?: MerchantRulesRepository
+    @Optional() @Inject(MERCHANT_RULES_REPOSITORY) private readonly merchantRulesRepo?: MerchantRulesRepository,
+    @Inject(PRISMA_CLIENT) private readonly prisma?: PrismaClient
   ) { }
 
   async processShippingState(session: CheckoutSession, userMessage: string): Promise<CheckoutSession> {
+    if (!requiresPhysicalDelivery(session.cart)) return session;
+    if (session.shipping && this.prisma && await hasPreparedCheckoutPayment(this.prisma, session)) return session;
     let working = structuredClone(session);
     let confirmedAddressThisTurn = false;
 
@@ -64,8 +74,10 @@ export class CheckoutShippingService {
         next: this.customerService.mergeCustomers(working, numberPatch) });
     }
 
+    const priorQuote = working.shippingOptions?.[0]?.quoteId;
+    const hadOptions = !!working.shippingOptions?.length;
     working = await this.tryEnsureShippingOptions(working);
-    working = await this.trySelectShippingOption(userMessage, working);
+    if (hadOptions && priorQuote === working.shippingOptions?.[0]?.quoteId) working = await this.trySelectShippingOption(userMessage, working);
 
     return working;
   }
@@ -110,7 +122,15 @@ export class CheckoutShippingService {
   }
 
   private async tryEnsureShippingOptions(session: CheckoutSession): Promise<CheckoutSession> {
+    if (await this.isMarketplace(session)) return this.currentSession(session);
     const addr = session.customer?.address;
+    if (addr?.zip && this.quoteShipping && (session.shipping || session.shippingOptions?.length) && typeof this.quoteShipping.quoteKey === "function") {
+      const key = await this.quoteShipping.quoteKey(checkoutShippingInput(session));
+      const options = session.shipping ? [session.shipping] : session.shippingOptions ?? [];
+      if (options.some(option => option.quoteKey !== key || !option.expiresAt || Date.parse(option.expiresAt) <= Date.now())) {
+        session = await commitCheckoutMutation(this.repository, { expected: session, next: { ...session, shipping: undefined, shippingOptions: [], updatedAt: new Date().toISOString() } });
+      }
+    }
     if (
       !addr?.zip ||
       !addr?.street ||
@@ -128,98 +148,24 @@ export class CheckoutShippingService {
     if (this.quoteShipping) {
       let shippingOptions: ShippingQuote[] | undefined;
       try {
-        const cartTotal = session.cart?.items?.reduce(
-          (sum, item) => sum + (item.price ?? 0) * (item.quantity ?? 1),
-          0
-        ) ?? 0;
-
-        // Build PackageDimensions from cart items
-        const packages: PackageDimensions[] = (session.cart?.items ?? []).map((item) => ({
-          weightKg: item.weight_kg ?? (item.weightGrams ? item.weightGrams / 1000 : 0.3),
-          heightCm: item.height_cm ?? 10,
-          widthCm: item.width_cm ?? 15,
-          lengthCm: item.length_cm ?? 20,
-          quantity: item.quantity ?? 1
-        }));
-
-        // Fetch merchant's origin zip from rules
-        const merchantRules = await this.merchantRulesRepo?.getRules(session.merchantId ?? "");
-        const originZip = merchantRules?.originZip ?? "";
-
-        const quoteSnapshot = await this.quoteShipping.execute({
-          session_id: session.sessionId,
-          merchant_id: session.merchantId ?? "",
-          destination_zip: addr.zip.replace(/\D/g, ""),
-          destination_neighborhood: addr.neighborhood,
-          ...(session.customer?.address_verified === true ? { destination_city: addr.city, destination_state: addr.state } : {}),
-          cart_total: cartTotal,
-          origin_zip: originZip,
-          packages
-        });
-
-        shippingOptions = quoteSnapshot.results.map((r) =>
-          toCheckoutShippingQuote({
-            label: r.label,
-            carrierKey: r.carrier_key,
-            priceInCents: r.price,
-            realCostInCents: r.original_price ?? r.price,
-            isFree: r.is_free,
-            etaDays: r.eta_days,
-            destinationZip: addr.zip ?? ""
-          })
-        );
+        const quoteSnapshot = await this.quoteShipping.execute(checkoutShippingInput(session));
+        if (quoteSnapshot.results.length > 0) {
+          shippingOptions = quoteSnapshot.results.map(result => checkoutShippingOption(quoteSnapshot, result));
+        }
       } catch (err) {
-        this.logger.warn("Shipping quote unavailable; no estimated carrier substituted", err);
-        return session;
+        if (this.isMarketplaceShippingDenial(err)) return this.currentSession(session);
+        if (err instanceof Error && err.message === "marketplace_checkout_scope_unavailable") throw err;
+        this.logger.warn("shipping.quote.unavailable", { merchantId: session.merchantId, reason: err instanceof Error ? err.message : "shipping_unavailable" });
       }
-      // A persistence conflict is not a provider failure. Never substitute an
-      // estimate or reuse the response after the buyer/cart/address changed.
-      if (shippingOptions) return commitCheckoutMutation(this.repository, {
-        expected: session, next: { ...session, shippingOptions },
-      });
-      return session;
+      if (shippingOptions) {
+        if (await this.isMarketplace(session)) return this.currentSession(session);
+        return commitCheckoutMutation(this.repository, { expected: session,
+          next: { ...session, shippingOptions, updatedAt: new Date().toISOString() } });
+      }
     }
 
-    // Fallback: deterministic estimate based on state/region
-    const q = estimatePacQuote({ zip: addr.zip, state: addr.state });
-    const sedexPrice = Math.round((q.customerPrice + 10) * 100) / 100;
-    const sedexRealCost = Math.round((q.realCost + 8) * 100) / 100;
-    const partnerPrice = Math.round((q.customerPrice + 5) * 100) / 100;
-    const partnerRealCost = Math.round((q.realCost + 4) * 100) / 100;
-    const next: CheckoutSession = {
-      ...session,
-      shippingOptions: [
-        {
-          customerPrice: q.customerPrice,
-          realCost: q.realCost,
-          carrier: "Correios",
-          method: "PAC",
-          deliveryDays: q.deliveryDays,
-          region: q.region,
-          destinationZip: q.destinationZip
-        },
-        {
-          customerPrice: sedexPrice,
-          realCost: sedexRealCost,
-          carrier: "Correios",
-          method: "Sedex",
-          deliveryDays: Math.max(1, q.deliveryDays - 2),
-          region: q.region,
-          destinationZip: q.destinationZip
-        },
-        {
-          customerPrice: partnerPrice,
-          realCost: partnerRealCost,
-          carrier: "Transportadora Parceira",
-          method: "Entrega padrao",
-          deliveryDays: Math.max(1, q.deliveryDays - 1),
-          region: q.region,
-          destinationZip: q.destinationZip
-        }
-      ],
-      updatedAt: new Date().toISOString()
-    };
-    return commitCheckoutMutation(this.repository, { expected: session, next });
+    // An unavailable provider must never turn into a purchasable invented price.
+    return session;
   }
 
   private async trySelectShippingOption(text: string, session: CheckoutSession): Promise<CheckoutSession> {
@@ -257,6 +203,19 @@ export class CheckoutShippingService {
     // snapshot, including any concurrent cart invalidation; never reapply the
     // old selected quote over a newer cart or carry a stale persistence token.
     return await this.repository.getSession(next.merchantId, next.sessionId) ?? next;
+  }
+
+  private async isMarketplace(session: CheckoutSession): Promise<boolean> {
+    if (!this.prisma) throw new ConflictException("marketplace_checkout_scope_unavailable");
+    return hasMarketplaceCheckout(this.prisma, { merchantId: session.merchantId, sessionId: session.sessionId, session });
+  }
+
+  private isMarketplaceShippingDenial(error: unknown): boolean {
+    return error instanceof Error && error.message === "marketplace_shipping_selection_required";
+  }
+
+  private async currentSession(session: CheckoutSession): Promise<CheckoutSession> {
+    return await this.repository.getSession(session.merchantId, session.sessionId) ?? session;
   }
 
   private selectShippingOption(text: string, options: ShippingQuote[]): ShippingQuote | null {

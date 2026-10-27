@@ -1,0 +1,11 @@
+node_modules/
+dist/
+.next/
+.turbo/
+.env
+.env.*
+*.log
+*.tsbuildinfo
+.audit/
+dist-umd/
+.vercel/

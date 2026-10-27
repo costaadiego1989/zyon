@@ -38,7 +38,7 @@ export default function ShippingOptionsBlock({
                 {option.name}
               </div>
               <div style={{ fontSize: "11px", color: "var(--aacp-muted)" }}>
-                {option.days} {option.days === 1 ? "dia útil" : "dias úteis"}
+                {option.estimatedUnit === "minutes" ? `${option.estimatedValue} minutos` : `${option.days} ${option.days === 1 ? "dia útil" : "dias úteis"}`}
               </div>
             </div>
             <span style={{ fontSize: "13px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))" }}>

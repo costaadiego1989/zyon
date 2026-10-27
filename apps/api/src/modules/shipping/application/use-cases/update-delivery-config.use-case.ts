@@ -6,6 +6,7 @@ import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../../shared/events
 
 export interface UpdateDeliveryConfigInput {
   merchantId: string;
+  originZip?: string;
   melhorEnvioEnabled?: boolean;
   ownDelivery?: {
     enabled: boolean;
@@ -37,9 +38,8 @@ export class UpdateDeliveryConfigUseCase {
     }
     validateOptionalBoolean("melhorEnvioEnabled", input.melhorEnvioEnabled);
 
-    // Update Melhor Envio enabled flag if provided
-    if (input.melhorEnvioEnabled !== undefined && this.merchantRepo.updateMelhorEnvioEnabled) {
-      await this.merchantRepo.updateMelhorEnvioEnabled(input.merchantId, input.melhorEnvioEnabled);
+    if (input.originZip !== undefined && (typeof input.originZip !== "string" || !/^\d{8}$/.test(input.originZip.replace(/\D/g, "")))) {
+      throw new BadRequestException("shipping_origin_zip_invalid");
     }
 
     // Update own delivery config if provided
@@ -47,7 +47,7 @@ export class UpdateDeliveryConfigUseCase {
       validateBoolean("ownDelivery.enabled", input.ownDelivery.enabled);
       const existingConfig = await this.ownDeliveryRepo.getByMerchantId(input.merchantId);
 
-      // If only toggling enabled flag (no mode/price changes), skip validation
+      // Turning off a saved configuration does not require completing it.
       const isToggleOnly = input.ownDelivery.mode === undefined
         && input.ownDelivery.flatPriceCents === undefined
         && input.ownDelivery.freeAboveCents === undefined
@@ -85,7 +85,7 @@ export class UpdateDeliveryConfigUseCase {
       let normalizedNeighborhoods: OwnDeliveryNeighborhood[] | null = null;
       let normalizedRadiusZones: OwnDeliveryRadiusZone[] | null = null;
 
-      if (!isToggleOnly) {
+      if (!isToggleOnly || input.ownDelivery.enabled) {
         // Validate based on mode
         if (mode === "flat") {
           validateRequiredCents("flatPriceCents", flatPriceCents);
@@ -126,6 +126,15 @@ export class UpdateDeliveryConfigUseCase {
         estimatedUnit
       } as any;
 
+      if (input.ownDelivery.enabled) {
+        const originZip = input.originZip ?? (await this.merchantRepo.getRules(input.merchantId)).originZip;
+        if (!originZip || !/^\d{8}$/.test(originZip.replace(/\D/g, ""))) throw new BadRequestException("shipping_origin_zip_required");
+      }
+
+      if (input.originZip !== undefined) {
+        await this.merchantRepo.updateRules(input.merchantId, { originZip: input.originZip.replace(/\D/g, "") });
+      }
+
       await this.ownDeliveryRepo.save(configToSave);
 
       // Reindex knowledge base with delivery coverage so the agent can answer
@@ -146,6 +155,13 @@ export class UpdateDeliveryConfigUseCase {
           deliveryRegions,
         },
       });
+    }
+
+    if (!input.ownDelivery && input.originZip !== undefined) {
+      await this.merchantRepo.updateRules(input.merchantId, { originZip: input.originZip.replace(/\D/g, "") });
+    }
+    if (input.melhorEnvioEnabled !== undefined && this.merchantRepo.updateMelhorEnvioEnabled) {
+      await this.merchantRepo.updateMelhorEnvioEnabled(input.merchantId, input.melhorEnvioEnabled);
     }
 
     return {

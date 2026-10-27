@@ -12,7 +12,8 @@ export const shippingReferenceReasonSchema = z.enum(["shipping_reference_unavail
   "carrier_unavailable", "coverage_unavailable", "origin_address_configuration_required", "source_changed", "invalid_destination"]);
 export type ShippingReferenceReason = z.infer<typeof shippingReferenceReasonSchema>;
 const option = z.strictObject({ carrier: z.string().min(1).max(300), name: z.string().min(1).max(300), price: cents,
-  days: z.number().int().min(0).max(3650), zipCode: z.string().regex(/^\d{8}$/) });
+  days: z.number().int().min(0).max(3650), zipCode: z.string().regex(/^\d{8}$/),
+  estimatedValue: z.number().int().positive().optional(), estimatedUnit: z.enum(["minutes", "days"]).optional() });
 export const storefrontShippingReferenceResultSchema = z.strictObject({ referenceOnly: z.literal(true), options: z.array(option).max(100),
   reason: shippingReferenceReasonSchema.optional(), message: z.string().min(1).max(500).optional(),
   reference: z.strictObject({ id: z.uuid(), expiresAt: z.iso.datetime({ offset: true }), basisHash: shippingReferenceHashSchema,
@@ -31,6 +32,7 @@ export const storefrontShippingReferenceAuthoritySchema = z.discriminatedUnion("
     destinationNeighborhood: z.string().min(1).max(120).optional(), destinationCity: z.string().min(1).max(191).optional(),
     destinationState: z.string().length(2).optional(), addressSource: z.enum(["saved_buyer_address", "requested_cep"]),
     mode: z.enum(["flat", "neighborhood", "radius", "carrier"]),
+    carrierEnabled: z.boolean().optional(),
     packages: z.array(z.strictObject({ weightKg: z.number().finite().positive(), heightCm: z.number().finite().positive(),
       widthCm: z.number().finite().positive(), lengthCm: z.number().finite().positive(), quantity: z.number().int().min(1).max(99) })).min(1).max(200).optional(),
     items: z.array(z.strictObject({ sku: ref, quantity: z.number().int().min(1).max(99) })).min(1).max(200) }),

@@ -1,13 +1,20 @@
 import assert from "node:assert/strict";
-import test from "node:test";
+import test, { beforeEach, afterEach } from "node:test";
 import { QuoteShippingUseCase, shippingReferenceConfigurationHash } from "./quote-shipping.use-case.js";
 import type { OwnDeliveryConfig } from "../../domain/ports/own-delivery-config.port.js";
 import type { CarrierPort } from "../../domain/ports/carrier.port.js";
 import { ShippingQuotesModule } from "../../shipping-quotes.module.js";
 import { SHIPPING_REFERENCE_CARRIERS } from "../../domain/ports/carrier.port.js";
 
-function fixture(manual: Partial<OwnDeliveryConfig> | null = null) {
-  const state = { calls: 0, config: manual === null ? null : { id: "config", merchantId: "merchant", enabled: true, mode: "flat",
+const originalFetch = globalThis.fetch;
+beforeEach(() => { globalThis.fetch = (async raw => {
+  if (String(raw).includes("viacep.com.br")) return Response.json({ logradouro: "Synthetic", bairro: "Centro", localidade: "Synthetic", uf: "SP" });
+  throw Error("unexpected_network");
+}) as typeof fetch; });
+afterEach(() => { globalThis.fetch = originalFetch; });
+
+function fixture(manual: Partial<OwnDeliveryConfig> | null = null, enabled = manual === null) {
+  const state = { calls: 0, enabled, config: manual === null ? null : { id: "config", merchantId: "merchant", enabled: true, mode: "flat",
     flatPriceCents: 900, freeAboveCents: null, neighborhoods: null, radiusZones: null, estimatedValue: 60, estimatedUnit: "minutes", ...manual } as OwnDeliveryConfig };
   const live: CarrierPort = { carrierKey: "merchant-real", async fetchQuotes(context) {
     state.calls++; assert.equal(context.merchantId, "merchant"); assert.equal(context.packages[0]!.weightKg, 0.7);
@@ -19,11 +26,12 @@ function fixture(manual: Partial<OwnDeliveryConfig> | null = null) {
   const general: CarrierPort = { carrierKey: "flat-rate", fetchQuotes: forbidden };
   const useCase = new QuoteShippingUseCase(repository, [general], { getRules: forbidden } as never,
     { async getByMerchantId() { return structuredClone(state.config); }, save: forbidden,
-      async getNeighborhoodOrigin() { return { kind: "ready" as const, origin: { merchantId: "merchant", zip: "01001000", city: "Synthetic", state: "SP" } }; } }, [live]);
+      async getNeighborhoodOrigin() { return { kind: "ready" as const, origin: { merchantId: "merchant", zip: "01001000", city: "Synthetic", state: "SP" } }; } }, [live],
+      { merchant: { findUnique: async () => ({ melhorEnvioEnabled: state.enabled }) } } as never);
   const input = { session_id: "conversation", merchant_id: "merchant", destination_zip: "01310100", cart_total: 118,
     origin_zip: "01001000", destination_city: "Synthetic", destination_state: "SP", packages: [{ weightKg: 0.7, heightCm: 8, widthCm: 10, lengthCm: 12, quantity: 2 }],
     items: [{ sku: "SKU", quantity: 2 }], basisHash: "a".repeat(64), configurationHash: shippingReferenceConfigurationHash(state.config, "01001000",
-      { merchantId: "merchant", zip: "01001000", city: "Synthetic", state: "SP" }) };
+      { merchantId: "merchant", zip: "01001000", city: "Synthetic", state: "SP" }, state.enabled) };
   return { state, useCase, input, live };
 }
 test("reference live carrier preserves exact packages/quantity/cents without cache, quote persistence or inferred free-shipping", async () => {
@@ -31,11 +39,36 @@ test("reference live carrier preserves exact packages/quantity/cents without cac
   assert.equal(result.referenceOnly, true); assert.equal(result.results[0]!.price, 1937); assert.equal(result.results[0]!.is_free, false);
   assert.equal(f.state.calls, 1); assert.equal("quote_key" in result, false); assert.equal("selected_carrier_key" in result, false);
 });
+
+test("hybrid reference combines configured local tariff and real carrier without granting local subsidy", async () => {
+  const f = fixture({ freeAboveCents: 100 }, true);
+  const result = await f.useCase.executeReference(f.input);
+  assert.deepEqual(result.results.map(option => [option.carrier_key, option.price, option.is_free]), [
+    ["own_delivery_flat", 900, false], ["real:service", 1937, false],
+  ]);
+  assert.equal(f.state.calls, 1);
+});
+
+test("hybrid neighborhood reference preserves carrier when canonical address is missing or outside local coverage", async () => {
+  const f = fixture({ mode: "neighborhood", flatPriceCents: null, neighborhoods: [{ name: "Centro", priceCents: 500 }] }, true);
+  for (const destination of [{}, { destination_neighborhood: "Centro", destination_city: "Another city" }]) {
+    const result = await f.useCase.executeReference({ ...f.input, ...destination });
+    assert.deepEqual(result.results.map(option => option.carrier_key), ["real:service"]);
+  }
+  const covered = await f.useCase.executeReference({ ...f.input, destination_neighborhood: "Centro" });
+  assert.deepEqual(covered.results.map(option => option.carrier_key), ["own_delivery_neighborhood_centro", "real:service"]);
+});
+
+test("changing carrier activation invalidates the reference before provider IO", async () => {
+  const f = fixture({}, true); f.state.enabled = false;
+  assert.equal((await f.useCase.executeReference(f.input)).reason, "source_changed");
+  assert.equal(f.state.calls, 0);
+});
 for (const missing of ["dimensions", "origin", "account"] as const)
   test(`reference missing ${missing} never fabricates a box or PAC/Sedex fallback`, async () => {
     const f = fixture();
     if (missing === "dimensions") Reflect.deleteProperty(f.input, "packages");
-    if (missing === "origin") { f.input.origin_zip = ""; f.input.configurationHash = shippingReferenceConfigurationHash(null, ""); }
+    if (missing === "origin") { f.input.origin_zip = ""; f.input.configurationHash = shippingReferenceConfigurationHash(null, "", undefined, true); }
     if (missing === "account") f.live.fetchQuotes = async () => [];
     const result = await f.useCase.executeReference(f.input); assert.deepEqual(result.results, []);
     assert.equal(result.reason, missing === "dimensions" ? "dimensions_required" : missing === "origin" ? "origin_required" : "carrier_unavailable");
@@ -69,9 +102,9 @@ test("manual radius uses existing geocode/distance math with no invented price o
       ? { logradouro: "Synthetic", bairro: "Synthetic", localidade: "Synthetic", uf: "SP" } : [{ lat: latitude, lon: "0" }]; } } as Response;
   }) as typeof fetch;
   assert.equal((await f.useCase.executeReference(f.input)).results[0]!.price, 725);
-  let calls = 0; globalThis.fetch = (async (raw: string | URL | Request) => { calls++;
+  let calls = 0; globalThis.fetch = (async (raw: string | URL | Request) => {
     if (String(raw).includes("viacep.com.br")) return { ok: true, async json() { return { logradouro: "Synthetic", bairro: "Synthetic", localidade: "Synthetic", uf: "SP" }; } } as Response;
-    latitude = calls < 3 ? "0" : "10"; return { ok: true, async json() { return [{ lat: latitude, lon: "0" }]; } } as Response;
+    const pointLatitude = ++calls === 1 ? "0" : "10"; return { ok: true, async json() { return [{ lat: pointLatitude, lon: "0" }]; } } as Response;
   }) as typeof fetch;
   const result = await f.useCase.executeReference(f.input); assert.deepEqual(result.results, []); assert.equal(result.reason, "coverage_unavailable");
 });

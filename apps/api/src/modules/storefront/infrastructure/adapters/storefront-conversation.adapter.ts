@@ -327,7 +327,9 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
         carrier: opt.carrier,
         name: opt.name,
         price: opt.price,
-        days: opt.days
+        days: opt.days,
+        estimatedUnit: opt.estimatedUnit,
+        estimatedValue: opt.estimatedValue
       }));
     }
     let quickRepliesConfig: StoreQuickRepliesConfig | null = null;

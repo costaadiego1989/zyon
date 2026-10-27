@@ -85,3 +85,17 @@ export function validateCNPJ(value: string): boolean {
 
   return true;
 }
+
+/** Format the Meta connection number without dropping its country code. */
+export function formatWhatsAppPhone(value: string | null | undefined): string {
+  if (!value) return "";
+  const digits = value.replace(/\D/g, "");
+  if (!digits) return "";
+  const hasBrazilCode = digits.startsWith("55") && (digits.length === 12 || digits.length === 13);
+  const national = hasBrazilCode ? digits.slice(2) : digits;
+  if ((hasBrazilCode || !value.trim().startsWith("+")) && (national.length === 10 || national.length === 11)) {
+    const split = national.length - 4;
+    return `+55 (${national.slice(0, 2)}) ${national.slice(2, split)}-${national.slice(split)}`;
+  }
+  return `+${digits}`;
+}

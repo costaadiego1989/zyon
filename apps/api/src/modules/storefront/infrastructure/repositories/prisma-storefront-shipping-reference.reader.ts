@@ -78,9 +78,10 @@ export class PrismaStorefrontShippingReferenceReader implements StorefrontShippi
           where: { merchantId: scope.merchantId }, select: { merchantId: true, originZip: true } }));
         if (rules.merchantId !== scope.merchantId) return unavailable("cart_review_required");
         const origin = shippingReferenceCepSchema.safeParse(rules.originZip), originZip = origin.success ? origin.data : "";
+        const carrierEnabled = (await tx.merchant.findUnique({ where: { id: scope.merchantId }, select: { melhorEnvioEnabled: true } }))?.melhorEnvioEnabled ?? false;
         const mode = manual?.enabled ? manual.mode : "carrier";
         const originResult = mode === "neighborhood" ? await readNeighborhoodDeliveryOrigin(tx, scope.merchantId) : undefined;
-        if (mode === "neighborhood" && originResult?.kind !== "ready") return unavailable("origin_address_configuration_required");
+        if (mode === "neighborhood" && !carrierEnabled && originResult?.kind !== "ready") return unavailable("origin_address_configuration_required");
         const localityOrigin = originResult?.kind === "ready" ? originResult.origin : undefined;
         if ((mode === "radius" || mode === "carrier") && !originZip) return unavailable("origin_required");
         const hasDimensions = rows.every(row => [row.weightGrams, row.heightCm, row.widthCm, row.lengthCm]
@@ -90,24 +91,27 @@ export class PrismaStorefrontShippingReferenceReader implements StorefrontShippi
           return { weightKg: row.weightGrams! / 1000, heightCm: row.heightCm!, widthCm: row.widthCm!, lengthCm: row.lengthCm!, quantity: line.quantity }; }) : undefined;
         let address: { id: string; globalUserId: string; value: z.output<typeof checkoutExplicitAddressSchema> } | undefined;
         if (mode === "neighborhood") {
-          if (!scope.buyerId) return unavailable("address_required");
-          const addresses = await tx.buyerAddress.findMany({ where: { globalUserId: scope.buyerId, zip: request.zipCode }, take: 2,
-            select: { id: true, globalUserId: true, zip: true, street: true, number: true, complement: true, neighborhood: true, city: true, state: true } });
-          if (!addresses.length) return unavailable("address_required");
-          if (addresses.length !== 1) return unavailable("address_ambiguous");
+          if (!scope.buyerId && !carrierEnabled) return unavailable("address_required");
+          const addresses = scope.buyerId ? await tx.buyerAddress.findMany({ where: { globalUserId: scope.buyerId, zip: request.zipCode }, take: 2,
+            select: { id: true, globalUserId: true, zip: true, street: true, number: true, complement: true, neighborhood: true, city: true, state: true } })
+          : [];
+          if (!addresses.length && !carrierEnabled) return unavailable("address_required");
+          if (addresses.length > 1 && !carrierEnabled) return unavailable("address_ambiguous");
+          if (addresses.length === 1) {
           const saved = addresses[0]!;
           if (saved.globalUserId !== scope.buyerId || saved.zip !== request.zipCode) return unavailable("address_required");
           const { id: addressId, globalUserId, ...value } = saved;
           address = { id: id.parse(addressId), globalUserId, value: checkoutExplicitAddressSchema.parse(value) };
-          if (!neighborhoodDeliveryMatchesOrigin(scope.merchantId, localityOrigin, address.value.city, address.value.state)) return unavailable("coverage_unavailable");
+          if (!neighborhoodDeliveryMatchesOrigin(scope.merchantId, localityOrigin, address.value.city, address.value.state) && !carrierEnabled) return unavailable("coverage_unavailable");
+          }
         }
         const basisHash = createHash("sha256").update(canonicalJson({ namespace: "storefront-reference-v1", scope, cart, commercial,
-          dimensions: rows, address: address ?? null, destinationZip: request.zipCode })).digest("hex");
+          dimensions: rows, carrierEnabled, address: address ?? null, destinationZip: request.zipCode })).digest("hex");
         return storefrontShippingReferenceAuthoritySchema.parse({ kind: "ready", basisHash,
-          configurationHash: shippingReferenceConfigurationHash(manual, originZip, localityOrigin), cartTotalCents: commercial.quote.merchandiseTotalCents,
+          configurationHash: shippingReferenceConfigurationHash(manual, originZip, localityOrigin, carrierEnabled), cartTotalCents: commercial.quote.merchandiseTotalCents,
           originZip, destinationZip: request.zipCode, ...(address ? { destinationNeighborhood: address.value.neighborhood,
             destinationCity: address.value.city, destinationState: address.value.state } : {}),
-          addressSource: address ? "saved_buyer_address" : "requested_cep", mode,
+          addressSource: address ? "saved_buyer_address" : "requested_cep", mode, carrierEnabled,
           ...(packages ? { packages } : {}), items: cart.items.map(item => ({ sku: item.sku, quantity: item.quantity })) });
       }, { isolationLevel: "ReadCommitted", maxWait: 10000, timeout: 15000 });
     } catch { return unavailable("cart_review_required"); }

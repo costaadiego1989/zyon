@@ -1,3 +1,4 @@
+import { checkoutShippingInput } from "../../application/checkout-shipping-quote.js";
 import {
   BadRequestException,
   Body,
@@ -50,30 +51,10 @@ export class EmbedShippingController {
     const session = await this.loadOwnedSession(request.embedClaims!, sessionId);
     const rules = await this.merchantRulesRepo?.getRules(merchantId);
 
-    return this.quoteShipping.execute({
-      session_id: sessionId,
-      merchant_id: merchantId,
-      destination_zip: destinationZip,
-      // Never use a body/model neighborhood. A stored district belongs only
-      // to its own CEP; another-CEP preview cannot inherit its local price.
+    return this.quoteShipping.execute({ ...checkoutShippingInput(session), destination_zip: destinationZip,
       ...(session.customer?.address?.zip?.replace(/\D/g, "") === destinationZip.replace(/\D/g, "")
-        ? { destination_neighborhood: session.customer.address.neighborhood,
-          ...(session.customer.address_verified === true ? { destination_city: session.customer.address.city, destination_state: session.customer.address.state } : {}) } : {}),
-      cart_total: session.cart.total,
-      // P0 fix: free_shipping_threshold is intentionally NOT forwarded from the
-      // request body. The use-case derives it from merchant rules via its own
-      // MERCHANT_RULES_REPOSITORY injection, preventing client-side bypass of
-      // the shipping-engine subsidy invariant.
-      origin_zip: rules?.originZip ?? "",
-      items: session.cart.items.map((item) => ({ sku: item.sku, quantity: item.quantity }))
-    }, () => session.cart.items.map((item) => {
-      const weightKg = item.weightGrams != null ? item.weightGrams / 1000 : item.weight_kg;
-      const dimensions = [weightKg, item.height_cm, item.width_cm, item.length_cm];
-      if (dimensions.some((value) => typeof value !== "number" || !Number.isFinite(value) || value <= 0)) {
-        throw new BadRequestException("checkout_product_shipping_dimensions_required");
-      }
-      return { weightKg: weightKg!, heightCm: item.height_cm!, widthCm: item.width_cm!, lengthCm: item.length_cm!, quantity: item.quantity };
-    }));
+        ? { destination_neighborhood: session.customer.address.neighborhood } : { destination_neighborhood: undefined }),
+      origin_zip: rules?.originZip ?? "" });
   }
 
   @Post("select")
@@ -88,7 +69,8 @@ export class EmbedShippingController {
     return this.selectMethod.execute({
       session_id: sessionId,
       merchant_id: merchantId,
-      carrier_key: carrierKey
+      carrier_key: carrierKey,
+      ...(body.quote_id ? { quote_id: requireString(body.quote_id, "quote_id_required") } : {})
     });
   }
 

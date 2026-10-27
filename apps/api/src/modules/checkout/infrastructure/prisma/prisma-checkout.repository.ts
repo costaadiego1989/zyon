@@ -1,3 +1,4 @@
+import { hasPreparedCheckoutPayment } from "../checkout-payment-scope.js";
 import { resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
 import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 import { createDigitalOrderFulfillment } from "../../../../shared/persistence/digital-order-fulfillment.js";
@@ -244,6 +245,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         const created = await tx.checkoutSession.create({ data: toCheckoutSessionCreate(snapshot) as any });
         return applyEligibleIncentive(tx, created);
       }
+      if (current && (!isDeepStrictEqual(current.shipping ?? undefined, snapshot.shipping) || !isDeepStrictEqual(current.shippingOptions ?? undefined, snapshot.shippingOptions)) && await hasPreparedCheckoutPayment(tx, snapshot)) throw new ConflictException("shipping_change_requires_payment_cancellation");
       const bound = hasStoredCheckoutCouponBinding(current.cart);
       if (bound && (!Number.isSafeInteger(snapshot.persistenceVersion) || snapshot.persistenceVersion !== current.version)) {
         throw new Error("checkout_coupon_binding_conflict");
@@ -367,6 +369,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
       const current = await tx.checkoutSession.findUnique({ where });
       assertNoUnprojectedWidgetReceipt(current?.cart);
+      if (current && (!isDeepStrictEqual(current.shipping ?? undefined, session.shipping) || !isDeepStrictEqual(current.shippingOptions ?? undefined, session.shippingOptions)) && await hasPreparedCheckoutPayment(tx, session)) throw new ConflictException("shipping_change_requires_payment_cancellation");
       const bound = hasStoredCheckoutCouponBinding(current?.cart);
       if (bound && expected.persistenceVersion !== current?.version) throw new Error("checkout_coupon_binding_conflict");
       if (current && bound) assertBoundCheckoutSessionContextPreserved(current, session);

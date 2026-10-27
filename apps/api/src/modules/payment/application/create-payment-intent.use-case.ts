@@ -1,3 +1,4 @@
+import { QuoteShippingUseCase } from "../../shipping/application/use-cases/quote-shipping.use-case.js";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../../shared/persistence/persistence.module.js";
 import { assertCartStock } from "../../catalog/application/services/cart-stock-authority.js";
@@ -262,6 +263,7 @@ export class CreatePaymentIntentUseCase {
     @Inject(CreateMarketplacePaymentService) private readonly marketplacePayments?: CreateMarketplacePaymentService,
     @Optional() private readonly benefits?: CheckoutBenefitsService,
     @Optional() private readonly serviceSlots?: ServiceSlotHoldsService,
+    @Optional() private readonly shippingQuotes?: QuoteShippingUseCase,
   ) { }
 
   async execute(body: CreatePaymentIntentRequest, context?: {
@@ -309,6 +311,8 @@ export class CreatePaymentIntentUseCase {
       assertSameRequest(existing.snapshot(), body, session);
       return publicPayment(await new ResumePaymentCreationService(this.payments, this.provider, this.serviceSlots, this.checkout).execute(existing, () => this.assertStock(session!)));
     }
+    if (requiresPhysicalDelivery(session.cart)) await this.shippingQuotes?.assertSelection(session);
+
 
     // An existing idempotency key is an admission made before a later block.
     // Only a brand-new provider/payment attempt must pass the commercial gate.

@@ -1,3 +1,4 @@
+import { ShippingQuotesModule } from "../shipping/shipping-quotes.module.js";
 import { PrepareMarketplaceCheckoutService } from "./application/prepare-marketplace-checkout.service.js";
 import { CreateMarketplacePaymentService } from "./application/create-marketplace-payment.service.js";
 import { MarketplacePublicPaymentAdmissionService } from "./application/marketplace-public-payment-admission.service.js";
@@ -146,6 +147,7 @@ import {
 
 @Module({
   imports: [
+    ShippingQuotesModule,
     BillingPromotionsModule,
     forwardRef(() => CheckoutModule),
     CommerceModule,

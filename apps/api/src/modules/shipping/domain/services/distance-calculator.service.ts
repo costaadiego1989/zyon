@@ -1,7 +1,7 @@
 /**
  * Geocode a Brazilian CEP to lat/lng using ViaCEP + Nominatim.
  * ViaCEP is free (no key required).
- * Falls back from street-level to city-level if exact address not found.
+ * Resolves a street or postcode. A city centre cannot prove delivery coverage.
  */
 // Nominatim usage policy requires an identifying User-Agent; server-side
 // fetch sends none by default and gets 403. Identify the app + contact.
@@ -13,12 +13,14 @@ const NOMINATIM_HEADERS = {
 async function nominatimSearch(query: string): Promise<{ lat: number; lng: number } | null> {
   const resp = await fetch(
     `https://nominatim.openstreetmap.org/search?format=json&q=${encodeURIComponent(query)}&limit=1&countrycodes=br`,
-    { headers: NOMINATIM_HEADERS }
+    { headers: NOMINATIM_HEADERS, signal: AbortSignal.timeout(4500) }
   );
   if (!resp.ok) return null;
   const data = await resp.json();
   if (Array.isArray(data) && data.length > 0) {
-    return { lat: parseFloat(data[0].lat), lng: parseFloat(data[0].lon) };
+    if (["city", "municipality", "county", "state", "country", "administrative"].includes(data[0].addresstype ?? data[0].type)) return null;
+    const lat = Number(data[0].lat), lng = Number(data[0].lon);
+    return Number.isFinite(lat) && Number.isFinite(lng) && Math.abs(lat) <= 90 && Math.abs(lng) <= 180 ? { lat, lng } : null;
   }
   return null;
 }
@@ -29,18 +31,15 @@ export async function geocodeBrazilianCep(cep: string): Promise<{ lat: number; l
     if (cleaned.length !== 8) return null;
 
     // Query ViaCEP
-    const viacepResp = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`);
+    const viacepResp = await fetch(`https://viacep.com.br/ws/${cleaned}/json/`, { signal: AbortSignal.timeout(4500) });
+    if (!viacepResp.ok) return null;
     const viacepData = await viacepResp.json();
     if (viacepData.erro) return null;
 
-    // Try street-level first (most accurate), then city, then raw postcode
+    // Try street-level first, then the postcode; never substitute a city centre.
     const fullAddr = `${viacepData.logradouro}, ${viacepData.bairro}, ${viacepData.localidade}, ${viacepData.uf}, Brazil`;
-    const byStreet = await nominatimSearch(fullAddr);
+    const byStreet = viacepData.logradouro?.trim() ? await nominatimSearch(fullAddr) : null;
     if (byStreet) return byStreet;
-
-    const cityAddr = `${viacepData.localidade}, ${viacepData.uf}, Brazil`;
-    const byCity = await nominatimSearch(cityAddr);
-    if (byCity) return byCity;
 
     const byPostcode = await nominatimSearch(`${cleaned}, Brazil`);
     if (byPostcode) return byPostcode;

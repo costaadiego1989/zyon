@@ -15,8 +15,8 @@ describe("validateOriginZip", () => {
     expect(validateOriginZip("1234-678")).toBe("CEP deve estar no formato 00000-000");
   });
 
-  it("returns error for CEP without hyphen", () => {
-    expect(validateOriginZip("12345678")).toBe("CEP deve estar no formato 00000-000");
+  it("accepts canonical CEP without hyphen while the input supplies the mask", () => {
+    expect(validateOriginZip("12345678")).toBeNull();
   });
 
   it("returns null for empty string (optional field)", () => {

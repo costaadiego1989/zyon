@@ -4,3 +4,8 @@
 **/.env.*
 **/.git/**
 **/coverage/**
+**/.next/**
+**/.vercel/**
+**/.audit/**
+**/dist-umd/**
+**/e2e/**

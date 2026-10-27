@@ -11,6 +11,10 @@ export type ShippingQuoteResult = {
   price: number;
   /** Original carrier cost before a merchant-funded free-shipping benefit. */
   original_price?: number;
+  source?: "melhor_envio" | "own_delivery";
+  real_cost?: number;
+  estimated_value?: number;
+  estimated_unit?: "minutes" | "days";
   eta_days: number;
   is_free: boolean;
 

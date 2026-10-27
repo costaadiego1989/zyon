@@ -103,6 +103,8 @@ export interface ShippingOptionsBlock {
       price: number;
       priceFormatted: string;
       days: number;
+      estimatedValue?: number;
+      estimatedUnit?: "minutes" | "days";
     }>;
   };
 }

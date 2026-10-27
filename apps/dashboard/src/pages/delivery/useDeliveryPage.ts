@@ -128,14 +128,12 @@ export function useDeliveryPage() {
     setConfig({
       ...previous,
       melhorEnvioEnabled: enabled,
-      ownDelivery: enabled ? { ...previous.ownDelivery, enabled: false } : previous.ownDelivery,
     });
 
     setSaving(true);
     try {
       await api.updateDeliveryConfig({
         melhorEnvioEnabled: enabled,
-        ...(enabled ? { ownDelivery: { enabled: false } } : {}),
       });
       showToast("success", enabled ? "Melhor Envio ativado" : "Melhor Envio desativado");
     } catch {
@@ -158,12 +156,12 @@ export function useDeliveryPage() {
     finally { setSaving(false); }
   }, [api]);
 
-  const saveOwnDeliveryConfig = useCallback(async (patch: Partial<OwnDeliveryConfig>) => {
+  const saveOwnDeliveryConfig = useCallback(async (patch: Partial<OwnDeliveryConfig>, originZip?: string) => {
     const updated = { ...configRef.current.ownDelivery, ...patch, enabled: true };
     setSaving(true);
     try {
-      await api.updateDeliveryConfig({ ownDelivery: updated, melhorEnvioEnabled: false });
-      setConfig(previous => ({ ...previous, melhorEnvioEnabled: false, ownDelivery: updated }));
+      await api.updateDeliveryConfig({ ownDelivery: updated, ...(originZip !== undefined ? { originZip } : {}) });
+      setConfig(previous => ({ ...previous, ownDelivery: updated, ...(originZip !== undefined ? { originZip } : {}) }));
       showToast("success", "Entrega própria salva e ativada");
     } catch {
       throw new Error("Não foi possível salvar a entrega própria. Seus ajustes foram mantidos. Tente novamente.");

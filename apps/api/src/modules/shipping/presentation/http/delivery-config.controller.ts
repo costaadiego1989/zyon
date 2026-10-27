@@ -73,6 +73,7 @@ export class DeliveryConfigController {
   async updateConfig(@Req() request: unknown, @Body() body: UpdateDeliveryConfigDto) {
     return this.updateDeliveryConfig.execute({
       merchantId: tenantId(request),
+      originZip: body.origin_zip,
       melhorEnvioEnabled: body.melhor_envio_enabled,
       ownDelivery: body.own_delivery ? {
         enabled: body.own_delivery.enabled,
@@ -171,6 +172,7 @@ function parsePositiveInteger(value: string | undefined, fallback: number, maxim
 }
 
 export type UpdateDeliveryConfigDto = {
+  origin_zip?: string;
   melhor_envio_enabled?: boolean;
   own_delivery?: {
     enabled: boolean;

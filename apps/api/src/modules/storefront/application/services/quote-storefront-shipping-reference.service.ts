@@ -15,7 +15,7 @@ export class QuoteStorefrontShippingReferenceService implements StorefrontShippi
     try {
       const source = storefrontShippingReferenceAuthoritySchema.parse(await this.reader.read(scope.data, request.data));
       if (source.kind === "unavailable") return shippingReferenceUnavailable(source.reason);
-      if (source.destinationZip !== request.data.zipCode || source.mode === "neighborhood"
+      if (source.destinationZip !== request.data.zipCode || source.mode === "neighborhood" && !source.carrierEnabled
         && (source.addressSource !== "saved_buyer_address" || !source.destinationNeighborhood)) return shippingReferenceUnavailable("source_changed");
       const quote = await this.shipping.executeReference({ session_id: scope.data.cartId, merchant_id: scope.data.merchantId,
         destination_zip: source.destinationZip, cart_total: source.cartTotalCents / 100, origin_zip: source.originZip,
@@ -33,7 +33,8 @@ export class QuoteStorefrontShippingReferenceService implements StorefrontShippi
         || quote.basisHash !== source.basisHash || quote.configurationHash !== source.configurationHash || Date.parse(quote.expiresAt) <= Date.now())
         return shippingReferenceUnavailable("source_changed");
       return storefrontShippingReferenceResultSchema.parse({ referenceOnly: true,
-        options: quote.results.map(option => ({ carrier: option.carrier_key, name: option.label, price: option.price, days: option.eta_days, zipCode: source.destinationZip })),
+        options: quote.results.map(option => ({ carrier: option.carrier_key, name: option.label, price: option.price, days: option.eta_days,
+          ...(option.estimated_value !== undefined ? { estimatedValue: option.estimated_value, estimatedUnit: option.estimated_unit } : {}), zipCode: source.destinationZip })),
         reference: { id: quote.id, expiresAt: quote.expiresAt, basisHash: source.basisHash, configurationHash: source.configurationHash,
           destinationZip: source.destinationZip, addressSource: source.addressSource } });
     } catch {

@@ -166,6 +166,14 @@ export interface CustomerHints {
 }
 
 export interface ShippingQuote {
+  carrierKey?: string;
+  quoteId?: string;
+  quoteKey?: string;
+  expiresAt?: string;
+  source?: "melhor_envio" | "own_delivery";
+  estimatedValue?: number;
+  estimatedUnit?: "minutes" | "days";
+
   customerPrice: number;
   realCost?: number;
   carrier?: string;
@@ -184,6 +192,7 @@ export interface ShippingQuoteRequest {
 }
 
 export interface ShippingSelectRequest {
+  quote_id?: string;
   session_id: string;
   carrier_key: string;
 }

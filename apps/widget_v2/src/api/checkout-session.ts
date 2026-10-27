@@ -659,9 +659,12 @@ export class CheckoutSession {
     return response;
   }
 
+  private shippingQuoteId?: string;
+
   async fetchShippingQuote(destinationZip?: string): Promise<Array<{ key: string; label: string; tag: string; sub: string; cost: number }>> {
     this.assertSession();
     this.assertCommercialReconciled();
+    this.shippingQuoteId = undefined;
     const body: Record<string, unknown> = { session_id: this.sessionId };
     if (destinationZip) body.destination_zip = destinationZip;
     const res = await fetch(`${this.embedBaseUrl}/embed/shipping/quote`, {
@@ -672,10 +675,12 @@ export class CheckoutSession {
     if (!res.ok) return [];
     const data = (await res.json()) as {
       options?: Array<{ carrier: string; method: string; deliveryDays?: number; customerPrice: number; carrierKey: string }>;
-      results?: Array<{ carrier_key: string; label: string; price: number; eta_days: number; is_free?: boolean }>;
+      id?: string;
+      results?: Array<{ carrier_key: string; label: string; price: number; eta_days: number; is_free?: boolean; estimated_value?: number; estimated_unit?: "minutes" | "days" }>;
     };
     const rawOptions = data.options ?? [];
     const rawResults = data.results ?? [];
+    this.shippingQuoteId = data.id;
     if (rawOptions.length > 0) {
       return rawOptions.map((o) => ({
         key: o.carrierKey,
@@ -688,7 +693,7 @@ export class CheckoutSession {
     return rawResults.map((r) => ({
       key: r.carrier_key,
       label: r.label,
-      tag: r.eta_days ? `${r.eta_days} dia${r.eta_days > 1 ? "s" : ""}` : "A confirmar",
+      tag: r.estimated_unit === "minutes" ? `${r.estimated_value} minutos` : r.eta_days ? `${r.eta_days} dia${r.eta_days > 1 ? "s" : ""}` : "A confirmar",
       sub: r.is_free ? "Grátis" : `R$ ${(r.price / 100).toFixed(2)}`,
       cost: r.price,
     }));
@@ -701,7 +706,7 @@ export class CheckoutSession {
     const res = await fetch(`${this.embedBaseUrl}/embed/shipping/select`, {
       method: "POST",
       headers: this.headers(),
-      body: JSON.stringify({ session_id: this.sessionId, carrier_key: key }),
+      body: JSON.stringify({ session_id: this.sessionId, carrier_key: key, quote_id: this.shippingQuoteId }),
     });
     if (!res.ok) {
       const errorBody = await res.text().catch(() => "");

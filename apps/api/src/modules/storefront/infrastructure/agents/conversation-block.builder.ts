@@ -317,7 +317,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
             name: o.name,
             price: o.price,
             priceFormatted: formatPrice(o.price),
-            days: o.days,
+            days: o.days, estimatedValue: o.estimatedValue, estimatedUnit: o.estimatedUnit,
           }))
         }
       });

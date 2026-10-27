@@ -1,3 +1,4 @@
+import { formatWhatsAppPhone } from "../../utils/masks.js";
 ﻿import { PageHeader } from "../../components/PageHeader.js";
 import React, { useState } from "react";
 import { CheckCircle, CircleCheck, CreditCard, ExternalLink, Loader2, PackageCheck, RefreshCw, ShieldCheck, ShoppingBag, X } from "lucide-react";
@@ -92,7 +93,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
                 <div>
                   <span className="whatsapp-seller__eyebrow">Canal conectado</span>
                   <h2>WhatsApp Business ativo</h2>
-                  <p className="whatsapp-seller__number">+{vm.config.whatsappNumber}</p>
+                  <p className="whatsapp-seller__number">{formatWhatsAppPhone(vm.config.whatsappNumber)}</p>
                 </div>
                 <Button variant={vm.config.enabled ? "outline" : "primary"} disabled={vm.saving} onClick={() => vm.handleToggleEnabled(!vm.config!.enabled)}>
                   {vm.config.enabled ? "Pausar canal" : "Habilitar canal"}
@@ -117,7 +118,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
             {pending && !active && <section className="panel whatsapp-seller__panel" aria-live="polite">
               <h2>{pending.title}</h2>
-              {vm.config.whatsappNumber && <p className="whatsapp-seller__number">+{vm.config.whatsappNumber}</p>}
+              {vm.config.whatsappNumber && <p className="whatsapp-seller__number">{formatWhatsAppPhone(vm.config.whatsappNumber)}</p>}
               <p>{pending.text}</p>
               <div className="whatsapp-seller__actions">
                 <Button variant="outline" disabled={vm.saving} onClick={vm.refresh}><RefreshCw size={16} /> Atualizar estado</Button>

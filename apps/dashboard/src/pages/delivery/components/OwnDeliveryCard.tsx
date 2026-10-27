@@ -6,6 +6,8 @@ import { Modal } from "../../../components/Modal.js";
 import { FormField, FormSelect } from "../../../components/FormField.js";
 import { RadiusZonesEditor } from "./RadiusZonesEditor.js";
 import type { OwnDeliveryConfig } from "../../../api/endpoints/delivery.js";
+import { maskCEP } from "../../../utils/masks.js";
+import { applyCurrencyMask, centsToReais, reaisToCents } from "../../../utils/currency.js";
 import "../../../components/configuration-form.css";
 import "../delivery.css";
 
@@ -16,8 +18,8 @@ interface OwnDeliveryCardProps {
   onOpenConfig: () => void;
 }
 const money = (cents: number) => (cents / 100).toLocaleString("pt-BR", { style: "currency", currency: "BRL" });
-const displayCents = (cents: number | null) => cents == null ? "" : (cents / 100).toFixed(2).replace(".", ",");
-const parseCents = (value: string) => /^\d+(?:[.,]\d{1,2})?$/.test(value.trim()) ? Math.round(Number(value.replace(",", ".")) * 100) : NaN;
+const displayCents = (cents: number | null) => cents == null ? "" : centsToReais(cents);
+const parseCents = (value: string) => value.trim() ? reaisToCents(value) : NaN;
 
 export function OwnDeliveryCard({ config, saving, onToggle, onOpenConfig }: OwnDeliveryCardProps) {
   const switchId = useId();
@@ -42,7 +44,7 @@ export function OwnDeliveryCard({ config, saving, onToggle, onOpenConfig }: OwnD
 interface OwnDeliveryConfigPanelProps {
   config: OwnDeliveryConfig | undefined;
   saving: boolean;
-  onSave: (patch: Partial<OwnDeliveryConfig>) => Promise<void>;
+  onSave: (patch: Partial<OwnDeliveryConfig>, originZip?: string) => Promise<void>;
   onClose: () => void;
   originZip?: string;
 }
@@ -54,6 +56,7 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose, origin
     estimatedUnit: config?.estimatedUnit ?? "minutes", neighborhoods: config?.neighborhoods ?? [], radiusZones: config?.radiusZones ?? [],
   }));
   const [flatPrice, setFlatPrice] = useState(() => displayCents(local.flatPriceCents));
+  const [origin, setOrigin] = useState(() => maskCEP(originZip ?? ""));
   const [freeAbove, setFreeAbove] = useState(() => displayCents(local.freeAboveCents));
   const [estimate, setEstimate] = useState(String(local.estimatedValue));
   const [newName, setNewName] = useState("");
@@ -82,9 +85,10 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose, origin
     if (saving) return;
     const errors: Record<string, string> = {};
     const flat = parseCents(flatPrice);
+    if (!/^\d{8}$/.test(origin.replace(/\D/g, ""))) errors.origin = "Informe um CEP de origem com 8 dígitos.";
     const free = freeAbove.trim() ? parseCents(freeAbove) : null;
     if (local.mode === "fixed" && (!Number.isFinite(flat) || flat < 0)) errors.flat = "Informe um valor válido, como 8,00. Use 0 para entrega gratuita.";
-    if (local.mode === "fixed" && free != null && (!Number.isFinite(free) || free < 0)) errors.free = "Informe um valor válido ou deixe vazio.";
+    if (free != null && (!Number.isFinite(free) || free < 0)) errors.free = "Informe um valor válido ou deixe vazio.";
     if (!Number.isInteger(Number(estimate)) || Number(estimate) <= 0) errors.estimate = "Informe um prazo inteiro maior que zero.";
     setFieldErrors(errors); setError(null);
     setValidationAttempt(attempt => attempt + 1);
@@ -95,7 +99,7 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose, origin
     }
     if (local.mode === "by_radius" && !local.radiusZones.length) { setError("Defina o preço de pelo menos uma faixa de distância."); return; }
     try {
-      await onSave({ ...local, estimatedValue: Number(estimate), ...(local.mode === "fixed" ? { flatPriceCents: flat, freeAboveCents: free } : {}) });
+      await onSave({ ...local, freeAboveCents: free, estimatedValue: Number(estimate), ...(local.mode === "fixed" ? { flatPriceCents: flat } : {}) }, origin.replace(/\D/g, ""));
       onClose();
     } catch { setError("Não foi possível salvar a entrega própria. Seus ajustes foram mantidos. Tente novamente."); }
   }
@@ -105,23 +109,24 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose, origin
       <fieldset className="configuration-form" disabled={saving}>
         <section className="configuration-form__section">
           <h3>Valores e área de entrega</h3>
+          <FormField label="CEP de origem" value={origin} onChange={value => setOrigin(maskCEP(value))} maxLength={9} placeholder="00000-000" inputProps={{ inputMode: "numeric", autoComplete: "postal-code" }} error={fieldErrors.origin} hint="Define a cidade da entrega local e a origem das cotações do Melhor Envio." />
           <FormSelect label="Como cobrar a entrega" value={local.mode} onChange={value => { setLocal({ ...local, mode: value as OwnDeliveryConfig["mode"] }); setFieldErrors({}); setError(null); }} options={[{ value: "fixed", label: "Valor fixo" }, { value: "by_neighborhood", label: "Por bairro" }, { value: "by_radius", label: "Por distância" }]} />
           {local.mode === "fixed" && <div className="configuration-form__grid">
-            <FormField label="Preço da entrega (R$)" value={flatPrice} onChange={setFlatPrice} inputProps={{ inputMode: "decimal" }} error={fieldErrors.flat} hint="O mesmo preço para todas as entregas." />
-            <FormField label="Entrega grátis a partir de (R$)" value={freeAbove} onChange={setFreeAbove} placeholder="Sem valor mínimo" inputProps={{ inputMode: "decimal" }} error={fieldErrors.free} hint="Opcional. Deixe vazio para manter a cobrança." />
+            <FormField label="Preço da entrega (R$)" value={flatPrice} onChange={value => setFlatPrice(applyCurrencyMask(value))} inputProps={{ inputMode: "numeric" }} error={fieldErrors.flat} hint="O mesmo preço para endereços na cidade do CEP de origem." />
           </div>}
           {local.mode === "by_neighborhood" && <>
-            <p>Cadastre cada bairro atendido e o preço correspondente.</p>
+            <p>Cadastre os bairros atendidos na cidade do CEP de origem e o preço de cada um.</p>
             {local.neighborhoods.length > 0 ? <ul className="delivery-neighborhoods">{local.neighborhoods.map((item, i) => <li key={i}>
               <span>{item.name}</span><strong>{money(item.priceCents)}</strong><Button variant="ghost" aria-label={`Remover bairro ${item.name}`} onClick={() => setLocal({ ...local, neighborhoods: local.neighborhoods.filter((_, index) => index !== i) })}><Trash2 size={16} /></Button>
             </li>)}</ul> : <p className="configuration-form__note">Nenhum bairro adicionado. Preencha os campos abaixo para começar.</p>}
             <div className="configuration-form__grid">
               <FormField label="Nome do bairro" value={newName} onChange={setNewName} placeholder="Ex.: Centro" error={fieldErrors.neighborhood} />
-              <FormField label="Preço por entrega (R$)" value={newPrice} onChange={setNewPrice} placeholder="Ex.: 8,00" inputProps={{ inputMode: "decimal" }} error={fieldErrors.neighborhoodPrice} />
+              <FormField label="Preço por entrega (R$)" value={newPrice} onChange={value => setNewPrice(applyCurrencyMask(value))} placeholder="Ex.: 8,00" inputProps={{ inputMode: "numeric" }} error={fieldErrors.neighborhoodPrice} />
             </div>
             <div><Button variant="outline" onClick={addNeighborhood}><Plus size={16} /> Adicionar bairro</Button></div>
           </>}
-          {local.mode === "by_radius" && <RadiusZonesEditor zones={local.radiusZones} onChange={radiusZones => setLocal({ ...local, radiusZones })} originZip={originZip} />}
+          {local.mode === "by_radius" && <RadiusZonesEditor zones={local.radiusZones} onChange={radiusZones => setLocal({ ...local, radiusZones })} originZip={origin} />}
+          <FormField label="Entrega grátis a partir de (R$)" value={freeAbove} onChange={value => setFreeAbove(applyCurrencyMask(value))} placeholder="Sem valor mínimo" inputProps={{ inputMode: "numeric" }} error={fieldErrors.free} hint="Opcional. Vale para a entrega própria, dentro da área atendida." />
         </section>
         <section className="configuration-form__section">
           <h3>Prazo de entrega</h3><p>Informe o tempo estimado para o pedido chegar ao cliente.</p>
@@ -133,7 +138,7 @@ export function OwnDeliveryConfigPanel({ config, saving, onSave, onClose, origin
             }} options={[{ value: "minutes", label: "Minutos" }, { value: "days", label: "Dias" }]} />
           </div>
         </section>
-        <p className="configuration-form__note">Ao salvar, a entrega própria será ativada e o Melhor Envio será desativado.</p>
+        <p className="configuration-form__note">A entrega própria pode funcionar junto com o Melhor Envio. O CEP de origem deve estar configurado nos dados de envio da loja.</p>
         {error && <p role="alert" className="form-field-error">{error}</p>}
       </fieldset>
     </form>

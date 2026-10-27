@@ -18,14 +18,14 @@ function fixture() {
   const outcome: StorefrontLocalCartCommercialOutcomeV1 = { version: 1, discountCents: 0, freeShipping: false, quote: {
     currency: "BRL", originalSubtotalCents: 2000, promotionDiscountCents: 0, subtotalCents: 2000, merchandiseTotalCents: 2000,
     items: [{ variantId: "variant", productId: "product", quantity: 2, baseUnitPriceCents: 1000, unitPriceCents: 1000 }] } };
-  const state = { bound: false, missing: false, writes: 0, commercial: 0, addresses: [address], queries: [] as unknown[] };
+  const state = { bound: false, missing: false, carrierEnabled: false, writes: 0, commercial: 0, addresses: [address], queries: [] as unknown[] };
   const tx = { async $executeRaw(sql: TemplateStringsArray) { state.queries.push(sql.join("?")); return 0; }, async $queryRaw(sql: TemplateStringsArray) {
     const text = sql.join("?"); state.queries.push(text); if (text.includes("jsonb_agg")) return [{ isolation: "read committed", candidates: [] }];
     if (text.includes("clock_timestamp()")) return [{ now: new Date() }];
     if (text.includes("FROM merchants")) return [{ id: "merchant" }]; return [];
   }, storefrontCart: { async findUnique(input: unknown) { state.queries.push(input); return state.missing ? null : structuredClone(cart); }, async upsert() { state.writes++; throw new Error("no_write"); }, async update() { state.writes++; throw new Error("no_write"); } },
     productVariant: { async findMany() { return [structuredClone(product)]; } }, couponRedemption: { async findFirst() { return null; } },
-    merchant: { async findUnique() { return { id: "merchant", storeSettings: { company: { address: { zip: "01001000", city: "Synthetic", state: "SP" } } } }; } },
+    merchant: { async findUnique() { return { id: "merchant", melhorEnvioEnabled: state.carrierEnabled, storeSettings: { company: { address: { zip: "01001000", city: "Synthetic", state: "SP" } } } }; } },
     ownDeliveryConfig: { async findUnique() { return structuredClone(config); } }, merchantRule: { async findUnique() { return { merchantId: "merchant", originZip: "01001000" }; } },
     buyerAddress: { async findMany(input: unknown) { state.queries.push(input); return structuredClone(state.addresses); } },
   };
@@ -79,4 +79,16 @@ test("missing catalog dimensions never become a default box; flat manual tariff 
 test("product-only request cannot fabricate a cart or choose the first variant", async () => {
   const f = fixture(); const result = await f.reader.read(f.scope, { productId: "product", zipCode: "01310100" });
   assert.deepEqual(result, { kind: "unavailable", reason: "product_selection_required" }); assert.equal(f.state.writes, 0);
+});
+
+test("hybrid reader retains canonical saved locality when available and permits carrier-only reference otherwise", async () => {
+  const f = fixture(); f.state.carrierEnabled = true;
+  const covered = await f.reader.read(f.scope, { zipCode: "01310100" });
+  assert.equal(covered.kind, "ready");
+  if (covered.kind === "ready") { assert.equal(covered.destinationNeighborhood, "Saved district"); assert.equal(covered.carrierEnabled, true); }
+  f.state.addresses = [];
+  const carrier = await f.reader.read(f.scope, { zipCode: "01310100" });
+  assert.equal(carrier.kind, "ready");
+  if (carrier.kind === "ready") { assert.equal(carrier.addressSource, "requested_cep"); assert.equal(carrier.destinationNeighborhood, undefined); assert.ok(carrier.packages?.length); }
+  assert.equal(f.state.writes, 0);
 });

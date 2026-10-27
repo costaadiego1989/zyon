@@ -22,6 +22,8 @@ export interface StorefrontCartState {
 }
 
 export interface StorefrontShippingOption {
+  estimatedUnit?: "minutes" | "days";
+  estimatedValue?: number;
   carrier: string;
   name: string;
   price: number;
@@ -234,7 +236,7 @@ export function storefrontQuickReplies(
   if (lastToolUsed === "quote_shipping" && currentShipping?.length) {
     return bounded(currentShipping
       .map(o => {
-        const days = o.days ? ` (${o.days} dias)` : "";
+        const days = o.estimatedUnit === "minutes" ? ` (${o.estimatedValue} minutos)` : o.days ? ` (${o.days} dias)` : "";
         const price = formatMoney(o.price);
         return `${o.name}${days} - ${price}`;
       })

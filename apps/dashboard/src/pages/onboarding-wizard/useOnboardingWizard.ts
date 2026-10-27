@@ -18,7 +18,8 @@ import type {
   PaymentDraft,
   StepMeta,
 } from "./types.js";
-import { Palette, MapPin, Truck, CreditCard, MessageCircle, Sparkles } from "lucide-react";
+import { Palette, MapPin, Truck, CreditCard, Sparkles } from "lucide-react";
+import { WhatsAppIcon } from "../../components/WhatsAppIcon.js";
 import { useStepIdentity } from "./hooks/useStepIdentity.js";
 import { useStepAddress } from "./hooks/useStepAddress.js";
 import { useStepPayment } from "./hooks/useStepPayment.js";
@@ -34,7 +35,7 @@ export const STEPS: StepMeta[] = [
   { id: 2, label: "Endereço", caption: "CEP e localização da loja", icon: MapPin },
   { id: 3, label: "Frete", caption: "Ative uma modalidade de entrega para continuar", icon: Truck },
   { id: 4, label: "Pagamento", caption: "Como você vai receber", icon: CreditCard },
-  { id: 5, label: "WhatsApp", caption: "Conecte o número da loja quando estiver pronto", icon: MessageCircle, optional: true },
+  { id: 5, label: "WhatsApp", caption: "Conecte o número da loja quando estiver pronto", icon: WhatsAppIcon, optional: true },
   { id: 6, label: "Automação de vendas", caption: "Escolha se quer ativar a otimização com IA", icon: Sparkles, optional: true },
 ];
 
