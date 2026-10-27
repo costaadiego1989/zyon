@@ -30,8 +30,9 @@ function fixture() {
     buyerAddress: { async findMany(input: unknown) { state.queries.push(input); return structuredClone(state.addresses); } },
   };
   const client = { async $transaction<T>(work: (value: typeof tx) => Promise<T>) { return work(tx); } } as unknown as PrismaClient;
-  const reader = new PrismaStorefrontShippingReferenceReader(client, { async commercial(received, receivedScope) {
+  const reader = new PrismaStorefrontShippingReferenceReader(client, { async commercial(received, receivedScope, receivedCart) {
     assert.equal(received, tx); assert.deepEqual(receivedScope, { merchantId: "merchant", cartId: "conversation" });
+    for (const item of receivedCart.items) assert.notEqual(Reflect.get(item, "categoryId"), null);
     state.commercial++; return structuredClone(outcome);
   }, async bound() { return state.bound; } });
   return { scope, cart, config, product, address, state, reader, outcome };
@@ -76,6 +77,20 @@ test("missing catalog dimensions never become a default box; flat manual tariff 
   f.config.enabled = false; const carrier = await f.reader.read(f.scope, { zipCode: "01310100" });
   assert.deepEqual(carrier, { kind: "unavailable", reason: "dimensions_required" });
 });
+test("legacy absent category is normalized without mutating or repricing the persisted cart", async () => {
+  const f = fixture(); Reflect.set(f.cart.items[0]!, "categoryId", null);
+  const result = await f.reader.read(f.scope, { zipCode: "01310100" });
+  assert.equal(result.kind, "ready"); assert.equal(f.state.commercial, 1); assert.equal(f.state.writes, 0);
+  assert.equal(Reflect.get(f.cart.items[0]!, "categoryId"), null);
+  if (result.kind === "ready") assert.equal(result.cartTotalCents, 2000);
+});
+
+test("malformed category remains rejected before commercial evaluation", async () => {
+  const f = fixture(); Reflect.set(f.cart.items[0]!, "categoryId", 42);
+  assert.equal((await f.reader.read(f.scope, { zipCode: "01310100" })).kind, "unavailable");
+  assert.equal(f.state.commercial, 0); assert.equal(f.state.writes, 0);
+});
+
 test("product-only request cannot fabricate a cart or choose the first variant", async () => {
   const f = fixture(); const result = await f.reader.read(f.scope, { productId: "product", zipCode: "01310100" });
   assert.deepEqual(result, { kind: "unavailable", reason: "product_selection_required" }); assert.equal(f.state.writes, 0);

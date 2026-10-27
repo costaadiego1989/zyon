@@ -20,7 +20,13 @@ import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js"
 import { storefrontLocalCartCommercialOutcomeV1Schema, type StorefrontLocalCartCommercialOutcomeV1 } from "../../domain/contracts/storefront-claimed-cart-effect.schemas.js";
 
 const id = storefrontShippingReferenceScopeSchema.shape.merchantId, cents = z.number().int().min(0).max(2_147_483_647);
-const cartSchema = z.object({ id, merchantId: id, sessionId: id, items: z.array(crossSellStorefrontBasisItemSchema).max(200),
+// Legacy persisted carts use null for an absent category. Normalize only that
+// optional field before the same canonical commercial and catalog checks.
+const persistedItem = crossSellStorefrontBasisItemSchema.extend({ categoryId: id.nullish() }).transform(item => {
+  const { categoryId, ...line } = item;
+  return categoryId == null ? line : { ...line, categoryId };
+});
+const cartSchema = z.object({ id, merchantId: id, sessionId: id, items: z.array(persistedItem).max(200),
   total: cents, discount: cents, couponCode: id.nullable(), freeShipping: z.boolean(), createdAt: z.date(), updatedAt: z.date(), expiresAt: z.date() });
 const dimensions = z.number().finite().nonnegative().nullish();
 const variantSchema = z.object({ id, sku: id, isActive: z.literal(true), weightGrams: dimensions, heightCm: dimensions, widthCm: dimensions, lengthCm: dimensions,

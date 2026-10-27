@@ -28,6 +28,7 @@ for (const [name, args] of [
   ["get_product_details", { productId: "" }],
   ["create_review", { productId: "book", rating: 6, text: "Boa", authorName: "Buyer", authorPhone: "11999990000" }],
   ["clear_cart", { cartId: "conversation", merchantId: "foreign" }],
+  ["quote_shipping", { zipCode: "01310100", productId: "unselected-product" }],
 ] as const) {
   test(`contract: ${name} rejects invalid arguments ${JSON.stringify(args)} before its handler`, async () => {
     const f = fixture();

@@ -35,7 +35,7 @@ export const storefrontToolArgumentSchemas = {
   remove_cart_item: z.strictObject({ cartId: id, variantId: id, ...storefrontCartLineSelectorShape }),
   update_cart_item: z.strictObject({ cartId: id, variantId: id, quantity: z.number().int().min(0).max(99), ...storefrontCartLineSelectorShape }),
   clear_cart: cart,
-  quote_shipping: z.strictObject({ cartId, productId: id.optional(), zipCode: z.string().min(1).max(32) }),
+  quote_shipping: z.strictObject({ cartId, zipCode: z.string().min(1).max(32) }),
   apply_coupon: z.strictObject({ cartId, couponCode: z.string().min(1).max(100) }),
   list_promotions: z.strictObject({ cartId }),
   remove_coupon: cart,
