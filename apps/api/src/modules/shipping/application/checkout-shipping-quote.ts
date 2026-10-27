@@ -2,6 +2,7 @@ import type { CheckoutSession, ShippingQuote } from "@zyon/shared-types";
 import { physicalDeliveryItems } from "../../checkout/domain/services/cart-fulfillment.js";
 import type { QuoteShippingInput } from "./use-cases/quote-shipping.use-case.js";
 import type { ShippingQuoteSnapshot, ShippingQuoteResult } from "../domain/entities/shipping-quote.entity.js";
+import { toCheckoutShippingQuote } from "../domain/services/checkout-shipping-quote.mapper.js";
 
 export function checkoutShippingInput(session: CheckoutSession): QuoteShippingInput {
   const items = physicalDeliveryItems(session.cart);
@@ -21,9 +22,10 @@ export function checkoutShippingInput(session: CheckoutSession): QuoteShippingIn
 
 export function checkoutShippingOption(quote: ShippingQuoteSnapshot, result: ShippingQuoteResult): ShippingQuote {
   return {
-    customerPrice: result.price / 100, realCost: (result.real_cost ?? result.price) / 100,
-    carrier: result.source === "own_delivery" ? "Entrega própria" : result.label.split(/\s+/)[0],
-    carrierKey: result.carrier_key, method: result.label, deliveryDays: result.eta_days,
+    ...toCheckoutShippingQuote({ label: result.label, carrierKey: result.carrier_key, priceInCents: result.price,
+      realCostInCents: result.real_cost ?? result.original_price ?? result.price, isFree: result.is_free,
+      etaDays: result.eta_days, destinationZip: quote.destination_zip }),
+    carrierKey: result.carrier_key,
     destinationZip: quote.destination_zip, quoteId: quote.id, quoteKey: quote.quote_key,
     expiresAt: quote.expires_at, source: result.source,
     estimatedValue: result.estimated_value, estimatedUnit: result.estimated_unit,

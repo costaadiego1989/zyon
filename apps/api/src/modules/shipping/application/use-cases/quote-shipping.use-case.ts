@@ -95,7 +95,6 @@ export class QuoteShippingUseCase {
    * carrier is never rejected just because neighborhood mode is configured. */
   async assertNeighborhoodDestination(session: CheckoutSession, selected: ShippingQuote | null = session.shipping ?? null): Promise<void> {
     if (!selected) return;
-    if (selected.carrierKey?.startsWith("own_delivery_neighborhood_")) selected = { ...selected, carrier: selected.carrierKey };
     if (selected.carrier !== "Entrega" && !selected.carrier?.startsWith("own_delivery_neighborhood_")) return;
     const source = selected.quoteId ? await this.quotes.findById(selected.quoteId, session.merchantId) : await this.quotes.findBySession(session.sessionId, session.merchantId);
     const config = await this.ownDeliveryConfig?.getByMerchantId(session.merchantId);

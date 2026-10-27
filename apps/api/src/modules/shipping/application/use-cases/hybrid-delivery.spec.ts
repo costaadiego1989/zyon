@@ -15,6 +15,7 @@ import { snapshotOrderLines } from "../../../operations/domain/order-fulfillment
 import { MelhorEnvioCarrierAdapter } from "../../infrastructure/adapters/melhor-envio.carrier.js";
 import { MarketplaceLabelPurchaseGuard } from "./marketplace-label-purchase.guard.js";
 import type { OwnDeliveryConfig } from "../../domain/ports/own-delivery-config.port.js";
+import { evaluateSelectedNeighborhoodDelivery } from "../../domain/services/selected-neighborhood-delivery.js";
 
 const originalFetch = globalThis.fetch;
 const base = { merchant_id: "merchant", session_id: "session", destination_zip: "01002000", cart_total: 100,
@@ -101,6 +102,20 @@ describe("hybrid delivery quotes", () => {
     const f = fixture(); f.state.enabled = false;
     const quote = await f.service.execute(base);
     assert.equal(f.state.calls, 0); assert.deepEqual(quote.results.map(r => r.carrier_key), ["own_delivery_flat"]);
+  });
+
+  it("mapped hybrid neighborhood selection retains the transactional payment locality guard", async () => {
+    const f = fixture();
+    f.state.config = { ...f.state.config, mode: "neighborhood", flatPriceCents: null, neighborhoods: [{ name: "Centro", priceCents: 700 }] };
+    const quote = await f.service.execute({ ...base, destination_neighborhood: "Centro", destination_city: "São Paulo", destination_state: "SP" });
+    const selected = checkoutShippingOption(quote, quote.results.find(row => row.source === "own_delivery")!);
+    const input = { merchantId: "merchant", sessionId: "session", selected, config: f.state.config,
+      sourceQuote: quote, cartTotalCents: 10000, addressVerified: true,
+      address: { zip: "01002000", city: "São Paulo", state: "SP", neighborhood: "Centro" },
+      origin: { kind: "ready" as const, origin: { merchantId: "merchant", zip: "01001000", city: "São Paulo", state: "SP" } } };
+    assert.equal(evaluateSelectedNeighborhoodDelivery(input).kind, "authorized");
+    assert.equal(evaluateSelectedNeighborhoodDelivery({ ...input, address: { ...input.address, city: "Campinas" } }).kind, "requires_review");
+    assert.equal(evaluateSelectedNeighborhoodDelivery({ ...input, config: undefined, sourceQuote: null, origin: undefined }).kind, "requires_review");
   });
 
   it("keeps local delivery when the carrier is unavailable", async () => {
