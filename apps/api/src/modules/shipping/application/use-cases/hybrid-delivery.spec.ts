@@ -1,5 +1,6 @@
 import { describe, it, beforeEach, afterEach } from "node:test";
 import assert from "node:assert/strict";
+import { BadRequestException } from "@nestjs/common";
 import { QuoteShippingUseCase } from "./quote-shipping.use-case.js";
 import { SelectShippingMethodUseCase } from "./select-shipping-method.use-case.js";
 import { InMemoryShippingQuoteRepository } from "../../infrastructure/repositories/in-memory-shipping-quote.repository.js";
@@ -234,7 +235,8 @@ describe("hybrid delivery quotes", () => {
     const quote = await f.service.execute(checkoutShippingInput(session));
     const selected = { ...session, shipping: checkoutShippingOption(quote, quote.results[0]!) };
     await f.service.assertSelection(selected);
-    await assert.rejects(f.service.assertSelection({ ...selected, shipping: { ...selected.shipping, customerPrice: 0 } }), /shipping_quote_changed/);
+    await assert.rejects(f.service.assertSelection({ ...selected, shipping: { ...selected.shipping, customerPrice: 0 } }),
+      (error: unknown) => error instanceof BadRequestException && (error.getResponse() as { code?: string }).code === "neighborhood_quote_review_required");
     f.state.config.flatPriceCents = 1500;
     await assert.rejects(f.service.assertSelection(selected), /shipping_quote_changed/);
     const select = new SelectShippingMethodUseCase(f.quotes, f.sessions, f.prisma, f.service);

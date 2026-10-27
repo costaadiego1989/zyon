@@ -6,6 +6,17 @@ import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastru
 import { ShippingQuoteEntity } from "../../domain/entities/shipping-quote.entity.js";
 import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/repositories/in-memory-checkout.repository.js";
 import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
+import { checkoutScopeReader } from "../../../checkout/__tests__/checkout-scope-reader.fixture.js";
+import { checkoutShippingOption } from "../checkout-shipping-quote.js";
+
+async function publishQuoteOptions(quotes: InMemoryShippingQuoteRepository, sessions: InMemoryCheckoutRepository, sessionId: string) {
+  const quote = await quotes.findBySession(sessionId, "mrc_1");
+  const session = await sessions.getSession("mrc_1", sessionId);
+  assert.ok(quote);
+  assert.ok(session);
+  const snapshot = quote.snapshot();
+  await sessions.saveSession({ ...session, shippingOptions: snapshot.results.map(result => checkoutShippingOption(snapshot, result)) });
+}
 
 function makeQuoteForSession(opts: {
   merchantId: string;
@@ -30,7 +41,7 @@ describe("SelectShippingMethodUseCase — error paths", () => {
   it("throws NotFoundException when no quote exists for session", async () => {
     const quotesRepo = new InMemoryShippingQuoteRepository(new InMemoryOutboxRepository());
     const checkoutRepo = new InMemoryCheckoutRepository();
-    const useCase = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo);
+    const useCase = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo, checkoutScopeReader(checkoutRepo));
 
     await assert.rejects(
       useCase.execute({ merchant_id: "mrc_1", session_id: "missing", carrier_key: "pac" }),
@@ -55,7 +66,7 @@ describe("SelectShippingMethodUseCase — error paths", () => {
     ]);
     await quotesRepo.saveWithEvents(expired);
 
-    const useCase = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo);
+    const useCase = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo, checkoutScopeReader(checkoutRepo));
 
     await assert.rejects(
       useCase.execute({ merchant_id: "mrc_1", session_id: "sess_old", carrier_key: "pac" }),
@@ -74,7 +85,7 @@ describe("SelectShippingMethodUseCase — error paths", () => {
       sessionId: "chk_1"
     }));
 
-    const useCase = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo);
+    const useCase = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo, checkoutScopeReader(checkoutRepo));
 
     await assert.rejects(
       useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", carrier_key: "unknown" }),
@@ -93,7 +104,7 @@ describe("SelectShippingMethodUseCase — error paths", () => {
     }));
 
     // Inject no checkout repo (Optional) — use case should still succeed.
-    const useCase = new SelectShippingMethodUseCase(quotesRepo);
+    const useCase = new SelectShippingMethodUseCase(quotesRepo, undefined, checkoutScopeReader());
     const snap = await useCase.execute({
       merchant_id: "mrc_1",
       session_id: "sess_a",
@@ -113,7 +124,7 @@ describe("SelectShippingMethodUseCase — error paths", () => {
       sessionId: "sess_x"
     }));
 
-    const useCase = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo);
+    const useCase = new SelectShippingMethodUseCase(quotesRepo, checkoutRepo, checkoutScopeReader(checkoutRepo));
 
     await assert.rejects(
       useCase.execute({ merchant_id: "mrc_1", session_id: "sess_x", carrier_key: "pac" }),
@@ -136,7 +147,8 @@ describe("SelectShippingMethodUseCase — error paths", () => {
       results: [{ carrier_key: "pac", label: "PAC", price: 1290, eta_days: 4, is_free: false }]
     }));
 
-    await new SelectShippingMethodUseCase(quotesRepo, checkoutRepo).execute({
+    await publishQuoteOptions(quotesRepo, checkoutRepo, "sess_z");
+    await new SelectShippingMethodUseCase(quotesRepo, checkoutRepo, checkoutScopeReader(checkoutRepo)).execute({
       merchant_id: "mrc_1",
       session_id: "sess_z",
       carrier_key: "pac"
@@ -163,7 +175,8 @@ describe("SelectShippingMethodUseCase — error paths", () => {
       results: [{ carrier_key: "free", label: "Frete Grátis", price: 0, eta_days: 7, is_free: true }]
     }));
 
-    await new SelectShippingMethodUseCase(quotesRepo, checkoutRepo).execute({
+    await publishQuoteOptions(quotesRepo, checkoutRepo, "sess_free");
+    await new SelectShippingMethodUseCase(quotesRepo, checkoutRepo, checkoutScopeReader(checkoutRepo)).execute({
       merchant_id: "mrc_1",
       session_id: "sess_free",
       carrier_key: "free"
@@ -172,7 +185,8 @@ describe("SelectShippingMethodUseCase — error paths", () => {
     const session = await checkoutRepo.getSession("mrc_1", "sess_free");
     assert.equal(session?.shipping?.customerPrice, 0);
     assert.equal(session?.shipping?.realCost, 0);
-    assert.equal(session?.shipping?.carrier, "free");
-    assert.equal(session?.shipping?.method, "Frete Grátis");
+    assert.equal(session?.shipping?.carrierKey, "free");
+    assert.equal(session?.shipping?.carrier, "Frete");
+    assert.equal(session?.shipping?.method, "Grátis");
   });
 });
