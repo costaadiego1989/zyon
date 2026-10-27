@@ -1,4 +1,6 @@
 import React, { useEffect, useRef, useState } from "react";
+import { readOAuthCallback } from "./auth-config.js";
+import { mergeUrl } from "../api/http/url.js";
 
 export interface OAuthCallbackResult {
   onboarding_required: boolean;
@@ -28,24 +30,14 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
   }, []);
 
   async function exchange(signal: AbortSignal) {
-    const params = new URLSearchParams(window.location.search);
-    const code = params.get("code");
-    const state = params.get("state");
-    const provider = params.get("provider") || detectProvider();
-    const savedState = sessionStorage.getItem("oauth_state");
-
-    if (params.get("error")) return fail("A autorização foi cancelada. Inicie o login novamente.");
-    if (!code || !state || !provider) return fail("O retorno do provedor está incompleto. Tente novamente.");
-    if (!savedState || savedState !== state) return fail("A sessão de login expirou. Tente novamente.");
-
     try {
-      const base = apiBaseUrl.replace(/\/$/, "");
-      const res = await fetch(`${base}/auth/oauth/callback`, {
+      const request = readOAuthCallback(window.location.search, sessionStorage.getItem("oauth_state"), sessionStorage.getItem("oauth_provider"), sessionStorage.getItem("oauth_code_verifier"));
+      const res = await fetch(mergeUrl(apiBaseUrl, "/auth/oauth/callback"), {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         credentials: "include",
         signal,
-        body: JSON.stringify({ provider, code, state }),
+        body: JSON.stringify(request),
       });
       const body = (await res.json().catch(() => ({}))) as Partial<OAuthCallbackResult> & { message?: string; detail?: string };
       if (!res.ok) throw new Error(body.message || body.detail || (res.status >= 500
@@ -54,6 +46,7 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
 
       sessionStorage.removeItem("oauth_state");
       sessionStorage.removeItem("oauth_provider");
+      sessionStorage.removeItem("oauth_code_verifier");
       window.history.replaceState({}, "", "/");
       onSuccess({
         onboarding_required: body.onboarding_required === true,
@@ -89,11 +82,4 @@ export function OAuthCallback({ apiBaseUrl, onSuccess, onError }: OAuthCallbackP
       <p style={{ color: "var(--text, #ccc)", fontSize: 14 }}>Autenticando...</p>
     </div>
   );
-}
-
-function detectProvider(): string | null {
-  const path = window.location.pathname;
-  if (path.includes("github")) return "github";
-  if (path.includes("google")) return "google";
-  return sessionStorage.getItem("oauth_provider");
 }

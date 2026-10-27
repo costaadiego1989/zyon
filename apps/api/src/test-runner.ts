@@ -1,3 +1,4 @@
+import "./modules/auth/infrastructure/oauth-provider.adapter.spec.js";
 import "./modules/auth/domain/services/password-hasher.service.spec.js";
 import "./modules/storefront/domain/contracts/storefront-conversation.schemas.spec.js";
 import "./modules/storefront/domain/contracts/storefront-intent.schemas.spec.js";

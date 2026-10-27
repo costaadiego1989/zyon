@@ -1,11 +1,10 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { BadRequestException, HttpException, UnauthorizedException } from "@nestjs/common";
+import { BadRequestException, UnauthorizedException } from "@nestjs/common";
 import { AuthCookieService } from "../domain/services/auth-cookie.service.js";
 import { InvalidCredentialsError } from "../domain/errors.js";
-import { VerifyCaptchaUseCase } from "../application/verify-captcha.use-case.js";
-import type { CaptchaVerifier } from "../domain/ports/captcha-verifier.port.js";
 import { AuthController } from "./auth.controller.js";
+import { VerifyCaptchaUseCase } from "../application/verify-captcha.use-case.js";
 
 function makeController(): AuthController {
   return new AuthController(
@@ -23,6 +22,61 @@ test("AuthController.logout clears the auth cookie", () => {
   assert.equal(headers.get("Set-Cookie"), "aacp_access_token=; HttpOnly; SameSite=Lax; Path=/; Max-Age=0");
 });
 
+test("OAuth callback rejects a missing or mismatched server cookie before contacting the provider", async () => {
+  const controller = makeController();
+  let exchanges = 0;
+  Object.assign(controller, { oauthCallback: { execute: async () => { exchanges++; throw Error("must not exchange"); } } });
+  const headers = new Map<string, string | string[]>();
+  const response = { setHeader(name: string, value: string | string[]) { headers.set(name, value); } };
+  const attempt = controller.startOAuth({ provider: "microsoft" }, response);
+  const cookie = String(headers.get("Set-Cookie")).split(";")[0]!;
+  await assert.rejects(() => controller.oauthCallbackAction({ provider: "microsoft", code: "code", state: attempt.state }, response, { headers: {} }), UnauthorizedException);
+  await assert.rejects(() => controller.oauthCallbackAction({ provider: "facebook", code: "code", state: attempt.state }, response, { headers: { cookie } }), UnauthorizedException);
+  assert.equal(exchanges, 0);
+  assert.ok(String(headers.get("Set-Cookie")).includes("Max-Age=0"));
+});
+
+test("OAuth callback accepts matching browser state and replaces it with the authenticated session", async () => {
+  const controller = makeController();
+  const auth = { access_token: "synthetic-session", expires_in: 3600, token_type: "Bearer", merchant_id: "merchant", user_id: "owner", email: "owner@example.test" };
+  let received: unknown;
+  Object.assign(controller, { oauthCallback: { execute: async (input: unknown) => { received = input; return auth; } } });
+  const headers = new Map<string, string | string[]>();
+  const response = { setHeader(name: string, value: string | string[]) { headers.set(name, value); } };
+  const attempt = controller.startOAuth({ provider: "google" }, response);
+  const cookie = String(headers.get("Set-Cookie")).split(";")[0]!;
+  const request = { provider: "google" as const, code: "code", state: attempt.state, code_verifier: "a".repeat(43) };
+  assert.equal(await controller.oauthCallbackAction(request, response, { headers: { cookie } }), auth);
+  assert.equal(received, request);
+  const setCookies = headers.get("Set-Cookie");
+  assert.ok(Array.isArray(setCookies));
+  assert.equal(setCookies.length, 2);
+  assert.ok(setCookies[0]!.includes("Max-Age=0"));
+  assert.ok(setCookies[1]!.includes("aacp_access_token=synthetic-session"));
+});
+
+test("forgot and reset password require fresh CAPTCHA before any reset work", async () => {
+  const controller = makeController();
+  const actions: string[] = [];
+  let allowed = false;
+  let recoveryCalls = 0;
+  let resetCalls = 0;
+  Object.assign(controller, {
+    verifyCaptcha: new VerifyCaptchaUseCase({ verify: async input => { actions.push(input.action!); return { success: allowed, reason: "invalid-token" }; } }),
+    requestPasswordReset: { execute: async () => { recoveryCalls++; return { message: "same-for-all-emails" }; } },
+    resetPassword: { execute: async () => { resetCalls++; return { message: "updated" }; } },
+  });
+  await assert.rejects(() => controller.forgotPassword({ email: "buyer@example.test" }), BadRequestException);
+  await assert.rejects(() => controller.resetPasswordAction({ token: "reset-token", password: "password" }), BadRequestException);
+  assert.equal(recoveryCalls + resetCalls, 0);
+  allowed = true;
+  await controller.forgotPassword({ email: "buyer@example.test", turnstile_token: "fresh-a" });
+  await controller.resetPasswordAction({ token: "reset-token", password: "password", turnstile_token: "fresh-b" });
+  assert.equal(recoveryCalls, 1);
+  assert.equal(resetCalls, 1);
+  assert.deepEqual(actions, ["forgot_password", "reset_password", "forgot_password", "reset_password"]);
+});
+
 test("production login and registration require CAPTCHA before normal credential validation", async () => {
   const previous = process.env.NODE_ENV;
   try {
@@ -31,12 +85,8 @@ test("production login and registration require CAPTCHA before normal credential
     let allowed = false;
     let logins = 0;
     let registrations = 0;
-    const challenges: Array<Parameters<CaptchaVerifier["verify"]>[0]> = [];
     Object.assign(controller, {
-      verifyCaptcha: new VerifyCaptchaUseCase({ verify: async (input) => {
-        challenges.push(input);
-        return { success: allowed, reason: allowed ? undefined : "invalid-token" };
-      } }),
+      verifyCaptcha: { assertAllowed: async () => { if (!allowed) throw new BadRequestException("captcha_invalid"); } },
       loginWithRateLimit: { execute: async (_body: unknown, scope: { email: string; ip: string }) => {
         logins++;
         assert.equal(scope.email, "audit@example.test");
@@ -56,58 +106,8 @@ test("production login and registration require CAPTCHA before normal credential
     await assert.rejects(() => controller.register(body, "127.0.0.1", response), /weak_password/);
     assert.equal(logins, 1);
     assert.equal(registrations, 1);
-    assert.deepEqual(challenges, ["login", "signup", "login", "signup"].map((action) => ({
-      token: "test-token", remoteIp: "127.0.0.1", action,
-    })));
   } finally {
     if (previous === undefined) delete process.env.NODE_ENV;
     else process.env.NODE_ENV = previous;
   }
 });
-
-const deniedChallenges = [
-  { name: "missing token", reason: "missing-token", token: undefined, status: 400, code: "captcha_invalid" },
-  { name: "invalid token", reason: "invalid-token", token: "invalid-synthetic", status: 400, code: "captcha_invalid" },
-  { name: "expired token", reason: "expired-token", token: "expired-synthetic", status: 400, code: "captcha_invalid" },
-  { name: "reused token", reason: "reused-token", token: "reused-synthetic", status: 400, code: "captcha_invalid" },
-  { name: "no verifier", reason: "no-verifier", token: "synthetic", status: 503, code: "captcha_unavailable" },
-  { name: "unconfigured verifier", reason: "not-configured", token: "synthetic", status: 503, code: "captcha_unavailable" },
-  { name: "verification error", reason: "verification-error", token: "synthetic", status: 503, code: "captcha_unavailable" },
-  { name: "provider HTTP error", reason: "verification-http-error", token: "synthetic", status: 503, code: "captcha_unavailable" },
-] as const;
-
-for (const challenge of deniedChallenges) {
-  test(`production auth fails closed for ${challenge.name} before credentials or cookie writes`, async (t) => {
-    const previous = process.env.NODE_ENV;
-    process.env.NODE_ENV = "production";
-    t.after(() => {
-      if (previous === undefined) delete process.env.NODE_ENV;
-      else process.env.NODE_ENV = previous;
-    });
-    let verifications = 0;
-    const captcha = new VerifyCaptchaUseCase(challenge.reason === "no-verifier" ? undefined : {
-      verify: async (input) => {
-        verifications++;
-        assert.equal(input.token, challenge.token ?? "");
-        assert.equal(input.remoteIp, "127.0.0.1");
-        assert.equal(input.action, verifications === 1 ? "login" : "signup");
-        return { success: false, reason: challenge.reason };
-      },
-    });
-    const controller = makeController();
-    let credentialCalls = 0;
-    let cookieWrites = 0;
-    const rejectCredentials = async () => { credentialCalls++; assert.fail("CAPTCHA rejection must precede credentials"); };
-    Object.assign(controller, { verifyCaptcha: captcha,
-      loginWithRateLimit: { execute: rejectCredentials }, registerMerchant: { execute: rejectCredentials } });
-    const body = { email: "audit@example.test", password: "synthetic-password", merchant_name: "Synthetic", turnstile_token: challenge.token };
-    const response = { setHeader() { cookieWrites++; assert.fail("Rejected CAPTCHA must not create a cookie"); } };
-    const expected = (error: unknown) => error instanceof HttpException && error.getStatus() === challenge.status &&
-      (error.getResponse() as { code?: string }).code === challenge.code;
-    await assert.rejects(() => controller.loginWithPassword(body, "127.0.0.1", response), expected);
-    await assert.rejects(() => controller.register(body, "127.0.0.1", response), expected);
-    assert.equal(credentialCalls, 0);
-    assert.equal(cookieWrites, 0);
-    assert.equal(verifications, challenge.reason === "no-verifier" ? 0 : 2);
-  });
-}

@@ -1,13 +1,15 @@
 import React, { useEffect, useState } from "react";
-import { Github, Eye, EyeOff } from "lucide-react";
+import { Eye, EyeOff } from "lucide-react";
+import { SocialLoginButtons, type SocialLoginButtonsProps } from "./SocialLoginButtons.js";
 import { AuthExperience } from "./SignupExperience.js";
 import { SignupWizard } from "./SignupWizard.js";
 import { Turnstile } from "./Turnstile.js";
 import { useApi } from "../hooks/useApi.js";
 import { readError } from "../utils/read-error.js";
-import { DashboardHttpError } from "../api-client.js";
+import { DashboardHttpError, resolveDashboardApiBaseUrl } from "../api-client.js";
+import { mergeUrl } from "../api/http/url.js";
 import { friendlyAuthError } from "./auth-error.js";
-import { buildOAuthAuthorizationUrl, isAuthCaptchaReady, requiresAuthCaptcha } from "./auth-config.js";
+import { buildOAuthAuthorizationUrl, generateOAuthProofKey, isAuthCaptchaReady, requiresAuthCaptcha, type SocialLoginProvider } from "./auth-config.js";
 import "./auth-screen.css";
 
 export type AuthMode = "login" | "signup" | "forgot" | "reset";
@@ -36,46 +38,51 @@ export interface AuthScreenProps {
   setCaptchaToken: (token: string | null) => void;
 }
 
-function generateOAuthState(): string {
-  const array = new Uint8Array(16);
-  crypto.getRandomValues(array);
-  return Array.from(array, (b) => b.toString(16).padStart(2, "0")).join("");
-}
-
 export function AuthScreen(props: AuthScreenProps) {
   const [oauthError, setOAuthError] = useState<string | null>(null);
-  const githubClientId = import.meta.env.VITE_GITHUB_CLIENT_ID?.trim();
-  const githubConfigured = Boolean(githubClientId && !["undefined", "null"].includes(githubClientId));
-  const onGithubClick = githubConfigured ? () => startOAuthFlow("github") : undefined;
+  const [oauthStarting, setOAuthStarting] = useState(false);
   useEffect(() => setOAuthError(null), [props.mode]);
-  function startOAuthFlow(provider: "github" | "google") {
+  async function startOAuthFlow(provider: SocialLoginProvider) {
+    if (props.busy || oauthStarting) return;
+    setOAuthStarting(true);
     try {
       const env = import.meta.env;
-      const state = generateOAuthState();
-      const url = buildOAuthAuthorizationUrl(provider, { state, origin: window.location.origin,
-        clientId: provider === "google" ? env.VITE_GOOGLE_CLIENT_ID : env.VITE_GITHUB_CLIENT_ID,
-        redirectUri: env.VITE_OAUTH_REDIRECT_URI });
+      const proof = provider === "facebook" ? undefined : await generateOAuthProofKey();
+      const clientIds = { google: env.VITE_GOOGLE_CLIENT_ID, microsoft: env.VITE_MICROSOFT_CLIENT_ID, facebook: env.VITE_FACEBOOK_CLIENT_ID };
+      const url = new URL(buildOAuthAuthorizationUrl(provider, { state: "pending", origin: window.location.origin,
+        clientId: clientIds[provider], facebookVersion: env.VITE_FACEBOOK_GRAPH_API_VERSION, codeChallenge: proof?.codeChallenge,
+        redirectUri: env.VITE_OAUTH_REDIRECT_URI }));
+      const started = await fetch(mergeUrl(resolveDashboardApiBaseUrl(env), "/auth/oauth/start"), { method: "POST", credentials: "include",
+        headers: { "Content-Type": "application/json" }, body: JSON.stringify({ provider }), signal: AbortSignal.timeout(10_000) });
+      const attempt = await started.json().catch(() => ({})) as { state?: string };
+      if (!started.ok || !attempt.state || !/^[A-Za-z0-9_-]{43}$/.test(attempt.state)) {
+        throw new Error("Não foi possível iniciar o login. Tente novamente em instantes.");
+      }
+      const state = attempt.state;
+      url.searchParams.set("state", state);
       // Do not retain a false OAuth attempt or leave this form on invalid config.
       sessionStorage.setItem("oauth_state", state);
       sessionStorage.setItem("oauth_provider", provider);
-      window.location.href = url;
-    } catch (error) { setOAuthError(friendlyAuthError(error)); }
+      if (proof) sessionStorage.setItem("oauth_code_verifier", proof.codeVerifier);
+      else sessionStorage.removeItem("oauth_code_verifier");
+      window.location.href = url.href;
+    } catch (error) { setOAuthError(friendlyAuthError(error)); setOAuthStarting(false); }
   }
-  return <AuthExperience mode={props.mode} busy={props.busy} onSwitchMode={props.setMode}>
+  return <AuthExperience mode={props.mode} busy={props.busy || oauthStarting} onSwitchMode={props.setMode}>
     {props.mode === "signup" ? <SignupWizard
-      busy={props.busy} hint={oauthError ?? props.hint} onRegister={props.onRegister}
+      busy={props.busy || oauthStarting} hint={oauthError ?? props.hint} onRegister={props.onRegister}
       onSaveTheme={props.onSaveTheme} onSaveCompanyData={props.onSaveCompanyData}
       onSaveOwner={props.onSaveOwner} onComplete={props.onComplete} oauthProfile={props.oauthProfile}
       onSwitchToLogin={() => props.setMode("login")}
-      onGithubClick={onGithubClick} onGoogleClick={() => startOAuthFlow("google")}
+      onSocialLogin={startOAuthFlow}
       turnstileSiteKey={props.turnstileSiteKey} captchaToken={props.captchaToken} setCaptchaToken={props.setCaptchaToken}
     /> : props.mode === "reset" ? <ResetPasswordForm onBack={() => props.setMode("login")} turnstileSiteKey={props.turnstileSiteKey} />
       : props.mode === "forgot" ? <ForgotPasswordForm onBack={() => props.setMode("login")} turnstileSiteKey={props.turnstileSiteKey} />
-      : <LoginForm {...props} hint={oauthError ?? props.hint} onGithubClick={onGithubClick} onGoogleClick={() => startOAuthFlow("google")} />}
+      : <LoginForm {...props} busy={props.busy || oauthStarting} hint={oauthError ?? props.hint} onProviderClick={startOAuthFlow} />}
   </AuthExperience>;
 }
 
-function LoginForm(props: AuthScreenProps & { onGithubClick?: () => void; onGoogleClick: () => void }) {
+function LoginForm(props: AuthScreenProps & Pick<SocialLoginButtonsProps, "onProviderClick">) {
   const captchaRequired = requiresAuthCaptcha(props.turnstileSiteKey, import.meta.env.PROD);
   const captchaReady = isAuthCaptchaReady(props.turnstileSiteKey, props.captchaToken, import.meta.env.PROD);
   const [showPass, setShowPass] = useState(false);
@@ -91,16 +98,7 @@ function LoginForm(props: AuthScreenProps & { onGithubClick?: () => void; onGoog
         <p className="auth-form__subtitle">Acompanhe sua loja, seus pedidos e o trabalho da IA.</p>
       </div>
 
-      <div className="auth-social">
-        <button type="button" className="auth-social__btn" onClick={props.onGoogleClick} disabled={props.busy}>
-          <GoogleIcon />
-          <span>Google</span>
-        </button>
-        {props.onGithubClick && <button type="button" className="auth-social__btn" onClick={props.onGithubClick} disabled={props.busy}>
-          <Github size={16} />
-          <span>GitHub</span>
-        </button>}
-      </div>
+      <SocialLoginButtons busy={props.busy} onProviderClick={props.onProviderClick} />
 
       <div className="auth-divider">
         <span>ou</span>
@@ -292,16 +290,5 @@ export function ResetPasswordForm({ onBack, turnstileSiteKey = "" }: { onBack: (
       {error ? <div className="auth-hint" role="alert">{error}</div> : null}
       <button type="submit" disabled={busy || !isAuthCaptchaReady(turnstileSiteKey, captchaToken, import.meta.env.PROD)} className="auth-cta">{busy ? "Salvando..." : "Redefinir senha"}</button>
     </form>
-  );
-}
-
-function GoogleIcon() {
-  return (
-    <svg width="16" height="16" viewBox="0 0 24 24" aria-hidden="true">
-      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09Z" fill="#4285F4" />
-      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23Z" fill="#34A853" />
-      <path d="M5.84 14.1c-.22-.66-.35-1.36-.35-2.1s.13-1.44.35-2.1V7.06H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.94l3.66-2.84Z" fill="#FBBC05" />
-      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.06l3.66 2.84C6.71 7.3 9.14 5.38 12 5.38Z" fill="#EB4335" />
-    </svg>
   );
 }

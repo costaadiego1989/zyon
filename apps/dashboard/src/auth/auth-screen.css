@@ -181,7 +181,7 @@
 /* ─── Social Login ─── */
 .auth-social {
   display: grid;
-  grid-template-columns: 1fr 1fr;
+  grid-template-columns: 1fr;
   gap: 12px;
 }
 
@@ -200,14 +200,32 @@
   transition: border-color 0.15s ease-out, background 0.15s ease-out, transform 0.1s ease-out, box-shadow 0.15s ease-out;
 }
 
-.auth-social__btn:hover {
+.signup-experience .auth-social__btn.auth-social__btn--google {
+  background: #fff;
+  border-color: #747775;
+  color: #1f1f1f;
+  font-family: "Google Sans", Arial, sans-serif;
+  font-size: 14px;
+}
+
+.signup-experience .auth-social__btn--google:hover:not(:disabled) {
+  background: #f2f2f2;
+  border-color: #747775;
+}
+
+.auth-social__btn svg,
+.auth-social__btn img {
+  flex: none;
+}
+
+.auth-social__btn:hover:not(:disabled) {
   border-color: oklch(32% 0.008 145);
   background: oklch(13% 0.006 145);
   transform: translateY(-1px);
   box-shadow: 0 2px 8px oklch(0% 0 0 / 0.3);
 }
 
-.auth-social__btn:active {
+.auth-social__btn:active:not(:disabled) {
   transform: translateY(0);
   box-shadow: none;
 }
@@ -763,4 +781,11 @@
 @media (max-width: 1024px) {
   .auth-form-panel { min-height: 0; }
   .auth-shell { height: calc(100dvh - 24px); min-height: 0; }
+}
+@font-face {
+  font-family: "Google Sans";
+  font-style: normal;
+  font-weight: 500;
+  font-display: swap;
+  src: url("/auth/google-sans-medium.woff2") format("woff2");
 }

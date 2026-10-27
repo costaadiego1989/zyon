@@ -1,7 +1,7 @@
-import { Inject, Injectable, BadRequestException, Logger, Optional } from "@nestjs/common";
+import { Inject, Injectable, BadRequestException, UnauthorizedException, Logger, Optional } from "@nestjs/common";
 import { RECOVERY_TEMPLATE_INITIALIZER, type RecoveryTemplateInitializer } from "../../whatsapp-templates/domain/ports/recovery-template-lifecycle.port.js";
 import { AUTH_REPOSITORY, type AuthRepository } from "../domain/ports/auth-repository.port.js";
-import { OAUTH_PROVIDER_PORT, type OAuthProviderPort } from "../domain/ports/oauth-provider.port.js";
+import { OAUTH_PROVIDER_PORT, type OAuthProvider, type OAuthProviderPort } from "../domain/ports/oauth-provider.port.js";
 import type { MerchantIdGenerator } from "../domain/ports/merchant-id-generator.port.js";
 import { MERCHANT_ID_GENERATOR } from "../domain/ports/merchant-id-generator.port.js";
 import { JwtService } from "../domain/services/jwt.service.js";
@@ -13,9 +13,10 @@ import { generateUniqueSlug } from "../../../shared/utils/slugify.js";
 import { MerchantSlugAlreadyTakenError } from "../domain/errors.js";
 
 export interface OAuthCallbackRequest {
-  provider: "github" | "google";
+  provider: OAuthProvider;
   code: string;
   state: string;
+  code_verifier?: string;
 }
 
 export interface OAuthAuthResponse extends AuthResponse {
@@ -36,23 +37,30 @@ export class OAuthCallbackUseCase {
   ) {}
 
   async execute(input: OAuthCallbackRequest): Promise<OAuthAuthResponse> {
-    if (!input.provider || !input.code) {
-      throw new BadRequestException("provider and code are required");
+    if (!input.provider || typeof input.code !== "string" || !input.code.trim() || typeof input.state !== "string" || !input.state.trim()) {
+      throw new BadRequestException("provider, code and state are required");
     }
 
-    if (input.provider !== "github" && input.provider !== "google") {
+    if (!["github", "google", "microsoft", "facebook"].includes(input.provider)) {
       throw new BadRequestException("unsupported_oauth_provider");
     }
 
     // 1. Exchange code for profile
-    const profile = await this.oauthProvider.exchangeCodeForProfile(input.provider, input.code);
+    if (input.code_verifier !== undefined && (typeof input.code_verifier !== "string" || !/^[A-Za-z0-9._~-]{43,128}$/.test(input.code_verifier))) {
+      throw new BadRequestException("invalid_oauth_proof_key");
+    }
+    const profile = await this.oauthProvider.exchangeCodeForProfile(input.provider, input.code, { codeVerifier: input.code_verifier });
     const email = normalizeEmail(profile.email);
 
-    // 2. Check if user already exists by email
-    const existingUser = await this.repository.findUserByEmail(email);
+    // Provider subject wins even if the provider's display email later changes.
+    const linkedUser = await this.repository.findUserByOAuth(input.provider, profile.providerId);
+    const existingUser = linkedUser ?? await this.repository.findUserByEmail(email);
 
     if (existingUser?.disabledAt) throw new BadRequestException("account_disabled");
     if (existingUser) {
+      if (!linkedUser && profile.emailVerified !== true) {
+        throw new UnauthorizedException({ code: "oauth_account_link_required", message: "Já existe uma conta com este e-mail. Entre usando a opção utilizada no cadastro ou recupere sua senha." });
+      }
       // Link OAuth provider if not already linked
       if (!existingUser.oauthProvider) {
         await this.repository.linkOAuthToUser(existingUser.id, input.provider, profile.providerId);
@@ -61,7 +69,7 @@ export class OAuthCallbackUseCase {
       return {
         ...(await toAuthResponse(existingUser, this.jwt)),
         onboarding_required: merchant?.oauthRegistrationPending === true,
-        profile: { name: merchant?.ownerName || profile.name || "", email },
+        profile: { name: merchant?.ownerName || profile.name || "", email: existingUser.email },
       };
     }
 

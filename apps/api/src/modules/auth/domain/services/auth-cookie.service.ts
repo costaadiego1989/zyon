@@ -1,12 +1,6 @@
 import type { AuthResponse, CookieConfig } from "../auth.types.js";
-
-function resolveSameSite(value: string | undefined): CookieConfig["sameSite"] {
-  switch (value?.trim().toLowerCase()) {
-    case "strict": return "Strict";
-    case "none": return "None";
-    default: return "Lax";
-  }
-}
+import { randomBytes, timingSafeEqual } from "node:crypto";
+import type { OAuthProvider } from "../ports/oauth-provider.port.js";
 
 /**
  * H7: CookieConfig value object replaces hardcoded sameSite/secure.
@@ -24,12 +18,13 @@ export class AuthCookieService {
       this.config = cookieNameOrConfig;
     } else {
       // Legacy: (cookieName, secure)
-      const sameSite = resolveSameSite(process.env.AUTH_COOKIE_SAME_SITE);
+      const secureCookies = secure ?? process.env.NODE_ENV === "production";
+      const configuredSameSite = process.env.AUTH_COOKIE_SAME_SITE?.trim().toLowerCase();
+      const sameSite = configuredSameSite === "strict" ? "Strict"
+        : configuredSameSite === "none" && secureCookies ? "None" : "Lax";
       this.config = {
         cookieName: cookieNameOrConfig ?? process.env.AUTH_COOKIE_NAME ?? "aacp_access_token",
-        // Browsers require Secure when SameSite=None. Keep Lax as the safe
-        // default, while allowing isolated cross-site dashboard deployments.
-        secure: secure ?? (sameSite === "None" || process.env.NODE_ENV === "production"),
+        secure: secureCookies,
         sameSite,
         domain: undefined,
         partitioned: undefined,
@@ -76,5 +71,32 @@ export class AuthCookieService {
     const found = cookies.find((cookie) => cookie.startsWith(prefix));
     // L2: No decoding currently; assert contract in tests
     return found?.slice(prefix.length);
+  }
+
+  createOAuthState(provider: OAuthProvider): { state: string; cookie: string } {
+    const state = randomBytes(32).toString("base64url");
+    return { state, cookie: this.oauthCookie(`${provider}.${state}`, 600) };
+  }
+
+  matchesOAuthState(provider: string, state: string, cookieHeader?: string): boolean {
+    if (typeof state !== "string" || !/^[A-Za-z0-9_-]{43}$/.test(state) || !cookieHeader) return false;
+    const prefix = `${this.oauthCookieName()}=`;
+    const matches = cookieHeader.split(";").map(cookie => cookie.trim()).filter(cookie => cookie.startsWith(prefix));
+    if (matches.length !== 1) return false;
+    const received = Buffer.from(matches[0]!.slice(prefix.length));
+    const expected = Buffer.from(`${provider}.${state}`);
+    return received.length === expected.length && timingSafeEqual(received, expected);
+  }
+
+  clearOAuthState(): string { return this.oauthCookie("", 0); }
+
+  private oauthCookieName() { return this.config.secure ? "__Host-zyon_oauth_state" : "zyon_oauth_state"; }
+
+  private oauthCookie(value: string, maxAge: number): string {
+    const parts = [`${this.oauthCookieName()}=${value}`, "HttpOnly", `SameSite=${this.config.sameSite}`, "Path=/", `Max-Age=${maxAge}`];
+    if (this.config.secure) parts.push("Secure");
+    if (this.config.partitioned) parts.push("Partitioned");
+    // A host-only cookie prevents a sibling subdomain from planting a known state.
+    return parts.join("; ");
   }
 }

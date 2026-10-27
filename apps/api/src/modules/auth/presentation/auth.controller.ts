@@ -32,6 +32,7 @@ import {
 } from "../domain/errors.js";
 import { normalizeEmail } from "../domain/validators.js";
 import type { LoginAttemptScope } from "../domain/ports/rate-limiter.port.js";
+import type { OAuthProvider } from "../domain/ports/oauth-provider.port.js";
 
 /**
  * H1: Controller is now a thin HTTP layer. Orchestration lives in use-cases.
@@ -328,6 +329,20 @@ export class AuthController {
     return this.resetPassword.execute(body.token ?? "", body.password ?? "");
   }
 
+  @Post("oauth/start")
+  @ApiOperation({ summary: "Start social login with a browser-bound state cookie" })
+  @ApiBody({ schema: { type: "object", required: ["provider"], properties: { provider: { type: "string", enum: ["google", "microsoft", "facebook", "github"] } } } })
+  startOAuth(
+    @Body() body: { provider?: OAuthProvider },
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void },
+  ) {
+    if (!body.provider || !["google", "microsoft", "facebook", "github"].includes(body.provider)) throw new BadRequestException("unsupported_oauth_provider");
+    const attempt = this.cookies.createOAuthState(body.provider);
+    response.setHeader("Set-Cookie", attempt.cookie);
+    response.setHeader("Cache-Control", "no-store");
+    return { state: attempt.state };
+  }
+
   @Post("oauth/callback")
   @ApiOperation({
     summary: "OAuth callback",
@@ -338,9 +353,10 @@ export class AuthController {
       type: "object",
       required: ["provider", "code", "state"],
       properties: {
-        provider: { type: "string", enum: ["github", "google"] },
+        provider: { type: "string", enum: ["google", "microsoft", "facebook", "github"] },
         code: { type: "string" },
         state: { type: "string" },
+        code_verifier: { type: "string", minLength: 43, maxLength: 128 },
       },
     },
   })
@@ -348,10 +364,16 @@ export class AuthController {
   @ApiResponse({ status: 400, description: "Invalid provider or code" })
   async oauthCallbackAction(
     @Body() body: OAuthCallbackRequest,
-    @Res({ passthrough: true }) response: { setHeader(name: string, value: string): void }
+    @Res({ passthrough: true }) response: { setHeader(name: string, value: string | string[]): void },
+    @Req() request: { headers?: { cookie?: string } },
   ) {
+    response.setHeader("Set-Cookie", this.cookies.clearOAuthState());
+    response.setHeader("Cache-Control", "no-store");
+    if (!this.cookies.matchesOAuthState(body.provider, body.state, request.headers?.cookie)) {
+      throw new UnauthorizedException({ code: "oauth_state_invalid", message: "A sessão de login expirou. Inicie uma nova tentativa." });
+    }
     const auth = await this.oauthCallback.execute(body);
-    response.setHeader("Set-Cookie", this.cookies.create(auth));
+    response.setHeader("Set-Cookie", [this.cookies.clearOAuthState(), this.cookies.create(auth)]);
     return auth;
   }
 
