@@ -86,6 +86,24 @@ test("tool loop preserves server blocks, uses JSON every turn and executes once"
   for (const request of requests) assert.deepEqual((request as any).responseFormat, { type: "json_object" });
 });
 
+test("a validated carrier reference survives malformed model narration without repeating the quote", async () => {
+  let calls = 0, quotes = 0;
+  const agent = createAllowedScopeAgent({ provider: { chat: async () => ++calls === 1
+    ? { content: "", toolCalls: [{ id: "shipping_1", name: "quote_shipping", args: { zipCode: "01310100" } }], usage }
+    : { content: "PRIVATE_PROVIDER_VALUE", usage } } as unknown as OpenRouterProvider,
+    toolHandlers: { quoteShipping: async () => { quotes++; return { referenceOnly: true,
+      reference: { id: "00000000-0000-4000-8000-000000000001", expiresAt: "2026-12-01T12:00:00Z", basisHash: "a".repeat(64),
+        configurationHash: "b".repeat(64), destinationZip: "01310100", addressSource: "requested_cep" },
+      options: [{ carrier: "melhor-envio-1", name: "Correios PAC", price: 1840, days: 5, zipCode: "01310100" }] }; } } as never });
+  const result = await agent.run({ ...input, userMessage: "Calcule o frete para 01310-100" });
+  assert.equal(quotes, 1); assert.equal(calls, 2);
+  assert.equal(result.message, "Estas são as opções de entrega disponíveis para o CEP informado.");
+  const shipping = result.blocks.find(block => block.type === "shipping_options");
+  assert.equal(shipping?.data.options[0]?.price, 1840);
+  assert.equal(shipping?.data.options[0]?.priceFormatted, "R$ 18,40");
+  assert.equal(JSON.stringify(result).includes("PRIVATE_PROVIDER_VALUE"), false);
+});
+
 test("invalid JSON after a cart write does not replay the operation or invoke fallback", async () => {
   let writes = 0;
   let calls = 0;

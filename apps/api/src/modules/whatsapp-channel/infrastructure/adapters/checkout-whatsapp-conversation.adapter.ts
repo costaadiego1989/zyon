@@ -357,7 +357,8 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       if (fingerprint !== summaryFingerprint) blocks.push({ type: "checkout_summary", data: { items: exp.items, totals: exp.totals, shippingPending: ["data_collection", "shipping"].includes(exp.stage) && !exp.shipping } });
       summaryFingerprint = fingerprint;
     }
-    if (exp?.shippingOptions?.length) blocks.push({ type: "shipping_options", data: { options: exp.shippingOptions.map((o: any) => ({ carrier: o.carrier, name: o.method, price: o.customerPrice, days: o.deliveryDays, responseLabel: checkoutShippingLabel(o) })) } } as any);
+    if (exp?.shippingOptions?.length) blocks.push({ type: "shipping_options", data: { options: exp.shippingOptions.map((o: any) => ({ carrier: o.carrier, name: o.method, price: o.customerPrice, days: o.deliveryDays,
+      estimatedValue: o.estimatedValue, estimatedUnit: o.estimatedUnit, responseLabel: checkoutShippingLabel(o) })) } } as any);
     const checkoutSessionId = response.session_id || state.checkoutSessionId;
     const session = checkoutSessionId ? await this.sessions.getSession(merchantId, checkoutSessionId) : undefined;
     if (state.payment && state.payment.sessionId !== checkoutSessionId) state.payment = undefined;

@@ -221,6 +221,16 @@ test("checkout uses the payable total including the fee and real shipping select
   assert.deepEqual(view.choices[0].action, { kind: "message", message: "Correios PAC (5 dias) - R$ 10,00" });
 });
 
+test("hybrid shipping retains provider currency and local minutes in the WhatsApp menu", () => {
+  const view = buildMetaUiView(response({ blocks: [{ type: "shipping_options", data: { options: [
+    { carrier: "Entrega", name: "própria", price: 8, days: 0, estimatedUnit: "minutes", estimatedValue: 60, responseLabel: "Entrega própria (60 minutos) - R$ 8,00" },
+    { carrier: "melhor-envio-1", name: "Correios PAC", price: 1840, priceFormatted: "R$ 18,40", days: 5 },
+  ] } }] }));
+  assert.equal(view.choices[0].description, "R$ 8,00 · 60 minutos");
+  assert.equal(view.choices[1].description, "R$ 18,40 · 5 dias úteis");
+  assert.deepEqual(view.choices[0].action, { kind: "message", message: "Entrega própria (60 minutos) - R$ 8,00" });
+});
+
 test("a scheduled service cannot be added before a selectable slot is chosen", () => {
   const base = response({ blocks: [{ type: "product_card", data: { id: "service", name: "Consulta", price: 10000, priceFormatted: "R$ 100,00", inStock: true, productType: "service",
     variants: [{ id: "v1", value: "Consulta", stock: 0 }], serviceSchedule: { slots: [
