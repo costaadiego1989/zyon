@@ -10,6 +10,7 @@ import type { ConversationBlock } from "../../domain/types/conversation-block.js
 import type { StoreToolHandlers } from "../../domain/tools/store-tools.js";
 import type { ToolRequestContext } from "../../domain/tools/tool-context.js";
 import { ensureProductDiscovery } from "../agents/product-discovery-fallback.js";
+import { resolveNativeShippingReference } from "../agents/native-shipping-reference.js";
 import { composeStoreToolHandlers, type AllHandlerDeps } from "../tool-handlers/index.js";
 import { STOREFRONT_SHIPPING_REFERENCE, type StorefrontShippingReferencePort } from "../../domain/ports/storefront-shipping-reference.port.js";
 import { OpenRouterProvider } from "@zyon/conversation-engine";
@@ -245,6 +246,8 @@ export class StorefrontConversationAdapter implements StorefrontConversationPort
     }
     this.emitFunnelEvent(input, "checkout_started", deviceMeta).catch(() => {});
     const shortcutHandlers = getHandlers();
+    const nativeShipping = await resolveNativeShippingReference(input, shortcutHandlers.quoteShipping);
+    if (nativeShipping) return nativeShipping;
     const shortcut = await resolveDeterministicShortcut(
       {
         productRepo: this.productRepo,
