@@ -16,8 +16,10 @@ export interface RealtimeCapability {
 }
 
 const MAX_LIFETIME_SECONDS = 3600;
-// Cart access can be renewed after an idle tab, but never from an unsigned ID.
-const CONVERSATION_RENEWAL_WINDOW_SECONDS = 24 * 3600;
+// Match the 30-day visitor credential so returning shoppers can keep their cart.
+// Active access still lasts one hour; renewal requires the original signed,
+// resource- and origin-bound proof, never an unsigned conversation ID.
+const CONVERSATION_RENEWAL_WINDOW_SECONDS = 30 * 24 * 3600;
 
 /** Bearer capability issued only when the server creates a new resource. */
 export class RealtimeCapabilityService {
