@@ -64,7 +64,14 @@ function harness(options: { active?: WhatsAppSessionEntity; buyerExists?: boolea
     },
     buyerIdentity: {
       async findUnique() { calls.push("buyer:read"); return options.buyerExists ? { globalUserId: "buyer-existing-synthetic" } : null; },
-      async create(input: unknown) { calls.push("buyer:create"); return fields(input).data; },
+      async upsert(input: unknown) {
+        calls.push("buyer:upsert");
+        const value = fields(input), create = fields(value.create);
+        assert.equal(create.merchantId, options.merchantId ?? MERCHANT);
+        assert.deepEqual(fields(value.where).merchantId_identityKey, { merchantId: create.merchantId, identityKey: create.identityKey });
+        assert.deepEqual(value.update, {}, "renewal_must_not_overwrite_an_existing_buyer");
+        return create;
+      },
     },
     checkoutSession: {
       async findFirst() {
@@ -80,10 +87,11 @@ function harness(options: { active?: WhatsAppSessionEntity; buyerExists?: boolea
     },
   };
   const sessions: WhatsAppSessionRepository = {
-    async findActiveByPhone(merchantId, phone) {
+    async findActiveByPhone(merchantId, phone, deviceId) {
       calls.push("wa:read");
       assert.equal(merchantId, options.merchantId ?? MERCHANT);
       assert.equal(phone, PHONE);
+      assert.equal(deviceId, options.meta ? "META_CLOUD:synthetic" : "device-synthetic");
       return options.active ?? null;
     },
     async create(data) {
@@ -144,7 +152,7 @@ test("returning buyer hydration and tenant scope survive anchored checkout creat
   const subject = harness({ buyerExists: true, merchantId: "merchant|other:same-scope" });
   const result = await subject.run();
   assertAnchoredCreation(subject, "merchant|other:same-scope");
-  assert.equal(subject.calls.includes("buyer:create"), false);
+  assert.equal(subject.calls.includes("buyer:upsert"), false);
   assert.equal(subject.checkoutCreates[0].globalUserId, "buyer-existing-synthetic");
   assert.equal(result.buyerData.fullName, "Synthetic Buyer");
   assert.equal(fields(subject.checkoutCreates[0].customer).email, "synthetic@example.invalid");

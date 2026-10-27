@@ -61,7 +61,7 @@ export class RouteToSessionUseCase {
     const buyerData = await this.ensureBuyerExists(input.merchantId, phone, globalUserId, input.fromAlias, input.deviceId.startsWith("META_CLOUD:"));
 
     // 2. Find active WA session
-    let waSession = await this.sessionRepo.findActiveByPhone(input.merchantId, phone);
+    let waSession = await this.sessionRepo.findActiveByPhone(input.merchantId, phone, input.deviceId);
 
     // 3. Check expiry (24h)
     if (waSession && this.isExpired(waSession)) {
@@ -145,8 +145,10 @@ export class RouteToSessionUseCase {
     }
 
     // New buyer — create BuyerIdentity with phone as key
-    const newIdentity = await this.prisma.buyerIdentity.create({
-      data: {
+    const newIdentity = await this.prisma.buyerIdentity.upsert({
+      where: { merchantId_identityKey: { merchantId, identityKey } },
+      update: {},
+      create: {
         merchantId,
         identityKey,
         globalUserId,

@@ -160,11 +160,12 @@ test("does not present Meta onboarding as ready without the webhook verification
 });
 
 test("controller scopes every Meta connection endpoint to the authenticated merchant", () => {
-  const controller = new WhatsAppConfigController({} as any);
+  const controller = new WhatsAppConfigController({} as any, {} as any);
   const request = { user: { merchantId: "different" } } as any;
   const operations = [
     () => controller.settings(request, input.merchantId),
     () => controller.getConnection(request, input.merchantId),
+    () => controller.getUsage(request, input.merchantId, { period: "month" }),
     () => controller.connectViaEmbeddedSignup(request, input.merchantId, input),
     () => controller.refresh(request, input.merchantId),
     () => controller.disconnect(request, input.merchantId),

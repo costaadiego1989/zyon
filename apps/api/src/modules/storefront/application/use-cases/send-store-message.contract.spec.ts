@@ -32,34 +32,6 @@ function fixture(result: unknown = validReply) {
   return { calls, useCase, merchant, prisma };
 }
 
-test("contract: an existing buyer's encrypted phone is decoded before storefront context validation", async () => {
-  const previous = process.env.AACP_PII_ENC_KEY;
-  process.env.AACP_PII_ENC_KEY = "synthetic-support-context-key";
-  try {
-    const phone = "+5511999999999";
-    const encrypted = encryptPii(phone);
-    const f = fixture();
-    f.prisma.buyerAccount.findUnique = async () => ({ globalUserId: "buyer", displayName: "QA Buyer", email: "buyer@example.test", phone: encrypted }) as never;
-    await f.useCase.execute({ ...input, global_user_id: "buyer", user_message: "Suporte" });
-    assert.equal((f.calls.generated[0] as { buyerContext: { phone: string } }).buyerContext.phone, phone);
-    assert.ok(!JSON.stringify(f.calls.generated).includes("pii_v1:"));
-    assert.ok(!JSON.stringify(f.calls.logs).includes(phone));
-  } finally {
-    if (previous === undefined) delete process.env.AACP_PII_ENC_KEY;
-    else process.env.AACP_PII_ENC_KEY = previous;
-  }
-});
-
-test("contract: an unreadable optional phone preserves buyer identity and does not expose ciphertext", async () => {
-  const f = fixture();
-  f.prisma.buyerAccount.findUnique = async () => ({ globalUserId: "buyer", displayName: "QA Buyer", email: "buyer@example.test", phone: "pii_v1:invalid" }) as never;
-  await f.useCase.execute({ ...input, global_user_id: "buyer", user_message: "Suporte" });
-  assert.deepEqual((f.calls.generated[0] as { buyerContext: unknown }).buyerContext, {
-    globalUserId: "buyer", name: "QA Buyer", email: "buyer@example.test",
-  });
-  assert.ok(!JSON.stringify([f.calls.generated, f.calls.logs]).includes("pii_v1:"));
-});
-
 test("contract: an ordinary storefront turn retains the existing wire response", async () => {
   const f = fixture();
   assert.deepEqual(await f.useCase.execute(input), {
@@ -150,4 +122,33 @@ test("contract: trusted buyer context must still match the server-bound buyer id
   const generated = f.calls.generated[0] as { buyerContext?: unknown };
   assert.equal(generated.buyerContext, undefined);
 });
+
+for (const phoneKind of ["encrypted", "legacy", "absent", "unreadable"] as const) {
+  test(`contract: ${phoneKind} optional buyer phone preserves authenticated chat`, async () => {
+    const previousKey = process.env.AACP_PII_ENC_KEY;
+    process.env.AACP_PII_ENC_KEY = "synthetic-context-contract-key-not-a-secret";
+    try {
+      const phone = "+5511999991234";
+      const stored = phoneKind === "encrypted" ? encryptPii(phone)
+        : phoneKind === "legacy" ? phone
+        : phoneKind === "unreadable" ? "pii_v1:unreadable:synthetic:payload:phone" : null;
+      const f = fixture();
+      f.prisma.buyerAccount.findUnique = async () => ({ globalUserId: "buyer", displayName: "Test Buyer",
+        email: "buyer@example.invalid", phone: stored }) as never;
+      const output = await f.useCase.execute({ ...input, global_user_id: "buyer" });
+      assert.equal(output.conversation_id, input.conversation_id);
+      assert.equal(output.cart_id, input.cart_id);
+      assert.equal(f.calls.generated.length, 1, "never replay the turn");
+      const context = f.calls.generated[0] as { buyerContext: { globalUserId: string; name?: string; phone?: string; email?: string } };
+      assert.deepEqual(context.buyerContext, { globalUserId: "buyer", name: "Test Buyer",
+        email: "buyer@example.invalid", phone: phoneKind === "encrypted" || phoneKind === "legacy" ? phone : undefined });
+      const logs = JSON.stringify(f.calls.logs);
+      assert.ok(!logs.includes(phone));
+      assert.ok(!logs.includes("pii_v1:"));
+    } finally {
+      if (previousKey === undefined) delete process.env.AACP_PII_ENC_KEY;
+      else process.env.AACP_PII_ENC_KEY = previousKey;
+    }
+  });
+}
 

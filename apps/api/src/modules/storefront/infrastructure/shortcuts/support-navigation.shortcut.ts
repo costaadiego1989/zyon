@@ -29,10 +29,6 @@ export async function resolveSupportNavigation(
     ? "Qual é o número do pedido que você quer consultar?"
     : "Para consultar o status do seu pedido, entre na sua conta em Meus Dados e abra Pedidos ou Rastreio.",
     ["Meus Dados", "Falar com Humano", "FAQ", "Voltar ao Início"]);
-  if (action === "report" || action === "human") return output(action === "report"
-    ? "Abra Reportar Problema e descreva o que aconteceu. Entre na sua conta para enviar o relato à loja e acompanhar as respostas. O chamado será aberto ao enviar sua primeira mensagem."
-    : "Abra Falar com Humano e conte à equipe como pode ajudar. Entre na sua conta para enviar a mensagem e acompanhar a conversa com a loja.",
-  [action === "report" ? "Reportar Problema" : "Falar com Humano", "Meus Dados", "FAQ"]);
   try {
     const handlers = getHandlers();
     if (action === "deals") {
@@ -55,8 +51,16 @@ export async function resolveSupportNavigation(
       return output(faqs.length ? "Perguntas frequentes desta loja:\n\n" + faqs.map(faq => `${faq.question}\n${faq.answer}`).join("\n\n")
         : "A loja ainda não cadastrou perguntas frequentes. Você pode falar com o atendimento.");
     }
-    return null;
+    const reason = action === "report" ? "Reportar problema com a loja ou um pedido" : "Solicitação de atendimento humano";
+    const checked = await callStorefrontTool("escalate_to_human", { reason }, () => handlers.escalateToHuman({ reason }));
+    if (!checked.ok) return output("Não consegui confirmar a abertura do atendimento. Tente novamente pela Central de Ajuda.");
+    const handoff = checked.data as { message: string; ticketId: string };
+    return output(`${handoff.message}\n\nProtocolo: ${handoff.ticketId}.${action === "report"
+      ? " Descreva o problema e informe o número do pedido, se houver, para a equipe analisar."
+      : " Você pode acompanhar o atendimento em Meus Dados, na aba Conversas."}`,
+    ["Meus Dados", "FAQ", "Status do Pedido", "Voltar ao Início"]);
   } catch {
-    return output("Não consegui consultar o atendimento agora. Tente novamente pela Central de Ajuda.");
+    // A handoff may already have persisted. Never claim success or retry a write.
+    return output("Não consegui confirmar o resultado do atendimento agora. Consulte a Central de Ajuda antes de tentar novamente.");
   }
 }

@@ -110,7 +110,7 @@ export const BILLING_PLAN_PRESENTATION = {
       "Todos os módulos do Growth",
       "Até 5 lojas independentes",
       "Recursos avançados de IA e automação",
-      "Revenue Manager, testes A/B, marketplace e agentes M2M",
+      "Revenue Manager, testes A/B e agentes M2M",
       "Cupons, equipe e compras sem limite; suporte prioritário em chat",
     ],
   },

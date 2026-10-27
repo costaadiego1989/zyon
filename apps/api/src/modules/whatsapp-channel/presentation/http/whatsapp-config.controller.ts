@@ -1,6 +1,7 @@
-import { Controller, Get, Post, Param, Body, UseGuards, HttpCode, Req, ForbiddenException } from "@nestjs/common";
+import { Controller, Get, Post, Param, Body, UseGuards, HttpCode, Req, ForbiddenException, Query } from "@nestjs/common";
 import type { Request } from "express";
-import { IsBoolean, IsString, Matches, MaxLength, MinLength } from "class-validator";
+import { IsBoolean, IsString, Matches, MaxLength, MinLength, IsIn, IsOptional } from "class-validator";
+import { GetWhatsAppUsageUseCase, type WhatsAppUsagePeriod } from "../../application/use-cases/get-whatsapp-usage.use-case.js";
 import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js";
 import { ConfigureWhatsAppUseCase } from "../../application/use-cases/configure-whatsapp.use-case.js";
 
@@ -11,11 +12,12 @@ export class WhatsAppSignupDto {
 }
 export class WhatsAppVerifyDto { @IsString() @Matches(/^\d{6}$/) code!: string; }
 export class WhatsAppToggleDto { @IsBoolean() enabled!: boolean; }
+export class WhatsAppUsageQueryDto { @IsOptional() @IsIn(["month", "7d", "30d"]) period?: WhatsAppUsagePeriod; }
 
 @Controller("merchants/:merchantId/whatsapp")
 @UseGuards(AuthGuard)
 export class WhatsAppConfigController {
-  constructor(private readonly configureWhatsApp: ConfigureWhatsAppUseCase) {}
+  constructor(private readonly configureWhatsApp: ConfigureWhatsAppUseCase, private readonly usage: GetWhatsAppUsageUseCase) {}
   private tenant(request: Request, merchantId: string) {
     if (currentUser(request as Request & { user?: unknown }).merchantId !== merchantId) {
       throw new ForbiddenException("merchant_scope_mismatch");
@@ -30,6 +32,10 @@ export class WhatsAppConfigController {
   @Get("connection")
   getConnection(@Req() request: Request, @Param("merchantId") merchantId: string) {
     return this.configureWhatsApp.connection(this.tenant(request, merchantId));
+  }
+  @Get("usage")
+  getUsage(@Req() request: Request, @Param("merchantId") merchantId: string, @Query() query: WhatsAppUsageQueryDto) {
+    return this.usage.execute(this.tenant(request, merchantId), query.period);
   }
   @Post("meta/connect") @HttpCode(200)
   connectViaEmbeddedSignup(@Req() request: Request, @Param("merchantId") merchantId: string, @Body() body: WhatsAppSignupDto) {

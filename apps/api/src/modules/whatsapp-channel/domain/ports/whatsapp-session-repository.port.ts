@@ -30,7 +30,7 @@ export interface WhatsAppSessionEntity {
 }
 
 export interface WhatsAppSessionRepository {
-  findActiveByPhone(merchantId: string, buyerPhone: string): Promise<WhatsAppSessionEntity | null>;
+  findActiveByPhone(merchantId: string, buyerPhone: string, deviceId?: string): Promise<WhatsAppSessionEntity | null>;
   create(data: Omit<WhatsAppSessionEntity, "id" | "createdAt">): Promise<WhatsAppSessionEntity>;
   update(id: string, data: Partial<WhatsAppSessionEntity>): Promise<WhatsAppSessionEntity>;
   expire(id: string): Promise<void>;

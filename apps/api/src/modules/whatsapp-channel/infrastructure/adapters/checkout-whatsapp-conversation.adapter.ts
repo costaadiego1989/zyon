@@ -26,6 +26,7 @@ import { ApplyCouponUseCase } from "../../../coupons/application/use-cases/apply
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../../../payment/domain/ports/payment-repository.port.js";
 import { CHECKOUT_EXPERIENCE_CONFIG, type CheckoutExperienceConfig } from "../../../checkout/domain/checkout-experience.config.js";
 import { metaWelcomeMessage } from "../../domain/ui/meta-ui-renderer.js";
+import { STOREFRONT_CONVERSATION_PORT, type StorefrontConversationPort } from "../../../storefront/domain/ports/conversation.port.js";
 
 @Injectable()
 export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversationPort {
@@ -47,6 +48,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     @Optional() private readonly applyCoupon?: ApplyCouponUseCase,
     @Optional() @Inject(PAYMENT_REPOSITORY) private readonly payments?: PaymentRepository,
     @Optional() @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig?: CheckoutExperienceConfig,
+    @Optional() @Inject(STOREFRONT_CONVERSATION_PORT) private readonly storefrontConversation?: StorefrontConversationPort,
   ) {}
 
   async respond(input: { merchantId: string; checkoutSessionId: string; message: string }) {
@@ -249,6 +251,25 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       history: state.history, ui_action: canonicalAction,
       attachment_context: input.attachmentContext,
     });
+    // A natural-language search with one result should expose its purchase
+    // controls immediately. Read through the shared tools without recording a
+    // second buyer turn or deriving a variant from the agent's prose.
+    if (this.storefrontConversation && !canonicalAction && response.blocks.length &&
+      response.blocks.every(block => ["product_carousel", "text", "message"].includes(block.type))) {
+      const catalogs = response.blocks.filter(block => block.type === "product_carousel");
+      const products = catalogs.flatMap(block => (block.data as any).products ?? []);
+      const productId = products[0]?.productId || products[0]?.id;
+      if (products.length === 1 && typeof productId === "string" && !catalogs.some(block => (block.data as any).nextCursor)) {
+        const details = await this.storefrontConversation.reply({ merchantId: input.merchantId, sessionId: state.conversationId,
+          cartId: state.conversationId, userMessage: input.message, history: state.history, merchantName: config.name,
+          storeCategory: "others", buyerContext: { globalUserId: shopper.globalUserId, name: shopper.fullName, phone: shopper.phone, email: shopper.email },
+          uiAction: { tool: "get_product_details", args: { productId } } });
+        if (details.blocks.some(block => block.type === "product_card" && (block.data as any).id === productId)) {
+          response.blocks = [...response.blocks.filter(block => block.type !== "product_carousel"), ...details.blocks];
+          response.suggested_next = details.suggestedNext ?? [];
+        }
+      }
+    }
     if (response.blocks.some(b => ["checkout_prepared", "checkout_redirect"].includes(b.type))) {
       try {
         if (!this.startCheckout) throw new Error("whatsapp_checkout_start_unavailable");

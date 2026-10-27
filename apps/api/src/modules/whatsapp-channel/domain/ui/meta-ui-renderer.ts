@@ -257,10 +257,23 @@ export function metaWelcomeMessage(greeting: string, merchantName: string, agent
   return `*${formatMetaText(agentName)} · ${formatMetaText(merchantName)}*\n\n${formatMetaText(greeting).trim()}\n\n*Converse à vontade*\nPergunte o que quiser. Eu ajudo com produtos, entrega, pagamento e seu pedido.\n\n_Use o menu ou escreva sua pergunta aqui na conversa._`;
 }
 
+export const isMetaCatalogView = (view?: MetaUiView): boolean => !!view && view.stage !== "checkout" &&
+  !view.blocks.some(block => block.type === "product_card") &&
+  view.blocks.some(block => ["product_carousel", "marketplace_products", "wishlist", "cross_sell"].includes(block.type));
+
+const catalogProductChoice = (choice: MetaUiChoice): boolean => choice.action.kind === "tool" &&
+  (choice.action.tool === "get_product_details" || choice.action.tool === "search_products" && !!choice.action.args.cursor);
+
+/** The catalog's secondary actions retain their original server-owned identities. */
+export function buildMetaCatalogOptionsView(view: MetaUiView): MetaUiView {
+  return { stage: view.stage, title: view.title, body: "Escolha uma opção para continuar. Você também pode escrever sua pergunta.",
+    choices: view.choices.filter(choice => !catalogProductChoice(choice)), media: [], blocks: [], quickReplies: [] };
+}
+
 export function presentMetaUi(view: MetaUiView, revision: string, requestedPage = 0, options: { native?: boolean; includeMedia?: boolean; canGoBack?: boolean; navigationOnly?: boolean } = {}): MetaUiPresentation {
   const parts = paragraphs(formatMetaText(view.body || "Como posso ajudar?"));
   const productDetails = view.blocks.some(block => block.type === "product_card");
-  const catalog = view.stage !== "checkout" && !productDetails && view.blocks.some(block => ["product_carousel", "marketplace_products", "wishlist", "cross_sell"].includes(block.type));
+  const catalog = isMetaCatalogView(view);
   const pinned = view.choices.filter(choice => ["Ver produtos", "Encontrar produto", "Ver carrinho", "Finalizar pedido"].includes(choice.label));
   let allChoices = view.choices.filter(choice => !pinned.includes(choice));
   if (view.stage === "checkout") {
@@ -268,9 +281,7 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     allChoices.sort((a, b) => Number(primary(b)) - Number(primary(a)));
   }
   if (catalog) {
-    const products = allChoices.filter(choice => choice.action.kind === "tool" &&
-      (choice.action.tool === "get_product_details" || choice.action.tool === "search_products" && !!choice.action.args.cursor));
-    allChoices = [...products, { label: "Outras opções", action: { kind: "menu" } }];
+    allChoices = allChoices.filter(catalogProductChoice);
   }
   // On the visual catalog, show photographed products first while retaining
   // every product and its authorized identity across subsequent pages.
@@ -292,11 +303,13 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     };
     allChoices.sort((a, b) => priority(a) - priority(b));
   }
-  const pageSize = catalog && allChoices.some(choice => choice.image) ? Math.min(3, 7 - pinned.length) : 7 - pinned.length;
+  // Reserve a row for the secondary menu as well as previous/next/back.
+  const pageSize = catalog ? Math.min(allChoices.some(choice => choice.image) ? 3 : 6, 6 - pinned.length) : 7 - pinned.length;
   const totalPages = Math.max(1, Math.ceil(allChoices.length / pageSize));
   const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
   const currentChoices = allChoices.slice(page * pageSize, (page + 1) * pageSize);
   const choices: MetaUiChoice[] = productDetails ? [...currentChoices, ...pinned] : [...pinned, ...currentChoices];
+  if (catalog) choices.push({ label: "Outras opções", action: { kind: "catalog_options" } });
   if (page > 0) choices.push({ label: catalog ? "Produtos anteriores" : "Página anterior", action: { kind: "page", page: page - 1 } });
   if (page < totalPages - 1) choices.push({ label: catalog ? "Próximos produtos" : "Mais opções", action: { kind: "page", page: page + 1 } });
   if (options.canGoBack) choices.push({ label: "Voltar", action: { kind: "back" } });

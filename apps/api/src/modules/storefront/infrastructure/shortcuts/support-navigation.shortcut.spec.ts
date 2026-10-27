@@ -28,14 +28,26 @@ test("Ofertas consults authorized deals and never advertises a fabricated discou
   assert.equal(reads, 1); assert.match(output!.message, /não há ofertas ativas/);
   assert.deepEqual(output!.blocks, []); assert.doesNotMatch(output!.message, /aplicado|%/);
 });
-for (const message of ["Falar com Humano", "Reportar Problema"]) test(`${message} guides to authenticated intake without creating a ticket`, async () => {
-  for (const buyerContext of [undefined, { globalUserId: "buyer-a" }]) {
-    const output = await resolveSupportNavigation({ ...input(message), buyerContext }, unexpected);
-    assert.match(output!.message, /Entre na sua conta/);
-    assert.doesNotMatch(output!.message, /Protocolo|registrada|desconto|produtos.*procura/i);
-    assert(output!.suggestedNext!.includes(message));
-    if (message === "Reportar Problema") assert.match(output!.message, /primeira mensagem/);
-  }
+for (const message of ["Falar com Humano", "Reportar Problema"]) test(`${message} invokes real handoff once and displays returned protocol`, async () => {
+  let writes = 0;
+  const output = await resolveSupportNavigation(input(message), () => ({ escalateToHuman: async (args: { reason: string }) => {
+    writes++; assert(args.reason.length); return { escalated: true, ticketId: "persisted-ticket-a", message: "Solicitação registrada." };
+  } }) as StoreToolHandlers);
+  assert.equal(writes, 1); assert.match(output!.message, /Protocolo: persisted-ticket-a/);
+  assert.doesNotMatch(output!.message, /desconto|produtos.*procura/i);
+  if (message === "Reportar Problema") assert.match(output!.message, /Descreva o problema/);
+});
+test("uncertain handoff writes never retry or claim confirmation", async () => {
+  let writes = 0;
+  const output = await resolveSupportNavigation(input("Falar com Humano"), () => ({ escalateToHuman: async () => {
+    writes++; throw new Error("PRIVATE_DATABASE_DETAIL");
+  } }) as StoreToolHandlers);
+  assert.equal(writes, 1); assert.match(output!.message, /Não consegui confirmar/);
+  assert.doesNotMatch(output!.message, /PRIVATE|Protocolo/);
+});
+test("malformed handoff output cannot invent a successful protocol", async () => {
+  const output = await resolveSupportNavigation(input("Falar com Humano"), () => ({ escalateToHuman: async () => ({ escalated: true }) }) as StoreToolHandlers);
+  assert.match(output!.message, /Não consegui confirmar/); assert.doesNotMatch(output!.message, /Protocolo/);
 });
 for (const label of ["Status do Pedido", "Rastrear Pedido"]) test(`${label} protects guests and asks identified buyers for order number`, async () => {
   const guest = await resolveSupportNavigation(input(label), unexpected);
