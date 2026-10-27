@@ -45,15 +45,26 @@ test("no predictable secret fallback and no room collision across tenants", () =
   assert.notEqual(realtimeRoom("ticket", "a:b", "c"), realtimeRoom("ticket", "a", "b:c"));
 });
 
-test("expired conversations renew only with signed, tenant-bound proof within 24 hours", () => {
-  const conversation = { ...input, purpose: "storefront-conversation" as const };
+test("idle conversations resume for 30 days while active access still expires after one hour", () => {
+  const conversation = { ...input, purpose: "storefront-conversation" as const, aiUserId: "visitor:idle_buyer" };
   const issued = service.issue(conversation, 1000);
+  assert.equal(issued.expiresAt, 4600);
   assert.throws(() => service.verify(issued.token, conversation.purpose, input.origin, 5000));
+  for (const idleSeconds of [4000, 2 * 86400, 7 * 86400, 30 * 86400 - 1]) {
+    const now = 1000 + idleSeconds;
+    const resumed = service.renewConversation(issued.token, input.resourceId, input.origin, now);
+    const claims = service.verify(resumed.token, conversation.purpose, input.origin, now);
+    assert.equal(claims.merchantId, input.merchantId);
+    assert.equal(claims.resourceId, input.resourceId);
+    assert.equal(claims.aiUserId, conversation.aiUserId);
+    assert.equal(resumed.expiresAt, now + 3600);
+    assert.throws(() => service.verify(resumed.token, conversation.purpose, input.origin, resumed.expiresAt));
+  }
   const renewed = service.renewConversation(issued.token, input.resourceId, input.origin, 5000);
   assert.equal(service.verify(renewed.token, conversation.purpose, input.origin, 5001).merchantId, input.merchantId);
   assert.throws(() => service.renewConversation(issued.token, "other-cart", input.origin, 5000));
   assert.throws(() => service.renewConversation(issued.token, input.resourceId, "https://other.example", 5000));
-  assert.throws(() => service.renewConversation(issued.token, input.resourceId, input.origin, 87400));
+  assert.throws(() => service.renewConversation(issued.token, input.resourceId, input.origin, 1000 + 30 * 86400));
   assert.throws(() => service.renewConversation(service.issue(input, 1000).token, input.resourceId, input.origin, 5000));
   assert.throws(() => service.renewConversation(issued.token + "x", input.resourceId, input.origin, 5000));
   assert.throws(() => service.renewConversation(undefined, input.resourceId, input.origin, 5000));
