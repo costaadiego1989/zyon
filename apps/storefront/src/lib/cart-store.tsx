@@ -3,8 +3,14 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, type ReactNode } from "react";
 import { cartApi } from "@/lib/api/api-client";
 import { ConversationSessionExpiredError } from "@/lib/conversation-access";
+import { forgetStorefrontCheckoutToken } from "@/lib/checkout-session-access";
+import { parseCommercialNotices, type CommercialNotice } from "@/lib/commercial-notices";
+import { readCartLineSelection, type CartLineSelection } from "./cart-line-selection";
 
 export interface CartItem {
+  selectionLabel?: string;
+  optionItemIds?: string[];
+  serviceSlotId?: string | null;
   variantId: string;
   productName: string;
   quantity: number;
@@ -38,6 +44,7 @@ export interface CartState {
   freeShipping?: boolean;
   nextNudge?: RuleNudge;
   activeRules?: Array<{ ruleId?: string; message: string }>;
+  commercialNotices?: CommercialNotice[];
   activeOffer?: ActiveOffer;
   discountedTotal?: number;
 }
@@ -49,7 +56,9 @@ interface CartContextValue {
   updating: boolean;
   error: string | null;
   updateFromBlocks: (blocks: any[]) => void;
-  updateItemQuantity: (variantId: string, quantity: number) => Promise<void>;
+  /** Single-use projection of one chat response; independent of transcript scope. */
+  captureConversationCartProjection: (scope: { merchantId: string; conversationId: string; cartId?: string | null }) => (blocks: any[]) => boolean;
+  updateItemQuantity: (variantId: string, quantity: number, selection?: CartLineSelection) => Promise<void>;
   clearCart: () => void;
 }
 
@@ -87,6 +96,7 @@ const CartContext = createContext<CartContextValue>({
   updating: false,
   error: null,
   updateFromBlocks: () => {},
+  captureConversationCartProjection: () => () => false,
   updateItemQuantity: async () => {},
   clearCart: () => {},
 });
@@ -100,15 +110,22 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
   const [snapshotMerchantId, setSnapshotMerchantId] = useState<string | null>(null);
   const [updating, setUpdating] = useState(false);
   const [error, setError] = useState<string | null>(null);
-  const updatingRef = useRef(false);
+  const updatingRef = useRef<object | null>(null);
   const snapshotVersionRef = useRef(0);
+  const activeScopeRef = useRef({ merchantId, cartId: cart.cartId });
+  // Invalidate even a merchant A -> B -> A render before effects settle.
+  if (activeScopeRef.current.merchantId !== merchantId) snapshotVersionRef.current += 1;
+  activeScopeRef.current = { merchantId, cartId: cart.cartId };
 
   useEffect(() => {
     const snapshotVersion = ++snapshotVersionRef.current;
+    updatingRef.current = null;
+    setUpdating(false);
     setSnapshotMerchantId(null);
-    if (!merchantId) return;
+    setError(null);
+    if (!merchantId) { setCart(EMPTY_CART); return; }
     const savedId = getSavedCartId(merchantId);
-    if (!savedId) return;
+    if (!savedId) { setCart(EMPTY_CART); return; }
     let cancelled = false;
 
     setCart((prev) => prev.cartId === savedId ? prev : { ...EMPTY_CART, cartId: savedId });
@@ -116,6 +133,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     cartApi.get(savedId, merchantId)
       .then((data) => {
         if (cancelled || snapshotVersionRef.current !== snapshotVersion || !data || !Array.isArray(data.items)) return;
+        if (data.cartId !== savedId) throw new Error("invalid_cart_response");
         setError(null);
         const baseTotal = data.total;
         let discountedTotal = baseTotal;
@@ -141,6 +159,8 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
         setCart({
           cartId: data.cartId,
           items: data.items.map((item: any) => ({
+            ...readCartLineSelection(item),
+            selectionLabel: typeof item.selectionLabel === "string" ? item.selectionLabel : undefined,
             variantId: item.variantId,
             productName: item.productName,
             quantity: item.quantity,
@@ -155,6 +175,7 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
           freeShipping: data.freeShipping,
           nextNudge: data.nextNudge,
           activeRules: data.activeRules,
+          commercialNotices: parseCommercialNotices(data.commercialNotices),
           activeOffer,
           discountedTotal,
         });
@@ -170,10 +191,13 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     );
     if (!cartBlock) return;
     snapshotVersionRef.current += 1;
+    updatingRef.current = null;
+    setUpdating(false);
     setError(null);
     setSnapshotMerchantId(merchantId ?? null);
 
     const { items, itemCount, total, discount, cartId, couponCode, authorizedOffer, shippingTotal, freeShipping, nextNudge, activeRules } = cartBlock.data;
+    const commercialNotices = parseCommercialNotices(cartBlock.data.commercialNotices);
 
     setCart((prev) => {
       const resolvedCartId = cartId ?? prev.cartId;
@@ -208,6 +232,8 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
           // priced products into amounts 100x smaller.
           const price = i.price ?? (i.unit_price_cents != null ? i.unit_price_cents / 100 : null) ?? i.unitPrice ?? 0;
           return {
+            ...readCartLineSelection(i),
+            selectionLabel: typeof i.selectionLabel === "string" ? i.selectionLabel : undefined,
             variantId: i.variantId ?? i.variant_id ?? i.id,
             productName: i.productName ?? i.product_name ?? i.name ?? "Produto",
             quantity: qty,
@@ -226,14 +252,40 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
         freeShipping: freeShipping ?? false,
         nextNudge: nextNudge ?? undefined,
         activeRules: activeRules ?? undefined,
+        commercialNotices,
         activeOffer,
         discountedTotal,
       };
     });
   }, [merchantId]);
 
+  const captureConversationCartProjection = useCallback((scope: { merchantId: string; conversationId: string; cartId?: string | null }) => {
+    const version = snapshotVersionRef.current;
+    const capturedCartId = activeScopeRef.current.cartId;
+    const expectedCartId = scope.cartId ?? scope.conversationId;
+    let consumed = false;
+    return (blocks: any[]): boolean => {
+      if (consumed) return false;
+      consumed = true;
+      if (!merchantId || scope.merchantId !== merchantId || !expectedCartId
+        || activeScopeRef.current.merchantId !== merchantId
+        || snapshotVersionRef.current !== version
+        || activeScopeRef.current.cartId !== capturedCartId
+        || (capturedCartId !== null && capturedCartId !== expectedCartId)) return false;
+      const summaries = blocks.filter(block => block?.type === "cart_summary");
+      if (summaries.length > 1 || summaries.some(block => block.data?.cartId !== expectedCartId || !Array.isArray(block.data?.items))) return false;
+      const prepared = blocks.filter(block => block?.type === "checkout_prepared");
+      if (prepared.length > 1 || prepared.some(block => block.data?.cartId !== expectedCartId)) return false;
+      updateFromBlocks(blocks);
+      return true;
+    };
+  }, [merchantId, updateFromBlocks]);
+
   const clearCart = useCallback(() => {
+    if (merchantId && cart.cartId) forgetStorefrontCheckoutToken({ merchantId, cartRef: cart.cartId });
     snapshotVersionRef.current += 1;
+    updatingRef.current = null;
+    setUpdating(false);
     setCart(EMPTY_CART);
     setSnapshotMerchantId(null);
     setError(null);
@@ -241,36 +293,44 @@ export function CartProvider({ children, merchantId }: { children: ReactNode; me
     try {
       sessionStorage.removeItem(getStorageKey(merchantId));
     } catch { /* quota/privacy */ }
-  }, [merchantId]);
+  }, [merchantId, cart.cartId]);
 
-  const updateItemQuantity = useCallback(async (variantId: string, quantity: number) => {
+  const updateItemQuantity = useCallback(async (variantId: string, quantity: number, selection?: CartLineSelection) => {
     if (updatingRef.current) return;
     if (!merchantId) throw new Error("merchant_id_required");
     const cartId = cart.cartId;
     if (!cartId) throw new Error("cart_id_required");
-
-    updatingRef.current = true;
+    const snapshotVersion = snapshotVersionRef.current, command = {};
+    const current = () => snapshotVersionRef.current === snapshotVersion
+      && activeScopeRef.current.merchantId === merchantId && activeScopeRef.current.cartId === cartId;
+    updatingRef.current = command;
     setUpdating(true);
     setError(null);
     try {
-      const data = await cartApi.updateItem(cartId, variantId, quantity, merchantId);
-      if (!data || typeof data.cartId !== "string" || !Array.isArray(data.items)) {
+      const data = await cartApi.updateItem(cartId, variantId, quantity, merchantId, selection);
+      if (!current()) return;
+      if (!data || data.cartId !== cartId || !Array.isArray(data.items)) {
         throw new Error("invalid_cart_response");
       }
       updateFromBlocks([{ type: "cart_summary", data }]);
     } catch (cause) {
+      if (!current()) return;
       setError(cause instanceof ConversationSessionExpiredError
-        ? "Sua sessão expirou. Volte ao chat para iniciar uma nova conversa e adicionar seus produtos."
+        ? "Sua conversa e seus itens foram preservados. A sessão precisa ser validada antes de atualizar o carrinho; sua solicitação não foi reenviada automaticamente."
         : "Não foi possível atualizar o carrinho. Seus itens foram mantidos; tente novamente.");
     } finally {
-      updatingRef.current = false;
-      setUpdating(false);
+      // A replaced snapshot may already own a new request. An old completion
+      // must not release that request's singleflight or clear its busy state.
+      if (updatingRef.current === command) {
+        updatingRef.current = null;
+        setUpdating(false);
+      }
     }
   }, [cart.cartId, merchantId, updateFromBlocks]);
 
   return (
-    <CartContext.Provider value={{ cart, snapshotMerchantId: snapshotMerchantId === merchantId ? snapshotMerchantId : null,
-      updating, error, updateFromBlocks, updateItemQuantity, clearCart }}>
+    <CartContext.Provider value={{ cart: snapshotMerchantId === merchantId ? cart : EMPTY_CART, snapshotMerchantId: snapshotMerchantId === merchantId ? snapshotMerchantId : null,
+      updating, error, updateFromBlocks, captureConversationCartProjection, updateItemQuantity, clearCart }}>
       {children}
     </CartContext.Provider>
   );

@@ -33,6 +33,7 @@ export interface BuyerHubPanelProps {
   currentSessionId?: string | null;
   onResumeConversation?: (conversation: BuyerConversation) => Promise<void>;
   supportInbox?: BuyerSupportInbox;
+  initialTab?: TabType;
 }
 
 
@@ -456,9 +457,10 @@ function EmailLoginForm({ onAuthSuccess, merchantId, onAccountNotFound }: {
 }
 
 
-export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onToggleTheme, currentSessionId, onResumeConversation, supportInbox }: BuyerHubPanelProps) {
+export function BuyerHubPanel({ isOpen, onClose, merchantId, merchantSlug, onToggleTheme, currentSessionId, onResumeConversation, supportInbox, initialTab = "profile" }: BuyerHubPanelProps) {
   const panelRef = useRef<HTMLDivElement>(null);
   const vm = useBuyerHub(isOpen, merchantId);
+  useEffect(() => { if (isOpen) vm.setActiveTab(initialTab); }, [isOpen, initialTab, vm.setActiveTab]);
   const cartView = useCart();
   const currentCart = merchantId && cartView.snapshotMerchantId === merchantId && !cartView.error && !cartView.updating
     ? cartView.cart : null;

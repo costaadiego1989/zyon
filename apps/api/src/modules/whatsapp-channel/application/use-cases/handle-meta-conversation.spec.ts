@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { HandleMetaConversationUseCase } from "./handle-meta-conversation.use-case.js";
+import { buildMetaUiView, withMetaCartNavigation } from "../../domain/ui/meta-ui-renderer.js";
 
 function fixture() {
   let engineCalls = 0; const emitted: any[] = [];
@@ -15,6 +16,52 @@ function fixture() {
   const sender: any = { sendUi: async (call: any) => { emitted.push(call.uiMessage); return { status: "sent", messageId: "wamid." + emitted.length }; } };
   return { claim, route, input, conversation, sessions, inbox, sender, emitted, calls: () => engineCalls, execute: () => new HandleMetaConversationUseCase(conversation, sessions, inbox, sender).execute(input, route) };
 }
+
+for (const mode of ['native', 'numeric', 'typed', 'legacy-native', 'archived-legacy']) test(`catalog secondary options preserve the conversation and original actions: ${mode}`, async () => {
+  const f = fixture();
+  const state = f.route.whatsappSession.conversationState;
+  state.history = [{ role: 'user', content: 'Protetor diário 50fps' }];
+  state.cartHasItems = true;
+  state.payment = { intentId: 'pending-payment' };
+  const catalog = withMetaCartNavigation(buildMetaUiView({ agentMessage: 'Resultado da busca', merchantName: 'Athom', state,
+    quickReplies: ['Selecionar Produto', 'Filtrar Produtos', 'Categorias'], blocks: [{ type: 'product_carousel', data: {
+      products: [{ id: 'protetor', name: 'Protetor', price: 9990, image: 'https://example.com/protetor.jpg' }],
+    } }] }), true);
+  state.view = catalog;
+  state.selections = { options: { kind: mode === 'legacy-native' ? 'menu' : 'catalog_options' } };
+  state.numericSelections = [{ kind: 'catalog_options' }];
+  f.input.body = mode === 'typed' ? 'Outras opções' : mode === 'numeric' ? '1' : '4. Outras opções';
+  if (['native', 'legacy-native', 'archived-legacy'].includes(mode)) f.input.interactiveId = 'options';
+  if (mode === 'archived-legacy') {
+    state.view = { title: 'Atual', body: 'Outra conversa', choices: [], media: [], blocks: [], quickReplies: [] };
+    state.selections = {};
+    f.inbox.findPriorSelection = async () => ({ action: { kind: 'menu' }, view: catalog });
+    f.conversation.respondStore = async (call: any) => {
+      assert.equal(call.action.tool, 'search_products');
+      return { agentMessage: 'Atualizado', state: call.state, blocks: catalog.blocks, quickReplies: catalog.quickReplies };
+    };
+  }
+  await f.execute();
+  assert.equal(f.calls(), 0, 'secondary options must not invoke the greeting or agent');
+  const next = f.route.whatsappSession.conversationState;
+  assert.equal(next.conversationId, 'conv1');
+  assert.deepEqual(next.history, state.history);
+  assert.equal(next.payment.intentId, 'pending-payment');
+  assert.ok(next.previousViews.at(-1).blocks.some((b: any) => b.type === 'product_carousel'));
+  assert.ok(next.numericSelections.some((a: any) => a.kind === 'message' && a.message === 'Filtrar Produtos'));
+  assert.ok(next.numericSelections.some((a: any) => a.kind === 'tool' && a.tool === 'list_categories'));
+  assert.ok(next.numericSelections.some((a: any) => a.kind === 'back'));
+  assert.ok(f.emitted.every(m => m.type !== 'image'));
+  assert.ok(!f.emitted.some(m => m.type === 'text' && /Olá|Sou Assistente/.test(m.text.body)));
+  if (mode === 'native') {
+    f.claim.id = 'filter-turn'; f.claim.responseState = undefined; f.input.interactiveId = undefined;
+    f.input.body = String(next.numericSelections.findIndex((a: any) => a.kind === 'message' && a.message === 'Filtrar Produtos') + 1);
+    let message: string | undefined;
+    f.conversation.respondStore = async (call: any) => { message = call.message; return { agentMessage: 'Como deseja filtrar?', state: call.state, blocks: [], quickReplies: [] }; };
+    await f.execute();
+    assert.equal(message, 'Filtrar Produtos');
+  }
+});
 
 test("a partial send retries only the unsent message and never repeats commerce", async () => {
   const f = fixture(); let calls = 0;

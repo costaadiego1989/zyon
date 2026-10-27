@@ -1,5 +1,7 @@
 "use client";
-import { useEffect } from "react";
+import { useEffect, useRef } from "react";
+import { CheckoutProductDetailContext } from "./lib/checkout-product-detail-context";
+import type { OpenCheckoutProductDetail } from "./lib/checkout-product-detail";
 import { useCheckoutStore } from "./store/checkout-store";
 import { CheckoutLayout } from "./layouts/CheckoutLayout";
 import { MascotOverlay } from "./components/MascotOverlay";
@@ -17,6 +19,7 @@ export interface InlineCheckoutProps {
   cartRef?: string;
   globalUserId?: string;
   buyerAccessToken?: string;
+  onRefreshEmbedToken?: (previousEmbedToken: string) => Promise<string | null>;
   oneBuyClickPreferences?: {
     shippingPreference: "fastest" | "cheapest";
     paymentPreference: "pix" | "card";
@@ -24,9 +27,12 @@ export interface InlineCheckoutProps {
   initialChannel?: "chat" | "voice";
   theme?: "dark" | "light";
   onClose?: () => void;
+  onOpenProductDetail?: OpenCheckoutProductDetail;
 }
 
 export function InlineCheckout(props: InlineCheckoutProps) {
+  const mounted = useRef(true);
+  useEffect(() => { mounted.current = true; return () => { mounted.current = false; }; }, []);
   const status = useCheckoutStore((s) => s.status);
   const error = useCheckoutStore((s) => s.error);
   const init = useCheckoutStore((s) => s.init);
@@ -43,10 +49,11 @@ export function InlineCheckout(props: InlineCheckoutProps) {
       embedApiBaseUrl: props.embedApiBaseUrl,
       globalUserId: props.globalUserId,
       buyerAccessToken: props.buyerAccessToken,
+      onRefreshEmbedToken: props.onRefreshEmbedToken,
       oneBuyClickPreferences: props.oneBuyClickPreferences,
       initialChannel: props.initialChannel,
     });
-  }, [init, props.embedToken, props.merchantId, props.apiBaseUrl, props.embedApiBaseUrl, props.cartRef, props.globalUserId, props.buyerAccessToken, props.oneBuyClickPreferences, props.initialChannel]);
+  }, [init, props.embedToken, props.merchantId, props.apiBaseUrl, props.embedApiBaseUrl, props.cartRef, props.globalUserId, props.buyerAccessToken, props.onRefreshEmbedToken, props.oneBuyClickPreferences, props.initialChannel]);
 
   useEffect(() => {
     if (props.theme === "light") {
@@ -109,5 +116,9 @@ export function InlineCheckout(props: InlineCheckoutProps) {
     return <CheckoutUnavailable error={error} onClose={props.onClose} />;
   }
 
-  return <CheckoutLayout forcedTheme={props.theme} onClose={props.onClose} />;
+  const open: OpenCheckoutProductDetail | undefined = props.onOpenProductDetail ? request => {
+    if (!mounted.current || request.merchantId !== props.merchantId || !request.isCurrent()) return;
+    props.onOpenProductDetail?.({ ...request, isCurrent: () => mounted.current && request.merchantId === props.merchantId && request.isCurrent() });
+  } : undefined;
+  return <CheckoutProductDetailContext.Provider value={open}><CheckoutLayout forcedTheme={props.theme} onClose={props.onClose} /></CheckoutProductDetailContext.Provider>;
 }

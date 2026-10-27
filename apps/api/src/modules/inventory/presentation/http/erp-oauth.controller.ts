@@ -6,6 +6,7 @@ import { AuthGuard, currentUser } from "../../../auth/presentation/auth.guard.js
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { encryptErpSecret } from "../../infrastructure/adapters/erp-secret-cipher.js";
 import { fetchBlingCompanyId } from "../../infrastructure/adapters/bling-company-identity.js";
+import { blingClientFingerprint } from "../../infrastructure/adapters/bling-token-identity.js";
 import { exchangeShopeeCode, shopeeAuthorizationUrl, shopeeShopId } from "../../infrastructure/adapters/shopee-api.js";
 import { ShopeeMarketplaceAdapter } from "../../infrastructure/adapters/shopee-marketplace.adapter.js";
 import { isMarketplaceProvider } from "../../infrastructure/adapters/marketplace-adapter.factory.js";
@@ -65,6 +66,7 @@ export class ErpOAuthController {
     const state = this.signState(provider_lower, merchantId);
 
     if (provider_lower === "bling") {
+      if (!env("BLING_CLIENT_ID") || !env("BLING_CLIENT_SECRET") || !env("BLING_REDIRECT_URI")) throw new Error("erp_bling_app_configuration_invalid");
       const params = new URLSearchParams({
         response_type: "code",
         client_id: env("BLING_CLIENT_ID"),
@@ -151,15 +153,16 @@ export class ErpOAuthController {
             code,
             redirect_uri: redirectUri,
           }).toString(),
+          signal: AbortSignal.timeout(20_000),
         });
 
         if (!tokenRes.ok) {
-          const err = await tokenRes.text();
-          this.logger.error("bling.token_exchange_failed", { status: tokenRes.status, error: err });
+          this.logger.error("bling.token_exchange_failed", { status: tokenRes.status });
           res.redirect(302, dashboardRedirect({ error: "erp_token_failed" }));
           return;
         }
         tokenData = await tokenRes.json();
+        if (typeof tokenData?.access_token !== "string" || !tokenData.access_token || typeof tokenData?.refresh_token !== "string" || !tokenData.refresh_token || !Number.isSafeInteger(tokenData.expires_in) || tokenData.expires_in <= 0) throw new Error("bling_token_response_invalid");
       } else if (provider === "mercadolivre") {
         // Mercado Livre: JSON body, no Basic auth
         const tokenRes = await fetch("https://api.mercadolibre.com/oauth/token", {
@@ -203,7 +206,9 @@ export class ErpOAuthController {
       const expiresAt = tokenData.expires_at ?? new Date(Date.now() + (tokenData.expires_in ?? 3600) * 1000);
 
       const blingCompanyId = provider === "bling" ? await fetchBlingCompanyId(tokenData.access_token) : null;
+      const previousBling = provider === "bling" ? await this.prisma.erpConnection.findUnique({ where: { merchantId_provider: { merchantId, provider } } }) : null;
       if (provider === "bling") {
+        if (previousBling?.config && typeof previousBling.config === "object" && !Array.isArray(previousBling.config) && previousBling.config.blingCompanyId && previousBling.config.blingCompanyId !== blingCompanyId) throw new Error("bling_company_change_requires_disconnect");
         const existingRoute = await this.prisma.erpWebhookRoute.findUnique({
           where: { provider_externalAccountId: { provider: "bling", externalAccountId: blingCompanyId! } },
         });
@@ -215,12 +220,12 @@ export class ErpOAuthController {
         where: { merchantId_provider: { merchantId, provider } },
         update: {
           status: "connected",
-          directionMode: "bidirectional",
+          directionMode: previousBling?.directionMode ?? "bidirectional",
           accessTokenCipher,
           refreshTokenCipher,
           tokenExpiresAt: expiresAt,
           lastErrorCode: null,
-          ...(blingCompanyId ? { config: { blingCompanyId } } : {}),
+          ...(blingCompanyId ? { config: { ...(previousBling?.config as object ?? {}), blingCompanyId, blingClientFingerprint: blingClientFingerprint() } } : {}),
           ...(providerConfig ? { config: providerConfig } : {}),
         },
         create: {
@@ -231,7 +236,7 @@ export class ErpOAuthController {
           accessTokenCipher,
           refreshTokenCipher,
           tokenExpiresAt: expiresAt,
-          ...(blingCompanyId ? { config: { blingCompanyId } } : {}),
+          ...(blingCompanyId ? { config: { blingCompanyId, blingClientFingerprint: blingClientFingerprint() } } : {}),
           ...(providerConfig ? { config: providerConfig } : {}),
         },
       });
@@ -260,7 +265,7 @@ export class ErpOAuthController {
     } catch (err) {
       const code = callbackErrorCode(err);
       this.logger.error("erp.callback.error", { provider, merchantId, code });
-      res.redirect(302, dashboardRedirect({ error: "erp_callback_error" }));
+      res.redirect(302, dashboardRedirect({ error: code === "bling_company_change_requires_disconnect" ? code : "erp_callback_error" }));
     }
   }
 

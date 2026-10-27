@@ -3,6 +3,15 @@ import assert from "node:assert/strict";
 import { CheckoutSession, cartFromExperience } from "../src/api/checkout-session.js";
 import { CheckoutApiError } from "../src/api/checkout-api-error.js";
 
+test("ordinary legacy mapping stays compatible and preserves server-owned non-scheduled fulfillment when present",()=>{
+  const legacy={items:[{sku:"old",name:"Legacy",quantity:1,unit_price:10}],totals:{subtotal:10,discount:0,total:10}};
+  const old=cartFromExperience(legacy).items[0]!;assert.equal("productType"in old,false);assert.equal("fulfillmentStrategy"in old,false);
+  for(const [productType,fulfillmentStrategy]of [["physical","carrier"],["food","pickup"],["digital","digital"],["service","service"]]as const){
+    const typed={...legacy,items:[{...legacy.items[0]!,productType,fulfillmentStrategy}]};
+    const line=cartFromExperience(typed).items[0]!;assert.equal(line.productType,productType);assert.equal(line.fulfillmentStrategy,fulfillmentStrategy);
+  }
+});
+
 test("widget starts and updates the signed checkout session without reading or mutating public carts", async () => {
   const original = globalThis.fetch;
   const requests: Array<{ url: string; body: any; headers: any }> = [];
@@ -193,6 +202,60 @@ test("widget reads Nest payment failure codes from the default message payload",
   } finally {
     globalThis.fetch = original;
   }
+});
+
+test("widget renews only an expired checkout capability and retries the same payment idempotently", async () => {
+  const original = globalThis.fetch;
+  const requests: Array<{ url: string; headers: Headers; body?: Record<string, unknown> }> = [];
+  let paymentCalls = 0;
+  globalThis.fetch = async (url, init) => {
+    const headers = new Headers(init?.headers);
+    const body = typeof init?.body === "string" ? JSON.parse(init.body) as Record<string, unknown> : undefined;
+    requests.push({ url: String(url), headers, body });
+    if (String(url).endsWith("/embed/start")) return Response.json({ session_id: "bound-session", experience: { items: [], totals: { subtotal: 10, total: 10 } } });
+    if (String(url).endsWith("/embed/payment/intents")) {
+      paymentCalls += 1;
+      if (paymentCalls === 1) return Response.json({ code: "embed_session_token_expired" }, { status: 401 });
+      return Response.json({ id: "intent", method: "card", status: "requires_action", amountCents: 1000, buyerFacing: { invoiceUrl: "https://pay.example/intent" } });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    let continuationInput = "";
+    const api = new CheckoutSession({ embedToken: "expired-token", merchantId: "merchant", apiBaseUrl: "https://api.example",
+      onRefreshEmbedToken: async (previous) => { continuationInput = previous; return "renewed-token"; } });
+    await api.start();
+    await api.createPaymentIntent("credito");
+    const payments = requests.filter((request) => request.url.endsWith("/embed/payment/intents"));
+    assert.equal(continuationInput, "expired-token");
+    assert.equal(payments.length, 2);
+    assert.equal(payments[0]!.headers.get("Authorization"), "Bearer expired-token");
+    assert.equal(payments[1]!.headers.get("Authorization"), "Bearer renewed-token");
+    assert.equal(payments[0]!.body?.idempotency_key, payments[1]!.body?.idempotency_key);
+  } finally { globalThis.fetch = original; }
+});
+
+test("checkout edit includes buyer proof and renews an expired capability before retrying", async () => {
+  const original = globalThis.fetch;
+  const edits: Array<{ headers: Headers; body: Record<string, unknown> }> = [];
+  globalThis.fetch = async (url, init) => {
+    if (String(url).endsWith("/embed/start")) return Response.json({ session_id: "bound-session", experience: { items: [], totals: { subtotal: 10, total: 10 } } });
+    if (String(url).endsWith("/embed/checkout/edit")) {
+      edits.push({ headers: new Headers(init?.headers), body: JSON.parse(init?.body as string) });
+      if (edits.length === 1) return Response.json({ code: "embed_session_token_expired" }, { status: 401 });
+      return Response.json({ experience: { items: [], totals: { subtotal: 10, total: 10 } }, revision: 1 });
+    }
+    throw new Error(`unexpected_endpoint:${url}`);
+  };
+  try {
+    const api = new CheckoutSession({ embedToken: "expired-token", merchantId: "merchant", apiBaseUrl: "https://api.example", buyerAccessToken: "buyer-proof",
+      onRefreshEmbedToken: async () => "renewed-token" });
+    await api.start();
+    await api.reopenCheckout("address");
+    assert.equal(edits.length, 2);
+    assert.equal(edits[0]!.body.buyer_access_token, "buyer-proof");
+    assert.equal(edits[1]!.headers.get("Authorization"), "Bearer renewed-token");
+  } finally { globalThis.fetch = original; }
 });
 
 test("widget preserves chat retry time from the conversation rate limit", async () => {

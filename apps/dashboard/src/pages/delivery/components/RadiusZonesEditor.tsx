@@ -2,6 +2,8 @@ import React, { useEffect, useRef, useState } from "react";
 import { FormField } from "../../../components/FormField.js";
 import { Button } from "../../../components/Button.js";
 import type { RadiusZone } from "../../../api/endpoints/delivery.js";
+import { maskCEP } from "../../../utils/masks.js";
+import { applyCurrencyMask, centsToReais, reaisToCents } from "../../../utils/currency.js";
 
 // Default radius tiers (km). null = "10+ km" (open-ended)
 const DEFAULT_TIERS: Array<{ maxKm: number | null; label: string }> = [
@@ -50,12 +52,7 @@ async function geocodeCep(cep: string): Promise<{ lat: number; lng: number } | n
   }
 }
 
-const centsToStr = (cents: number) => (cents ? (cents / 100).toFixed(2).replace(".", ",") : "");
-const strToCents = (str: string) => {
-  const cleaned = str.replace(",", ".");
-  const val = /^\d+(?:[.]\d{0,2})?$/.test(cleaned) ? Number(cleaned) : NaN;
-  return isNaN(val) ? 0 : Math.round(val * 100);
-};
+const centsToStr = (cents: number) => cents ? centsToReais(cents) : "";
 
 export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEditorProps) {
   const [activeIdx, setActiveIdx] = useState<number | null>(null);
@@ -178,8 +175,7 @@ export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEdi
   }
 
   const handlePriceChange = (idx: number, raw: string) => {
-    if (!/^\d*(?:[.,]\d{0,2})?$/.test(raw)) return;
-    const cleaned = raw;
+    const cleaned = applyCurrencyMask(raw);
     const updated = [...priceRaw];
     updated[idx] = cleaned;
     setPriceRaw(updated);
@@ -187,7 +183,7 @@ export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEdi
     selfEditRef.current = true;
     const parsed: RadiusZone[] = DEFAULT_TIERS.map((tier, i) => ({
       maxKm: tier.maxKm,
-      priceCents: strToCents(updated[i] ?? ""),
+      priceCents: reaisToCents(updated[i] ?? ""),
     }));
     onChange(parsed.filter((z) => z.priceCents > 0));
   };
@@ -196,10 +192,10 @@ export function RadiusZonesEditor({ zones, onChange, originZip }: RadiusZonesEdi
     <p>Defina o preço por distância a partir da loja. Deixe vazio ou use 0 nas faixas sem atendimento.</p>
     <div className="configuration-form__grid">
       {DEFAULT_TIERS.map((tier, i) => <div key={tier.maxKm ?? "open"} onFocus={() => setActiveIdx(i)} onMouseEnter={() => setActiveIdx(i)}>
-        <FormField label={tier.label + " (R$)"} value={priceRaw[i] ?? ""} onChange={value => handlePriceChange(i, value)} inputProps={{ inputMode: "decimal" }} placeholder="Sem atendimento" />
+        <FormField label={tier.label + " (R$)"} value={priceRaw[i] ?? ""} onChange={value => handlePriceChange(i, value)} inputProps={{ inputMode: "numeric" }} placeholder="Sem atendimento" />
       </div>)}
     </div>
-    {(!originZip || originZip.replace(/\D/g, "").length !== 8) && <FormField label="CEP para visualizar o mapa" value={manualCep} onChange={value => setManualCep(value.replace(/\D/g, "").slice(0, 8))} placeholder="Ex.: 20040020" inputProps={{ inputMode: "numeric" }} hint="Usado apenas nesta prévia. O endereço da loja continua sendo a origem das entregas." />}
+    {(!originZip || originZip.replace(/\D/g, "").length !== 8) && <FormField label="CEP para visualizar o mapa" value={manualCep} onChange={value => setManualCep(maskCEP(value))} placeholder="00000-000" maxLength={9} inputProps={{ inputMode: "numeric" }} hint="Usado apenas nesta prévia. O endereço da loja continua sendo a origem das entregas." />}
     {origin && mapStatus !== "error" ? <div ref={mapContainerRef} className="delivery-radius__map" aria-label="Mapa de referência das faixas de entrega" /> : <div className="delivery-radius__placeholder" role="status">
       <p>{mapStatus === "loading" ? "Buscando a localização para o mapa…" : mapStatus === "error" ? "Não foi possível exibir o mapa. Você pode continuar configurando os valores." : "Informe um CEP com 8 dígitos para visualizar as faixas no mapa."}</p>
       {mapStatus === "error" && <Button variant="outline" onClick={() => setAttempt(value => value + 1)}>Tentar carregar o mapa</Button>}

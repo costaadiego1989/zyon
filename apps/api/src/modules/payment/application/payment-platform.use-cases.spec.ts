@@ -10,6 +10,7 @@ import type {
 } from "../domain/ports/payment-platform-provider.port.js";
 import type { AsaasSubaccountInput } from "../domain/payment-platform.types.js";
 import { InMemoryPaymentPlatformRepository } from "../infrastructure/in-memory-payment-platform.repository.js";
+import { HandleStripePlatformEventUseCase } from "./payment-platform/platform-events/handle-stripe-platform-event.use-case.js";
 import {
   CreateAsaasSubaccountUseCase,
   CreateBillingCheckoutUseCase,
@@ -20,6 +21,26 @@ import {
 } from "./payment-platform.use-cases.js";
 
 const environment = { stripe: "test", asaas: "test" } as const;
+
+test("Stripe sync and account webhooks keep charging enabled while provider payouts are pending", async () => {
+  const repository = new InMemoryPaymentPlatformRepository();
+  await repository.saveConnection({ merchantId: "mrc_1", provider: "stripe", environment: "test", status: "pending", externalAccountId: "acct_mrc_1" });
+  const stripe = new StubStripePlatform();
+  stripe.retrieveConnectAccount = async () => ({ accountId: "acct_mrc_1", chargesEnabled: true,
+    payoutsEnabled: false, detailsSubmitted: false, requirements: ["external_account"] });
+  const synced = await new SyncStripeConnectUseCase(repository, stripe, environment).execute("mrc_1");
+  assert.equal(synced.status, "active");
+  assert.equal(synced.chargesEnabled, true);
+  assert.equal(synced.payoutsEnabled, false);
+  assert.deepEqual(synced.requirements, ["external_account"]);
+  const events = new HandleStripePlatformEventUseCase(repository);
+  await events.accountUpdated({ merchantId: "mrc_1", accountId: "acct_mrc_1", chargesEnabled: true,
+    payoutsEnabled: false, detailsSubmitted: false, requirements: ["external_account"] });
+  assert.equal((await repository.getConnection("mrc_1", "stripe"))?.status, "active");
+  await events.accountUpdated({ merchantId: "mrc_1", accountId: "acct_mrc_1", chargesEnabled: false,
+    payoutsEnabled: true, detailsSubmitted: true, requirements: [] });
+  assert.equal((await repository.getConnection("mrc_1", "stripe"))?.status, "restricted");
+});
 
 test("Stripe onboarding provisions once and exposes only a hosted one-time URL", async () => {
   const repository = new InMemoryPaymentPlatformRepository();
@@ -235,6 +256,29 @@ test("billing creates a local trial and server-configured Stripe checkout", asyn
     (await repository.getBilling("mrc_bill"))?.stripeCustomerId,
     "cus_mrc_bill",
   );
+});
+
+test("billing resolves the public campaign code server-side before creating a checkout", async () => {
+  const repository = new InMemoryPaymentPlatformRepository(); const merchants = new InMemoryMerchantRepository();
+  merchants.seedProfile({ id: "mrc_promo", name: "Promo Store" });
+  const stripe = new StubStripePlatform(); let resolved: any; let checkoutInput: any;
+  stripe.createSubscriptionCheckout = async (input: any) => { checkoutInput = input; return { url: "https://billing.stripe.test/session", sessionId: "cs_test" }; };
+  const checkout = new CreateBillingCheckoutUseCase(repository, stripe, merchants, new StubBillingConfig(), undefined, {
+    resolveForCheckout: async input => { resolved = input; return "promo_server_checked"; },
+  });
+  await checkout.execute({ merchantId: "mrc_promo", email: "owner@example.com", plan: "growth", promotionCode: "BLACKFRIDAY" });
+  assert.deepEqual(resolved, { code: "BLACKFRIDAY", plan: "growth", cycle: "monthly" });
+  assert.equal(checkoutInput.promotionCodeId, "promo_server_checked");
+});
+
+test("invalid campaign creates neither a customer nor checkout", async () => {
+  const stripe = new StubStripePlatform(); let calls = 0;
+  stripe.createBillingCustomer = async () => { calls++; return { customerId: "cus_test" }; };
+  const checkout = new CreateBillingCheckoutUseCase(new InMemoryPaymentPlatformRepository(), stripe, new InMemoryMerchantRepository(), new StubBillingConfig(), undefined, {
+    resolveForCheckout: async () => { throw new Error("billing_promotion_invalid"); },
+  });
+  await assert.rejects(() => checkout.execute({ merchantId: "mrc_promo", email: "owner@example.com", plan: "growth", promotionCode: "BAD" }), /billing_promotion_invalid/);
+  assert.equal(calls, 0);
 });
 
 test("a manually provisioned plan without a provider subscription opens Stripe Checkout", async () => {

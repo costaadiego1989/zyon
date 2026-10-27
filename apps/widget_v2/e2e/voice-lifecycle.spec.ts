@@ -8,7 +8,7 @@ for (const pending of ['microphone', 'session'] as const) {
         const { React, createRoot, useRealtimeVoiceCheckout } = await import('/e2e/voice-lifecycle-harness.ts');
         let release!: () => void;
         const gate = new Promise<void>(resolve => { release = resolve; });
-        const state = { peers: 0, tracksStopped: 0, requested: false };
+        const state = { peers: 0, peersClosed: 0, remoteAnswers: 0, sessionRequested: false, tracksStopped: 0, requested: false };
         const stream = { getTracks: () => [{ stop: () => { state.tracksStopped += 1; } }] };
         Object.defineProperty(navigator.mediaDevices, 'getUserMedia', {
           configurable: true,
@@ -20,11 +20,22 @@ for (const pending of ['microphone', 'session'] as const) {
         });
         Object.defineProperty(window, 'RTCPeerConnection', {
           configurable: true,
-          value: class {
+          value: class extends EventTarget {
+            iceGatheringState = 'complete';
+            connectionState = 'connected';
+            localDescription = { sdp: 'v=0\r\n' };
             constructor() {
+              super();
               state.peers += 1;
-              throw new Error('A cancelled connection must never create a peer');
             }
+            addTrack() {}
+            createDataChannel() {
+              return Object.assign(new EventTarget(), { readyState: 'connecting', close() {}, send() {} });
+            }
+            async createOffer() { return { type: 'offer', sdp: 'v=0\r\n' }; }
+            async setLocalDescription() {}
+            async setRemoteDescription() { state.remoteAnswers++; }
+            close() { state.peersClosed++; }
           },
         });
         const host = document.createElement('div');
@@ -35,9 +46,11 @@ for (const pending of ['microphone', 'session'] as const) {
         function Probe() {
           const voice = useRealtimeVoiceCheckout({
             enabled: true,
-            createSession: async () => {
+            createSession: async (sdp: string) => {
+              if (!sdp.startsWith('v=0')) throw new Error('Missing offer');
+              state.sessionRequested = true;
               if (pending === 'session') await gate;
-              return { value: 'unused-test-secret' };
+              return { sdp: 'v=0\r\n' };
             },
             onCommerceTurn: async () => ({ agentMessage: 'OK' }),
             onBeginCheckout: async () => ({ agentMessage: 'OK' }),
@@ -50,6 +63,7 @@ for (const pending of ['microphone', 'session'] as const) {
       await expect.poll(() => page.evaluate(() => Boolean((window as any).__voiceLifecycle.voice))).toBe(true);
       await page.evaluate(() => (window as any).__voiceLifecycle.voice.start());
       await expect.poll(() => page.evaluate(() => (window as any).__voiceLifecycle.state.requested)).toBe(true);
+      if (pending === 'session') await expect.poll(() => page.evaluate(() => (window as any).__voiceLifecycle.state.sessionRequested)).toBe(true);
       await page.evaluate(async cancellation => {
         const probe = (window as any).__voiceLifecycle;
         if (cancellation === 'unmount') probe.unmount();
@@ -59,7 +73,9 @@ for (const pending of ['microphone', 'session'] as const) {
         await new Promise(resolve => setTimeout(resolve, 50));
       }, cancellation);
       expect(await page.evaluate(() => (window as any).__voiceLifecycle.state)).toEqual({
-        peers: 0, tracksStopped: 1, requested: true,
+        peers: pending === 'session' ? 1 : 0,
+        peersClosed: pending === 'session' ? 1 : 0,
+        remoteAnswers: 0, sessionRequested: pending === 'session', tracksStopped: 1, requested: true,
       });
       await expect(page.locator('audio[data-zyon-realtime-audio]')).toHaveCount(0);
     });

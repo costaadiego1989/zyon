@@ -19,6 +19,8 @@ import { toCheckoutSession } from "../../checkout/infrastructure/prisma/checkout
 import { paymentCartFingerprint } from "../../checkout/domain/services/payment-cart-fingerprint.js";
 import type { PaymentIntentSnapshot } from "../../payment/domain/payment-intent.entity.js";
 import { assertPaymentAmount, paymentReviewFingerprint } from "../../payment/domain/payment-amount.js";
+import { assertNoCheckoutCouponBindingInput, hasStoredCheckoutCouponBinding } from "../../checkout/domain/services/checkout-coupon-storage.js";
+import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
 
 type Tx = Prisma.TransactionClient;
 const json = (value: unknown) => value as Prisma.InputJsonValue;
@@ -120,10 +122,12 @@ async function authoritativeCart(tx: Tx, session: CheckoutSession, lockPrices = 
   let total = 0;
   for (const item of cart.items) {
     const price = prices.find(p => p.variantId === item.variantId);
-    if (!price || !Number.isSafeInteger(price.costInCents) || price.costInCents! < 0
+    if (!price || !Number.isSafeInteger(price.basePriceInCents) || price.basePriceInCents <= 0
       || moneyCents(item.price) !== price.basePriceInCents) return null;
     total += price.basePriceInCents * item.quantity;
-    items.push({ ...item, cost: price.costInCents! / 100 });
+    const { cost: _snapshotCost, ...canonicalItem } = item;
+    items.push({ ...canonicalItem,
+      ...(Number.isSafeInteger(price.costInCents) && price.costInCents! >= 0 ? { cost: price.costInCents! / 100 } : {}) });
   }
   return Number.isSafeInteger(total) && moneyCents(cart.total) === total ? { ...cart, items } : null;
 }
@@ -147,6 +151,11 @@ async function eligibleIntent(tx: Tx, merchantId: string, buyerId: string, inten
  * admitted before payment/outcome. Identity can become eligible after creation.
  * The caller holds merchant BEFORE session, and uses the returned cart/version. */
 export async function applyEligibleIncentive(tx: Tx, session: CheckoutSession): Promise<CheckoutSession> {
+  // Caller must already hold merchant/config -> session anchor -> persisted
+  // checkout row in this transaction. Never acquire earlier locks here.
+  // Optional enrollment must preserve private canonical storage, not grant over
+  // it or decode/drop it. Full coupon lifecycle is not active in this runtime.
+  if (hasStoredCheckoutCouponBinding(session.cart)) return session;
   const merchantId = session.merchantId;
   if (!incentiveExecutionEnabled(merchantId) || session.cohort !== "treatment" || !session.globalUserId?.trim()
     || session.promptVariantId || !session.shipping) return session;
@@ -235,8 +244,10 @@ async function grantedIncentive(tx: Tx, assignment: StrategyIncentiveAssignment)
  * No increase is allowed once any provider attempt exists. */
 export async function prepareProgressiveIncentivePayment(tx: Tx, merchantId: string, sessionId: string, method: string): Promise<CheckoutSession | null> {
   await lockCheckoutBaselineRows(tx, merchantId);
+  await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
   await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
   const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
+  if (session) assertNoCheckoutCouponBindingInput(session.cart);
   if (!session || !incentiveExecutionEnabled(merchantId) || !commercialModesEnabled(merchantId)
     || !["pix", "card", "boleto", "crypto"].includes(method)) return session;
   const assignment = await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
@@ -285,6 +296,9 @@ export async function prepareProgressiveIncentivePayment(tx: Tx, merchantId: str
  * through ordinary checkout persistence, independently of entering the code. */
 export async function applyIncentiveCoupon(tx: Tx, session: CheckoutSession,
   input: { executionId: string; code: string }): Promise<CheckoutSession | null> {
+  // The fenced coupon command owns the session anchor/row and earlier merchant
+  // locks. This helper must not invert that order after coupon acquisition.
+  assertNoCheckoutCouponBindingInput(session.cart);
   const execution = await tx.strategyIncentiveExecution.findFirst({ where: { id: input.executionId, merchantId: session.merchantId } });
   if (!execution || !incentiveExecutionEnabled(session.merchantId) || !commercialModesEnabled(session.merchantId)) return null;
   const recommendation = execution.recommendation as unknown as StrategyIncentiveRecommendation;
@@ -318,8 +332,12 @@ export async function applyIncentiveCoupon(tx: Tx, session: CheckoutSession,
 /** A changed cart/buyer cannot carry the old benefit to another sale. Pending
  * provider decisions keep their reservation and require payment resolution. */
 export async function invalidateIncentiveCheckout(tx: Tx, merchantId: string, sessionId: string) {
+  // Called by fenced checkout mutations while the same transaction already
+  // holds merchant/config -> session anchor -> checkout row.
   const assignment = await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
   if (!assignment?.reservationId) return;
+  const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
+  assertNoCheckoutCouponBindingInput(session?.cart);
   const reservation = await tx.strategyIncentiveReservation.findUniqueOrThrow({ where: { id: assignment.reservationId } });
   if (reservation.status !== "reserved") return;
   if (await tx.paymentIntent.count({ where: { merchantId, sessionId, status: { in: ["pending", "requires_action", "approved"] } } })) {
@@ -334,10 +352,12 @@ export async function invalidateIncentiveCheckout(tx: Tx, merchantId: string, se
  * payment must carry the buyer's confirmation; retries alone cannot charge. */
 export async function reviseIncentiveForPaymentReview(tx: Tx, merchantId: string, sessionId: string) {
   await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchantId} FOR UPDATE`;
+  await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
   await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
   const assignment = await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
   if (!assignment?.reservationId) return undefined;
   const session = await tx.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: { merchantId, sessionId } } });
+  assertNoCheckoutCouponBindingInput(session.cart);
   const reservation = await tx.strategyIncentiveReservation.findUniqueOrThrow({ where: { id: assignment.reservationId } });
   if (await tx.paymentIntent.count({ where: { merchantId, sessionId, status: { notIn: ["failed", "cancelled"] } } })) return undefined;
   if (reservation.status === "released" && reservation.evidenceKey?.startsWith("checkout-review:")) return toCheckoutSession(session);
@@ -365,8 +385,10 @@ export async function validateIncentivePayment(tx: Tx, snapshot: PaymentIntentSn
   const assignment = await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
   if (!assignment) return;
   await lockCheckoutBaselineRows(tx, merchantId);
+  await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
   await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
   const session = await tx.checkoutSession.findUniqueOrThrow({ where: { merchantId_sessionId: { merchantId, sessionId } } });
+  assertNoCheckoutCouponBindingInput(session.cart);
   const checkout = toCheckoutSession(session);
   const breakdown = snapshot.amountBreakdown;
   if (!breakdown || breakdown.cartFingerprint !== paymentCartFingerprint(checkout)) throw new Error("INCENTIVE_PAYMENT_CART_CHANGED");

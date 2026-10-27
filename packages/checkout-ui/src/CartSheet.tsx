@@ -1,11 +1,28 @@
 import React, { useEffect, useState } from "react";
 import type { CartSheetProps } from "./types";
+import { parseCommercialNotices, commercialNoticeLabel } from "./commercial-notices";
+import { cartItemSelection, cartItemLineKey, cartItemDisplayName } from "./cart-line-selection";
 
 function formatPrice(value: number): string {
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value);
 }
 
 export type CartSheetPosition = "bottom" | "right";
+
+function CartProductImage({ src, name }: { src?: string; name: string }) {
+  const imageSrc = src?.trim();
+  const [failedImage, setFailedImage] = useState<string>();
+  const hasImage = Boolean(imageSrc && imageSrc !== failedImage);
+  return <div role="img" aria-label={hasImage ? name : `Imagem indisponível: ${name}`} style={{ width: "46px", height: "46px", borderRadius: "10px", flexShrink: 0, overflow: "hidden", background: "var(--aacp-surface-2)", border: "1px solid var(--aacp-line)", display: "grid", placeItems: "center", color: "var(--aacp-muted)" }}>
+    {hasImage ? <img src={imageSrc} alt="" onError={() => setFailedImage(imageSrc)} style={{ width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : (
+      <svg data-cart-image-placeholder width="22" height="22" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" aria-hidden="true">
+        <line x1="16.5" y1="9.4" x2="7.5" y2="4.21" />
+        <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
+        <polyline points="3.27 6.96 12 12.01 20.73 6.96" /><line x1="12" y1="22.08" x2="12" y2="12" />
+      </svg>
+    )}
+  </div>;
+}
 
 export function CartSheet({ open, cart, updating = false, error, mode = "checkout", onClose, onCheckout, onBudgetSubmit, onUpdateQty, onRemoveItem, onViewCart, position = "bottom" }: CartSheetProps & { onViewCart?: () => void; position?: CartSheetPosition; onBudgetSubmit?: (data: { customerName: string; customerEmail: string; customerPhone: string; note?: string }) => void }) {
   const [showBudgetForm, setShowBudgetForm] = useState(false);
@@ -28,6 +45,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
   if (!open) return null;
 
   const isBottom = position === "bottom";
+  const commercialNotices = parseCommercialNotices(cart.commercialNotices);
 
   return (
     <>
@@ -131,7 +149,7 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
             <>
               {cart.items.map((item) => (
                 <div
-                  key={item.variantId}
+                  key={cartItemLineKey(item)}
                   style={{
                     display: "flex",
                     alignItems: "center",
@@ -143,17 +161,12 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
                     marginBottom: "10px",
                   }}
                 >
-                  <div style={{ position: "relative", width: "46px", height: "46px", borderRadius: "10px", flexShrink: 0, overflow: "hidden", background: "linear-gradient(135deg, var(--aacp-surface-2), var(--aacp-surface-3, rgba(255,255,255,0.08)))", border: "1px solid var(--aacp-line)", display: "flex", alignItems: "center", justifyContent: "center" }}>
-                    {item.image ? <img src={item.image} alt="" onError={(event) => { event.currentTarget.style.display = "none"; }} style={{ position: "absolute", inset: 0, width: "100%", height: "100%", objectFit: "cover", display: "block" }} /> : null}
-                    <span style={{ fontSize: "18px", fontWeight: 700, color: "var(--aacp-accent-text, var(--aacp-accent))", opacity: 0.4 }}>
-                      {item.productName.charAt(0).toUpperCase()}
-                    </span>
-                  </div>
+                  <CartProductImage src={item.image} name={item.productName} />
 
                   {/* Product details */}
                   <div style={{ flex: 1, minWidth: 0 }}>
-                    <div style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
-                      {item.productName}
+                    <div title={cartItemDisplayName(item)} style={{ fontSize: "13px", fontWeight: 600, color: "var(--aacp-fg)", overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap" }}>
+                      {cartItemDisplayName(item)}
                     </div>
                     <div style={{ fontSize: "10.5px", color: "var(--aacp-muted)", marginTop: "2px" }}>
                       {formatPrice(item.price)} un.
@@ -166,21 +179,21 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
                       type="button"
                       className="ckui-quantity"
                       disabled={updating || budgetSending}
-                      aria-label={`Diminuir quantidade de ${item.productName}`}
-                      onClick={() => item.quantity <= 1 ? onRemoveItem(item.variantId) : onUpdateQty(item.variantId, item.quantity - 1)}
+                      aria-label={`Diminuir quantidade de ${cartItemDisplayName(item)}`}
+                      onClick={() => item.quantity <= 1 ? onRemoveItem(item.variantId, cartItemSelection(item)) : onUpdateQty(item.variantId, item.quantity - 1, cartItemSelection(item))}
                       style={{ borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                     >
                       −
                     </button>
-                    <span aria-label={`Quantidade de ${item.productName}`} aria-live="polite" style={{ fontSize: "13px", fontWeight: 600, minWidth: "14px", textAlign: "center", color: "var(--aacp-fg)" }}>
+                    <span aria-label={`Quantidade de ${cartItemDisplayName(item)}`} aria-live="polite" style={{ fontSize: "13px", fontWeight: 600, minWidth: "14px", textAlign: "center", color: "var(--aacp-fg)" }}>
                       {item.quantity}
                     </span>
                     <button data-neu="control"
                       type="button"
                       className="ckui-quantity"
                       disabled={updating || budgetSending || item.quantity >= 99}
-                      aria-label={`Aumentar quantidade de ${item.productName}`}
-                      onClick={() => onUpdateQty(item.variantId, item.quantity + 1)}
+                      aria-label={`Aumentar quantidade de ${cartItemDisplayName(item)}`}
+                      onClick={() => onUpdateQty(item.variantId, item.quantity + 1, cartItemSelection(item))}
                       style={{ borderRadius: "7px", border: "1px solid var(--aacp-line)", background: "var(--aacp-surface-2, rgba(255,255,255,0.05))", color: "var(--aacp-fg)", fontSize: "14px", cursor: "pointer", display: "flex", alignItems: "center", justifyContent: "center", padding: 0 }}
                     >
                       +
@@ -190,6 +203,11 @@ export function CartSheet({ open, cart, updating = false, error, mode = "checkou
               ))}
 
               {/* Summary rows */}
+              {commercialNotices.length > 0 && <div data-aacp-commercial-notices role="status" aria-live="polite" style={{ color: "var(--aacp-fg)", fontSize: 13, lineHeight: 1.45, overflowWrap: "anywhere" }}>
+                {commercialNotices.map((notice, index) => <p key={`${notice.code}-${index}`} data-commercial-notice-code={notice.code} style={{ margin: "8px 0" }}>
+                  <strong>{commercialNoticeLabel(notice.code)}.</strong>{" "}{notice.message}
+                </p>)}
+              </div>}
               <div style={{ borderTop: "1px solid var(--aacp-line)", paddingTop: "12px", marginTop: "8px" }}>
                 <div style={{ display: "flex", justifyContent: "space-between", padding: "6px 0" }}>
                   <span style={{ fontSize: "12px", color: "var(--aacp-muted)" }}>Subtotal</span>

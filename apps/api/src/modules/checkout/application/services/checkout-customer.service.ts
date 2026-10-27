@@ -1,13 +1,16 @@
-import { Inject, Injectable, Optional } from "@nestjs/common";
+import { ConflictException, Inject, Injectable, Optional, UnauthorizedException } from "@nestjs/common";
 import { randomUUID } from "node:crypto";
 import { customerCorrection, type CustomerCorrection } from "../../domain/services/customer-correction.js";
 import type { CheckoutSession, CustomerHints } from "@zyon/shared-types";
 import { CHECKOUT_SESSION_REPOSITORY, type CheckoutSessionRepository } from "../../domain/ports/checkout-session.repository.port.js";
+import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
+import { CheckoutEmailOtpVerificationError } from "../../domain/services/checkout-email-otp-verification.js";
 import { BrevoBuyerEmailNotifier } from "../../infrastructure/brevo-buyer-email.notifier.js";
 import {
   extractCep,
   extractCpf,
   extractEmail,
+  extractOtp,
   extractName,
   extractStandaloneName,
   extractPhone,
@@ -21,6 +24,7 @@ import { WHATSAPP_TEMPLATE_REPOSITORY, type WhatsAppTemplateRepositoryPort } fro
 import { WHATSAPP_TEMPLATE_SENDER, type WhatsAppTemplateSenderPort } from "../../../whatsapp-templates/domain/ports/whatsapp-template-sender.port.js";
 import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 import { CheckoutSavedAddressService } from "./checkout-saved-address.service.js";
+import type { TrustedCheckoutBuyer } from "./trusted-checkout-buyer.js";
 
 // Re-export for backwards compatibility
 export { OtpValidationError } from "./otp.service.js";
@@ -64,11 +68,34 @@ export class CheckoutCustomerService {
     session: CheckoutSession,
     userMessage: string,
     lastAgentTurn: string | undefined,
-    merchantName: string | undefined
+    merchantName: string | undefined,
+    chatClaim?: ChatExchangeClaim,
   ): Promise<CheckoutSession> {
     session = structuredClone(session);
     const patch = this.buildCustomerPatch(userMessage, session.customer, lastAgentTurn);
     if (!patch) return session;
+
+    // A real normal acceptance cannot be reassigned by the generic two-commit
+    // verified-flag/recognition path. The dedicated command consumes the actual
+    // challenge and writes the canonical identity proof in the same transaction.
+    if (patch.email_verified && session.cart.items.some(item => item.crossSellIntent !== undefined)) {
+      const code = extractOtp(userMessage);
+      if (!this.repository.verifyEmailOtpAndRecognize || !code || session.persistenceVersion === undefined)
+        throw new OtpValidationError("Não foi possível confirmar a identidade agora. Revise o checkout antes de continuar.");
+      let verified: CheckoutSession | undefined;
+      try {
+        verified = await this.repository.verifyEmailOtpAndRecognize({ merchantId: session.merchantId, sessionId: session.sessionId },
+          { expectedVersion: session.persistenceVersion, code }, chatClaim);
+      } catch (error) {
+        if (error instanceof CheckoutEmailOtpVerificationError) throw new OtpValidationError(error.reason === "expired"
+          ? "Esse código de confirmação expirou. Peça para reenviar o código e use o novo código para continuar."
+          : "Código de verificação inválido. Por favor, confira o código enviado para o seu e-mail e tente novamente.");
+        if (error instanceof Error && ["checkout_buyer_identity_review_required", "cross_sell_quote_review_required"].includes(error.message))
+          throw new OtpValidationError("A identidade e os benefícios deste checkout precisam de revisão antes de continuar.");
+        throw error;
+      }
+      if (verified) return this.recognizeAndPersistVerifiedBuyer(verified, verified.globalUserId);
+    }
 
     const hadEmailAlready = Boolean(session.customer?.email?.trim());
     let working = this.mergeCustomers(session, patch);
@@ -112,10 +139,47 @@ export class CheckoutCustomerService {
     // An email hint (including an existing account's email) is not proof of possession.
     // Recognition is only performed after this session's OTP has been validated.
     if (!session.customer?.email_verified) return session;
+    if (this.repository.readVerifiedNormalBuyerIdentity) {
+      if (session.persistenceVersion === undefined) throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+      const pinned = await this.repository.readVerifiedNormalBuyerIdentity({ merchantId: session.merchantId, sessionId: session.sessionId },
+        { expectedVersion: session.persistenceVersion, expectedBuyerId: session.globalUserId });
+      if (pinned !== undefined) return this.recognizeAndPersistVerifiedBuyer(session, pinned);
+    }
     return this.recognizeAndPersistVerifiedBuyer(session);
   }
 
-  async correctCustomerInput(session: CheckoutSession, text: string, lastAgentTurn?: string, merchantName?: string): Promise<(CustomerCorrection & { session: CheckoutSession; message?: string; needsInput?: boolean; blocked?: boolean }) | null> {
+  /** Read-only preparation for an independently authenticated checkout start.
+   * The candidate may not exist in storage yet. Recognition cannot reassign the
+   * signed identity, and no candidate is committed through a generic mutation. */
+  async prepareTrustedBuyerForCheckout(session: CheckoutSession, buyer: TrustedCheckoutBuyer): Promise<CheckoutSession> {
+    this.assertTrustedBuyer(session, buyer);
+    const candidate = structuredClone(session);
+    if (!this.recognitionService) return candidate;
+    const recognized = await this.recognitionService.recognizeVerifiedBuyer(candidate, (s, patch) => this.mergeCustomers(s, patch), buyer.globalUserId);
+    if (recognized.globalUserId !== undefined && recognized.globalUserId !== buyer.globalUserId) {
+      throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+    }
+    this.assertTrustedBuyer(recognized.session, buyer);
+    return structuredClone(recognized.session);
+  }
+
+  /** Called only after the canonical create winner was authenticated and saved.
+   * Account persistence rechecks the account's identity; this is not a SQL lease. */
+  async persistTrustedBuyerProfile(session: CheckoutSession, buyer: TrustedCheckoutBuyer): Promise<void> {
+    this.assertTrustedBuyer(session, buyer);
+    await this.persistenceService?.ensureBuyerAccountPersisted(session, false, buyer.globalUserId);
+  }
+
+  private assertTrustedBuyer(session: CheckoutSession, buyer: TrustedCheckoutBuyer): void {
+    if (!buyer.globalUserId || session.globalUserId !== buyer.globalUserId || buyer.customer.email_verified !== true ||
+      session.customer?.email_verified !== true || !buyer.customer.email.trim() ||
+      session.customer.email?.trim().toLowerCase() !== buyer.customer.email.trim().toLowerCase()) {
+      throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+    }
+  }
+
+  async correctCustomerInput(session: CheckoutSession, text: string, lastAgentTurn?: string, merchantName?: string,
+    chatClaim?: ChatExchangeClaim): Promise<(CustomerCorrection & { session: CheckoutSession; message?: string; needsInput?: boolean; blocked?: boolean }) | null> {
     session = structuredClone(session);
     const savedAddress = await this.savedAddresses?.resolve(session, text);
     if (savedAddress?.message) {
@@ -136,6 +200,29 @@ export class CheckoutCustomerService {
     const previous = session.customer ?? {};
     let working: CheckoutSession = { ...session, customer: { ...previous, ...correction.patch }, updatedAt: new Date().toISOString() };
     if (correction.field === "email" && correction.patch.email !== previous.email?.toLowerCase()) {
+      if (session.cart.items.some(item => item.crossSellIntent !== undefined)) {
+        if (!this.repository.detachNormalBuyerEmail || session.persistenceVersion === undefined) return { ...correction, session,
+          blocked: true, message: "A identidade e os benefícios deste checkout precisam de revisão antes de corrigir o e-mail." };
+        let detached: CheckoutSession | undefined;
+        try {
+          detached = await this.repository.detachNormalBuyerEmail({ merchantId: session.merchantId, sessionId: session.sessionId },
+            { expectedVersion: session.persistenceVersion, email: correction.patch.email! }, chatClaim);
+        } catch (error) {
+          if (error instanceof Error && error.message === "checkout_buyer_identity_review_required"
+            || error instanceof ConflictException && error.message === "CHECKOUT_SESSION_VERSION_CONFLICT") {
+            const canonical = await this.repository.getSession(session.merchantId, session.sessionId) ?? session;
+            return { ...correction, session: canonical, blocked: true,
+              message: "A identidade e os benefícios deste checkout precisam de revisão antes de corrigir o e-mail." };
+          }
+          throw error;
+        }
+        if (detached) {
+          working = await this.processCustomerInput(detached, correction.patch.email!, undefined, merchantName, chatClaim);
+          return { ...correction, session: working };
+        }
+        // Only actual absence of NORMAL in both durable tables may use legacy
+        // correction. A malformed NORMAL record never reaches this branch.
+      }
       // Changing identity must not carry a prior account or its proof to a new email.
       working = {
         ...working, globalUserId: `usr_${randomUUID()}`, shipping: undefined, shippingOptions: undefined,
@@ -263,14 +350,20 @@ export class CheckoutCustomerService {
     };
   }
 
-  private async recognizeAndPersistVerifiedBuyer(session: CheckoutSession): Promise<CheckoutSession> {
+  private async recognizeAndPersistVerifiedBuyer(session: CheckoutSession, trustedGlobalUserId?: string): Promise<CheckoutSession> {
     if (!this.recognitionService) return session;
     session = structuredClone(session);
 
     const result = await this.recognitionService.recognizeVerifiedBuyer(
       session,
-      (s, p) => this.mergeCustomers(s, p)
+      (s, p) => this.mergeCustomers(s, p),
+      trustedGlobalUserId,
     );
+
+    if (trustedGlobalUserId !== undefined && (result.session.globalUserId !== trustedGlobalUserId
+      || result.globalUserId !== undefined && result.globalUserId !== trustedGlobalUserId)) {
+      throw new UnauthorizedException("checkout_buyer_session_binding_mismatch");
+    }
 
     let next = result.session;
     if (result.globalUserId && result.globalUserId !== next.globalUserId) {
@@ -281,7 +374,7 @@ export class CheckoutCustomerService {
       };
     }
     next = await commitCheckoutMutation(this.repository, { expected: session, next });
-    await this.persistenceService?.ensureBuyerAccountPersisted(next);
+    await this.persistenceService?.ensureBuyerAccountPersisted(next, false, trustedGlobalUserId);
     return next;
   }
 

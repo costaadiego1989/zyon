@@ -3,6 +3,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { isDeepStrictEqual } from "node:util";
 import type { CheckoutSession } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../persistence/persistence.module.js";
+import { lockCheckoutSessionAnchor } from "../persistence/checkout-session-lock.js";
 import { publicServiceSchedule, resolveSelectedServiceSlot, type PublicServiceSchedule } from "../../modules/catalog/domain/services/service-schedule.js";
 import { RedisServiceSlots, serviceSlotStore, type SlotHold, type SlotRequest } from "./redis-service-slots.js";
 
@@ -24,6 +25,7 @@ export class ServiceSlotHoldsService {
     const slots = sessionSlotRequests(session);
     if (!slots.length) return undefined;
     return this.prisma.$transaction(async tx => {
+      await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${session.merchantId} AND session_id = ${session.sessionId} FOR UPDATE`;
       if (await tx.completedOrder.findFirst({ where: { merchantId: session.merchantId, sessionId: session.sessionId } })) return undefined;
       const persisted = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } } });

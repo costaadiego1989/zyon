@@ -32,7 +32,7 @@ export function useStepShipping() {
     setConnecting(true);
     setError(null);
     try {
-      await api.updateDeliveryConfig({ melhorEnvioEnabled: true, ownDelivery: { enabled: false } });
+      await api.updateDeliveryConfig({ melhorEnvioEnabled: true });
       window.location.assign(api.getMelhorEnvioAuthorizeUrl("onboarding"));
     } catch {
       setError("Não foi possível iniciar a conexão. Atualize a configuração e tente novamente.");

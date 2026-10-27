@@ -96,7 +96,7 @@ test("Omie does not persist a connected state for an HTTP 200 API fault", async 
   globalThis.fetch = (async () => new Response(JSON.stringify({ faultcode: "AUTH", faultstring: "Invalid credentials" }))) as typeof fetch;
   t.after(() => { globalThis.fetch = original; });
   const useCase = new ConnectOmieUseCase({ upsert: async () => { stored = true; } } as never);
-  await assert.rejects(() => useCase.execute({ merchantId: "merchant_a", appKey: "test", appSecret: "test" }), /omie_validation_failed/);
+  await assert.rejects(() => useCase.execute({ merchantId: "merchant_a", appKey: "test", appSecret: "test" }), /erp_omie_credentials_invalid_or_app_suspended/);
   assert.equal(stored, false);
 });
 
@@ -109,11 +109,12 @@ test("mixed-provider cart pushes only the items mapped to this ERP account", asy
   }) as typeof fetch;
   t.after(() => { globalThis.fetch = original; });
   const service = new ErpSyncService({
-    inventorySaleReceipt: { findFirst: async () => ({ orderId: "order_a", result: { items: [
+    inventorySaleReceipt: { findFirst: async () => ({ orderId: "order_a", payload: { items: [{ sku: "BLING-ONLY", productType: "physical" }, { sku: "TINY-ONLY", productType: "physical" }, { sku: "LOCAL-ONLY", productType: "physical" }] }, result: { items: [
       { sku: "BLING-ONLY", itemId: "item_bling", quantity: 1, remainingQuantity: 7 },
       { sku: "TINY-ONLY", itemId: "item_tiny", quantity: 1, remainingQuantity: 10 },
       { sku: "LOCAL-ONLY", itemId: "item_local", quantity: 1, remainingQuantity: 3 },
     ] } }) },
+    productVariant: { findMany: async () => ["BLING-ONLY", "TINY-ONLY", "LOCAL-ONLY"].map(sku => ({ sku })) },
     erpProductMapping: { findFirst: async ({ where }: any) => {
       assert.equal(where.merchantId, "merchant_a");
       assert.equal(where.connectionId, "tiny_connection");
@@ -179,7 +180,7 @@ for (const reason of ["queued sale", "failed sale", "sale completed during snaps
 
 test("snapshot waits for a pending sale without exhausting its own retry limit", async () => {
   const jobWrites: any[] = [];
-  const connection = { id: "connection_a", merchantId: "merchant_a", provider: "omie", directionMode: "bidirectional" };
+  const connection = { id: "connection_a", merchantId: "merchant_a", provider: "omie", status: "connected", directionMode: "bidirectional" };
   const prisma = {
     erpConnection: { findFirst: async () => connection, update: async () => ({}) },
     erpSyncJob: {

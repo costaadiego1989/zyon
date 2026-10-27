@@ -300,7 +300,7 @@ describe("LLM Safety Tests — Core Invariant Validation", () => {
       assert.ok(evaluation.value < 50, "Value should not reach buyer request");
     });
 
-    test("17. Offer violates minimumMarginPercent → REJECTED (no offer)", () => {
+    test("17. Margin cannot veto a deterministically authorized discount within ceiling", () => {
       const cart = makeCart({
         total: 100,
         items: [{ sku: "item-1", name: "Product A", price: 100, cost: 80, quantity: 1 }],
@@ -314,12 +314,13 @@ describe("LLM Safety Tests — Core Invariant Validation", () => {
 
       const evaluation = evaluateDiscountOffer(cart, strictMarginRules, 10);
 
-      assert.equal(evaluation.approved, false, "Should reject when margin violation");
-      assert.equal(evaluation.type, "none", "Should return no offer");
-      assert.equal(evaluation.reason, "minimum_margin_violation", "Reason should cite margin");
+      assert.equal(evaluation.approved, true);
+      assert.equal(evaluation.type, "discount_percent");
+      assert.equal(evaluation.value, 10);
+      assert.equal(evaluation.reason, "discount_allowed");
     });
 
-    test("18. Item missing cost → incentive rejected without inventing a cost", () => {
+    test("18. Item missing cost → respect ceiling without inventing a cost", () => {
       const cart = makeCart({
         total: 100,
         items: [{ sku: "item-1", name: "Product A", price: 100, quantity: 1 }], // cost undefined
@@ -327,8 +328,9 @@ describe("LLM Safety Tests — Core Invariant Validation", () => {
 
       const evaluation = evaluateDiscountOffer(cart, baseRules, 10);
 
-      assert.equal(evaluation.approved, false);
-      assert.equal(evaluation.reason, "product_cost_missing");
+      assert.equal(evaluation.approved, true);
+      assert.equal(evaluation.value, 10);
+      assert.equal(evaluation.reason, "discount_allowed");
     });
   });
 

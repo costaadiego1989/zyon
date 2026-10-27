@@ -1,6 +1,6 @@
 import assert from "node:assert/strict";
 import test from "node:test";
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
 import { PrismaStorefrontTelemetryRepository } from "./prisma-storefront-telemetry.repository.js";
 
 test("storefront recovery telemetry binds the authenticated buyer, cart and abandonment score", async () => {
@@ -8,7 +8,10 @@ test("storefront recovery telemetry binds the authenticated buyer, cart and aban
   const persistedEvents: any[] = [];
   const updates: any[] = [];
   const prisma = {
+    async $transaction<T>(work: (client: Prisma.TransactionClient) => Promise<T>) { return work(prisma); },
+    async $queryRaw() { return session ? [{ id: "checkout-synthetic" }] : []; },
     checkoutSession: {
+      async findUnique() { return session ?? null; },
       async upsert({ create, update }: any) {
         if (!session) {
           session = { ...create };

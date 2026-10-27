@@ -16,6 +16,7 @@ import { assertCheckoutChatBaseline } from "../../domain/services/checkout-chat-
 import { digest } from "../../../experiments/domain/services/measurement-plan.js";
 import { toCheckoutSession } from "../../infrastructure/prisma/checkout-session.mapper.js";
 import type { StrategyExecutionContract } from "../../../revenue-manager/domain/strategy-execution.js";
+import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 
 /** Narrow, disabled-by-default connection to the real chat. Once an assignment
  * owns a primary turn, no legacy provider/tool/payment fallback is allowed.
@@ -100,6 +101,7 @@ export class StrategyCheckoutChatService {
     reason: NonNullable<ReturnType<typeof strategyChatContextExit>>) {
     await this.prisma.$transaction(async tx => {
       await lockExecutionMerchant(tx, request.merchant_id);
+      await lockCheckoutSessionAnchor(tx, request.merchant_id, request.session_id);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${request.merchant_id}
         AND session_id = ${request.session_id} FOR UPDATE`;
       const owner = await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: {

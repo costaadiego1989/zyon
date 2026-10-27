@@ -2,14 +2,14 @@ import { Logger, Module } from "@nestjs/common";
 import type { PrismaClient } from "@prisma/client";
 import { PRISMA_CLIENT } from "../../shared/persistence/persistence.module.js";
 import { MerchantModule } from "../merchant/merchant.module.js";
-import { CARRIER_ADAPTERS } from "./domain/ports/carrier.port.js";
+import { CARRIER_ADAPTERS, SHIPPING_REFERENCE_CARRIERS } from "./domain/ports/carrier.port.js";
+import type { ShippingContext } from "./domain/ports/carrier.port.js";
 import { SHIPPING_QUOTE_REPOSITORY } from "./domain/ports/shipping-quote-repository.port.js";
 import { OWN_DELIVERY_CONFIG_REPOSITORY } from "./domain/ports/own-delivery-config.port.js";
 import { MELHOR_ENVIO_TOKEN_RESOLVER, type MelhorEnvioTokenResolver } from "./domain/ports/melhor-envio-token-resolver.port.js";
 import { QuoteShippingUseCase } from "./application/use-cases/quote-shipping.use-case.js";
 import { QuoteMarketplaceShippingService } from "./application/use-cases/quote-marketplace-shipping.service.js";
 import { GetMarketplaceShippingContractService } from "./application/use-cases/get-marketplace-shipping-contract.service.js";
-import { FlatRateCarrierAdapter } from "./infrastructure/adapters/flat-rate.carrier.js";
 import { MelhorEnvioCarrierAdapter } from "./infrastructure/adapters/melhor-envio.carrier.js";
 import { MelhorEnvioReverseAdapter } from "./infrastructure/adapters/melhor-envio-reverse.adapter.js";
 import { PrismaMelhorEnvioTokenResolver } from "./infrastructure/adapters/prisma-melhor-envio-token-resolver.js";
@@ -30,7 +30,6 @@ import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketp
   imports: [MerchantModule],
   controllers: [ShippingShipmentRecoveryController, ShippingShipmentDashboardController],
   providers: [
-    FlatRateCarrierAdapter,
     PrismaMarketplaceDeliveryRepository,
     MarketplaceDeliveryEventsHandler,
     { provide: PrismaMarketplaceShipmentRepository,
@@ -51,7 +50,7 @@ import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketp
       provide: MelhorEnvioCarrierAdapter,
       useFactory: (resolver: MelhorEnvioTokenResolver) => {
         if (!process.env.MELHOR_ENVIO_TOKEN) {
-          Logger.warn("MelhorEnvio: no global MELHOR_ENVIO_TOKEN fallback; merchants without a connected OAuth account will get flat-rate only", "ShippingModule");
+          Logger.warn("MelhorEnvio: no global MELHOR_ENVIO_TOKEN fallback; carrier rates require the merchant account; eligible local delivery stays available", "ShippingModule");
         }
         return new MelhorEnvioCarrierAdapter(resolver);
       },
@@ -72,9 +71,13 @@ import { MarketplaceDeliveryEventsHandler } from "./application/handlers/marketp
     },
     {
       provide: CARRIER_ADAPTERS,
-      useFactory: (flat: FlatRateCarrierAdapter, melhorEnvio: MelhorEnvioCarrierAdapter) => [melhorEnvio, flat],
-      inject: [FlatRateCarrierAdapter, MelhorEnvioCarrierAdapter]
+      useFactory: (melhorEnvio: MelhorEnvioCarrierAdapter) => [melhorEnvio],
+      inject: [MelhorEnvioCarrierAdapter]
     },
+    { provide: SHIPPING_REFERENCE_CARRIERS,
+      useFactory: (carrier: MelhorEnvioCarrierAdapter) => [{ carrierKey: carrier.carrierKey,
+        fetchQuotes: (context: ShippingContext) => carrier.fetchQuotes(context, { requireMerchantAccount: true }) }],
+      inject: [MelhorEnvioCarrierAdapter] },
     QuoteShippingUseCase,
     QuoteMarketplaceShippingService,
     GetMarketplaceShippingContractService

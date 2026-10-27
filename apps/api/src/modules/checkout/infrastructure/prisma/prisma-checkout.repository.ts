@@ -1,7 +1,11 @@
+import { hasPreparedCheckoutPayment } from "../checkout-payment-scope.js";
 import { resolveBusinessPeriod } from "../../../../shared/analytics/business-period.js";
+import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 import { createDigitalOrderFulfillment } from "../../../../shared/persistence/digital-order-fulfillment.js";
 import { initializeOrderFulfillment } from "../../../../shared/persistence/order-fulfillment.js";
-import { toCheckoutSession } from "./checkout-session.mapper.js";
+import { toCheckoutSession, toCheckoutShippingJson } from "./checkout-session.mapper.js";
+import { isDeepStrictEqual } from "node:util";
+import { parseCheckoutCouponOrderAuthority, type CheckoutCouponOrderAuthority } from "../../domain/services/checkout-coupon-binding.js";
 import { ConflictException } from "@nestjs/common";
 import { Prisma, type PrismaClient } from "@prisma/client";
 import type {
@@ -21,6 +25,8 @@ import type {
   OfferType,
   StorePeriod
 } from "@zyon/shared-types";
+import { readPaymentCouponAuthority } from "../../../payment/domain/payment-coupon-authority.js";
+import type { PaymentMethod } from "../../../payment/domain/payment-intent.entity.js";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import type { CheckoutRepository } from "../../domain/ports/checkout-repository.port.js";
 import { CheckoutAbandonmentService } from "../../domain/services/checkout-abandonment.service.js";
@@ -38,9 +44,44 @@ import { paymentCartFingerprint } from "../../domain/services/payment-cart-finge
 import { chatPaymentRecoveryEnabled } from "../../application/services/chat-payment-recovery.js";
 import { applyEligibleIncentive, incentiveExecutionEnabled, invalidateIncentiveCheckout, prepareProgressiveIncentivePayment, reviseIncentiveForPaymentReview } from "../../../revenue-manager/infrastructure/incentive-execution-ledger.js";
 import { reopenCheckout } from "../../domain/services/reopen-checkout.js";
+import { assertNoCheckoutCouponBindingInput, hasStoredCheckoutCouponBinding,
+  preserveStoredCheckoutCouponBinding, readStoredCheckoutCouponBinding, stripStoredCheckoutCouponBinding } from "../../domain/services/checkout-coupon-storage.js";
+import { toMerchantRules } from "./merchant-rules.mapper.js";
+import { prepareStorefrontCouponFormMutation, prepareStorefrontCouponPaymentBenefits } from "./prisma-checkout-coupon-form.js";
+import { releaseBoundCheckoutCouponForEdit, cancelUnboundStorefrontCouponSource } from "../../../../shared/persistence/storefront-coupon/generation-release.js";
+import { lockStorefrontCart } from "../../../../shared/persistence/storefront-cart-lock.js";
+import { readStorefrontCheckoutBindingOwners } from "../../../../shared/persistence/storefront-coupon/cart-owner-fence.js";
+import { assertNoUnprojectedWidgetReceipt } from "../../domain/services/checkout-widget-receipt-boundary.js";
+import { assertWidgetPaymentOrderInTransaction } from "../adapters/widget-payment-order-authority.js";
+import type { WidgetCheckoutPaymentAuthority } from "../../../payment/domain/widget-checkout-payment-authority.schemas.js";
+import type { NormalCheckoutPaymentAuthority } from "../../../payment/domain/normal-checkout-payment-authority.schemas.js";
+import { assertNormalCrossSellPaymentOrderInTransaction } from "../adapters/normal-cross-sell-payment-order-authority.js";
+import { verifyNormalCheckoutEmailOtpInTransaction, readVerifiedNormalCheckoutBuyerIdentityInTransaction } from "../../../../shared/persistence/normal-checkout-email-otp-verification.js";
+import { detachNormalCheckoutBuyerEmailInTransaction } from "../../../../shared/persistence/normal-checkout-email-detachment.js";
+import type { CheckoutEmailOtpVerificationScope, CheckoutEmailOtpVerificationCommand } from "../../domain/services/checkout-email-otp-verification.js";
+import type { ChatExchangeClaim } from "../../domain/ports/checkout-session.repository.port.js";
 
 // P2 fix: single canonical default — no inline copy here.
 const DEFAULT_RULES: MerchantRules = DEFAULT_MERCHANT_RULES;
+
+/** A generic save cannot repair corrupted ownership or change the financial
+ * session context around an immutable bound cart. JSON null/absence are equal;
+ * nonfinancial session metadata is deliberately outside this comparison. */
+function assertBoundCheckoutSessionContextPreserved(current: {
+  cart: unknown; globalUserId: string; customer?: unknown; shipping?: unknown; crossStoreItems?: unknown;
+}, next: CheckoutSession): void {
+  const binding = readStoredCheckoutCouponBinding(current.cart);
+  if (!binding) return;
+  try {
+    const context = (value: { customer?: unknown; shipping?: unknown; crossStoreItems?: unknown }) =>
+      digest(JSON.parse(JSON.stringify([value.customer ?? null, value.shipping ?? null, value.crossStoreItems ?? null])));
+    if (current.globalUserId !== binding.buyerId || context(current) !== context(next)) {
+      throw new Error("checkout_coupon_binding_conflict");
+    }
+  } catch {
+    throw new Error("checkout_coupon_binding_conflict");
+  }
+}
 
 export class PrismaCheckoutRepository implements CheckoutRepository {
   constructor(
@@ -52,6 +93,92 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async transaction<T>(work: (repository: CheckoutRepository) => Promise<T>): Promise<T> {
     if (this.inTransaction) return work(this);
     return (this.prisma as PrismaClient).$transaction((tx) => work(new PrismaCheckoutRepository(tx, true, this.orderQuota)));
+  }
+
+  async verifyEmailOtpAndRecognize(scope: CheckoutEmailOtpVerificationScope, command: CheckoutEmailOtpVerificationCommand,
+    claim?: ChatExchangeClaim): Promise<CheckoutSession | undefined> {
+    const scoped = structuredClone(scope), input = structuredClone(command), ownedClaim = claim ? structuredClone(claim) : undefined;
+    const work = (tx: Prisma.TransactionClient) => verifyNormalCheckoutEmailOtpInTransaction(tx, scoped, input, ownedClaim);
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
+  }
+
+  async readVerifiedNormalBuyerIdentity(scope: CheckoutEmailOtpVerificationScope,
+    expected: { expectedVersion: number; expectedBuyerId: string }): Promise<string | undefined> {
+    const scoped = structuredClone(scope), input = structuredClone(expected);
+    const work = (tx: Prisma.TransactionClient) => readVerifiedNormalCheckoutBuyerIdentityInTransaction(tx, scoped, input);
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
+  }
+
+  async detachNormalBuyerEmail(scope: CheckoutEmailOtpVerificationScope, command: { expectedVersion: number; email: string },
+    claim?: ChatExchangeClaim): Promise<CheckoutSession | undefined> {
+    const scoped = structuredClone(scope), input = structuredClone(command), ownedClaim = claim ? structuredClone(claim) : undefined;
+    const work = (tx: Prisma.TransactionClient) => detachNormalCheckoutBuyerEmailInTransaction(tx, scoped, input, ownedClaim);
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work);
+  }
+
+  async assertPublicCompletionAllowed(merchantId: string, sessionId: string): Promise<void> {
+    return this.assertCouponOrderAuthority(merchantId, sessionId);
+  }
+
+  async assertWidgetPaymentOrderAuthority(merchantId: string, sessionId: string, authority: WidgetCheckoutPaymentAuthority,
+    paymentIntentId: string, providerPaymentId: string): Promise<void> {
+    // A completed detached check cannot authorize later order/outbox writes.
+    // CompleteOrder must call this on the repository supplied by transaction().
+    if (!this.inTransaction) throw new Error("payment_widget_checkout_authority_conflict");
+    await assertWidgetPaymentOrderInTransaction(this.prisma as Prisma.TransactionClient, merchantId, sessionId, authority, paymentIntentId, providerPaymentId);
+  }
+
+  async assertNormalCrossSellPaymentOrderAuthority(merchantId:string,sessionId:string,authority:NormalCheckoutPaymentAuthority,
+    paymentIntentId:string,providerPaymentId:string):Promise<void>{
+    if(!this.inTransaction)throw new Error("payment_normal_cross_sell_authority_conflict");
+    await assertNormalCrossSellPaymentOrderInTransaction(this.prisma as Prisma.TransactionClient,merchantId,sessionId,authority,paymentIntentId,providerPaymentId);
+  }
+
+  async assertCouponOrderAuthority(merchantId: string, sessionId: string, authority?: CheckoutCouponOrderAuthority, paymentIntentId?: string): Promise<void> {
+    const check = async (tx: Prisma.TransactionClient) => {
+      await lockExecutionMerchant(tx, merchantId);
+      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id=${merchantId} AND session_id=${sessionId} FOR UPDATE`;
+      const stored = await tx.checkoutSession.findUnique({
+        where: { merchantId_sessionId: { merchantId, sessionId } }, select: { cart: true, globalUserId: true },
+      });
+      assertNoUnprojectedWidgetReceipt(stored?.cart);
+      if (!authority) {
+        assertNoCheckoutCouponBindingInput(stored?.cart);
+        const cart=stored?.cart as {source?:unknown;items?:unknown}|null;
+        const hasIntent=Array.isArray(cart?.items)&&cart.items.some(item=>item!==null&&typeof item==="object"&&"crossSellIntent"in item);
+        if(hasIntent&&(cart?.source!=="storefront"||await tx.outboxMessage.findFirst({where:{merchantId,eventType:"cross-sell.offer.accepted",
+          producer:"cross-sell",payload:{path:["ack","sessionId"],equals:sessionId}},select:{eventId:true}})))
+          throw new Error("payment_approval_required");
+        return;
+      }
+      const frozen = parseCheckoutCouponOrderAuthority(authority);
+      const binding = readStoredCheckoutCouponBinding(stored?.cart);
+      if (!stored || !binding || binding.state === "released" || binding.state === "redeemed" && binding.orderId !== frozen.orderId) {
+        throw new Error("checkout_coupon_binding_conflict");
+      }
+      const { state: _state, ...bindingIdentity } = binding;
+      Reflect.deleteProperty(bindingIdentity, "orderId");
+      const { orderId: _orderId, ...frozenIdentity } = frozen;
+      if (!isDeepStrictEqual(bindingIdentity, frozenIdentity)) throw new Error("checkout_coupon_binding_conflict");
+      preserveStoredCheckoutCouponBinding(stored.cart, stripStoredCheckoutCouponBinding(stored.cart),
+        { merchantId, sessionId, buyerId: stored.globalUserId });
+      if (typeof paymentIntentId !== "string" || !paymentIntentId.trim() || paymentIntentId.length > 191) throw new Error("checkout_coupon_binding_conflict");
+      const payment = await tx.paymentIntent.findFirst({ where: { id: paymentIntentId, merchantId, sessionId }, select: {
+        id: true, merchantId: true, sessionId: true, status: true, amountCents: true, approvedAmountCents: true,
+        providerPaymentId: true, currency: true, method: true, creation: true,
+      } });
+      if (!payment || payment.status !== "approved" || payment.currency !== "BRL" || payment.providerPaymentId !== frozen.orderId
+        || !Number.isSafeInteger(payment.amountCents) || payment.amountCents <= 0 || payment.approvedAmountCents !== payment.amountCents
+        || !["pix", "card", "boleto", "crypto"].includes(payment.method)) throw new Error("checkout_coupon_binding_conflict");
+      try {
+        if (!isDeepStrictEqual(readPaymentCouponAuthority({ ...payment, method: payment.method as PaymentMethod }), frozenIdentity)) {
+          throw new Error();
+        }
+      } catch { throw new Error("checkout_coupon_binding_conflict"); }
+    };
+    if (this.inTransaction) await check(this.prisma);
+    else await (this.prisma as PrismaClient).$transaction(check);
   }
 
   async reviseIncentiveForPaymentReview(merchantId: string, sessionId: string): Promise<CheckoutSession | undefined> {
@@ -102,18 +229,30 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async saveSession(session: CheckoutSession): Promise<void> {
+    assertNoUnprojectedWidgetReceipt(session.cart);
+    assertNoCheckoutCouponBindingInput(session.cart);
     const snapshot = structuredClone(session);
     const write = async (tx: Prisma.TransactionClient) => {
       const scope = { merchantId: snapshot.merchantId, sessionId: snapshot.sessionId };
       if (incentiveExecutionEnabled(scope.merchantId)) await lockExecutionMerchant(tx, scope.merchantId);
+      await lockCheckoutSessionAnchor(tx, scope.merchantId, scope.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${scope.merchantId}
         AND session_id = ${scope.sessionId} FOR UPDATE`;
       const current = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
+      assertNoUnprojectedWidgetReceipt(current?.cart);
       if (!current) {
         // A concurrent insertion must not be turned into an unversioned update.
         const created = await tx.checkoutSession.create({ data: toCheckoutSessionCreate(snapshot) as any });
         return applyEligibleIncentive(tx, created);
       }
+      if (current && (!isDeepStrictEqual(current.shipping ?? undefined, snapshot.shipping) || !isDeepStrictEqual(current.shippingOptions ?? undefined, snapshot.shippingOptions)) && await hasPreparedCheckoutPayment(tx, snapshot)) throw new ConflictException("shipping_change_requires_payment_cancellation");
+      const bound = hasStoredCheckoutCouponBinding(current.cart);
+      if (bound && (!Number.isSafeInteger(snapshot.persistenceVersion) || snapshot.persistenceVersion !== current.version)) {
+        throw new Error("checkout_coupon_binding_conflict");
+      }
+      if (bound) assertBoundCheckoutSessionContextPreserved(current, snapshot);
+      const cart = preserveStoredCheckoutCouponBinding(current.cart, snapshot.cart,
+        { ...scope, buyerId: snapshot.globalUserId });
       const owned = !!await tx.strategyAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } })
         || !!await tx.strategyIncentiveAssignment.findUnique({ where: { merchantId_sessionId: scope }, select: { id: true } })
         || !!await tx.checkoutChatRequest.findFirst({ where: scope, select: { id: true } });
@@ -121,8 +260,8 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
         && (!Number.isSafeInteger(snapshot.persistenceVersion) || snapshot.persistenceVersion !== current.version)) {
         throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
       }
-      const saved = await tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: toCheckoutSessionUpdate(snapshot) as any });
-      return applyEligibleIncentive(tx, saved);
+      const saved = await tx.checkoutSession.update({ where: { merchantId_sessionId: scope }, data: toCheckoutSessionUpdate({ ...snapshot, cart }) as any });
+      return bound ? saved : applyEligibleIncentive(tx, saved);
     };
     const saved = this.inTransaction ? await write(this.prisma) : await (this.prisma as PrismaClient).$transaction(write);
     // Existing callers persist a working object several times. Advance only the
@@ -132,12 +271,55 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async commitCommercialMutation(input: CheckoutCommercialMutation): Promise<CheckoutSession> {
+    assertNoUnprojectedWidgetReceipt(input.expected.cart);
+    assertNoUnprojectedWidgetReceipt(input.next.cart);
+    assertNoCheckoutCouponBindingInput(input.expected.cart);
+    assertNoCheckoutCouponBindingInput(input.next.cart);
     input = structuredClone(input);
-    const mutation = prepareCommercialMutation(input);
     const work = async (tx: Prisma.TransactionClient) => {
       const { merchantId, sessionId } = input.expected;
       await lockExecutionMerchant(tx, merchantId);
+      await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id=${merchantId} FOR UPDATE`;
+      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
+      const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
+      assertNoUnprojectedWidgetReceipt(stored?.cart);
+      if (stored && stripStoredCheckoutCouponBinding(stored.cart).source === "storefront") {
+        const binding = readStoredCheckoutCouponBinding(stored.cart);
+        if (binding && binding.state !== "released") assertNoCheckoutCouponBindingInput(stored.cart);
+        const current = toCheckoutSession(stored);
+        const hash = (value: CheckoutSession) => digest(JSON.parse(JSON.stringify(toCheckoutSessionCreate(value))));
+        if (input.expected.persistenceVersion !== stored.version || hash(input.expected) !== hash(current)) {
+          throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
+        }
+        if (await tx.paymentIntent.findFirst({ where: { merchantId, sessionId, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) {
+          throw new ConflictException("CHECKOUT_PAYMENT_REQUIRES_REOPEN");
+        }
+        if (await tx.completedOrder.findFirst({ where: { merchantId, sessionId }, select: { id: true } })
+          || await tx.checkoutEvent.findFirst({ where: { merchantId, sessionId, eventName: "checkout_abandoned",
+            metadata: { path: ["reason"], equals: "buyer_initiated" } }, select: { id: true } })) {
+          throw new ConflictException("CHECKOUT_COMMERCIAL_SESSION_CLOSED");
+        }
+        const dedicated = await prepareStorefrontCouponFormMutation(tx, stored, input);
+        if (dedicated) {
+          if (input.cancel && dedicated.candidate) {
+            if ((await tx.paymentIntent.findMany({ where: { merchantId, sessionId }, select: { id: true } })).length) {
+              throw new ConflictException("CHECKOUT_PAYMENT_REQUIRES_REOPEN");
+            }
+            await cancelUnboundStorefrontCouponSource(tx, dedicated.candidate);
+          }
+          const cart = dedicated.binding ? { ...dedicated.session.cart, _storefrontCouponBinding: dedicated.binding } : dedicated.session.cart;
+          const saved = await tx.checkoutSession.updateMany({ where: { id: stored.id, merchantId, sessionId, version: stored.version },
+            data: { ...toCheckoutSessionUpdate(dedicated.session), cart: cart as unknown as Prisma.InputJsonValue } });
+          if (saved.count !== 1) throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
+          const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+          if (dedicated.event) await repo.appendOutbox(dedicated.event);
+          if (input.cancel) await repo.recordEvent(merchantId, sessionId, "checkout_abandoned", { source: "acp.protocol", reason: "buyer_initiated" });
+          return (await repo.getSession(merchantId, sessionId))!;
+        }
+      }
+      const mutation = prepareCommercialMutation(input);
+      assertNoCheckoutCouponBindingInput(stored?.cart);
       if (mutation.invalidated && await tx.paymentIntent.findFirst({ where: { merchantId, sessionId,
         status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) {
         throw new ConflictException("CHECKOUT_PAYMENT_REQUIRES_REOPEN");
@@ -170,6 +352,10 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async saveSessionIfUnchanged(session: CheckoutSession, expected: CheckoutSession): Promise<void> {
+    assertNoUnprojectedWidgetReceipt(session.cart);
+    assertNoUnprojectedWidgetReceipt(expected.cart);
+    assertNoCheckoutCouponBindingInput(session.cart);
+    assertNoCheckoutCouponBindingInput(expected.cart);
     const working = session;
     session = structuredClone(session); expected = structuredClone(expected);
     if (session.merchantId !== expected.merchantId || session.sessionId !== expected.sessionId) {
@@ -177,15 +363,23 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     }
     const write = async (tx: Prisma.TransactionClient) => {
       if (incentiveExecutionEnabled(session.merchantId)) await lockExecutionMerchant(tx, session.merchantId);
+      await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${session.merchantId}
         AND session_id = ${session.sessionId} FOR UPDATE`;
       const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
       const current = await tx.checkoutSession.findUnique({ where });
+      assertNoUnprojectedWidgetReceipt(current?.cart);
+      if (current && (!isDeepStrictEqual(current.shipping ?? undefined, session.shipping) || !isDeepStrictEqual(current.shippingOptions ?? undefined, session.shippingOptions)) && await hasPreparedCheckoutPayment(tx, session)) throw new ConflictException("shipping_change_requires_payment_cancellation");
+      const bound = hasStoredCheckoutCouponBinding(current?.cart);
+      if (bound && expected.persistenceVersion !== current?.version) throw new Error("checkout_coupon_binding_conflict");
+      if (current && bound) assertBoundCheckoutSessionContextPreserved(current, session);
+      const cart = current ? preserveStoredCheckoutCouponBinding(current.cart, session.cart,
+        { merchantId: session.merchantId, sessionId: session.sessionId, buyerId: session.globalUserId }) : session.cart;
       const hash = (value: CheckoutSession) => digest(JSON.parse(JSON.stringify(toCheckoutSessionCreate(value))));
       if (!current || expected.persistenceVersion !== current.version
         || hash(expected) !== hash(toCheckoutSession(current))) throw new Error("CHAT_SESSION_CHANGED");
-      const saved = await tx.checkoutSession.update({ where, data: toCheckoutSessionUpdate(session) as any });
-      return applyEligibleIncentive(tx, saved);
+      const saved = await tx.checkoutSession.update({ where, data: toCheckoutSessionUpdate({ ...session, cart }) as any });
+      return bound ? saved : applyEligibleIncentive(tx, saved);
     };
     const saved = this.inTransaction ? await write(this.prisma) : await (this.prisma as PrismaClient).$transaction(write);
     working.persistenceVersion = saved.version;
@@ -202,13 +396,81 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
     }
   }
 
+  /** Internal fail-closed preflight. Absence of public metadata is not evidence
+   * that storage has no binding; commands must inspect the canonical raw row. */
+  async assertCouponBindingCommandAllowed(merchantId: string, sessionId: string): Promise<void> {
+    const stored = await this.prisma.checkoutSession.findUnique({
+      where: { merchantId_sessionId: { merchantId, sessionId } }, select: { cart: true },
+    });
+    assertNoUnprojectedWidgetReceipt(stored?.cart);
+    assertNoCheckoutCouponBindingInput(stored?.cart);
+  }
+
+  async hasReleasedStorefrontCouponBinding(merchantId: string, sessionId: string): Promise<boolean> {
+    const stored = await this.prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } }, select: { cart: true } });
+    return readStoredCheckoutCouponBinding(stored?.cart)?.state === "released";
+  }
+
+  async prepareStorefrontCouponBenefits(merchantId: string, sessionId: string, method: string): Promise<CheckoutSession | undefined> {
+    const work = async (tx: Prisma.TransactionClient) => {
+      await lockExecutionMerchant(tx, merchantId);
+      await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id=${merchantId} FOR UPDATE`;
+      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id=${merchantId} AND session_id=${sessionId} FOR UPDATE`;
+      const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
+      if (!stored) throw new ConflictException("CHECKOUT_SESSION_NOT_FOUND");
+      assertNoUnprojectedWidgetReceipt(stored.cart);
+      if (await tx.paymentIntent.findFirst({ where: { merchantId, sessionId, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })
+        || await tx.completedOrder.findFirst({ where: { merchantId, sessionId }, select: { id: true } })) {
+        throw new ConflictException("CHECKOUT_PAYMENT_REQUIRES_REOPEN");
+      }
+      const prepared = await prepareStorefrontCouponPaymentBenefits(tx, stored, method);
+      if (!prepared) return undefined;
+      const cart = prepared.binding ? { ...prepared.session.cart, _storefrontCouponBinding: prepared.binding } : prepared.session.cart;
+      const saved = await tx.checkoutSession.updateMany({ where: { id: stored.id, merchantId, sessionId, version: stored.version },
+        data: { ...toCheckoutSessionUpdate(prepared.session), cart: cart as unknown as Prisma.InputJsonValue } });
+      if (saved.count !== 1) throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
+      const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
+      if (!prepared.history.includes("payment_method_selected")) {
+        await repo.recordEvent(merchantId, sessionId, "payment_method_selected", { method, source: "payment_preparation" });
+      }
+      return (await repo.getSession(merchantId, sessionId))!;
+    };
+    return this.inTransaction ? work(this.prisma) : (this.prisma as PrismaClient).$transaction(work, { isolationLevel: "ReadCommitted" });
+  }
+
   async reopenForBuyerEdit(merchantId: string, sessionId: string, section: import("@zyon/shared-types").CheckoutEditSection): Promise<CheckoutSession> {
     const work = async (tx: Prisma.TransactionClient) => {
       await lockExecutionMerchant(tx, merchantId);
+      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
       const scope = { merchantId, sessionId };
+      const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
       const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
       await repo.assertBuyerEditAllowed(merchantId, sessionId);
+      if (stored && hasStoredCheckoutCouponBinding(stored.cart)) {
+        const binding = readStoredCheckoutCouponBinding(stored.cart)!;
+        await lockStorefrontCart(tx, merchantId, binding.cartId);
+        const owners = await readStorefrontCheckoutBindingOwners(tx, merchantId, binding.cartId);
+        if (binding.state === "active" && (owners.length !== 1 || owners[0]?.sessionId !== sessionId
+          || !isDeepStrictEqual(owners[0].binding, binding))) throw new ConflictException("checkout_coupon_binding_conflict");
+        const released = await releaseBoundCheckoutCouponForEdit(tx, stored, section);
+        // A tombstone can coexist with a later, not-yet-admitted source coupon.
+        // Reopening that form must not silently delete its new canonical D.
+        if (binding.state === "released" && (toCheckoutSession(stored).cart.currentDiscount ?? 0) > 0) {
+          const current = toCheckoutSession(stored);
+          const prepared = await prepareStorefrontCouponFormMutation(tx, stored, { expected: current,
+            next: { ...released.session, cart: { ...released.session.cart,
+              currentDiscount: current.cart.currentDiscount, commercialNudge: current.cart.commercialNudge } } });
+          if (!prepared) throw new ConflictException("checkout_coupon_binding_conflict");
+          released.session = prepared.session;
+        }
+        const saved = await tx.checkoutSession.updateMany({ where: { id: stored.id, ...scope, version: stored.version },
+          data: { ...toCheckoutSessionUpdate(released.session), cart: { ...released.session.cart,
+            _storefrontCouponBinding: released.binding } as unknown as Prisma.InputJsonValue } });
+        if (saved.count !== 1) throw new ConflictException("CHECKOUT_SESSION_VERSION_CONFLICT");
+        return (await repo.getSession(merchantId, sessionId))!;
+      }
       if (await tx.paymentIntent.findFirst({ where: { ...scope, status: { notIn: ["failed", "cancelled"] } }, select: { id: true } })) {
         throw new ConflictException("checkout_payment_not_editable");
       }
@@ -224,12 +486,20 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async saveBenefitsIfMutable(session: CheckoutSession, expected: CheckoutSession, authorizedRules: MerchantRules): Promise<CheckoutSession> {
+    assertNoUnprojectedWidgetReceipt(session.cart);
+    assertNoUnprojectedWidgetReceipt(expected.cart);
+    assertNoCheckoutCouponBindingInput(session.cart);
+    assertNoCheckoutCouponBindingInput(expected.cart);
     const work = async (tx: Prisma.TransactionClient) => {
       const { merchantId, sessionId } = expected;
       // Payment admission takes this same merchant lock before validating the quote.
       await tx.$queryRaw`SELECT id FROM merchants WHERE id = ${merchantId} FOR UPDATE`;
       await tx.$queryRaw`SELECT id FROM merchant_rules WHERE merchant_id = ${merchantId} FOR UPDATE`;
+      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${sessionId} FOR UPDATE`;
+      const stored = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } }, select: { cart: true } });
+      assertNoUnprojectedWidgetReceipt(stored?.cart);
+      assertNoCheckoutCouponBindingInput(stored?.cart);
       const repo = new PrismaCheckoutRepository(tx, true, this.orderQuota);
       const current = await repo.getSession(merchantId, sessionId);
       if (!current) throw new ConflictException("CHECKOUT_SESSION_NOT_FOUND");
@@ -251,12 +521,16 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async createSessionIfAbsent(session: CheckoutSession): Promise<{ session: CheckoutSession; created: boolean }> {
+    assertNoUnprojectedWidgetReceipt(session.cart);
+    assertNoCheckoutCouponBindingInput(session.cart);
+    session = structuredClone(session);
     if (strategyExecutionEnabled(session.merchantId) || incentiveExecutionEnabled(session.merchantId)) {
       const create = async (tx: Prisma.TransactionClient) => {
         // The store lock orders activation, creation, enrollment and stopping.
         // Timestamp AFTER taking it, so concurrent starts cannot backdate the
         // first eligible session or enroll a buyer from a later session.
         await lockExecutionMerchant(tx, session.merchantId);
+        await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
         const previous = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: {
           merchantId: session.merchantId, sessionId: session.sessionId } } });
         if (previous) return { session: toCheckoutSession(previous), created: false };
@@ -268,16 +542,21 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
       };
       return this.inTransaction ? create(this.prisma) : (this.prisma as PrismaClient).$transaction(create);
     }
-    try {
-      const row = await this.prisma.checkoutSession.upsert({
-        where: { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } },
-        create: toCheckoutSessionCreate(session) as any,
-        update: {},
-      });
+    const create = async (tx: Prisma.TransactionClient) => {
+      await lockCheckoutSessionAnchor(tx, session.merchantId, session.sessionId);
+      const where = { merchantId_sessionId: { merchantId: session.merchantId, sessionId: session.sessionId } };
+      const previous = await tx.checkoutSession.findUnique({ where });
+      if (previous) return { session: toCheckoutSession(previous), created: false };
+      const row = await tx.checkoutSession.upsert({ where,
+        create: toCheckoutSessionCreate(session) as any, update: {} });
       return { session: toCheckoutSession(row), created: row.conversationId === session.conversationId };
+    };
+    try {
+      return await (this.inTransaction ? create(this.prisma) : (this.prisma as PrismaClient).$transaction(create));
     } catch (error) {
       // An emulated Prisma upsert can lose a concurrent insert; reread its winner.
-      if ((error as { code?: string })?.code !== "P2002") throw error;
+      // A failed outer transaction must be handled by its owner, not queried again.
+      if (this.inTransaction || (error as { code?: string })?.code !== "P2002") throw error;
       const existing = await this.getSession(session.merchantId, session.sessionId);
       if (!existing) throw error;
       return { session: existing, created: false };
@@ -333,6 +612,7 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   async recordEvent(merchantId: string, sessionId: string, event: CheckoutEventName, metadata?: Record<string, unknown>): Promise<void> {
     if (!event) return; // Guard: missing event name should not 500
     const write = async (tx: Prisma.TransactionClient) => {
+      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
         AND session_id = ${sessionId} FOR UPDATE`;
       const session = await tx.checkoutSession.findUnique({
@@ -370,46 +650,57 @@ export class PrismaCheckoutRepository implements CheckoutRepository {
   }
 
   async appendChatTurn(merchantId: string, sessionId: string, turn: ChatTurn): Promise<CheckoutSession> {
-    const current = await this.getSession(merchantId, sessionId);
-    if (!current) throw new Error("checkout_session_not_found");
-    const next = [...current.chatHistory, turn].slice(-50);
+    turn = structuredClone(turn);
+    const write = async (tx: Prisma.TransactionClient) => {
+      await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
+      await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
+        AND session_id = ${sessionId} FOR UPDATE`;
+      const currentRow = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId, sessionId } } });
+      const current = currentRow ? toCheckoutSession(currentRow) : undefined;
+      if (!current) throw new Error("checkout_session_not_found");
+      const next = [...current.chatHistory, turn].slice(-50);
 
-    // The database counter also detects two updates within the same millisecond.
-    const result = await this.prisma.checkoutSession.updateMany({
-      where: {
-        merchantId,
-        sessionId,
-        version: current.persistenceVersion
-      },
-      data: {
-        chatHistory: next as unknown as Prisma.InputJsonValue,
-        updatedAt: new Date()
+      // The database counter also detects two updates within the same millisecond.
+      const result = await tx.checkoutSession.updateMany({
+        where: {
+          merchantId,
+          sessionId,
+          version: current.persistenceVersion
+        },
+        data: {
+          chatHistory: next as unknown as Prisma.InputJsonValue,
+          updatedAt: new Date()
+        }
+      });
+
+      if (result.count === 0) {
+        throw new Error("session_conflict_concurrent_update");
       }
-    });
 
-    if (result.count === 0) {
-      throw new Error("session_conflict_concurrent_update");
-    }
-
-    // Re-fetch to return current state (mirrors last-write semantic but safely locked).
-    const updated = await this.prisma.checkoutSession.findUnique({
-      where: { merchantId_sessionId: { merchantId, sessionId } }
-    });
-    if (!updated) throw new Error("checkout_session_not_found");
-    return toCheckoutSession(updated);
+      // Re-fetch to return current state (mirrors last-write semantic but safely locked).
+      const updated = await tx.checkoutSession.findUnique({
+        where: { merchantId_sessionId: { merchantId, sessionId } }
+      });
+      if (!updated) throw new Error("checkout_session_not_found");
+      return toCheckoutSession(updated);
+    };
+    return this.inTransaction ? write(this.prisma) : (this.prisma as PrismaClient).$transaction(write);
   }
 
   /** The pair and its proof commit together. No external I/O inside this transaction. */
   async appendChatExchange(input: ChatExchangeInput): Promise<CheckoutSession> {
+    assertNoUnprojectedWidgetReceipt(input.expectedSession?.cart);
     input = structuredClone(input);
     if (input.buyer.role !== "buyer" || input.agent.role !== "agent"
       || typeof input.buyer.text !== "string" || typeof input.agent.text !== "string") throw new Error("CHAT_EXCHANGE_INVALID");
     const write = async (tx: Prisma.TransactionClient) => {
+      await lockCheckoutSessionAnchor(tx, input.merchantId, input.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${input.merchantId}
         AND session_id = ${input.sessionId} FOR UPDATE`;
       const where = { merchantId_sessionId: { merchantId: input.merchantId, sessionId: input.sessionId } };
       const row = await tx.checkoutSession.findUnique({ where });
       if (!row) throw new Error("checkout_session_not_found");
+      assertNoUnprojectedWidgetReceipt(row.cart);
       if (input.selectedPaymentMethod !== undefined && (deriveChatStage(toCheckoutSession(row)) !== "payment"
         || !["pix", "credit_card", "boleto", "crypto"].includes(input.selectedPaymentMethod))) {
         throw new Error("CHAT_PAYMENT_SELECTION_CONFLICT");
@@ -828,8 +1119,8 @@ function toCheckoutSessionUpdate(session: CheckoutSession) {
     customer: (session.customer ?? undefined) as unknown as Prisma.InputJsonValue,
     // undefined means "skip update" in Prisma, leaving a stale delivery quote.
     // A full checkout snapshot without shipping explicitly revokes that quote.
-    shipping: session.shipping ?? Prisma.DbNull,
-    shippingOptions: session.shippingOptions ?? Prisma.DbNull,
+    shipping: session.shipping ? toCheckoutShippingJson(session.shipping) : Prisma.DbNull,
+    shippingOptions: session.shippingOptions?.map(toCheckoutShippingJson) ?? Prisma.DbNull,
     abandonmentScore: session.abandonmentScore,
     triggerAgent: session.triggerAgent,
     chatHistory: (session.chatHistory ?? []) as unknown as Prisma.InputJsonValue,
@@ -1003,40 +1294,6 @@ function toMerchantRuleUpdate(rules: MerchantRules) {
     offerExpirationMinutes: rules.offerExpirationMinutes,
     blockedRegions: rules.blockedRegions,
     brandVoice: rules.brandVoice
-  };
-}
-
-function toMerchantRules(row: {
-  maxDiscountPercent: DecimalLike;
-  minimumMarginPercent: DecimalLike;
-  allowFreeShipping: boolean;
-  allowShippingDiscount: boolean;
-  allowBonusItem: boolean;
-  allowStackDiscountAndFreeShipping: boolean;
-  freeShippingMinCartValue: DecimalLike;
-  maxShippingSubsidy: DecimalLike;
-  maxPartialShippingDiscount: DecimalLike;
-  offerExpirationMinutes: number;
-  blockedRegions: string[];
-  brandVoice: string;
-  couponBoxEnabled?: boolean | null;
-  autonomousEngineEnabled?: boolean | null;
-}): MerchantRules {
-  return {
-    maxDiscountPercent: toNumber(row.maxDiscountPercent),
-    minimumMarginPercent: toNumber(row.minimumMarginPercent),
-    allowFreeShipping: row.allowFreeShipping,
-    allowShippingDiscount: row.allowShippingDiscount,
-    allowBonusItem: row.allowBonusItem,
-    allowStackDiscountAndFreeShipping: row.allowStackDiscountAndFreeShipping,
-    freeShippingMinCartValue: toNumber(row.freeShippingMinCartValue),
-    maxShippingSubsidy: toNumber(row.maxShippingSubsidy),
-    maxPartialShippingDiscount: toNumber(row.maxPartialShippingDiscount),
-    offerExpirationMinutes: row.offerExpirationMinutes,
-    blockedRegions: row.blockedRegions,
-    brandVoice: row.brandVoice as MerchantRules["brandVoice"],
-    couponBoxEnabled: row.couponBoxEnabled ?? true,
-    autonomousEngineEnabled: row.autonomousEngineEnabled ?? true
   };
 }
 

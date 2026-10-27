@@ -88,7 +88,7 @@ export function DeliveryPage(props: DeliveryPageProps) {
   return <div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
     {header}
     <SetupGuide title="Como preparar as entregas" steps={[
-      { title: "Escolha a modalidade", description: "Conecte o Melhor Envio ou configure a entrega própria. O frete é uma etapa necessária para preparar a loja." },
+      { title: "Ative as modalidades", description: "Use entrega própria, Melhor Envio ou os dois. O cliente verá as opções disponíveis para o endereço dele." },
       { title: "Revise os dados", description: "Confira o endereço de origem, os preços e os prazos antes de ativar a modalidade." },
       { title: "Acompanhe os pedidos", description: "Veja o status de cada envio e copie o rastreio quando estiver disponível." },
     ]} />

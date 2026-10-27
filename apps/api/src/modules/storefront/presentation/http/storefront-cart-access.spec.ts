@@ -3,11 +3,12 @@ import assert from "node:assert/strict";
 import { StorefrontController } from "./storefront.controller.js";
 import { RealtimeCapabilityService } from "../../../../shared/auth/realtime-capability.js";
 import { createCartHandlers } from "../../infrastructure/tool-handlers/cart.handlers.js";
+import type { StorefrontCart, StorefrontCartPort } from "../../domain/ports/storefront-cart.port.js";
 
-test("renewal preserves cart and merchant ownership and rejects other resources", () => {
+for (const idleDays of [0, 3, 7, 29]) test(`renewal after ${idleDays} idle days preserves cart and merchant ownership and rejects other resources`, () => {
   const capabilities = new RealtimeCapabilityService("storefront-cart-test-secret-32-characters");
   const controller = Object.assign(Object.create(StorefrontController.prototype), { capabilities }) as StorefrontController;
-  const issued = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant", resourceId: "cart_a", origin: "https://store.example" }, Math.floor(Date.now() / 1000) - 4000);
+  const issued = capabilities.issue({ purpose: "storefront-conversation", merchantId: "merchant", resourceId: "cart_a", origin: "https://store.example", aiUserId: "visitor:idle_buyer" }, Math.floor(Date.now() / 1000) - 4000 - idleDays * 86400);
   const request = { headers: { authorization: `Bearer ${issued.token}`, origin: "https://store.example" } };
   const renewed = controller.renewConversationAccess("cart_a", request);
   assert.equal(renewed.conversation_id, "cart_a");
@@ -103,17 +104,44 @@ test("cart read, update and clear require the cart owner's conversation capabili
 
 test("conversation tools ignore model-supplied references to another cart", async () => {
   const refs: string[] = [];
-  const cart = { sessionId: "owned", items: [], total: 0, discount: 0 };
-  const record = async (_merchant: string, ref: string) => { refs.push(ref); return cart; };
+  const cart: StorefrontCart = { id: "owned-row", merchantId: "merchant", sessionId: "owned", items: [], total: 0,
+    discount: 0, couponCode: null, freeShipping: false, createdAt: new Date("2026-10-20Z"), updatedAt: new Date("2026-10-20Z") };
+  const record = async (merchantId: string, ref: string) => {
+    assert.equal(merchantId, "merchant"); assert.equal(ref, "owned"); refs.push(ref); return structuredClone(cart);
+  };
+  let pricingReads = 0, ruleWrites = 0;
+  const cartRepo = { getOrCreate: record, removeItem: record, clear: record, removeCoupon: record,
+    updateItemQuantity: async () => { assert.fail("an empty owned cart must not update a nonexistent model-selected line"); },
+    applyRuleOutcome: async (merchantId, ref, outcome, expectedCart) => {
+      ruleWrites++; assert.equal(merchantId, "merchant"); assert.equal(ref, "owned");
+      assert.deepEqual(outcome, { discountCents: 0, freeShipping: false }); assert.deepEqual(expectedCart, cart);
+      return structuredClone(cart);
+    },
+  } satisfies Pick<StorefrontCartPort, "getOrCreate"|"removeItem"|"updateItemQuantity"|"clear"|"removeCoupon"|"applyRuleOutcome">;
   const handlers = createCartHandlers({
-    cartRepo: { getOrCreate: record, removeItem: record, updateItemQuantity: record, clear: record, removeCoupon: record },
-    prisma: { checkoutSetting: { findUnique: async () => null } },
+    cartRepo,
+    couponCart: { apply: async (scope: { merchantId: string; cartId: string }) => {
+      assert.deepEqual(scope, { merchantId: "merchant", cartId: "owned" }); refs.push(scope.cartId);
+      return { applied: false, reason: "cart_empty" };
+    } },
+    prisma: { checkoutSetting: { findUnique: async (query: { where: { merchantId: string } }) => {
+      assert.deepEqual(query.where, { merchantId: "merchant" }); return null;
+    } }, productPrice: { findMany: async (query: { where: { variantId: { in: string[] }; currency: string;
+      variant: { isActive: boolean; product: { merchantId: string; isActive: boolean; deletedAt: null } } } }) => {
+      pricingReads++; assert.deepEqual(query.where, { variantId: { in: [] }, currency: "BRL",
+        variant: { isActive: true, product: { merchantId: "merchant", isActive: true, deletedAt: null } } }); return [];
+    } } },
   } as never, { merchantId: "merchant", sessionId: "owned" } as never);
-  await handlers.getCart({ cartId: "victim" });
-  await handlers.removeCartItem({ cartId: "victim", variantId: "variant" });
-  await handlers.updateCartItem({ cartId: "victim", variantId: "variant", quantity: 1 });
-  await handlers.clearCart({ cartId: "victim" });
-  await handlers.applyCoupon({ cartId: "victim", couponCode: "TEST" } as never);
-  await handlers.removeCoupon({ cartId: "victim" });
+  const assertOwnedCart = (result: unknown) => {
+    assert.ok(result !== null && typeof result === "object" && !Array.isArray(result) && "cartId" in result);
+    assert.equal(result.cartId, "owned");
+  };
+  assertOwnedCart(await handlers.getCart({ cartId: "victim" }));
+  assertOwnedCart(await handlers.removeCartItem({ cartId: "victim", variantId: "variant" }));
+  assert.deepEqual(await handlers.updateCartItem({ cartId: "victim", variantId: "variant", quantity: 1 }), { error: "cart_item_not_found" });
+  assertOwnedCart(await handlers.clearCart({ cartId: "victim" }));
+  assert.deepEqual(await handlers.applyCoupon({ cartId: "victim", couponCode: "TEST" } as never), { applied: false, reason: "cart_empty" });
+  assertOwnedCart(await handlers.removeCoupon({ cartId: "victim" }));
   assert.deepEqual(refs, Array(6).fill("owned"));
+  assert.equal(pricingReads, 2); assert.equal(ruleWrites, 0, "complete canonical reads must not exercise a missing-dependency fallback");
 });

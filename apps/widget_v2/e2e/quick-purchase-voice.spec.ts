@@ -56,7 +56,10 @@ for (const width of [390, 1280]) {
       await route.fulfill({ json: { id: "pix-quick", method: "pix", status: "requires_action", amountCents: 22099,
         buyerFacing: { qrCodeCopyPaste: "qa-pix-pending" }, experience } });
     });
-    await page.route("**/embed/realtime/session", route => { sessionCalls += 1; return route.fulfill({ json: { value: "qa-ephemeral-secret" } }); });
+    await page.route("**/embed/realtime/session", route => {
+      expect(route.request().postDataJSON()).toMatchObject({ session_id: "chk_voice_quick", sdp: "v=0\r\n" });
+      sessionCalls += 1; return route.fulfill({ json: { sdp: "v=0\r\n" } });
+    });
     await page.route("**/embed/realtime/context", route => route.fulfill({ json: { instructions: paymentReady
       ? "ETAPA ATUAL: Seu pagamento já está disponível na tela. Não pergunte sobre frete."
       : "ETAPA ATUAL: Escolha a forma de pagamento exibida na tela." } }));
@@ -80,7 +83,7 @@ for (const width of [390, 1280]) {
     expect(await page.evaluate(() => (window as any).__voiceRequests.length)).toBe(0);
     release();
     await expect.poll(() => sessionCalls).toBe(1);
-    await expect.poll(() => page.evaluate(() => (window as any).__voiceChannels?.[0]?.sent.some((event: any) => event.type === "response.create"))).toBe(true);
+    await expect.poll(() => page.evaluate(() => (window as any).__voiceChannels?.[0]?.sent.some((event: any) => event.item?.content?.[0]?.type === "input_text"))).toBe(true);
     const initial = await page.evaluate(() => (window as any).__voiceChannels[0].sent);
     expect(initial[0].type).toBe("session.update");
     expect(initial[0].session.instructions).toContain("pagamento já está disponível");
@@ -92,20 +95,24 @@ for (const width of [390, 1280]) {
         type: "conversation.item.input_audio_transcription.completed", item_id: `noise-${index}`, transcript,
       });
     });
-    await expect.poll(() => page.evaluate(() => (window as any).__voiceChannels[0].sent.filter((event: any) => event.type === "conversation.item.delete").length)).toBe(3);
-    expect(await page.evaluate(() => (window as any).__voiceChannels[0].sent.filter((event: any) => event.type === "response.create").length)).toBe(1);
+    expect(await page.evaluate(() => (window as any).__voiceChannels[0].sent.filter((event: any) => event.type === "conversation.item.delete").length)).toBe(0);
+    expect(await page.evaluate(() => (window as any).__voiceChannels[0].sent.filter((event: any) => event.type === "response.create").length)).toBe(0);
     await page.evaluate(() => {
       const channel = (window as any).__voiceChannels[0];
       channel.emit({ type: "conversation.item.input_audio_transcription.completed", item_id: "buyer-edit", transcript: "Quero trocar para cartão" });
     });
-    await expect.poll(() => page.evaluate(() => (window as any).__voiceChannels[0].sent.filter((event: any) => event.type === "response.create").length)).toBe(2);
+    // Only the server sideband admits speech and creates its response.
+    expect(await page.evaluate(() => (window as any).__voiceChannels[0].sent.filter((event: any) => event.type === "response.create").length)).toBe(0);
     await page.evaluate(() => {
       const channel = (window as any).__voiceChannels[0];
       channel.emit({ type: "response.output_item.done", item: { type: "function_call", name: "handoff_to_commerce_agent",
         call_id: "change-payment", arguments: JSON.stringify({ buyer_message: "Quero trocar para cartão" }) } });
       channel.emit({ type: "response.done" });
     });
-    await expect(page.getByRole("button", { name: "Cartão de crédito", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Cartão de crédito Pagamento seguro com cartão", exact: true })).toBeVisible();
+    // The current production checkout deliberately removes duplicate quick
+    // replies when the full payment-method chooser is already on screen.
+    await expect(page.getByRole("button", { name: "Cartão de crédito", exact: true })).toHaveCount(0);
     expect(edits).toEqual(["payment"]); expect(paymentCalls).toBe(1);
     await expect.poll(() => page.evaluate(() => (window as any).__voiceChannels[0].sent.some((event: any) => event.type === "function_call_output"
       || event.item?.type === "function_call_output"))).toBe(true);

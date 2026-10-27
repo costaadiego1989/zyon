@@ -1,4 +1,5 @@
-import type { PrismaClient } from "@prisma/client";
+import type { Prisma, PrismaClient } from "@prisma/client";
+import { z } from "zod";
 import type {
   ProductPromotionRepositoryPort,
   CreateProductPromotionInput,
@@ -6,10 +7,20 @@ import type {
   ProductPromotionEntity,
 } from "../../domain/ports/product-promotion-repository.port.js";
 
+const promotionLookupText = z.string().min(1).max(200).refine(value => value.trim().length > 0 && !value.includes("\0"));
+const promotionLookupId = promotionLookupText.pipe(z.string().max(191));
+const promotionVariantSchema = z.strictObject({
+  id: promotionLookupId, sku: promotionLookupText, productId: promotionLookupId, isActive: z.literal(true),
+  product: z.strictObject({ id: promotionLookupId, merchantId: promotionLookupId,
+    categoryId: promotionLookupId.nullable(), isActive: z.literal(true), deletedAt: z.null() }),
+});
+const promotionVariantSelect = { id: true, sku: true, productId: true, isActive: true,
+  product: { select: { id: true, merchantId: true, categoryId: true, isActive: true, deletedAt: true } } } as const;
+
 export class PrismaProductPromotionRepository
   implements ProductPromotionRepositoryPort
 {
-  constructor(private readonly prisma: PrismaClient) {}
+  constructor(private readonly prisma: PrismaClient | Prisma.TransactionClient) {}
 
   async create(input: CreateProductPromotionInput): Promise<ProductPromotionEntity> {
     const row = await this.prisma.productPromotion.create({
@@ -112,24 +123,44 @@ export class PrismaProductPromotionRepository
     skuOrVariantId: string,
     now: Date = new Date()
   ): Promise<ProductPromotionEntity[]> {
-    const variant = await this.prisma.productVariant.findFirst({
-      where: { OR: [{ sku: skuOrVariantId }, { id: skuOrVariantId }] },
-      select: { id: true, productId: true },
+    const input = z.strictObject({ merchantId: promotionLookupId, identifier: promotionLookupText, now: z.date() })
+      .parse({ merchantId, identifier: skuOrVariantId, now });
+    const observedAt = new Date(input.now.getTime());
+    const active = { isActive: true, product: { merchantId: input.merchantId, isActive: true, deletedAt: null } };
+    // IDs are authoritative and take precedence over a different product's SKU.
+    // A SKU is unique only within a product, so never choose an arbitrary match.
+    const exact = await this.prisma.productVariant.findFirst({
+      where: { id: input.identifier, ...active }, select: promotionVariantSelect,
     });
-
-    if (!variant) return [];
+    let variant: z.infer<typeof promotionVariantSchema>;
+    if (exact !== null) {
+      variant = promotionVariantSchema.parse(exact);
+      if (variant.id !== input.identifier) throw new Error("product_promotion_catalog_scope_invalid");
+    } else {
+      const matches = z.array(promotionVariantSchema).max(2).parse(await this.prisma.productVariant.findMany({
+        where: { sku: input.identifier, ...active }, select: promotionVariantSelect, take: 2, orderBy: { id: "asc" },
+      }));
+      if (matches.length !== 1) return [];
+      variant = matches[0]!;
+      if (variant.sku !== input.identifier) throw new Error("product_promotion_catalog_scope_invalid");
+    }
+    if (variant.product.merchantId !== input.merchantId || variant.productId !== variant.product.id) {
+      throw new Error("product_promotion_catalog_scope_invalid");
+    }
 
     const rows = await this.prisma.productPromotion.findMany({
       where: {
-        merchantId,
+        merchantId: input.merchantId,
         isActive: true,
-        startsAt: { lte: now },
-        endsAt: { gt: now },
+        startsAt: { lte: observedAt },
+        endsAt: { gt: observedAt },
         OR: [
-          { variantId: variant.id }, // variant-level promo
-          { productId: variant.productId }, // product-level promo
+          { variantId: variant.id },
+          { productId: variant.productId },
+          ...(variant.product.categoryId === null ? [] : [{ categoryId: variant.product.categoryId }]),
         ],
       },
+      orderBy: { id: "asc" },
     });
     return rows.map((r) => this.mapToDomain(r));
   }

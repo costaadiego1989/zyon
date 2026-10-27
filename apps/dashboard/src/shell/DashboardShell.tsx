@@ -25,9 +25,14 @@ import { RestrictedAccessModal } from "../components/RestrictedAccessModal.js";
 import { RouteGuard } from "../components/RouteGuard.js";
 import { AccessModalProvider } from "../lib/auth/access-modal-context.js";
 import { MerchantStoreSwitcher } from "./MerchantStoreSwitcher.js";
+import { SUBSCRIPTION_RECOVERY_TABS } from "./subscription-route-policy.js";
+import { SubscriptionAccessGate } from "./SubscriptionAccessGate.js";
+import { MarketplaceRemediationActions } from "../pages/onboarding-wizard/MarketplaceRemediationActions.js";
+import { Button } from "../components/Button.js";
 
-function ShellImportProgressProvider({ children }: { children: React.ReactNode }) {
+function ShellImportProgressProvider({ children, suspended = false }: { children: React.ReactNode; suspended?: boolean }) {
   const catalog = useCatalogApi();
+  if (suspended) return <>{children}</>;
   return (
     <ImportProgressProvider getImportJob={catalog.getImportJob}>
       {children}
@@ -125,15 +130,18 @@ export interface DashboardShellProps {
   initialTab?: TabKey;
   onLogout: () => void;
   onboardingCompleted?: boolean;
+  subscriptionRequired?: boolean;
+  onRefreshSubscription?: () => Promise<void>;
 }
 
-export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: initialOnboardingCompleted }: DashboardShellProps) {
+export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: initialOnboardingCompleted, subscriptionRequired = false, onRefreshSubscription }: DashboardShellProps) {
   const resolveInitialTab = (): TabKey => {
     const hash = window.location.hash.slice(1).split("?")[0];
     if (hash) return hash as TabKey;
     return initialTab ?? "overview";
   };
-  const [tab, setTab] = useState<TabKey>(resolveInitialTab);
+  const [requestedTab, setTab] = useState<TabKey>(resolveInitialTab);
+  const tab = requestedTab;
   const [editingProductId, setEditingProductId] = useState<string | null>(() => new URLSearchParams(window.location.hash.split("?")[1] ?? "").get("productId"));
   const [hideOnboarding, setHideOnboarding] = useState(initialOnboardingCompleted !== false);
   const appliedOnboardingTabRef = React.useRef(false);
@@ -144,13 +152,14 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   const [reviewStrategyId, setReviewStrategyId] = useState<string | null>(null);
   useEffect(() => {
     setReviewStrategyId(null);
+    if (subscriptionRequired) return;
     const review = (event: Event) => {
       const id = (event as CustomEvent<{ hypothesisId?: string }>).detail?.hypothesisId;
       if (typeof id === "string" && id.trim()) setReviewStrategyId(id);
     };
     window.addEventListener(STRATEGY_REVIEW_EVENT, review);
     return () => window.removeEventListener(STRATEGY_REVIEW_EVENT, review);
-  }, [me.id]);
+  }, [me.id, subscriptionRequired]);
   const [customDomain, setCustomDomain] = useState<string>();
   const [collapsedSections, setCollapsedSections] = useState<Set<string>>(() => {
     const saved = localStorage.getItem("aacp_nav_collapsed");
@@ -197,6 +206,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
   }, [initialTab, initialOnboardingCompleted]);
 
   useEffect(() => {
+    if (subscriptionRequired) return;
     let active = true;
     void dashboardFetch(API_BASE_URL, "/merchants/me/domains")
       .then(async (response) => {
@@ -213,7 +223,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
         if (active) setCustomDomain(undefined);
       });
     return () => { active = false; };
-  }, []);
+  }, [subscriptionRequired]);
 
   useEffect(() => {
     localStorage.setItem("aacp_nav_collapsed", JSON.stringify(Array.from(collapsedSections)));
@@ -251,11 +261,12 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     });
   }, []);
 
-  const socket = useSupportSocket(API_BASE_URL, me.id, me.name || undefined);
-  const { counts: navCounts, markViewed: markBadgeViewed } = useNavCounts();
+  const socket = useSupportSocket(API_BASE_URL, subscriptionRequired ? undefined : me.id, me.name || undefined);
+  const { counts: navCounts, markViewed: markBadgeViewed } = useNavCounts(!subscriptionRequired);
   const storefrontHref = useMemo(() => getStorefrontUrl(me.slug, customDomain), [me.slug, customDomain]);
 
   React.useEffect(() => {
+    if (subscriptionRequired) return;
     if (socket.newTickets.length === 0) return;
     const newNotifs: NotificationItem[] = socket.newTickets.map((t) => ({
       id: t.id,
@@ -266,13 +277,14 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     }));
     setNotifications((prev) => [...newNotifs, ...prev]);
     socket.clearNewTickets();
-  }, [socket.newTickets]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [socket.newTickets, subscriptionRequired]); // eslint-disable-line react-hooks/exhaustive-deps
 
   React.useEffect(() => {
     let stopped = false;
     let polling = false;
     setNotifications([]);
     setInventoryNotice(null);
+    if (subscriptionRequired) return;
     const poll = async () => {
       if (polling) return;
       polling = true;
@@ -295,7 +307,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     const reload = () => { void poll(); };
     window.addEventListener(STRATEGY_CHANGED_EVENT, reload);
     return () => { stopped = true; clearInterval(timer); window.removeEventListener(STRATEGY_CHANGED_EVENT, reload); };
-  }, [me.id]);
+  }, [me.id, subscriptionRequired]);
 
   const visibleNavItems = useMemo(
     () => {
@@ -314,7 +326,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
       }
       return items;
     },
-    [hideOnboarding, me.plan, me.role, searchQuery]
+    [hideOnboarding, me.plan, me.role, searchQuery, subscriptionRequired]
   );
 
   const visibleSectionIds = useMemo(
@@ -337,12 +349,12 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
     <>
     <AccessModalProvider>
     <PlanProvider merchantPlan={me.plan}>
-      <ShellImportProgressProvider>
+      <ShellImportProgressProvider suspended={subscriptionRequired}>
       <div className="merchant-console" style={{ "--ink": "oklch(96% 0.002 145)", "--muted": "oklch(70% 0.006 145)", "--faint": "oklch(52% 0.006 145)", "--border": "oklch(27% 0.006 145)", "--bg": "oklch(13% 0.002 145)", "--card": "oklch(18.5% 0.004 145)", "--accent": "oklch(74% 0.19 149)", "--accent-dark": "oklch(60% 0.17 149)", "--accent-soft": "oklch(26% 0.05 149)", "--accent-line": "oklch(42% 0.1 149)", "--warn": "oklch(76% 0.15 80)", "--warn-soft": "oklch(26% 0.05 80)", "--good": "oklch(74% 0.17 149)", "--good-soft": "oklch(26% 0.05 149)", "--danger": "oklch(68% 0.18 25)", "--danger-soft": "oklch(28% 0.06 25)", "--sidebar-bg": "oklch(8% 0.002 145)", "--sidebar-border": "oklch(20% 0.006 145)", "--sidebar-text": "oklch(96% 0.002 145)", "--sidebar-muted": "oklch(58% 0.008 145)", "--sidebar-active": "oklch(23% 0.045 149)", "--serif": "'Source Serif 4', Georgia, 'Times New Roman', serif", "--mono": "'IBM Plex Mono', ui-monospace, 'SF Mono', Menlo, monospace", "--sans": "'Manrope', -apple-system, BlinkMacSystemFont, sans-serif", display: "flex", width: "100%", minWidth: 0, height: "100dvh", minHeight: 0, background: "var(--bg)", fontFamily: "var(--sans)", color: "var(--ink)", letterSpacing: "-0.001em" } as React.CSSProperties}>
       {/* ── SIDEBAR ── */}
       <aside style={{ width: 252, flex: "none", background: "var(--sidebar-bg)", display: "flex", flexDirection: "column", padding: "20px 14px", overflowY: "auto" }}>
         <div style={{ display: "flex", alignItems: "center", gap: 10, padding: "6px 8px 18px", borderBottom: "1px solid var(--sidebar-border)", marginBottom: 14 }}>
-          <img src="/logo-zyon.png" alt="Zyon" style={{ width: 50, height: 50, borderRadius: 10, objectFit: "cover", flex: "none" }} />
+          <img src="/zyon-z.png" alt="Zyon" width="44" height="33" style={{ width: 44, height: 33, objectFit: "contain", flex: "none" }} />
           <div style={{ minWidth: 0 }}>
             <div style={{ display: "flex", alignItems: "center", gap: 6, font: "600 15px var(--serif)", letterSpacing: "-0.01em", color: "var(--sidebar-text)" }}>
               Zyon Console
@@ -568,7 +580,7 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             </> : <div className="ui-breadcrumb"><ActiveIcon size={17} aria-hidden="true" /><span>{activeSection}</span><span aria-hidden="true">/</span><span className="ui-breadcrumb__current">{activeItem.label}</span></div>}
           </div>
           <div className="console-topbar-actions" style={{ display: "flex", alignItems: "center", gap: 10 }}>
-            {(me.plan === "STORE_ONLY" || me.plan === "BOTH") && storefrontHref && (
+            {!subscriptionRequired && (me.plan === "STORE_ONLY" || me.plan === "BOTH") && storefrontHref && (
               <a
                 href={storefrontHref}
                 target="_blank"
@@ -599,13 +611,35 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
                 if (notificationMerchant.current === me.id) setNotifications(prev => prev.filter(x => x.id !== n.id));
               }}
             />
-            <MerchantStoreSwitcher currentStoreId={me.id} currentStoreName={me.name || me.id} />
+            {!subscriptionRequired && <MerchantStoreSwitcher currentStoreId={me.id} currentStoreName={me.name || me.id} />}
           </div>
         </div>
         <section className={"console-content" + (tab === "overview" ? "" : " dashboard-ui")} data-dashboard-page={tab} style={{ flex: 1, overflowY: "auto", padding: "48px 32px 60px", scrollbarWidth: "thin", scrollbarColor: "rgba(255,255,255,0.06) transparent" }}>
-          {reviewStrategyId && <StrategyReviewModal key={me.id + reviewStrategyId} hypothesisId={reviewStrategyId} merchantId={me.id} onClose={() => setReviewStrategyId(null)} />}
-          <FreeTrialNotice onViewPlans={() => changeTab("billing-plans")} />
+          {!subscriptionRequired && reviewStrategyId && <StrategyReviewModal key={me.id + reviewStrategyId} hypothesisId={reviewStrategyId} merchantId={me.id} onClose={() => setReviewStrategyId(null)} />}
+          {subscriptionRequired ? <>
+            <aside className="free-trial-notice" role="status">
+              <div className="free-trial-notice__body">
+                <strong className="free-trial-notice__title">Período grátis encerrado</strong>
+                <p className="free-trial-notice__text">{me.role === "OWNER"
+                  ? "Os módulos da loja estão bloqueados. Escolha um plano abaixo para continuar; a liberação depende da confirmação da assinatura."
+                  : "Os módulos da loja estão bloqueados. Peça ao proprietário para regularizar a assinatura. Sua conta continua acessível."}</p>
+              </div>
+              <Button variant="outline" onClick={() => void onRefreshSubscription?.()}>Atualizar assinatura</Button>
+            </aside>
+            <MarketplaceRemediationActions visible={me.role === "OWNER" && tab === "marketplace"} actions={SUBSCRIPTION_RECOVERY_TABS.map(id => ({
+              id, label: ({
+                "marketplace-payments": "Gerenciar cobranças existentes do marketplace",
+                "marketplace-shipments": "Gerenciar remessas existentes do marketplace",
+                "marketplace-refunds": "Gerenciar estornos existentes do marketplace",
+                "marketplace-asaas-wallet-returns": "Gerenciar retornos Asaas do marketplace",
+                "marketplace-contributions": "Gerenciar aportes para estornos do marketplace",
+                "marketplace-fees": "Gerenciar taxas existentes do marketplace",
+                "marketplace-host-fees": "Gerenciar taxas existentes da loja principal",
+              })[id], onSelect: () => changeTab(id),
+            }))} />
+          </> : <FreeTrialNotice onViewPlans={() => changeTab("billing-plans")} />}
           <PageErrorBoundary key={tab}>
+            <SubscriptionAccessGate required={subscriptionRequired} role={me.role} tab={tab} onViewPlans={() => changeTab("billing-plans")} onRefresh={onRefreshSubscription}>
             <Suspense fallback={<LoadingFallback />}>
             {tab === "onboarding" ? (
               <RouteGuard me={me} require="onboarding">
@@ -756,16 +790,12 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
             {tab === "inventory" ? <RouteGuard me={me} require="inventory"><InventoryPage apiBaseUrl={API_BASE_URL} me={me} notificationTarget={inventoryNotice} /></RouteGuard> : null}
             {tab === "negotiation-policy" ? (
               <RouteGuard me={me} require="negotiation-policy">
-                <PremiumFeatureGate feature="advancedRules" requiredPlan="Growth" featureLabel="Negociação" description="Política de negociação e barganha: o agente negocia descontos dentro dos limites que você define.">
-                  <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} />
-                </PremiumFeatureGate>
+                <NegotiationPolicyPage apiBaseUrl={API_BASE_URL} me={me} />
               </RouteGuard>
             ) : null}
             {tab === "chargebacks" ? (
               <RouteGuard me={me} require="chargebacks">
-                <PremiumFeatureGate feature="marketplace" requiredPlan="Scale" featureLabel="Chargebacks">
-                  <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} />
-                </PremiumFeatureGate>
+                <ChargebacksPage apiBaseUrl={API_BASE_URL} me={me} />
               </RouteGuard>
             ) : null}
             {tab === "returns" ? <RouteGuard me={me} require="returns"><ReturnExchangesPage apiBaseUrl={API_BASE_URL} me={me} /></RouteGuard> : null}
@@ -805,12 +835,13 @@ export function DashboardShell({ me, initialTab, onLogout, onboardingCompleted: 
               </RouteGuard>
             ) : null}
             </Suspense>
+            </SubscriptionAccessGate>
           </PageErrorBoundary>
         </section>
       </main>
-      <PlatformFeedbackFab />
+      {!subscriptionRequired && <PlatformFeedbackFab key={me.id} apiBaseUrl={API_BASE_URL} merchantId={me.id} />}
       <ToastContainer />
-      <ImportProgressBanner />
+      {!subscriptionRequired && <ImportProgressBanner />}
       </div>
       </ShellImportProgressProvider>
     </PlanProvider>

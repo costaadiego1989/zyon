@@ -34,15 +34,32 @@
   margin-top: 8px;
 }
 
+/* Reuse approved plan tiles inside the dashboard's existing theme and grid. */
+.billing-plans__catalog.plan-selection {
+  --plan-ink: var(--color-text, var(--ink));
+  --plan-muted: var(--color-text-secondary, var(--muted));
+  --plan-line: var(--color-border, var(--border));
+  --plan-accent: var(--color-brand, var(--accent));
+  max-width: none;
+  margin: 8px 0 0;
+  padding: 0;
+}
+.billing-plans__catalog .signup-plan:not(.signup-plan--featured) {
+  background: var(--card);
+}
+.billing-plans__catalog .signup-plan > .zyn-btn {
+  margin-top: auto;
+}
+
 .billing-plans__plans-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1200px) {
   .billing-plans__plans-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 }
 
@@ -62,13 +79,20 @@
 
 .billing-plans__skeleton-grid {
   display: grid;
-  grid-template-columns: repeat(3, 1fr);
+  grid-template-columns: repeat(4, minmax(0, 1fr));
   gap: 16px;
 }
 
-@media (max-width: 960px) {
+@media (max-width: 1200px) {
   .billing-plans__skeleton-grid {
-    grid-template-columns: 1fr;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 760px) {
+  .billing-plans__plans-grid,
+  .billing-plans__skeleton-grid {
+    grid-template-columns: minmax(0, 1fr);
   }
 }
 

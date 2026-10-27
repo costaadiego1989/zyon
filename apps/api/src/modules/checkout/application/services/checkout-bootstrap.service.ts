@@ -12,6 +12,7 @@ import { CartPromoResolutionService } from "./cart-promo-resolution.service.js";
 import type { TrustedCheckoutBuyer } from "./trusted-checkout-buyer.js";
 import { commitCheckoutMutation } from "./commit-checkout-mutation.js";
 import { requiresPhysicalDelivery } from "../../domain/services/cart-fulfillment.js";
+import { QuoteShippingUseCase } from "../../../shipping/application/use-cases/quote-shipping.use-case.js";
 
 interface BootstrapResult {
   session: CheckoutSession;
@@ -29,7 +30,8 @@ export class CheckoutBootstrapService {
     @Optional() private readonly holdoutGroupService?: HoldoutGroupService,
     @Optional() @Inject(STOREFRONT_CART_PORT) private readonly storefrontCart?: StorefrontCartPort,
     @Optional() private readonly metrics?: MetricsService,
-    @Optional() private readonly promoResolution?: CartPromoResolutionService
+    @Optional() private readonly promoResolution?: CartPromoResolutionService,
+    @Inject(QuoteShippingUseCase) private readonly shippingQuotes?: QuoteShippingUseCase,
   ) {}
 
   async bootstrap(input: StartCheckoutRequest, globalUserId: string, cartValidated = false,
@@ -86,6 +88,7 @@ export class CheckoutBootstrapService {
     const existingSession = await this.sessions.getSession(input.merchant_id, sessionId);
 
     let session: CheckoutSession;
+    let preparedCreatedBuyer = false;
     if (existingSession) {
       session = CheckoutSessionEntity.rehydrate(existingSession).snapshot();
     } else {
@@ -108,9 +111,13 @@ export class CheckoutBootstrapService {
       if (cartRef && session.cart) {
         (session.cart as any).cart_ref = cartRef;
       }
+      if (identity?.trustedBuyer && this.customerService) {
+        session = await this.customerService.prepareTrustedBuyerForCheckout(session, identity.trustedBuyer);
+      }
       if (this.sessions.createSessionIfAbsent) {
         const result = await this.sessions.createSessionIfAbsent(session);
         session = result.session;
+        preparedCreatedBuyer = result.created && !!identity?.trustedBuyer && !!this.customerService;
         if (result.created) await this.sessions.recordEvent(input.merchant_id, sessionId, "checkout_started");
       } else {
         if (identity?.requireBuyerProof || identity?.trustedBuyer || identity?.trustedPhoneBuyer) {
@@ -140,12 +147,18 @@ export class CheckoutBootstrapService {
       throw new UnauthorizedException("checkout_buyer_proof_required");
     }
 
-    if (identity?.refreshCart) {
+    // A normal same-capability remount can follow a definitive coupon release
+    // and explicit reapply on the authenticated source cart. Presence only
+    // selects the dedicated path; its transaction still owns proof and CAS.
+    const releasedStorefrontResume = cartValidated && !!identity?.trustedBuyer && session.cart.source === "storefront"
+      && cartRef === session.cart.cart_ref
+      && !!await this.sessions.hasReleasedStorefrontCouponBinding?.(session.merchantId, session.sessionId);
+    if (identity?.refreshCart || releasedStorefrontResume) {
       // Requote items, delivery and payment after absence, preserving verified identity.
       // Preserve the old benefit as input; the transaction removes it when its
       // commercial context changes. A refresh cannot grant a caller's discount.
       session = await commitCheckoutMutation(this.sessions, { expected: session, next: {
-        ...session, cart: { ...enrichedInput.cart, currentDiscount: session.cart.currentDiscount,
+        ...session, cart: releasedStorefrontResume ? enrichedInput.cart : { ...enrichedInput.cart, currentDiscount: session.cart.currentDiscount,
           commercialNudge: session.cart.commercialNudge },
         shipping: undefined, shippingOptions: undefined, paymentMethod: undefined,
         abandonmentScore: 0, triggerAgent: false,
@@ -154,11 +167,22 @@ export class CheckoutBootstrapService {
 
     this.logger.warn('[CHECKOUT-DBG] session saved', { sessionId, customer: { cpf: !!session.customer?.cpf, name: !!session.customer?.fullName, asaasId: !!session.customer?.asaasCustomerId } });
 
-    if (this.customerService && session.customer?.email?.trim()) {
+    if (identity?.trustedBuyer && this.customerService && !preparedCreatedBuyer) {
+      // Authenticate the canonical winner before recognizing any private PII.
+      // Refresh above must retain its persisted CAS expectation, not this new profile.
+      session = await this.customerService.prepareTrustedBuyerForCheckout(session, identity.trustedBuyer);
+    } else if (!identity?.trustedBuyer && this.customerService && session.customer?.email?.trim()) {
       session = await this.customerService.hydrateReturningBuyerFromEmailHint(session);
     }
 
     if (!requiresPhysicalDelivery(session.cart)) session = { ...session, shipping: undefined, shippingOptions: undefined };
+
+    // Same-capability remounts do not authorize a former neighborhood selection
+    // after the canonical buyer/origin locality changed. Review before saving
+    // or rendering; never clear/reprice a persisted or uncertain payment here.
+    // Nest requires this provider (no @Optional); older direct construction
+    // doubles can omit it without changing their unrelated fixture contracts.
+    if (session.shipping && this.shippingQuotes) await this.shippingQuotes.assertNeighborhoodDestination(session);
 
     const cohort = this.holdoutGroupService
       ? this.holdoutGroupService.assignCohort(session.globalUserId, session.merchantId)
@@ -168,6 +192,10 @@ export class CheckoutBootstrapService {
     session.aiCostCents = session.aiCostCents ?? 0;
 
     await this.sessions.saveSession(session);
+
+    if (identity?.trustedBuyer && this.customerService) {
+      await this.customerService.persistTrustedBuyerProfile(session, identity.trustedBuyer);
+    }
 
     await this.outbox.appendOutbox(
       createCheckoutEventEnvelope({

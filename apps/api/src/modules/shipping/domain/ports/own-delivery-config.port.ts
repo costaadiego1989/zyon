@@ -30,6 +30,7 @@ export interface OwnDeliveryConfig {
 
 export interface OwnDeliveryConfigRepository {
   getByMerchantId(merchantId: string): Promise<OwnDeliveryConfig | null>;
+  getNeighborhoodOrigin?(merchantId: string): Promise<import("../services/neighborhood-delivery-origin.js").NeighborhoodDeliveryOriginResult>;
   save(config: OwnDeliveryConfig): Promise<OwnDeliveryConfig>;
 }
 

@@ -9,7 +9,7 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
   }
 
-  let body: { merchant_id?: unknown; cart_ref?: unknown; allowed_origin?: unknown };
+  let body: { merchant_id?: unknown; cart_ref?: unknown; allowed_origin?: unknown; previous_embed_token?: unknown; buyer_access_token?: unknown };
   try {
     body = await request.json();
   } catch {
@@ -20,6 +20,12 @@ export async function POST(request: Request) {
   }
   if (body.allowed_origin !== undefined && body.allowed_origin !== origin) {
     return NextResponse.json({ error: "origin_not_allowed" }, { status: 403 });
+  }
+  if (body.previous_embed_token !== undefined && (typeof body.previous_embed_token !== "string" || !body.previous_embed_token || body.previous_embed_token.length > 8192)) {
+    return NextResponse.json({ error: "invalid_previous_token" }, { status: 400 });
+  }
+  if (body.buyer_access_token !== undefined && (typeof body.buyer_access_token !== "string" || !body.buyer_access_token || body.buyer_access_token.length > 4096)) {
+    return NextResponse.json({ error: "invalid_buyer_token" }, { status: 400 });
   }
   const conversationToken = request.headers.get("authorization")?.match(/^Bearer (\S+)$/i)?.[1];
   // The API verifies this capability against the merchant, cart and observed origin.
@@ -44,6 +50,8 @@ export async function POST(request: Request) {
         // The API must resolve an active installation of this merchant for this origin.
         allowed_origin: origin,
         ...(body.cart_ref !== undefined ? { cart_ref: body.cart_ref, conversation_token: conversationToken } : {}),
+        ...(body.previous_embed_token !== undefined ? { previous_embed_token: body.previous_embed_token } : {}),
+        ...(body.buyer_access_token !== undefined ? { buyer_access_token: body.buyer_access_token } : {}),
         scopes: ["checkout:start", "checkout:track", "checkout:chat", "payment:intents:create", "payment:intents:confirm", "payment:intents:read", "offers:apply", "coupons:apply"],
       }),
       cache: "no-store",

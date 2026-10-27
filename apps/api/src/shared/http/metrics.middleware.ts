@@ -1,6 +1,7 @@
 import { Injectable, NestMiddleware } from "@nestjs/common";
 import { Counter, Histogram, Registry } from "prom-client";
 import type { NextFunction, Request, Response } from "express";
+import { performance } from "node:perf_hooks";
 
 let registry: Registry;
 let httpRequestDuration: Histogram;
@@ -8,6 +9,7 @@ let httpRequestsTotal: Counter;
 let httpErrorsTotal: Counter;
 
 export function initMetrics(): Registry {
+  if (registry) return registry;
   registry = new Registry();
 
   httpRequestDuration = new Histogram({
@@ -36,34 +38,28 @@ export function initMetrics(): Registry {
 }
 
 export function getMetricsRegistry(): Registry {
-  if (!registry) {
-    throw new Error("Metrics not initialized. Call initMetrics() first.");
-  }
-  return registry;
+  const current = initMetrics();
+  initDomainMetrics();
+  return current;
 }
 
 @Injectable()
 export class MetricsMiddleware implements NestMiddleware {
   use(req: Request, res: Response, next: NextFunction): void {
-    const start = Date.now();
-    const originalSend = res.send;
-
-    res.send = function (...args: any[]) {
-      const duration = (Date.now() - start) / 1000;
-      const method = req.method;
-      const route = req.route?.path || req.path;
-      const status = res.statusCode;
-
-      httpRequestDuration.observe({ method, route, status }, duration);
-      httpRequestsTotal.inc({ method, route, status });
-
-      if (status >= 500) {
-        httpErrorsTotal.inc({ method, route, status });
-      }
-
-      return originalSend.apply(res, args as [body?: any]);
-    };
-
+    getMetricsRegistry();
+    const started = performance.now();
+    res.once("finish", () => {
+      // Metrics failures must not change responses. Observe once, including streams.
+      try {
+        const method = ["GET", "HEAD", "POST", "PUT", "PATCH", "DELETE", "OPTIONS", "CONNECT", "TRACE"].includes(req.method) ? req.method : "OTHER";
+        // Never use raw pathname/query as a label, especially for unmatched routes.
+        const route = typeof req.route?.path === "string" ? req.route.path : "unmatched";
+        const status = res.statusCode;
+        httpRequestDuration.observe({ method, route, status }, Math.max(0, performance.now() - started) / 1000);
+        httpRequestsTotal.inc({ method, route, status });
+        if (status >= 500) httpErrorsTotal.inc({ method, route, status });
+      } catch { /* Observation is best effort, never retry commerce. */ }
+    });
     next();
   }
 }
@@ -73,11 +69,11 @@ let orderCounter: Counter;
 let paymentCounter: Counter;
 let webhookDeliveryCounter: Counter;
 let webhookErrorCounter: Counter;
+let domainInitialized = false;
 
 export function initDomainMetrics(): void {
-  if (!registry) {
-    throw new Error("Call initMetrics() before initDomainMetrics()");
-  }
+  if (domainInitialized) return;
+  initMetrics();
 
   checkoutCounter = new Counter({
     name: "checkouts_created_total",
@@ -113,6 +109,7 @@ export function initDomainMetrics(): void {
     labelNames: ["error_code"],
     registers: [registry],
   });
+  domainInitialized = true;
 }
 
 export function recordCheckoutCreated(status: "success" | "failed"): void {

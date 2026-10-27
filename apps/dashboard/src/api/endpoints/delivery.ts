@@ -69,9 +69,10 @@ export function deliveryEndpoints(base: string, f: typeof fetch) {
       };
     },
 
-    async updateDeliveryConfig(payload: { melhorEnvioEnabled?: boolean; ownDelivery?: Partial<OwnDeliveryConfig> }): Promise<{ success: true }> {
+    async updateDeliveryConfig(payload: { melhorEnvioEnabled?: boolean; originZip?: string; ownDelivery?: Partial<OwnDeliveryConfig> }): Promise<{ success: true }> {
       // Transform camelCase → snake_case; map mode values (fixed→flat, by_neighborhood→neighborhood)
       const body: Record<string, unknown> = {};
+      if (payload.originZip !== undefined) body.origin_zip = payload.originZip;
       if (payload.melhorEnvioEnabled !== undefined) body.melhor_envio_enabled = payload.melhorEnvioEnabled;
       if (payload.ownDelivery !== undefined) {
         const od = payload.ownDelivery;

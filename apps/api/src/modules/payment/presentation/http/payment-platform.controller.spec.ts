@@ -65,3 +65,23 @@ test("billing plan change forwards the selected billing cycle", async () => {
 
   assert.deepEqual(received, [{ merchantId: "merchant", targetPlanKey: "scale", billingCycle: "annual" }]);
 });
+
+test("billing response preserves annual zero-value grants without inventing a provider subscription", () => {
+  const response = toBillingResponse({ ...subscription({}), billingCycle: "annual", billingAmountCents: 0, billingDiscountPercent: 0 });
+  assert.equal(response.billing_cycle, "annual");
+  assert.equal(response.billing_amount_cents, 0);
+  assert.equal(response.billing_discount_percent, 0);
+  assert.equal(response.has_subscription, false);
+});
+
+test("billing response exposes pending changes without replacing the current contract", () => {
+  const response = toBillingResponse({ ...subscription({}), billingCycle: "monthly", billingAmountCents: 44900,
+    pendingPlanKey: "scale", pendingBillingCycle: "annual", pendingBillingAmountCents: 763980,
+    pendingPlanEffectiveAt: "2026-10-24T00:00:00.000Z" });
+  assert.equal(response.billing_cycle, "monthly");
+  assert.equal(response.billing_amount_cents, 44900);
+  assert.equal(response.pending_plan, "scale");
+  assert.equal(response.pending_billing_cycle, "annual");
+  assert.equal(response.pending_billing_amount_cents, 763980);
+  assert.equal(response.pending_effective_at, "2026-10-24T00:00:00.000Z");
+});

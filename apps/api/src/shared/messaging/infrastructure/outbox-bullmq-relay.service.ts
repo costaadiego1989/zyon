@@ -119,10 +119,13 @@ export class OutboxBullMqRelay implements OnModuleInit, OnModuleDestroy {
     // sub-second event delivery similar to the old 100ms interval.
     const deadline = Date.now() + 55_000; // stop 5s before next tick
     let passes = 0;
-    while (Date.now() < deadline) {
+    while (!this.metricsStopping && Date.now() < deadline) {
       await this.dispatcher.dispatch();
       this.lastDispatch?.set(this.dispatcher.getLastCompletedRoundAt() / 1000);
       passes++;
+      // Drain the already-started pass, then let graceful Worker.close finish;
+      // shutdown must neither claim another pass nor wait out this job window.
+      if (this.metricsStopping) break;
       // Short sleep between passes to avoid busy-loop; 200ms → ~275 passes/min
       await new Promise((r) => setTimeout(r, 200));
     }

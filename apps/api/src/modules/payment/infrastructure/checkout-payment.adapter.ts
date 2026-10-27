@@ -9,6 +9,7 @@ import { DOMAIN_EVENT_BUS, type DomainEventBus } from "../../../shared/events/do
 import { PAYMENT_APPROVED_EVENT } from "../../checkout/domain/events/payment-approved.event.js";
 import { createCheckoutEventEnvelope } from "../../checkout/domain/events/checkout-domain-event.js";
 import type { PaymentIntentStatus } from "../domain/payment-intent.entity.js";
+import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
 
 @Injectable()
 export class CheckoutPaymentAdapter implements CheckoutPaymentPort {
@@ -56,6 +57,7 @@ export class CheckoutPaymentAdapter implements CheckoutPaymentPort {
       return;
     }
     await this.prisma.$transaction(async tx => {
+      await lockCheckoutSessionAnchor(tx, input.merchantId, input.sessionId);
       const rows = await tx.$queryRaw<Array<{ chat_history: unknown }>>`
         SELECT chat_history FROM checkout_sessions
         WHERE merchant_id = ${input.merchantId} AND session_id = ${input.sessionId} FOR UPDATE`;

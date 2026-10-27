@@ -10,9 +10,11 @@ import {
 import { AuthScreen, type AuthMode } from "./auth/AuthScreen.js";
 import { OAuthCallback, type OAuthCallbackResult } from "./auth/OAuthCallback.js";
 import { friendlyAuthError } from "./auth/auth-error.js";
+import { authModeFromUrl, authUrlForMode } from "./auth/auth-navigation.js";
 import { DashboardShell } from "./shell/DashboardShell.js";
 import { LoadingSplash } from "./components/LoadingSplash.js";
 import { PlanSelection } from "./pages/onboarding-wizard/steps/PlanSelection.js";
+import { MarketplaceRemediationActions } from "./pages/onboarding-wizard/MarketplaceRemediationActions.js";
 import { MarketplacePaymentsPage } from "./pages/marketplace/MarketplacePaymentsPage.js";
 import { MarketplaceShipmentsPage } from "./pages/marketplace/MarketplaceShipmentsPage.js";
 import { MarketplaceRefundsPage } from "./pages/marketplace/MarketplaceRefundsPage.js";
@@ -31,9 +33,8 @@ installDeploymentRecovery();
 
 const API_BASE_URL = resolveDashboardApiBaseUrl(import.meta.env);
 
-// Cloudflare Turnstile site key. Empty string disables the widget; the auth
-// forms will skip sending `turnstile_token` and the API is configured the
-// same way (skips verification when the secret is unset).
+// Public build-time key. Missing production configuration must fail closed;
+// only explicitly unconfigured local development can skip the widget.
 const TURNSTILE_SITE_KEY =
   (import.meta.env as Record<string, string | undefined>).VITE_TURNSTILE_SITE_KEY ?? "";
 
@@ -50,13 +51,7 @@ interface AppProps {
 
 function App({ api }: AppProps) {
   const [me, setMe] = useState<MerchantDashboardProfile | null>(null);
-  const [authMode, setAuthMode] = useState<AuthMode>(() => {
-    const params = new URLSearchParams(window.location.search);
-    if (params.get("token") && window.location.pathname.includes("reset-password")) return "reset";
-    if (params.get("mode") === "signup") return "signup";
-    if (params.get("mode") === "login") return "login";
-    return window.location.pathname === "/" ? "signup" : "login";
-  });
+  const [authMode, setCurrentAuthMode] = useState<AuthMode>(() => authModeFromUrl(window.location.href));
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [merchantName, setMerchantName] = useState("");
@@ -78,6 +73,12 @@ function App({ api }: AppProps) {
   const [hostFeeRemediationOpen, setHostFeeRemediationOpen] = useState(() => window.location.hash === "#marketplace-host-fees");
   const [subscriptionIntent, setSubscriptionIntent] = useState(readSubscriptionIntent);
   const onboardingRedirectedRef = useRef(false);
+  function setAuthMode(mode: AuthMode) {
+    window.history.replaceState(window.history.state, "", authUrlForMode(window.location.href, mode));
+    setCurrentAuthMode(mode);
+    setCaptchaToken(null);
+    setAuthHint(null);
+  }
   useEffect(() => {
     const syncFeeRoute = () => {
       setSellerFeeRemediationOpen(window.location.hash === "#marketplace-fees");
@@ -88,6 +89,7 @@ function App({ api }: AppProps) {
   }, []);
 
   async function refreshSession() {
+    setCheckingSession(true);
     try {
       const profile = await api.merchantProfile();
       const settings = await api.getStoreSettings();
@@ -107,7 +109,7 @@ function App({ api }: AppProps) {
         const subscription = await api.getBillingSubscription();
         setSubscriptionRequired(subscription.trial_expired === true);
       } catch (error) {
-        setSubscriptionRequired(false);
+        // A transient billing lookup must not unlock a confirmed restriction.
         reportError({ source: "main.refreshSession.billing", error, severity: "warning" });
       }
       try {
@@ -154,6 +156,29 @@ function App({ api }: AppProps) {
     window.addEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
     return () => window.removeEventListener(SESSION_EXPIRED_EVENT, handleSessionExpired);
   }, [checkingSession, me]);
+
+  useEffect(() => {
+    if (!me) return;
+    let active = true;
+    let inFlight = false;
+    const refreshBillingAccess = () => {
+      if (inFlight || document.visibilityState === "hidden") return;
+      inFlight = true;
+      void api.getBillingSubscription().then(subscription => {
+        if (active) setSubscriptionRequired(subscription.trial_expired === true);
+      }).catch(() => { /* Keep the last server-confirmed access state. */ })
+        .finally(() => { inFlight = false; });
+    };
+    const timer = window.setInterval(refreshBillingAccess, 60_000);
+    window.addEventListener("focus", refreshBillingAccess);
+    document.addEventListener("visibilitychange", refreshBillingAccess);
+    return () => {
+      active = false;
+      window.clearInterval(timer);
+      window.removeEventListener("focus", refreshBillingAccess);
+      document.removeEventListener("visibilitychange", refreshBillingAccess);
+    };
+  }, [api, me?.id]);
 
   async function submitAuth(event: React.FormEvent) {
     event.preventDefault();
@@ -259,7 +284,7 @@ function App({ api }: AppProps) {
 
   if (checkingSession) return <LoadingSplash />;
 
-  if (me && (!me.role || me.role === "OWNER") && (planSelectionPending || subscriptionIntent || subscriptionRequired)) {
+  if (me && (!me.role || me.role === "OWNER") && !subscriptionRequired && (planSelectionPending || subscriptionIntent)) {
     if (hostFeeRemediationOpen && me.role === "OWNER") return <main className="marketplace-remediation">
       <div><Button variant="outline" onClick={() => { setHostFeeRemediationOpen(false); window.location.hash = "billing-plans"; }}>Voltar à assinatura</Button></div>
       <MarketplaceSellerFeesPage family="host" me={me} />
@@ -290,13 +315,15 @@ function App({ api }: AppProps) {
       <MarketplacePaymentsPage me={me} />
     </main>;
     return <main className="signup-plans"><PlanSelection merchantName={me.name} initialPlan={subscriptionIntent ?? undefined} requirePaidPlan={subscriptionRequired} onDone={handlePlanComplete} onExit={subscriptionRequired || (planSelectionPending && new URLSearchParams(window.location.search).get("billing") !== "success") ? undefined : handlePlanComplete} />
-      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setRemediationOpen(true); window.location.hash = "marketplace-payments"; }}>Gerenciar cobranças existentes do marketplace</Button></div>}
-      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setShipmentRemediationOpen(true); window.location.hash = "marketplace-shipments"; }}>Gerenciar remessas existentes do marketplace</Button></div>}
-      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setRefundRemediationOpen(true); window.location.hash = "marketplace-refunds"; }}>Gerenciar estornos existentes do marketplace</Button></div>}
-      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setWalletReturnRemediationOpen(true); window.location.hash = "marketplace-asaas-wallet-returns"; }}>Gerenciar retornos Asaas do marketplace</Button></div>}
-      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setContributionRemediationOpen(true); window.location.hash = "marketplace-contributions"; }}>Gerenciar aportes para estornos do marketplace</Button></div>}
-      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setSellerFeeRemediationOpen(true); window.location.hash = "marketplace-fees"; }}>Gerenciar taxas existentes do marketplace</Button></div>}
-      {me.role === "OWNER" && <div className="marketplace-remediation__entry"><Button variant="outline" onClick={() => { setHostFeeRemediationOpen(true); window.location.hash = "marketplace-host-fees"; }}>Gerenciar taxas existentes da loja principal</Button></div>}
+      <MarketplaceRemediationActions visible={subscriptionRequired && me.role === "OWNER"} actions={[
+        { id: "payments", label: "Gerenciar cobranças existentes do marketplace", onSelect: () => { setRemediationOpen(true); window.location.hash = "marketplace-payments"; } },
+        { id: "shipments", label: "Gerenciar remessas existentes do marketplace", onSelect: () => { setShipmentRemediationOpen(true); window.location.hash = "marketplace-shipments"; } },
+        { id: "refunds", label: "Gerenciar estornos existentes do marketplace", onSelect: () => { setRefundRemediationOpen(true); window.location.hash = "marketplace-refunds"; } },
+        { id: "wallet-returns", label: "Gerenciar retornos Asaas do marketplace", onSelect: () => { setWalletReturnRemediationOpen(true); window.location.hash = "marketplace-asaas-wallet-returns"; } },
+        { id: "contributions", label: "Gerenciar aportes para estornos do marketplace", onSelect: () => { setContributionRemediationOpen(true); window.location.hash = "marketplace-contributions"; } },
+        { id: "seller-fees", label: "Gerenciar taxas existentes do marketplace", onSelect: () => { setSellerFeeRemediationOpen(true); window.location.hash = "marketplace-fees"; } },
+        { id: "host-fees", label: "Gerenciar taxas existentes da loja principal", onSelect: () => { setHostFeeRemediationOpen(true); window.location.hash = "marketplace-host-fees"; } },
+      ]} />
     </main>;
   }
 
@@ -327,7 +354,7 @@ function App({ api }: AppProps) {
     );
   }
 
-  return <DashboardShell me={me} initialTab={initialTab} onLogout={logout} onboardingCompleted={onboardingCompleted} />;
+  return <DashboardShell me={me} initialTab={initialTab} onLogout={logout} onboardingCompleted={onboardingCompleted} subscriptionRequired={subscriptionRequired} onRefreshSubscription={refreshSession} />;
 }
 
 function AppRoot() {

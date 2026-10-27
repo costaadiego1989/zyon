@@ -54,10 +54,12 @@ test("voice can reveal visual payment methods without creating a payment", async
       },
     }),
   }));
-  await page.route("**/embed/realtime/session", (route) => route.fulfill({
+  await page.route("**/embed/realtime/session", (route) => {
+    expect(route.request().postDataJSON()).toMatchObject({ session_id: "chk_voice_payment", sdp: "v=0\r\n" });
+    return route.fulfill({
     contentType: "application/json",
-    body: JSON.stringify({ value: "ephemeral_voice_test_secret" }),
-  }));
+    body: JSON.stringify({ sdp: "v=0\r\n" }),
+  }); });
   await page.route("**/embed/realtime/context", route => route.fulfill({ json: { instructions: "Continue a etapa atual do checkout." } }));
   await page.route("https://api.openai.com/v1/realtime/calls", (route) => {
     const cors = {
@@ -141,8 +143,8 @@ test("voice can reveal visual payment methods without creating a payment", async
 
   await expect.poll(() => checkoutAdvanceCalls).toBe(1);
   await expect(page.getByText(/Como.*pagar/)).toBeVisible();
-  await expect(page.getByText("Pix", { exact: true })).toBeVisible();
-  await expect(page.getByText("Cartão de crédito", { exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Pix Pagamento instantâneo", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Cartão de crédito Pagamento seguro com cartão", exact: true })).toBeVisible();
   await expect.poll(() => paymentRequests).toBe(0);
   await expect.poll(() => page.evaluate(() => (window as any).__zyonRealtimeChannels[0].sent.some((event: string) => event.includes("function_call_output")))).toBe(true);
 

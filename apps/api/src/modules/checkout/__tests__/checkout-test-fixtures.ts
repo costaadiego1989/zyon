@@ -6,6 +6,22 @@ import type {
   MerchantRules,
   StartCheckoutRequest
 } from "@zyon/shared-types";
+import type { CheckoutCommercialMutation, CheckoutSessionRepository } from "../domain/ports/checkout-session.repository.port.js";
+import { prepareCommercialMutation } from "../domain/services/checkout-commercial-mutation.js";
+
+/** Test-only bridge for ACP's stub repositories. Reuse real invalidation rules;
+ * this does not simulate database transactions, CAS, locks or durable outbox. */
+export async function simulateCommercialMutation(
+  repository: Pick<CheckoutSessionRepository, "saveSession" | "recordEvent">,
+  input: CheckoutCommercialMutation,
+): Promise<CheckoutSession> {
+  const { session } = prepareCommercialMutation(input);
+  await repository.saveSession(session);
+  if (input.cancel) await repository.recordEvent(session.merchantId, session.sessionId, "checkout_abandoned", {
+    source: "acp.protocol", reason: "buyer_initiated",
+  });
+  return session;
+}
 
 export function testCart(overrides: Partial<Cart> = {}): Cart {
   return {

@@ -3,6 +3,9 @@ import assert from "node:assert/strict";
 import { CartPromoResolutionService } from "../application/services/cart-promo-resolution.service.js";
 import type { ProductPromotionRepositoryPort, ProductPromotionEntity, CreateProductPromotionInput } from "../../catalog/domain/ports/product-promotion-repository.port.js";
 import type { Cart } from "@zyon/shared-types";
+import { merchantRules } from "./checkout-test-fixtures.js";
+
+const rules = { getRules: async () => merchantRules({ maxDiscountPercent: 20, minimumMarginPercent: 38 }) };
 
 class TestPromoRepo implements ProductPromotionRepositoryPort {
   private data: Map<string, ProductPromotionEntity[]> = new Map();
@@ -38,7 +41,7 @@ class TestPromoRepo implements ProductPromotionRepositoryPort {
   }
 
   async findActiveBySku(merchantId: string, sku: string, now?: Date): Promise<ProductPromotionEntity[]> {
-    // Test double: SKU maps to a promo whose productId or variantId equals the sku.
+    // Explicit fixture stable ID equals its SKU; runtime resolves tenant-scoped IDs.
     const promos = this.data.get(merchantId) ?? [];
     const checkDate = now ?? new Date();
     return promos.filter(p =>
@@ -52,7 +55,7 @@ class TestPromoRepo implements ProductPromotionRepositoryPort {
 
 test("CartPromoResolutionService: applies percent discount", async () => {
   const repo = new TestPromoRepo();
-  const service = new CartPromoResolutionService(repo);
+  const service = new CartPromoResolutionService(repo, rules);
 
   const now = new Date();
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -74,6 +77,7 @@ test("CartPromoResolutionService: applies percent discount", async () => {
     items: [
       {
         sku: "ZYON-SHIRT-001",
+        variantId: "ZYON-SHIRT-001", product_id: "ZYON-SHIRT-001", cost: 20,
         name: "Test Shirt",
         price: 100,
         quantity: 1,
@@ -85,11 +89,13 @@ test("CartPromoResolutionService: applies percent discount", async () => {
 
   assert.equal(resolved.items[0]?.price, 80, "should apply 20% discount (100 → 80)");
   assert.equal(resolved.items[0]?.originalPrice, 100, "the server base price describes the already-applied saving");
+  assert.equal(resolved.total, 80);
+  assert.deepEqual(resolved.discountBudget, { version: 1, originalSubtotalCents: 10000, promotionDiscountCents: 2000 });
 });
 
 test("CartPromoResolutionService: merchant boundary isolation", async () => {
   const repo = new TestPromoRepo();
-  const service = new CartPromoResolutionService(repo);
+  const service = new CartPromoResolutionService(repo, rules);
 
   const now = new Date();
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -111,6 +117,7 @@ test("CartPromoResolutionService: merchant boundary isolation", async () => {
     items: [
       {
         sku: "ZYON-SHIRT-001",
+        variantId: "ZYON-SHIRT-001", product_id: "ZYON-SHIRT-001", cost: 20,
         name: "Test Shirt",
         price: 100,
         quantity: 1,
@@ -126,7 +133,7 @@ test("CartPromoResolutionService: merchant boundary isolation", async () => {
 
 test("CartPromoResolutionService: coupon promo doesn't change unit price", async () => {
   const repo = new TestPromoRepo();
-  const service = new CartPromoResolutionService(repo);
+  const service = new CartPromoResolutionService(repo, rules);
 
   const now = new Date();
   const tomorrow = new Date(now.getTime() + 24 * 60 * 60 * 1000);
@@ -147,6 +154,7 @@ test("CartPromoResolutionService: coupon promo doesn't change unit price", async
     items: [
       {
         sku: "ZYON-SHIRT-002",
+        variantId: "ZYON-SHIRT-002", product_id: "ZYON-SHIRT-002", cost: 20,
         name: "Coupon Shirt",
         price: 100,
         quantity: 1,

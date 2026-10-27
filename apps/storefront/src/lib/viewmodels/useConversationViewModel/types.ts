@@ -1,4 +1,6 @@
-import type { MerchantThemeAppearance } from "@zyon/shared-types";
+import type { MerchantThemeAppearance, StorefrontReadUiAction } from "@zyon/shared-types";
+import type { CrossSellDisplayProduct } from "@/lib/storefront-cross-sell-flow";
+import type { CartLineSelection } from "@/lib/cart-line-selection";
 export type Message = {
   id: string;
   role: "user" | "agent";
@@ -59,17 +61,7 @@ export interface ConversationViewModelState {
 
 export interface CrossSellInterstitialData {
   trigger: string;
-  products: Array<{
-    id: string;
-    name: string;
-    price: number;
-    priceFormatted: string;
-    image?: string;
-    inStock: boolean;
-    discountPercent?: number;
-    promoId?: string;
-    couponCode?: string;
-  }>;
+  products: CrossSellDisplayProduct[];
 }
 
 /** A pre-cart offer belongs to the product the buyer is currently viewing. */
@@ -85,10 +77,10 @@ export interface ConversationViewModelActions {
   toggleTheme: () => void;
   /** Resolves a signed conversation before a client-only capability is requested. */
   ensureConversation: () => Promise<string | null>;
-  sendMessage: (text: string, attachment?: ConversationAttachment) => Promise<CommerceTurnResult | null>;
-  handleQuickReply: (option: string) => void;
+  sendMessage: (text: string, attachment?: ConversationAttachment, uiAction?: StorefrontReadUiAction, voiceTurnToken?: string) => Promise<CommerceTurnResult | null>;
+  handleQuickReply: (option: string, uiAction?: StorefrontReadUiAction) => void;
   appendAgentMessage: (message: Pick<Message, "text" | "blocks">) => void;
-  handleUpdateQuantity: (variantId: string, quantity: number) => void;
+  handleUpdateQuantity: (variantId: string, quantity: number, selection?: CartLineSelection) => void;
   setInput: (value: string) => void;
   setSupportOpen: (value: boolean | ((prev: boolean) => boolean)) => void;
   setBuyerHubOpen: (value: boolean | ((prev: boolean) => boolean)) => void;

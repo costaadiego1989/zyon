@@ -4,6 +4,11 @@ import type { CartAddResultBlock, ConversationBlock } from "../../domain/types/c
 import type { AgentCopyService } from "../copy/agent-copy.service.js";
 import { productGallery } from "../product-gallery.js";
 import { isCatalogBrowseQuery } from "../../../catalog/domain/services/contextual-product-search.js";
+import { isUnspecifiedShoppingRequest, productBrowsingAction } from "../../domain/services/sales-discovery.js";
+import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
+import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
+import { conversationBlockSchema } from "../../domain/contracts/conversation-block.schemas.js";
+import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
 
 export interface DeterministicShortcutDeps {
   productRepo: ProductRepositoryPort;
@@ -120,18 +125,20 @@ async function resolveAddToCartShortcut(
   const optionItemIds = (match[2] ?? "").split(",").filter((id) => /^[A-Za-z0-9_-]{1,191}$/.test(id));
   const cartId = input.cartId ?? input.sessionId;
   try {
-    const cart = await deps.addItemToCart({
+    const args = {
       cartId,
       variantId: match[1],
       quantity: 1,
       ...(optionItemIds.length ? { selectedOptionItemIds: optionItemIds } : {}),
-    });
+    };
+    const checked = await callStorefrontTool("add_item_to_cart", args, () => deps.addItemToCart!(args), { cartId });
+    const cart = checked.ok ? checked.data : undefined;
     const result = cartAddResult(cart, cartId, match[1], optionItemIds);
     const block = cartSummaryBlock(cart);
     if (result.data.status !== "succeeded" || !block) {
       return {
         message: result.data.status === "rejected"
-          ? typeof cart?.detail === "string" ? cart.detail : "Não consegui adicionar este produto agora. Revise sua escolha."
+          ? cart && typeof cart === "object" && "detail" in cart && typeof cart.detail === "string" ? cart.detail : "Não consegui adicionar este produto agora. Revise sua escolha."
           : "Não consegui confirmar se o produto foi adicionado. Confira o carrinho antes de tentar novamente.",
         blocks: [result],
         suggestedNext: ["Ver Carrinho", "Continuar Comprando"],
@@ -304,15 +311,25 @@ async function resolveCouponShortcut(
   const m = normalizedMsg.match(/^(?:aplicar|usar|use|quero(?:\s+usar)?)?\s*cupom\s+([a-z0-9][a-z0-9._-]{2,31})$/i);
   if (!m) return null;
   const code = m[1].toUpperCase();
+  const cartId = input.cartId ?? input.sessionId;
+  const uncertain = (): StorefrontConversationOutput => ({ message: STOREFRONT_CONTRACT_FALLBACK, blocks: [], suggestedNext: ["Ver Carrinho"] });
   try {
-    const result = await deps.applyCoupon({ cartId: input.cartId, couponCode: code });
+    const args = { cartId, couponCode: code };
+    const checked = await callStorefrontTool("apply_coupon", args, () => deps.applyCoupon!(args), { cartId });
+    if (!checked.ok) return uncertain();
+    const outcome = storefrontToolOutputSchemas.apply_coupon.safeParse(checked.data);
+    if (!outcome.success) return uncertain();
+    const result = outcome.data;
     const blocks: ConversationBlock[] = [];
     if (deps.getCartBlock && input.cartId) {
-      const cb = await deps.getCartBlock(input.cartId);
-      if (cb) blocks.push(cb);
+      // A best-effort read cannot erase an already confirmed coupon outcome.
+      try {
+        const parsedBlock = conversationBlockSchema.safeParse(await deps.getCartBlock(input.cartId));
+        if (parsedBlock.success && parsedBlock.data.type === "cart_summary" && parsedBlock.data.data.cartId === cartId) blocks.push(parsedBlock.data);
+      } catch { /* Keep the confirmed application/rejection; never replay it. */ }
     }
     if (result?.applied) {
-      const disc = typeof result.discount === "number" ? result.discount : (result.discountCents ?? 0) / 100;
+      const disc = result.discount;
       return {
         message: `Cupom ${code} aplicado! Desconto de ${formatPrice(Math.round(disc * 100))}.`,
         blocks,
@@ -329,25 +346,41 @@ async function resolveCouponShortcut(
       COUPON_ALREADY_APPLIED: `O cupom ${code} já foi aplicado.`,
       coupon_service_unavailable: "Não consegui validar o cupom agora. Tente novamente em instantes.",
     };
-    const msg = reasonMap[result?.reason] ?? `Não foi possível aplicar o cupom ${code}.`;
+    const msg = result.commercialNotices?.length ? result.commercialNotices.map(notice => notice.message).join(" ")
+      : Object.hasOwn(reasonMap, result.reason) ? reasonMap[result.reason]! : `Não foi possível aplicar o cupom ${code}.`;
     return { message: msg, blocks, suggestedNext: ["Ver Carrinho"] };
   } catch {
-    return null; // fall through to the LLM on unexpected error
+    return uncertain(); // The write may have committed; never fall through to the LLM.
   }
 }
 
 export async function resolveDeterministicShortcut(
   deps: DeterministicShortcutDeps,
   input: StorefrontConversationInput,
+  options: { structuredReadRouting?: boolean } = {},
 ): Promise<StorefrontConversationOutput | null> {
   // An attachment needs catalog matching and buyer confirmation from the agent,
   // even when the accompanying text would normally trigger a shortcut.
   if (input.attachmentContext) return null;
+  // No product/filter was selected yet. Resolve these navigation labels before
+  // the agent or its fallback can replay a previous contextual search. Do not
+  // return the same generic buttons, spend model tokens, or mutate the cart.
+  const browsingAction = productBrowsingAction(input.userMessage);
+  if (browsingAction) return {
+    message: browsingAction === "select"
+      ? "Qual produto você quer conhecer melhor? Clique em “Saber mais” no card ou me diga o nome."
+      : "Qual critério você quer usar para filtrar os produtos? Pode me dizer a faixa de preço ou uma característica importante.",
+    blocks: [],
+    suggestedNext: [],
+  };
+  // Wanting help to buy is not a request to dump the catalog. Let the agent
+  // discover the need; explicit "Ver Produtos"/catalog actions stay deterministic.
+  if (isUnspecifiedShoppingRequest(input.userMessage)) return null;
   const normalizedMsg = input.userMessage.trim().toLowerCase();
   return (
     (await resolveAddToCartShortcut(deps, input)) ??
-    (await resolveOffersShortcut(deps, input, normalizedMsg)) ??
-    (await resolveDetailsShortcut(deps, input, normalizedMsg)) ??
+    (options.structuredReadRouting ? null : await resolveOffersShortcut(deps, input, normalizedMsg)) ??
+    (options.structuredReadRouting ? null : await resolveDetailsShortcut(deps, input, normalizedMsg)) ??
     (await resolveCouponShortcut(deps, input, normalizedMsg))
   );
 }

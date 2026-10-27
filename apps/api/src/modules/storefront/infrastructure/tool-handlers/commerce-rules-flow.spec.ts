@@ -7,6 +7,7 @@ import { productRuleNotices, conditionNotice } from "../../domain/services/advan
 import type { AdvancedRule } from "../../../checkout/domain/services/advanced-rule-evaluator.service.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import type { CartHandlerDeps } from "./cart.handlers.js";
+import { validateStorefrontToolOutput } from "../../domain/contracts/storefront-tool-output.schemas.js";
 
 const rule: AdvancedRule = { id: "discount", enabled: true, priority: 1,
   conditions: [{ field: "cart_item_count", operator: ">=", value: 2 }],
@@ -28,10 +29,10 @@ function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, 
       productPrice: { findMany: async (query: any) => {
         assert.equal(query.where.variant.product.merchantId, ctx.merchantId);
         assert.equal(query.where.currency, "BRL");
-        return [{ variantId: "v-one", costInCents: 1000 }, { variantId: "v-two", costInCents: 1000 }];
+        return ["one", "two"].map(id => ({ variantId: "v-" + id, costInCents: 1000, basePriceInCents: 10000, variant: { productId: id, product: { categoryId: null } } }));
       } } },
     merchantRepo: { getRules: async () => ({ maxDiscountPercent: 20, minimumMarginPercent: 0, allowFreeShipping: true }) },
-    productPromotionRepo: promotion ? { findActiveBySku: async () => [{ discountType: "percent", discountValue: 20 }] } : undefined,
+    productPromotionRepo: promotion ? { findActiveBySku: async (_merchant: string, variantId: string) => [{ id: "promo-" + variantId, merchantId: ctx.merchantId, variantId, isActive: true, startsAt: new Date(0), endsAt: new Date("2099-01-01"), discountType: "percent", discountValue: 20 }] } : undefined,
     listEligibleCrossSells: {
       execute: async (input: any) => {
         assert.equal(input.cart.items.some((item: any) => item.sku === "sku-one"), true);
@@ -72,6 +73,29 @@ function fixture(rules: AdvancedRule[] = [], postCart = false, preCart = false, 
   return { deps, handlers: createCartHandlers(deps, ctx), products };
 }
 
+test("actual cart and product handlers satisfy output contracts with rules, promotions and cross-sell", async () => {
+  for (const promoted of [false, true]) {
+    const f = fixture([rule], true, true, promoted, true);
+    const products = createProductHandlers(f.deps as never, ctx);
+    const outputs = [
+      ["add_item_to_cart", await f.handlers.addItemToCart({ variantId: "v-one", quantity: 1 })],
+      ["get_cart", await f.handlers.getCart({ cartId: ctx.sessionId })],
+      ["update_cart_item", await f.handlers.updateCartItem({ cartId: ctx.sessionId, variantId: "v-one", quantity: 2 })],
+      ["search_products", await products.searchProducts({ query: "Product" })],
+      ["get_product_details", await products.getProductDetails({ productId: "one" })],
+      ["get_similar_products", await products.getSimilarProducts({ productId: "one" })],
+      ["compare_products", await products.compareProducts({ productIds: ["one", "two"] })],
+      ["list_categories", await products.listCategories()],
+      ["get_daily_deals", await products.getDailyDeals({})],
+      ["quote_shipping", await f.handlers.quoteShipping({ zipCode: "01001000" })],
+      ["apply_coupon", await f.handlers.applyCoupon({ couponCode: "NONE" })],
+      ["list_promotions", await f.handlers.listPromotions({})],
+      ["remove_cart_item", await f.handlers.removeCartItem({ cartId: ctx.sessionId, variantId: "v-one" })],
+    ] as const;
+    for (const [name, output] of outputs) assert.equal(validateStorefrontToolOutput(name, output).ok, true, `${name}, promotion=${promoted}`);
+  }
+});
+
 test("product promotion is applied once across add and read, including original-price metadata", async () => {
   const { handlers } = fixture([], false, false, true);
   const added = await handlers.addItemToCart({ variantId: "v-one", quantity: 1 }) as any;
@@ -81,6 +105,32 @@ test("product promotion is applied once across add and read, including original-
     assert.equal(cart.items[0].unitPrice, 80);
     assert.equal(cart.items[0].originalPrice, 100);
   }
+});
+
+test("atomic coupon port ceiling refusal preserves maximum notice without legacy redemption", async () => {
+  const { handlers, deps } = fixture([rule], false, false, true);
+  let calls = 0;
+  deps.applyCouponUseCase = { execute: async () => { calls++; throw new Error("must-not-redeem"); } } as never;
+  deps.couponCart = { apply: async () => ({ applied: false, reason: "discount_limit_reached", commercialNotices: [
+    { version: 1, code: "discount_limit_reached", message: "Você já obteve o desconto máximo permitido por esta loja nos produtos deste pedido. Outros benefícios não aumentam esse desconto." },
+  ] }) };
+  const capped = await handlers.addItemToCart({ variantId: "v-one", quantity: 1 }) as any;
+  assert.equal(capped.nextNudge ?? null, null, "maximum notice must not coexist with a nudge promising an additional merchandise discount");
+  const result = await handlers.applyCoupon({ couponCode: "EXTRA" }) as any;
+  assert.equal(result.applied, false);
+  assert.equal(result.reason, "discount_limit_reached");
+  assert.equal(result.commercialNotices[0].code, "discount_limit_reached");
+  assert.equal(calls, 0);
+  const read = await handlers.getCart({ cartId: ctx.sessionId }) as any;
+  assert.equal(read.total, 80);
+  assert.equal(read.discount, 0);
+});
+
+test("cross-sell without original quote authority is refused before any item or benefit write", async () => {
+  const { handlers } = fixture();
+  const result = await handlers.addItemToCart({ variantId: "v-one", quantity: 1, crossSellPromoId: "promo" }) as any;
+  assert.equal(result.error, "cross_sell_quote_review_required");
+  assert.equal((await handlers.getCart({ cartId: ctx.sessionId }) as any).itemCount, 0);
 });
 
 test("global rule nudges reach chat, then confirm the capped amount and clear after quantity removal", async () => {

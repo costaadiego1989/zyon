@@ -26,12 +26,11 @@ import { AiUserRateLimitService } from "./ai-user-rate-limit.service.js";
 import { AiUserIdentityService } from "./ai-user-identity.service.js";
 import { WidgetAssetsController } from "./widget-assets.controller.js";
 import { MetricsMiddleware } from "./metrics.middleware.js";
-import { MetricsController } from "./metrics.controller.js";
 
 @Global()
 @Module({
   imports: [PersistenceModule],
-  controllers: [WidgetAssetsController, MetricsController],
+  controllers: [WidgetAssetsController],
   providers: [
     {
       provide: HttpClientService,

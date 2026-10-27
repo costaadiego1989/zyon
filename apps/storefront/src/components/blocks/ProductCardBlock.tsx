@@ -1,6 +1,8 @@
 "use client";
 
 import { useMemo, useState } from "react";
+import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import { assertStorefrontReadUiAction } from "@/lib/storefront-read-ui-action";
 import RuleNotices from "./RuleNotices";
 import type { ProductCardBlock as ProductCardBlockType } from "@/lib/types";
 import { isColorToken } from "@/lib/utils/color";
@@ -19,7 +21,7 @@ export default function ProductCardBlock({
 }: {
   block: ProductCardBlockType;
   merchantSlug?: string;
-  onQuickReply?: (option: string) => void;
+  onQuickReply?: (option: string, uiAction?: StorefrontReadUiAction) => void;
 }) {
   const { data } = block;
   const [selectedVariantId, setSelectedVariantId] = useState<string | null>(
@@ -488,8 +490,10 @@ export default function ProductCardBlock({
         data-aacp-product-detail-cta
         data-product-id={data.id}
         onClick={() => {
+          const uiAction: StorefrontReadUiAction = { tool: "get_product_details", args: { productId: data.id } };
+          assertStorefrontReadUiAction(uiAction);
           // 1) Ask the chat to emit the rich product_content block.
-          onQuickReply?.(`Ver detalhes de ${data.name}`);
+          onQuickReply?.(`Ver detalhes de ${data.name}`, uiAction);
           // 2) The shell opens the product surface over this conversation.
           try {
             window.dispatchEvent(

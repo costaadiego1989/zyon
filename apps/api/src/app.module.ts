@@ -1,5 +1,11 @@
-import { REDACTED_LOG_PATHS, redactRequestUrl } from "./shared/logger/log-redaction.js";
+import { createHttpLoggerOptions } from "./shared/logger/http-logger.config.js";
 import { Module } from "@nestjs/common";
+import { PlatformControlModule } from "./modules/platform-control/platform-control.module.js";
+import { PlatformOverviewModule } from "./modules/platform-overview/platform-overview.module.js";
+import { PlatformMerchantDirectoryModule } from "./modules/platform-merchant-directory/platform-merchant-directory.module.js";
+import { PlatformInfrastructureModule } from "./modules/platform-infrastructure/platform-infrastructure.module.js";
+import { PlatformCommerceModule } from "./modules/platform-commerce/platform-commerce.module.js";
+import { BillingPromotionsModule } from "./modules/billing-promotions/billing-promotions.module.js";
 import { ServiceSlotHoldsModule } from "./shared/bookings/service-slot-holds.module.js";
 import { APP_INTERCEPTOR } from "@nestjs/core";
 import { LoggerModule } from "nestjs-pino";
@@ -63,24 +69,7 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
 
 @Module({
   imports: [
-    LoggerModule.forRoot({
-      pinoHttp: {
-        autoLogging: true,
-        quietReqLogger: true,
-        serializers: { req: redactRequestUrl },
-        redact: { paths: REDACTED_LOG_PATHS, censor: "[redacted]" },
-        customProps: (req: import("http").IncomingMessage) => ({
-          correlationId:
-            (req as import("http").IncomingMessage & { correlationId?: string })
-              .correlationId ??
-            (req.headers["x-correlation-id"] as string | undefined) ??
-            crypto.randomUUID(),
-        }),
-        transport: process.env.NODE_ENV !== "production"
-          ? { target: "pino-pretty", options: { colorize: true, singleLine: true } }
-          : undefined,
-      },
-    }),
+    LoggerModule.forRootAsync({ useFactory: () => ({ pinoHttp: createHttpLoggerOptions() }) }),
     TenantModule,
     ObservabilityModule,
     HttpModule,
@@ -136,6 +125,12 @@ import { PublicApiModule } from "./modules/public-api/public-api.module.js";
     UcpDiscoveryModule,
     AgenticProtocolModule,
     PublicApiModule,
+    PlatformControlModule,
+    PlatformOverviewModule,
+    PlatformMerchantDirectoryModule,
+    PlatformInfrastructureModule,
+    PlatformCommerceModule,
+    BillingPromotionsModule,
   ],
   providers: [
     { provide: APP_INTERCEPTOR, useClass: MetricsInterceptor },

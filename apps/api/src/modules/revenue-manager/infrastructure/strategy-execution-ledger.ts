@@ -16,6 +16,7 @@ import { StrategyAiBudget } from "./strategy-ai-budget.js";
 import { MAIN_CHAT_PUBLICATION_POLICY } from "../../checkout/domain/services/checkout-chat-navigation.js";
 import { assertStoredDiscountStudy } from "./strategy-discount-study.js";
 import { hasOpenIncentiveExecution } from "./incentive-execution-ledger.js";
+import { lockCheckoutSessionAnchor } from "../../../shared/persistence/checkout-session-lock.js";
 
 type TurnInput = { merchantId: string; sessionId: string; requestKey: string; inputHash: string;
   route: "primary_llm" | "deterministic" | "fallback"; userMessage?: string } & (
@@ -40,6 +41,8 @@ async function lockRunningExperiment(tx: Tx, merchantId: string, experimentId: s
 }
 
 export async function lockStrategySession(tx: Tx, merchantId: string, sessionId: string) {
+  // Both callers hold baseline merchant/config locks in this same transaction.
+  await lockCheckoutSessionAnchor(tx, merchantId, sessionId);
   await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId}
     AND session_id = ${sessionId} FOR SHARE`;
 }

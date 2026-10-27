@@ -1,6 +1,11 @@
 import type { ConversationBlock } from "../../domain/types/conversation-block.js";
+import { STOREFRONT_TOOL_OUTCOME_UNKNOWN } from "../../domain/errors/store-tool-outcome-unknown.error.js";
+import { STOREFRONT_CONTRACT_FALLBACK } from "../../domain/contracts/storefront-conversation.schemas.js";
+import { commercialNoticesSchema } from "../../domain/contracts/commercial-notice.schemas.js";
+import { storefrontShippingReferenceResultSchema } from "../../domain/contracts/storefront-shipping-reference.schemas.js";
 
 export interface BuildBlocksInput {
+  presentationMode?: "legacy" | "structured";
   toolResults: Record<string, unknown>;
   userMessage: string;
   finalContent: string;
@@ -39,6 +44,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   const addItemResult = toolResults["add_item_to_cart"] as any;
   const userMessage = input.userMessage;
 
+  if ((toolResults.apply_coupon as { error?: unknown } | undefined)?.error === STOREFRONT_TOOL_OUTCOME_UNKNOWN)
+    return { blocks: [], finalContent: STOREFRONT_CONTRACT_FALLBACK };
+
   if (typeof addItemResult?.error === "string" && /^service_(?:slot|schedule)_/.test(addItemResult.error)) {
     return { blocks: [], finalContent: "Não foi possível adicionar esse horário. Revise a data e o horário oferecidos antes de tentar novamente." };
   }
@@ -57,7 +65,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
 
   const skipProductCarousel = !!toolResults["add_item_to_cart"] || !!toolResults["get_product_details"];
-  const isDetailIntent = /detalh|saber mais|informa[cç]|especifica|mais sobre|me fale|conte.*sobre/i.test(userMessage);
+  const isDetailIntent = input.presentationMode === "structured" ? false
+    : /detalh|saber mais|informa[cç]|especifica|mais sobre|me fale|conte.*sobre/i.test(userMessage);
   const searchData = toolResults["search_products"] as any;
   const singleSearchAsDetail = !toolResults["get_product_details"] && isDetailIntent && searchData?.products?.length === 1;
 
@@ -96,6 +105,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   } else if (toolResults["search_products"] && !skipProductCarousel) {
     const searchData = toolResults["search_products"] as any;
     if (searchData?.products?.length > 0) {
+      if (!finalContent.trim()) {
+        finalContent = "Encontrei estas opções no catálogo. Confira os detalhes para escolher a que faz sentido para você.";
+      }
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
       const isMarketplaceSource = searchData.source === "marketplace" || searchData.source === "mixed";
       blocks.push({
@@ -179,6 +191,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   const skipCartBlock = !!toolResults["quote_shipping"];
  
   const couponResult = (toolResults["apply_coupon"] ?? toolResults["remove_coupon"]) as any;
+  const couponNotices = commercialNoticesSchema.parse(couponResult?.commercialNotices ?? []);
+  if (couponResult?.applied === false && couponNotices.length > 0) finalContent = couponNotices.map(notice => notice.message).join(" ");
   if (couponResult?.applied && couponResult?.items?.length > 0 && !skipCartBlock) {
     blocks.push({
       type: "cart_summary",
@@ -186,6 +200,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         cartId: couponResult.cartId,
         items: couponResult.items.map((i: any) => ({
           variantId: i.variantId,
+          optionItemIds: i.optionItemIds,
+          selectionLabel: i.selectionLabel,
+          serviceSlotId: i.serviceSlotId === null ? null : i.serviceSlotId ?? i.selectedServiceSlot?.slotId,
           productName: i.name,
           quantity: i.quantity,
           price: i.unitPrice,
@@ -198,6 +215,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
         couponCode: couponResult.couponCode ?? null,
         freeShipping: false,
         total: (couponResult.total ?? 0) - (couponResult.discount ?? 0),
+        commercialNotices: couponNotices.length ? couponNotices : undefined,
       }
     });
   }
@@ -232,6 +250,8 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
   if (latestCart) {
     const cartData = latestCart as any;
+    const notices = [...new Map([...couponNotices, ...commercialNoticesSchema.parse(cartData?.commercialNotices ?? [])]
+      .map(notice => [notice.code, notice] as const)).values()];
     if (Array.isArray(cartData?.items) && !couponResult?.applied) {
       blocks.push({
         type: "cart_summary",
@@ -239,6 +259,9 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           cartId: cartData.cartId,
           items: cartData.items.map((i: any) => ({
             variantId: i.variantId,
+            optionItemIds: i.optionItemIds,
+            selectionLabel: i.selectionLabel,
+            serviceSlotId: i.serviceSlotId === null ? null : i.serviceSlotId ?? i.selectedServiceSlot?.slotId,
             productName: i.name,
             quantity: i.quantity,
             price: i.unitPrice,
@@ -252,6 +275,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
           total: cartData.total - (cartData.discount ?? 0),
           nextNudge: cartData.nextNudge ?? undefined,
           activeRules: cartData.activeRules ?? undefined,
+          commercialNotices: notices.length ? notices : undefined,
         }
       });
     }
@@ -283,18 +307,22 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
     }
   }
   if (toolResults["quote_shipping"]) {
-    const shippingData = toolResults["quote_shipping"] as any;
-    if (shippingData?.options?.length > 0) {
+    const shipping = storefrontShippingReferenceResultSchema.safeParse(toolResults["quote_shipping"]);
+    if (shipping.success && shipping.data.options.length > 0) {
+      const shippingData = shipping.data;
+      // The carrier/reference response owns these values. A malformed model
+      // narration cannot turn a successful read into an apparent quote failure.
+      finalContent = "Estas são as opções de entrega disponíveis para o CEP informado.";
       const formatPrice = (cents: number) => new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(cents / 100);
       blocks.push({
         type: "shipping_options",
         data: {
-          options: shippingData.options.map((o: any) => ({
+          options: shippingData.options.map(o => ({
             carrier: o.carrier,
             name: o.name,
             price: o.price,
             priceFormatted: formatPrice(o.price),
-            days: o.days,
+            days: o.days, estimatedValue: o.estimatedValue, estimatedUnit: o.estimatedUnit,
           }))
         }
       });

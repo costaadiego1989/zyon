@@ -13,6 +13,7 @@ import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module
 import type { PrismaClient } from "@prisma/client";
 import { assertCartStock } from "../../../catalog/application/services/cart-stock-authority.js";
 import { isMarketplaceCheckoutSession } from "../../infrastructure/marketplace-checkout-scope.js";
+import { NORMAL_CHECKOUT_CROSS_SELL, type NormalCheckoutCrossSellPort } from "../../../cross-sell/domain/ports/normal-checkout-cross-sell.port.js";
 
 const MAX_ITEM_QUANTITY = 99;
 
@@ -36,7 +37,8 @@ export class UpdateCartUseCase {
     @Optional() @Inject(MERCHANT_REPOSITORY) private readonly merchants?: MerchantRepository,
     @Optional() @Inject(AGENT_CONTEXT_PORT) private readonly agentContext?: AgentContextPort,
     @Inject(CHECKOUT_EXPERIENCE_CONFIG) private readonly experienceConfig: CheckoutExperienceConfig = { platformFeeBrl: DEFAULT_PLATFORM_FEE_BRL },
-    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Partial<Pick<PrismaClient, "couponRedemption" | "productVariant">>
+    @Optional() @Inject(PRISMA_CLIENT) private readonly prisma?: Partial<Pick<PrismaClient, "couponRedemption" | "productVariant">>,
+    @Optional() @Inject(NORMAL_CHECKOUT_CROSS_SELL) private readonly normalCrossSell?: Pick<NormalCheckoutCrossSellPort,"updateCart">,
   ) {}
 
   async execute(input: UpdateCartRequest): Promise<UpdateCartResponse> {
@@ -50,6 +52,17 @@ export class UpdateCartUseCase {
     const session = await this.sessions.getSession(merchantId, sessionId);
     if (!session) throw new NotFoundException("checkout_session_not_found");
     if (isMarketplaceCheckoutSession(session)) throw new ConflictException("marketplace_cart_update_requires_crossstore");
+    const hasAuthoredIntent=session.cart.items.some(item=>item.crossSellIntent!==undefined);
+    if(hasAuthoredIntent&&(this.normalCrossSell||session.cart.source!=="storefront")){
+      if(!this.normalCrossSell||session.persistenceVersion===undefined)throw new ConflictException("cross_sell_quote_review_required");
+      const items=input.items.map(change=>{
+        const sku=change.sku?.trim();if(!sku)throw new BadRequestException("update_cart_sku_required");
+        if(!Number.isInteger(change.quantity)||change.quantity<0||change.quantity>MAX_ITEM_QUANTITY)throw new BadRequestException("update_cart_quantity_invalid");
+        return {sku,quantity:change.quantity,...(change.variant===undefined?{}:{variant:change.variant})};
+      });
+      const next=await this.normalCrossSell.updateCart({merchantId,sessionId},{expectedVersion:session.persistenceVersion,items});
+      return this.render(next);
+    }
 
     // Server is the price authority: requests only carry sku + quantity, never price.
     const bySku = new Map<string, CartItem>();
@@ -100,6 +113,11 @@ export class UpdateCartUseCase {
 
     nextSession = await commitCheckoutMutation(this.sessions, { expected: session, next: nextSession });
 
+    return this.render(nextSession);
+  }
+
+  private async render(nextSession:CheckoutSession):Promise<UpdateCartResponse>{
+    const merchantId=nextSession.merchantId,sessionId=nextSession.sessionId;
     const merchant = await this.merchants?.getProfile(merchantId);
     const rules = await this.merchants?.getRules(merchantId);
     const agent = await this.agentContext?.get({ merchantId, globalUserId: nextSession.globalUserId });

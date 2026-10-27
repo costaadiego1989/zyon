@@ -29,9 +29,9 @@ import {
   type PaymentPlatformRepository,
 } from "../../../payment/domain/ports/payment-platform-repository.port.js";
 import { isStripeConfigured } from "../../../payment/infrastructure/stripe-env.js";
+import { stripeConnectionAllowsCharges } from "../../../payment/domain/stripe-charge-capability.js";
 import {
   resolveCheckoutPaymentCapabilities,
-  constrainScheduledSplitCapabilities,
   type CheckoutPaymentCapabilities,
 } from "../../../payment/domain/checkout-payment-routing.js";
 import type { MerchantStoreSettings } from "../../../merchant/domain/merchant.types.js";
@@ -194,13 +194,13 @@ export class StartCheckoutUseCase {
     // A database outage must not make the checkout claim that a payment rail is
     // usable. The payment-intent endpoint remains the final authority.
     if (!this.paymentConnections) {
-      return constrainScheduledSplitCapabilities(resolveCheckoutPaymentCapabilities(storeSettings?.paymentRouting, {
+      return resolveCheckoutPaymentCapabilities(storeSettings?.paymentRouting, {
         asaas: false,
         mercadoPagoPix: false,
         mercadoPagoHostedCard: false,
         stripeCard: Boolean(isStripeConfigured() && stripeConnectAccountId),
         asaasHostedCard: false,
-      }), storeSettings);
+      });
     }
 
     try {
@@ -214,15 +214,14 @@ export class StartCheckoutUseCase {
       // payment and refund events. It may still be connected in the dashboard
       // while the platform secret is missing.
       const mercadoPagoPixActive =
-        !storeSettings?.paymentRetention &&
         mercadopago?.status === "active" &&
         Boolean(process.env.MERCADOPAGO_WEBHOOK_SECRET?.trim());
       const stripeCardActive =
         isStripeConfigured() &&
-        stripe?.status === "active" &&
+        stripeConnectionAllowsCharges(stripe) &&
         Boolean(stripe.externalAccountId || stripeConnectAccountId);
 
-      return constrainScheduledSplitCapabilities(resolveCheckoutPaymentCapabilities(storeSettings?.paymentRouting, {
+      return resolveCheckoutPaymentCapabilities(storeSettings?.paymentRouting, {
         asaas: asaasActive,
         mercadoPagoPix: mercadoPagoPixActive,
         mercadoPagoHostedCard: mercadoPagoPixActive,
@@ -230,7 +229,7 @@ export class StartCheckoutUseCase {
         // The Asaas invoice page collects card data on Asaas, so Zyon never
         // receives a card number or CVV for this option.
         asaasHostedCard: asaasActive,
-      }), storeSettings);
+      });
     } catch {
       return resolveCheckoutPaymentCapabilities(storeSettings?.paymentRouting, {
         asaas: false,

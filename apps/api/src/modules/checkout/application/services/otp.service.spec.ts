@@ -1,6 +1,7 @@
 import test from "node:test";
 import assert from "node:assert/strict";
 import { OtpService } from "./otp.service.js";
+import { verifyCheckoutEmailOtp } from "../../domain/services/checkout-email-otp.js";
 
 test("email challenges and resends persist the same ten-minute deadline advertised by the authentication template", () => {
   const service = new OtpService(), started = Date.now();
@@ -31,4 +32,21 @@ test("expiry does not authorize a wrong code or turn an unrelated message into v
   const service = new OtpService(), customer = { otp_code: "123456", otp_expires_at: new Date(Date.now() + 60_000).toISOString() };
   assert.throws(() => service.processEmailOtp("654321", customer, "ana@example.test", false), /inválido/);
   assert.equal(service.processEmailOtp("Ver carrinho", { ...customer, otp_expires_at: "2000-01-01T00:00:00Z" }, "ana@example.test", false), null);
+});
+
+test("shared email policy uses only the supplied clock, including the exact expiration boundary", () => {
+  const now = Date.parse("2000-01-01T00:00:00Z");
+  const input = { code: "123456", challenge: "123456", expiresAt: "2000-01-01T00:00:00.001Z", nowMilliseconds: now };
+  assert.equal(verifyCheckoutEmailOtp(input), "verified");
+  assert.equal(verifyCheckoutEmailOtp({ ...input, nowMilliseconds: now + 1 }), "expired");
+  assert.equal(verifyCheckoutEmailOtp({ ...input, nowMilliseconds: NaN }), "expired");
+  assert.equal(verifyCheckoutEmailOtp({ ...input, nowMilliseconds: Infinity }), "expired");
+});
+test("shared email policy cannot match an empty/non-string challenge or malformed deadline", () => {
+  const input = { code: "123456", challenge: "123456", expiresAt: "2000-01-01T00:00:00.001Z", nowMilliseconds: Date.parse("2000-01-01T00:00:00Z") };
+  for (const challenge of [undefined, null, 123456, "", "654321"])
+    assert.equal(verifyCheckoutEmailOtp({ ...input, challenge }), "invalid");
+  assert.equal(verifyCheckoutEmailOtp({ ...input, code: "", challenge: "" }), "invalid");
+  for (const expiresAt of [undefined, null, 123456, "invalid", ""])
+    assert.equal(verifyCheckoutEmailOtp({ ...input, expiresAt }), "expired");
 });

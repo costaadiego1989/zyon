@@ -1,6 +1,6 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildMetaUiView, presentMetaUi, formatMetaText, withMetaCartNavigation, metaWelcomeMessage } from "./meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, formatMetaText, withMetaCartNavigation, metaWelcomeMessage, buildMetaCatalogOptionsView } from "./meta-ui-renderer.js";
 import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
@@ -221,6 +221,19 @@ test("checkout uses the payable total including the fee and real shipping select
   assert.deepEqual(view.choices[0].action, { kind: "message", message: "Correios PAC (5 dias) - R$ 10,00" });
 });
 
+test("hybrid shipping retains provider currency and local minutes in the WhatsApp menu", () => {
+  const view = buildMetaUiView(response({ blocks: [{ type: "shipping_options", data: { options: [
+    { carrier: "own_delivery_flat", name: "Entrega própria", price: 8, days: 0, estimatedUnit: "minutes", estimatedValue: 60, responseLabel: "Entrega própria (60 minutos) - R$ 8,00" },
+    { carrier: "melhor-envio-1", name: "Correios PAC", price: 1840, priceFormatted: "R$ 18,40", days: 5 },
+  ] } }] }));
+  assert.equal(view.choices[0].description, "R$ 8,00 · 60 minutos");
+  assert.equal(view.choices[0].label, "Entrega própria");
+  assert.equal(view.choices[1].label, "Correios PAC");
+  assert.equal(view.choices[1].description, "R$ 18,40 · 5 dias úteis");
+  assert.deepEqual(view.choices[1].action, { kind: "message", message: "Escolho o frete Correios PAC" });
+  assert.deepEqual(view.choices[0].action, { kind: "message", message: "Entrega própria (60 minutos) - R$ 8,00" });
+});
+
 test("a scheduled service cannot be added before a selectable slot is chosen", () => {
   const base = response({ blocks: [{ type: "product_card", data: { id: "service", name: "Consulta", price: 10000, priceFormatted: "R$ 100,00", inStock: true, productType: "service",
     variants: [{ id: "v1", value: "Consulta", stock: 0 }], serviceSchedule: { slots: [
@@ -330,10 +343,33 @@ test('catalog pagination contains product choices while other shortcuts stay in 
   const shown=presentMetaUi(view,'catalog');
   assert.equal(shown.totalPages,1);
   assert.equal(shown.numericSelections.filter(a=>a.kind==='tool'&&a.tool==='get_product_details').length,1);
-  assert.ok(shown.numericSelections.some(a=>a.kind==='menu'));
+  assert.ok(shown.numericSelections.some(a=>a.kind==='catalog_options'));
   assert.ok(!shown.numericSelections.some(a=>a.kind==='message'&&a.message==='Selecionar Produto'));
   const withoutMedia=presentMetaUi(view,'refreshed',0,{includeMedia:false});
   assert.equal(withoutMedia.messages.filter(m=>m.type==='image').length,0);
+});
+
+test('every catalog page exposes its actual secondary choices without a welcome reset', () => {
+  const view = withMetaCartNavigation(buildMetaUiView(response({ blocks: [{ type: 'product_carousel', data: {
+    products: Array.from({ length: 18 }, (_, i) => ({ id: `p${i}`, name: `Produto ${i}`, price: 500, image: `https://example.com/${i}.jpg` })),
+  } }], quickReplies: ['Selecionar Produto', 'Filtrar Produtos', 'Categorias', 'Ofertas do Dia'] })), true);
+  const first = presentMetaUi(view, 'catalog', 0, { canGoBack: true });
+  const products = new Set();
+  for (let page = 0; page < first.totalPages; page++) {
+    const shown = presentMetaUi(view, 'catalog', page, { canGoBack: true });
+    assert.ok(shown.numericSelections.some(a => a.kind === 'catalog_options'));
+    assert.ok(shown.numericSelections.every(a => a.kind !== 'menu'));
+    assert.ok(shown.numericSelections.length <= 10);
+    for (const action of shown.numericSelections) if (action.kind === 'tool' && action.tool === 'get_product_details') products.add(action.args.productId);
+  }
+  assert.equal(products.size, 18);
+  const options = buildMetaCatalogOptionsView(view);
+  assert.ok(options.choices.some(c => c.action.kind === 'message' && c.action.message === 'Filtrar Produtos'));
+  assert.ok(options.choices.some(c => c.action.kind === 'tool' && c.action.tool === 'list_categories'));
+  assert.ok(options.choices.every(c => c.action.kind !== 'tool' || c.action.tool !== 'get_product_details'));
+  const shown = presentMetaUi(options, 'options', 0, { canGoBack: true });
+  assert.ok(shown.numericSelections.some(a => a.kind === 'back'));
+  assert.ok(shown.messages.every(m => m.type !== 'image'));
 });
 
 test('payment actions remain first within checkout even when the response includes complementary products',()=>{

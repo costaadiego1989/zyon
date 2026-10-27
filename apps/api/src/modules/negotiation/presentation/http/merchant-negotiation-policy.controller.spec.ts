@@ -1,5 +1,12 @@
+import "reflect-metadata";
 import { describe, it } from "node:test";
 import assert from "node:assert/strict";
+import { Module, UnauthorizedException } from "@nestjs/common";
+import { NestFactory, Reflector } from "@nestjs/core";
+import { AuthGuard } from "../../../auth/presentation/auth.guard.js";
+import { JwtService } from "../../../auth/domain/services/jwt.service.js";
+import { AuthCookieService } from "../../../auth/domain/services/auth-cookie.service.js";
+import { BillingPlanMeteringService, PlanLimitGuard } from "../../../payment/domain/billing-plan-guard.js";
 import { MerchantNegotiationPolicyController } from "./merchant-negotiation-policy.controller.js";
 import {
   GetMerchantNegotiationPolicyUseCase,
@@ -8,33 +15,75 @@ import {
 import { InMemoryNegotiationStore } from "../../infrastructure/in-memory-negotiation.store.js";
 
 describe("MerchantNegotiationPolicyController", () => {
-  it("enables the 5–10% default only for merchants without a saved policy", async () => {
+  it("allows every billing plan to read and save limits over HTTP, preserving authentication and tenant scope", async (t) => {
     const store = new InMemoryNegotiationStore();
-    const getPolicy = new GetMerchantNegotiationPolicyUseCase(store);
-    const controller = new MerchantNegotiationPolicyController(getPolicy, new UpsertMerchantNegotiationPolicyUseCase(store));
-    const request = { user: { merchantId: "new-merchant", userId: "u", email: "e", role: "owner" } };
-    const result = await controller.get(request);
-    assert.equal(result.has_custom_policy, false);
-    assert.equal(result.policy.enabled, true);
-    assert.deepEqual(result.policy.global, { minOfferDiscountPercent: 5, maxDiscountPercent: 10 });
-    assert.deepEqual(await getPolicy.executeResolved("new-merchant"), result.policy);
-    assert.equal(await store.getMerchantPolicy("new-merchant"), null, "reading the default must not create or update a policy");
-  });
+    let plan: "starter" | "starter179" | "growth" | "scale" = "starter";
+    const metering = new BillingPlanMeteringService({} as never);
+    metering.getEffectivePlan = async () => plan;
+    const jwt = {
+      authenticate: async (token: string) => {
+        const [role, merchantId] = token.split(":");
+        if (!["owner", "admin", "staff"].includes(role) || !merchantId)
+          throw new UnauthorizedException();
+        return { role, merchantId, userId: "u", email: "test@example.com" };
+      },
+    };
 
-  it("preserves explicitly disabled policies and custom saved limits", async () => {
-    const store = new InMemoryNegotiationStore();
-    const getPolicy = new GetMerchantNegotiationPolicyUseCase(store);
-    const controller = new MerchantNegotiationPolicyController(getPolicy, new UpsertMerchantNegotiationPolicyUseCase(store));
-    for (const enabled of [false, true]) {
-      const merchantId = `saved-${enabled}`;
-      const policy = { enabled, global: { minOfferDiscountPercent: 2, maxDiscountPercent: 25 }, maxRounds: 3, estimatedCostPerAiCallCents: 5 };
-      await store.upsertMerchantPolicy(merchantId, policy);
-      const result = await controller.get({ user: { merchantId, userId: "u", email: "e", role: "owner" } });
-      assert.equal(result.has_custom_policy, true);
-      assert.deepEqual(result.policy, policy);
-      assert.deepEqual(await getPolicy.executeResolved(merchantId), policy);
-      assert.deepEqual(await store.getMerchantPolicy(merchantId), policy);
+    // Match the constructor metadata emitted by the production build; the
+    // source-test loader omits it. Keep the real auth and billing guards.
+    Reflect.defineMetadata("design:paramtypes", [GetMerchantNegotiationPolicyUseCase, UpsertMerchantNegotiationPolicyUseCase], MerchantNegotiationPolicyController);
+    Reflect.defineMetadata("design:paramtypes", [JwtService, AuthCookieService], AuthGuard);
+    Reflect.defineMetadata("design:paramtypes", [Reflector, BillingPlanMeteringService], PlanLimitGuard);
+    @Module({
+      controllers: [MerchantNegotiationPolicyController],
+      providers: [
+        { provide: GetMerchantNegotiationPolicyUseCase, useValue: new GetMerchantNegotiationPolicyUseCase(store) },
+        { provide: UpsertMerchantNegotiationPolicyUseCase, useValue: new UpsertMerchantNegotiationPolicyUseCase(store) },
+        { provide: JwtService, useValue: jwt },
+        { provide: AuthCookieService, useValue: { read: () => undefined } },
+        AuthGuard,
+        { provide: BillingPlanMeteringService, useValue: metering },
+        PlanLimitGuard,
+      ],
+    })
+    class NegotiationPolicyHttpModule {}
+    const app = await NestFactory.create(NegotiationPolicyHttpModule, { logger: false });
+    t.after(() => app.close());
+    await app.listen(0, "127.0.0.1");
+    const url = `${await app.getUrl()}/merchant-negotiation-policy`;
+    const policy = {
+      enabled: true,
+      global: { minOfferDiscountPercent: 1, maxDiscountPercent: 8 },
+      maxRounds: 2,
+      estimatedCostPerAiCallCents: 1,
+    };
+    const request = (method: string, token?: string, body?: unknown) => fetch(url, {
+      method,
+      headers: { "content-type": "application/json", ...(token ? { authorization: `Bearer ${token}` } : {}) },
+      ...(body ? { body: JSON.stringify(body) } : {}),
+    });
+
+    for (const key of ["starter", "starter179", "growth", "scale"] as const) {
+      plan = key;
+      const token = `owner:m_${key}`;
+      const saved = await request("PUT", token, { ...policy, merchantId: "other_store" });
+      assert.equal(saved.status, 200, `${key} must be able to save negotiation limits`);
+      assert.deepEqual((await saved.json()).policy.global, policy.global);
+      const loaded = await request("GET", token);
+      assert.equal(loaded.status, 200);
+      assert.equal((await loaded.json()).has_custom_policy, true);
+      assert.ok((await store.getMerchantPolicy(`m_${key}`))?.enabled);
     }
+    assert.equal(await store.getMerchantPolicy("other_store"), null);
+    const untouched = await request("GET", "owner:other_store");
+    assert.equal((await untouched.json()).has_custom_policy, false);
+    assert.equal((await request("GET")).status, 401);
+    assert.equal((await request("PUT", undefined, policy)).status, 401);
+    assert.equal((await request("PUT", "staff:m_starter", policy)).status, 403);
+    assert.equal((await request("PUT", "owner:m_starter", {
+      ...policy, global: { minOfferDiscountPercent: 9, maxDiscountPercent: 2 },
+    })).status, 400);
+    assert.deepEqual((await store.getMerchantPolicy("m_starter"))?.global, policy.global);
   });
 
   it("scopes upsert to JWT merchant", async () => {

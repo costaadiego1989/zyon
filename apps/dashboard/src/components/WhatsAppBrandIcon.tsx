@@ -1,8 +1,1 @@
-﻿import React, { forwardRef } from "react";
-import type { LucideProps } from "lucide-react";
-
-export const WhatsAppBrandIcon = forwardRef<SVGSVGElement, LucideProps>(function WhatsAppBrandIcon({ size = 24, ...props }, ref) {
-  return <svg ref={ref} width={size} height={size} viewBox="0 0 32 32" fill="none" aria-hidden="true" xmlns="http://www.w3.org/2000/svg" {...props}>
-    <path fill="currentColor" d="M16 3.25a12.54 12.54 0 0 0-10.73 19L4 28.75l6.7-1.24A12.56 12.56 0 1 0 16 3.25Zm0 22.82c-1.76 0-3.49-.47-5-1.36l-.36-.21-3.98.74.76-3.87-.24-.4A10.08 10.08 0 1 1 16 26.07Zm5.53-7.55c-.3-.15-1.77-.87-2.04-.97-.27-.1-.47-.15-.67.15-.2.3-.77.97-.95 1.17-.17.2-.34.22-.63.07-.3-.15-1.25-.46-2.38-1.47a8.94 8.94 0 0 1-1.65-2.05c-.17-.3-.02-.46.13-.61.13-.13.3-.34.45-.51.15-.17.2-.3.3-.5.1-.2.05-.37-.02-.52-.08-.15-.67-1.61-.92-2.21-.24-.58-.49-.5-.67-.51h-.57c-.2 0-.52.07-.79.37-.27.3-1.04 1.01-1.04 2.47 0 1.45 1.07 2.86 1.21 3.06.15.2 2.1 3.2 5.08 4.49.71.31 1.26.49 1.69.62.71.22 1.35.19 1.86.12.57-.08 1.77-.72 2.02-1.42.25-.7.25-1.3.18-1.42-.07-.12-.27-.2-.57-.35Z" />
-  </svg>;
-});
+export { WhatsAppIcon as WhatsAppBrandIcon } from "./WhatsAppIcon.js";

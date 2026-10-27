@@ -9,6 +9,7 @@ import {
 import type { Request, Response } from "express";
 import { toProblemDetails } from "../http/problem-details.filter.js";
 import { getSentry, isSentryEnabled } from "./sentry.module.js";
+import { ignoreLogFailure, logContext, safeErrorMetadata, safeHttpMethod } from "../logger/log-context.js";
 
 interface SentryScope {
   setTag(key: string, value: string): void;
@@ -48,19 +49,20 @@ export class SentryExceptionFilter implements ExceptionFilter {
     try {
       const sentry: SentryLike = getSentry();
       sentry.withScope((scope) => {
-        scope.setTag("path", request.path ?? "unknown");
-        scope.setTag("method", request.method ?? "UNKNOWN");
-        const correlationId = readCorrelationId(request);
-        if (correlationId) scope.setTag("correlation_id", correlationId);
-        const problem = toProblemDetails(exception, correlationId ?? "unknown");
-        scope.setTag("status", String(problem.status));
-        scope.setTag("error_code", problem.code);
-        sentry.captureException(exception);
+        const metadata = safeErrorMetadata(exception);
+        scope.setTag("method", safeHttpMethod(request.method));
+        scope.setTag("status", String(metadata.statusCode));
+        scope.setTag("error_kind", metadata.kind);
+        for (const [key, value] of Object.entries(logContext(request))) scope.setTag(key, value);
+        // Only this explicit projection crosses the filter's SDK seam. SDK-wide
+        // request/breadcrumb/integration collection still needs separate policy.
+        const normalized = new Error(metadata.kind);
+        normalized.name = "ServerError";
+        normalized.stack = undefined;
+        sentry.captureException(normalized);
       });
-    } catch (err) {
-      this.logger.warn(
-        `Sentry capture failed: ${err instanceof Error ? err.message : String(err)}`,
-      );
+    } catch {
+      ignoreLogFailure(() => this.logger.warn({ event: "sentry.capture_failed", ...logContext(request) }));
     }
   }
 
@@ -74,10 +76,8 @@ export class SentryExceptionFilter implements ExceptionFilter {
     const problem = toProblemDetails(exception, correlationId);
 
     if (problem.status >= 500) {
-      this.logger.error(
-        `${problem.code} ${request.method ?? "HTTP"} ${request.originalUrl ?? request.url ?? ""}`.trim(),
-        exception instanceof Error ? exception.stack : undefined,
-      );
+      ignoreLogFailure(() => this.logger.error({ event: "http.exception", ...logContext(request),
+        method: safeHttpMethod(request.method), error: safeErrorMetadata(exception) }));
     }
 
     response.setHeader("x-correlation-id", problem.correlation_id ?? correlationId);

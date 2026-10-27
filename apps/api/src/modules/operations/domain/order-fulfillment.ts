@@ -1,4 +1,4 @@
-import type { CartItem, CompletedOrderLineItem } from "@zyon/shared-types";
+import type { CartItem, CompletedOrderLineItem, ShippingQuote } from "@zyon/shared-types";
 import type { FulfillmentAllowedAction, FulfillmentStrategy, OrderFulfillmentSummary, OrderFulfillmentUnit } from "@zyon/shared-types";
 
 export interface FulfillmentState { schemaVersion: 1; units: OrderFulfillmentUnit[] }
@@ -11,12 +11,16 @@ export function fulfillmentStrategy(type: string, metadata?: unknown, scheduled 
   if (requested === "pickup" || requested === "local_delivery") return requested;
   return "carrier";
 }
-export function snapshotOrderLines(items: CartItem[]): CompletedOrderLineItem[] {
+export function snapshotOrderLines(items: CartItem[], shipping?: ShippingQuote): CompletedOrderLineItem[] {
+  const key = shipping?.carrierKey ?? shipping?.carrier ?? "";
+  const selectedDelivery = shipping?.source === "own_delivery" || key.startsWith("own_delivery_") ? "local_delivery"
+    : shipping?.source === "melhor_envio" || key.startsWith("melhor-envio-") ? "carrier" : undefined;
   return items.map((item, index) => ({
     lineId: `line_${index + 1}`, snapshotVersion: 2, sku: item.sku, variantId: item.variantId ?? item.sku,
     name: item.name, unitPriceCents: Math.round(item.price * 100), quantity: item.quantity,
     ...(item.productType ? { productType: item.productType } : {}),
-    fulfillmentStrategy: item.fulfillmentStrategy ?? fulfillmentStrategy(item.productType ?? "", undefined, !!item.fulfillmentSchedule),
+    fulfillmentStrategy: selectedDelivery && (!item.productType || ["physical", "food"].includes(item.productType)) ? selectedDelivery
+      : item.fulfillmentStrategy ?? fulfillmentStrategy(item.productType ?? "", undefined, !!item.fulfillmentSchedule),
     selectedOptions: item.selected_options ?? [],
     ...(item.fulfillmentSchedule ? { schedule: item.fulfillmentSchedule } : {}),
     ...(item.digitalDeliveryChannels ? { requiredChannels: item.digitalDeliveryChannels } : {}),

@@ -1,4 +1,7 @@
 import type { ExecutableTool, ToolResult } from "./types.js";
+import { allowsSalesDiscovery, isUnspecifiedShoppingRequest } from "../services/sales-discovery.js";
+import { storefrontToolArgumentSchemas } from "../contracts/storefront-tool.schemas.js";
+import { storefrontToolOutputSchemas, validateStorefrontToolOutput } from "../contracts/storefront-tool-output.schemas.js";
 
 const CART_WRITES = new Set([
   "add_item_to_cart", "update_cart_item", "remove_cart_item", "clear_cart",
@@ -21,6 +24,35 @@ export interface CartAddOutcome {
   code?: string;
   serviceSlotId?: string;
 }
+type TerminalMutation = "update_cart_item" | "remove_cart_item";
+export interface CartMutationOutcome { tool: TerminalMutation; status: "succeeded" | "unknown" | "rejected" }
+const terminalMutation = (name: string): name is TerminalMutation => name === "update_cart_item" || name === "remove_cart_item";
+/** The returned cart is a canonical handler projection, not proof of its prior
+ * contents. Correlate the exact commanded line without asserting sibling history. */
+function confirmsMutation(name: TerminalMutation, args: Record<string, unknown>, result: ToolResult, cartId: string): boolean {
+  if (!result.ok || errorCode(result)) return false;
+  const validated = validateStorefrontToolOutput(name, result.data, { cartId });
+  if (!validated.ok) return false;
+  const parsed = storefrontToolOutputSchemas[name].safeParse(validated.data);
+  if (!parsed.success || parsed.data.cartId !== cartId) return false;
+  const matches = [];
+  for (const item of parsed.data.items) {
+    if (item.variantId !== args.variantId) continue;
+    const nestedOptions = item.selectedOptions?.map(option => option.itemId);
+    if (nestedOptions?.some(id => id === undefined)) return false;
+    const optionIds = item.optionItemIds ?? nestedOptions ?? [];
+    if (new Set(optionIds).size !== optionIds.length) return false;
+    const optionKey = JSON.stringify([...optionIds].sort());
+    if (item.optionItemIds && nestedOptions && optionKey !== JSON.stringify([...nestedOptions].sort())) return false;
+    if (Array.isArray(args.optionItemIds) && optionKey !== JSON.stringify([...args.optionItemIds].sort())) continue;
+    if (item.serviceSlotId !== undefined && item.selectedServiceSlot && item.serviceSlotId !== item.selectedServiceSlot.slotId) return false;
+    const slotId = item.serviceSlotId ?? item.selectedServiceSlot?.slotId ?? null;
+    if (args.serviceSlotId !== undefined && slotId !== args.serviceSlotId) continue;
+    matches.push(item);
+  }
+  return name === "remove_cart_item" || args.quantity === 0 ? matches.length === 0
+    : matches.length === 1 && matches[0]!.quantity === args.quantity;
+}
 
 function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
@@ -33,6 +65,10 @@ function normalize(value: string) {
 function authorizedWrites(message: string, attachmentContext?: string): Set<string> {
   const allowed = new Set<string>();
   if (attachmentContext) return allowed; // Extracted lists require item-by-item review.
+  if (isUnspecifiedShoppingRequest(message)) return allowed; // No product has been chosen.
+  // "Quero comprar um tênis de corrida verde" describes a need, not a selected
+  // item. Searching it must not authorize buying a substituted color/profile.
+  if (allowsSalesDiscovery(message)) return allowed;
   let command = normalize(message.replace(/\[(?:variantId|optionItemIds|crossSellPromoId|serviceSlotId):[^\]]*\]/gi, ""));
   command = command.replace(/^(?:por favor[,\s]+|(?:voce\s+)?(?:pode|poderia)\s+(?:por favor\s+)?|(?:eu\s+)?(?:quero|desejo)\s+|(?:eu\s+)?gostaria de\s+)/, "");
   if (/\b(?:nao|talvez|depois|antes|caso|se|pesquisando|comparando)\b/.test(command) || /\blista de desejos\b/.test(command)) return allowed;
@@ -70,10 +106,12 @@ export function createCartTurnPolicy(message: string, attachmentContext?: string
   const addOutcomes: CartAddOutcome[] = [];
   let terminal = false;
   let refused = false;
+  let mutationOutcome: CartMutationOutcome | undefined;
 
   function denied(name: string, code: string): ToolResult {
     refused = terminal = true;
     deniedTools.add(name);
+    if (terminalMutation(name) && !mutationOutcome) mutationOutcome = { tool: name, status: "rejected" };
     if (name === "add_item_to_cart" && allowed.has(name) && bindings.length === 1 && !attempts.has(name) && !addOutcomes.length) {
       addOutcomes.push({ variantId: bindings[0]!, status: "rejected", code, ...(serviceSlotTag ? { serviceSlotId: serviceSlotTag } : {}) });
     }
@@ -84,6 +122,17 @@ export function createCartTurnPolicy(message: string, attachmentContext?: string
     get terminal() { return terminal; },
     get refused() { return refused; },
     get addOutcomes() { return addOutcomes; },
+    get mutationOutcome() { return mutationOutcome; },
+    /** Read only actual completed attempts, never requested/denied tool names.
+     * Unknown transport/output failures cannot become success through copy. */
+    get hasUnknownWrite() {
+      for (const result of completed.values()) {
+        const code = errorCode(result);
+        if (code && code !== "invalid_tool_arguments" && !ADMISSION_ERRORS.has(code)
+          && !code.startsWith("food_option_") && !code.startsWith("service_slot_") && !code.startsWith("service_schedule_")) return true;
+      }
+      return false;
+    },
     sanitizeResults(results: Record<string, unknown>) {
       // A denied add must not hide otherwise valid catalog search cards.
       const copy = { ...results };
@@ -97,6 +146,15 @@ export function createCartTurnPolicy(message: string, attachmentContext?: string
         execute: async (args): Promise<ToolResult> => {
           if (!allowed.has(tool.name)) return denied(tool.name, "cart_action_requires_explicit_request");
           if (terminal) return denied(tool.name, "cart_action_requires_review");
+          // Capture validated detached arguments before execution. No model cart
+          // alias or mutable argument object can authorize a different scope.
+          if (terminalMutation(tool.name)) {
+            const parsed = storefrontToolArgumentSchemas[tool.name].safeParse(args);
+            if (!parsed.success || !cartId || parsed.data.cartId !== cartId) return denied(tool.name, "invalid_tool_arguments");
+            args = structuredClone(parsed.data);
+            if (optionTag && (!Array.isArray(args.optionItemIds) || JSON.stringify([...args.optionItemIds].sort()) !== JSON.stringify(options))
+              || serviceSlotTag && args.serviceSlotId !== serviceSlotTag) return denied(tool.name, "cart_selection_binding_mismatch");
+          }
           if (tool.name === "create_checkout_session" && allowed.has("add_item_to_cart")
             && !addOutcomes.some(outcome => outcome.status === "succeeded")) return denied(tool.name, "cart_action_requires_review");
           if (bindings.length && (["add_item_to_cart", "update_cart_item", "remove_cart_item"].includes(tool.name))
@@ -113,7 +171,18 @@ export function createCartTurnPolicy(message: string, attachmentContext?: string
           const key = JSON.stringify(Object.entries(args).sort(([a], [b]) => a.localeCompare(b)));
           const previous = attempts.get(tool.name);
           if (previous) return previous.key === key ? previous.result : denied(tool.name, "cart_action_requires_review");
-          const result = Promise.resolve().then(() => tool.execute(args)).then(value => {
+          const command = terminalMutation(tool.name) ? structuredClone(args) : args;
+          const result = Promise.resolve().then(() => tool.execute(args)).catch(error => {
+            if (!terminalMutation(tool.name)) throw error;
+            return { ok: false as const, error: "cart_outcome_unknown", code: "cart_outcome_unknown" };
+          }).then(value => {
+            if (terminalMutation(tool.name)) {
+              let confirmed = false;
+              try { confirmed = !!cartId && confirmsMutation(tool.name, command, value, cartId); } catch { /* A post-write validation error cannot authorize retry. */ }
+              mutationOutcome = { tool: tool.name, status: confirmed ? "succeeded" : "unknown" };
+              terminal = true;
+              if (!confirmed) value = { ok: false, error: "cart_outcome_unknown", code: "cart_outcome_unknown" };
+            }
             completed.set(tool.name, value);
             const code = errorCode(value);
             if (code) terminal = true;

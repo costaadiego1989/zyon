@@ -1,8 +1,9 @@
 import { PerimeterBorder } from "./PerimeterBorder";
 import { useState, useRef, useEffect } from "react";
 import {
-  isEnabledPaymentQuickReply,
-  paymentMethodForQuickReply,
+  type CheckoutPaymentMethod,
+  checkoutQuickReplies,
+  paymentChoicesForConfig,
   useCheckoutStore,
 } from "@/store/checkout-store";
 import { AgentAvatar } from "./AgentAvatar";
@@ -12,6 +13,7 @@ import { BlockRenderer } from "./chat/ChatBlocks";
 import { VoiceComposer } from "./chat/VoiceComposer";
 import { useChatRecovery } from "@/lib/use-chat-recovery";
 import { useChatDisplay } from "@/lib/use-chat-display";
+import { useAgentBlockDelay } from "@/lib/use-agent-block-delay";
 import type { CheckoutSession } from "@/api/checkout-session";
 import type { Message } from "@/store/checkout-store";
 
@@ -27,19 +29,23 @@ function MessageText({ message, api }: { message: Message; api: CheckoutSession 
 }
 
 function isPaymentPresentationBlock(type: string): boolean {
-  return ["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "checkout_price_review"].includes(type);
+  return ["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "crypto_payment", "checkout_price_review"].includes(type);
 }
 
 export function ChatPanel() {
   const messages = useCheckoutStore((s) => s.messages);
+  const sessionId = useCheckoutStore((s) => s.sessionId);
+  const pendingAgentBlocks = useAgentBlockDelay(messages, sessionId);
   const isTyping = useCheckoutStore((s) => s.isTyping);
   const chatRecovery = useCheckoutStore((s) => s.chatRecovery);
   const chatResponseUnavailable = useCheckoutStore((s) => s.chatResponseUnavailable);
   const connectionStatus = useChatRecovery();
   const sendMessage = useCheckoutStore((s) => s.sendMessage);
-  const pay = useCheckoutStore((s) => s.pay);
+  const changePaymentMethod = useCheckoutStore((s) => s.changePaymentMethod);
   const paymentCreating = useCheckoutStore((s) => s.paymentCreating);
+  const paymentSubmitting = useCheckoutStore((s) => s.paymentSubmitting);
   const paymentIntent = useCheckoutStore((s) => s.paymentIntent);
+  const selectedPaymentMethod = useCheckoutStore((s) => s.selectedPaymentMethod);
   const quickPurchaseApplying = useCheckoutStore((s) => s.quickPurchaseApplying);
   const quickPurchaseStarted = useCheckoutStore((s) => s.quickPurchaseStarted);
   const oneBuyClickPreferences = useCheckoutStore((s) => s.oneBuyClickPreferences);
@@ -70,12 +76,12 @@ export function ChatPanel() {
       if (!api) throw new Error("checkout_session_missing");
       return api.realtimeVoiceContext();
     },
-    createSession: async () => {
+    createSession: async (sdp) => {
       if (!api) throw new Error("checkout_session_missing");
-      return api.createRealtimeVoiceSession();
+      return api.createRealtimeVoiceSession(sdp);
     },
-    onCommerceTurn: async (buyerMessage, action) => {
-      await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage);
+    onCommerceTurn: async (buyerMessage, action, voiceTurnToken) => {
+      await sendMessage(action === "add_item_to_cart" ? `Adicionar ao carrinho: ${buyerMessage}` : buyerMessage, voiceTurnToken);
       const current = useCheckoutStore.getState();
       if (current.chatRecovery) throw new Error("checkout_chat_recovery_required");
       const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
@@ -84,9 +90,9 @@ export function ChatPanel() {
         cart: { itemCount: current.cart.items.length, total: current.cart.total },
       };
     },
-    onBeginCheckout: async () => {
+    onBeginCheckout: async (voiceTurnToken) => {
       if (useCheckoutStore.getState().chatRecovery) throw new Error("checkout_chat_recovery_required");
-      await continueVoiceCheckout();
+      await continueVoiceCheckout(voiceTurnToken);
       const current = useCheckoutStore.getState();
       const agentReply = [...current.messages].reverse().find((message) => message.role === "agent");
       return {
@@ -111,38 +117,40 @@ export function ChatPanel() {
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, isTyping]);
+  }, [messages, isTyping, pendingAgentBlocks]);
 
   const lastAgentMsg = [...messages].reverse().find((m) => m.role === "agent");
+  const lastAgentBlocksReady = !lastAgentMsg || !pendingAgentBlocks.has(lastAgentMsg.id);
   const isPaymentChoiceStage = Boolean(
     lastAgentMsg?.checkoutStage === "payment" ||
     lastAgentMsg?.blocks?.some((block) => block.type === "payment_methods") ||
-    cart.status === "ready_to_pay",
+    cart.status === "ready_to_pay" ||
+    (selectedPaymentMethod && cart.shipping) ||
+    paymentIntent,
   );
-
-  const handlePaymentChoice = (text: string): boolean => {
-    // Server-owned stages must retain the durable chat request and recovery flow.
-    if (lastAgentMsg?.checkoutStage || paymentIntent) return false;
-    const method = paymentMethodForQuickReply(text);
-    if (!method || !isPaymentChoiceStage || !isEnabledPaymentQuickReply(text, merchantPaymentConfig)) return false;
-    void pay(method);
-    return true;
-  };
 
   const handleSubmit = (e: React.FormEvent) => {
     e.preventDefault();
     if (!input.trim() || isTyping || chatRecovery || paymentCreating) return;
-    if (!handlePaymentChoice(input.trim())) void sendMessage(input.trim());
+    void sendMessage(input.trim());
     setInput("");
   };
 
   const handleQuickReply = (text: string) => {
     if (isTyping || chatRecovery || paymentCreating) return;
-    if (!handlePaymentChoice(text)) void sendMessage(text);
+    void sendMessage(text);
   };
 
-  const activeQuickReplies = (lastAgentMsg?.quickReplies ?? [])
-    .filter((quickReply) => isEnabledPaymentQuickReply(quickReply, merchantPaymentConfig));
+  const paymentChoiceReplies = isPaymentChoiceStage && !paymentIntent
+    ? paymentChoicesForConfig(merchantPaymentConfig).map((method) => method.label)
+    : [];
+  const hasMethodChooser = Boolean(lastAgentMsg?.blocks?.some(block => block.type === "payment_methods"));
+  const hasCouponInput = Boolean(lastAgentMsg?.blocks?.some(block => block.type === "coupon_input"));
+  const canEditPayment = Boolean(paymentIntent && !["approved", "refunded"].includes(paymentIntent.status));
+  const activeQuickReplies = checkoutQuickReplies([...(lastAgentMsg?.quickReplies ?? []), ...paymentChoiceReplies], merchantPaymentConfig, {
+    paymentControlsVisible: hasMethodChooser || hasCouponInput || canEditPayment,
+    editControlsVisible: canEditPayment,
+  });
 
   return (
     <div style={{ display: "flex", flexDirection: "column", height: "100%", overflow: "hidden" }}>
@@ -171,11 +179,11 @@ export function ChatPanel() {
               {msg.text && (
                 <MessageText message={msg} api={api} />
               )}
-              {!chatRecovery && msg.blocks?.map((block, j) => {
-                const navigation = ["address_confirmation", "shipping_options", "payment_methods"].includes(block.type)
-                  || (block.type === "form_field" && block.data?.field === "cep");
-                if (navigation && msg.checkoutStage && msg.id !== lastAgentMsg?.id) return null;
+              {!chatRecovery && !pendingAgentBlocks.has(msg.id) && msg.blocks?.map((block, j) => {
+                const navigation = ["address_confirmation", "shipping_options", "payment_methods", "coupon_input", "form_field", "crypto_chain_select"].includes(block.type);
+                if (navigation && (paymentIntent || msg.id !== lastAgentMsg?.id)) return null;
                 const paymentBlock = isPaymentPresentationBlock(block.type);
+                if (paymentBlock && block.type !== "checkout_price_review" && block.data?.intent_id !== paymentIntent?.intent_id) return null;
                 return (
                   <div
                     data-neu={paymentBlock ? undefined : "surface"}
@@ -191,19 +199,28 @@ export function ChatPanel() {
           </div>
         ))}
 
-        {!chatRecovery && paymentIntent && !["approved", "refunded"].includes(paymentIntent.status) && (
+        {!chatRecovery && lastAgentBlocksReady && canEditPayment && paymentIntent && (
           <nav aria-label="Alterar pedido" style={{ display: "flex", flexWrap: "wrap", gap: 8, paddingLeft: 36 }}>
             {["Alterar pagamento", "Alterar frete", "Alterar endereço", "Usar cupom"].map(label => (
-              <button key={label} data-neu="control" type="button" disabled={isTyping || paymentCreating}
+              <button key={label} data-neu="control" type="button" disabled={isTyping || paymentCreating || paymentSubmitting}
                 onClick={() => handleQuickReply(label)} style={{ minHeight: 44, padding: "8px 12px", borderRadius: 14,
                   border: "1px solid var(--bd)", background: "var(--chip)", color: "var(--tx)", fontSize: 12, cursor: "pointer" }}>
                 {label}
               </button>
             ))}
+            {paymentChoicesForConfig(merchantPaymentConfig)
+              .filter((method) => !(["card", "credito", "debito"].includes(paymentIntent.method) && ["credito", "debito"].includes(method.key)) && paymentIntent.method !== method.key)
+              .map((method) => (
+                <button key={`switch-${method.key}`} data-neu="control" type="button" disabled={isTyping || paymentCreating || paymentSubmitting}
+                  onClick={() => void changePaymentMethod(method.key as CheckoutPaymentMethod)} style={{ minHeight: 44, padding: "8px 12px", borderRadius: 14,
+                    border: "1px solid var(--bd)", background: "var(--chip)", color: "var(--tx)", fontSize: 12, cursor: "pointer" }}>
+                  {`Trocar para ${method.label}`}
+                </button>
+              ))}
           </nav>
         )}
 
-        {!chatRecovery && activeQuickReplies.length > 0 && (
+        {!chatRecovery && lastAgentBlocksReady && activeQuickReplies.length > 0 && (
           <div style={{ display: "flex", flexWrap: "wrap", gap: "6px", paddingLeft: "36px" }}>
             {activeQuickReplies.map((qr) => (
               <button data-neu="control"

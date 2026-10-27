@@ -2,6 +2,7 @@ import { createHash } from "node:crypto";
 import type { MetaUiChoice, MetaUiMessage, MetaUiPresentation, MetaUiView, StoreUiAction, WhatsAppStructuredResponse } from "./meta-ui.types.js";
 import { serviceSlotLabel } from "../../../catalog/domain/services/service-schedule.js";
 import { metaStoreQuickReplyAction } from "./meta-store-actions.js";
+import { commercialNoticesSchema } from "../../../storefront/domain/contracts/commercial-notice.schemas.js";
 
 const object = (value: unknown): Record<string, any> => value && typeof value === "object" ? value as Record<string, any> : {};
 const items = (value: unknown): Record<string, any>[] => Array.isArray(value) ? value.map(object) : [];
@@ -153,13 +154,24 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         });
         text.push(`Subtotal: ${money(d.subtotal)}${d.discount ? `\nDescontos: −${money(d.discount)}` : ""}\n*Total dos itens: ${money(d.total)}*\n\n_Frete e eventuais taxas aparecem no resumo antes do pagamento._`);
         if (d.freeShipping) text.push("Frete grátis aplicado.");
+        {
+          const notices = commercialNoticesSchema.safeParse(d.commercialNotices);
+          if (notices.success) for (const notice of notices.data) text.push(notice.message);
+        }
         if (items(d.items).length) add("Finalizar compra", tool("checkout", {}));
         add("Continuar comprando", tool("search_products", { query: "*" }));
         break;
       case "cart_add_result":
         text.push(d.status === "succeeded" ? "✅ *Item adicionado ao carrinho*" : d.status === "unknown" ? "_A inclusão está sendo verificada._" : "Não foi possível adicionar este item."); break;
       case "shipping_options":
-        items(d.options).forEach(o => add([o.carrier, o.name].filter(Boolean).join(" ") || "Frete", { kind: "message", message: value(o.responseLabel) || `Escolho o frete ${value(o.name)} da ${value(o.carrier)}` }, `${Number(o.price) === 0 ? "Grátis · benefício da loja" : o.priceFormatted || money(o.price)}${o.days != null ? ` · ${o.days} dias úteis` : ""}`)); break;
+        items(d.options).forEach(o => {
+          const carrier = value(o.carrier), name = value(o.name);
+          const label = carrier.startsWith("melhor-envio-") || carrier.startsWith("own_delivery_")
+            ? name : [carrier, name].filter(Boolean).join(" ");
+          const eta = o.estimatedUnit === "minutes" && Number.isInteger(o.estimatedValue) && o.estimatedValue > 0
+            ? ` · ${o.estimatedValue} minutos` : o.days != null ? ` · ${o.days} dias úteis` : "";
+          add(label || "Frete", { kind: "message", message: value(o.responseLabel) || `Escolho o frete ${label || "disponível"}` }, `${Number(o.price) === 0 ? "Grátis · benefício da loja" : o.priceFormatted || money(o.price)}${eta}`);
+        }); break;
       case "shipping_quote_input": text.push("Qual é o CEP para calcular a entrega?"); break;
       case "checkout_redirect":
         if (safeLink(d.url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "*Continue sua compra com segurança*\nPreencha os dados protegidos na página da loja. Seu carrinho será mantido." }, action: { name: "cta_url", parameters: { display_text: "Continuar compra", url: safeLink(d.url) } } } }); break;
@@ -252,10 +264,23 @@ export function metaWelcomeMessage(greeting: string, merchantName: string, agent
   return `*${formatMetaText(agentName)} · ${formatMetaText(merchantName)}*\n\n${formatMetaText(greeting).trim()}\n\n*Converse à vontade*\nPergunte o que quiser. Eu ajudo com produtos, entrega, pagamento e seu pedido.\n\n_Use o menu ou escreva sua pergunta aqui na conversa._`;
 }
 
+export const isMetaCatalogView = (view?: MetaUiView): boolean => !!view && view.stage !== "checkout" &&
+  !view.blocks.some(block => block.type === "product_card") &&
+  view.blocks.some(block => ["product_carousel", "marketplace_products", "wishlist", "cross_sell"].includes(block.type));
+
+const catalogProductChoice = (choice: MetaUiChoice): boolean => choice.action.kind === "tool" &&
+  (choice.action.tool === "get_product_details" || choice.action.tool === "search_products" && !!choice.action.args.cursor);
+
+/** The catalog's secondary actions retain their original server-owned identities. */
+export function buildMetaCatalogOptionsView(view: MetaUiView): MetaUiView {
+  return { stage: view.stage, title: view.title, body: "Escolha uma opção para continuar. Você também pode escrever sua pergunta.",
+    choices: view.choices.filter(choice => !catalogProductChoice(choice)), media: [], blocks: [], quickReplies: [] };
+}
+
 export function presentMetaUi(view: MetaUiView, revision: string, requestedPage = 0, options: { native?: boolean; includeMedia?: boolean; canGoBack?: boolean; navigationOnly?: boolean } = {}): MetaUiPresentation {
   const parts = paragraphs(formatMetaText(view.body || "Como posso ajudar?"));
   const productDetails = view.blocks.some(block => block.type === "product_card");
-  const catalog = view.stage !== "checkout" && !productDetails && view.blocks.some(block => ["product_carousel", "marketplace_products", "wishlist", "cross_sell"].includes(block.type));
+  const catalog = isMetaCatalogView(view);
   const pinned = view.choices.filter(choice => ["Ver produtos", "Encontrar produto", "Ver carrinho", "Finalizar pedido"].includes(choice.label));
   let allChoices = view.choices.filter(choice => !pinned.includes(choice));
   if (view.stage === "checkout") {
@@ -263,9 +288,7 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     allChoices.sort((a, b) => Number(primary(b)) - Number(primary(a)));
   }
   if (catalog) {
-    const products = allChoices.filter(choice => choice.action.kind === "tool" &&
-      (choice.action.tool === "get_product_details" || choice.action.tool === "search_products" && !!choice.action.args.cursor));
-    allChoices = [...products, { label: "Outras opções", action: { kind: "menu" } }];
+    allChoices = allChoices.filter(catalogProductChoice);
   }
   // On the visual catalog, show photographed products first while retaining
   // every product and its authorized identity across subsequent pages.
@@ -287,11 +310,13 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     };
     allChoices.sort((a, b) => priority(a) - priority(b));
   }
-  const pageSize = catalog && allChoices.some(choice => choice.image) ? Math.min(3, 7 - pinned.length) : 7 - pinned.length;
+  // Reserve a row for the secondary menu as well as previous/next/back.
+  const pageSize = catalog ? Math.min(allChoices.some(choice => choice.image) ? 3 : 6, 6 - pinned.length) : 7 - pinned.length;
   const totalPages = Math.max(1, Math.ceil(allChoices.length / pageSize));
   const page = Math.max(0, Math.min(Math.floor(requestedPage), totalPages - 1));
   const currentChoices = allChoices.slice(page * pageSize, (page + 1) * pageSize);
   const choices: MetaUiChoice[] = productDetails ? [...currentChoices, ...pinned] : [...pinned, ...currentChoices];
+  if (catalog) choices.push({ label: "Outras opções", action: { kind: "catalog_options" } });
   if (page > 0) choices.push({ label: catalog ? "Produtos anteriores" : "Página anterior", action: { kind: "page", page: page - 1 } });
   if (page < totalPages - 1) choices.push({ label: catalog ? "Próximos produtos" : "Mais opções", action: { kind: "page", page: page + 1 } });
   if (options.canGoBack) choices.push({ label: "Voltar", action: { kind: "back" } });

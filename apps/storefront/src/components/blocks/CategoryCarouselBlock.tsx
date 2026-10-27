@@ -2,6 +2,8 @@
 
 import { FiArrowUpRight, FiGrid } from "react-icons/fi";
 import styles from "./CategoryCarouselBlock.module.css";
+import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import { assertStorefrontReadUiAction } from "@/lib/storefront-read-ui-action";
 
 interface CategoryData {
   id: string;
@@ -18,10 +20,14 @@ export interface CategoryCarouselBlock {
 
 export default function CategoryCarouselBlock({ block, onQuickReply }: {
   block: CategoryCarouselBlock;
-  onQuickReply?: (text: string) => void;
+  onQuickReply?: (text: string, uiAction?: StorefrontReadUiAction) => void;
 }) {
   return <nav className={styles.track} aria-label="Categorias da loja">
-    {block.data.categories.map((category) => <button data-neu="control" key={category.id} type="button" className={styles.category} onClick={() => onQuickReply?.("Ver produtos de " + category.name)}>
+    {block.data.categories.map((category) => <button data-neu="control" key={category.id} type="button" className={styles.category} onClick={() => {
+      const uiAction: StorefrontReadUiAction = { tool: "search_products", args: { query: "*", categoryId: category.id } };
+      assertStorefrontReadUiAction(uiAction);
+      onQuickReply?.("Ver produtos de " + category.name, uiAction);
+    }}>
       <span className={styles.top}><FiGrid aria-hidden="true" /><FiArrowUpRight aria-hidden="true" /></span>
       <strong>{category.name}</strong>
       <span className={styles.description}>{category.description || "Explore a seleção de " + category.name}</span>

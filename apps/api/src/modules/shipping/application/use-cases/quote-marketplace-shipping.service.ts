@@ -2,6 +2,7 @@ import { ConflictException, Inject, Injectable, NotFoundException } from "@nestj
 import type { Prisma, PrismaClient } from "@prisma/client";
 import type { Cart, CustomerHints } from "@zyon/shared-types";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
+import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 import { MelhorEnvioCarrierAdapter } from "../../infrastructure/adapters/melhor-envio.carrier.js";
 import { ShippingQuoteEntity, type ShippingQuoteResult } from "../../domain/entities/shipping-quote.entity.js";
 import { createShippingEventEnvelope } from "../../domain/events/shipping-domain-event.js";
@@ -116,6 +117,7 @@ export class QuoteMarketplaceShippingService {
   }
 
   private async lockMutable(tx: Prisma.TransactionClient, scope: Scope) {
+    await lockCheckoutSessionAnchor(tx, scope.merchantId, scope.sessionId);
     await tx.$queryRaw`SELECT session_id FROM checkout_sessions WHERE merchant_id = ${scope.merchantId} AND session_id = ${scope.sessionId} FOR UPDATE`;
     const current = await this.load(tx, scope), cartRef = (current.cart as Cart & { cart_ref?: string }).cart_ref ?? scope.sessionId;
     if (await tx.paymentIntent.findFirst({ where: { merchantId: scope.merchantId, sessionId: scope.sessionId } }) ||

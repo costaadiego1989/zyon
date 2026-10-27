@@ -4,7 +4,7 @@ import { createStartCheckoutUseCase } from "../../application/use-cases/start-ch
 import { CompleteOrderUseCase } from "../../application/use-cases/complete-order.use-case.js";
 import { UpdateOrderTrackingUseCase } from "../../application/use-cases/update-order-tracking.use-case.js";
 import { InMemoryCheckoutRepository } from "../../infrastructure/repositories/in-memory-checkout.repository.js";
-import { CreatePaymentIntentUseCase } from "../../../payment/application/create-payment-intent.use-case.js";
+import { CheckoutPurchasePaymentIntent as CreatePaymentIntentUseCase } from "../../__tests__/checkout-purchase-flow-fixtures.js";
 import { HandleAsaasWebhookUseCase } from "../../../payment/application/handle-asaas-webhook.use-case.js";
 import { PaymentDispatchService } from "../../../payment/application/services/payment-dispatch.service.js";
 import { InMemoryPaymentRepository } from "../../../payment/infrastructure/in-memory-payment.repository.js";
@@ -15,10 +15,15 @@ import { PaymentApprovedHandler } from "../../application/handlers/payment-appro
 import type { PaymentApprovalReader } from "../../domain/ports/payment-approval.port.js";
 
 const ASAAS_WEBHOOK_TOKEN = "test-checkout-payment-webhook-token";
+const previousWebhookToken = process.env.ASAAS_WEBHOOK_TOKEN;
 
 // Configure webhook token for all tests in this file (fail-closed requires it).
 test.before(() => {
   process.env.ASAAS_WEBHOOK_TOKEN = ASAAS_WEBHOOK_TOKEN;
+});
+test.after(() => {
+  if (previousWebhookToken === undefined) delete process.env.ASAAS_WEBHOOK_TOKEN;
+  else process.env.ASAAS_WEBHOOK_TOKEN = previousWebhookToken;
 });
 
 function makeCheckoutPaymentAdapter(
@@ -141,7 +146,31 @@ test("checkout payment happy path: start-checkout → intent → PAYMENT_RECEIVE
   );
 });
 
-test("checkout payment: boleto — intent criado com method=boleto + aprovado via webhook PAYMENT_RECEIVED", async () => {
+test("checkout payment refuses native stock shortage before provider calls or intent persistence", async () => {
+  const checkout = new InMemoryCheckoutRepository();
+  const payments = new InMemoryPaymentRepository(checkout);
+  const merchantId = "merchant_stock_guard";
+  const sessionId = "checkout_stock_guard";
+  await createStartCheckoutUseCase(checkout, checkout).execute({ merchant_id: merchantId, session_id: sessionId,
+    cart: { currency: "BRL", total: 101, items: [{ sku: "limited-native", name: "Limited native product", price: 1, quantity: 101 }] },
+    customer: { email: "stock@example.test" } });
+  await prepareAuthenticatedCheckoutForPayment(checkout, merchantId, sessionId);
+  const before = structuredClone(checkout.getSession(merchantId, sessionId));
+  let providerCalls = 0;
+  const provider = new FakePaymentProvider();
+  provider.createPayment = async () => {
+    providerCalls += 1;
+    assert.fail("insufficient native stock must not reach provider");
+  };
+  await assert.rejects(new CreatePaymentIntentUseCase(checkout, checkout, payments, provider).execute({
+    merchant_id: merchantId, session_id: sessionId, idempotency_key: "stock_guard", method: "pix",
+  }), /cart_insufficient_stock/);
+  assert.equal(providerCalls, 0);
+  assert.deepEqual(await payments.listForSession(merchantId, sessionId), []);
+  assert.deepEqual(checkout.getSession(merchantId, sessionId), before);
+});
+
+test("checkout payment: unsupported boleto is rejected before provider calls or payment effects", async () => {
   const checkout = new InMemoryCheckoutRepository();
   const payments = new InMemoryPaymentRepository(checkout);
   const merchantId = `m_boleto_e2e_${crypto.randomUUID().replace(/-/g, "").slice(0, 14)}`;
@@ -160,42 +189,25 @@ test("checkout payment: boleto — intent criado com method=boleto + aprovado vi
   });
   await prepareAuthenticatedCheckoutForPayment(checkout, merchantId, sessionId);
 
-  const intentSnap = await new CreatePaymentIntentUseCase(
-    checkout, checkout, payments, new FakePaymentProvider()
+  const before = structuredClone(checkout.getSession(merchantId, sessionId));
+  let providerCalls = 0;
+  const provider = new FakePaymentProvider();
+  provider.createPayment = async () => {
+    providerCalls += 1;
+    assert.fail("unsupported method must never reach a payment provider");
+  };
+  await assert.rejects(new CreatePaymentIntentUseCase(
+    checkout, checkout, payments, provider
   ).execute({
     merchant_id: merchantId,
     session_id: sessionId,
     idempotency_key: `idem_boleto_${crypto.randomUUID()}`,
     method: "boleto"
-  });
-
-  assert.equal(intentSnap.method, "boleto");
-  assert.equal(intentSnap.status, "requires_action");
-  assert.equal(intentSnap.amountCents / 100, 450.99);
-
-  const checkoutPayment = makeCheckoutPaymentAdapter(checkout, payments);
-  const paymentDispatch = new PaymentDispatchService(payments, checkoutPayment);
-  const webhook = new HandleAsaasWebhookUseCase(payments, paymentDispatch);
-
-  const processed = await webhook.execute(ASAAS_WEBHOOK_TOKEN, {
-    id: `evt_boleto_${crypto.randomUUID().replace(/-/g, "").slice(0, 20)}`,
-    event: "PAYMENT_RECEIVED",
-    payment: {
-      id: intentSnap.providerPaymentId,
-      value: intentSnap.amountCents / 100,
-      externalReference: intentSnap.id
-    }
-  });
-
-  assert.equal(processed.outcome, "processed");
-
-  const approved = await payments.getIntentById(merchantId, intentSnap.id);
-  assert.deepEqual(approved?.snapshot().statusHistory.map((e) => e.status), [
-    "pending",
-    "requires_action",
-    "approved"
-  ]);
-  assert.ok(checkout.getCompletedOrder(merchantId, sessionId, intentSnap.providerPaymentId!));
+  }), /payment_method_not_supported/);
+  assert.equal(providerCalls, 0);
+  assert.deepEqual(await payments.listForSession(merchantId, sessionId), []);
+  assert.deepEqual(checkout.getSession(merchantId, sessionId), before);
+  assert.ok(!checkout.listOutbox(merchantId).some(event => ["payment.status.changed", "order.completed"].includes(event.event_type)));
 });
 
 test("checkout payment: webhook PAYMENT_RECEIVED duplicado completa pedido uma única vez (idempotente)", async () => {

@@ -1,3 +1,5 @@
+import type { CommercialNotice } from "@zyon/shared-types";
+
 export interface ProductCardBlock {
   type: "product_card";
   data: {
@@ -64,6 +66,9 @@ export interface CartSummaryBlock {
   data: {
     items: Array<{
       variantId: string;
+      optionItemIds?: string[];
+      selectionLabel?: string;
+      serviceSlotId?: string | null;
       productName: string;
       quantity: number;
       price: number;
@@ -78,6 +83,7 @@ export interface CartSummaryBlock {
     total: number;
     nextNudge?: { kind: string; gap?: number; message: string; reachable: boolean; ruleId?: string };
     activeRules?: Array<{ ruleId?: string; message: string }>;
+    commercialNotices?: CommercialNotice[];
   };
 }
 
@@ -90,6 +96,8 @@ export interface ShippingOptionsBlock {
       price: number;
       priceFormatted: string;
       days: number;
+      estimatedValue?: number;
+      estimatedUnit?: "minutes" | "days";
     }>;
   };
 }
@@ -98,6 +106,7 @@ export interface QuickRepliesBlock {
   type: "quick_replies";
   data: {
     options: string[];
+    suggestedActions?: import("@zyon/shared-types").StorefrontSuggestedReadActions;
   };
 }
 

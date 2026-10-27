@@ -6,9 +6,15 @@ import { CROSS_SELL_PROMOTION_REPOSITORY, type CrossSellPromotionRepository } fr
 import { OUTBOX_REPOSITORY, type OutboxRepository } from "../../../../shared/messaging/ports/outbox.repository.port.js";
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import { createCrossSellEventEnvelope } from "../../domain/events/cross-sell-domain-event.js";
-import { evaluateDiscountOffer } from "@zyon/rules-engine";
-import { evaluateStacking } from "../../domain/policies/stacking.policy.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
+
+export const CROSS_SELL_QUOTE_REVIEW_REQUIRED = "cross_sell_quote_review_required";
+export class CrossSellQuoteReviewRequiredException extends UnprocessableEntityException {
+  readonly code = CROSS_SELL_QUOTE_REVIEW_REQUIRED;
+  constructor() { super({ statusCode: 422, code: CROSS_SELL_QUOTE_REVIEW_REQUIRED, error: CROSS_SELL_QUOTE_REVIEW_REQUIRED,
+    message: "Este benefício precisa de uma nova cotação antes de adicionar o item." }); }
+}
+type AcceptanceIdentity = { suggestion_id: string; merchant_id: string; session_id: string; accepted_skus: string[] };
 
 @Injectable()
 export class AcceptCrossSellSuggestionUseCase {
@@ -16,77 +22,46 @@ export class AcceptCrossSellSuggestionUseCase {
 
   constructor(
     @Inject(CROSS_SELL_SUGGESTION_REPOSITORY) private readonly suggestions: CrossSellSuggestionRepository,
-    @Inject(CROSS_SELL_PROMOTION_REPOSITORY) private readonly promotions: CrossSellPromotionRepository,
+    @Inject(CROSS_SELL_PROMOTION_REPOSITORY) _promotions: CrossSellPromotionRepository,
     @Inject(OUTBOX_REPOSITORY) private readonly outbox: OutboxRepository,
     @Inject(PRISMA_CLIENT) private readonly prisma: PrismaClient,
   ) {}
 
-  async execute(input: {
-    suggestion_id: string;
-    merchant_id: string;
-    session_id: string;
-    accepted_skus: string[];
-    /** Caller supplies current cart so the rules-engine can check margin (P0) */
+  /** Read-only preflight lets the widget refuse before getRules can provision
+   * defaults or before resolving/adding any item. Execute revalidates as well. */
+  async assertSupportedAcceptance(input: AcceptanceIdentity): Promise<void> {
+    await this.prepareAcceptance(input);
+  }
+
+  private async prepareAcceptance(input: AcceptanceIdentity) {
+    const suggestion = await this.suggestions.findById(input.suggestion_id, input.merchant_id);
+    if (!suggestion) throw new NotFoundException("cross_sell_suggestion_not_found");
+    if (suggestion.session_id !== input.session_id) throw new BadRequestException("cross_sell_suggestion_session_mismatch");
+    let accepted;
+    try { accepted = suggestion.accept(input.accepted_skus); }
+    catch (err: unknown) {
+      throw new BadRequestException(`INVALID_ACCEPTED_SKUS:${err instanceof Error ? err.message : String(err)}`);
+    }
+    // This immutable entity preparation writes nothing. Only exact numeric zero
+    // is an ordinary recommendation. Unknown or explicit benefits need a real
+    // post-add, locked, persisted-provenance quotation and read/checkout parity.
+    if (accepted.snapshot().computed_discount !== 0) throw new CrossSellQuoteReviewRequiredException();
+    return accepted;
+  }
+
+  async execute(input: AcceptanceIdentity & {
+    /** Legacy input compatibility only; not quotation authority for this guard. */
     cart?: Cart;
-    /** Caller supplies merchant rules for the rules-engine cap check (P0) */
+    /** Explicit benefits remain refused even with caller-supplied rules. */
     merchantRules?: MerchantRules;
     /** Current stacking context for aggregate cap enforcement (P0 stacking) */
     currentCouponDiscountPercent?: number;
     currentNegotiationDiscountPercent?: number;
   }) {
-    const suggestion = await this.suggestions.findById(input.suggestion_id, input.merchant_id);
-    if (!suggestion) throw new NotFoundException("cross_sell_suggestion_not_found");
-    if (suggestion.session_id !== input.session_id) {
-      throw new BadRequestException("cross_sell_suggestion_session_mismatch");
-    }
-
-    // P1 fix: accepted_skus subset validation is enforced in entity.accept()
-    // (entity throws if any SKU is outside ranked_items)
-    let accepted;
-    try {
-      accepted = suggestion.accept(input.accepted_skus);
-    } catch (err: unknown) {
-      const msg = err instanceof Error ? err.message : String(err);
-      throw new BadRequestException(`INVALID_ACCEPTED_SKUS:${msg}`);
-    }
-
+    const accepted = await this.prepareAcceptance(input);
     const snap = accepted.snapshot();
-
-    // P0 fix: authorize the computed_discount through the rules-engine.
-    // If cart + merchantRules are provided, enforce full margin + cap check.
-    if (input.cart && input.merchantRules) {
-      const evaluation = evaluateDiscountOffer(input.cart, input.merchantRules, snap.computed_discount);
-      if (!evaluation.approved) {
-        throw new UnprocessableEntityException(`CROSS_SELL_DISCOUNT_REJECTED:${evaluation.reason}`);
-      }
-    } else {
-      // Fallback: enforce promotion-level max_discount_percent cap without full margin check.
-      // Fetch the promotion to get max_discount_percent.
-      const promotion = await this.promotions.findById(snap.promo_id, input.merchant_id);
-      if (promotion) {
-        const promoSnap = promotion.snapshot();
-        if (snap.computed_discount > promoSnap.max_discount_percent) {
-          throw new UnprocessableEntityException(
-            `CROSS_SELL_DISCOUNT_EXCEEDS_CAP:computed=${snap.computed_discount}>max=${promoSnap.max_discount_percent}`
-          );
-        }
-      }
-    }
-
-    // P0 stacking fix: enforce aggregate discount cap across all discount sources.
-    if (input.merchantRules) {
-      const stackResult = evaluateStacking({
-        crossSellDiscountPercent: snap.computed_discount,
-        couponDiscountPercent: input.currentCouponDiscountPercent ?? 0,
-        negotiationDiscountPercent: input.currentNegotiationDiscountPercent ?? 0,
-        maxDiscountPercent: input.merchantRules.maxDiscountPercent
-      });
-      if (stackResult.allowed === false) {
-        throw new UnprocessableEntityException(
-          `DISCOUNT_CAP_EXCEEDED:total=${stackResult.totalDiscountPercent}>cap=${stackResult.capPercent}`
-        );
-      }
-    }
+    // No incentive exists on the supported zero-benefit path. Do not authorize
+    // a nonexistent discount or revive the former promotion-cap-only fallback.
 
     await this.suggestions.save(accepted);
 

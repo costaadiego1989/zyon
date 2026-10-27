@@ -1,3 +1,4 @@
+import { formatWhatsAppPhone } from "../../utils/masks.js";
 ﻿import { PageHeader } from "../../components/PageHeader.js";
 import React, { useState } from "react";
 import { CheckCircle, CircleCheck, CreditCard, ExternalLink, Loader2, PackageCheck, RefreshCw, ShieldCheck, ShoppingBag, X } from "lucide-react";
@@ -5,6 +6,8 @@ import { Button } from "../../components/Button.js";
 import { TabBar } from "../../components/TabBar.js";
 import type { MerchantProfile } from "../../api-client.js";
 import { useWhatsAppSellerPage } from "./useWhatsAppSellerPage.js";
+import { useWhatsAppUsage } from "./useWhatsAppUsage.js";
+import { WhatsAppUsageTab, WhatsAppProcessingNotice } from "./WhatsAppUsageTab.js";
 import { WhatsAppTemplatesTab } from "./WhatsAppTemplatesTab.js";
 import { WhatsAppBrandIcon } from "../../components/WhatsAppBrandIcon.js";
 import { PremiumFeatureGate } from "../../components/PremiumFeatureGate.js";
@@ -20,7 +23,8 @@ const whatsappManagerUrl = "https://business.facebook.com/wa/manage/phone-number
 
 export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProfile | null }) {
   const vm = useWhatsAppSellerPage({ me: props.me });
-  const [tab, setTab] = useState<"connection" | "templates" | "orders">("connection");
+  const usage = useWhatsAppUsage(props.me?.id);
+  const [tab, setTab] = useState<"connection" | "templates" | "orders" | "usage">("connection");
   const status = vm.config?.status ?? "disconnected";
   const pending = stateCopy[status];
   const active = status === "active";
@@ -36,11 +40,12 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
       {!props.me ? <p>Entre na sua conta para configurar o WhatsApp.</p> : <>
         <TabBar
-          tabs={[{ key: "connection", label: "Conexão", panelId: "whatsapp-connection" }, { key: "templates", label: "Modelos de mensagem", panelId: "whatsapp-templates" }, { key: "orders", label: "Pedidos no WhatsApp", panelId: "whatsapp-orders" }]}
+          tabs={[{ key: "connection", label: "Conexão", panelId: "whatsapp-connection" }, { key: "templates", label: "Modelos de mensagem", panelId: "whatsapp-templates" }, { key: "orders", label: "Pedidos no WhatsApp", panelId: "whatsapp-orders" }, { key: "usage", label: "Consumo e cobrança", panelId: "whatsapp-usage" }]}
           activeTab={tab}
-          onTabChange={key => setTab(key as "connection" | "templates" | "orders")}
+          onTabChange={key => setTab(key as "connection" | "templates" | "orders" | "usage")}
           label="Configurações do WhatsApp"
         />
+        {tab === "usage" && <WhatsAppUsageTab vm={usage} />}
 
         {tab === "templates" && <section id="whatsapp-templates" role="tabpanel" aria-labelledby="whatsapp-templates-tab">
           <PremiumFeatureGate feature="postSale" requiredPlan="Growth" featureLabel="Modelos de mensagem do WhatsApp">
@@ -66,6 +71,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
           </section>
         </section>}
         {tab === "connection" && <section id="whatsapp-connection" role="tabpanel" aria-labelledby="whatsapp-connection-tab" className="whatsapp-seller__content">
+          <WhatsAppProcessingNotice data={usage.data} onView={() => setTab("usage")} />
           {vm.loading && <p role="status" className="whatsapp-seller__inline"><Loader2 size={18} className="spin" /> Carregando conexão…</p>}
 
           {vm.connectError && <div className="whatsapp-seller__error" role="alert">
@@ -87,7 +93,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
                 <div>
                   <span className="whatsapp-seller__eyebrow">Canal conectado</span>
                   <h2>WhatsApp Business ativo</h2>
-                  <p className="whatsapp-seller__number">+{vm.config.whatsappNumber}</p>
+                  <p className="whatsapp-seller__number">{formatWhatsAppPhone(vm.config.whatsappNumber)}</p>
                 </div>
                 <Button variant={vm.config.enabled ? "outline" : "primary"} disabled={vm.saving} onClick={() => vm.handleToggleEnabled(!vm.config!.enabled)}>
                   {vm.config.enabled ? "Pausar canal" : "Habilitar canal"}
@@ -112,7 +118,7 @@ export function WhatsAppSellerPage(props: { apiBaseUrl: string; me: MerchantProf
 
             {pending && !active && <section className="panel whatsapp-seller__panel" aria-live="polite">
               <h2>{pending.title}</h2>
-              {vm.config.whatsappNumber && <p className="whatsapp-seller__number">+{vm.config.whatsappNumber}</p>}
+              {vm.config.whatsappNumber && <p className="whatsapp-seller__number">{formatWhatsAppPhone(vm.config.whatsappNumber)}</p>}
               <p>{pending.text}</p>
               <div className="whatsapp-seller__actions">
                 <Button variant="outline" disabled={vm.saving} onClick={vm.refresh}><RefreshCw size={16} /> Atualizar estado</Button>

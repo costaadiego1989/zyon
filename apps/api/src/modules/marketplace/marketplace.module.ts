@@ -415,18 +415,21 @@ const prismaProvider = {
         configRepo: PrismaMarketplaceConfigRepository,
         searchService: FederatedSearchService,
         prisma: PrismaClient,
+        billing: BillingPlanMeteringService,
       ) =>
         new SearchFederatedProductsUseCase(
           productRepo,
           configRepo,
           searchService,
           prisma,
+          billing,
         ),
       inject: [
         FEDERATED_PRODUCT_REPOSITORY,
         MARKETPLACE_CONFIG_REPOSITORY,
         FederatedSearchService,
         PrismaClient,
+        BillingPlanMeteringService,
       ],
     },
     {

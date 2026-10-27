@@ -3,6 +3,7 @@ import type { NextFunction, Response } from "express";
 import { Injectable, NestMiddleware } from "@nestjs/common";
 import type { AacpHttpRequest } from "../http/http-request.js";
 import { CorrelationIdStorage } from "./correlation-id.storage.js";
+import { requestLogId } from "./log-context.js";
 
 /**
  * Generates (or accepts an inbound) correlation id, stores it in an
@@ -29,6 +30,6 @@ export class CorrelationIdMiddleware implements NestMiddleware {
     request.headers[CorrelationIdStorage.HEADER] = correlationId;
     response.setHeader(CorrelationIdStorage.HEADER, correlationId);
 
-    CorrelationIdStorage.run(correlationId, () => next());
+    CorrelationIdStorage.run(correlationId, () => next(), requestLogId(request));
   }
 }

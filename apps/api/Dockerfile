@@ -99,7 +99,10 @@ RUN pnpm --filter @zyon/payments-evm build
 # ============================================================
 # API
 # ============================================================
-RUN cd /repo/apps/api && pnpm exec nest build
+# Invoke the same TypeScript build config directly so compiler diagnostics are
+# retained by BuildKit instead of disappearing behind Nest's child-process exit.
+# Semantic errors still fail the image; no noCheck/ignore-error build is used.
+RUN cd /repo/apps/api && NODE_OPTIONS=--max-old-space-size=4096 pnpm exec tsc -p tsconfig.build.json --pretty false
 
 # Verify nest build produced output.
 RUN test -f /repo/apps/api/dist/main.js && \

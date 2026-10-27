@@ -40,6 +40,8 @@ function createTestUseCase(stripeStatus: string = "succeeded", amountReceived: n
       retrieve: async (id: string) => ({
         id,
         status: stripeStatus,
+        amount: amountReceived,
+        currency: "brl",
         amount_received: amountReceived
       })
     }
@@ -53,6 +55,52 @@ function createTestUseCase(stripeStatus: string = "succeeded", amountReceived: n
   });
   return { payments, checkoutPort, uc };
 }
+
+test("Stripe confirmation queries the saved charge account for direct and historical platform payments", async () => {
+  for (const direct of [true, false]) {
+    const { payments, checkoutPort, uc } = createTestUseCase();
+    const intent = PaymentIntentEntity.create({ merchantId: "mrc_1", sessionId: "chk_1", idempotencyKey: "confirm-original",
+      amountCents: 5000, currency: "BRL", method: "card" });
+    intent.prepareCreation({ merchantId: "mrc_1", sessionId: "chk_1", intentId: intent.id,
+      amountCents: 5000, currency: "BRL", method: "card", provider: "stripe",
+      ...(direct ? { stripeChargeMode: "direct_v2" as const, stripeConnectAccountId: "acct_original" }
+        : { settlementMode: "delayed_merchant_payout" as const, merchantPayoutDestination: "acct_original", merchantPayoutHoldDays: 7 }) });
+    intent.markRequiresAction({ providerPaymentId: "pi_original" });
+    await payments.saveIntent({ intent });
+    let reads = 0;
+    Object.assign(uc, { stripe: { paymentIntents: { retrieve: async (id: string, _params: unknown, options: unknown) => {
+      reads++;
+      assert.equal(id, "pi_original");
+      assert.deepEqual(options, direct ? { stripeAccount: "acct_original" } : undefined);
+      return { id, status: "succeeded", amount: 5000, amount_received: 5000, currency: "brl",
+        metadata: { merchant_id: "mrc_1", session_id: "chk_1", intent_id: intent.id } };
+    } } } });
+    const request = { merchant_id: "mrc_1", session_id: "chk_1", intent_id: intent.id };
+    assert.equal((await uc.execute(request)).status, "approved");
+    await uc.execute(request);
+    assert.equal(reads, 1);
+    assert.equal(checkoutPort.approved.length, 1);
+  }
+});
+
+test("Stripe confirmation never approves a direct charge with a mismatched receipt", async () => {
+  for (const mismatch of [{ currency: "usd" }, { amount: 4999 }, { id: "pi_other" }, { metadata: { merchant_id: "other" } }]) {
+    const { payments, checkoutPort, uc } = createTestUseCase();
+    const intent = PaymentIntentEntity.create({ merchantId: "mrc_1", sessionId: "chk_1", idempotencyKey: "receipt",
+      amountCents: 5000, currency: "BRL", method: "card" });
+    intent.prepareCreation({ merchantId: "mrc_1", sessionId: "chk_1", intentId: intent.id,
+      amountCents: 5000, currency: "BRL", method: "card", provider: "stripe", stripeChargeMode: "direct_v2", stripeConnectAccountId: "acct_original" });
+    intent.markRequiresAction({ providerPaymentId: "pi_original" });
+    await payments.saveIntent({ intent });
+    Object.assign(uc, { stripe: { paymentIntents: { retrieve: async () => ({
+      id: "pi_original", status: "succeeded", amount: 5000, amount_received: 5000, currency: "brl",
+      metadata: { merchant_id: "mrc_1", session_id: "chk_1", intent_id: intent.id }, ...mismatch,
+    }) } } });
+    await assert.rejects(uc.execute({ merchant_id: "mrc_1", session_id: "chk_1", intent_id: intent.id }), /stripe_payment_confirmation_mismatch/);
+    assert.equal((await payments.getIntentById("mrc_1", intent.id))?.status, "requires_action");
+    assert.equal(checkoutPort.approved.length, 0);
+  }
+});
 
 test("ConfirmStripePayment: rejects when fields are empty", async () => {
   const { uc } = createTestUseCase();

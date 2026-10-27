@@ -1,4 +1,5 @@
 import { WHATSAPP_CONVERSATION_PORT, type WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
+import { whatsappProcessingErrorCode } from "../../domain/services/whatsapp-processing-error.js";
 /**
  * Handle Incoming WhatsApp Message — Main Pipeline
  *
@@ -145,7 +146,7 @@ export class HandleIncomingMessageUseCase {
 
       this.logger.log(`whatsapp_response_sent merchant=${input.merchantId}`);
     } catch (error) {
-      this.logger.error(`whatsapp_pipeline_failed merchant=${input.merchantId}`);
+      this.logger.error(`whatsapp_pipeline_failed merchant=${input.merchantId} code=${whatsappProcessingErrorCode(error)}`);
 
       // Let the durable inbox retry; sending a fallback here would be another side effect.
       throw error;

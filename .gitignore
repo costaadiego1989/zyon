@@ -1,79 +1,11 @@
-node_modules
-dist
-dist-umd
-dist-int-spec
-dist-test
-.turbo
-.vite
-coverage
+node_modules/
+dist/
+.next/
+.turbo/
 .env
-.env.local
+.env.*
 *.log
-.pnpm-store
-
-# Local editor configs
-.vscode/
-.claude/settings.local.json
-
-# Test reports and results
-playwright-report/
-test-results/
-
-# Local scripts and tools
-scripts/*
-!scripts/docker-engine-ok.mjs
-.kilo/
-.impeccable/
-
-# Feature spec directories (auto-generated or WIP)
-.specs/features/
-
-# Exclude generated/WIP docs, but keep architecture decisions versioned.
-/docs/*
-!/docs/annual-billing.md
-!/docs/specs/
-/docs/specs/*
-!/docs/specs/adutoria/
-/docs/specs/adutoria/*
-!/docs/specs/adutoria/ready to prod/
-!/docs/specs/adutoria/ready to prod/**
-!/docs/architecture/
-/docs/architecture/*
-!/docs/architecture/adr/
-!/docs/architecture/adr/*.md
-
-.agents/
-.claude/
-.codex/
-.cursor/
-.github/
-!.github/workflows/
-
-# Local WooCommerce installation (E2E test environment)
-/woocommerce/
-wp-content/
-wp-config.php
-.wp-cli/
-.playwright-mcp/
-*.png
-!apps/web/assets/*.png
-test-pix-flow.mjs
-apps/widget/verify-widget.mjs
-apps/widget/cart-*.png
-
-# Build artifacts
 *.tsbuildinfo
 .audit/
-nul
-.vercel
-.env*
-
-.playwright-tiktok-profile/
-scripts/tiktok-*.js
-tiktok-*.png
-
-# Deployment credentials and artifacts
-.env.railway.local
-**/.env.production.local
+dist-umd/
 .vercel/
-**/.vercel/

@@ -1,5 +1,5 @@
 import { Injectable } from "@nestjs/common";
-import { evaluateDiscountOffer } from "@zyon/rules-engine";
+import { evaluateDiscountOffer,evaluateCombinedDiscount,moneyCents } from "@zyon/rules-engine";
 import type { Cart, MerchantRules } from "@zyon/shared-types";
 import type { DiscountAuthorization, DiscountRulesEnginePort } from "../../domain/ports/discount-rules-engine.port.js";
 
@@ -11,26 +11,23 @@ export class RulesEngineDiscountAdapter implements DiscountRulesEnginePort {
     requestedDiscountValue: number,
     discountType: "percent" | "fixed"
   ): DiscountAuthorization {
-    // Convert fixed discount to a percent for the engine
-    const requestedPercent =
-      discountType === "percent"
-        ? requestedDiscountValue
-        : cart.total > 0
-          ? (requestedDiscountValue / cart.total) * 100
-          : 0;
-
-    const result = evaluateDiscountOffer(cart, rules, requestedPercent);
+    if(discountType==="fixed"){
+      const requested=moneyCents(requestedDiscountValue);
+      if(requested===null||requested<=0||cart.total<=0)return{approved:false,authorizedDiscount:0,reason:requested===null?"economic_input_invalid":"discount_not_requested"};
+      // Fixed money is already denominated in cents. Converting it to a
+      // repeating decimal percent and flooring it again can lose a cent.
+      // The shared engine preserves monetary/currency/existing-P+D guards.
+      const decision=evaluateCombinedDiscount(cart,rules,requested);
+      if(decision.kind!=="authorized"||decision.cartDiscountCents<=0)return{approved:false,authorizedDiscount:0,reason:decision.reason};
+      return{approved:true,authorizedDiscount:decision.cartDiscountCents/100,authorizedDiscountCents:decision.cartDiscountCents,reason:decision.reason};
+    }
+    const result = evaluateDiscountOffer(cart, rules, requestedDiscountValue);
 
     if (!result.approved) {
       return { approved: false, authorizedDiscount: 0, reason: result.reason };
     }
 
-    // Convert authorized percent back to the original unit
-    const authorizedDiscount =
-      discountType === "percent"
-        ? result.value
-        : (result.value / 100) * cart.total;
-
-    return { approved: true, authorizedDiscount, reason: result.reason };
+    const authorizedDiscountCents=moneyCents((result.value/100)*cart.total);
+    return { approved: true, authorizedDiscount:result.value, ...(authorizedDiscountCents===null?{}:{authorizedDiscountCents}),reason: result.reason };
   }
 }

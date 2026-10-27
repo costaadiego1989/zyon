@@ -7,7 +7,9 @@ import { BuyerRecognitionService } from "../application/services/buyer-recogniti
 import { OtpService } from "../application/services/otp.service.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { BuyerAccount } from "../../buyer-account/domain/entities/buyer-account.entity.js";
-import { checkoutSession } from "./checkout-test-fixtures.js";
+import { checkoutSession, merchantRules } from "./checkout-test-fixtures.js";
+import { CartPromoResolutionService } from "../application/services/cart-promo-resolution.service.js";
+import type { ProductPromotionRepositoryPort } from "../../catalog/domain/ports/product-promotion-repository.port.js";
 import type { Cart } from "@zyon/shared-types";
 import { CreatePaymentIntentUseCase } from "../../payment/application/create-payment-intent.use-case.js";
 
@@ -38,7 +40,18 @@ function catalogAuthority(overrides: { available?: number; ambiguous?: boolean; 
       return overrides.promotion ? [{ variantId: "variant-1", discountType: "percent", discountValue: 10 }] : [];
     } },
   };
-  return new CheckoutCartAuthorityService(prisma as never, {} as never);
+  const unexpected = async () => assert.fail("unexpected_promotion_fixture_operation");
+  const promotions: ProductPromotionRepositoryPort = { create: unexpected, update: unexpected, getById: unexpected,
+    delete: unexpected, findByProduct: unexpected, findByVariant: unexpected, findActiveByProduct: unexpected,
+    findActiveBySku: async (merchantId, variantId) => {
+      assert.equal(merchantId, "merchant-1"); assert.equal(variantId, "variant-1");
+      return overrides.promotion ? [{ id: "synthetic-promotion", merchantId, variantId, discountType: "percent", discountValue: 10,
+        isActive: true, startsAt: new Date(0), endsAt: new Date("2100-01-01"), createdAt: new Date(0), updatedAt: new Date(0) }] : [];
+    } };
+  // The real projector requires explicit merchant policy and catalog cost;
+  // constructor omission is deliberately no commercial authorization.
+  const pricing = new CartPromoResolutionService(promotions, { getRules: async () => merchantRules({ maxDiscountPercent: 20, minimumMarginPercent: 10 }) });
+  return new CheckoutCartAuthorityService(prisma as never, {} as never, pricing);
 }
 
 function starter(repo: InMemoryCheckoutRepository, authority = catalogAuthority(), customer?: CheckoutCustomerService) {

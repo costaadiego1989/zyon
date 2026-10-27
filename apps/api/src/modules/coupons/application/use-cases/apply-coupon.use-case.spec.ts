@@ -9,6 +9,7 @@ import { InMemoryOutboxRepository } from "../../../../shared/messaging/infrastru
 import type { Cart, MerchantRules } from "@zyon/shared-types";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
 import type { DiscountRulesEnginePort, DiscountAuthorization } from "../../domain/ports/discount-rules-engine.port.js";
+import { RulesEngineDiscountAdapter } from "../../infrastructure/adapters/rules-engine-discount.adapter.js";
 
 // Stub that approves the full requested discount (permissive for most tests)
 class AllowAllDiscountEngine implements DiscountRulesEnginePort {
@@ -98,6 +99,40 @@ const BASE_INPUT = {
   merchantRules: PERMISSIVE_RULES,
 };
 
+it("contextual coupon consumes only the remaining original merchandise budget before reservation", async () => {
+  const { couponRepo, outbox, useCase } = makeSetup();
+  await couponRepo.save(CouponEntity.create(makeCouponInput({ discount_value: 50 })));
+  const result = await useCase.execute({ ...BASE_INPUT, merchantRules: { ...PERMISSIVE_RULES, maxDiscountPercent: 20 },
+    cart: { currency: "BRL", items: [{ sku: "SKU-A", name: "A", price: 90, cost: 10, quantity: 1 }], total: 90,
+      discountBudget: { version: 1, originalSubtotalCents: 10000, promotionDiscountCents: 1000 } } });
+  assert.equal(result.discount_applied, 10);
+  assert.ok(outbox.listOutbox("mrc_1").length > 0);
+});
+it("a capped coupon reports the existing company-ceiling notice with the exact applied D",async()=>{
+  const {couponRepo,useCase}=makeSetup();await couponRepo.save(CouponEntity.create(makeCouponInput({discount_type:"fixed",discount_value:10})));
+  const result=await useCase.execute({...BASE_INPUT,merchantRules:{...PERMISSIVE_RULES,maxDiscountPercent:20},
+    cart:{currency:"BRL",total:47,items:[{sku:"SKU-A",name:"Synthetic",price:47,quantity:1}],
+      discountBudget:{version:1,originalSubtotalCents:5000,promotionDiscountCents:300}}});
+  assert.equal(result.discount_applied,7);assert.equal(result.commercial_notices?.[0]?.code,"discount_limit_reached");
+});
+for(const [subtotal,base,percent,cap,expected]of [[47,50,10,20,470],[3,5,10,80,30],[105.5,108.5,10,10,785],[0.47,0.5,10,20,4]]as const)
+  it(`real percent engine preserves authorized cents at S=${subtotal},B=${base}`,async()=>{
+    const{couponRepo,useCase}=makeSetup(new RulesEngineDiscountAdapter());await couponRepo.save(CouponEntity.create(makeCouponInput({discount_value:percent})));
+    const result=await useCase.execute({...BASE_INPUT,merchantRules:{...PERMISSIVE_RULES,maxDiscountPercent:cap},
+      cart:{currency:"BRL",total:subtotal,items:[{sku:"SKU-A",name:"Synthetic",price:subtotal,quantity:1}],
+        discountBudget:{version:1,originalSubtotalCents:Math.round(base*100),promotionDiscountCents:Math.round((base-subtotal)*100)}}});
+    assert.equal(Math.round(result.discount_applied*100),expected);assert.equal(result.discount_applied,expected/100);
+  });
+
+it("a contextual ceiling already consumed does not reserve or publish a coupon", async () => {
+  const { couponRepo, outbox, useCase } = makeSetup();
+  await couponRepo.save(CouponEntity.create(makeCouponInput()));
+  await assert.rejects(useCase.execute({ ...BASE_INPUT, merchantRules: { ...PERMISSIVE_RULES, maxDiscountPercent: 20 },
+    cart: { currency: "BRL", items: [{ sku: "SKU-A", name: "A", price: 80, cost: 10, quantity: 1 }], total: 80,
+      discountBudget: { version: 1, originalSubtotalCents: 10000, promotionDiscountCents: 2000 } } }), /COUPON_DISCOUNT_REJECTED/);
+  assert.equal(outbox.listOutbox("mrc_1").length, 0);
+});
+
 it("a strategy coupon cannot bypass audience, assignment and budget through the ordinary coupon path", async () => {
   const { couponRepo, outbox, useCase } = makeSetup();
   const normal = CouponEntity.create(makeCouponInput());
@@ -106,19 +141,25 @@ it("a strategy coupon cannot bypass audience, assignment and budget through the 
   assert.equal(outbox.listOutbox("mrc_1").length, 0);
 });
 
-it("shipping coupon enforces known costs and subsidy limits before reserving usage", async () => {
+it("shipping coupon enforces carrier subsidy limits, not product cost or margin", async () => {
   for (const scenario of ["missing_cost", "excess_subsidy", "margin_floor"] as const) {
     const { couponRepo, outbox, useCase } = makeSetup();
     const coupon = CouponEntity.create(makeCouponInput({ discount_type: "shipping_free", discount_value: 0 }));
     await couponRepo.save(coupon);
-    const expected = { missing_cost: "product_cost_missing", excess_subsidy: "shipping_subsidy_above_limit", margin_floor: "minimum_margin_violation" }[scenario];
-    await assert.rejects(useCase.execute({ ...BASE_INPUT,
+    const execute = () => useCase.execute({ ...BASE_INPUT,
       cart: { ...BASE_CART, items: BASE_CART.items.map(item => ({ ...item, cost: scenario === "missing_cost" ? undefined : 80 })) },
       shipping: { customerPrice: 25, realCost: 25 },
       merchantRules: { ...PERMISSIVE_RULES, allowFreeShipping: true, freeShippingMinCartValue: 0,
         maxShippingSubsidy: scenario === "excess_subsidy" ? 20 : 45, minimumMarginPercent: 38 },
-    }), new RegExp(expected));
-    assert.equal(outbox.listOutbox("mrc_1").length, 0);
+    });
+    if (scenario === "excess_subsidy") {
+      await assert.rejects(execute(), /shipping_subsidy_above_limit/);
+      assert.equal(outbox.listOutbox("mrc_1").length, 0);
+    } else {
+      const result = await execute();
+      assert.equal(result.shipping_discount_applied, 25);
+      assert.equal(outbox.listOutbox("mrc_1").length, 1);
+    }
     assert.equal((await couponRepo.findById(coupon.id, "mrc_1"))?.snapshot().usages_count, 0);
   }
 });

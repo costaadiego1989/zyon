@@ -1,3 +1,4 @@
+import { ShippingQuotesModule } from "../shipping/shipping-quotes.module.js";
 import { PrepareMarketplaceCheckoutService } from "./application/prepare-marketplace-checkout.service.js";
 import { CreateMarketplacePaymentService } from "./application/create-marketplace-payment.service.js";
 import { MarketplacePublicPaymentAdmissionService } from "./application/marketplace-public-payment-admission.service.js";
@@ -6,6 +7,7 @@ import { GetCurrentMarketplacePaymentService } from "./application/get-current-m
 import { MarketplacePaymentResumeService } from "./application/marketplace-payment-resume.service.js";
 import { CancelPaymentIntentUseCase } from "./application/cancel-payment-intent.use-case.js";
 import { forwardRef, Module } from "@nestjs/common";
+import { BillingPromotionsModule } from "../billing-promotions/billing-promotions.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { EmbedTokenService } from "../embed/domain/embed-token.service.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
@@ -43,6 +45,10 @@ import { RetainedMerchantPaymentAdapter } from "./infrastructure/retained-mercha
 import { ScheduledMerchantSplitService } from "./application/scheduled-merchant-split.service.js";
 import { CHECKOUT_PAYMENT_PORT } from "./domain/ports/checkout-payment.port.js";
 import { PrismaPaymentRepository } from "./infrastructure/prisma-payment.repository.js";
+import { createNormalCrossSellPaymentAdmission } from "./infrastructure/prisma-normal-cross-sell-payment-admission.js";
+import { readNormalCheckoutCrossSellAuthority } from "../cross-sell/infrastructure/repositories/prisma-normal-checkout-cross-sell.authority.js";
+import { projectNormalCrossSellCart } from "../cross-sell/infrastructure/repositories/prisma-normal-checkout-cross-sell.adapter.js";
+import { captureStorefrontCouponForPayment } from "../coupons/infrastructure/repositories/prisma-storefront-coupon-admission.js";
 import { PrismaPaymentSettlementLedgerRepository } from "./infrastructure/prisma-payment-settlement-ledger.repository.js";
 import { AsaasPaymentAdapter } from "./infrastructure/asaas-payment.adapter.js";
 import { AsaasPayoutAdapter } from "./infrastructure/asaas-payout.adapter.js";
@@ -81,6 +87,8 @@ import {
 import { PAYMENT_PLATFORM_REPOSITORY } from "./domain/ports/payment-platform-repository.port.js";
 import { PrismaPaymentPlatformRepository } from "./infrastructure/prisma-payment-platform.repository.js";
 import { StripePlatformAdapter } from "./infrastructure/stripe-platform.adapter.js";
+import { BILLING_ADMIN_NOTICE_PORT } from "./domain/ports/billing-admin-notice.port.js";
+import { PrismaBillingAdminNoticePublisher } from "./infrastructure/prisma-billing-admin-notice.publisher.js";
 import { AsaasPlatformAdapter } from "./infrastructure/asaas-platform.adapter.js";
 import { EnvironmentBillingConfig } from "./infrastructure/billing-env.js";
 import { PaymentDispatchService } from "./application/services/payment-dispatch.service.js";
@@ -139,6 +147,8 @@ import {
 
 @Module({
   imports: [
+    ShippingQuotesModule,
+    BillingPromotionsModule,
     forwardRef(() => CheckoutModule),
     CommerceModule,
     MerchantModule,
@@ -163,6 +173,7 @@ import {
     MerchantMercadoPagoController,
   ],
   providers: [
+    { provide: BILLING_ADMIN_NOTICE_PORT, useFactory: (prisma: PrismaClient) => new PrismaBillingAdminNoticePublisher(prisma), inject: [PRISMA_CROSS_MERCHANT_CLIENT] },
     PrepareMarketplaceCheckoutService,
     CreateMarketplacePaymentService,
     MarketplacePublicPaymentAdmissionService,
@@ -319,7 +330,11 @@ import {
     },
     {
       provide: PAYMENT_REPOSITORY,
-      useFactory: (prisma: PrismaClient) => new PrismaPaymentRepository(prisma),
+      useFactory: (prisma: PrismaClient) => new PrismaPaymentRepository(prisma, captureStorefrontCouponForPayment,undefined,
+        createNormalCrossSellPaymentAdmission(async(tx,scope,options)=>{
+          const current=await readNormalCheckoutCrossSellAuthority(tx,scope,undefined,options);
+          return {...current,projectedCart:projectNormalCrossSellCart(current)};
+        })),
       inject: [PRISMA_CLIENT]
     },
     {

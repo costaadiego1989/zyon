@@ -1,6 +1,6 @@
 export function validateOriginZip(value: string | undefined): string | null {
   if (!value) return null;
-  return /^\d{5}-\d{3}$/.test(value) ? null : "CEP deve estar no formato 00000-000";
+  return /^\d{5}-?\d{3}$/.test(value) ? null : "CEP deve estar no formato 00000-000";
 }
 
 export function validateTreasuryAddress(value: string | undefined): string | null {

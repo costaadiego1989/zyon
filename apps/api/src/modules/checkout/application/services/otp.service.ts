@@ -1,6 +1,7 @@
 import { Injectable } from "@nestjs/common";
 import { randomInt } from "node:crypto";
 import type { CustomerHints } from "@zyon/shared-types";
+import { verifyCheckoutEmailOtp } from "../../domain/services/checkout-email-otp.js";
 import {
   extractEmail,
   extractOtp,
@@ -88,13 +89,14 @@ export class OtpService {
     // Validation flow
     if (existing.otp_code && !resendEmail) {
       const extracted = extractOtp(userMessage);
+      const verification = extracted ? verifyCheckoutEmailOtp({ code: extracted, challenge: existing.otp_code,
+        expiresAt: existing.otp_expires_at, nowMilliseconds: Date.now() }) : "invalid";
       if (extracted && (extracted === existing.otp_code || this.looksLikeOtpAttempt(userMessage))) {
-        const deadline = Date.parse(existing.otp_expires_at ?? "");
-        if (!Number.isFinite(deadline) || deadline <= Date.now()) throw new OtpValidationError(
+        if (verification === "expired") throw new OtpValidationError(
           "Esse código de confirmação expirou. Peça para reenviar o código e use o novo código para continuar."
         );
       }
-      if (extracted === existing.otp_code) {
+      if (verification === "verified") {
         return {
           email_verified: true,
           otp_code: "",

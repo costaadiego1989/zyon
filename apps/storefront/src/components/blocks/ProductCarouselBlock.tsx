@@ -7,13 +7,15 @@ import { productsApi } from "@/lib/api/api-client";
 import RuleNotices from "./RuleNotices";
 import ImageSlideshow from "../ImageSlideshow";
 import styles from "./ProductCarouselBlock.module.css";
+import type { StorefrontReadUiAction } from "@zyon/shared-types";
+import { assertStorefrontReadUiAction } from "@/lib/storefront-read-ui-action";
 
 const currency = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" });
 const variantIdPattern = /^[A-Za-z0-9_-]{1,191}$/;
 
 export default function ProductCarouselBlock({ block, onQuickReply }: {
   block: ProductCarouselBlockType;
-  onQuickReply?: (option: string) => void;
+  onQuickReply?: (option: string, uiAction?: StorefrontReadUiAction) => void;
 }) {
   const { data } = block;
   const scrollRef = useRef<HTMLDivElement>(null);
@@ -79,7 +81,11 @@ export default function ProductCarouselBlock({ block, onQuickReply }: {
     <div id={trackId} ref={scrollRef} className={styles.track} tabIndex={0} aria-label="Lista de produtos; deslize para explorar">
       {products.map((product) => {
         const images = product.images?.length ? product.images : product.image ? [product.image] : [];
-        const details = () => onQuickReply?.("Detalhes " + product.name);
+        const details = () => {
+          const uiAction: StorefrontReadUiAction = { tool: "get_product_details", args: { productId: product.id } };
+          assertStorefrontReadUiAction(uiAction);
+          onQuickReply?.("Detalhes " + product.name, uiAction);
+        };
         const customizable = (product.variants?.length ?? 0) > 1 || (product.optionGroups?.length ?? 0) > 0;
         const singleVariantId = product.variants?.length === 1 && variantIdPattern.test(product.variants[0].id)
           ? product.variants[0].id

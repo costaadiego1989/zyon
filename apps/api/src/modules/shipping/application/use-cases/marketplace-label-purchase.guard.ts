@@ -15,10 +15,14 @@ export class MarketplaceLabelPurchaseGuard {
         { payment: { merchantId: input.merchantId, sessionId: order.sessionId } }] } });
     const line = await this.prisma.crossStoreLineItem.findFirst({ where: { hostMerchantId: input.merchantId, orderId: input.externalOrderId } });
     const session = await this.prisma.checkoutSession.findUnique({ where: { merchantId_sessionId: { merchantId: input.merchantId, sessionId: order.sessionId } },
-      select: { cart: true } });
+      select: { cart: true, shipping: true } });
     const cart = session?.cart as { items?: Array<{ marketplace?: unknown }> } | null;
     if (funding || line || cart?.items?.some(item => item.marketplace)) {
       throw new ConflictException("marketplace_shipping_label_journal_required");
+    }
+    const shipping = session?.shipping as { source?: string; carrierKey?: string } | null;
+    if (shipping?.source === "own_delivery" || shipping?.carrierKey?.startsWith("own_delivery_")) {
+      throw new ConflictException("own_delivery_does_not_use_carrier_label");
     }
   }
 }

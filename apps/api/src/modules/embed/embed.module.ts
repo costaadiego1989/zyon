@@ -36,6 +36,7 @@ import { ProtocolSessionExpiryReaper } from "./infrastructure/protocol-session-e
 import { OpenAIRealtimeVoiceService } from "../../shared/openai/openai-realtime-voice.service.js";
 import { EmbedRealtimeVoiceController } from "./presentation/http/embed-realtime-voice.controller.js";
 import { ReopenEmbedCheckoutUseCase } from "./application/reopen-embed-checkout.use-case.js";
+import { RenewStorefrontEmbedSessionService } from "./application/renew-storefront-embed-session.service.js";
 
 @Module({
   imports: [
@@ -70,6 +71,7 @@ import { ReopenEmbedCheckoutUseCase } from "./application/reopen-embed-checkout.
     AgentSessionTokenService,
     AgentCheckoutStateService,
     IssueEmbedSessionUseCase,
+    RenewStorefrontEmbedSessionService,
     UpdateEmbedCustomerUseCase,
     ReopenEmbedCheckoutUseCase,
     StartProtocolSessionUseCase,

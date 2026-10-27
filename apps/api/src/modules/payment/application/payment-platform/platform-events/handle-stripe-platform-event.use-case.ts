@@ -30,13 +30,7 @@ export class HandleStripePlatformEventUseCase {
       merchantId: input.merchantId,
       provider: "stripe",
       environment: current?.environment ?? "test",
-      status:
-        input.chargesEnabled &&
-        input.payoutsEnabled &&
-        input.detailsSubmitted &&
-        input.requirements.length === 0
-          ? "active"
-          : "restricted",
+      status: input.chargesEnabled ? "active" : "restricted",
       externalAccountId: input.accountId,
       chargesEnabled: input.chargesEnabled,
       payoutsEnabled: input.payoutsEnabled,

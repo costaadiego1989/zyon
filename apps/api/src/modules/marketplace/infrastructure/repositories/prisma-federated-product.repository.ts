@@ -1,5 +1,6 @@
 import { Injectable } from "@nestjs/common";
-import { PrismaClient } from "@prisma/client";
+import { Prisma, PrismaClient } from "@prisma/client";
+import { contextualSearchGroups } from "../../../catalog/domain/services/contextual-product-search.js";
 import type {
   FederatedProductRepository,
   FederatedProductSearchParams,
@@ -47,24 +48,39 @@ export class PrismaFederatedProductRepository
     query: string,
     category: string | undefined,
     limit: number,
-    scope?: { includeMerchants?: string[]; excludeMerchants: string[] },
+    scope?: { includeMerchants?: string[]; excludeMerchants: string[]; maxPriceCents?: number },
   ) {
+    const groups = contextualSearchGroups(query);
+    if (!groups.length || scope?.includeMerchants?.length === 0) return [];
+    // The same accent-insensitive AND-of-synonyms rule as local discovery.
+    // A whole-string `contains` made multiword requests silently miss partners.
+    const searchable = Prisma.sql`lower(regexp_replace(normalize(
+      f.name || ' ' || coalesce(f.description, '') || ' ' || f.searchable_text,
+      NFD), '[\u0300-\u036f]', '', 'g'))`;
+    const matching = Prisma.join(groups.map(group => Prisma.sql`(
+      ${Prisma.join(group.map(term => Prisma.sql`strpos(${searchable}, ${term}) > 0`), " OR ")}
+    )`), " AND ");
+    const ids = await this.prisma.$queryRaw<Array<{ id: string }>>(Prisma.sql`
+      SELECT f.id FROM federated_products f
+      WHERE f.stock_available AND f.currency = 'BRL' AND ${matching}
+      ${scope?.includeMerchants ? Prisma.sql`AND f.source_merchant_id = ANY(${scope.includeMerchants}::text[])` : Prisma.empty}
+      ${scope?.excludeMerchants.length ? Prisma.sql`AND NOT (f.source_merchant_id = ANY(${scope.excludeMerchants}::text[]))` : Prisma.empty}
+      ${scope?.maxPriceCents !== undefined ? Prisma.sql`AND f.price_cents <= ${scope.maxPriceCents}` : Prisma.empty}
+      ${category ? Prisma.sql`AND f.category = ${category}` : Prisma.empty}
+      ORDER BY f.id ASC LIMIT ${limit}
+    `);
+    if (!ids.length) return [];
     const products = await this.prisma.federatedProduct.findMany({
       where: {
         stockAvailable: true,
         currency: "BRL",
+        id: { in: ids.map(item => item.id) },
+        ...(scope?.maxPriceCents !== undefined ? { priceCents: { lte: scope.maxPriceCents } } : {}),
         sourceMerchantId: {
           ...(scope?.includeMerchants ? { in: scope.includeMerchants } : {}),
           ...(scope?.excludeMerchants.length ? { notIn: scope.excludeMerchants } : {}),
         },
         AND: [
-          {
-            OR: [
-              { name: { contains: query, mode: "insensitive" } },
-              { description: { contains: query, mode: "insensitive" } },
-              { searchableText: { contains: query, mode: "insensitive" } },
-            ],
-          },
           ...(category ? [{ category }] : []),
         ],
       },

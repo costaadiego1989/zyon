@@ -17,6 +17,14 @@ function catalogPlan(key: "starter" | "growth" | "scale"): BillingPlanCard {
 }
 
 describe("consistent plan information", () => {
+  it.each(["starter", "starter179", "growth", "scale"] as const)("does not market Marketplace in %s while retaining other benefits", key => {
+    const baseline = catalogPlan(key === "starter179" ? "starter" : key);
+    const plan = toPlanDef({ ...baseline, key, features: ["marketplace", "Marketplace", "customTheme", "voiceCheckout"] });
+    const html = renderToStaticMarkup(<BillingPlanDetails plan={plan} billingCycle="monthly" />);
+    expect(html.toLowerCase()).not.toContain("marketplace");
+    expect(plan.features).toEqual(["Tema da loja personalizado", "Checkout por voz"]);
+    expect(BILLING_PLANS.scale.features.marketplace).toBe(true);
+  });
   it("uses prices, fees and limits returned by the API instead of marketing defaults", () => {
     const plan = toPlanDef({ ...catalogPlan("growth"), priceBrl: 487.35, transactionFeeCents: 157,
       limits: { ordersPerMonth: 640, voiceSessionsPerMonth: 125 }, billingOptions: undefined });

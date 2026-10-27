@@ -16,6 +16,7 @@ import {
   selectProgressiveDiscountPercent
 } from "../../domain/services/progressive-discount-policy.service.js";
 import type { CheckoutSession } from "@zyon/shared-types";
+import { NORMAL_COMMERCIAL_BENEFIT_EVENT } from "../../domain/contracts/normal-commercial-benefit-proof.schemas.js";
 import { CorrelationIdStorage } from "../../../../shared/logger/correlation-id.storage.js";
 import { RecordFunnelEventUseCase } from "../../../experiments/application/use-cases/record-funnel-event.use-case.js";
 import { PAYMENT_REPOSITORY, type PaymentRepository } from "../../../payment/domain/ports/payment-repository.port.js";
@@ -42,7 +43,8 @@ export class TrackCheckoutEventUseCase {
     }
     // Completion is recorded by CompleteOrderUseCase after approved-payment validation.
     // Browser telemetry must never authorize conversion or reset abandonment state.
-    if (input.event === "order_completed" || String(input.event) === "strategy_incentive_stage") {
+    if (input.event === "order_completed" || input.event === "auth_identity_confirmed" || String(input.event) === "strategy_incentive_stage"
+      || String(input.event) === NORMAL_COMMERCIAL_BENEFIT_EVENT || String(input.event) === "buyer_identity_detached") {
       throw new BadRequestException("checkout_event_server_only");
     }
     await this.sessions.recordEvent(input.merchant_id, input.session_id, input.event, input.metadata);

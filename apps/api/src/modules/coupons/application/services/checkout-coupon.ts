@@ -1,13 +1,16 @@
-import type { CheckoutSession } from "@zyon/shared-types";
+import type { CheckoutSession,Cart } from "@zyon/shared-types";
 
 export function checkoutWithCoupon(session: CheckoutSession, result: {
   coupon: { code?: unknown; discount_type?: unknown; discount_value?: unknown };
   discount_applied: number; shipping_discount_applied?: number;
+  commercial_notices?:Cart["commercialNotices"];
 }): CheckoutSession {
   const shippingDiscount = Math.max(0, result.shipping_discount_applied ?? 0);
   return {
     ...session,
     cart: { ...session.cart, currentDiscount: result.discount_applied,
+      ...(result.commercial_notices?{commercialNotices:[...new Map([...(session.cart.commercialNotices??[]),...result.commercial_notices]
+        .map(notice=>[notice.code,notice])).values()].slice(0,5)}:{}),
       appliedBenefits: [
         ...(result.discount_applied > 0 ? [{ kind: "discount" as const, label: `Cupom ${result.coupon.code ?? "aplicado"}`, amount: result.discount_applied }] : []),
         ...(shippingDiscount > 0 ? [{ kind: "shipping" as const, label: "Desconto no frete", amount: shippingDiscount }] : []),
@@ -20,7 +23,7 @@ export function checkoutWithCoupon(session: CheckoutSession, result: {
   };
 }
 
-function couponNudge(
+export function couponNudge(
   coupon: { code?: unknown; discount_type?: unknown; discount_value?: unknown },
   cartDiscount: number,
   shippingDiscount: number,

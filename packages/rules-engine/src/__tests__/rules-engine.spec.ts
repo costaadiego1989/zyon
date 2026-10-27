@@ -39,10 +39,10 @@ function makeCart(overrides: Partial<Cart> = {}): Cart {
 }
 
 // ============================================================================
-// Scenario 1: Margin Enforcement
+// Scenario 1: Legacy margin diagnostics do not authorize discounts
 // ============================================================================
 
-test("Scenario 1.1: rejects discount violating minimum margin percent", () => {
+test("Scenario 1.1: configured ceiling authorizes regardless of old minimum margin", () => {
   // Item: price 100, cost 30
   // maxDiscountPercent = 50 (high, so cap doesn't interfere)
   // minimumMarginPercent = 60% → discount must leave margin ≥ 60%
@@ -58,8 +58,9 @@ test("Scenario 1.1: rejects discount violating minimum margin percent", () => {
     30 // 30% discount requested
   );
 
-  assert.equal(result.approved, false, "Discount should be rejected");
-  assert.equal(result.reason, "minimum_margin_violation");
+  assert.equal(result.approved, true, "User disabled margin eligibility");
+  assert.equal(result.value, 30);
+  assert.equal(result.reason, "discount_allowed");
   assert(result.marginAfterOffer < 0.60, "Margin after discount < 60%");
 });
 
@@ -151,7 +152,7 @@ test("Scenario 2.2: max discount percent is hard ceiling, no exceptions", () => 
 });
 
 // ============================================================================
-// Scenario 3: Missing costs cannot authorize incentives
+// Scenario 3: Missing cost is analytical absence, not an eligibility gate
 // ============================================================================
 
 test("Scenario 3.1: uses explicit cost when provided (no defaulting)", () => {
@@ -176,8 +177,7 @@ test("Scenario 3.2: missing cost makes the margin unavailable", () => {
   assert.equal(margin.marginValue, null);
 });
 
-test("Scenario 3.3: reject incentive with unknown cost", () => {
-  // Even a permissive margin floor cannot authorize an unknown product cost.
+test("Scenario 3.3: authorize within ceiling without inventing an unknown cost", () => {
   const cart: Cart = makeCart({
     total: 100,
     items: [{ sku: "A", name: "A", price: 100, quantity: 1 }]
@@ -189,8 +189,9 @@ test("Scenario 3.3: reject incentive with unknown cost", () => {
     20
   );
 
-  assert.equal(result.approved, false);
-  assert.equal(result.reason, "product_cost_missing");
+  assert.equal(result.approved, true);
+  assert.equal(result.value, 20);
+  assert.equal(result.reason, "discount_allowed");
 });
 
 // ============================================================================
@@ -275,7 +276,7 @@ test("Scenario 5.2: approved but capped (requested > max, margin OK with capped 
   assert.equal(result.reason, "capped_by_max_discount_rule");
 });
 
-test("Scenario 5.3: rejected (margin violation even with capped value)", () => {
+test("Scenario 5.3: low analytical margin does not veto a discount within ceiling", () => {
   const cart: Cart = makeCart({ total: 100, items: [{ sku: "A", name: "A", price: 100, cost: 80, quantity: 1 }] });
 
   // Even at 10% discount, margin = (90 - 80 - 3.6) / 90 = 6.4% << 30%
@@ -285,8 +286,9 @@ test("Scenario 5.3: rejected (margin violation even with capped value)", () => {
     5
   );
 
-  assert.equal(result.approved, false);
-  assert.equal(result.reason, "minimum_margin_violation");
+  assert.equal(result.approved, true);
+  assert.equal(result.value, 5);
+  assert.equal(result.reason, "discount_allowed");
 });
 
 // ============================================================================

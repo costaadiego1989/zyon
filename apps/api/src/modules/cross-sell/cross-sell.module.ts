@@ -5,6 +5,7 @@ import { CROSS_SELL_PROMOTION_REPOSITORY } from "./domain/ports/cross-sell-promo
 import { CROSS_SELL_SUGGESTION_REPOSITORY } from "./domain/ports/cross-sell-suggestion-repository.port.js";
 import { CROSS_SELL_CO_OCCURRENCE } from "./domain/ports/co-occurrence.port.js";
 import { CROSS_SELL_CATALOG_STRATEGY } from "./domain/ports/catalog-strategy.port.js";
+import { CROSS_SELL_PREVIEW_STRATEGIES, type CrossSellPreviewStrategiesPort } from "./domain/ports/preview-strategies.port.js";
 import { PrismaCrossSellPromotionRepository } from "./infrastructure/repositories/prisma-cross-sell-promotion.repository.js";
 import { PrismaCrossSellSuggestionRepository } from "./infrastructure/repositories/prisma-cross-sell-suggestion.repository.js";
 import { PrismaCrossSellCoOccurrenceAdapter } from "./infrastructure/adapters/prisma-co-occurrence.adapter.js";
@@ -16,6 +17,9 @@ import { ListEligibleCrossSellsUseCase } from "./application/use-cases/list-elig
 import { ListCrossSellPromotionsUseCase } from "./application/use-cases/list-cross-sell-promotions.use-case.js";
 import { AcceptCrossSellSuggestionUseCase } from "./application/use-cases/accept-cross-sell-suggestion.use-case.js";
 import { AcceptCrossSellFromWidgetUseCase } from "./application/use-cases/accept-cross-sell-from-widget.use-case.js";
+import { NormalCheckoutCrossSellUseCase } from "./application/use-cases/normal-checkout-cross-sell.use-case.js";
+import { NORMAL_CHECKOUT_CROSS_SELL } from "./domain/ports/normal-checkout-cross-sell.port.js";
+import { PrismaNormalCheckoutCrossSellAdapter } from "./infrastructure/repositories/prisma-normal-checkout-cross-sell.adapter.js";
 import { DeclineCrossSellSuggestionUseCase } from "./application/use-cases/decline-cross-sell-suggestion.use-case.js";
 import { CheckoutCrossSellRecommender } from "./application/services/checkout-cross-sell-recommender.js";
 import { CrossSellContextResolverService } from "./application/services/cross-sell-context-resolver.service.js";
@@ -32,6 +36,11 @@ import { CatalogModule } from "../catalog/catalog.module.js";
   imports: [CheckoutPersistenceModule, MerchantModule, BuyerPurchaseHistoryModule, CatalogModule],
   controllers: [MerchantCrossSellController],
   providers: [
+    {
+      provide: NORMAL_CHECKOUT_CROSS_SELL,
+      useFactory: (prisma: PrismaClient) => new PrismaNormalCheckoutCrossSellAdapter(prisma),
+      inject: [PRISMA_CLIENT]
+    },
     // Repository ports
     {
       provide: CROSS_SELL_PROMOTION_REPOSITORY,
@@ -44,6 +53,14 @@ import { CatalogModule } from "../catalog/catalog.module.js";
       inject: [PRISMA_CLIENT]
     },
     // Strategy/recommendation ports
+    {
+      provide: CROSS_SELL_PREVIEW_STRATEGIES,
+      useFactory: (prisma: PrismaClient): CrossSellPreviewStrategiesPort => ({
+        createCatalog: () => new PrismaCatalogStrategyAdapter(prisma),
+        createCoOccurrence: () => new PrismaCrossSellCoOccurrenceAdapter(prisma),
+      }),
+      inject: [PRISMA_CLIENT],
+    },
     {
       provide: CROSS_SELL_CO_OCCURRENCE,
       useFactory: (prisma: PrismaClient) => new PrismaCrossSellCoOccurrenceAdapter(prisma),
@@ -62,6 +79,7 @@ import { CatalogModule } from "../catalog/catalog.module.js";
     ListCrossSellPromotionsUseCase,
     AcceptCrossSellSuggestionUseCase,
     AcceptCrossSellFromWidgetUseCase,
+    NormalCheckoutCrossSellUseCase,
     DeclineCrossSellSuggestionUseCase,
     CheckoutCrossSellRecommender,
     // Application services
@@ -79,6 +97,9 @@ import { CatalogModule } from "../catalog/catalog.module.js";
     }
   ],
   exports: [
+    NORMAL_CHECKOUT_CROSS_SELL,
+    NormalCheckoutCrossSellUseCase,
+    CROSS_SELL_PREVIEW_STRATEGIES,
     CreateCrossSellPromotionUseCase,
     ListEligibleCrossSellsUseCase,
     ListCrossSellPromotionsUseCase,

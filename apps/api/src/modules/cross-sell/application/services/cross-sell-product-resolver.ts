@@ -21,6 +21,8 @@ export async function resolveCrossSellProduct(
     }
     return {
       suggestion_id: suggestionId,
+      product_id: product.id,
+      variant_id: variant.id,
       sku,
       name: product.name,
       unit_price: variant.basePriceInCents / 100,

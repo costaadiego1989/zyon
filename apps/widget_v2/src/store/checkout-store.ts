@@ -35,9 +35,26 @@ import {
 import { checkoutTotalWithServiceFee } from "@/lib/checkout-totals";
 import { CheckoutApiError } from "@/api/checkout-api-error";
 import type { CheckoutPriceReview } from "@/api/checkout-price-review";
+import type { NormalCheckoutCrossSellQuote, NormalCheckoutCrossSellTargetSelection } from "@zyon/contracts";
 
 export type CheckoutStatus = "loading" | "channel_gate" | "active" | "error" | "completed";
 export type CartStatus = "awaiting" | "shipping_calculated" | "ready_to_pay" | "paid";
+export const CROSS_SELL_REVIEW_REQUIRED_MESSAGE = "Este complemento precisa de uma nova cotação. Aguarde uma nova sugestão para adicioná-lo.";
+export const CROSS_SELL_UNCERTAIN_MESSAGE = "Não foi possível confirmar a inclusão deste complemento. Confira o carrinho antes de continuar.";
+export const CROSS_SELL_COMMITTED_REVIEW_MESSAGE = "O complemento foi incluído, mas o resumo precisa ser atualizado. Confira o carrinho antes de pagar. Não adicione novamente.";
+export function crossSellQuotationKey(merchantId: string, sessionId: string | null, suggestionId: string): string {
+  return JSON.stringify([merchantId, sessionId, suggestionId]);
+}
+export function crossSellSelectionKey(merchantId: string, sessionId: string | null, suggestionId: string,
+  targets: readonly NormalCheckoutCrossSellTargetSelection[]): string {
+  return JSON.stringify([merchantId, sessionId, suggestionId, targets.map(target =>
+    JSON.stringify([target.sku, target.variant_id, target.quantity, [...(target.selected_option_item_ids ?? [])].sort()])).sort()]);
+}
+export function crossSellPreparedQuoteKey(quote: NormalCheckoutCrossSellQuote): string {
+  return JSON.stringify([crossSellSelectionKey(quote.merchantId, quote.sessionId, quote.suggestionId,
+    quote.pricing.targets.map(target => ({ sku: target.sku, variant_id: target.variantId, quantity: target.acceptedQuantity,
+      selected_option_item_ids: target.selectedOptionItemIds }))), quote.sessionVersion, quote.contextHash, quote.basisHash]);
+}
 
 export interface ShippingOption {
   key: string;
@@ -129,25 +146,70 @@ export function paymentMethodsForConfig(config: MerchantPaymentConfig): PaymentM
   return methods;
 }
 
+/** Buyer choices are distinct from the provider snapshot. An explicit Pix
+ * choice is always offered and revalidated by the payment API when selected. */
+export function paymentChoicesForConfig(config: MerchantPaymentConfig): PaymentMethod[] {
+  const methods = paymentMethodsForConfig(config);
+  return methods.some((method) => method.key === "pix")
+    ? methods
+    : [{ key: "pix", label: "Pix", sub: "Pagamento instantâneo" }, ...methods];
+}
+
 /** Turns an explicit payment chip into the UI payment action it represents. */
 export function paymentMethodForQuickReply(text: string): CheckoutPaymentMethod | undefined {
   const normalized = text
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .trim()
-    .toLowerCase();
-  if (/^(pix|pagar com pix)$/.test(normalized)) return "pix";
-  if (/^(boleto|pagar com boleto)$/.test(normalized)) return "boleto";
-  if (/^(cartao de credito|credito|pagar com cartao)$/.test(normalized)) return "credito";
-  if (/^(cartao de debito|debito)$/.test(normalized)) return "debito";
+    .toLowerCase()
+    .replace(/[.!]+$/, "");
+  // Treat an explicit typed payment choice exactly like its quick reply. This
+  // keeps a OneBuyClick preference as a starting point, never a lock-in.
+  const requested = /^(?:(?:quero|prefiro|vou|pode ser|trocar|mudar|pagar|usar(?: o)?)(?:\s+(?:para|com|no))?\s+)*/;
+  const choice = normalized.replace(requested, "");
+  if (/^(pix|pagar com pix)$/.test(normalized) || choice === "pix") return "pix";
+  if (/^(boleto|pagar com boleto)$/.test(normalized) || choice === "boleto") return "boleto";
+  if (/^(cartao de credito|credito|pagar com cartao)$/.test(normalized) || /^(cartao de credito|credito)$/.test(choice)) return "credito";
+  if (/^(cartao de debito|debito)$/.test(normalized) || /^(cartao de debito|debito)$/.test(choice)) return "debito";
   if (/^(pagar com )?(crypto|cripto|usdc)$/.test(normalized)) return "crypto";
   return undefined;
 }
 
-/** Removes only payment choices that are not enabled for the current store. */
+/** Pix remains selectable even when the initial provider snapshot is false. */
 export function isEnabledPaymentQuickReply(text: string, config: MerchantPaymentConfig): boolean {
   const requested = paymentMethodForQuickReply(text);
-  return !requested || paymentMethodsForConfig(config).some((method) => method.key === requested);
+  return !requested || paymentChoicesForConfig(config).some((method) => method.key === requested);
+}
+
+/** Use the signed stage: services/digital goods can pay without a freight quote. */
+export function cartStatusFromExperience(experience: Experience): CartStatus {
+  if (experience.stage === "payment" || experience.stage === "payment_pending") return "ready_to_pay";
+  if (experience.stage === "shipping" || experience.stage === "data_collection") return "awaiting";
+  return experience.shipping ? "shipping_calculated" : "awaiting";
+}
+
+/** One action per intent, even when the API says PIX and another source says Pix. */
+export function checkoutQuickReplies(replies: string[], config: MerchantPaymentConfig, options: {
+  paymentControlsVisible?: boolean; editControlsVisible?: boolean;
+} = {}): string[] {
+  const seen = new Set<string>();
+  return replies.filter(reply => {
+    const method = paymentMethodForQuickReply(reply);
+    if (method && (options.paymentControlsVisible || !isEnabledPaymentQuickReply(reply, config))) return false;
+    const edit = checkoutEditIntent(reply);
+    if (edit && options.editControlsVisible) return false;
+    const key = method ? `payment:${method}` : edit ? `edit:${edit}` : reply.trim().toLocaleLowerCase("pt-BR");
+    if (seen.has(key)) return false;
+    seen.add(key);
+    return true;
+  });
+}
+
+function retireCheckoutControls(messages: Message[]): Message[] {
+  return messages.map(message => ({ ...message, quickReplies: undefined, blocks: message.blocks?.filter(block => ![
+    "pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "crypto_payment", "crypto_chain_select",
+    "checkout_price_review", "payment_methods", "shipping_options", "coupon_input", "address_confirmation", "form_field",
+  ].includes(block.type)) }));
 }
 
 export interface BuyerData {
@@ -215,6 +277,7 @@ export interface CartState {
   shipping?: { key: string; label: string; cost: number };
   discount: number;
   benefits?: Experience["applied_benefits"];
+  commercialNotices?: Experience["commercial_notices"];
   status: CartStatus;
 }
 
@@ -254,12 +317,19 @@ interface CheckoutState {
   channel: "chat" | "voice";
 
   paymentIntent: PaymentIntent | null;
+  /** This order's explicit choice; never writes the buyer's saved preference. */
+  selectedPaymentMethod: CheckoutPaymentMethod | null;
   pendingPriceReview: PendingPriceReview | null;
   paymentSubmitting: boolean;
   paymentPolling: boolean;
   paymentCreating: boolean;
   cartUpdating: boolean;
   cartError: string | null;
+  /** Ephemeral refusals are scoped to the signed session and suggestion, not text. */
+  staleCrossSellQuotes: Record<string, true>;
+  preparedCrossSellQuotes: Record<string, NormalCheckoutCrossSellQuote>;
+  crossSellQuoteGeneration: Record<string, number>;
+  crossSellRecoveryRequired: boolean;
 
   triggerConfig: TriggerConfig | null;
   triggerMessages: Record<string, { message?: string; couponCode?: string }> | null;
@@ -282,22 +352,25 @@ interface CheckoutState {
   leadRegistered: boolean;
   pendingPayment: PendingPayment | null;
 
-  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" }; initialChannel?: "chat" | "voice"; initialPaymentMethod?: "card"; paymentRevision?: number }) => Promise<void>;
+  init: (params: { embedToken: string; merchantId: string; cartRef?: string; apiBaseUrl: string; embedApiBaseUrl?: string; globalUserId?: string; buyerAccessToken?: string; onRefreshEmbedToken?: (previousEmbedToken: string) => Promise<string | null>; oneBuyClickPreferences?: { shippingPreference: "fastest" | "cheapest"; paymentPreference: "pix" | "card" }; initialChannel?: "chat" | "voice"; initialPaymentMethod?: "card"; paymentRevision?: number }) => Promise<void>;
   selectChannel: (channel: "chat" | "voice") => void;
   startQuickPurchase: () => Promise<void>;
   completeFormField: (field: string) => void;
-  sendMessage: (text: string) => Promise<void>;
+  sendMessage: (text: string, voiceTurnToken?: string) => Promise<void>;
   /**
    * Continues the visual checkout after a Realtime `begin_checkout` tool call.
    * This can reveal the payment-method chooser, but cannot create an intent,
    * collect card data, or confirm a payment.
    */
-  continueVoiceCheckout: () => Promise<void>;
-  acceptCrossSell: (suggestionId: string, sku: string) => Promise<{ ok: boolean; error?: string }>;
+  continueVoiceCheckout: (voiceTurnToken?: string) => Promise<void>;
+  prepareCrossSell: (suggestionId: string, targets: NormalCheckoutCrossSellTargetSelection[]) => Promise<NormalCheckoutCrossSellQuote | null>;
+  acceptCrossSell: (suggestionId: string, sku: string, quote?: NormalCheckoutCrossSellQuote, isCurrent?: () => boolean) => Promise<{ ok: boolean; error?: string; reviewRequired?: true; committedRequiresReview?: true }>;
   updateQty: (sku: string, quantity: number, variant?: string) => Promise<void>;
   removeCartItem: (sku: string, variant?: string) => Promise<void>;
   selectShipping: (option: Pick<ShippingOption, "key" | "label">) => Promise<boolean>;
   pay: (method: CheckoutPaymentMethod, installments?: number, confirmedCartFingerprint?: string) => Promise<void>;
+  /** Cancels the pending intent before creating the buyer's newly chosen method. */
+  changePaymentMethod: (method: CheckoutPaymentMethod) => Promise<void>;
   confirmUpdatedOrder: (fingerprint: string) => Promise<void>;
   registerLead: (input: LeadRegistrationInput) => Promise<{ ok: boolean; error?: string }>;
   selectCryptoChain: (chain: "polygon" | "base", confirmedCartFingerprint?: string) => Promise<void>;
@@ -453,8 +526,8 @@ function deriveBlocksFromStage(
   }
 
   if (stage === "payment") {
-    const methods = paymentMethodsForConfig(state.merchantPaymentConfig);
-    return [{ type: "coupon_input", data: { methods } }];
+    const methods = paymentChoicesForConfig(state.merchantPaymentConfig);
+    return [{ type: "payment_methods", data: { methods } }];
   }
 
   return undefined;
@@ -511,12 +584,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   chatResponseUnavailable: false,
   channel: "chat",
   paymentIntent: null,
+  selectedPaymentMethod: null,
   pendingPriceReview: null,
   paymentSubmitting: false,
   paymentPolling: false,
   paymentCreating: false,
   cartUpdating: false,
   cartError: null,
+  staleCrossSellQuotes: {},
+  preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {}, crossSellRecoveryRequired: false,
   triggerConfig: null,
   triggerMessages: null,
   activeDiscount: null,
@@ -534,11 +610,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
   leadRegistered: false,
   pendingPayment: null,
 
-  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, oneBuyClickPreferences, initialChannel, initialPaymentMethod, paymentRevision }) => {
+  init: async ({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, onRefreshEmbedToken, oneBuyClickPreferences, initialChannel, initialPaymentMethod, paymentRevision }) => {
     try {
-      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, paymentRevision });
+      const api = new CheckoutSession({ embedToken, merchantId, cartRef, apiBaseUrl, embedApiBaseUrl, globalUserId, buyerAccessToken, onRefreshEmbedToken, paymentRevision });
       get().stopPolling();
-      set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null,
+      set({ api, status: "loading", policies: {}, chatRecovery: null, chatResponseUnavailable: false, isTyping: false, messages: [], paymentIntent: null, selectedPaymentMethod: null,
+        staleCrossSellQuotes: {}, preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {}, crossSellRecoveryRequired: false,
         pendingPriceReview: null, paymentSubmitting: false, paymentCreating: false, quickPurchaseStarted: false, quickPurchaseApplying: false });
 
       const response = await api.start();
@@ -603,7 +680,8 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           totalToPay: cartData.totalToPay,
           shipping: cartData.shipping,
           discount: cartData.discount,
-          status: cartData.shipping ? "shipping_calculated" : "awaiting",
+          commercialNotices: cartData.commercialNotices,
+          status: cartStatusFromExperience(exp!),
         },
         activeDiscount: activeDiscountFromNudge(exp?.commercial_nudge),
         status: "channel_gate",
@@ -698,7 +776,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   startQuickPurchase: async () => {
     const { api, cart, buyer, oneBuyClickPreferences, quickPurchaseStarted } = get();
-    if (!api || !oneBuyClickPreferences || quickPurchaseStarted || get().cartUpdating || get().paymentCreating) return;
+    if (!api || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || !oneBuyClickPreferences || quickPurchaseStarted || get().cartUpdating || get().paymentCreating) return;
     set({ quickPurchaseStarted: true, quickPurchaseApplying: true });
     try {
       if (cart.items.length === 0) {
@@ -710,6 +788,13 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
             timestamp: Date.now(),
           }],
         }));
+        return;
+      }
+
+      // The server may already have resolved delivery (including no delivery
+      // for a service). Do not fetch freight just to apply a saved preference.
+      if (cart.status === "ready_to_pay") {
+        await get().pay(oneBuyClickPreferences.paymentPreference === "pix" ? "pix" : "credito");
         return;
       }
 
@@ -760,9 +845,20 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }));
   },
 
-  sendMessage: async (text) => {
-    const editSection = checkoutEditIntent(text);
-    if (get().status === "completed" || get().isTyping || get().chatRecovery || (get().api?.requiresChatRecovery && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
+  sendMessage: async (text, voiceTurnToken) => {
+    const latestAgent = [...get().messages].reverse().find((message) => message.role === "agent");
+    const paymentStage = Boolean(get().paymentIntent || get().cart.status === "ready_to_pay"
+      || latestAgent?.checkoutStage === "payment" || latestAgent?.checkoutStage === "payment_pending");
+    const editSection = text.trim().toLowerCase() === "voltar" && paymentStage ? "payment" : checkoutEditIntent(text);
+    if (get().status === "completed" || get().isTyping || get().chatRecovery || ((get().crossSellRecoveryRequired || get().api?.requiresCrossSellReconciliation || get().api?.requiresChatRecovery) && !editSection) || get().paymentSubmitting || get().paymentCreating) return;
+    const explicitPayment = paymentMethodForQuickReply(text);
+    if (explicitPayment && (get().paymentIntent || get().cart.status === "ready_to_pay"
+      || (get().selectedPaymentMethod && get().cart.shipping)
+      || latestAgent?.checkoutStage === "payment" || latestAgent?.checkoutStage === "payment_pending"
+      || latestAgent?.blocks?.some((block) => block.type === "payment_methods"))) {
+      await get().changePaymentMethod(explicitPayment);
+      return;
+    }
     const lastPaymentMessage = [...get().messages].reverse().find(message => message.role === "agent");
     if (text.trim().toLowerCase() === "tentar novamente" && lastPaymentMessage?.paymentRetry) {
       const retry = lastPaymentMessage.paymentRetry;
@@ -778,22 +874,28 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (!api || get().cartUpdating) return;
 
     const latest = [...get().messages].reverse().find(message => message.role === "agent");
-    if (editSection && (get().paymentIntent || latest?.checkoutStage === "payment_pending"
-      || (editSection !== "coupon" && (get().cart.shipping || latest?.checkoutStage === "payment")))) {
+    if (editSection && (get().crossSellRecoveryRequired || get().paymentIntent || latest?.checkoutStage === "payment_pending"
+      || (editSection !== "coupon" && (get().cart.shipping || paymentStage)))) {
       set({ isTyping: true });
       try {
         const experience = await api.reopenCheckout(editSection);
+        if (get().api !== api || get().status === "completed") return;
         get().stopPolling();
         set(state => ({ paymentIntent: null, pendingPriceReview: null, pendingPayment: null, activeDiscount: null,
-          cart: { ...cartFromExperience(experience), status: experience.shipping ? "shipping_calculated" : "awaiting" },
-          messages: state.messages.map(message => ({ ...message, blocks: message.blocks?.filter(block =>
-            !["pix_payment", "hosted_card_payment", "boleto_payment", "stripe_card", "crypto_payment", "checkout_price_review", "payment_methods", "shipping_options", "coupon_input"].includes(block.type)) })),
+          crossSellRecoveryRequired: false, preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {},
+          cart: { ...cartFromExperience(experience), status: cartStatusFromExperience(experience) },
+          messages: retireCheckoutControls(state.messages),
           isTyping: false }));
       } catch {
         set(state => ({ isTyping: false, messages: [...state.messages, { id: `edit_error_${Date.now()}`, role: "agent",
           text: "Ainda não foi possível liberar a alteração. Preciso confirmar que o pagamento anterior foi cancelado. Tente novamente em instantes.", timestamp: Date.now() }] }));
         return;
       }
+    }
+    if (editSection === "payment" && ["ready_to_pay", "shipping_calculated"].includes(get().cart.status)) {
+      set(state => ({ messages: [...state.messages, { id: `user_edit_${Date.now()}`, role: "user", text, timestamp: Date.now() }] }));
+      get().proceedToPayment();
+      return;
     }
     const { messages } = get();
 
@@ -859,7 +961,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     const lastAgentMessage = [...messages].reverse().find((message) => message.role === "agent");
     if (text.startsWith("Entrega ·") && !lastAgentMessage?.checkoutStage) {
       const { merchantPaymentConfig } = get();
-      const methods = paymentMethodsForConfig(merchantPaymentConfig);
+      const methods = paymentChoicesForConfig(merchantPaymentConfig);
       set((s) => ({
         messages: [...s.messages, {
           id: `agent_${Date.now()}`, role: "agent",
@@ -874,7 +976,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
 
     try {
-      const res = await api.chat(text);
+      const res = await api.chat(text, voiceTurnToken);
       if (get().api !== api) return;
 
       // Only use this offline fallback when the signed checkout service did
@@ -937,9 +1039,12 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
           ? []
           : (deriveBlocksFromStage(res.stage, { buyer: updatedBuyer, cart, merchantPaymentConfig }, res.missing_fields) ?? []));
       const crossSellBlock = crossSellBlockFromSuggestions(res.experience?.suggestedProducts);
-      const mergedBlocks = crossSellBlock
+      const responseBlocks = crossSellBlock
         ? [...baseBlocks, crossSellBlock]
         : baseBlocks;
+      const mergedBlocks = get().paymentIntent
+        ? responseBlocks.filter(block => !["payment_methods", "coupon_input", "shipping_options", "address_confirmation", "form_field"].includes(block.type))
+        : responseBlocks;
       const agentText = resolveAgentText(res.message, mergedBlocks);
       const agentMsg: Message = {
         displayRef: agentText === res.message ? res.display_ref : undefined,
@@ -957,7 +1062,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         leadRegistered: hasCompleteLead(updatedBuyer),
         isTyping: false,
         cart: res.experience?.items && res.experience.totals ? { ...s.cart, ...cartFromExperience(res.experience),
-          shipping: experienceShipping, status: res.stage === "payment" ? "shipping_calculated" : res.stage === "shipping" ? "awaiting" : s.cart.status } : s.cart,
+          shipping: experienceShipping, status: cartStatusFromExperience({ ...res.experience, stage: res.stage ?? res.experience.stage }) } : s.cart,
         ...(res.experience?.items && res.experience.totals ? { activeDiscount: activeDiscountFromNudge(res.experience.commercial_nudge) } : {}),
       }));
 
@@ -1117,7 +1222,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     }
   },
 
-  continueVoiceCheckout: async () => {
+  continueVoiceCheckout: async (voiceTurnToken) => {
     if (get().chatRecovery || get().api?.requiresChatRecovery) return;
     const before = get().cart.status;
     if (before === "ready_to_pay") return;
@@ -1129,26 +1234,63 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     // This goes through the signed checkout conversation. It can ask for the
     // next delivery detail, but cannot reach payment until the backend has
     // reported the payment stage.
-    await get().sendMessage("Vamos prosseguir");
+    await get().sendMessage("Vamos prosseguir", voiceTurnToken);
     if (get().cart.status === "shipping_calculated") {
       get().proceedToPayment();
     }
   },
 
-  acceptCrossSell: async (suggestionId, sku) => {
+  prepareCrossSell: async (suggestionId, targets) => {
+    const { api, cartUpdating, paymentSubmitting, paymentCreating, status, crossSellRecoveryRequired } = get();
+    if (!api || cartUpdating || paymentSubmitting || paymentCreating || status === "completed" || crossSellRecoveryRequired) return null;
+    const key = crossSellSelectionKey(api.currentMerchantId, api.currentSessionId, suggestionId, targets);
+    const suggestionKey = crossSellQuotationKey(api.currentMerchantId, api.currentSessionId, suggestionId);
+    const generation = (get().crossSellQuoteGeneration[key] ?? 0) + 1;
+    set(state => ({ crossSellQuoteGeneration: { ...state.crossSellQuoteGeneration, [key]: generation } }));
+    try {
+      const quote = await api.quoteCrossSell(suggestionId, targets);
+      if (get().api !== api || get().crossSellRecoveryRequired || get().crossSellQuoteGeneration[key] !== generation) return null;
+      set(state => {
+        const stale = { ...state.staleCrossSellQuotes }, priorStale = Boolean(stale[suggestionKey]); delete stale[suggestionKey];
+        const retained = Object.fromEntries(Object.entries(state.preparedCrossSellQuotes).filter(([, prior]) => {
+          const sameSuggestion = crossSellQuotationKey(prior.merchantId, prior.sessionId, prior.suggestionId) === suggestionKey;
+          return !sameSuggestion || !priorStale && crossSellSelectionKey(prior.merchantId, prior.sessionId, prior.suggestionId,
+            prior.pricing.targets.map(target => ({ sku: target.sku, variant_id: target.variantId, quantity: target.acceptedQuantity,
+              selected_option_item_ids: target.selectedOptionItemIds }))) !== key;
+        }));
+        return { preparedCrossSellQuotes: { ...retained, [crossSellPreparedQuoteKey(quote)]: quote }, staleCrossSellQuotes: stale };
+      });
+      return quote;
+    } catch { return null; }
+  },
+
+  acceptCrossSell: async (suggestionId, sku, displayedQuote, isCurrent = () => true) => {
     const { api, cartUpdating, status } = get();
-    if (!api || cartUpdating || get().paymentSubmitting || status === "completed") {
+    if (!api || !isCurrent() || cartUpdating || get().paymentSubmitting || get().paymentCreating || get().crossSellRecoveryRequired || status === "completed") {
       return { ok: false, error: "checkout_unavailable" };
     }
+    const quoteKey = crossSellQuotationKey(api.currentMerchantId, api.currentSessionId, suggestionId);
+    if (get().staleCrossSellQuotes[quoteKey]) {
+      set({ cartError: CROSS_SELL_REVIEW_REQUIRED_MESSAGE });
+      return { ok: false, error: CROSS_SELL_REVIEW_REQUIRED_MESSAGE, reviewRequired: true };
+    }
+    if (!displayedQuote || get().preparedCrossSellQuotes[crossSellPreparedQuoteKey(displayedQuote)] !== displayedQuote) return { ok: false, error: CROSS_SELL_REVIEW_REQUIRED_MESSAGE, reviewRequired: true };
     set({ cartUpdating: true, cartError: null, pendingPriceReview: null });
     try {
-      const response = await api.acceptCrossSell(suggestionId, sku);
+      const response = await api.acceptCrossSell(suggestionId, sku, displayedQuote, () => get().api === api && isCurrent());
+      if (get().api !== api) return { ok: false, error: "checkout_unavailable" };
+      if (response.projection_status === "requires_review") {
+        set({ crossSellRecoveryRequired: true, cartError: CROSS_SELL_COMMITTED_REVIEW_MESSAGE });
+        return { ok: false, error: CROSS_SELL_COMMITTED_REVIEW_MESSAGE, committedRequiresReview: true };
+      }
       const cart = cartFromExperience(response.experience);
       get().stopPolling();
       set((state) => ({
-        cart: { ...cart, status: "awaiting" },
+        cart: { ...cart, status: cartStatusFromExperience(response.experience) },
+        checkoutStage: response.experience.stage,
         activeDiscount: activeDiscountFromNudge(response.experience?.commercial_nudge),
         paymentIntent: null,
+        preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {},
         messages: response.agent_turn?.text
           ? [...state.messages, {
               id: `cross_sell_${Date.now()}`,
@@ -1160,18 +1302,22 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       }));
       void trackEvent("cross_sell_accepted", { sku });
       return { ok: true };
-    } catch {
-      const error = "Nao foi possivel adicionar este complemento. Tente novamente.";
-      set({ cartError: error });
-      return { ok: false, error };
+    } catch (cause: unknown) {
+      if (get().api !== api) return { ok: false, error: "checkout_unavailable" };
+      const reviewRequired = cause instanceof CheckoutApiError && cause.operation === "cross_sell_accept"
+        && cause.status === 422 && cause.code === "cross_sell_quote_review_required";
+      const error = reviewRequired ? CROSS_SELL_REVIEW_REQUIRED_MESSAGE : CROSS_SELL_UNCERTAIN_MESSAGE;
+      set(state => ({ cartError: error, crossSellRecoveryRequired: !reviewRequired, ...(reviewRequired
+        ? { staleCrossSellQuotes: { ...state.staleCrossSellQuotes, [quoteKey]: true as const } } : {}) }));
+      return reviewRequired ? { ok: false, error, reviewRequired: true } : { ok: false, error };
     } finally {
-      set({ cartUpdating: false });
+      if (get().api === api) set({ cartUpdating: false });
     }
   },
 
   updateQty: async (sku, quantity, variant) => {
     const { api, cartUpdating, status } = get();
-    if (!api || cartUpdating || get().paymentSubmitting || status === "completed") return;
+    if (!api || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || cartUpdating || get().paymentSubmitting || status === "completed") return;
     set({ cartUpdating: true, cartError: null, pendingPriceReview: null });
     try {
       const response = await api.updateCartItemQty(sku, quantity, variant);
@@ -1200,7 +1346,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   selectShipping: async (option) => {
     const { api } = get();
-    if (!api || get().cartUpdating || get().paymentSubmitting) return false;
+    if (!api || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || get().cartUpdating || get().paymentSubmitting) return false;
     set({ cartUpdating: true, cartError: null, pendingPriceReview: null });
     console.log('[WIDGET-DBG] selectShipping called', { key: option.key });
     try {
@@ -1295,10 +1441,10 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   pay: async (method, installments, confirmedCartFingerprint) => {
     const { api, cart, leadRegistered } = get();
-    if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().status === "completed" || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
-    const availableMethods = paymentMethodsForConfig(get().merchantPaymentConfig);
+    const availableMethods = paymentChoicesForConfig(get().merchantPaymentConfig);
     if (!availableMethods.some((available) => available.key === method)) {
       const errorMsg: Message = {
         id: `error_${Date.now()}`,
@@ -1310,6 +1456,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
+    set({ selectedPaymentMethod: method });
     const shippingChosen = Boolean(cart.shipping) ||
       cart.status === "shipping_calculated" || cart.status === "ready_to_pay";
     if (!shippingChosen) {
@@ -1317,7 +1464,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
         id: `error_${Date.now()}`,
         role: "agent",
         text: "Selecione um frete antes de pagar.",
-        quickReplies: ["Voltar"],
+        quickReplies: ["Alterar frete"],
         timestamp: Date.now(),
       };
       set((s) => ({ messages: [...s.messages, errorMsg] }));
@@ -1350,7 +1497,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       return;
     }
 
-    set({ paymentSubmitting: true, paymentCreating: true });
+    set(state => ({ paymentSubmitting: true, paymentCreating: true, messages: retireCheckoutControls(state.messages) }));
     try {
       const intent = await api.createPaymentIntent(method, installments, { confirmedCartFingerprint });
       if (get().api !== api) return;
@@ -1432,7 +1579,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   selectCryptoChain: async (chain, confirmedCartFingerprint) => {
     const { api, leadRegistered } = get();
-    if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
+    if (!api || get().paymentSubmitting || get().paymentCreating || get().cartUpdating || get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation || get().chatRecovery || api.requiresChatRecovery || api.chatState?.payment_intent_id) return;
     if (get().pendingPriceReview && confirmedCartFingerprint !== get().pendingPriceReview!.review.confirmation_fingerprint) return;
 
     if (!leadRegistered) {
@@ -1564,9 +1711,83 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     set({ activeDiscount: null });
   },
 
+  changePaymentMethod: async (method) => {
+    const current = get();
+    if (current.status === "completed" || current.isTyping || current.paymentSubmitting || current.paymentCreating
+      || current.cartUpdating || current.chatRecovery || current.api?.requiresChatRecovery
+      || (current.paymentIntent && ["approved", "refunded"].includes(current.paymentIntent.status))) return;
+    const available = paymentChoicesForConfig(current.merchantPaymentConfig);
+    const selected = available.find((payment) => payment.key === method);
+    if (!selected) {
+      set((state) => ({ messages: [...state.messages, {
+        id: `payment_unavailable_${Date.now()}`,
+        role: "agent",
+        text: "Essa forma de pagamento não está disponível para esta loja.",
+        timestamp: Date.now(),
+      }] }));
+      return;
+    }
+
+    if (current.paymentIntent?.status === "requires_action" || current.paymentIntent?.status === "pending") {
+      if (current.paymentIntent.method === method || (current.paymentIntent.method === "card" && method === "credito")) return;
+    }
+    set({ selectedPaymentMethod: method });
+    // No prior intent exists yet: this is a normal first selection.
+    if (!current.paymentIntent) {
+      await get().pay(method);
+      return;
+    }
+    if (!current.api || current.paymentSubmitting || current.paymentCreating || current.cartUpdating || current.chatRecovery) return;
+
+    const buyerChoice: Message = {
+      id: `user_payment_change_${Date.now()}`,
+      role: "user",
+      text: selected.label,
+      timestamp: Date.now(),
+    };
+    set((state) => ({ messages: [...state.messages, buyerChoice], isTyping: true }));
+    try {
+      // `reopenCheckout` is the server-authoritative cancellation barrier. A
+      // new Pix/card intent is never started until it has confirmed that the
+      // old intent is no longer payable.
+      const experience = await current.api.reopenCheckout("payment");
+      if (get().api !== current.api || get().status === "completed") return;
+      get().stopPolling();
+      set((state) => ({
+        paymentIntent: null,
+        pendingPriceReview: null,
+        pendingPayment: null,
+        activeDiscount: null,
+        isTyping: false,
+        cart: { ...cartFromExperience(experience), status: cartStatusFromExperience(experience) },
+        messages: retireCheckoutControls(state.messages),
+      }));
+      if (get().cart.status === "awaiting") {
+        // A real invalidated physical quote still needs server-guided delivery,
+        // not a payment attempt followed by a dead-end "Voltar" error.
+        await get().sendMessage("Vamos prosseguir");
+        return;
+      }
+      await get().pay(method);
+    } catch {
+      if (get().api !== current.api) return;
+      set((state) => ({
+        isTyping: false,
+        selectedPaymentMethod: current.selectedPaymentMethod,
+        messages: [...state.messages, {
+          id: `payment_change_error_${Date.now()}`,
+          role: "agent",
+          text: "Ainda não foi possível trocar a forma de pagamento. Aguarde a confirmação do cancelamento do pagamento anterior e tente novamente.",
+          timestamp: Date.now(),
+        }],
+      }));
+    }
+  },
+
   applyCouponCode: async (code) => {
     const { api, cart } = get();
     if (!api) return { ok: false, error: "Sessão não iniciada" };
+    if (get().crossSellRecoveryRequired || api.requiresCrossSellReconciliation) return { ok: false, error: get().cartError ?? CROSS_SELL_UNCERTAIN_MESSAGE };
     try {
       const result = await api.applyCoupon(code.trim().toUpperCase(), {
         items: cart.items.map((it) => ({ sku: it.sku, name: it.name, price: it.price, quantity: it.quantity })),
@@ -1589,16 +1810,21 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
 
   proceedToPayment: (methods) => {
     const s = get();
-    const permitted = paymentMethodsForConfig(s.merchantPaymentConfig);
+    // A detached coupon component/effect must not replace an in-flight or
+    // already-created payment with a second chooser.
+    if (s.status === "completed" || s.paymentIntent || s.paymentCreating || s.paymentSubmitting || s.cartUpdating
+      || s.chatRecovery || s.api?.requiresChatRecovery) return;
+    const permitted = paymentChoicesForConfig(s.merchantPaymentConfig);
     const permittedKeys = new Set(permitted.map((method) => method.key));
     const requested = methods?.filter((method) => permittedKeys.has(method.key)) ?? [];
-    const list = requested.length > 0 ? requested : permitted;
+    const list = [...requested, ...permitted.filter((method) => !requested.some((choice) => choice.key === method.key))];
     set((st) => ({
-      messages: [...st.messages, {
+      messages: [...retireCheckoutControls(st.messages), {
         id: `agent_pay_${Date.now()}`,
         role: "agent",
         text: "Como você quer pagar?",
         blocks: [{ type: "payment_methods", data: { methods: list } }],
+        checkoutStage: "payment",
         timestamp: Date.now(),
       }],
       cart: { ...st.cart, status: "ready_to_pay" },
@@ -1611,6 +1837,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
    * Only activates when merchant has progressiveDiscount.enabled.
    */
   applyProgressiveDiscount: async (cartStatus) => {
+    if (get().crossSellRecoveryRequired || get().api?.requiresCrossSellReconciliation) return;
     const { progressiveDiscount } = get();
     if (!progressiveDiscount?.enabled) return;
 
@@ -1629,6 +1856,7 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
     if (!event || !stage) return;
 
     const result = await trackEvent(event as never);
+    if (get().crossSellRecoveryRequired || get().api?.requiresCrossSellReconciliation) return;
     const approved = result?.progressive_offer?.approved_percent ?? 0;
     if (approved <= 0) return;
     const message = `Desconto progressivo aprovado: ${approved}% foi aplicado a este checkout.`;
@@ -1660,12 +1888,15 @@ export const useCheckoutStore = create<CheckoutState>((set, get) => ({
       cart: { items: [], total: 0, serviceFee: 0, discount: 0, status: "awaiting" },
       messages: [],
       paymentIntent: null,
+      selectedPaymentMethod: null,
       pendingPriceReview: null,
       paymentSubmitting: false,
       paymentPolling: false,
       paymentCreating: false,
       cartUpdating: false,
       cartError: null,
+      staleCrossSellQuotes: {},
+      preparedCrossSellQuotes: {}, crossSellQuoteGeneration: {}, crossSellRecoveryRequired: false,
       activeDiscount: null,
       oneBuyClickPreferences: null,
       leadRegistered: false,

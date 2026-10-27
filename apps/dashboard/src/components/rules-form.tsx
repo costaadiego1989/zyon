@@ -1,6 +1,7 @@
 import React from "react";
 import type { MerchantRules } from "@zyon/shared-types";
 import { validateOriginZip, validateTreasuryAddress } from "../utils/rules-validation.js";
+import { maskCEP } from "../utils/masks.js";
 
 const BRAND_VOICE_DESC: Record<MerchantRules["brandVoice"], string> = {
   consultative: "Consultiva — tom educativo, foco em valor e benefícios",
@@ -287,8 +288,10 @@ export function RulesForm({
               type="text"
               maxLength={9}
               placeholder="00000-000"
-              value={rules.originZip ?? ""}
-              onChange={(e) => patch({ originZip: e.target.value || undefined })}
+              inputMode="numeric"
+              autoComplete="postal-code"
+              value={maskCEP(rules.originZip ?? "")}
+              onChange={(e) => patch({ originZip: e.target.value.replace(/\D/g, "").slice(0, 8) || undefined })}
               onBlur={handleOriginZipBlur}
             />
             {validationErrors.originZip && (

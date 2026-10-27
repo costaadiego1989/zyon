@@ -253,10 +253,15 @@ describe("BubbleWhats worker failure propagation", () => {
     { updateMenuState: async () => { throw new Error("menu failed"); } } as any, { respond: async () => ({ agentMessage: "Resposta do checkout", quickReplies: [] }) });
     await assert.rejects(incoming.execute((await claim()).payload as any), /menu failed/);
     assert.equal(sends, 0);
+    const checkoutTx = {
+      $queryRaw: async () => [],
+      checkoutSession: { create: async () => { throw new Error("checkout failed"); } },
+    };
     const route = new RouteToSessionUseCase({
       findActiveByPhone: async () => null,
       create: async () => { assert.fail("must not persist phantom session"); },
     } as any, {
+      async $transaction<T>(work: (client: typeof checkoutTx) => Promise<T>) { return work(checkoutTx); },
       buyerIdentity: { findUnique: async () => ({ globalUserId: "buyer" }) },
       checkoutSession: { findFirst: async () => null, create: async () => { throw new Error("checkout failed"); } },
     } as any);

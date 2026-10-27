@@ -1,6 +1,7 @@
 import { WhatsAppDeliveryService } from "./application/services/whatsapp-delivery.service.js";
 import { WhatsAppDeliveryController } from "./presentation/http/whatsapp-delivery.controller.js";
 import { CheckoutModule } from "../checkout/checkout.module.js";
+import { GetWhatsAppUsageUseCase } from "./application/use-cases/get-whatsapp-usage.use-case.js";
 import { StorefrontModule } from "../storefront/storefront.module.js";
 import { EmbedModule } from "../embed/embed.module.js";
 import { CatalogModule } from "../catalog/catalog.module.js";
@@ -78,6 +79,7 @@ export class MultiProviderSenderAdapter {
   imports: [forwardRef(() => CheckoutModule), forwardRef(() => StorefrontModule), forwardRef(() => EmbedModule), forwardRef(() => PaymentModule), CouponsExecutionModule, BuyerAccountRepositoryModule, CatalogModule, PersistenceModule, WhatsAppConfigModule, WhatsAppTemplatesModule, forwardRef(() => PostSaleModule)],
   controllers: [WhatsAppWebhookController, WhatsAppConfigController, WhatsAppDeliveryController],
   providers: [
+    GetWhatsAppUsageUseCase,
     WhatsAppDeliveryService,
     HandleIncomingMessageUseCase,
     HandleMetaConversationUseCase,

@@ -1,7 +1,33 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { authorizeShippingDiscount, evaluateShippingOffer } from "./index.js";
+import { authorizeShippingDiscount, evaluateShippingOffer, authorizeConfiguredManualDelivery } from "./index.js";
 import { DEFAULT_MERCHANT_RULES } from "@zyon/shared-types";
+
+test("configured manual tariff is not carrier cost; waiver counts line savings and explicit shipping limits", () => {
+  const cart = { currency: "BRL" as const, total: 118, currentDiscount: 0,
+    discountBudget: { version: 1 as const, originalSubtotalCents: 12000, promotionDiscountCents: 200 },
+    items: [{ sku: "a", name: "A", quantity: 1, price: 118, originalPrice: 120 }] };
+  const rules = { ...DEFAULT_MERCHANT_RULES, maxDiscountPercent: 20, allowFreeShipping: true,
+    allowStackDiscountAndFreeShipping: true, freeShippingMinCartValue: 100, maxShippingSubsidy: 9 };
+  const input = { cart, rules, priceCents: 0, originalPriceCents: 900, configuredFreeAboveCents: 11800, region: "SP" };
+  assert.equal(authorizeConfiguredManualDelivery(input).approved, true);
+  for (const cost of [undefined, null, Number.NaN, -9999]) assert.equal(authorizeConfiguredManualDelivery({ ...input,
+    cart: { ...cart, items: [{ ...cart.items[0]!, cost: cost as number }] } }).approved, true);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, rules: { ...rules, allowFreeShipping: false } }).approved, false);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, rules: { ...rules, allowStackDiscountAndFreeShipping: false } }).approved, false);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, rules: { ...rules, maxShippingSubsidy: 8.99 } }).approved, false);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, rules: { ...rules, maxDiscountPercent: 1 } }).approved, false);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, configuredFreeAboveCents: 11801 }).approved, false);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, configuredFreeAboveCents: null }).approved, false);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, rules: { ...rules, freeShippingMinCartValue: 118.01 } }).approved, false);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, rules: { ...rules, blockedRegions: ["SP"] } }).approved, false);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, region: undefined, rules: { ...rules, blockedRegions: ["SP"] } }).approved, false);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, priceCents: 900, rules: { ...rules, allowFreeShipping: false } }).approved, true);
+  assert.equal(authorizeConfiguredManualDelivery({ ...input, priceCents: 0, originalPriceCents: 0,
+    configuredFreeAboveCents: null, rules: { ...rules, allowFreeShipping: false } }).approved, true);
+  for (const priceCents of [-1, 0.5, Number.NaN, Number.POSITIVE_INFINITY, 901])
+    assert.equal(authorizeConfiguredManualDelivery({ ...input, priceCents }).approved, false);
+});
 
 test("shipping incentives protect full carrier shortfall and require a complete quote", () => {
   const input = { cart: { currency: "BRL" as const, total: 300, items: [{ sku: "a", name: "A", quantity: 1, price: 300, cost: 100 }] },

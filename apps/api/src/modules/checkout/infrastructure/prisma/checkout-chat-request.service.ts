@@ -11,6 +11,7 @@ import { checkoutNavigationBlocks, checkoutNavigationTools, MAIN_CHAT_PUBLICATIO
 import { toCheckoutSession } from "./checkout-session.mapper.js";
 import { deriveChatStage } from "../../domain/services/customer-extraction.service.js";
 import { lockExecutionMerchant } from "../../../revenue-manager/infrastructure/strategy-execution-ledger.js";
+import { lockCheckoutSessionAnchor } from "../../../../shared/persistence/checkout-session-lock.js";
 
 /** Durable, at-most-once entry to the REAL checkout workflow. No claim takeover,
  * cached offer replay, strategy exposure assertion or transaction around I/O. */
@@ -83,6 +84,7 @@ export class CheckoutChatRequestService {
     }
     return this.prisma.$transaction(async tx => {
       const scope = { merchantId, sessionId: input.session_id };
+      await lockCheckoutSessionAnchor(tx, merchantId, input.session_id);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${merchantId} AND session_id = ${input.session_id} FOR SHARE`;
       const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: scope } });
       const publication = await tx.strategyTurnPublication.findFirst({ where: { ...scope, turnId: input.display_ref.turn_id,
@@ -179,6 +181,7 @@ export class CheckoutChatRequestService {
     return this.prisma.$transaction(async tx => {
       // Match admission/publication order before changing participation.
       await lockExecutionMerchant(tx, ref.merchant_id);
+      await lockCheckoutSessionAnchor(tx, ref.merchant_id, ref.session_id);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${ref.merchant_id}
         AND session_id = ${ref.session_id} FOR UPDATE`;
       const scope = { merchantId: ref.merchant_id, sessionId: ref.session_id };
@@ -247,6 +250,7 @@ export class CheckoutChatRequestService {
 
   private async claim(input: ChatMessageRequest) {
     return this.prisma.$transaction(async tx => {
+      await lockCheckoutSessionAnchor(tx, input.merchant_id, input.session_id);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${input.merchant_id}
         AND session_id = ${input.session_id} FOR UPDATE`;
       const session = await tx.checkoutSession.findUnique({ where: { merchantId_sessionId: {
@@ -289,6 +293,7 @@ export class CheckoutChatRequestService {
 
   private async finish(row: CheckoutChatRequest, status: "completed" | "unknown" | "rejected", responseHash: string | null) {
     return this.prisma.$transaction(async tx => {
+      await lockCheckoutSessionAnchor(tx, row.merchantId, row.sessionId);
       await tx.$queryRaw`SELECT id FROM checkout_sessions WHERE merchant_id = ${row.merchantId}
         AND session_id = ${row.sessionId} FOR UPDATE`;
       const [clock] = await tx.$queryRaw<Array<{ now: Date }>>`SELECT clock_timestamp() AS now`;

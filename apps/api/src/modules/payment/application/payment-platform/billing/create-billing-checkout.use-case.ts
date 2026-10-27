@@ -4,6 +4,8 @@ import { BadRequestException, ConflictException, Inject, Injectable, NotFoundExc
 import {
   STRIPE_PLATFORM_PORT,
   BILLING_CONFIG_PORT,
+  BILLING_CHECKOUT_PROMOTION_PORT,
+  type BillingCheckoutPromotionPort,
   type StripePlatformPort,
   type BillingConfigPort,
 } from "../../../domain/ports/payment-platform-provider.port.js";
@@ -37,6 +39,8 @@ export class CreateBillingCheckoutUseCase {
     @Optional()
     @Inject(BILLING_TRIAL_JOB_QUEUE)
     private readonly trialJobs?: BillingTrialJobQueue,
+    @Optional() @Inject(BILLING_CHECKOUT_PROMOTION_PORT)
+    private readonly promotions?: BillingCheckoutPromotionPort,
   ) {}
 
   async execute(input: {
@@ -44,10 +48,16 @@ export class CreateBillingCheckoutUseCase {
     email: string;
     plan: BillingPlan;
     billingCycle?: BillingCycle;
+    promotionCode?: string;
   }): Promise<{ url: string; sessionId: string }> {
     if (input.plan !== "starter179" && input.plan !== "growth" && input.plan !== "scale") throw new BadRequestException("billing_paid_plan_required");
     const offer = quoteBilling(input.plan, input.billingCycle);
     const priceId = this.billingConfig.priceId(input.plan, offer.cycle);
+    let promotionCodeId: string | undefined;
+    if (input.promotionCode?.trim()) {
+      if (!this.promotions) throw new BadRequestException("billing_promotions_unavailable");
+      promotionCodeId = await this.promotions.resolveForCheckout({ code: input.promotionCode, plan: input.plan, cycle: offer.cycle });
+    }
     const profile = await this.merchants.getProfile(input.merchantId);
     if (!profile) throw new NotFoundException("merchant_not_found");
     const billing = await this.repository.getOrCreateTrial(
@@ -83,6 +93,7 @@ export class CreateBillingCheckoutUseCase {
         customerId,
         priceId,
         offer,
+        promotionCodeId,
         successUrl: `${consoleUrl}/?billing=success#billing-plans`,
         cancelUrl: `${consoleUrl}/?billing=cancelled#billing-plans`,
       });

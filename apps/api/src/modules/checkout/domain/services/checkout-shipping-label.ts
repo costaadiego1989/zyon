@@ -7,6 +7,6 @@ export function checkoutShippingLabel(option: ShippingQuote): string {
   const label = carrier && method && !method.toLowerCase().includes(carrier.toLowerCase())
     ? `${carrier} ${method}` : method ?? carrier ?? "Frete";
   const price = new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(option.customerPrice);
-  const eta = typeof option.deliveryDays === "number" ? ` (${option.deliveryDays} dias)` : "";
+  const eta = option.estimatedUnit === "minutes" ? ` (${option.estimatedValue} minutos)` : typeof option.deliveryDays === "number" ? ` (${option.deliveryDays} dias)` : "";
   return `${label}${eta} - ${price}`;
 }
