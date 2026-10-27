@@ -101,7 +101,14 @@ createRoot(document.getElementById('root')).render(<ApiContext.Provider value={a
     await page.setViewportSize({ width, height: 900 });
     const preset = await page.getByRole("button", { name: "Hoje", exact: true }).boundingBox();
     const date = await from.boundingBox();
-    assert.ok(Math.abs(preset.y - date.y) < 2, `funnel presets and dates must share a row at ${width}px`);
+    if (width === 1280) {
+      const segment = await page.getByLabel("Segmentar resultados").boundingBox();
+      assert.ok(Math.abs(preset.y - date.y) < 2, "desktop presets and dates must share a row");
+      assert.ok(Math.abs(date.y - segment.y) < 2, "desktop segmentation must share the date row");
+    } else {
+      assert.ok(date.y >= preset.y, "wrapped dates must follow the presets");
+      assert.equal(await page.evaluate(() => document.documentElement.scrollWidth <= window.innerWidth), true);
+    }
     assert.ok(date.width < 200, "date inputs must stay compact");
   }
   await from.fill("2026-10-01");
