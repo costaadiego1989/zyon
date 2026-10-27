@@ -165,9 +165,12 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse): MetaUiVie
         text.push(d.status === "succeeded" ? "✅ *Item adicionado ao carrinho*" : d.status === "unknown" ? "_A inclusão está sendo verificada._" : "Não foi possível adicionar este item."); break;
       case "shipping_options":
         items(d.options).forEach(o => {
+          const carrier = value(o.carrier), name = value(o.name);
+          const label = carrier.startsWith("melhor-envio-") || carrier.startsWith("own_delivery_")
+            ? name : [carrier, name].filter(Boolean).join(" ");
           const eta = o.estimatedUnit === "minutes" && Number.isInteger(o.estimatedValue) && o.estimatedValue > 0
             ? ` · ${o.estimatedValue} minutos` : o.days != null ? ` · ${o.days} dias úteis` : "";
-          add([o.carrier, o.name].filter(Boolean).join(" ") || "Frete", { kind: "message", message: value(o.responseLabel) || `Escolho o frete ${value(o.name)} da ${value(o.carrier)}` }, `${Number(o.price) === 0 ? "Grátis · benefício da loja" : o.priceFormatted || money(o.price)}${eta}`);
+          add(label || "Frete", { kind: "message", message: value(o.responseLabel) || `Escolho o frete ${label || "disponível"}` }, `${Number(o.price) === 0 ? "Grátis · benefício da loja" : o.priceFormatted || money(o.price)}${eta}`);
         }); break;
       case "shipping_quote_input": text.push("Qual é o CEP para calcular a entrega?"); break;
       case "checkout_redirect":

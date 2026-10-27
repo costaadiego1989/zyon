@@ -223,11 +223,14 @@ test("checkout uses the payable total including the fee and real shipping select
 
 test("hybrid shipping retains provider currency and local minutes in the WhatsApp menu", () => {
   const view = buildMetaUiView(response({ blocks: [{ type: "shipping_options", data: { options: [
-    { carrier: "Entrega", name: "própria", price: 8, days: 0, estimatedUnit: "minutes", estimatedValue: 60, responseLabel: "Entrega própria (60 minutos) - R$ 8,00" },
+    { carrier: "own_delivery_flat", name: "Entrega própria", price: 8, days: 0, estimatedUnit: "minutes", estimatedValue: 60, responseLabel: "Entrega própria (60 minutos) - R$ 8,00" },
     { carrier: "melhor-envio-1", name: "Correios PAC", price: 1840, priceFormatted: "R$ 18,40", days: 5 },
   ] } }] }));
   assert.equal(view.choices[0].description, "R$ 8,00 · 60 minutos");
+  assert.equal(view.choices[0].label, "Entrega própria");
+  assert.equal(view.choices[1].label, "Correios PAC");
   assert.equal(view.choices[1].description, "R$ 18,40 · 5 dias úteis");
+  assert.deepEqual(view.choices[1].action, { kind: "message", message: "Escolho o frete Correios PAC" });
   assert.deepEqual(view.choices[0].action, { kind: "message", message: "Entrega própria (60 minutos) - R$ 8,00" });
 });
 
