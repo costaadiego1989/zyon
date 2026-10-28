@@ -1,0 +1,55 @@
+name: Evaluate published AI governance
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '17 6 * * *'
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ai-governance-published-release
+  cancel-in-progress: false
+
+jobs:
+  evaluate:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    env:
+      # Update this together with the Railway API source pin after homologation.
+      AI_RELEASE_REVISION: 227a03d4b740ade4c611e7b909febb29a1c44dbf
+      AI_EVAL_REQUIRED_PROVIDERS: deepseek
+      DEEPSEEK_API_KEY: ${{ secrets.ZYON_AI_EVAL_DEEPSEEK_API_KEY }}
+      DEEPSEEK_MODEL: deepseek-chat
+      DEEPSEEK_BASE_URL: https://api.deepseek.com/v1
+      OPENAI_API_KEY: ''
+      NODE_ENV: test
+      DATABASE_URL: postgresql://eval:eval@127.0.0.1:5432/unused_generation_only
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          ref: 227a03d4b740ade4c611e7b909febb29a1c44dbf
+          persist-credentials: false
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 9.15.0
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: pnpm
+      - name: Verify release and provider configuration
+        shell: bash
+        run: |
+          test "$(git rev-parse HEAD)" = "$AI_RELEASE_REVISION"
+          test -n "$DEEPSEEK_API_KEY" || { echo 'DeepSeek evaluation credential is missing'; exit 1; }
+      - run: pnpm install --frozen-lockfile --ignore-scripts
+      - run: pnpm --filter @zyon/api prisma:generate
+      - run: pnpm --filter @zyon/api eval:ai-governance
+      - run: pnpm --filter @zyon/api eval:ai-governance:live
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: published-ai-evaluation-${{ github.run_id }}
+          path: apps/api/artifacts/ai-evaluation-*.json
+          retention-days: 30
