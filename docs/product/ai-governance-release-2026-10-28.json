@@ -1,0 +1,235 @@
+{
+  "at": "2026-10-28T16:20:41.699Z",
+  "applicationRevision": "227a03d4b740ade4c611e7b909febb29a1c44dbf",
+  "production": {
+    "api": {
+      "environment": "production",
+      "deploymentId": "ba379dde-0264-411c-a1cf-4a53c898b82c",
+      "at": "2026-10-28T16:09:29.508Z",
+      "passed": true,
+      "checks": [
+        "authenticated_policy_200",
+        "auditor_write_403",
+        "auditor_read_200",
+        "team_assignment_200",
+        "baseline_200",
+        "native_seo_http_real_generation_201",
+        "provider_usage_persisted_with_verified_actor_task_and_team",
+        "task_and_frozen_baseline_persisted",
+        "human_time_observation_201",
+        "report_matches_durable_task",
+        "cost_api_200_and_one_physical_call",
+        "csv_contains_attribution",
+        "mcp_service_authorization_201",
+        "mcp_authenticated_catalog_200",
+        "mcp_foreign_tenant_400",
+        "text_support_uses_funded_deepseek",
+        "bounded_ai_metrics_exposed",
+        "empty_policy_published",
+        "policy_blocks_before_provider_dispatch"
+      ],
+      "usage": {
+        "model": "deepseek-flash",
+        "input": 254,
+        "output": 194,
+        "costMicros": "155",
+        "currency": "USD",
+        "costStatus": "estimated"
+      }
+    },
+    "browser": {
+      "environment": "production",
+      "deploymentId": "ba379dde-0264-411c-a1cf-4a53c898b82c",
+      "at": "2026-10-28T16:11:32.521Z",
+      "passed": true,
+      "base": "https://control.zyon-payments.com.br",
+      "release": {
+        "revision": "227a03d4b740ade4c611e7b909febb29a1c44dbf",
+        "api": "production"
+      },
+      "responses": [
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance"
+        },
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance/:syntheticMerchantId/policy"
+        },
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance"
+        },
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance/:syntheticMerchantId/team"
+        }
+      ],
+      "pageErrors": 0,
+      "checks": [
+        "served bundle revision",
+        "authenticated API in real Edge",
+        "tenant-scoped empty state",
+        "team assignment through browser",
+        "desktop and mobile without overflow"
+      ]
+    },
+    "source": {
+      "deploymentId": "ba379dde-0264-411c-a1cf-4a53c898b82c",
+      "revision": "227a03d4b740ade4c611e7b909febb29a1c44dbf",
+      "compared": 3973,
+      "exactByteMatches": 2,
+      "lineEndingOnlyMatches": 3971,
+      "mismatch": []
+    },
+    "controlDeployment": "dpl_7bY5B1UwduXLrCFcz1Cwuf5Hteub"
+  },
+  "homologation": {
+    "api": {
+      "environment": "sandbox",
+      "deploymentId": "85917739-99e2-4fd8-9cbd-9889d0d447eb",
+      "at": "2026-10-28T16:05:07.503Z",
+      "passed": true,
+      "checks": [
+        "authenticated_policy_200",
+        "auditor_write_403",
+        "auditor_read_200",
+        "team_assignment_200",
+        "baseline_200",
+        "native_seo_http_real_generation_201",
+        "provider_usage_persisted_with_verified_actor_task_and_team",
+        "task_and_frozen_baseline_persisted",
+        "human_time_observation_201",
+        "report_matches_durable_task",
+        "cost_api_200_and_one_physical_call",
+        "csv_contains_attribution",
+        "mcp_service_authorization_201",
+        "mcp_authenticated_catalog_200",
+        "mcp_foreign_tenant_400",
+        "text_support_uses_funded_deepseek",
+        "bounded_ai_metrics_exposed",
+        "empty_policy_published",
+        "policy_blocks_before_provider_dispatch"
+      ],
+      "usage": {
+        "model": "deepseek-flash",
+        "input": 254,
+        "output": 199,
+        "costMicros": "158",
+        "currency": "USD",
+        "costStatus": "estimated"
+      }
+    },
+    "browser": {
+      "environment": "sandbox",
+      "deploymentId": "85917739-99e2-4fd8-9cbd-9889d0d447eb",
+      "at": "2026-10-28T16:05:16.642Z",
+      "passed": true,
+      "base": "https://control-sandbox.zyon-payments.com.br",
+      "release": {
+        "revision": "227a03d4b740ade4c611e7b909febb29a1c44dbf",
+        "api": "sandbox"
+      },
+      "responses": [
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance"
+        },
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance/:syntheticMerchantId/policy"
+        },
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance"
+        },
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance/:syntheticMerchantId/team"
+        }
+      ],
+      "pageErrors": 0,
+      "checks": [
+        "served bundle revision",
+        "authenticated API in real Edge",
+        "tenant-scoped empty state",
+        "team assignment through browser",
+        "desktop and mobile without overflow"
+      ]
+    },
+    "source": {
+      "deploymentId": "85917739-99e2-4fd8-9cbd-9889d0d447eb",
+      "revision": "227a03d4b740ade4c611e7b909febb29a1c44dbf",
+      "compared": 3973,
+      "exactByteMatches": 2,
+      "lineEndingOnlyMatches": 3971,
+      "mismatch": []
+    },
+    "controlDeployment": "dpl_HfxHFA3N6fHR6165feCVNVqs5MSK"
+  },
+  "crossEnvironment": {
+    "compared": 3973,
+    "byteIdentical": true,
+    "different": []
+  },
+  "local": {
+    "governanceTests": 24,
+    "mcpTests": 24,
+    "storefrontRegressionTests": 164,
+    "productionBuild": true,
+    "controlBuild": true,
+    "fullTypecheck": "existing fixture errors remain"
+  },
+  "evaluation": {
+    "workflow": "ai-governance-production.yml",
+    "defaultBranch": "feat/checkout-journey-both-channels",
+    "workflowCommit": "cdebe666728b75c50f21cbc04298b71315f71e72",
+    "run": "https://github.com/costaadiego1989/zyon/actions/runs/40724116341",
+    "status": "success",
+    "scheduleUtc": "17 6 * * *",
+    "policy": {
+      "passed": 16,
+      "total": 16,
+      "gate": {
+        "minimumPassRate": 1,
+        "passRate": 1,
+        "passed": true
+      },
+      "datasetHash": "bef4a12d45481cd3f0c3e1f93a7a7824a46a6f14126b15cec0bd2efab4aa6170"
+    },
+    "agent": {
+      "passed": 6,
+      "total": 6,
+      "gate": {
+        "minimumPassRate": 1,
+        "passRate": 1,
+        "passed": true
+      },
+      "revision": "227a03d4b740ade4c611e7b909febb29a1c44dbf",
+      "datasetHash": "bef4a12d45481cd3f0c3e1f93a7a7824a46a6f14126b15cec0bd2efab4aa6170"
+    }
+  },
+  "railwaySource": {
+    "at": "2026-10-28T15:59:15.164Z",
+    "previous": {
+      "branch": "feat/consultative-sales-agent-20261019",
+      "commitSha": "c27160dfd329aa5a09e313b212aa30d011b430b7"
+    },
+    "current": {
+      "branch": "feat/ai-governance-20261027",
+      "commitSha": "227a03d4b740ade4c611e7b909febb29a1c44dbf"
+    },
+    "trigger": "Sandbox configuration redeployment returned to the previous pinned source and removed governance modules.",
+    "evidence": {
+      "deploymentId": "90b05f54-fc29-4553-bb77-07236694a2a1",
+      "governanceSource": false,
+      "governanceBuild": false
+    },
+    "scope": "API service in sandbox and production; other services unchanged"
+  },
+  "limitations": [
+    "OpenAI voice was not live-validated because the account is unfunded and its configured credential was rejected.",
+    "Human time savings require an actual baseline and handling-time observation.",
+    "Provider invoice reconciliation and financial ROI are not calculated."
+  ]
+}

@@ -18,6 +18,9 @@ function check(ok,label){if(!ok)throw Error(label);checks.push(label);}
  const {AiGovernanceService}=await import("/repo/apps/api/dist/modules/ai-governance/ai-governance.service.js");
  const {AiMeteringService}=await import("/repo/apps/api/dist/modules/ai-metering/ai-metering.service.js");
  const {ApiKeyService}=await import("/repo/apps/api/dist/modules/integrations/domain/api-key.service.js");
+ const {JwtService}=await import("/repo/apps/api/dist/modules/auth/domain/services/jwt.service.js");
+ const {PrismaAuthRepository}=await import("/repo/apps/api/dist/modules/auth/infrastructure/prisma-auth.repository.js");
+ const {OpenAIChatAdapter}=await import("/repo/apps/api/dist/modules/support/infrastructure/openai-chat.adapter.js");
  const {withAiMetering,meteredAiFetch}=await import("/repo/apps/api/dist/shared/ai-metering.js");
  const {withAiAutomation}=await import("/repo/apps/api/dist/shared/ai-automation.js");
  const tag="governance_smoke_"+randomUUID().replaceAll("-",""),merchantId=tag,operators=[];
@@ -30,7 +33,7 @@ function check(ok,label){if(!ok)throw Error(label);checks.push(label);}
  };
  try {
   await db.merchant.create({data:{id:merchantId,name:"Governance release validation"}});
-  await db.merchantBillingSubscription.create({data:{merchantId,status:"active",planKey:"growth"}});
+  await db.merchantBillingSubscription.create({data:{merchantId,status:"active",planKey:"scale"}});
   const tokens={};
   for(const role of ["platform_admin","auditor"]){
    const op=await db.platformOperator.create({data:{email:tag+"_"+role+"@example.test",role}});operators.push(op.id);
@@ -45,13 +48,14 @@ function check(ok,label){if(!ok)throw Error(label);checks.push(label);}
   check((await request("/platform/ai-governance/"+merchantId+"/team",auth,{method:"PUT",body:JSON.stringify({principalId:"source:product_seo",teamId:"release-validation"})})).status===200,"team_assignment_200");
   check((await request("/platform/ai-governance/"+merchantId+"/baseline",auth,{method:"PUT",body:JSON.stringify({taskType:"product_seo",humanMs:60000,sampleSize:1})})).status===200,"baseline_200");
   meter.onModuleInit();
-  const key=process.env.DEEPSEEK_API_KEY;if(!key)throw Error("deepseek_unconfigured");
-  await withAiAutomation({merchantId,source:"product_seo",taskType:"product_seo"},async()=>{
-   const r=await meteredAiFetch("product_seo")((process.env.DEEPSEEK_BASE_URL||"https://api.deepseek.com/v1")+"/chat/completions",{method:"POST",headers:{Authorization:"Bearer "+key,"Content-Type":"application/json"},body:JSON.stringify({model:process.env.DEEPSEEK_MODEL||"deepseek-chat",messages:[{role:"user",content:"Reply with OK."}],max_tokens:16}),signal:AbortSignal.timeout(20000)});
-   check(r.ok,"deepseek_real_response_200");await r.json();
-  });
+  const owner=await db.merchantUser.create({data:{merchantId,email:tag+"_owner@example.test",role:"owner"}});
+  await db.merchantTeamMember.create({data:{merchantId,userId:owner.id,role:"OWNER"}});
+  const ownerToken=await new JwtService(process.env.JWT_SECRET,120,new PrismaAuthRepository(db)).issue({merchantId,userId:owner.id,email:owner.email,role:"owner"},0);
+  const product=await db.product.create({data:{merchantId,name:"Livro de validação de governança",description:"Livro sintético usado somente para verificar a geração de SEO. Não é publicado para venda."}});
+  const seo=await request("/merchants/"+merchantId+"/products/"+product.id+"/generate-seo",ownerToken,{method:"POST",body:JSON.stringify({tone:"profissional"})});
+  check(seo.status===201&&Boolean(seo.data?.seoTitle)&&Boolean(seo.data?.metaDescription),"native_seo_http_real_generation_201");
   const event=await db.aiUsageEvent.findFirstOrThrow({where:{merchantId}}),task=await db.aiAutomationTask.findFirstOrThrow({where:{merchantId}});
-  check(event.provider==="deepseek"&&event.usageKnown&&event.taskId===task.id&&event.teamId==="release-validation","provider_usage_persisted_with_task_and_team");
+  check(event.provider==="deepseek"&&event.usageKnown&&event.taskId===task.id&&event.teamId==="release-validation"&&event.actorId===owner.id&&event.actorRole==="owner","provider_usage_persisted_with_verified_actor_task_and_team");
   check(task.status==="succeeded"&&task.baselineHumanMs===60000,"task_and_frozen_baseline_persisted");
   check((await request("/platform/ai-governance/"+merchantId+"/tasks/"+task.id+"/human-time",auth,{method:"POST",body:JSON.stringify({humanMs:0})})).status===201,"human_time_observation_201");
   const report=await request("/platform/ai-governance?merchantId="+merchantId,auth);
@@ -67,6 +71,13 @@ function check(ok,label){if(!ok)throw Error(label);checks.push(label);}
   check(tool.status===201&&tool.data.merchantId===merchantId,"mcp_service_authorization_201");
   check((await request("/ai-governance/tools/catalog?query=synthetic&limit=1","",{headers:serviceHeaders})).status===200,"mcp_authenticated_catalog_200");
   check((await request("/ai-governance/tools/authorize","",{method:"POST",headers:serviceHeaders,body:JSON.stringify({tool:"aacp_search_catalog",merchantId:"another-tenant"})})).status===400,"mcp_foreign_tenant_400");
+  const support=await withAiMetering({merchantId,source:"buyer_support"},()=>new OpenAIChatAdapter().complete([{role:"user",content:"Responda apenas OK."}]));
+  const supportUsage=await db.aiUsageEvent.findFirst({where:{merchantId,source:"buyer_support"}});
+  check(Boolean(support)&&supportUsage?.provider==="deepseek"&&supportUsage.usageKnown,"text_support_uses_funded_deepseek");
+  if(process.env.OPS_SHARED_SECRET){
+   const metrics=await request("/metrics","",{headers:{"x-ops-secret":process.env.OPS_SHARED_SECRET}});
+   check(metrics.status===200&&metrics.text.includes("ai_policy_decisions_total")&&metrics.text.includes("ai_automation_tasks_total")&&metrics.text.includes("ai_automation_duration_seconds"),"bounded_ai_metrics_exposed");
+  }
   check((await request("/platform/ai-governance/"+merchantId+"/policy",auth,{method:"PUT",body:JSON.stringify({version:0,grants:[]})})).status===200,"empty_policy_published");
   let dispatches=0,blocked=false;
   try{await withAiMetering({merchantId,source:"product_seo"},()=>meteredAiFetch("product_seo",async()=>{dispatches++;return new Response("{}");})("https://api.deepseek.com/v1/chat/completions",{body:JSON.stringify({model:process.env.DEEPSEEK_MODEL||"deepseek-chat"})}));}catch(e){blocked=e.message==="ai_access_denied";}
@@ -75,6 +86,8 @@ function check(ok,label){if(!ok)throw Error(label);checks.push(label);}
  }finally{
   meter.onModuleDestroy();
   await db.aiUsageEvent.deleteMany({where:{merchantId}});
+  await db.product.deleteMany({where:{merchantId}});
+  await db.merchantUser.deleteMany({where:{merchantId}});
   await db.merchantBillingSubscription.deleteMany({where:{merchantId}});
   await db.merchant.deleteMany({where:{id:merchantId}});
   await db.platformAuditEvent.deleteMany({where:{actorOperatorId:{in:operators}}});

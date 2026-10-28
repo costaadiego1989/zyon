@@ -86,3 +86,58 @@ rotas autenticadas e captura de uma chamada DeepSeek.
 O typecheck completo herdou erros em fixtures antigas de checkout/cupons/frete;
 o build de produção e os testes específicos desta entrega são verificados
 separadamente. A árvore de trabalho principal do usuário foi preservada.
+
+## Publicação verificada em 28/10/2026
+
+A revisão da aplicação é `227a03d4b740ade4c611e7b909febb29a1c44dbf`.
+Produção: API `ba379dde-0264-411c-a1cf-4a53c898b82c` e Control
+`dpl_7bY5B1UwduXLrCFcz1Cwuf5Hteub`, em
+`https://control.zyon-payments.com.br`. Homologação verificada:
+API `85917739-99e2-4fd8-9cbd-9889d0d447eb` e Control
+`dpl_HfxHFA3N6fHR6165feCVNVqs5MSK`.
+
+Os dois ambientes passaram em 19 verificações publicadas: geração de SEO pelo
+endpoint autenticado, consumo DeepSeek com usuário/equipe/tarefa, referência
+congelada, tempo humano, custos/CSV, MCP autenticado, negação entre empresas,
+suporte DeepSeek, métricas protegidas e bloqueio antes da chamada paga.
+O navegador Edge confirmou o bundle publicado, a gravação de equipe pela API
+real e as telas desktop/mobile, sem erros ou transbordamento horizontal.
+As empresas e os operadores sintéticos foram removidos depois dos testes.
+
+Os 3.973 arquivos conferidos nas duas APIs possuem bytes idênticos entre si.
+Em relação ao arquivo gerado pelo Git, a única diferença textual é LF/CRLF
+aplicada pelo checkout do provedor; não houve diferença de conteúdo.
+
+### Origem do Railway
+
+Uma alteração de configuração da homologação reproduziu a regressão: o Railway
+reconstruiu a origem antiga, fixada em `c27160dfd329aa5a09e313b212aa30d011b430b7`,
+e removeu novamente os módulos de governança. A origem do serviço **api** foi
+corrigida nos dois ambientes para `feat/ai-governance-20261027`, fixada na revisão
+homologada `227a03d4`. Upload avulso pelo CLI não atualiza essa origem.
+
+A próxima publicação deve homologar o código e atualizar explicitamente o
+`commitSha` da origem. Commits somente de documentação ou ferramentas de
+verificação não alteram a revisão da aplicação publicada. Outros serviços não
+tiveram sua origem alterada.
+
+Os campos `DEEPSEEK_MODEL` e `DEEPSEEK_BASE_URL` da homologação foram preenchidos
+com `deepseek-chat` e `https://api.deepseek.com/v1`, como em produção. Nenhuma chave
+de provedor foi substituída. Os custos capturados continuam identificados como
+estimativas; a tabela de tarifas Flash foi reconferida na
+[documentação oficial](https://api-docs.deepseek.com/quick_start/pricing/).
+
+### Avaliação diária ativa
+
+O workflow `ai-governance-production.yml` foi instalado na branch padrão real
+do repositório, `feat/checkout-journey-both-channels`, sem modificar seus arquivos
+de aplicação. Ele executa diariamente às 06:17 UTC, usando explicitamente a
+revisão publicada da API e somente DeepSeek. A credencial está no secret
+`ZYON_AI_EVAL_DEEPSEEK_API_KEY`; não aparece nos relatórios.
+
+A [primeira execução](https://github.com/costaadiego1989/zyon/actions/runs/40724116341)
+passou com 16 casos de política e seis cenários de agente real. Os artefatos
+guardam versão/hash, tokens, latência e resultado. Ao atualizar a revisão publicada,
+atualize também o `ref` e `AI_RELEASE_REVISION` deste workflow. O workflow está
+presente também em `master` e na branch da entrega; o agendamento ativo do GitHub
+usa sua branch padrão.
