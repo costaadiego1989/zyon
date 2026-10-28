@@ -1,7 +1,7 @@
 const {test}=require('node:test');
 const assert=require('node:assert/strict');
 const {validatePublicAuthConfig,verifyAuthBundle,loadVercelPublicAuthConfig,REQUIRED_PUBLIC_AUTH_KEYS}=require('../lib/dashboard-auth-build-policy.cjs');
-const valid={VITE_GOOGLE_CLIENT_ID:'synthetic.apps.googleusercontent.com',VITE_MICROSOFT_CLIENT_ID:'11111111-2222-3333-4444-555555555555',VITE_FACEBOOK_CLIENT_ID:'1234567890',VITE_TURNSTILE_SITE_KEY:'synthetic-site-key',VITE_OAUTH_REDIRECT_URI:'https://app.example.test/auth/oauth/callback',VITE_API_BASE_URL:'https://api.example.test/v1'};
+const valid={VITE_GOOGLE_CLIENT_ID:'synthetic.apps.googleusercontent.com',VITE_MICROSOFT_CLIENT_ID:'11111111-2222-3333-4444-555555555555',VITE_FACEBOOK_CLIENT_ID:'1234567890',VITE_TURNSTILE_SITE_KEY:'synthetic-site-key',VITE_OAUTH_REDIRECT_URI:'https://app.example.test/auth/oauth/callback',VITE_API_BASE_URL:'https://api.example.test/v1',VITE_FACEBOOK_LOGIN_ENABLED:'false'};
 test('all required public auth values survive validation without exposing extra values',()=>{
  const result=validatePublicAuthConfig({...valid,DATABASE_URL:'never-export-this'});
  assert.deepEqual(Object.keys(result).sort(),[...REQUIRED_PUBLIC_AUTH_KEYS].sort());
@@ -19,7 +19,12 @@ test('invalid HTTPS destinations fail without echoing the submitted value',()=>{
 test('the emitted bundle must contain every expected public value',()=>{
  const bundle=Object.values(valid).map(JSON.stringify).join(';');
  assert.equal(verifyAuthBundle(bundle,valid),true);
- for(const [key,value] of Object.entries(valid))assert.throws(()=>verifyAuthBundle(bundle.replace(JSON.stringify(value),'""'),valid),error=>error.message.includes(key)&&!error.message.includes(value));
+ for(const [key,value] of Object.entries(valid).filter(([key])=>key!=='VITE_FACEBOOK_LOGIN_ENABLED'))assert.throws(()=>verifyAuthBundle(bundle.replace(JSON.stringify(value),'""'),valid),error=>error.message.includes(key)&&!error.message.includes(value));
+});
+test('Facebook visibility requires an explicit boolean string and may be compiled out',()=>{
+ for(const value of ['TRUE','1','yes'])assert.throws(()=>validatePublicAuthConfig({...valid,VITE_FACEBOOK_LOGIN_ENABLED:value}),/invalid_flag/);
+ const bundle=Object.entries(valid).filter(([key])=>key!=='VITE_FACEBOOK_LOGIN_ENABLED').map(([,value])=>JSON.stringify(value)).join(';');
+ assert.equal(verifyAuthBundle(bundle,valid),true);
 });
 test('the original empty-environment regression is rejected before upload',()=>{
  assert.throws(()=>verifyAuthBundle('const env={};const siteKey="";',valid));

@@ -8,6 +8,7 @@ interface ImportMetaEnv {
   readonly VITE_GOOGLE_CLIENT_ID?: string;
   readonly VITE_MICROSOFT_CLIENT_ID?: string;
   readonly VITE_FACEBOOK_CLIENT_ID?: string;
+  readonly VITE_FACEBOOK_LOGIN_ENABLED?: string;
   readonly VITE_FACEBOOK_GRAPH_API_VERSION?: string;
   readonly VITE_OAUTH_REDIRECT_URI?: string;
 }

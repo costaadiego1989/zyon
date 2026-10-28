@@ -94,6 +94,7 @@ describe("merchant auth configuration", () => {
     expect(html).toContain('role="alert"');
   });
   it.each(["login", "signup"] as const)("offers the same three providers on %s without GitHub", mode => {
+    vi.stubEnv("VITE_FACEBOOK_LOGIN_ENABLED", "true");
     const noop = () => {};
     const html = renderToStaticMarkup(<AuthScreen mode={mode} setMode={noop} busy={false} hint={null}
       email="" setEmail={noop} password="" setPassword={noop} merchantName="" setMerchantName={noop}
@@ -101,5 +102,19 @@ describe("merchant auth configuration", () => {
       onComplete={async () => {}} turnstileSiteKey="" captchaToken={null} setCaptchaToken={noop} />);
     for (const label of ["Continuar com Google", "Entrar com Microsoft", "Continuar com Facebook"]) expect(html).toContain(`aria-label="${label}"`);
     expect(html).not.toContain("GitHub");
+  });
+  it.each(["login", "signup"] as const)("keeps Facebook outside public %s until explicitly enabled", mode => {
+    const noop = () => {};
+    for (const flag of [undefined, "false", "TRUE", "1"]) {
+      vi.stubEnv("VITE_FACEBOOK_LOGIN_ENABLED", flag);
+      const html = renderToStaticMarkup(<AuthScreen mode={mode} setMode={noop} busy={false} hint={null}
+        email="" setEmail={noop} password="" setPassword={noop} merchantName="" setMerchantName={noop}
+        onSubmit={noop} onRegister={async () => {}} onSaveTheme={async () => {}}
+        onComplete={async () => {}} turnstileSiteKey="" captchaToken={null} setCaptchaToken={noop} />);
+      expect(html).toContain('aria-label="Continuar com Google"');
+      expect(html).toContain('aria-label="Entrar com Microsoft"');
+      expect(html).not.toContain('aria-label="Continuar com Facebook"');
+      expect(html).not.toContain("GitHub");
+    }
   });
 });
