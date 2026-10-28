@@ -1,0 +1,71 @@
+.control-content--minimal { width: min(1280px, 100%); }
+.control-content--minimal .page-flow { gap: 28px; }
+.control-content--minimal .page-flow > * { min-width: 0; max-width: 100%; }
+.control-content--minimal .billing-table-wrap { min-width: 0; max-width: 100%; }
+.control-content--minimal .page-intro { align-items: center; }
+.control-content--minimal .page-intro h2 { font-size: 22px; letter-spacing: -.025em; }
+.control-content--minimal .page-intro p:not(.eyebrow) { max-width: 66ch; font-size: 13px; line-height: 1.65; }
+.control-content--minimal .page-intro .eyebrow,
+.control-content--minimal .section-heading .eyebrow,
+.control-content--minimal .metrics-series__heading .eyebrow { display: none; }
+.control-content--minimal .section-heading { padding: 18px 0 12px; border-bottom: 0; }
+.control-content--minimal .section-heading h2 { margin: 0; font-size: 15px; }
+.control-content--minimal .overview-facts > div { padding: 16px 20px 20px 0; border-right: 0; }
+.control-content--minimal .overview-facts > div + div { padding-left: 0; }
+.control-content--minimal .overview-facts dd { font-size: 25px; letter-spacing: -.025em; }
+.control-content--minimal .overview-facts small { color: var(--ink-muted); }
+.control-content--minimal .overview-snapshot { border-top-color: var(--line); }
+.control-content--minimal .metrics-section-heading__icon { display: none; }
+.control-content--minimal .metrics-section-heading { padding-top: 22px; }
+.control-content--minimal .metrics-section-heading small { display: none; }
+.control-content--minimal .metrics-toolbar { gap: 10px; }
+.control-content--minimal .metrics-toolbar > svg { display: none; }
+.control-content--minimal .metrics-toolbar__actions .button--secondary { border-color: transparent; background: transparent; }
+.control-content--minimal .billing-facts dl > div,
+.control-content--minimal .billing-facts--financial > div { border-left: 0; }
+.control-content--minimal .billing-facts dl > div:not(:nth-child(3n + 1)),
+.control-content--minimal .billing-facts--financial > div:not(:nth-child(3n + 1)) { padding-left: 16px; }
+.control-content--minimal .billing-toolbar > svg { display: none; }
+.control-content--minimal .billing-toolbar label > span,
+.control-content--minimal .feedback-toolbar label > span { color: var(--ink-muted); font-size: 12px; letter-spacing: 0; text-transform: none; }
+.control-content--minimal .billing-empty { min-height: 150px; justify-items: start; place-content: center start; padding: 24px 0; text-align: left; }
+.control-content--minimal .billing-empty > svg { display: none; }
+.control-content--minimal .billing-empty p { max-width: 65ch; }
+.control-content--minimal .billing-empty h3 { margin-top: 0; }
+.control-content--minimal .coverage-row { padding: 14px 0; }
+.control-content--minimal .coverage-row small { max-width: 72ch; line-height: 1.6; }
+.control-content--minimal .merchant-rankings { margin: 0; padding: 0; border: 0; }
+.control-content--minimal .ranking-list { padding: 0; border: 0; border-radius: 0; }
+.control-content--minimal .merchant-rankings__grid { gap: 32px; }
+.control-content--minimal .merchant-rankings__heading .eyebrow { font-size: 11px; letter-spacing: 0; text-transform: none; }
+.page-context-note { max-width: 75ch; margin: 0; color: var(--ink-muted); font-size: 12px; line-height: 1.65; }
+.control-details { min-width: 0; border-top: 1px solid var(--line); }
+.control-details > summary { display: flex; min-height: 58px; align-items: center; justify-content: space-between; gap: 20px; padding: 14px 0; color: var(--ink); font-size: 13px; font-weight: 600; cursor: pointer; list-style: none; }
+.control-details > summary::-webkit-details-marker { display: none; }
+.control-details > summary small { display: block; margin-top: 4px; color: var(--ink-muted); font-size: 12px; font-weight: 400; line-height: 1.5; }
+.control-details > summary svg { flex: none; color: var(--ink-muted); transition: transform 160ms ease; }
+.control-details[open] > summary svg { transform: rotate(180deg); }
+.control-details > summary:hover { color: var(--accent); }
+.control-details > summary:focus-visible { outline: 2px solid var(--accent); outline-offset: 4px; border-radius: 2px; }
+.control-details__content { display: grid; gap: 20px; min-width: 0; padding: 4px 0 20px; }
+.control-details__content > section:first-child { border-top: 0; }
+.control-details__content .coverage-list { margin: 0; }
+.control-details__content .coverage-row:last-child { border-bottom: 0; }
+.platform-metrics > .control-details { margin-top: 20px; }
+@media(max-width: 640px) {
+  .control-content--minimal .page-intro { align-items: start; }
+  .control-content--minimal .page-intro h2 { font-size: 20px; }
+  .control-content--minimal .overview-facts dd { font-size: 22px; }
+  .control-content--minimal .overview-facts { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .control-content--minimal .billing-facts dl > div:not(:nth-child(3n + 1)),
+  .control-content--minimal .billing-facts--financial > div:not(:nth-child(3n + 1)) { padding-left: 0; }
+  .control-content--minimal .billing-facts dl,
+  .control-content--minimal .billing-facts--financial { grid-template-columns: repeat(2, minmax(0, 1fr)); }
+  .control-content--minimal .billing-facts dl > div,
+  .control-content--minimal .billing-facts--financial > div { padding-right: 12px; }
+  .control-details > summary { min-height: 60px; }
+  .control-content--minimal .coverage-row { grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
+  .control-content--minimal .coverage-row > .coverage-icon,
+  .control-content--minimal .coverage-row > .billing-source-icon { display: none; }
+}
+@media(prefers-reduced-motion: reduce) { .control-details > summary svg { transition: none; } }

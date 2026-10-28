@@ -1,4 +1,4 @@
-import { withAiMetering } from "../../../../shared/ai-metering.js";
+import { withAiAutomation } from "../../../../shared/ai-automation.js";
 import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject, Logger, BadRequestException } from "@nestjs/common";
 import { PrismaClient } from "@prisma/client";
@@ -41,7 +41,7 @@ export class GenerateSeoSuggestionsUseCase {
     merchantId: string,
     input: GenerateSeoSuggestionsRequest,
   ): Promise<GenerateSeoSuggestionsResponse> {
-    return withAiMetering({ merchantId, source: "store_seo", costCenter: "automation" }, async () => {
+    return withAiAutomation({ merchantId, source: "store_seo", taskType: "store_seo", costCenter: "automation" }, async () => {
     if (!input.prompt || input.prompt.trim().length < 10) {
       throw new BadRequestException("Prompt must be at least 10 characters");
     }

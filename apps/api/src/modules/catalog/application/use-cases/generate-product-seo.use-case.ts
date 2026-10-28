@@ -1,4 +1,4 @@
-import { withAiMetering } from "../../../../shared/ai-metering.js";
+import { withAiAutomation } from "../../../../shared/ai-automation.js";
 import { meteredAiFetch } from "../../../../shared/ai-metering.js";
 import { Injectable, Inject, NotFoundException, BadRequestException, Logger, Optional } from "@nestjs/common";
 import { ProductRepositoryPort } from "../../domain/ports/product-repository.port.js";
@@ -29,7 +29,7 @@ export class GenerateProductSeoUseCase {
   ) {}
 
   async execute(input: GenerateProductSeoInput): Promise<GenerateProductSeoOutput> {
-    return withAiMetering({ merchantId: input.merchantId, source: "product_seo", costCenter: "automation" }, async () => {
+    return withAiAutomation({ merchantId: input.merchantId, source: "product_seo", taskType: "product_seo", costCenter: "automation" }, async () => {
     await this.billing?.assertAllowed(input.merchantId, { kind: "feature", key: "advancedAi" });
     const product = await this.productRepo.findById(input.merchantId, input.productId);
     if (!product) throw new NotFoundException("product_not_found");

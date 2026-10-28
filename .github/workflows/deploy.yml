@@ -50,6 +50,8 @@ jobs:
       - run: pnpm install --frozen-lockfile
       - run: pnpm verify:voice-release
       - run: pnpm --filter @zyon/api prisma:generate
+      - name: Verify AI access policy evaluation
+        run: pnpm --filter @zyon/api eval:ai-governance
 
       # Typecheck all apps
       - run: cd apps/api && pnpm typecheck

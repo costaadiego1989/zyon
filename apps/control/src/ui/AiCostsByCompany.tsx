@@ -1,0 +1,84 @@
+import { useEffect, useRef, useState } from "react";
+import { ArrowLeft, ArrowRight, Download, RefreshCw, Search, Volume2 } from "lucide-react";
+import { PlatformApi, PlatformApiError } from "../lib/api.js";
+import { aiSourceLabels, integer, money, type AiCostCompany, type AiCostEvent, type AiCostEvents, type AiCostFilters, type AiCostsReport } from "../lib/ai-costs.js";
+
+const costLabels: Record<string,string>={estimated:"Estimado",provider_reported:"Informado pelo provedor",reconciled:"Conciliado",unpriced:"Sem tarifa"};
+const emptyTotals={calls:"0",inputTokens:"0",outputTokens:"0",voiceSessions:"0",pending:"0",unpriced:"0",rejected:"0"};
+export function AiUsageByMerchant({api,token,onSessionExpired,canExport=false}:{api:PlatformApi;token:string;onSessionExpired:()=>void;canExport?:boolean}) {
+  const [draft,setDraft]=useState(()=>({from:day(-29),to:day(0),q:"",costCenter:"",provider:"",model:"",source:"",costStatus:"",group:"merchant",payer:"platform"}));
+  const [filters,setFilters]=useState<AiCostFilters>(()=>period(draft));
+  const [report,setReport]=useState<AiCostsReport|null>(null),[loading,setLoading]=useState(true),[error,setError]=useState<string|null>(null),[refresh,setRefresh]=useState(0);
+  const [selected,setSelected]=useState<AiCostCompany|null>(null),[events,setEvents]=useState<AiCostEvents|null>(null),[eventLoading,setEventLoading]=useState(false),[eventError,setEventError]=useState<string|null>(null);
+  const [expanded,setExpanded]=useState<string|null>(null),[exporting,setExporting]=useState(false);
+  const expire=useRef(onSessionExpired); expire.current=onSessionExpired;
+  const detailKey=useRef(0);
+  useEffect(()=>{
+    let active=true;setLoading(true);setError(null);
+    void api.getAiCosts(token,filters).then(r=>{if(active)setReport(r);}).catch(e=>{if(!active)return;if(e instanceof PlatformApiError&&e.status===401)expire.current();else setError(e instanceof PlatformApiError&&e.status===403?"Seu acesso não permite consultar os custos de IA.":"Não foi possível consultar o consumo. Tente novamente.");}).finally(()=>{if(active)setLoading(false);});
+    return()=>{active=false;};
+  },[api,token,filters,refresh]);
+  useEffect(()=>{const timer=setInterval(()=>{if(!document.hidden)setRefresh(v=>v+1);},30000);return()=>clearInterval(timer);},[]);
+  useEffect(()=>{setSelected(null);setEvents(null);detailKey.current++;},[filters]);
+  async function loadEvents(company:AiCostCompany,cursor?:string){
+    const version=++detailKey.current;setSelected(company);setEventLoading(true);setEventError(null);if(!cursor)setEvents(null);
+    try {const result=await api.getAiCostEvents(token,{...filters,[filters.group==="account"?"accountId":"merchantId"]:company.id,...(cursor?{cursor}:{})});
+      if(version===detailKey.current)setEvents(previous=>cursor&&previous?{...result,items:[...previous.items,...result.items]}:result);
+    } catch(e){if(version!==detailKey.current)return;if(e instanceof PlatformApiError&&e.status===401)expire.current();else setEventError("Não foi possível carregar os lançamentos.");}
+    finally{if(version===detailKey.current)setEventLoading(false);}
+  }
+  async function download(){setExporting(true);setError(null);try{const blob=await api.exportAiCosts(token,{...filters,...(selected?{[filters.group==="account"?"accountId":"merchantId"]:selected.id}:{})});const url=URL.createObjectURL(blob),a=document.createElement("a");a.href=url;a.download="consumo-ia.csv";a.click();setTimeout(()=>URL.revokeObjectURL(url),1000);}catch(e){if(e instanceof PlatformApiError&&e.status===401)expire.current();else setError("A exportação não foi concluída. Verifique sua permissão e tente novamente.");}finally{setExporting(false);}}
+  const summary=report?.summary??{...emptyTotals,costs:[]},pending=BigInt(summary.pending)+BigInt(summary.unpriced);
+  const field=(key:keyof typeof draft,value:string)=>setDraft(s=>({...s,[key]:value}));
+  return <div className="page-flow ai-costs" aria-busy={loading}>
+    <section className="page-intro page-intro--split">
+      <div><p className="eyebrow">Uso de IA</p><h2>Consumo e custos por empresa</h2><p>Acompanhe texto, voz e serviços auxiliares. Cada valor tem origem e estado de apuração.</p></div>
+      <div className="ai-costs-actions"><button className="button button--secondary" disabled={loading} onClick={()=>setRefresh(v=>v+1)}><RefreshCw size={16} aria-hidden="true"/>Atualizar</button>{canExport?<button className="button button--secondary" disabled={exporting||!report} onClick={()=>void download()}><Download size={16} aria-hidden="true"/>{exporting?"Exportando…":"Exportar CSV"}</button>:null}</div>
+    </section>
+    <form className="ai-costs-filters" aria-label="Filtros de consumo de IA" onSubmit={e=>{e.preventDefault();if(draft.from>draft.to){setError("A data final deve ser igual ou posterior à inicial.");return;}setFilters(period(draft));}}>
+      <label>De<input type="date" required value={draft.from} onChange={e=>field("from",e.target.value)}/></label><label>Até<input type="date" required value={draft.to} onChange={e=>field("to",e.target.value)}/></label>
+      <label className="ai-costs-search">Empresa<div><Search size={15} aria-hidden="true"/><input type="search" placeholder="Nome ou identificador" value={draft.q} onChange={e=>field("q",e.target.value)}/></div></label>
+      <label>Consumo<select value={draft.costCenter} onChange={e=>field("costCenter",e.target.value)}><option value="">Todos</option><option value="text">Texto</option><option value="voice">Jornada de voz</option><option value="automation">Automações</option></select></label>
+      <button type="submit" className="button button--primary" disabled={loading}>Aplicar</button>
+      <details className="ai-costs-more"><summary>Mais filtros</summary><div>
+        <label>Agrupar por<select value={draft.group} onChange={e=>field("group",e.target.value)}><option value="merchant">Empresa / loja</option><option value="account">Conta com várias lojas</option></select></label>
+        <label>Provedor<select value={draft.provider} onChange={e=>field("provider",e.target.value)}><option value="">Todos</option><option value="deepseek">DeepSeek</option><option value="openai">OpenAI</option><option value="openrouter">OpenRouter</option></select></label>
+        <label>Modelo<input placeholder="Identificador exato" value={draft.model} onChange={e=>field("model",e.target.value)}/></label>
+        <label>Funcionalidade<select value={draft.source} onChange={e=>field("source",e.target.value)}><option value="">Todas</option>{Object.entries(aiSourceLabels).map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
+        <label>Apuração<select value={draft.costStatus} onChange={e=>field("costStatus",e.target.value)}><option value="">Todos os estados</option>{Object.entries(costLabels).map(([id,name])=><option key={id} value={id}>{name}</option>)}</select></label>
+        <label>Quem paga<select value={draft.payer} onChange={e=>field("payer",e.target.value)}><option value="platform">Plataforma</option><option value="merchant">Empresa com chave própria</option></select></label>
+      </div></details>
+    </form>
+    {error?<div className="source-error" role="alert">{error}<button className="button button--secondary" onClick={()=>setRefresh(v=>v+1)}>Tentar novamente</button></div>:null}
+    {loading&&!report?<div className="ai-costs-skeleton" aria-label="Carregando consumo">{[0,1,2,3].map(x=><span key={x}/>)}</div>:<>
+      <section className="ai-costs-summary" aria-label="Totais do período">
+        <div><span>Custo conhecido</span><strong>{summary.costs.length?summary.costs.map(c=><span key={c.currency}>{money(c.costMicros,c.currency)}</span>):"Sem valor apurado"}</strong><small>Moedas separadas · valores estimados e informados</small></div>
+        <div><span>Texto e automações</span><strong>{summary.costs.length?summary.costs.map(c=><span key={c.currency}>{money(c.textCostMicros,c.currency)}</span>):"—"}</strong><small>{integer(summary.calls)} chamadas no período</small></div>
+        <div><span><Volume2 size={15} aria-hidden="true"/> Jornada de voz</span><strong>{summary.costs.length?summary.costs.map(c=><span key={c.currency}>{money(c.voiceCostMicros,c.currency)}</span>):"—"}</strong><small>{integer(summary.voiceSessions)} sessões observadas · inclui o agente textual</small>{summary.costs.map(c=><small key={c.currency}>Áudio e transcrição: {money(c.audioCostMicros,c.currency)}</small>)}</div>
+        <div><span>Tokens</span><strong>{integer(summary.inputTokens)} <small>entrada</small></strong><small>{integer(summary.outputTokens)} de saída</small></div>
+      </section>
+      {report&&report.coverage.incompleteVoiceSessions!=="0"?<p className="ai-costs-notice" role="status">{integer(report.coverage.incompleteVoiceSessions)} sessões de voz com medição incompleta. Esses gastos podem ainda não estar incluídos no custo conhecido.</p>:null}
+      {summary.costs.map(c=><p className="quiet-note" key={c.currency}>Estimado {money(c.estimatedMicros,c.currency)} · informado pelo provedor {money(c.providerReportedMicros,c.currency)} · conciliado {money(c.reconciledMicros,c.currency)}</p>)}
+      {pending>0n?<p className="ai-costs-notice" role="status"><strong>{integer(summary.pending)} {summary.pending==="1"?"chamada com uso pendente":"chamadas com uso pendente"} · {integer(summary.unpriced)} sem tarifa.</strong> O custo conhecido está incompleto. Ausência de medição não equivale a consumo zero.</p>:null}
+      <section className="data-section" aria-labelledby="ai-costs-companies"><div className="section-heading"><div><h2 id="ai-costs-companies">Empresas</h2><p>Ordenadas pelo custo conhecido em USD.</p></div><span className="quiet-note">{integer(report?.companiesTotal)} empresas · atualização {report?new Date(report.generatedAt).toLocaleTimeString("pt-BR",{hour:"2-digit",minute:"2-digit"}):"—"}</span></div>
+        {!report?.companies.length?<div className="empty-state"><h3>Nenhum consumo registrado neste período</h3><p>A medição começa com a instrumentação das chamadas. Amplie o período ou revise os filtros.</p></div>:<div className="table-scroll"><table className="data-table ai-costs-table"><thead><tr><th>Empresa</th><th>Chamadas</th><th>Entrada / saída</th><th>Texto</th><th>Voz completa</th><th>Total conhecido</th><th>Apuração</th></tr></thead><tbody>{report.companies.map(c=><tr key={c.id}><td><button className="ai-costs-company" onClick={()=>void loadEvents(c)}>{c.name??"Empresa sem nome"}</button><small>{filters.group==="account"?`${integer(c.stores)} lojas`:c.id}</small></td><td>{integer(c.calls)}</td><td>{integer(c.inputTokens)}<small>{integer(c.outputTokens)}</small></td><td><Amounts company={c} field="textCostMicros"/></td><td><Amounts company={c} field="voiceCostMicros"/><small>{integer(c.voiceSessions)} sessões</small></td><td><Amounts company={c} field="costMicros"/></td><td>{BigInt(c.pending)+BigInt(c.unpriced)>0n?<span className="status-pill status-pill--warning">Com pendências</span>:<span className="status-pill">Uso registrado</span>}<button className="ai-costs-link" onClick={()=>void loadEvents(c)}>Ver chamadas</button></td></tr>)}</tbody></table></div>}
+        {report&&BigInt(report.companiesTotal)>BigInt(report.limit)?<div className="ai-costs-pagination"><button className="button button--secondary" disabled={loading||report.page<=1} onClick={()=>setFilters(f=>({...f,page:String(report.page-1)}))}><ArrowLeft size={15}/>Anterior</button><span>Página {report.page}</span><button className="button button--secondary" disabled={loading||BigInt(report.page*report.limit)>=BigInt(report.companiesTotal)} onClick={()=>setFilters(f=>({...f,page:String(report.page+1)}))}>Próxima<ArrowRight size={15}/></button></div>:null}
+      </section>
+      {selected?<section className="data-section ai-costs-detail" aria-labelledby="ai-costs-detail-title"><div className="section-heading"><div><h2 id="ai-costs-detail-title">Chamadas de {selected.name??selected.id}</h2><p>Custos são apurados por chamada. Não incluem o conteúdo das conversas.</p></div><button className="button button--secondary" onClick={()=>{detailKey.current++;setSelected(null);setEvents(null);}}>Fechar detalhe</button></div>
+        {eventError?<p role="alert">{eventError}<button className="button button--secondary" onClick={()=>void loadEvents(selected)}>Tentar novamente</button></p>:null}
+        {!events&&eventLoading?<p role="status">Carregando chamadas…</p>:events?.items.length?<div className="table-scroll"><table className="data-table"><thead><tr><th>Data / funcionalidade</th><th>Provedor / modelo</th><th>Entrada</th><th>Saída</th><th>Custo</th><th>Detalhes</th></tr></thead><tbody>{events.items.map(event=><EventRow key={event.id} event={event} expanded={expanded===event.id} toggle={()=>setExpanded(x=>x===event.id?null:event.id)}/>)}</tbody></table></div>:!eventLoading?<p>Não há chamadas para estes filtros.</p>:null}
+        {events?.nextCursor?<button className="button button--secondary" disabled={eventLoading} onClick={()=>void loadEvents(selected,events.nextCursor!)}>{eventLoading?"Carregando…":"Carregar mais chamadas"}</button>:null}
+      </section>:null}
+      {report?.daily.length?<section className="data-section"><div className="section-heading"><h2>Custo por dia</h2><span className="quiet-note">Horário de São Paulo</span></div><div className="ai-costs-daily">{report.daily.map(row=><div key={row.day+row.currency}><time dateTime={row.day}>{row.day.split("-").reverse().join("/")}</time><span>{money(row.costMicros,row.currency)}</span><small>Voz {money(row.voiceCostMicros,row.currency)}</small></div>)}</div></section>:null}
+      {report?.breakdown.length?<section className="data-section"><div className="section-heading"><h2>Modelos e funcionalidades</h2><span className="quiet-note">Até 100 combinações com mais chamadas</span></div><div className="table-scroll"><table className="data-table"><thead><tr><th>Funcionalidade</th><th>Provedor / modelo</th><th>Chamadas</th><th>Custo conhecido</th></tr></thead><tbody>{report.breakdown.map((r,i)=><tr key={i}><td>{aiSourceLabels[r.source]??r.source}</td><td>{r.provider}<small>{r.model}</small></td><td>{integer(r.calls)}</td><td>{r.currency?money(r.costMicros,r.currency):r.pending!=="0"?"Uso pendente":"Sem tarifa"}</td></tr>)}</tbody></table></div></section>:null}
+      <p className="quiet-note ai-costs-footnote">A apuração considera os lançamentos registrados. Estimativas usam a tarifa vigente da chamada e não representam uma fatura conciliada. Sessões legadas sem medição no servidor e uso anterior à instrumentação podem ter cobertura incompleta. Exportação monetária em micros: 1.000.000 = 1 unidade da moeda.</p>
+    </>}
+  </div>;
+}
+function Amounts({company,field}:{company:AiCostCompany;field:"costMicros"|"voiceCostMicros"|"textCostMicros"}){return company.costs.length?<>{company.costs.map(c=><span className="ai-costs-amount" key={c.currency}>{money(c[field],c.currency)}</span>)}</>:<>—</>;}
+function EventRow({event:e,expanded,toggle}:{event:AiCostEvent;expanded:boolean;toggle:()=>void}){return <>
+  <tr><td>{new Date(e.at).toLocaleString("pt-BR",{timeZone:"America/Sao_Paulo"})}<small>{aiSourceLabels[e.source]??e.source}</small></td><td>{e.provider}<small>{e.model}</small></td><td>{e.usageKnown?integer(e.inputTokens):"Pendente"}</td><td>{e.usageKnown?integer(e.outputTokens):"Pendente"}</td><td>{money(e.costMicros,e.currency??"USD")}<small>{!e.usageKnown&&e.status!=="rejected"?"Uso pendente":e.status==="rejected"?"Rejeitada antes do resultado":costLabels[e.costStatus]??e.costStatus}</small></td><td><button className="ai-costs-link" aria-expanded={expanded} onClick={toggle}>{expanded?"Ocultar":"Detalhar"}</button></td></tr>
+  {expanded?<tr><td colSpan={6}><dl className="ai-costs-event-details">{Object.entries({"Empresa":e.merchantId,"Conversa":e.conversationId,"Sessão de voz":e.voiceSessionId,"Resposta do provedor":e.providerEventId,"Tarifa":e.pricingVersion,"Origem da medição":e.measurementOrigin,"Estado":e.status,"Latência":`${integer(e.latencyMs)} ms`,"Entrada detalhada":JSON.stringify(e.inputDetails??{}),"Saída detalhada":JSON.stringify(e.outputDetails??{})}).map(([k,v])=><div key={k}><dt>{k}</dt><dd>{v??"—"}</dd></div>)}</dl></td></tr>:null}
+  </>;}
+function day(offset:number){const today=new Intl.DateTimeFormat("en-CA",{timeZone:"America/Sao_Paulo",year:"numeric",month:"2-digit",day:"2-digit"}).format(new Date());const date=new Date(today+"T12:00:00Z");date.setUTCDate(date.getUTCDate()+offset);return date.toISOString().slice(0,10);}
+function period(value:{from:string;to:string;[key:string]:string}):AiCostFilters{const last=new Date(value.to+"T00:00:00-03:00");last.setUTCDate(last.getUTCDate()+1);return Object.fromEntries(Object.entries({...value,from:new Date(value.from+"T00:00:00-03:00").toISOString(),to:last.toISOString()}).filter(([,v])=>v!==""));}

@@ -16,6 +16,8 @@ export const PLATFORM_PERMISSIONS = [
   "platform:billing-promotions:write",
   "platform:orders:read",
   "platform:ai-usage:read",
+  "platform:ai-governance:read",
+  "platform:ai-governance:write",
   "platform:feedback:read",
   "platform:feedback:write",
   "platform:infrastructure:read",
@@ -45,6 +47,7 @@ const ALL_PLATFORM_PERMISSIONS = new Set<PlatformPermission>(PLATFORM_PERMISSION
 const PERMISSIONS_BY_ROLE: Readonly<Record<PlatformOperatorRole, ReadonlySet<PlatformPermission>>> = {
   platform_admin: ALL_PLATFORM_PERMISSIONS,
   billing_ops: new Set([
+    "platform:ai-governance:read",
     "platform:overview:read",
     "platform:merchants:read",
     "platform:billing:read",
@@ -62,6 +65,7 @@ const PERMISSIONS_BY_ROLE: Readonly<Record<PlatformOperatorRole, ReadonlySet<Pla
     "platform:infrastructure:read",
   ]),
   auditor: new Set([
+    "platform:ai-governance:read",
     "platform:overview:read",
     "platform:merchants:read",
     "platform:billing:read",

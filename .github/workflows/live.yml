@@ -14,6 +14,7 @@ jobs:
       E2E_SEED_ENABLED: "true"
       AACP_REPOSITORY: memory
       RUN_REAL_AI_E2E: "true"
+      AI_EVAL_REQUIRED_PROVIDERS: "deepseek"
       OPENAI_API_KEY: ${{ secrets.OPENAI_API_KEY }}
       DEEPSEEK_API_KEY: ${{ secrets.DEEPSEEK_API_KEY }}
       ASAAS_SANDBOX_KEY: ${{ secrets.ASAAS_SANDBOX_KEY }}
@@ -32,6 +33,13 @@ jobs:
 
       - name: Install dependencies
         run: pnpm install --frozen-lockfile
+      - name: Evaluate agent safety and grounding
+        run: pnpm --filter @zyon/api eval:ai-governance:live
+      - uses: actions/upload-artifact@v4
+        if: always()
+        with:
+          name: ai-governance-live
+          path: apps/api/artifacts/ai-evaluation-live.json
 
       - name: Build API and current widget
         run: |

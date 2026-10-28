@@ -3,7 +3,7 @@ import { Prisma, type PrismaClient } from "@prisma/client";
 import { createHash } from "node:crypto";
 import { PRISMA_CROSS_MERCHANT_CLIENT } from "../../shared/persistence/persistence.module.js";
 
-export type CostQuery = { from?: string; to?: string; q?: string; merchantId?: string; accountId?: string; provider?: string; model?: string; source?: string; costCenter?: string; costStatus?: string; payer?: string; group?: string; page?: string; cursor?: string };
+export type CostQuery = { from?: string; to?: string; q?: string; merchantId?: string; accountId?: string; provider?: string; model?: string; source?: string; costCenter?: string; costStatus?: string; payer?: string; group?: string; page?: string; cursor?: string; teamId?:string; actorId?:string };
 type Row = Record<string, any>;
 const sums = Prisma.sql`COUNT(*)::text AS calls, COALESCE(SUM(u.prompt_tokens::bigint),0)::text AS "inputTokens", COALESCE(SUM(u.completion_tokens::bigint),0)::text AS "outputTokens",
  COUNT(DISTINCT u.voice_session_id)::text AS "voiceSessions", COUNT(*) FILTER(WHERE NOT u.usage_known AND u.execution_status <> 'rejected')::text AS pending,
@@ -60,6 +60,7 @@ export class AiCostsReader {
     }
     const rows = await this.db.$queryRaw<Row[]>(Prisma.sql`SELECT u.id,u.merchant_id AS "merchantId",m.name AS "merchantName",u.billing_account_id AS "accountId",
       u.started_at AS at,u.source,u.provider,u.model,u.requested_model AS "requestedModel",u.channel,u.component,u.cost_center AS "costCenter",u.payer,
+      u.actor_id AS "actorId",u.actor_role AS "actorRole",u.team_id AS "teamId",u.task_id AS "taskId",
       u.execution_status AS status,u.usage_known AS "usageKnown",u.prompt_tokens AS "inputTokens",u.completion_tokens AS "outputTokens",u.total_tokens AS "totalTokens",
       u.input_details AS "inputDetails",u.output_details AS "outputDetails",u.cost_micros::text AS "costMicros",u.audio_cost_micros::text AS "audioCostMicros",u.currency,u.cost_status AS "costStatus",u.pricing_version AS "pricingVersion",
       u.conversation_id AS "conversationId",u.voice_session_id AS "voiceSessionId",u.provider_event_id AS "providerEventId",u.measurement_origin AS "measurementOrigin",u.latency_ms AS "latencyMs"
@@ -86,7 +87,7 @@ function filters(q: CostQuery) {
   if (!to || !from || from >= to || to.getTime()-from.getTime() > 366*86400000) throw new BadRequestException("ai_costs_invalid_period");
   const terms = [Prisma.sql`u.started_at >= ${from} AND u.started_at < ${to}`, Prisma.sql`u.payer = ${q.payer === "merchant" ? "merchant" : "platform"}`,
     Prisma.sql`u.measurement_origin IN ('server_http','server_sideband')`];
-  const columns: Record<string,Prisma.Sql> = { merchantId: Prisma.sql`u.merchant_id`, accountId: Prisma.sql`u.billing_account_id`, provider: Prisma.sql`u.provider`, model: Prisma.sql`u.model`, source: Prisma.sql`u.source`, costCenter: Prisma.sql`u.cost_center`, costStatus: Prisma.sql`u.cost_status` };
+  const columns: Record<string,Prisma.Sql> = { teamId: Prisma.sql`u.team_id`, actorId: Prisma.sql`u.actor_id`, merchantId: Prisma.sql`u.merchant_id`, accountId: Prisma.sql`u.billing_account_id`, provider: Prisma.sql`u.provider`, model: Prisma.sql`u.model`, source: Prisma.sql`u.source`, costCenter: Prisma.sql`u.cost_center`, costStatus: Prisma.sql`u.cost_status` };
   for (const [key,column] of Object.entries(columns)) { const value = q[key as keyof CostQuery]; if (value !== undefined && value !== "") { if (typeof value !== "string" || value.length > 200) throw new BadRequestException("ai_costs_invalid_filter"); terms.push(Prisma.sql`${column} = ${value}`); } }
   if (q.q) { if (typeof q.q !== "string" || q.q.length > 100) throw new BadRequestException("ai_costs_invalid_search"); const value = "%"+q.q.replace(/[\\%_]/g,"\\$&")+"%"; terms.push(Prisma.sql`(m.name ILIKE ${value} OR a.name ILIKE ${value} OR u.merchant_id = ${q.q})`); }
   return { where: Prisma.join(terms," AND "), from, to };

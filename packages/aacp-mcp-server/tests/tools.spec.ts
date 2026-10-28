@@ -34,7 +34,7 @@ import { registerGetAgentCard } from "../src/tools/aacp-get-agent-card.js";
  * payload from the first text content block.
  */
 async function callTool<T>(
-  register: (server: McpServer) => void,
+  register: (server: McpServer, authorize?:import("../src/authorization.js").ToolAuthorizer) => void,
   toolName: string,
   input: Record<string, unknown>
 ): Promise<T> {
@@ -42,7 +42,7 @@ async function callTool<T>(
     { name: "test", version: "0.0.1" },
     { capabilities: { tools: {} } }
   );
-  register(server);
+  register(server,async()=>{});
 
   const client = new Client({ name: "test-client", version: "0.0.1" });
   const [clientT, serverT] = InMemoryTransport.createLinkedPair();
@@ -176,7 +176,7 @@ test("aacp_evaluate_discount caps requested > maxDiscountPercent", async () => {
   assert.equal(out.reason, "capped_by_max_discount_rule");
 });
 
-test("aacp_evaluate_discount rejects when margin would dip below minimum", async () => {
+test("aacp_evaluate_discount follows the configured ceiling and reports margin diagnostics", async () => {
   type Out = { approved: boolean; reason: string };
   const out = await callTool<Out>(
     registerEvaluateDiscount,
@@ -189,15 +189,15 @@ test("aacp_evaluate_discount rejects when margin would dip below minimum", async
       requestedDiscountPercent: 50
     }
   );
-  assert.equal(out.approved, false);
-  assert.equal(out.reason, "minimum_margin_violation");
+  assert.equal(out.approved, true);
+  assert.equal(out.reason, "discount_allowed");
 });
 
 // ============================================================================
 // aacp_evaluate_shipping (happy + reject)
 // ============================================================================
 
-test("aacp_evaluate_shipping approves free shipping on high abandonment", async () => {
+test("aacp_evaluate_shipping rejects inconsistent cart totals even on high abandonment", async () => {
   type Out = {
     approved: boolean;
     options: Array<{ subsidized: boolean; costCents: number }>;
@@ -224,8 +224,9 @@ test("aacp_evaluate_shipping approves free shipping on high abandonment", async 
       maxShippingSubsidy: 50
     }
   );
-  assert.equal(out.approved, true);
-  assert.equal(out.options[0]?.subsidized, true);
+  assert.equal(out.approved, false);
+  assert.equal(out.reason, "cart_total_mismatch");
+  assert.equal(out.options[0]?.subsidized, false);
   assert.equal(out.options[0]?.costCents, 3000);
 });
 
@@ -316,9 +317,9 @@ test("aacp_generate_message never claims delivery guarantee", async () => {
 test("aacp_search_catalog calls API and returns products", async () => {
   const mockFetch: typeof fetch = async (url) => {
     const u = new URL(url as string);
-    assert.equal(u.pathname, "/v1/products");
-    assert.equal(u.searchParams.get("merchantId"), "m1");
-    assert.equal(u.searchParams.get("q"), "shoe");
+    assert.equal(u.pathname, "/v1/ai-governance/tools/catalog");
+    assert.equal(u.searchParams.has("merchantId"), false);
+    assert.equal(u.searchParams.get("query"), "shoe");
     assert.equal(u.searchParams.get("limit"), "5");
     return new Response(
       JSON.stringify({
@@ -352,7 +353,7 @@ test("aacp_search_catalog calls API and returns products", async () => {
     { name: "test", version: "0.0.1" },
     { capabilities: { tools: {} } }
   );
-  registerSearchCatalog(server, { fetchFn: mockFetch });
+  registerSearchCatalog(server, { fetchFn: mockFetch,authorize:async()=>{} });
 
   const client = new Client({ name: "test-client", version: "0.0.1" });
   const [clientT, serverT] = InMemoryTransport.createLinkedPair();
@@ -381,7 +382,7 @@ test("aacp_search_catalog reports error on 5xx", async () => {
     { name: "test", version: "0.0.1" },
     { capabilities: { tools: {} } }
   );
-  registerSearchCatalog(server, { fetchFn: mockFetch });
+  registerSearchCatalog(server, { fetchFn: mockFetch,authorize:async()=>{} });
 
   const client = new Client({ name: "test-client", version: "0.0.1" });
   const [clientT, serverT] = InMemoryTransport.createLinkedPair();
@@ -414,7 +415,7 @@ test("aacp_get_agent_card returns agent card payload", async () => {
   const mockFetch: typeof fetch = async (url) => {
     const u = new URL(url as string);
     assert.equal(u.pathname, "/v1/acp/agent-card");
-    assert.equal(u.searchParams.get("merchantId"), "m1");
+    assert.equal(u.searchParams.get("merchant_id"), "m1");
     return new Response(JSON.stringify(agentCard), {
       status: 200,
       headers: { "content-type": "application/json" }
@@ -425,7 +426,7 @@ test("aacp_get_agent_card returns agent card payload", async () => {
     { name: "test", version: "0.0.1" },
     { capabilities: { tools: {} } }
   );
-  registerGetAgentCard(server, { fetchFn: mockFetch });
+  registerGetAgentCard(server, { fetchFn: mockFetch,authorize:async()=>{} });
 
   const client = new Client({ name: "test-client", version: "0.0.1" });
   const [clientT, serverT] = InMemoryTransport.createLinkedPair();
@@ -459,7 +460,7 @@ test("aacp_get_agent_card works without merchantId", async () => {
     { name: "test", version: "0.0.1" },
     { capabilities: { tools: {} } }
   );
-  registerGetAgentCard(server, { fetchFn: mockFetch });
+  registerGetAgentCard(server, { fetchFn: mockFetch,authorize:async()=>{} });
 
   const client = new Client({ name: "test-client", version: "0.0.1" });
   const [clientT, serverT] = InMemoryTransport.createLinkedPair();

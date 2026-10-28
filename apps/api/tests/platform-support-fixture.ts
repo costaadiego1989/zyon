@@ -7,6 +7,7 @@ import { randomUUID } from "node:crypto";
 import { PRISMA_CLIENT } from "../src/shared/persistence/persistence.module.js";
 import { PRISMA_CROSS_MERCHANT_CLIENT } from "../src/shared/persistence/persistence.module.js";
 import { AiMeteringService } from "../src/modules/ai-metering/ai-metering.service.js";
+import { AiGovernanceService } from "../src/modules/ai-governance/ai-governance.service.js";
 import { AiCostsReader } from "../src/modules/ai-metering/ai-costs.reader.js";
 import { AiCostsController } from "../src/modules/ai-metering/ai-costs.controller.js";
 import { registerTenantMiddleware } from "../src/shared/persistence/tenant.middleware.js";
@@ -104,7 +105,7 @@ export async function createSupportFixture(options: { aiMetering?: boolean } = {
       class FixtureModule {}
       Module({ controllers: [MerchantPlatformSupportController, OperatorPlatformSupportController, FixtureAuthController, ...(options.aiMetering ? [AiCostsController, MerchantAiUsageController] : [])], providers: [
         { provide: PRISMA_CROSS_MERCHANT_CLIENT, useValue: prisma }, { provide: TenantContextService, useValue: context },
-        ...(options.aiMetering ? [AiMeteringService, AiCostsReader, MerchantAiUsageReader] : []),
+        ...(options.aiMetering ? [AiMeteringService, AiCostsReader, MerchantAiUsageReader, AiGovernanceService] : []),
         { provide: PRISMA_CLIENT, useValue: wrapped }, { provide: REDIS_CLIENT_TOKEN, useValue: redis },
         { provide: DOMAIN_EVENT_BUS, useValue: localBus },
         { provide: JwtService, useValue: merchantJwt }, { provide: PlatformJwtService, useValue: operatorJwt }, { provide: AuthCookieService, useValue: cookies },

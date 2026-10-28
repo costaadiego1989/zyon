@@ -5,6 +5,26 @@ import { getMetricsRegistry } from "../http/metrics.middleware.js";
 @Injectable()
 export class MetricsService {
   readonly registry = new Registry();
+  readonly aiPolicyDecisions = new Counter({
+    name:"ai_policy_decisions_total",help:"AI authorization decisions without user or tenant labels",
+    labelNames:["kind","decision","reason"],registers:[this.registry],
+  });
+  readonly aiAutomationTasks = new Counter({
+    name:"ai_automation_tasks_total",help:"Completed AI tasks, distinct from provider attempts",
+    labelNames:["task_type","status"],registers:[this.registry],
+  });
+  readonly aiAutomationDuration = new Histogram({
+    name:"ai_automation_duration_seconds",help:"Observed AI task execution duration",
+    labelNames:["task_type","status"],buckets:[0.1,0.5,1,2,5,10,30,60,300],registers:[this.registry],
+  });
+  recordAiPolicy(kind:"model"|"tool",allowed:boolean,reason:string) {
+    const known=["invalid_context","unregistered_resource","deployed_catalog","policy_grant","policy_denied"];
+    this.aiPolicyDecisions.inc({kind,decision:allowed?"allowed":"denied",reason:known.includes(reason)?reason:"other"});
+  }
+  recordAiAutomation(taskType:string,status:"succeeded"|"failed",elapsedMs:number) {
+    const labels={task_type:["product_seo","store_seo"].includes(taskType)?taskType:"other",status};
+    this.aiAutomationTasks.inc(labels);this.aiAutomationDuration.observe(labels,elapsedMs/1000);
+  }
 
   constructor() {
     collectDefaultMetrics({ register: this.registry });

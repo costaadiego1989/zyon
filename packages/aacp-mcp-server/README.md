@@ -26,7 +26,18 @@ node packages/aacp-mcp-server/dist/index.js
 
 | Var          | Required | Default                 | Purpose                                        |
 | ------------ | -------- | ----------------------- | ---------------------------------------------- |
-| `AACP_API_URL` | no     | `http://localhost:3000` | Base URL for the two HTTP-proxy tools          |
+| `AACP_API_URL` | no     | `http://localhost:3000` | API base for authorization and proxy tools. HTTPS is required outside loopback. |
+| `AACP_API_KEY` | yes, or token | — | Tenant API key with `configuration:read` for server-side tool authorization. |
+| `AACP_API_TOKEN` | yes, or key | — | Alternative tenant bearer credential. Human credentials require owner/admin role. |
+
+Every tool calls `/v1/ai-governance/tools/authorize` before executing. Missing
+credentials, API outages, policy denials and tenant mismatches block execution.
+The API derives tenant and role from the credential; `merchantId` in arguments
+cannot select a different tenant. Keep credentials in the MCP client's secret
+environment configuration. The policy source for these calls is `mcp`.
+Catalog reads additionally require the service scope `catalog:read` and use
+`GET /v1/ai-governance/tools/catalog`. Only active products and public fields
+are returned; the tenant is derived again from the credential at the read.
 
 ## Tools
 
@@ -35,7 +46,7 @@ node packages/aacp-mcp-server/dist/index.js
 | `aacp_evaluate_discount`  | `@zyon/rules-engine` (in-process)       | `{ merchantId, cartItems, requestedDiscountPercent, maxReaisCap?, maxDiscountPercent?, minimumMarginPercent? }` | `{ approved, finalDiscountPercent, marginPercent, reason, type }`                             |
 | `aacp_evaluate_shipping`  | `@zyon/shipping-engine` (in-process)    | `{ merchantId, destinationPostalCode, cartTotal, items, shipping?, abandonmentScore, ... }` | `{ options: [{ id, carrier, method, costCents, estimatedDays, subsidized, ... }], approved, reason }` |
 | `aacp_generate_message`   | `@zyon/conversation-engine` (in-process)| `{ merchantId, intent, context }`                                                | `{ message, fallbackUsed }`                                                                  |
-| `aacp_search_catalog`     | HTTP → AACP `/v1/products`              | `{ merchantId, query, limit? }`                                                  | `{ products: [{ id, sku, title, priceCents, currency, imageUrl? }] }`                         |
+| `aacp_search_catalog`     | HTTP → AACP `/v1/ai-governance/tools/catalog`              | `{ merchantId, query, limit? }`                                                  | `{ products: [{ id, sku, title, priceCents, currency, imageUrl? }] }`                         |
 | `aacp_get_agent_card`     | HTTP → AACP `/v1/acp/agent-card`        | `{ merchantId? }`                                                                | full agent card JSON                                                                          |
 
 ## Safety
@@ -47,7 +58,7 @@ node packages/aacp-mcp-server/dist/index.js
 - delivery / stock / payment guarantees,
 - CVV/password/token requests,
 
-…the tool returns a deterministic safe fallback and `fallbackUsed: true`. There is no LLM bypass path: the MCP server intentionally only calls the deterministic engine so the safety guarantees hold without API keys or network access.
+…the tool returns a deterministic safe fallback and `fallbackUsed: true`. There is no LLM bypass path: the MCP server intentionally only calls the deterministic engine without calling a language model. Every tool still requires API authorization.
 
 ## Architecture invariants
 
@@ -63,7 +74,7 @@ cd packages/aacp-mcp-server
 pnpm test
 ```
 
-Runs schema validation + happy-path + safety + HTTP-mock tests (~16 cases).
+Runs schema validation, authenticated authorization, tenant isolation, engine safety and HTTP-mock tests.
 
 ## Wire into an MCP client
 

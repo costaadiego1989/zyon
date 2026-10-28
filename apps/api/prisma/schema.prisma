@@ -3549,6 +3549,12 @@ model WhatsAppDelivery {
 
 
 model AiUsageEvent {
+  actorId           String?  @map("actor_id")
+  actorRole         String?  @map("actor_role")
+  teamId            String?  @map("team_id")
+  taskId            String?  @map("task_id")
+  @@index([merchantId, teamId, startedAt], map: "ai_usage_events_merchant_team_started_idx")
+  @@index([taskId], map: "ai_usage_events_task_idx")
   id                String   @id @default(cuid())
   idempotencyKey    String   @unique @map("idempotency_key")
   providerEventId   String?  @map("provider_event_id")
@@ -3595,6 +3601,90 @@ model AiUsageEvent {
   @@map("ai_usage_events")
 }
 
+model AiGovernancePolicy {
+  merchantId String @id @map("merchant_id")
+  grants Json
+  version Int @default(1)
+  updatedBy String @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@map("ai_governance_policies")
+}
+
+model AiGovernancePolicyRevision {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  version Int
+  grants Json
+  updatedBy String @map("updated_by")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@unique([merchantId, version])
+  @@map("ai_governance_policy_revisions")
+}
+
+model AiGovernanceDecision {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  actorId String? @map("actor_id")
+  actorRole String @map("actor_role")
+  teamId String? @map("team_id")
+  source String
+  resourceKind String @map("resource_kind")
+  resource String
+  allowed Boolean
+  reason String
+  policyVersion Int? @map("policy_version")
+  correlationId String? @map("correlation_id")
+  createdAt DateTime @default(now()) @map("created_at")
+  @@index([merchantId, createdAt])
+  @@index([merchantId, allowed, createdAt])
+  @@map("ai_governance_decisions")
+}
+
+model AiActorTeam {
+  merchantId String @map("merchant_id")
+  actorId String @map("actor_id")
+  teamId String @map("team_id")
+  updatedBy String @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@id([merchantId, actorId])
+  @@map("ai_actor_teams")
+}
+
+model AiTaskBaseline {
+  merchantId String @map("merchant_id")
+  taskType String @map("task_type")
+  version Int @default(1)
+  humanMs Int @map("human_ms")
+  sampleSize Int @map("sample_size")
+  updatedBy String @map("updated_by")
+  updatedAt DateTime @updatedAt @map("updated_at")
+  @@id([merchantId, taskType])
+  @@map("ai_task_baselines")
+}
+
+model AiAutomationTask {
+  id String @id @default(cuid())
+  merchantId String @map("merchant_id")
+  actorId String? @map("actor_id")
+  actorRole String @map("actor_role")
+  teamId String? @map("team_id")
+  source String
+  taskType String @map("task_type")
+  status String @default("pending")
+  baselineVersion Int? @map("baseline_version")
+  baselineHumanMs Int? @map("baseline_human_ms")
+  observedHumanMs Int? @map("observed_human_ms")
+  observationBy String? @map("observation_by")
+  observationAt DateTime? @map("observation_at")
+  startedAt DateTime @default(now()) @map("started_at")
+  completedAt DateTime? @map("completed_at")
+  elapsedMs Int? @map("elapsed_ms")
+  @@index([merchantId, startedAt])
+  @@index([merchantId, teamId, startedAt])
+  @@map("ai_automation_tasks")
+}
+
 model AiPriceVersion {
   id                     String   @id @default(cuid())
   version                String   @unique
@@ -3616,6 +3706,9 @@ model AiPriceVersion {
 }
 
 model AiVoiceUsageSession {
+  actorId String? @map("actor_id")
+  actorRole String? @map("actor_role")
+  teamId String? @map("team_id")
   id String @id
   merchantId String @map("merchant_id")
   billingAccountId String @map("billing_account_id")

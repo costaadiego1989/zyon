@@ -6,6 +6,8 @@ import { PRISMA_CROSS_MERCHANT_CLIENT } from "../../shared/persistence/persisten
 import { REDIS_CLIENT_TOKEN } from "../../shared/cache/redis.module.js";
 import { TenantContextService } from "../../shared/tenant/tenant-context.service.js";
 import { configureAiMetering, type AiMeteringContext } from "../../shared/ai-metering.js";
+import { configureAiAutomation } from "../../shared/ai-automation.js";
+import { AiGovernanceService } from "../ai-governance/ai-governance.service.js";
 import { decimalMicros, estimateCost, normalizeUsage, object, providerName, ratesAt, type Usage, type Rates } from "./usage.js";
 
 type Completion = { id: string; payload: { id?: string; model?: string; usage?: unknown }; status: string; endedAt: string };
@@ -14,23 +16,28 @@ const RETRY = "zyon:ai-metering:completions";
 export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
   private readonly logger = new Logger(AiMeteringService.name);
   private dispose?: () => void;
+  private disposeAutomation?: () => void;
   private worker?: ReturnType<typeof setInterval>;
   private draining = false;
   constructor(@Inject(PRISMA_CROSS_MERCHANT_CLIENT) private readonly db: PrismaClient,
-    private readonly tenant: TenantContextService, @Inject(REDIS_CLIENT_TOKEN) private readonly redis: Redis | null) {}
+    private readonly tenant: TenantContextService, @Inject(REDIS_CLIENT_TOKEN) private readonly redis: Redis | null,
+    private readonly governance: AiGovernanceService) {}
   onModuleInit() {
     this.dispose = configureAiMetering(this, () => this.tenant.get()?.merchantId);
+    this.disposeAutomation = configureAiAutomation(this.governance);
     this.worker = setInterval(() => { void this.drain(); }, 10_000); this.worker.unref();
   }
-  onModuleDestroy() { this.dispose?.(); clearInterval(this.worker); }
+  onModuleDestroy() { this.dispose?.(); this.disposeAutomation?.(); clearInterval(this.worker); }
 
   async begin(context: AiMeteringContext, provider: string, model: string, credentialScope: string, channel = "chat", component = "text_generation", key?: string) {
+    const identity = await this.governance.authorize(context, "model", provider + ":" + model);
     const merchant = await this.db.merchant.findUnique({ where: { id: context.merchantId }, select: { id: true, billingAccountMerchantId: true } });
     if (!merchant) throw new Error("ai_metering_company_not_found");
     const idempotencyKey = key ?? "attempt:" + randomUUID();
     const row = await this.db.aiUsageEvent.upsert({ where: { idempotencyKey }, create: {
       idempotencyKey, merchantId: merchant.id, billingAccountId: merchant.billingAccountMerchantId ?? merchant.id,
       credentialScope, payer: context.payer ?? "platform", source: context.source, channel, component, provider,
+      actorId: identity.actorId, actorRole: identity.actorRole, teamId: identity.teamId, taskId: context.taskId,
       model, requestedModel: model, executionStatus: "unknown", measurementOrigin: channel === "voice" ? "server_sideband" : "server_http",
       costCenter: context.costCenter ?? (channel === "voice" ? "voice" : "text"), conversationId: context.conversationId, voiceSessionId: context.voiceSessionId,
       startedAt: new Date(), completedAt: new Date(), latencyMs: 0,
@@ -129,9 +136,14 @@ export class AiMeteringService implements OnModuleInit, OnModuleDestroy {
       status: isResponse ? response.status === "completed" ? "succeeded" : response.status === "failed" ? "failed" : "cancelled" : "succeeded", endedAt: new Date().toISOString() });
   }
   async openVoiceSession(input: { merchantId: string; conversationId: string }, model: string, apiKey: string, source: string) {
+    const identity=await this.governance.authorize({...input,source},"model","openai:"+model);
     const merchant = await this.db.merchant.findUniqueOrThrow({ where: { id: input.merchantId }, select: { billingAccountMerchantId: true } });
     return this.db.aiVoiceUsageSession.create({ data: { id: randomUUID(), merchantId: input.merchantId, billingAccountId: merchant.billingAccountMerchantId ?? input.merchantId,
-      conversationId: input.conversationId, credentialScope: credentialScope("openai", "Bearer " + apiKey), model, source, state: "negotiating" } });
+      conversationId: input.conversationId,actorId:identity.actorId,actorRole:identity.actorRole,teamId:identity.teamId,
+      credentialScope: credentialScope("openai", "Bearer " + apiKey), model, source, state: "negotiating" } });
+  }
+  async authorizeVoiceTurn(context:AiMeteringContext,model:string) {
+    await this.governance.authorize(context,"model","openai:"+model);
   }
   async voiceSessionState(id: string, state: string, providerCallId?: string) {
     await this.db.aiVoiceUsageSession.update({ where: { id }, data: { state, providerCallId, ...(["closed","unknown","unobservable","rejected"].includes(state) ? { closedAt: new Date() } : {}) } });

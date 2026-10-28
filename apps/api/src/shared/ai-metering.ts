@@ -3,6 +3,7 @@ import { AsyncLocalStorage } from "node:async_hooks";
 export type AiMeteringContext = {
   merchantId: string; source: string; conversationId?: string; voiceSessionId?: string;
   costCenter?: "text" | "voice" | "automation"; payer?: "platform" | "merchant";
+  taskId?: string;
 };
 export type AiMeteringSink = {
   fetch(context: AiMeteringContext, input: string | URL | Request, init?: RequestInit, transport?: typeof fetch): Promise<Response>;

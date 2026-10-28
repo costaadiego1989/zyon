@@ -146,6 +146,7 @@ export class OpenAIRealtimeVoiceService implements OnModuleDestroy {
     this.activeCalls.add(close);
     const gate = new RealtimeVoiceTurnGate({ userId: input.aiUserId!, merchantId: input.merchantId, resourceId: input.conversationId, origin: input.origin }, this.userLimiter, new RealtimeCapabilityService(), (event) => {
       void (async () => {
+        if ((event as {type?:unknown})?.type === "response.create" && measurement) await this.metering?.authorizeVoiceTurn(measurement.context,measurement.model);
         const token = (event as any)?.response?.metadata?.zyon_turn_token;
         if (token && measurement) await this.metering?.rememberVoicePermit(token,measurement.context);
         if (socket.readyState === WebSocket.OPEN) socket.send(JSON.stringify(event));

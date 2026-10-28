@@ -1,4 +1,5 @@
 import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { remoteToolAuthorizer, type ToolAuthorizer } from "./authorization.js";
 import { registerEvaluateDiscount } from "./tools/aacp-evaluate-discount.js";
 import { registerEvaluateShipping } from "./tools/aacp-evaluate-shipping.js";
 import { registerGenerateMessage } from "./tools/aacp-generate-message.js";
@@ -12,6 +13,7 @@ import {
 } from "./tools/aacp-get-agent-card.js";
 
 export interface CreateServerOptions {
+  authorize?: ToolAuthorizer;
   searchCatalog?: SearchCatalogOptions;
   agentCard?: GetAgentCardOptions;
 }
@@ -41,11 +43,12 @@ export function createAacpMcpServer(
     }
   );
 
-  registerEvaluateDiscount(server);
-  registerEvaluateShipping(server);
-  registerGenerateMessage(server);
-  registerSearchCatalog(server, options.searchCatalog);
-  registerGetAgentCard(server, options.agentCard);
+  const authorize=options.authorize??remoteToolAuthorizer();
+  registerEvaluateDiscount(server,authorize);
+  registerEvaluateShipping(server,authorize);
+  registerGenerateMessage(server,authorize);
+  registerSearchCatalog(server, {...options.searchCatalog,authorize});
+  registerGetAgentCard(server, {...options.agentCard,authorize});
 
   return server;
 }

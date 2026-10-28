@@ -28,7 +28,7 @@ export class AiCostsController {
     let page = await this.reader.events({ ...query,to:until },500);
     await this.reader.audit(currentPlatformPrincipal(request).operatorId,"ai_costs.export.read",query);
     response.setHeader("Content-Type","text/csv; charset=utf-8"); response.setHeader("Content-Disposition",'attachment; filename="consumo-ia.csv"'); response.setHeader("Cache-Control","no-store");
-    const fields = ["at","merchantId","merchantName","accountId","source","provider","model","component","costCenter","payer","inputTokens","outputTokens","totalTokens","costMicros","currency","costStatus","pricingVersion","status","measurementOrigin","providerEventId","conversationId","voiceSessionId"];
+    const fields = ["at","merchantId","merchantName","accountId","source","actorId","actorRole","teamId","taskId","provider","model","component","costCenter","payer","inputTokens","outputTokens","totalTokens","costMicros","currency","costStatus","pricingVersion","status","measurementOrigin","providerEventId","conversationId","voiceSessionId"];
     response.write("\uFEFF"+fields.map(csvCell).join(",")+"\r\n");
     while (!response.destroyed) {
       for (const row of page.items) { if (!response.write(fields.map(f=>csvCell(row[f] instanceof Date ? row[f].toISOString() : row[f])).join(",")+"\r\n")) await new Promise<void>(resolve=>{response.once("drain",resolve);response.once("close",resolve);}); }

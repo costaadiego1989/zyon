@@ -1,4 +1,5 @@
 import type { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { rejectUnauthenticated, type ToolAuthorizer } from "../authorization.js";
 import { evaluateShippingOffer } from "@zyon/shipping-engine";
 import type { Cart, MerchantRules, ShippingQuote } from "@zyon/shared-types";
 import { EvaluateShippingInputSchema } from "../schemas.js";
@@ -11,12 +12,13 @@ import { EvaluateShippingInputSchema } from "../schemas.js";
  * request with shipping_quote_missing). The tool returns either an approved
  * shipping offer (with subsidy details) or a blocked decision with reason.
  */
-export function registerEvaluateShipping(server: McpServer): void {
+export function registerEvaluateShipping(server: McpServer, authorize:ToolAuthorizer=rejectUnauthenticated): void {
   server.tool(
     "aacp_evaluate_shipping",
     "Evaluate whether shipping should be subsidized (free or discounted) based on merchant rules, cart value, abandonment score, and shipping quote. Returns approved offer or blocked decision with reason.",
     EvaluateShippingInputSchema.shape,
     async (input) => {
+      await authorize({tool:"aacp_evaluate_shipping",merchantId:input.merchantId});
       const cart: Cart = {
         currency: "BRL",
         total: input.cartTotal,
