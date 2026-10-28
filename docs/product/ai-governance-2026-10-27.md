@@ -141,3 +141,17 @@ guardam versão/hash, tokens, latência e resultado. Ao atualizar a revisão pub
 atualize também o `ref` e `AI_RELEASE_REVISION` deste workflow. O workflow está
 presente também em `master` e na branch da entrega; o agendamento ativo do GitHub
 usa sua branch padrão.
+
+### Publicação paralela posterior na homologação
+
+Às 16:22 UTC foi conferido o deployment `4923d6c5-71ac-40be-a83b-eb6d5d43f2d0`,
+publicado depois dos gates acima por outra execução. Ele acrescentou o agente de
+compras e a migration `20261027190000_buyer_shopping_agent` na homologação.
+Os 17 arquivos centrais de governança/coleta permaneceram idênticos. A verificação
+de navegador foi repetida nessa publicação: relatório, política e atribuição de
+equipe retornaram 200, sem erros de página ou transbordamento no celular.
+
+A comparação de 3.973 arquivos descrita acima corresponde ao par homologado
+`85917739` / produção `ba379dde`. A produção desta entrega permanece em
+`227a03d4`; a publicação paralela da homologação deve atualizar sua própria origem
+de deploy quando for promovida, preservando os módulos de governança.

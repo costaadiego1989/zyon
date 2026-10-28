@@ -231,5 +231,81 @@
     "OpenAI voice was not live-validated because the account is unfunded and its configured credential was rejected.",
     "Human time savings require an actual baseline and handling-time observation.",
     "Provider invoice reconciliation and financial ROI are not calculated."
-  ]
+  ],
+  "subsequentSandboxDeployment": {
+    "at": "2026-10-28T16:22:51.648Z",
+    "previous": "85917739-99e2-4fd8-9cbd-9889d0d447eb",
+    "current": "4923d6c5-71ac-40be-a83b-eb6d5d43f2d0",
+    "files": 3942,
+    "changedCount": 26,
+    "removedCount": 45,
+    "changed": [
+      "apps/api/src/app.module.ts",
+      "apps/api/src/modules/buyer-account/application/use-cases/export-buyer-data.use-case.ts",
+      "apps/api/src/modules/buyer-account/domain/ports/buyer-account-port.ts",
+      "apps/api/src/modules/buyer-account/domain/services/build-buyer-data-export.service.ts",
+      "apps/api/src/modules/buyer-account/infrastructure/prisma-buyer-account-lgpd.repository.ts",
+      "apps/api/src/modules/buyer-shopping-agent/application/shopping-agent.service.ts",
+      "apps/api/src/modules/buyer-shopping-agent/application/shopping-agent.worker.ts",
+      "apps/api/src/modules/buyer-shopping-agent/application/shopping-commerce.service.ts",
+      "apps/api/src/modules/buyer-shopping-agent/buyer-shopping-agent.module.ts",
+      "apps/api/src/modules/buyer-shopping-agent/domain/shopping-agent.ts",
+      "apps/api/src/modules/buyer-shopping-agent/infrastructure/prisma-shopping.repository.ts",
+      "apps/api/src/modules/buyer-shopping-agent/infrastructure/shopping-notifier.service.ts"
+    ],
+    "removed": [
+      "apps/api/src/modules/agent-rules/docs/adr/0001-agent-rules-architecture-and-validation.md",
+      "apps/api/src/modules/audit/docs/adr/0001-audit-module-architecture-and-bugs.md",
+      "apps/api/src/modules/auth/docs/adr/0001-auth-tenant-jwt-hardening.md",
+      "apps/api/src/modules/auth/docs/adr/0002-dashboard-session-refresh-and-401-contract.md",
+      "apps/api/src/modules/buyer-account/docs/adr/0001-buyer-identity-otp-hardening.md",
+      "apps/api/src/modules/buyer-purchase-history/REFACTOR.md",
+      "apps/api/src/modules/buyer-purchase-history/docs/adr/0001-customers-loading-and-safe-dates.md",
+      "apps/api/src/modules/buyer-purchase-history/docs/adr/0002-buyer-purchase-history-tenant-scope.md",
+      "apps/api/src/modules/catalog/docs/adr/0001-catalog-storefront-read-and-cart-consistency.md",
+      "apps/api/src/modules/checkout/docs/adr/0001-core-checkout-module-hardening.md",
+      "apps/api/src/modules/checkout-settings/docs/adr/0001-if-match-contract-and-mode-read.md",
+      "apps/api/src/modules/checkout-settings/docs/adr/0002-checkout-settings-module-hardening.md"
+    ],
+    "governanceFilesCompared": 17,
+    "governanceFilesChanged": [],
+    "browser": {
+      "environment": "sandbox",
+      "deploymentId": "4923d6c5-71ac-40be-a83b-eb6d5d43f2d0",
+      "at": "2026-10-28T16:23:11.971Z",
+      "passed": true,
+      "base": "https://control-sandbox.zyon-payments.com.br",
+      "release": {
+        "revision": "227a03d4b740ade4c611e7b909febb29a1c44dbf",
+        "api": "sandbox"
+      },
+      "responses": [
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance"
+        },
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance/:syntheticMerchantId/policy"
+        },
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance"
+        },
+        {
+          "status": 200,
+          "path": "/v1/platform/ai-governance/:syntheticMerchantId/team"
+        }
+      ],
+      "pageErrors": 0,
+      "checks": [
+        "served bundle revision",
+        "authenticated API in real Edge",
+        "tenant-scoped empty state",
+        "team assignment through browser",
+        "desktop and mobile without overflow"
+      ]
+    },
+    "note": "Parallel buyer shopping-agent publication after the full 19-check governance gate; production revision unchanged."
+  }
 }
