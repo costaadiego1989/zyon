@@ -2,7 +2,7 @@ const normalize = (text: string) => text.normalize("NFD").replace(/[\u0300-\u036
 // Shopping instructions and an independently enforced price ceiling are not
 // product attributes. Keep genuine negatives such as "sem perfume" intact.
 function productSearchText(text: string): string {
-  return text.replace(/\b(?:sem|n[aã]o)\s+(?:adicionar|incluir|colocar)\s+(?:(?:nada|produtos?|itens?)\s+)?(?:ao|no)\s+carrinho(?:\s+por\s+enquanto)?\b/gi, " ")
+  return text.replace(/\b(?:sem|n[aã]o)\s+(?:adicionar|adicione|adiciona|incluir|inclua|inclui|colocar|coloque|coloca)\s+(?:(?:nada|produtos?|itens?)\s+)?(?:ao|no)\s+carrinho(?:\s+por\s+enquanto)?\b/gi, " ")
     .replace(/\b(?:at[eé]|m[aá]ximo(?: de)?|or[çc]amento(?: de)?|limite(?: de)?)\s*(?:R\$\s*)?\d+(?:[.,]\d+)*(?:\s*reais)?/gi, " ")
     .replace(/\s+/g, " ").trim();
 }

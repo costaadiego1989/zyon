@@ -23,6 +23,18 @@ test("canonical catalog search honors the buyer reais ceiling even if model send
  assert.equal(calls.length,1);assert.equal(calls[0].merchantId,"merchant-a");assert.equal(calls[0].query,"*");assert.equal(calls[0].maxPriceCents,10000);
 });
 
+test("imperative cart refusals do not become catalog attributes and ingredient exclusions stay intact", () => {
+ const name="QA Fisico R$10 - teste sem envio";
+ for(const instruction of ["Não adicione ao carrinho", "não inclua nada no carrinho", "não coloque produtos ao carrinho"]){
+  const request=`Quais são as dimensões publicadas do ${name}? ${instruction}.`;
+  assert.equal(contextualProductQuery(name,request),name);
+  const groups=contextualSearchGroups(`Hidratante sem perfume. ${instruction}.`);
+  assert(groups.some(group=>group.includes("sem perfume")));
+  assert(!groups.flat().some(term=>/adicione|inclua|coloque|carrinho/.test(term)));
+ }
+ assert(contextualSearchGroups("Não adicione açúcar").some(group=>group.includes("nao adicione")));
+});
+
 test("missing exact comparison names get a specific clarification even when model narration is rejected", () => {
  const result=buildConversationBlocks({merchantId:"merchant-a",userMessage:"Compare os dois",finalContent:STOREFRONT_CONTRACT_FALLBACK,
   toolResults:{compare_products:{comparison:[],requiresProductNames:true,missingProductNames:["Protetor","Sérum"]}}});
