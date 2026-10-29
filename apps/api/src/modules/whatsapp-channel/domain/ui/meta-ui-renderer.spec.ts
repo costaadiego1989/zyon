@@ -1,10 +1,26 @@
 import test from "node:test";
 import assert from "node:assert/strict";
-import { buildMetaUiView, presentMetaUi, formatMetaText, formatMetaConversation, withMetaCartNavigation, metaWelcomeMessage, buildMetaCatalogOptionsView } from "./meta-ui-renderer.js";
+import { buildMetaUiView, presentMetaUi, formatMetaText, formatMetaConversation, formatMetaSpeech, withMetaCartNavigation, metaWelcomeMessage, buildMetaCatalogOptionsView } from "./meta-ui-renderer.js";
 import type { WhatsAppStructuredResponse } from "./meta-ui.types.js";
 
 const response = (overrides: Partial<WhatsAppStructuredResponse> = {}): WhatsAppStructuredResponse => ({ agentMessage: "Como posso ajudar?", merchantName: "Loja Exemplo", quickReplies: [], blocks: [], state: { version: 1, conversationId: "conversation", stage: "store", history: [], revision: "turn", page: 0, previousViews: [] }, ...overrides });
 const native = (presentation: ReturnType<typeof presentMetaUi>) => presentation.messages.filter(m => m.type === "interactive").map(m => m.type === "interactive" ? m.interactive as any : null);
+
+test("assistant prose has a robot identity and contextual emphasis without changing a payment payload", () => {
+ const prose=formatMetaSpeech("*Descrição*\nPublicado pela loja.\n\n*Confirme sua conta*\nInforme o código recebido.");
+ assert.match(prose,/^🤖 📝 \*Descrição\*/);assert.match(prose,/🔐 \*Confirme sua conta\*/);
+ assert.equal(formatMetaSpeech(prose),prose);
+ const pix="000201"+"1234567890".repeat(30);assert.equal(formatMetaSpeech(pix),pix);
+});
+
+test("welcome sends the greeting, then its video, then assistance blocks and native controls", () => {
+ const view=buildMetaUiView(response({agentMessage:"👋 *Boas-vindas*\n\nOlá, sou a assistente da loja.\n\n*Converse à vontade*\n- Confira os produtos.",
+  blocks:[{type:"welcome_animation",data:{url:"https://example.test/welcome.mp4"}}] as any,quickReplies:["Ver Produtos"]}));
+ const shown=presentMetaUi(view,"welcome-order");
+ assert.deepEqual(shown.messages.map(m=>m.type),["text","video","text","interactive"]);
+ assert(shown.messages[0].type==="text"&&shown.messages[0].text.body.startsWith("🤖 👋"));
+ assert(shown.messages[2].type==="text"&&shown.messages[2].text.body.includes("💬 *Converse à vontade*"));
+});
 
 test("conversational spacing leaves raw Pix and links untouched", () => {
   const prose="Este é um texto publicado com informações suficientes para ajudar a escolher um produto e entender as opções que a loja oferece neste momento. Confira as informações e me diga o que você prefere para continuar com tranquilidade. Qual produto você quer conhecer?";
@@ -58,7 +74,7 @@ test("catalog prioritizes actual photos and retains products without photos on l
   const products = shown.numericSelections.filter(a => a.kind === "tool" && a.tool === "get_product_details");
   assert.deepEqual(products.map(a => a.kind === "tool" && a.args.productId), ["serum", "test"]);
   const menu = native(shown).find(m => m.type === "list");
-  assert.equal(menu.footer.text, "Pode perguntar o que quiser.");
+  assert.equal(menu.footer.text, "🤖 Pode perguntar o que quiser.");
   assert.equal(menu.action.sections[0].rows[0].title, "1. Ver produtos");
   assert.equal(menu.action.sections[0].rows[1].title, "2. Encontrar produto");
 });

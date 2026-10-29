@@ -39,6 +39,12 @@ const acceptedEmail: EmailSenderPort = {
     return { status: "sent", messageId: "fixture-email-accepted" };
   },
 };
+async function requestAccountAuthentication(repository: InMemoryCheckoutRepository, sessionId: string, sender: EmailSenderPort = acceptedEmail) {
+  const session = await repository.getSession("mrc_1", sessionId);
+  assert.ok(session);
+  return new CheckoutCustomerService(repository, undefined, new OtpService(), undefined, undefined, sender)
+    .beginEmailVerification(session, "Loja");
+}
 const originalFetch = globalThis.fetch;
 beforeEach(() => { globalThis.fetch = async () => { throw new Error("EXTERNAL_NETWORK_FORBIDDEN_IN_FIXTURE"); }; });
 afterEach(() => { globalThis.fetch = originalFetch; });
@@ -253,7 +259,7 @@ test("SendChatMessageUseCase captures fullName when previous agent turn asked fo
   assert.equal(session?.customer?.fullName, "Joao Silva");
 });
 
-test("SendChatMessageUseCase generates email OTP when embed prefilled email and user starts registration", async () => {
+test("SendChatMessageUseCase accepts an embed contact email without generating an account challenge", async () => {
   const repository = new InMemoryCheckoutRepository();
   await createStartCheckoutUseCase(repository, repository).execute(
     startCheckoutRequest({
@@ -273,7 +279,8 @@ test("SendChatMessageUseCase generates email OTP when embed prefilled email and 
 
   const session = await repository.getSession("mrc_1", "chk_prefill");
   assert.equal(session?.customer?.email, "embed@aacp.io");
-  assert.ok(session?.customer?.otp_code, "gera OTP mesmo com e-mail já na sessão");
+  assert.equal(session?.customer?.otp_code, undefined);
+  assert.notEqual(session?.customer?.email_verified, true);
 });
 
 test("SendChatMessageUseCase requires email OTP for an embed-prefilled email before hydrating an account", async () => {
@@ -321,9 +328,11 @@ test("SendChatMessageUseCase requires email OTP for an embed-prefilled email bef
 
   const session = await repository.getSession("mrc_1", "chk_embed_account");
   assert.notEqual(session?.customer?.recognized_buyer, true);
-  assert.ok(session?.customer?.otp_code, "e-mail pré-preenchido ainda exige prova de posse");
+  assert.equal(session?.customer?.otp_code, undefined, "contact collection is not account authentication");
+  assert.equal(session?.customer?.cpf, undefined);
+  assert.equal(session?.customer?.address, undefined);
   assert.equal(res.stage, "data_collection");
-  assert.equal(res.missing_fields?.[0], "código de verificação");
+  assert.equal(res.missing_fields?.includes("código de verificação"), false);
 });
 
 test("SendChatMessageUseCase returns refreshed experience snapshot with stage and missing fields", async () => {
@@ -434,10 +443,8 @@ test("SendChatMessageUseCase jornada cadastro → ViaCEP mock → número → fr
   assert.equal(brevoCaptured[0]?.buyerEmail, "meuemail.journey@test.com");
 
   const afterEmail = await repository.getSession("mrc_1", "chk_full_journey");
-  const otpCode = afterEmail?.customer?.otp_code;
-  assert.ok(otpCode, "gerou codigo de verificacao por e-mail");
-  const afterEmailOtp = await useCase.execute({ ...baseReq, user_message: otpCode! });
-  assert.equal(afterEmailOtp.experience?.customer?.otp_code, undefined, "experience nao expoe OTP apos validar email");
+  assert.equal(afterEmail?.customer?.otp_code, undefined, "contact email does not require a challenge");
+  assert.notEqual(afterEmail?.customer?.email_verified, true);
 
   await useCase.execute({ ...baseReq, user_message: "Maria Silva Santos" });
   assert.equal(brevoCaptured[0]?.buyerFirstNameHint, undefined);
@@ -731,10 +738,10 @@ test("SendChatMessageUseCase requires this session's OTP for a duplicate unverif
     user_message: "Meu email é DUPLICADO@aacp.io"
   });
 
-  const pending = await repository.getSession("mrc_1", "chk_2");
+  const pending = await requestAccountAuthentication(repository, "chk_2", sender);
   assert.ok(pending);
   assert.equal(res.stage, "data_collection");
-  assert.equal(res.missing_fields?.[0], "código de verificação");
+  assert.equal(res.missing_fields?.includes("código de verificação"), false);
   assert.equal(pending.customer?.email, "duplicado@aacp.io");
   assert.notEqual(pending.customer?.email_verified, true);
   assert.notEqual(pending.customer?.recognized_buyer, true);
@@ -838,11 +845,11 @@ test("SendChatMessageUseCase recognizes existing buyer email and continues after
     user_message: "Meu email Ã© duplicado@aacp.io"
   });
 
-  const sessionAfterEmail = await repository.getSession("mrc_1", "chk_2");
+  const sessionAfterEmail = await requestAccountAuthentication(repository, "chk_2");
   assert.equal(sessionAfterEmail?.customer?.email, "duplicado@aacp.io");
   assert.notEqual(sessionAfterEmail?.customer?.recognized_buyer, true);
   assert.ok(sessionAfterEmail?.customer?.otp_code);
-  assert.equal(res.missing_fields?.[0], "código de verificação");
+  assert.equal(res.missing_fields?.includes("código de verificação"), false);
 
   const verified = await useCase.execute({
     merchant_id: "mrc_1",
@@ -896,10 +903,10 @@ test("SendChatMessageUseCase logs recognized buyer after email OTP and skips to 
     user_message: "costaadiego1989@gmail.com"
   });
 
-  const afterEmail = await repository.getSession("mrc_1", "chk_account_only");
+  const afterEmail = await requestAccountAuthentication(repository, "chk_account_only");
   assert.notEqual(afterEmail?.customer?.recognized_buyer, true);
   assert.ok(afterEmail?.customer?.otp_code);
-  assert.equal(res.missing_fields?.[0], "código de verificação");
+  assert.equal(res.missing_fields?.includes("código de verificação"), false);
 
   const verified = await useCase.execute({
     merchant_id: "mrc_1",
@@ -1091,7 +1098,7 @@ test("SendChatMessageUseCase does not treat a non-code reply as invalid email OT
   const sessionAfter = await repository.getSession("mrc_1", "chk_otp_text");
   assert.equal(sessionAfter?.customer?.email_verified, false);
   assert.equal(sessionAfter?.customer?.fullName, "Diego Costa");
-  assert.ok(res.missing_fields?.[0]?.includes("verifica"));
+  assert.equal(res.missing_fields?.includes("código de verificação"), false);
   assert.equal(res.message.toLowerCase().includes("inv"), false);
 });
 

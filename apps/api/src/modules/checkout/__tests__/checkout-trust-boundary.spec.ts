@@ -177,6 +177,8 @@ test("existing email remains opaque through hint and chat; only current OTP hydr
   assert.equal(current.customer?.fullName, undefined);
   assert.equal(current.globalUserId, "anonymous");
   assert.equal(buyers.lookups(), 0);
+  assert.equal(buyers.sentCodes.length, 0);
+  current = await buyers.service.beginEmailVerification(current, "Merchant");
   assert.equal(buyers.sentCodes.length, 1);
   const otp = buyers.sentCodes[0]!;
   const wrong = otp === "111111" ? "222222" : "111111";

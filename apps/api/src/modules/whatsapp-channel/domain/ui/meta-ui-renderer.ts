@@ -47,6 +47,21 @@ export const formatMetaConversation = (text: string): string => formatMetaText(t
     return paragraph.replace(/([.!?])\s+(?=[A-ZÁÀÂÃÉÊÍÓÔÕÚÇ])/g, "$1\n\n");
   }).join("\n\n").trim();
 
+/** Presentation is applied only to prose; payment payloads remain separate. */
+export function formatMetaSpeech(text: string): string {
+  if (/^\s*000201\S+\s*$/.test(text)) return text;
+  const icons: Record<string, string> = {
+    "descrição": "📝", "informações do produto": "ℹ️", "perguntas sobre o produto": "💬",
+    "avaliações": "⭐", "comparação de produtos": "🔎", "confirme sua conta": "🔐",
+    "converse à vontade": "💬", "resumo do pedido": "🧾", "seu pedido": "🧾",
+    "pagamento por pix": "💠", "pagamento seguro": "🔒", "confira o cep": "📍",
+  };
+  const content = formatMetaConversation(text)
+    .replace(/^(\*([^*\n]+)\*)$/gm, (line, heading, label: string) => icons[label.toLocaleLowerCase("pt-BR")] ? `${icons[label.toLocaleLowerCase("pt-BR")]} ${heading}` : line)
+    .replace(/^(\*[^*\n]+\*)\n(?=\*R\$)/gm, "📦 $1");
+  return content.startsWith("🤖") ? content : `🤖 ${content}`;
+}
+
 /** Channel presentation only: all commercial values and actions come from the store. */
 export function buildMetaUiView(response: WhatsAppStructuredResponse, options: { selectionOnly?: boolean } = {}): MetaUiView {
   const view: MetaUiView = { stage: response.state.stage, title: response.merchantName || "Sua loja", body: response.agentMessage, choices: [], media: [], blocks: response.blocks, quickReplies: response.quickReplies };
@@ -368,8 +383,16 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
     : options.includeMedia !== false && !options.navigationOnly ? view.media.filter(m => m.type !== "text").slice(0, 3) : [];
   // Product detail starts with its real photo and price, followed by the full
   // published information. Payment instructions retain their existing order.
-  if (productDetails && visibleMedia[0]?.type === "image") messages.push(visibleMedia.shift()!);
-  if (!options.navigationOnly && (!catalog || page === 0)) parts.slice(0, 2).forEach(body => messages.push({ type: "text", text: { body } }));
+  const welcome = view.blocks.some(block => block.type === "welcome_animation");
+  if (productDetails && !welcome && visibleMedia[0]?.type === "image") messages.push(visibleMedia.shift()!);
+  if (!options.navigationOnly && (!catalog || page === 0)) {
+    const introduction = welcome ? parts[0]?.split(/\n{2,}/) : undefined;
+    if (introduction && introduction.length > 2 && visibleMedia[0]?.type === "video") {
+      messages.push({ type: "text", text: { body: formatMetaSpeech(introduction.slice(0, 2).join("\n\n")) } });
+      messages.push(visibleMedia.shift()!);
+      [introduction.slice(2).join("\n\n"), ...parts.slice(1, 2)].filter(Boolean).forEach(body => messages.push({ type: "text", text: { body: formatMetaSpeech(body) } }));
+    } else parts.slice(0, 2).forEach(body => messages.push({ type: "text", text: { body: formatMetaSpeech(body) } }));
+  }
   messages.push(...visibleMedia);
   if (options.includeMedia !== false && !options.navigationOnly) messages.push(...view.media.filter(m => m.type === "text"));
   if (choices.length) {
@@ -378,14 +401,14 @@ export function presentMetaUi(view: MetaUiView, revision: string, requestedPage 
       ? selectedVariation ? `Selecionado: ${selectedVariation.label.slice(2)}.\nAdicione ao carrinho ou escolha outra variação.`
         : "Escolha a variação do produto para continuar." : undefined;
     if (options.native === false) messages.push({ type: "text", text: { body: choices.map((c, i) => `${i + 1}. ${c.label}${c.description ? ` — ${c.description}` : ""}`).join("\n") + "\n\nVocê pode responder pelo número ou escrever sua pergunta." } });
-    else if (choices.length <= 3 && choices.every(c => Array.from(c.label).length <= 17)) messages.push({ type: "interactive", interactive: { type: "button", body: { text: "Como posso ajudar?" }, footer: { text: "Pode perguntar o que quiser." }, action: { buttons: rows.map(row => ({ type: "reply", reply: { id: row.id, title: concise(row.title, 20) } })) } } });
+    else if (choices.length <= 3 && choices.every(c => Array.from(c.label).length <= 17)) messages.push({ type: "interactive", interactive: { type: "button", body: { text: "🧭 Como posso ajudar?" }, footer: { text: "🤖 Pode perguntar o que quiser." }, action: { buttons: rows.map(row => ({ type: "reply", reply: { id: row.id, title: concise(row.title, 20) } })) } } });
     else {
       const context = catalog ? "Escolha um produto para ver fotos e informações completas."
         : productDetails ? variantPrompt || "Veja as opções deste produto ou escreva sua dúvida."
           : view.blocks.some(block => block.type === "cart_summary") ? "Confira os itens e escolha como continuar."
             : view.stage === "checkout" ? "Escolha a próxima etapa do seu pedido." : "Explore a loja ou continue a conversa.";
       const productName = productDetails ? value(object(view.blocks.find(block => block.type === "product_card")?.data).name) : "";
-      messages.push({ type: "interactive", interactive: { type: "list", header: { type: "text", text: concise(productName || view.title, 60) }, body: { text: `${context}${totalPages > 1 ? `\nPágina ${page + 1} de ${totalPages}` : ""}` }, footer: { text: "Pode perguntar o que quiser." }, action: { button: catalog ? "Ver produtos" : productDetails && variantPrompt ? "Escolher variação" : "Explorar opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows }] } } });
+      messages.push({ type: "interactive", interactive: { type: "list", header: { type: "text", text: concise(productName || view.title, 60) }, body: { text: `🧭 ${context}${totalPages > 1 ? `\nPágina ${page + 1} de ${totalPages}` : ""}` }, footer: { text: "🤖 Pode perguntar o que quiser." }, action: { button: catalog ? "Ver produtos" : productDetails && variantPrompt ? "Escolher variação" : "Explorar opções", sections: [{ title: catalog ? "Produtos da loja" : "Sua próxima ação", rows }] } } });
     }
   }
   return { messages, selections, numericSelections: choices.map(c => c.action), page, totalPages };

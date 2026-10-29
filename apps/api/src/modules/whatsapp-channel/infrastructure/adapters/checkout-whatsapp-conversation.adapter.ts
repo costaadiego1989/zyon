@@ -18,7 +18,7 @@ import { paymentCartFingerprint } from "../../../checkout/domain/services/paymen
 import { PRISMA_CLIENT } from "../../../../shared/persistence/persistence.module.js";
 import type { PrismaClient } from "@prisma/client";
 import { WhatsAppCheckoutIdentityService } from "../../application/services/whatsapp-checkout-identity.service.js";
-import { CheckoutCustomerService, OtpValidationError } from "../../../checkout/application/services/checkout-customer.service.js";
+import { CheckoutCustomerService } from "../../../checkout/application/services/checkout-customer.service.js";
 import { buildExperienceFromSession } from "../../../checkout/application/services/checkout-experience.service.js";
 import { checkoutShippingLabel } from "../../../checkout/domain/services/checkout-shipping-label.js";
 import { ReopenEmbedCheckoutUseCase } from "../../../embed/application/reopen-embed-checkout.use-case.js";
@@ -287,7 +287,7 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         const cart = await this.cartAuthority.resolveStorefront(input.merchantId, state.conversationId);
         if (state.checkoutSessionId && await this.prisma?.completedOrder.findFirst({ where: { merchantId: input.merchantId, sessionId: state.checkoutSessionId }, select: { id: true } })) state.checkoutGeneration = (state.checkoutGeneration ?? 0) + 1;
         const fingerprint = createHash("sha256").update(JSON.stringify([input.merchantId, state.conversationId, state.checkoutGeneration ?? 0, cart])).digest("hex").slice(0, 32);
-        const emailHint = verifiedBuyer?.customer.email ?? await this.checkoutIdentity?.emailHint(input.merchantId, input.buyer);
+        const emailHint = verifiedBuyer?.customer.email;
         const checkoutBuyer = { globalUserId: shopper.globalUserId, phone: shopper.phone, email: emailHint };
         const checkout = await this.startCheckout.execute({
           merchant_id: input.merchantId, session_id: `wa_checkout_${fingerprint}`,
@@ -298,17 +298,9 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
         // resuming. Reopening a link must never cancel or create a charge.
         state.checkoutSessionId = checkout.session_id;
         state = await this.syncPayment(input.merchantId, state);
-        let session = await this.sessions.getSession(input.merchantId, checkout.session_id);
-        let message: string | undefined;
-        if (session?.customer?.email && !session.customer.email_verified && !session.customer.otp_code && this.checkoutCustomer) {
-          try { session = await this.checkoutCustomer.beginEmailVerification(session, config.name); }
-          catch (error) {
-            if (!(error instanceof OtpValidationError)) throw error;
-            message = "Não consegui enviar o código por email agora. Escolha *Reenviar código* para tentar novamente.";
-          }
-        }
+        const session = await this.sessions.getSession(input.merchantId, checkout.session_id);
         const missing = session ? missingFieldsForStage(session, deriveChatStage(session)) : undefined;
-        return await this.checkoutUi({ ...checkout, resumePayment: true, missing_fields: missing, ...(message ? { message } : {}) }, state, config.name, input.message, input.merchantId);
+        return await this.checkoutUi({ ...checkout, resumePayment: true, missing_fields: missing }, state, config.name, input.message, input.merchantId);
       } catch (error) {
         if (!(error instanceof BadRequestException || error instanceof ConflictException || error instanceof NotFoundException)) throw error;
         const message = "Não consegui preparar a finalização. Confira a disponibilidade dos itens e as condições no carrinho antes de continuar.";
@@ -400,12 +392,12 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     }
     const nextField = response.missing_fields?.[0] ?? (session ? missingFieldsForStage(session, deriveChatStage(session))[0] : undefined);
     // Ask the next field explicitly. Starting a checkout must not stop at its greeting.
-    if (nextField === "email") message = "*Vamos finalizar sua compra*\n\nQual é seu email? Vamos enviar um código para confirmar sua conta.\n\n_Seu telefone já foi confirmado pelo WhatsApp._";
+    if (nextField === "email") message = "📧 *E-mail para o pedido*\n\nQual é seu e-mail de contato? Ele será usado no pagamento e nas atualizações do pedido.\n\n_Não é preciso confirmar por código._";
     if (nextField === "código de verificação" && session?.customer?.otp_code && !/inválido|expirou|não foi possível|não consegui/i.test(message)) {
       const email = session.customer.email?.replace(/(^.).*(@.*$)/, "$1***$2") || "seu email";
       message = `*Confirme sua conta*\n\nEnviamos um código para *${email}*. Responda aqui com os *6 dígitos*.\n\n_O código vale por 10 minutos. Seus dados salvos serão usados após a confirmação._`;
     }
-    if (nextField === "nome") message = "*Seu cadastro*\n\nEmail confirmado. Qual é seu nome completo para o pedido?";
+    if (nextField === "nome") message = "👤 *Seu pedido*\n\nQual é seu nome completo para o pedido?";
     const secureIdentifier = nextField === "CPF";
     if (secureIdentifier) message = "Para proteger seus dados, preencha seu CPF no checkout seguro. Depois, você pode continuar por aqui.";
     if (secureIdentifier) for (let i = blocks.length - 1; i >= 0; i--) if (["form_field", "checkout_form"].includes(blocks[i].type)) blocks.splice(i, 1);

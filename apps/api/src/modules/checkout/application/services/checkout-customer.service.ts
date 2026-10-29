@@ -200,6 +200,12 @@ export class CheckoutCustomerService {
     const previous = session.customer ?? {};
     let working: CheckoutSession = { ...session, customer: { ...previous, ...correction.patch }, updatedAt: new Date().toISOString() };
     if (correction.field === "email" && correction.patch.email !== previous.email?.toLowerCase()) {
+      if (!previous.email_verified && !previous.recognized_buyer && !previous.isReturning
+        && !session.cart.items.some(item => item.crossSellIntent !== undefined)) {
+        working.customer = { ...working.customer, email_verified: false, otp_code: "", otp_expires_at: "" };
+        working = await commitCheckoutMutation(this.repository, { expected: session, next: working });
+        return { ...correction, session: working, message: "E-mail de contato atualizado. Vamos continuar sua compra." };
+      }
       if (session.cart.items.some(item => item.crossSellIntent !== undefined)) {
         if (!this.repository.detachNormalBuyerEmail || session.persistenceVersion === undefined) return { ...correction, session,
           blocked: true, message: "A identidade e os benefícios deste checkout precisam de revisão antes de corrigir o e-mail." };
@@ -263,8 +269,9 @@ export class CheckoutCustomerService {
       }
     }
 
-    // Delegate email OTP processing
-    if (currentEmail && !existing?.email_verified && this.otpService) {
+    // A contact email does not start account authentication. Previously issued
+    // challenges may still be consumed without making checkout wait for them.
+    if (currentEmail && !existing?.email_verified && existing?.otp_code && !patch.email && this.otpService) {
       const isNewEmail = Boolean(patch.email);
       const otpResult = this.otpService.processEmailOtp(
         userMessage,
