@@ -753,7 +753,8 @@ export class StorefrontLangGraphAgent {
       toolResults,
       authorizedDiscountPercent,
       freeShippingAuthorized,
-      shippingDiscountAuthorized: freeShippingAuthorized
+      shippingDiscountAuthorized: freeShippingAuthorized,
+      allowStackDiscountAndFreeShipping: input.merchantPolicy?.allowStackDiscountAndFreeShipping
     };
 
     let validation = validateStorefrontMessage(messageToValidate, safetyContext);
