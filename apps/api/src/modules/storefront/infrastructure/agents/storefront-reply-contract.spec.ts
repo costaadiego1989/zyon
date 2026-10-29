@@ -71,7 +71,7 @@ test("required-tool retry and its final narration both receive the same transpor
     if (calls === 2) return { content: "", toolCalls: [{ id: "read", name: "list_promotions", args: {} }], usage };
     assert.ok(request.messages.some(message => message.role === "tool" && message.tool_call_id === "read"));
     return { content: reply("Não há cupom confirmado nessa consulta."), usage };
-  } } as OpenRouterProvider }, { domain: "STORE_COMMERCE", intent: "NEGOTIATE_PRICE", requiresTool: true, needsProductDiscovery: false });
+  } } as OpenRouterProvider }, { domain: "STORE_COMMERCE", intent: "COMPLEX_QUESTION", requiresTool: true, needsProductDiscovery: false });
   await agent.run(input);
   assert.equal(calls, 3); assert.equal(reads, 1);
 });

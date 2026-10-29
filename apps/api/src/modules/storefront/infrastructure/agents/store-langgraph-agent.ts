@@ -87,7 +87,7 @@ export interface StorefrontAgentInput {
   storeCategory: string;
   storeSettings?: Record<string, any>;
   agentIdentity?: { agentName?: string; persona?: string; tone?: string; greeting?: string; language?: string };
-  merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number };
+  merchantPolicy?: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; allowStackDiscountAndFreeShipping?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number };
   advancedRules?: string[];
   buyerContext?: { globalUserId: string; name?: string; phone?: string; email?: string };
   oneBuyClick?: import("../../domain/ports/conversation.port.js").OneBuyClickConversationContext;
@@ -141,6 +141,9 @@ function groundProductResponse(messages: OpenRouterChatMessage[], results: Recor
 }
 
 const FALLBACK_MESSAGE = "Como posso ajudá-lo com sua busca?";
+const CANONICAL_READ_TOOLS = new Set(["search_products", "get_product_details", "compare_products", "get_product_availability",
+  "get_similar_products", "get_daily_deals", "list_categories", "get_cart", "get_reviews", "get_product_questions",
+  "get_wishlist", "get_faq", "get_store_policies", "get_buyer_profile", "list_promotions", "quote_shipping", "track_order", "get_invoice"]);
 
 export class StorefrontLangGraphAgent {
   private readonly structuredRouting: boolean;
@@ -313,9 +316,9 @@ export class StorefrontLangGraphAgent {
         try {
           if (monetary && !handlers.recommendProducts) return finish(SHOPPING_SEARCH_PLAN_UNCONFIRMED);
           toolsUsed.push("search_products"); input.callbacks?.onToolCall?.("search_products", args);
-          const read = await callStorefrontTool("search_products", args, checked => monetary
+          const read = await observeStorefrontOperation("tool", () => callStorefrontTool("search_products", args, checked => monetary
             ? handlers.recommendProducts!({ criteria: turnPlan!, limit: 3 })
-            : handlers.searchProducts(checked as Parameters<StoreToolHandlers["searchProducts"]>[0]));
+            : handlers.searchProducts(checked as Parameters<StoreToolHandlers["searchProducts"]>[0])), { tool: "search_products" });
           input.callbacks?.onToolResult?.("search_products", read);
           const confirmed = read.ok ? storefrontToolOutputSchemas.search_products.safeParse(read.data) : undefined;
           if (!confirmed?.success || !confirmed.data.searchEvidence
@@ -426,12 +429,33 @@ export class StorefrontLangGraphAgent {
       return true;
     };
     let loops = 0;
+    let commercialEvidence: OpenRouterChatMessage | undefined;
     const openRouterTools = turnTools.map((t) => ({
       type: "function" as const,
       function: { name: t.name, description: t.description, parameters: t.parameters }
     }));
 
     try {
+      if (this.structuredRouting && intentResult.intent === "NEGOTIATE_PRICE" && semantic.classification.requiresTool) {
+        // This intent requires current conditions, not merely empathetic price
+        // objections. Read before narration; a model cannot defer this lookup.
+        for (const name of ["list_promotions", "get_daily_deals"] as const) {
+          const tool = executableTools.find(candidate => candidate.name === name);
+          if (!tool) continue;
+          const args = name === "get_daily_deals" ? { limit: 30 } : {};
+          toolsUsed.push(name); input.callbacks?.onToolCall?.(name, args);
+          const result = await this.executeObservedTool(tool, args);
+          toolResults[name] = result.ok ? result.data : { error: result.error };
+          input.callbacks?.onToolResult?.(name, result);
+        }
+        commercialEvidence = { role: "system", content: JSON.stringify({ id: "storefront.current-commercial-evidence", version: 1,
+          conditions: toolResults,
+          stackingAllowed: input.merchantPolicy?.allowStackDiscountAndFreeShipping ?? null,
+          coverage: "Consulta limitada de ofertas publicadas, até 30 resultados numa janela de 60 produtos. Não comprova ausência global nem todas as condições de um item fora dessa janela. Para o item conhecido, consulte os dados específicos quando necessário.",
+          expiration: "Se houver expiresAtFormatted, use esse texto canônico com o fuso explícito. Não interprete ISO como horário local. Sem texto formatado, omita a hora exata.",
+          rules: "Conclua a pergunta com estes fatos atuais; não termine prometendo outra consulta. Não use condições do histórico como se estivessem revalidadas. Um resultado vazio confirma ausência de oferta nessa consulta; erro é condição desconhecida. A regra false proíbe acumular os benefícios; true não concede nenhum. Para negar, fale da combinação ou desses benefícios, sem repetir porcentagem pedida nem anunciar benefício sem autorização. O preço de concorrente é alegado, não é teto do comprador. Se faltar dado do item conhecido, consulte seu catálogo antes de afirmar. Não aplique, adicione ou cobre por causa destas leituras." }) };
+        messages.push(commercialEvidence);
+      }
       while (loops < MAX_TOOL_LOOPS) {
         loops += 1;
 
@@ -566,7 +590,8 @@ export class StorefrontLangGraphAgent {
           const fbMessages: OpenRouterChatMessage[] = [
             { role: "system" as any, content: systemContent },
             ...recentHistory.map((h) => ({ role: h.role as any, content: h.content })),
-            { role: "user" as any, content: currentUserMessage }
+            { role: "user" as any, content: currentUserMessage },
+            ...(commercialEvidence ? [commercialEvidence] : []),
           ];
           const openRouterTools = turnTools.map((t) => ({
             type: "function" as const,
@@ -633,6 +658,13 @@ export class StorefrontLangGraphAgent {
     if (discoveryQuestion) finalContent = discoveryQuestion.question;
     else if (searchPolicy.recommendationMessage) finalContent = searchPolicy.recommendationMessage;
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;
+    const confirmedRead = Object.entries(toolResults).some(([name, value]) => CANONICAL_READ_TOOLS.has(name)
+      && value !== null && typeof value === "object" && !Array.isArray(value) && !("error" in value));
+    const requiredReadUnconfirmed = this.structuredRouting && semantic.classification.requiresTool
+      && toolsUsed.every(name => CANONICAL_READ_TOOLS.has(name)) && !confirmedRead
+      && !discoveryQuestion && finalContent !== STOREFRONT_MODEL_FALLBACK;
+    if (requiredReadUnconfirmed)
+      finalContent = "Não consegui confirmar essa consulta agora. Nenhuma condição comercial foi confirmada nesta resposta. Tente novamente em instantes.";
     if (structuredSearchRequired && !canonicalSearchComplete && toolsUsed.includes("search_products") && !discoveryQuestion)
       finalContent = SHOPPING_SEARCH_PLAN_UNCONFIRMED;
     const built = buildConversationBlocks({ toolResults: cartPolicy.sanitizeResults(toolResults), userMessage: input.userMessage, finalContent, merchantId: input.merchantId,
@@ -709,6 +741,7 @@ export class StorefrontLangGraphAgent {
     };
 
     let validation = validateStorefrontMessage(messageToValidate, safetyContext);
+    if (requiredReadUnconfirmed) validation = { ...validation, safe: false, reason: "required_read_unconfirmed" };
     if (!validation.safe) recordStorefrontDecision("validation", "rejected", "safety_rejected");
 
     // The fixed contract fallback is server-owned, not generated candidate prose.

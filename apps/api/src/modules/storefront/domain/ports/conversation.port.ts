@@ -4,6 +4,7 @@ export interface MerchantPolicy {
   maxDiscountPercent?: number;
   allowFreeShipping?: boolean;
   allowShippingDiscount?: boolean;
+  allowStackDiscountAndFreeShipping?: boolean;
   freeShippingMinCartValue?: number;
   maxPartialShippingDiscount?: number;
   offerExpirationMinutes?: number;

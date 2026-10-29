@@ -40,6 +40,18 @@ test("contract: an ordinary storefront turn retains the existing wire response",
   assert.equal(f.calls.generated.length, 1);
 });
 
+test("contract: the canonical stacking restriction reaches the conversation context without granting a benefit", async () => {
+  for (const allowed of [false, true]) {
+    const f = fixture();
+    f.prisma.merchantRule.findUnique = async () => ({ maxDiscountPercent: 10, allowFreeShipping: true,
+      allowShippingDiscount: true, allowStackDiscountAndFreeShipping: allowed, freeShippingMinCartValue: 0,
+      maxPartialShippingDiscount: 20, offerExpirationMinutes: 15 }) as never;
+    await f.useCase.execute(input);
+    const context = f.calls.generated[0] as { merchantPolicy: { allowStackDiscountAndFreeShipping: boolean } };
+    assert.equal(context.merchantPolicy.allowStackDiscountAndFreeShipping, allowed);
+  }
+});
+
 const invalidInputs: Array<[string, unknown]> = [
   ["missing body", null], ["array body", []],
   ["blank message", { ...input, user_message: "   " }],

@@ -95,7 +95,7 @@ export class SendStoreMessageUseCase {
     } catch { /* optional — fallback to no identity */ }
 
     // Load merchant rules (discount/shipping policy limits)
-    let merchantPolicy: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number } | undefined;
+    let merchantPolicy: { maxDiscountPercent?: number; allowFreeShipping?: boolean; allowShippingDiscount?: boolean; allowStackDiscountAndFreeShipping?: boolean; freeShippingMinCartValue?: number; maxPartialShippingDiscount?: number; offerExpirationMinutes?: number } | undefined;
     try {
       const merchantRules = await this.prisma.merchantRule.findUnique({
         where: { merchantId: input.merchant_id },
@@ -103,6 +103,7 @@ export class SendStoreMessageUseCase {
           maxDiscountPercent: true,
           allowFreeShipping: true,
           allowShippingDiscount: true,
+          allowStackDiscountAndFreeShipping: true,
           freeShippingMinCartValue: true,
           maxPartialShippingDiscount: true,
           offerExpirationMinutes: true,
@@ -113,6 +114,7 @@ export class SendStoreMessageUseCase {
           maxDiscountPercent: Number(merchantRules.maxDiscountPercent),
           allowFreeShipping: merchantRules.allowFreeShipping,
           allowShippingDiscount: merchantRules.allowShippingDiscount,
+          allowStackDiscountAndFreeShipping: merchantRules.allowStackDiscountAndFreeShipping,
           freeShippingMinCartValue: Number(merchantRules.freeShippingMinCartValue),
           maxPartialShippingDiscount: Number(merchantRules.maxPartialShippingDiscount),
           offerExpirationMinutes: merchantRules.offerExpirationMinutes,

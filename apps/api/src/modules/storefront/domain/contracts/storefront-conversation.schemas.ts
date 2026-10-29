@@ -25,6 +25,7 @@ export const storefrontPreparedContextSchema = storefrontDeferredContextSchema.e
 const uiAction = storefrontUiActionSchema;
 const policy = z.strictObject({ maxDiscountPercent: z.number().min(0).max(100).optional(),
   allowFreeShipping: z.boolean().optional(), allowShippingDiscount: z.boolean().optional(),
+  allowStackDiscountAndFreeShipping: z.boolean().optional(),
   freeShippingMinCartValue: z.number().nonnegative().optional(), maxPartialShippingDiscount: z.number().min(0).max(100).optional(),
   offerExpirationMinutes: z.number().int().positive().optional() });
 

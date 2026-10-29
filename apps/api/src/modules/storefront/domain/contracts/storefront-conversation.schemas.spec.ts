@@ -105,7 +105,9 @@ test("schema: actual server-built catalog, cart, shipping, promotion and categor
   const scenarios = [
     { search_products: { products: [{ id: "book", name: "Livro", price: 1500, inStock: true }] } },
     { get_cart: { cartId: "conversation", itemCount: 1, total: 15, items: [{ variantId: "variant", name: "Livro", quantity: 1, unitPrice: 15 }] } },
-    { quote_shipping: { options: [{ carrier: "Carrier", name: "Normal", price: 500, days: 3 }] } },
+    { quote_shipping: { referenceOnly: true, options: [{ carrier: "Carrier", name: "Normal", price: 500, days: 3, zipCode: "20040020" }],
+      reference: { id: "00000000-0000-4000-8000-000000000001", expiresAt: "2099-01-01T00:00:00.000Z",
+        basisHash: "a".repeat(64), configurationHash: "b".repeat(64), destinationZip: "20040020", addressSource: "requested_cep" } } },
     { list_promotions: { coupons: [{ code: "CUPOM", description: "Promoção", expiresAt: null }] } },
     { list_categories: { categories: [{ id: "books", name: "Livros", slug: "books", productCount: 1 }] } },
   ];
