@@ -42,11 +42,36 @@ for (const [name, response] of [
   ["partial", { content: JSON.stringify(wirePlan()), finishReason: "length", usage }],
   ["inverted interval", { content: JSON.stringify(wirePlan({ minPriceCents: 8000, maxPriceCents: 7000 })), usage }],
   ["foreign authority", { content: JSON.stringify(wirePlan({ merchantId: "other" })), usage }],
+  ["untyped attributes from real budget regression", { content: JSON.stringify(wirePlan({ maxPriceCents: 7000,
+    attributes: ["pequeno", "poucos cabos", "mochila"] })), usage }],
 ] as const) test(`unconfirmed planning fails closed once: ${name}`, async () => {
   let calls = 0;
   const result = await planStorefrontShopping({ chat: async () => { calls++; return response; } } as never,
     { userMessage: "Uma opção até R$70", history: [] }, { mode: "json_object" });
   assert.equal(calls, 1); assert.equal(result.plan, undefined);
+});
+
+test("json_object exposes the complete attribute and delivery contract before extracting the real budget request", async () => {
+  const attributes = [{ name: "tamanho", value: "pequeno", operator: "equals", priority: "preferred" }];
+  let calls = 0;
+  const result = await planStorefrontShopping({ chat: async request => {
+    calls++;
+    assert.equal(request.responseFormat?.type, "json_object");
+    const prompt = JSON.parse(request.messages[0]!.content!);
+    const plan = prompt.outputContract.properties.plan;
+    assert.equal(plan.additionalProperties, false);
+    assert.deepEqual(plan.properties.attributes.items.required, ["name", "value", "operator", "priority"]);
+    assert.deepEqual(plan.properties.attributes.items.properties.operator.enum, ["equals", "not_equals"]);
+    assert.deepEqual(plan.properties.attributes.items.properties.priority.enum, ["required", "preferred"]);
+    assert.equal(plan.properties.attributes.items.additionalProperties, false);
+    const delivery = plan.properties.delivery.anyOf.find((value: { type?: string }) => value.type === "object");
+    assert.deepEqual(Object.keys(delivery.properties), ["freeOnly", "maxPriceCents", "maxBusinessDays", "zipCode"]);
+    assert.equal(delivery.additionalProperties, false);
+    assert.ok(plan.required.includes("maxPriceCents"));
+    return { content: JSON.stringify(wirePlan({ query: "organizador de cabos", maxPriceCents: 7000, attributes })), usage };
+  } } as never, { userMessage: "Tenho orçamento máximo de R$ 70 para um organizador pequeno para poucos cabos na mochila. Consulte as condições vigentes e mostre somente opções dentro desse valor, sem adicionar nem cobrar.", history: [] }, { mode: "json_object" });
+  assert.equal(calls, 1); assert.equal(result.plan?.maxPriceCents, 7000);
+  assert.deepEqual(result.plan?.attributes, attributes);
 });
 
 test("strict schema mode advertises mandatory nullable fields and no executable authority", async () => {
