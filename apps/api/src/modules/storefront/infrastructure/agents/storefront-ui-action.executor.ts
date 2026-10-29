@@ -41,12 +41,12 @@ async function executeAction(handlers: StoreToolHandlers, action: StorefrontUiAc
       break;
     }
     case "get_product_details": result = await validated("get_product_details", handlers.getProductDetails({ productId: str("productId") })); message = "Aqui estão os detalhes do produto:"; break;
-    case "search_products": result = await validated("search_products", handlers.searchProducts({ query: str("query") || "*", categoryId: str("categoryId") || undefined, cursor: str("cursor") || undefined })); message = "Estes são os produtos disponíveis:"; break;
-    case "list_categories": result = await validated("list_categories", handlers.listCategories()); message = "Escolha uma categoria:"; break;
-    case "get_reviews": result = await validated("get_reviews", handlers.getReviews({ productId: str("productId"), cursor: str("cursor") || undefined })); message = "Veja as avaliações:"; break;
-    case "get_similar_products": result = await validated("get_similar_products", handlers.getSimilarProducts({ productId: str("productId") })); message = "Veja os produtos semelhantes:"; break;
-    case "compare_products": result = await validated("compare_products", handlers.compareProducts({ productId: str("productId"), includeSimilar: true })); message = "Compare os produtos:"; break;
-    case "get_daily_deals": result = await validated("get_daily_deals", handlers.getDailyDeals({})); message = "Confira as ofertas disponíveis:"; break;
+    case "search_products": result = await validated("search_products", handlers.searchProducts({ query: str("query") || "*", categoryId: str("categoryId") || undefined, cursor: str("cursor") || undefined })); message = result.products?.length ? "Estes são os produtos disponíveis:" : "Não encontrei produtos para essa seleção. Tente outro nome ou categoria."; break;
+    case "list_categories": result = await validated("list_categories", handlers.listCategories()); message = result.categories?.length ? "Escolha uma categoria:" : "A loja ainda não cadastrou categorias. Você pode consultar os produtos."; break;
+    case "get_reviews": result = await validated("get_reviews", handlers.getReviews({ productId: str("productId"), cursor: str("cursor") || undefined })); message = result.reviews?.length ? "Veja as avaliações:" : "Este produto ainda não tem avaliações publicadas."; break;
+    case "get_similar_products": result = await validated("get_similar_products", handlers.getSimilarProducts({ productId: str("productId") })); message = result.products?.length ? "Veja os produtos semelhantes:" : "Não encontrei produtos semelhantes disponíveis nesta loja."; break;
+    case "compare_products": result = await validated("compare_products", handlers.compareProducts({ productId: str("productId"), includeSimilar: true })); message = result.comparison?.length >= 2 ? "Compare os produtos:" : "Qual outro produto desta loja você quer comparar? Informe o nome."; break;
+    case "get_daily_deals": result = await validated("get_daily_deals", handlers.getDailyDeals({})); message = result.deals?.length ? "Confira as ofertas disponíveis:" : "No momento não há ofertas ativas. Posso mostrar os produtos da loja?"; break;
     case "add_item_to_cart": {
       const quantity = a.quantity as number;
       if (!str("variantId") || !Number.isInteger(quantity) || quantity < 1 || quantity > 99) throw new Error("store_ui_variant_or_quantity_invalid");
@@ -56,7 +56,7 @@ async function executeAction(handlers: StoreToolHandlers, action: StorefrontUiAc
       break;
     }
     case "get_cart": result = await validated("get_cart", handlers.getCart({ cartId })); message = "Este é o seu carrinho:"; break;
-    case "get_wishlist": result = await validated("get_wishlist", handlers.getWishlist()); message = "Sua lista de desejos:"; break;
+    case "get_wishlist": result = await validated("get_wishlist", handlers.getWishlist()); message = result.items?.length ? "Sua lista de desejos:" : "Sua lista de desejos está vazia. Escolha um produto para salvar."; break;
     case "add_to_wishlist": result = await validated("add_to_wishlist", handlers.addToWishlist({ productId: str("productId") })); message = "Confira sua lista de desejos:"; break;
     case "remove_from_wishlist": result = await validated("remove_from_wishlist", handlers.removeFromWishlist({ productId: str("productId") })); message = "Confira sua lista de desejos:"; break;
     case "remove_cart_item": result = await validated("remove_cart_item", handlers.removeCartItem({ cartId, variantId: str("variantId") })); message = "Confira seu carrinho atualizado:"; break;
@@ -73,7 +73,6 @@ async function executeAction(handlers: StoreToolHandlers, action: StorefrontUiAc
   if (["get_cart", "remove_cart_item", "update_cart_item", "apply_coupon", "add_item_to_cart", "add_catalog_items"].includes(action.tool)) toolResults.get_cart = await validated("get_cart", handlers.getCart({ cartId }));
   const built = buildConversationBlocks({ toolResults, userMessage: "", finalContent: message, merchantId, presentationMode: "structured" });
   const blocks: ConversationBlock[] = built.blocks;
-  if (action.tool === "list_categories" && !blocks.some(b => b.type === "category_carousel" as string)) blocks.push({ type: "category_carousel", data: { categories: Array.isArray(result) ? result : result?.categories ?? [] } } as unknown as ConversationBlock);
   const failed = !!result?.error || result?.success === false;
   if (failed) message = "Não foi possível concluir esta ação. " + (typeof result.message === "string" ? result.message : "Confira as opções disponíveis.");
   return { message: failed ? message : built.finalContent || message, blocks };

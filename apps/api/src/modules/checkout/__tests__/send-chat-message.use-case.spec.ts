@@ -22,6 +22,7 @@ import { CheckoutCustomerService } from "../application/services/checkout-custom
 import { CheckoutShippingService } from "../application/services/checkout-shipping.service.js";
 import { CheckoutOfferService } from "../application/services/checkout-offer.service.js";
 import { OtpService } from "../application/services/otp.service.js";
+import { localCheckoutScope, localShippingQuotes } from "./local-checkout-scope.fixture.js";
 import { BuyerRecognitionService } from "../application/services/buyer-recognition.service.js";
 import { BuyerAccountPersistenceService } from "../application/services/buyer-account-persistence.service.js";
 import { InMemoryBuyerAccountRepository } from "../../buyer-account/infrastructure/in-memory-buyer-account.repository.js";
@@ -56,7 +57,7 @@ function createTestUseCase(
   const recognitionService = new BuyerRecognitionService(repository, buyerAccounts);
   const persistenceService = new BuyerAccountPersistenceService(buyerAccounts);
   const custService = new CheckoutCustomerService(repository, brevoNotifier, otpService, recognitionService, persistenceService, emailSender);
-  const shipService = new CheckoutShippingService(repository, custService);
+  const shipService = new CheckoutShippingService(repository, custService, localShippingQuotes(), undefined, undefined, localCheckoutScope(repository));
   const offerService = new CheckoutOfferService(repository);
   return createSendChatUseCase(repository, {
     conversation,

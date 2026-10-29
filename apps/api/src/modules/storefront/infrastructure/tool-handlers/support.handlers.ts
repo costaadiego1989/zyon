@@ -16,8 +16,9 @@ export function createSupportHandlers(deps: SupportHandlerDeps, ctx: ToolRequest
         select: { faqItems: true },
       }).catch(() => null);
       const merchantFaq = Array.isArray(settings?.faqItems) ? settings.faqItems as Array<{ question: string; answer: string }> : [];
-      const { DEFAULT_SUPPORT_FAQ } = await import("../../../support/domain/defaults/support-faq.defaults.js");
-      const faqs = merchantFaq.length > 0 ? merchantFaq : DEFAULT_SUPPORT_FAQ;
+      // Generic example answers are not this merchant's shipping, payment or
+      // returns policy. Only publish answers configured by the merchant.
+      const faqs = merchantFaq;
       return { faqs: args.category ? faqs.slice(0, 3) : faqs };
     },
 

@@ -163,7 +163,7 @@ export class PrismaProductRepository implements ProductRepositoryPort {
     const findArgs: Prisma.ProductFindManyArgs = {
       where,
       take: limit,
-      orderBy: { createdAt: "desc" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
       include: {
         variants: { include: { price: true, stock: true, media: { orderBy: { order: "asc" } } } },
       },

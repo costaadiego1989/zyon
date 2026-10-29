@@ -353,7 +353,7 @@ export function buildConversationBlocks(input: BuildBlocksInput): BuildBlocksRes
   }
 
   const wishlistData = (toolResults["remove_from_wishlist"] ?? toolResults["add_to_wishlist"] ?? toolResults["get_wishlist"]) as any;
-  if (wishlistData && Array.isArray(wishlistData.items)) {
+  if (wishlistData && Array.isArray(wishlistData.items) && wishlistData.items.length > 0) {
     blocks.push({
       type: "wishlist",
       data: { items: wishlistData.items },

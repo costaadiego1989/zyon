@@ -112,3 +112,26 @@ test("SupportHandoffService publishes ticket.created without persisting when no 
   assert.equal((await tickets.list("mrc_1")).length, 1);
   assert.match(result.reply, /Referência: /);
 });
+
+test("reusing an owned open case preserves new intake text once and emits its message event without another case", async () => {
+  const now = new Date();
+  const ticket = { id: "owned-ticket", merchantId: "merchant-a", sessionId: "conversation-a", buyerId: "buyer-a", buyerMessage: "Solicitação de atendimento humano", status: "open", createdAt: now, updatedAt: now };
+  const messages: any[] = [{ id: "first", ticketId: ticket.id, content: "Falar com Humano", senderType: "buyer", createdAt: now }];
+  const events: any[] = [];
+  const tx = {
+    $queryRaw: async () => [],
+    supportTicket: { findFirst: async ({ where }: any) => { assert.equal(where.merchantId, "merchant-a"); assert.deepEqual(where.OR, [{ buyerId: "buyer-a" }, { sessionId: "conversation-a", buyerId: null }]); return ticket; },
+      create: async () => assert.fail("must not create another ticket"), update: async () => ticket },
+    supportTicketMessage: {
+      findFirst: async ({ where, orderBy }: any) => messages.filter(message => message.ticketId === where.ticketId && (!where.content || where.content === message.content)).at(orderBy ? -1 : 0) ?? null,
+      create: async ({ data }: any) => { const message = { id: `message-${messages.length}`, ...data }; messages.push(message); return message; },
+    },
+    outboxMessage: { upsert: async ({ create }: any) => { events.push(create); return create; } },
+  };
+  const handoff = new SupportHandoffService({} as any, { publishCreated: () => assert.fail("must not republish ticket creation") } as any, { $transaction: async (work: any) => work(tx) } as any);
+  const request = { merchantId: "merchant-a", sessionId: "conversation-a", buyerId: "buyer-a", buyerMessage: "O pedido não chegou", initialMessage: "O pedido não chegou" };
+  for (let retry = 0; retry < 2; retry++) assert.equal((await handoff.createHandoff(request)).ticketId, ticket.id);
+  assert.equal(messages.length, 2); assert.equal(messages[1].content, request.initialMessage);
+  assert.equal(events.length, 1); assert.equal(events[0].eventType, "support.case.changed");
+  assert.equal(events[0].merchantId, "merchant-a"); assert.equal(events[0].payload.event, "message");
+});

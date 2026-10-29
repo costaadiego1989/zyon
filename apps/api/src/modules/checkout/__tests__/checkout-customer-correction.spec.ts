@@ -1,6 +1,7 @@
 import assert from "node:assert/strict";
 import test from "node:test";
 import { checkoutSession } from "./checkout-test-fixtures.js";
+import { localCheckoutScope } from "./local-checkout-scope.fixture.js";
 import { InMemoryCheckoutRepository } from "../infrastructure/repositories/in-memory-checkout.repository.js";
 import { DeterministicConversationAdapter } from "../infrastructure/adapters/deterministic-conversation.adapter.js";
 import { CheckoutCustomerService } from "../application/services/checkout-customer.service.js";
@@ -33,7 +34,7 @@ function setup() {
     undefined,
     emailSender as never,
   );
-  const useCase = createSendChatUseCase(repository, { customerService, conversation: new DeterministicConversationAdapter(), shippingService: new CheckoutShippingService(repository, customerService), offerService: new CheckoutOfferService(repository) });
+  const useCase = createSendChatUseCase(repository, { customerService, conversation: new DeterministicConversationAdapter(), shippingService: new CheckoutShippingService(repository, customerService, undefined, undefined, undefined, localCheckoutScope(repository)), offerService: new CheckoutOfferService(repository) });
   const send = (user_message: string) => useCase.execute({ merchant_id: "mrc_1", session_id: "chk_1", conversation_id: "conv_1", user_message });
   const current = () => repository.getSession("mrc_1", "chk_1")!;
   return { repository, send, current, sent };

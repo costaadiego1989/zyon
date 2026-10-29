@@ -75,6 +75,13 @@ export class SupportHandoffService {
         const first = await tx.supportTicketMessage.findFirst({ where: { ticketId: previous.id }, select: { id: true } });
         if (!first) await persistSupportMessage(tx, { merchantId: candidate.merchantId, ticketId: previous.id,
           senderType: "buyer", content: previous.buyerMessage });
+        // Reusing an active case must preserve a newly supplied intake message.
+        // The same open-case lock serializes retries; identical intake text is
+        // recorded once without creating a second case or creation notification.
+        const initial = input.initialMessage?.trim();
+        if (initial && !await tx.supportTicketMessage.findFirst({ where: { ticketId: previous.id, senderType: "buyer", content: initial }, select: { id: true } })) {
+          await persistSupportMessage(tx, { merchantId: candidate.merchantId, ticketId: previous.id, senderType: "buyer", content: initial });
+        }
         return { created: false, ticket: { ...candidate, id: previous.id, buyerMessage: previous.buyerMessage,
           status: previous.status as "open" | "in_progress", createdAt: previous.createdAt.toISOString(), updatedAt: previous.updatedAt.toISOString() } };
       }
