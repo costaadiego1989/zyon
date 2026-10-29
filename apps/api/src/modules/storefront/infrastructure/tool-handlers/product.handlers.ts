@@ -8,7 +8,6 @@ import type { PrismaClient } from "@prisma/client";
 import type { ProductPromotionEntity } from "../../../catalog/domain/ports/product-promotion-repository.port.js";
 import type { StorefrontCart } from "../../domain/ports/storefront-cart.port.js";
 import { applyProductPromoPricing } from "../../application/services/storefront-cart-promo.pricing.js";
-import { selectBestProductPromotion } from "../../../catalog/domain/services/best-product-promotion.service.js";
 import { loadCartCosts } from "../../application/services/reevaluate-cart-rules.js";
 import { extractOptionGroups } from "../../domain/food-options.js";
 import { isDigitalContentReady } from "../../../catalog/domain/services/product-type-validation.js";
@@ -368,10 +367,8 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             { rules: merchantRules, costsByVariant: costs });
           const badge = meta.get(variant.id);
           if (!badge) continue;
-          const selected = selectBestProductPromotion({ merchantId: ctx.merchantId, variantId: variant.id,
-            productId: p.id, categoryId: p.categoryId, baseUnitPriceCents: base, promotions: promos, now });
-          const promotion = !badge.coupon && selected.promotionId
-            ? promos.find(row => row.id === selected.promotionId) : undefined;
+          const promotion = !badge.coupon && badge.promotionId
+            ? promos.find(row => row.id === badge.promotionId) : undefined;
           // Coupon-linked promotions remain badges only, never an inline grant.
           deals.push({
             id: p.id, name: p.name, price: quote.items[0]!.unitPriceCents,

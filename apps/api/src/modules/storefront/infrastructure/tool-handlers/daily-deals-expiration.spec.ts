@@ -9,7 +9,7 @@ const promotion = (id: string, discountValue: number, patch: Record<string, unkn
   startsAt: new Date(0), endsAt: new Date("2099-01-01T00:00:00Z"), ...patch,
 });
 
-function fixture(promotions: ReturnType<typeof promotion>[]) {
+function fixture(promotions: ReturnType<typeof promotion>[], beforePricing?: () => void) {
   const variant = { id: "variant", sku: "QA", basePriceInCents: 10000, attributes: {}, media: [] };
   const product = { id: "product", name: "QA", isActive: true, hasStock: true,
     defaultVariant: variant, variants: [variant] };
@@ -23,8 +23,11 @@ function fixture(promotions: ReturnType<typeof promotion>[]) {
         assert.equal(args.where.isActive, true);
         return promotions;
       } },
-      productPrice: { findMany: async () => [{ variantId: "variant", basePriceInCents: 10000, costInCents: 1000,
-        variant: { productId: "product", product: { categoryId: null } } }] },
+      productPrice: { findMany: async () => {
+        beforePricing?.();
+        return [{ variantId: "variant", basePriceInCents: 10000, costInCents: 1000,
+          variant: { productId: "product", product: { categoryId: null } } }];
+      } },
     },
   } as any, ctx);
   return { handlers, product };
@@ -51,4 +54,16 @@ test("daily deal exposes the selected promotion's expiry without changing catalo
 test("daily deal with no eligible promotion does not advertise an expiry or price reduction", async () => {
   const { handlers } = fixture([promotion("expired", 90, { endsAt: new Date(1) }), promotion("inactive", 90, { isActive: false })]);
   assert.deepEqual(await handlers.getDailyDeals({}), { deals: [] });
+});
+
+test("expiry follows the promotion actually priced when the original winner expires during a read", async t => {
+  const start = Date.parse("2026-10-29T18:00:00Z");
+  t.mock.timers.enable({ apis: ["Date"], now: start });
+  const { handlers } = fixture([
+    promotion("expires-during-read", 10, { endsAt: new Date(start + 1000) }),
+    promotion("still-valid", 5),
+  ], () => t.mock.timers.tick(2000));
+  const result = await handlers.getDailyDeals({});
+  assert.equal(result.deals[0]?.price, 9500);
+  assert.equal(result.deals[0]?.expiresAt, "2099-01-01T00:00:00.000Z");
 });
