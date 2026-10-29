@@ -12,6 +12,8 @@ import { createSalesSearchPolicy } from "../../domain/services/sales-search-poli
 import { buildMetaUiView } from "../../../whatsapp-channel/domain/ui/meta-ui-renderer.js";
 import { executeStorefrontUiAction } from "./storefront-ui-action.executor.js";
 import { conversationBlockSchema } from "../../domain/contracts/conversation-block.schemas.js";
+import { ensureProductDiscovery } from "./product-discovery-fallback.js";
+import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../../domain/contracts/shopping-search-plan.schemas.js";
 
 const createAllowedScopeAgent = (deps: Parameters<typeof createScopeAgent>[0]) => createScopeAgent(deps, { domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", requiresTool: true, needsProductDiscovery: true });
 const usage = { promptTokens: 10, completionTokens: 10, totalTokens: 20 };
@@ -198,5 +200,43 @@ test("real tool loop carries LLM JSON plan through the shared handler and termin
     assert.match(result.message, /Não encontrei produtos disponíveis/);
     assert.ok(!JSON.stringify(result).includes("PRIVATE_UNSTRUCTURED_MODEL_PROSE"));
     assert.deepEqual(result.toolsUsed, ["search_products"]);
+  }
+});
+
+test("structured discovery requires a plan on the wire and can repair a missing read plan without lexical shipping searches", async () => {
+  let calls = 0, reads = 0;
+  const canonical = handlersWith(async () => { reads++; throw Error("shipping_capability_is_not_a_lexical_search"); });
+  const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: canonical as never,
+    provider: { chat: async (request: any) => {
+      calls++;
+      const search = request.tools?.find((tool: any) => tool.function.name === "search_products");
+      assert.ok(search.function.parameters.required.includes("criteria"));
+      if (calls === 1) return { content: "", toolCalls: [{ id: "missing-plan", name: "search_products",
+        args: { query: "frete grátis CEP 20040-020" } }], usage };
+      assert.ok(request.messages.some((item: any) => item.role === "tool" && item.content.includes("shopping_search_plan_required")));
+      return { content: "", toolCalls: [{ id: "valid-plan", name: "search_products", args: { query: "*",
+        criteria: plan({ delivery: { freeOnly: true, zipCode: "20040020" } }) } }], usage };
+    } } as never });
+  const result = await agent.run({ ...base, userMessage: "Mostre produtos com frete grátis para o CEP 20040-020", history: [] });
+  assert.equal(calls, 2); assert.equal(reads, 0);
+  assert.match(result.message, /não consigo verificar frete por produto/);
+  assert.equal(result.safetyValidation.safe, true);
+  assert.equal(result.routing.structuredSearchRequired, true);
+});
+
+test("missing structured plans never claim zero matches or trigger a legacy catalog fallback", async () => {
+  for (const callTool of [false, true]) {
+    let reads = 0;
+    const canonical = handlersWith(async () => { reads++; throw Error("unplanned_search_forbidden"); });
+    const agent = createAllowedScopeAgent({ structuredRouting: true, toolHandlers: canonical as never,
+      provider: { chat: async () => callTool
+        ? { content: "", toolCalls: [{ id: "missing-plan", name: "search_products", args: { query: "frete grátis" } }], usage }
+        : { content: JSON.stringify({ schemaVersion: 1, message: "Não encontrei produtos correspondentes." }), usage } } as never });
+    const input = { ...base, userMessage: "Mostre produtos com frete grátis para o CEP 20040-020", history: [] };
+    const result = await agent.run(input);
+    const final = await ensureProductDiscovery(result, { ...input, handlers: canonical as never,
+      discoveryDecision: result.routing.needsProductDiscovery, structuredSearchRequired: result.routing.structuredSearchRequired });
+    assert.equal(reads, 0); assert.equal(final.message, SHOPPING_SEARCH_PLAN_UNCONFIRMED);
+    assert.deepEqual(final.blocks, []);
   }
 });

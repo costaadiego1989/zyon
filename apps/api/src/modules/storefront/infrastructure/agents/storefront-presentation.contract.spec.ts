@@ -107,6 +107,7 @@ test("structured discovery keeps a carousel for a single match despite detail ke
 
 test("structured agent propagates presentation mode without extra classification call", async () => {
   let calls = 0;
+  const criteria = { version: 1, query: "algo", attributes: [], unsupportedCriteria: [] };
   const usage = { promptTokens: 1, completionTokens: 1, totalTokens: 2 };
   const agent = new StorefrontLangGraphAgent({ structuredRouting: true, provider: { chat: async (request: OpenRouterChatRequest) => {
     calls++;
@@ -114,12 +115,14 @@ test("structured agent propagates presentation mode without extra classification
       content: JSON.stringify({ schemaVersion: 1, verdict: "ALLOW", confidence: 1 }), usage, finishReason: "stop",
     };
     if (calls === 1) return { content: JSON.stringify({ schemaVersion: 2, domain: "STORE_COMMERCE", intent: "PRODUCT_SEARCH", confidence: 0.9, requiresTool: true, needsProductDiscovery: true }), usage };
-    if (calls === 2) return { content: "", toolCalls: [{ id: "search", name: "search_products", args: { query: "algo" } }], usage };
+    if (calls === 2) return { content: "", toolCalls: [{ id: "search", name: "search_products", args: { query: "algo", criteria } }], usage };
     return { content: '{"schemaVersion":1,"message":"Confira as opções."}', usage };
-  } } as never, toolHandlers: { searchProducts: async () => ({ products: [product] }) } as never });
+  } } as never, toolHandlers: { searchProducts: async () => ({ products: [product], searchEvidence: {
+    version: 1, status: "verified", appliedPlan: criteria, message: "Confira as opções.", unconfirmedPreferences: [],
+  } }) } as never });
   const output = await agent.run({ merchantId: "store", sessionId: "cart", history: [], storeCategory: "others", userMessage: "Detalhes do produto" });
   assert.equal(output.blocks[0].type, "product_carousel");
-  assert.equal(calls, 4);
+  assert.equal(calls, 2);
 });
 
 test("adapter preserves clarification suppression without stale structured catalog choices", async () => {

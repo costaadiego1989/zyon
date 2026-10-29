@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+export const SHOPPING_SEARCH_PLAN_UNCONFIRMED = "🔎 Não consegui confirmar uma busca válida para esses critérios. Ainda não verifiquei quais produtos atendem. Podemos reformular a consulta?";
+
 const cents = z.number().int().nonnegative().max(1_000_000_000);
 const attribute = z.strictObject({
   name: z.string().trim().min(1).max(80),

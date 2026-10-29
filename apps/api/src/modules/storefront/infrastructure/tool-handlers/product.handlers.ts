@@ -54,6 +54,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
       // conversion. A model sending 100 for R$100 must not silently mean R$1.
       const maxPrice = args.lookupOnly ? undefined : plan ? plan.maxPriceCents : salesSearchMaxPrice(ctx.userMessage ?? "") ?? args.maxPrice;
       const query = args.lookupOnly ? args.criteria?.query ?? args.query : plan ? plan.query : contextualProductQuery(args.query, ctx.userMessage);
+      const sortBy = plan?.sortBy ?? (args.sortBy !== "best_sellers" && args.sortBy !== "discount" ? args.sortBy : undefined);
       const contextual = !!query && contextualSearchGroups(query).length > 0;
       const result = await deps.productRepo.search({
         merchantId: ctx.merchantId,
@@ -63,7 +64,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
         maxPriceCents: maxPrice,
         ...(!args.lookupOnly && (plan?.minPriceCents ?? args.minPrice) !== undefined ? { minPriceCents: plan?.minPriceCents ?? args.minPrice } : {}),
         ...(!args.lookupOnly && (plan?.minRating ?? args.minRating) !== undefined ? { minRating: plan?.minRating ?? args.minRating } : {}),
-        ...(!args.lookupOnly && (plan?.sortBy ?? args.sortBy) ? { sortBy: plan?.sortBy ?? args.sortBy } : {}),
+        ...(!args.lookupOnly && sortBy ? { sortBy } : {}),
         ...(plan ? { attributes: plan.attributes.filter(item => item.priority === "required").map(({ priority: _priority, ...item }) => item), currency: "BRL" as const } : {}),
         inStockOnly: args.lookupOnly ? false : plan ? true : args.inStockOnly,
         isActiveOnly: true,

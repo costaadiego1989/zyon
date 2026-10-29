@@ -7,14 +7,17 @@ import { createSalesSearchPolicy } from "../../domain/services/sales-search-poli
 import { hasCareProfile, salesRecommendationContext } from "../../domain/services/sales-recommendation-intent.js";
 import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
+import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../../domain/contracts/shopping-search-plan.schemas.js";
 
 /** Consultative discovery and bounded catalog policy remain behind the server
  * domain decision; clarification is never replaced by a product dump. */
 export async function ensureProductDiscovery<T extends { message: string; blocks: ConversationBlock[]; toolsUsed: string[]; discoveryQuestion?: SalesDiscoveryQuestion }>(
   result: T, input: { userMessage: string; merchantId: string; handlers: StoreToolHandlers;
-    history?: Array<{ role: "user" | "assistant"; content: string }>; discoveryDecision?: boolean },
+    history?: Array<{ role: "user" | "assistant"; content: string }>; discoveryDecision?: boolean; structuredSearchRequired?: boolean },
 ): Promise<T> {
   if (result.toolsUsed.length || result.blocks.length || input.discoveryDecision === false) return result;
+  if (input.structuredSearchRequired && !result.discoveryQuestion)
+    return { ...result, message: SHOPPING_SEARCH_PLAN_UNCONFIRMED };
   // A positive server-owned semantic decision also covers explicit catalog
   // navigation, which must not become a sales interview. This flag never comes
   // from browser text and cannot authorize a commercial mutation.

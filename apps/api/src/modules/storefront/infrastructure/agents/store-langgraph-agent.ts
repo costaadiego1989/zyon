@@ -44,6 +44,7 @@ import { storefrontPreparedContextSchema } from "../../domain/contracts/storefro
 import type { OneBuyClickConversationContext } from "../../domain/ports/conversation.port.js";
 import { reviewStorefrontReply, type StorefrontReviewBudget } from "../copy/storefront-semantic-review.js";
 import { storefrontToolOutputSchemas } from "../../domain/contracts/storefront-tool-output.schemas.js";
+import { SHOPPING_SEARCH_PLAN_UNCONFIRMED } from "../../domain/contracts/shopping-search-plan.schemas.js";
 
 export interface StorefrontAgentCallbacks {
   onToken?: (token: string) => void;
@@ -103,6 +104,7 @@ export interface StorefrontAgentResult {
     domain?: StructuredIntentResult["classification"]["domain"];
     source?: "structured" | "fallback";
     needsProductDiscovery?: boolean;
+    structuredSearchRequired?: boolean;
     intent: StoreAgentIntent;
     confidence: number;
     modelTier: "fast" | "strong";
@@ -270,6 +272,7 @@ export class StorefrontLangGraphAgent {
     let discoveryQuestion: SalesDiscoveryQuestion | undefined;
     const history = salesDiscoveryHistory(input.history, input.userMessage);
     const productDiscovery = semantic.classification.needsProductDiscovery === true;
+    const structuredSearchRequired = this.structuredRouting && productDiscovery;
     const discoveryRounds = countSalesDiscoveryRounds(history.slice(-10));
     const canDiscover = productDiscovery && allowsSalesDiscovery(input.userMessage, input.attachmentContext)
       && discoveryRounds < MAX_SALES_DISCOVERY_ROUNDS;
@@ -279,20 +282,25 @@ export class StorefrontLangGraphAgent {
     const needsDiscovery = canDiscover && (needsPriceDiscovery || isUnspecifiedShoppingRequest(input.userMessage) || isBroadShoppingRequest(input.userMessage));
     const profileReady = !needsDiscovery && hasCareProfile(salesRecommendationContext(input.userMessage, history));
     const canAsk = canDiscover && !profileReady;
-    const tools = buildStoreTools();
+    const tools = buildStoreTools().map(tool => !structuredSearchRequired || tool.name !== "search_products" ? tool : {
+      ...tool, parameters: { ...tool.parameters, required: [...new Set([...(tool.parameters.required ?? []), "criteria"])] },
+    });
     const turnTools = needsDiscovery ? [ASK_PRODUCT_PREFERENCES]
       : canAsk ? [...tools, ASK_PRODUCT_PREFERENCES] : tools;
 
     const cartPolicy = createCartTurnPolicy(input.userMessage, input.attachmentContext, input.cartId || input.sessionId);
-    const searchPolicy = createSalesSearchPolicy(input.userMessage, history.slice(-10), input.attachmentContext, productDiscovery);
+    const searchPolicy = createSalesSearchPolicy(input.userMessage, history.slice(-10), input.attachmentContext, productDiscovery && !structuredSearchRequired);
     const requestHandlers = input.toolHandlers ?? this.defaultToolHandlers;
-    const turnHandlers = productDiscovery ? requestHandlers : new Proxy(requestHandlers, {
+    const turnHandlers = productDiscovery && !structuredSearchRequired ? requestHandlers : new Proxy(requestHandlers, {
       get(target, property, receiver) {
         const value = Reflect.get(target, property, receiver);
         // Tool schemas have already rejected caller-controlled internal fields.
         // This server-owned flag changes only read lookup semantics, never auth.
-        return property === "searchProducts" ? (args: Parameters<StoreToolHandlers["searchProducts"]>[0]) =>
-          value({ ...args, lookupOnly: true }) : value;
+        return property === "searchProducts" ? async (args: Parameters<StoreToolHandlers["searchProducts"]>[0]) => {
+          if (structuredSearchRequired && !args.criteria) return { error: "shopping_search_plan_required",
+            message: "Informe criteria version 1 com todos os requisitos separados da query. A busca ainda não foi executada." };
+          return value(productDiscovery ? args : { ...args, lookupOnly: true });
+        } : value;
       },
     });
     const commerceTools = searchPolicy.wrap(cartPolicy.wrap(buildExecutableStoreTools({
@@ -574,6 +582,8 @@ export class StorefrontLangGraphAgent {
     if (discoveryQuestion) finalContent = discoveryQuestion.question;
     else if (searchPolicy.recommendationMessage) finalContent = searchPolicy.recommendationMessage;
     else if (searchPolicy.terminalMessage) finalContent = searchPolicy.terminalMessage;
+    if (structuredSearchRequired && !canonicalSearchComplete && toolsUsed.includes("search_products") && !discoveryQuestion)
+      finalContent = SHOPPING_SEARCH_PLAN_UNCONFIRMED;
     const built = buildConversationBlocks({ toolResults: cartPolicy.sanitizeResults(toolResults), userMessage: input.userMessage, finalContent, merchantId: input.merchantId,
       searchPurpose: productDiscovery ? "discovery" : "lookup",
       presentationMode: this.structuredRouting ? "structured" : "legacy" });
@@ -697,6 +707,7 @@ export class StorefrontLangGraphAgent {
       routing: {
         source: semantic.source, domain: semantic.classification.domain,
         needsProductDiscovery: productDiscovery && !discoveryQuestion,
+        structuredSearchRequired,
         intent: intentResult.intent,
         confidence: intentResult.confidence,
         modelTier,
