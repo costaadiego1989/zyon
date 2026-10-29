@@ -5,12 +5,12 @@ export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversa
   const key = label.trim().normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase();
   const tool = (name: string, args: Record<string, unknown> = {}): StoreUiAction => ({ kind: "tool", tool: name, args });
   if (["ver produtos", "continuar comprando"].includes(key)) return tool("search_products", { query: "*" });
-  if (key === "encontrar produto") return { kind: "message", message: "Encontrar produto" };
+  if (["encontrar produto", "encontrar um produto"].includes(key)) return { kind: "message", message: "Encontrar produto" };
   if (key === "ver carrinho") return tool("get_cart");
   if (["finalizar compra", "finalizar pedido", "continuar checkout"].includes(key)) return tool("checkout");
   if (state.stage !== "store") return;
   if (key === "categorias") return tool("list_categories");
-  if (key === "ofertas") return tool("get_daily_deals");
+  if (["ofertas", "ofertas do dia", "categorias em promocao"].includes(key)) return tool("get_daily_deals");
   if (["lista de desejos", "ver lista"].includes(key)) return tool("get_wishlist");
   const wishlist = state.view?.blocks.find(block => block.type === "wishlist");
   if (wishlist) {
