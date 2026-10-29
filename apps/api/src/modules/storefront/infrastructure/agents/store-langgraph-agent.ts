@@ -49,6 +49,7 @@ import { withStorefrontReplyContract } from "./storefront-reply-contract.js";
 import { planStorefrontShopping } from "../ai/structured-shopping-planner.js";
 import type { ShoppingSearchPlan } from "../../domain/contracts/shopping-search-plan.schemas.js";
 import { callStorefrontTool } from "../../domain/tools/call-storefront-tool.js";
+import { hasFractionalCartQuantity, FRACTIONAL_CART_QUANTITY_MESSAGE } from "../../domain/services/cart-quantity-input.js";
 
 export interface StorefrontAgentCallbacks {
   onToken?: (token: string) => void;
@@ -240,6 +241,21 @@ export class StorefrontLangGraphAgent {
           intent, confidence: semantic.classification.confidence, modelTier,
           modelUsed: modelTier === "fast" ? this.fastModel : this.strongModel },
         safetyValidation: { safe: validation.safe, reason: validation.reason },
+      } };
+    }
+    if (hasFractionalCartQuantity(captured.userMessage)) {
+      // Invalid mutation input needs no catalog/price read and no model retry.
+      // Keep the mandatory-read guard intact for unanswered factual questions.
+      recordStorefrontDecision("agent", "rejected", "invalid_input");
+      captured.callbacks?.onToken?.(FRACTIONAL_CART_QUANTITY_MESSAGE);
+      const intent = semantic.classification.intent;
+      const modelTier = getModelForIntent(intent);
+      return { allowed: false, result: {
+        message: FRACTIONAL_CART_QUANTITY_MESSAGE, blocks: [], toolsUsed: [], cartId: captured.cartId,
+        usage: { ...semantic.usage }, routing: { source: semantic.source, domain: semantic.classification.domain,
+          needsProductDiscovery: false, intent, confidence: semantic.classification.confidence,
+          modelTier, modelUsed: modelTier === "fast" ? this.fastModel : this.strongModel },
+        safetyValidation: { safe: true },
       } };
     }
     if (!this.costTracker.canAfford(0.01)) {
