@@ -345,7 +345,7 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             createdAt: true, updatedAt: true },
         });
       } catch { promos = []; }
-      const deals: Array<{ id: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; images: string[]; inStock: boolean; coupon?: boolean; expiresAt?: string }> = [];
+      const deals: Array<{ id: string; variantId: string; name: string; price: number; originalPrice?: number; discountPercent?: number; image?: string; images: string[]; inStock: boolean; coupon?: boolean; expiresAt?: string; expiresAtFormatted?: string }> = [];
       if (!promos.length) return { deals };
       const merchantRules = await readExistingMerchantRules(deps.merchantRepo, ctx.merchantId).catch(() => undefined);
       if (!merchantRules) return { deals };
@@ -371,10 +371,12 @@ export function createProductHandlers(deps: ProductHandlerDeps, ctx: ToolRequest
             ? promos.find(row => row.id === badge.promotionId) : undefined;
           // Coupon-linked promotions remain badges only, never an inline grant.
           deals.push({
-            id: p.id, name: p.name, price: quote.items[0]!.unitPriceCents,
+            id: p.id, variantId: variant.id, name: p.name, price: quote.items[0]!.unitPriceCents,
             ...productGallery(p), inStock: p.hasStock,
             ...(badge.coupon ? { coupon: true } : { originalPrice: badge.originalPriceCents, discountPercent: badge.discountPercent }),
-            ...(promotion ? { expiresAt: promotion.endsAt.toISOString() } : {}),
+            ...(promotion ? { expiresAt: promotion.endsAt.toISOString(),
+              expiresAtFormatted: `${new Intl.DateTimeFormat("pt-BR", { timeZone: "America/Sao_Paulo",
+                day: "2-digit", month: "2-digit", year: "numeric", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).format(promotion.endsAt)} (horário de Brasília)` } : {}),
           });
           if (deals.length >= limit) break;
         } catch { /* No authorized price => no deal to advertise. */ }

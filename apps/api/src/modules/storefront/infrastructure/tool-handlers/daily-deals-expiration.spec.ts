@@ -45,6 +45,8 @@ test("daily deal exposes the selected promotion's expiry without changing catalo
   assert.equal(result.deals.length, 1);
   assert.equal(result.deals[0]?.price, 9000);
   assert.equal(result.deals[0]?.expiresAt, "2099-01-01T00:00:00.000Z");
+  assert.equal(result.deals[0]?.variantId, "variant");
+  assert.equal(result.deals[0]?.expiresAtFormatted, "31/12/2098, 21:00 (horário de Brasília)");
   const validated = validateStorefrontToolOutput("get_daily_deals", result);
   assert.equal(validated.ok, true);
   if (validated.ok) assert.equal((validated.data as any).deals[0].expiresAt, result.deals[0]?.expiresAt);

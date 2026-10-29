@@ -246,7 +246,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
       case "add_review": text.push(`Qual nota de 1 a 5 você dá a ${value(d.productName)}? Conte também como foi sua experiência.`); break;
       case "coupon_list":
         items(d.coupons).forEach(c => add(value(c.code), tool("apply_coupon", { couponCode: c.code }), value(c.description)));
-        if (d.progressive) text.push(value(d.progressive.description)); break;
+        if (d.progressive) text.push(`🎟️ *Condições de desconto*\n\n• ${value(d.progressive.description)}\n\n_A elegibilidade é conferida no checkout._`); break;
       case "quick_replies":
         if (Array.isArray(d.options)) d.options.forEach((label: unknown) => add(value(label), { kind: "message", message: value(label) })); break;
       case "product_content":
