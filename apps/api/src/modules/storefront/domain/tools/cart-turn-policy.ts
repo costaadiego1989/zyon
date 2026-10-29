@@ -58,6 +58,40 @@ function normalize(value: string) {
   return value.normalize("NFD").replace(/[\u0300-\u036f]/g, "").toLowerCase().trim();
 }
 
+const addCommand = /^(?:adicionar|adicione|adiciona|colocar|coloque|coloca|incluir|inclua|inclui|botar|bota)\b/;
+const commandPrefix = /^(?:por favor[,\s]+|(?:voce\s+)?(?:pode|poderia)\s+(?:por favor\s+)?|(?:eu\s+)?(?:quero|desejo)\s+|(?:eu\s+)?gostaria de\s+)/;
+const cartMutationVerb = /\b(?:adicionar|adicione|adiciona|colocar|coloque|coloca|incluir|inclua|inclui|botar|bota|remover|remova|retirar|retire|excluir|exclua|limpar|limpe|esvaziar|esvazie|alterar|altere|mudar|mude|atualizar|atualize|aumentar|aumente|diminuir|diminua|aplicar|aplique|usar|use|mexer|mexa)\b/;
+
+/** A checkout/payment prohibition does not revoke a separate explicit add.
+ * This narrow grammar grants only add, never checkout or another cart write.
+ * Unknown negation, conditions and attachment-derived text still fail closed. */
+function explicitAdd(message: string): { quantity?: number } | undefined {
+  const normalized = normalize(message.replace(/\[(?:variantId|optionItemIds|crossSellPromoId|serviceSlotId):[^\]]*\]/gi, ""));
+  if (/```|(?:^|\n)\s*[>"`]|\b(?:exemplo|hipotetic\w*|traduza|traduzir|repita|cite|copie|diga)\b/.test(normalized)) return undefined;
+  const clauses = normalized.split(/(?<=[.!?;])\s+|\n+|\s*,?\s+\b(?:mas|porem|contudo)\b\s*|\s+(?:e\s+)?(?=(?:nao|nem|nunca|jamais)\b)|\s+(?=sem\s+(?:finalizar|concluir|cobrar|pagar|gerar|abrir|iniciar)\b)/)
+    .map(clause => clause.trim()).filter(Boolean);
+  let selected: { quantity?: number } | undefined;
+  for (let clause of clauses) {
+    if (/\b(?:nao|nem|nunca|jamais)\b/.test(clause) || /^sem\b/.test(clause)) {
+      if (!/^(?:nao|nem|nunca|jamais|sem)\s+(?:finaliz(?:ar|e)|conclu(?:ir|a)|cobr(?:ar|e)|pag(?:ar|ue)|ger(?:ar|e)|abr(?:ir|a)|inici(?:ar|e))\b/.test(clause)
+        || cartMutationVerb.test(clause)) return undefined;
+      continue;
+    }
+    if (/\b(?:talvez|depois|antes|caso|se|pesquisando|comparando)\b/.test(clause)
+      || /\blista de desejos\b/.test(clause) || isUnspecifiedShoppingRequest(clause)) return undefined;
+    // Politeness can precede the actual command; a product statement alone
+    // never reaches this match and cannot supply write authority.
+    for (let prefix = 0; prefix < 2; prefix++) clause = clause.replace(commandPrefix, "");
+    if (!addCommand.test(clause) || !/\bcarrinho\b/.test(clause)) continue;
+    if (selected) return undefined; // Multiple adds need a new reviewed choice.
+    const count = clause.match(/(?:^|\s)(-?\d+(?:[.,]\d+)?|um|uma|dois|duas|tres|quatro|cinco|seis|sete|oito|nove|dez)\s+(?:unidades?|itens?|produtos?|pecas?)\b/);
+    const words: Record<string, number> = { um: 1, uma: 1, dois: 2, duas: 2, tres: 3, quatro: 4, cinco: 5, seis: 6, sete: 7, oito: 8, nove: 9, dez: 10 };
+    selected = count ? { quantity: words[count[1]!] ?? Number(count[1]) } : {};
+    if (selected.quantity !== undefined && (!Number.isSafeInteger(selected.quantity) || selected.quantity < 1 || selected.quantity > 99)) return undefined;
+  }
+  return selected;
+}
+
 /** This is deliberately a bounded command grammar, not model classification.
  * History, attachment text, product mentions and a bare "sim" never grant a write.
  * Unclear requests can still search/read; the buyer must make a new explicit choice.
@@ -69,14 +103,14 @@ function authorizedWrites(message: string, attachmentContext?: string): Set<stri
   // "Quero comprar um tênis de corrida verde" describes a need, not a selected
   // item. Searching it must not authorize buying a substituted color/profile.
   if (allowsSalesDiscovery(message)) return allowed;
+  if (/\b(?:nao|nunca|jamais|nem|sem)\b[^.!?;\n]{0,80}\b(?:adicionar|adicione|adiciona|colocar|coloque|coloca|incluir|inclua|inclui|botar|bota|comprar|compre|mexer|mexa)\b/.test(normalize(message))) return allowed;
+  if (explicitAdd(message)) { allowed.add("add_item_to_cart"); return allowed; }
   let command = normalize(message.replace(/\[(?:variantId|optionItemIds|crossSellPromoId|serviceSlotId):[^\]]*\]/gi, ""));
   command = command.replace(/^(?:por favor[,\s]+|(?:voce\s+)?(?:pode|poderia)\s+(?:por favor\s+)?|(?:eu\s+)?(?:quero|desejo)\s+|(?:eu\s+)?gostaria de\s+)/, "");
-  if (/\b(?:nao|talvez|depois|antes|caso|se|pesquisando|comparando)\b/.test(command) || /\blista de desejos\b/.test(command)) return allowed;
+  if (/\b(?:nao|nunca|jamais|nem|sem|talvez|depois|antes|caso|se|pesquisando|comparando)\b/.test(command) || /\blista de desejos\b/.test(command)) return allowed;
   if (/^(?:comprar|compre)\b/.test(command)) {
     allowed.add("add_item_to_cart"); allowed.add("create_checkout_session");
-  } else if (/^(?:adicionar|adicione|adiciona|colocar|coloque|coloca|incluir|inclua|inclui|botar|bota)\b/.test(command)
-    && /\bcarrinho\b/.test(command)) allowed.add("add_item_to_cart");
-  else if (/^(?:remover|remova|remove|retirar|retire|tira|excluir|exclua)\b/.test(command) && /\bcupom\b/.test(command)) allowed.add("remove_coupon");
+  } else if (/^(?:remover|remova|remove|retirar|retire|tira|excluir|exclua)\b/.test(command) && /\bcupom\b/.test(command)) allowed.add("remove_coupon");
   else if (/^(?:remover|remova|remove|retirar|retire|tira|excluir|exclua)\b/.test(command) && /\bcarrinho\b/.test(command)) allowed.add("remove_cart_item");
   else if (/^(?:limpar|limpe|esvaziar|esvazie)\b.*\bcarrinho\b/.test(command)) allowed.add("clear_cart");
   else if (/^(?:alterar|altere|mudar|mude|atualizar|atualize|aumentar|aumente|diminuir|diminua)\b/.test(command)
@@ -95,6 +129,7 @@ function errorCode(result: ToolResult): string | undefined {
 
 export function createCartTurnPolicy(message: string, attachmentContext?: string, cartId?: string) {
   const allowed = authorizedWrites(message, attachmentContext);
+  const requestedAdd = explicitAdd(message);
   const bindings = [...message.matchAll(/\[variantId:([A-Za-z0-9_-]{1,191})\]/g)].map(match => match[1]);
   const optionTag = message.match(/\[optionItemIds:([^\]]*)\]/);
   const options = optionTag ? optionTag[1].split(",").filter(Boolean).sort() : [];
@@ -146,6 +181,9 @@ export function createCartTurnPolicy(message: string, attachmentContext?: string
         execute: async (args): Promise<ToolResult> => {
           if (!allowed.has(tool.name)) return denied(tool.name, "cart_action_requires_explicit_request");
           if (terminal) return denied(tool.name, "cart_action_requires_review");
+          if (tool.name === "add_item_to_cart" && requestedAdd?.quantity !== undefined
+            && (requestedAdd.quantity < 1 || requestedAdd.quantity > 99 || (args.quantity ?? 1) !== requestedAdd.quantity))
+            return denied(tool.name, "cart_selection_binding_mismatch");
           // Capture validated detached arguments before execution. No model cart
           // alias or mutable argument object can authorize a different scope.
           if (terminalMutation(tool.name)) {
