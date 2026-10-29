@@ -7,7 +7,8 @@ import { isCompleteBuyerAddress } from "../../../checkout/domain/services/buyer-
 import type { WhatsAppConversationPort } from "../../domain/ports/whatsapp-conversation.port.js";
 
 type VerifiedSender = NonNullable<Parameters<NonNullable<WhatsAppConversationPort["respondStore"]>>[0]["verifiedSender"]>;
-export type WhatsAppBuyerRecognition = { status: "unrecognized" | "ambiguous" } | { status: "recognized"; buyer: TrustedWhatsAppCheckoutBuyer };
+export type VerifiedWhatsAppOwner = { merchantId: string; conversationId: string; phone: string };
+export type WhatsAppBuyerRecognition = ({ status: "unrecognized" | "ambiguous" } | { status: "recognized"; buyer: TrustedWhatsAppCheckoutBuyer }) & { owner?: VerifiedWhatsAppOwner };
 
 /** Account reuse requires the authenticated, leased Meta message, never a body phone hint. */
 @Injectable()
@@ -38,6 +39,7 @@ export class WhatsAppCheckoutIdentityService {
     const payload = message?.payload as { fromNumber?: string; provider?: string } | undefined;
     if (!config || !conversation || payload?.provider !== "META_CLOUD" ||
       payload.fromNumber?.replace(/\D/g, "") !== proof.fromNumber.replace(/\D/g, "")) return noBuyer;
+    const owner = { merchantId: input.merchantId, conversationId: input.conversationId, phone: proof.fromNumber.replace(/\D/g, "") };
     // An email disambiguates accounts already belonging to this verified phone;
     // it never authorizes recognition of an account registered to another phone.
     const hint = input.emailHint?.trim().toLowerCase();
@@ -45,9 +47,9 @@ export class WhatsAppCheckoutIdentityService {
     if (accounts.length > 1 && hint && /^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(hint)) {
       accounts = await this.buyers.findRegisteredByPhones(phones, hint);
     }
-    if (accounts.length > 1) return { status: "ambiguous" };
+    if (accounts.length > 1) return { status: "ambiguous", owner };
     const account = accounts[0];
-    if (!account?.phone || !brazilianPhoneForms(account.phone).some(phone => phones.includes(phone))) return noBuyer;
+    if (!account?.phone || !brazilianPhoneForms(account.phone).some(phone => phones.includes(phone))) return { ...noBuyer, owner };
     const [addresses, preference] = await Promise.all([
       this.prisma.buyerAddress.findMany({ where: { globalUserId: account.globalUserId }, take: 2,
         orderBy: [{ isDefault: "desc" }, { createdAt: "asc" }] }),
@@ -61,7 +63,7 @@ export class WhatsAppCheckoutIdentityService {
     const preferences = preference?.purchasePreferencesConfigured === true &&
       ["cheapest", "fastest"].includes(preference.shippingPreference) && ["pix", "card"].includes(preference.paymentPreference)
       ? { shipping: preference.shippingPreference as "cheapest" | "fastest", payment: preference.paymentPreference as "pix" | "card" } : undefined;
-    return { status: "recognized", buyer: { merchantId: input.merchantId, conversationId: input.conversationId,
+    return { status: "recognized", owner, buyer: { merchantId: input.merchantId, conversationId: input.conversationId,
       globalUserId: account.globalUserId, customer: { fullName: account.displayName, email: account.email,
         cpf: account.cpf, phone: proof.fromNumber.replace(/\D/g, ""), phone_verified: true, email_verified: false,
         recognized_buyer: true, isReturning: true, address, address_verified: isCompleteBuyerAddress(address) }, preferences } };

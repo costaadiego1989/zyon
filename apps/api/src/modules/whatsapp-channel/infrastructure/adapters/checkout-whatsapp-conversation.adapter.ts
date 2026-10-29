@@ -118,8 +118,15 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
       emailHint: emailAnswer ?? identitySession?.customer?.email, verifiedSender: input.verifiedSender }) : undefined;
     const registeredBuyer = recognition?.status === "recognized" ? recognition.buyer : undefined;
     const knownBuyer = verifiedBuyer ?? registeredBuyer;
-    const boundBuyer = verifiedBuyer ?? (registeredBuyer && identitySession?.globalUserId === registeredBuyer.globalUserId &&
-      identitySession.cart.cart_ref === registeredBuyer.conversationId ? registeredBuyer : undefined);
+    // The verified channel also owns an existing guest checkout on this same
+    // phone/cart. Keep its canonical identity when cancelling its original Pix;
+    // never reassign a pending charge to the recognized account.
+    const owner = recognition?.owner;
+    const boundBuyer = verifiedBuyer ?? (owner && identitySession?.merchantId === owner.merchantId &&
+      identitySession.cart.cart_ref === owner.conversationId && identitySession.customer?.phone_verified === true &&
+      identitySession.customer.phone?.replace(/\D/g, "") === owner.phone
+      ? { merchantId: owner.merchantId, conversationId: owner.conversationId, globalUserId: identitySession.globalUserId,
+        customer: { phone: owner.phone, phone_verified: true as const, email_verified: false as const } } : undefined);
     const shopper = knownBuyer ? { ...input.buyer, globalUserId: knownBuyer.globalUserId, fullName: knownBuyer.customer.fullName, email: knownBuyer.customer.email } : input.buyer;
     const firstTurn = state.history.length === 0;
     const greeting = metaWelcomeMessage(config.agentGreeting || `Olá! Sou ${config.agentName || "Zyon"}, sua assistente na ${config.name}.\n\nPosso ajudar você a encontrar produtos, conferir as condições da loja e acompanhar seu pedido.`, config.name, config.agentName || "Zyon");

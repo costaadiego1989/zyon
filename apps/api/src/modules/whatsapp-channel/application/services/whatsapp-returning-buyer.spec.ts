@@ -8,6 +8,7 @@ import { InMemoryCheckoutRepository } from "../../../checkout/infrastructure/rep
 import { checkoutSession } from "../../../checkout/__tests__/checkout-test-fixtures.js";
 import { ReopenEmbedCheckoutUseCase } from "../../../embed/application/reopen-embed-checkout.use-case.js";
 import { CancelPaymentIntentUseCase } from "../../../payment/application/cancel-payment-intent.use-case.js";
+import { paymentCartFingerprint } from "../../../checkout/domain/services/payment-cart-fingerprint.js";
 
 const phone = "5511987654321", email = "buyer@example.test";
 const address = { zip: "01001000", street: "Rua de teste", number: "10", complement: "", neighborhood: "Centro", city: "São Paulo", state: "SP" };
@@ -63,11 +64,11 @@ test("wrong sender in the leased webhook cannot reveal a profile", async () => {
 
 test("two real accounts require an email once; the hint only selects accounts already matching the verified phone", async () => {
   const f = identityFixture(); f.state.accounts.push({ ...account, globalUserId: "other", email: "other@example.test" });
-  assert.deepEqual(await f.service.recognize(input), { status: "ambiguous" });
+  assert.equal((await f.service.recognize(input)).status, "ambiguous");
   const result = await f.service.recognize({ ...input, emailHint: " Buyer@Example.Test " });
   assert.equal(result.status, "recognized"); if (result.status === "recognized") assert.equal(result.buyer.globalUserId, "registered");
   f.state.accounts = [{ ...account, phone: "5511991111111" }];
-  assert.deepEqual(await f.service.recognize({ ...input, emailHint: email }), { status: "unrecognized" });
+  assert.equal((await f.service.recognize({ ...input, emailHint: email })).status, "unrecognized");
 });
 
 test("default saved address wins; unset purchase preferences do not auto-select default cheapest/Pix", async () => {
@@ -211,4 +212,28 @@ test("recognition after a guest Pix already exists does not replace its checkout
     action: { kind: "tool", tool: "checkout", args: {} }, state: { version: 1, conversationId: "cart", checkoutSessionId: old.sessionId,
       stage: "store", history: [], revision: "", page: 0, previousViews: [] } });
   assert.equal(result.state.checkoutSessionId, old.sessionId); assert.match(result.agentMessage, /Pagamento já iniciado/);
+});
+
+test("verified sender may edit its original guest payment without reassigning it to a registered account", async () => {
+  const f = identityFixture(); f.state.accounts = [];
+  const recognition = await f.service.recognize(input);
+  assert.equal(recognition.status, "unrecognized"); assert.equal(recognition.owner?.phone, phone);
+  const old = checkoutSession({ merchantId: "merchant", sessionId: "guest-checkout", globalUserId: "guest",
+    customer: { ...account, fullName: account.displayName, phone_verified: true, email_verified: false, address_verified: true },
+    cart: { currency: "BRL", source: "storefront", cart_ref: "cart", total: 3, items: [{ sku: "test", name: "Teste", price: 3, quantity: 1 }] } });
+  const args: any[] = []; let edits = 0;
+  args[0] = {}; args[1] = { getSession: async () => old }; args[2] = {};
+  args[3] = { executeForMerchant: async () => ({ name: "Loja de teste" }) };
+  args[4] = { getPaymentCapabilities: async () => ({ pix: true }) };
+  args[11] = { recognize: async () => recognition };
+  args[13] = { execute: async (_mid: string, _sid: string, _section: string, owner: any) => {
+    assert.equal(owner.globalUserId, "guest"); assert.equal(owner.customer.email_verified, false);
+    assert.equal(owner.customer.cpf, undefined); edits++;
+    return { experience: { stage: "payment", items: [], copy: { quick_replies: [] } } };
+  } };
+  const adapter: CheckoutWhatsAppConversationAdapter = Reflect.construct(CheckoutWhatsAppConversationAdapter, args);
+  const result = await adapter.respondStore({ ...input, buyer: { globalUserId: "guest", phone }, message: "Trocar pagamento",
+    action: { kind: "tool", tool: "edit_checkout", args: { section: "payment", fingerprint: paymentCartFingerprint(old) } },
+    state: { version: 1, conversationId: "cart", checkoutSessionId: old.sessionId, stage: "checkout", history: [], revision: "", page: 0, previousViews: [] } });
+  assert.equal(edits, 1); assert.equal(result.state.checkoutSessionId, old.sessionId);
 });

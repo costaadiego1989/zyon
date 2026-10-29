@@ -53,11 +53,14 @@ export function formatMetaSpeech(text: string): string {
   const icons: Record<string, string> = {
     "descrição": "📝", "informações do produto": "ℹ️", "perguntas sobre o produto": "💬",
     "avaliações": "⭐", "comparação de produtos": "🔎", "confirme sua conta": "🔐",
-    "converse à vontade": "💬", "resumo do pedido": "🧾", "seu pedido": "🧾",
+    "converse à vontade": "💬", "resumo do pedido": "🧾", "resumo da compra": "🧾", "seu pedido": "🧾",
     "pagamento por pix": "💠", "pagamento seguro": "🔒", "confira o cep": "📍",
   };
   const content = formatMetaConversation(text)
     .replace(/^(\*([^*\n]+)\*)$/gm, (line, heading, label: string) => icons[label.toLocaleLowerCase("pt-BR")] ? `${icons[label.toLocaleLowerCase("pt-BR")]} ${heading}` : line)
+    .replace(/^(Subtotal:)/gm, "🛍️ $1").replace(/^(Frete:)/gm, "🚚 $1")
+    .replace(/^(Descontos:)/gm, "🏷️ $1").replace(/^(Taxa de serviço:)/gm, "ℹ️ $1")
+    .replace(/^(\*Total (?:a pagar|parcial|do pagamento):)/gm, "💳 $1")
     .replace(/^(\*[^*\n]+\*)\n(?=\*R\$)/gm, "📦 $1");
   return content.startsWith("🤖") ? content : `🤖 ${content}`;
 }
@@ -256,7 +259,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
       case "payment_intent":
         text.push(d.amount_cents != null ? `*Total do pagamento: ${money(Number(d.amount_cents) / 100)}*\n\n_O pedido será confirmado após a aprovação do pagamento._` : "_Pagamento pendente de confirmação._");
         if (d.copy_paste) view.media.push({ type: "text", text: { body: value(d.copy_paste) } });
-        if (safeLink(d.ticket_url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "Conclua o pagamento no checkout seguro do provedor." }, action: { name: "cta_url", parameters: { display_text: "Pagar pedido", url: safeLink(d.ticket_url) } } } });
+        if (safeLink(d.ticket_url)) view.media.push({ type: "interactive", interactive: { type: "cta_url", body: { text: "🤖 🔒 *Pagamento seguro*\n\nConclua o pagamento no checkout do provedor." }, action: { name: "cta_url", parameters: { display_text: "Pagar pedido", url: safeLink(d.ticket_url) } } } });
         break;
       case "checkout_summary":
         text.push("*Resumo da compra*");
@@ -264,7 +267,7 @@ export function buildMetaUiView(response: WhatsAppStructuredResponse, options: {
         text.push(`Subtotal: ${money(d.totals?.subtotal)}\nFrete: ${d.shippingPending ? "A calcular" : money(d.totals?.shipping)}${d.totals?.discount ? `\nDescontos: ${money(d.totals.discount)}` : ""}${d.totals?.service_fee ? `\nTaxa de serviço: ${money(d.totals.service_fee)}` : ""}\n*${d.shippingPending ? "Total parcial" : "Total a pagar"}: ${money(d.totals?.total_to_pay ?? d.totals?.total)}*`);
         break;
       case "checkout_form":
-        view.media.push({ type: "interactive", interactive: { type: "flow", body: { text: `Preencha ${value(d.label).toLowerCase()} ou responda aqui na conversa.` }, action: {
+        view.media.push({ type: "interactive", interactive: { type: "flow", body: { text: `🤖 📝 *Seus dados*\n\nPreencha ${value(d.label).toLowerCase()} ou responda aqui na conversa.` }, action: {
           name: "flow", parameters: { flow_message_version: "3", flow_token: d.token, flow_id: d.flowId, flow_cta: "Preencher dados", flow_action: "navigate",
             flow_action_payload: { screen: "DETAILS", data: { label: d.label } } } } } }); break;
       default: throw new Error(`whatsapp_ui_block_unsupported:${block.type}`);
