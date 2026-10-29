@@ -48,3 +48,16 @@ test("V2 prompt distinguishes an academic topic from a product title and store s
   assert.ok(examples.some(example => example.input === "Explique a sequência de Fibonacci"));
   assert.ok(examples.some(example => example.input === "Vocês vendem o livro Fibonacci?"));
 });
+
+test("contextual sales objections remain commerce without authorizing tools or product discovery", () => {
+  const contextual = storefrontIntentPromptV1.examples.filter(example => "history" in example);
+  assert.equal(contextual.length, 4);
+  for (const example of contextual) {
+    const parsed = storefrontIntentOutputSchema.parse(example.output);
+    assert.equal(parsed.domain, "STORE_COMMERCE");
+    assert.equal(parsed.requiresTool, false);
+    assert.equal(parsed.needsProductDiscovery, false);
+    assert.equal(isConsistentStorefrontIntent(parsed), true);
+  }
+  assert.match(storefrontIntentPromptV1.rules.join(" "), /Sem contexto comercial suficiente, preserve UNCLEAR/);
+});
