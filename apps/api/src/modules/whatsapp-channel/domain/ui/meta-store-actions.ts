@@ -9,6 +9,7 @@ export function metaStoreQuickReplyAction(label: string, state: WhatsAppConversa
   if (key === "ver carrinho") return tool("get_cart");
   if (["finalizar compra", "finalizar pedido", "continuar checkout"].includes(key)) return tool("checkout");
   if (state.stage !== "store") return;
+  if (key === "limpar filtros") return tool("search_products", { query: "*" });
   if (key === "categorias") return tool("list_categories");
   if (["ofertas", "ofertas do dia", "categorias em promocao"].includes(key)) return tool("get_daily_deals");
   if (["lista de desejos", "ver lista"].includes(key)) return tool("get_wishlist");
