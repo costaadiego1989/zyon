@@ -148,13 +148,19 @@ export class CheckoutWhatsAppConversationAdapter implements WhatsAppConversation
     }
     const paymentAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout"].includes(input.action.tool);
     const checkoutAction = input.action?.kind === "tool" && ["create_payment", "open_payment_checkout", "edit_checkout", "confirm_checkout_edit", "cancel_checkout_edit", "cancel_coupon_entry", "show_checkout"].includes(input.action.tool);
-    const browsing = (input.action?.kind === "tool" && !checkoutAction) || /^(continuar comprando|ver produtos|encontrar produto|categorias|ofertas|ver carrinho)$/i.test(input.message.trim());
+    const browsing = (input.action?.kind === "tool" && !checkoutAction) || /^(continuar comprando|ver produtos|encontrar produto|categorias|ofertas|ver carrinho|faq|ajuda|suporte|perguntas frequentes|tirar d[uú]vidas|trocas e devolu[cç][oõ]es)$/i.test(input.message.trim());
     if (checkoutAction && state.checkoutSessionId) state.stage = "checkout";
     // The checkout owns explicit checkout actions and requested field answers.
     // Ordinary conversation returns to the same storefront agent, retaining
     // the cart, verified identity and original payment for later resumption.
-    const awaitingField = identitySession ? missingFieldsForStage(identitySession, deriveChatStage(identitySession)).length > 0 : state.expectsFreeInput;
-    const checkoutInput = state.pendingCoupon || awaitingField || /^(verificar pagamento|reenviar c[oó]digo|alterar email|pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito))$/i.test(input.message.trim());
+    const nextRequestedField = identitySession ? missingFieldsForStage(identitySession, deriveChatStage(identitySession))[0] : undefined;
+    // A payment/freight choice is not a request for arbitrary free text. Store
+    // questions still belong to merchant RAG while this choice is pending.
+    const awaitingField = identitySession ? !!nextRequestedField && !["forma de pagamento", "frete"].includes(nextRequestedField) : state.expectsFreeInput;
+    const shippingAnswer = nextRequestedField === "frete" && (identitySession?.shippingOptions?.some(option =>
+      input.message.trim() === checkoutShippingLabel(option) || input.message.trim() === `Escolho o frete ${option.carrier} ${option.method}`) ||
+      /^(?:escolho o frete |entrega ·|(?:quero (?:o |a )?(?:frete|entrega) )?mais (?:barat[oa]|r[aá]pid[oa]))/i.test(input.message.trim()));
+    const checkoutInput = state.pendingCoupon || awaitingField || shippingAnswer || /^(verificar pagamento|reenviar c[oó]digo|alterar email|pix|boleto|cart[aã]o de (cr[eé]dito|d[eé]bito))$/i.test(input.message.trim());
     if (state.stage === "checkout" && (browsing || !checkoutAction && !checkoutInput)) {
       state.stage = "store"; state.pendingCoupon = undefined; state.pendingCheckoutEdit = undefined; state.expectsFreeInput = false;
     }

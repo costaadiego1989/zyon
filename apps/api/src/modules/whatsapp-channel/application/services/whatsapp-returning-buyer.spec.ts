@@ -237,3 +237,37 @@ test("verified sender may edit its original guest payment without reassigning it
     state: { version: 1, conversationId: "cart", checkoutSessionId: old.sessionId, stage: "checkout", history: [], revision: "", page: 0, previousViews: [] } });
   assert.equal(edits, 1); assert.equal(result.state.checkoutSessionId, old.sessionId);
 });
+
+for (const stage of ["payment", "shipping", "data_collection"] as const) test(`store FAQ uses merchant RAG while ${stage} is pending`, async () => {
+  const stored = checkoutSession({ merchantId: "merchant", sessionId: "checkout", customer: { ...account,
+    fullName: account.displayName, phone_verified: true, email_verified: false, address_verified: true,
+    ...(stage === "data_collection" ? { cpf: undefined } : {}) },
+    ...(stage === "shipping" ? { shipping: undefined } : {}),
+    cart: { source: "storefront", cart_ref: "cart", currency: "BRL", total: 3,
+      items: [{ sku: "test", name: "Teste", quantity: 1, price: 3, productType: "physical" }] } });
+  let reads = 0;
+  const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => { assert.fail("store FAQ cannot fall into generic checkout narration"); } } as any,
+    { getSession: async () => stored } as any,
+    { execute: async (request: any) => { reads++; assert.equal(request.cart_id, "cart");
+      return { message: "A loja não publicou essa política na base consultada.", blocks: [], suggested_next: [] }; } } as any,
+    { executeForMerchant: async () => ({ name: "Loja" }) } as any);
+  const question = stage === "data_collection" ? "FAQ" : "Qual é a política de trocas e devoluções da loja? Não altere meu pedido.";
+  const result = await adapter.respondStore({ merchantId: "merchant", buyer: { globalUserId: "guest", phone }, message: question,
+    state: { version: 1, conversationId: "cart", checkoutSessionId: "checkout", stage: "checkout", history: [], revision: "", page: 0, previousViews: [] } });
+  assert.equal(reads, 1); assert.equal(result.state.checkoutSessionId, "checkout"); assert.equal(result.state.stage, "store");
+  assert.match(result.agentMessage, /não publicou/); assert.equal(result.blocks.some(block => block.type === "payment_intent"), false);
+});
+
+test("native shipping choice remains in checkout after store questions were separated", async () => {
+  const stored = checkoutSession({ merchantId: "merchant", sessionId: "checkout", shipping: undefined,
+    customer: { ...account, fullName: account.displayName, phone_verified: true, address_verified: true },
+    cart: { source: "storefront", cart_ref: "cart", currency: "BRL", total: 3,
+      items: [{ sku: "test", name: "Teste", quantity: 1, price: 3, productType: "physical" }] } });
+  let selections = 0;
+  const adapter = new CheckoutWhatsAppConversationAdapter({ execute: async () => { selections++; return { message: "Frete escolhido", actions: [] }; } } as any,
+    { getSession: async () => stored } as any, { execute: async () => { assert.fail("explicit shipping choice belongs to canonical checkout"); } } as any,
+    { executeForMerchant: async () => ({ name: "Loja" }) } as any);
+  await adapter.respondStore({ merchantId: "merchant", buyer: { globalUserId: "guest", phone }, message: "Escolho o frete Correios SEDEX",
+    state: { version: 1, conversationId: "cart", checkoutSessionId: "checkout", stage: "checkout", history: [], revision: "", page: 0, previousViews: [] } });
+  assert.equal(selections, 1);
+});
